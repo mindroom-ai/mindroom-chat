@@ -31,6 +31,9 @@ import { PdfViewer } from './Pdf-viewer';
 import { TextViewer } from './text-viewer';
 import { testMatrixTo } from '../plugins/matrix-to';
 import { IImageContent } from '../../types/matrix/common';
+import { getMindroomLongTextMxcUri } from './message/mindroomLongText';
+import { MindroomLongTextKind, MindroomLongTextText } from './message/MindroomLongTextText';
+import { withMindroomToolTraceMarkerParserOptions } from '../plugins/react-custom-html-parser';
 
 type RenderMessageContentProps = {
   displayName: string;
@@ -58,6 +61,8 @@ export function RenderMessageContent({
   linkifyOpts,
   outlineAttachment,
 }: RenderMessageContentProps) {
+  const getMindroomAwareContent = (): Record<string, unknown> => getContent<Record<string, unknown>>();
+
   const renderUrlsPreview = (urls: string[]) => {
     const filteredUrls = urls.filter((url) => !testMatrixTo(url));
     if (filteredUrls.length === 0) return undefined;
@@ -69,6 +74,10 @@ export function RenderMessageContent({
       </UrlPreviewHolder>
     );
   };
+
+  const getMindroomAwareHtmlReactParserOptions = (content: Record<string, unknown>) =>
+    withMindroomToolTraceMarkerParserOptions(htmlReactParserOptions, content);
+
   const renderCaption = () => {
     const content: IImageContent = getContent();
     if (content.filename && content.filename !== content.body) {
@@ -129,15 +138,38 @@ export function RenderMessageContent({
   );
 
   if (msgType === MsgType.Text) {
+    const content = getMindroomAwareContent();
+    const mindroomHtmlReactParserOptions = getMindroomAwareHtmlReactParserOptions(content);
+    const longTextMxcUri = getMindroomLongTextMxcUri(content);
+    if (longTextMxcUri) {
+      return (
+        <MindroomLongTextText
+          kind={MindroomLongTextKind.Text}
+          edited={edited}
+          content={content}
+          longTextMxcUri={longTextMxcUri}
+          renderBody={(props) => (
+            <RenderBody
+              {...props}
+              highlightRegex={highlightRegex}
+              htmlReactParserOptions={mindroomHtmlReactParserOptions}
+              linkifyOpts={linkifyOpts}
+            />
+          )}
+          renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
+        />
+      );
+    }
+
     return (
       <MText
         edited={edited}
-        content={getContent()}
+        content={content}
         renderBody={(props) => (
           <RenderBody
             {...props}
             highlightRegex={highlightRegex}
-            htmlReactParserOptions={htmlReactParserOptions}
+            htmlReactParserOptions={mindroomHtmlReactParserOptions}
             linkifyOpts={linkifyOpts}
           />
         )}
@@ -147,16 +179,40 @@ export function RenderMessageContent({
   }
 
   if (msgType === MsgType.Emote) {
+    const content = getMindroomAwareContent();
+    const mindroomHtmlReactParserOptions = getMindroomAwareHtmlReactParserOptions(content);
+    const longTextMxcUri = getMindroomLongTextMxcUri(content);
+    if (longTextMxcUri) {
+      return (
+        <MindroomLongTextText
+          kind={MindroomLongTextKind.Emote}
+          displayName={displayName}
+          edited={edited}
+          content={content}
+          longTextMxcUri={longTextMxcUri}
+          renderBody={(props) => (
+            <RenderBody
+              {...props}
+              highlightRegex={highlightRegex}
+              htmlReactParserOptions={mindroomHtmlReactParserOptions}
+              linkifyOpts={linkifyOpts}
+            />
+          )}
+          renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
+        />
+      );
+    }
+
     return (
       <MEmote
         displayName={displayName}
         edited={edited}
-        content={getContent()}
+        content={content}
         renderBody={(props) => (
           <RenderBody
             {...props}
             highlightRegex={highlightRegex}
-            htmlReactParserOptions={htmlReactParserOptions}
+            htmlReactParserOptions={mindroomHtmlReactParserOptions}
             linkifyOpts={linkifyOpts}
           />
         )}
@@ -166,15 +222,38 @@ export function RenderMessageContent({
   }
 
   if (msgType === MsgType.Notice) {
+    const content = getMindroomAwareContent();
+    const mindroomHtmlReactParserOptions = getMindroomAwareHtmlReactParserOptions(content);
+    const longTextMxcUri = getMindroomLongTextMxcUri(content);
+    if (longTextMxcUri) {
+      return (
+        <MindroomLongTextText
+          kind={MindroomLongTextKind.Notice}
+          edited={edited}
+          content={content}
+          longTextMxcUri={longTextMxcUri}
+          renderBody={(props) => (
+            <RenderBody
+              {...props}
+              highlightRegex={highlightRegex}
+              htmlReactParserOptions={mindroomHtmlReactParserOptions}
+              linkifyOpts={linkifyOpts}
+            />
+          )}
+          renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
+        />
+      );
+    }
+
     return (
       <MNotice
         edited={edited}
-        content={getContent()}
+        content={content}
         renderBody={(props) => (
           <RenderBody
             {...props}
             highlightRegex={highlightRegex}
-            htmlReactParserOptions={htmlReactParserOptions}
+            htmlReactParserOptions={mindroomHtmlReactParserOptions}
             linkifyOpts={linkifyOpts}
           />
         )}
@@ -253,6 +332,28 @@ export function RenderMessageContent({
   }
 
   if (msgType === MsgType.File) {
+    const content = getMindroomAwareContent();
+    const mindroomHtmlReactParserOptions = getMindroomAwareHtmlReactParserOptions(content);
+    const longTextMxcUri = getMindroomLongTextMxcUri(content);
+    if (longTextMxcUri) {
+      return (
+        <MindroomLongTextText
+          kind={MindroomLongTextKind.Text}
+          edited={edited}
+          content={content}
+          longTextMxcUri={longTextMxcUri}
+          renderBody={(props) => (
+            <RenderBody
+              {...props}
+              highlightRegex={highlightRegex}
+              htmlReactParserOptions={mindroomHtmlReactParserOptions}
+              linkifyOpts={linkifyOpts}
+            />
+          )}
+          renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
+        />
+      );
+    }
     return renderFile();
   }
 
