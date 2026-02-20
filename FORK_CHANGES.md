@@ -41,6 +41,7 @@ Why:
 Files changed:
 - `config.json`
 - `index.html`
+- `public/favicon.ico`
 - `public/manifest.json`
 - `public/res/svg/mindroom-text.svg`
 - `public/res/svg/mindroom.svg`
