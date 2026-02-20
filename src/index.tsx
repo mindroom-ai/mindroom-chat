@@ -11,6 +11,8 @@ enableMapSet();
 import './index.css';
 
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
+import { isServiceWorkerEnabled } from './app/utils/runtimeConfig';
+import { pushSessionToSW } from './sw-session';
 import App from './app/pages/App';
 
 // import i18n (needs to be bundled ;))
@@ -19,13 +21,21 @@ import './app/i18n';
 document.body.classList.add(configClass, varsClass);
 
 // Register Service Worker
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && isServiceWorkerEnabled()) {
+  const postCurrentSessionToSW = () => {
+    const baseUrl = localStorage.getItem('cinny_hs_base_url') ?? undefined;
+    const accessToken = localStorage.getItem('cinny_access_token') ?? undefined;
+    pushSessionToSW(baseUrl, accessToken);
+  };
+
   const swUrl =
     import.meta.env.MODE === 'production'
       ? appUrl('sw.js')
       : appUrl('dev-sw.js?dev-sw');
 
   navigator.serviceWorker.register(swUrl, { scope: ensureBasePathTrailingSlash(getAppBasePath()) });
+  navigator.serviceWorker.ready.then(postCurrentSessionToSW).catch(() => undefined);
+  navigator.serviceWorker.addEventListener('controllerchange', postCurrentSessionToSW);
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (event.data?.type === 'token' && event.data?.responseKey) {
       // Get the token for SW.
