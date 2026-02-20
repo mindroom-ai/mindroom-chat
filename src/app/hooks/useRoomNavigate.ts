@@ -7,6 +7,7 @@ import {
   getHomeRoomPath,
   getSpacePath,
   getSpaceRoomPath,
+  withSearchParam,
 } from '../pages/pathUtils';
 import { useMatrixClient } from './useMatrixClient';
 import { getOrphanParents, guessPerfectParent } from '../utils/room';
@@ -15,6 +16,7 @@ import { mDirectAtom } from '../state/mDirectList';
 import { useSelectedSpace } from './router/useSelectedSpace';
 import { settingsAtom } from '../state/settings';
 import { useSetting } from '../state/hooks/settings';
+import { _RoomSearchParams } from '../pages/paths';
 
 export const useRoomNavigate = () => {
   const navigate = useNavigate();
@@ -32,8 +34,8 @@ export const useRoomNavigate = () => {
     [mx, navigate]
   );
 
-  const navigateRoom = useCallback(
-    (roomId: string, eventId?: string, opts?: NavigateOptions) => {
+  const getRoomPath = useCallback(
+    (roomId: string, eventId?: string) => {
       const roomIdOrAlias = getCanonicalAliasOrRoomId(mx, roomId);
       const openSpaceTimeline = developerTools && spaceSelectedId === roomId;
 
@@ -48,25 +50,36 @@ export const useRoomNavigate = () => {
 
         const pSpaceIdOrAlias = getCanonicalAliasOrRoomId(mx, parentSpace);
 
-        navigate(
-          getSpaceRoomPath(pSpaceIdOrAlias, openSpaceTimeline ? roomId : roomIdOrAlias, eventId),
-          opts
-        );
-        return;
+        return getSpaceRoomPath(pSpaceIdOrAlias, openSpaceTimeline ? roomId : roomIdOrAlias, eventId);
       }
 
       if (mDirects.has(roomId)) {
-        navigate(getDirectRoomPath(roomIdOrAlias, eventId), opts);
-        return;
+        return getDirectRoomPath(roomIdOrAlias, eventId);
       }
 
-      navigate(getHomeRoomPath(roomIdOrAlias, eventId), opts);
+      return getHomeRoomPath(roomIdOrAlias, eventId);
     },
-    [mx, navigate, spaceSelectedId, roomToParents, mDirects, developerTools]
+    [mx, spaceSelectedId, roomToParents, mDirects, developerTools]
+  );
+
+  const navigateRoom = useCallback(
+    (roomId: string, eventId?: string, opts?: NavigateOptions) => {
+      navigate(getRoomPath(roomId, eventId), opts);
+    },
+    [navigate, getRoomPath]
+  );
+
+  const navigateRoomThread = useCallback(
+    (roomId: string, threadId: string, eventId?: string, opts?: NavigateOptions) => {
+      const roomPath = getRoomPath(roomId, eventId);
+      navigate(withSearchParam<_RoomSearchParams>(roomPath, { threadId }), opts);
+    },
+    [navigate, getRoomPath]
   );
 
   return {
     navigateSpace,
     navigateRoom,
+    navigateRoomThread,
   };
 };

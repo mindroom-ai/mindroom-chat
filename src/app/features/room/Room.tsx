@@ -1,6 +1,6 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Box, Line } from 'folds';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { isKeyHotkey } from 'is-hotkey';
 import { RoomView } from './RoomView';
 import { MembersDrawer } from './MembersDrawer';
@@ -13,11 +13,15 @@ import { useKeyDown } from '../../hooks/useKeyDown';
 import { markAsRead } from '../../utils/notifications';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
+import { getRoomSearchParams } from '../../pages/pathSearchParam';
 
 export function Room() {
   const { eventId } = useParams();
+  const [searchParams] = useSearchParams();
   const room = useRoom();
   const mx = useMatrixClient();
+  const roomSearchParams = useMemo(() => getRoomSearchParams(searchParams), [searchParams]);
+  const { threadId } = roomSearchParams;
 
   const [isDrawer] = useSetting(settingsAtom, 'isPeopleDrawer');
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
@@ -40,7 +44,7 @@ export function Room() {
   return (
     <PowerLevelsContextProvider value={powerLevels}>
       <Box grow="Yes">
-        <RoomView room={room} eventId={eventId} />
+        <RoomView room={room} eventId={eventId} threadId={threadId} />
         {screenSize === ScreenSize.Desktop && isDrawer && (
           <>
             <Line variant="Background" direction="Vertical" size="300" />

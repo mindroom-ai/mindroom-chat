@@ -56,6 +56,7 @@ import {
   DefaultPlaceholder,
   CompactPlaceholder,
   Reply,
+  ThreadIndicator,
   MessageBase,
   MessageUnsupportedContent,
   Time,
@@ -126,6 +127,12 @@ import { useAccessiblePowerTagColors, useGetMemberPowerTag } from '../../hooks/u
 import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
+import {
+  buildThreadParticipantMap,
+  buildThreadReplyCountMap,
+  eventBelongsToThread,
+  isThreadReplyEvent,
+} from './threadUtils';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -188,6 +195,57 @@ export const getTimelinesEventsCount = (timelines: EventTimeline[]): number => {
   return timelines.reduce(timelineEventCountReducer, 0);
 };
 
+const getThreadReplyCount = (
+  room: Room,
+  mEvent: MatrixEvent,
+  fallbackReplyCount?: number
+): number | undefined => {
+  const threadMeta = mEvent.getUnsigned()?.['m.relations']?.['m.thread'] as
+    | { count?: unknown; c?: unknown }
+    | undefined;
+  if (typeof threadMeta?.count === 'number') return threadMeta.count;
+  if (typeof threadMeta?.c === 'number') return threadMeta.c;
+
+  // Prefer SDK thread model when available.
+  const eventId = mEvent.getId();
+  if (!eventId) return undefined;
+  const thread = room.getThread(eventId);
+  const threadLength = thread?.length;
+  if (threadLength > 0) return threadLength;
+
+  // Runtime fallback for threadSupport-disabled mode:
+  // derive counts from loaded room timeline events.
+  if (typeof fallbackReplyCount === 'number' && fallbackReplyCount > 0) {
+    return fallbackReplyCount;
+  }
+
+  return undefined;
+};
+
+const THREAD_PARTICIPANT_LIMIT = 3;
+
+const getThreadParticipantIds = (
+  room: Room,
+  mEvent: MatrixEvent,
+  fallbackParticipantIds?: string[]
+): string[] | undefined => {
+  const eventId = mEvent.getId();
+  if (eventId) {
+    const thread = room.getThread(eventId);
+    if (thread?.events?.length) {
+      const participants =
+        buildThreadParticipantMap(thread.events, THREAD_PARTICIPANT_LIMIT).get(eventId) ?? [];
+      if (participants.length > 0) return participants;
+    }
+  }
+
+  if (fallbackParticipantIds && fallbackParticipantIds.length > 0) {
+    return fallbackParticipantIds.slice(0, THREAD_PARTICIPANT_LIMIT);
+  }
+
+  return undefined;
+};
+
 export const getTimelineAndBaseIndex = (
   timelines: EventTimeline[],
   index: number
@@ -226,11 +284,26 @@ export const getEventIdAbsoluteIndex = (
 type RoomTimelineProps = {
   room: Room;
   eventId?: string;
+  threadId?: string;
   roomInputRef: RefObject<HTMLElement>;
   editor: Editor;
 };
 
 const PAGINATION_LIMIT = 80;
+
+const getEventElementById = (
+  container: ParentNode | null | undefined,
+  eventId: string
+): HTMLElement | null => {
+  if (!container) return null;
+  const messageItems = container.querySelectorAll<HTMLElement>('[data-message-id]');
+  for (const item of messageItems) {
+    if (item.getAttribute('data-message-id') === eventId) {
+      return item;
+    }
+  }
+  return null;
+};
 
 type Timeline = {
   linkedTimelines: EventTimeline[];
@@ -430,7 +503,7 @@ const getRoomUnreadInfo = (room: Room, scrollTo = false) => {
   };
 };
 
-export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimelineProps) {
+export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: RoomTimelineProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
@@ -478,7 +551,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
 
   const roomToParents = useAtomValue(roomToParentsAtom);
   const unread = useRoomUnread(room.roomId, roomToUnreadAtom);
-  const { navigateRoom } = useRoomNavigate();
+  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const mentionClickHandler = useMentionClickHandler(room.roomId);
   const spoilerClickHandler = useSpoilerClickHandler();
   const openUserRoomProfile = useOpenUserRoomProfile();
@@ -511,7 +584,35 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
       }
     | undefined
   >();
+  const [threadLoadError, setThreadLoadError] = useState(false);
+  const [threadPaginatingBack, setThreadPaginatingBack] = useState(false);
+  const [threadPaginatingFront, setThreadPaginatingFront] = useState(false);
+  const [threadTimelineTick, setThreadTimelineTick] = useState(0);
+  const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
+  const threadPaginatingBackRef = useRef(false);
+  const threadPaginatingFrontRef = useRef(false);
+  const threadIdRef = useRef(threadId);
+  const threadEventIndexMapRef = useRef<Map<string, number>>(new Map());
+  // SDK does not create Thread objects from fetchRelations responses, so we keep
+  // a local fallback list to render thread replies when room.getThread(...) is null.
+  const fallbackThreadEventsRef = useRef<{ threadId?: string; events: MatrixEvent[] }>({
+    threadId: undefined,
+    events: [],
+  });
+  const pendingThreadOpenRef = useRef<
+    | {
+        threadId: string;
+        eventId: string;
+        highlight: boolean;
+        onScroll: ((scrolled: boolean) => void) | undefined;
+        attempts: number;
+      }
+    | undefined
+  >();
   const alive = useAlive();
+  threadPaginatingBackRef.current = threadPaginatingBack;
+  threadPaginatingFrontRef.current = threadPaginatingFront;
+  threadIdRef.current = threadId;
 
   const linkifyOpts = useMemo<LinkifyOpts>(
     () => ({
@@ -558,10 +659,16 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
 
   const { getItems, scrollToItem, scrollToElement, observeBackAnchor, observeFrontAnchor } =
     useVirtualPaginator({
-      count: eventsLength,
+      count: threadId ? 0 : eventsLength,
       limit: PAGINATION_LIMIT,
-      range: timeline.range,
-      onRangeChange: useCallback((r) => setTimeline((cs) => ({ ...cs, range: r })), []),
+      range: threadId ? { start: 0, end: 0 } : timeline.range,
+      onRangeChange: useCallback(
+        (r) => {
+          if (threadId) return;
+          setTimeline((cs) => ({ ...cs, range: r }));
+        },
+        [threadId]
+      ),
       getScrollElement,
       getItemElement: useCallback(
         (index: number) =>
@@ -582,7 +689,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
 
         setFocusItem({
           index: evtAbsIndex,
-          scrollTo: true,
+          scrollTo: !threadId,
           highlight: evtId !== readUptoEventIdRef.current,
         });
         setTimeline({
@@ -593,7 +700,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
           },
         });
       },
-      [alive]
+      [alive, threadId]
     ),
     useCallback(() => {
       if (!alive()) return;
@@ -607,6 +714,36 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
     room,
     useCallback(
       (mEvt: MatrixEvent) => {
+        if (threadId) {
+          const mEventId = mEvt.getId();
+          const relationTargetId = mEvt.getRelation()?.event_id;
+          // If no thread model exists, keep fallback list in sync so new replies
+          // appear immediately while staying in thread view.
+          const threadModel = room.getThread(threadId);
+          if (!threadModel) {
+            const fallback = fallbackThreadEventsRef.current;
+            if (
+              fallback.threadId === threadId &&
+              (mEventId === threadId ||
+                relationTargetId === threadId ||
+                eventBelongsToThread(mEvt, threadId))
+            ) {
+              const exists =
+                !!mEventId && fallback.events.some((evt) => evt.getId && evt.getId() === mEventId);
+              if (!exists) {
+                fallback.events.push(mEvt);
+              }
+            }
+          }
+          if (
+            mEventId === threadId ||
+            eventBelongsToThread(mEvt, threadId) ||
+            (relationTargetId && threadEventIndexMapRef.current.has(relationTargetId))
+          ) {
+            setThreadTimelineTick((val) => val + 1);
+          }
+          return;
+        }
         // if user is at bottom of timeline
         // keep paginating timeline and conditionally mark as read
         // otherwise we update timeline without paginating
@@ -640,7 +777,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
           setUnreadInfo(getRoomUnreadInfo(room));
         }
       },
-      [mx, room, unreadInfo, hideActivity]
+      [mx, room, unreadInfo, hideActivity, threadId]
     )
   );
 
@@ -650,6 +787,36 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
       highlight = true,
       onScroll: ((scrolled: boolean) => void) | undefined = undefined
     ) => {
+      if (threadId && evtId !== threadId) {
+        const targetEvent = room.findEventById(evtId);
+        if (!targetEvent || !eventBelongsToThread(targetEvent, threadId)) {
+          return;
+        }
+      }
+
+      if (threadId) {
+        const threadItemIndex = threadEventIndexMapRef.current.get(evtId);
+        if (typeof threadItemIndex === 'number') {
+          const target = getEventElementById(scrollRef.current, evtId);
+          setFocusItem({
+            index: threadItemIndex,
+            scrollTo: false,
+            highlight,
+          });
+          if (target) {
+            scrollToElement(target, {
+              behavior: 'smooth',
+              align: 'center',
+              stopInView: true,
+            });
+            if (onScroll) onScroll(true);
+            return;
+          }
+          if (onScroll) onScroll(false);
+          return;
+        }
+      }
+
       const evtTimeline = getEventTimeline(room, evtId);
       const absoluteIndex =
         evtTimeline && getEventIdAbsoluteIndex(timeline.linkedTimelines, evtTimeline, evtId);
@@ -667,11 +834,43 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
           highlight,
         });
       } else {
+        if (threadId) {
+          let threadTimelineSet = room.getThread(threadId)?.getUnfilteredTimelineSet();
+          const expectedThreadId = threadId;
+          if (!threadTimelineSet) {
+            const [threadErr] = await to(
+              mx.getThreadTimeline(room.getUnfilteredTimelineSet(), threadId)
+            );
+            if (threadErr) {
+              if (onScroll) onScroll(false);
+              return;
+            }
+            threadTimelineSet =
+              room.getThread(threadId)?.getUnfilteredTimelineSet() ??
+              room.getUnfilteredTimelineSet();
+          }
+          const [err, evtTimeline] = await to(mx.getEventTimeline(threadTimelineSet, evtId));
+          if (err || !evtTimeline) {
+            if (onScroll) onScroll(false);
+            return;
+          }
+          pendingThreadOpenRef.current = {
+            threadId: expectedThreadId,
+            eventId: evtId,
+            highlight,
+            onScroll,
+            attempts: 0,
+          };
+          setTimeline((ct) => ({ ...ct }));
+          setThreadTimelineTick((val) => val + 1);
+          setPendingThreadOpenTick((val) => val + 1);
+          return;
+        }
         setTimeline(getEmptyTimeline());
         loadEventTimeline(evtId);
       }
     },
-    [room, timeline, scrollToItem, loadEventTimeline]
+    [mx, room, timeline, scrollToItem, scrollToElement, loadEventTimeline, threadId]
   );
 
   useLiveTimelineRefresh(
@@ -754,6 +953,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
   useDocumentFocusChange(
     useCallback(
       (inFocus) => {
+        if (threadId) return;
         if (inFocus && atBottomRef.current) {
           if (unreadInfo?.inLiveTimeline) {
             handleOpenEvent(unreadInfo.readUptoEventId, false, (scrolled) => {
@@ -768,7 +968,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
           tryAutoMarkAsRead();
         }
       },
-      [tryAutoMarkAsRead, unreadInfo, handleOpenEvent]
+      [tryAutoMarkAsRead, unreadInfo, handleOpenEvent, threadId]
     )
   );
 
@@ -803,6 +1003,112 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
     }
   }, [eventId, loadEventTimeline]);
 
+  useEffect(() => {
+    if (!threadId) return;
+    setFocusItem(undefined);
+    setThreadLoadError(false);
+    setThreadTimelineTick(0);
+    setPendingThreadOpenTick(0);
+    pendingThreadOpenRef.current = undefined;
+    fallbackThreadEventsRef.current = { threadId, events: [] };
+    let mounted = true;
+    const loadThreadTimeline = async () => {
+      // First, ensure the thread exists in the SDK.
+      // room.getThread() may return null if the SDK hasn't seen the thread yet.
+      // We need to fetch the root event and let the SDK create the Thread object.
+      let thread = room.getThread(threadId);
+      if (!thread) {
+        // Fetch the thread root event to make the SDK aware of this thread
+        const [ctxErr] = await to(mx.getEventTimeline(room.getUnfilteredTimelineSet(), threadId));
+        if (!mounted) return;
+        if (ctxErr) {
+          setThreadLoadError(true);
+          return;
+        }
+        thread = room.getThread(threadId);
+      }
+
+      if (!thread) {
+        // If the SDK still hasn't created a Thread object, try fetching
+        // thread relations directly to populate it
+        const [relErr, relData] = await to(
+          mx.fetchRelations(room.roomId, threadId, 'm.thread' as any, null, {
+            dir: Direction.Backward,
+            limit: 50,
+          })
+        );
+        if (!mounted) return;
+        if (relErr) {
+          setThreadLoadError(true);
+          return;
+        }
+        // Check if SDK created a Thread from the fetched relations
+        thread = room.getThread(threadId);
+        if (!thread && relData?.chunk?.length) {
+          // We need to render something even without a Thread model, so store
+          // mapped relation events for thread view fallback rendering.
+          const mapper = mx.getEventMapper();
+          const mappedEvents = relData.chunk.map((evt) => mapper(evt));
+          fallbackThreadEventsRef.current = { threadId, events: mappedEvents };
+        }
+      }
+
+      if (thread) {
+        // Use the thread's own timeline set for getThreadTimeline
+        const threadTimelineSet = thread.getUnfilteredTimelineSet();
+        const [err] = await to(mx.getThreadTimeline(threadTimelineSet, threadId));
+        if (!mounted) return;
+        if (err) {
+          // Fallback: even if getThreadTimeline fails, the thread events
+          // may already be populated from the relations fetch above
+          console.warn('getThreadTimeline failed, using fallback:', err);
+        }
+        if (thread.events.length === 0) {
+          // Some servers return empty thread timelines even though relations exist.
+          // Fetch relations and feed them into the thread so replies render.
+          const [relErr, relData] = await to(
+            mx.fetchRelations(room.roomId, threadId, 'm.thread' as any, null, {
+              dir: Direction.Backward,
+              limit: 50,
+            })
+          );
+          if (!mounted) return;
+          if (!relErr && relData?.chunk?.length) {
+            const mapper = mx.getEventMapper();
+            const mappedEvents = relData.chunk.map((evt) => mapper(evt));
+            thread.addEvents(mappedEvents, true);
+          }
+        }
+        if (fallbackThreadEventsRef.current.threadId === threadId) {
+          fallbackThreadEventsRef.current = { threadId, events: [] };
+        }
+      } else {
+        console.warn('Could not create thread object for', threadId);
+      }
+
+      if (!mounted) return;
+      setTimeline((ct) => ({ ...ct }));
+      setThreadTimelineTick((val) => val + 1);
+    };
+
+    loadThreadTimeline();
+
+    return () => {
+      mounted = false;
+    };
+  }, [mx, room, threadId]);
+
+  useEffect(() => {
+    if (threadId) return;
+    setThreadLoadError(false);
+    setThreadTimelineTick(0);
+    setThreadPaginatingBack(false);
+    setThreadPaginatingFront(false);
+    setPendingThreadOpenTick(0);
+    pendingThreadOpenRef.current = undefined;
+    fallbackThreadEventsRef.current = { threadId: undefined, events: [] };
+  }, [threadId]);
+
   // Scroll to bottom on initial timeline load
   useLayoutEffect(() => {
     const scrollEl = scrollRef.current;
@@ -814,6 +1120,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
   // if live timeline is linked and unreadInfo change
   // Scroll to last read message
   useLayoutEffect(() => {
+    if (threadId) return;
     const { readUptoEventId, inLiveTimeline, scrollTo } = unreadInfo ?? {};
     if (readUptoEventId && inLiveTimeline && scrollTo) {
       const linkedTimelines = getLinkedTimelines(getLiveTimeline(room));
@@ -828,11 +1135,11 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         });
       }
     }
-  }, [room, unreadInfo, scrollToItem]);
+  }, [room, unreadInfo, scrollToItem, threadId]);
 
   // scroll to focused message
   useLayoutEffect(() => {
-    if (focusItem && focusItem.scrollTo) {
+    if (!threadId && focusItem && focusItem.scrollTo) {
       scrollToItem(focusItem.index, {
         behavior: 'instant',
         align: 'center',
@@ -847,7 +1154,52 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         return currentItem;
       });
     }, 2000);
-  }, [alive, focusItem, scrollToItem]);
+  }, [alive, focusItem, scrollToItem, threadId]);
+
+  useLayoutEffect(() => {
+    if (!threadId) return;
+    const pendingOpen = pendingThreadOpenRef.current;
+    if (!pendingOpen) return;
+    if (pendingOpen.threadId !== threadId) {
+      pendingThreadOpenRef.current = undefined;
+      return;
+    }
+
+    const nextItemIndex = threadEventIndexMapRef.current.get(pendingOpen.eventId);
+    if (typeof nextItemIndex === 'number') {
+      setFocusItem({
+        index: nextItemIndex,
+        scrollTo: false,
+        highlight: pendingOpen.highlight,
+      });
+    }
+    const target = getEventElementById(scrollRef.current, pendingOpen.eventId);
+    if (target) {
+      scrollToElement(target, {
+        behavior: 'smooth',
+        align: 'center',
+        stopInView: true,
+      });
+      if (pendingOpen.onScroll) pendingOpen.onScroll(true);
+      pendingThreadOpenRef.current = undefined;
+      return;
+    }
+
+    if (pendingOpen.attempts >= 2) {
+      if (pendingOpen.onScroll) pendingOpen.onScroll(false);
+      pendingThreadOpenRef.current = undefined;
+      return;
+    }
+
+    pendingThreadOpenRef.current = {
+      ...pendingOpen,
+      attempts: pendingOpen.attempts + 1,
+    };
+    requestAnimationFrame(() => {
+      if (!pendingThreadOpenRef.current) return;
+      setPendingThreadOpenTick((val) => val + 1);
+    });
+  }, [threadId, threadTimelineTick, pendingThreadOpenTick, scrollToElement]);
 
   // scroll to bottom of timeline
   const scrollToBottomCount = scrollToBottomRef.current.count;
@@ -869,9 +1221,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
   // scroll out of view msg editor in view.
   useEffect(() => {
     if (editId) {
-      const editMsgElement =
-        (scrollRef.current?.querySelector(`[data-message-id="${editId}"]`) as HTMLElement) ??
-        undefined;
+      const editMsgElement = getEventElementById(scrollRef.current, editId) ?? undefined;
       if (editMsgElement) {
         scrollToElement(editMsgElement, {
           align: 'center',
@@ -904,11 +1254,16 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
 
   const handleOpenReply: MouseEventHandler = useCallback(
     async (evt) => {
+      const threadRootId = evt.currentTarget.getAttribute('data-thread-root-id');
+      if (threadRootId) {
+        navigateRoomThread(room.roomId, threadRootId);
+        return;
+      }
       const targetId = evt.currentTarget.getAttribute('data-event-id');
       if (!targetId) return;
       handleOpenEvent(targetId);
     },
-    [handleOpenEvent]
+    [handleOpenEvent, navigateRoomThread, room.roomId]
   );
 
   const handleUserClick: MouseEventHandler<HTMLButtonElement> = useCallback(
@@ -960,11 +1315,12 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
       }
       const replyEvt = room.findEventById(replyId);
       if (!replyEvt) return;
+      const threadRootId = replyEvt.threadRootId ?? replyId;
       const editedReply = getEditedEvent(replyId, replyEvt, room.getUnfilteredTimelineSet());
       const content: IContent = editedReply?.getContent()['m.new_content'] ?? replyEvt.getContent();
       const { body, formatted_body: formattedBody } = content;
       const { 'm.relates_to': relation } = startThread
-        ? { 'm.relates_to': { rel_type: 'm.thread', event_id: replyId } }
+        ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadRootId } }
         : replyEvt.getWireContent();
       const senderId = replyEvt.getSender();
       if (senderId && typeof body === 'string') {
@@ -975,10 +1331,13 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
           formattedBody,
           relation,
         });
+        if (startThread) {
+          navigateRoomThread(room.roomId, threadRootId);
+        }
         setTimeout(() => ReactEditor.focus(editor), 100);
       }
     },
-    [room, setReplyDraft, editor]
+    [room, setReplyDraft, editor, navigateRoomThread]
   );
 
   const handleReactionToggle = useCallback(
@@ -1016,6 +1375,23 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
     [editor]
   );
   const { t } = useTranslation();
+  const loadedTimelineEvents = useMemo(() => {
+    if (threadId) return [] as MatrixEvent[];
+    const loadedEvents: MatrixEvent[] = [];
+    timeline.linkedTimelines.forEach((linkedTimeline) => {
+      loadedEvents.push(...linkedTimeline.getEvents());
+    });
+    return loadedEvents;
+  }, [threadId, timeline]);
+  const threadReplyCountMap = useMemo(
+    () => (threadId ? new Map<string, number>() : buildThreadReplyCountMap(loadedTimelineEvents)),
+    [threadId, loadedTimelineEvents]
+  );
+  const threadParticipantMap = useMemo(
+    () =>
+      threadId ? new Map<string, string[]>() : buildThreadParticipantMap(loadedTimelineEvents),
+    [threadId, loadedTimelineEvents]
+  );
 
   const renderMatrixEvent = useMatrixEventRenderer<
     [string, MatrixEvent, number, EventTimelineSet, boolean]
@@ -1035,6 +1411,34 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         const senderId = mEvent.getSender() ?? '';
         const senderDisplayName =
           getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
+        const threadReplyCount = getThreadReplyCount(
+          room,
+          mEvent,
+          threadReplyCountMap.get(mEventId)
+        );
+        const threadParticipantIds = getThreadParticipantIds(
+          room,
+          mEvent,
+          threadParticipantMap.get(mEventId)
+        );
+        const isThreadReply = isThreadReplyEvent(mEventId, threadRootId);
+        const threadSummary =
+          !threadId &&
+          !isThreadReply &&
+          mEventId &&
+          typeof threadReplyCount === 'number' &&
+          threadReplyCount > 0 ? (
+            <ThreadIndicator
+              as="button"
+              style={{ marginTop: config.space.S200 }}
+              data-thread-root-id={mEventId}
+              data-event-id={mEventId}
+              threadReplyCount={threadReplyCount}
+              threadParticipantIds={threadParticipantIds}
+              room={room}
+              onClick={handleOpenReply}
+            />
+          ) : null;
 
         return (
           <Message
@@ -1059,12 +1463,18 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
             onReactionToggle={handleReactionToggle}
             onEditId={handleEdit}
             reply={
+              !(
+                threadId &&
+                replyEventId &&
+                (replyEventId === prevEvent?.getId() || replyEventId === threadId)
+              ) &&
               replyEventId && (
                 <Reply
                   room={room}
                   timelineSet={timelineSet}
                   replyEventId={replyEventId}
                   threadRootId={threadRootId}
+                  hideThreadIndicator={!!threadId}
                   onClick={handleOpenReply}
                   getMemberPowerTag={getMemberPowerTag}
                   accessibleTagColors={accessiblePowerTagColors}
@@ -1073,15 +1483,20 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
               )
             }
             reactions={
-              reactionRelations && (
-                <Reactions
-                  style={{ marginTop: config.space.S200 }}
-                  room={room}
-                  relations={reactionRelations}
-                  mEventId={mEventId}
-                  canSendReaction={canSendReaction}
-                  onReactionToggle={handleReactionToggle}
-                />
+              (threadSummary || reactionRelations) && (
+                <>
+                  {threadSummary}
+                  {reactionRelations && (
+                    <Reactions
+                      style={{ marginTop: config.space.S200 }}
+                      room={room}
+                      relations={reactionRelations}
+                      mEventId={mEventId}
+                      canSendReaction={canSendReaction}
+                      onReactionToggle={handleReactionToggle}
+                    />
+                  )}
+                </>
               )
             }
             hideReadReceipts={hideActivity}
@@ -1117,6 +1532,34 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         const hasReactions = reactions && reactions.length > 0;
         const { replyEventId, threadRootId } = mEvent;
         const highlighted = focusItem?.index === item && focusItem.highlight;
+        const threadReplyCount = getThreadReplyCount(
+          room,
+          mEvent,
+          threadReplyCountMap.get(mEventId)
+        );
+        const threadParticipantIds = getThreadParticipantIds(
+          room,
+          mEvent,
+          threadParticipantMap.get(mEventId)
+        );
+        const isThreadReply = isThreadReplyEvent(mEventId, threadRootId);
+        const threadSummary =
+          !threadId &&
+          !isThreadReply &&
+          mEventId &&
+          typeof threadReplyCount === 'number' &&
+          threadReplyCount > 0 ? (
+            <ThreadIndicator
+              as="button"
+              style={{ marginTop: config.space.S200 }}
+              data-thread-root-id={mEventId}
+              data-event-id={mEventId}
+              threadReplyCount={threadReplyCount}
+              threadParticipantIds={threadParticipantIds}
+              room={room}
+              onClick={handleOpenReply}
+            />
+          ) : null;
 
         return (
           <Message
@@ -1141,12 +1584,18 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
             onReactionToggle={handleReactionToggle}
             onEditId={handleEdit}
             reply={
+              !(
+                threadId &&
+                replyEventId &&
+                (replyEventId === prevEvent?.getId() || replyEventId === threadId)
+              ) &&
               replyEventId && (
                 <Reply
                   room={room}
                   timelineSet={timelineSet}
                   replyEventId={replyEventId}
                   threadRootId={threadRootId}
+                  hideThreadIndicator={!!threadId}
                   onClick={handleOpenReply}
                   getMemberPowerTag={getMemberPowerTag}
                   accessibleTagColors={accessiblePowerTagColors}
@@ -1155,15 +1604,20 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
               )
             }
             reactions={
-              reactionRelations && (
-                <Reactions
-                  style={{ marginTop: config.space.S200 }}
-                  room={room}
-                  relations={reactionRelations}
-                  mEventId={mEventId}
-                  canSendReaction={canSendReaction}
-                  onReactionToggle={handleReactionToggle}
-                />
+              (threadSummary || reactionRelations) && (
+                <>
+                  {threadSummary}
+                  {reactionRelations && (
+                    <Reactions
+                      style={{ marginTop: config.space.S200 }}
+                      room={room}
+                      relations={reactionRelations}
+                      mEventId={mEventId}
+                      canSendReaction={canSendReaction}
+                      onReactionToggle={handleReactionToggle}
+                    />
+                  )}
+                </>
               )
             }
             hideReadReceipts={hideActivity}
@@ -1568,21 +2022,131 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
     }
   );
 
+  const timelineItems = getItems();
+  const thread = useMemo(
+    () => (threadId ? room.getThread(threadId) : null),
+    [room, threadId, threadTimelineTick]
+  );
+  const roomTimelineSet = room.getUnfilteredTimelineSet();
+  const threadTimelineSet = useMemo(() => thread?.getUnfilteredTimelineSet(), [thread]);
+  const threadLinkedTimelines = useMemo(
+    () => (threadTimelineSet ? getLinkedTimelines(threadTimelineSet.getLiveTimeline()) : []),
+    [threadTimelineSet, threadTimelineTick]
+  );
+  const lastThreadTimeline = threadLinkedTimelines[threadLinkedTimelines.length - 1];
+  const canPaginateThreadBack =
+    typeof threadLinkedTimelines[0]?.getPaginationToken(Direction.Backward) === 'string';
+  const canPaginateThreadFront =
+    typeof lastThreadTimeline?.getPaginationToken(Direction.Forward) === 'string';
+  const threadEvents = useMemo(() => {
+    if (!threadId) {
+      threadEventIndexMapRef.current = new Map();
+      return [];
+    }
+
+    const eventsMap = new Map<string, MatrixEvent>();
+    const eventOrderMap = new Map<string, number>();
+    const addThreadEvent = (mEvent?: MatrixEvent | null, requireThreadMatch = true) => {
+      const eventId = mEvent?.getId();
+      if (!eventId) return;
+      if (requireThreadMatch && eventId !== threadId && !eventBelongsToThread(mEvent, threadId))
+        return;
+      if (!eventsMap.has(eventId)) {
+        eventOrderMap.set(eventId, eventOrderMap.size);
+      }
+      eventsMap.set(eventId, mEvent);
+    };
+
+    const threadModelReady = !!thread;
+    addThreadEvent(thread?.rootEvent ?? room.findEventById(threadId), !threadModelReady);
+    if (threadModelReady) {
+      thread?.events.forEach((mEvent) => addThreadEvent(mEvent, false));
+    } else {
+      const fallback = fallbackThreadEventsRef.current;
+      if (fallback.threadId === threadId && fallback.events.length > 0) {
+        fallback.events.forEach((mEvent) => addThreadEvent(mEvent, false));
+      }
+    }
+
+    const sortedEvents = Array.from(eventsMap.values()).sort((a, b) => {
+      const timeDiff = a.getTs() - b.getTs();
+      if (timeDiff !== 0) return timeDiff;
+      const aId = a.getId();
+      const bId = b.getId();
+      const aOrder = (aId && eventOrderMap.get(aId)) ?? 0;
+      const bOrder = (bId && eventOrderMap.get(bId)) ?? 0;
+      return aOrder - bOrder;
+    });
+    const eventIndexMap = new Map<string, number>();
+    sortedEvents.forEach((mEvent, index) => {
+      const eventId = mEvent.getId();
+      if (eventId) eventIndexMap.set(eventId, index);
+    });
+    threadEventIndexMapRef.current = eventIndexMap;
+    return sortedEvents;
+  }, [threadId, thread, room, threadTimelineTick]);
+  const handleThreadPaginateBack = useCallback(async () => {
+    if (!threadId || !thread || threadPaginatingBackRef.current) return;
+    const firstThreadTimeline = threadLinkedTimelines[0];
+    if (!firstThreadTimeline) return;
+    if (!firstThreadTimeline.getPaginationToken(Direction.Backward)) return;
+
+    const expectedThreadId = threadId;
+    setThreadPaginatingBack(true);
+    threadPaginatingBackRef.current = true;
+    const [err] = await to(
+      mx.paginateEventTimeline(firstThreadTimeline, {
+        backwards: true,
+        limit: PAGINATION_LIMIT,
+      })
+    );
+    setThreadPaginatingBack(false);
+    threadPaginatingBackRef.current = false;
+    if (!err && threadIdRef.current === expectedThreadId) {
+      setTimeline((ct) => ({ ...ct }));
+      setThreadTimelineTick((val) => val + 1);
+    }
+  }, [mx, threadId, thread, threadLinkedTimelines]);
+  const handleThreadPaginateFront = useCallback(async () => {
+    if (!threadId || !thread || threadPaginatingFrontRef.current) return;
+    if (!lastThreadTimeline) return;
+    if (!lastThreadTimeline.getPaginationToken(Direction.Forward)) return;
+
+    const expectedThreadId = threadId;
+    setThreadPaginatingFront(true);
+    threadPaginatingFrontRef.current = true;
+    const [err] = await to(
+      mx.paginateEventTimeline(lastThreadTimeline, {
+        backwards: false,
+        limit: PAGINATION_LIMIT,
+      })
+    );
+    setThreadPaginatingFront(false);
+    threadPaginatingFrontRef.current = false;
+    if (!err && threadIdRef.current === expectedThreadId) {
+      setTimeline((ct) => ({ ...ct }));
+      setThreadTimelineTick((val) => val + 1);
+    }
+  }, [mx, threadId, thread, lastThreadTimeline]);
+
   let prevEvent: MatrixEvent | undefined;
   let isPrevRendered = false;
   let newDivider = false;
   let dayDivider = false;
-  const eventRenderer = (item: number) => {
-    const [eventTimeline, baseIndex] = getTimelineAndBaseIndex(timeline.linkedTimelines, item);
-    if (!eventTimeline) return null;
-    const timelineSet = eventTimeline?.getTimelineSet();
-    const mEvent = getTimelineEvent(eventTimeline, getTimelineRelativeIndex(item, baseIndex));
+  const renderResolvedEvent = (
+    mEvent: MatrixEvent,
+    item: number,
+    timelineSet: EventTimelineSet
+  ) => {
     const mEventId = mEvent?.getId();
 
     if (!mEvent || !mEventId) return null;
 
     const eventSender = mEvent.getSender();
     if (eventSender && ignoredUsersSet.has(eventSender)) {
+      return null;
+    }
+    if (!threadId && mEvent.threadRootId && mEvent.threadRootId !== mEventId) {
       return null;
     }
     if (mEvent.isRedacted() && !showHiddenEvents) {
@@ -1663,9 +2227,19 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
     return eventJSX;
   };
 
+  const eventRenderer = (item: number) => {
+    const [eventTimeline, baseIndex] = getTimelineAndBaseIndex(timeline.linkedTimelines, item);
+    if (!eventTimeline) return null;
+    const timelineSet = eventTimeline.getTimelineSet();
+    const mEvent = getTimelineEvent(eventTimeline, getTimelineRelativeIndex(item, baseIndex));
+    if (!mEvent) return null;
+
+    return renderResolvedEvent(mEvent, item, timelineSet);
+  };
+
   return (
     <Box grow="Yes" style={{ position: 'relative' }}>
-      {unreadInfo?.readUptoEventId && !unreadInfo?.inLiveTimeline && (
+      {!threadId && unreadInfo?.readUptoEventId && !unreadInfo?.inLiveTimeline && (
         <TimelineFloat position="Top">
           <Chip
             variant="Primary"
@@ -1692,9 +2266,27 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         <Box
           direction="Column"
           justifyContent="End"
-          style={{ minHeight: '100%', padding: `${config.space.S600} 0` }}
+          style={{
+            minHeight: '100%',
+            padding: `${config.space.S600} 0`,
+            position: 'relative',
+          }}
         >
-          {!canPaginateBack && rangeAtStart && getItems().length > 0 && (
+          {threadId && (
+            <Box
+              style={{
+                position: 'absolute',
+                top: config.space.S600,
+                bottom: config.space.S600,
+                left: messageLayout === MessageLayout.Compact ? toRem(5) : toRem(7),
+                width: config.borderWidth.B300,
+                backgroundColor: color.Warning.ContainerLine,
+                opacity: 0.7,
+                pointerEvents: 'none',
+              }}
+            />
+          )}
+          {!threadId && !canPaginateBack && rangeAtStart && timelineItems.length > 0 && (
             <div
               style={{
                 padding: `${config.space.S700} ${config.space.S400} ${config.space.S600} ${
@@ -1705,70 +2297,128 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
               <RoomIntro room={room} />
             </div>
           )}
-          {(canPaginateBack || !rangeAtStart) &&
+          {threadId && threadLoadError && (
+            <MessageBase space={messageSpacing}>
+              <TimelineDivider variant="Surface">
+                <Badge as="span" size="500" variant="Critical" fill="None" radii="300">
+                  <Text size="L400">Failed to load this thread.</Text>
+                </Badge>
+              </TimelineDivider>
+            </MessageBase>
+          )}
+          {threadId && canPaginateThreadBack && (
+            <MessageBase space={messageSpacing}>
+              <TimelineDivider variant="Surface">
+                <Chip
+                  variant="SurfaceVariant"
+                  radii="Pill"
+                  outlined
+                  before={<Icon size="50" src={Icons.ArrowTop} />}
+                  onClick={handleThreadPaginateBack}
+                >
+                  <Text size="L400">
+                    {threadPaginatingBack ? 'Loading...' : 'Load Older Messages'}
+                  </Text>
+                </Chip>
+              </TimelineDivider>
+            </MessageBase>
+          )}
+          {!threadId &&
+            (canPaginateBack || !rangeAtStart) &&
             (messageLayout === MessageLayout.Compact ? (
               <>
                 <MessageBase>
-                  <CompactPlaceholder key={getItems().length} />
+                  <CompactPlaceholder key={timelineItems.length} />
                 </MessageBase>
                 <MessageBase>
-                  <CompactPlaceholder key={getItems().length} />
+                  <CompactPlaceholder key={timelineItems.length} />
                 </MessageBase>
                 <MessageBase>
-                  <CompactPlaceholder key={getItems().length} />
+                  <CompactPlaceholder key={timelineItems.length} />
                 </MessageBase>
                 <MessageBase>
-                  <CompactPlaceholder key={getItems().length} />
+                  <CompactPlaceholder key={timelineItems.length} />
                 </MessageBase>
                 <MessageBase ref={observeBackAnchor}>
-                  <CompactPlaceholder key={getItems().length} />
+                  <CompactPlaceholder key={timelineItems.length} />
                 </MessageBase>
               </>
             ) : (
               <>
                 <MessageBase>
-                  <DefaultPlaceholder key={getItems().length} />
+                  <DefaultPlaceholder key={timelineItems.length} />
                 </MessageBase>
                 <MessageBase>
-                  <DefaultPlaceholder key={getItems().length} />
+                  <DefaultPlaceholder key={timelineItems.length} />
                 </MessageBase>
                 <MessageBase ref={observeBackAnchor}>
-                  <DefaultPlaceholder key={getItems().length} />
+                  <DefaultPlaceholder key={timelineItems.length} />
                 </MessageBase>
               </>
             ))}
 
-          {getItems().map(eventRenderer)}
+          {threadId
+            ? threadEvents.map((mEvent, index) => {
+                const eventId = mEvent.getId();
+                if (!eventId) return null;
+                const threadTimeline = threadTimelineSet?.getTimelineForEvent(eventId);
+                const roomTimeline = roomTimelineSet.getTimelineForEvent(eventId);
+                const timelineSet =
+                  threadTimeline?.getTimelineSet() ??
+                  roomTimeline?.getTimelineSet() ??
+                  threadTimelineSet ??
+                  roomTimelineSet;
+                return renderResolvedEvent(mEvent, index, timelineSet);
+              })
+            : timelineItems.map(eventRenderer)}
+          {threadId && canPaginateThreadFront && (
+            <MessageBase space={messageSpacing}>
+              <TimelineDivider variant="Surface">
+                <Chip
+                  variant="SurfaceVariant"
+                  radii="Pill"
+                  outlined
+                  before={<Icon size="50" src={Icons.ArrowBottom} />}
+                  onClick={handleThreadPaginateFront}
+                >
+                  <Text size="L400">
+                    {threadPaginatingFront ? 'Loading...' : 'Load Newer Messages'}
+                  </Text>
+                </Chip>
+              </TimelineDivider>
+            </MessageBase>
+          )}
 
-          {(!liveTimelineLinked || !rangeAtEnd) &&
+          {!threadId &&
+            (!liveTimelineLinked || !rangeAtEnd) &&
             (messageLayout === MessageLayout.Compact ? (
               <>
                 <MessageBase ref={observeFrontAnchor}>
-                  <CompactPlaceholder key={getItems().length} />
+                  <CompactPlaceholder key={timelineItems.length} />
                 </MessageBase>
                 <MessageBase>
-                  <CompactPlaceholder key={getItems().length} />
+                  <CompactPlaceholder key={timelineItems.length} />
                 </MessageBase>
                 <MessageBase>
-                  <CompactPlaceholder key={getItems().length} />
+                  <CompactPlaceholder key={timelineItems.length} />
                 </MessageBase>
                 <MessageBase>
-                  <CompactPlaceholder key={getItems().length} />
+                  <CompactPlaceholder key={timelineItems.length} />
                 </MessageBase>
                 <MessageBase>
-                  <CompactPlaceholder key={getItems().length} />
+                  <CompactPlaceholder key={timelineItems.length} />
                 </MessageBase>
               </>
             ) : (
               <>
                 <MessageBase ref={observeFrontAnchor}>
-                  <DefaultPlaceholder key={getItems().length} />
+                  <DefaultPlaceholder key={timelineItems.length} />
                 </MessageBase>
                 <MessageBase>
-                  <DefaultPlaceholder key={getItems().length} />
+                  <DefaultPlaceholder key={timelineItems.length} />
                 </MessageBase>
                 <MessageBase>
-                  <DefaultPlaceholder key={getItems().length} />
+                  <DefaultPlaceholder key={timelineItems.length} />
                 </MessageBase>
               </>
             ))}
