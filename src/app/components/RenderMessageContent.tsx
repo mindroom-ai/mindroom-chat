@@ -31,7 +31,7 @@ import { PdfViewer } from './Pdf-viewer';
 import { TextViewer } from './text-viewer';
 import { testMatrixTo } from '../plugins/matrix-to';
 import { IImageContent } from '../../types/matrix/common';
-import { getMindroomLongTextMxcUri } from './message/mindroomLongText';
+import { getMindroomLongTextSource } from './message/mindroomLongText';
 import { MindroomLongTextKind, MindroomLongTextText } from './message/MindroomLongTextText';
 import { withMindroomToolTraceMarkerParserOptions } from '../plugins/react-custom-html-parser';
 
@@ -61,7 +61,8 @@ export function RenderMessageContent({
   linkifyOpts,
   outlineAttachment,
 }: RenderMessageContentProps) {
-  const getMindroomAwareContent = (): Record<string, unknown> => getContent<Record<string, unknown>>();
+  const getMindroomAwareContent = (): Record<string, unknown> =>
+    getContent<Record<string, unknown>>();
 
   const renderUrlsPreview = (urls: string[]) => {
     const filteredUrls = urls.filter((url) => !testMatrixTo(url));
@@ -139,20 +140,19 @@ export function RenderMessageContent({
 
   if (msgType === MsgType.Text) {
     const content = getMindroomAwareContent();
-    const mindroomHtmlReactParserOptions = getMindroomAwareHtmlReactParserOptions(content);
-    const longTextMxcUri = getMindroomLongTextMxcUri(content);
-    if (longTextMxcUri) {
+    const longTextSource = getMindroomLongTextSource(content);
+    if (longTextSource) {
       return (
         <MindroomLongTextText
           kind={MindroomLongTextKind.Text}
           edited={edited}
-          content={content}
-          longTextMxcUri={longTextMxcUri}
-          renderBody={(props) => (
+          content={longTextSource.previewContent}
+          longTextSource={longTextSource}
+          renderBody={(resolvedContent, props) => (
             <RenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={mindroomHtmlReactParserOptions}
+              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(resolvedContent)}
               linkifyOpts={linkifyOpts}
             />
           )}
@@ -160,6 +160,7 @@ export function RenderMessageContent({
         />
       );
     }
+    const mindroomHtmlReactParserOptions = getMindroomAwareHtmlReactParserOptions(content);
 
     return (
       <MText
@@ -180,21 +181,20 @@ export function RenderMessageContent({
 
   if (msgType === MsgType.Emote) {
     const content = getMindroomAwareContent();
-    const mindroomHtmlReactParserOptions = getMindroomAwareHtmlReactParserOptions(content);
-    const longTextMxcUri = getMindroomLongTextMxcUri(content);
-    if (longTextMxcUri) {
+    const longTextSource = getMindroomLongTextSource(content);
+    if (longTextSource) {
       return (
         <MindroomLongTextText
           kind={MindroomLongTextKind.Emote}
           displayName={displayName}
           edited={edited}
-          content={content}
-          longTextMxcUri={longTextMxcUri}
-          renderBody={(props) => (
+          content={longTextSource.previewContent}
+          longTextSource={longTextSource}
+          renderBody={(resolvedContent, props) => (
             <RenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={mindroomHtmlReactParserOptions}
+              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(resolvedContent)}
               linkifyOpts={linkifyOpts}
             />
           )}
@@ -202,6 +202,7 @@ export function RenderMessageContent({
         />
       );
     }
+    const mindroomHtmlReactParserOptions = getMindroomAwareHtmlReactParserOptions(content);
 
     return (
       <MEmote
@@ -223,20 +224,19 @@ export function RenderMessageContent({
 
   if (msgType === MsgType.Notice) {
     const content = getMindroomAwareContent();
-    const mindroomHtmlReactParserOptions = getMindroomAwareHtmlReactParserOptions(content);
-    const longTextMxcUri = getMindroomLongTextMxcUri(content);
-    if (longTextMxcUri) {
+    const longTextSource = getMindroomLongTextSource(content);
+    if (longTextSource) {
       return (
         <MindroomLongTextText
           kind={MindroomLongTextKind.Notice}
           edited={edited}
-          content={content}
-          longTextMxcUri={longTextMxcUri}
-          renderBody={(props) => (
+          content={longTextSource.previewContent}
+          longTextSource={longTextSource}
+          renderBody={(resolvedContent, props) => (
             <RenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={mindroomHtmlReactParserOptions}
+              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(resolvedContent)}
               linkifyOpts={linkifyOpts}
             />
           )}
@@ -244,6 +244,7 @@ export function RenderMessageContent({
         />
       );
     }
+    const mindroomHtmlReactParserOptions = getMindroomAwareHtmlReactParserOptions(content);
 
     return (
       <MNotice
@@ -333,20 +334,19 @@ export function RenderMessageContent({
 
   if (msgType === MsgType.File) {
     const content = getMindroomAwareContent();
-    const mindroomHtmlReactParserOptions = getMindroomAwareHtmlReactParserOptions(content);
-    const longTextMxcUri = getMindroomLongTextMxcUri(content);
-    if (longTextMxcUri) {
+    const longTextSource = getMindroomLongTextSource(content);
+    if (longTextSource) {
       return (
         <MindroomLongTextText
           kind={MindroomLongTextKind.Text}
           edited={edited}
-          content={content}
-          longTextMxcUri={longTextMxcUri}
-          renderBody={(props) => (
+          content={longTextSource.previewContent}
+          longTextSource={longTextSource}
+          renderBody={(resolvedContent, props) => (
             <RenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={mindroomHtmlReactParserOptions}
+              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(resolvedContent)}
               linkifyOpts={linkifyOpts}
             />
           )}
