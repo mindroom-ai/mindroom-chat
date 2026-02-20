@@ -129,9 +129,14 @@ Files changed:
 - `src/app/pages/auth/AuthFooter.tsx`
 - `src/app/pages/auth/AuthLayout.tsx`
 - `src/app/pages/auth/login/Login.tsx`
+- `src/app/pages/auth/ServerPicker.tsx`
+- `config.json`
+- `src/app/hooks/useClientConfig.ts`
 
 What changed:
 - Replaced “Homeserver” with “Server” wording and simplified footer attribution.
+- Renamed “Homeserver List” to “Server List.”
+- Added an auth config flag to hide the server picker when only one server is allowed.
 
 Why:
 - Stated in commit subject.
@@ -220,6 +225,27 @@ What changed:
 
 Why:
 - Stated in commit subject.
+
+### feat(ios): store session credentials in iOS Keychain
+Files changed:
+- `package.json`
+- `src/app/state/secureStorage.ts` (NEW)
+- `src/app/state/sessions.ts`
+- `src/index.tsx`
+- `src/client/initMatrix.ts`
+- `src/app/pages/client/ClientRoot.tsx`
+- `ios/App/Podfile`
+- `ios/App/Podfile.lock`
+
+What changed:
+- Added `capacitor-secure-storage-plugin` for iOS Keychain storage of Matrix session credentials.
+- Created platform-aware secure storage abstraction with in-memory cache for synchronous reads.
+- Migrated session credential storage from localStorage to secureStorage (Keychain on native, localStorage on web).
+- Added hydration step before React mount to populate cache from Keychain/localStorage.
+- Added Keychain cleanup on all logout paths.
+
+Why:
+- iOS WKWebView localStorage is not hardware-protected and is lost on app deletion. Apple expects auth tokens in the Keychain.
 
 ### Add iOS app via Capacitor
 Files changed:
@@ -1068,4 +1094,92 @@ Next step:
 
 ---
 
+### Step 13 completed: Subpath + SSO-proxy robustness (Matrix fetch, SW toggle, auth flows)
+
+Scope implemented:
+- Centralized Matrix client factory with same-origin credentialed fetch:
+  - `src/client/matrixClientFactory.ts`
+  - `src/client/matrixClientFactory.test.ts`
+- Replaced direct Matrix `createClient` callsites:
+  - `src/client/initMatrix.ts`
+  - `src/app/components/AuthFlowsLoader.tsx`
+  - `src/app/pages/auth/login/loginUtil.ts`
+  - `src/app/pages/auth/SSOLogin.tsx`
+  - `src/app/pages/auth/reset-password/PasswordResetForm.tsx`
+  - `src/app/pages/auth/register/PasswordRegisterForm.tsx`
+- Auth flow loader now recoverable with retry UI:
+  - `src/app/components/AuthFlowsLoader.tsx`
+  - `src/app/components/AuthFlowsLoader.test.ts`
+- Runtime-configurable service worker (default OFF):
+  - `public/runtime-config.js`
+  - `docker-entrypoint.d/99-runtime-config.sh`
+  - `serve.py`
+  - `src/app/utils/runtimeConfig.ts`
+  - `src/app/utils/runtimeConfig.test.ts`
+  - `src/index.tsx`
+- Dev deps for test rendering:
+  - `package.json`
+  - `package-lock.json`
+
+Behavior now:
+- Same-origin Matrix API requests include cookies, cross-origin requests do not.
+- Auth flow loading errors render a recoverable error with retry, no hard crash.
+- Service worker registration is gated by `window.__ENABLE_SERVICE_WORKER__` and defaults to disabled.
+
+Independent review notes:
+- Performed independent self-review pass across auth flows, Matrix client creation, and SW toggle.
+- Follow-up fix added to normalize `APP_ENABLE_SERVICE_WORKER` values to valid JS booleans.
+
+Validation for this step:
+- `npm run lint`: failed (`yarn` not available in environment).
+- `npm run check:eslint`: failed with existing repo lint errors (no new errors from this change).
+- `npm run check:prettier`: failed with existing formatting warnings.
+- `npm run typecheck`: failed with existing repo type errors (matrix-js-sdk type export issues and other pre-existing failures).
+- `npm run test`: pass (43/43 tests).
+
+Next step:
+- Share PR for review and verify deployment runtime-config defaults.
+
+---
+
+### Step 14 completed: Welcome page icon guard + docs link tests
+
+Scope implemented:
+- Replaced invalid `Icons.Book` usage and added safe icon fallback:
+  - `src/app/pages/client/WelcomePage.tsx`
+- Added Welcome page render tests for docs button behavior and safe icons:
+  - `src/app/pages/client/WelcomePage.test.tsx`
+
+Behavior now:
+- Welcome page uses valid Folds icons and falls back to `Icons.Info` if an invalid icon is provided.
+- Docs button only renders when `docsUrl` is set.
+
+Independent review notes:
+- Performed independent self-review pass for icon usage, guard, and tests.
+- No blocking issues found.
+
+Validation for this step:
+- `yarn typecheck`: failed (`yarn` not available in environment).
+- `yarn test`: failed (`yarn` not available in environment).
+- `yarn build`: failed (`yarn` not available in environment).
+- `npm run test`: pass (61/61 tests).
+
+Next step:
+- Share PR for review and verify runtime behavior in production bundle.
+
+---
+
 This is a living implementation runbook (not only a plan). Keep it as the first entry point for all agents, and update it after each logical implementation step.
+
+## Current Status (2026-02-20)
+- Task: Fix Welcome page icon crash after login.
+- Progress:
+  - Replaced invalid icon usage with valid icon and safe fallback.
+  - Added Welcome page tests for docs button behavior and safe icon usage.
+- Validation:
+  - `yarn typecheck`: failed (`yarn` not available in environment).
+  - `yarn test`: failed (`yarn` not available in environment).
+  - `yarn build`: failed (`yarn` not available in environment).
+  - `npm run test`: pass (61/61 tests).
+- Next steps:
+  - Share PR for review and verify runtime behavior in production bundle.
