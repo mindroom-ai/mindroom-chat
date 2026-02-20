@@ -26,5 +26,32 @@
   "sidebar": {
     "showExploreCommunity": false,
     "showAddSpace": false
+  },
+
+  "welcome": {
+    "title": "Welcome to MindRoom",
+    "subtitle": "Your AI is trapped in apps. We set it free.",
+    "sourceLabel": "Source Code",
+    "sourceUrl": "https://github.com/mindroom-ai/mindroom",
+    "docsLabel": "Docs",
+    "docsUrl": "https://docs.mindroom.chat/",
+    "poweredBy": [
+      {
+        "label": "MindRoom",
+        "url": "https://github.com/mindroom-ai/mindroom"
+      },
+      {
+        "label": "Matrix",
+        "url": "https://matrix.org"
+      },
+      {
+        "label": "Cinny",
+        "url": "https://github.com/cinnyapp/cinny"
+      },
+      {
+        "label": "MindRoom Cinny Fork",
+        "url": "https://github.com/mindroom-ai/mindroom-cinny"
+      }
+    ]
   }
 }

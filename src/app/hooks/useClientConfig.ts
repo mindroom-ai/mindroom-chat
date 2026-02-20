@@ -23,6 +23,19 @@ export type ClientConfig = {
     showExploreCommunity?: boolean;
     showAddSpace?: boolean;
   };
+
+  welcome?: {
+    title?: string;
+    subtitle?: string;
+    sourceLabel?: string;
+    sourceUrl?: string;
+    docsLabel?: string;
+    docsUrl?: string;
+    poweredBy?: {
+      label: string;
+      url: string;
+    }[];
+  };
 };
 
 const ClientConfigContext = createContext<ClientConfig | null>(null);
