@@ -1,10 +1,13 @@
 import { ReactNode, useCallback, useEffect, useState } from 'react';
 import { AsyncStatus, useAsyncCallback } from '../hooks/useAsyncCallback';
 import { ClientConfig } from '../hooks/useClientConfig';
-import { trimTrailingSlash } from '../utils/common';
+import { appUrl, getAppBasePath } from '../utils/basePath';
 
-const getClientConfig = async (): Promise<ClientConfig> => {
-  const url = `${trimTrailingSlash(import.meta.env.BASE_URL)}/config.json`;
+export const getClientConfigUrl = (basePath: string = getAppBasePath()): string =>
+  appUrl('config.json', basePath);
+
+export const fetchClientConfig = async (basePath: string = getAppBasePath()): Promise<ClientConfig> => {
+  const url = getClientConfigUrl(basePath);
   const config = await fetch(url, { method: 'GET' });
   return config.json();
 };
@@ -15,7 +18,7 @@ type ClientConfigLoaderProps = {
   children: (config: ClientConfig) => ReactNode;
 };
 export function ClientConfigLoader({ fallback, error, children }: ClientConfigLoaderProps) {
-  const [state, load] = useAsyncCallback(getClientConfig);
+  const [state, load] = useAsyncCallback(fetchClientConfig);
   const [ignoreError, setIgnoreError] = useState(false);
 
   const ignoreCallback = useCallback(() => setIgnoreError(true), []);

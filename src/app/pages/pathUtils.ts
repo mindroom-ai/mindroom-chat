@@ -25,6 +25,7 @@ import {
   CREATE_PATH,
 } from './paths';
 import { trimLeadingSlash, trimTrailingSlash } from '../utils/common';
+import { ensureBasePathTrailingSlash, getAppBasePath } from '../utils/basePath';
 import { HashRouterConfig } from '../hooks/useClientConfig';
 
 export const joinPathComponent = (path: Path): string => path.pathname + path.search + path.hash;
@@ -41,7 +42,9 @@ export const encodeSearchParamValueArray = (ids: string[]): string => ids.join('
 export const decodeSearchParamValueArray = (idsParam: string): string[] => idsParam.split(',');
 
 export const getOriginBaseUrl = (hashRouterConfig?: HashRouterConfig): string => {
-  const baseUrl = `${trimTrailingSlash(window.location.origin)}${import.meta.env.BASE_URL}`;
+  const baseUrl = `${trimTrailingSlash(window.location.origin)}${ensureBasePathTrailingSlash(
+    getAppBasePath()
+  )}`;
 
   if (hashRouterConfig?.enabled) {
     return `${trimTrailingSlash(baseUrl)}/#${hashRouterConfig.basename}`;
