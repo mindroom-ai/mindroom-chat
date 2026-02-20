@@ -39,6 +39,8 @@ export const _SEARCH_PATH = 'search/';
 export type _RoomSearchParams = {
   /* comma separated string of servers */
   viaServers?: string;
+  /* thread root event id */
+  threadId?: string;
 };
 export const _ROOM_PATH = ':roomIdOrAlias/:eventId?/';
 
