@@ -11,6 +11,7 @@ enableMapSet();
 import './index.css';
 
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
+import { isServiceWorkerEnabled } from './app/utils/runtimeConfig';
 import App from './app/pages/App';
 
 // import i18n (needs to be bundled ;))
@@ -19,7 +20,7 @@ import './app/i18n';
 document.body.classList.add(configClass, varsClass);
 
 // Register Service Worker
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && isServiceWorkerEnabled()) {
   const swUrl =
     import.meta.env.MODE === 'production'
       ? appUrl('sw.js')
