@@ -1,6 +1,7 @@
 import { Avatar, AvatarImage, Box, Button, Text } from 'folds';
-import { IIdentityProvider, SSOAction, createClient } from 'matrix-js-sdk';
+import { IIdentityProvider, SSOAction } from 'matrix-js-sdk';
 import React, { useMemo } from 'react';
+import { createMatrixClient } from '../../../client/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 
 type SSOLoginProps = {
@@ -12,7 +13,7 @@ type SSOLoginProps = {
 export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SSOLoginProps) {
   const discovery = useAutoDiscoveryInfo();
   const baseUrl = discovery['m.homeserver'].base_url;
-  const mx = useMemo(() => createClient({ baseUrl }), [baseUrl]);
+  const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
 
   const getSSOIdUrl = (ssoId?: string): string =>
     mx.getSsoLoginUrl(redirectUrl, 'sso', ssoId, action);

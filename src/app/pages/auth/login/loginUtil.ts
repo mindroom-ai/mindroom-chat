@@ -1,5 +1,5 @@
 import to from 'await-to-js';
-import { LoginRequest, LoginResponse, MatrixError, createClient } from 'matrix-js-sdk';
+import { LoginRequest, LoginResponse, MatrixError } from 'matrix-js-sdk';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ClientConfig, clientAllowedServer } from '../../../hooks/useClientConfig';
@@ -11,6 +11,7 @@ import {
 } from '../../afterLoginRedirectPath';
 import { getHomePath } from '../../pathUtils';
 import { setFallbackSession } from '../../../state/sessions';
+import { createMatrixClient } from '../../../../client/matrixClientFactory';
 
 export enum GetBaseUrlError {
   NotAllow = 'NotAllow',
@@ -72,7 +73,7 @@ export const login = async (
     });
   }
 
-  const mx = createClient({ baseUrl: url });
+  const mx = createMatrixClient({ baseUrl: url });
   const [err, res] = await to<LoginResponse, MatrixError>(mx.loginRequest(data));
 
   if (err) {
