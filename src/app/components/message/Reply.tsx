@@ -37,25 +37,36 @@ export const ReplyLayout = as<'div', ReplyLayoutProps>(
   )
 );
 
-export const ThreadIndicator = as<'div'>(({ ...props }, ref) => (
-  <Box
-    shrink="No"
-    className={css.ThreadIndicator}
-    alignItems="Center"
-    gap="100"
-    {...props}
-    ref={ref}
-  >
-    <Icon size="50" src={Icons.Thread} />
-    <Text size="L400">Thread</Text>
-  </Box>
-));
+type ThreadIndicatorProps = {
+  threadReplyCount?: number;
+};
+export const ThreadIndicator = as<'div', ThreadIndicatorProps>(
+  ({ threadReplyCount, ...props }, ref) => (
+    <Box
+      shrink="No"
+      className={css.ThreadIndicator}
+      alignItems="Center"
+      gap="100"
+      {...props}
+      ref={ref}
+    >
+      <Icon size="100" src={Icons.Thread} />
+      <Text size="T200">Thread</Text>
+      {typeof threadReplyCount === 'number' && (
+        <Text size="T200">
+          {threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}
+        </Text>
+      )}
+    </Box>
+  )
+);
 
 type ReplyProps = {
   room: Room;
   timelineSet?: EventTimelineSet | undefined;
   replyEventId: string;
   threadRootId?: string | undefined;
+  hideThreadIndicator?: boolean;
   onClick?: MouseEventHandler | undefined;
   getMemberPowerTag?: GetMemberPowerTag;
   accessibleTagColors?: Map<string, string>;
@@ -69,6 +80,7 @@ export const Reply = as<'div', ReplyProps>(
       timelineSet,
       replyEventId,
       threadRootId,
+      hideThreadIndicator,
       onClick,
       getMemberPowerTag,
       accessibleTagColors,
@@ -90,6 +102,19 @@ export const Reply = as<'div', ReplyProps>(
     const tagColor = powerTag?.color ? accessibleTagColors?.get(powerTag.color) : undefined;
 
     const usernameColor = legacyUsernameColor ? colorMXID(sender ?? replyEventId) : tagColor;
+    const threadRootEvent = useMemo(() => {
+      if (!threadRootId) return undefined;
+      return timelineSet?.findEventById(threadRootId) ?? room.findEventById(threadRootId);
+    }, [timelineSet, room, threadRootId]);
+    const threadReplyCount = useMemo(() => {
+      if (!threadRootEvent) return undefined;
+      const threadMeta = threadRootEvent.getUnsigned()?.['m.relations']?.['m.thread'] as
+        | { count?: unknown; c?: unknown }
+        | undefined;
+      if (typeof threadMeta?.count === 'number') return threadMeta.count;
+      if (typeof threadMeta?.c === 'number') return threadMeta.c;
+      return undefined;
+    }, [threadRootEvent]);
 
     const fallbackBody = replyEvent?.isRedacted() ? (
       <MessageDeletedContent />
@@ -102,8 +127,15 @@ export const Reply = as<'div', ReplyProps>(
 
     return (
       <Box direction="Row" gap="200" alignItems="Center" {...props} ref={ref}>
-        {threadRootId && (
-          <ThreadIndicator as="button" data-event-id={threadRootId} onClick={onClick} />
+        {/* Hide the thread badge inside thread view to avoid redundant UI. */}
+        {threadRootId && !hideThreadIndicator && (
+          <ThreadIndicator
+            as="button"
+            data-thread-root-id={threadRootId}
+            threadReplyCount={threadReplyCount}
+            data-event-id={threadRootId}
+            onClick={onClick}
+          />
         )}
         <ReplyLayout
           as="button"

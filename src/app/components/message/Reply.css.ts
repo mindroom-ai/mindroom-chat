@@ -1,19 +1,27 @@
 import { style } from '@vanilla-extract/css';
-import { config, toRem } from 'folds';
+import { color, config, toRem } from 'folds';
 
 export const ReplyBend = style({
   flexShrink: 0,
 });
 
 export const ThreadIndicator = style({
-  opacity: config.opacity.P300,
+  padding: `${config.space.S100} ${config.space.S200}`,
+  borderRadius: config.radii.R300,
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  backgroundColor: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
 
   selectors: {
     'button&': {
       cursor: 'pointer',
     },
-    ':hover&': {
-      opacity: config.opacity.P500,
+    'button&:hover, button&:focus-visible': {
+      backgroundColor: color.SurfaceVariant.ContainerHover,
+      borderColor: color.SurfaceVariant.ContainerLine,
+    },
+    'button&:active': {
+      backgroundColor: color.SurfaceVariant.ContainerActive,
     },
   },
 });

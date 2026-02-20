@@ -1,5 +1,5 @@
 import React, { useCallback, useRef } from 'react';
-import { Box, Text, config } from 'folds';
+import { Box, Icon, IconButton, Icons, Line, Text, color, config } from 'folds';
 import { EventType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { isKeyHotkey } from 'is-hotkey';
@@ -22,6 +22,7 @@ import { settingsAtom } from '../../state/settings';
 import { useSetting } from '../../state/hooks/settings';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
+import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -56,7 +57,15 @@ const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
   return true;
 };
 
-export function RoomView({ room, eventId }: { room: Room; eventId?: string }) {
+export function RoomView({
+  room,
+  eventId,
+  threadId,
+}: {
+  room: Room;
+  eventId?: string;
+  threadId?: string;
+}) {
   const roomInputRef = useRef<HTMLDivElement>(null);
   const roomViewRef = useRef<HTMLDivElement>(null);
 
@@ -73,6 +82,12 @@ export function RoomView({ room, eventId }: { room: Room; eventId?: string }) {
 
   const permissions = useRoomPermissions(creators, powerLevels);
   const canMessage = permissions.event(EventType.RoomMessage, mx.getSafeUserId());
+  const { navigateRoom } = useRoomNavigate();
+
+  const handleExitThread = useCallback(
+    () => navigateRoom(room.roomId, undefined, { replace: true }),
+    [navigateRoom, room.roomId]
+  );
 
   useKeyDown(
     window,
@@ -94,11 +109,37 @@ export function RoomView({ room, eventId }: { room: Room; eventId?: string }) {
   return (
     <Page ref={roomViewRef}>
       <RoomViewHeader />
+      {threadId && (
+        <>
+          <Box
+            alignItems="Center"
+            gap="300"
+            style={{
+              padding: `${config.space.S400} ${config.space.S400}`,
+              backgroundColor: color.SurfaceVariant.Container,
+              borderBottom: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+            }}
+          >
+            <IconButton size="300" radii="300" onClick={handleExitThread}>
+              <Icon src={Icons.ArrowLeft} />
+            </IconButton>
+            <Box direction="Column" grow="Yes" gap="100">
+              <Box direction="Row" alignItems="Center" gap="200">
+                <Text size="B400">Thread View</Text>
+              </Box>
+              <Text size="T200" priority="300" truncate>
+                Focused thread context is active.
+              </Text>
+            </Box>
+          </Box>
+        </>
+      )}
       <Box grow="Yes" direction="Column">
         <RoomTimeline
           key={roomId}
           room={room}
           eventId={eventId}
+          threadId={threadId}
           roomInputRef={roomInputRef}
           editor={editor}
         />
@@ -119,6 +160,7 @@ export function RoomView({ room, eventId }: { room: Room; eventId?: string }) {
                   room={room}
                   editor={editor}
                   roomId={roomId}
+                  threadId={threadId}
                   fileDropContainerRef={roomViewRef}
                   ref={roomInputRef}
                 />
