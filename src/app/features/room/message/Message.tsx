@@ -930,7 +930,7 @@ export const Message = as<'div', MessageProps>(
                   </PopOut>
                 )}
                 <IconButton
-                  onClick={onReplyClick}
+                  onClick={(ev) => onReplyClick(ev, isThreadedMessage)}
                   data-event-id={mEvent.getId()}
                   variant="SurfaceVariant"
                   size="300"
@@ -1015,7 +1015,7 @@ export const Message = as<'div', MessageProps>(
                             radii="300"
                             data-event-id={mEvent.getId()}
                             onClick={(evt: any) => {
-                              onReplyClick(evt);
+                              onReplyClick(evt, isThreadedMessage);
                               closeMenu();
                             }}
                           >
