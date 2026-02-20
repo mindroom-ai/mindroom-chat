@@ -16,12 +16,34 @@ import {
 } from 'html-react-parser';
 import { MatrixClient } from 'matrix-js-sdk';
 import classNames from 'classnames';
-import { Box, Chip, config, Header, Icon, IconButton, Icons, Scroll, Text, toRem } from 'folds';
+import {
+  Box,
+  Chip,
+  Spinner,
+  config,
+  Header,
+  Icon,
+  IconButton,
+  IconSrc,
+  Icons,
+  Scroll,
+  Text,
+  toRem,
+} from 'folds';
 import { IntermediateRepresentation, Opts as LinkifyOpts, OptFn } from 'linkifyjs';
 import Linkify from 'linkify-react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ChildNode } from 'domhandler';
 import * as css from '../styles/CustomHtml.css';
+import {
+  MindroomToolRefParseResult,
+  parseMindroomToolRefHtml,
+} from '../components/message/mindroomBlocks';
+import {
+  MindroomToolTraceEvent,
+  getMindroomToolTraceEvents,
+  isMindroomToolTraceV2,
+} from '../components/message/mindroomToolTrace';
 import {
   getMxIdLocalPart,
   getCanonicalAliasRoomId,
@@ -309,6 +331,284 @@ export function CodeBlock({
   );
 }
 
+type MindroomTagName = 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
+
+const MINDROOM_BLOCK_META: Record<MindroomTagName, { label: string; icon: IconSrc }> = {
+  think: {
+    label: 'AI Thinking Process',
+    icon: Icons.Bulb,
+  },
+  debug: {
+    label: 'Debug Information',
+    icon: Icons.Code,
+  },
+  system: {
+    label: 'System Processing',
+    icon: Icons.Server,
+  },
+  plan: {
+    label: 'Planning & Strategy',
+    icon: Icons.OrderList,
+  },
+  analysis: {
+    label: 'Analysis & Evaluation',
+    icon: Icons.Search,
+  },
+  research: {
+    label: 'Research & Sources',
+    icon: Icons.Explore,
+  },
+};
+
+const ToolStatusBadge = ({ pending }: { pending: boolean }) =>
+  pending ? <Spinner size="100" variant="Secondary" /> : <Icon size="50" src={Icons.Check} />;
+
+function MindroomCollapsibleBlock({
+  icon,
+  label,
+  subtitle,
+  pending,
+  inlineResult,
+  children,
+}: {
+  icon: IconSrc;
+  label: string;
+  subtitle?: string;
+  pending?: boolean;
+  inlineResult?: string;
+  children?: React.ReactNode;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <Text as="div" size="T300" className={css.MindroomBlock}>
+      <button
+        type="button"
+        className={css.MindroomBlockHeader}
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <Box grow="Yes" className={css.MindroomBlockHeaderMeta}>
+          <Icon size="50" src={icon} />
+          {pending !== undefined && <ToolStatusBadge pending={pending} />}
+          <Text size="L400" truncate>
+            {label}
+          </Text>
+          {subtitle && (
+            <Text size="T200" truncate>
+              {subtitle}
+            </Text>
+          )}
+          {inlineResult && (
+            <Text size="T200" truncate className={css.MindroomBlockInlineResult}>
+              {'-> '}
+              {inlineResult}
+            </Text>
+          )}
+        </Box>
+        <Icon size="50" src={expanded ? Icons.ChevronTop : Icons.ChevronBottom} />
+      </button>
+      {expanded && <Box className={css.MindroomBlockBody}>{children}</Box>}
+    </Text>
+  );
+}
+
+type MindroomToolBlockStatus = 'pending' | 'completed' | 'completed_with_result';
+
+type MindroomToolBlockRenderData = {
+  status: MindroomToolBlockStatus;
+  command: string;
+  result?: string;
+  resultInline: boolean;
+};
+
+const asToolTraceText = (value: unknown): string | undefined =>
+  typeof value === 'string' ? value.trim() : undefined;
+
+const buildToolRefRenderData = (
+  toolRef: MindroomToolRefParseResult,
+  eventRaw?: MindroomToolTraceEvent
+): MindroomToolBlockRenderData => {
+  const traceType = asToolTraceText(eventRaw?.type);
+  const traceToolName = asToolTraceText(eventRaw?.tool_name) ?? toolRef.toolName;
+  const argsPreview = asToolTraceText(eventRaw?.args_preview);
+  const resultPreview = asToolTraceText(eventRaw?.result_preview);
+  const command = argsPreview ? `${traceToolName}(${argsPreview})` : traceToolName;
+
+  if (
+    traceType === 'tool_call_started' ||
+    (traceType !== 'tool_call_completed' && toolRef.pending)
+  ) {
+    return {
+      status: 'pending',
+      command,
+      resultInline: false,
+    };
+  }
+
+  if (resultPreview) {
+    return {
+      status: 'completed_with_result',
+      command,
+      result: resultPreview,
+      resultInline: !resultPreview.includes('\n'),
+    };
+  }
+
+  return {
+    status: 'completed',
+    command,
+    resultInline: false,
+  };
+};
+
+const renderMindroomToolRefBlock = (
+  toolRef: MindroomToolRefParseResult,
+  eventRaw?: MindroomToolTraceEvent
+) => {
+  const parsedTool = buildToolRefRenderData(toolRef, eventRaw);
+  const showResultBlock = parsedTool.status === 'completed_with_result' && !!parsedTool.result;
+  const inlineResult =
+    parsedTool.status === 'completed_with_result' && parsedTool.resultInline
+      ? parsedTool.result
+      : undefined;
+
+  return (
+    <MindroomCollapsibleBlock
+      icon={Icons.Terminal}
+      label="Tool"
+      subtitle={parsedTool.command || toolRef.toolName || 'tool'}
+      pending={parsedTool.status === 'pending'}
+      inlineResult={inlineResult}
+    >
+      {showResultBlock && parsedTool.result && (
+        <Text as="pre" size="T200" className={css.MindroomBlockResult}>
+          {parsedTool.result}
+        </Text>
+      )}
+    </MindroomCollapsibleBlock>
+  );
+};
+
+type ToolRefElementPrefix = {
+  html: string;
+  trailingChildren: ChildNode[];
+};
+
+type ToolRefMatchBoundary = {
+  html: string;
+  childIndex: number;
+  textSplitIndex: number | undefined;
+};
+
+const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | undefined => {
+  if (!['p', 'div', 'li'].includes(element.name)) return undefined;
+
+  let html = '';
+  let bestMatch: ToolRefMatchBoundary | undefined;
+
+  const buildPrefixResult = (match: ToolRefMatchBoundary): ToolRefElementPrefix => {
+    const matchedChild = element.children[match.childIndex];
+    const trailingText =
+      matchedChild instanceof DOMText && match.textSplitIndex !== undefined
+        ? matchedChild.data.slice(match.textSplitIndex)
+        : '';
+    const trailingChildren = [
+      ...(trailingText ? [new DOMText(trailingText)] : []),
+      ...element.children.slice(match.childIndex + 1),
+    ];
+
+    return {
+      html: match.html,
+      trailingChildren,
+    };
+  };
+
+  for (let childIndex = 0; childIndex < element.children.length; childIndex += 1) {
+    const child = element.children[childIndex];
+
+    if (child instanceof DOMText) {
+      for (let splitIndex = 0; splitIndex <= child.data.length; splitIndex += 1) {
+        const candidate = `${html}${child.data.slice(0, splitIndex)}`;
+        if (!parseMindroomToolRefHtml(candidate)) continue;
+        // Prefer the longest valid marker prefix (e.g. include optional " ⏳" when present).
+        bestMatch = {
+          html: candidate,
+          childIndex,
+          textSplitIndex: splitIndex,
+        };
+      }
+
+      html += child.data;
+      continue;
+    }
+
+    if (child instanceof Element && child.name === 'code') {
+      html += `<code>${extractTextFromChildren(child.children)}</code>`;
+
+      if (parseMindroomToolRefHtml(html)) {
+        bestMatch = {
+          html,
+          childIndex,
+          textSplitIndex: undefined,
+        };
+      }
+
+      continue;
+    }
+
+    if (bestMatch) return buildPrefixResult(bestMatch);
+    return undefined;
+  }
+
+  if (!bestMatch) return undefined;
+  return buildPrefixResult(bestMatch);
+};
+
+export const withMindroomToolTraceMarkerParserOptions = (
+  baseOpts: HTMLReactParserOptions,
+  content: Record<string, unknown>
+): HTMLReactParserOptions => {
+  if (!isMindroomToolTraceV2(content)) return baseOpts;
+
+  const traceEvents = getMindroomToolTraceEvents(content);
+  if (!traceEvents || traceEvents.length === 0) return baseOpts;
+
+  const baseReplace = baseOpts.replace;
+
+  return {
+    ...baseOpts,
+    replace: (domNode) => {
+      if (domNode instanceof Element) {
+        const toolRefPrefix = getToolRefPrefixFromElement(domNode);
+        if (toolRefPrefix) {
+          const toolRef = parseMindroomToolRefHtml(toolRefPrefix.html);
+          if (toolRef) {
+            const toolBlock = renderMindroomToolRefBlock(toolRef, traceEvents[toolRef.index - 1]);
+            if (toolRefPrefix.trailingChildren.length === 0) {
+              return toolBlock;
+            }
+
+            const trailingElement = new Element(
+              domNode.name,
+              { ...domNode.attribs },
+              toolRefPrefix.trailingChildren
+            );
+
+            return (
+              <>
+                {toolBlock}
+                {domToReact([trailingElement], baseOpts)}
+              </>
+            );
+          }
+        }
+      }
+
+      return baseReplace ? baseReplace(domNode) : undefined;
+    },
+  };
+};
+
 export const getReactCustomHtmlParser = (
   mx: MatrixClient,
   roomId: string | undefined,
@@ -325,6 +625,17 @@ export const getReactCustomHtmlParser = (
       if (domNode instanceof Element && 'name' in domNode) {
         const { name, attribs, children, parent } = domNode;
         const props = attributesToProps(attribs);
+
+        if (Object.prototype.hasOwnProperty.call(MINDROOM_BLOCK_META, name)) {
+          const blockName = name as MindroomTagName;
+          const { icon, label } = MINDROOM_BLOCK_META[blockName];
+
+          return (
+            <MindroomCollapsibleBlock icon={icon} label={label}>
+              {domToReact(children, opts)}
+            </MindroomCollapsibleBlock>
+          );
+        }
 
         if (name === 'h1') {
           return (

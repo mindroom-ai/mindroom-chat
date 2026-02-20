@@ -42,6 +42,12 @@ const permittedHtmlTags = [
   'img',
   'details',
   'summary',
+  'think',
+  'debug',
+  'system',
+  'plan',
+  'analysis',
+  'research',
 ];
 
 const urlSchemes = ['https', 'http', 'ftp', 'mailto', 'magnet'];
