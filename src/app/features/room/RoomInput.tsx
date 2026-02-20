@@ -11,7 +11,7 @@ import { useAtom, useAtomValue } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
 import { EventType, IContent, MsgType, RelationType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
-import { Transforms, Editor } from 'slate';
+import { Editor, Transforms } from 'slate';
 import {
   Box,
   Dialog,
@@ -103,6 +103,7 @@ import { getMessageRelation } from './composeMessageRelation';
 import { getMemberDisplayName, getMentionContent, trimReplyFromBody } from '../../utils/room';
 import { CommandAutocomplete } from './CommandAutocomplete';
 import { Command, SHRUG, TABLEFLIP, UNFLIP, useCommands } from '../../hooks/useCommands';
+import { MindroomCommandAutocomplete } from './MindroomCommandAutocomplete';
 import { mobileOrTablet } from '../../utils/user-agent';
 import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { ReplyLayout, ThreadIndicator } from '../../components/message';
@@ -118,6 +119,9 @@ import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { useComposingCheck } from '../../hooks/useComposingCheck';
+import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from './mindroomCommandQuery';
+
+type RoomInputAutocompletePrefix = AutocompletePrefix | typeof MINDROOM_COMMAND_PREFIX;
 
 interface RoomInputProps {
   editor: Editor;
@@ -174,7 +178,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     const [toolbar, setToolbar] = useSetting(settingsAtom, 'editorToolbar');
     const [autocompleteQuery, setAutocompleteQuery] =
-      useState<AutocompleteQuery<AutocompletePrefix>>();
+      useState<AutocompleteQuery<RoomInputAutocompletePrefix>>();
 
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId);
 
@@ -426,9 +430,22 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         }
 
         const prevWordRange = getPrevWorldRange(editor);
-        const query = prevWordRange
-          ? getAutocompleteQuery<AutocompletePrefix>(editor, prevWordRange, AUTOCOMPLETE_PREFIXES)
-          : undefined;
+        if (!prevWordRange) {
+          setAutocompleteQuery(undefined);
+          return;
+        }
+
+        const mindroomCommandQuery = getMindroomCommandQuery(editor, prevWordRange);
+        if (mindroomCommandQuery) {
+          setAutocompleteQuery(mindroomCommandQuery);
+          return;
+        }
+
+        const query = getAutocompleteQuery<AutocompletePrefix>(
+          editor,
+          prevWordRange,
+          AUTOCOMPLETE_PREFIXES
+        );
         setAutocompleteQuery(query);
       },
       [editor, sendTypingStatus, hideActivity]
@@ -545,6 +562,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         {autocompleteQuery?.prefix === AutocompletePrefix.Command && (
           <CommandAutocomplete
             room={room}
+            editor={editor}
+            query={autocompleteQuery}
+            requestClose={handleCloseAutocomplete}
+          />
+        )}
+        {autocompleteQuery?.prefix === MINDROOM_COMMAND_PREFIX && (
+          <MindroomCommandAutocomplete
             editor={editor}
             query={autocompleteQuery}
             requestClose={handleCloseAutocomplete}
