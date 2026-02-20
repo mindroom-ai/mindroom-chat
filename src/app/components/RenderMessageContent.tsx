@@ -32,6 +32,8 @@ import { TextViewer } from './text-viewer';
 import { testMatrixTo } from '../plugins/matrix-to';
 import { IImageContent } from '../../types/matrix/common';
 import { mergeMindroomToolTraceIntoCustomBody } from './message/mindroomToolTrace';
+import { getMindroomLongTextMxcUri } from './message/mindroomLongText';
+import { MindroomLongTextKind, MindroomLongTextText } from './message/MindroomLongTextText';
 
 type RenderMessageContentProps = {
   displayName: string;
@@ -133,10 +135,32 @@ export function RenderMessageContent({
   );
 
   if (msgType === MsgType.Text) {
+    const content = getMindroomAwareContent();
+    const longTextMxcUri = getMindroomLongTextMxcUri(content);
+    if (longTextMxcUri) {
+      return (
+        <MindroomLongTextText
+          kind={MindroomLongTextKind.Text}
+          edited={edited}
+          content={content}
+          longTextMxcUri={longTextMxcUri}
+          renderBody={(props) => (
+            <RenderBody
+              {...props}
+              highlightRegex={highlightRegex}
+              htmlReactParserOptions={htmlReactParserOptions}
+              linkifyOpts={linkifyOpts}
+            />
+          )}
+          renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
+        />
+      );
+    }
+
     return (
       <MText
         edited={edited}
-        content={getMindroomAwareContent()}
+        content={content}
         renderBody={(props) => (
           <RenderBody
             {...props}
@@ -151,11 +175,34 @@ export function RenderMessageContent({
   }
 
   if (msgType === MsgType.Emote) {
+    const content = getMindroomAwareContent();
+    const longTextMxcUri = getMindroomLongTextMxcUri(content);
+    if (longTextMxcUri) {
+      return (
+        <MindroomLongTextText
+          kind={MindroomLongTextKind.Emote}
+          displayName={displayName}
+          edited={edited}
+          content={content}
+          longTextMxcUri={longTextMxcUri}
+          renderBody={(props) => (
+            <RenderBody
+              {...props}
+              highlightRegex={highlightRegex}
+              htmlReactParserOptions={htmlReactParserOptions}
+              linkifyOpts={linkifyOpts}
+            />
+          )}
+          renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
+        />
+      );
+    }
+
     return (
       <MEmote
         displayName={displayName}
         edited={edited}
-        content={getMindroomAwareContent()}
+        content={content}
         renderBody={(props) => (
           <RenderBody
             {...props}
@@ -170,10 +217,32 @@ export function RenderMessageContent({
   }
 
   if (msgType === MsgType.Notice) {
+    const content = getMindroomAwareContent();
+    const longTextMxcUri = getMindroomLongTextMxcUri(content);
+    if (longTextMxcUri) {
+      return (
+        <MindroomLongTextText
+          kind={MindroomLongTextKind.Notice}
+          edited={edited}
+          content={content}
+          longTextMxcUri={longTextMxcUri}
+          renderBody={(props) => (
+            <RenderBody
+              {...props}
+              highlightRegex={highlightRegex}
+              htmlReactParserOptions={htmlReactParserOptions}
+              linkifyOpts={linkifyOpts}
+            />
+          )}
+          renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
+        />
+      );
+    }
+
     return (
       <MNotice
         edited={edited}
-        content={getMindroomAwareContent()}
+        content={content}
         renderBody={(props) => (
           <RenderBody
             {...props}
@@ -257,6 +326,27 @@ export function RenderMessageContent({
   }
 
   if (msgType === MsgType.File) {
+    const content = getMindroomAwareContent();
+    const longTextMxcUri = getMindroomLongTextMxcUri(content);
+    if (longTextMxcUri) {
+      return (
+        <MindroomLongTextText
+          kind={MindroomLongTextKind.Text}
+          edited={edited}
+          content={content}
+          longTextMxcUri={longTextMxcUri}
+          renderBody={(props) => (
+            <RenderBody
+              {...props}
+              highlightRegex={highlightRegex}
+              htmlReactParserOptions={htmlReactParserOptions}
+              linkifyOpts={linkifyOpts}
+            />
+          )}
+          renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
+        />
+      );
+    }
     return renderFile();
   }
 
