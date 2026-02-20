@@ -19,7 +19,14 @@ def normalize_base_path(value: str | None) -> str:
     return f"/{raw}"
 
 BASE_PATH = normalize_base_path(os.environ.get("APP_BASE_PATH"))
-RUNTIME_CONFIG_JS = f"window.__APP_BASE_PATH__ = \"{BASE_PATH}\";\n"
+ENABLE_SERVICE_WORKER = os.environ.get("APP_ENABLE_SERVICE_WORKER", "").strip().lower()
+ENABLE_SERVICE_WORKER_VALUE = (
+    "true" if ENABLE_SERVICE_WORKER in {"1", "true", "yes", "on"} else "false"
+)
+RUNTIME_CONFIG_JS = (
+    f"window.__APP_BASE_PATH__ = \"{BASE_PATH}\";\n"
+    f"window.__ENABLE_SERVICE_WORKER__ = {ENABLE_SERVICE_WORKER_VALUE};\n"
+)
 
 
 class SPAHandler(http.server.SimpleHTTPRequestHandler):
