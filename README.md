@@ -1,4 +1,5 @@
-# Cinny
+# MindRoom Cinny
+> This is the MindRoom fork of Cinny. It exists to provide a Matrix client optimized for MindRoom AI agent workflows, with emphasis on rapid edit rendering, thread UX, and tool-call visibility.
 <p>
     <a href="https://github.com/ajbura/cinny/releases">
         <img alt="GitHub release downloads" src="https://img.shields.io/github/downloads/ajbura/cinny/total?logo=github&style=social"></a>
