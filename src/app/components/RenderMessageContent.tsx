@@ -31,6 +31,7 @@ import { PdfViewer } from './Pdf-viewer';
 import { TextViewer } from './text-viewer';
 import { testMatrixTo } from '../plugins/matrix-to';
 import { IImageContent } from '../../types/matrix/common';
+import { mergeMindroomToolTraceIntoCustomBody } from './message/mindroomToolTrace';
 
 type RenderMessageContentProps = {
   displayName: string;
@@ -58,6 +59,9 @@ export function RenderMessageContent({
   linkifyOpts,
   outlineAttachment,
 }: RenderMessageContentProps) {
+  const getMindroomAwareContent = (): Record<string, unknown> =>
+    mergeMindroomToolTraceIntoCustomBody(getContent<Record<string, unknown>>());
+
   const renderUrlsPreview = (urls: string[]) => {
     const filteredUrls = urls.filter((url) => !testMatrixTo(url));
     if (filteredUrls.length === 0) return undefined;
@@ -132,7 +136,7 @@ export function RenderMessageContent({
     return (
       <MText
         edited={edited}
-        content={getContent()}
+        content={getMindroomAwareContent()}
         renderBody={(props) => (
           <RenderBody
             {...props}
@@ -151,7 +155,7 @@ export function RenderMessageContent({
       <MEmote
         displayName={displayName}
         edited={edited}
-        content={getContent()}
+        content={getMindroomAwareContent()}
         renderBody={(props) => (
           <RenderBody
             {...props}
@@ -169,7 +173,7 @@ export function RenderMessageContent({
     return (
       <MNotice
         edited={edited}
-        content={getContent()}
+        content={getMindroomAwareContent()}
         renderBody={(props) => (
           <RenderBody
             {...props}
