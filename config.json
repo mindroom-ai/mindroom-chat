@@ -28,6 +28,10 @@
     "showAddSpace": false
   },
 
+  "auth": {
+    "hideServerPickerWhenSingle": false
+  },
+
   "welcome": {
     "title": "Welcome to MindRoom",
     "subtitle": "Your AI is trapped in apps. We set it free.",
