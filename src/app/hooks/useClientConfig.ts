@@ -18,6 +18,11 @@ export type ClientConfig = {
   };
 
   hashRouter?: HashRouterConfig;
+
+  sidebar?: {
+    showExploreCommunity?: boolean;
+    showAddSpace?: boolean;
+  };
 };
 
 const ClientConfigContext = createContext<ClientConfig | null>(null);

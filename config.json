@@ -21,5 +21,10 @@
   "hashRouter": {
     "enabled": false,
     "basename": "/"
+  },
+
+  "sidebar": {
+    "showExploreCommunity": false,
+    "showAddSpace": false
   }
 }
