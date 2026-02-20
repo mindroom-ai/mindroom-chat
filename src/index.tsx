@@ -10,13 +10,11 @@ enableMapSet();
 
 import './index.css';
 
-import { trimTrailingSlash } from './app/utils/common';
+import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
 import App from './app/pages/App';
 
 // import i18n (needs to be bundled ;))
 import './app/i18n';
-import { pushSessionToSW } from './sw-session';
-import { getFallbackSession } from './app/state/sessions';
 
 document.body.classList.add(configClass, varsClass);
 
@@ -24,27 +22,20 @@ document.body.classList.add(configClass, varsClass);
 if ('serviceWorker' in navigator) {
   const swUrl =
     import.meta.env.MODE === 'production'
-      ? `${trimTrailingSlash(import.meta.env.BASE_URL)}/sw.js`
-      : `/dev-sw.js?dev-sw`;
+      ? appUrl('sw.js')
+      : appUrl('dev-sw.js?dev-sw');
 
-  const sendSessionToSW = () => {
-    const session = getFallbackSession();
-    pushSessionToSW(session?.baseUrl, session?.accessToken);
-  };
-
-  navigator.serviceWorker.register(swUrl).then(sendSessionToSW);
-  navigator.serviceWorker.ready.then(sendSessionToSW);
-  window.addEventListener('load', sendSessionToSW);
-
-  // When returning from background
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      sendSessionToSW();
+  navigator.serviceWorker.register(swUrl, { scope: ensureBasePathTrailingSlash(getAppBasePath()) });
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'token' && event.data?.responseKey) {
+      // Get the token for SW.
+      const token = localStorage.getItem('cinny_access_token') ?? undefined;
+      event.source!.postMessage({
+        responseKey: event.data.responseKey,
+        token,
+      });
     }
   });
-
-  // When restored from bfcache (important on iOS)
-  window.addEventListener('pageshow', sendSessionToSW);
 }
 
 const mountApp = () => {

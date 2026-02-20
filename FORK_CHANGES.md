@@ -14,13 +14,7 @@ Rules followed:
 - Per-commit diff: `git show <sha>`
 
 ## Working Tree (Not Yet Committed)
-These are staged but **not committed** as of now.
-
-### Staged change: `src/app/features/room/RoomTimeline.tsx`
-- Adds explanatory comments for the thread fallback list (why it exists).
-- Keeps the fallback list in sync for live thread replies when the SDK does not
-  create a Thread model, so replies appear immediately without leaving thread view.
-- Evidence: `git diff --cached`.
+No uncommitted changes documented.
 
 ## Commit-by-Commit Changes
 
@@ -100,6 +94,8 @@ What changed:
 - Added nginx and Docker entrypoint support for `/mindroom` without rebuilds.
 - Added tests for base-path normalization and config URL composition.
 - Updated `serve.py` to serve runtime-config from env.
+- Updated base-path bootstrap in `index.html` to prefer `/runtime-config.js` so root
+  deployments don’t infer a nested segment and load JS assets as HTML after login.
 
 Why:
 - Required for serving the app from `/mindroom` without proxy rewrite hacks.
