@@ -16,12 +16,26 @@ import {
 } from 'html-react-parser';
 import { MatrixClient } from 'matrix-js-sdk';
 import classNames from 'classnames';
-import { Box, Chip, config, Header, Icon, IconButton, Icons, Scroll, Text, toRem } from 'folds';
+import {
+  Box,
+  Chip,
+  Spinner,
+  config,
+  Header,
+  Icon,
+  IconButton,
+  IconSrc,
+  Icons,
+  Scroll,
+  Text,
+  toRem,
+} from 'folds';
 import { IntermediateRepresentation, Opts as LinkifyOpts, OptFn } from 'linkifyjs';
 import Linkify from 'linkify-react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ChildNode } from 'domhandler';
 import * as css from '../styles/CustomHtml.css';
+import { parseMindroomToolBlock } from '../components/message/mindroomBlocks';
 import {
   getMxIdLocalPart,
   getCanonicalAliasRoomId,
@@ -309,6 +323,121 @@ export function CodeBlock({
   );
 }
 
+type MindroomTagName = 'tool' | 'tool-group' | 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
+
+const MINDROOM_BLOCK_META: Record<
+  Exclude<MindroomTagName, 'tool-group'>,
+  { label: string; icon: IconSrc }
+> = {
+  tool: {
+    label: 'Tool',
+    icon: Icons.Terminal,
+  },
+  think: {
+    label: 'AI Thinking Process',
+    icon: Icons.Bulb,
+  },
+  debug: {
+    label: 'Debug Information',
+    icon: Icons.Code,
+  },
+  system: {
+    label: 'System Processing',
+    icon: Icons.Server,
+  },
+  plan: {
+    label: 'Planning & Strategy',
+    icon: Icons.OrderList,
+  },
+  analysis: {
+    label: 'Analysis & Evaluation',
+    icon: Icons.Search,
+  },
+  research: {
+    label: 'Research & Sources',
+    icon: Icons.Explore,
+  },
+};
+
+const ToolStatusBadge = ({ pending }: { pending: boolean }) =>
+  pending ? (
+    <Spinner size="100" variant="Secondary" />
+  ) : (
+    <Icon size="50" src={Icons.Check} />
+  );
+
+function MindroomCollapsibleBlock({
+  icon,
+  label,
+  subtitle,
+  pending,
+  inlineResult,
+  children,
+}: {
+  icon: IconSrc;
+  label: string;
+  subtitle?: string;
+  pending?: boolean;
+  inlineResult?: string;
+  children?: React.ReactNode;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <Text as="div" size="T300" className={css.MindroomBlock}>
+      <button type="button" className={css.MindroomBlockHeader} onClick={() => setExpanded((v) => !v)}>
+        <Box grow="Yes" className={css.MindroomBlockHeaderMeta}>
+          <Icon size="50" src={icon} />
+          {pending !== undefined && <ToolStatusBadge pending={pending} />}
+          <Text size="L400" truncate>
+            {label}
+          </Text>
+          {subtitle && (
+            <Text size="T200" truncate>
+              {subtitle}
+            </Text>
+          )}
+          {inlineResult && (
+            <Text size="T200" truncate className={css.MindroomBlockInlineResult}>
+              {'-> '}
+              {inlineResult}
+            </Text>
+          )}
+        </Box>
+        <Icon size="50" src={expanded ? Icons.ChevronTop : Icons.ChevronBottom} />
+      </button>
+      {expanded && <Box className={css.MindroomBlockBody}>{children}</Box>}
+    </Text>
+  );
+}
+
+const ToolGroupItem = ({ raw }: { raw: string }) => {
+  const parsedTool = parseMindroomToolBlock(raw);
+  const showResultBlock = parsedTool.status === 'completed_with_result' && !parsedTool.resultInline;
+
+  return (
+    <Box className={css.MindroomToolGroupItem} direction="Column" gap="100">
+      <Box alignItems="Center" gap="100">
+        <ToolStatusBadge pending={parsedTool.status === 'pending'} />
+        <Text size="T300" truncate>
+          <code className={css.Code}>{parsedTool.command || 'tool'}</code>
+        </Text>
+        {parsedTool.status === 'completed_with_result' && parsedTool.resultInline && parsedTool.result && (
+          <Text size="T200" truncate className={css.MindroomBlockInlineResult}>
+            {'-> '}
+            {parsedTool.result}
+          </Text>
+        )}
+      </Box>
+      {showResultBlock && parsedTool.result && (
+        <Text as="pre" size="T200" className={css.MindroomBlockResult}>
+          {parsedTool.result}
+        </Text>
+      )}
+    </Box>
+  );
+};
+
 export const getReactCustomHtmlParser = (
   mx: MatrixClient,
   roomId: string | undefined,
@@ -325,6 +454,76 @@ export const getReactCustomHtmlParser = (
       if (domNode instanceof Element && 'name' in domNode) {
         const { name, attribs, children, parent } = domNode;
         const props = attributesToProps(attribs);
+
+        if (name === 'tool-group') {
+          const toolChildren = children.filter(
+            (child): child is Element => child instanceof Element && child.name === 'tool'
+          );
+          const nonToolChildren = children.filter(
+            (child) => !(child instanceof Element && child.name === 'tool')
+          );
+
+          return (
+            <MindroomCollapsibleBlock
+              icon={Icons.BlockCode}
+              label="Tool Group"
+              subtitle={`${toolChildren.length} tool call${toolChildren.length === 1 ? '' : 's'}`}
+            >
+              <Box className={css.MindroomToolGroupList}>
+                {toolChildren.map((toolNode, index) => {
+                  const rawTool = extractTextFromChildren(toolNode.children);
+                  const parsedTool = parseMindroomToolBlock(rawTool);
+                  return (
+                    <ToolGroupItem
+                      key={`tool-group-item-${parsedTool.command || 'tool'}-${index}`}
+                      raw={rawTool}
+                    />
+                  );
+                })}
+              </Box>
+              {nonToolChildren.length > 0 && (
+                <Box style={{ marginTop: config.space.S200 }}>{domToReact(nonToolChildren, opts)}</Box>
+              )}
+            </MindroomCollapsibleBlock>
+          );
+        }
+
+        if (Object.prototype.hasOwnProperty.call(MINDROOM_BLOCK_META, name)) {
+          const blockName = name as Exclude<MindroomTagName, 'tool-group'>;
+          const { icon, label } = MINDROOM_BLOCK_META[blockName];
+
+          if (blockName === 'tool') {
+            const parsedTool = parseMindroomToolBlock(extractTextFromChildren(children));
+            const showResultBlock =
+              parsedTool.status === 'completed_with_result' && !parsedTool.resultInline;
+            const inlineResult =
+              parsedTool.status === 'completed_with_result' && parsedTool.resultInline
+                ? parsedTool.result
+                : undefined;
+
+            return (
+              <MindroomCollapsibleBlock
+                icon={icon}
+                label={label}
+                subtitle={parsedTool.command || 'tool'}
+                pending={parsedTool.status === 'pending'}
+                inlineResult={inlineResult}
+              >
+                {showResultBlock && parsedTool.result && (
+                  <Text as="pre" size="T200" className={css.MindroomBlockResult}>
+                    {parsedTool.result}
+                  </Text>
+                )}
+              </MindroomCollapsibleBlock>
+            );
+          }
+
+          return (
+            <MindroomCollapsibleBlock icon={icon} label={label}>
+              {domToReact(children, opts)}
+            </MindroomCollapsibleBlock>
+          );
+        }
 
         if (name === 'h1') {
           return (
