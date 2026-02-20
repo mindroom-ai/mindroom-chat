@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Button, Icon, Icons, Text, config, toRem } from 'folds';
 import { Page, PageHero, PageHeroSection } from '../../components/page';
-import CinnySVG from '../../../../public/res/svg/cinny.svg';
+import MindRoomSVG from '../../../../public/res/svg/mindroom.svg';
 
 export function WelcomePage() {
   return (
@@ -14,8 +14,8 @@ export function WelcomePage() {
       >
         <PageHeroSection>
           <PageHero
-            icon={<img width="70" height="70" src={CinnySVG} alt="Cinny Logo" />}
-            title="Welcome to Cinny"
+            icon={<img width="70" height="70" src={MindRoomSVG} alt="MindRoom Logo" />}
+            title="Welcome to MindRoom"
             subTitle={
               <span>
                 Yet another matrix client.{' '}
