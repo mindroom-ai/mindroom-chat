@@ -1169,17 +1169,34 @@ Next step:
 
 ---
 
+### Step 15 completed: Run tests in PR build workflow
+
+Scope implemented:
+- Added test execution to the PR build pipeline:
+  - `.github/workflows/build-pull-request.yml`
+
+Behavior now:
+- PR build workflow runs `npm run test` before `npm run build`.
+
+Independent review notes:
+- Performed independent self-review pass for workflow changes.
+- No blocking issues found.
+
+Validation for this step:
+- Not run locally (CI-only change).
+
+Next step:
+- Confirm tests run on the next PR build workflow run.
+
+---
+
 This is a living implementation runbook (not only a plan). Keep it as the first entry point for all agents, and update it after each logical implementation step.
 
 ## Current Status (2026-02-20)
-- Task: Fix Welcome page icon crash after login.
+- Task: Add PR CI test execution.
 - Progress:
-  - Replaced invalid icon usage with valid icon and safe fallback.
-  - Added Welcome page tests for docs button behavior and safe icon usage.
+  - Added `npm run test` to PR build workflow.
 - Validation:
-  - `yarn typecheck`: failed (`yarn` not available in environment).
-  - `yarn test`: failed (`yarn` not available in environment).
-  - `yarn build`: failed (`yarn` not available in environment).
-  - `npm run test`: pass (61/61 tests).
+  - Not run locally (CI-only change).
 - Next steps:
-  - Share PR for review and verify runtime behavior in production bundle.
+  - Confirm tests run on the next PR build workflow run.
