@@ -22,6 +22,7 @@ import {
   Room,
   RoomEvent,
   RoomEventHandlerMap,
+  ThreadEvent,
 } from 'matrix-js-sdk';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import classNames from 'classnames';
@@ -434,6 +435,23 @@ const useLiveTimelineRefresh = (room: Room, onRefresh: () => void) => {
   }, [room, onRefresh]);
 };
 
+/**
+ * Re-render the main timeline when a thread is created or receives a new reply
+ * so that ThreadIndicator badges update in real time.
+ */
+const useThreadUpdate = (room: Room, onUpdate: () => void) => {
+  useEffect(() => {
+    room.on(ThreadEvent.New, onUpdate);
+    room.on(ThreadEvent.NewReply, onUpdate);
+    room.on(ThreadEvent.Update, onUpdate);
+    return () => {
+      room.removeListener(ThreadEvent.New, onUpdate);
+      room.removeListener(ThreadEvent.NewReply, onUpdate);
+      room.removeListener(ThreadEvent.Update, onUpdate);
+    };
+  }, [room, onUpdate]);
+};
+
 const getInitialTimeline = (room: Room) => {
   const linkedTimelines = getLinkedTimelines(getLiveTimeline(room));
   const evLength = getTimelinesEventsCount(linkedTimelines);
@@ -837,6 +855,14 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         setTimeline(getInitialTimeline(room));
       }
     }, [room, liveTimelineLinked])
+  );
+
+  // Re-render when threads are created or updated so ThreadIndicator badges appear.
+  useThreadUpdate(
+    room,
+    useCallback(() => {
+      setTimeline((ct) => ({ ...ct }));
+    }, [])
   );
 
   // Stay at bottom when room editor resize
