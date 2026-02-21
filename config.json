@@ -1,7 +1,7 @@
 {
   "defaultHomeserver": 0,
   "homeserverList": [
-    "http://192.168.1.246:8008",
+    "https://matrix-dev.lab.nijho.lt",
     "matrix.org",
     "envs.net",
     "mozilla.org",
@@ -15,7 +15,7 @@
     "rooms": [
       "#lobby:mindroom.local"
     ],
-    "servers": ["http://192.168.1.246:8008"]
+    "servers": ["https://matrix-dev.lab.nijho.lt"]
   },
 
   "hashRouter": {
