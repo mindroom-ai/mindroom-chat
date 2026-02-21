@@ -858,10 +858,13 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   );
 
   // Re-render when threads are created or updated so ThreadIndicator badges appear.
+  // Skip when already inside a thread view — that path uses threadTimelineTick instead.
   useThreadUpdate(
     room,
     useCallback(() => {
-      setTimeline((ct) => ({ ...ct }));
+      if (!threadIdRef.current) {
+        setTimeline((ct) => ({ ...ct }));
+      }
     }, [])
   );
 
