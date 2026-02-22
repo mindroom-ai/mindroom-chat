@@ -1,15 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { RelationType } from 'matrix-js-sdk';
-import { buildThreadReplyCountMap, eventBelongsToThread, isThreadReplyEvent } from './threadUtils';
+import {
+  buildThreadParticipantMap,
+  buildThreadReplyCountMap,
+  eventBelongsToThread,
+  isThreadReplyEvent,
+} from './threadUtils';
 
 const makeEvent = (
   eventId: string,
   threadRootId?: string,
-  relationType?: string
+  relationType?: string,
+  senderId?: string
 ) => ({
   getId: () => eventId,
   threadRootId,
   getRelation: () => (relationType ? { rel_type: relationType } : undefined),
+  getSender: () => senderId,
 });
 
 describe('eventBelongsToThread', () => {
@@ -67,5 +74,45 @@ describe('buildThreadReplyCountMap', () => {
     const counts = buildThreadReplyCountMap([duplicateReply, duplicateReply]);
 
     expect(counts.get('$root')).toBe(1);
+  });
+});
+
+describe('buildThreadParticipantMap', () => {
+  it('returns recent unique participants per thread root', () => {
+    const participants = buildThreadParticipantMap([
+      makeEvent('$reply1', '$root', RelationType.Thread, '@alice:example.org'),
+      makeEvent('$reply2', '$root', RelationType.Thread, '@bob:example.org'),
+      makeEvent('$reply3', '$root', RelationType.Thread, '@alice:example.org'),
+      makeEvent('$reply4', '$root', RelationType.Thread, '@carol:example.org'),
+    ]);
+
+    expect(participants.get('$root')).toEqual([
+      '@carol:example.org',
+      '@alice:example.org',
+      '@bob:example.org',
+    ]);
+  });
+
+  it('skips non-thread relations and events without sender', () => {
+    const participants = buildThreadParticipantMap([
+      makeEvent('$reply1', '$root', RelationType.Thread, '@alice:example.org'),
+      makeEvent('$annotation', '$root', RelationType.Annotation, '@bob:example.org'),
+      makeEvent('$reply2', '$root', RelationType.Thread, undefined),
+    ]);
+
+    expect(participants.get('$root')).toEqual(['@alice:example.org']);
+  });
+
+  it('limits participants per thread root', () => {
+    const participants = buildThreadParticipantMap(
+      [
+        makeEvent('$reply1', '$root', RelationType.Thread, '@alice:example.org'),
+        makeEvent('$reply2', '$root', RelationType.Thread, '@bob:example.org'),
+        makeEvent('$reply3', '$root', RelationType.Thread, '@carol:example.org'),
+      ],
+      2
+    );
+
+    expect(participants.get('$root')).toEqual(['@carol:example.org', '@bob:example.org']);
   });
 });

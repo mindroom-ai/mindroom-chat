@@ -337,6 +337,8 @@ Thread badge behavior:
   1. server-bundled thread metadata in event unsigned relations,
   2. SDK thread model length,
   3. fallback count derived from loaded room timeline events.
+- In main timeline message cards, the thread summary chip is rendered below message content (not in the reply-preview row).
+- When thread participant senders are available from SDK thread events or loaded timeline fallback, the thread summary chip includes a compact avatar stack.
 
 ### Tool Metadata Visibility
 - `io.mindroom.tool_trace` is converted into custom HTML blocks (`<tool>`, `<tool-group>`) and appended to rendered message content when explicit tool tags are absent.
@@ -369,5 +371,6 @@ Thread badge behavior:
 
 ## Current Snapshot (2026-02-22)
 - Thread mode, tool-trace rendering, long-text expansion, and `!` autocomplete are implemented.
+- Main timeline thread summary chips render below message body and show participant avatars when available.
 - Base-path bootstrap is server-driven for the local SPA server (`serve.py`) and no longer depends on fragile client-side inference.
 - Remaining known product gap: no dedicated thread list sidebar or thread-specific unread model yet.

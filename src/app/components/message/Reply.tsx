@@ -1,9 +1,9 @@
-import { Box, Icon, Icons, Text, as, color, toRem } from 'folds';
+import { Avatar, Box, Icon, Icons, Text, as, color, toRem } from 'folds';
 import { EventTimelineSet, Room } from 'matrix-js-sdk';
 import React, { MouseEventHandler, ReactNode, useCallback, useMemo } from 'react';
 import classNames from 'classnames';
-import { getMemberDisplayName, trimReplyFromBody } from '../../utils/room';
-import { getMxIdLocalPart } from '../../utils/matrix';
+import { getMemberAvatarMxc, getMemberDisplayName, trimReplyFromBody } from '../../utils/room';
+import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { LinePlaceholder } from './placeholder';
 import { randomNumberBetween } from '../../utils/common';
 import * as css from './Reply.css';
@@ -12,6 +12,9 @@ import { scaleSystemEmoji } from '../../plugins/react-custom-html-parser';
 import { useRoomEvent } from '../../hooks/useRoomEvent';
 import colorMXID from '../../../util/colorMXID';
 import { GetMemberPowerTag } from '../../hooks/useMemberPowerTag';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { UserAvatar } from '../user-avatar';
 
 type ReplyLayoutProps = {
   userColor?: string;
@@ -39,26 +42,76 @@ export const ReplyLayout = as<'div', ReplyLayoutProps>(
 
 type ThreadIndicatorProps = {
   threadReplyCount?: number;
+  threadParticipantIds?: string[];
+  room?: Room;
 };
 export const ThreadIndicator = as<'div', ThreadIndicatorProps>(
-  ({ threadReplyCount, ...props }, ref) => (
-    <Box
-      shrink="No"
-      className={css.ThreadIndicator}
-      alignItems="Center"
-      gap="100"
-      {...props}
-      ref={ref}
-    >
-      <Icon size="100" src={Icons.Thread} />
-      <Text size="T200">Thread</Text>
-      {typeof threadReplyCount === 'number' && (
-        <Text size="T200">
-          {threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}
-        </Text>
-      )}
-    </Box>
-  )
+  ({ threadReplyCount, threadParticipantIds, room, ...props }, ref) => {
+    const mx = useMatrixClient();
+    const useAuthentication = useMediaAuthentication();
+
+    const threadParticipants = useMemo(() => {
+      if (!room || !threadParticipantIds?.length) return [];
+      return threadParticipantIds.slice(0, 3).map((userId) => {
+        const displayName =
+          getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId;
+        const avatarMxc = getMemberAvatarMxc(room, userId);
+        return {
+          userId,
+          displayName,
+          avatarUrl: avatarMxc
+            ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 32, 32, 'crop') ?? undefined
+            : undefined,
+        };
+      });
+    }, [mx, room, threadParticipantIds, useAuthentication]);
+
+    return (
+      <Box
+        shrink="No"
+        className={css.ThreadIndicator}
+        alignItems="Center"
+        gap="100"
+        {...props}
+        ref={ref}
+      >
+        {threadParticipants.length > 0 && (
+          <Box className={css.ThreadParticipants} alignItems="Center">
+            {threadParticipants.map((participant, index) => (
+              <Avatar
+                key={participant.userId}
+                className={css.ThreadParticipant}
+                size="200"
+                radii="400"
+                style={
+                  index === 0
+                    ? { zIndex: threadParticipants.length - index }
+                    : {
+                        marginInlineStart: toRem(-6),
+                        zIndex: threadParticipants.length - index,
+                      }
+                }
+              >
+                <UserAvatar
+                  userId={participant.userId}
+                  src={participant.avatarUrl}
+                  alt={participant.displayName}
+                  renderFallback={() => <Icon size="100" src={Icons.User} filled />}
+                />
+              </Avatar>
+            ))}
+          </Box>
+        )}
+        <Icon size="100" src={Icons.Thread} />
+        <Text size="T200">Thread</Text>
+        {typeof threadReplyCount === 'number' && (
+          <Text size="T200">
+            {threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}
+          </Text>
+        )}
+      </Box>
+    );
+  }
 );
 
 type ReplyProps = {

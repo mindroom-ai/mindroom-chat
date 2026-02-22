@@ -6,6 +6,9 @@ export const ReplyBend = style({
 });
 
 export const ThreadIndicator = style({
+  alignSelf: 'flex-start',
+  width: 'fit-content',
+  maxWidth: '100%',
   padding: `${config.space.S100} ${config.space.S200}`,
   borderRadius: config.radii.R300,
   border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
@@ -24,6 +27,14 @@ export const ThreadIndicator = style({
       backgroundColor: color.SurfaceVariant.ContainerActive,
     },
   },
+});
+
+export const ThreadParticipants = style({
+  flexShrink: 0,
+});
+
+export const ThreadParticipant = style({
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.Container}`,
 });
 
 export const Reply = style({

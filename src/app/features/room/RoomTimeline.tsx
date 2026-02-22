@@ -128,6 +128,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import {
+  buildThreadParticipantMap,
   buildThreadReplyCountMap,
   eventBelongsToThread,
   isThreadReplyEvent,
@@ -216,6 +217,30 @@ const getThreadReplyCount = (
   // derive counts from loaded room timeline events.
   if (typeof fallbackReplyCount === 'number' && fallbackReplyCount > 0) {
     return fallbackReplyCount;
+  }
+
+  return undefined;
+};
+
+const THREAD_PARTICIPANT_LIMIT = 3;
+
+const getThreadParticipantIds = (
+  room: Room,
+  mEvent: MatrixEvent,
+  fallbackParticipantIds?: string[]
+): string[] | undefined => {
+  const eventId = mEvent.getId();
+  if (eventId) {
+    const thread = room.getThread(eventId);
+    if (thread?.events?.length) {
+      const participants =
+        buildThreadParticipantMap(thread.events, THREAD_PARTICIPANT_LIMIT).get(eventId) ?? [];
+      if (participants.length > 0) return participants;
+    }
+  }
+
+  if (fallbackParticipantIds && fallbackParticipantIds.length > 0) {
+    return fallbackParticipantIds.slice(0, THREAD_PARTICIPANT_LIMIT);
   }
 
   return undefined;
@@ -813,13 +838,16 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           let threadTimelineSet = room.getThread(threadId)?.getUnfilteredTimelineSet();
           const expectedThreadId = threadId;
           if (!threadTimelineSet) {
-            const [threadErr] = await to(mx.getThreadTimeline(room.getUnfilteredTimelineSet(), threadId));
+            const [threadErr] = await to(
+              mx.getThreadTimeline(room.getUnfilteredTimelineSet(), threadId)
+            );
             if (threadErr) {
               if (onScroll) onScroll(false);
               return;
             }
             threadTimelineSet =
-              room.getThread(threadId)?.getUnfilteredTimelineSet() ?? room.getUnfilteredTimelineSet();
+              room.getThread(threadId)?.getUnfilteredTimelineSet() ??
+              room.getUnfilteredTimelineSet();
           }
           const [err, evtTimeline] = await to(mx.getEventTimeline(threadTimelineSet, evtId));
           if (err || !evtTimeline) {
@@ -991,9 +1019,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       let thread = room.getThread(threadId);
       if (!thread) {
         // Fetch the thread root event to make the SDK aware of this thread
-        const [ctxErr] = await to(
-          mx.getEventTimeline(room.getUnfilteredTimelineSet(), threadId)
-        );
+        const [ctxErr] = await to(mx.getEventTimeline(room.getUnfilteredTimelineSet(), threadId));
         if (!mounted) return;
         if (ctxErr) {
           setThreadLoadError(true);
@@ -1002,17 +1028,14 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         thread = room.getThread(threadId);
       }
 
-        if (!thread) {
-          // If the SDK still hasn't created a Thread object, try fetching
-          // thread relations directly to populate it
-          const [relErr, relData] = await to(
-          mx.fetchRelations(
-            room.roomId,
-            threadId,
-            'm.thread' as any,
-            null,
-            { dir: Direction.Backward, limit: 50 }
-          )
+      if (!thread) {
+        // If the SDK still hasn't created a Thread object, try fetching
+        // thread relations directly to populate it
+        const [relErr, relData] = await to(
+          mx.fetchRelations(room.roomId, threadId, 'm.thread' as any, null, {
+            dir: Direction.Backward,
+            limit: 50,
+          })
         );
         if (!mounted) return;
         if (relErr) {
@@ -1044,13 +1067,10 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           // Some servers return empty thread timelines even though relations exist.
           // Fetch relations and feed them into the thread so replies render.
           const [relErr, relData] = await to(
-            mx.fetchRelations(
-              room.roomId,
-              threadId,
-              'm.thread' as any,
-              null,
-              { dir: Direction.Backward, limit: 50 }
-            )
+            mx.fetchRelations(room.roomId, threadId, 'm.thread' as any, null, {
+              dir: Direction.Backward,
+              limit: 50,
+            })
           );
           if (!mounted) return;
           if (!relErr && relData?.chunk?.length) {
@@ -1355,14 +1375,23 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     [editor]
   );
   const { t } = useTranslation();
-  const threadReplyCountMap = useMemo(() => {
-    if (threadId) return new Map<string, number>();
+  const loadedTimelineEvents = useMemo(() => {
+    if (threadId) return [] as MatrixEvent[];
     const loadedEvents: MatrixEvent[] = [];
     timeline.linkedTimelines.forEach((linkedTimeline) => {
       loadedEvents.push(...linkedTimeline.getEvents());
     });
-    return buildThreadReplyCountMap(loadedEvents);
+    return loadedEvents;
   }, [threadId, timeline]);
+  const threadReplyCountMap = useMemo(
+    () => (threadId ? new Map<string, number>() : buildThreadReplyCountMap(loadedTimelineEvents)),
+    [threadId, loadedTimelineEvents]
+  );
+  const threadParticipantMap = useMemo(
+    () =>
+      threadId ? new Map<string, string[]>() : buildThreadParticipantMap(loadedTimelineEvents),
+    [threadId, loadedTimelineEvents]
+  );
 
   const renderMatrixEvent = useMatrixEventRenderer<
     [string, MatrixEvent, number, EventTimelineSet, boolean]
@@ -1387,6 +1416,11 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           mEvent,
           threadReplyCountMap.get(mEventId)
         );
+        const threadParticipantIds = getThreadParticipantIds(
+          room,
+          mEvent,
+          threadParticipantMap.get(mEventId)
+        );
         const isThreadReply = isThreadReplyEvent(mEventId, threadRootId);
         const threadSummary =
           !threadId &&
@@ -1396,9 +1430,12 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           threadReplyCount > 0 ? (
             <ThreadIndicator
               as="button"
+              style={{ marginTop: config.space.S200 }}
               data-thread-root-id={mEventId}
               data-event-id={mEventId}
               threadReplyCount={threadReplyCount}
+              threadParticipantIds={threadParticipantIds}
+              room={room}
               onClick={handleOpenReply}
             />
           ) : null;
@@ -1426,36 +1463,40 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             onReactionToggle={handleReactionToggle}
             onEditId={handleEdit}
             reply={
-              !(threadId && replyEventId && (replyEventId === prevEvent?.getId() || replyEventId === threadId)) &&
-              (replyEventId || threadSummary) && (
-                <Box direction="Row" gap="200" alignItems="Center">
-                  {replyEventId && (
-                    <Reply
-                      room={room}
-                      timelineSet={timelineSet}
-                      replyEventId={replyEventId}
-                      threadRootId={threadRootId}
-                      hideThreadIndicator={!!threadId}
-                      onClick={handleOpenReply}
-                      getMemberPowerTag={getMemberPowerTag}
-                      accessibleTagColors={accessiblePowerTagColors}
-                      legacyUsernameColor={legacyUsernameColor || direct}
-                    />
-                  )}
-                  {threadSummary}
-                </Box>
+              !(
+                threadId &&
+                replyEventId &&
+                (replyEventId === prevEvent?.getId() || replyEventId === threadId)
+              ) &&
+              replyEventId && (
+                <Reply
+                  room={room}
+                  timelineSet={timelineSet}
+                  replyEventId={replyEventId}
+                  threadRootId={threadRootId}
+                  hideThreadIndicator={!!threadId}
+                  onClick={handleOpenReply}
+                  getMemberPowerTag={getMemberPowerTag}
+                  accessibleTagColors={accessiblePowerTagColors}
+                  legacyUsernameColor={legacyUsernameColor || direct}
+                />
               )
             }
             reactions={
-              reactionRelations && (
-                <Reactions
-                  style={{ marginTop: config.space.S200 }}
-                  room={room}
-                  relations={reactionRelations}
-                  mEventId={mEventId}
-                  canSendReaction={canSendReaction}
-                  onReactionToggle={handleReactionToggle}
-                />
+              (threadSummary || reactionRelations) && (
+                <>
+                  {threadSummary}
+                  {reactionRelations && (
+                    <Reactions
+                      style={{ marginTop: config.space.S200 }}
+                      room={room}
+                      relations={reactionRelations}
+                      mEventId={mEventId}
+                      canSendReaction={canSendReaction}
+                      onReactionToggle={handleReactionToggle}
+                    />
+                  )}
+                </>
               )
             }
             hideReadReceipts={hideActivity}
@@ -1496,6 +1537,11 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           mEvent,
           threadReplyCountMap.get(mEventId)
         );
+        const threadParticipantIds = getThreadParticipantIds(
+          room,
+          mEvent,
+          threadParticipantMap.get(mEventId)
+        );
         const isThreadReply = isThreadReplyEvent(mEventId, threadRootId);
         const threadSummary =
           !threadId &&
@@ -1505,9 +1551,12 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           threadReplyCount > 0 ? (
             <ThreadIndicator
               as="button"
+              style={{ marginTop: config.space.S200 }}
               data-thread-root-id={mEventId}
               data-event-id={mEventId}
               threadReplyCount={threadReplyCount}
+              threadParticipantIds={threadParticipantIds}
+              room={room}
               onClick={handleOpenReply}
             />
           ) : null;
@@ -1535,36 +1584,40 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             onReactionToggle={handleReactionToggle}
             onEditId={handleEdit}
             reply={
-              !(threadId && replyEventId && (replyEventId === prevEvent?.getId() || replyEventId === threadId)) &&
-              (replyEventId || threadSummary) && (
-                <Box direction="Row" gap="200" alignItems="Center">
-                  {replyEventId && (
-                    <Reply
-                      room={room}
-                      timelineSet={timelineSet}
-                      replyEventId={replyEventId}
-                      threadRootId={threadRootId}
-                      hideThreadIndicator={!!threadId}
-                      onClick={handleOpenReply}
-                      getMemberPowerTag={getMemberPowerTag}
-                      accessibleTagColors={accessiblePowerTagColors}
-                      legacyUsernameColor={legacyUsernameColor || direct}
-                    />
-                  )}
-                  {threadSummary}
-                </Box>
+              !(
+                threadId &&
+                replyEventId &&
+                (replyEventId === prevEvent?.getId() || replyEventId === threadId)
+              ) &&
+              replyEventId && (
+                <Reply
+                  room={room}
+                  timelineSet={timelineSet}
+                  replyEventId={replyEventId}
+                  threadRootId={threadRootId}
+                  hideThreadIndicator={!!threadId}
+                  onClick={handleOpenReply}
+                  getMemberPowerTag={getMemberPowerTag}
+                  accessibleTagColors={accessiblePowerTagColors}
+                  legacyUsernameColor={legacyUsernameColor || direct}
+                />
               )
             }
             reactions={
-              reactionRelations && (
-                <Reactions
-                  style={{ marginTop: config.space.S200 }}
-                  room={room}
-                  relations={reactionRelations}
-                  mEventId={mEventId}
-                  canSendReaction={canSendReaction}
-                  onReactionToggle={handleReactionToggle}
-                />
+              (threadSummary || reactionRelations) && (
+                <>
+                  {threadSummary}
+                  {reactionRelations && (
+                    <Reactions
+                      style={{ marginTop: config.space.S200 }}
+                      room={room}
+                      relations={reactionRelations}
+                      mEventId={mEventId}
+                      canSendReaction={canSendReaction}
+                      onReactionToggle={handleReactionToggle}
+                    />
+                  )}
+                </>
               )
             }
             hideReadReceipts={hideActivity}
@@ -1996,7 +2049,8 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     const addThreadEvent = (mEvent?: MatrixEvent | null, requireThreadMatch = true) => {
       const eventId = mEvent?.getId();
       if (!eventId) return;
-      if (requireThreadMatch && eventId !== threadId && !eventBelongsToThread(mEvent, threadId)) return;
+      if (requireThreadMatch && eventId !== threadId && !eventBelongsToThread(mEvent, threadId))
+        return;
       if (!eventsMap.has(eventId)) {
         eventOrderMap.set(eventId, eventOrderMap.size);
       }
@@ -2079,7 +2133,11 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   let isPrevRendered = false;
   let newDivider = false;
   let dayDivider = false;
-  const renderResolvedEvent = (mEvent: MatrixEvent, item: number, timelineSet: EventTimelineSet) => {
+  const renderResolvedEvent = (
+    mEvent: MatrixEvent,
+    item: number,
+    timelineSet: EventTimelineSet
+  ) => {
     const mEventId = mEvent?.getId();
 
     if (!mEvent || !mEventId) return null;
