@@ -27,6 +27,7 @@ import {
 } from '../../../types/matrix/common';
 import { FALLBACK_MIMETYPE, getBlobSafeMimeType } from '../../utils/mimeTypes';
 import { parseGeoUri, scaleYDimension } from '../../utils/common';
+import { getVoiceMessageAudioDetails, isVoiceMessageContent } from '../../utils/voiceMessage';
 import { Attachment, AttachmentBox, AttachmentContent, AttachmentHeader } from './attachment';
 import { FileHeader, FileDownloadButton } from './FileHeader';
 
@@ -297,7 +298,17 @@ type MAudioProps = {
   outlined?: boolean;
 };
 export function MAudio({ content, renderAsFile, renderAudioContent, outlined }: MAudioProps) {
-  const audioInfo = content?.info;
+  const voiceMessage = isVoiceMessageContent(content as Record<string, unknown>);
+  const voiceAudioDetails = getVoiceMessageAudioDetails(content as Record<string, unknown>);
+  const audioInfo: IAudioInfo | undefined =
+    content?.info || voiceAudioDetails
+      ? {
+          ...(content?.info ?? {}),
+          ...(content?.info?.duration === undefined && voiceAudioDetails?.duration !== undefined
+            ? { duration: voiceAudioDetails.duration }
+            : {}),
+        }
+      : undefined;
   const mxcUrl = content.file?.url ?? content.url;
   const safeMimeType = getBlobSafeMimeType(audioInfo?.mimetype ?? '');
 
@@ -308,20 +319,28 @@ export function MAudio({ content, renderAsFile, renderAudioContent, outlined }: 
     return <BrokenContent />;
   }
 
-  const filename = content.filename ?? content.body ?? 'Audio';
+  const downloadFilename = content.filename ?? content.body ?? 'Audio';
+  const displayName = voiceMessage ? 'Voice message' : downloadFilename;
   return (
     <Attachment outlined={outlined}>
       <AttachmentHeader>
         <FileHeader
-          body={filename}
+          body={displayName}
           mimeType={safeMimeType}
           after={
-            <FileDownloadButton
-              filename={filename}
-              url={mxcUrl}
-              mimeType={safeMimeType}
-              encInfo={content.file}
-            />
+            <Box alignItems="Center" gap="200">
+              {voiceMessage && (
+                <Chip variant="SurfaceVariant" radii="Pill">
+                  <Text size="B300">Voice</Text>
+                </Chip>
+              )}
+              <FileDownloadButton
+                filename={downloadFilename}
+                url={mxcUrl}
+                mimeType={safeMimeType}
+                encInfo={content.file}
+              />
+            </Box>
           }
         />
       </AttachmentHeader>

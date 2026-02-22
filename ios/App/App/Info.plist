@@ -56,6 +56,9 @@
 	<!-- Local network access prompt -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>MindRoom needs to connect to your local Matrix homeserver.</string>
+	<!-- Microphone access for voice messages -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>MindRoom needs microphone access to record voice messages.</string>
 	<!-- Bonjour browsing for mDNS (.local) -->
 	<key>NSBonjourServices</key>
 	<array>
