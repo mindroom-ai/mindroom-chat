@@ -9,6 +9,10 @@ import { createListAtom } from '../list';
 
 export type TUploadMetadata = {
   markedAsSpoiler: boolean;
+  voiceMessage?: {
+    duration: number;
+    waveform?: number[];
+  };
 };
 
 export type TUploadItem = {
@@ -20,9 +24,7 @@ export type TUploadItem = {
 
 export type TUploadListAtom = ReturnType<typeof createListAtom<TUploadItem>>;
 
-export const roomIdToUploadItemsAtomFamily = atomFamily<string, TUploadListAtom>(
-  createListAtom
-);
+export const roomIdToUploadItemsAtomFamily = atomFamily<string, TUploadListAtom>(createListAtom);
 
 export const roomUploadAtomFamily = createUploadAtomFamily();
 

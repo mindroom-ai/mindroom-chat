@@ -4,6 +4,7 @@ import React, {
   forwardRef,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -120,6 +121,7 @@ import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { useComposingCheck } from '../../hooks/useComposingCheck';
 import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from './mindroomCommandQuery';
+import { VoiceRecorderComposer } from './VoiceRecorderDialog';
 
 type RoomInputAutocompletePrefix = AutocompletePrefix | typeof MINDROOM_COMMAND_PREFIX;
 
@@ -168,9 +170,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     const [uploadBoard, setUploadBoard] = useState(true);
     const [selectedFiles, setSelectedFiles] = useAtom(roomIdToUploadItemsAtomFamily(roomId));
-    const uploadFamilyObserverAtom = createUploadFamilyObserverAtom(
-      roomUploadAtomFamily,
-      selectedFiles.map((f) => f.file)
+    const uploadFiles = useMemo(() => selectedFiles.map((f) => f.file), [selectedFiles]);
+    // Keep the observer atom stable across ordinary rerenders; recreating it each render
+    // causes RoomInput to resubscribe and can disrupt editor focus/selection.
+    const uploadFamilyObserverAtom = useMemo(
+      () => createUploadFamilyObserverAtom(roomUploadAtomFamily, uploadFiles),
+      [uploadFiles]
     );
     const uploadBoardHandlers = useRef<UploadBoardImperativeHandlers>();
 
@@ -179,45 +184,87 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [toolbar, setToolbar] = useSetting(settingsAtom, 'editorToolbar');
     const [autocompleteQuery, setAutocompleteQuery] =
       useState<AutocompleteQuery<RoomInputAutocompletePrefix>>();
+    const [voiceRecorderOpen, setVoiceRecorderOpen] = useState(false);
 
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId);
 
-    const handleFiles = useCallback(
-      async (files: File[]) => {
-        setUploadBoard(true);
+    const createUploadItems = useCallback(
+      async (
+        files: File[],
+        getMetadata: (file: File, index: number) => TUploadMetadata = () => ({
+          markedAsSpoiler: false,
+        })
+      ): Promise<TUploadItem[]> => {
         const safeFiles = files.map(safeFile);
-        const fileItems: TUploadItem[] = [];
 
         if (room.hasEncryptionStateEvent()) {
           const encryptFiles = fulfilledPromiseSettledResult(
             await Promise.allSettled(safeFiles.map((f) => encryptFile(f)))
           );
-          encryptFiles.forEach((ef) =>
-            fileItems.push({
-              ...ef,
-              metadata: {
-                markedAsSpoiler: false,
-              },
-            })
-          );
-        } else {
-          safeFiles.forEach((f) =>
-            fileItems.push({
-              file: f,
-              originalFile: f,
-              encInfo: undefined,
-              metadata: {
-                markedAsSpoiler: false,
-              },
-            })
-          );
+
+          return encryptFiles.map((ef, index) => ({
+            ...ef,
+            metadata: getMetadata(safeFiles[index], index),
+          }));
         }
+
+        return safeFiles.map((file, index) => ({
+          file,
+          originalFile: file,
+          encInfo: undefined,
+          metadata: getMetadata(file, index),
+        }));
+      },
+      [room]
+    );
+
+    const appendUploadItems = useCallback(
+      (fileItems: TUploadItem[]) => {
+        if (fileItems.length === 0) return;
+
+        setUploadBoard(true);
         setSelectedFiles({
           type: 'PUT',
           item: fileItems,
         });
       },
-      [setSelectedFiles, room]
+      [setSelectedFiles]
+    );
+
+    const handleFiles = useCallback(
+      async (files: File[]) => {
+        appendUploadItems(await createUploadItems(files));
+      },
+      [appendUploadItems, createUploadItems]
+    );
+
+    const createVoiceUploadItems = useCallback(
+      async (file: File, duration: number) => {
+        return createUploadItems([file], () => ({
+          markedAsSpoiler: false,
+          voiceMessage: {
+            duration,
+          },
+        }));
+      },
+      [createUploadItems]
+    );
+    const handleVoiceRecording = useCallback(
+      async (file: File, duration: number) => {
+        const fileItems = await createVoiceUploadItems(file, duration);
+        appendUploadItems(fileItems);
+      },
+      [appendUploadItems, createVoiceUploadItems]
+    );
+    const sendAfterUploadFilesRef = useRef<Set<TUploadContent> | undefined>();
+    const handleVoiceSend = useCallback(
+      async (file: File, duration: number) => {
+        const fileItems = await createVoiceUploadItems(file, duration);
+        // Track the actual upload file objects (post-safeFile/encryption), not the raw recorded file.
+        sendAfterUploadFilesRef.current = new Set(fileItems.map((item) => item.file));
+        appendUploadItems(fileItems);
+      },
+      [appendUploadItems, createVoiceUploadItems]
     );
     const pickFile = useFilePicker(handleFiles, true);
     const handlePaste = useFilePasteHandler(handleFiles);
@@ -396,6 +443,32 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       commands,
       threadId,
     ]);
+
+    const uploads = useAtomValue(uploadFamilyObserverAtom);
+    useEffect(() => {
+      const trackedFiles = sendAfterUploadFilesRef.current;
+      if (!trackedFiles || trackedFiles.size === 0) return;
+
+      const trackedUploads = uploads.filter((upload) => trackedFiles.has(upload.file));
+      if (trackedUploads.length === 0) {
+        // Uploads were cancelled/removed before completion.
+        sendAfterUploadFilesRef.current = undefined;
+        return;
+      }
+
+      const hasFailure = trackedUploads.some((u) => u.status === UploadStatus.Error);
+      if (hasFailure) {
+        sendAfterUploadFilesRef.current = undefined;
+        return;
+      }
+
+      const allSuccess = trackedUploads.every((u) => u.status === UploadStatus.Success);
+      if (allSuccess) {
+        sendAfterUploadFilesRef.current = undefined;
+        // All uploads finished — trigger send
+        uploadBoardHandlers.current?.handleSend();
+      }
+    }, [uploads]);
 
     const handleKeyDown: KeyboardEventHandler = useCallback(
       (evt) => {
@@ -582,62 +655,83 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           onKeyUp={handleKeyUp}
           onPaste={handlePaste}
           top={
-            (replyDraft || threadId) && (
+            (replyDraft || threadId || voiceRecorderOpen) && (
               <div>
-                <Box
-                  alignItems="Center"
-                  gap="300"
-                  style={{ padding: `${config.space.S200} ${config.space.S300} 0` }}
-                >
-                  {replyDraft && (
-                    <IconButton
-                      onClick={() => setReplyDraft(undefined)}
-                      variant="SurfaceVariant"
-                      size="300"
-                      radii="300"
-                    >
-                      <Icon src={Icons.Cross} size="50" />
-                    </IconButton>
-                  )}
-                  <Box direction="Row" gap="200" alignItems="Center">
-                    {/* Only show thread badge for reply-in-thread from main timeline. */}
-                    {replyDraft?.relation?.rel_type === RelationType.Thread && <ThreadIndicator />}
-                    {replyDraft ? (
-                      <ReplyLayout
-                        userColor={replyUsernameColor}
-                        username={
-                          <Text size="T300" truncate>
-                            <b>
-                              {getMemberDisplayName(room, replyDraft.userId) ??
-                                getMxIdLocalPart(replyDraft.userId) ??
-                                replyDraft.userId}
-                            </b>
-                          </Text>
-                        }
+                {(replyDraft || threadId) && (
+                  <Box
+                    alignItems="Center"
+                    gap="300"
+                    style={{ padding: `${config.space.S200} ${config.space.S300} 0` }}
+                  >
+                    {replyDraft && (
+                      <IconButton
+                        onClick={() => setReplyDraft(undefined)}
+                        variant="SurfaceVariant"
+                        size="300"
+                        radii="300"
                       >
-                        <Text size="T300" truncate>
-                          {trimReplyFromBody(replyDraft.body)}
-                        </Text>
-                      </ReplyLayout>
-                    ) : (
-                      <Text size="T300" priority="300">
-                        Sending to this thread
-                      </Text>
+                        <Icon src={Icons.Cross} size="50" />
+                      </IconButton>
                     )}
+                    <Box direction="Row" gap="200" alignItems="Center">
+                      {/* Only show thread badge for reply-in-thread from main timeline. */}
+                      {replyDraft?.relation?.rel_type === RelationType.Thread && (
+                        <ThreadIndicator />
+                      )}
+                      {replyDraft ? (
+                        <ReplyLayout
+                          userColor={replyUsernameColor}
+                          username={
+                            <Text size="T300" truncate>
+                              <b>
+                                {getMemberDisplayName(room, replyDraft.userId) ??
+                                  getMxIdLocalPart(replyDraft.userId) ??
+                                  replyDraft.userId}
+                              </b>
+                            </Text>
+                          }
+                        >
+                          <Text size="T300" truncate>
+                            {trimReplyFromBody(replyDraft.body)}
+                          </Text>
+                        </ReplyLayout>
+                      ) : (
+                        <Text size="T300" priority="300">
+                          Sending to this thread
+                        </Text>
+                      )}
+                    </Box>
                   </Box>
-                </Box>
+                )}
+                <VoiceRecorderComposer
+                  active={voiceRecorderOpen}
+                  onClose={() => setVoiceRecorderOpen(false)}
+                  onSaveRecording={handleVoiceRecording}
+                  onSendRecording={handleVoiceSend}
+                />
               </div>
             )
           }
           before={
-            <IconButton
-              onClick={() => pickFile('*')}
-              variant="SurfaceVariant"
-              size="300"
-              radii="300"
-            >
-              <Icon src={Icons.PlusCircle} />
-            </IconButton>
+            <>
+              <IconButton
+                onClick={() => pickFile('*')}
+                variant="SurfaceVariant"
+                size="300"
+                radii="300"
+              >
+                <Icon src={Icons.PlusCircle} />
+              </IconButton>
+              <IconButton
+                onClick={() => setVoiceRecorderOpen(true)}
+                variant="SurfaceVariant"
+                size="300"
+                radii="300"
+                aria-label="Record voice message"
+              >
+                <Icon src={Icons.Mic} />
+              </IconButton>
+            </>
           }
           after={
             <>

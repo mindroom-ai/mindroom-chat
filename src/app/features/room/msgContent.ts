@@ -17,6 +17,7 @@ import { encryptFile, getImageInfo, getThumbnailContent, getVideoInfo } from '..
 import { TUploadItem } from '../../state/room/roomInputDrafts';
 import { encodeBlurHash } from '../../utils/blurHash';
 import { scaleYDimension } from '../../utils/common';
+import { addVoiceMessageMetadata } from '../../utils/voiceMessage';
 
 const generateThumbnailContent = async (
   mx: MatrixClient,
@@ -127,7 +128,8 @@ export const getVideoMsgContent = async (
 };
 
 export const getAudioMsgContent = (item: TUploadItem, mxc: string): IContent => {
-  const { file, encInfo } = item;
+  const { file, encInfo, metadata } = item;
+  const duration = metadata.voiceMessage?.duration;
   const content: IContent = {
     msgtype: MsgType.Audio,
     filename: file.name,
@@ -135,6 +137,7 @@ export const getAudioMsgContent = (item: TUploadItem, mxc: string): IContent => 
     info: {
       mimetype: file.type,
       size: file.size,
+      ...(typeof duration === 'number' ? { duration } : {}),
     },
   };
   if (encInfo) {
@@ -145,7 +148,14 @@ export const getAudioMsgContent = (item: TUploadItem, mxc: string): IContent => 
   } else {
     content.url = mxc;
   }
-  return content;
+  if (!metadata.voiceMessage) {
+    return content;
+  }
+
+  return addVoiceMessageMetadata(content, {
+    duration: metadata.voiceMessage.duration,
+    ...(metadata.voiceMessage.waveform ? { waveform: metadata.voiceMessage.waveform } : {}),
+  });
 };
 
 export const getFileMsgContent = (item: TUploadItem, mxc: string): IContent => {
