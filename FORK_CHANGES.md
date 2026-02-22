@@ -344,6 +344,11 @@ Thread badge behavior:
 - `io.mindroom.tool_trace` is converted into custom HTML blocks (`<tool>`, `<tool-group>`) and appended to rendered message content when explicit tool tags are absent.
 - Tool blocks are sanitized and rendered through the shared custom HTML pipeline.
 - `io.mindroom.long_text` supports full-text expansion by resolving long-body content and preserving custom-tag formatting when present.
+- MindRoom long-text compatibility now treats `io.mindroom.long_text` as the marker and resolves attachment MXC from:
+  - direct metadata MXC (backward compatibility),
+  - `content.url` for unencrypted `m.file`,
+  - `content.file.url` for encrypted `m.file`.
+- Long-text expansion now supports encrypted attachments (`content.file`) via decrypt-on-fetch and renders HTML attachments (`message.html`/`text/html`) through `formatted_body` so large formatted responses render inline instead of raw HTML or attachment UI.
 
 ### MindRoom Command UX
 - `RoomInput` includes `!` command autocomplete.
@@ -371,6 +376,7 @@ Thread badge behavior:
 
 ## Current Snapshot (2026-02-22)
 - Thread mode, tool-trace rendering, long-text expansion, and `!` autocomplete are implemented.
+- MindRoom oversized `m.file` payloads (including edit `m.new_content` payloads) now render inline when marked with `io.mindroom.long_text`, including encrypted and HTML attachment variants.
 - Main timeline thread summary chips render below message body and show participant avatars when available.
 - Base-path bootstrap is server-driven for the local SPA server (`serve.py`) and no longer depends on fragile client-side inference.
 - Remaining known product gap: no dedicated thread list sidebar or thread-specific unread model yet.

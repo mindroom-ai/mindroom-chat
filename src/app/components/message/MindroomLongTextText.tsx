@@ -1,10 +1,15 @@
 import React, { ReactNode, useEffect, useMemo, useState } from 'react';
-import { Box, Spinner, Text, config } from 'folds';
+import { Box, Spinner, Text as FText, config } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import { downloadMedia, mxcUrlToHttp } from '../../utils/matrix';
+import {
+  decryptFile,
+  downloadEncryptedMedia,
+  downloadMedia,
+  mxcUrlToHttp,
+} from '../../utils/matrix';
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
-import { resolveMindroomLongTextContent } from './mindroomLongText';
+import { MindroomLongTextSource, resolveMindroomLongTextContent } from './mindroomLongText';
 
 export enum MindroomLongTextKind {
   Text = 'text',
@@ -17,7 +22,7 @@ type MindroomLongTextTextProps = {
   displayName?: string;
   edited?: boolean;
   content: Record<string, unknown>;
-  longTextMxcUri: string;
+  longTextSource: MindroomLongTextSource;
   renderBody: (props: { body: string; customBody?: string }) => ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
 };
@@ -27,7 +32,7 @@ export function MindroomLongTextText({
   displayName,
   edited,
   content,
-  longTextMxcUri,
+  longTextSource,
   renderBody,
   renderUrlsPreview,
 }: MindroomLongTextTextProps) {
@@ -39,17 +44,29 @@ export function MindroomLongTextText({
   useEffect(() => {
     let cancelled = false;
     const fetchFullText = async () => {
-      const textUrl = mxcUrlToHttp(mx, longTextMxcUri, useAuthentication);
+      const textUrl = mxcUrlToHttp(mx, longTextSource.mxcUri, useAuthentication);
       if (!textUrl) return;
       setLoading(true);
       try {
-        const blob = await downloadMedia(textUrl);
+        const mimeType =
+          longTextSource.mimeType ?? (longTextSource.isHtml ? 'text/html' : 'text/plain');
+        const encryptedInfo = longTextSource.encInfo;
+        const blob = encryptedInfo
+          ? await downloadEncryptedMedia(textUrl, (encBuf) =>
+              decryptFile(encBuf, mimeType, encryptedInfo)
+            )
+          : await downloadMedia(textUrl);
         const text = await blob.text();
         if (!cancelled) {
           setFullText(text);
         }
-      } catch {
+      } catch (error) {
         // Keep preview content when full-text fetch fails.
+        // eslint-disable-next-line no-console
+        console.warn('MindRoom long-text fetch/decrypt failed', {
+          mxcUri: longTextSource.mxcUri,
+          error,
+        });
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -62,14 +79,23 @@ export function MindroomLongTextText({
     return () => {
       cancelled = true;
     };
-  }, [mx, longTextMxcUri, useAuthentication]);
+  }, [
+    mx,
+    longTextSource.mxcUri,
+    longTextSource.encInfo,
+    longTextSource.mimeType,
+    longTextSource.isHtml,
+    useAuthentication,
+  ]);
 
-  const resolvedContent = useMemo(() => {
-    return resolveMindroomLongTextContent(content, fullText);
-  }, [content, fullText]);
+  const resolvedContent = useMemo(
+    () => resolveMindroomLongTextContent(content, fullText, { isHtml: longTextSource.isHtml }),
+    [content, fullText, longTextSource.isHtml]
+  );
 
-  const textContent =
-    kind === MindroomLongTextKind.Emote ? (
+  let textContent: ReactNode;
+  if (kind === MindroomLongTextKind.Emote) {
+    textContent = (
       <MEmote
         displayName={displayName ?? ''}
         edited={edited}
@@ -77,14 +103,18 @@ export function MindroomLongTextText({
         renderBody={renderBody}
         renderUrlsPreview={renderUrlsPreview}
       />
-    ) : kind === MindroomLongTextKind.Notice ? (
+    );
+  } else if (kind === MindroomLongTextKind.Notice) {
+    textContent = (
       <MNotice
         edited={edited}
         content={resolvedContent}
         renderBody={renderBody}
         renderUrlsPreview={renderUrlsPreview}
       />
-    ) : (
+    );
+  } else {
+    textContent = (
       <MText
         edited={edited}
         content={resolvedContent}
@@ -92,6 +122,7 @@ export function MindroomLongTextText({
         renderUrlsPreview={renderUrlsPreview}
       />
     );
+  }
 
   return (
     <>
@@ -99,7 +130,7 @@ export function MindroomLongTextText({
       {loading && (
         <Box alignItems="Center" gap="100" style={{ marginTop: config.space.S100 }}>
           <Spinner size="100" variant="Secondary" />
-          <Text size="T200">Loading full response...</Text>
+          <FText size="T200">Loading full response...</FText>
         </Box>
       )}
     </>
