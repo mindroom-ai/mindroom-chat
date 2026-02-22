@@ -1426,6 +1426,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             onReactionToggle={handleReactionToggle}
             onEditId={handleEdit}
             reply={
+              !(threadId && replyEventId && (replyEventId === prevEvent?.getId() || replyEventId === threadId)) &&
               (replyEventId || threadSummary) && (
                 <Box direction="Row" gap="200" alignItems="Center">
                   {replyEventId && (
@@ -1534,6 +1535,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             onReactionToggle={handleReactionToggle}
             onEditId={handleEdit}
             reply={
+              !(threadId && replyEventId && (replyEventId === prevEvent?.getId() || replyEventId === threadId)) &&
               (replyEventId || threadSummary) && (
                 <Box direction="Row" gap="200" alignItems="Center">
                   {replyEventId && (
