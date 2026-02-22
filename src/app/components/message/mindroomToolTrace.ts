@@ -31,7 +31,11 @@ export const buildMindroomToolTraceHtml = (content: Record<string, unknown>): st
   const trace = content['io.mindroom.tool_trace'];
   if (!trace || typeof trace !== 'object') return undefined;
 
-  const eventsRaw = (trace as Record<string, unknown>).events;
+  // Respect the server's display flag (set when show_tool_calls is false)
+  const traceObj = trace as Record<string, unknown>;
+  if (traceObj.display === false) return undefined;
+
+  const eventsRaw = traceObj.events;
   if (!Array.isArray(eventsRaw) || eventsRaw.length === 0) return undefined;
 
   const calls: { toolName: string; command: string; body: string; pending: boolean }[] = [];
