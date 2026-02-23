@@ -1,5 +1,7 @@
 /// <reference lib="WebWorker" />
 
+import { looksLikeMediaRequest, validMediaRequest } from './swMediaAuth';
+
 export type {};
 declare const self: ServiceWorkerGlobalScope;
 
@@ -20,11 +22,6 @@ type SessionInfo = {
  * Store session per client (tab)
  */
 const sessions = new Map<string, SessionInfo>();
-
-const MEDIA_REQUEST_PATHS = [
-  '/_matrix/client/v1/media/download',
-  '/_matrix/client/v1/media/thumbnail',
-] as const;
 
 async function cleanupDeadClients() {
   const activeClients = await self.clients.matchAll();
@@ -61,12 +58,13 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
 async function askForAccessToken(client: Client): Promise<string | undefined> {
   return new Promise((resolve) => {
     const responseKey = Math.random().toString(36);
+    let listener: (messageEvent: ExtendableMessageEvent) => void = () => undefined;
     const timeoutId = setTimeout(() => {
       self.removeEventListener('message', listener);
       resolve(undefined);
     }, 1500);
 
-    const listener = (messageEvent: ExtendableMessageEvent) => {
+    listener = (messageEvent: ExtendableMessageEvent) => {
       if (messageEvent.data?.responseKey !== responseKey) return;
       clearTimeout(timeoutId);
       self.removeEventListener('message', listener);
@@ -76,15 +74,6 @@ async function askForAccessToken(client: Client): Promise<string | undefined> {
     self.addEventListener('message', listener);
     client.postMessage({ responseKey, type: 'token' });
   });
-}
-
-function looksLikeMediaRequest(url: string): boolean {
-  return MEDIA_REQUEST_PATHS.some((path) => url.includes(path));
-}
-
-function validMediaRequest(url: string, baseUrl: string): boolean {
-  const normalizedBaseUrl = baseUrl.replace(/\/+$/, '');
-  return MEDIA_REQUEST_PATHS.some((path) => url.startsWith(`${normalizedBaseUrl}${path}`));
 }
 
 function fetchConfig(token: string): RequestInit {

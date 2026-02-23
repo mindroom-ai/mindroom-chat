@@ -4,6 +4,7 @@
 //   getLocalStorageItem,
 //   setLocalStorageItem,
 // } from './utils/atomWithLocalStorage';
+import type { ClientConfig } from '../hooks/useClientConfig';
 
 export type Session = {
   baseUrl: string;
@@ -21,6 +22,53 @@ export type SessionStoreName = {
   crypto: string;
 };
 
+const FALLBACK_ACCESS_TOKEN_KEY = 'cinny_access_token';
+const FALLBACK_DEVICE_ID_KEY = 'cinny_device_id';
+const FALLBACK_USER_ID_KEY = 'cinny_user_id';
+export const FALLBACK_BASE_URL_KEY = 'cinny_hs_base_url';
+
+type LocalStorageLike = Pick<Storage, 'getItem' | 'setItem'>;
+
+const getLocalStorageSafe = (): LocalStorageLike | undefined => {
+  try {
+    if (typeof localStorage === 'undefined') return undefined;
+    return localStorage;
+  } catch {
+    return undefined;
+  }
+};
+
+export const getSingleConfiguredHomeserver = (clientConfig: ClientConfig): string | undefined => {
+  if (clientConfig.allowCustomHomeservers) return undefined;
+
+  const { homeserverList } = clientConfig;
+  if (!homeserverList || homeserverList.length !== 1) return undefined;
+
+  const [homeserver] = homeserverList;
+  if (typeof homeserver !== 'string' || homeserver.length === 0) return undefined;
+
+  return homeserver;
+};
+
+export const reconcileFallbackSessionHomeserver = (
+  clientConfig: ClientConfig,
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+): boolean => {
+  const configuredHomeserver = getSingleConfiguredHomeserver(clientConfig);
+  if (!configuredHomeserver || !storage) return false;
+
+  try {
+    if (storage.getItem(FALLBACK_BASE_URL_KEY) === configuredHomeserver) {
+      return false;
+    }
+
+    storage.setItem(FALLBACK_BASE_URL_KEY, configuredHomeserver);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Migration code for old session
  */
@@ -35,22 +83,22 @@ export function setFallbackSession(
   userId: string,
   baseUrl: string
 ) {
-  localStorage.setItem('cinny_access_token', accessToken);
-  localStorage.setItem('cinny_device_id', deviceId);
-  localStorage.setItem('cinny_user_id', userId);
-  localStorage.setItem('cinny_hs_base_url', baseUrl);
+  localStorage.setItem(FALLBACK_ACCESS_TOKEN_KEY, accessToken);
+  localStorage.setItem(FALLBACK_DEVICE_ID_KEY, deviceId);
+  localStorage.setItem(FALLBACK_USER_ID_KEY, userId);
+  localStorage.setItem(FALLBACK_BASE_URL_KEY, baseUrl);
 }
 export const removeFallbackSession = () => {
-  localStorage.removeItem('cinny_hs_base_url');
-  localStorage.removeItem('cinny_user_id');
-  localStorage.removeItem('cinny_device_id');
-  localStorage.removeItem('cinny_access_token');
+  localStorage.removeItem(FALLBACK_BASE_URL_KEY);
+  localStorage.removeItem(FALLBACK_USER_ID_KEY);
+  localStorage.removeItem(FALLBACK_DEVICE_ID_KEY);
+  localStorage.removeItem(FALLBACK_ACCESS_TOKEN_KEY);
 };
 export const getFallbackSession = (): Session | undefined => {
-  const baseUrl = localStorage.getItem('cinny_hs_base_url');
-  const userId = localStorage.getItem('cinny_user_id');
-  const deviceId = localStorage.getItem('cinny_device_id');
-  const accessToken = localStorage.getItem('cinny_access_token');
+  const baseUrl = localStorage.getItem(FALLBACK_BASE_URL_KEY);
+  const userId = localStorage.getItem(FALLBACK_USER_ID_KEY);
+  const deviceId = localStorage.getItem(FALLBACK_DEVICE_ID_KEY);
+  const accessToken = localStorage.getItem(FALLBACK_ACCESS_TOKEN_KEY);
 
   if (baseUrl && userId && deviceId && accessToken) {
     const session: Session = {

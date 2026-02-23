@@ -515,7 +515,9 @@ Thread badge behavior:
   - `<base href="/" />`
   - `<script src="/runtime-config.js"></script>`
 - `serve.py` patches those placeholders at startup from `APP_BASE_PATH`, then serves patched HTML for SPA routes.
-- Runtime config also exposes service-worker enablement (`APP_ENABLE_SERVICE_WORKER`, default disabled).
+- Runtime config also exposes service-worker enablement (`APP_ENABLE_SERVICE_WORKER`, default enabled in container entrypoint runtime config).
+- Service-worker media auth request matching now validates same-origin and media path presence, so both root-based and subpath-prefixed media URLs are accepted for authenticated fetches.
+- Authenticated media is enabled only when both homeserver spec support is present and runtime service-worker support is actually available/enabled.
 - This avoids client-side base-path inference logic and avoids `document.write`, synchronous XHR, or `eval` for base-path bootstrap.
 
 ### Auth/Storage Hardening
@@ -523,6 +525,7 @@ Thread badge behavior:
 - Matrix client creation is centralized with same-origin credentialed fetch behavior.
 - Auth flow loading was made recoverable (retry path instead of hard failure UX).
 - iOS session credentials are stored via secure storage/Keychain abstraction with startup hydration and logout cleanup.
+- On startup, when config enforces exactly one homeserver, stale stored `cinny_hs_base_url` is reconciled to that configured homeserver to avoid unusable-server auth errors from legacy localStorage values.
 
 ## Operational Notes
 
@@ -537,6 +540,7 @@ Thread badge behavior:
 - Thread mode, tool-ref v2 rendering, long-message v2 hydration, and `!` autocomplete are implemented.
 - Main timeline thread summary chips render below message body and show participant avatars when available.
 - Base-path bootstrap is server-driven for the local SPA server (`serve.py`) and no longer depends on fragile client-side inference.
+- Service-worker media auth matching handles both root and subpath media endpoints on the same origin, reducing `M_MISSING_TOKEN` failures under subpath deployments.
 - Voice message recording/sending is available in room input, and voice-tagged incoming audio messages render/play in the existing audio controls.
 - AI run metadata (`io.mindroom.ai_run`) is surfaced via a subtle per-message hover tooltip in the timeline header.
 - Long-message handling is v2-only; users can download the original long-text sidecar directly from the message menu.

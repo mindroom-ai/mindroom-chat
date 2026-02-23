@@ -39,6 +39,9 @@ To host Cinny on your own, simply download the tarball from [GitHub releases](ht
     * Docker example:
       `docker run -e APP_BASE_PATH=/mindroom -p 8080:80 cinny:latest`
     * This sets `window.__APP_BASE_PATH__` via `runtime-config.js`.
+    * In container runtime config, `APP_ENABLE_SERVICE_WORKER` now defaults to `true` (set it to `false` to opt out).
+    * Authenticated Matrix media requests are only enabled when both the homeserver advertises support and service worker support is available at runtime.
+    * On startup, if config enforces exactly one homeserver (`allowCustomHomeservers=false` and one `homeserverList` entry), stale `localStorage` `cinny_hs_base_url` is reconciled to that configured server.
 * Optional build-time base path (bakes URLs):
     * Build with `APP_BUILD_BASE_PATH=/mindroom npm run build`
     * Docker build example:
