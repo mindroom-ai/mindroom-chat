@@ -44,6 +44,33 @@ export const MessageMenuItemText = style({
   flexGrow: 1,
 });
 
+export const MessageAiRunInfoButton = style([
+  DefaultReset,
+  {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: toRem(16),
+    height: toRem(16),
+    border: 0,
+    borderRadius: toRem(999),
+    padding: 0,
+    color: 'inherit',
+    opacity: 0.65,
+    cursor: 'help',
+    selectors: {
+      '&:hover': {
+        opacity: 1,
+      },
+      '&:focus-visible': {
+        opacity: 1,
+        outline: `${toRem(2)} solid currentColor`,
+        outlineOffset: toRem(1),
+      },
+    },
+  },
+]);
+
 export const ReactionsContainer = style({
   selectors: {
     '&:empty': {
