@@ -1,9 +1,36 @@
 # MindRoom iOS App Store Compliance Checklist
 
-Last updated: 2026-02-26
+Last updated: 2026-02-28
 
 Use this checklist before every TestFlight/App Store submission.
 Use `APP_STORE_SUBMISSION_PACKET.md` to populate App Store Connect metadata and review notes.
+
+## Current Progress (2026-02-28)
+
+Use this section as the live status for the current submission attempt. Keep the main checklist below as the reusable template.
+
+- [x] macOS/Xcode environment available and working (`xcodebuild`, CocoaPods, ImageMagick).
+- [x] `npm install`
+- [x] `npm run test`
+- [x] `npm run build`
+- [x] `npm run ios:icons`
+- [x] `npm run appstore:preflight`
+- [x] `npx cap sync ios` (including `pod install`)
+- [x] Unsigned iOS Release `xcodebuild` build succeeded.
+- [x] Unsigned iOS Release `xcodebuild archive` succeeded.
+- [x] iOS Simulator build/install/launch smoke test succeeded.
+- [x] Manual iOS Simulator smoke test: app launches, message send works, microphone recording works, and account deactivation entry is visible (deactivation action not executed yet).
+- [x] In-app account deletion/deactivation entry point added in Settings → Account.
+- [x] Native iOS AppIcon and Splash assets refreshed from `public/res/svg/mindroom.svg` (icon slots regenerated + `cap sync ios` run).
+- [x] Native iOS AppIcon and Splash assets refreshed again from `~/Downloads/mindroom-logo.png` (square 1024 icon source render + regenerated icon slots + `cap sync ios` run).
+- [x] Re-test on physical iPhone after switching Capacitor Keyboard resize mode to `native` (fix confirmed for predictive/autocorrect bar overlapping room composer).
+- [x] Manual physical iPhone smoke test: message send/receive works, microphone recording works, camera permission works, photo library permission works, and account deactivation flow works.
+- [ ] Signed Xcode archive upload from Organizer.
+- [ ] TestFlight smoke test on physical iPhone (login, register, Apple SSO, media permissions, account deletion entry).
+- [x] Homeserver used for submission exposes Apple SSO provider (`https://mindroom.chat/_matrix/client/v3/login` returns `m.login.sso` with Apple provider metadata).
+- [x] `config.json` support/privacy/terms URLs point to final public endpoints (`https://docs.mindroom.chat/support`, `/privacy`, `/terms`) and are reachable.
+- [ ] Set final App Store version/build in Xcode (`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`) before upload.
+- [ ] Complete App Store Connect metadata, App Privacy answers, and review notes packet.
 
 ## References (Apple)
 
@@ -34,6 +61,30 @@ Use `APP_STORE_SUBMISSION_PACKET.md` to populate App Store Connect metadata and 
   - non-local servers must be `https://`
   - `http://` is only accepted for local-network hosts.
 - [ ] `NSAppTransportSecurity` does not use broad `NSAllowsArbitraryLoads`.
+
+### Apple SSO Homeserver Requirement (What Counts)
+
+For this app build, an acceptable review/test homeserver is any Matrix homeserver that:
+
+- returns `m.login.sso` in `/_matrix/client/v3/login`, and
+- includes an Apple identity provider in `identity_providers` (prefer `brand: "apple"`).
+
+The client also recognizes Apple providers by `id` or `name` containing `apple`, but `brand=apple` is the safest metadata for reviewer-visible behavior.
+
+Quick check (replace with your review homeserver):
+
+```bash
+curl -sS https://YOUR-HOMESERVER/_matrix/client/v3/login | jq .
+```
+
+What to look for in the response:
+
+- `"type": "m.login.sso"` flow present
+- `identity_providers` contains an entry like:
+  - `"brand": "apple"`
+  - `"name": "Apple"` (or similar)
+
+If the response only shows password/application-service flows, Apple SSO is not available for review and this build should not be submitted yet.
 
 ## 3. Privacy + Permissions
 

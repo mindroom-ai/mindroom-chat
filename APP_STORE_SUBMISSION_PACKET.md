@@ -1,8 +1,18 @@
 # MindRoom iOS App Store Submission Packet
 
-Last updated: 2026-02-26
+Last updated: 2026-02-28
 
 Use this file to paste content directly into App Store Connect.
+
+## Current Packet Progress (2026-02-28)
+
+- [x] Reviewer note template drafted below.
+- [x] Product summary / fork positioning note available.
+- [ ] Replace bracketed placeholders in review notes (credentials if needed).
+- [x] Confirm final public Support / Privacy / Terms URLs.
+- [ ] Fill App Store Connect subtitle and copyright.
+- [ ] Decide whether reviewer test account is required and provide credentials/instructions if so.
+- [ ] Validate App Privacy answers against production server behavior.
 
 ## 1) App Review Notes (Paste As-Is, Then Edit Bracketed Fields)
 
@@ -21,12 +31,12 @@ Important behavior for review:
   - HTTP is only permitted for local-network/self-hosted homeserver scenarios.
 
 Support and policy:
-- Support URL: [YOUR SUPPORT URL]
-- Privacy Policy URL: [YOUR PRIVACY POLICY URL]
-- Terms URL (optional): [YOUR TERMS URL]
+- Support URL: https://docs.mindroom.chat/support
+- Privacy Policy URL: https://docs.mindroom.chat/privacy
+- Terms URL (optional): https://docs.mindroom.chat/terms
 
 Reviewer test account (if needed):
-- Homeserver: [SERVER]
+- Homeserver: https://mindroom.chat
 - Username: [USERNAME]
 - Password: [PASSWORD]
 - 2FA / extra steps: [NONE OR INSTRUCTIONS]
