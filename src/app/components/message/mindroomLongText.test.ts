@@ -123,6 +123,11 @@ describe('hydrateMindroomLongTextSource', () => {
         msgtype: 'm.text',
         body: 'Full response',
         formatted_body: '<p>🔧 <code>tool_name</code> [1]</p>',
+        'io.mindroom.ai_run': {
+          version: 1,
+          status: 'completed',
+          usage: { total_tokens: 125 },
+        },
         'io.mindroom.tool_trace': {
           version: 2,
           events: [{ type: 'tool_call_completed', tool_name: 'tool_name' }],
@@ -135,6 +140,11 @@ describe('hydrateMindroomLongTextSource', () => {
     expect(resolved['io.mindroom.tool_trace']).toEqual({
       version: 2,
       events: [{ type: 'tool_call_completed', tool_name: 'tool_name' }],
+    });
+    expect(resolved['io.mindroom.ai_run']).toEqual({
+      version: 1,
+      status: 'completed',
+      usage: { total_tokens: 125 },
     });
   });
 
@@ -155,6 +165,11 @@ describe('hydrateMindroomLongTextSource', () => {
       JSON.stringify({
         msgtype: 'm.text',
         body: '* fallback edit body',
+        'io.mindroom.ai_run': {
+          version: 1,
+          status: 'cached',
+          usage: { total_tokens: 42 },
+        },
         'm.new_content': {
           msgtype: 'm.text',
           body: 'final edited body',
@@ -173,6 +188,11 @@ describe('hydrateMindroomLongTextSource', () => {
     expect(resolved['io.mindroom.tool_trace']).toEqual({
       version: 2,
       events: [{ type: 'tool_call_completed', tool_name: 'search_web' }],
+    });
+    expect(resolved['io.mindroom.ai_run']).toEqual({
+      version: 1,
+      status: 'cached',
+      usage: { total_tokens: 42 },
     });
   });
 

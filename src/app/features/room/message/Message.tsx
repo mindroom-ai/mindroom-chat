@@ -19,6 +19,8 @@ import {
   RectCords,
   Spinner,
   Text,
+  Tooltip,
+  TooltipProvider,
   as,
   color,
   config,
@@ -86,6 +88,7 @@ import {
   getMindroomLongTextSource,
 } from '../../../components/message/mindroomLongText';
 import { downloadMindroomLongTextSidecarBlob } from '../../../components/message/MindroomLongTextText';
+import { MindroomAiRunInfo, getMindroomAiRunInfo } from '../../../components/message/mindroomAiRun';
 
 export type ReactionHandler = (keyOrMxc: string, shortcode: string) => void;
 
@@ -121,11 +124,96 @@ const getLongTextDownloadName = (source: MindroomLongTextSource): string => {
   const info = isRecord(source.previewContent.info) ? source.previewContent.info : undefined;
   const infoName = typeof info?.name === 'string' ? sanitizeFilename(info.name) : undefined;
   const fallbackId = getMxcMediaId(source.mxcUri);
-  const baseName = infoName || (fallbackId ? `mindroom-long-text-${fallbackId}` : 'mindroom-long-text');
+  const baseName =
+    infoName || (fallbackId ? `mindroom-long-text-${fallbackId}` : 'mindroom-long-text');
   const ext = source.isV2ContentJson ? '.json' : '.txt';
   if (FILENAME_EXT_REG.test(baseName)) return baseName;
   return `${baseName}${ext}`;
 };
+
+const formatNumber = (value: number | undefined): string | undefined =>
+  typeof value === 'number' ? Math.round(value).toLocaleString() : undefined;
+
+const formatTimeToFirstToken = (value: number | undefined): string | undefined => {
+  if (typeof value !== 'number' || value < 0) return undefined;
+  return `${Math.round(value * 1000)} ms`;
+};
+
+const getModelLabel = (info: MindroomAiRunInfo): string | undefined => {
+  const providerAndId = [info.modelProvider, info.modelId].filter(Boolean).join(' / ');
+  if (info.modelConfig && providerAndId) return `${info.modelConfig} (${providerAndId})`;
+  if (info.modelConfig) return info.modelConfig;
+  return providerAndId || undefined;
+};
+
+const getUsageLabel = (info: MindroomAiRunInfo): string | undefined => {
+  const parts = [
+    info.inputTokens !== undefined ? `in ${formatNumber(info.inputTokens)}` : undefined,
+    info.outputTokens !== undefined ? `out ${formatNumber(info.outputTokens)}` : undefined,
+    info.totalTokens !== undefined ? `total ${formatNumber(info.totalTokens)}` : undefined,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(' • ') : undefined;
+};
+
+const getContextLabel = (info: MindroomAiRunInfo): string | undefined => {
+  const inputTokens = info.contextInputTokens;
+  const windowTokens = info.contextWindowTokens;
+  if (inputTokens === undefined || windowTokens === undefined || windowTokens <= 0)
+    return undefined;
+
+  const percentage = ((inputTokens / windowTokens) * 100).toFixed(1);
+  return `${formatNumber(inputTokens)} / ${formatNumber(windowTokens)} (${percentage}%)`;
+};
+
+function MindroomAiRunDetail({ label, value }: { label: string; value?: string }) {
+  if (!value) return null;
+  return (
+    <Text size="T200">
+      {label}: {value}
+    </Text>
+  );
+}
+
+function MindroomAiRunInfoButton({ info }: { info: MindroomAiRunInfo }) {
+  const modelLabel = getModelLabel(info);
+  const usageLabel = getUsageLabel(info);
+  const contextLabel = getContextLabel(info);
+  const toolsLabel = formatNumber(info.toolCount);
+  const ttftLabel = formatTimeToFirstToken(info.timeToFirstToken);
+
+  return (
+    <TooltipProvider
+      position="Top"
+      align="Center"
+      tooltip={
+        <Tooltip style={{ maxWidth: '20rem' }}>
+          <Box direction="Column" gap="100">
+            <Text size="L400">AI Run</Text>
+            <MindroomAiRunDetail label="Status" value={info.status} />
+            <MindroomAiRunDetail label="Model" value={modelLabel} />
+            <MindroomAiRunDetail label="Tokens" value={usageLabel} />
+            <MindroomAiRunDetail label="Context" value={contextLabel} />
+            <MindroomAiRunDetail label="Tools" value={toolsLabel} />
+            <MindroomAiRunDetail label="TTFT" value={ttftLabel} />
+            <MindroomAiRunDetail label="Run" value={info.runId} />
+          </Box>
+        </Tooltip>
+      }
+    >
+      {(triggerRef) => (
+        <button
+          type="button"
+          className={css.MessageAiRunInfoButton}
+          aria-label="AI run metadata"
+          ref={triggerRef}
+        >
+          <Icon size="50" src={Icons.Info} />
+        </button>
+      )}
+    </TooltipProvider>
+  );
+}
 
 type MessageQuickReactionsProps = {
   onReaction: ReactionHandler;
@@ -396,7 +484,9 @@ export const MessageMindroomDownloadOriginalItem = as<
       ref={ref}
     >
       <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-        {downloadState.status === AsyncStatus.Loading ? 'Downloading Original...' : 'Download Original'}
+        {downloadState.status === AsyncStatus.Loading
+          ? 'Downloading Original...'
+          : 'Download Original'}
       </Text>
     </MenuItem>
   );
@@ -815,7 +905,11 @@ export const Message = as<'div', MessageProps>(
     const { focusWithinProps } = useFocusWithin({ onFocusWithinChange: setHover });
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const [emojiBoardAnchor, setEmojiBoardAnchor] = useState<RectCords>();
-    const longTextSource = getMindroomLongTextSource(getMenuMessageContent(room, mEvent));
+    const menuMessageContent = getMenuMessageContent(room, mEvent);
+    const longTextSource = getMindroomLongTextSource(menuMessageContent);
+    const mindroomAiRunInfo = getMindroomAiRunInfo(menuMessageContent);
+    const showMindroomAiRunInfo =
+      !!mindroomAiRunInfo && (hover || !!menuAnchor || !!emojiBoardAnchor);
 
     const senderDisplayName =
       getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
@@ -866,6 +960,9 @@ export const Message = as<'div', MessageProps>(
                 |
               </Text>
             </>
+          )}
+          {showMindroomAiRunInfo && mindroomAiRunInfo && (
+            <MindroomAiRunInfoButton info={mindroomAiRunInfo} />
           )}
           <Time
             ts={mEvent.getTs()}

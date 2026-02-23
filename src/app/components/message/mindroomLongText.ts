@@ -1,4 +1,5 @@
 import { IEncryptedFile } from '../../../types/matrix/common';
+import { AI_RUN_METADATA_KEY } from './mindroomAiRun';
 
 const LONG_TEXT_TAG = 'io.mindroom.long_text';
 const LONG_TEXT_V2_ENCODING = 'matrix_event_content_json';
@@ -89,6 +90,12 @@ const normalizeHydratedMindroomContent = (
     hydratedContent['io.mindroom.tool_trace'] !== undefined
   ) {
     normalizedContent['io.mindroom.tool_trace'] = hydratedContent['io.mindroom.tool_trace'];
+  }
+  if (
+    normalizedContent[AI_RUN_METADATA_KEY] === undefined &&
+    hydratedContent[AI_RUN_METADATA_KEY] !== undefined
+  ) {
+    normalizedContent[AI_RUN_METADATA_KEY] = hydratedContent[AI_RUN_METADATA_KEY];
   }
   if (
     normalizedContent['m.mentions'] === undefined &&
