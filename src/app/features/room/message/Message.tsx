@@ -35,6 +35,7 @@ import { useHover, useFocusWithin } from 'react-aria';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Relations } from 'matrix-js-sdk/lib/models/relations';
 import classNames from 'classnames';
+import FileSaver from 'file-saver';
 import { RoomPinnedEventsEventContent } from 'matrix-js-sdk/lib/types';
 import {
   AvatarBase,
@@ -49,6 +50,7 @@ import {
 import {
   canEditEvent,
   getEventEdits,
+  getEditedEvent,
   getMemberAvatarMxc,
   getMemberDisplayName,
 } from '../../../utils/room';
@@ -79,8 +81,51 @@ import { MemberPowerTag, StateEvent } from '../../../../types/matrix/room';
 import { PowerIcon } from '../../../components/power';
 import colorMXID from '../../../../util/colorMXID';
 import { getPowerTagIconSrc } from '../../../hooks/useMemberPowerTag';
+import {
+  MindroomLongTextSource,
+  getMindroomLongTextSource,
+} from '../../../components/message/mindroomLongText';
+import { downloadMindroomLongTextSidecarBlob } from '../../../components/message/MindroomLongTextText';
 
 export type ReactionHandler = (keyOrMxc: string, shortcode: string) => void;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
+
+const FILENAME_INVALID_CHARS = /[<>:"/\\|?*]/g;
+const FILENAME_EXT_REG = /\.[A-Za-z0-9]{1,8}$/;
+const MXC_URI_MEDIA_ID_REG = /^mxc:\/\/[^/]+\/(.+)$/;
+
+const getMenuMessageContent = (room: Room, mEvent: MatrixEvent): Record<string, unknown> => {
+  const eventId = mEvent.getId();
+  const content = mEvent.getContent();
+  if (!isRecord(content)) return {};
+  if (!eventId) return content;
+
+  const evtTimeline = room.getTimelineForEvent(eventId);
+  const editedEvent = evtTimeline && getEditedEvent(eventId, mEvent, evtTimeline.getTimelineSet());
+  const editedContent = editedEvent?.getContent()['m.new_content'];
+  return isRecord(editedContent) ? editedContent : content;
+};
+
+const sanitizeFilename = (value: string): string =>
+  value.replace(FILENAME_INVALID_CHARS, '_').replace(/\s+/g, ' ').trim().slice(0, 120);
+
+const getMxcMediaId = (mxcUri: string): string | undefined => {
+  const mediaId = mxcUri.match(MXC_URI_MEDIA_ID_REG)?.[1];
+  if (!mediaId) return undefined;
+  return sanitizeFilename(mediaId);
+};
+
+const getLongTextDownloadName = (source: MindroomLongTextSource): string => {
+  const info = isRecord(source.previewContent.info) ? source.previewContent.info : undefined;
+  const infoName = typeof info?.name === 'string' ? sanitizeFilename(info.name) : undefined;
+  const fallbackId = getMxcMediaId(source.mxcUri);
+  const baseName = infoName || (fallbackId ? `mindroom-long-text-${fallbackId}` : 'mindroom-long-text');
+  const ext = source.isV2ContentJson ? '.json' : '.txt';
+  if (FILENAME_EXT_REG.test(baseName)) return baseName;
+  return `${baseName}${ext}`;
+};
 
 type MessageQuickReactionsProps = {
   onReaction: ReactionHandler;
@@ -313,6 +358,47 @@ export const MessageSourceCodeItem = as<
         </Text>
       </MenuItem>
     </>
+  );
+});
+
+export const MessageMindroomDownloadOriginalItem = as<
+  'button',
+  {
+    source: MindroomLongTextSource;
+    onClose?: () => void;
+  }
+>(({ source, onClose, ...props }, ref) => {
+  const mx = useMatrixClient();
+  const useAuthentication = useMediaAuthentication();
+
+  const [downloadState, download] = useAsyncCallback(
+    useCallback(async () => {
+      const blob = await downloadMindroomLongTextSidecarBlob(mx, source, useAuthentication);
+      FileSaver.saveAs(blob, getLongTextDownloadName(source));
+      onClose?.();
+    }, [mx, source, useAuthentication, onClose])
+  );
+
+  return (
+    <MenuItem
+      size="300"
+      after={
+        downloadState.status === AsyncStatus.Loading ? (
+          <Spinner fill="Soft" size="100" />
+        ) : (
+          <Icon size="100" src={Icons.Download} />
+        )
+      }
+      radii="300"
+      onClick={download}
+      aria-disabled={downloadState.status === AsyncStatus.Loading}
+      {...props}
+      ref={ref}
+    >
+      <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
+        {downloadState.status === AsyncStatus.Loading ? 'Downloading Original...' : 'Download Original'}
+      </Text>
+    </MenuItem>
   );
 });
 
@@ -729,6 +815,7 @@ export const Message = as<'div', MessageProps>(
     const { focusWithinProps } = useFocusWithin({ onFocusWithinChange: setHover });
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const [emojiBoardAnchor, setEmojiBoardAnchor] = useState<RectCords>();
+    const longTextSource = getMindroomLongTextSource(getMenuMessageContent(room, mEvent));
 
     const senderDisplayName =
       getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
@@ -1076,6 +1163,12 @@ export const Message = as<'div', MessageProps>(
                             <MessageReadReceiptItem
                               room={room}
                               eventId={mEvent.getId() ?? ''}
+                              onClose={closeMenu}
+                            />
+                          )}
+                          {longTextSource && (
+                            <MessageMindroomDownloadOriginalItem
+                              source={longTextSource}
                               onClose={closeMenu}
                             />
                           )}

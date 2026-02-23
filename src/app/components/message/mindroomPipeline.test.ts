@@ -1,34 +1,54 @@
 import { describe, expect, it } from 'vitest';
-import { resolveMindroomLongTextContent } from './mindroomLongText';
+import {
+  getMindroomLongTextSource,
+  hydrateMindroomLongTextSource,
+} from './mindroomLongText';
+import { getMindroomToolTraceEventByIndex } from './mindroomToolTrace';
+
+const expectDefined = <T>(value: T | undefined): T => {
+  expect(value).toBeDefined();
+  if (value === undefined) {
+    throw new Error('Expected value to be defined');
+  }
+  return value;
+};
 
 describe('MindRoom message pipeline', () => {
-  it('clears v2 tool-ref preview html when fetched long text is plain text', () => {
+  it('hydrates full content json with formatted_body and tool-trace metadata', async () => {
     const previewContent = {
+      msgtype: 'm.file',
       body: 'preview',
-      formatted_body: '<p>🔧 <code>search_web</code> [1]</p>',
-      'io.mindroom.tool_trace': {
+      formatted_body: '<p>preview</p>',
+      url: 'mxc://server/full-content',
+      'io.mindroom.long_text': {
         version: 2,
-        events: [{ type: 'tool_call_completed', tool_name: 'search_web', result_preview: 'Done' }],
+        encoding: 'matrix_event_content_json',
       },
     };
 
-    const resolved = resolveMindroomLongTextContent(previewContent, 'full plain text');
+    const source = expectDefined(getMindroomLongTextSource(previewContent));
 
-    expect(resolved.body).toBe('full plain text');
-    expect(resolved.formatted_body).toBeUndefined();
-  });
-
-  it('replaces preview formatted_body when long text contains supported mindroom tags', () => {
-    const previewContent = {
-      body: 'preview',
-      formatted_body: '<p>🔧 <code>search_web</code> [1]</p>',
-    };
-
-    const resolved = resolveMindroomLongTextContent(
-      previewContent,
-      '<analysis>Reasoned answer with sources</analysis>'
+    const resolved = await hydrateMindroomLongTextSource(source, async () =>
+      JSON.stringify({
+        msgtype: 'm.text',
+        body: 'final answer',
+        formatted_body: '<p>🔧 <code>search_web</code> [1]</p>',
+        'io.mindroom.tool_trace': {
+          version: 2,
+          events: [
+            {
+              type: 'tool_call_completed',
+              tool_name: 'search_web',
+              result_preview: 'Done',
+            },
+          ],
+        },
+      })
     );
 
-    expect(resolved.formatted_body).toBe('<analysis>Reasoned answer with sources</analysis>');
+    expect(resolved.formatted_body).toBe('<p>🔧 <code>search_web</code> [1]</p>');
+
+    expect(getMindroomToolTraceEventByIndex(resolved, 1)?.tool_name).toBe('search_web');
   });
+
 });
