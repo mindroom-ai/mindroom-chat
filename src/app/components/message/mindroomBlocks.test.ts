@@ -1,40 +1,55 @@
 import { describe, expect, it } from 'vitest';
-import { parseMindroomToolBlock } from './mindroomBlocks';
+import {
+  MINDROOM_TOOL_REF_HTML_REG_G,
+  parseMindroomToolRefHtml,
+  parseMindroomToolRefText,
+} from './mindroomBlocks';
 
-describe('parseMindroomToolBlock', () => {
-  it('parses pending tool call without newline', () => {
-    expect(parseMindroomToolBlock('search_web(query=latest AI news)')).toEqual({
-      status: 'pending',
-      command: 'search_web(query=latest AI news)',
-      resultInline: false,
+describe('MINDROOM_TOOL_REF_HTML_REG_G', () => {
+  it('matches the formatted_body marker contract', () => {
+    MINDROOM_TOOL_REF_HTML_REG_G.lastIndex = 0;
+    const match = MINDROOM_TOOL_REF_HTML_REG_G.exec('🔧 <code>search_web</code> [12] ⏳');
+
+    expect(match?.[1]).toBe('search_web');
+    expect(match?.[2]).toBe('12');
+    expect(match?.[3]).toBe(' ⏳');
+  });
+});
+
+describe('parseMindroomToolRefHtml', () => {
+  it('parses a pending HTML tool ref marker', () => {
+    expect(parseMindroomToolRefHtml('🔧 <code>search_web</code> [1] ⏳')).toEqual({
+      toolName: 'search_web',
+      index: 1,
+      pending: true,
     });
   });
 
-  it('parses completed tool call with empty result body', () => {
-    expect(parseMindroomToolBlock('search_web(query=latest AI news)\n')).toEqual({
-      status: 'completed',
-      command: 'search_web(query=latest AI news)',
-      resultInline: false,
+  it('parses a completed HTML tool ref marker', () => {
+    expect(parseMindroomToolRefHtml('🔧 <code>read_file</code> [2]')).toEqual({
+      toolName: 'read_file',
+      index: 2,
+      pending: false,
     });
   });
 
-  it('parses completed tool call with inline result', () => {
-    expect(parseMindroomToolBlock('search_web(query=latest AI news)\nResults found: 5')).toEqual({
-      status: 'completed_with_result',
-      command: 'search_web(query=latest AI news)',
-      result: 'Results found: 5',
-      resultInline: true,
-    });
-  });
-
-  it('parses completed tool call with multiline result block', () => {
+  it('requires the full marker string to match', () => {
     expect(
-      parseMindroomToolBlock('read_file(path=/tmp/data.json)\n{"k":"v"}\n{"k2":"v2"}')
-    ).toEqual({
-      status: 'completed_with_result',
-      command: 'read_file(path=/tmp/data.json)',
-      result: '{"k":"v"}\n{"k2":"v2"}',
-      resultInline: false,
+      parseMindroomToolRefHtml('prefix 🔧 <code>search_web</code> [1] suffix')
+    ).toBeUndefined();
+  });
+});
+
+describe('parseMindroomToolRefText', () => {
+  it('parses the plain text body marker contract', () => {
+    expect(parseMindroomToolRefText('🔧 `shell` [3]')).toEqual({
+      toolName: 'shell',
+      index: 3,
+      pending: false,
     });
+  });
+
+  it('returns undefined for non-marker text', () => {
+    expect(parseMindroomToolRefText('normal response text')).toBeUndefined();
   });
 });

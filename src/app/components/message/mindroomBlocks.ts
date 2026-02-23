@@ -1,38 +1,39 @@
-export type MindroomToolBlockStatus = 'pending' | 'completed' | 'completed_with_result';
-
-export type MindroomToolBlockParseResult = {
-  status: MindroomToolBlockStatus;
-  command: string;
-  result?: string;
-  resultInline: boolean;
+export type MindroomToolRefParseResult = {
+  toolName: string;
+  index: number;
+  pending: boolean;
 };
 
-export const parseMindroomToolBlock = (raw: string): MindroomToolBlockParseResult => {
-  const firstNewLine = raw.indexOf('\n');
-  if (firstNewLine < 0) {
-    return {
-      status: 'pending',
-      command: raw.trim(),
-      resultInline: false,
-    };
-  }
+// Contract for matching formatted_body markers emitted by the server (v2).
+export const MINDROOM_TOOL_REF_HTML_REG_G = /🔧 <code>([^<]+)<\/code> \[(\d+)\]( ⏳)?/g;
 
-  const command = raw.slice(0, firstNewLine).trim();
-  const result = raw.slice(firstNewLine + 1).replace(/^\n+/, '');
-  const trimmedResult = result.trim();
+const MINDROOM_TOOL_REF_TEXT_REG = /^\s*🔧\s+`([^`]+)`\s+\[(\d+)\](?:\s+(⏳))?\s*$/u;
 
-  if (trimmedResult.length === 0) {
-    return {
-      status: 'completed',
-      command,
-      resultInline: false,
-    };
-  }
+const parseToolRefMatch = (match: RegExpExecArray): MindroomToolRefParseResult | undefined => {
+  const toolName = match[1]?.trim();
+  const index = Number(match[2]);
+
+  if (!toolName || !Number.isInteger(index) || index < 1) return undefined;
 
   return {
-    status: 'completed_with_result',
-    command,
-    result: trimmedResult,
-    resultInline: !trimmedResult.includes('\n'),
+    toolName,
+    index,
+    pending: Boolean(match[3]),
   };
+};
+
+export const parseMindroomToolRefHtml = (html: string): MindroomToolRefParseResult | undefined => {
+  const normalized = html.trim();
+  MINDROOM_TOOL_REF_HTML_REG_G.lastIndex = 0;
+
+  const match = MINDROOM_TOOL_REF_HTML_REG_G.exec(normalized);
+  if (!match || match[0] !== normalized) return undefined;
+
+  return parseToolRefMatch(match);
+};
+
+export const parseMindroomToolRefText = (text: string): MindroomToolRefParseResult | undefined => {
+  const match = MINDROOM_TOOL_REF_TEXT_REG.exec(text);
+  if (!match) return undefined;
+  return parseToolRefMatch(match);
 };

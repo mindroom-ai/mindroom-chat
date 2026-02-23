@@ -1,40 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { mergeMindroomToolTraceIntoCustomBody } from './mindroomToolTrace';
 import { resolveMindroomLongTextContent } from './mindroomLongText';
 
 describe('MindRoom message pipeline', () => {
-  it('clears tool-trace formatted preview when full text is plain text', () => {
-    const withToolTrace = mergeMindroomToolTraceIntoCustomBody({
+  it('clears v2 tool-ref preview html when fetched long text is plain text', () => {
+    const previewContent = {
       body: 'preview',
+      formatted_body: '<p>🔧 <code>search_web</code> [1]</p>',
       'io.mindroom.tool_trace': {
-        version: 1,
-        events: [{ type: 'tool_call_started', tool_name: 'search_web', args_preview: 'q=test' }],
+        version: 2,
+        events: [{ type: 'tool_call_completed', tool_name: 'search_web', result_preview: 'Done' }],
       },
-    });
-    const resolved = resolveMindroomLongTextContent(withToolTrace, 'full plain text');
+    };
 
-    expect(typeof withToolTrace.formatted_body).toBe('string');
-    expect((withToolTrace.formatted_body as string).includes('<tool>')).toBe(true);
-    expect((resolved.formatted_body as string).includes('<tool>')).toBe(true);
+    const resolved = resolveMindroomLongTextContent(previewContent, 'full plain text');
+
     expect(resolved.body).toBe('full plain text');
     expect(resolved.formatted_body).toBeUndefined();
   });
 
-  it('replaces preview tool-trace html when long text includes definitive mindroom tags', () => {
-    const withToolTrace = mergeMindroomToolTraceIntoCustomBody({
+  it('replaces preview formatted_body when long text contains supported mindroom tags', () => {
+    const previewContent = {
       body: 'preview',
-      'io.mindroom.tool_trace': {
-        version: 1,
-        events: [{ type: 'tool_call_started', tool_name: 'search_web', args_preview: 'q=test' }],
-      },
-    });
+      formatted_body: '<p>🔧 <code>search_web</code> [1]</p>',
+    };
+
     const resolved = resolveMindroomLongTextContent(
-      withToolTrace,
-      '<tool-group><tool>search_web(q=test)\nDone</tool></tool-group>'
+      previewContent,
+      '<analysis>Reasoned answer with sources</analysis>'
     );
 
-    expect(resolved.formatted_body).toBe(
-      '<tool-group><tool>search_web(q=test)\nDone</tool></tool-group>'
-    );
+    expect(resolved.formatted_body).toBe('<analysis>Reasoned answer with sources</analysis>');
   });
 });

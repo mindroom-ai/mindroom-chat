@@ -42,8 +42,6 @@ const permittedHtmlTags = [
   'img',
   'details',
   'summary',
-  'tool',
-  'tool-group',
   'think',
   'debug',
   'system',

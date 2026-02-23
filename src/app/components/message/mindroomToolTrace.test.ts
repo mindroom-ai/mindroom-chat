@@ -1,83 +1,65 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildMindroomToolTraceHtml,
-  mergeMindroomToolTraceIntoCustomBody,
+  getMindroomToolTraceEventByIndex,
+  getMindroomToolTraceEvents,
+  isMindroomToolTraceV2,
 } from './mindroomToolTrace';
 
-describe('buildMindroomToolTraceHtml', () => {
-  it('builds pending tool html from tool_call_started', () => {
-    const html = buildMindroomToolTraceHtml({
-      'io.mindroom.tool_trace': {
-        version: 1,
-        events: [
-          {
-            type: 'tool_call_started',
-            tool_name: 'search_web',
-            args_preview: 'query=latest AI news',
-          },
-        ],
-      },
-    });
-
-    expect(html).toBe('<tool>search_web(query=latest AI news)</tool>');
-  });
-
-  it('builds grouped html and resolves start/completed pairs', () => {
-    const html = buildMindroomToolTraceHtml({
-      'io.mindroom.tool_trace': {
-        version: 1,
-        events: [
-          {
-            type: 'tool_call_started',
-            tool_name: 'search_web',
-            args_preview: 'query=latest AI news',
-          },
-          {
-            type: 'tool_call_completed',
-            tool_name: 'search_web',
-            result_preview: 'Results found: 5',
-          },
-          {
-            type: 'tool_call_started',
-            tool_name: 'read_file',
-            args_preview: 'path=/tmp/data.json',
-          },
-        ],
-      },
-    });
-
-    expect(html).toBe(
-      '<tool-group>\n<tool>search_web(query=latest AI news)\nResults found: 5</tool>\n<tool>read_file(path=/tmp/data.json)</tool>\n</tool-group>'
-    );
+describe('isMindroomToolTraceV2', () => {
+  it('returns true only for version 2 traces', () => {
+    expect(isMindroomToolTraceV2({})).toBe(false);
+    expect(isMindroomToolTraceV2({ 'io.mindroom.tool_trace': { version: 1 } })).toBe(false);
+    expect(isMindroomToolTraceV2({ 'io.mindroom.tool_trace': { version: 2 } })).toBe(true);
   });
 });
 
-describe('mergeMindroomToolTraceIntoCustomBody', () => {
-  it('appends tool trace html when formatted_body has no tool tags', () => {
-    const merged = mergeMindroomToolTraceIntoCustomBody({
-      body: 'Hi there',
-      formatted_body: '<p>Hi there</p>',
+describe('getMindroomToolTraceEvents', () => {
+  it('returns structured events when present', () => {
+    const events = getMindroomToolTraceEvents({
       'io.mindroom.tool_trace': {
-        version: 1,
-        events: [{ type: 'tool_call_started', tool_name: 'search_web', args_preview: 'q=test' }],
+        version: 2,
+        events: [
+          { type: 'tool_call_started', tool_name: 'search_web', args_preview: 'q=test' },
+          { type: 'tool_call_completed', tool_name: 'search_web', result_preview: 'Done' },
+        ],
       },
     });
 
-    expect(merged.formatted_body).toBe(
-      '<p>Hi there</p><br/><tool>search_web(q=test)</tool>'
-    );
+    expect(events).toHaveLength(2);
+    expect(events?.[0]).toMatchObject({ type: 'tool_call_started', tool_name: 'search_web' });
   });
 
-  it('does not modify formatted_body when tool tags already exist', () => {
-    const merged = mergeMindroomToolTraceIntoCustomBody({
-      body: 'Hi there',
-      formatted_body: '<tool>search_web(q=test)</tool>',
-      'io.mindroom.tool_trace': {
-        version: 1,
-        events: [{ type: 'tool_call_started', tool_name: 'search_web', args_preview: 'q=test' }],
-      },
-    });
+  it('filters invalid event entries and returns undefined when empty', () => {
+    expect(
+      getMindroomToolTraceEvents({
+        'io.mindroom.tool_trace': {
+          version: 2,
+          events: [null, 'bad', 123],
+        },
+      })
+    ).toBeUndefined();
+  });
+});
 
-    expect(merged.formatted_body).toBe('<tool>search_web(q=test)</tool>');
+describe('getMindroomToolTraceEventByIndex', () => {
+  it('looks up events by 1-based tool ref index', () => {
+    const content = {
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [
+          { type: 'tool_call_started', tool_name: 'search_web' },
+          { type: 'tool_call_completed', tool_name: 'read_file' },
+        ],
+      },
+    };
+
+    expect(getMindroomToolTraceEventByIndex(content, 1)).toMatchObject({
+      tool_name: 'search_web',
+    });
+    expect(getMindroomToolTraceEventByIndex(content, 2)).toMatchObject({
+      tool_name: 'read_file',
+    });
+    expect(getMindroomToolTraceEventByIndex(content, 0)).toBeUndefined();
+    expect(getMindroomToolTraceEventByIndex(content, 3)).toBeUndefined();
   });
 });

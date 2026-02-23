@@ -1,5 +1,5 @@
 const LONG_TEXT_TAG = 'io.mindroom.long_text';
-const MINDROOM_TAG_REG = /<(tool|tool-group|think|debug|system|plan|analysis|research)\b/i;
+const MINDROOM_TAG_REG = /<(think|debug|system|plan|analysis|research)\b/i;
 
 const isMxc = (value: unknown): value is string =>
   typeof value === 'string' && value.startsWith('mxc://');

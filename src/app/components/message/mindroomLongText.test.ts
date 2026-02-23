@@ -35,8 +35,8 @@ describe('getMindroomLongTextMxcUri', () => {
 
 describe('getMindroomLongTextFormattedBody', () => {
   it('returns formatted body when mindroom tags are present', () => {
-    expect(getMindroomLongTextFormattedBody('<tool>search_web(q=test)</tool>')).toBe(
-      '<tool>search_web(q=test)</tool>'
+    expect(getMindroomLongTextFormattedBody('<think>searching...</think>')).toBe(
+      '<think>searching...</think>'
     );
   });
 
@@ -58,9 +58,9 @@ describe('resolveMindroomLongTextContent', () => {
   it('replaces formatted_body when long text contains mindroom tags', () => {
     const resolved = resolveMindroomLongTextContent(
       { body: 'preview', formatted_body: '<p>preview</p>' },
-      '<tool>search_web(q=test)</tool>'
+      '<analysis>search_web(q=test)</analysis>'
     );
-    expect(resolved.body).toBe('<tool>search_web(q=test)</tool>');
-    expect(resolved.formatted_body).toBe('<tool>search_web(q=test)</tool>');
+    expect(resolved.body).toBe('<analysis>search_web(q=test)</analysis>');
+    expect(resolved.formatted_body).toBe('<analysis>search_web(q=test)</analysis>');
   });
 });
