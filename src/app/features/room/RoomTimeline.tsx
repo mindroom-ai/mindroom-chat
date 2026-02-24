@@ -305,6 +305,9 @@ const getEventElementById = (
   return null;
 };
 
+const isAtExactBottom = (scrollElement: HTMLElement, thresholdPx = 1): boolean =>
+  scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight <= thresholdPx;
+
 type Timeline = {
   linkedTimelines: EventTimeline[];
   range: ItemRange;
@@ -714,9 +717,20 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     room,
     useCallback(
       (mEvt: MatrixEvent) => {
+        const mEventId = mEvt.getId();
+        const relation = mEvt.getRelation();
+        const relationTargetId = relation?.event_id;
+        const relatedEvent = relationTargetId ? room.findEventById(relationTargetId) : undefined;
+        const relatedEventId = relatedEvent?.getId();
+        const isThreadReplyMessage =
+          !!mEventId && !!mEvt.threadRootId && mEvt.threadRootId !== mEventId;
+        const isThreadReplyRelatedEvent =
+          !!relatedEventId &&
+          !!relatedEvent?.threadRootId &&
+          relatedEvent.threadRootId !== relatedEventId;
+        const isThreadOnlyActivity = isThreadReplyMessage || isThreadReplyRelatedEvent;
+
         if (threadId) {
-          const mEventId = mEvt.getId();
-          const relationTargetId = mEvt.getRelation()?.event_id;
           // If no thread model exists, keep fallback list in sync so new replies
           // appear immediately while staying in thread view.
           const threadModel = room.getThread(threadId);
@@ -741,9 +755,27 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             (relationTargetId && threadEventIndexMapRef.current.has(relationTargetId))
           ) {
             setThreadTimelineTick((val) => val + 1);
+
+            // In thread view, only auto-scroll when the user is already at the exact bottom.
+            const scrollElement = scrollRef.current;
+            if (scrollElement && isAtExactBottom(scrollElement) && relation?.rel_type === 'm.thread') {
+              scrollToBottomRef.current.count += 1;
+              scrollToBottomRef.current.smooth = true;
+            }
           }
           return;
         }
+
+        // Ignore thread-only live activity in the main room timeline for auto-scroll.
+        // These events are hidden there, so forcing bottom jumps is disruptive.
+        if (isThreadOnlyActivity) {
+          setTimeline((ct) => ({ ...ct }));
+          if (!unreadInfo) {
+            setUnreadInfo(getRoomUnreadInfo(room));
+          }
+          return;
+        }
+
         // if user is at bottom of timeline
         // keep paginating timeline and conditionally mark as read
         // otherwise we update timeline without paginating

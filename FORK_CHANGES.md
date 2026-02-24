@@ -19,16 +19,15 @@ Rules followed:
 
 Working tree status (2026-02-24):
 
-- `src/app/components/message/MindroomLongTextText.tsx`
+- None.
 
 What changed (uncommitted):
 
-- Added delayed loading-indicator rendering for long-text hydration.
-- The “Loading full response...” row now appears only if hydration stays pending past a short threshold, preventing fast refresh flashes.
+- None.
 
 Validation (uncommitted):
 
-- `bun run test src/app/components/message/mindroomLongText.test.ts src/app/components/message/mindroomPipeline.test.ts src/app/components/message/MindroomLongTextText.test.ts` (pass)
+- N/A.
 
 ## Commit-by-Commit Changes
 
@@ -426,6 +425,21 @@ What changed:
 Why:
 
 - Prevents hydrated long-text rendering from replacing valid preview text with `Broken message` when the sidecar JSON is an event/debug wrapper rather than raw Matrix message content.
+
+### fix(thread): prevent main-room scroll jumps from thread-only live activity
+
+Files changed:
+
+- `src/app/features/room/RoomTimeline.tsx`
+
+What changed:
+
+- Main timeline live-event handling now detects thread-only activity (thread replies and relation events targeting thread replies) and skips auto-scroll-to-bottom in the main room timeline.
+- Thread view auto-scroll now occurs only when a new thread reply arrives and the thread viewport is already at the exact bottom.
+
+Why:
+
+- Prevents disruptive forced scroll-to-bottom in the main room while users read older history, while keeping expected auto-scroll behavior scoped to the active thread view.
 # Runbook
 
 ## Purpose
