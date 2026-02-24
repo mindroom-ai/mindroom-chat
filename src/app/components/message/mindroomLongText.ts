@@ -3,6 +3,8 @@ import { AI_RUN_METADATA_KEY } from './mindroomAiRun';
 
 const LONG_TEXT_TAG = 'io.mindroom.long_text';
 const LONG_TEXT_V2_ENCODING = 'matrix_event_content_json';
+const MAIN_EVENT_SNAPSHOT_KEY = '<== MAIN_EVENT ==>';
+const REPLACEMENT_EVENT_SNAPSHOT_KEY_REG = /^<== REPLACEMENT_EVENT_(\d+) ==>$/;
 
 const mindroomLongTextHydrationCache = new Map<string, Record<string, unknown>>();
 
@@ -28,6 +30,78 @@ const asEncryptedFile = (value: unknown): IEncryptedFile | undefined => {
 
 const isMindroomLongTextV2Meta = (meta: unknown): boolean =>
   isRecord(meta) && meta.version === 2 && meta.encoding === LONG_TEXT_V2_ENCODING;
+
+const looksLikeMessageContent = (value: Record<string, unknown>): boolean => {
+  if (
+    typeof value.msgtype === 'string' ||
+    typeof value.body === 'string' ||
+    typeof value.formatted_body === 'string'
+  ) {
+    return true;
+  }
+
+  const newContent = isRecord(value['m.new_content'])
+    ? (value['m.new_content'] as Record<string, unknown>)
+    : undefined;
+  if (!newContent) return false;
+
+  return (
+    typeof newContent.msgtype === 'string' ||
+    typeof newContent.body === 'string' ||
+    typeof newContent.formatted_body === 'string'
+  );
+};
+
+const asMessageContent = (value: unknown): Record<string, unknown> | undefined => {
+  if (!isRecord(value)) return undefined;
+  return looksLikeMessageContent(value) ? value : undefined;
+};
+
+const getEventContentFromRecord = (value: unknown): Record<string, unknown> | undefined => {
+  if (!isRecord(value)) return undefined;
+
+  const replacementContent =
+    isRecord(value.unsigned) &&
+    isRecord(value.unsigned['m.relations']) &&
+    isRecord(value.unsigned['m.relations']['m.replace'])
+      ? value.unsigned['m.relations']['m.replace'].content
+      : undefined;
+
+  return asMessageContent(replacementContent) ?? asMessageContent(value.content);
+};
+
+const extractMessageContentFromSidecarPayload = (
+  payload: Record<string, unknown>
+): Record<string, unknown> | undefined => {
+  const directContent = asMessageContent(payload) ?? asMessageContent(payload.content);
+  if (directContent) return directContent;
+
+  const replacementEventCandidates = Object.entries(payload)
+    .map(([key, value]) => {
+      const match = key.match(REPLACEMENT_EVENT_SNAPSHOT_KEY_REG);
+      if (!match) return undefined;
+      return {
+        sequence: Number(match[1]),
+        content: getEventContentFromRecord(value),
+      };
+    })
+    .filter(
+      (
+        candidate
+      ): candidate is {
+        sequence: number;
+        content: Record<string, unknown> | undefined;
+      } => candidate !== undefined
+    )
+    .sort((a, b) => b.sequence - a.sequence);
+
+  const replacementContent = replacementEventCandidates
+    .map((candidate) => candidate.content)
+    .find((candidate): candidate is Record<string, unknown> => candidate !== undefined);
+  if (replacementContent) return replacementContent;
+
+  return getEventContentFromRecord(payload[MAIN_EVENT_SNAPSHOT_KEY]);
+};
 
 const getLongTextCandidates = (content: Record<string, unknown>): Record<string, unknown>[] => {
   const newContent = isRecord(content['m.new_content'])
@@ -64,7 +138,8 @@ export const parseMindroomLongTextJsonSidecar = (
 ): Record<string, unknown> | undefined => {
   try {
     const parsed = JSON.parse(rawSidecar);
-    return isRecord(parsed) ? parsed : undefined;
+    if (!isRecord(parsed)) return undefined;
+    return extractMessageContentFromSidecarPayload(parsed);
   } catch {
     return undefined;
   }
@@ -76,12 +151,12 @@ const normalizeHydratedMindroomContent = (
   if (!isRecord(hydratedContent['m.new_content'])) return hydratedContent;
 
   const newContent = hydratedContent['m.new_content'] as Record<string, unknown>;
-  const looksLikeMessageContent =
+  const newContentHasMessageShape =
     typeof newContent.msgtype === 'string' ||
     typeof newContent.body === 'string' ||
     typeof newContent.formatted_body === 'string';
 
-  if (!looksLikeMessageContent) return hydratedContent;
+  if (!newContentHasMessageShape) return hydratedContent;
 
   const normalizedContent: Record<string, unknown> = { ...newContent };
 

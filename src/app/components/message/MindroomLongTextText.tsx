@@ -18,6 +18,8 @@ export enum MindroomLongTextKind {
   Notice = 'notice',
 }
 
+const LOADING_INDICATOR_DELAY_MS = 350;
+
 type RenderBodyProps = {
   body: string;
   customBody?: string;
@@ -35,6 +37,19 @@ type MindroomLongTextTextProps = {
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
+
+const hasRenderableFormattedBody = (value: Record<string, unknown>): boolean =>
+  typeof value.formatted_body === 'string' && value.formatted_body.length > 0;
+
+export const shouldResetResolvedContentToPreview = (
+  nextPreviewContent: Record<string, unknown>,
+  currentResolvedContent: Record<string, unknown>
+): boolean => {
+  if (hasRenderableFormattedBody(nextPreviewContent)) {
+    return true;
+  }
+  return !hasRenderableFormattedBody(currentResolvedContent);
+};
 
 const getLongTextMimeType = (content: Record<string, unknown>): string => {
   const info = isRecord(content.info) ? content.info : undefined;
@@ -88,13 +103,18 @@ export function MindroomLongTextText({
   const useAuthentication = useMediaAuthentication();
   const { encryptedFile, isV2ContentJson, mxcUri } = longTextSource;
   const [loading, setLoading] = useState(false);
+  const [showLoadingIndicator, setShowLoadingIndicator] = useState(false);
   const [resolvedContent, setResolvedContent] = useState<Record<string, unknown>>(content);
 
   useEffect(() => {
     let cancelled = false;
     const hydrateContent = async () => {
       setLoading(true);
-      setResolvedContent(content);
+      setResolvedContent((currentResolvedContent) =>
+        shouldResetResolvedContentToPreview(content, currentResolvedContent)
+          ? content
+          : currentResolvedContent
+      );
 
       const nextContent = await hydrateMindroomLongTextSource(
         {
@@ -118,6 +138,21 @@ export function MindroomLongTextText({
       cancelled = true;
     };
   }, [content, encryptedFile, isV2ContentJson, mxcUri, mx, useAuthentication]);
+
+  useEffect(() => {
+    if (!loading) {
+      setShowLoadingIndicator(false);
+      return undefined;
+    }
+
+    const timerId = setTimeout(() => {
+      setShowLoadingIndicator(true);
+    }, LOADING_INDICATOR_DELAY_MS);
+
+    return () => {
+      clearTimeout(timerId);
+    };
+  }, [loading]);
 
   let textContent: ReactNode;
   if (kind === MindroomLongTextKind.Emote) {
@@ -153,7 +188,7 @@ export function MindroomLongTextText({
   return (
     <>
       {textContent}
-      {loading && (
+      {showLoadingIndicator && (
         <Box alignItems="Center" gap="100" style={{ marginTop: config.space.S100 }}>
           <Spinner size="100" variant="Secondary" />
           <FText size="T200">Loading full response...</FText>

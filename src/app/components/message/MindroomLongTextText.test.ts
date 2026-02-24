@@ -42,6 +42,8 @@ const getDownloadMindroomLongTextSidecarText = async () =>
   (await import('./MindroomLongTextText')).downloadMindroomLongTextSidecarText;
 const getDownloadMindroomLongTextSidecarBlob = async () =>
   (await import('./MindroomLongTextText')).downloadMindroomLongTextSidecarBlob;
+const getShouldResetResolvedContentToPreview = async () =>
+  (await import('./MindroomLongTextText')).shouldResetResolvedContentToPreview;
 const mockMx = {} as unknown as MatrixClient;
 
 const createLongTextSource = (
@@ -146,5 +148,61 @@ describe('downloadMindroomLongTextSidecarText', () => {
     );
     expect(matrixMocks.downloadMedia).not.toHaveBeenCalled();
     expect(text).toContain('"body":"decrypted response"');
+  });
+});
+
+describe('shouldResetResolvedContentToPreview', () => {
+  it('keeps previously hydrated rich content when preview has no formatted body', async () => {
+    const shouldResetResolvedContentToPreview = await getShouldResetResolvedContentToPreview();
+
+    const shouldReset = shouldResetResolvedContentToPreview(
+      {
+        msgtype: 'm.file',
+        body: 'preview only',
+      },
+      {
+        msgtype: 'm.text',
+        body: 'resolved body',
+        formatted_body: '<p><strong>resolved body</strong></p>',
+      }
+    );
+
+    expect(shouldReset).toBe(false);
+  });
+
+  it('resets when incoming preview includes formatted body', async () => {
+    const shouldResetResolvedContentToPreview = await getShouldResetResolvedContentToPreview();
+
+    const shouldReset = shouldResetResolvedContentToPreview(
+      {
+        msgtype: 'm.text',
+        body: 'preview',
+        formatted_body: '<p>preview</p>',
+      },
+      {
+        msgtype: 'm.text',
+        body: 'older body',
+        formatted_body: '<p>older</p>',
+      }
+    );
+
+    expect(shouldReset).toBe(true);
+  });
+
+  it('resets when there is no previously hydrated formatted body', async () => {
+    const shouldResetResolvedContentToPreview = await getShouldResetResolvedContentToPreview();
+
+    const shouldReset = shouldResetResolvedContentToPreview(
+      {
+        msgtype: 'm.file',
+        body: 'preview only',
+      },
+      {
+        msgtype: 'm.file',
+        body: 'still preview',
+      }
+    );
+
+    expect(shouldReset).toBe(true);
   });
 });

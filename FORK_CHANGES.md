@@ -17,9 +17,18 @@ Rules followed:
 
 ## Working Tree (Not Yet Committed)
 
-Working tree status (2026-02-23):
+Working tree status (2026-02-24):
 
-- No uncommitted changes.
+- `src/app/components/message/MindroomLongTextText.tsx`
+
+What changed (uncommitted):
+
+- Added delayed loading-indicator rendering for long-text hydration.
+- The “Loading full response...” row now appears only if hydration stays pending past a short threshold, preventing fast refresh flashes.
+
+Validation (uncommitted):
+
+- `bun run test src/app/components/message/mindroomLongText.test.ts src/app/components/message/mindroomPipeline.test.ts src/app/components/message/MindroomLongTextText.test.ts` (pass)
 
 ## Commit-by-Commit Changes
 
@@ -400,6 +409,23 @@ Why:
 
 - Stated in commit subject and product requirement to keep AI diagnostics available but unobtrusive.
 
+### fix(long-text): ignore or unwrap non-content sidecar JSON payloads
+
+Files changed:
+
+- `src/app/components/message/mindroomLongText.ts`
+- `src/app/components/message/mindroomLongText.test.ts`
+
+What changed:
+
+- Hardened long-text sidecar parsing so hydration only accepts JSON that resolves to message-content-like payloads.
+- Added unwrapping support for event-envelope shapes (`{ content: ... }`) and debug snapshot wrappers (`<== MAIN_EVENT ==>`, `<== REPLACEMENT_EVENT_N ==>`) by selecting the latest replacement content when present.
+- Sidecar payloads that do not contain usable message content now fall back to preview content instead of being rendered as `Broken message`.
+- Added regression tests covering envelope unwrapping, snapshot replacement selection, and invalid-object rejection.
+
+Why:
+
+- Prevents hydrated long-text rendering from replacing valid preview text with `Broken message` when the sidecar JSON is an event/debug wrapper rather than raw Matrix message content.
 # Runbook
 
 ## Purpose

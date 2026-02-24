@@ -98,6 +98,66 @@ describe('parseMindroomLongTextJsonSidecar', () => {
     });
   });
 
+  it('extracts message content from event envelope payloads', () => {
+    const parsed = parseMindroomLongTextJsonSidecar(
+      JSON.stringify({
+        type: 'm.room.message',
+        sender: '@bot:example.com',
+        content: {
+          msgtype: 'm.text',
+          body: 'hello from event envelope',
+        },
+      })
+    );
+
+    expect(parsed).toEqual({
+      msgtype: 'm.text',
+      body: 'hello from event envelope',
+    });
+  });
+
+  it('extracts the latest replacement content from debug snapshot payloads', () => {
+    const parsed = parseMindroomLongTextJsonSidecar(
+      JSON.stringify({
+        '<== MAIN_EVENT ==>': {
+          content: {
+            msgtype: 'm.text',
+            body: 'thinking...',
+          },
+        },
+        '<== REPLACEMENT_EVENT_1 ==>': {
+          content: {
+            msgtype: 'm.text',
+            body: 'partial',
+          },
+        },
+        '<== REPLACEMENT_EVENT_2 ==>': {
+          content: {
+            msgtype: 'm.text',
+            body: 'final',
+            formatted_body: '<p>final</p>',
+          },
+        },
+      })
+    );
+
+    expect(parsed).toEqual({
+      msgtype: 'm.text',
+      body: 'final',
+      formatted_body: '<p>final</p>',
+    });
+  });
+
+  it('returns undefined for sidecar json without message content', () => {
+    const parsed = parseMindroomLongTextJsonSidecar(
+      JSON.stringify({
+        random: { payload: true },
+      })
+    );
+
+    expect(parsed).toBeUndefined();
+  });
+
   it('returns undefined for invalid sidecar json', () => {
     expect(parseMindroomLongTextJsonSidecar('{not-json')).toBeUndefined();
   });
