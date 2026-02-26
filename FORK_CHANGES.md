@@ -17,17 +17,59 @@ Rules followed:
 
 ## Working Tree (Not Yet Committed)
 
-Working tree status (2026-02-24):
+Working tree status (2026-02-26):
 
-- None.
+- Modified:
+  - `APP_STORE_COMPLIANCE.md` (NEW)
+  - `APP_STORE_SUBMISSION_PACKET.md` (NEW)
+  - `FORK_CHANGES.md`
+  - `README.md`
+  - `config.json`
+  - `ios-build.md`
+  - `ios/App/App/Info.plist`
+  - `ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json`
+  - `ios/App/App/Assets.xcassets/AppIcon.appiconset/*` (generated icon PNG set)
+  - `package.json`
+  - `scripts/appstore-preflight.mjs` (NEW)
+  - `scripts/generate-ios-icons.sh` (NEW)
+  - `src/app/features/settings/about/About.tsx`
+  - `src/app/cs-api.test.ts` (NEW)
+  - `src/app/cs-api.ts`
+  - `src/app/hooks/useClientConfig.ts`
+  - `src/app/pages/auth/SSOLogin.tsx`
+  - `src/app/pages/auth/ssoProviders.ts` (NEW)
+  - `src/app/pages/auth/ssoProviders.test.ts` (NEW)
+  - `src/app/pages/auth/AuthFooter.tsx`
+  - `src/app/pages/auth/AuthLayout.tsx`
+  - `src/app/pages/auth/login/Login.tsx`
+  - `src/app/pages/auth/register/Register.tsx`
 
 What changed (uncommitted):
 
-- None.
+- App Store compliance hardening pass:
+  - tightened iOS ATS posture to local-network exception behavior (removed broad arbitrary loads),
+  - added iOS camera/photo usage descriptions and export compliance plist key,
+  - enforced HTTPS homeserver policy with local-network HTTP-only exception in discovery flow,
+  - enabled in-app account creation with Apple-provider requirement flag in auth config,
+  - added Apple-aware SSO provider handling (`Sign in with Apple` / `Sign up with Apple`, Apple-first ordering),
+  - added optional support/privacy/terms link surfacing in auth footer,
+  - added automated `npm run appstore:preflight` checks for high-risk App Store submission gates,
+  - added full iOS AppIcon slot set generation and preflight validation,
+  - added App Store submission metadata/review-notes packet template,
+  - added reviewer-facing README context guidance in submission packet,
+  - set `auth.privacyPolicyUrl` and `auth.termsUrl` runtime links in config,
+  - rewrote `README.md` to be MindRoom-first (product positioning, fork deltas, iOS submission docs, and upstream attribution),
+  - aligned visible in-app About version text with package version,
+  - added explicit App Store submission checklist doc and iOS build preflight notes.
 
 Validation (uncommitted):
 
-- N/A.
+- `npm run ios:icons` ✅ passed.
+- `npm run appstore:preflight` ✅ passed.
+- `npm run test` ✅ passed (24 files, 103 tests).
+- `npm run build` ✅ passed.
+- `npm run typecheck` ❌ fails with pre-existing repository-wide typing issues (matrix-js-sdk import/type surface mismatches and existing strictness violations).
+- `npm run lint` ❌ fails with pre-existing repository-wide lint issues unrelated to this delta.
 
 ## Commit-by-Commit Changes
 
@@ -329,31 +371,6 @@ Why:
 
 - Stated in commit subject.
 
-### feat(ios): store session credentials in iOS Keychain
-
-Files changed:
-
-- `package.json`
-- `src/app/state/secureStorage.ts` (NEW)
-- `src/app/state/sessions.ts`
-- `src/index.tsx`
-- `src/client/initMatrix.ts`
-- `src/app/pages/client/ClientRoot.tsx`
-- `ios/App/Podfile`
-- `ios/App/Podfile.lock`
-
-What changed:
-
-- Added `capacitor-secure-storage-plugin` for iOS Keychain storage of Matrix session credentials.
-- Created platform-aware secure storage abstraction with in-memory cache for synchronous reads.
-- Migrated session credential storage from localStorage to secureStorage (Keychain on native, localStorage on web).
-- Added hydration step before React mount to populate cache from Keychain/localStorage.
-- Added Keychain cleanup on all logout paths.
-
-Why:
-
-- iOS WKWebView localStorage is not hardware-protected and is lost on app deletion. Apple expects auth tokens in the Keychain.
-
 ### Add iOS app via Capacitor
 
 Files changed:
@@ -440,6 +457,7 @@ What changed:
 Why:
 
 - Prevents disruptive forced scroll-to-bottom in the main room while users read older history, while keeping expected auto-scroll behavior scoped to the active thread view.
+
 # Runbook
 
 ## Purpose
@@ -481,6 +499,10 @@ MindRoom priorities for this fork:
   - `serve.py`
   - `docker-entrypoint.d/99-runtime-config.sh`
   - `docker-nginx.conf`
+- iOS packaging/compliance:
+  - `ios/App/App/Info.plist`
+  - `ios-build.md`
+  - `APP_STORE_COMPLIANCE.md`
 
 ## Implemented Behavior
 
@@ -564,8 +586,28 @@ Thread badge behavior:
 
 - Matrix client creation is centralized with same-origin credentialed fetch behavior.
 - Auth flow loading was made recoverable (retry path instead of hard failure UX).
-- iOS session credentials are stored via secure storage/Keychain abstraction with startup hydration and logout cleanup.
 - On startup, when config enforces exactly one homeserver, stale stored `cinny_hs_base_url` is reconciled to that configured homeserver to avoid unusable-server auth errors from legacy localStorage values.
+- Current session storage remains localStorage-based in this branch; native Keychain-backed storage is a TODO gap for iOS hardening.
+
+### iOS App Store Hardening
+
+- `Info.plist` now removes broad `NSAllowsArbitraryLoads` and keeps local-network access explicit via `NSAllowsLocalNetworking`.
+- iOS permission usage descriptions now include microphone, camera, photo-library read, and photo-library add prompts to cover voice/media flows.
+- `ITSAppUsesNonExemptEncryption=false` is declared in plist to simplify export-compliance submission flow for standard-exempt crypto use.
+- Auth discovery now enforces secure homeserver URLs:
+  - `https://` is required for non-local hosts.
+  - `http://` is allowed only for local-network hosts (`localhost`, `.local`, private/link-local IP ranges, loopback).
+- Registration UI is controlled by runtime config via `auth.allowRegistration`; current config enables registration and requires Apple provider visibility with `auth.requireAppleProvider`.
+- Auth footer now supports configurable App Store-facing links (`supportUrl`, `privacyPolicyUrl`, `termsUrl`).
+- SSO provider rendering is Apple-aware:
+  - Apple providers are detected from `brand`, `id`, and `name`.
+  - Apple providers are prioritized to the top of the list and use explicit Apple labels (`Sign in with Apple` / `Sign up with Apple`).
+  - Icon-only SSO rendering is avoided when Apple is present to keep label visibility.
+- Added `scripts/appstore-preflight.mjs` (`npm run appstore:preflight`) to verify critical iOS/config compliance gates before archive.
+- Added `scripts/generate-ios-icons.sh` (`npm run ios:icons`) and generated full iPhone/iPad AppIcon slot assets from a single 1024 source icon.
+- App Store preflight now validates icon-slot completeness and required icon file presence.
+- Added `APP_STORE_SUBMISSION_PACKET.md` with paste-ready App Review notes and metadata checklist.
+- Added `APP_STORE_COMPLIANCE.md` as a release gate checklist and linked iOS build preflight steps in `ios-build.md`.
 
 ## Operational Notes
 
@@ -574,8 +616,9 @@ Thread badge behavior:
   - `npm run build`
 - `npm run typecheck` currently fails due pre-existing repository-wide type issues (not introduced by recent fork deltas).
 - If deploying behind strict subpath-only ingress/proxy rules, ensure runtime config and assets resolve under your routing policy, or apply equivalent server-side HTML base/script injection in the serving layer.
+- Before shipping iOS builds, run the full checklist in `APP_STORE_COMPLIANCE.md` and verify App Store Connect metadata URLs (support/privacy/terms) are public and final.
 
-## Current Snapshot (2026-02-23)
+## Current Snapshot (2026-02-26)
 
 - Thread mode, tool-ref v2 rendering, long-message v2 hydration, and `!` autocomplete are implemented.
 - Main timeline thread summary chips render below message body and show participant avatars when available.
@@ -584,4 +627,8 @@ Thread badge behavior:
 - Voice message recording/sending is available in room input, and voice-tagged incoming audio messages render/play in the existing audio controls.
 - AI run metadata (`io.mindroom.ai_run`) is surfaced via a subtle per-message hover tooltip in the timeline header.
 - Long-message handling is v2-only; users can download the original long-text sidecar directly from the message menu.
+- iOS submission posture has been hardened: stricter ATS behavior, explicit media permission strings, secure homeserver URL enforcement, registration-enabled flow, and Apple-aware SSO provider handling.
+- iOS app icon assets are now generated for all standard iPhone/iPad slots, and preflight checks enforce icon completeness before archive.
+- Submission docs now include a checklist plus a paste-ready App Store metadata/review-notes packet.
 - Remaining known product gap: no dedicated thread list sidebar or thread-specific unread model yet.
+- Remaining iOS hardening gap: session credentials are still localStorage-based in this branch (Keychain migration is still pending).

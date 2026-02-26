@@ -12,9 +12,7 @@
   "featuredCommunities": {
     "openAsDefault": false,
     "spaces": [],
-    "rooms": [
-      "#lobby:mindroom.local"
-    ],
+    "rooms": ["#lobby:mindroom.local"],
     "servers": ["https://matrix-dev.lab.nijho.lt"]
   },
 
@@ -29,7 +27,12 @@
   },
 
   "auth": {
-    "hideServerPickerWhenSingle": false
+    "hideServerPickerWhenSingle": false,
+    "allowRegistration": true,
+    "requireAppleProvider": true,
+    "supportUrl": "https://docs.mindroom.chat/",
+    "privacyPolicyUrl": "https://docs.mindroom.chat/",
+    "termsUrl": "https://docs.mindroom.chat/"
   },
 
   "welcome": {
