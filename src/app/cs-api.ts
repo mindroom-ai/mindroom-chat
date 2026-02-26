@@ -6,6 +6,7 @@ export enum AutoDiscoveryAction {
   IGNORE = 'IGNORE',
   FAIL_PROMPT = 'FAIL_PROMPT',
   FAIL_ERROR = 'FAIL_ERROR',
+  FAIL_INSECURE = 'FAIL_INSECURE',
 }
 
 export type AutoDiscoveryError = {
@@ -22,11 +23,71 @@ export type AutoDiscoveryInfo = Record<string, unknown> & {
   };
 };
 
+const IPV4_PARTS = 4;
+const IPV4_OCTET_MAX = 255;
+
+const isLocalIpv4 = (host: string): boolean => {
+  const parts = host.split('.');
+  if (parts.length !== IPV4_PARTS) return false;
+
+  const octets = parts.map((part) => Number(part));
+  if (octets.some((octet) => Number.isNaN(octet) || octet < 0 || octet > IPV4_OCTET_MAX)) {
+    return false;
+  }
+
+  const [first, second] = octets;
+  if (first === 10 || first === 127) return true;
+  if (first === 192 && second === 168) return true;
+  if (first === 172 && second >= 16 && second <= 31) return true;
+  if (first === 169 && second === 254) return true;
+
+  return false;
+};
+
+const isLocalIpv6 = (host: string): boolean => {
+  const normalized = host.toLowerCase();
+  if (normalized === '::1') return true;
+  if (normalized.startsWith('fe80:')) return true;
+  if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
+  return false;
+};
+
+const isLocalHost = (host: string): boolean => {
+  const normalized = host.toLowerCase();
+  if (normalized === 'localhost' || normalized.endsWith('.local')) return true;
+  if (isLocalIpv4(normalized)) return true;
+  if (isLocalIpv6(normalized)) return true;
+  return false;
+};
+
+export const isAllowedHomeserverBaseUrl = (baseUrl: string): boolean => {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(baseUrl);
+  } catch {
+    return false;
+  }
+
+  if (parsedUrl.protocol === 'https:') return true;
+  if (parsedUrl.protocol !== 'http:') return false;
+
+  return isLocalHost(parsedUrl.hostname);
+};
+
 export const autoDiscovery = async (
   request: typeof fetch,
   server: string
 ): Promise<[AutoDiscoveryError, undefined] | [undefined, AutoDiscoveryInfo]> => {
   const host = /^https?:\/\//.test(server) ? trimTrailingSlash(server) : `https://${server}`;
+  if (!isAllowedHomeserverBaseUrl(host)) {
+    return [
+      {
+        host,
+        action: AutoDiscoveryAction.FAIL_INSECURE,
+      },
+      undefined,
+    ];
+  }
   const autoDiscoveryUrl = `${host}/.well-known/matrix/client`;
 
   const [err, response] = await to(request(autoDiscoveryUrl, { method: 'GET' }));
@@ -81,6 +142,16 @@ export const autoDiscovery = async (
       {
         host,
         action: AutoDiscoveryAction.FAIL_ERROR,
+      },
+      undefined,
+    ];
+  }
+
+  if (!isAllowedHomeserverBaseUrl(baseUrl)) {
+    return [
+      {
+        host,
+        action: AutoDiscoveryAction.FAIL_INSECURE,
       },
       undefined,
     ];
