@@ -76,14 +76,49 @@ async function askForAccessToken(client: Client): Promise<string | undefined> {
   });
 }
 
-function fetchConfig(token: string): RequestInit {
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    cache: 'default',
-  };
-}
+const normalizeRequestCache = (request: Request): RequestCache =>
+  request.cache === 'only-if-cached' ? 'default' : request.cache;
+
+const authHeaders = (request: Request, token: string): Headers => {
+  const headers = new Headers(request.headers);
+  headers.set('Authorization', `Bearer ${token}`);
+  return headers;
+};
+
+const fetchAuthenticatedMedia = async (request: Request, token: string): Promise<Response> => {
+  const headers = authHeaders(request, token);
+  const cache = normalizeRequestCache(request);
+
+  if (request.mode === 'no-cors') {
+    // no-cors requests cannot carry Authorization; upgrade to CORS for authenticated media.
+    return fetch(request.url, {
+      method: request.method,
+      headers,
+      mode: 'cors',
+      credentials: 'omit',
+      cache,
+      redirect: request.redirect,
+      referrer: request.referrer,
+      referrerPolicy: request.referrerPolicy,
+      integrity: request.integrity,
+      keepalive: request.keepalive,
+    });
+  }
+
+  return fetch(request, { headers, cache });
+};
+
+const fetchAuthenticatedMediaWithFallback = async (
+  request: Request,
+  token: string
+): Promise<Response> => {
+  try {
+    return await fetchAuthenticatedMedia(request, token);
+  } catch {
+    // If authenticated fetch fails unexpectedly, fall back to the original request.
+    return fetch(request);
+  }
+};
 
 self.addEventListener('fetch', (event: FetchEvent) => {
   const { url, method } = event.request;
@@ -96,7 +131,7 @@ self.addEventListener('fetch', (event: FetchEvent) => {
       if (event.clientId) {
         const session = sessions.get(event.clientId);
         if (session && validMediaRequest(url, session.baseUrl)) {
-          return fetch(event.request, fetchConfig(session.accessToken));
+          return fetchAuthenticatedMediaWithFallback(event.request, session.accessToken);
         }
 
         // Fallback for clients still on the older token request/response flow.
@@ -104,7 +139,7 @@ self.addEventListener('fetch', (event: FetchEvent) => {
         if (client) {
           const token = await askForAccessToken(client);
           if (token) {
-            return fetch(event.request, fetchConfig(token));
+            return fetchAuthenticatedMediaWithFallback(event.request, token);
           }
         }
       }

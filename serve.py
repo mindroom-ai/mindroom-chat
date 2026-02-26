@@ -19,7 +19,7 @@ def normalize_base_path(value: str | None) -> str:
     return f"/{raw}"
 
 BASE_PATH = normalize_base_path(os.environ.get("APP_BASE_PATH"))
-ENABLE_SERVICE_WORKER = os.environ.get("APP_ENABLE_SERVICE_WORKER", "").strip().lower()
+ENABLE_SERVICE_WORKER = os.environ.get("APP_ENABLE_SERVICE_WORKER", "true").strip().lower()
 ENABLE_SERVICE_WORKER_VALUE = (
     "true" if ENABLE_SERVICE_WORKER in {"1", "true", "yes", "on"} else "false"
 )
