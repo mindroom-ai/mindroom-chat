@@ -43,13 +43,13 @@ export function About({ requestClose }: AboutProps) {
                   />
                 </Box>
                 <Box direction="Column" gap="300">
-                    <Box direction="Column" gap="100">
-                      <Box gap="100" alignItems="End">
+                  <Box direction="Column" gap="100">
+                    <Box gap="100" alignItems="End">
                       <Text size="H3">MindRoom</Text>
                       <Text size="T200">v4.10.5</Text>
-                      </Box>
-                      <Text>Yet another matrix client.</Text>
                     </Box>
+                    <Text>Yet another matrix client.</Text>
+                  </Box>
 
                   <Box gap="200" wrap="Wrap">
                     <Button

@@ -26,6 +26,11 @@ export type ClientConfig = {
 
   auth?: {
     hideServerPickerWhenSingle?: boolean;
+    allowRegistration?: boolean;
+    requireAppleProvider?: boolean;
+    supportUrl?: string;
+    privacyPolicyUrl?: string;
+    termsUrl?: string;
   };
 
   welcome?: {

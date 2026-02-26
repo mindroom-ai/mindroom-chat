@@ -16,7 +16,9 @@
     "fix:prettier": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "ios:icons": "bash scripts/generate-ios-icons.sh",
+    "appstore:preflight": "node scripts/appstore-preflight.mjs"
   },
   "keywords": [],
   "author": "Ajay Bura",
