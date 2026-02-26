@@ -22,6 +22,7 @@ Use this section as the live status for the current submission attempt. Keep the
 - [x] Manual iOS Simulator smoke test: app launches, message send works, microphone recording works, and account deactivation entry is visible (deactivation action not executed yet).
 - [x] In-app account deletion/deactivation entry point added in Settings → Account.
 - [x] Native iOS AppIcon and Splash assets refreshed from `public/res/svg/mindroom.svg` (icon slots regenerated + `cap sync ios` run).
+- [x] Native iOS AppIcon and Splash assets refreshed again from `~/Downloads/mindroom-logo.png` (square 1024 icon source render + regenerated icon slots + `cap sync ios` run).
 - [x] Re-test on physical iPhone after switching Capacitor Keyboard resize mode to `native` (fix confirmed for predictive/autocorrect bar overlapping room composer).
 - [x] Manual physical iPhone smoke test (partial): composer overlap fixed, account deactivation flow works, camera permission works, photo library permission works.
 - [ ] Signed Xcode archive upload from Organizer.

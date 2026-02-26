@@ -676,3 +676,4 @@ Non-blocking notes observed during validation:
 - Xcode/CocoaPods build-script sandbox denial (`Pods-App-frameworks.sh`) was resolved by setting `ENABLE_USER_SCRIPT_SANDBOXING = NO` in the iOS app project build settings.
 - Real-device iPhone testing exposed a room-composer overlap with the iOS predictive/autocorrect bar; switched Capacitor Keyboard resize mode from `body` to `native` in `capacitor.config.ts`, ran `npx cap sync ios`, and confirmed on-device that the composer now stays above the keyboard suggestion bar.
 - Additional real-device iPhone smoke checks passed: account deactivation flow works, camera permission prompt works, and photo library permission prompt works (Apple SSO/report-block still pending on a suitable homeserver).
+- Native iOS branding assets were re-generated again from `~/Downloads/mindroom-logo.png` (non-square source padded to square 1024 icon canvas), then `npm run ios:icons` + `npx cap sync ios` were re-run.
