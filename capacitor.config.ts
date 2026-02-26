@@ -19,7 +19,9 @@ const config: CapacitorConfig = {
   },
   plugins: {
     Keyboard: {
-      resize: 'body',
+      // Use native WebView resizing on iOS so the composer stays above the keyboard
+      // (including the predictive/autocorrect suggestion bar) on real devices.
+      resize: 'native',
       resizeOnFullScreen: true,
     },
     StatusBar: {

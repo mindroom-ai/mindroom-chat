@@ -4,6 +4,16 @@ Last updated: 2026-02-26
 
 Use this file to paste content directly into App Store Connect.
 
+## Current Packet Progress (2026-02-26)
+
+- [x] Reviewer note template drafted below.
+- [x] Product summary / fork positioning note available.
+- [ ] Replace bracketed placeholders in review notes (`[YOUR ...]`, credentials if needed).
+- [ ] Confirm final public Support / Privacy / Terms URLs (current config points all three to docs homepage).
+- [ ] Fill App Store Connect subtitle and copyright.
+- [ ] Decide whether reviewer test account is required and provide credentials/instructions if so.
+- [ ] Validate App Privacy answers against production server behavior.
+
 ## 1) App Review Notes (Paste As-Is, Then Edit Bracketed Fields)
 
 ```text

@@ -599,6 +599,7 @@ Thread badge behavior:
   - `http://` is allowed only for local-network hosts (`localhost`, `.local`, private/link-local IP ranges, loopback).
 - Registration UI is controlled by runtime config via `auth.allowRegistration`; current config enables registration and requires Apple provider visibility with `auth.requireAppleProvider`.
 - Auth footer now supports configurable App Store-facing links (`supportUrl`, `privacyPolicyUrl`, `termsUrl`).
+- Account settings now include a visible account deletion/deactivation entry point, with local Matrix UIA-capable deactivation and OIDC account-management portal fallback.
 - SSO provider rendering is Apple-aware:
   - Apple providers are detected from `brand`, `id`, and `name`.
   - Apple providers are prioritized to the top of the list and use explicit Apple labels (`Sign in with Apple` / `Sign up with Apple`).
@@ -632,3 +633,46 @@ Thread badge behavior:
 - Submission docs now include a checklist plus a paste-ready App Store metadata/review-notes packet.
 - Remaining known product gap: no dedicated thread list sidebar or thread-specific unread model yet.
 - Remaining iOS hardening gap: session credentials are still localStorage-based in this branch (Keychain migration is still pending).
+
+## Submission Readiness Check (2026-02-26, macOS/Xcode)
+
+Validation performed on macOS (Xcode + CocoaPods + ImageMagick available):
+
+- Passed:
+  - `npm install`
+  - `npm run test` (24 files / 103 tests)
+  - `npm run build`
+  - `npm run ios:icons`
+  - `npm run appstore:preflight`
+  - `npx cap sync ios` (including `pod install`)
+  - `xcodebuild ... build` for iOS Release (no signing)
+  - `xcodebuild ... archive` for iOS Release (no signing)
+  - iOS Simulator build + install + launch smoke test (`com.mindroom.app` launched successfully)
+- Verified:
+  - `config.json` enables registration and requires Apple provider in auth flow.
+  - `docs.mindroom.chat` homepage is reachable over HTTPS.
+  - App Store preflight script catches auth URL/plist/icon gate requirements before archive.
+
+Submission blockers / follow-ups before App Store submission:
+
+- Account deletion requirement still needs manual verification (risk reduced):
+  - Added a visible in-app Settings → Account entry point for account deletion/deactivation, with local Matrix deactivation flow + OIDC account-management portal fallback.
+  - Manual runtime verification is still required on the target homeserver(s) to confirm successful deactivation path and reviewer-visible UX.
+- Apple SSO requirement not currently satisfied by configured default homeserver:
+  - `config.json` requires Apple provider (`auth.requireAppleProvider: true`), but live login-flow probe on `https://matrix-dev.lab.nijho.lt/_matrix/client/v3/login` returned only password + appservice flows (no SSO providers).
+  - Submission/test environment must expose an Apple identity provider (preferably with `brand=apple`) before TestFlight/App Review validation.
+- Legal/support URLs are HTTPS-valid but not submission-final:
+  - `config.json` currently points support/privacy/terms to the docs homepage (`https://docs.mindroom.chat/`) rather than dedicated final policy/support endpoints.
+  - Probed likely routes (`/privacy`, `/terms`, `/support`) currently return 404.
+- Xcode marketing/build version values need explicit submission bumping:
+  - `Info.plist` defers to `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)`; current resolved build settings/unsigned archive were `1.0` / `1`, not the web app version `4.10.3`.
+  - Set intended App Store version/build in Xcode project settings before archive/upload.
+
+Non-blocking notes observed during validation:
+
+- `actool` warns that `AppIcon-512@2x.png` is an unassigned child in `AppIcon.appiconset` (source image kept alongside generated slots); archive still succeeds.
+- Re-running `npm run ios:icons` modified tracked icon PNG binaries in-place (expected regeneration side effect during preflight).
+- Native iOS AppIcon + Splash asset catalog images were refreshed from `public/res/svg/mindroom.svg` (opaque PNG render for AppIcon source + regenerated icon slots + splash PNG replacement).
+- Xcode/CocoaPods build-script sandbox denial (`Pods-App-frameworks.sh`) was resolved by setting `ENABLE_USER_SCRIPT_SANDBOXING = NO` in the iOS app project build settings.
+- Real-device iPhone testing exposed a room-composer overlap with the iOS predictive/autocorrect bar; switched Capacitor Keyboard resize mode from `body` to `native` in `capacitor.config.ts`, ran `npx cap sync ios`, and confirmed on-device that the composer now stays above the keyboard suggestion bar.
+- Additional real-device iPhone smoke checks passed: account deactivation flow works, camera permission prompt works, and photo library permission prompt works (Apple SSO/report-block still pending on a suitable homeserver).
