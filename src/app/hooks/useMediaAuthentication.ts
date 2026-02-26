@@ -18,9 +18,21 @@ export const hasServiceWorkerMediaAuthSupport = (
   runtimeServiceWorkerEnabled: boolean = isServiceWorkerEnabled()
 ): boolean => serviceWorkerApiSupported && runtimeServiceWorkerEnabled;
 
+// Capacitor iOS WebViews run on `capacitor://` and do not expose service workers,
+// but we can still use authenticated media endpoints via token-in-query fallback.
+export const hasCapacitorMediaAuthSupport = (
+  protocol: string | undefined =
+    typeof window !== 'undefined' ? window.location?.protocol : undefined
+): boolean => protocol === 'capacitor:';
+
+export const hasMediaAuthTransportSupport = (
+  serviceWorkerAvailable: boolean = hasServiceWorkerMediaAuthSupport(),
+  capacitorAvailable: boolean = hasCapacitorMediaAuthSupport()
+): boolean => serviceWorkerAvailable || capacitorAvailable;
+
 export const shouldUseMediaAuthentication = (
   specVersions: SpecVersions,
-  serviceWorkerAvailable: boolean = hasServiceWorkerMediaAuthSupport()
-): boolean => supportsAuthenticatedMedia(specVersions) && serviceWorkerAvailable;
+  mediaAuthTransportAvailable: boolean = hasMediaAuthTransportSupport()
+): boolean => supportsAuthenticatedMedia(specVersions) && mediaAuthTransportAvailable;
 
 export const useMediaAuthentication = (): boolean => shouldUseMediaAuthentication(useSpecVersions());

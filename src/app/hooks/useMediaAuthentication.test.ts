@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { shouldUseMediaAuthentication } from './useMediaAuthentication';
+import {
+  hasMediaAuthTransportSupport,
+  shouldUseMediaAuthentication,
+} from './useMediaAuthentication';
 
 describe('shouldUseMediaAuthentication', () => {
   it('returns false when spec supports authenticated media but service worker is disabled', () => {
@@ -14,6 +17,18 @@ describe('shouldUseMediaAuthentication', () => {
   });
 
   it('returns true when spec supports authenticated media and service worker is enabled', () => {
+    expect(
+      shouldUseMediaAuthentication(
+        {
+          versions: ['v1.11'],
+        },
+        true
+      )
+    ).toBe(true);
+  });
+
+  it('returns true when service worker is unavailable but Capacitor transport fallback is available', () => {
+    expect(hasMediaAuthTransportSupport(false, true)).toBe(true);
     expect(
       shouldUseMediaAuthentication(
         {
