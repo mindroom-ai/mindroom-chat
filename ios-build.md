@@ -44,7 +44,7 @@ Or open `ios/App/App.xcworkspace` directly in Xcode.
 2. Select the "App" target
 3. Go to "Signing & Capabilities"
 4. Select your Apple Developer team
-5. Set bundle ID to `com.mindroom.app`
+5. Set bundle ID to your app ID (for example `com.mindroom-ai.app`)
 
 ## Build & Run (Debug)
 
@@ -72,7 +72,7 @@ Then rebuild in Xcode.
 
 ## App Icon
 
-Source icon should be `ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png` (1024x1024).
+Source icon should be `ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png` (1024x1024, opaque PNG).
 Regenerate all iOS icon slots with:
 
 ```bash
@@ -82,7 +82,13 @@ npm run ios:icons
 ## Notes
 
 - `npx cap sync ios` must be run before each archive so `ios/App/App/public`, `config.xml`, and `capacitor.config.json` are regenerated.
+- Xcode shows native iOS asset-catalog images (AppIcon/Splash), not the web logo SVG directly. If branding changes in `public/res/svg/mindroom.svg`, re-render native icon/splash assets and rebuild.
 - `NSAppTransportSecurity` allows cleartext only for local-network homeservers; non-local homeservers must use HTTPS.
 - For this build profile, registration is enabled and Apple SSO provider support is required in homeserver auth flows.
 - The app includes usage descriptions for microphone/camera/photo-library access to support voice and media attachment flows.
 - For App Store submission readiness, complete the checklist in `APP_STORE_COMPLIANCE.md`.
+
+## Troubleshooting (Xcode / CocoaPods)
+
+- If Xcode build logs show a sandbox denial for `Pods-App-frameworks.sh` (for example `deny file-read-data .../Pods-App-frameworks.sh`), disable **User Script Sandboxing** for the `App` target build settings (`ENABLE_USER_SCRIPT_SANDBOXING = NO`) and rebuild.
+- After changing AppIcon/Splash images, Xcode and iOS may cache previews/icons. Use **Product → Clean Build Folder** and reinstall the app on device/simulator if the old icon still appears.
