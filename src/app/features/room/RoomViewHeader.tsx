@@ -254,7 +254,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
   );
 });
 
-export function RoomViewHeader() {
+export function RoomViewHeader({ threadId }: { threadId?: string }) {
   const navigate = useNavigate();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
@@ -299,7 +299,7 @@ export function RoomViewHeader() {
     <PageHeader balance={screenSize === ScreenSize.Mobile}>
       <Box grow="Yes" gap="300">
         {screenSize === ScreenSize.Mobile && (
-          <BackRouteHandler>
+          <BackRouteHandler enableEdgeSwipe={!threadId}>
             {(onBack) => (
               <Box shrink="No" alignItems="Center">
                 <IconButton onClick={onBack}>
