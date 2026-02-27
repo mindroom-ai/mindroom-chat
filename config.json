@@ -24,9 +24,9 @@
     "hideServerPickerWhenSingle": false,
     "allowRegistration": true,
     "requireAppleProvider": true,
-    "supportUrl": "https://docs.mindroom.chat/",
-    "privacyPolicyUrl": "https://docs.mindroom.chat/",
-    "termsUrl": "https://docs.mindroom.chat/"
+    "supportUrl": "https://docs.mindroom.chat/support",
+    "privacyPolicyUrl": "https://docs.mindroom.chat/privacy",
+    "termsUrl": "https://docs.mindroom.chat/terms"
   },
 
   "welcome": {
