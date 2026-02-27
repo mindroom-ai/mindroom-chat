@@ -29,12 +29,12 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
   const appleProviderAvailable = hasAppleIdentityProvider(orderedProviders);
 
   const getProviderIconUrl = (provider: IIdentityProvider): string | undefined => {
-    const homeserverIcon =
-      provider.icon && mx.mxcUrlToHttp(provider.icon, 96, 96, 'crop', false);
-    if (homeserverIcon) return homeserverIcon;
     if (isAppleIdentityProvider(provider)) return AppleLogo;
     if (isGoogleIdentityProvider(provider)) return GoogleLogo;
     if (isGitHubIdentityProvider(provider)) return GitHubLogo;
+    const homeserverIcon =
+      provider.icon && mx.mxcUrlToHttp(provider.icon, 96, 96, 'crop', false);
+    if (homeserverIcon) return homeserverIcon;
 
     return undefined;
   };

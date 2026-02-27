@@ -85,5 +85,13 @@ export const getSSOProviderButtonTitle = (
     return action === SSOAction.REGISTER ? 'Sign up with Apple' : 'Sign in with Apple';
   }
 
+  if (isGoogleIdentityProvider(provider)) {
+    return 'Continue with Google';
+  }
+
+  if (isGitHubIdentityProvider(provider)) {
+    return 'Continue with GitHub';
+  }
+
   return `Continue with ${provider.name}`;
 };
