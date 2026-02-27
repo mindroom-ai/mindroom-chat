@@ -13,6 +13,7 @@ import {
   SpaceTabs,
   InboxTab,
   ExploreTab,
+  MindroomTab,
   SettingsTab,
   UnverifiedTab,
   SearchTab,
@@ -23,9 +24,10 @@ import { useClientConfig } from '../../hooks/useClientConfig';
 export function SidebarNav() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { sidebar } = useClientConfig();
-  // Allow deployments to hide community/explore or add-space entry points.
+  // Allow deployments to hide optional sidebar entry points.
   const showExploreCommunity = sidebar?.showExploreCommunity ?? true;
   const showAddSpace = sidebar?.showAddSpace ?? true;
+  const showMindRoom = sidebar?.showMindRoom ?? true;
 
   return (
     <Sidebar>
@@ -40,6 +42,7 @@ export function SidebarNav() {
             <SidebarStackSeparator />
             <SidebarStack>
               {showExploreCommunity && <ExploreTab />}
+              {showMindRoom && <MindroomTab />}
               {showAddSpace && <CreateTab />}
             </SidebarStack>
           </Scroll>
