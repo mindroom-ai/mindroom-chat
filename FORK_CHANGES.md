@@ -680,3 +680,37 @@ Non-blocking notes observed during validation:
 - iOS Capacitor media auth gap diagnosed: `navigator.serviceWorker` is unavailable on `capacitor://localhost`, so the `src/sw.ts` authenticated-media fix cannot run in-app. Added a Capacitor fallback that still enables authenticated media URL generation and appends the access token query param on authenticated media URLs in `mxcUrlToHttp`, restoring image/audio loading on iOS without service workers.
 - Added a mobile left-edge swipe-back gesture for screens using `BackRouteHandler`, plus thread-aware priority in room view: on thread screens, the first swipe exits the thread (matching the thread banner arrow), and a subsequent swipe uses the normal room/page back action (matching the room header arrow).
 - Native iOS AppIcon and Splash assets were regenerated again after replacing `~/Downloads/mindroom-logo.png` (new square source art), fixing the app icon fill/padding issue by producing opaque full-bleed icon outputs.
+
+## Checkpoint (2026-02-27, Apple Developer Program Active)
+
+Status update:
+
+- Apple Developer Program enrollment is now active for the project owner account.
+- Local iOS web/native sync pipeline was re-run successfully on macOS:
+  - `just ios-sync` (`npm run build`, `npm run ios:icons`, `npm run appstore:preflight`, `npx cap sync ios`) ✅
+- Working tree is intentionally left with a local-only Xcode signing change:
+  - `ios/App/App.xcodeproj/project.pbxproj` includes `DEVELOPMENT_TEAM=DNA6966LGZ` for local signing.
+  - Keep this local unless team-signing defaults should be shared with all contributors.
+
+Remaining mandatory steps before TestFlight/App Store submission:
+
+- Apple portal setup:
+  - Ensure App ID exists for `com.mindroom-ai.app`.
+  - Enable `Sign in with Apple` capability for that App ID.
+- App Store Connect setup:
+  - Create app record for `com.mindroom-ai.app`.
+  - Fill app metadata and reviewer notes from `APP_STORE_SUBMISSION_PACKET.md`.
+- Xcode signing/distribution:
+  - Select team and bundle id (`com.mindroom-ai.app`) in target Signing & Capabilities.
+  - Build to a physical iPhone (not simulator-only) with Developer Mode enabled on device.
+  - Archive + upload to TestFlight.
+- Policy/support URLs:
+  - `config.json` now points to `https://docs.mindroom.chat/support`, `/privacy`, `/terms`.
+  - These routes must be publicly reachable with final production content at submission time.
+- Final release validation on TestFlight build:
+  - Login/Register
+  - Apple SSO
+  - Camera permission flow
+  - Photo library permission flow
+  - Microphone recording flow
+  - Account deactivation flow from in-app Settings
