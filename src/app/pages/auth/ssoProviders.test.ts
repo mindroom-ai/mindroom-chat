@@ -4,6 +4,8 @@ import {
   getSSOProviderButtonTitle,
   hasAppleIdentityProvider,
   isAppleIdentityProvider,
+  isGitHubIdentityProvider,
+  isGoogleIdentityProvider,
   sortIdentityProviders,
 } from './ssoProviders';
 
@@ -28,6 +30,19 @@ describe('isAppleIdentityProvider', () => {
   });
 });
 
+describe('provider brand detection', () => {
+  it('detects Google and GitHub providers', () => {
+    expect(isGoogleIdentityProvider(provider('google-oidc', 'Google', 'google'))).toBe(true);
+    expect(isGitHubIdentityProvider(provider('github-oidc', 'GitHub', 'github'))).toBe(true);
+  });
+
+  it('does not classify unrelated provider as Google or GitHub', () => {
+    const genericProvider = provider('corp-sso', 'Corporate SSO');
+    expect(isGoogleIdentityProvider(genericProvider)).toBe(false);
+    expect(isGitHubIdentityProvider(genericProvider)).toBe(false);
+  });
+});
+
 describe('hasAppleIdentityProvider', () => {
   it('returns true when any provider is Apple', () => {
     expect(
@@ -42,15 +57,26 @@ describe('hasAppleIdentityProvider', () => {
 });
 
 describe('sortIdentityProviders', () => {
-  it('returns Apple providers first while preserving relative order', () => {
+  it('returns Apple, then Google, then GitHub providers while preserving relative order', () => {
     const sorted = sortIdentityProviders([
+      provider('github-1', 'GitHub 1', 'github'),
+      provider('other', 'Corporate SSO'),
       provider('google', 'Google', 'google'),
       provider('apple-1', 'Apple Work'),
-      provider('github', 'GitHub', 'github'),
+      provider('github-2', 'GitHub 2', 'github'),
       provider('apple-2', 'Apple Personal'),
+      provider('google-2', 'Google Workspace', 'google'),
     ]);
 
-    expect(sorted.map((item) => item.id)).toEqual(['apple-1', 'apple-2', 'google', 'github']);
+    expect(sorted.map((item) => item.id)).toEqual([
+      'apple-1',
+      'apple-2',
+      'google',
+      'google-2',
+      'github-1',
+      'github-2',
+      'other',
+    ]);
   });
 });
 

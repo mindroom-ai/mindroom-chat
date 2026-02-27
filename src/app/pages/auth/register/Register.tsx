@@ -35,6 +35,10 @@ export function Register() {
   const registrationAllowed = auth?.allowRegistration !== false;
   const requireAppleProvider = auth?.requireAppleProvider === true;
   const appleProviderAvailable = hasAppleIdentityProvider(sso?.identity_providers);
+  const serverWithoutScheme = server.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  const ssoOnlyRegistration = serverWithoutScheme.toLowerCase() === 'matrix.mindroom.chat';
+  const showPasswordRegistration =
+    registerFlows.status === RegisterFlowStatus.FlowRequired && !ssoOnlyRegistration;
 
   // redirect to /login because only that path handle m.login.token
   const ssoRedirectUrl = usePathWithOrigin(getLoginPath(server));
@@ -54,6 +58,11 @@ export function Register() {
           include Apple.
         </Text>
       )}
+      {ssoOnlyRegistration && (
+        <Text style={{ color: color.Warning.Main }} size="T300">
+          This homeserver only allows sign up with Apple, Google, or GitHub.
+        </Text>
+      )}
       {registerFlows.status === RegisterFlowStatus.RegistrationDisabled && !sso && (
         <Text style={{ color: color.Critical.Main }} size="T300">
           Registration has been disabled on this homeserver.
@@ -69,7 +78,7 @@ export function Register() {
           Invalid Request! Failed to get any registration options.
         </Text>
       )}
-      {registerFlows.status === RegisterFlowStatus.FlowRequired && (
+      {showPasswordRegistration && (
         <>
           <SupportedUIAFlowsLoader
             flows={registerFlows.data.flows ?? []}
@@ -95,13 +104,18 @@ export function Register() {
           {sso && <OrDivider />}
         </>
       )}
+      {ssoOnlyRegistration && !sso && (
+        <Text style={{ color: color.Critical.Main }} size="T300">
+          SSO registration is required on this homeserver, but no SSO providers were advertised.
+        </Text>
+      )}
       {sso && (
         <>
           <SSOLogin
             providers={sso.identity_providers}
             redirectUrl={ssoRedirectUrl}
             action={SSOAction.REGISTER}
-            saveScreenSpace={registerFlows.status === RegisterFlowStatus.FlowRequired}
+            saveScreenSpace={showPasswordRegistration}
           />
           <span data-spacing-node />
         </>

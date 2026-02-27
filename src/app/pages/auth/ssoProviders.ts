@@ -1,6 +1,8 @@
 import { IIdentityProvider, SSOAction } from 'matrix-js-sdk';
 
 const APPLE_PROVIDER_KEY = 'apple';
+const GOOGLE_PROVIDER_KEY = 'google';
+const GITHUB_PROVIDER_KEY = 'github';
 
 const normalizeProviderValue = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
@@ -8,18 +10,37 @@ const normalizeProviderValue = (value: unknown): string | undefined => {
   return normalized.length > 0 ? normalized : undefined;
 };
 
-export const isAppleIdentityProvider = (provider: IIdentityProvider): boolean => {
+const providerContains = (provider: IIdentityProvider, key: string): boolean => {
   const brand = normalizeProviderValue(provider.brand);
-  if (brand === APPLE_PROVIDER_KEY) return true;
+  if (brand === key) return true;
 
   const providerId = normalizeProviderValue(provider.id);
-  if (providerId?.includes(APPLE_PROVIDER_KEY)) return true;
+  if (providerId?.includes(key)) return true;
 
   const providerName = normalizeProviderValue(provider.name);
-  if (providerName?.includes(APPLE_PROVIDER_KEY)) return true;
+  if (providerName?.includes(key)) return true;
 
   return false;
 };
+
+export type KnownIdentityProvider = 'apple' | 'google' | 'github' | undefined;
+
+export const getKnownIdentityProvider = (provider: IIdentityProvider): KnownIdentityProvider => {
+  if (providerContains(provider, APPLE_PROVIDER_KEY)) return APPLE_PROVIDER_KEY;
+  if (providerContains(provider, GOOGLE_PROVIDER_KEY)) return GOOGLE_PROVIDER_KEY;
+  if (providerContains(provider, GITHUB_PROVIDER_KEY)) return GITHUB_PROVIDER_KEY;
+
+  return undefined;
+};
+
+export const isAppleIdentityProvider = (provider: IIdentityProvider): boolean =>
+  getKnownIdentityProvider(provider) === APPLE_PROVIDER_KEY;
+
+export const isGoogleIdentityProvider = (provider: IIdentityProvider): boolean =>
+  getKnownIdentityProvider(provider) === GOOGLE_PROVIDER_KEY;
+
+export const isGitHubIdentityProvider = (provider: IIdentityProvider): boolean =>
+  getKnownIdentityProvider(provider) === GITHUB_PROVIDER_KEY;
 
 export const hasAppleIdentityProvider = (providers?: IIdentityProvider[]): boolean =>
   Boolean(providers?.some(isAppleIdentityProvider));
@@ -28,17 +49,32 @@ export const sortIdentityProviders = (providers?: IIdentityProvider[]): IIdentit
   if (!providers) return [];
 
   const appleProviders: IIdentityProvider[] = [];
+  const googleProviders: IIdentityProvider[] = [];
+  const githubProviders: IIdentityProvider[] = [];
   const otherProviders: IIdentityProvider[] = [];
 
   providers.forEach((provider) => {
-    if (isAppleIdentityProvider(provider)) {
+    const knownProvider = getKnownIdentityProvider(provider);
+
+    if (knownProvider === APPLE_PROVIDER_KEY) {
       appleProviders.push(provider);
       return;
     }
+
+    if (knownProvider === GOOGLE_PROVIDER_KEY) {
+      googleProviders.push(provider);
+      return;
+    }
+
+    if (knownProvider === GITHUB_PROVIDER_KEY) {
+      githubProviders.push(provider);
+      return;
+    }
+
     otherProviders.push(provider);
   });
 
-  return [...appleProviders, ...otherProviders];
+  return [...appleProviders, ...googleProviders, ...githubProviders, ...otherProviders];
 };
 
 export const getSSOProviderButtonTitle = (
