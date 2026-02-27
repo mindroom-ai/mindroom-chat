@@ -55,7 +55,7 @@ export function Login() {
 
   const parsedFlows = useParsedLoginFlows(loginFlows.flows);
   const serverWithoutScheme = server.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-  const disablePasswordLogin = serverWithoutScheme.toLowerCase() === 'matrix.mindroom.chat';
+  const disablePasswordLogin = serverWithoutScheme.toLowerCase() === 'mindroom.chat';
   const showPasswordLogin = parsedFlows.password !== undefined && !disablePasswordLogin;
   const registrationAllowed = auth?.allowRegistration !== false;
   const requireAppleProvider = auth?.requireAppleProvider === true;

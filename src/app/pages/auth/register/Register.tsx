@@ -36,7 +36,7 @@ export function Register() {
   const requireAppleProvider = auth?.requireAppleProvider === true;
   const appleProviderAvailable = hasAppleIdentityProvider(sso?.identity_providers);
   const serverWithoutScheme = server.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-  const ssoOnlyRegistration = serverWithoutScheme.toLowerCase() === 'matrix.mindroom.chat';
+  const ssoOnlyRegistration = serverWithoutScheme.toLowerCase() === 'mindroom.chat';
   const showPasswordRegistration =
     registerFlows.status === RegisterFlowStatus.FlowRequired && !ssoOnlyRegistration;
 

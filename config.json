@@ -1,13 +1,13 @@
 {
   "defaultHomeserver": 0,
-  "homeserverList": ["matrix.mindroom.chat"],
+  "homeserverList": ["mindroom.chat"],
   "allowCustomHomeservers": true,
 
   "featuredCommunities": {
     "openAsDefault": false,
     "spaces": [],
     "rooms": ["#lobby:mindroom.local"],
-    "servers": ["https://matrix.mindroom.chat"]
+    "servers": ["https://mindroom.chat"]
   },
 
   "hashRouter": {
