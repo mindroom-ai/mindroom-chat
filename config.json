@@ -6,7 +6,7 @@
   "featuredCommunities": {
     "openAsDefault": false,
     "spaces": [],
-    "rooms": ["#lobby:mindroom.local"],
+    "rooms": [],
     "servers": ["https://mindroom.chat"]
   },
 
