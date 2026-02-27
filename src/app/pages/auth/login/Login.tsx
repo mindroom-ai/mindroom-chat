@@ -55,7 +55,8 @@ export function Login() {
 
   const parsedFlows = useParsedLoginFlows(loginFlows.flows);
   const serverWithoutScheme = server.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-  const disablePasswordLogin = serverWithoutScheme.toLowerCase() === 'mindroom.chat';
+  const isMindroomServer = serverWithoutScheme.toLowerCase() === 'mindroom.chat';
+  const disablePasswordLogin = isMindroomServer;
   const showPasswordLogin = parsedFlows.password !== undefined && !disablePasswordLogin;
   const registrationAllowed = auth?.allowRegistration !== false;
   const requireAppleProvider = auth?.requireAppleProvider === true;
@@ -106,7 +107,7 @@ export function Login() {
           <span data-spacing-node />
         </>
       )}
-      {registrationAllowed && (
+      {registrationAllowed && !isMindroomServer && (
         <Text align="Center">
           Do not have an account? <Link to={getRegisterPath(server)}>Register</Link>
         </Text>
