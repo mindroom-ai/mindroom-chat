@@ -1,19 +1,13 @@
 {
   "defaultHomeserver": 0,
-  "homeserverList": [
-    "https://matrix-dev.lab.nijho.lt",
-    "matrix.org",
-    "envs.net",
-    "mozilla.org",
-    "converser.eu"
-  ],
+  "homeserverList": ["matrix.mindroom.chat"],
   "allowCustomHomeservers": true,
 
   "featuredCommunities": {
     "openAsDefault": false,
     "spaces": [],
     "rooms": ["#lobby:mindroom.local"],
-    "servers": ["https://matrix-dev.lab.nijho.lt"]
+    "servers": ["https://matrix.mindroom.chat"]
   },
 
   "hashRouter": {
