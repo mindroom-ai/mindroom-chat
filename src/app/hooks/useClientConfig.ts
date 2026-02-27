@@ -22,6 +22,9 @@ export type ClientConfig = {
   sidebar?: {
     showExploreCommunity?: boolean;
     showAddSpace?: boolean;
+    showMindRoom?: boolean;
+    mindRoomUrl?: string;
+    mindRoomProvisioningUrl?: string;
   };
 
   auth?: {
