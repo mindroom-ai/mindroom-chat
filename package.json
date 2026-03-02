@@ -19,7 +19,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "ios:icons": "bash scripts/generate-ios-icons.sh",
-    "appstore:preflight": "node scripts/appstore-preflight.mjs"
+    "appstore:preflight": "node scripts/appstore-preflight.mjs",
+    "release:next-tag": "python3 scripts/fork_release_tag.py"
   },
   "keywords": [],
   "author": "Ajay Bura",
