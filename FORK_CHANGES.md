@@ -20,6 +20,7 @@ Rules followed:
 Working tree status (2026-02-26):
 
 - Modified:
+  - `.github/workflows/auto-mindroom-release.yml` (NEW)
   - `APP_STORE_COMPLIANCE.md` (NEW)
   - `APP_STORE_SUBMISSION_PACKET.md` (NEW)
   - `FORK_CHANGES.md`
@@ -31,6 +32,7 @@ Working tree status (2026-02-26):
   - `ios/App/App/Assets.xcassets/AppIcon.appiconset/*` (generated icon PNG set)
   - `package.json`
   - `scripts/appstore-preflight.mjs` (NEW)
+  - `scripts/fork_release_tag.py` (NEW)
   - `scripts/generate-ios-icons.sh` (NEW)
   - `src/app/features/settings/about/About.tsx`
   - `src/app/cs-api.test.ts` (NEW)
@@ -60,13 +62,15 @@ What changed (uncommitted):
   - set `auth.privacyPolicyUrl` and `auth.termsUrl` runtime links in config,
   - rewrote `README.md` to be MindRoom-first (product positioning, fork deltas, iOS submission docs, and upstream attribution),
   - aligned visible in-app About version text with package version,
-  - added explicit App Store submission checklist doc and iOS build preflight notes.
+  - added explicit App Store submission checklist doc and iOS build preflight notes,
+  - added automated release tagging on every `dev` push using `v<base_version>-mindroom.<n>` via a reusable Python helper (`scripts/fork_release_tag.py`) configurable by prefix/suffix/base env vars.
 
 Validation (uncommitted):
 
+- `npm run release:next-tag` ✅ passed.
 - `npm run ios:icons` ✅ passed.
 - `npm run appstore:preflight` ✅ passed.
-- `npm run test` ✅ passed (24 files, 103 tests).
+- `npm run test` ✅ passed.
 - `npm run build` ✅ passed.
 - `npm run typecheck` ❌ fails with pre-existing repository-wide typing issues (matrix-js-sdk import/type surface mismatches and existing strictness violations).
 - `npm run lint` ❌ fails with pre-existing repository-wide lint issues unrelated to this delta.
@@ -652,6 +656,7 @@ Thread badge behavior:
 - iOS app icon assets are now generated for all standard iPhone/iPad slots, and preflight checks enforce icon completeness before archive.
 - Submission docs now include a checklist plus a paste-ready App Store metadata/review-notes packet.
 - Left sidebar now includes a MindRoom shortcut button (logo icon) that opens Local MindRoom onboarding.
+- Release automation now supports per-commit `dev` tagging in `v<base_version>-mindroom.<n>` format with base-version-aware incrementing.
 - Remaining known product gap: no dedicated thread list sidebar or thread-specific unread model yet.
 - Remaining iOS hardening gap: session credentials are still localStorage-based in this branch (Keychain migration is still pending).
 

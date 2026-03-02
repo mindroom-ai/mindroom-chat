@@ -111,6 +111,21 @@ docker build -t mindroom-cinny:latest .
 docker run -p 8080:80 mindroom-cinny:latest
 ```
 
+## Releases
+
+- Every push to `dev` creates an automated GitHub release tag in the format
+  `v<base_version>-mindroom.<n>`.
+- `base_version` is read from [`package.json`](./package.json) by default
+  (or `BASE_VERSION` if set), with upstream-style semver tags as fallback;
+  `<n>` increments from existing fork tags for that base version.
+- The Python helper is reusable across forks via env vars:
+  `RELEASE_TAG_PREFIX`, `RELEASE_TAG_SUFFIX`, `BASE_TAG_PREFIX`, `BASE_VERSION`.
+- Local preview of the next tag:
+
+```bash
+npm run release:next-tag
+```
+
 ## Upstream Attribution
 
 This project is built on top of Cinny and Matrix ecosystem libraries.
