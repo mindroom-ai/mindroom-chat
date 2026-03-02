@@ -158,10 +158,41 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     });
 
     const expanded = collectTextContent(renderer.toJSON());
-    expect(expanded).toContain('Tool #1: first_tool -> FIRST');
+    expect(expanded).toContain('Tool #1: first_tool');
+    expect(expanded).toContain('FIRST');
     expect(expanded).toContain('Tool #2: second_tool ⏳');
-    expect(expanded).toContain('Tool #3: third_tool -> THIRD');
+    expect(expanded).toContain('Tool #3: third_tool');
+    expect(expanded).toContain('THIRD');
     expect(expanded).toContain('Done');
+  });
+
+  it('does not merge marker-prefix paragraphs when each has trailing text', () => {
+    const markup = renderWithToolTrace(
+      [
+        '<p>🔧 <code>run_shell_command</code> [1]<br/>Now let me find one</p>',
+        '<p>🔧 <code>run_shell_command</code> [2]<br/>Now let me find two</p>',
+      ].join(''),
+      {
+        'io.mindroom.tool_trace': {
+          version: 2,
+          events: [
+            {
+              type: 'tool_call_completed',
+              tool_name: 'run_shell_command',
+              result_preview: 'FIRST',
+            },
+            { type: 'tool_call_started', tool_name: 'run_shell_command' },
+          ],
+        },
+      }
+    );
+
+    expect(markup).not.toContain('2 tool calls');
+    expect(markup.match(/>Tool</g)).toHaveLength(2);
+    expect(markup).toContain('run_shell_command');
+    expect(markup).toContain('Now let me find one');
+    expect(markup).toContain('Now let me find two');
+    expect(markup).not.toContain('🔧');
   });
 
   it('preserves trailing content after a marker prefix, including br and text', () => {
