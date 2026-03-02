@@ -522,6 +522,14 @@ MindRoom priorities for this fork:
 ### Edit Rendering For Streaming
 
 - Timeline rendering resolves message edits against latest replacement content.
+- Edit resolution now prefers SDK-tracked `MatrixEvent.replacingEvent()` before
+  timeline relation fallback, avoiding stale relation subsets overriding newer
+  edits in long/thread timelines.
+- Relation fallback tie-breaking now prefers the later relation when edit
+  timestamps match, preventing "first edit sticks" behavior under rapid streams.
+- In thread view, when replacement state is missing, the client now fetches
+  latest `m.replace` relations for loaded thread messages and applies them to
+  events, reducing stale first-edit renders on long historical threads.
 - Edit/reaction relation events are not directly shown as separate timeline entries.
 - This keeps streamed edit updates visible as a single evolving message body.
 
@@ -648,13 +656,18 @@ Thread badge behavior:
 - Recommended local validation:
   - `npm run test`
   - `npm run build`
+  - `npm run test -- src/app/utils/room.test.ts src/app/matrixRelationsRace.test.ts`
 - `npm run typecheck` currently fails due pre-existing repository-wide type issues (not introduced by recent fork deltas).
 - If deploying behind strict subpath-only ingress/proxy rules, ensure runtime config and assets resolve under your routing policy, or apply equivalent server-side HTML base/script injection in the serving layer.
 - Before shipping iOS builds, run the full checklist in `APP_STORE_COMPLIANCE.md` and verify App Store Connect metadata URLs (support/privacy/terms) are public and final.
 
-## Current Snapshot (2026-02-26)
+## Current Snapshot (2026-03-02)
 
 - Thread mode, tool-ref v2 rendering, long-message v2 hydration, and `!` autocomplete are implemented.
+- Edit rendering hardening now prioritizes SDK replacement state over relation
+  scans in UI helpers, improving streamed edit stability in long threads.
+- Thread timeline loading now backfills missing latest edits (`m.replace`) per
+  loaded thread message when server responses omit replacement aggregation.
 - Main timeline thread summary chips render below message body and show participant avatars when available.
 - Base-path bootstrap is server-driven for the local SPA server (`serve.py`) and no longer depends on fragile client-side inference.
 - Service-worker media auth matching handles both root and subpath media endpoints on the same origin, reducing `M_MISSING_TOKEN` failures under subpath deployments.

@@ -397,9 +397,18 @@ export const getLatestEdit = (
   targetEvent: MatrixEvent,
   editEvents: MatrixEvent[]
 ): MatrixEvent | undefined => {
-  const eventByTargetSender = (rEvent: MatrixEvent) =>
-    rEvent.getSender() === targetEvent.getSender();
-  return editEvents.sort((m1, m2) => m2.getTs() - m1.getTs()).find(eventByTargetSender);
+  const targetSender = targetEvent.getSender();
+
+  // Prefer higher timestamp; when equal, prefer the later relation entry
+  // so we don't get stuck on the earliest edit.
+  return editEvents.reduce<MatrixEvent | undefined>((latest, editEvent) => {
+    if (editEvent.getSender() !== targetSender) return latest;
+    if (!latest) return editEvent;
+
+    if (editEvent.getTs() > latest.getTs()) return editEvent;
+    if (editEvent.getTs() === latest.getTs()) return editEvent;
+    return latest;
+  }, undefined);
 };
 
 export const getEditedEvent = (
@@ -407,6 +416,11 @@ export const getEditedEvent = (
   mEvent: MatrixEvent,
   timelineSet: EventTimelineSet
 ): MatrixEvent | undefined => {
+  const replacingEvent = mEvent.replacingEvent();
+  if (replacingEvent && replacingEvent.getSender() === mEvent.getSender()) {
+    return replacingEvent;
+  }
+
   const edits = getEventEdits(timelineSet, mEventId, mEvent.getType());
   return edits && getLatestEdit(mEvent, edits.getRelations());
 };
