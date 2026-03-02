@@ -38,6 +38,7 @@ import * as css from '../styles/CustomHtml.css';
 import {
   MindroomToolRefParseResult,
   parseMindroomToolRefHtml,
+  parseMindroomToolRefText,
 } from '../components/message/mindroomBlocks';
 import {
   MindroomToolTraceEvent,
@@ -361,7 +362,11 @@ const MINDROOM_BLOCK_META: Record<MindroomTagName, { label: string; icon: IconSr
 };
 
 function ToolStatusBadge({ pending }: { pending: boolean }) {
-  return pending ? <Spinner size="100" variant="Secondary" /> : <Icon size="50" src={Icons.Check} />;
+  return pending ? (
+    <Spinner size="100" variant="Secondary" />
+  ) : (
+    <Icon size="50" src={Icons.Check} />
+  );
 }
 
 function MindroomCollapsibleBlock({
@@ -568,6 +573,9 @@ const cloneDomChildNode = (node: ChildNode): ChildNode => {
   return new DOMText('');
 };
 
+const parseToolRefPrefix = (value: string): MindroomToolRefParseResult | undefined =>
+  parseMindroomToolRefHtml(value) ?? parseMindroomToolRefText(value);
+
 const parseToolRefIndexFromTextPrefix = (text: string): number | undefined => {
   const match = /^\s*🔧[\s\S]*?\[(\d+)\](?:\s*⏳)?/u.exec(text);
   if (!match) return undefined;
@@ -603,10 +611,14 @@ const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | u
   for (let childIndex = 0; childIndex < element.children.length; childIndex += 1) {
     const child = element.children[childIndex];
 
+    if (isDomElementNode(child) && child.name === 'br' && !bestMatch && html.trim().length === 0) {
+      continue;
+    }
+
     if (isDomTextNode(child)) {
       for (let splitIndex = 0; splitIndex <= child.data.length; splitIndex += 1) {
         const candidate = `${html}${child.data.slice(0, splitIndex)}`;
-        if (parseMindroomToolRefHtml(candidate)) {
+        if (parseToolRefPrefix(candidate)) {
           // Prefer the longest valid marker prefix (e.g. include optional " ⏳" when present).
           bestMatch = {
             html: candidate,
@@ -620,7 +632,7 @@ const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | u
     } else if (isDomElementNode(child) && child.name === 'code') {
       html += `<code>${extractTextFromChildren(child.children)}</code>`;
 
-      if (parseMindroomToolRefHtml(html)) {
+      if (parseToolRefPrefix(html)) {
         bestMatch = {
           html,
           childIndex,
@@ -630,7 +642,7 @@ const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | u
     } else if (isDomElementNode(child) && child.name === 'span') {
       html += extractTextFromChildren(child.children);
 
-      if (parseMindroomToolRefHtml(html)) {
+      if (parseToolRefPrefix(html)) {
         bestMatch = {
           html,
           childIndex,
@@ -668,9 +680,8 @@ export const withMindroomToolTraceMarkerParserOptions = (
         isDomElementNode(domNode) && ['p', 'div', 'li'].includes(domNode.name);
 
       if (isContainer) {
-        const maybeChildren = domNode.children;
         const maybeToolIndex = parseToolRefIndexFromTextPrefix(
-          extractTextFromChildren(maybeChildren as ChildNode[])
+          extractTextFromChildren(domNode.children as ChildNode[])
         );
         if (maybeToolIndex !== undefined && consumedToolIndexes.has(maybeToolIndex)) {
           return null;
@@ -687,7 +698,7 @@ export const withMindroomToolTraceMarkerParserOptions = (
           const toolRefPrefix = getToolRefPrefixFromElement(element);
           if (!toolRefPrefix) return undefined;
 
-          const toolRef = parseMindroomToolRefHtml(toolRefPrefix.html);
+          const toolRef = parseToolRefPrefix(toolRefPrefix.html);
           if (!toolRef) return undefined;
 
           const data = buildToolRefRenderData(toolRef, traceEvents[toolRef.index - 1]);
@@ -767,9 +778,8 @@ export const withMindroomToolTraceMarkerParserOptions = (
         isDomElementNode(domNode) && ['p', 'div', 'li'].includes(domNode.name);
 
       if (isContainer) {
-        const maybeChildren = domNode.children;
         const maybeToolIndex = parseToolRefIndexFromTextPrefix(
-          extractTextFromChildren(maybeChildren as ChildNode[])
+          extractTextFromChildren(domNode.children as ChildNode[])
         );
         if (
           maybeToolIndex !== undefined &&

@@ -49,6 +49,14 @@ describe('parseMindroomToolRefText', () => {
     });
   });
 
+  it('parses fallback plain text markers without backticks', () => {
+    expect(parseMindroomToolRefText('🔧 run_shell_command [16]')).toEqual({
+      toolName: 'run_shell_command',
+      index: 16,
+      pending: false,
+    });
+  });
+
   it('returns undefined for non-marker text', () => {
     expect(parseMindroomToolRefText('normal response text')).toBeUndefined();
   });

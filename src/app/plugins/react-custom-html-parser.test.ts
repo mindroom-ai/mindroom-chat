@@ -166,6 +166,48 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     expect(expanded).toContain('Done');
   });
 
+  it('renders grouped tool blocks for plain text fallback markers without code tags', () => {
+    const markup = renderWithToolTrace(
+      [
+        '<p>🔧 run_shell_command [16]</p>',
+        '<p>🔧 run_shell_command [17]</p>',
+        '<p>🔧 read_file [18]</p>',
+      ].join(''),
+      {
+        'io.mindroom.tool_trace': {
+          version: 2,
+          events: [
+            { type: 'tool_call_completed', tool_name: 'run_shell_command' },
+            { type: 'tool_call_started', tool_name: 'run_shell_command' },
+            { type: 'tool_call_completed', tool_name: 'read_file' },
+          ],
+        },
+      }
+    );
+
+    expect(markup).toContain('3 tool calls');
+    expect(markup).not.toContain('🔧');
+  });
+
+  it('consumes marker lines when multiple markers are in one paragraph separated by br', () => {
+    const markup = renderWithToolTrace(
+      '<p>🔧 <code>run_shell_command</code> [16]<br/>🔧 <code>read_file</code> [17]<br/>Now I have the full structure.</p>',
+      {
+        'io.mindroom.tool_trace': {
+          version: 2,
+          events: [
+            { type: 'tool_call_completed', tool_name: 'run_shell_command' },
+            { type: 'tool_call_completed', tool_name: 'read_file' },
+          ],
+        },
+      }
+    );
+
+    expect(markup.match(/>Tool</g)).toHaveLength(2);
+    expect(markup).not.toContain('🔧');
+    expect(markup).toContain('Now I have the full structure.');
+  });
+
   it('does not merge marker-prefix paragraphs when each has trailing text', () => {
     const markup = renderWithToolTrace(
       [

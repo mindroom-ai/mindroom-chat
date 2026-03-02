@@ -8,6 +8,8 @@ export type MindroomToolRefParseResult = {
 export const MINDROOM_TOOL_REF_HTML_REG_G = /🔧 <code>([^<]+)<\/code> \[(\d+)\]( ⏳)?/g;
 
 const MINDROOM_TOOL_REF_TEXT_REG = /^\s*🔧\s+`([^`]+)`\s+\[(\d+)\](?:\s+(⏳))?\s*$/u;
+const MINDROOM_TOOL_REF_TEXT_FALLBACK_REG =
+  /^\s*🔧\s+([^\[\r\n]+?)\s+\[(\d+)\](?:\s+(⏳))?\s*$/u;
 
 const parseToolRefMatch = (match: RegExpExecArray): MindroomToolRefParseResult | undefined => {
   const toolName = match[1]?.trim();
@@ -33,7 +35,10 @@ export const parseMindroomToolRefHtml = (html: string): MindroomToolRefParseResu
 };
 
 export const parseMindroomToolRefText = (text: string): MindroomToolRefParseResult | undefined => {
-  const match = MINDROOM_TOOL_REF_TEXT_REG.exec(text);
-  if (!match) return undefined;
-  return parseToolRefMatch(match);
+  const fencedMatch = MINDROOM_TOOL_REF_TEXT_REG.exec(text);
+  if (fencedMatch) return parseToolRefMatch(fencedMatch);
+
+  const fallbackMatch = MINDROOM_TOOL_REF_TEXT_FALLBACK_REG.exec(text);
+  if (!fallbackMatch) return undefined;
+  return parseToolRefMatch(fallbackMatch);
 };

@@ -574,11 +574,17 @@ Thread badge behavior:
 - Tool-call UI renders from v2 formatted-body markers:
   - `🔧 <code>tool_name</code> [N]`
   - `🔧 <code>tool_name</code> [N] ⏳`
+- Parser matching now also accepts fallback plain-text marker lines
+  (`🔧 tool_name [N]` / ``🔧 `tool_name` [N]``) so tool dropdown rendering
+  survives minor formatted-body shape differences.
 - Consecutive tool-call marker blocks are collapsed into a single expandable `N tool calls` block to reduce timeline noise during long tool sequences.
-- Marker metadata lookup is strict and index-based: `io.mindroom.tool_trace.events[N - 1]`.
+- Marker metadata lookup remains index-based:
+  `io.mindroom.tool_trace.events[N - 1]`.
 - No legacy `<tool>` / `<tool-group>` compatibility is kept in sanitizer or parser paths.
 - Marker prefixes at the start of a block element continue to render as tool blocks even when trailing content follows in the same block.
 - Expanded tool dropdown now shows result text even for single-line inline results to support copy workflows.
+- Once a marker is consumed into a MindRoom tool block, duplicate raw marker
+  containers are suppressed to avoid mixed "dropdown + raw 🔧 line" rendering.
 
 ### AI Run Metadata Visibility
 
