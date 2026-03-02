@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "postinstall": "patch-package",
     "ios:icons": "bash scripts/generate-ios-icons.sh",
     "appstore:preflight": "node scripts/appstore-preflight.mjs",
     "release:next-tag": "python3 scripts/fork_release_tag.py"
@@ -113,6 +114,7 @@
     "eslint-plugin-jsx-a11y": "6.6.1",
     "eslint-plugin-react": "7.31.11",
     "eslint-plugin-react-hooks": "4.6.0",
+    "patch-package": "8.0.1",
     "prettier": "2.8.1",
     "react-test-renderer": "18.2.0",
     "typescript": "4.9.4",
