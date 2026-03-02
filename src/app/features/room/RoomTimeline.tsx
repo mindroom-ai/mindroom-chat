@@ -19,6 +19,7 @@ import {
   IContent,
   MatrixClient,
   MatrixEvent,
+  RelationType,
   Room,
   RoomEvent,
   RoomEventHandlerMap,
@@ -82,6 +83,7 @@ import {
   getMemberDisplayName,
   getReactionContent,
   isMembershipChanged,
+  logEditDebug,
   reactionOrEditEvent,
 } from '../../utils/room';
 import { useSetting } from '../../state/hooks/settings';
@@ -596,6 +598,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   const threadPaginatingFrontRef = useRef(false);
   const threadIdRef = useRef(threadId);
   const threadEventIndexMapRef = useRef<Map<string, number>>(new Map());
+  const threadEditFetchAttemptedRef = useRef<Set<string>>(new Set());
   // SDK does not create Thread objects from fetchRelations responses, so we keep
   // a local fallback list to render thread replies when room.getThread(...) is null.
   const fallbackThreadEventsRef = useRef<{ threadId?: string; events: MatrixEvent[] }>({
@@ -1041,6 +1044,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     setThreadLoadError(false);
     setThreadTimelineTick(0);
     setPendingThreadOpenTick(0);
+    threadEditFetchAttemptedRef.current.clear();
     pendingThreadOpenRef.current = undefined;
     fallbackThreadEventsRef.current = { threadId, events: [] };
     let mounted = true;
@@ -1137,6 +1141,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     setThreadPaginatingBack(false);
     setThreadPaginatingFront(false);
     setPendingThreadOpenTick(0);
+    threadEditFetchAttemptedRef.current.clear();
     pendingThreadOpenRef.current = undefined;
     fallbackThreadEventsRef.current = { threadId: undefined, events: [] };
   }, [threadId]);
@@ -2117,6 +2122,139 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     threadEventIndexMapRef.current = eventIndexMap;
     return sortedEvents;
   }, [threadId, thread, room, threadTimelineTick]);
+
+  useEffect(() => {
+    if (!threadId || threadEvents.length === 0) return;
+
+    const missingEditEvents = threadEvents.filter((mEvent) => {
+      const eventId = mEvent.getId();
+      if (!eventId) return false;
+      if (threadEditFetchAttemptedRef.current.has(eventId)) return false;
+      if (mEvent.isRedacted()) return false;
+      if (mEvent.replacingEvent()) return false;
+      const eventType = mEvent.getType();
+      if (
+        eventType !== MessageEvent.RoomMessage &&
+        eventType !== MessageEvent.RoomMessageEncrypted
+      ) {
+        return false;
+      }
+      return true;
+    });
+    if (missingEditEvents.length === 0) {
+      logEditDebug('threadBackfill:noneMissing', {
+        threadId,
+        threadEventCount: threadEvents.length,
+      });
+      return;
+    }
+
+    logEditDebug('threadBackfill:start', {
+      threadId,
+      threadEventCount: threadEvents.length,
+      missingEditCount: missingEditEvents.length,
+    });
+
+    missingEditEvents.forEach((mEvent) => {
+      const eventId = mEvent.getId();
+      if (eventId) threadEditFetchAttemptedRef.current.add(eventId);
+    });
+
+    let cancelled = false;
+    const loadMissingThreadEdits = async () => {
+      let didUpdate = false;
+      let updatedCount = 0;
+      const concurrency = 4;
+      let cursor = 0;
+
+      const worker = async () => {
+        while (!cancelled && cursor < missingEditEvents.length) {
+          const currentIndex = cursor;
+          cursor += 1;
+
+          const mEvent = missingEditEvents[currentIndex];
+          const eventId = mEvent.getId();
+          if (!eventId) continue;
+
+          const [relErr, relData] = await to(
+            mx.relations(room.roomId, eventId, RelationType.Replace, mEvent.getType(), {
+              dir: Direction.Backward,
+              limit: 100,
+            })
+          );
+          if (cancelled) continue;
+          if (relErr) {
+            logEditDebug('threadBackfill:fetchError', {
+              threadId,
+              eventId,
+              error: String(relErr),
+            });
+            continue;
+          }
+          if (!relData?.events?.length) {
+            logEditDebug('threadBackfill:noRelations', {
+              threadId,
+              eventId,
+            });
+            continue;
+          }
+
+          const latestEdit = relData.events.reduce((latest, editEvent) => {
+            if (!latest) return editEvent;
+            if (editEvent.getTs() > latest.getTs()) return editEvent;
+            if (editEvent.getTs() === latest.getTs()) return editEvent;
+            return latest;
+          }, relData.events[0]);
+          if (!latestEdit) continue;
+
+          // Keep sender guard aligned with edit auth semantics.
+          if (latestEdit.getSender() !== mEvent.getSender()) {
+            logEditDebug('threadBackfill:senderMismatch', {
+              threadId,
+              eventId,
+              editEventId: latestEdit.getId(),
+              editSender: latestEdit.getSender(),
+              targetSender: mEvent.getSender(),
+            });
+            continue;
+          }
+
+          mEvent.makeReplaced(latestEdit);
+          didUpdate = true;
+          updatedCount += 1;
+          logEditDebug('threadBackfill:applied', {
+            threadId,
+            eventId,
+            editEventId: latestEdit.getId(),
+            editTs: latestEdit.getTs(),
+            relationCount: relData.events.length,
+          });
+        }
+      };
+
+      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+      if (didUpdate && !cancelled && threadIdRef.current === threadId) {
+        logEditDebug('threadBackfill:updated', {
+          threadId,
+          updatedCount,
+        });
+        setTimeline((ct) => ({ ...ct }));
+        setThreadTimelineTick((val) => val + 1);
+      } else {
+        logEditDebug('threadBackfill:noUpdate', {
+          threadId,
+        });
+      }
+    };
+
+    loadMissingThreadEdits();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mx, room.roomId, threadId, threadEvents]);
+
   const handleThreadPaginateBack = useCallback(async () => {
     if (!threadId || !thread || threadPaginatingBackRef.current) return;
     const firstThreadTimeline = threadLinkedTimelines[0];
