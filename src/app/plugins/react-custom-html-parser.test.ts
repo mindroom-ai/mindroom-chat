@@ -1,7 +1,7 @@
 import React from 'react';
 import parse, { Element, HTMLReactParserOptions, domToReact } from 'html-react-parser';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { act, create, ReactTestRenderer } from 'react-test-renderer';
+import { act, create, ReactTestRenderer, ReactTestRendererJSON } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { withMindroomToolTraceMarkerParserOptions } from './react-custom-html-parser';
 
@@ -53,6 +53,8 @@ vi.mock('../styles/CustomHtml.css', () => ({
   MindroomBlockInlineResult: 'MindroomBlockInlineResult',
   MindroomBlockBody: 'MindroomBlockBody',
   MindroomBlockResult: 'MindroomBlockResult',
+  MindroomToolGroupList: 'MindroomToolGroupList',
+  MindroomToolGroupItem: 'MindroomToolGroupItem',
 }));
 
 const createBaseOpts = (): HTMLReactParserOptions => {
@@ -93,6 +95,17 @@ const renderTreeWithToolTrace = (
   return renderer;
 };
 
+const collectTextContent = (
+  node: ReactTestRendererJSON | ReactTestRendererJSON[] | string | null
+): string => {
+  if (!node) return '';
+  if (typeof node === 'string') return node;
+  if (Array.isArray(node)) return node.map((child) => collectTextContent(child)).join('');
+
+  const self = typeof node.children === 'object' ? collectTextContent(node.children) : '';
+  return self;
+};
+
 describe('withMindroomToolTraceMarkerParserOptions', () => {
   it('renders tool blocks only when hydrated content carries tool-trace metadata', () => {
     const html = '<p>🔧 <code>search_web</code> [1]</p>';
@@ -116,8 +129,8 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     expect(hydratedMarkup).toContain('Done');
   });
 
-  it('renders a tool block for a marker prefix with trailing paragraph content using metadata index [3]', () => {
-    const markup = renderWithToolTrace(
+  it('groups consecutive markers into one tool-calls block', () => {
+    const renderer = renderTreeWithToolTrace(
       [
         '<p>🔧 <code>tool1</code> [1]</p>',
         '<p>🔧 <code>tool2</code> [2]</p>',
@@ -128,16 +141,58 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
           version: 2,
           events: [
             { type: 'tool_call_completed', tool_name: 'first_tool', result_preview: 'FIRST' },
-            { type: 'tool_call_completed', tool_name: 'second_tool', result_preview: 'SECOND' },
+            { type: 'tool_call_started', tool_name: 'second_tool' },
             { type: 'tool_call_completed', tool_name: 'third_tool', result_preview: 'THIRD' },
           ],
         },
       }
     );
 
-    expect(markup.match(/>Tool</g)).toHaveLength(3);
-    expect(markup).toContain('third_tool');
-    expect(markup).toContain('THIRD');
+    const collapsed = collectTextContent(renderer.toJSON());
+    expect(collapsed).toContain('3 tool calls');
+    expect(renderer.root.findAllByType('button')).toHaveLength(1);
+
+    const toggle = renderer.root.findByType('button');
+    act(() => {
+      toggle.props.onClick();
+    });
+
+    const expanded = collectTextContent(renderer.toJSON());
+    expect(expanded).toContain('Tool #1: first_tool');
+    expect(expanded).toContain('FIRST');
+    expect(expanded).toContain('Tool #2: second_tool ⏳');
+    expect(expanded).toContain('Tool #3: third_tool');
+    expect(expanded).toContain('THIRD');
+    expect(expanded).toContain('Done');
+  });
+
+  it('does not merge marker-prefix paragraphs when each has trailing text', () => {
+    const markup = renderWithToolTrace(
+      [
+        '<p>🔧 <code>run_shell_command</code> [1]<br/>Now let me find one</p>',
+        '<p>🔧 <code>run_shell_command</code> [2]<br/>Now let me find two</p>',
+      ].join(''),
+      {
+        'io.mindroom.tool_trace': {
+          version: 2,
+          events: [
+            {
+              type: 'tool_call_completed',
+              tool_name: 'run_shell_command',
+              result_preview: 'FIRST',
+            },
+            { type: 'tool_call_started', tool_name: 'run_shell_command' },
+          ],
+        },
+      }
+    );
+
+    expect(markup).not.toContain('2 tool calls');
+    expect(markup.match(/>Tool</g)).toHaveLength(2);
+    expect(markup).toContain('run_shell_command');
+    expect(markup).toContain('Now let me find one');
+    expect(markup).toContain('Now let me find two');
+    expect(markup).not.toContain('🔧');
   });
 
   it('preserves trailing content after a marker prefix, including br and text', () => {
