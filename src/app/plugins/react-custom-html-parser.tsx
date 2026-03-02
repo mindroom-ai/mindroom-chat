@@ -708,7 +708,10 @@ export const withMindroomToolTraceMarkerParserOptions = (
         while (isDomTextNode(previousSibling) && !previousSibling.data.trim()) {
           previousSibling = previousSibling.prev;
         }
-        if (isDomElementNode(previousSibling) && buildItem(previousSibling)) {
+        const previousItem = isDomElementNode(previousSibling)
+          ? buildItem(previousSibling)
+          : undefined;
+        if (previousItem && !previousItem.trailingElement) {
           return null;
         }
 
@@ -718,21 +721,29 @@ export const withMindroomToolTraceMarkerParserOptions = (
           const trailingElements: Element[] = [];
           if (firstItem.trailingElement) trailingElements.push(firstItem.trailingElement);
 
-          let sibling = domNode.next;
-          while (sibling) {
-            if (isDomTextNode(sibling) && !sibling.data.trim()) {
+          // A marker paragraph with trailing content is a narrative boundary.
+          // Do not merge across that boundary, otherwise tool ordering appears
+          // ahead of the narrative text that introduced each call.
+          if (!firstItem.trailingElement) {
+            let sibling = domNode.next;
+            while (sibling) {
+              if (isDomTextNode(sibling) && !sibling.data.trim()) {
+                sibling = sibling.next;
+                continue;
+              }
+
+              if (!isDomElementNode(sibling)) break;
+
+              const item = buildItem(sibling);
+              if (!item) break;
+
+              items.push(item);
+              if (item.trailingElement) {
+                trailingElements.push(item.trailingElement);
+                break;
+              }
               sibling = sibling.next;
-              continue;
             }
-
-            if (!isDomElementNode(sibling)) break;
-
-            const item = buildItem(sibling);
-            if (!item) break;
-
-            items.push(item);
-            if (item.trailingElement) trailingElements.push(item.trailingElement);
-            sibling = sibling.next;
           }
 
           items.forEach((item) => consumedToolIndexes.add(item.data.index));

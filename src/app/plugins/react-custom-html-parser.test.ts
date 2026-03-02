@@ -166,8 +166,8 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     expect(expanded).toContain('Done');
   });
 
-  it('groups marker-prefix paragraphs even when each marker has trailing text', () => {
-    const renderer = renderTreeWithToolTrace(
+  it('does not merge marker-prefix paragraphs when each has trailing text', () => {
+    const markup = renderWithToolTrace(
       [
         '<p>🔧 <code>run_shell_command</code> [1]<br/>Now let me find one</p>',
         '<p>🔧 <code>run_shell_command</code> [2]<br/>Now let me find two</p>',
@@ -187,22 +187,12 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
       }
     );
 
-    const collapsed = collectTextContent(renderer.toJSON());
-    expect(collapsed).toContain('2 tool calls');
-    expect(renderer.root.findAllByType('button')).toHaveLength(1);
-
-    const toggle = renderer.root.findByType('button');
-    act(() => {
-      toggle.props.onClick();
-    });
-
-    const expanded = collectTextContent(renderer.toJSON());
-    expect(expanded).toContain('Tool #1: run_shell_command');
-    expect(expanded).toContain('FIRST');
-    expect(expanded).toContain('Tool #2: run_shell_command ⏳');
-    expect(expanded).toContain('Now let me find one');
-    expect(expanded).toContain('Now let me find two');
-    expect(expanded).not.toContain('🔧');
+    expect(markup).not.toContain('2 tool calls');
+    expect(markup.match(/>Tool</g)).toHaveLength(2);
+    expect(markup).toContain('run_shell_command');
+    expect(markup).toContain('Now let me find one');
+    expect(markup).toContain('Now let me find two');
+    expect(markup).not.toContain('🔧');
   });
 
   it('preserves trailing content after a marker prefix, including br and text', () => {
