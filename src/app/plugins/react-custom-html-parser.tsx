@@ -361,7 +361,11 @@ const MINDROOM_BLOCK_META: Record<MindroomTagName, { label: string; icon: IconSr
 };
 
 function ToolStatusBadge({ pending }: { pending: boolean }) {
-  return pending ? <Spinner size="100" variant="Secondary" /> : <Icon size="50" src={Icons.Check} />;
+  return pending ? (
+    <Spinner size="100" variant="Secondary" />
+  ) : (
+    <Icon size="50" src={Icons.Check} />
+  );
 }
 
 function MindroomCollapsibleBlock({
@@ -568,15 +572,6 @@ const cloneDomChildNode = (node: ChildNode): ChildNode => {
   return new DOMText('');
 };
 
-const parseToolRefIndexFromTextPrefix = (text: string): number | undefined => {
-  const match = /^\s*🔧[\s\S]*?\[(\d+)\](?:\s*⏳)?/u.exec(text);
-  if (!match) return undefined;
-
-  const index = Number(match[1]);
-  if (!Number.isInteger(index) || index < 1) return undefined;
-  return index;
-};
-
 const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | undefined => {
   if (!['p', 'div', 'li'].includes(element.name)) return undefined;
 
@@ -658,25 +653,9 @@ export const withMindroomToolTraceMarkerParserOptions = (
   if (!traceEvents || traceEvents.length === 0) return baseOpts;
 
   const baseReplace = baseOpts.replace;
-  const baseTransform = baseOpts.transform;
-  const consumedToolIndexes = new Set<number>();
-  const groupRootIndexes = new Set<number>();
   const nextOpts: HTMLReactParserOptions = {
     ...baseOpts,
     replace: (domNode) => {
-      const isContainer =
-        isDomElementNode(domNode) && ['p', 'div', 'li'].includes(domNode.name);
-
-      if (isContainer) {
-        const maybeChildren = domNode.children;
-        const maybeToolIndex = parseToolRefIndexFromTextPrefix(
-          extractTextFromChildren(maybeChildren as ChildNode[])
-        );
-        if (maybeToolIndex !== undefined && consumedToolIndexes.has(maybeToolIndex)) {
-          return null;
-        }
-      }
-
       if (isDomElementNode(domNode)) {
         type ToolRefItem = {
           data: MindroomToolBlockRenderData;
@@ -746,8 +725,6 @@ export const withMindroomToolTraceMarkerParserOptions = (
             }
           }
 
-          items.forEach((item) => consumedToolIndexes.add(item.data.index));
-          groupRootIndexes.add(firstItem.data.index);
           const toolBlock = renderMindroomToolRefGroupBlock(items.map((item) => item.data));
           if (trailingElements.length === 0) return toolBlock;
 
@@ -761,26 +738,6 @@ export const withMindroomToolTraceMarkerParserOptions = (
       }
 
       return baseReplace ? baseReplace(domNode) : undefined;
-    },
-    transform: (reactNode, domNode, index) => {
-      const isContainer =
-        isDomElementNode(domNode) && ['p', 'div', 'li'].includes(domNode.name);
-
-      if (isContainer) {
-        const maybeChildren = domNode.children;
-        const maybeToolIndex = parseToolRefIndexFromTextPrefix(
-          extractTextFromChildren(maybeChildren as ChildNode[])
-        );
-        if (
-          maybeToolIndex !== undefined &&
-          consumedToolIndexes.has(maybeToolIndex) &&
-          !groupRootIndexes.has(maybeToolIndex)
-        ) {
-          return null;
-        }
-      }
-
-      return baseTransform ? baseTransform(reactNode, domNode, index) : reactNode;
     },
   };
   return nextOpts;
