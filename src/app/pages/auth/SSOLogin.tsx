@@ -7,8 +7,13 @@ import {
   getSSOProviderButtonTitle,
   hasAppleIdentityProvider,
   isAppleIdentityProvider,
+  isGitHubIdentityProvider,
+  isGoogleIdentityProvider,
   sortIdentityProviders,
 } from './ssoProviders';
+import AppleLogo from '../../../../public/res/svg/sso-apple-white.svg';
+import GoogleLogo from '../../../../public/res/svg/sso-google.svg';
+import GitHubLogo from '../../../../public/res/svg/sso-github.svg';
 
 type SSOLoginProps = {
   providers?: IIdentityProvider[];
@@ -23,13 +28,22 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
   const orderedProviders = sortIdentityProviders(providers);
   const appleProviderAvailable = hasAppleIdentityProvider(orderedProviders);
 
+  const getProviderIconUrl = (provider: IIdentityProvider): string | undefined => {
+    if (isAppleIdentityProvider(provider)) return AppleLogo;
+    if (isGoogleIdentityProvider(provider)) return GoogleLogo;
+    if (isGitHubIdentityProvider(provider)) return GitHubLogo;
+    const homeserverIcon =
+      provider.icon && mx.mxcUrlToHttp(provider.icon, 96, 96, 'crop', false);
+    if (homeserverIcon) return homeserverIcon;
+
+    return undefined;
+  };
+
   const getSSOIdUrl = (ssoId?: string): string =>
     mx.getSsoLoginUrl(redirectUrl, 'sso', ssoId, action);
 
   const withoutIcon = providers
-    ? providers.find(
-        (provider) => !provider.icon || !mx.mxcUrlToHttp(provider.icon, 96, 96, 'crop', false)
-      )
+    ? orderedProviders.find((provider) => !getProviderIconUrl(provider))
     : true;
 
   const renderAsIcons = withoutIcon
@@ -40,8 +54,8 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
     <Box justifyContent="Center" gap="600" wrap="Wrap">
       {providers ? (
         orderedProviders.map((provider) => {
-          const { id, name, icon } = provider;
-          const iconUrl = icon && mx.mxcUrlToHttp(icon, 96, 96, 'crop', false);
+          const { id, name } = provider;
+          const iconUrl = getProviderIconUrl(provider);
           const appleProvider = isAppleIdentityProvider(provider);
           const buttonTitle = getSSOProviderButtonTitle(provider, action);
 
@@ -76,11 +90,8 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
               fill={appleProvider ? 'Solid' : 'Soft'}
               outlined={!appleProvider}
               before={
-                !appleProvider &&
                 iconUrl && (
-                  <Avatar size="200" radii="300">
-                    <AvatarImage src={iconUrl} alt={name} />
-                  </Avatar>
+                  <img src={iconUrl} alt="" width={18} height={18} style={{ display: 'block' }} />
                 )
               }
             >
