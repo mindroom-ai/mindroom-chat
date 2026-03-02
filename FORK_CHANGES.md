@@ -17,7 +17,7 @@ Rules followed:
 
 ## Working Tree (Not Yet Committed)
 
-Working tree status (2026-02-26):
+Working tree status (2026-03-02):
 
 - Modified:
   - `.github/workflows/auto-mindroom-release.yml` (NEW)
@@ -31,6 +31,8 @@ Working tree status (2026-02-26):
   - `ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json`
   - `ios/App/App/Assets.xcassets/AppIcon.appiconset/*` (generated icon PNG set)
   - `package.json`
+  - `package-lock.json`
+  - `patches/matrix-js-sdk+38.2.0.patch` (NEW)
   - `scripts/appstore-preflight.mjs` (NEW)
   - `scripts/fork_release_tag.py` (NEW)
   - `scripts/generate-ios-icons.sh` (NEW)
@@ -38,6 +40,7 @@ Working tree status (2026-02-26):
   - `src/app/cs-api.test.ts` (NEW)
   - `src/app/cs-api.ts`
   - `src/app/hooks/useClientConfig.ts`
+  - `src/app/matrixRelationsRace.test.ts` (NEW)
   - `src/app/pages/auth/SSOLogin.tsx`
   - `src/app/pages/auth/ssoProviders.ts` (NEW)
   - `src/app/pages/auth/ssoProviders.test.ts` (NEW)
@@ -64,6 +67,10 @@ What changed (uncommitted):
   - aligned visible in-app About version text with package version,
   - added explicit App Store submission checklist doc and iOS build preflight notes,
   - added automated release tagging on every `dev` push using `v<base_version>-mindroom.<n>` via a reusable Python helper (`scripts/fork_release_tag.py`) configurable by prefix/suffix/base env vars.
+- Matrix edit reliability hardening:
+  - backported `matrix-js-sdk` PR #5192 (`fix(relations): prevent stale m.replace from overriding newer edits`) onto pinned `matrix-js-sdk@38.2.0`,
+  - added `patch-package` + `postinstall` application so the SDK race fix persists across fresh installs,
+  - added regression test `src/app/matrixRelationsRace.test.ts` to verify an older slow-decrypting edit cannot overwrite a newer edit.
 
 Validation (uncommitted):
 
@@ -71,7 +78,9 @@ Validation (uncommitted):
 - `npm run ios:icons` ✅ passed.
 - `npm run appstore:preflight` ✅ passed.
 - `npm run test` ✅ passed.
+- `npm run test -- src/app/matrixRelationsRace.test.ts` ✅ passed.
 - `npm run build` ✅ passed.
+- `npm install` ✅ passed (`postinstall` patch application confirms `matrix-js-sdk@38.2.0` patch is applied).
 - `npm run typecheck` ❌ fails with pre-existing repository-wide typing issues (matrix-js-sdk import/type surface mismatches and existing strictness violations).
 - `npm run lint` ❌ fails with pre-existing repository-wide lint issues unrelated to this delta.
 

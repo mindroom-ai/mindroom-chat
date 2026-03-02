@@ -1,0 +1,90 @@
+diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
+index 12f6d05..346e08a 100644
+--- a/node_modules/matrix-js-sdk/lib/models/relations.js
++++ b/node_modules/matrix-js-sdk/lib/models/relations.js
+@@ -61,6 +61,7 @@ export class Relations extends TypedEventEmitter {
+     _defineProperty(this, "sortedAnnotationsByKey", []);
+     _defineProperty(this, "targetEvent", null);
+     _defineProperty(this, "creationEmitted", false);
++    _defineProperty(this, "replacementUpdateId", 0);
+     _defineProperty(this, "client", void 0);
+     /**
+      * Listens for event status changes to remove cancelled events.
+@@ -100,9 +101,8 @@ export class Relations extends TypedEventEmitter {
+         if (_this.relationType === RelationType.Annotation) {
+           // Remove the redacted annotation from aggregation by key
+           _this.removeAnnotationFromAggregation(redactedEvent);
+-        } else if (_this.relationType === RelationType.Replace && _this.targetEvent && !_this.targetEvent.isState()) {
+-          var lastReplacement = yield _this.getLastReplacement();
+-          _this.targetEvent.makeReplaced(lastReplacement);
++        } else if (_this.relationType === RelationType.Replace) {
++          yield _this.updateTargetEventReplacement();
+         }
+         redactedEvent.removeListener(MatrixEventEvent.BeforeRedaction, _this.onBeforeRedaction);
+         _this.emit(RelationsEvent.Redaction, redactedEvent);
+@@ -146,9 +146,8 @@ export class Relations extends TypedEventEmitter {
+       _this2.relationEventIds.add(event.getId());
+       if (_this2.relationType === RelationType.Annotation) {
+         _this2.addAnnotationToAggregation(event);
+-      } else if (_this2.relationType === RelationType.Replace && _this2.targetEvent && !_this2.targetEvent.isState()) {
+-        var lastReplacement = yield _this2.getLastReplacement();
+-        _this2.targetEvent.makeReplaced(lastReplacement);
++      } else if (_this2.relationType === RelationType.Replace) {
++        yield _this2.updateTargetEventReplacement();
+       }
+       event.on(MatrixEventEvent.BeforeRedaction, _this2.onBeforeRedaction);
+       _this2.emit(RelationsEvent.Add, event);
+@@ -170,9 +169,8 @@ export class Relations extends TypedEventEmitter {
+       _this3.relations.delete(event);
+       if (_this3.relationType === RelationType.Annotation) {
+         _this3.removeAnnotationFromAggregation(event);
+-      } else if (_this3.relationType === RelationType.Replace && _this3.targetEvent && !_this3.targetEvent.isState()) {
+-        var lastReplacement = yield _this3.getLastReplacement();
+-        _this3.targetEvent.makeReplaced(lastReplacement);
++      } else if (_this3.relationType === RelationType.Replace) {
++        yield _this3.updateTargetEventReplacement();
+       }
+       _this3.emit(RelationsEvent.Remove, event);
+     })();
+@@ -328,17 +326,34 @@ export class Relations extends TypedEventEmitter {
+         return;
+       }
+       _this5.targetEvent = event;
+-      if (_this5.relationType === RelationType.Replace && !_this5.targetEvent.isState()) {
+-        var replacement = yield _this5.getLastReplacement();
+-        // this is the initial update, so only call it if we already have something
+-        // to not emit Event.replaced needlessly
+-        if (replacement) {
+-          _this5.targetEvent.makeReplaced(replacement);
+-        }
++      if (_this5.relationType === RelationType.Replace) {
++        yield _this5.updateTargetEventReplacement();
+       }
+       _this5.maybeEmitCreated();
+     })();
+   }
++  updateTargetEventReplacement() {
++    var _this6 = this;
++    return _asyncToGenerator(function* () {
++      if (!_this6.targetEvent || _this6.targetEvent.isState()) {
++        return;
++      }
++      var targetEvent = _this6.targetEvent;
++      var updateId = ++_this6.replacementUpdateId;
++      var lastReplacement = yield _this6.getLastReplacement();
++
++      // If a newer update started while we were awaiting, discard this stale result.
++      if (updateId !== _this6.replacementUpdateId || _this6.targetEvent !== targetEvent) {
++        return;
++      }
++
++      // Avoid emitting Event.replaced when there is no replacement and none currently set.
++      if (!lastReplacement && !targetEvent.replacingEvent()) {
++        return;
++      }
++      targetEvent.makeReplaced(lastReplacement || undefined);
++    })();
++  }
+   maybeEmitCreated() {
+     if (this.creationEmitted) {
+       return;
