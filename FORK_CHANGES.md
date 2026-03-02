@@ -574,6 +574,7 @@ Thread badge behavior:
 - Tool-call UI renders from v2 formatted-body markers:
   - `🔧 <code>tool_name</code> [N]`
   - `🔧 <code>tool_name</code> [N] ⏳`
+- Consecutive tool-call marker blocks are collapsed into a single expandable `N tool calls` block to reduce timeline noise during long tool sequences.
 - Marker metadata lookup is strict and index-based: `io.mindroom.tool_trace.events[N - 1]`.
 - No legacy `<tool>` / `<tool-group>` compatibility is kept in sanitizer or parser paths.
 - Marker prefixes at the start of a block element continue to render as tool blocks even when trailing content follows in the same block.
