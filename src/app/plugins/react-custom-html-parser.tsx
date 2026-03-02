@@ -589,6 +589,26 @@ const trimLeadingToolRefBoundary = (children: ChildNode[]): ChildNode[] => {
   return remaining;
 };
 
+const normalizeLeadingToolRefBoundaryInPlace = (element: Element): boolean => {
+  if (!['p', 'div', 'li'].includes(element.name)) return false;
+  const children = element.children as ChildNode[];
+
+  let index = 0;
+  while (index < children.length) {
+    const child = children[index];
+    if (!isDomTextNode(child) || child.data.trim()) break;
+    index += 1;
+  }
+
+  const hasLeadingBreak =
+    index < children.length && isDomElementNode(children[index]) && children[index].name === 'br';
+  if (!hasLeadingBreak) return false;
+
+  const trimmedChildren = trimLeadingToolRefBoundary(children);
+  element.children = trimmedChildren;
+  return true;
+};
+
 const parseToolRefIndexFromTextPrefix = (text: string): number | undefined => {
   const match = /^\s*🔧[\s\S]*?\[(\d+)\](?:\s*⏳)?/u.exec(text);
   if (!match) return undefined;
@@ -741,6 +761,7 @@ export const withMindroomToolTraceMarkerParserOptions = (
           const items: ToolRefItem[] = [firstItem];
           const trailingElements: Element[] = [];
           if (firstItem.trailingElement) trailingElements.push(firstItem.trailingElement);
+          let boundaryFollower: Element | undefined;
 
           // A marker paragraph with trailing content is a narrative boundary.
           // Do not merge across that boundary, otherwise tool ordering appears
@@ -756,7 +777,10 @@ export const withMindroomToolTraceMarkerParserOptions = (
               if (!isDomElementNode(sibling)) break;
 
               const item = buildItem(sibling);
-              if (!item) break;
+              if (!item) {
+                boundaryFollower = sibling;
+                break;
+              }
 
               items.push(item);
               if (item.trailingElement) {
@@ -765,6 +789,10 @@ export const withMindroomToolTraceMarkerParserOptions = (
               }
               sibling = sibling.next;
             }
+          }
+
+          if (boundaryFollower) {
+            normalizeLeadingToolRefBoundaryInPlace(boundaryFollower);
           }
 
           items.forEach((item) => consumedToolIndexes.add(item.data.index));

@@ -228,6 +228,25 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     expect(markup).not.toContain('⏳');
   });
 
+  it('drops boundary br on the immediate paragraph after grouped tool markers', () => {
+    const markup = renderWithToolTrace(
+      [
+        '<p>🔧 <code>matrix_message</code> [1]</p>',
+        '<p><br/>No magic - just dropping old turns when the window fills up.</p>',
+      ].join(''),
+      {
+        'io.mindroom.tool_trace': {
+          version: 2,
+          events: [{ type: 'tool_call_completed', tool_name: 'matrix_message' }],
+        },
+      }
+    );
+
+    expect(markup).toContain('>Tool<');
+    expect(markup).toContain('<p>No magic - just dropping old turns when the window fills up.</p>');
+    expect(markup).not.toContain('<p><br/>No magic');
+  });
+
   it('does not leak a raw hourglass for a standalone pending marker paragraph', () => {
     const markup = renderWithToolTrace('<p>🔧 <code>tool3</code> [3] ⏳</p>', {
       'io.mindroom.tool_trace': {
