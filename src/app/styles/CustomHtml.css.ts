@@ -312,6 +312,10 @@ export const MindroomToolGroupList = style({
 export const MindroomToolGroupItem = style([
   BaseCode,
   {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: config.space.S100,
     padding: `${config.space.S100} ${config.space.S200}`,
   },
 ]);
