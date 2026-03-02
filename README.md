@@ -32,8 +32,22 @@ To host Cinny on your own, simply download the tarball from [GitHub releases](ht
 * You need to set up redirects to serve the assests. Example configurations; [netlify](netlify.toml), [nginx](contrib/nginx/cinny.domain.tld.conf), [caddy](contrib/caddy/caddyfile).
     * If you have trouble configuring redirects you can [enable hash routing](config.json#L35) — the url in the browser will have a `/#/` between the domain and open channel (ie. `app.cinny.in/#/home/` instead of `app.cinny.in/home/`) but you won't have to configure your webserver.
 
-* To deploy on subdirectory, you need to rebuild the app youself after updating the `base` path in [`build.config.ts`](build.config.ts).
-    * For example, if you want to deploy on `https://cinny.in/app`, then set `base: '/app'`.
+* Runtime-configurable base path (single build):
+    * Build once with relative assets (default): `npm run build`
+    * At runtime set `APP_BASE_PATH` to `/` or `/mindroom`:
+      `APP_BASE_PATH=/mindroom ./your-server`
+    * Docker example:
+      `docker run -e APP_BASE_PATH=/mindroom -p 8080:80 cinny:latest`
+    * This sets `window.__APP_BASE_PATH__` via `runtime-config.js`.
+    * In container runtime config, `APP_ENABLE_SERVICE_WORKER` now defaults to `true` (set it to `false` to opt out).
+    * Authenticated Matrix media requests are only enabled when both the homeserver advertises support and service worker support is available at runtime.
+    * On startup, if config enforces exactly one homeserver (`allowCustomHomeservers=false` and one `homeserverList` entry), stale `localStorage` `cinny_hs_base_url` is reconciled to that configured server.
+* Optional build-time base path (bakes URLs):
+    * Build with `APP_BUILD_BASE_PATH=/mindroom npm run build`
+    * Docker build example:
+      `docker build --build-arg APP_BUILD_BASE_PATH=/mindroom -t cinny:latest .`
+    * Normalization: `mindroom`, `/mindroom`, `/mindroom/` all resolve to `/mindroom`.
+* Migration note for infra: only route `/mindroom*` to the Cinny service. No root `/config.json` or `/sw.js` routes are required.
 
 <details><summary><b>PGP Public Key to verify tarball</b></summary>
 

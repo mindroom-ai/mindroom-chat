@@ -68,6 +68,7 @@ import { Create } from './client/create';
 import { CreateSpaceModalRenderer } from '../features/create-space';
 import { SearchModalRenderer } from '../features/search';
 import { getFallbackSession } from '../state/sessions';
+import { getAppBasePath } from '../utils/basePath';
 
 export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize) => {
   const { hashRouter } = clientConfig;
@@ -106,8 +107,7 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
 
       <Route
         loader={() => {
-          const session = getFallbackSession();
-          if (!session) {
+          if (!getFallbackSession()) {
             const afterLoginPath = getAppPathFromHref(
               getOriginBaseUrl(hashRouter),
               window.location.href
@@ -299,6 +299,6 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
     return createHashRouter(routes, { basename: hashRouter.basename });
   }
   return createBrowserRouter(routes, {
-    basename: import.meta.env.BASE_URL,
+    basename: getAppBasePath(),
   });
 };
