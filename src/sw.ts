@@ -1,5 +1,7 @@
 /// <reference lib="WebWorker" />
 
+import { looksLikeMediaRequest, validMediaRequest } from './swMediaAuth';
+
 export type {};
 declare const self: ServiceWorkerGlobalScope;
 
@@ -53,32 +55,96 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
   }
 });
 
-function validMediaRequest(url: string, baseUrl: string): boolean {
-  const downloadUrl = new URL('/_matrix/client/v1/media/download', baseUrl);
-  const thumbnailUrl = new URL('/_matrix/client/v1/media/thumbnail', baseUrl);
+async function askForAccessToken(client: Client): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    const responseKey = Math.random().toString(36);
+    let listener: (messageEvent: ExtendableMessageEvent) => void = () => undefined;
+    const timeoutId = setTimeout(() => {
+      self.removeEventListener('message', listener);
+      resolve(undefined);
+    }, 1500);
 
-  return url.startsWith(downloadUrl.href) || url.startsWith(thumbnailUrl.href);
+    listener = (messageEvent: ExtendableMessageEvent) => {
+      if (messageEvent.data?.responseKey !== responseKey) return;
+      clearTimeout(timeoutId);
+      self.removeEventListener('message', listener);
+      resolve(typeof messageEvent.data?.token === 'string' ? messageEvent.data.token : undefined);
+    };
+
+    self.addEventListener('message', listener);
+    client.postMessage({ responseKey, type: 'token' });
+  });
 }
 
-function fetchConfig(token: string): RequestInit {
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    cache: 'default',
-  };
-}
+const normalizeRequestCache = (request: Request): RequestCache =>
+  request.cache === 'only-if-cached' ? 'default' : request.cache;
+
+const authHeaders = (request: Request, token: string): Headers => {
+  const headers = new Headers(request.headers);
+  headers.set('Authorization', `Bearer ${token}`);
+  return headers;
+};
+
+const fetchAuthenticatedMedia = async (request: Request, token: string): Promise<Response> => {
+  const headers = authHeaders(request, token);
+  const cache = normalizeRequestCache(request);
+
+  if (request.mode === 'no-cors') {
+    // no-cors requests cannot carry Authorization; upgrade to CORS for authenticated media.
+    return fetch(request.url, {
+      method: request.method,
+      headers,
+      mode: 'cors',
+      credentials: 'omit',
+      cache,
+      redirect: request.redirect,
+      referrer: request.referrer,
+      referrerPolicy: request.referrerPolicy,
+      integrity: request.integrity,
+      keepalive: request.keepalive,
+    });
+  }
+
+  return fetch(request, { headers, cache });
+};
+
+const fetchAuthenticatedMediaWithFallback = async (
+  request: Request,
+  token: string
+): Promise<Response> => {
+  try {
+    return await fetchAuthenticatedMedia(request, token);
+  } catch {
+    // If authenticated fetch fails unexpectedly, fall back to the original request.
+    return fetch(request);
+  }
+};
 
 self.addEventListener('fetch', (event: FetchEvent) => {
   const { url, method } = event.request;
 
   if (method !== 'GET') return;
-  if (!event.clientId) return;
+  if (!looksLikeMediaRequest(url)) return;
 
-  const session = sessions.get(event.clientId);
-  if (!session) return;
+  event.respondWith(
+    (async (): Promise<Response> => {
+      if (event.clientId) {
+        const session = sessions.get(event.clientId);
+        if (session && validMediaRequest(url, session.baseUrl)) {
+          return fetchAuthenticatedMediaWithFallback(event.request, session.accessToken);
+        }
 
-  if (!validMediaRequest(url, session.baseUrl)) return;
+        // Fallback for clients still on the older token request/response flow.
+        const client = await self.clients.get(event.clientId);
+        if (client) {
+          const token = await askForAccessToken(client);
+          if (token) {
+            return fetchAuthenticatedMediaWithFallback(event.request, token);
+          }
+        }
+      }
 
-  event.respondWith(fetch(url, fetchConfig(session.accessToken)));
+      return fetch(event.request);
+    })()
+  );
 });

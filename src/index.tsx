@@ -10,41 +10,42 @@ enableMapSet();
 
 import './index.css';
 
-import { trimTrailingSlash } from './app/utils/common';
+import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
+import { isServiceWorkerEnabled } from './app/utils/runtimeConfig';
+import { pushSessionToSW } from './sw-session';
 import App from './app/pages/App';
 
 // import i18n (needs to be bundled ;))
 import './app/i18n';
-import { pushSessionToSW } from './sw-session';
-import { getFallbackSession } from './app/state/sessions';
 
 document.body.classList.add(configClass, varsClass);
 
 // Register Service Worker
-if ('serviceWorker' in navigator) {
-  const swUrl =
-    import.meta.env.MODE === 'production'
-      ? `${trimTrailingSlash(import.meta.env.BASE_URL)}/sw.js`
-      : `/dev-sw.js?dev-sw`;
-
-  const sendSessionToSW = () => {
-    const session = getFallbackSession();
-    pushSessionToSW(session?.baseUrl, session?.accessToken);
+if ('serviceWorker' in navigator && isServiceWorkerEnabled()) {
+  const postCurrentSessionToSW = () => {
+    const baseUrl = localStorage.getItem('cinny_hs_base_url') ?? undefined;
+    const accessToken = localStorage.getItem('cinny_access_token') ?? undefined;
+    pushSessionToSW(baseUrl, accessToken);
   };
 
-  navigator.serviceWorker.register(swUrl).then(sendSessionToSW);
-  navigator.serviceWorker.ready.then(sendSessionToSW);
-  window.addEventListener('load', sendSessionToSW);
+  const swUrl =
+    import.meta.env.MODE === 'production'
+      ? appUrl('sw.js')
+      : appUrl('dev-sw.js?dev-sw');
 
-  // When returning from background
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      sendSessionToSW();
+  navigator.serviceWorker.register(swUrl, { scope: ensureBasePathTrailingSlash(getAppBasePath()) });
+  navigator.serviceWorker.ready.then(postCurrentSessionToSW).catch(() => undefined);
+  navigator.serviceWorker.addEventListener('controllerchange', postCurrentSessionToSW);
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'token' && event.data?.responseKey) {
+      // Get the token for SW.
+      const token = localStorage.getItem('cinny_access_token') ?? undefined;
+      event.source!.postMessage({
+        responseKey: event.data.responseKey,
+        token,
+      });
     }
   });
-
-  // When restored from bfcache (important on iOS)
-  window.addEventListener('pageshow', sendSessionToSW);
 }
 
 const mountApp = () => {

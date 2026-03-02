@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useClientConfig } from './useClientConfig';
 import { trimLeadingSlash, trimSlash, trimTrailingSlash } from '../utils/common';
+import { getAppBasePath } from '../utils/basePath';
 
 export const usePathWithOrigin = (path: string): string => {
   const { hashRouter } = useClientConfig();
@@ -9,7 +10,7 @@ export const usePathWithOrigin = (path: string): string => {
   const pathWithOrigin = useMemo(() => {
     let url: string = trimSlash(origin);
 
-    url += `/${trimSlash(import.meta.env.BASE_URL ?? '')}`;
+    url += getAppBasePath();
     url = trimTrailingSlash(url);
 
     if (hashRouter?.enabled) {
