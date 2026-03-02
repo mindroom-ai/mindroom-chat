@@ -158,10 +158,51 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     });
 
     const expanded = collectTextContent(renderer.toJSON());
-    expect(expanded).toContain('Tool #1: first_tool -> FIRST');
+    expect(expanded).toContain('Tool #1: first_tool');
+    expect(expanded).toContain('FIRST');
     expect(expanded).toContain('Tool #2: second_tool ⏳');
-    expect(expanded).toContain('Tool #3: third_tool -> THIRD');
+    expect(expanded).toContain('Tool #3: third_tool');
+    expect(expanded).toContain('THIRD');
     expect(expanded).toContain('Done');
+  });
+
+  it('groups marker-prefix paragraphs even when each marker has trailing text', () => {
+    const renderer = renderTreeWithToolTrace(
+      [
+        '<p>🔧 <code>run_shell_command</code> [1]<br/>Now let me find one</p>',
+        '<p>🔧 <code>run_shell_command</code> [2]<br/>Now let me find two</p>',
+      ].join(''),
+      {
+        'io.mindroom.tool_trace': {
+          version: 2,
+          events: [
+            {
+              type: 'tool_call_completed',
+              tool_name: 'run_shell_command',
+              result_preview: 'FIRST',
+            },
+            { type: 'tool_call_started', tool_name: 'run_shell_command' },
+          ],
+        },
+      }
+    );
+
+    const collapsed = collectTextContent(renderer.toJSON());
+    expect(collapsed).toContain('2 tool calls');
+    expect(renderer.root.findAllByType('button')).toHaveLength(1);
+
+    const toggle = renderer.root.findByType('button');
+    act(() => {
+      toggle.props.onClick();
+    });
+
+    const expanded = collectTextContent(renderer.toJSON());
+    expect(expanded).toContain('Tool #1: run_shell_command');
+    expect(expanded).toContain('FIRST');
+    expect(expanded).toContain('Tool #2: run_shell_command ⏳');
+    expect(expanded).toContain('Now let me find one');
+    expect(expanded).toContain('Now let me find two');
+    expect(expanded).not.toContain('🔧');
   });
 
   it('preserves trailing content after a marker prefix, including br and text', () => {

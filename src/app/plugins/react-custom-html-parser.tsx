@@ -236,10 +236,10 @@ const extractTextFromChildren = (nodes: ChildNode[]): string => {
   let text = '';
 
   nodes.forEach((node) => {
-    if (node.type === 'text') {
+    if (node.type === 'text' && typeof node.data === 'string') {
       text += node.data;
-    } else if (node instanceof Element && node.children) {
-      text += extractTextFromChildren(node.children);
+    } else if (Array.isArray((node as { children?: unknown }).children)) {
+      text += extractTextFromChildren((node as { children: ChildNode[] }).children);
     }
   });
 
@@ -503,14 +503,6 @@ const renderMindroomToolRefGroupItem = (parsedTool: MindroomToolBlockRenderData)
   }
 
   if (parsedTool.status === 'completed_with_result' && parsedTool.result) {
-    if (parsedTool.resultInline) {
-      return (
-        <Box key={key} className={css.MindroomToolGroupItem}>
-          <Text size="T200">{`${prefix} -> ${parsedTool.result}`}</Text>
-        </Box>
-      );
-    }
-
     return (
       <Box key={key} className={css.MindroomToolGroupItem}>
         <Text size="T200">{prefix}</Text>
@@ -551,6 +543,40 @@ type ToolRefMatchBoundary = {
   textSplitIndex: number | undefined;
 };
 
+const isDomTextNode = (node: unknown): node is DOMText =>
+  typeof node === 'object' &&
+  node !== null &&
+  typeof (node as { data?: unknown }).data === 'string' &&
+  !Array.isArray((node as { children?: unknown }).children);
+
+const isDomElementNode = (node: unknown): node is Element =>
+  typeof node === 'object' &&
+  node !== null &&
+  typeof (node as { name?: unknown }).name === 'string' &&
+  Array.isArray((node as { children?: unknown }).children);
+
+const cloneDomChildNode = (node: ChildNode): ChildNode => {
+  if (isDomTextNode(node)) {
+    return new DOMText(node.data);
+  }
+
+  if (isDomElementNode(node)) {
+    const clonedChildren = node.children.map((child) => cloneDomChildNode(child as ChildNode));
+    return new Element(node.name, { ...node.attribs }, clonedChildren);
+  }
+
+  return new DOMText('');
+};
+
+const parseToolRefIndexFromTextPrefix = (text: string): number | undefined => {
+  const match = /^\s*🔧[\s\S]*?\[(\d+)\](?:\s*⏳)?/u.exec(text);
+  if (!match) return undefined;
+
+  const index = Number(match[1]);
+  if (!Number.isInteger(index) || index < 1) return undefined;
+  return index;
+};
+
 const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | undefined => {
   if (!['p', 'div', 'li'].includes(element.name)) return undefined;
 
@@ -560,7 +586,7 @@ const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | u
   const buildPrefixResult = (match: ToolRefMatchBoundary): ToolRefElementPrefix => {
     const matchedChild = element.children[match.childIndex];
     const trailingText =
-      matchedChild instanceof DOMText && match.textSplitIndex !== undefined
+      isDomTextNode(matchedChild) && match.textSplitIndex !== undefined
         ? matchedChild.data.slice(match.textSplitIndex)
         : '';
     const trailingChildren = [
@@ -577,7 +603,7 @@ const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | u
   for (let childIndex = 0; childIndex < element.children.length; childIndex += 1) {
     const child = element.children[childIndex];
 
-    if (child instanceof DOMText) {
+    if (isDomTextNode(child)) {
       for (let splitIndex = 0; splitIndex <= child.data.length; splitIndex += 1) {
         const candidate = `${html}${child.data.slice(0, splitIndex)}`;
         if (parseMindroomToolRefHtml(candidate)) {
@@ -591,7 +617,7 @@ const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | u
       }
 
       html += child.data;
-    } else if (child instanceof Element && child.name === 'code') {
+    } else if (isDomElementNode(child) && child.name === 'code') {
       html += `<code>${extractTextFromChildren(child.children)}</code>`;
 
       if (parseMindroomToolRefHtml(html)) {
@@ -601,7 +627,7 @@ const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | u
           textSplitIndex: undefined,
         };
       }
-    } else if (child instanceof Element && child.name === 'span') {
+    } else if (isDomElementNode(child) && child.name === 'span') {
       html += extractTextFromChildren(child.children);
 
       if (parseMindroomToolRefHtml(html)) {
@@ -632,14 +658,26 @@ export const withMindroomToolTraceMarkerParserOptions = (
   if (!traceEvents || traceEvents.length === 0) return baseOpts;
 
   const baseReplace = baseOpts.replace;
-  const consumedNodes = new WeakSet<object>();
-
-  return {
+  const baseTransform = baseOpts.transform;
+  const consumedToolIndexes = new Set<number>();
+  const groupRootIndexes = new Set<number>();
+  const nextOpts: HTMLReactParserOptions = {
     ...baseOpts,
     replace: (domNode) => {
-      if (consumedNodes.has(domNode as unknown as object)) return null;
+      const isContainer =
+        isDomElementNode(domNode) && ['p', 'div', 'li'].includes(domNode.name);
 
-      if (domNode instanceof Element) {
+      if (isContainer) {
+        const maybeChildren = domNode.children;
+        const maybeToolIndex = parseToolRefIndexFromTextPrefix(
+          extractTextFromChildren(maybeChildren as ChildNode[])
+        );
+        if (maybeToolIndex !== undefined && consumedToolIndexes.has(maybeToolIndex)) {
+          return null;
+        }
+      }
+
+      if (isDomElementNode(domNode)) {
         type ToolRefItem = {
           data: MindroomToolBlockRenderData;
           trailingElement?: Element;
@@ -653,47 +691,59 @@ export const withMindroomToolTraceMarkerParserOptions = (
           if (!toolRef) return undefined;
 
           const data = buildToolRefRenderData(toolRef, traceEvents[toolRef.index - 1]);
+          const clonedTrailingChildren = toolRefPrefix.trailingChildren.map((child) =>
+            cloneDomChildNode(child)
+          );
           const trailingElement =
-            toolRefPrefix.trailingChildren.length > 0
-              ? new Element(element.name, { ...element.attribs }, toolRefPrefix.trailingChildren)
+            clonedTrailingChildren.length > 0
+              ? new Element(element.name, { ...element.attribs }, clonedTrailingChildren)
               : undefined;
 
           return { data, trailingElement };
         };
 
+        // Render only the first marker in a consecutive run; later markers are
+        // consumed by the first marker's grouped render.
+        let previousSibling: ChildNode | null = domNode.prev;
+        while (isDomTextNode(previousSibling) && !previousSibling.data.trim()) {
+          previousSibling = previousSibling.prev;
+        }
+        if (isDomElementNode(previousSibling) && buildItem(previousSibling)) {
+          return null;
+        }
+
         const firstItem = buildItem(domNode);
         if (firstItem) {
           const items: ToolRefItem[] = [firstItem];
+          const trailingElements: Element[] = [];
+          if (firstItem.trailingElement) trailingElements.push(firstItem.trailingElement);
 
-          if (!firstItem.trailingElement) {
-            let sibling = domNode.next;
-            while (sibling) {
-              if (sibling instanceof DOMText && !sibling.data.trim()) {
-                consumedNodes.add(sibling as unknown as object);
-                sibling = sibling.next;
-              } else if (!(sibling instanceof Element)) {
-                break;
-              } else {
-                const item = buildItem(sibling);
-                if (!item) break;
-
-                consumedNodes.add(sibling as unknown as object);
-                items.push(item);
-
-                if (item.trailingElement) break;
-                sibling = sibling.next;
-              }
+          let sibling = domNode.next;
+          while (sibling) {
+            if (isDomTextNode(sibling) && !sibling.data.trim()) {
+              sibling = sibling.next;
+              continue;
             }
+
+            if (!isDomElementNode(sibling)) break;
+
+            const item = buildItem(sibling);
+            if (!item) break;
+
+            items.push(item);
+            if (item.trailingElement) trailingElements.push(item.trailingElement);
+            sibling = sibling.next;
           }
 
+          items.forEach((item) => consumedToolIndexes.add(item.data.index));
+          groupRootIndexes.add(firstItem.data.index);
           const toolBlock = renderMindroomToolRefGroupBlock(items.map((item) => item.data));
-          const trailing = items[items.length - 1]?.trailingElement;
-          if (!trailing) return toolBlock;
+          if (trailingElements.length === 0) return toolBlock;
 
           return (
             <>
               {toolBlock}
-              {domToReact([trailing], baseOpts)}
+              {domToReact(trailingElements, nextOpts)}
             </>
           );
         }
@@ -701,7 +751,28 @@ export const withMindroomToolTraceMarkerParserOptions = (
 
       return baseReplace ? baseReplace(domNode) : undefined;
     },
+    transform: (reactNode, domNode, index) => {
+      const isContainer =
+        isDomElementNode(domNode) && ['p', 'div', 'li'].includes(domNode.name);
+
+      if (isContainer) {
+        const maybeChildren = domNode.children;
+        const maybeToolIndex = parseToolRefIndexFromTextPrefix(
+          extractTextFromChildren(maybeChildren as ChildNode[])
+        );
+        if (
+          maybeToolIndex !== undefined &&
+          consumedToolIndexes.has(maybeToolIndex) &&
+          !groupRootIndexes.has(maybeToolIndex)
+        ) {
+          return null;
+        }
+      }
+
+      return baseTransform ? baseTransform(reactNode, domNode, index) : reactNode;
+    },
   };
+  return nextOpts;
 };
 
 export const getReactCustomHtmlParser = (
