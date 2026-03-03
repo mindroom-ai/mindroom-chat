@@ -3,6 +3,8 @@ import { Box, Dialog, config, Text, Button, Spinner } from 'folds';
 import { SpecVersionsLoader } from '../../components/SpecVersionsLoader';
 import { SpecVersionsProvider } from '../../hooks/useSpecVersions';
 import { SplashScreen } from '../../components/splash-screen';
+import { removeFallbackSession } from '../../state/sessions';
+import { clearBrowserCacheAndReload } from '../../../client/initMatrix';
 
 export function SpecVersions({ baseUrl, children }: { baseUrl: string; children: ReactNode }) {
   return (
@@ -13,6 +15,18 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
           <Box direction="Column" grow="Yes" alignItems="Center" justifyContent="Center" gap="400">
             <Spinner variant="Secondary" size="600" />
             <Text>Connecting to server</Text>
+            <Button
+              variant="Critical"
+              fill="Soft"
+              onClick={() => {
+                removeFallbackSession();
+                window.location.reload();
+              }}
+            >
+              <Text as="span" size="B400">
+                Cancel and return to sign in
+              </Text>
+            </Button>
           </Box>
         </SplashScreen>
       )}
@@ -27,6 +41,17 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
                 <Button variant="Critical" onClick={retry}>
                   <Text as="span" size="B400">
                     Retry
+                  </Text>
+                </Button>
+                <Button
+                  variant="Critical"
+                  fill="Soft"
+                  onClick={() => {
+                    clearBrowserCacheAndReload();
+                  }}
+                >
+                  <Text as="span" size="B400">
+                    Clear Cache and Reload
                   </Text>
                 </Button>
                 <Button variant="Critical" onClick={ignore} fill="Soft">
