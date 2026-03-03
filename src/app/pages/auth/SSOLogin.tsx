@@ -1,6 +1,8 @@
 import { Avatar, AvatarImage, Box, Button, Text } from 'folds';
 import { IIdentityProvider, SSOAction } from 'matrix-js-sdk';
 import React, { useMemo } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { AppLauncher } from '@capacitor/app-launcher';
 import { createMatrixClient } from '../../../client/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import {
@@ -27,6 +29,21 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
   const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
   const orderedProviders = sortIdentityProviders(providers);
   const appleProviderAvailable = hasAppleIdentityProvider(orderedProviders);
+  const nativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+
+  const handleSSONavigate =
+    (url: string) =>
+    async (evt: React.MouseEvent<HTMLElement>): Promise<void> => {
+      if (!nativeIOS) return;
+
+      evt.preventDefault();
+      try {
+        await AppLauncher.openUrl({ url });
+      } catch {
+        // Keep default navigation behavior as fallback if native launch fails.
+        window.location.assign(url);
+      }
+    };
 
   const getProviderIconUrl = (provider: IIdentityProvider): string | undefined => {
     if (isAppleIdentityProvider(provider)) return AppleLogo;
@@ -66,6 +83,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
                 key={id}
                 as="a"
                 href={getSSOIdUrl(id)}
+                onClick={handleSSONavigate(getSSOIdUrl(id))}
                 aria-label={buttonTitle}
                 size="300"
                 radii="300"
@@ -85,6 +103,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
               key={id}
               as="a"
               href={getSSOIdUrl(id)}
+              onClick={handleSSONavigate(getSSOIdUrl(id))}
               size="500"
               variant={appleProvider ? 'Primary' : 'Secondary'}
               fill={appleProvider ? 'Solid' : 'Soft'}
@@ -111,6 +130,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
           style={{ width: '100%' }}
           as="a"
           href={getSSOIdUrl()}
+          onClick={handleSSONavigate(getSSOIdUrl())}
           size="500"
           variant="Secondary"
           fill="Soft"
