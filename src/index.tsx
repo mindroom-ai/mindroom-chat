@@ -28,8 +28,14 @@ const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 
 const handleNativeSSOCallback = (url: string) => {
   const appPath = getAppPathFromNativeSsoUrl(url);
   if (!appPath) return;
-
-  window.location.replace(appPath);
+  try {
+    // Handle SSO callback as an SPA route transition (no full WebView reload),
+    // preventing iOS from treating path params like `mindroom.chat` as file paths.
+    window.history.replaceState(null, '', appPath);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  } catch {
+    window.location.replace(appPath);
+  }
 };
 
 if (isNativeIOS) {
