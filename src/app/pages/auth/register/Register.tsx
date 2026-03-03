@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Box, Text, color } from 'folds';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { SSOAction } from 'matrix-js-sdk';
+import { Capacitor } from '@capacitor/core';
 import { useAuthServer } from '../../../hooks/useAuthServer';
 import { RegisterFlowStatus, useAuthFlows } from '../../../hooks/useAuthFlows';
 import { useParsedLoginFlows } from '../../../hooks/useParsedLoginFlows';
@@ -14,6 +15,7 @@ import { usePathWithOrigin } from '../../../hooks/usePathWithOrigin';
 import { RegisterPathSearchParams } from '../../paths';
 import { useClientConfig } from '../../../hooks/useClientConfig';
 import { hasAppleIdentityProvider } from '../ssoProviders';
+import { buildNativeSsoRedirectUrl } from '../../../utils/nativeSso';
 
 const useRegisterSearchParams = (searchParams: URLSearchParams): RegisterPathSearchParams =>
   useMemo(
@@ -41,7 +43,14 @@ export function Register() {
     registerFlows.status === RegisterFlowStatus.FlowRequired && !ssoOnlyRegistration;
 
   // redirect to /login because only that path handle m.login.token
-  const ssoRedirectUrl = usePathWithOrigin(getLoginPath(server));
+  const webSsoRedirectUrl = usePathWithOrigin(getLoginPath(server));
+  const ssoRedirectUrl = useMemo(() => {
+    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios') {
+      return buildNativeSsoRedirectUrl(webSsoRedirectUrl);
+    }
+
+    return webSsoRedirectUrl;
+  }, [webSsoRedirectUrl]);
 
   if (!registrationAllowed) {
     return <Navigate to={getLoginPath(server)} replace />;
