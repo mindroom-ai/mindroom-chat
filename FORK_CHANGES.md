@@ -17,72 +17,34 @@ Rules followed:
 
 ## Working Tree (Not Yet Committed)
 
-Working tree status (2026-03-02):
+Working tree status (2026-03-03):
 
 - Modified:
-  - `.github/workflows/auto-mindroom-release.yml` (NEW)
-  - `APP_STORE_COMPLIANCE.md` (NEW)
-  - `APP_STORE_SUBMISSION_PACKET.md` (NEW)
   - `FORK_CHANGES.md`
-  - `README.md`
-  - `config.json`
-  - `ios-build.md`
-  - `ios/App/App/Info.plist`
-  - `ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json`
-  - `ios/App/App/Assets.xcassets/AppIcon.appiconset/*` (generated icon PNG set)
-  - `package.json`
-  - `package-lock.json`
-  - `patches/matrix-js-sdk+38.2.0.patch` (NEW)
-  - `scripts/appstore-preflight.mjs` (NEW)
-  - `scripts/fork_release_tag.py` (NEW)
-  - `scripts/generate-ios-icons.sh` (NEW)
-  - `src/app/features/settings/about/About.tsx`
-  - `src/app/cs-api.test.ts` (NEW)
   - `src/app/cs-api.ts`
-  - `src/app/hooks/useClientConfig.ts`
-  - `src/app/matrixRelationsRace.test.ts` (NEW)
-  - `src/app/pages/auth/SSOLogin.tsx`
-  - `src/app/pages/auth/ssoProviders.ts` (NEW)
-  - `src/app/pages/auth/ssoProviders.test.ts` (NEW)
-  - `src/app/pages/auth/AuthFooter.tsx`
-  - `src/app/pages/auth/AuthLayout.tsx`
-  - `src/app/pages/auth/login/Login.tsx`
-  - `src/app/pages/auth/register/Register.tsx`
+  - `src/app/cs-api.test.ts`
+  - `src/app/pages/client/SpecVersions.test.ts`
+  - `src/app/pages/client/SpecVersions.tsx`
+  - `src/client/initMatrix.ts`
+  - `src/client/initMatrix.test.ts`
 
 What changed (uncommitted):
 
-- App Store compliance hardening pass:
-  - tightened iOS ATS posture to local-network exception behavior (removed broad arbitrary loads),
-  - added iOS camera/photo usage descriptions and export compliance plist key,
-  - enforced HTTPS homeserver policy with local-network HTTP-only exception in discovery flow,
-  - enabled in-app account creation with Apple-provider requirement flag in auth config,
-  - added Apple-aware SSO provider handling (`Sign in with Apple` / `Sign up with Apple`, Apple-first ordering),
-  - added optional support/privacy/terms link surfacing in auth footer,
-  - added automated `npm run appstore:preflight` checks for high-risk App Store submission gates,
-  - added full iOS AppIcon slot set generation and preflight validation,
-  - added App Store submission metadata/review-notes packet template,
-  - added reviewer-facing README context guidance in submission packet,
-  - set `auth.privacyPolicyUrl` and `auth.termsUrl` runtime links in config,
-  - rewrote `README.md` to be MindRoom-first (product positioning, fork deltas, iOS submission docs, and upstream attribution),
-  - aligned visible in-app About version text with package version,
-  - added explicit App Store submission checklist doc and iOS build preflight notes,
-  - added automated release tagging on every `dev` push using `v<base_version>-mindroom.<n>` via a reusable Python helper (`scripts/fork_release_tag.py`) configurable by prefix/suffix/base env vars.
-- Matrix edit reliability hardening:
-  - backported `matrix-js-sdk` PR #5192 (`fix(relations): prevent stale m.replace from overriding newer edits`) onto pinned `matrix-js-sdk@38.2.0`,
-  - added `patch-package` + `postinstall` application so the SDK race fix persists across fresh installs,
-  - added regression test `src/app/matrixRelationsRace.test.ts` to verify an older slow-decrypting edit cannot overwrite a newer edit.
+- Startup connectivity recovery hardening:
+  - `specVersions()` now has a bounded request timeout (12s), aborts timed-out fetches, and surfaces non-2xx HTTP failures explicitly.
+  - Added `specVersions()` regression coverage for success, HTTP error, and timeout behavior.
+  - Client startup "Connecting to server" splash now includes a cancel action (`Cancel and return to sign in`) that clears fallback session keys and reloads to the auth flow, so users can recover without force-closing.
+  - The "Failed to connect to homeserver..." dialog now includes `Clear Cache and Reload`, which now scopes service worker unregistration/cache cleanup to the app base path before reloading, reducing cross-app impact on shared origins.
+  - Added regression tests for cache cleanup scoping and startup recovery actions in `SpecVersions`.
 
 Validation (uncommitted):
 
-- `npm run release:next-tag` ✅ passed.
-- `npm run ios:icons` ✅ passed.
-- `npm run appstore:preflight` ✅ passed.
-- `npm run test` ✅ passed.
-- `npm run test -- src/app/matrixRelationsRace.test.ts` ✅ passed.
+- `npm run test -- src/app/cs-api.test.ts` ✅ passed.
+- `npm run test -- src/client/initMatrix.test.ts src/app/pages/client/SpecVersions.test.ts` ✅ passed.
 - `npm run build` ✅ passed.
-- `npm install` ✅ passed (`postinstall` patch application confirms `matrix-js-sdk@38.2.0` patch is applied).
-- `npm run typecheck` ❌ fails with pre-existing repository-wide typing issues (matrix-js-sdk import/type surface mismatches and existing strictness violations).
-- `npm run lint` ❌ fails with pre-existing repository-wide lint issues unrelated to this delta.
+- `npx eslint src/app/cs-api.ts src/client/initMatrix.ts src/client/initMatrix.test.ts src/app/pages/client/SpecVersions.test.ts src/app/pages/client/SpecVersions.tsx` ✅ passed (1 pre-existing warning in `src/client/initMatrix.ts`).
+- `npm run typecheck` ❌ fails with pre-existing repository-wide typing issues (unchanged by this delta).
+- `npm run lint` ❌ fails with pre-existing repository-wide lint issues (unchanged by this delta).
 
 ## Commit-by-Commit Changes
 
@@ -661,7 +623,7 @@ Thread badge behavior:
 - If deploying behind strict subpath-only ingress/proxy rules, ensure runtime config and assets resolve under your routing policy, or apply equivalent server-side HTML base/script injection in the serving layer.
 - Before shipping iOS builds, run the full checklist in `APP_STORE_COMPLIANCE.md` and verify App Store Connect metadata URLs (support/privacy/terms) are public and final.
 
-## Current Snapshot (2026-03-02)
+## Current Snapshot (2026-03-03)
 
 - Thread mode, tool-ref v2 rendering, long-message v2 hydration, and `!` autocomplete are implemented.
 - Edit rendering hardening now prioritizes SDK replacement state over relation
@@ -679,6 +641,7 @@ Thread badge behavior:
 - Submission docs now include a checklist plus a paste-ready App Store metadata/review-notes packet.
 - Left sidebar now includes a MindRoom shortcut button (logo icon) that opens Local MindRoom onboarding.
 - Release automation now supports per-commit `dev` tagging in `v<base_version>-mindroom.<n>` format with base-version-aware incrementing.
+- Startup homeserver capability probing (`/_matrix/client/versions`) now times out after 12s and aborts timed-out fetches, the connecting splash includes a cancel path back to sign-in/server selection, and the connection-error dialog now includes an app-scoped `Clear Cache and Reload` recovery action for stale browser cache cases.
 - Remaining known product gap: no dedicated thread list sidebar or thread-specific unread model yet.
 - Remaining iOS hardening gap: session credentials are still localStorage-based in this branch (Keychain migration is still pending).
 
