@@ -19,6 +19,10 @@ import { encodeBlurHash } from '../../utils/blurHash';
 import { scaleYDimension } from '../../utils/common';
 import { addVoiceMessageMetadata } from '../../utils/voiceMessage';
 
+type AudioMsgContentOptions = {
+  voiceMessageMimeTypeOverride?: string;
+};
+
 const generateThumbnailContent = async (
   mx: MatrixClient,
   img: HTMLImageElement | HTMLVideoElement,
@@ -127,15 +131,23 @@ export const getVideoMsgContent = async (
   return content;
 };
 
-export const getAudioMsgContent = (item: TUploadItem, mxc: string): IContent => {
+export const getAudioMsgContent = (
+  item: TUploadItem,
+  mxc: string,
+  options?: AudioMsgContentOptions
+): IContent => {
   const { file, encInfo, metadata } = item;
   const duration = metadata.voiceMessage?.duration;
+  const mimetype =
+    metadata.voiceMessage && options?.voiceMessageMimeTypeOverride
+      ? options.voiceMessageMimeTypeOverride
+      : file.type;
   const content: IContent = {
     msgtype: MsgType.Audio,
     filename: file.name,
     body: file.name,
     info: {
-      mimetype: file.type,
+      mimetype,
       size: file.size,
       ...(typeof duration === 'number' ? { duration } : {}),
     },
