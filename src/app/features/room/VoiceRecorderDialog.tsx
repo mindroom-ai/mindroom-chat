@@ -16,43 +16,11 @@ import {
   config,
 } from 'folds';
 import { secondsToMinutesAndSeconds } from '../../utils/common';
-import { isIOS } from '../../utils/user-agent';
-
-const BASE_VOICE_RECORDER_MIME_TYPES = [
-  'audio/webm;codecs=opus',
-  'audio/ogg;codecs=opus',
-  'audio/webm',
-  'audio/ogg',
-  'audio/mp4',
-];
-
-const getPreferredRecorderMimeTypes = (): string[] => {
-  if (!isIOS()) return BASE_VOICE_RECORDER_MIME_TYPES;
-
-  // iOS WebKit playback is typically much more reliable with MP4/M4A than WebM/Opus.
-  return [
-    'audio/mp4',
-    ...BASE_VOICE_RECORDER_MIME_TYPES.filter((mimeType) => mimeType !== 'audio/mp4'),
-  ];
-};
-
-const getSupportedRecorderMimeType = (): string | undefined => {
-  if (typeof MediaRecorder === 'undefined') return undefined;
-
-  return getPreferredRecorderMimeTypes().find((mimeType) => {
-    try {
-      return MediaRecorder.isTypeSupported(mimeType);
-    } catch {
-      return false;
-    }
-  });
-};
-
-const getAudioFileExtension = (mimeType: string): string => {
-  if (mimeType.includes('ogg')) return 'ogg';
-  if (mimeType.includes('mp4')) return 'm4a';
-  return 'webm';
-};
+import {
+  DEFAULT_VOICE_RECORDER_MIME_TYPE,
+  getAudioFileExtension,
+  getSupportedRecorderMimeType,
+} from './voiceRecorderMime';
 
 const formatElapsed = (ms: number): string => secondsToMinutesAndSeconds(Math.floor(ms / 1000));
 
@@ -274,7 +242,9 @@ export function VoiceRecorderComposer({
           return;
         }
 
-        const outputMimeType = recorder.mimeType || mimeType || 'audio/webm';
+        const chunkMimeType = chunkRef.current.find((chunk) => chunk.type)?.type;
+        const outputMimeType =
+          recorder.mimeType || mimeType || chunkMimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE;
         const blob = new Blob(chunkRef.current, { type: outputMimeType });
         const duration = Math.max(1, Math.round(elapsedAtStopRef.current || elapsedMs));
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');

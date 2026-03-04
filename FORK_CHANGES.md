@@ -21,30 +21,28 @@ Working tree status (2026-03-03):
 
 - Modified:
   - `FORK_CHANGES.md`
-  - `src/app/cs-api.ts`
-  - `src/app/cs-api.test.ts`
-  - `src/app/pages/client/SpecVersions.test.ts`
-  - `src/app/pages/client/SpecVersions.tsx`
-  - `src/client/initMatrix.ts`
-  - `src/client/initMatrix.test.ts`
+  - `src/app/features/room/VoiceRecorderDialog.tsx`
+- Added:
+  - `src/app/features/room/voiceRecorderMime.ts`
+  - `src/app/features/room/voiceRecorderMime.test.ts`
 
 What changed (uncommitted):
 
-- Startup connectivity recovery hardening:
-  - `specVersions()` now has a bounded request timeout (12s), aborts timed-out fetches, and surfaces non-2xx HTTP failures explicitly.
-  - Added `specVersions()` regression coverage for success, HTTP error, and timeout behavior.
-  - Client startup "Connecting to server" splash now includes a cancel action (`Cancel and return to sign in`) that clears fallback session keys and reloads to the auth flow, so users can recover without force-closing.
-  - The "Failed to connect to homeserver..." dialog now includes `Clear Cache and Reload`, which now scopes service worker unregistration/cache cleanup to the app base path before reloading, reducing cross-app impact on shared origins.
-  - Added regression tests for cache cleanup scoping and startup recovery actions in `SpecVersions`.
+- Voice recorder MIME default update:
+  - Extracted recorder MIME preference/extension logic into `voiceRecorderMime.ts`.
+  - Recorder MIME selection now prefers `audio/ogg;codecs=opus` (Ogg/Opus) ahead of compatibility fallbacks (`audio/ogg`, `audio/mp4`, `audio/webm`, `audio/mpeg`).
+  - `VoiceRecorderDialog` now uses the shared helper and falls back to Ogg/Opus when the recorder does not report a MIME type.
+  - Added regression tests covering MIME preference order, supported-type selection, unavailable `MediaRecorder`, and extension mapping.
+- Runbook updates:
+  - Voice-message behavior notes now describe Ogg/Opus-first recording defaults instead of iOS MP4-first behavior.
 
 Validation (uncommitted):
 
-- `npm run test -- src/app/cs-api.test.ts` ✅ passed.
-- `npm run test -- src/client/initMatrix.test.ts src/app/pages/client/SpecVersions.test.ts` ✅ passed.
-- `npm run build` ✅ passed.
-- `npx eslint src/app/cs-api.ts src/client/initMatrix.ts src/client/initMatrix.test.ts src/app/pages/client/SpecVersions.test.ts src/app/pages/client/SpecVersions.tsx` ✅ passed (1 pre-existing warning in `src/client/initMatrix.ts`).
+- `npm run test -- src/app/features/room/voiceRecorderMime.test.ts src/app/features/room/msgContent.test.ts` ✅ passed.
+- `npx eslint src/app/features/room/voiceRecorderMime.ts src/app/features/room/voiceRecorderMime.test.ts` ✅ passed.
+- `npx eslint src/app/features/room/VoiceRecorderDialog.tsx` ❌ fails with pre-existing file-level lint issues (unchanged by this delta).
+- `npm run build` ❌ fails because Rollup cannot resolve `@capacitor/app` from `src/index.tsx` in this environment.
 - `npm run typecheck` ❌ fails with pre-existing repository-wide typing issues (unchanged by this delta).
-- `npm run lint` ❌ fails with pre-existing repository-wide lint issues (unchanged by this delta).
 
 ## Commit-by-Commit Changes
 
@@ -572,7 +570,7 @@ Thread badge behavior:
 - Sent recordings are emitted as `m.audio` messages with voice-message metadata (`m.voice` / `org.matrix.msc3245.voice`, plus stable/unstable audio detail keys carrying duration).
 - Incoming voice-tagged audio messages render in the existing audio player UI, with a voice badge and duration fallback from voice metadata when present.
 - Recorder error handling now surfaces actionable iPhone guidance for insecure contexts / blocked mic access in a popup; Capacitor iOS builds include an `NSMicrophoneUsageDescription` usage string.
-- On iOS clients, recorder MIME selection prefers `audio/mp4` first to improve playback compatibility in WebKit-based browsers.
+- Recorder MIME selection now prefers `audio/ogg;codecs=opus` first, with automatic fallback to other browser-supported formats (`audio/ogg`, `audio/mp4`, `audio/webm`, `audio/mpeg`) when needed.
 
 ### Base-Path Deployment Robustness
 
@@ -633,7 +631,7 @@ Thread badge behavior:
 - Main timeline thread summary chips render below message body and show participant avatars when available.
 - Base-path bootstrap is server-driven for the local SPA server (`serve.py`) and no longer depends on fragile client-side inference.
 - Service-worker media auth matching handles both root and subpath media endpoints on the same origin, reducing `M_MISSING_TOKEN` failures under subpath deployments.
-- Voice message recording/sending is available in room input, and voice-tagged incoming audio messages render/play in the existing audio controls.
+- Voice message recording/sending is available in room input, recorded uploads now default to Ogg/Opus when supported by `MediaRecorder`, and voice-tagged incoming audio messages render/play in the existing audio controls.
 - AI run metadata (`io.mindroom.ai_run`) is surfaced via a subtle per-message hover tooltip in the timeline header.
 - Long-message handling is v2-only; users can download the original long-text sidecar directly from the message menu.
 - iOS submission posture has been hardened: stricter ATS behavior, explicit media permission strings, secure homeserver URL enforcement, registration-enabled flow, and Apple-aware SSO provider handling.
