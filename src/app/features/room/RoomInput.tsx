@@ -122,6 +122,7 @@ import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { useComposingCheck } from '../../hooks/useComposingCheck';
 import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from './mindroomCommandQuery';
 import { VoiceRecorderComposer } from './VoiceRecorderDialog';
+import { isSignalBridgeRoom } from './bridgeDetection';
 
 type RoomInputAutocompletePrefix = AutocompletePrefix | typeof MINDROOM_COMMAND_PREFIX;
 
@@ -329,6 +330,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     };
 
     const handleSendUpload = async (uploads: UploadSuccess[]) => {
+      const signalBridgedRoom = isSignalBridgeRoom(room);
       const contentsPromises = uploads.map(async (upload) => {
         const fileItem = selectedFiles.find((f) => f.file === upload.file);
         if (!fileItem) throw new Error('Broken upload');
@@ -340,7 +342,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           return getVideoMsgContent(mx, fileItem, upload.mxc);
         }
         if (fileItem.file.type.startsWith('audio')) {
-          return getAudioMsgContent(fileItem, upload.mxc);
+          return getAudioMsgContent(fileItem, upload.mxc, {
+            voiceMessageMimeTypeOverride: signalBridgedRoom ? 'audio/aac' : undefined,
+          });
         }
         return getFileMsgContent(fileItem, upload.mxc);
       });

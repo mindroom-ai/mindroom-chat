@@ -59,4 +59,35 @@ describe('getAudioMsgContent', () => {
       },
     });
   });
+
+  it('uses voice-message mime override for bridged signal rooms', () => {
+    const file = new File(['hello'], 'voice.m4a', { type: 'audio/mp4' });
+    const content = getAudioMsgContent(createUploadItem(file, 3210), 'mxc://server/voice', {
+      voiceMessageMimeTypeOverride: 'audio/aac',
+    });
+
+    expect(content).toMatchObject({
+      info: {
+        mimetype: 'audio/aac',
+        size: file.size,
+        duration: 3210,
+      },
+      [MATRIX_VOICE_MESSAGE_UNSTABLE_PROPERTY_NAME]: {},
+      [MATRIX_VOICE_MESSAGE_PROPERTY_NAME]: {},
+    });
+  });
+
+  it('does not override mime type for non-voice audio attachments', () => {
+    const file = new File(['hello'], 'clip.m4a', { type: 'audio/mp4' });
+    const content = getAudioMsgContent(createUploadItem(file), 'mxc://server/audio', {
+      voiceMessageMimeTypeOverride: 'audio/aac',
+    });
+
+    expect(content).toMatchObject({
+      info: {
+        mimetype: 'audio/mp4',
+        size: file.size,
+      },
+    });
+  });
 });
