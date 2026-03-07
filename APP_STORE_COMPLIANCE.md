@@ -1,11 +1,11 @@
 # MindRoom iOS App Store Compliance Checklist
 
-Last updated: 2026-02-28
+Last updated: 2026-03-07
 
 Use this checklist before every TestFlight/App Store submission.
 Use `APP_STORE_SUBMISSION_PACKET.md` to populate App Store Connect metadata and review notes.
 
-## Current Progress (2026-02-28)
+## Current Progress (2026-03-07)
 
 Use this section as the live status for the current submission attempt. Keep the main checklist below as the reusable template.
 
@@ -28,9 +28,10 @@ Use this section as the live status for the current submission attempt. Keep the
 - [ ] Signed Xcode archive upload from Organizer.
 - [ ] TestFlight smoke test on physical iPhone (login, register, Apple SSO, media permissions, account deletion entry).
 - [x] Homeserver used for submission exposes Apple SSO provider (`https://mindroom.chat/_matrix/client/v3/login` returns `m.login.sso` with Apple provider metadata).
+- [x] Review-access requirement clarified: `mindroom.chat` registration is token-gated (`m.login.registration_token`), so App Review must receive a temporary account or one-time registration token.
 - [x] `config.json` support/privacy/terms URLs point to final public endpoints (`https://docs.mindroom.chat/support`, `/privacy`, `/terms`) and are reachable.
 - [ ] Set final App Store version/build in Xcode (`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`) before upload.
-- [ ] Complete App Store Connect metadata, App Privacy answers, and review notes packet.
+- [ ] Complete App Store Connect metadata, App Privacy answers, and review notes packet (packet copy is now mostly drafted; reviewer credentials/token still need to be inserted).
 
 ## References (Apple)
 
@@ -126,7 +127,7 @@ Include a short reviewer note:
 - Sign in with Apple is available through homeserver-configured SSO identity providers.
 - The app supports message moderation tools (report + ignore/block).
 - Local-network HTTP is only for user-owned local homeserver deployments; public homeservers use HTTPS.
-- Mention any required test account credentials if your production server requires them.
+- `mindroom.chat` currently requires a registration token for self-signup, so provide a temporary reviewer account or one-time registration token.
 
 ## 7. Final Submit Gate
 

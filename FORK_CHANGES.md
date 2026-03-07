@@ -706,7 +706,9 @@ Submission blockers / follow-ups before App Store submission (updated 2026-03-07
   - Xcode Organizer upload is still unchecked in `APP_STORE_COMPLIANCE.md`.
   - Physical-device TestFlight smoke testing is still unchecked in `APP_STORE_COMPLIANCE.md`.
 - App Store Connect metadata is still incomplete:
-  - `APP_STORE_SUBMISSION_PACKET.md` still has open placeholders for subtitle, copyright, reviewer credentials/instructions, and final App Privacy questionnaire confirmation.
+  - `APP_STORE_SUBMISSION_PACKET.md` now has concrete subtitle/description/keywords/copyright copy and a conservative App Privacy draft.
+  - Reviewer access still needs real credentials or a one-time registration token inserted at submission time.
+  - Final App Privacy answers still need confirmation against real hosted production/server logging behavior.
 - Final submission version/build still needs an explicit release decision at upload time:
   - Project settings are now `MARKETING_VERSION=4.10.3` and `CURRENT_PROJECT_VERSION=2`, but the checklist still correctly treats the final upload bump as a release-time gate.
 - Native push remains optional, not a current submission blocker:
@@ -745,7 +747,7 @@ Remaining mandatory steps before TestFlight/App Store submission:
   - Select the final Apple team/signing profile in target Signing & Capabilities.
   - Archive and upload the signed build to TestFlight from Xcode Organizer.
 - App Store Connect completion:
-  - Fill the remaining metadata/review-note placeholders in `APP_STORE_SUBMISSION_PACKET.md`.
+  - Insert the real reviewer credentials or one-time registration token in `APP_STORE_SUBMISSION_PACKET.md` / App Review Information.
   - Finalize App Privacy answers against real production/server behavior.
 - Final release validation on a TestFlight build:
   - Login/Register
