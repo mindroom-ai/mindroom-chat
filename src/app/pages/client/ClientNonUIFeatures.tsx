@@ -2,10 +2,10 @@ import { useAtomValue } from 'jotai';
 import React, { ReactNode, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RoomEvent, RoomEventHandlerMap } from 'matrix-js-sdk';
+import { PluginListenerHandle } from '@capacitor/core';
+import { PushNotifications } from '@capacitor/push-notifications';
 import { roomToUnreadAtom, unreadEqual, unreadInfoToUnread } from '../../state/room/roomToUnread';
 import LogoSVG from '../../../../public/res/svg/mindroom.svg';
-import LogoUnreadSVG from '../../../../public/res/svg/mindroom.svg';
-import LogoHighlightSVG from '../../../../public/res/svg/mindroom.svg';
 import NotificationSound from '../../../../public/sound/notification.ogg';
 import InviteSound from '../../../../public/sound/invite.ogg';
 import { notificationPermission, setFavicon } from '../../utils/dom';
@@ -26,6 +26,19 @@ import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { useSelectedRoom } from '../../hooks/router/useSelectedRoom';
 import { useInboxNotificationsSelected } from '../../hooks/router/useInbox';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { useClientConfig } from '../../hooks/useClientConfig';
+import {
+  checkIOSPushPermission,
+  disableIOSPushPusher,
+  isNativeIOSPlatform,
+  registerIOSPush,
+  resolveIOSPushConfig,
+  unregisterIOSPush,
+  upsertIOSPushPusher,
+} from '../../utils/iosPush';
+
+const LogoUnreadSVG = LogoSVG;
+const LogoHighlightSVG = LogoSVG;
 
 function SystemEmojiFeature() {
   const [twitterEmoji] = useSetting(settingsAtom, 'twitterEmoji');
@@ -253,6 +266,84 @@ function MessageNotifications() {
   );
 }
 
+function NativeIOSPushFeature() {
+  const mx = useMatrixClient();
+  const clientConfig = useClientConfig();
+  const [nativePushNotifications, setNativePushNotifications] = useSetting(
+    settingsAtom,
+    'nativePushNotifications'
+  );
+
+  useEffect(() => {
+    const pushConfig = resolveIOSPushConfig(clientConfig);
+    if (!isNativeIOSPlatform() || !pushConfig) return undefined;
+
+    let disposed = false;
+    let registrationHandle: PluginListenerHandle | undefined;
+    let registrationErrorHandle: PluginListenerHandle | undefined;
+
+    const setupNativePush = async () => {
+      const registrationListener = await PushNotifications.addListener('registration', (token) => {
+        if (disposed) return;
+        upsertIOSPushPusher(mx, pushConfig, token.value).catch(async () => {
+          setNativePushNotifications(false);
+          await disableIOSPushPusher(mx, pushConfig).catch(() => undefined);
+          await unregisterIOSPush().catch(() => undefined);
+        });
+      });
+      if (disposed) {
+        registrationListener.remove().catch(() => undefined);
+        return;
+      }
+      registrationHandle = registrationListener;
+
+      const registrationErrorListener = await PushNotifications.addListener(
+        'registrationError',
+        () => {
+          setNativePushNotifications(false);
+          disableIOSPushPusher(mx, pushConfig).catch(() => undefined);
+          unregisterIOSPush().catch(() => undefined);
+        }
+      );
+      if (disposed) {
+        registrationErrorListener.remove().catch(() => undefined);
+        return;
+      }
+      registrationErrorHandle = registrationErrorListener;
+
+      if (!nativePushNotifications) {
+        await disableIOSPushPusher(mx, pushConfig);
+        await unregisterIOSPush().catch(() => undefined);
+        return;
+      }
+
+      const permission = await checkIOSPushPermission();
+      if (permission !== 'granted') {
+        setNativePushNotifications(false);
+        await disableIOSPushPusher(mx, pushConfig);
+        await unregisterIOSPush().catch(() => undefined);
+        return;
+      }
+
+      await registerIOSPush();
+    };
+
+    setupNativePush().catch(async () => {
+      setNativePushNotifications(false);
+      await disableIOSPushPusher(mx, pushConfig).catch(() => undefined);
+      await unregisterIOSPush().catch(() => undefined);
+    });
+
+    return () => {
+      disposed = true;
+      registrationHandle?.remove().catch(() => undefined);
+      registrationErrorHandle?.remove().catch(() => undefined);
+    };
+  }, [clientConfig, mx, nativePushNotifications, setNativePushNotifications]);
+
+  return null;
+}
+
 type ClientNonUIFeaturesProps = {
   children: ReactNode;
 };
@@ -265,6 +356,7 @@ export function ClientNonUIFeatures({ children }: ClientNonUIFeaturesProps) {
       <FaviconUpdater />
       <InviteNotifications />
       <MessageNotifications />
+      <NativeIOSPushFeature />
       {children}
     </>
   );

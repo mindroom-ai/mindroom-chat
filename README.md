@@ -97,6 +97,35 @@ npx cap open ios
 
 Then archive from Xcode (`App` scheme, `Any iOS Device (arm64)`).
 
+## iOS Push Notifications (APNs + Matrix)
+
+Native iOS push plumbing is included in this fork (`@capacitor/push-notifications` + Matrix pusher
+registration). To turn it on for a deployment:
+
+1. Configure `config.json`:
+
+```json
+{
+  "push": {
+    "ios": {
+      "enabled": true,
+      "appId": "com.mindroom-ai.app.ios",
+      "gatewayUrl": "https://YOUR-PUSH-GATEWAY/_matrix/push/v1/notify",
+      "appDisplayName": "MindRoom iOS",
+      "deviceDisplayName": "MindRoom iOS",
+      "append": true,
+      "format": "event_id_only"
+    }
+  }
+}
+```
+
+2. Sync iOS project artifacts after config/dependency changes: `npx cap sync ios`.
+3. In Xcode, confirm `Signing & Capabilities` includes `Push Notifications`.
+4. Run the app on a physical iPhone and enable `Settings -> Notifications -> iOS Push Notifications`
+   inside MindRoom.
+5. Ensure your Matrix push gateway is configured server-side to accept APNs tokens for your app.
+
 ## Local Development
 
 ```bash

@@ -17,32 +17,65 @@ Rules followed:
 
 ## Working Tree (Not Yet Committed)
 
-Working tree status (2026-03-03):
+Working tree status (2026-03-07):
 
 - Modified:
+  - `APP_STORE_COMPLIANCE.md`
   - `FORK_CHANGES.md`
-  - `src/app/features/room/VoiceRecorderDialog.tsx`
+  - `README.md`
+  - `capacitor.config.ts`
+  - `config.json`
+  - `ios-build.md`
+  - `ios/App/App.xcodeproj/project.pbxproj`
+  - `ios/App/App/AppDelegate.swift`
+  - `ios/App/App/Info.plist`
+  - `ios/App/Podfile`
+  - `ios/App/Podfile.lock`
+  - `package-lock.json`
+  - `package.json`
+  - `scripts/appstore-preflight.mjs`
+  - `src/app/features/settings/notifications/SystemNotification.tsx`
+  - `src/app/hooks/useClientConfig.ts`
+  - `src/app/pages/client/ClientNonUIFeatures.tsx`
+  - `src/app/state/settings.ts`
 - Added:
-  - `src/app/features/room/voiceRecorderMime.ts`
-  - `src/app/features/room/voiceRecorderMime.test.ts`
+  - `ios/App/App/App.entitlements`
+  - `src/app/utils/iosPush.test.ts`
+  - `src/app/utils/iosPush.ts`
 
 What changed (uncommitted):
 
-- Voice recorder MIME default update:
-  - Extracted recorder MIME preference/extension logic into `voiceRecorderMime.ts`.
-  - Recorder MIME selection now prefers `audio/ogg;codecs=opus` (Ogg/Opus) ahead of compatibility fallbacks (`audio/ogg`, `audio/mp4`, `audio/webm`, `audio/mpeg`).
-  - `VoiceRecorderDialog` now uses the shared helper and falls back to Ogg/Opus when the recorder does not report a MIME type.
-  - Added regression tests covering MIME preference order, supported-type selection, unavailable `MediaRecorder`, and extension mapping.
-- Runbook updates:
-  - Voice-message behavior notes now describe Ogg/Opus-first recording defaults instead of iOS MP4-first behavior.
+- Native iOS push notification setup:
+  - Added `@capacitor/push-notifications` dependency and synced iOS CocoaPods (`CapacitorPushNotifications` pod).
+  - Added APNs registration callback forwarding in `AppDelegate.swift` (`didRegisterForRemoteNotificationsWithDeviceToken` / `didFailToRegisterForRemoteNotificationsWithError`) for Capacitor push token events.
+  - Added iOS push capability scaffolding (`App.entitlements` with `aps-environment`, target `CODE_SIGN_ENTITLEMENTS`, debug/release `APS_ENVIRONMENT` build settings, `UIBackgroundModes` remote-notification).
+  - Added `push.ios` client config schema and default config block in `config.json` to control gateway URL/app ID and pusher metadata.
+  - Added `src/app/utils/iosPush.ts` utility for:
+    - platform/config detection,
+    - APNs permission checking/requesting,
+    - APNs token registration trigger,
+    - Matrix HTTP pusher upsert/disable with persisted token/profile tag.
+  - Added runtime sync feature in `ClientNonUIFeatures` to auto-register/refresh native push pusher when logged in on iOS.
+  - Native push registration is now listener-first, so APNs registration events cannot be lost while the Settings toggle is enabling push.
+  - Permission-denied / registration-error paths now reconcile the local toggle state and disable any stale Matrix pusher registration instead of leaving push half-enabled.
+  - Removed a local-only `DEVELOPMENT_TEAM` assignment from the Xcode project so signing remains contributor/machine specific.
+  - Added Settings UI controls in `SystemNotification` for enabling/disabling native iOS push and surfacing configuration/permission errors.
+  - Added regression coverage in `src/app/utils/iosPush.test.ts`.
+  - Updated docs and preflight checks (`README.md`, `ios-build.md`, `APP_STORE_COMPLIANCE.md`, `scripts/appstore-preflight.mjs`) to include native push setup gates and required configuration.
 
 Validation (uncommitted):
 
-- `npm run test -- src/app/features/room/voiceRecorderMime.test.ts src/app/features/room/msgContent.test.ts` ✅ passed.
-- `npx eslint src/app/features/room/voiceRecorderMime.ts src/app/features/room/voiceRecorderMime.test.ts` ✅ passed.
-- `npx eslint src/app/features/room/VoiceRecorderDialog.tsx` ❌ fails with pre-existing file-level lint issues (unchanged by this delta).
-- `npm run build` ❌ fails because Rollup cannot resolve `@capacitor/app` from `src/index.tsx` in this environment.
-- `npm run typecheck` ❌ fails with pre-existing repository-wide typing issues (unchanged by this delta).
+- `npm run test -- src/app/utils/iosPush.test.ts` ✅ passed.
+- `npm run test` ✅ passed.
+- `npm run build` ✅ passed.
+- `npx eslint src/app/utils/iosPush.ts src/app/utils/iosPush.test.ts src/app/pages/client/ClientNonUIFeatures.tsx src/app/features/settings/notifications/SystemNotification.tsx src/app/hooks/useClientConfig.ts src/app/state/settings.ts` ✅ passed.
+- `npx cap sync ios` ✅ passed (pod install + plugin sync).
+- `npm run appstore:preflight` ✅ passed.
+- `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build` ✅ passed.
+- `npm run typecheck` ❌ fails with pre-existing repository-wide typing issues (matrix-js-sdk export/type surface mismatches across many files; existing before this delta).
+- `npm run lint` ❌ fails because `yarn` is not installed in this environment (`lint` script shells to `yarn check:*`).
+- `npm run check:eslint` ❌ fails with pre-existing repository-wide lint errors in unrelated files.
+- `npm run check:prettier` ❌ fails with pre-existing repository-wide formatting drift in unrelated files.
 
 ## Commit-by-Commit Changes
 
@@ -621,7 +654,7 @@ Thread badge behavior:
 - If deploying behind strict subpath-only ingress/proxy rules, ensure runtime config and assets resolve under your routing policy, or apply equivalent server-side HTML base/script injection in the serving layer.
 - Before shipping iOS builds, run the full checklist in `APP_STORE_COMPLIANCE.md` and verify App Store Connect metadata URLs (support/privacy/terms) are public and final.
 
-## Current Snapshot (2026-03-03)
+## Current Snapshot (2026-03-07)
 
 - Thread mode, tool-ref v2 rendering, long-message v2 hydration, and `!` autocomplete are implemented.
 - Edit rendering hardening now prioritizes SDK replacement state over relation
@@ -636,10 +669,15 @@ Thread badge behavior:
 - Long-message handling is v2-only; users can download the original long-text sidecar directly from the message menu.
 - iOS submission posture has been hardened: stricter ATS behavior, explicit media permission strings, secure homeserver URL enforcement, registration-enabled flow, and Apple-aware SSO provider handling.
 - iOS app icon assets are now generated for all standard iPhone/iPad slots, and preflight checks enforce icon completeness before archive.
+- Native iOS push plumbing is now present in the app and iOS project, but default runtime config still leaves push disabled until a real APNs/Sygnal deployment is configured.
 - Submission docs now include a checklist plus a paste-ready App Store metadata/review-notes packet.
 - Left sidebar now includes a MindRoom shortcut button (logo icon) that opens Local MindRoom onboarding.
 - Release automation now supports per-commit `dev` tagging in `v<base_version>-mindroom.<n>` format with base-version-aware incrementing.
 - Startup homeserver capability probing (`/_matrix/client/versions`) now times out after 12s and aborts timed-out fetches, the connecting splash includes a cancel path back to sign-in/server selection, and the connection-error dialog now includes an app-scoped `Clear Cache and Reload` recovery action for stale browser cache cases.
+- Live external readiness checks now look healthier than the older 2026-02-26 snapshot:
+  - `https://mindroom.chat/_matrix/client/v3/login` currently returns `m.login.sso` and an Apple provider (`id=chat.mindroom.matrix.apple`, `name=Apple`, `brand=appleoidc`).
+  - `https://docs.mindroom.chat/support`, `/privacy`, and `/terms` currently resolve over HTTPS and return HTTP 200.
+  - Xcode project build settings currently declare `MARKETING_VERSION=4.10.3` and `CURRENT_PROJECT_VERSION=2`.
 - Remaining known product gap: no dedicated thread list sidebar or thread-specific unread model yet.
 - Remaining iOS hardening gap: session credentials are still localStorage-based in this branch (Keychain migration is still pending).
 
@@ -662,20 +700,20 @@ Validation performed on macOS (Xcode + CocoaPods + ImageMagick available):
   - `docs.mindroom.chat` homepage is reachable over HTTPS.
   - App Store preflight script catches auth URL/plist/icon gate requirements before archive.
 
-Submission blockers / follow-ups before App Store submission:
+Submission blockers / follow-ups before App Store submission (updated 2026-03-07):
 
-- Account deletion requirement still needs manual verification (risk reduced):
-  - Added a visible in-app Settings → Account entry point for account deletion/deactivation, with local Matrix deactivation flow + OIDC account-management portal fallback.
-  - Manual runtime verification is still required on the target homeserver(s) to confirm successful deactivation path and reviewer-visible UX.
-- Apple SSO requirement not currently satisfied by configured default homeserver:
-  - `config.json` requires Apple provider (`auth.requireAppleProvider: true`), but live login-flow probe on `https://matrix-dev.lab.nijho.lt/_matrix/client/v3/login` returned only password + appservice flows (no SSO providers).
-  - Submission/test environment must expose an Apple identity provider (preferably with `brand=apple`) before TestFlight/App Review validation.
-- Legal/support URLs are HTTPS-valid but not submission-final:
-  - `config.json` currently points support/privacy/terms to the docs homepage (`https://docs.mindroom.chat/`) rather than dedicated final policy/support endpoints.
-  - Probed likely routes (`/privacy`, `/terms`, `/support`) currently return 404.
-- Xcode marketing/build version values need explicit submission bumping:
-  - `Info.plist` defers to `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)`; current resolved build settings/unsigned archive were `1.0` / `1`, not the web app version `4.10.3`.
-  - Set intended App Store version/build in Xcode project settings before archive/upload.
+- Signed distribution still needs to happen:
+  - Xcode Organizer upload is still unchecked in `APP_STORE_COMPLIANCE.md`.
+  - Physical-device TestFlight smoke testing is still unchecked in `APP_STORE_COMPLIANCE.md`.
+- App Store Connect metadata is still incomplete:
+  - `APP_STORE_SUBMISSION_PACKET.md` still has open placeholders for subtitle, copyright, reviewer credentials/instructions, and final App Privacy questionnaire confirmation.
+- Final submission version/build still needs an explicit release decision at upload time:
+  - Project settings are now `MARKETING_VERSION=4.10.3` and `CURRENT_PROJECT_VERSION=2`, but the checklist still correctly treats the final upload bump as a release-time gate.
+- Native push remains optional, not a current submission blocker:
+  - The app can ship with `push.ios.enabled=false`.
+  - If native push is intended for the first App Store build, APNs credentials and a live Sygnal-compatible push gateway still need to be configured and verified on a physical iPhone before upload.
+- Remaining non-review hardening gap:
+  - Session credentials still live in localStorage; Keychain-backed storage is still pending work for a stronger iOS security posture.
 
 Non-blocking notes observed during validation:
 
@@ -703,23 +741,47 @@ Status update:
 
 Remaining mandatory steps before TestFlight/App Store submission:
 
-- Apple portal setup:
-  - Ensure App ID exists for `com.mindroom-ai.app`.
-  - Enable `Sign in with Apple` capability for that App ID.
-- App Store Connect setup:
-  - Create app record for `com.mindroom-ai.app`.
-  - Fill app metadata and reviewer notes from `APP_STORE_SUBMISSION_PACKET.md`.
 - Xcode signing/distribution:
-  - Select team and bundle id (`com.mindroom-ai.app`) in target Signing & Capabilities.
-  - Build to a physical iPhone (not simulator-only) with Developer Mode enabled on device.
-  - Archive + upload to TestFlight.
-- Policy/support URLs:
-  - `config.json` now points to `https://docs.mindroom.chat/support`, `/privacy`, `/terms`.
-  - These routes must be publicly reachable with final production content at submission time.
-- Final release validation on TestFlight build:
+  - Select the final Apple team/signing profile in target Signing & Capabilities.
+  - Archive and upload the signed build to TestFlight from Xcode Organizer.
+- App Store Connect completion:
+  - Fill the remaining metadata/review-note placeholders in `APP_STORE_SUBMISSION_PACKET.md`.
+  - Finalize App Privacy answers against real production/server behavior.
+- Final release validation on a TestFlight build:
   - Login/Register
   - Apple SSO
   - Camera permission flow
   - Photo library permission flow
   - Microphone recording flow
   - Account deactivation flow from in-app Settings
+  - Message send/receive and media rendering
+  - If native push is enabled for release: APNs registration + background notification delivery
+
+## Upstream PR Strategy (2026-03-07)
+
+Do not try to upstream this fork as one PR. Upstream `CONTRIBUTING.md` explicitly asks for discussion before feature work and prefers small, reviewable pull requests.
+
+Recommended candidate splits:
+
+- Likely-upstreamable bugfix / hardening PRs:
+  - Voice-recorder MIME preference cleanup and tests (`audio/ogg;codecs=opus` first, with browser fallbacks).
+  - Generic iOS/App-Store hardening that is not MindRoom-branded:
+    - stricter ATS/local-network policy,
+    - permission strings,
+    - configurable support/privacy/terms links,
+    - account deactivation entry point,
+    - Apple-aware SSO provider detection/order,
+    - preflight/build docs where they are generally useful.
+  - Generic mobile fixes such as Capacitor iOS authenticated-media fallback and keyboard/gesture polish, if maintainers want iOS wrapper support upstream.
+- Keep fork-only unless maintainers explicitly ask for them:
+  - MindRoom branding and default homeserver choices.
+  - Local MindRoom onboarding/shortcut UI.
+  - AI-run metadata, tool-trace rendering, long-message MindRoom payload handling, and other MindRoom-specific UX.
+  - Hard requirements tied to MindRoom infrastructure, such as mandatory Apple-provider enforcement or Sygnal gateway defaults.
+
+Required prep before any upstream PR:
+
+- Resolve and commit the current iOS push work cleanly.
+- Open maintainer discussion first for anything beyond a narrow bugfix.
+- Split each candidate into the smallest independently testable branch/PR.
+- Include tests and only the docs needed for that specific change.
