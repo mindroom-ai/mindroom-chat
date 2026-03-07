@@ -61,6 +61,10 @@ Use this section as the live status for the current submission attempt. Keep the
   - non-local servers must be `https://`
   - `http://` is only accepted for local-network hosts.
 - [ ] `NSAppTransportSecurity` does not use broad `NSAllowsArbitraryLoads`.
+- [ ] If native push is enabled (`config.json -> push.ios.enabled`), verify:
+  - `Push Notifications` capability is enabled in Xcode,
+  - `App.entitlements` contains `aps-environment`,
+  - in-app `Settings -> Notifications -> iOS Push Notifications` can register on a physical iPhone.
 
 ### Apple SSO Homeserver Requirement (What Counts)
 

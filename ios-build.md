@@ -51,6 +51,36 @@ Or open `ios/App/App.xcworkspace` directly in Xcode.
 - Select your iPhone (or simulator) as target
 - Cmd+R to build and run
 
+## iOS Push Notifications Setup (APNs + Matrix)
+
+This project includes native iOS push registration via Capacitor and Matrix pusher provisioning.
+
+1. Configure `config.json`:
+
+```json
+{
+  "push": {
+    "ios": {
+      "enabled": true,
+      "appId": "com.mindroom-ai.app.ios",
+      "gatewayUrl": "https://YOUR-PUSH-GATEWAY/_matrix/push/v1/notify",
+      "appDisplayName": "MindRoom iOS",
+      "deviceDisplayName": "MindRoom iOS",
+      "append": true,
+      "format": "event_id_only"
+    }
+  }
+}
+```
+
+2. Run `npx cap sync ios`.
+3. In Xcode, open `App` target → `Signing & Capabilities` and verify `Push Notifications` is present.
+4. Run on a physical iPhone (APNs does not fully validate in simulator).
+5. In-app, go to `Settings -> Notifications -> iOS Push Notifications` and enable it.
+
+Server-side requirement: your Matrix push gateway (for example Sygnal-compatible) must be configured
+to map this app/bundle/APNs environment and forward notifications to APNs.
+
 ## Archive for TestFlight / App Store
 
 1. In Xcode, set scheme to `App` and destination to `Any iOS Device (arm64)`.

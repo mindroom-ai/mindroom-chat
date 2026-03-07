@@ -10,6 +10,8 @@ const repoRoot = path.resolve(__dirname, '..');
 
 const configPath = path.join(repoRoot, 'config.json');
 const infoPlistPath = path.join(repoRoot, 'ios', 'App', 'App', 'Info.plist');
+const entitlementsPath = path.join(repoRoot, 'ios', 'App', 'App', 'App.entitlements');
+const appDelegatePath = path.join(repoRoot, 'ios', 'App', 'App', 'AppDelegate.swift');
 const appIconDir = path.join(
   repoRoot,
   'ios',
@@ -30,9 +32,11 @@ const check = (condition, message) => {
 
 const config = JSON.parse(readText(configPath));
 const infoPlist = readText(infoPlistPath);
+const appDelegate = readText(appDelegatePath);
 const appIconContents = JSON.parse(readText(appIconContentsPath));
 
 const authConfig = config.auth ?? {};
+const iosPushConfig = config.push?.ios ?? {};
 const isHttpsUrl = (value) => {
   if (typeof value !== 'string' || value.trim().length === 0) return false;
 
@@ -58,6 +62,36 @@ check(
   'config.json: auth.privacyPolicyUrl must be a public HTTPS URL.'
 );
 check(isHttpsUrl(authConfig.termsUrl), 'config.json: auth.termsUrl must be a public HTTPS URL.');
+
+if (iosPushConfig.enabled === true) {
+  check(
+    typeof iosPushConfig.appId === 'string' && iosPushConfig.appId.trim().length > 0,
+    'config.json: push.ios.appId must be set when push.ios.enabled is true.'
+  );
+  check(
+    isHttpsUrl(iosPushConfig.gatewayUrl),
+    'config.json: push.ios.gatewayUrl must be a HTTPS URL when push.ios.enabled is true.'
+  );
+  check(
+    fs.existsSync(entitlementsPath),
+    'iOS: App.entitlements must exist when push.ios.enabled is true.'
+  );
+  if (fs.existsSync(entitlementsPath)) {
+    const entitlements = readText(entitlementsPath);
+    check(
+      entitlements.includes('<key>aps-environment</key>'),
+      'App.entitlements: missing aps-environment key.'
+    );
+  }
+  check(
+    appDelegate.includes('didRegisterForRemoteNotificationsWithDeviceToken'),
+    'AppDelegate.swift: missing APNs didRegisterForRemoteNotifications callback.'
+  );
+  check(
+    appDelegate.includes('didFailToRegisterForRemoteNotificationsWithError'),
+    'AppDelegate.swift: missing APNs didFailToRegisterForRemoteNotifications callback.'
+  );
+}
 
 const requiredPlistKeys = [
   'ITSAppUsesNonExemptEncryption',
