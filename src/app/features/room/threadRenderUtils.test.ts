@@ -4,6 +4,7 @@ import {
   getThreadInitialRenderMode,
   mergeThreadRenderEvents,
   pickPreferredThreadRenderEvent,
+  shouldPinThreadToBottomOnOpen,
 } from './threadRenderUtils';
 
 const makeMessageEvent = (eventId: string, ts = 1) =>
@@ -98,6 +99,49 @@ describe('pickPreferredThreadRenderEvent', () => {
     incomingEvent.makeReplaced(makeEditEvent('$target', '$edit-3', 3));
 
     expect(pickPreferredThreadRenderEvent(existingEvent, incomingEvent)).toBe(incomingEvent);
+  });
+});
+
+describe('shouldPinThreadToBottomOnOpen', () => {
+  it('pins a plain thread open once cached or live events are ready to render', () => {
+    expect(
+      shouldPinThreadToBottomOnOpen({
+        threadId: '$thread',
+        threadLatestOpenPending: true,
+        threadInitialRenderMode: 'cached',
+        threadEventCount: 3,
+      })
+    ).toBe(true);
+  });
+
+  it('does not pin while the initial thread render is still loading', () => {
+    expect(
+      shouldPinThreadToBottomOnOpen({
+        threadId: '$thread',
+        threadLatestOpenPending: true,
+        threadInitialRenderMode: 'loading',
+        threadEventCount: 3,
+      })
+    ).toBe(false);
+  });
+
+  it('does not pin targeted thread opens or empty thread renders', () => {
+    expect(
+      shouldPinThreadToBottomOnOpen({
+        threadId: '$thread',
+        threadLatestOpenPending: false,
+        threadInitialRenderMode: 'live',
+        threadEventCount: 3,
+      })
+    ).toBe(false);
+    expect(
+      shouldPinThreadToBottomOnOpen({
+        threadId: '$thread',
+        threadLatestOpenPending: true,
+        threadInitialRenderMode: 'live',
+        threadEventCount: 0,
+      })
+    ).toBe(false);
   });
 });
 

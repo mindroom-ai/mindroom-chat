@@ -139,6 +139,7 @@ import {
   eventBelongsToThread,
   isThreadReplyEvent,
 } from './threadUtils';
+import { shouldPinThreadToBottomOnOpen } from './threadRenderUtils';
 import { useThreadRenderState } from './useThreadRenderState';
 import {
   getThreadCursorAnchor,
@@ -688,6 +689,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   const [threadPaginatingBack, setThreadPaginatingBack] = useState(false);
   const [threadPaginatingFront, setThreadPaginatingFront] = useState(false);
   const [threadInitialCacheHydrated, setThreadInitialCacheHydrated] = useState(false);
+  const [threadLatestOpenPending, setThreadLatestOpenPending] = useState(false);
   const [threadTimelineTick, setThreadTimelineTick] = useState(0);
   const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
   const roomIdRef = useRef(room.roomId);
@@ -1421,94 +1423,37 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     resetThreadRenderState(threadId);
     let mounted = true;
     const shouldScrollToLatestOnOpen = !eventId;
+    setThreadLatestOpenPending(shouldScrollToLatestOnOpen);
     const loadThreadTimeline = async () => {
-      let hydratedCachedPage;
       try {
-        hydratedCachedPage = await hydrateThreadFromCache(threadId);
-      } catch {
+        let hydratedCachedPage;
+        try {
+          hydratedCachedPage = await hydrateThreadFromCache(threadId);
+        } catch {
+          if (!mounted || threadIdRef.current !== threadId) return;
+          hydratedCachedPage = undefined;
+        }
         if (!mounted || threadIdRef.current !== threadId) return;
-        hydratedCachedPage = undefined;
-      }
-      if (!mounted || threadIdRef.current !== threadId) return;
-      setThreadInitialCacheHydrated(true);
+        setThreadInitialCacheHydrated(true);
 
-      // First, ensure the thread exists in the SDK.
-      // room.getThread() may return null if the SDK hasn't seen the thread yet.
-      // We need to fetch the root event and let the SDK create the Thread object.
-      let threadModel = room.getThread(threadId);
-      if (!threadModel) {
-        // Fetch the thread root event to make the SDK aware of this thread
-        const [ctxErr] = await to(mx.getEventTimeline(room.getUnfilteredTimelineSet(), threadId));
-        if (!mounted) return;
-        if (ctxErr) {
-          setThreadLoadError(true);
-          return;
+        // First, ensure the thread exists in the SDK.
+        // room.getThread() may return null if the SDK hasn't seen the thread yet.
+        // We need to fetch the root event and let the SDK create the Thread object.
+        let threadModel = room.getThread(threadId);
+        if (!threadModel) {
+          // Fetch the thread root event to make the SDK aware of this thread
+          const [ctxErr] = await to(mx.getEventTimeline(room.getUnfilteredTimelineSet(), threadId));
+          if (!mounted) return;
+          if (ctxErr) {
+            setThreadLoadError(true);
+            return;
+          }
+          threadModel = room.getThread(threadId);
         }
-        threadModel = room.getThread(threadId);
-      }
 
-      if (!threadModel) {
-        // If the SDK still hasn't created a Thread object, try fetching
-        // thread relations directly to populate it
-        const [relErr, relData] = await to(
-          mx.fetchRelations(room.roomId, threadId, 'm.thread' as any, null, {
-            dir: Direction.Backward,
-            limit: 50,
-          })
-        );
-        if (!mounted) return;
-        if (relErr) {
-          setThreadLoadError(true);
-          return;
-        }
-        // Check if SDK created a Thread from the fetched relations
-        threadModel = room.getThread(threadId);
-        if (!threadModel && relData?.chunk?.length) {
-          // We need to render something even without a Thread model, so store
-          // mapped relation events for thread view fallback rendering.
-          const mapper = mx.getEventMapper();
-          const mappedEvents = relData.chunk.slice().reverse().map((evt) => mapper(evt));
-          setSupplementalThreadEvents(threadId, mappedEvents);
-          persistThreadEventCache(
-            threadId,
-            mappedEvents,
-            room.findEventById(threadId),
-            relData.next_batch
-          );
-        }
-      }
-
-      if (threadModel) {
-        // Use the thread's own timeline set for getThreadTimeline
-        const loadedThreadTimelineSet = threadModel.getUnfilteredTimelineSet();
-        const [err] = await to(mx.getThreadTimeline(loadedThreadTimelineSet, threadId));
-        if (!mounted) return;
-        if (err) {
-          // Fallback: even if getThreadTimeline fails, the thread events
-          // may already be populated from the relations fetch above
-          console.warn('getThreadTimeline failed, using fallback:', err);
-        }
-        const firstThreadTimeline = getLinkedTimelines(loadedThreadTimelineSet.getLiveTimeline())[0];
-        const cachedEarliestAnchor = getThreadCursorAnchor(hydratedCachedPage?.events[0]);
-        const earliestThreadReply = getEarliestLoadedThreadReply(threadModel.events, threadId);
-        const threadTimelineAnchor = getThreadCursorAnchor(
-          earliestThreadReply?.event as Partial<IEvent> | undefined
-        );
-        if (
-          firstThreadTimeline &&
-          hydratedCachedPage?.beforeToken !== undefined &&
-          cachedEarliestAnchor &&
-          (!threadTimelineAnchor ||
-            compareCachedPaginationAnchors(threadTimelineAnchor, cachedEarliestAnchor) >= 0)
-        ) {
-          firstThreadTimeline.setPaginationToken(
-            hydratedCachedPage.beforeToken ?? null,
-            Direction.Backward
-          );
-        }
-        if (threadModel.events.length === 0) {
-          // Some servers return empty thread timelines even though relations exist.
-          // Fetch relations and feed them into the thread so replies render.
+        if (!threadModel) {
+          // If the SDK still hasn't created a Thread object, try fetching
+          // thread relations directly to populate it
           const [relErr, relData] = await to(
             mx.fetchRelations(room.roomId, threadId, 'm.thread' as any, null, {
               dir: Direction.Backward,
@@ -1516,43 +1461,110 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             })
           );
           if (!mounted) return;
-          if (!relErr && relData?.chunk?.length) {
+          if (relErr) {
+            setThreadLoadError(true);
+            return;
+          }
+          // Check if SDK created a Thread from the fetched relations
+          threadModel = room.getThread(threadId);
+          if (!threadModel && relData?.chunk?.length) {
+            // We need to render something even without a Thread model, so store
+            // mapped relation events for thread view fallback rendering.
             const mapper = mx.getEventMapper();
             const mappedEvents = relData.chunk.slice().reverse().map((evt) => mapper(evt));
-            threadModel.addEvents(mappedEvents, true);
-            firstThreadTimeline?.setPaginationToken(relData.next_batch ?? null, Direction.Backward);
+            setSupplementalThreadEvents(threadId, mappedEvents);
+            persistThreadEventCache(
+              threadId,
+              mappedEvents,
+              room.findEventById(threadId),
+              relData.next_batch
+            );
           }
         }
-        persistThreadEventCache(
-          threadId,
-          threadModel.events,
-          threadModel.rootEvent,
-          firstThreadTimeline?.getPaginationToken(Direction.Backward)
-        );
-      } else {
-        console.warn('Could not create thread object for', threadId);
-      }
 
-      if (shouldScrollToLatestOnOpen) {
-        await refreshLatestThreadSlice(threadId);
-        if (!mounted || threadIdRef.current !== threadId) return;
-      } else {
-        const hasForwardGap = !!room
-          .getThread(threadId)
-          ?.getUnfilteredTimelineSet()
-          .getLiveTimeline()
-          .getPaginationToken(Direction.Forward);
-        if (!hasForwardGap) {
-          setThreadTailLoaded(true);
+        if (threadModel) {
+          // Use the thread's own timeline set for getThreadTimeline
+          const loadedThreadTimelineSet = threadModel.getUnfilteredTimelineSet();
+          const [err] = await to(mx.getThreadTimeline(loadedThreadTimelineSet, threadId));
+          if (!mounted) return;
+          if (err) {
+            // Fallback: even if getThreadTimeline fails, the thread events
+            // may already be populated from the relations fetch above
+            console.warn('getThreadTimeline failed, using fallback:', err);
+          }
+          const firstThreadTimeline = getLinkedTimelines(loadedThreadTimelineSet.getLiveTimeline())[0];
+          const cachedEarliestAnchor = getThreadCursorAnchor(hydratedCachedPage?.events[0]);
+          const earliestThreadReply = getEarliestLoadedThreadReply(threadModel.events, threadId);
+          const threadTimelineAnchor = getThreadCursorAnchor(
+            earliestThreadReply?.event as Partial<IEvent> | undefined
+          );
+          if (
+            firstThreadTimeline &&
+            hydratedCachedPage?.beforeToken !== undefined &&
+            cachedEarliestAnchor &&
+            (!threadTimelineAnchor ||
+              compareCachedPaginationAnchors(threadTimelineAnchor, cachedEarliestAnchor) >= 0)
+          ) {
+            firstThreadTimeline.setPaginationToken(
+              hydratedCachedPage.beforeToken ?? null,
+              Direction.Backward
+            );
+          }
+          if (threadModel.events.length === 0) {
+            // Some servers return empty thread timelines even though relations exist.
+            // Fetch relations and feed them into the thread so replies render.
+            const [relErr, relData] = await to(
+              mx.fetchRelations(room.roomId, threadId, 'm.thread' as any, null, {
+                dir: Direction.Backward,
+                limit: 50,
+              })
+            );
+            if (!mounted) return;
+            if (!relErr && relData?.chunk?.length) {
+              const mapper = mx.getEventMapper();
+              const mappedEvents = relData.chunk.slice().reverse().map((evt) => mapper(evt));
+              threadModel.addEvents(mappedEvents, true);
+              firstThreadTimeline?.setPaginationToken(
+                relData.next_batch ?? null,
+                Direction.Backward
+              );
+            }
+          }
+          persistThreadEventCache(
+            threadId,
+            threadModel.events,
+            threadModel.rootEvent,
+            firstThreadTimeline?.getPaginationToken(Direction.Backward)
+          );
+        } else {
+          console.warn('Could not create thread object for', threadId);
         }
-      }
 
-      setTimeline((ct) => ({ ...ct }));
-      setThreadTimelineTick((val) => val + 1);
-      if (shouldScrollToLatestOnOpen) {
-        scrollToBottomRef.current.count += 1;
-        scrollToBottomRef.current.smooth = false;
-        setAtBottom(true);
+        if (shouldScrollToLatestOnOpen) {
+          await refreshLatestThreadSlice(threadId);
+          if (!mounted || threadIdRef.current !== threadId) return;
+        } else {
+          const hasForwardGap = !!room
+            .getThread(threadId)
+            ?.getUnfilteredTimelineSet()
+            .getLiveTimeline()
+            .getPaginationToken(Direction.Forward);
+          if (!hasForwardGap) {
+            setThreadTailLoaded(true);
+          }
+        }
+
+        setTimeline((ct) => ({ ...ct }));
+        setThreadTimelineTick((val) => val + 1);
+        if (shouldScrollToLatestOnOpen) {
+          scrollToBottomRef.current.count += 1;
+          scrollToBottomRef.current.smooth = false;
+          setAtBottom(true);
+        }
+      } finally {
+        if (mounted && threadIdRef.current === threadId) {
+          setThreadLatestOpenPending(false);
+        }
       }
     };
 
@@ -1579,6 +1591,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     setThreadHasMoreCachedBack(false);
     setThreadInitialCacheHydrated(false);
     setThreadTailLoaded(false);
+    setThreadLatestOpenPending(false);
     setThreadTimelineTick(0);
     setThreadPaginatingBack(false);
     setThreadPaginatingFront(false);
@@ -1634,6 +1647,24 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       });
     }, 2000);
   }, [alive, focusItem, scrollToItem, threadId]);
+
+  useLayoutEffect(() => {
+    if (!threadId) return;
+    if (
+      !shouldPinThreadToBottomOnOpen({
+        threadId,
+        threadLatestOpenPending,
+        threadInitialRenderMode,
+        threadEventCount: threadEvents.length,
+      })
+    ) {
+      return;
+    }
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return;
+    scrollToBottom(scrollEl, 'instant');
+    setAtBottom(true);
+  }, [threadEvents.length, threadId, threadInitialRenderMode, threadLatestOpenPending]);
 
   useLayoutEffect(() => {
     if (!threadId) return;
