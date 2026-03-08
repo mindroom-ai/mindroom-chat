@@ -650,6 +650,48 @@ Thread badge behavior:
 - Remaining known product gap: no dedicated thread list sidebar or thread-specific unread model yet.
 - Remaining iOS hardening gap: session credentials are still localStorage-based in this branch (Keychain migration is still pending).
 
+## Thread Cache Plan (2026-03-08)
+
+Problem statements this plan is solving:
+
+- Problem 1: opening a long thread can jump near the bottom and then visibly append more replies a moment later because the current thread-open path still walks network pagination toward the live end after first render.
+- Problem 2: fetched thread relation pages are not treated as an app-owned persistent archive, so reopening the same long thread may require downloading replies again even though the user already viewed them before.
+- Problem 3: the current thread view does not guarantee "show cached content first, reconcile with network second," which makes the app feel worse than mobile chat apps that are primarily local-first.
+- Problem 4: thread history growth is currently constrained by whatever the Matrix SDK sync store happens to keep in memory/sync state; the product goal for MindRoom mobile/web is much more aggressive local retention, closer to "download everything locally until browser/device quota says stop."
+
+Desired product behavior:
+
+- Opening a thread should render locally cached replies immediately when available.
+- After the cached render, the app should fetch only the latest reply slice needed to reconcile the tail, instead of walking the entire thread from the root to the newest reply.
+- Replies loaded from thread view should be persisted into an app-owned IndexedDB archive so reopening the thread reuses them.
+- Older cached thread replies should be used before issuing network pagination requests.
+- Cache policy should default to "very large / effectively unbounded within platform quota" for now. A user-facing size cap/cleanup setting is a future follow-up, not a prerequisite for the local-first behavior change.
+
+Implementation sequence for this branch:
+
+1. Add a dedicated IndexedDB-backed thread reply cache module.
+   - Store raw thread reply events keyed by room/thread/event id.
+   - Keep enough metadata to query the latest cached slice quickly and to fetch older cached pages later.
+   - Add focused tests for merge/order/dedupe behavior.
+2. Change thread open to be cache-first.
+   - Hydrate thread view from cached replies immediately.
+   - Stop relying on full forward pagination to reach the tail on open.
+   - Reconcile with a latest network slice fetch and merge/persist the results.
+3. Change thread pagination to be cache-aware.
+   - On "Load Older Messages," consume older cached replies first.
+   - Only hit the network when the local archive does not have the requested older slice.
+   - Persist any newly fetched older replies back into the archive.
+4. Follow-up work after the above is stable:
+   - optional cache-size/cleanup setting in UI,
+   - broader room-level archival strategy beyond thread relation pages,
+   - instrumentation for cache-hit/cache-miss behavior on mobile.
+
+Execution notes:
+
+- Keep commits isolated by concern: plan/docs, cache infrastructure, cache-first thread open/latest-tail reconcile, cache-aware older pagination.
+- Validate each step with targeted tests plus `npm run build` when feasible.
+- Preserve current behavior for targeted event opens inside a thread: those should still open the requested event, not auto-jump to the latest reply.
+
 ## Submission Readiness Check (2026-02-26, macOS/Xcode)
 
 Validation performed on macOS (Xcode + CocoaPods + ImageMagick available):
