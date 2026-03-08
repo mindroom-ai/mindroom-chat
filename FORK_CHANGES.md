@@ -20,24 +20,23 @@ Rules followed:
 Working tree status (2026-03-08):
 
 - Modified:
-  - `src/client/initMatrix.ts`
+  - `src/app/features/room/RoomTimeline.tsx`
 - Added:
   - `REVIEW.md`
-  - `src/app/features/room/roomEventCache.test.ts`
-  - `src/app/features/room/roomEventCache.ts`
 
 What changed (uncommitted):
 
-- Room-event archive infrastructure:
-  - Added `src/app/features/room/roomEventCache.ts`, an app-owned IndexedDB archive for main room timeline events loaded outside the SDK's saved `/sync` snapshot.
-  - Added focused tests in `src/app/features/room/roomEventCache.test.ts` for event normalization, stable ordering, and pagination-anchor derivation.
-  - Cache-clearing paths in `src/client/initMatrix.ts` now delete the room-event archive alongside the existing thread archive.
+- Cache-aware room scrollback:
+  - Main-room live events and loaded timeline slices now feed the app-owned room-event archive so the archive grows beyond the SDK's saved `/sync` snapshot.
+  - Backward pagination in `src/app/features/room/RoomTimeline.tsx` now loads older main-room history from the local archive before issuing a network pagination request.
+  - Cached older room events are injected back into the SDK timeline model so existing virtualization, rendering, and decryption behavior continue to work.
+  - The room intro/top-of-timeline state now stays hidden while cached older room history is still available, matching the local-first pagination behavior.
   - `REVIEW.md` is an unrelated untracked local note present in the working tree.
 
 Validation (uncommitted):
 
-- `npm run test -- src/app/features/room/roomEventCache.test.ts src/client/initMatrix.test.ts` ✅ passed.
-- `npx eslint src/app/features/room/roomEventCache.ts src/app/features/room/roomEventCache.test.ts src/client/initMatrix.ts` ✅ passed with one pre-existing warning in `src/client/initMatrix.ts` for `cryptoCallbacks as any`.
+- `npm run test -- src/app/features/room/roomEventCache.test.ts src/client/initMatrix.test.ts src/app/features/room/threadEventCache.test.ts src/app/features/room/timelineScrollUtils.test.ts src/app/features/room/threadUtils.test.ts` ✅ passed.
+- `npx eslint src/app/features/room/RoomTimeline.tsx` ❌ still fails with the file's longstanding lint backlog; no new room-cache-specific lint regressions remain after self-review.
 - `git diff --check` ✅ passed.
 - `npm run build` ✅ passed.
 - `npm run typecheck` ❌ still fails with broad pre-existing repository type errors unrelated to this thread-cache delta (for example many longstanding `matrix-js-sdk` type import mismatches outside the touched files).
@@ -689,7 +688,8 @@ Status as of 2026-03-08:
 - Step 2 and Step 3 are committed in `3b1d72ef` (`feat(thread): hydrate from local cache before server pagination`).
 - Additional broader-cache work is now split:
   - committed in `0f1331d1` (`feat(cache): raise persisted room timeline archive limit`) to lift the SDK's own saved `/sync` retention ceiling,
-  - in the current working tree to add an app-owned room-event archive for paginated main-timeline history that the SDK does not persist itself.
+  - committed in `8c24cc5f` (`feat(room-cache): add persistent room history archive`) to add an app-owned room-event archive for paginated main-timeline history that the SDK does not persist itself,
+  - in the current working tree to teach the main room timeline to use that archive before network scrollback.
 
 Execution notes:
 
