@@ -17,6 +17,7 @@ import {
 import AppleLogo from '../../../../public/res/svg/sso-apple-white.svg';
 import GoogleLogo from '../../../../public/res/svg/sso-google.svg';
 import GitHubLogo from '../../../../public/res/svg/sso-github.svg';
+import { mxcUrlToHttp } from '../../utils/mediaUrl';
 
 type SSOLoginProps = {
   providers?: IIdentityProvider[];
@@ -69,8 +70,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
     if (isAppleIdentityProvider(provider)) return AppleLogo;
     if (isGoogleIdentityProvider(provider)) return GoogleLogo;
     if (isGitHubIdentityProvider(provider)) return GitHubLogo;
-    const homeserverIcon =
-      provider.icon && mx.mxcUrlToHttp(provider.icon, 96, 96, 'crop', false);
+    const homeserverIcon = provider.icon && mxcUrlToHttp(mx, provider.icon, false, 96, 96, 'crop', false);
     if (homeserverIcon) return homeserverIcon;
 
     return undefined;
