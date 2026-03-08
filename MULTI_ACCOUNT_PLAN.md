@@ -52,6 +52,10 @@ The current codebase assumes one active account in these areas:
 - App boot and route gating:
   - `src/app/pages/Router.tsx`
   - `src/app/pages/client/ClientRoot.tsx`
+  - `src/app/pages/client/SpecVersions.tsx`
+  - `src/app/pages/afterLoginRedirectPath.ts`
+- Config-time session reconciliation:
+  - `src/app/components/ClientConfigLoader.tsx`
 - Active client context:
   - `src/app/hooks/useMatrixClient.ts`
 - Matrix SDK store naming:
@@ -261,6 +265,21 @@ Required files:
 - `src/app/pages/Router.tsx`
 - `src/app/pages/client/ClientRoot.tsx`
 - `src/app/state/sessions.ts`
+- `src/app/pages/client/SpecVersions.tsx`
+- `src/app/pages/afterLoginRedirectPath.ts`
+- `src/app/components/ClientConfigLoader.tsx`
+
+Required cleanup:
+
+- `ClientConfigLoader.tsx` currently calls
+  `reconcileFallbackSessionHomeserver(config)`. That logic must be removed or
+  replaced; it only makes sense in the old fallback single-session model.
+- `SpecVersions.tsx` currently handles "Cancel and return to sign in" by calling
+  `removeFallbackSession()`. In the multi-account world, this must become an
+  active-session-aware recovery path.
+- `ClientRoot.tsx` currently handles `SessionLoggedOut` by clearing all
+  localStorage. That must become targeted cleanup for the active or broken
+  session only.
 
 ## Account Switching Flow
 
@@ -308,6 +327,16 @@ Required changes:
 - make sure add-account can be started while already signed in
 - keep the login and registration screens reusable for first-account and
   add-account flows
+
+Required routing/redirect changes:
+
+- the current auth routing assumes "if any session exists, redirect away from
+  login/register"
+- add-account mode needs an explicit route or state path that remains reachable
+  while already signed in
+- `afterLoginRedirectPath.ts` may need separate semantics for:
+  - boot-time unauthenticated redirect
+  - add-account flow started from inside the app
 
 Likely UI addition:
 
@@ -369,11 +398,18 @@ Required changes:
 - `src/client/initMatrix.ts`
 - `src/app/components/LogoutDialog.tsx`
 - settings/about clear-cache entry points
+- `src/app/pages/client/ClientRoot.tsx`
 
 Important detail:
 
 - account cleanup must operate by `sessionId`, not just by currently mounted
   `MatrixClient`, because account removal may happen for inactive accounts too
+
+Recommended phase 1 simplification:
+
+- full server-side logout should only be offered for the active account
+- inactive accounts can support `Remove from device` first, unless we later add
+  a deliberate headless-client logout path
 
 ## Service Worker And Media Auth
 
@@ -455,6 +491,23 @@ Recommended approach:
 - refresh it opportunistically from the live active client
 - allow stale metadata in the switcher until the account becomes active again
 
+Important avatar caveat:
+
+- inactive-account avatars cannot rely on the current active account's media
+  token
+- if account B's avatar requires authentication, account A's token cannot fetch
+  it safely
+- phase 1 therefore needs one explicit strategy:
+  - either persist a tiny account-avatar thumbnail cache per session for the
+    switcher, or
+  - show initials for inactive accounts when no cached thumbnail is available
+
+Recommended phase 1 answer:
+
+- store display name plus optional small cached avatar thumbnail for switcher
+  rendering
+- fall back to initials if that thumbnail is missing
+
 ## Failure Modes To Design For
 
 - invalid token for one stored account
@@ -496,6 +549,10 @@ Useful targeted tests:
 - removing active account selects next recent account
 - removing last account returns to auth routes
 - broken session at boot does not trap the app in a crash loop
+- inactive-account switcher avatar falls back cleanly when no cached thumbnail
+  exists
+- SpecVersions cancel path removes only the active or broken session
+- ClientConfigLoader no longer mutates fallback-session keys
 
 ## Implementation Phases
 
@@ -558,6 +615,10 @@ Main complexity drivers:
   overlay? Reusing the auth pages is simpler and cleaner.
 - Do we want inactive accounts to show stale unread badges in the switcher?
   Recommended answer for phase 1: no.
+- What should happen across multiple browser tabs?
+  Recommended answer for phase 1: store one persisted default active session for
+  future boots, but do not force already-open tabs to hot-swap accounts unless
+  the user explicitly switches in that tab.
 
 ## Recommendation
 
