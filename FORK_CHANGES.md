@@ -20,25 +20,35 @@ Rules followed:
 Working tree status (2026-03-08):
 
 - Modified:
-  - `src/app/features/room/message/Message.tsx`
-  - `src/app/features/room/message/styles.css.ts`
+  - `src/app/components/editor/autocomplete/UserMentionAutocomplete.tsx`
+  - `src/app/components/event-readers/EventReaders.tsx`
+  - `src/app/components/member-tile/MemberTile.tsx`
+  - `src/app/features/room/MembersDrawer.tsx`
+  - `src/app/features/room/reaction-viewer/ReactionViewer.tsx`
+  - `src/app/hooks/useMemberPowerTag.ts`
+  - `src/app/pages/auth/SSOLogin.tsx`
+  - `src/app/utils/matrix.ts`
+  - `src/app/utils/room.ts`
 - Added:
-  - `src/app/components/message/mindroomAiRunDisplay.ts`
-  - `src/app/components/message/mindroomAiRunDisplay.test.ts`
+  - `src/app/utils/mediaUrl.ts`
+  - `src/app/utils/mediaUrl.test.ts`
+  - `src/app/utils/roomAvatar.test.ts`
   - `REVIEW.md`
 
 What changed (uncommitted):
 
-- AI run metadata UX:
-  - Message-level AI run metadata buttons are now rendered whenever a message carries MindRoom AI run metadata instead of only appearing on hover state.
-  - The button interaction now opens a real modal dialog with model/token/context metadata, which works in touch/native iOS webviews where the old hover-only tooltip path was unreliable or inert.
-  - Shared display-label formatting for AI run metadata was extracted into a small helper module with direct unit coverage.
+- Capacitor-safe media URLs:
+  - Room and space avatars were bypassing the app’s Capacitor-aware MXC URL wrapper in some paths, so native iOS webviews could request authenticated Matrix media without the query-token fallback and fall back to letter avatars.
+  - The authenticated-media URL rewrite is now centralized in `src/app/utils/mediaUrl.ts` and re-exported from `src/app/utils/matrix.ts` so call sites share the same behavior.
+  - `src/app/utils/room.ts` now routes room/space avatar URLs through that shared helper, fixing the specific sidebar/space icon issue.
+  - Remaining direct avatar/media call sites that used raw `mx.mxcUrlToHttp(...)` for people/reaction/provider icons were switched to the shared helper too, so iOS behavior is consistent across those surfaces.
+  - Focused unit coverage was added for the Capacitor token fallback and for room/direct-room avatar helpers.
   - `REVIEW.md` is an unrelated untracked local note present in the working tree.
 
 Validation (uncommitted):
 
-- `npm run test -- src/app/components/message/mindroomAiRun.test.ts src/app/components/message/mindroomAiRunDisplay.test.ts` ✅ passed.
-- `npx eslint src/app/components/message/mindroomAiRunDisplay.ts src/app/components/message/mindroomAiRunDisplay.test.ts src/app/features/room/message/styles.css.ts src/app/features/room/message/Message.tsx` ✅ passed with warnings only in `Message.tsx` from its pre-existing lint backlog; no new errors introduced.
+- `npm run test -- src/app/utils/mediaUrl.test.ts src/app/utils/roomAvatar.test.ts src/app/utils/room.test.ts` ✅ passed.
+- `npx eslint src/app/utils/mediaUrl.ts src/app/utils/mediaUrl.test.ts src/app/utils/room.ts src/app/utils/roomAvatar.test.ts src/app/utils/matrix.ts src/app/components/editor/autocomplete/UserMentionAutocomplete.tsx src/app/components/event-readers/EventReaders.tsx src/app/components/member-tile/MemberTile.tsx src/app/features/room/MembersDrawer.tsx src/app/features/room/reaction-viewer/ReactionViewer.tsx src/app/hooks/useMemberPowerTag.ts src/app/pages/auth/SSOLogin.tsx` ✅ passed with warnings only; no new errors introduced.
 - `git diff --check` ✅ passed.
 - `npm run build` ✅ passed.
 - `npm run typecheck` ❌ still fails with broad pre-existing repository type errors unrelated to this thread-cache delta (for example many longstanding `matrix-js-sdk` type import mismatches outside the touched files).
