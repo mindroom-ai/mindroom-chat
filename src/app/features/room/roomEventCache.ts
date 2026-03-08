@@ -1,8 +1,14 @@
 import { IEvent } from 'matrix-js-sdk';
+import {
+  CachedPaginationTokenMap,
+  getCachedPaginationToken,
+  mergeCachedPaginationTokens,
+} from './eventCacheTokenUtils';
 
 const DB_NAME = 'mindroom-room-event-cache';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const EVENT_STORE = 'room_events';
+const META_STORE = 'room_meta';
 const EVENT_ROOM_TS_INDEX = 'by_room_ts';
 const MAX_EVENT_TS = Number.MAX_SAFE_INTEGER;
 const MAX_EVENT_ID = '\uffff';
@@ -15,6 +21,12 @@ type CachedRoomEventRecord = {
   rawEvent: Partial<IEvent>;
 };
 
+type CachedRoomMetaRecord = {
+  roomId: string;
+  beforeTokens?: CachedPaginationTokenMap;
+  updatedAt: number;
+};
+
 export type CachedRoomEvent = Partial<IEvent> & {
   event_id: string;
   origin_server_ts: number;
@@ -23,6 +35,7 @@ export type CachedRoomEvent = Partial<IEvent> & {
 export type CachedRoomEventPage = {
   events: CachedRoomEvent[];
   hasMoreBefore: boolean;
+  beforeToken?: string | null;
 };
 
 type RoomCursorAnchor = {
@@ -99,6 +112,12 @@ const openRoomEventCache = (): Promise<IDBDatabase | undefined> => {
           unique: false,
         });
       }
+
+      if (!db.objectStoreNames.contains(META_STORE)) {
+        db.createObjectStore(META_STORE, {
+          keyPath: 'roomId',
+        });
+      }
     };
 
     request.onsuccess = () => {
@@ -124,14 +143,16 @@ const runCursorQuery = async (
   if (!db || limit <= 0) return { events: [], hasMoreBefore: false };
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(EVENT_STORE, 'readonly');
+    const transaction = db.transaction([EVENT_STORE, META_STORE], 'readonly');
     const eventStore = transaction.objectStore(EVENT_STORE);
+    const metaStore = transaction.objectStore(META_STORE);
     const index = eventStore.index(EVENT_ROOM_TS_INDEX);
     const lower = [roomId, 0, ''];
     const upper = upperBound
       ? [roomId, upperBound.ts, upperBound.eventId]
       : [roomId, MAX_EVENT_TS, MAX_EVENT_ID];
     const range = IDBKeyRange.bound(lower, upper, false, !!upperBound);
+    const metaRequest = metaStore.get(roomId);
 
     const events: CachedRoomEvent[] = [];
     let hasMoreBefore = false;
@@ -159,10 +180,15 @@ const runCursorQuery = async (
     cursorRequest.onerror = () => reject(cursorRequest.error);
 
     transaction.oncomplete = () =>
-      resolve({
-        events: events.reverse(),
-        hasMoreBefore,
-      });
+      resolve((() => {
+        const orderedEvents = events.reverse();
+        const meta = metaRequest.result as CachedRoomMetaRecord | undefined;
+        return {
+          events: orderedEvents,
+          hasMoreBefore,
+          beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
+        };
+      })());
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });
@@ -184,7 +210,8 @@ export const loadCachedRoomEventsBefore = async (
 
 export const saveRoomEventsToCache = async (
   roomId: string,
-  rawEvents: Partial<IEvent>[]
+  rawEvents: Partial<IEvent>[],
+  beforeTokenForEarliest?: string | null
 ): Promise<void> => {
   const db = await openRoomEventCache();
   if (!db) return;
@@ -193,8 +220,10 @@ export const saveRoomEventsToCache = async (
   if (normalizedEvents.length === 0) return;
 
   await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(EVENT_STORE, 'readwrite');
+    const transaction = db.transaction([EVENT_STORE, META_STORE], 'readwrite');
     const eventStore = transaction.objectStore(EVENT_STORE);
+    const metaStore = transaction.objectStore(META_STORE);
+    const earliestEventId = normalizedEvents[0]?.event_id;
 
     normalizedEvents.forEach((rawEvent) => {
       const eventRecord: CachedRoomEventRecord = {
@@ -206,6 +235,24 @@ export const saveRoomEventsToCache = async (
       };
       eventStore.put(eventRecord);
     });
+
+    if (beforeTokenForEarliest !== undefined && earliestEventId) {
+      const metaRequest = metaStore.get(roomId);
+      metaRequest.onsuccess = () => {
+        const currentMeta = metaRequest.result as CachedRoomMetaRecord | undefined;
+        const nextMeta: CachedRoomMetaRecord = {
+          roomId,
+          beforeTokens: mergeCachedPaginationTokens(
+            currentMeta?.beforeTokens,
+            earliestEventId,
+            beforeTokenForEarliest
+          ),
+          updatedAt: Date.now(),
+        };
+        metaStore.put(nextMeta);
+      };
+      metaRequest.onerror = () => reject(metaRequest.error);
+    }
 
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);

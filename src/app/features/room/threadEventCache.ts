@@ -1,4 +1,9 @@
 import { IEvent } from 'matrix-js-sdk';
+import {
+  CachedPaginationTokenMap,
+  getCachedPaginationToken,
+  mergeCachedPaginationTokens,
+} from './eventCacheTokenUtils';
 
 const DB_NAME = 'mindroom-thread-event-cache';
 const DB_VERSION = 1;
@@ -21,6 +26,7 @@ type CachedThreadMetaRecord = {
   threadKey: string;
   roomId: string;
   threadId: string;
+  beforeTokens?: CachedPaginationTokenMap;
   rootEvent?: Partial<IEvent>;
   updatedAt: number;
 };
@@ -34,6 +40,7 @@ export type CachedThreadEventPage = {
   rootEvent?: Partial<IEvent>;
   events: CachedThreadEvent[];
   hasMoreBefore: boolean;
+  beforeToken?: string | null;
 };
 
 type ThreadCursorAnchor = {
@@ -192,10 +199,12 @@ const runCursorQuery = async (
 
     transaction.oncomplete = () => {
       const meta = metaRequest.result as CachedThreadMetaRecord | undefined;
+      const orderedEvents = events.reverse();
       resolve({
         rootEvent: meta?.rootEvent,
-        events: events.reverse(),
+        events: orderedEvents,
         hasMoreBefore,
+        beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
       });
     };
     transaction.onerror = () => reject(transaction.error);
@@ -223,7 +232,8 @@ export const saveThreadEventsToCache = async (
   roomId: string,
   threadId: string,
   rawEvents: Partial<IEvent>[],
-  rootEvent?: Partial<IEvent>
+  rootEvent?: Partial<IEvent>,
+  beforeTokenForEarliest?: string | null
 ): Promise<void> => {
   const db = await openThreadEventCache();
   if (!db) return;
@@ -236,6 +246,7 @@ export const saveThreadEventsToCache = async (
     const eventStore = transaction.objectStore(EVENT_STORE);
     const metaStore = transaction.objectStore(META_STORE);
     const threadKey = getThreadKey(roomId, threadId);
+    const earliestEventId = normalizedEvents[0]?.event_id;
 
     normalizedEvents.forEach((rawEvent) => {
       const eventRecord: CachedThreadEventRecord = {
@@ -256,6 +267,11 @@ export const saveThreadEventsToCache = async (
         threadKey,
         roomId,
         threadId,
+        beforeTokens: mergeCachedPaginationTokens(
+          currentMeta?.beforeTokens,
+          earliestEventId,
+          beforeTokenForEarliest
+        ),
         rootEvent: rootEvent ?? currentMeta?.rootEvent,
         updatedAt: Date.now(),
       };
