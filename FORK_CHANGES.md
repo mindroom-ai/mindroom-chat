@@ -20,29 +20,24 @@ Rules followed:
 Working tree status (2026-03-08):
 
 - Modified:
-  - `src/app/features/room/RoomTimeline.tsx`
-  - `src/app/features/room/threadEventCache.test.ts`
-  - `src/app/features/room/timelineScrollUtils.test.ts`
-  - `src/app/features/room/timelineScrollUtils.ts`
+  - `src/client/initMatrix.test.ts`
+  - `src/client/initMatrix.ts`
 - Added:
   - `REVIEW.md`
 
 What changed (uncommitted):
 
-- Thread cache-first runtime wiring:
-  - Thread view now hydrates from the app-owned IndexedDB archive before network work begins, so previously seen replies can render immediately on reopen.
-  - Opening a plain thread now reconciles with a latest reply slice fetch instead of walking forward page-by-page to the live end.
-  - Older thread pagination now consumes cached reply pages before asking the server for older history.
-  - Thread reply cache tests now cover stable same-timestamp ordering and missing-timestamp cursor normalization, which are important for predictable local pagination anchors.
-  - Thread live-end detection in `src/app/features/room/timelineScrollUtils.ts` now recognizes a thread whose latest tail slice has already been reconciled, so the floating "Jump to Latest" state better matches thread reality.
+- Broader room-cache retention hardening:
+  - The Matrix SDK's IndexedDB-backed saved `/sync` archive is now reconfigured at client startup to keep far more than the SDK default 50 timeline events per room.
+  - This directly addresses a real cache ceiling in the existing app: even with IndexedDB enabled, room reopen/offline behavior was being pruned to a tiny recent slice long before browser/device storage quota mattered.
+  - Added focused tests in `src/client/initMatrix.test.ts` to verify the raised timeline retention floor and to ensure a larger pre-existing limit is not lowered.
   - `REVIEW.md` is an unrelated untracked local note present in the working tree.
 
 Validation (uncommitted):
 
-- `npm run test -- src/app/features/room/threadEventCache.test.ts src/app/features/room/timelineScrollUtils.test.ts src/app/features/room/threadUtils.test.ts` ✅ passed.
-- `npx eslint src/app/features/room/threadEventCache.test.ts src/app/features/room/timelineScrollUtils.ts src/app/features/room/timelineScrollUtils.test.ts` ✅ passed.
+- `npm run test -- src/client/initMatrix.test.ts src/app/features/room/threadEventCache.test.ts src/app/features/room/timelineScrollUtils.test.ts src/app/features/room/threadUtils.test.ts` ✅ passed.
+- `npx eslint src/client/initMatrix.ts src/client/initMatrix.test.ts` ✅ passed with one pre-existing warning in `src/client/initMatrix.ts` for `cryptoCallbacks as any`.
 - `git diff --check` ✅ passed.
-- `npx eslint src/app/features/room/RoomTimeline.tsx` ❌ fails with pre-existing file-wide lint debt in `RoomTimeline.tsx` (for example `no-undef` on `ParentNode`, existing `no-use-before-define`, `no-shadow`, `no-continue`, and `consistent-return` findings outside this delta).
 - `npm run build` ✅ passed.
 - `npm run typecheck` ❌ still fails with broad pre-existing repository type errors unrelated to this thread-cache delta (for example many longstanding `matrix-js-sdk` type import mismatches outside the touched files).
 
@@ -690,7 +685,8 @@ Implementation sequence for this branch:
 Status as of 2026-03-08:
 
 - Step 1 is committed in `08ef697a` (`feat(thread-cache): add persistent thread reply archive`).
-- Step 2 and Step 3 are implemented in the current working tree and pending commit/verification.
+- Step 2 and Step 3 are committed in `3b1d72ef` (`feat(thread): hydrate from local cache before server pagination`).
+- Additional broader-cache work is in the current working tree: raise the SDK's saved `/sync` room timeline retention well above its internal 50-event default so room history also benefits from the "cache a lot" product direction.
 
 Execution notes:
 

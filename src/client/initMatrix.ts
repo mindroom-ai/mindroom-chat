@@ -13,12 +13,36 @@ type Session = {
   deviceId: string;
 };
 
+export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 5000;
+
+type IndexedDBStoreWithSyncAccumulator = IndexedDBStore & {
+  backend?: {
+    syncAccumulator?: {
+      opts?: {
+        maxTimelineEntries?: number;
+      };
+    };
+  };
+};
+
+export const configureLargeSyncArchive = (indexedDBStore: IndexedDBStore): void => {
+  const syncAccumulator = (indexedDBStore as IndexedDBStoreWithSyncAccumulator).backend
+    ?.syncAccumulator;
+  if (!syncAccumulator?.opts) return;
+
+  syncAccumulator.opts.maxTimelineEntries = Math.max(
+    syncAccumulator.opts.maxTimelineEntries ?? 0,
+    LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT
+  );
+};
+
 export const initClient = async (session: Session): Promise<MatrixClient> => {
   const indexedDBStore = new IndexedDBStore({
     indexedDB: global.indexedDB,
     localStorage: global.localStorage,
     dbName: 'web-sync-store',
   });
+  configureLargeSyncArchive(indexedDBStore);
 
   const legacyCryptoStore = new IndexedDBCryptoStore(global.indexedDB, 'crypto-store');
 
