@@ -1,6 +1,9 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { shouldFetchMissingThreadEdit } from './threadEditBackfillUtils';
+import {
+  markThreadEditBackfillAttempted,
+  shouldFetchThreadEditBackfill,
+} from './threadEditBackfillUtils';
 
 const makeMessageEvent = (eventId: string, type = 'm.room.message') =>
   new MatrixEvent({
@@ -15,20 +18,25 @@ const makeMessageEvent = (eventId: string, type = 'm.room.message') =>
     type,
   });
 
-describe('shouldFetchMissingThreadEdit', () => {
-  it('allows a new MatrixEvent instance for the same event id to retry backfill', () => {
-    const attemptedEvents = new WeakSet<MatrixEvent>();
+describe('shouldFetchThreadEditBackfill', () => {
+  it('allows retry after the thread tail settles and for new MatrixEvent instances', () => {
+    const attemptedEvents = new WeakMap<MatrixEvent, number>();
     const firstInstance = makeMessageEvent('$target');
     const secondInstance = makeMessageEvent('$target');
 
-    attemptedEvents.add(firstInstance);
+    expect(shouldFetchThreadEditBackfill(firstInstance, attemptedEvents, false)).toBe(true);
+    markThreadEditBackfillAttempted(firstInstance, attemptedEvents, false);
 
-    expect(shouldFetchMissingThreadEdit(firstInstance, attemptedEvents)).toBe(false);
-    expect(shouldFetchMissingThreadEdit(secondInstance, attemptedEvents)).toBe(true);
+    expect(shouldFetchThreadEditBackfill(firstInstance, attemptedEvents, false)).toBe(false);
+    expect(shouldFetchThreadEditBackfill(firstInstance, attemptedEvents, true)).toBe(true);
+    expect(shouldFetchThreadEditBackfill(secondInstance, attemptedEvents, false)).toBe(true);
+
+    markThreadEditBackfillAttempted(firstInstance, attemptedEvents, true);
+    expect(shouldFetchThreadEditBackfill(firstInstance, attemptedEvents, true)).toBe(false);
   });
 
-  it('ignores already replaced or unsupported events', () => {
-    const attemptedEvents = new WeakSet<MatrixEvent>();
+  it('skips replaced events before tail load but revalidates them after tail load', () => {
+    const attemptedEvents = new WeakMap<MatrixEvent, number>();
     const targetEvent = makeMessageEvent('$target');
     const editEvent = new MatrixEvent({
       content: {
@@ -51,9 +59,15 @@ describe('shouldFetchMissingThreadEdit', () => {
     });
     targetEvent.makeReplaced(editEvent);
 
-    expect(shouldFetchMissingThreadEdit(targetEvent, attemptedEvents)).toBe(false);
-    expect(shouldFetchMissingThreadEdit(makeMessageEvent('$reaction', 'm.reaction'), attemptedEvents)).toBe(
-      false
-    );
+    expect(shouldFetchThreadEditBackfill(targetEvent, attemptedEvents, false)).toBe(false);
+    expect(shouldFetchThreadEditBackfill(targetEvent, attemptedEvents, true)).toBe(true);
+  });
+
+  it('ignores unsupported event types', () => {
+    const attemptedEvents = new WeakMap<MatrixEvent, number>();
+
+    expect(
+      shouldFetchThreadEditBackfill(makeMessageEvent('$reaction', 'm.reaction'), attemptedEvents, true)
+    ).toBe(false);
   });
 });
