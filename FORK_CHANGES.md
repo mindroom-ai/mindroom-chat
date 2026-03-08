@@ -803,9 +803,9 @@ Recommended data model:
 
 - Introduce a real persisted session registry, for example:
   - `MultiAccountStore = { version: 1, activeSessionId?: string, sessions: StoredSession[] }`
-  - `StoredSession = { sessionId, baseUrl, userId, deviceId, accessToken, refreshToken?, expiresInMs?, lastUsedAt, lastKnownDisplayName?, lastKnownAvatarUrl?, legacyStoreNames? }`
+  - `StoredSession = { sessionId, baseUrl, userId, deviceId, accessToken, refreshToken?, expiresInMs?, lastUsedAt, lastKnownDisplayName?, lastKnownAvatarUrl? }`
 - `sessionId` should be a stable opaque identifier derived from `{baseUrl,userId,deviceId}` or generated once and persisted.
-- Keep the existing fallback single-session keys only as a migration source, not as the long-term source of truth.
+- Deliberately do not migrate the old fallback single-session keys. The first multi-account build may log existing users out once; they can sign in again cleanly.
 
 Storage and cache isolation plan:
 
@@ -817,7 +817,7 @@ Storage and cache isolation plan:
   - iOS push profile/tag state: per-session keys instead of one global key
   - any access-token lookup helpers should read the active session record, not `cinny_access_token` directly
 - Keep existing user-scoped UI preference atoms (`navToActivePath`, opened folders, closed categories) keyed by `userId`; they already align reasonably well with account switching.
-- Preserve compatibility for the first migrated legacy account by allowing one session record to point at legacy store names (`web-sync-store`, `crypto-store`) instead of forcing a huge data copy on migration.
+- Do not preserve legacy singleton store names. Multi-account support should start with session-scoped store names only.
 
 Boot and switching model:
 
@@ -871,10 +871,10 @@ Service worker / media auth / push implications:
 
 Implementation sequence:
 
-1. Session registry and migration layer.
+1. Session registry layer.
    - Add `MultiAccountStore`.
-   - Migrate legacy fallback session into it on first boot.
    - Add helpers for `getActiveSession`, `putSession`, `removeSession`, `setActiveSession`.
+   - Remove the old fallback-session boot assumption instead of preserving it.
 2. Session-scoped store naming.
    - Teach Matrix init, room cache, and thread cache code to use session-specific store names.
    - Replace global logout/cache-clearing with session-aware cleanup helpers.
@@ -902,9 +902,9 @@ Estimated size:
 
 Recommended first implementation commit after this design:
 
-- `feat(accounts): add persisted session registry and legacy session migration`
+- `feat(accounts): add persisted session registry`
 
-That is the correct first step because it creates the account model and migration boundary without yet touching the visible UI. Once that exists, the rest of the feature can be built as isolated commits instead of one tangled rewrite.
+That is the correct first step because it creates the account model without carrying a fallback compatibility layer. Once that exists, the rest of the feature can be built as isolated commits instead of one tangled rewrite.
 
 ## Submission Readiness Check (2026-02-26, macOS/Xcode)
 
