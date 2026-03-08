@@ -19,39 +19,17 @@ Rules followed:
 
 Working tree status (2026-03-08):
 
-- Modified:
-  - `src/app/components/editor/autocomplete/UserMentionAutocomplete.tsx`
-  - `src/app/components/event-readers/EventReaders.tsx`
-  - `src/app/components/member-tile/MemberTile.tsx`
-  - `src/app/features/room/MembersDrawer.tsx`
-  - `src/app/features/room/reaction-viewer/ReactionViewer.tsx`
-  - `src/app/hooks/useMemberPowerTag.ts`
-  - `src/app/pages/auth/SSOLogin.tsx`
-  - `src/app/utils/matrix.ts`
-  - `src/app/utils/room.ts`
+- Modified: none
 - Added:
-  - `src/app/utils/mediaUrl.ts`
-  - `src/app/utils/mediaUrl.test.ts`
-  - `src/app/utils/roomAvatar.test.ts`
   - `REVIEW.md`
 
 What changed (uncommitted):
 
-- Capacitor-safe media URLs:
-  - Room and space avatars were bypassing the app’s Capacitor-aware MXC URL wrapper in some paths, so native iOS webviews could request authenticated Matrix media without the query-token fallback and fall back to letter avatars.
-  - The authenticated-media URL rewrite is now centralized in `src/app/utils/mediaUrl.ts` and re-exported from `src/app/utils/matrix.ts` so call sites share the same behavior.
-  - `src/app/utils/room.ts` now routes room/space avatar URLs through that shared helper, fixing the specific sidebar/space icon issue.
-  - Remaining direct avatar/media call sites that used raw `mx.mxcUrlToHttp(...)` for people/reaction/provider icons were switched to the shared helper too, so iOS behavior is consistent across those surfaces.
-  - Focused unit coverage was added for the Capacitor token fallback and for room/direct-room avatar helpers.
-  - `REVIEW.md` is an unrelated untracked local note present in the working tree.
+- None. `REVIEW.md` remains an unrelated untracked local note present in the working tree.
 
 Validation (uncommitted):
 
-- `npm run test -- src/app/utils/mediaUrl.test.ts src/app/utils/roomAvatar.test.ts src/app/utils/room.test.ts` ✅ passed.
-- `npx eslint src/app/utils/mediaUrl.ts src/app/utils/mediaUrl.test.ts src/app/utils/room.ts src/app/utils/roomAvatar.test.ts src/app/utils/matrix.ts src/app/components/editor/autocomplete/UserMentionAutocomplete.tsx src/app/components/event-readers/EventReaders.tsx src/app/components/member-tile/MemberTile.tsx src/app/features/room/MembersDrawer.tsx src/app/features/room/reaction-viewer/ReactionViewer.tsx src/app/hooks/useMemberPowerTag.ts src/app/pages/auth/SSOLogin.tsx` ✅ passed with warnings only; no new errors introduced.
-- `git diff --check` ✅ passed.
-- `npm run build` ✅ passed.
-- `npm run typecheck` ❌ still fails with broad pre-existing repository type errors unrelated to this thread-cache delta (for example many longstanding `matrix-js-sdk` type import mismatches outside the touched files).
+- None pending beyond the existing untracked `REVIEW.md`.
 
 ## Commit-by-Commit Changes
 
@@ -535,6 +513,8 @@ Thread badge behavior:
   - revoke linked installation with confirmation (`DELETE /v1/local-mindroom/connections/{id}`).
 - API requests default to the active session homeserver origin, with optional override via `sidebar.mindRoomProvisioningUrl`, and always use `credentials: omit`.
 - Browser provisioning calls include `X-Matrix-Access-Token` only when provisioning origin matches the active homeserver origin; cross-origin overrides are allowed but token forwarding is blocked by default with an in-UI warning.
+- On native platforms, the provisioning client now uses Capacitor native HTTP instead of raw browser `fetch`, avoiding iOS webview transport/CORS failures that previously surfaced as `Load failed` for pair-code generation and linked-installation loading.
+- Transport failures are normalized to a clearer provisioning-specific error message instead of leaking the raw browser/webview exception text.
 - Flow handles pending, connected, expired, and network/API error states with retry affordances.
 - Added unit tests for helper logic and provisioning API client wrappers.
 

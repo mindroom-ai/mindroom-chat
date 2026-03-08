@@ -74,7 +74,7 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
     setLoadingConnections(true);
     setConnectionsError(undefined);
     try {
-      const result = await getLocalMindroomConnections(fetch, browserAccessToken, provisioningUrl);
+      const result = await getLocalMindroomConnections(browserAccessToken, provisioningUrl);
       setConnections(result.connections.filter((connection) => !isConnectionRevoked(connection)));
     } catch (error) {
       setConnectionsError(getLocalMindroomErrorMessage(error));
@@ -115,7 +115,6 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
       try {
         const result = await getLocalMindroomPairStatus(
           pairSession.pairCode,
-          fetch,
           browserAccessToken,
           provisioningUrl
         );
@@ -159,7 +158,7 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
     setPairConnection(undefined);
 
     try {
-      const result = await issueLocalMindroomPairCode(fetch, browserAccessToken, provisioningUrl);
+      const result = await issueLocalMindroomPairCode(browserAccessToken, provisioningUrl);
       setPairSession({
         pairCode: result.pair_code,
         expiresAt: result.expires_at,
@@ -188,12 +187,7 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
       setRevokeError(undefined);
 
       try {
-        await revokeLocalMindroomConnection(
-          connectionId,
-          fetch,
-          browserAccessToken,
-          provisioningUrl
-        );
+        await revokeLocalMindroomConnection(connectionId, browserAccessToken, provisioningUrl);
         setConfirmRevokeId(undefined);
         await loadConnections();
       } catch (error) {
