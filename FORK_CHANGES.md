@@ -668,6 +668,10 @@ Thread badge behavior:
   returned from the hook in callbacks/effect dependencies before the hook call
   itself. That has been fixed by moving the hook initialization above those
   callback definitions.
+- `RoomTimeline.test.ts` now includes a smoke render regression test for that
+  initialization-order bug. The test renders the real `RoomTimeline` component
+  with heavy dependency mocking and would fail again if thread render-hook
+  return values were referenced before the `useThreadRenderState(...)` call.
 - When late thread edit/relation reconciliation lands while the user is already
   at or near the bottom of a thread, the thread view now re-pins to the latest
   reply instead of leaving the viewport visibly above the bottom after message
