@@ -39,6 +39,20 @@ describe('normalizeCachedThreadEvents', () => {
       ])
     ).toEqual([{ event_id: '$ok', origin_server_ts: 300 }]);
   });
+
+  it('uses event id as a stable tie-breaker for same-timestamp replies', () => {
+    expect(
+      normalizeCachedThreadEvents([
+        { event_id: '$c', origin_server_ts: 200 },
+        { event_id: '$a', origin_server_ts: 200 },
+        { event_id: '$b', origin_server_ts: 200 },
+      ])
+    ).toEqual([
+      { event_id: '$a', origin_server_ts: 200 },
+      { event_id: '$b', origin_server_ts: 200 },
+      { event_id: '$c', origin_server_ts: 200 },
+    ]);
+  });
 });
 
 describe('getThreadCursorAnchor', () => {
@@ -57,5 +71,16 @@ describe('getThreadCursorAnchor', () => {
   it('returns undefined for invalid events', () => {
     expect(getThreadCursorAnchor(undefined)).toBeUndefined();
     expect(getThreadCursorAnchor({ origin_server_ts: 10 })).toBeUndefined();
+  });
+
+  it('normalizes missing timestamps to zero for pagination anchors', () => {
+    expect(
+      getThreadCursorAnchor({
+        event_id: '$reply',
+      })
+    ).toEqual({
+      eventId: '$reply',
+      ts: 0,
+    });
   });
 });
