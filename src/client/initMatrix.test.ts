@@ -1,8 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { IndexedDBCryptoStore, IndexedDBStore } from 'matrix-js-sdk';
-import { clearBrowserCacheAndReload, initClient, LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT } from './initMatrix';
+import {
+  clearBrowserCacheAndReload,
+  initClient,
+  LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
+  removeStoredSession,
+} from './initMatrix';
 import { createMatrixClient } from './matrixClientFactory';
-import { createSessionId } from '../app/state/sessions';
+import { createSessionId, getSessionStore, putSession, setActiveSession } from '../app/state/sessions';
+import { deleteThreadEventCache } from '../app/features/room/threadEventCache';
+import { deleteRoomEventCache } from '../app/features/room/roomEventCache';
+import { clearIOSPushState } from '../app/utils/iosPush';
 
 vi.mock('matrix-js-sdk', () => ({
   MatrixClient: vi.fn(),
@@ -20,6 +28,18 @@ vi.mock('./matrixClientFactory', () => ({
 
 vi.mock('../app/state/navToActivePath', () => ({
   clearNavToActivePathStore: vi.fn(),
+}));
+
+vi.mock('../app/features/room/threadEventCache', () => ({
+  deleteThreadEventCache: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../app/features/room/roomEventCache', () => ({
+  deleteRoomEventCache: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../app/utils/iosPush', () => ({
+  clearIOSPushState: vi.fn(),
 }));
 
 describe('initClient', () => {
@@ -223,5 +243,113 @@ describe('clearBrowserCacheAndReload', () => {
     expect(otherCache.delete).not.toHaveBeenCalled();
     expect(deleteCacheName).not.toHaveBeenCalled();
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('removeStoredSession', () => {
+  const originalLocalStorage = globalThis.localStorage;
+  const originalIndexedDB = globalThis.indexedDB;
+  const originalWindow = globalThis.window;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+
+    if (originalLocalStorage === undefined) {
+      Reflect.deleteProperty(globalThis, 'localStorage');
+    } else {
+      Object.defineProperty(globalThis, 'localStorage', {
+        value: originalLocalStorage,
+        configurable: true,
+      });
+    }
+
+    if (originalIndexedDB === undefined) {
+      Reflect.deleteProperty(globalThis, 'indexedDB');
+    } else {
+      Object.defineProperty(globalThis, 'indexedDB', {
+        value: originalIndexedDB,
+        configurable: true,
+      });
+    }
+
+    if (originalWindow === undefined) {
+      Reflect.deleteProperty(globalThis, 'window');
+    } else {
+      Object.defineProperty(globalThis, 'window', {
+        value: originalWindow,
+        configurable: true,
+      });
+    }
+  });
+
+  it('removes an inactive account without reloading the active one', async () => {
+    const storageState = new Map<string, string>();
+    const localStorageMock = {
+      getItem: vi.fn((key: string) => storageState.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        storageState.set(key, value);
+      }),
+      removeItem: vi.fn((key: string) => {
+        storageState.delete(key);
+      }),
+    };
+    const deleteDatabase = vi.fn(() => {
+      const request = {} as IDBOpenDBRequest;
+      queueMicrotask(() => {
+        request.onsuccess?.({} as Event);
+      });
+      return request;
+    });
+    const reload = vi.fn();
+
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'indexedDB', {
+      value: {
+        deleteDatabase,
+      },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        localStorage: localStorageMock,
+        dispatchEvent: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        location: {
+          reload,
+        },
+      },
+      configurable: true,
+    });
+
+    const activeSession = putSession({
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+    });
+    const inactiveSession = putSession({
+      baseUrl: 'https://matrix.org',
+      userId: '@bob:matrix.org',
+      deviceId: 'DEVICE_B',
+      accessToken: 'token-b',
+    });
+    setActiveSession(activeSession.sessionId);
+
+    await removeStoredSession(inactiveSession);
+
+    expect(deleteDatabase).toHaveBeenCalledWith(`web-sync-store::${inactiveSession.sessionId}`);
+    expect(deleteDatabase).toHaveBeenCalledWith(`crypto-store::${inactiveSession.sessionId}`);
+    expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(inactiveSession.sessionId);
+    expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(inactiveSession.sessionId);
+    expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(inactiveSession.sessionId);
+    expect(getSessionStore().sessions.map((session) => session.sessionId)).toEqual([
+      activeSession.sessionId,
+    ]);
+    expect(getSessionStore().activeSessionId).toBe(activeSession.sessionId);
+    expect(reload).not.toHaveBeenCalled();
   });
 });

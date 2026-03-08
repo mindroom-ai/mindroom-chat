@@ -14,6 +14,8 @@ import { useActiveSession, useStoredSessions } from '../../../hooks/useSessionSt
 import { setActiveSession, updateSessionProfile } from '../../../state/sessions';
 import { getHomePath, getLoginPath } from '../../pathUtils';
 import { withAddAccountSearch } from '../../auth/addAccount';
+import { removeStoredSession } from '../../../../client/initMatrix';
+import { AccountSwitcher, AccountSwitcherItem } from './AccountSwitcher';
 
 const blobToDataUrl = async (blob: Blob): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -32,7 +34,9 @@ export function SettingsTab() {
   const userId = mx.getUserId() ?? activeSession?.userId ?? '';
   const profile = useUserProfile(userId);
 
+  const [accountSwitcher, setAccountSwitcher] = useState(false);
   const [settings, setSettings] = useState(false);
+  const [removingSessionId, setRemovingSessionId] = useState<string>();
 
   const displayName = profile.displayName ?? getMxIdLocalPart(userId) ?? userId;
   const avatarUrl = profile.avatarUrl
@@ -73,25 +77,63 @@ export function SettingsTab() {
   }, [activeSession, avatarUrl]);
 
   const orderedSessions = useMemo(() => sessions, [sessions]);
+  const accountItems = useMemo<AccountSwitcherItem[]>(
+    () =>
+      orderedSessions.map((session) => {
+        const active = session.sessionId === activeSession?.sessionId;
+        return {
+          session,
+          active,
+          displayName: active
+            ? displayName
+            : session.lastKnownDisplayName ?? getMxIdLocalPart(session.userId) ?? session.userId,
+          avatarUrl: active ? avatarUrl : session.lastKnownAvatarDataUrl,
+        };
+      }),
+    [activeSession?.sessionId, avatarUrl, displayName, orderedSessions]
+  );
 
+  const openAccountSwitcher = () => setAccountSwitcher(true);
+  const closeAccountSwitcher = () => setAccountSwitcher(false);
   const openSettings = () => setSettings(true);
   const closeSettings = () => setSettings(false);
+  const openSettingsFromSwitcher = () => {
+    closeAccountSwitcher();
+    openSettings();
+  };
+
+  const addAccount = () => {
+    closeAccountSwitcher();
+    navigate(withAddAccountSearch(getLoginPath()));
+  };
+
+  const switchAccount = (sessionId: string, path?: string) => {
+    setActiveSession(sessionId);
+    closeAccountSwitcher();
+    navigate(path ?? getHomePath());
+  };
+
+  const removeAccount = async (sessionId: string) => {
+    const session = sessions.find((item) => item.sessionId === sessionId);
+    if (!session || session.sessionId === activeSession?.sessionId) return;
+
+    setRemovingSessionId(sessionId);
+    try {
+      await removeStoredSession(session);
+    } finally {
+      setRemovingSessionId((current) => (current === sessionId ? undefined : current));
+    }
+  };
 
   return (
     <>
-      {orderedSessions.map((session) => {
-        const active = session.sessionId === activeSession?.sessionId;
-        const sessionDisplayName = active
-          ? displayName
-          : session.lastKnownDisplayName ?? getMxIdLocalPart(session.userId) ?? session.userId;
-        const sessionAvatarUrl = active ? avatarUrl : session.lastKnownAvatarDataUrl;
-
-        return (
+      {accountItems.map(
+        ({ session, active, displayName: sessionDisplayName, avatarUrl: sessionAvatarUrl }) => (
           <SidebarItem key={session.sessionId} active={active}>
             <SidebarItemTooltip
               tooltip={
                 active
-                  ? `Settings: ${sessionDisplayName}`
+                  ? `Manage accounts: ${sessionDisplayName}`
                   : `Switch to ${sessionDisplayName} (${session.userId})`
               }
             >
@@ -101,12 +143,11 @@ export function SettingsTab() {
                   ref={triggerRef}
                   onClick={() => {
                     if (active) {
-                      openSettings();
+                      openAccountSwitcher();
                       return;
                     }
 
-                    setActiveSession(session.sessionId);
-                    navigate(session.lastKnownPath ?? getHomePath());
+                    switchAccount(session.sessionId, session.lastKnownPath ?? getHomePath());
                   }}
                 >
                   <UserAvatar
@@ -118,8 +159,8 @@ export function SettingsTab() {
               )}
             </SidebarItemTooltip>
           </SidebarItem>
-        );
-      })}
+        )
+      )}
       <SidebarItem>
         <SidebarItemTooltip tooltip="Add Account">
           {(triggerRef) => (
@@ -127,13 +168,30 @@ export function SettingsTab() {
               as="button"
               ref={triggerRef}
               outlined
-              onClick={() => navigate(withAddAccountSearch(getLoginPath()))}
+              onClick={addAccount}
             >
               <Icon src={Icons.Plus} />
             </SidebarAvatar>
           )}
         </SidebarItemTooltip>
       </SidebarItem>
+      {accountSwitcher && (
+        <Modal500 requestClose={closeAccountSwitcher}>
+          <AccountSwitcher
+            accounts={accountItems}
+            removingSessionId={removingSessionId}
+            onOpenSettings={openSettingsFromSwitcher}
+            onSwitchAccount={(session) =>
+              switchAccount(session.sessionId, session.lastKnownPath ?? getHomePath())
+            }
+            onRemoveAccount={(session) => {
+              removeAccount(session.sessionId).catch(() => undefined);
+            }}
+            onAddAccount={addAccount}
+            onClose={closeAccountSwitcher}
+          />
+        </Modal500>
+      )}
       {settings && (
         <Modal500 requestClose={closeSettings}>
           <Settings requestClose={closeSettings} />

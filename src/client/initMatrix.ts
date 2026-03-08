@@ -115,6 +115,17 @@ export const removeSessionAndReload = async (
   window.location.reload();
 };
 
+export const removeStoredSession = async (session: StoredSession): Promise<void> => {
+  const activeSession = getActiveSession();
+  if (activeSession?.sessionId === session.sessionId) {
+    await removeSessionAndReload(session);
+    return;
+  }
+
+  await deleteSessionLocalData(session);
+  removeSession(session.sessionId);
+};
+
 export const clearCacheAndReload = async (mx: MatrixClient) => {
   mx.stopClient();
   clearNavToActivePathStore(mx.getSafeUserId());

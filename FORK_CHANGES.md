@@ -478,6 +478,28 @@ Why:
 
 - Required to start multi-account support cleanly without session, cache, media-auth, or push-state leakage between accounts.
 
+### feat(accounts): add inactive account removal actions
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/pages/client/sidebar/AccountSwitcher.test.ts`
+- `src/app/pages/client/sidebar/AccountSwitcher.tsx`
+- `src/app/pages/client/sidebar/SettingsTab.tsx`
+- `src/client/initMatrix.test.ts`
+- `src/client/initMatrix.ts`
+
+What changed:
+
+- Added an account manager modal off the active bottom-sidebar avatar.
+- Kept inactive avatars as direct fast-switch shortcuts, while moving management actions into the modal.
+- Added inactive-account `Remove from Device` support that deletes only that session's local data and leaves the active account running.
+- Added focused tests for the account manager UI and the inactive-account cleanup path.
+
+Why:
+
+- Completes the first usable account-management loop from the multi-account plan without forcing users into destructive global logout/cache-clear flows.
+
 # Runbook
 
 ## Purpose
@@ -980,18 +1002,21 @@ Status as of 2026-03-08:
   - first-pass bottom account rail,
   - session-aware service-worker/media auth wiring,
   - session-aware iOS push local state.
+- The next account-management slice is also now done:
+  - active avatar opens an account manager modal,
+  - inactive accounts can be removed from device without affecting the active one.
 - Validation completed for this slice:
   - targeted Vitest suite covering sessions/auth helpers/push/media/cache smoke paths,
   - `npm run build`,
   - targeted eslint pass on touched files with warnings only.
 - Still intentionally not finished in this slice:
-  - inactive-account `Remove from device` UI,
-  - broader account-management actions/polish beyond the first rail,
+  - broader account-management polish beyond the first modal/rail,
+  - heavier router/client switching regression coverage,
   - later per-account push/account management UX improvements.
 
 Recommended next implementation commit:
 
-- `feat(accounts): add inactive account removal and account management actions`
+- `test(accounts): add router and client switching regressions`
 
 ## Submission Readiness Check (2026-02-26, macOS/Xcode)
 
