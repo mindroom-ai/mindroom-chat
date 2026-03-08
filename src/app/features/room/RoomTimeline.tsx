@@ -136,6 +136,11 @@ import {
   eventBelongsToThread,
   isThreadReplyEvent,
 } from './threadUtils';
+import {
+  isScrollNearBottom,
+  isTimelineAtLiveEnd,
+  shouldAutoScrollThreadOnLiveEvent,
+} from './timelineScrollUtils';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -307,9 +312,6 @@ const getEventElementById = (
   }
   return null;
 };
-
-const isAtExactBottom = (scrollElement: HTMLElement, thresholdPx = 1): boolean =>
-  scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight <= thresholdPx;
 
 type Timeline = {
   linkedTimelines: EventTimeline[];
@@ -652,14 +654,73 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     typeof timeline.linkedTimelines[0]?.getPaginationToken(Direction.Backward) === 'string';
   const rangeAtStart = timeline.range.start === 0;
   const rangeAtEnd = timeline.range.end === eventsLength;
-  const atLiveEndRef = useRef(liveTimelineLinked && rangeAtEnd);
-  atLiveEndRef.current = liveTimelineLinked && rangeAtEnd;
+  const thread = threadId ? room.getThread(threadId) : null;
+  const roomTimelineSet = room.getUnfilteredTimelineSet();
+  const threadTimelineSet = thread?.getUnfilteredTimelineSet();
+  const threadLinkedTimelines = threadTimelineSet
+    ? getLinkedTimelines(threadTimelineSet.getLiveTimeline())
+    : [];
+  const lastThreadTimeline = threadLinkedTimelines[threadLinkedTimelines.length - 1];
+  const canPaginateThreadBack =
+    typeof threadLinkedTimelines[0]?.getPaginationToken(Direction.Backward) === 'string';
+  const canPaginateThreadFront =
+    typeof lastThreadTimeline?.getPaginationToken(Direction.Forward) === 'string';
+  const timelineAtLiveEnd = isTimelineAtLiveEnd({
+    threadId,
+    liveTimelineLinked,
+    rangeAtEnd,
+    canPaginateThreadFront,
+  });
+  const atLiveEndRef = useRef(timelineAtLiveEnd);
+  atLiveEndRef.current = timelineAtLiveEnd;
 
   const handleTimelinePagination = useTimelinePagination(
     mx,
     timeline,
     setTimeline,
     PAGINATION_LIMIT
+  );
+
+  const paginateThreadForwardToLatest = useCallback(
+    async (expectedThreadId: string): Promise<boolean> => {
+      if (threadPaginatingFrontRef.current) return false;
+
+      setThreadPaginatingFront(true);
+      threadPaginatingFrontRef.current = true;
+
+      try {
+        const loadMoreToLatest = async (): Promise<boolean> => {
+          if (threadIdRef.current !== expectedThreadId) return false;
+
+          const currentThread = room.getThread(expectedThreadId);
+          const currentTimelineSet = currentThread?.getUnfilteredTimelineSet();
+          const currentLinkedTimelines = currentTimelineSet
+            ? getLinkedTimelines(currentTimelineSet.getLiveTimeline())
+            : [];
+          const currentLastTimeline = currentLinkedTimelines[currentLinkedTimelines.length - 1];
+          if (!currentLastTimeline?.getPaginationToken(Direction.Forward)) {
+            return false;
+          }
+
+          const [err, didLoadMore] = await to(
+            mx.paginateEventTimeline(currentLastTimeline, {
+              backwards: false,
+              limit: PAGINATION_LIMIT,
+            })
+          );
+          if (err || !didLoadMore) return false;
+
+          await loadMoreToLatest();
+          return true;
+        };
+
+        return loadMoreToLatest();
+      } finally {
+        setThreadPaginatingFront(false);
+        threadPaginatingFrontRef.current = false;
+      }
+    },
+    [mx, room]
   );
 
   const getScrollElement = useCallback(() => scrollRef.current, []);
@@ -760,9 +821,19 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           ) {
             setThreadTimelineTick((val) => val + 1);
 
-            // In thread view, only auto-scroll when the user is already at the exact bottom.
             const scrollElement = scrollRef.current;
-            if (scrollElement && isAtExactBottom(scrollElement) && relation?.rel_type === 'm.thread') {
+            if (
+              scrollElement &&
+              shouldAutoScrollThreadOnLiveEvent({
+                relationType: relation?.rel_type,
+                isNearBottom: isScrollNearBottom({
+                  scrollHeight: scrollElement.scrollHeight,
+                  scrollTop: scrollElement.scrollTop,
+                  clientHeight: scrollElement.clientHeight,
+                }),
+                isTimelineAtLiveEnd: timelineAtLiveEnd,
+              })
+            ) {
               scrollToBottomRef.current.count += 1;
               scrollToBottomRef.current.smooth = true;
             }
@@ -813,7 +884,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           setUnreadInfo(getRoomUnreadInfo(room));
         }
       },
-      [mx, room, unreadInfo, hideActivity, threadId]
+      [mx, room, unreadInfo, hideActivity, threadId, timelineAtLiveEnd]
     )
   );
 
@@ -871,9 +942,9 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         });
       } else {
         if (threadId) {
-          let threadTimelineSet = room.getThread(threadId)?.getUnfilteredTimelineSet();
+          let currentThreadTimelineSet = room.getThread(threadId)?.getUnfilteredTimelineSet();
           const expectedThreadId = threadId;
-          if (!threadTimelineSet) {
+          if (!currentThreadTimelineSet) {
             const [threadErr] = await to(
               mx.getThreadTimeline(room.getUnfilteredTimelineSet(), threadId)
             );
@@ -881,12 +952,14 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
               if (onScroll) onScroll(false);
               return;
             }
-            threadTimelineSet =
+            currentThreadTimelineSet =
               room.getThread(threadId)?.getUnfilteredTimelineSet() ??
               room.getUnfilteredTimelineSet();
           }
-          const [err, evtTimeline] = await to(mx.getEventTimeline(threadTimelineSet, evtId));
-          if (err || !evtTimeline) {
+          const [err, threadEventTimeline] = await to(
+            mx.getEventTimeline(currentThreadTimelineSet, evtId)
+          );
+          if (err || !threadEventTimeline) {
             if (onScroll) onScroll(false);
             return;
           }
@@ -969,12 +1042,12 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         if (targetEntry) debounceSetAtBottom(targetEntry);
         if (targetEntry?.isIntersecting && atLiveEndRef.current) {
           setAtBottom(true);
-          if (document.hasFocus()) {
+          if (!threadId && document.hasFocus()) {
             tryAutoMarkAsRead();
           }
         }
       },
-      [debounceSetAtBottom, tryAutoMarkAsRead]
+      [debounceSetAtBottom, tryAutoMarkAsRead, threadId]
     ),
     useCallback(
       () => ({
@@ -1049,12 +1122,13 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     pendingThreadOpenRef.current = undefined;
     fallbackThreadEventsRef.current = { threadId, events: [] };
     let mounted = true;
+    const shouldScrollToLatestOnOpen = !eventId;
     const loadThreadTimeline = async () => {
       // First, ensure the thread exists in the SDK.
       // room.getThread() may return null if the SDK hasn't seen the thread yet.
       // We need to fetch the root event and let the SDK create the Thread object.
-      let thread = room.getThread(threadId);
-      if (!thread) {
+      let threadModel = room.getThread(threadId);
+      if (!threadModel) {
         // Fetch the thread root event to make the SDK aware of this thread
         const [ctxErr] = await to(mx.getEventTimeline(room.getUnfilteredTimelineSet(), threadId));
         if (!mounted) return;
@@ -1062,10 +1136,10 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           setThreadLoadError(true);
           return;
         }
-        thread = room.getThread(threadId);
+        threadModel = room.getThread(threadId);
       }
 
-      if (!thread) {
+      if (!threadModel) {
         // If the SDK still hasn't created a Thread object, try fetching
         // thread relations directly to populate it
         const [relErr, relData] = await to(
@@ -1080,8 +1154,8 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           return;
         }
         // Check if SDK created a Thread from the fetched relations
-        thread = room.getThread(threadId);
-        if (!thread && relData?.chunk?.length) {
+        threadModel = room.getThread(threadId);
+        if (!threadModel && relData?.chunk?.length) {
           // We need to render something even without a Thread model, so store
           // mapped relation events for thread view fallback rendering.
           const mapper = mx.getEventMapper();
@@ -1090,17 +1164,17 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         }
       }
 
-      if (thread) {
+      if (threadModel) {
         // Use the thread's own timeline set for getThreadTimeline
-        const threadTimelineSet = thread.getUnfilteredTimelineSet();
-        const [err] = await to(mx.getThreadTimeline(threadTimelineSet, threadId));
+        const loadedThreadTimelineSet = threadModel.getUnfilteredTimelineSet();
+        const [err] = await to(mx.getThreadTimeline(loadedThreadTimelineSet, threadId));
         if (!mounted) return;
         if (err) {
           // Fallback: even if getThreadTimeline fails, the thread events
           // may already be populated from the relations fetch above
           console.warn('getThreadTimeline failed, using fallback:', err);
         }
-        if (thread.events.length === 0) {
+        if (threadModel.events.length === 0) {
           // Some servers return empty thread timelines even though relations exist.
           // Fetch relations and feed them into the thread so replies render.
           const [relErr, relData] = await to(
@@ -1113,7 +1187,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           if (!relErr && relData?.chunk?.length) {
             const mapper = mx.getEventMapper();
             const mappedEvents = relData.chunk.map((evt) => mapper(evt));
-            thread.addEvents(mappedEvents, true);
+            threadModel.addEvents(mappedEvents, true);
           }
         }
         if (fallbackThreadEventsRef.current.threadId === threadId) {
@@ -1123,9 +1197,18 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         console.warn('Could not create thread object for', threadId);
       }
 
-      if (!mounted) return;
+      if (shouldScrollToLatestOnOpen) {
+        await paginateThreadForwardToLatest(threadId);
+        if (!mounted || threadIdRef.current !== threadId) return;
+      }
+
       setTimeline((ct) => ({ ...ct }));
       setThreadTimelineTick((val) => val + 1);
+      if (shouldScrollToLatestOnOpen) {
+        scrollToBottomRef.current.count += 1;
+        scrollToBottomRef.current.smooth = false;
+        setAtBottom(true);
+      }
     };
 
     loadThreadTimeline();
@@ -1133,7 +1216,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     return () => {
       mounted = false;
     };
-  }, [mx, room, threadId]);
+  }, [mx, room, threadId, paginateThreadForwardToLatest]);
 
   useEffect(() => {
     if (threadId) return;
@@ -1270,14 +1353,50 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     }
   }, [scrollToElement, editId]);
 
-  const handleJumpToLatest = () => {
+  useEffect(() => {
+    if (timelineAtLiveEnd) return;
+    setAtBottom(false);
+  }, [timelineAtLiveEnd]);
+
+  const handleJumpToLatest = useCallback(async () => {
+    if (threadId) {
+      if (eventId) {
+        navigateRoomThread(room.roomId, threadId, undefined, { replace: true });
+      }
+
+      const didPaginateToLatest = await paginateThreadForwardToLatest(threadId);
+      if (threadIdRef.current !== threadId) return;
+      if (didPaginateToLatest) {
+        setTimeline((ct) => ({ ...ct }));
+        setThreadTimelineTick((val) => val + 1);
+        scrollToBottomRef.current.count += 1;
+        scrollToBottomRef.current.smooth = false;
+        setAtBottom(true);
+        return;
+      }
+
+      const scrollEl = scrollRef.current;
+      if (scrollEl) {
+        scrollToBottom(scrollEl, 'instant');
+        setAtBottom(true);
+      }
+      return;
+    }
+
     if (eventId) {
       navigateRoom(room.roomId, undefined, { replace: true });
     }
     setTimeline(getInitialTimeline(room));
     scrollToBottomRef.current.count += 1;
     scrollToBottomRef.current.smooth = false;
-  };
+  }, [
+    eventId,
+    navigateRoom,
+    navigateRoomThread,
+    paginateThreadForwardToLatest,
+    room,
+    threadId,
+  ]);
 
   const handleJumpToUnread = () => {
     if (unreadInfo?.readUptoEventId) {
@@ -2110,23 +2229,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       );
     }
   );
-
   const timelineItems = getItems();
-  const thread = useMemo(
-    () => (threadId ? room.getThread(threadId) : null),
-    [room, threadId, threadTimelineTick]
-  );
-  const roomTimelineSet = room.getUnfilteredTimelineSet();
-  const threadTimelineSet = useMemo(() => thread?.getUnfilteredTimelineSet(), [thread]);
-  const threadLinkedTimelines = useMemo(
-    () => (threadTimelineSet ? getLinkedTimelines(threadTimelineSet.getLiveTimeline()) : []),
-    [threadTimelineSet, threadTimelineTick]
-  );
-  const lastThreadTimeline = threadLinkedTimelines[threadLinkedTimelines.length - 1];
-  const canPaginateThreadBack =
-    typeof threadLinkedTimelines[0]?.getPaginationToken(Direction.Backward) === 'string';
-  const canPaginateThreadFront =
-    typeof lastThreadTimeline?.getPaginationToken(Direction.Forward) === 'string';
   const threadEvents = useMemo(() => {
     if (!threadId) {
       threadEventIndexMapRef.current = new Map();
@@ -2309,7 +2412,8 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
 
   const handleThreadPaginateBack = useCallback(async () => {
     if (!threadId || !thread || threadPaginatingBackRef.current) return;
-    const firstThreadTimeline = threadLinkedTimelines[0];
+    const currentThreadTimelineSet = thread.getUnfilteredTimelineSet();
+    const firstThreadTimeline = getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0];
     if (!firstThreadTimeline) return;
     if (!firstThreadTimeline.getPaginationToken(Direction.Backward)) return;
 
@@ -2328,17 +2432,21 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       setTimeline((ct) => ({ ...ct }));
       setThreadTimelineTick((val) => val + 1);
     }
-  }, [mx, threadId, thread, threadLinkedTimelines]);
+  }, [mx, threadId, thread]);
   const handleThreadPaginateFront = useCallback(async () => {
     if (!threadId || !thread || threadPaginatingFrontRef.current) return;
-    if (!lastThreadTimeline) return;
-    if (!lastThreadTimeline.getPaginationToken(Direction.Forward)) return;
+    const currentThreadTimelineSet = thread.getUnfilteredTimelineSet();
+    const currentThreadLinkedTimelines = getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline());
+    const currentLastThreadTimeline =
+      currentThreadLinkedTimelines[currentThreadLinkedTimelines.length - 1];
+    if (!currentLastThreadTimeline) return;
+    if (!currentLastThreadTimeline.getPaginationToken(Direction.Forward)) return;
 
     const expectedThreadId = threadId;
     setThreadPaginatingFront(true);
     threadPaginatingFrontRef.current = true;
     const [err] = await to(
-      mx.paginateEventTimeline(lastThreadTimeline, {
+      mx.paginateEventTimeline(currentLastThreadTimeline, {
         backwards: false,
         limit: PAGINATION_LIMIT,
       })
@@ -2349,7 +2457,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       setTimeline((ct) => ({ ...ct }));
       setThreadTimelineTick((val) => val + 1);
     }
-  }, [mx, threadId, thread, lastThreadTimeline]);
+  }, [mx, threadId, thread]);
 
   let prevEvent: MatrixEvent | undefined;
   let isPrevRendered = false;
