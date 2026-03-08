@@ -4,6 +4,7 @@ import { cryptoCallbacks } from './secretStorageKeys';
 import { clearNavToActivePathStore } from '../app/state/navToActivePath';
 import { createMatrixClient } from './matrixClientFactory';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
+import { deleteThreadEventCache } from '../app/features/room/threadEventCache';
 
 type Session = {
   baseUrl: string;
@@ -50,7 +51,7 @@ export const startClient = async (mx: MatrixClient) => {
 export const clearCacheAndReload = async (mx: MatrixClient) => {
   mx.stopClient();
   clearNavToActivePathStore(mx.getSafeUserId());
-  await mx.store.deleteAllData();
+  await Promise.all([mx.store.deleteAllData(), deleteThreadEventCache()]);
   window.location.reload();
 };
 
@@ -128,7 +129,7 @@ export const logoutClient = async (mx: MatrixClient) => {
   } catch {
     // ignore if failed to logout
   }
-  await mx.clearStores();
+  await Promise.all([mx.clearStores(), deleteThreadEventCache()]);
   window.localStorage.clear();
   window.location.reload();
 };
@@ -142,6 +143,8 @@ export const clearLoginData = async () => {
       window.indexedDB.deleteDatabase(name);
     }
   });
+
+  await deleteThreadEventCache();
 
   window.localStorage.clear();
   window.location.reload();
