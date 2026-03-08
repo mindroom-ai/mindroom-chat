@@ -663,6 +663,11 @@ Thread badge behavior:
   cache-first fallback rendering, preserving a corrected fallback event over a
   stale live duplicate after hydration, and reset behavior. That raises
   confidence that the refactor preserved the important thread render semantics.
+- The first extraction of `useThreadRenderState.ts` briefly introduced a
+  runtime temporal-dead-zone bug because `RoomTimeline.tsx` referenced values
+  returned from the hook in callbacks/effect dependencies before the hook call
+  itself. That has been fixed by moving the hook initialization above those
+  callback definitions.
 - When late thread edit/relation reconciliation lands while the user is already
   at or near the bottom of a thread, the thread view now re-pins to the latest
   reply instead of leaving the viewport visibly above the bottom after message

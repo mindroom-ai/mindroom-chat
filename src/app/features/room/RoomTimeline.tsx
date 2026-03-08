@@ -752,6 +752,20 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     ? getLinkedTimelines(threadTimelineSet.getLiveTimeline())
     : [];
   const lastThreadTimeline = threadLinkedTimelines[threadLinkedTimelines.length - 1];
+  const {
+    threadEventIndexMapRef,
+    threadEvents,
+    threadInitialRenderMode,
+    setSupplementalThreadEvents,
+    resetThreadRenderState,
+  } = useThreadRenderState({
+    room,
+    roomTimelineSet,
+    threadTimelineSet,
+    threadId,
+    thread,
+    threadInitialCacheHydrated,
+  });
   const canPaginateThreadBack =
     typeof threadLinkedTimelines[0]?.getPaginationToken(Direction.Backward) === 'string';
   const canPaginateThreadFront =
@@ -2572,20 +2586,6 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     }
   );
   const timelineItems = getItems();
-  const {
-    threadEventIndexMapRef,
-    threadEvents,
-    threadInitialRenderMode,
-    setSupplementalThreadEvents,
-    resetThreadRenderState,
-  } = useThreadRenderState({
-    room,
-    roomTimelineSet,
-    threadTimelineSet,
-    threadId,
-    thread,
-    threadInitialCacheHydrated,
-  });
 
   useEffect(() => {
     if (!threadId || threadEvents.length === 0) return;
