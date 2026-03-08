@@ -20,62 +20,30 @@ Rules followed:
 Working tree status (2026-03-07):
 
 - Modified:
-  - `APP_STORE_COMPLIANCE.md`
-  - `FORK_CHANGES.md`
-  - `README.md`
-  - `capacitor.config.ts`
-  - `config.json`
-  - `ios-build.md`
-  - `ios/App/App.xcodeproj/project.pbxproj`
-  - `ios/App/App/AppDelegate.swift`
-  - `ios/App/App/Info.plist`
-  - `ios/App/Podfile`
-  - `ios/App/Podfile.lock`
-  - `package-lock.json`
-  - `package.json`
-  - `scripts/appstore-preflight.mjs`
-  - `src/app/features/settings/notifications/SystemNotification.tsx`
-  - `src/app/hooks/useClientConfig.ts`
-  - `src/app/pages/client/ClientNonUIFeatures.tsx`
-  - `src/app/state/settings.ts`
+  - `src/app/features/room/RoomTimeline.tsx`
 - Added:
-  - `ios/App/App/App.entitlements`
-  - `src/app/utils/iosPush.test.ts`
-  - `src/app/utils/iosPush.ts`
+  - `REVIEW.md`
+  - `src/app/features/room/timelineScrollUtils.test.ts`
+  - `src/app/features/room/timelineScrollUtils.ts`
 
 What changed (uncommitted):
 
-- Native iOS push notification setup:
-  - Added `@capacitor/push-notifications` dependency and synced iOS CocoaPods (`CapacitorPushNotifications` pod).
-  - Added APNs registration callback forwarding in `AppDelegate.swift` (`didRegisterForRemoteNotificationsWithDeviceToken` / `didFailToRegisterForRemoteNotificationsWithError`) for Capacitor push token events.
-  - Added iOS push capability scaffolding (`App.entitlements` with `aps-environment`, target `CODE_SIGN_ENTITLEMENTS`, debug/release `APS_ENVIRONMENT` build settings, `UIBackgroundModes` remote-notification).
-  - Added `push.ios` client config schema and default config block in `config.json` to control gateway URL/app ID and pusher metadata.
-  - Added `src/app/utils/iosPush.ts` utility for:
-    - platform/config detection,
-    - APNs permission checking/requesting,
-    - APNs token registration trigger,
-    - Matrix HTTP pusher upsert/disable with persisted token/profile tag.
-  - Added runtime sync feature in `ClientNonUIFeatures` to auto-register/refresh native push pusher when logged in on iOS.
-  - Native push registration is now listener-first, so APNs registration events cannot be lost while the Settings toggle is enabling push.
-  - Permission-denied / registration-error paths now reconcile the local toggle state and disable any stale Matrix pusher registration instead of leaving push half-enabled.
-  - Removed a local-only `DEVELOPMENT_TEAM` assignment from the Xcode project so signing remains contributor/machine specific.
-  - Added Settings UI controls in `SystemNotification` for enabling/disabling native iOS push and surfacing configuration/permission errors.
-  - Added regression coverage in `src/app/utils/iosPush.test.ts`.
-  - Updated docs and preflight checks (`README.md`, `ios-build.md`, `APP_STORE_COMPLIANCE.md`, `scripts/appstore-preflight.mjs`) to include native push setup gates and required configuration.
+- Thread scroll/latest behavior hardening:
+  - Added `src/app/features/room/timelineScrollUtils.ts` to centralize thread-vs-room "live end" detection and near-bottom checks.
+  - Thread view now derives the floating `Jump to Latest` state from thread forward-pagination state instead of reusing main-room live-end state.
+  - Opening a thread now paginates forward to the latest loaded reply batch before forcing the scroll to the bottom, so clicking thread replies in a room lands at the newest reply.
+  - `Jump to Latest` now has a thread-specific path: it stays inside the thread, clears a focused `eventId` when needed, paginates newer thread batches, and scrolls to the latest reply.
+  - Live thread replies now stick to bottom using a near-bottom threshold instead of a 1px exact-bottom test, which is more tolerant of layout jitter in the custom thread timeline.
+  - Added regression coverage in `src/app/features/room/timelineScrollUtils.test.ts`.
+  - `REVIEW.md` is an unrelated untracked local note present in the working tree.
 
 Validation (uncommitted):
 
-- `npm run test -- src/app/utils/iosPush.test.ts` ✅ passed.
-- `npm run test` ✅ passed.
-- `npm run build` ✅ passed.
-- `npx eslint src/app/utils/iosPush.ts src/app/utils/iosPush.test.ts src/app/pages/client/ClientNonUIFeatures.tsx src/app/features/settings/notifications/SystemNotification.tsx src/app/hooks/useClientConfig.ts src/app/state/settings.ts` ✅ passed.
-- `npx cap sync ios` ✅ passed (pod install + plugin sync).
-- `npm run appstore:preflight` ✅ passed.
-- `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build` ✅ passed.
-- `npm run typecheck` ❌ fails with pre-existing repository-wide typing issues (matrix-js-sdk export/type surface mismatches across many files; existing before this delta).
-- `npm run lint` ❌ fails because `yarn` is not installed in this environment (`lint` script shells to `yarn check:*`).
-- `npm run check:eslint` ❌ fails with pre-existing repository-wide lint errors in unrelated files.
-- `npm run check:prettier` ❌ fails with pre-existing repository-wide formatting drift in unrelated files.
+- `npm run test -- src/app/features/room/timelineScrollUtils.test.ts src/app/features/room/threadUtils.test.ts` ✅ passed.
+- `npx eslint src/app/features/room/timelineScrollUtils.ts src/app/features/room/timelineScrollUtils.test.ts` ✅ passed.
+- `git diff --check` ✅ passed.
+- `npx eslint src/app/features/room/RoomTimeline.tsx` ❌ fails with pre-existing file-wide lint debt in `RoomTimeline.tsx` (for example `no-undef` on `ParentNode`, existing `no-use-before-define`, `no-shadow`, `no-continue`, and `consistent-return` findings outside this delta).
+- `npm run build` ❌ currently fails in this worktree with a pre-existing Vite/Rollup resolution error for `@capacitor/app` imported from `src/index.tsx` (outside this thread-scroll change).
 
 ## Commit-by-Commit Changes
 
@@ -661,6 +629,7 @@ Thread badge behavior:
   scans in UI helpers, improving streamed edit stability in long threads.
 - Thread timeline loading now backfills missing latest edits (`m.replace`) per
   loaded thread message when server responses omit replacement aggregation.
+- Thread view scroll state now uses thread-specific live-end detection: opening a thread and thread-scoped `Jump to Latest` both paginate forward to the newest loaded reply batch before scrolling to bottom, and live replies stick more reliably when the user is already near the bottom.
 - Main timeline thread summary chips render below message body and show participant avatars when available.
 - Base-path bootstrap is server-driven for the local SPA server (`serve.py`) and no longer depends on fragile client-side inference.
 - Service-worker media auth matching handles both root and subpath media endpoints on the same origin, reducing `M_MISSING_TOKEN` failures under subpath deployments.
