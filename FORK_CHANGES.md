@@ -17,33 +17,34 @@ Rules followed:
 
 ## Working Tree (Not Yet Committed)
 
-Working tree status (2026-03-07):
+Working tree status (2026-03-08):
 
 - Modified:
   - `src/app/features/room/RoomTimeline.tsx`
-- Added:
-  - `REVIEW.md`
+  - `src/app/features/room/threadEventCache.test.ts`
   - `src/app/features/room/timelineScrollUtils.test.ts`
   - `src/app/features/room/timelineScrollUtils.ts`
+- Added:
+  - `REVIEW.md`
 
 What changed (uncommitted):
 
-- Thread scroll/latest behavior hardening:
-  - Added `src/app/features/room/timelineScrollUtils.ts` to centralize thread-vs-room "live end" detection and near-bottom checks.
-  - Thread view now derives the floating `Jump to Latest` state from thread forward-pagination state instead of reusing main-room live-end state.
-  - Opening a thread now paginates forward to the latest loaded reply batch before forcing the scroll to the bottom, so clicking thread replies in a room lands at the newest reply.
-  - `Jump to Latest` now has a thread-specific path: it stays inside the thread, clears a focused `eventId` when needed, paginates newer thread batches, and scrolls to the latest reply.
-  - Live thread replies now stick to bottom using a near-bottom threshold instead of a 1px exact-bottom test, which is more tolerant of layout jitter in the custom thread timeline.
-  - Added regression coverage in `src/app/features/room/timelineScrollUtils.test.ts`.
+- Thread cache-first runtime wiring:
+  - Thread view now hydrates from the app-owned IndexedDB archive before network work begins, so previously seen replies can render immediately on reopen.
+  - Opening a plain thread now reconciles with a latest reply slice fetch instead of walking forward page-by-page to the live end.
+  - Older thread pagination now consumes cached reply pages before asking the server for older history.
+  - Thread reply cache tests now cover stable same-timestamp ordering and missing-timestamp cursor normalization, which are important for predictable local pagination anchors.
+  - Thread live-end detection in `src/app/features/room/timelineScrollUtils.ts` now recognizes a thread whose latest tail slice has already been reconciled, so the floating "Jump to Latest" state better matches thread reality.
   - `REVIEW.md` is an unrelated untracked local note present in the working tree.
 
 Validation (uncommitted):
 
-- `npm run test -- src/app/features/room/timelineScrollUtils.test.ts src/app/features/room/threadUtils.test.ts` ✅ passed.
-- `npx eslint src/app/features/room/timelineScrollUtils.ts src/app/features/room/timelineScrollUtils.test.ts` ✅ passed.
+- `npm run test -- src/app/features/room/threadEventCache.test.ts src/app/features/room/timelineScrollUtils.test.ts src/app/features/room/threadUtils.test.ts` ✅ passed.
+- `npx eslint src/app/features/room/threadEventCache.test.ts src/app/features/room/timelineScrollUtils.ts src/app/features/room/timelineScrollUtils.test.ts` ✅ passed.
 - `git diff --check` ✅ passed.
 - `npx eslint src/app/features/room/RoomTimeline.tsx` ❌ fails with pre-existing file-wide lint debt in `RoomTimeline.tsx` (for example `no-undef` on `ParentNode`, existing `no-use-before-define`, `no-shadow`, `no-continue`, and `consistent-return` findings outside this delta).
-- `npm run build` ❌ currently fails in this worktree with a pre-existing Vite/Rollup resolution error for `@capacitor/app` imported from `src/index.tsx` (outside this thread-scroll change).
+- `npm run build` ✅ passed.
+- `npm run typecheck` ❌ still fails with broad pre-existing repository type errors unrelated to this thread-cache delta (for example many longstanding `matrix-js-sdk` type import mismatches outside the touched files).
 
 ## Commit-by-Commit Changes
 
@@ -685,6 +686,11 @@ Implementation sequence for this branch:
    - optional cache-size/cleanup setting in UI,
    - broader room-level archival strategy beyond thread relation pages,
    - instrumentation for cache-hit/cache-miss behavior on mobile.
+
+Status as of 2026-03-08:
+
+- Step 1 is committed in `08ef697a` (`feat(thread-cache): add persistent thread reply archive`).
+- Step 2 and Step 3 are implemented in the current working tree and pending commit/verification.
 
 Execution notes:
 

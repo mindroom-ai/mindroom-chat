@@ -3,6 +3,7 @@ type TimelineAtLiveEndOpts = {
   liveTimelineLinked: boolean;
   rangeAtEnd: boolean;
   canPaginateThreadFront: boolean;
+  threadTailLoaded?: boolean;
 };
 
 type ScrollNearBottomOpts = {
@@ -23,8 +24,9 @@ export const isTimelineAtLiveEnd = ({
   liveTimelineLinked,
   rangeAtEnd,
   canPaginateThreadFront,
+  threadTailLoaded,
 }: TimelineAtLiveEndOpts): boolean =>
-  threadId ? !canPaginateThreadFront : liveTimelineLinked && rangeAtEnd;
+  threadId ? !!threadTailLoaded || !canPaginateThreadFront : liveTimelineLinked && rangeAtEnd;
 
 export const isScrollNearBottom = ({
   scrollHeight,
