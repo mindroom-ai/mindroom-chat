@@ -5,6 +5,7 @@ import { clearNavToActivePathStore } from '../app/state/navToActivePath';
 import { createMatrixClient } from './matrixClientFactory';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
 import { deleteThreadEventCache } from '../app/features/room/threadEventCache';
+import { deleteRoomEventCache } from '../app/features/room/roomEventCache';
 
 type Session = {
   baseUrl: string;
@@ -75,7 +76,7 @@ export const startClient = async (mx: MatrixClient) => {
 export const clearCacheAndReload = async (mx: MatrixClient) => {
   mx.stopClient();
   clearNavToActivePathStore(mx.getSafeUserId());
-  await Promise.all([mx.store.deleteAllData(), deleteThreadEventCache()]);
+  await Promise.all([mx.store.deleteAllData(), deleteThreadEventCache(), deleteRoomEventCache()]);
   window.location.reload();
 };
 
@@ -153,7 +154,7 @@ export const logoutClient = async (mx: MatrixClient) => {
   } catch {
     // ignore if failed to logout
   }
-  await Promise.all([mx.clearStores(), deleteThreadEventCache()]);
+  await Promise.all([mx.clearStores(), deleteThreadEventCache(), deleteRoomEventCache()]);
   window.localStorage.clear();
   window.location.reload();
 };
@@ -169,6 +170,7 @@ export const clearLoginData = async () => {
   });
 
   await deleteThreadEventCache();
+  await deleteRoomEventCache();
 
   window.localStorage.clear();
   window.location.reload();
