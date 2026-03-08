@@ -19,8 +19,6 @@ import {
   RectCords,
   Spinner,
   Text,
-  Tooltip,
-  TooltipProvider,
   as,
   color,
   config,
@@ -89,6 +87,13 @@ import {
 } from '../../../components/message/mindroomLongText';
 import { downloadMindroomLongTextSidecarBlob } from '../../../components/message/MindroomLongTextText';
 import { MindroomAiRunInfo, getMindroomAiRunInfo } from '../../../components/message/mindroomAiRun';
+import {
+  formatMindroomAiRunNumber,
+  formatMindroomAiRunTimeToFirstToken,
+  getMindroomAiRunContextLabel,
+  getMindroomAiRunModelLabel,
+  getMindroomAiRunUsageLabel,
+} from '../../../components/message/mindroomAiRunDisplay';
 
 export type ReactionHandler = (keyOrMxc: string, shortcode: string) => void;
 
@@ -131,41 +136,6 @@ const getLongTextDownloadName = (source: MindroomLongTextSource): string => {
   return `${baseName}${ext}`;
 };
 
-const formatNumber = (value: number | undefined): string | undefined =>
-  typeof value === 'number' ? Math.round(value).toLocaleString() : undefined;
-
-const formatTimeToFirstToken = (value: number | undefined): string | undefined => {
-  if (typeof value !== 'number' || value < 0) return undefined;
-  return `${Math.round(value * 1000)} ms`;
-};
-
-const getModelLabel = (info: MindroomAiRunInfo): string | undefined => {
-  const providerAndId = [info.modelProvider, info.modelId].filter(Boolean).join(' / ');
-  if (info.modelConfig && providerAndId) return `${info.modelConfig} (${providerAndId})`;
-  if (info.modelConfig) return info.modelConfig;
-  return providerAndId || undefined;
-};
-
-const getUsageLabel = (info: MindroomAiRunInfo): string | undefined => {
-  const parts = [
-    info.inputTokens !== undefined ? `in ${formatNumber(info.inputTokens)}` : undefined,
-    info.outputTokens !== undefined ? `out ${formatNumber(info.outputTokens)}` : undefined,
-    info.totalTokens !== undefined ? `total ${formatNumber(info.totalTokens)}` : undefined,
-  ].filter(Boolean);
-
-  return parts.length > 0 ? parts.join(' • ') : undefined;
-};
-
-const getContextLabel = (info: MindroomAiRunInfo): string | undefined => {
-  const inputTokens = info.contextInputTokens;
-  const windowTokens = info.contextWindowTokens;
-  if (inputTokens === undefined || windowTokens === undefined || windowTokens <= 0)
-    return undefined;
-
-  const percentage = ((inputTokens / windowTokens) * 100).toFixed(1);
-  return `${formatNumber(inputTokens)} / ${formatNumber(windowTokens)} (${percentage}%)`;
-};
-
 function MindroomAiRunDetail({ label, value }: { label: string; value?: string }) {
   if (!value) return null;
   return (
@@ -176,42 +146,71 @@ function MindroomAiRunDetail({ label, value }: { label: string; value?: string }
 }
 
 function MindroomAiRunInfoButton({ info }: { info: MindroomAiRunInfo }) {
-  const modelLabel = getModelLabel(info);
-  const usageLabel = getUsageLabel(info);
-  const contextLabel = getContextLabel(info);
-  const toolsLabel = formatNumber(info.toolCount);
-  const ttftLabel = formatTimeToFirstToken(info.timeToFirstToken);
+  const [open, setOpen] = useState(false);
+  const modelLabel = getMindroomAiRunModelLabel(info);
+  const usageLabel = getMindroomAiRunUsageLabel(info);
+  const contextLabel = getMindroomAiRunContextLabel(info);
+  const toolsLabel = formatMindroomAiRunNumber(info.toolCount);
+  const ttftLabel = formatMindroomAiRunTimeToFirstToken(info.timeToFirstToken);
+  const handleClose = () => setOpen(false);
 
   return (
-    <TooltipProvider
-      position="Top"
-      align="Center"
-      tooltip={
-        <Tooltip style={{ maxWidth: '20rem' }}>
-          <Box direction="Column" gap="100">
-            <Text size="L400">AI Run</Text>
-            <MindroomAiRunDetail label="Status" value={info.status} />
-            <MindroomAiRunDetail label="Model" value={modelLabel} />
-            <MindroomAiRunDetail label="Tokens" value={usageLabel} />
-            <MindroomAiRunDetail label="Context" value={contextLabel} />
-            <MindroomAiRunDetail label="Tools" value={toolsLabel} />
-            <MindroomAiRunDetail label="TTFT" value={ttftLabel} />
-            <MindroomAiRunDetail label="Run" value={info.runId} />
-          </Box>
-        </Tooltip>
-      }
-    >
-      {(triggerRef) => (
-        <button
-          type="button"
-          className={css.MessageAiRunInfoButton}
-          aria-label="AI run metadata"
-          ref={triggerRef}
-        >
-          <Icon size="50" src={Icons.Info} />
-        </button>
-      )}
-    </TooltipProvider>
+    <>
+      <Overlay open={open} backdrop={<OverlayBackdrop />}>
+        <OverlayCenter>
+          <FocusTrap
+            focusTrapOptions={{
+              initialFocus: false,
+              onDeactivate: handleClose,
+              clickOutsideDeactivates: true,
+              escapeDeactivates: stopPropagation,
+            }}
+          >
+            <Dialog variant="Surface">
+              <Header
+                style={{
+                  padding: `0 ${config.space.S200} 0 ${config.space.S400}`,
+                  borderBottomWidth: config.borderWidth.B300,
+                }}
+                variant="Surface"
+                size="500"
+              >
+                <Box grow="Yes">
+                  <Text size="H4">AI Run Metadata</Text>
+                </Box>
+                <IconButton size="300" onClick={handleClose} radii="300" aria-label="Close">
+                  <Icon src={Icons.Cross} />
+                </IconButton>
+              </Header>
+              <Box
+                style={{ padding: config.space.S400, maxWidth: '24rem' }}
+                direction="Column"
+                gap="100"
+              >
+                <MindroomAiRunDetail label="Status" value={info.status} />
+                <MindroomAiRunDetail label="Model" value={modelLabel} />
+                <MindroomAiRunDetail label="Tokens" value={usageLabel} />
+                <MindroomAiRunDetail label="Context" value={contextLabel} />
+                <MindroomAiRunDetail label="Tools" value={toolsLabel} />
+                <MindroomAiRunDetail label="TTFT" value={ttftLabel} />
+                <MindroomAiRunDetail label="Run" value={info.runId} />
+                <MindroomAiRunDetail label="Session" value={info.sessionId} />
+              </Box>
+            </Dialog>
+          </FocusTrap>
+        </OverlayCenter>
+      </Overlay>
+      <button
+        type="button"
+        className={css.MessageAiRunInfoButton}
+        aria-label="Open AI run metadata"
+        aria-haspopup="dialog"
+        aria-pressed={open}
+        onClick={() => setOpen(true)}
+      >
+        <Icon size="50" src={Icons.Info} />
+      </button>
+    </>
   );
 }
 
@@ -912,8 +911,7 @@ export const Message = as<'div', MessageProps>(
     const menuMessageContent = getMenuMessageContent(room, mEvent);
     const longTextSource = getMindroomLongTextSource(menuMessageContent);
     const mindroomAiRunInfo = getMindroomAiRunInfo(menuMessageContent);
-    const showMindroomAiRunInfo =
-      !!mindroomAiRunInfo && (hover || !!menuAnchor || !!emojiBoardAnchor);
+    const showMindroomAiRunInfo = !!mindroomAiRunInfo;
 
     const senderDisplayName =
       getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
