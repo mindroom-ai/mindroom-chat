@@ -109,8 +109,13 @@ function UsernameHint({ server }: { server: string }) {
 type PasswordLoginFormProps = {
   defaultUsername?: string;
   defaultEmail?: string;
+  addAccount?: boolean;
 };
-export function PasswordLoginForm({ defaultUsername, defaultEmail }: PasswordLoginFormProps) {
+export function PasswordLoginForm({
+  defaultUsername,
+  defaultEmail,
+  addAccount = false,
+}: PasswordLoginFormProps) {
   const server = useAuthServer();
   const clientConfig = useClientConfig();
 
@@ -123,7 +128,7 @@ export function PasswordLoginForm({ defaultUsername, defaultEmail }: PasswordLog
     Parameters<typeof login>
   >(useCallback(login, []));
 
-  useLoginComplete(loginState.status === AsyncStatus.Success ? loginState.data : undefined);
+  useLoginComplete(loginState.status === AsyncStatus.Success ? loginState.data : undefined, addAccount);
 
   const handleUsernameLogin = (username: string, password: string) => {
     startLogin(baseUrl, {

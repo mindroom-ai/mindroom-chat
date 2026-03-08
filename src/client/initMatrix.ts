@@ -6,13 +6,16 @@ import { createMatrixClient } from './matrixClientFactory';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
 import { deleteThreadEventCache } from '../app/features/room/threadEventCache';
 import { deleteRoomEventCache } from '../app/features/room/roomEventCache';
-
-type Session = {
-  baseUrl: string;
-  accessToken: string;
-  userId: string;
-  deviceId: string;
-};
+import { clearIOSPushState } from '../app/utils/iosPush';
+import {
+  StoredSession,
+  clearSessionStore,
+  getActiveSession,
+  getSessionStoreName,
+  listSessions,
+  removeSession,
+  removeActiveSession,
+} from '../app/state/sessions';
 
 export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 5000;
 
@@ -37,15 +40,16 @@ export const configureLargeSyncArchive = (indexedDBStore: IndexedDBStore): void 
   );
 };
 
-export const initClient = async (session: Session): Promise<MatrixClient> => {
+export const initClient = async (session: StoredSession): Promise<MatrixClient> => {
+  const storeNames = getSessionStoreName(session);
   const indexedDBStore = new IndexedDBStore({
     indexedDB: global.indexedDB,
     localStorage: global.localStorage,
-    dbName: 'web-sync-store',
+    dbName: storeNames.sync,
   });
   configureLargeSyncArchive(indexedDBStore);
 
-  const legacyCryptoStore = new IndexedDBCryptoStore(global.indexedDB, 'crypto-store');
+  const legacyCryptoStore = new IndexedDBCryptoStore(global.indexedDB, storeNames.crypto);
 
   const mx = createMatrixClient({
     baseUrl: session.baseUrl,
@@ -73,10 +77,53 @@ export const startClient = async (mx: MatrixClient) => {
   });
 };
 
+const deleteNamedDatabase = async (name: string): Promise<void> => {
+  if (typeof indexedDB === 'undefined') return;
+
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(name);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+    request.onblocked = () => resolve();
+  });
+};
+
+export const deleteSessionLocalData = async (
+  session: StoredSession,
+  mx?: MatrixClient
+): Promise<void> => {
+  clearNavToActivePathStore(session.userId);
+
+  const storeNames = getSessionStoreName(session);
+
+  await Promise.all([
+    mx ? mx.clearStores() : deleteNamedDatabase(storeNames.sync),
+    mx ? Promise.resolve() : deleteNamedDatabase(storeNames.crypto),
+    deleteThreadEventCache(session.sessionId),
+    deleteRoomEventCache(session.sessionId),
+  ]);
+  clearIOSPushState(session.sessionId);
+};
+
+export const removeSessionAndReload = async (
+  session: StoredSession,
+  mx?: MatrixClient
+): Promise<void> => {
+  mx?.stopClient();
+  await deleteSessionLocalData(session, mx);
+  removeSession(session.sessionId);
+  window.location.reload();
+};
+
 export const clearCacheAndReload = async (mx: MatrixClient) => {
   mx.stopClient();
   clearNavToActivePathStore(mx.getSafeUserId());
-  await Promise.all([mx.store.deleteAllData(), deleteThreadEventCache(), deleteRoomEventCache()]);
+  const activeSession = getActiveSession();
+  await Promise.all([
+    mx.store.deleteAllData(),
+    activeSession ? deleteThreadEventCache(activeSession.sessionId) : Promise.resolve(),
+    activeSession ? deleteRoomEventCache(activeSession.sessionId) : Promise.resolve(),
+  ]);
   window.location.reload();
 };
 
@@ -148,18 +195,25 @@ export const clearBrowserCacheAndReload = async () => {
 };
 
 export const logoutClient = async (mx: MatrixClient) => {
+  const activeSession = getActiveSession();
   mx.stopClient();
   try {
     await mx.logout();
   } catch {
     // ignore if failed to logout
   }
-  await Promise.all([mx.clearStores(), deleteThreadEventCache(), deleteRoomEventCache()]);
-  window.localStorage.clear();
+  if (activeSession) {
+    await removeSessionAndReload(activeSession, mx);
+    return;
+  }
+
+  await mx.clearStores();
+  removeActiveSession();
   window.location.reload();
 };
 
 export const clearLoginData = async () => {
+  const sessions = listSessions();
   const dbs = await window.indexedDB.databases();
 
   dbs.forEach((idbInfo) => {
@@ -169,9 +223,18 @@ export const clearLoginData = async () => {
     }
   });
 
-  await deleteThreadEventCache();
-  await deleteRoomEventCache();
+  await Promise.all(
+    sessions.map((session) =>
+      Promise.all([
+        deleteThreadEventCache(session.sessionId),
+        deleteRoomEventCache(session.sessionId),
+      ]).catch(() => undefined)
+    )
+  );
+  sessions.forEach((session) => {
+    clearIOSPushState(session.sessionId);
+  });
 
-  window.localStorage.clear();
+  clearSessionStore();
   window.location.reload();
 };

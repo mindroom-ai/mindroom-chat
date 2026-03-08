@@ -1,4 +1,5 @@
 import { IEvent } from 'matrix-js-sdk';
+import { getSessionScopedStorageKey } from '../../state/sessions';
 import {
   CachedPaginationTokenMap,
   getCachedPaginationToken,
@@ -43,7 +44,7 @@ type RoomCursorAnchor = {
   ts: number;
 };
 
-let dbPromise: Promise<IDBDatabase | undefined> | undefined;
+const dbPromiseByName = new Map<string, Promise<IDBDatabase | undefined>>();
 
 const getEventCacheKey = (roomId: string, eventId: string): string => `${roomId}|${eventId}`;
 
@@ -92,15 +93,21 @@ export const getRoomCursorAnchor = (
   };
 };
 
-const openRoomEventCache = (): Promise<IDBDatabase | undefined> => {
-  if (dbPromise) return dbPromise;
+export const getRoomEventCacheDbName = (sessionId: string): string =>
+  getSessionScopedStorageKey(sessionId, DB_NAME);
+
+const openRoomEventCache = (sessionId: string): Promise<IDBDatabase | undefined> => {
+  const dbName = getRoomEventCacheDbName(sessionId);
+  const currentPromise = dbPromiseByName.get(dbName);
+  if (currentPromise) return currentPromise;
   if (typeof indexedDB === 'undefined') {
-    dbPromise = Promise.resolve(undefined);
-    return dbPromise;
+    const missingDbPromise = Promise.resolve(undefined);
+    dbPromiseByName.set(dbName, missingDbPromise);
+    return missingDbPromise;
   }
 
-  dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+  const dbPromise = new Promise<IDBDatabase | undefined>((resolve, reject) => {
+    const request = indexedDB.open(dbName, DB_VERSION);
 
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -124,22 +131,24 @@ const openRoomEventCache = (): Promise<IDBDatabase | undefined> => {
       const db = request.result;
       db.onversionchange = () => {
         db.close();
-        dbPromise = undefined;
+        dbPromiseByName.delete(dbName);
       };
       resolve(db);
     };
     request.onerror = () => reject(request.error);
   });
 
+  dbPromiseByName.set(dbName, dbPromise);
   return dbPromise;
 };
 
 const runCursorQuery = async (
+  sessionId: string,
   roomId: string,
   limit: number,
   upperBound?: RoomCursorAnchor
 ): Promise<CachedRoomEventPage> => {
-  const db = await openRoomEventCache();
+  const db = await openRoomEventCache(sessionId);
   if (!db || limit <= 0) return { events: [], hasMoreBefore: false };
 
   return new Promise((resolve, reject) => {
@@ -195,25 +204,28 @@ const runCursorQuery = async (
 };
 
 export const loadLatestCachedRoomEvents = async (
+  sessionId: string,
   roomId: string,
   limit: number
-): Promise<CachedRoomEventPage> => runCursorQuery(roomId, limit);
+): Promise<CachedRoomEventPage> => runCursorQuery(sessionId, roomId, limit);
 
 export const loadCachedRoomEventsBefore = async (
+  sessionId: string,
   roomId: string,
   before: RoomCursorAnchor | undefined,
   limit: number
 ): Promise<CachedRoomEventPage> => {
   if (!before) return { events: [], hasMoreBefore: false };
-  return runCursorQuery(roomId, limit, before);
+  return runCursorQuery(sessionId, roomId, limit, before);
 };
 
 export const saveRoomEventsToCache = async (
+  sessionId: string,
   roomId: string,
   rawEvents: Partial<IEvent>[],
   beforeTokenForEarliest?: string | null
 ): Promise<void> => {
-  const db = await openRoomEventCache();
+  const db = await openRoomEventCache(sessionId);
   if (!db) return;
 
   const normalizedEvents = normalizeCachedRoomEvents(rawEvents);
@@ -260,15 +272,16 @@ export const saveRoomEventsToCache = async (
   });
 };
 
-export const deleteRoomEventCache = async (): Promise<void> => {
+export const deleteRoomEventCache = async (sessionId: string): Promise<void> => {
   if (typeof indexedDB === 'undefined') return;
 
-  const currentDb = await dbPromise;
+  const dbName = getRoomEventCacheDbName(sessionId);
+  const currentDb = await dbPromiseByName.get(dbName);
   currentDb?.close();
-  dbPromise = undefined;
+  dbPromiseByName.delete(dbName);
 
   await new Promise<void>((resolve, reject) => {
-    const request = indexedDB.deleteDatabase(DB_NAME);
+    const request = indexedDB.deleteDatabase(dbName);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
     request.onblocked = () => resolve();

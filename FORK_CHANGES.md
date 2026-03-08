@@ -20,16 +20,15 @@ Rules followed:
 Working tree status (2026-03-08):
 
 - Modified: none
-- Added:
-  - `REVIEW.md`
+- Added: none
 
 What changed (uncommitted):
 
-- None. `REVIEW.md` remains an unrelated untracked local note present in the working tree.
+- None.
 
 Validation (uncommitted):
 
-- None pending beyond the existing untracked `REVIEW.md`.
+- None.
 
 ## Commit-by-Commit Changes
 
@@ -417,6 +416,67 @@ What changed:
 Why:
 
 - Prevents disruptive forced scroll-to-bottom in the main room while users read older history, while keeping expected auto-scroll behavior scoped to the active thread view.
+
+### feat(accounts): add multi-account session foundation
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/components/ClientConfigLoader.tsx`
+- `src/app/features/room/RoomTimeline.test.ts`
+- `src/app/features/room/RoomTimeline.tsx`
+- `src/app/features/room/roomEventCache.ts`
+- `src/app/features/room/roomEventCache.test.ts`
+- `src/app/features/room/threadEventCache.ts`
+- `src/app/features/room/threadEventCache.test.ts`
+- `src/app/features/settings/notifications/SystemNotification.tsx`
+- `src/app/hooks/useIOSPushEnabled.ts`
+- `src/app/hooks/useSessionStore.ts`
+- `src/app/pages/Router.tsx`
+- `src/app/pages/auth/addAccount.test.ts`
+- `src/app/pages/auth/addAccount.ts`
+- `src/app/pages/auth/login/Login.tsx`
+- `src/app/pages/auth/login/PasswordLoginForm.tsx`
+- `src/app/pages/auth/login/TokenLogin.tsx`
+- `src/app/pages/auth/login/loginUtil.ts`
+- `src/app/pages/auth/register/PasswordRegisterForm.tsx`
+- `src/app/pages/auth/register/Register.tsx`
+- `src/app/pages/auth/register/registerUtil.ts`
+- `src/app/pages/client/ClientLayout.tsx`
+- `src/app/pages/client/ClientNonUIFeatures.tsx`
+- `src/app/pages/client/ClientRoot.tsx`
+- `src/app/pages/client/SpecVersions.test.ts`
+- `src/app/pages/client/SpecVersions.tsx`
+- `src/app/pages/client/sidebar/SettingsTab.tsx`
+- `src/app/state/sessions.test.ts`
+- `src/app/state/sessions.ts`
+- `src/app/state/settings.ts`
+- `src/app/utils/iosPush.test.ts`
+- `src/app/utils/iosPush.ts`
+- `src/app/utils/mediaUrl.test.ts`
+- `src/app/utils/mediaUrl.ts`
+- `src/app/utils/roomAvatar.test.ts`
+- `src/client/initMatrix.test.ts`
+- `src/client/initMatrix.ts`
+- `src/index.tsx`
+
+What changed:
+
+- Replaced the old fallback single-session boot/session path with a persisted multi-account session registry keyed by normalized `baseUrl + userId`.
+- Switched Matrix sync/crypto stores and custom room/thread cache databases to session-scoped names so accounts no longer share persistence.
+- Updated auth completion and routing so login/register can either create the first account or add another account without destroying the existing one.
+- Updated app boot so `ClientRoot` starts from the active stored session and can switch between stored sessions cleanly.
+- Replaced the bottom single-avatar Settings trigger with a first-pass account rail:
+  - active avatar still opens Settings,
+  - inactive avatars switch account,
+  - `+` opens auth in add-account mode.
+- Persisted per-account last visited route and last-known profile/avatar metadata to make switching faster and more recognizable.
+- Made service-worker session posting, authenticated media fallback, and native iOS push local state read/write the active session instead of singleton global keys.
+- Added focused regression tests for the session registry, add-account URL helpers, session-aware media/push helpers, namespaced Matrix init, and updated smoke tests for `SpecVersions`/`RoomTimeline`.
+
+Why:
+
+- Required to start multi-account support cleanly without session, cache, media-auth, or push-state leakage between accounts.
 
 # Runbook
 
@@ -909,6 +969,29 @@ Recommended first implementation commit after this design:
 - `feat(accounts): add persisted session registry`
 
 That is the correct first step because it creates the account model without carrying a fallback compatibility layer. Once that exists, the rest of the feature can be built as isolated commits instead of one tangled rewrite.
+
+Status as of 2026-03-08:
+
+- The first implementation slice is now done:
+  - persisted session registry,
+  - session-scoped SDK stores and room/thread caches,
+  - active-session boot in router/client init,
+  - add-account auth entry path,
+  - first-pass bottom account rail,
+  - session-aware service-worker/media auth wiring,
+  - session-aware iOS push local state.
+- Validation completed for this slice:
+  - targeted Vitest suite covering sessions/auth helpers/push/media/cache smoke paths,
+  - `npm run build`,
+  - targeted eslint pass on touched files with warnings only.
+- Still intentionally not finished in this slice:
+  - inactive-account `Remove from device` UI,
+  - broader account-management actions/polish beyond the first rail,
+  - later per-account push/account management UX improvements.
+
+Recommended next implementation commit:
+
+- `feat(accounts): add inactive account removal and account management actions`
 
 ## Submission Readiness Check (2026-02-26, macOS/Xcode)
 

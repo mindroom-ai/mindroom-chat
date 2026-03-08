@@ -67,8 +67,9 @@ import { HomeCreateRoom } from './client/home/CreateRoom';
 import { Create } from './client/create';
 import { CreateSpaceModalRenderer } from '../features/create-space';
 import { SearchModalRenderer } from '../features/search';
-import { getFallbackSession } from '../state/sessions';
+import { getActiveSession, hasStoredSessions } from '../state/sessions';
 import { getAppBasePath } from '../utils/basePath';
+import { isAddAccountSearch } from './auth/addAccount';
 
 export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize) => {
   const { hashRouter } = clientConfig;
@@ -79,15 +80,15 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
       <Route
         index
         loader={() => {
-          if (getFallbackSession()) return redirect(getHomePath());
+          if (getActiveSession()) return redirect(getHomePath());
           const afterLoginPath = getAppPathFromHref(getOriginBaseUrl(), window.location.href);
           if (afterLoginPath) setAfterLoginRedirectPath(afterLoginPath);
           return redirect(getLoginPath());
         }}
       />
       <Route
-        loader={() => {
-          if (getFallbackSession()) {
+        loader={({ request }) => {
+          if (getActiveSession() && !isAddAccountSearch(new URL(request.url).search)) {
             return redirect(getHomePath());
           }
 
@@ -107,12 +108,16 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
 
       <Route
         loader={() => {
-          if (!getFallbackSession()) {
+          if (!hasStoredSessions()) {
             const afterLoginPath = getAppPathFromHref(
               getOriginBaseUrl(hashRouter),
               window.location.href
             );
             if (afterLoginPath) setAfterLoginRedirectPath(afterLoginPath);
+            return redirect(getLoginPath());
+          }
+
+          if (!getActiveSession()) {
             return redirect(getLoginPath());
           }
           return null;

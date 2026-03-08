@@ -125,6 +125,7 @@ import { useIgnoredUsers } from '../../hooks/useIgnoredUsers';
 import { useImagePackRooms } from '../../hooks/useImagePackRooms';
 import { useIsDirectRoom } from '../../hooks/useRoom';
 import { useOpenUserRoomProfile } from '../../state/hooks/userRoomProfile';
+import { createSessionId } from '../../state/sessions';
 import { useSpaceOptionally } from '../../hooks/useSpace';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
@@ -602,6 +603,10 @@ const getRoomUnreadInfo = (room: Room, scrollTo = false) => {
 
 export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: RoomTimelineProps) {
   const mx = useMatrixClient();
+  const sessionId = useMemo(
+    () => createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()),
+    [mx]
+  );
   const useAuthentication = useMediaAuthentication();
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
   const [messageLayout] = useSetting(settingsAtom, 'messageLayout');
@@ -806,6 +811,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         const timelinesEventsCount = currentLinkedTimelines.map(timelineToEventsCount);
         const earliestLoadedEvent = getEarliestLoadedRoomEvent(room, currentLinkedTimelines);
         const cachedPage = await loadCachedRoomEventsBefore(
+          sessionId,
           room.roomId,
           getRoomCursorAnchor(earliestLoadedEvent?.event as Partial<IEvent> | undefined),
           PAGINATION_LIMIT
@@ -865,7 +871,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         roomPaginatingBackRef.current = false;
       }
     },
-    [alive, handleTimelinePagination, mx, room, threadId, timeline.linkedTimelines]
+    [alive, handleTimelinePagination, mx, room, sessionId, threadId, timeline.linkedTimelines]
   );
 
   const persistThreadEventCache = useCallback(
@@ -884,6 +890,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         ? rawEvents.find((rawEvent) => rawEvent.event_id === rootEvent.getId())
         : undefined;
       saveThreadEventsToCache(
+        sessionId,
         room.roomId,
         expectedThreadId,
         rawEvents,
@@ -891,7 +898,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         beforeTokenForEarliest
       ).catch(() => undefined);
     },
-    [room]
+    [room, sessionId]
   );
 
   const persistRoomEventCache = useCallback(
@@ -902,16 +909,17 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           (mEvent) => !isThreadOnlyRoomActivity(room, mEvent)
         )
       );
-      saveRoomEventsToCache(room.roomId, rawEvents, beforeTokenForEarliest).catch(
+      saveRoomEventsToCache(sessionId, room.roomId, rawEvents, beforeTokenForEarliest).catch(
         () => undefined
       );
     },
-    [room]
+    [room, sessionId]
   );
 
   const hydrateThreadFromCache = useCallback(
     async (expectedThreadId: string) => {
       const cachedPage = await loadLatestCachedThreadEvents(
+        sessionId,
         room.roomId,
         expectedThreadId,
         THREAD_CACHE_OPEN_LIMIT
@@ -933,7 +941,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       setThreadTimelineTick((val) => val + 1);
       return cachedPage;
     },
-    [alive, mx, room.roomId, setSupplementalThreadEvents]
+    [alive, mx, room.roomId, sessionId, setSupplementalThreadEvents]
   );
 
   const refreshLatestThreadSlice = useCallback(
@@ -1170,6 +1178,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     const refreshRoomCachedBackState = async () => {
       const earliestLoadedEvent = getEarliestLoadedRoomEvent(room, timeline.linkedTimelines);
       const cachedPage = await loadCachedRoomEventsBefore(
+        sessionId,
         room.roomId,
         getRoomCursorAnchor(earliestLoadedEvent?.event as Partial<IEvent> | undefined),
         1
@@ -1182,7 +1191,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     return () => {
       cancelled = true;
     };
-  }, [alive, eventId, eventsLength, room, threadId, timeline.linkedTimelines]);
+  }, [alive, eventId, eventsLength, room, sessionId, threadId, timeline.linkedTimelines]);
 
   const handleOpenEvent = useCallback(
     async (
@@ -2739,6 +2748,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     try {
       const earliestThreadReply = getEarliestLoadedThreadReply(threadEvents, expectedThreadId);
       const cachedPage = await loadCachedThreadEventsBefore(
+        sessionId,
         room.roomId,
         expectedThreadId,
         getThreadCursorAnchor(earliestThreadReply?.event as Partial<IEvent> | undefined),
@@ -2801,6 +2811,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     mx,
     persistThreadEventCache,
     room.roomId,
+    sessionId,
     setSupplementalThreadEvents,
     thread,
     threadEvents,

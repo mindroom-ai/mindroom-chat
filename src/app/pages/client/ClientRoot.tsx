@@ -21,6 +21,7 @@ import {
   clearLoginData,
   initClient,
   logoutClient,
+  removeSessionAndReload,
   startClient,
 } from '../../../client/initMatrix';
 import { SplashScreen } from '../../components/splash-screen';
@@ -29,12 +30,12 @@ import { CapabilitiesProvider } from '../../hooks/useCapabilities';
 import { MediaConfigProvider } from '../../hooks/useMediaConfig';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { SpecVersions } from './SpecVersions';
-import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useSyncState } from '../../hooks/useSyncState';
 import { stopPropagation } from '../../utils/keyboard';
 import { SyncStatus } from './SyncStatus';
 import { AuthMetadataProvider } from '../../hooks/useAuthMetadata';
-import { getFallbackSession } from '../../state/sessions';
+import { StoredSession } from '../../state/sessions';
+import { useActiveSession } from '../../hooks/useSessionStore';
 
 function ClientRootLoading() {
   return (
@@ -47,7 +48,7 @@ function ClientRootLoading() {
   );
 }
 
-function ClientRootOptions({ mx }: { mx?: MatrixClient }) {
+function ClientRootOptions({ mx, activeSession }: { mx?: MatrixClient; activeSession?: StoredSession }) {
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
 
   const handleToggle: MouseEventHandler<HTMLButtonElement> = (evt) => {
@@ -99,10 +100,14 @@ function ClientRootOptions({ mx }: { mx?: MatrixClient }) {
                 <MenuItem
                   onClick={() => {
                     if (mx) {
-                      logoutClient(mx);
+                      logoutClient(mx).catch(() => undefined);
                       return;
                     }
-                    clearLoginData();
+                    if (activeSession) {
+                      removeSessionAndReload(activeSession).catch(() => undefined);
+                      return;
+                    }
+                    clearLoginData().catch(() => undefined);
                   }}
                   size="300"
                   radii="300"
@@ -122,12 +127,17 @@ function ClientRootOptions({ mx }: { mx?: MatrixClient }) {
   );
 }
 
-const useLogoutListener = (mx?: MatrixClient) => {
+const useLogoutListener = (mx: MatrixClient | undefined, activeSession: StoredSession | undefined) => {
   useEffect(() => {
     const handleLogout: HttpApiEventHandlerMap[HttpApiEvent.SessionLoggedOut] = async () => {
-      mx?.stopClient();
-      await mx?.clearStores();
-      window.localStorage.clear();
+      if (!mx) return;
+      if (activeSession) {
+        await removeSessionAndReload(activeSession, mx);
+        return;
+      }
+
+      mx.stopClient();
+      await mx.clearStores();
       window.location.reload();
     };
 
@@ -135,43 +145,105 @@ const useLogoutListener = (mx?: MatrixClient) => {
     return () => {
       mx?.removeListener(HttpApiEvent.SessionLoggedOut, handleLogout);
     };
-  }, [mx]);
+  }, [activeSession, mx]);
 };
+
+type ClientState =
+  | {
+      status: 'idle';
+    }
+  | {
+      status: 'loading' | 'starting';
+      session: StoredSession;
+      mx?: MatrixClient;
+    }
+  | {
+      status: 'success';
+      session: StoredSession;
+      mx: MatrixClient;
+    }
+  | {
+      status: 'error';
+      session: StoredSession;
+      error: Error;
+      mx?: MatrixClient;
+    };
 
 type ClientRootProps = {
   children: ReactNode;
 };
 export function ClientRoot({ children }: ClientRootProps) {
+  const activeSession = useActiveSession();
   const [loading, setLoading] = useState(true);
-  const { baseUrl } = getFallbackSession() ?? {};
+  const [retryCount, setRetryCount] = useState(0);
+  const [clientState, setClientState] = useState<ClientState>({ status: 'idle' });
+  const mx = 'mx' in clientState ? clientState.mx : undefined;
 
-  const [loadState, loadMatrix] = useAsyncCallback<MatrixClient, Error, []>(
-    useCallback(() => {
-      const session = getFallbackSession();
-      if (!session) {
-        throw new Error('No session Found!');
+  useLogoutListener(mx, activeSession);
+
+  useEffect(() => {
+    let disposed = false;
+    let nextClient: MatrixClient | undefined;
+
+    if (!activeSession) {
+      setClientState({ status: 'idle' });
+      return () => undefined;
+    }
+
+    setLoading(true);
+    setClientState({
+      status: 'loading',
+      session: activeSession,
+    });
+
+    const loadClient = async () => {
+      try {
+        nextClient = await initClient(activeSession);
+        if (disposed) {
+          nextClient.stopClient();
+          return;
+        }
+
+        setClientState({
+          status: 'starting',
+          session: activeSession,
+          mx: nextClient,
+        });
+
+        await startClient(nextClient);
+        if (disposed) {
+          nextClient.stopClient();
+          return;
+        }
+
+        setClientState({
+          status: 'success',
+          session: activeSession,
+          mx: nextClient,
+        });
+      } catch (error) {
+        if (nextClient) {
+          nextClient.stopClient();
+        }
+        if (disposed) return;
+        setLoading(false);
+
+        setClientState({
+          status: 'error',
+          session: activeSession,
+          error: error instanceof Error ? error : new Error('Failed to initialize Matrix client.'),
+          mx: nextClient,
+        });
       }
-      return initClient(session);
-    }, [])
-  );
-  const mx = loadState.status === AsyncStatus.Success ? loadState.data : undefined;
-  const [startState, startMatrix] = useAsyncCallback<void, Error, [MatrixClient]>(
-    useCallback((m) => startClient(m), [])
-  );
+    };
 
-  useLogoutListener(mx);
+    loadClient().catch(() => undefined);
 
-  useEffect(() => {
-    if (loadState.status === AsyncStatus.Idle) {
-      loadMatrix();
-    }
-  }, [loadState, loadMatrix]);
-
-  useEffect(() => {
-    if (mx && !mx.clientRunning) {
-      startMatrix(mx);
-    }
-  }, [mx, startMatrix]);
+    return () => {
+      disposed = true;
+      nextClient?.stopClient();
+    };
+  }, [activeSession, retryCount]);
 
   useSyncState(
     mx,
@@ -182,24 +254,40 @@ export function ClientRoot({ children }: ClientRootProps) {
     }, [])
   );
 
+  useEffect(() => {
+    setLoading(true);
+  }, [activeSession?.sessionId, retryCount]);
+
+  if (!activeSession) {
+    return <ClientRootLoading />;
+  }
+
   return (
-    <SpecVersions baseUrl={baseUrl!}>
+    <SpecVersions baseUrl={activeSession.baseUrl}>
       {mx && <SyncStatus mx={mx} />}
-      {loading && <ClientRootOptions mx={mx} />}
-      {(loadState.status === AsyncStatus.Error || startState.status === AsyncStatus.Error) && (
+      {loading && <ClientRootOptions mx={mx} activeSession={activeSession} />}
+      {clientState.status === 'error' && (
         <SplashScreen>
           <Box direction="Column" grow="Yes" alignItems="Center" justifyContent="Center" gap="400">
             <Dialog>
               <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
-                {loadState.status === AsyncStatus.Error && (
-                  <Text>{`Failed to load. ${loadState.error.message}`}</Text>
-                )}
-                {startState.status === AsyncStatus.Error && (
-                  <Text>{`Failed to start. ${startState.error.message}`}</Text>
-                )}
-                <Button variant="Critical" onClick={mx ? () => startMatrix(mx) : loadMatrix}>
+                <Text>{`Failed to start account ${clientState.session.userId}. ${clientState.error.message}`}</Text>
+                <Button variant="Critical" onClick={() => setRetryCount((count) => count + 1)}>
                   <Text as="span" size="B400">
                     Retry
+                  </Text>
+                </Button>
+                <Button
+                  variant="Critical"
+                  fill="Soft"
+                  onClick={() => {
+                    removeSessionAndReload(clientState.session, clientState.mx).catch(
+                      () => undefined
+                    );
+                  }}
+                >
+                  <Text as="span" size="B400">
+                    Remove Account
                   </Text>
                 </Button>
               </Box>
@@ -207,7 +295,7 @@ export function ClientRoot({ children }: ClientRootProps) {
           </Box>
         </SplashScreen>
       )}
-      {loading || !mx ? (
+      {clientState.status !== 'error' && (loading || !mx) ? (
         <ClientRootLoading />
       ) : (
         <MatrixClientProvider value={mx}>

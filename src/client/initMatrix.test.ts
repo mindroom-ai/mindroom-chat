@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { IndexedDBCryptoStore, IndexedDBStore } from 'matrix-js-sdk';
 import { clearBrowserCacheAndReload, initClient, LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT } from './initMatrix';
 import { createMatrixClient } from './matrixClientFactory';
+import { createSessionId } from '../app/state/sessions';
 
 vi.mock('matrix-js-sdk', () => ({
   MatrixClient: vi.fn(),
@@ -27,6 +28,7 @@ describe('initClient', () => {
   });
 
   it('raises the saved sync archive timeline limit for the IndexedDB store', async () => {
+    const sessionId = createSessionId('https://example.com', '@user:example.com');
     const startup = vi.fn().mockResolvedValue(undefined);
     const syncAccumulator = {
       opts: {
@@ -54,12 +56,23 @@ describe('initClient', () => {
     } as never);
 
     await initClient({
+      sessionId,
       baseUrl: 'https://example.com',
       accessToken: 'token',
       userId: '@user:example.com',
       deviceId: 'DEVICE',
+      lastUsedAt: 1,
     });
 
+    expect(vi.mocked(IndexedDBStore)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dbName: `web-sync-store::${sessionId}`,
+      })
+    );
+    expect(vi.mocked(IndexedDBCryptoStore)).toHaveBeenCalledWith(
+      global.indexedDB,
+      `crypto-store::${sessionId}`
+    );
     expect(syncAccumulator.opts.maxTimelineEntries).toBe(LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT);
     expect(startup).toHaveBeenCalledTimes(1);
     expect(initRustCrypto).toHaveBeenCalledTimes(1);
@@ -67,6 +80,7 @@ describe('initClient', () => {
   });
 
   it('does not lower a larger existing sync archive limit', async () => {
+    const sessionId = createSessionId('https://example.com', '@user:example.com');
     const startup = vi.fn().mockResolvedValue(undefined);
     const syncAccumulator = {
       opts: {
@@ -91,10 +105,12 @@ describe('initClient', () => {
     } as never);
 
     await initClient({
+      sessionId,
       baseUrl: 'https://example.com',
       accessToken: 'token',
       userId: '@user:example.com',
       deviceId: 'DEVICE',
+      lastUsedAt: 1,
     });
 
     expect(syncAccumulator.opts.maxTimelineEntries).toBe(9000);

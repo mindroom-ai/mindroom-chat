@@ -16,6 +16,7 @@ import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils
 import { getAppPathFromNativeSsoUrl } from './app/utils/nativeSso';
 import { isServiceWorkerEnabled } from './app/utils/runtimeConfig';
 import { pushSessionToSW } from './sw-session';
+import { getActiveSession, subscribeToSessionStore } from './app/state/sessions';
 import App from './app/pages/App';
 
 // import i18n (needs to be bundled ;))
@@ -54,10 +55,10 @@ if (isNativeIOS) {
 // Register Service Worker
 if ('serviceWorker' in navigator && isServiceWorkerEnabled()) {
   const postCurrentSessionToSW = () => {
-    const baseUrl = localStorage.getItem('cinny_hs_base_url') ?? undefined;
-    const accessToken = localStorage.getItem('cinny_access_token') ?? undefined;
-    pushSessionToSW(baseUrl, accessToken);
+    const session = getActiveSession();
+    pushSessionToSW(session?.baseUrl, session?.accessToken);
   };
+  subscribeToSessionStore(postCurrentSessionToSW);
 
   const swUrl =
     import.meta.env.MODE === 'production'
@@ -70,8 +71,8 @@ if ('serviceWorker' in navigator && isServiceWorkerEnabled()) {
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (event.data?.type === 'token' && event.data?.responseKey) {
       // Get the token for SW.
-      const token = localStorage.getItem('cinny_access_token') ?? undefined;
-      event.source!.postMessage({
+      const token = getActiveSession()?.accessToken;
+      event.source?.postMessage({
         responseKey: event.data.responseKey,
         token,
       });

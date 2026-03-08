@@ -14,6 +14,7 @@ import { settingsAtom } from '../../state/settings';
 import { allInvitesAtom } from '../../state/room-list/inviteList';
 import { usePreviousValue } from '../../hooks/usePreviousValue';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useActiveSession } from '../../hooks/useSessionStore';
 import { getInboxInvitesPath, getInboxNotificationsPath } from '../pathUtils';
 import {
   getMemberDisplayName,
@@ -27,12 +28,14 @@ import { useSelectedRoom } from '../../hooks/router/useSelectedRoom';
 import { useInboxNotificationsSelected } from '../../hooks/router/useInbox';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useClientConfig } from '../../hooks/useClientConfig';
+import { useIOSPushEnabled } from '../../hooks/useIOSPushEnabled';
 import {
   checkIOSPushPermission,
   disableIOSPushPusher,
   isNativeIOSPlatform,
   registerIOSPush,
   resolveIOSPushConfig,
+  setIOSPushEnabled,
   unregisterIOSPush,
   upsertIOSPushPusher,
 } from '../../utils/iosPush';
@@ -269,13 +272,12 @@ function MessageNotifications() {
 function NativeIOSPushFeature() {
   const mx = useMatrixClient();
   const clientConfig = useClientConfig();
-  const [nativePushNotifications, setNativePushNotifications] = useSetting(
-    settingsAtom,
-    'nativePushNotifications'
-  );
+  const activeSession = useActiveSession();
+  const sessionId = activeSession?.sessionId;
+  const nativePushNotifications = useIOSPushEnabled(sessionId);
 
   useEffect(() => {
-    const pushConfig = resolveIOSPushConfig(clientConfig);
+    const pushConfig = resolveIOSPushConfig(clientConfig, sessionId);
     if (!isNativeIOSPlatform() || !pushConfig) return undefined;
 
     let disposed = false;
@@ -285,9 +287,9 @@ function NativeIOSPushFeature() {
     const setupNativePush = async () => {
       const registrationListener = await PushNotifications.addListener('registration', (token) => {
         if (disposed) return;
-        upsertIOSPushPusher(mx, pushConfig, token.value).catch(async () => {
-          setNativePushNotifications(false);
-          await disableIOSPushPusher(mx, pushConfig).catch(() => undefined);
+        upsertIOSPushPusher(mx, pushConfig, token.value, sessionId).catch(async () => {
+          setIOSPushEnabled(false, sessionId);
+          await disableIOSPushPusher(mx, pushConfig, sessionId).catch(() => undefined);
           await unregisterIOSPush().catch(() => undefined);
         });
       });
@@ -300,8 +302,8 @@ function NativeIOSPushFeature() {
       const registrationErrorListener = await PushNotifications.addListener(
         'registrationError',
         () => {
-          setNativePushNotifications(false);
-          disableIOSPushPusher(mx, pushConfig).catch(() => undefined);
+          setIOSPushEnabled(false, sessionId);
+          disableIOSPushPusher(mx, pushConfig, sessionId).catch(() => undefined);
           unregisterIOSPush().catch(() => undefined);
         }
       );
@@ -312,15 +314,15 @@ function NativeIOSPushFeature() {
       registrationErrorHandle = registrationErrorListener;
 
       if (!nativePushNotifications) {
-        await disableIOSPushPusher(mx, pushConfig);
+        await disableIOSPushPusher(mx, pushConfig, sessionId);
         await unregisterIOSPush().catch(() => undefined);
         return;
       }
 
       const permission = await checkIOSPushPermission();
       if (permission !== 'granted') {
-        setNativePushNotifications(false);
-        await disableIOSPushPusher(mx, pushConfig);
+        setIOSPushEnabled(false, sessionId);
+        await disableIOSPushPusher(mx, pushConfig, sessionId);
         await unregisterIOSPush().catch(() => undefined);
         return;
       }
@@ -329,8 +331,8 @@ function NativeIOSPushFeature() {
     };
 
     setupNativePush().catch(async () => {
-      setNativePushNotifications(false);
-      await disableIOSPushPusher(mx, pushConfig).catch(() => undefined);
+      setIOSPushEnabled(false, sessionId);
+      await disableIOSPushPusher(mx, pushConfig, sessionId).catch(() => undefined);
       await unregisterIOSPush().catch(() => undefined);
     });
 
@@ -339,7 +341,7 @@ function NativeIOSPushFeature() {
       registrationHandle?.remove().catch(() => undefined);
       registrationErrorHandle?.remove().catch(() => undefined);
     };
-  }, [clientConfig, mx, nativePushNotifications, setNativePushNotifications]);
+  }, [clientConfig, mx, nativePushNotifications, sessionId]);
 
   return null;
 }

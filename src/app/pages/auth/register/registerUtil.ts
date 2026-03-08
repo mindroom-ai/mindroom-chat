@@ -16,7 +16,7 @@ import {
 } from '../../afterLoginRedirectPath';
 import { getHomePath, getLoginPath, withSearchParam } from '../../pathUtils';
 import { getMxIdLocalPart, getMxIdServer } from '../../../utils/matrix';
-import { setFallbackSession } from '../../../state/sessions';
+import { putSession } from '../../../state/sessions';
 
 export enum RegisterError {
   UserTaken = 'UserTaken',
@@ -107,7 +107,7 @@ export const register = async (
   ];
 };
 
-export const useRegisterComplete = (data?: CustomRegisterResponse) => {
+export const useRegisterComplete = (data?: CustomRegisterResponse, addAccount = false) => {
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -119,7 +119,20 @@ export const useRegisterComplete = (data?: CustomRegisterResponse) => {
       const deviceId = response.device_id;
 
       if (accessToken && deviceId) {
-        setFallbackSession(accessToken, deviceId, userId, baseUrl);
+        putSession({
+          accessToken,
+          deviceId,
+          userId,
+          baseUrl,
+          expiresInMs: response.expires_in_ms,
+          refreshToken: response.refresh_token,
+        });
+
+        if (addAccount) {
+          navigate(getHomePath(), { replace: true });
+          return;
+        }
+
         const afterLoginRedirectPath = getAfterLoginRedirectPath();
         deleteAfterLoginRedirectPath();
         navigate(afterLoginRedirectPath ?? getHomePath(), { replace: true });
@@ -134,5 +147,5 @@ export const useRegisterComplete = (data?: CustomRegisterResponse) => {
         );
       }
     }
-  }, [data, navigate]);
+  }, [addAccount, data, navigate]);
 };
