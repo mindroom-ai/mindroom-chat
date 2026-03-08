@@ -31,10 +31,12 @@ export function ServerConfigsLoader({ children }: ServerConfigsLoaderProps) {
       const authMetadata = promiseFulfilledResult(result[2]);
       let validatedAuthMetadata: ValidatedAuthMetadata | undefined;
 
-      try {
-        validatedAuthMetadata = validateAuthMetadata(authMetadata);
-      } catch (e) {
-        console.error(e);
+      if (authMetadata !== undefined) {
+        try {
+          validatedAuthMetadata = validateAuthMetadata(authMetadata);
+        } catch (e) {
+          console.error(e);
+        }
       }
 
       return {

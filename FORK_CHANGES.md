@@ -567,6 +567,24 @@ Why:
 
 - Fixes a multi-account regression where unstable `useSyncExternalStore` snapshots could trigger React rerender loops (`Minified React error #185`) during login/session activation, which surfaced most obviously on Google/GitHub SSO return.
 
+### fix(auth): skip spurious OIDC validation errors when metadata is unavailable
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/components/ServerConfigsLoader.test.ts`
+- `src/app/components/ServerConfigsLoader.tsx`
+
+What changed:
+
+- Stopped `ServerConfigsLoader` from calling `validateAuthMetadata(...)` when `mx.getAuthMetadata()` failed and returned no fulfilled payload.
+- Kept auth-metadata validation/logging for the real malformed-payload case only, instead of turning fetch failures like `404 /_matrix/client/unstable/org.matrix.msc2965/auth_metadata` into a misleading secondary OIDC validation error.
+- Added regression coverage proving rejected auth-metadata fetches still return capabilities/media config and do not emit fake OIDC validation noise.
+
+Why:
+
+- Fixes misleading add-account / startup console noise where missing delegated-auth metadata on the homeserver was being logged as `Configured OIDC OP does not support required functions` even though no auth metadata had been returned to validate.
+
 # Runbook
 
 ## Purpose
@@ -1082,6 +1100,9 @@ Status as of 2026-03-08:
 - A follow-up stability fix is also now done:
   - session-store snapshots used by `useSyncExternalStore` are referentially stable while storage is unchanged,
   - SSO/session-activation no longer risks React rerender loops from freshly parsed session objects on every snapshot read.
+- A follow-up auth/bootstrap noise fix is also now done:
+  - missing delegated-auth metadata no longer gets re-labeled as a fake OIDC validation failure by `ServerConfigsLoader`,
+  - add-account / startup logs stay focused on the real transport result instead of a secondary misleading validation error.
 - Validation completed for this slice:
   - full `npm run test`,
   - `npm run build`,
