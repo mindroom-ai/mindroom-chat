@@ -653,6 +653,12 @@ Thread badge behavior:
   version (for example the one with the newer applied edit or redaction) so a
   stale duplicate instance does not temporarily overwrite the corrected one
   during thread pagination.
+- Thread render-state assembly is now extracted behind
+  `useThreadRenderState.ts` instead of being inlined inside `RoomTimeline.tsx`.
+  That hook owns the fallback thread event buffer, duplicate-event merge rules,
+  initial cache-first render mode, and thread event index map, leaving
+  `RoomTimeline` responsible for pagination/UI orchestration rather than the
+  low-level thread event assembly details.
 - When late thread edit/relation reconciliation lands while the user is already
   at or near the bottom of a thread, the thread view now re-pins to the latest
   reply instead of leaving the viewport visibly above the bottom after message
