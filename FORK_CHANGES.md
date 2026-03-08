@@ -630,6 +630,13 @@ Thread badge behavior:
 - Thread cache pagination now ignores the thread root when computing cached
   "older messages" state, so reaching the top of a thread no longer leaves a
   bogus `Load Older Messages` button visible just because the root event exists.
+- Direct deep links into thread view now retry thread edit backfill after the
+  initial thread tail finishes loading, and backfill attempt tracking is tied
+  to `MatrixEvent` instances instead of event IDs. This avoids a first-load race
+  where early backfill ran against provisional thread events, later thread
+  hydration replaced those event objects, and the replacement instances were
+  incorrectly treated as "already attempted" until leaving and re-entering the
+  thread.
 - Thread view scroll state now uses thread-specific live-end detection: opening a thread and thread-scoped `Jump to Latest` both paginate forward to the newest loaded reply batch before scrolling to bottom, and live replies stick more reliably when the user is already near the bottom.
 - Main timeline thread summary chips render below message body and show participant avatars when available.
 - Base-path bootstrap is server-driven for the local SPA server (`serve.py`) and no longer depends on fragile client-side inference.
