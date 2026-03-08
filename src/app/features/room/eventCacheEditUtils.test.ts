@@ -1,6 +1,11 @@
 import { MatrixEvent } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
-import { applyCachedReplaceRelations, serializeEventsForCache } from './eventCacheEditUtils';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  aggregateCachedRelationEvents,
+  applyCachedRedactions,
+  applyCachedReplaceRelations,
+  serializeEventsForCache,
+} from './eventCacheEditUtils';
 
 const makeMessageEvent = (
   eventId: string,
@@ -47,6 +52,35 @@ const makeEditEvent = (
     type: 'm.room.message',
   });
 
+const makeRedactionEvent = (eventId: string, ts: number, targetEventId: string) =>
+  new MatrixEvent({
+    content: {},
+    event_id: eventId,
+    origin_server_ts: ts,
+    redacts: targetEventId,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    type: 'm.room.redaction',
+  });
+
+const makeReactionEvent = (eventId: string, ts: number, targetEventId: string, key = '👍') =>
+  new MatrixEvent({
+    content: {
+      'm.relates_to': {
+        event_id: targetEventId,
+        key,
+        rel_type: 'm.annotation',
+      },
+    },
+    event_id: eventId,
+    origin_server_ts: ts,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    type: 'm.reaction',
+  });
+
+const room = { roomId: '!room:example.org' } as any;
+
 describe('applyCachedReplaceRelations', () => {
   it('applies the latest cached replacement event to the target message', () => {
     const targetEvent = makeMessageEvent('$target', 1000);
@@ -76,9 +110,11 @@ describe('serializeEventsForCache', () => {
     const firstEdit = makeEditEvent('$edit-1', 2000, '$target', '@alice:example.org', 'first');
     const secondEdit = makeEditEvent('$edit-2', 2000, '$target', '@alice:example.org', 'second');
 
-    const serializedTarget = serializeEventsForCache([targetEvent, firstEdit, secondEdit]).find(
-      (event) => event.event_id === '$target'
-    );
+    const serializedTarget = serializeEventsForCache(room, [
+      targetEvent,
+      firstEdit,
+      secondEdit,
+    ]).find((event) => event.event_id === '$target');
 
     expect(serializedTarget?.unsigned?.['m.relations']?.['m.replace']).toMatchObject({
       event_id: '$edit-2',
@@ -96,7 +132,7 @@ describe('serializeEventsForCache', () => {
 
     targetEvent.makeReplaced(sdkReplacement);
 
-    const serializedTarget = serializeEventsForCache([targetEvent]).find(
+    const serializedTarget = serializeEventsForCache(room, [targetEvent]).find(
       (event) => event.event_id === '$target'
     );
 
@@ -108,5 +144,52 @@ describe('serializeEventsForCache', () => {
         },
       },
     });
+  });
+
+  it('persists cached redactions onto the target event payload', () => {
+    const targetEvent = makeMessageEvent('$target', 1000, '@alice:example.org', 'visible');
+    const redactionEvent = makeRedactionEvent('$redact', 2000, '$target');
+
+    const serializedTarget = serializeEventsForCache(room, [targetEvent, redactionEvent]).find(
+      (event) => event.event_id === '$target'
+    );
+
+    expect(serializedTarget?.unsigned?.redacted_because).toMatchObject({
+      event_id: '$redact',
+    });
+    expect(serializedTarget?.content).toEqual({});
+  });
+});
+
+describe('applyCachedRedactions', () => {
+  it('redacts the cached target event when the redaction event is present', () => {
+    const targetEvent = makeMessageEvent('$target', 1000, '@alice:example.org', 'visible');
+    const redactionEvent = makeRedactionEvent('$redact', 2000, '$target');
+
+    applyCachedRedactions(room, [targetEvent, redactionEvent]);
+
+    expect(targetEvent.isRedacted()).toBe(true);
+    expect(targetEvent.getRedactionEvent()).toMatchObject({
+      event_id: '$redact',
+    });
+  });
+});
+
+describe('aggregateCachedRelationEvents', () => {
+  it('aggregates cached reaction events into timeline relations once per event id', () => {
+    const aggregateChildEvent = vi.fn();
+    const timelineSet = {
+      relations: {
+        aggregateChildEvent,
+      },
+    } as any;
+    const seenEventIds = new Set<string>();
+    const reactionEvent = makeReactionEvent('$reaction', 2000, '$target');
+
+    aggregateCachedRelationEvents([reactionEvent], [timelineSet], seenEventIds);
+    aggregateCachedRelationEvents([reactionEvent], [timelineSet], seenEventIds);
+
+    expect(aggregateChildEvent).toHaveBeenCalledTimes(1);
+    expect(aggregateChildEvent).toHaveBeenCalledWith(reactionEvent, timelineSet);
   });
 });
