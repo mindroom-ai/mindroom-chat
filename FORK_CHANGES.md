@@ -635,6 +635,7 @@ Thread badge behavior:
 - iOS submission posture has been hardened: stricter ATS behavior, explicit media permission strings, secure homeserver URL enforcement, registration-enabled flow, and Apple-aware SSO provider handling.
 - iOS app icon assets are now generated for all standard iPhone/iPad slots, and preflight checks enforce icon completeness before archive.
 - Native iOS push plumbing is now present in the app and iOS project, but default runtime config still leaves push disabled until a real APNs/Sygnal deployment is configured.
+- Branding assets now use repo-local PNG sources under `public/res/branding/`, with the transparent logo used in-app and the square logo driving favicon/PWA/iOS asset generation.
 - Submission docs now include a checklist plus a paste-ready App Store metadata/review-notes packet.
 - Left sidebar now includes a MindRoom shortcut button (logo icon) that opens Local MindRoom onboarding.
 - Release automation now supports per-commit `dev` tagging in `v<base_version>-mindroom.<n>` format with base-version-aware incrementing.
