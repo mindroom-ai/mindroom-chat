@@ -659,6 +659,10 @@ Thread badge behavior:
   initial cache-first render mode, and thread event index map, leaving
   `RoomTimeline` responsible for pagination/UI orchestration rather than the
   low-level thread event assembly details.
+- The extracted thread render-state hook now has focused hook-level tests for
+  cache-first fallback rendering, preserving a corrected fallback event over a
+  stale live duplicate after hydration, and reset behavior. That raises
+  confidence that the refactor preserved the important thread render semantics.
 - When late thread edit/relation reconciliation lands while the user is already
   at or near the bottom of a thread, the thread view now re-pins to the latest
   reply instead of leaving the viewport visibly above the bottom after message
