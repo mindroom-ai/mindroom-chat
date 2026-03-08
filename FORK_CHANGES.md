@@ -523,6 +523,32 @@ Why:
 
 - Hardens the multi-account boot/switching flow so the highest-risk session-routing and client-lifecycle edges are locked down by tests.
 
+### test(accounts): add route restoration regressions
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/pages/client/ClientLayout.test.ts`
+- `src/app/pages/client/ClientLayout.tsx`
+- `src/app/pages/client/sessionRouteRestore.test.ts`
+- `src/app/pages/client/sessionRouteRestore.ts`
+- `src/app/pages/client/sidebar/SettingsTab.test.ts`
+- `src/app/pages/client/sidebar/SettingsTab.tsx`
+
+What changed:
+
+- Extracted route persistence/restore helpers so last-known account paths are validated and reused consistently instead of being rebuilt ad hoc.
+- Updated `ClientLayout` to persist the exact active-account route, including search and hash, through the shared helper.
+- Updated account switching in `SettingsTab` to restore each account's stored in-app route when valid and to fall back to `/home` when the stored path is missing or external.
+- Added focused tests covering:
+  - exact route persistence with `pathname + search + hash`,
+  - valid vs invalid stored restore paths,
+  - inactive-account switch navigation using the stored last path.
+
+Why:
+
+- Hardens multi-account switching so "return me to where I was in that account" is explicitly tested and cannot silently regress into home-only or unsafe external redirects.
+
 # Runbook
 
 ## Purpose
@@ -1031,18 +1057,22 @@ Status as of 2026-03-08:
 - The next hardening slice is also now done:
   - route-session guards are covered by focused tests,
   - `ClientRoot` active-session switching is covered by focused tests.
+- The next route-restoration hardening slice is now also done:
+  - active-account route persistence is covered explicitly,
+  - account switching reuses only validated in-app stored paths,
+  - invalid or missing stored paths fall back to `/home`.
 - Validation completed for this slice:
   - targeted Vitest suite covering sessions/auth helpers/push/media/cache smoke paths,
   - `npm run build`,
   - targeted eslint pass on touched files with warnings only.
 - Still intentionally not finished in this slice:
   - broader account-management polish beyond the first modal/rail,
-  - route restoration regressions are still not covered explicitly,
+  - broken-session and last-account recovery paths are still not covered explicitly,
   - later per-account push/account management UX improvements.
 
 Recommended next implementation commit:
 
-- `test(accounts): add route restoration regressions`
+- `test(accounts): cover broken-session and removal recovery`
 
 ## Submission Readiness Check (2026-02-26, macOS/Xcode)
 

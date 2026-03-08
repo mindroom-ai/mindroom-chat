@@ -12,10 +12,11 @@ import { useUserProfile } from '../../../hooks/useUserProfile';
 import { Modal500 } from '../../../components/Modal500';
 import { useActiveSession, useStoredSessions } from '../../../hooks/useSessionStore';
 import { setActiveSession, updateSessionProfile } from '../../../state/sessions';
-import { getHomePath, getLoginPath } from '../../pathUtils';
+import { getLoginPath } from '../../pathUtils';
 import { withAddAccountSearch } from '../../auth/addAccount';
 import { removeStoredSession } from '../../../../client/initMatrix';
 import { AccountSwitcher, AccountSwitcherItem } from './AccountSwitcher';
+import { resolveSessionRestorePath } from '../sessionRouteRestore';
 
 const blobToDataUrl = async (blob: Blob): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -110,7 +111,7 @@ export function SettingsTab() {
   const switchAccount = (sessionId: string, path?: string) => {
     setActiveSession(sessionId);
     closeAccountSwitcher();
-    navigate(path ?? getHomePath());
+    navigate(resolveSessionRestorePath(path));
   };
 
   const removeAccount = async (sessionId: string) => {
@@ -147,7 +148,7 @@ export function SettingsTab() {
                       return;
                     }
 
-                    switchAccount(session.sessionId, session.lastKnownPath ?? getHomePath());
+                    switchAccount(session.sessionId, session.lastKnownPath);
                   }}
                 >
                   <UserAvatar
@@ -181,9 +182,7 @@ export function SettingsTab() {
             accounts={accountItems}
             removingSessionId={removingSessionId}
             onOpenSettings={openSettingsFromSwitcher}
-            onSwitchAccount={(session) =>
-              switchAccount(session.sessionId, session.lastKnownPath ?? getHomePath())
-            }
+            onSwitchAccount={(session) => switchAccount(session.sessionId, session.lastKnownPath)}
             onRemoveAccount={(session) => {
               removeAccount(session.sessionId).catch(() => undefined);
             }}

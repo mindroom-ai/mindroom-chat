@@ -3,6 +3,7 @@ import { Box } from 'folds';
 import { useLocation } from 'react-router-dom';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { updateSessionLastPath } from '../../state/sessions';
+import { buildSessionLastKnownPath } from './sessionRouteRestore';
 
 type ClientLayoutProps = {
   nav: ReactNode;
@@ -10,6 +11,7 @@ type ClientLayoutProps = {
 };
 export function ClientLayout({ nav, children }: ClientLayoutProps) {
   const location = useLocation();
+  const { hash, pathname, search } = location;
   const activeSession = useActiveSession();
 
   useEffect(() => {
@@ -17,9 +19,9 @@ export function ClientLayout({ nav, children }: ClientLayoutProps) {
 
     updateSessionLastPath(
       activeSession.sessionId,
-      `${location.pathname}${location.search}${location.hash}`
+      buildSessionLastKnownPath({ pathname, search, hash })
     );
-  }, [activeSession, location.hash, location.pathname, location.search]);
+  }, [activeSession, hash, pathname, search]);
 
   return (
     <Box grow="Yes">
