@@ -637,6 +637,14 @@ Thread badge behavior:
   hydration replaced those event objects, and the replacement instances were
   incorrectly treated as "already attempted" until leaving and re-entering the
   thread.
+- Direct thread refreshes now also revalidate messages that already have a
+  provisional SDK `replacingEvent()` once the thread tail has settled, so a
+  stale first edit does not "win" just because the SDK attached it early before
+  the full thread relation slice arrived.
+- When late thread edit/relation reconciliation lands while the user is already
+  at or near the bottom of a thread, the thread view now re-pins to the latest
+  reply instead of leaving the viewport visibly above the bottom after message
+  heights change.
 - Thread view scroll state now uses thread-specific live-end detection: opening a thread and thread-scoped `Jump to Latest` both paginate forward to the newest loaded reply batch before scrolling to bottom, and live replies stick more reliably when the user is already near the bottom.
 - Main timeline thread summary chips render below message body and show participant avatars when available.
 - Base-path bootstrap is server-driven for the local SPA server (`serve.py`) and no longer depends on fragile client-side inference.

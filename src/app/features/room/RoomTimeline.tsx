@@ -81,6 +81,7 @@ import {
   decryptAllTimelineEvent,
   getEditedEvent,
   getEventReactions,
+  getLatestEdit,
   getLatestEditableEvt,
   getMemberDisplayName,
   getReactionContent,
@@ -157,7 +158,10 @@ import {
   isTimelineAtLiveEnd,
   shouldAutoScrollThreadOnLiveEvent,
 } from './timelineScrollUtils';
-import { shouldFetchMissingThreadEdit } from './threadEditBackfillUtils';
+import {
+  markThreadEditBackfillAttempted,
+  shouldFetchThreadEditBackfill,
+} from './threadEditBackfillUtils';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -714,7 +718,9 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   const threadPaginatingFrontRef = useRef(false);
   const threadIdRef = useRef(threadId);
   const threadEventIndexMapRef = useRef<Map<string, number>>(new Map());
-  const threadEditFetchAttemptedRef = useRef<WeakSet<MatrixEvent>>(new WeakSet());
+  const threadEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
+    new WeakMap<MatrixEvent, number>()
+  );
   const threadSupplementalRelationIdsRef = useRef<{
     threadId?: string;
     relationEventIds: Set<string>;
@@ -1108,20 +1114,27 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             setThreadTimelineTick((val) => val + 1);
 
             const scrollElement = scrollRef.current;
-            if (
-              scrollElement &&
-              shouldAutoScrollThreadOnLiveEvent({
-                relationType: relation?.rel_type,
-                isNearBottom: isScrollNearBottom({
-                  scrollHeight: scrollElement.scrollHeight,
-                  scrollTop: scrollElement.scrollTop,
-                  clientHeight: scrollElement.clientHeight,
-                }),
-                isTimelineAtLiveEnd: timelineAtLiveEnd,
-              })
-            ) {
-              scrollToBottomRef.current.count += 1;
-              scrollToBottomRef.current.smooth = true;
+            if (scrollElement) {
+              const isNearBottom = isScrollNearBottom({
+                scrollHeight: scrollElement.scrollHeight,
+                scrollTop: scrollElement.scrollTop,
+                clientHeight: scrollElement.clientHeight,
+              });
+              if (
+                shouldAutoScrollThreadOnLiveEvent({
+                  relationType: relation?.rel_type,
+                  isNearBottom,
+                  isTimelineAtLiveEnd: timelineAtLiveEnd,
+                })
+              ) {
+                scrollToBottomRef.current.count += 1;
+                scrollToBottomRef.current.smooth = true;
+              } else if (atLiveEndRef.current && (atBottomRef.current || isNearBottom)) {
+                // Relation updates can change message height above the viewport.
+                // Keep the thread pinned when the user was already reading the latest reply.
+                scrollToBottomRef.current.count += 1;
+                scrollToBottomRef.current.smooth = false;
+              }
             }
           }
           return;
@@ -1450,7 +1463,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     setThreadTailLoaded(false);
     setThreadTimelineTick(0);
     setPendingThreadOpenTick(0);
-    threadEditFetchAttemptedRef.current = new WeakSet();
+    threadEditFetchAttemptedRef.current = new WeakMap<MatrixEvent, number>();
     threadSupplementalRelationIdsRef.current = {
       threadId,
       relationEventIds: new Set(),
@@ -1612,7 +1625,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     setThreadPaginatingBack(false);
     setThreadPaginatingFront(false);
     setPendingThreadOpenTick(0);
-    threadEditFetchAttemptedRef.current = new WeakSet();
+    threadEditFetchAttemptedRef.current = new WeakMap<MatrixEvent, number>();
     threadSupplementalRelationIdsRef.current = {
       threadId: undefined,
       relationEventIds: new Set(),
@@ -2620,20 +2633,20 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   }, [threadId, thread, room, threadTimelineTick]);
 
   useEffect(() => {
-    if (!threadId || !threadTailLoaded) return;
-    threadEditFetchAttemptedRef.current = new WeakSet();
-  }, [threadId, threadTailLoaded]);
-
-  useEffect(() => {
     if (!threadId || threadEvents.length === 0) return;
 
     const missingEditEvents = threadEvents.filter((mEvent) =>
-      shouldFetchMissingThreadEdit(mEvent, threadEditFetchAttemptedRef.current)
+      shouldFetchThreadEditBackfill(
+        mEvent,
+        threadEditFetchAttemptedRef.current,
+        threadTailLoaded
+      )
     );
     if (missingEditEvents.length === 0) {
       logEditDebug('threadBackfill:noneMissing', {
         threadId,
         threadEventCount: threadEvents.length,
+        threadTailLoaded,
       });
       return;
     }
@@ -2642,10 +2655,15 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       threadId,
       threadEventCount: threadEvents.length,
       missingEditCount: missingEditEvents.length,
+      threadTailLoaded,
     });
 
     missingEditEvents.forEach((mEvent) => {
-      threadEditFetchAttemptedRef.current.add(mEvent);
+      markThreadEditBackfillAttempted(
+        mEvent,
+        threadEditFetchAttemptedRef.current,
+        threadTailLoaded
+      );
     });
 
     let cancelled = false;
@@ -2679,7 +2697,9 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             });
             continue;
           }
-          if (!relData?.events?.length) {
+          const currentReplacement = mEvent.replacingEvent() ?? undefined;
+          const relationEvents = relData?.events ?? [];
+          if (relationEvents.length === 0 && !currentReplacement) {
             logEditDebug('threadBackfill:noRelations', {
               threadId,
               eventId,
@@ -2687,13 +2707,20 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             continue;
           }
 
-          const latestEdit = relData.events.reduce((latest, editEvent) => {
-            if (!latest) return editEvent;
-            if (editEvent.getTs() > latest.getTs()) return editEvent;
-            if (editEvent.getTs() === latest.getTs()) return editEvent;
-            return latest;
-          }, relData.events[0]);
+          const latestEdit = getLatestEdit(
+            mEvent,
+            currentReplacement ? [currentReplacement, ...relationEvents] : relationEvents
+          );
           if (!latestEdit) continue;
+          if (latestEdit === currentReplacement) {
+            logEditDebug('threadBackfill:alreadyLatest', {
+              threadId,
+              eventId,
+              editEventId: currentReplacement?.getId(),
+              relationCount: relationEvents.length,
+            });
+            continue;
+          }
 
           // Keep sender guard aligned with edit auth semantics.
           if (latestEdit.getSender() !== mEvent.getSender()) {
@@ -2715,7 +2742,8 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             eventId,
             editEventId: latestEdit.getId(),
             editTs: latestEdit.getTs(),
-            relationCount: relData.events.length,
+            previousEditEventId: currentReplacement?.getId(),
+            relationCount: relationEvents.length,
           });
         }
       };
@@ -2733,6 +2761,20 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           threadId,
           updatedCount,
         });
+        const scrollElement = scrollRef.current;
+        if (
+          atLiveEndRef.current &&
+          ((scrollElement &&
+            isScrollNearBottom({
+              scrollHeight: scrollElement.scrollHeight,
+              scrollTop: scrollElement.scrollTop,
+              clientHeight: scrollElement.clientHeight,
+            })) ||
+            atBottomRef.current)
+        ) {
+          scrollToBottomRef.current.count += 1;
+          scrollToBottomRef.current.smooth = false;
+        }
         persistThreadEventCache(
           threadId,
           threadEvents,
