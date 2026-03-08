@@ -157,6 +157,7 @@ import {
   isTimelineAtLiveEnd,
   shouldAutoScrollThreadOnLiveEvent,
 } from './timelineScrollUtils';
+import { shouldFetchMissingThreadEdit } from './threadEditBackfillUtils';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -713,7 +714,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   const threadPaginatingFrontRef = useRef(false);
   const threadIdRef = useRef(threadId);
   const threadEventIndexMapRef = useRef<Map<string, number>>(new Map());
-  const threadEditFetchAttemptedRef = useRef<Set<string>>(new Set());
+  const threadEditFetchAttemptedRef = useRef<WeakSet<MatrixEvent>>(new WeakSet());
   const threadSupplementalRelationIdsRef = useRef<{
     threadId?: string;
     relationEventIds: Set<string>;
@@ -1449,7 +1450,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     setThreadTailLoaded(false);
     setThreadTimelineTick(0);
     setPendingThreadOpenTick(0);
-    threadEditFetchAttemptedRef.current.clear();
+    threadEditFetchAttemptedRef.current = new WeakSet();
     threadSupplementalRelationIdsRef.current = {
       threadId,
       relationEventIds: new Set(),
@@ -1611,7 +1612,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     setThreadPaginatingBack(false);
     setThreadPaginatingFront(false);
     setPendingThreadOpenTick(0);
-    threadEditFetchAttemptedRef.current.clear();
+    threadEditFetchAttemptedRef.current = new WeakSet();
     threadSupplementalRelationIdsRef.current = {
       threadId: undefined,
       relationEventIds: new Set(),
@@ -2619,23 +2620,16 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   }, [threadId, thread, room, threadTimelineTick]);
 
   useEffect(() => {
+    if (!threadId || !threadTailLoaded) return;
+    threadEditFetchAttemptedRef.current = new WeakSet();
+  }, [threadId, threadTailLoaded]);
+
+  useEffect(() => {
     if (!threadId || threadEvents.length === 0) return;
 
-    const missingEditEvents = threadEvents.filter((mEvent) => {
-      const eventId = mEvent.getId();
-      if (!eventId) return false;
-      if (threadEditFetchAttemptedRef.current.has(eventId)) return false;
-      if (mEvent.isRedacted()) return false;
-      if (mEvent.replacingEvent()) return false;
-      const eventType = mEvent.getType();
-      if (
-        eventType !== MessageEvent.RoomMessage &&
-        eventType !== MessageEvent.RoomMessageEncrypted
-      ) {
-        return false;
-      }
-      return true;
-    });
+    const missingEditEvents = threadEvents.filter((mEvent) =>
+      shouldFetchMissingThreadEdit(mEvent, threadEditFetchAttemptedRef.current)
+    );
     if (missingEditEvents.length === 0) {
       logEditDebug('threadBackfill:noneMissing', {
         threadId,
@@ -2651,8 +2645,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     });
 
     missingEditEvents.forEach((mEvent) => {
-      const eventId = mEvent.getId();
-      if (eventId) threadEditFetchAttemptedRef.current.add(eventId);
+      threadEditFetchAttemptedRef.current.add(mEvent);
     });
 
     let cancelled = false;
@@ -2760,7 +2753,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     return () => {
       cancelled = true;
     };
-  }, [mx, persistThreadEventCache, room, room.roomId, threadId, threadEvents]);
+  }, [mx, persistThreadEventCache, room, room.roomId, threadId, threadEvents, threadTailLoaded]);
 
   const handleThreadPaginateBack = useCallback(async () => {
     if (!threadId || threadPaginatingBackRef.current) return;
