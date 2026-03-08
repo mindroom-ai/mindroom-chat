@@ -585,6 +585,25 @@ Why:
 
 - Fixes misleading add-account / startup console noise where missing delegated-auth metadata on the homeserver was being logged as `Configured OIDC OP does not support required functions` even though no auth metadata had been returned to validate.
 
+### fix(auth): preserve add-account auth query params during server normalization
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/pages/auth/AuthLayout.tsx`
+- `src/app/pages/auth/authRouteUtils.test.ts`
+- `src/app/pages/auth/authRouteUtils.ts`
+
+What changed:
+
+- Extracted auth-route path building into a pure helper so auth URL normalization is no longer rebuilt ad hoc inside `AuthLayout`.
+- Changed `AuthLayout` to preserve the current auth-route search params and hash when it rewrites `/login`, `/register`, or `/reset-password` to include the canonical `:server` segment.
+- Added regression coverage proving query params like `?addAccount=1` survive that server-normalization step.
+
+Why:
+
+- Fixes the real add-account redirect bug on active sessions: `?addAccount=1` was being dropped during auth-route normalization, which made the router immediately treat the page as a normal auth route and bounce the user back into the already-active account.
+
 # Runbook
 
 ## Purpose
@@ -1103,6 +1122,9 @@ Status as of 2026-03-08:
 - A follow-up auth/bootstrap noise fix is also now done:
   - missing delegated-auth metadata no longer gets re-labeled as a fake OIDC validation failure by `ServerConfigsLoader`,
   - add-account / startup logs stay focused on the real transport result instead of a secondary misleading validation error.
+- A follow-up auth-routing fix is also now done:
+  - auth-route normalization preserves `?addAccount=1` instead of stripping it,
+  - add-account login/register flows can now stay on the auth page even when another session is already active.
 - Validation completed for this slice:
   - full `npm run test`,
   - `npm run build`,
