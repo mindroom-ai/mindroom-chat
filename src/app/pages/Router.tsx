@@ -31,12 +31,8 @@ import {
   CREATE_PATH,
 } from './paths';
 import {
-  getAppPathFromHref,
   getExploreFeaturedPath,
-  getHomePath,
   getInboxNotificationsPath,
-  getLoginPath,
-  getOriginBaseUrl,
   getSpaceLobbyPath,
 } from './pathUtils';
 import { ClientBindAtoms, ClientLayout, ClientRoot } from './client';
@@ -67,9 +63,12 @@ import { HomeCreateRoom } from './client/home/CreateRoom';
 import { Create } from './client/create';
 import { CreateSpaceModalRenderer } from '../features/create-space';
 import { SearchModalRenderer } from '../features/search';
-import { getActiveSession, hasStoredSessions } from '../state/sessions';
 import { getAppBasePath } from '../utils/basePath';
-import { isAddAccountSearch } from './auth/addAccount';
+import {
+  resolveAuthRouteRedirect,
+  resolveProtectedRouteRedirect,
+  resolveRootRouteRedirect,
+} from './routeSessionGuards';
 
 export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize) => {
   const { hashRouter } = clientConfig;
@@ -80,16 +79,18 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
       <Route
         index
         loader={() => {
-          if (getActiveSession()) return redirect(getHomePath());
-          const afterLoginPath = getAppPathFromHref(getOriginBaseUrl(), window.location.href);
-          if (afterLoginPath) setAfterLoginRedirectPath(afterLoginPath);
-          return redirect(getLoginPath());
+          const decision = resolveRootRouteRedirect(window.location.href);
+          if (decision.afterLoginPath) {
+            setAfterLoginRedirectPath(decision.afterLoginPath);
+          }
+          return redirect(decision.redirectTo);
         }}
       />
       <Route
         loader={({ request }) => {
-          if (getActiveSession() && !isAddAccountSearch(new URL(request.url).search)) {
-            return redirect(getHomePath());
+          const redirectTo = resolveAuthRouteRedirect(request.url);
+          if (redirectTo) {
+            return redirect(redirectTo);
           }
 
           return null;
@@ -108,18 +109,14 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
 
       <Route
         loader={() => {
-          if (!hasStoredSessions()) {
-            const afterLoginPath = getAppPathFromHref(
-              getOriginBaseUrl(hashRouter),
-              window.location.href
-            );
-            if (afterLoginPath) setAfterLoginRedirectPath(afterLoginPath);
-            return redirect(getLoginPath());
+          const decision = resolveProtectedRouteRedirect(window.location.href, hashRouter);
+          if (decision) {
+            if (decision.afterLoginPath) {
+              setAfterLoginRedirectPath(decision.afterLoginPath);
+            }
+            return redirect(decision.redirectTo);
           }
 
-          if (!getActiveSession()) {
-            return redirect(getLoginPath());
-          }
           return null;
         }}
         element={

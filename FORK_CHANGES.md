@@ -500,6 +500,29 @@ Why:
 
 - Completes the first usable account-management loop from the multi-account plan without forcing users into destructive global logout/cache-clear flows.
 
+### test(accounts): add router and client switching regressions
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/pages/Router.tsx`
+- `src/app/pages/client/ClientRoot.test.ts`
+- `src/app/pages/routeSessionGuards.test.ts`
+- `src/app/pages/routeSessionGuards.ts`
+
+What changed:
+
+- Extracted the session-aware route gating decisions into pure helpers for root/auth/protected routes.
+- Added focused tests covering:
+  - signed-in root redirect,
+  - add-account access to auth routes,
+  - protected-route login redirects with and without an active session,
+  - `ClientRoot` switching from one active session to another and stopping the old client.
+
+Why:
+
+- Hardens the multi-account boot/switching flow so the highest-risk session-routing and client-lifecycle edges are locked down by tests.
+
 # Runbook
 
 ## Purpose
@@ -1005,18 +1028,21 @@ Status as of 2026-03-08:
 - The next account-management slice is also now done:
   - active avatar opens an account manager modal,
   - inactive accounts can be removed from device without affecting the active one.
+- The next hardening slice is also now done:
+  - route-session guards are covered by focused tests,
+  - `ClientRoot` active-session switching is covered by focused tests.
 - Validation completed for this slice:
   - targeted Vitest suite covering sessions/auth helpers/push/media/cache smoke paths,
   - `npm run build`,
   - targeted eslint pass on touched files with warnings only.
 - Still intentionally not finished in this slice:
   - broader account-management polish beyond the first modal/rail,
-  - heavier router/client switching regression coverage,
+  - route restoration regressions are still not covered explicitly,
   - later per-account push/account management UX improvements.
 
 Recommended next implementation commit:
 
-- `test(accounts): add router and client switching regressions`
+- `test(accounts): add route restoration regressions`
 
 ## Submission Readiness Check (2026-02-26, macOS/Xcode)
 
