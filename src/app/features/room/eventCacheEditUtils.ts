@@ -1,4 +1,4 @@
-import { IEvent, MatrixEvent, RelationType } from 'matrix-js-sdk';
+import { EventTimelineSet, IEvent, MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
 import { getLatestEdit } from '../../utils/room';
 
 const cloneRawEvent = (rawEvent: Partial<IEvent>): Partial<IEvent> =>
@@ -26,6 +26,54 @@ const setSerializedReplacement = (
 };
 
 const getTargetEventId = (mEvent: MatrixEvent): string | undefined => mEvent.getRelation()?.event_id;
+
+const getLatestEvent = (events: MatrixEvent[]): MatrixEvent | undefined =>
+  events.reduce<MatrixEvent | undefined>((latest, mEvent) => {
+    if (!latest) return mEvent;
+    if (mEvent.getTs() > latest.getTs()) return mEvent;
+    if (mEvent.getTs() === latest.getTs()) return mEvent;
+    return latest;
+  }, undefined);
+
+export const applyCachedRedactions = (room: Room, events: MatrixEvent[]): void => {
+  const redactionEventsByTarget = new Map<string, MatrixEvent[]>();
+  const eventById = new Map<string, MatrixEvent>();
+
+  events.forEach((mEvent) => {
+    const eventId = mEvent.getId();
+    if (eventId) {
+      eventById.set(eventId, mEvent);
+    }
+
+    if (!mEvent.isRedaction()) return;
+    const targetEventId = mEvent.getAssociatedId();
+    if (!targetEventId) return;
+
+    const currentRedactions = redactionEventsByTarget.get(targetEventId) ?? [];
+    currentRedactions.push(mEvent);
+    redactionEventsByTarget.set(targetEventId, currentRedactions);
+  });
+
+  redactionEventsByTarget.forEach((redactionEvents, targetEventId) => {
+    const targetEvent = eventById.get(targetEventId);
+    if (!targetEvent) return;
+
+    const latestRedaction = getLatestEvent(redactionEvents);
+    if (!latestRedaction) return;
+
+    const currentRedactionEvent = targetEvent.getRedactionEvent();
+    const currentRedactionId =
+      currentRedactionEvent &&
+      typeof currentRedactionEvent === 'object' &&
+      'event_id' in currentRedactionEvent &&
+      typeof currentRedactionEvent.event_id === 'string'
+        ? currentRedactionEvent.event_id
+        : undefined;
+    if (targetEvent.isRedacted() && currentRedactionId === latestRedaction.getId()) return;
+
+    targetEvent.makeRedacted(latestRedaction, room);
+  });
+};
 
 export const applyCachedReplaceRelations = (events: MatrixEvent[]): void => {
   const editEventsByTarget = new Map<string, MatrixEvent[]>();
@@ -59,7 +107,53 @@ export const applyCachedReplaceRelations = (events: MatrixEvent[]): void => {
   });
 };
 
-export const serializeEventsForCache = (events: MatrixEvent[]): Partial<IEvent>[] => {
+export const aggregateCachedRelationEvents = (
+  events: MatrixEvent[],
+  timelineSets: Array<EventTimelineSet | undefined>,
+  seenRelationEventIds?: Set<string>
+): void => {
+  const uniqueTimelineSets = Array.from(
+    new Set(timelineSets.filter((timelineSet): timelineSet is EventTimelineSet => !!timelineSet))
+  );
+  if (uniqueTimelineSets.length === 0) return;
+
+  events.forEach((mEvent) => {
+    if (!mEvent.getRelation()) return;
+
+    const eventId = mEvent.getId();
+    if (eventId && seenRelationEventIds?.has(eventId)) return;
+
+    uniqueTimelineSets.forEach((timelineSet) => {
+      timelineSet.relations.aggregateChildEvent(mEvent, timelineSet);
+    });
+
+    if (eventId) {
+      seenRelationEventIds?.add(eventId);
+    }
+  });
+};
+
+export const hydrateCachedEvents = ({
+  room,
+  events,
+  timelineSets,
+  seenRelationEventIds,
+}: {
+  room: Room;
+  events: MatrixEvent[];
+  timelineSets?: Array<EventTimelineSet | undefined>;
+  seenRelationEventIds?: Set<string>;
+}): void => {
+  applyCachedRedactions(room, events);
+  applyCachedReplaceRelations(events);
+  if (timelineSets) {
+    aggregateCachedRelationEvents(events, timelineSets, seenRelationEventIds);
+  }
+};
+
+export const serializeEventsForCache = (room: Room, events: MatrixEvent[]): Partial<IEvent>[] => {
+  hydrateCachedEvents({ room, events });
+
   const serializedEvents = new Map<string, Partial<IEvent>>();
   const eventById = new Map<string, MatrixEvent>();
 
@@ -71,8 +165,6 @@ export const serializeEventsForCache = (events: MatrixEvent[]): Partial<IEvent>[
     serializedEvents.set(eventId, cloneRawEvent(rawEvent));
     eventById.set(eventId, mEvent);
   });
-
-  applyCachedReplaceRelations(events);
 
   eventById.forEach((mEvent, eventId) => {
     const replacingEvent = mEvent.replacingEvent();
