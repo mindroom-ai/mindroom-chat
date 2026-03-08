@@ -20,23 +20,24 @@ Rules followed:
 Working tree status (2026-03-08):
 
 - Modified:
-  - `src/client/initMatrix.test.ts`
   - `src/client/initMatrix.ts`
 - Added:
   - `REVIEW.md`
+  - `src/app/features/room/roomEventCache.test.ts`
+  - `src/app/features/room/roomEventCache.ts`
 
 What changed (uncommitted):
 
-- Broader room-cache retention hardening:
-  - The Matrix SDK's IndexedDB-backed saved `/sync` archive is now reconfigured at client startup to keep far more than the SDK default 50 timeline events per room.
-  - This directly addresses a real cache ceiling in the existing app: even with IndexedDB enabled, room reopen/offline behavior was being pruned to a tiny recent slice long before browser/device storage quota mattered.
-  - Added focused tests in `src/client/initMatrix.test.ts` to verify the raised timeline retention floor and to ensure a larger pre-existing limit is not lowered.
+- Room-event archive infrastructure:
+  - Added `src/app/features/room/roomEventCache.ts`, an app-owned IndexedDB archive for main room timeline events loaded outside the SDK's saved `/sync` snapshot.
+  - Added focused tests in `src/app/features/room/roomEventCache.test.ts` for event normalization, stable ordering, and pagination-anchor derivation.
+  - Cache-clearing paths in `src/client/initMatrix.ts` now delete the room-event archive alongside the existing thread archive.
   - `REVIEW.md` is an unrelated untracked local note present in the working tree.
 
 Validation (uncommitted):
 
-- `npm run test -- src/client/initMatrix.test.ts src/app/features/room/threadEventCache.test.ts src/app/features/room/timelineScrollUtils.test.ts src/app/features/room/threadUtils.test.ts` ✅ passed.
-- `npx eslint src/client/initMatrix.ts src/client/initMatrix.test.ts` ✅ passed with one pre-existing warning in `src/client/initMatrix.ts` for `cryptoCallbacks as any`.
+- `npm run test -- src/app/features/room/roomEventCache.test.ts src/client/initMatrix.test.ts` ✅ passed.
+- `npx eslint src/app/features/room/roomEventCache.ts src/app/features/room/roomEventCache.test.ts src/client/initMatrix.ts` ✅ passed with one pre-existing warning in `src/client/initMatrix.ts` for `cryptoCallbacks as any`.
 - `git diff --check` ✅ passed.
 - `npm run build` ✅ passed.
 - `npm run typecheck` ❌ still fails with broad pre-existing repository type errors unrelated to this thread-cache delta (for example many longstanding `matrix-js-sdk` type import mismatches outside the touched files).
@@ -686,7 +687,9 @@ Status as of 2026-03-08:
 
 - Step 1 is committed in `08ef697a` (`feat(thread-cache): add persistent thread reply archive`).
 - Step 2 and Step 3 are committed in `3b1d72ef` (`feat(thread): hydrate from local cache before server pagination`).
-- Additional broader-cache work is in the current working tree: raise the SDK's saved `/sync` room timeline retention well above its internal 50-event default so room history also benefits from the "cache a lot" product direction.
+- Additional broader-cache work is now split:
+  - committed in `0f1331d1` (`feat(cache): raise persisted room timeline archive limit`) to lift the SDK's own saved `/sync` retention ceiling,
+  - in the current working tree to add an app-owned room-event archive for paginated main-timeline history that the SDK does not persist itself.
 
 Execution notes:
 
