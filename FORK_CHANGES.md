@@ -20,29 +20,25 @@ Rules followed:
 Working tree status (2026-03-08):
 
 - Modified:
-  - `src/app/features/room/RoomTimeline.tsx`
-  - `src/app/features/room/roomEventCache.ts`
-  - `src/app/features/room/threadEventCache.ts`
+  - `src/app/features/room/message/Message.tsx`
+  - `src/app/features/room/message/styles.css.ts`
 - Added:
-  - `src/app/features/room/eventCacheTokenUtils.ts`
-  - `src/app/features/room/eventCacheTokenUtils.test.ts`
+  - `src/app/components/message/mindroomAiRunDisplay.ts`
+  - `src/app/components/message/mindroomAiRunDisplay.test.ts`
   - `REVIEW.md`
 
 What changed (uncommitted):
 
-- Review-driven cache correctness fixes:
-  - The app-owned room and thread archives now persist the backward pagination token associated with each cached earliest event so cached history can hand off cleanly to server pagination instead of re-fetching already-cached pages.
-  - Main-room cached history injection in `src/app/features/room/RoomTimeline.tsx` now mirrors the SDK pagination path more closely by partitioning threaded events, processing aggregated timeline events, creating thread roots, and aggregating unknown relations before recalibrating the view.
-  - Thread cache hydration and back-pagination now restore thread backward pagination state when cached replies are shown first, including the case where the SDK thread timeline is empty but the local cache has replies.
-  - Live thread relation events that target already-rendered thread messages are now persisted into the thread archive too, reducing stale cached thread state for edits/reactions.
-  - `src/app/features/room/roomEventCache.ts` bumps its IndexedDB schema version so existing clients upgrade cleanly when the new room metadata store is added.
+- AI run metadata UX:
+  - Message-level AI run metadata buttons are now rendered whenever a message carries MindRoom AI run metadata instead of only appearing on hover state.
+  - The button interaction now opens a real modal dialog with model/token/context metadata, which works in touch/native iOS webviews where the old hover-only tooltip path was unreliable or inert.
+  - Shared display-label formatting for AI run metadata was extracted into a small helper module with direct unit coverage.
   - `REVIEW.md` is an unrelated untracked local note present in the working tree.
 
 Validation (uncommitted):
 
-- `npm run test -- src/app/features/room/eventCacheTokenUtils.test.ts src/app/features/room/roomEventCache.test.ts src/app/features/room/threadEventCache.test.ts src/app/features/room/timelineScrollUtils.test.ts src/app/features/room/threadUtils.test.ts src/client/initMatrix.test.ts` ✅ passed.
-- `npx eslint src/app/features/room/eventCacheTokenUtils.ts src/app/features/room/eventCacheTokenUtils.test.ts src/app/features/room/roomEventCache.ts src/app/features/room/threadEventCache.ts` ✅ passed.
-- `npx eslint src/app/features/room/RoomTimeline.tsx` ❌ still fails with the file's longstanding lint backlog; no new review-fix-specific lint regressions were introduced.
+- `npm run test -- src/app/components/message/mindroomAiRun.test.ts src/app/components/message/mindroomAiRunDisplay.test.ts` ✅ passed.
+- `npx eslint src/app/components/message/mindroomAiRunDisplay.ts src/app/components/message/mindroomAiRunDisplay.test.ts src/app/features/room/message/styles.css.ts src/app/features/room/message/Message.tsx` ✅ passed with warnings only in `Message.tsx` from its pre-existing lint backlog; no new errors introduced.
 - `git diff --check` ✅ passed.
 - `npm run build` ✅ passed.
 - `npm run typecheck` ❌ still fails with broad pre-existing repository type errors unrelated to this thread-cache delta (for example many longstanding `matrix-js-sdk` type import mismatches outside the touched files).
