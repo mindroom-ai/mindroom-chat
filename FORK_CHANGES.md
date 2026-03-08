@@ -617,6 +617,9 @@ Thread badge behavior:
   scans in UI helpers, improving streamed edit stability in long threads.
 - Thread timeline loading now backfills missing latest edits (`m.replace`) per
   loaded thread message when server responses omit replacement aggregation.
+- Room/thread persistent caches now preserve and reapply latest edit state for
+  cached events, so refreshes do not regress heavily edited messages back to
+  their first visible revision when relation aggregation is missing on reload.
 - Thread view scroll state now uses thread-specific live-end detection: opening a thread and thread-scoped `Jump to Latest` both paginate forward to the newest loaded reply batch before scrolling to bottom, and live replies stick more reliably when the user is already near the bottom.
 - Main timeline thread summary chips render below message body and show participant avatars when available.
 - Base-path bootstrap is server-driven for the local SPA server (`serve.py`) and no longer depends on fragile client-side inference.
