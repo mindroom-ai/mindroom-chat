@@ -763,6 +763,10 @@ Thread open follow-up (2026-03-08):
 
 ## Multi-Account Support Plan (2026-03-08)
 
+Detailed design document:
+
+- `MULTI_ACCOUNT_PLAN.md`
+
 Problem statements this plan is solving:
 
 - Problem 1: the app is still single-session at boot. Routing and startup gate on `getFallbackSession()` in `src/app/pages/Router.tsx` and `src/app/pages/client/ClientRoot.tsx`, so there is no first-class concept of "stored accounts" or "active account".
