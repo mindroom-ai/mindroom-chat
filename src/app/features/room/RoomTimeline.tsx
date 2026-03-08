@@ -24,6 +24,7 @@ import {
   Room,
   RoomEvent,
   RoomEventHandlerMap,
+  THREAD_RELATION_TYPE,
 } from 'matrix-js-sdk';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import classNames from 'classnames';
@@ -144,6 +145,7 @@ import {
   normalizeCachedThreadEvents,
   saveThreadEventsToCache,
 } from './threadEventCache';
+import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
 import {
   getRoomCursorAnchor,
   loadCachedRoomEventsBefore,
@@ -796,18 +798,27 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
 
         if (cachedPage.events.length > 0) {
           const mapper = mx.getEventMapper();
-          const cachedEvents = normalizeCachedRoomEvents(cachedPage.events).map((rawEvent) =>
-            mapper(rawEvent)
-          );
+          const cachedEvents = normalizeCachedRoomEvents(cachedPage.events)
+            .map((rawEvent) => mapper(rawEvent))
+            .reverse();
           const paginationToken = firstTimeline.getPaginationToken(Direction.Backward);
+          const [timelineEvents, , unknownRelations] = room.partitionThreadedEvents(cachedEvents);
 
           room.addEventsToTimeline(
-            cachedEvents.slice().reverse(),
+            timelineEvents,
             true,
             false,
             firstTimeline,
-            paginationToken ?? undefined
+            cachedPage.beforeToken ?? paginationToken ?? undefined
           );
+          mx.processAggregatedTimelineEvents(room, timelineEvents);
+          room.processThreadRoots(
+            timelineEvents.filter((mEvent) =>
+              mEvent.getServerAggregatedRelation(THREAD_RELATION_TYPE.name)
+            ),
+            false
+          );
+          unknownRelations.forEach((mEvent) => room.relations.aggregateChildEvent(mEvent));
 
           const fetchedTimeline =
             firstTimeline.getNeighbouringTimeline(Direction.Backward) ?? firstTimeline;
@@ -846,49 +857,62 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   }, []);
 
   const persistThreadEventCache = useCallback(
-    (expectedThreadId: string, events: MatrixEvent[], rootEvent?: MatrixEvent | null) => {
+    (
+      expectedThreadId: string,
+      events: MatrixEvent[],
+      rootEvent?: MatrixEvent | null,
+      beforeTokenForEarliest?: string | null
+    ) => {
       const rawEvents = events
         .map((mEvent) => mEvent.event as Partial<IEvent> | undefined)
         .filter((rawEvent): rawEvent is Partial<IEvent> => !!rawEvent);
       const rawRootEvent = rootEvent?.event as Partial<IEvent> | undefined;
-      saveThreadEventsToCache(room.roomId, expectedThreadId, rawEvents, rawRootEvent).catch(
-        () => undefined
-      );
+      saveThreadEventsToCache(
+        room.roomId,
+        expectedThreadId,
+        rawEvents,
+        rawRootEvent,
+        beforeTokenForEarliest
+      ).catch(() => undefined);
     },
     [room.roomId]
   );
 
   const persistRoomEventCache = useCallback(
-    (events: MatrixEvent[]) => {
+    (events: MatrixEvent[], beforeTokenForEarliest?: string | null) => {
       const rawEvents = events
         .filter((mEvent) => !isThreadOnlyRoomActivity(room, mEvent))
         .map((mEvent) => mEvent.event as Partial<IEvent> | undefined)
         .filter((rawEvent): rawEvent is Partial<IEvent> => !!rawEvent);
-      saveRoomEventsToCache(room.roomId, rawEvents).catch(() => undefined);
+      saveRoomEventsToCache(room.roomId, rawEvents, beforeTokenForEarliest).catch(
+        () => undefined
+      );
     },
     [room]
   );
 
   const hydrateThreadFromCache = useCallback(
-    async (expectedThreadId: string): Promise<boolean> => {
+    async (expectedThreadId: string) => {
       const cachedPage = await loadLatestCachedThreadEvents(
         room.roomId,
         expectedThreadId,
         THREAD_CACHE_OPEN_LIMIT
       );
-      if (!alive() || threadIdRef.current !== expectedThreadId) return false;
+      if (!alive() || threadIdRef.current !== expectedThreadId) return undefined;
 
       const mapper = mx.getEventMapper();
       const cachedEvents = normalizeCachedThreadEvents(cachedPage.events).map((rawEvent) =>
         mapper(rawEvent)
       );
-      setThreadHasMoreCachedBack(cachedPage.hasMoreBefore);
-      if (cachedEvents.length === 0) return false;
+      setThreadHasMoreCachedBack(
+        cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string'
+      );
+      if (cachedEvents.length === 0) return cachedPage;
 
       setSupplementalThreadEvents(expectedThreadId, cachedEvents);
       setTimeline((ct) => ({ ...ct }));
       setThreadTimelineTick((val) => val + 1);
-      return true;
+      return cachedPage;
     },
     [alive, mx, room.roomId, setSupplementalThreadEvents]
   );
@@ -909,16 +933,28 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         .slice()
         .reverse()
         .map((rawEvent) => mapper(rawEvent));
-      const rootEvent = room.getThread(expectedThreadId)?.rootEvent ?? room.findEventById(expectedThreadId);
+      const currentThread = room.getThread(expectedThreadId);
+      const rootEvent = currentThread?.rootEvent ?? room.findEventById(expectedThreadId);
+      const firstThreadTimeline = currentThread
+        ? getLinkedTimelines(currentThread.getUnfilteredTimelineSet().getLiveTimeline())[0]
+        : undefined;
       setThreadHasMoreCachedBack(
         (currentHasMoreCachedBack) =>
           currentHasMoreCachedBack || typeof relData.next_batch === 'string'
       );
 
       if (latestEvents.length > 0) {
-        room.getThread(expectedThreadId)?.addEvents(latestEvents, false);
+        currentThread?.addEvents(latestEvents, false);
         setSupplementalThreadEvents(expectedThreadId, latestEvents);
-        persistThreadEventCache(expectedThreadId, latestEvents, rootEvent);
+        if (firstThreadTimeline) {
+          firstThreadTimeline.setPaginationToken(relData.next_batch ?? null, Direction.Backward);
+        }
+        persistThreadEventCache(
+          expectedThreadId,
+          latestEvents,
+          rootEvent,
+          firstThreadTimeline?.getPaginationToken(Direction.Backward) ?? relData.next_batch
+        );
         setTimeline((ct) => ({ ...ct }));
         setThreadTimelineTick((val) => val + 1);
       }
@@ -992,23 +1028,21 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         const relation = mEvt.getRelation();
         const relationTargetId = relation?.event_id;
         const isThreadOnlyActivity = isThreadOnlyRoomActivity(room, mEvt);
+        const isVisibleThreadActivity =
+          mEventId === threadId ||
+          eventBelongsToThread(mEvt, threadId ?? '') ||
+          !!(relationTargetId && threadEventIndexMapRef.current.has(relationTargetId));
 
         if (threadId) {
-          if (
-            mEventId === threadId ||
-            eventBelongsToThread(mEvt, threadId) ||
-            (relationTargetId && threadEventIndexMapRef.current.has(relationTargetId))
-          ) {
-            if (mEventId === threadId || eventBelongsToThread(mEvt, threadId)) {
-              setSupplementalThreadEvents(threadId, [mEvt]);
-              persistThreadEventCache(
-                threadId,
-                [mEvt],
-                room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId)
-              );
-              if (atLiveEndRef.current) {
-                setThreadTailLoaded(true);
-              }
+          if (isVisibleThreadActivity) {
+            setSupplementalThreadEvents(threadId, [mEvt]);
+            persistThreadEventCache(
+              threadId,
+              [mEvt],
+              room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId)
+            );
+            if ((mEventId === threadId || eventBelongsToThread(mEvt, threadId)) && atLiveEndRef.current) {
+              setThreadTailLoaded(true);
             }
 
             setThreadTimelineTick((val) => val + 1);
@@ -1094,7 +1128,10 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
 
   useEffect(() => {
     if (threadId) return;
-    persistRoomEventCache(getMainTimelineCacheEvents(room, timeline.linkedTimelines));
+    persistRoomEventCache(
+      getMainTimelineCacheEvents(room, timeline.linkedTimelines),
+      timeline.linkedTimelines[0]?.getPaginationToken(Direction.Backward)
+    );
   }, [eventsLength, persistRoomEventCache, room, threadId, timeline.linkedTimelines]);
 
   useEffect(() => {
@@ -1359,7 +1396,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     let mounted = true;
     const shouldScrollToLatestOnOpen = !eventId;
     const loadThreadTimeline = async () => {
-      await hydrateThreadFromCache(threadId);
+      const hydratedCachedPage = await hydrateThreadFromCache(threadId);
       if (!mounted || threadIdRef.current !== threadId) return;
 
       // First, ensure the thread exists in the SDK.
@@ -1399,7 +1436,12 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           const mapper = mx.getEventMapper();
           const mappedEvents = relData.chunk.slice().reverse().map((evt) => mapper(evt));
           setSupplementalThreadEvents(threadId, mappedEvents);
-          persistThreadEventCache(threadId, mappedEvents, room.findEventById(threadId));
+          persistThreadEventCache(
+            threadId,
+            mappedEvents,
+            room.findEventById(threadId),
+            relData.next_batch
+          );
         }
       }
 
@@ -1412,6 +1454,24 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           // Fallback: even if getThreadTimeline fails, the thread events
           // may already be populated from the relations fetch above
           console.warn('getThreadTimeline failed, using fallback:', err);
+        }
+        const firstThreadTimeline = getLinkedTimelines(loadedThreadTimelineSet.getLiveTimeline())[0];
+        const cachedEarliestAnchor = getThreadCursorAnchor(hydratedCachedPage?.events[0]);
+        const earliestThreadReply = getEarliestLoadedThreadReply(threadModel.events, threadId);
+        const threadTimelineAnchor = getThreadCursorAnchor(
+          earliestThreadReply?.event as Partial<IEvent> | undefined
+        );
+        if (
+          firstThreadTimeline &&
+          hydratedCachedPage?.beforeToken !== undefined &&
+          cachedEarliestAnchor &&
+          (!threadTimelineAnchor ||
+            compareCachedPaginationAnchors(threadTimelineAnchor, cachedEarliestAnchor) >= 0)
+        ) {
+          firstThreadTimeline.setPaginationToken(
+            hydratedCachedPage.beforeToken ?? null,
+            Direction.Backward
+          );
         }
         if (threadModel.events.length === 0) {
           // Some servers return empty thread timelines even though relations exist.
@@ -1427,9 +1487,15 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             const mapper = mx.getEventMapper();
             const mappedEvents = relData.chunk.slice().reverse().map((evt) => mapper(evt));
             threadModel.addEvents(mappedEvents, true);
+            firstThreadTimeline?.setPaginationToken(relData.next_batch ?? null, Direction.Backward);
           }
         }
-        persistThreadEventCache(threadId, threadModel.events, threadModel.rootEvent);
+        persistThreadEventCache(
+          threadId,
+          threadModel.events,
+          threadModel.rootEvent,
+          firstThreadTimeline?.getPaginationToken(Direction.Backward)
+        );
       } else {
         console.warn('Could not create thread object for', threadId);
       }
@@ -2684,8 +2750,20 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         (rawEvent) => mapper(rawEvent)
       );
       if (cachedEvents.length > 0) {
+        const currentThreadTimelineSet = thread?.getUnfilteredTimelineSet();
+        const currentFirstThreadTimeline = currentThreadTimelineSet
+          ? getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0]
+          : undefined;
+        if (currentFirstThreadTimeline && cachedPage.beforeToken !== undefined) {
+          currentFirstThreadTimeline.setPaginationToken(
+            cachedPage.beforeToken ?? null,
+            Direction.Backward
+          );
+        }
         setSupplementalThreadEvents(expectedThreadId, cachedEvents);
-        setThreadHasMoreCachedBack(cachedPage.hasMoreBefore);
+        setThreadHasMoreCachedBack(
+          cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string'
+        );
         setTimeline((ct) => ({ ...ct }));
         setThreadTimelineTick((val) => val + 1);
         return;
@@ -2705,7 +2783,12 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         })
       );
       if (!err && threadIdRef.current === expectedThreadId) {
-        persistThreadEventCache(expectedThreadId, thread.events, thread.rootEvent);
+        persistThreadEventCache(
+          expectedThreadId,
+          thread.events,
+          thread.rootEvent,
+          firstThreadTimeline.getPaginationToken(Direction.Backward)
+        );
         setTimeline((ct) => ({ ...ct }));
         setThreadTimelineTick((val) => val + 1);
       }
