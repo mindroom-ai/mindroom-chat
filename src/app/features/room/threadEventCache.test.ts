@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  filterPageableCachedThreadEvents,
   getThreadCursorAnchor,
   normalizeCachedThreadEvents,
 } from './threadEventCache';
@@ -51,6 +52,24 @@ describe('normalizeCachedThreadEvents', () => {
       { event_id: '$a', origin_server_ts: 200 },
       { event_id: '$b', origin_server_ts: 200 },
       { event_id: '$c', origin_server_ts: 200 },
+    ]);
+  });
+});
+
+describe('filterPageableCachedThreadEvents', () => {
+  it('excludes the thread root from pageable cached replies', () => {
+    expect(
+      filterPageableCachedThreadEvents(
+        [
+          { event_id: '$root', origin_server_ts: 100 },
+          { event_id: '$reply-1', origin_server_ts: 200 },
+          { event_id: '$reply-2', origin_server_ts: 300 },
+        ],
+        '$root'
+      )
+    ).toEqual([
+      { event_id: '$reply-1', origin_server_ts: 200 },
+      { event_id: '$reply-2', origin_server_ts: 300 },
     ]);
   });
 });
