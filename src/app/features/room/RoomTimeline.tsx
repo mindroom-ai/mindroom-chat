@@ -144,6 +144,12 @@ import {
   saveThreadEventsToCache,
 } from './threadEventCache';
 import {
+  getRoomCursorAnchor,
+  loadCachedRoomEventsBefore,
+  normalizeCachedRoomEvents,
+  saveRoomEventsToCache,
+} from './roomEventCache';
+import {
   isScrollNearBottom,
   isTimelineAtLiveEnd,
   shouldAutoScrollThreadOnLiveEvent,
@@ -356,6 +362,65 @@ const getEarliestLoadedThreadReply = (
     return !!eventId && eventId !== threadId && eventBelongsToThread(mEvent, threadId);
   });
 
+const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
+  const mEventId = mEvt.getId();
+  const relationTargetId = mEvt.getRelation()?.event_id;
+  const relatedEvent = relationTargetId ? room.findEventById(relationTargetId) : undefined;
+  const relatedEventId = relatedEvent?.getId();
+  const isThreadReplyMessage = !!mEventId && !!mEvt.threadRootId && mEvt.threadRootId !== mEventId;
+  const isThreadReplyRelatedEvent =
+    !!relatedEventId &&
+    !!relatedEvent?.threadRootId &&
+    relatedEvent.threadRootId !== relatedEventId;
+  return isThreadReplyMessage || isThreadReplyRelatedEvent;
+};
+
+const getMainTimelineCacheEvents = (
+  room: Room,
+  linkedTimelines: EventTimeline[]
+): MatrixEvent[] =>
+  linkedTimelines.flatMap((timeline) =>
+    timeline.getEvents().filter((mEvent) => !isThreadOnlyRoomActivity(room, mEvent))
+  );
+
+const getEarliestLoadedRoomEvent = (
+  room: Room,
+  linkedTimelines: EventTimeline[]
+): MatrixEvent | undefined => getMainTimelineCacheEvents(room, linkedTimelines)[0];
+
+const recalibrateTimelinePagination = (
+  setTimeline: Dispatch<
+    SetStateAction<{
+      linkedTimelines: EventTimeline[];
+      range: ItemRange;
+    }>
+  >,
+  linkedTimelines: EventTimeline[],
+  timelinesEventsCount: number[],
+  backwards: boolean
+) => {
+  const topTimeline = linkedTimelines[0];
+  const timelineMatch = (mt: EventTimeline) => (t: EventTimeline) => t === mt;
+
+  const newLTimelines = getLinkedTimelines(topTimeline);
+  const topTmIndex = newLTimelines.findIndex(timelineMatch(topTimeline));
+  const topAddedTm = topTmIndex === -1 ? [] : newLTimelines.slice(0, topTmIndex);
+
+  const topTmAddedEvt = timelineToEventsCount(newLTimelines[topTmIndex]) - timelinesEventsCount[0];
+  const offsetRange = getTimelinesEventsCount(topAddedTm) + (backwards ? topTmAddedEvt : 0);
+
+  setTimeline((currentTimeline) => ({
+    linkedTimelines: newLTimelines,
+    range:
+      offsetRange > 0
+        ? {
+            start: currentTimeline.range.start + offsetRange,
+            end: currentTimeline.range.end + offsetRange,
+          }
+        : { ...currentTimeline.range },
+  }));
+};
+
 type Timeline = {
   linkedTimelines: EventTimeline[];
   range: ItemRange;
@@ -405,34 +470,6 @@ const useTimelinePagination = (
   const handleTimelinePagination = useMemo(() => {
     let fetching = false;
 
-    const recalibratePagination = (
-      linkedTimelines: EventTimeline[],
-      timelinesEventsCount: number[],
-      backwards: boolean
-    ) => {
-      const topTimeline = linkedTimelines[0];
-      const timelineMatch = (mt: EventTimeline) => (t: EventTimeline) => t === mt;
-
-      const newLTimelines = getLinkedTimelines(topTimeline);
-      const topTmIndex = newLTimelines.findIndex(timelineMatch(topTimeline));
-      const topAddedTm = topTmIndex === -1 ? [] : newLTimelines.slice(0, topTmIndex);
-
-      const topTmAddedEvt =
-        timelineToEventsCount(newLTimelines[topTmIndex]) - timelinesEventsCount[0];
-      const offsetRange = getTimelinesEventsCount(topAddedTm) + (backwards ? topTmAddedEvt : 0);
-
-      setTimeline((currentTimeline) => ({
-        linkedTimelines: newLTimelines,
-        range:
-          offsetRange > 0
-            ? {
-                start: currentTimeline.range.start + offsetRange,
-                end: currentTimeline.range.end + offsetRange,
-              }
-            : { ...currentTimeline.range },
-      }));
-    };
-
     return async (backwards: boolean) => {
       if (fetching) return;
       const { linkedTimelines: lTimelines } = timelineRef.current;
@@ -449,7 +486,7 @@ const useTimelinePagination = (
         getTimelinesEventsCount(lTimelines) !==
           getTimelinesEventsCount(getLinkedTimelines(timelineToPaginate))
       ) {
-        recalibratePagination(lTimelines, timelinesEventsCount, backwards);
+        recalibrateTimelinePagination(setTimeline, lTimelines, timelinesEventsCount, backwards);
         return;
       }
 
@@ -478,7 +515,7 @@ const useTimelinePagination = (
 
       fetching = false;
       if (alive()) {
-        recalibratePagination(lTimelines, timelinesEventsCount, backwards);
+        recalibrateTimelinePagination(setTimeline, lTimelines, timelinesEventsCount, backwards);
       }
     };
   }, [mx, alive, setTimeline, limit]);
@@ -636,12 +673,15 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     | undefined
   >();
   const [threadLoadError, setThreadLoadError] = useState(false);
+  const [roomHasMoreCachedBack, setRoomHasMoreCachedBack] = useState(false);
   const [threadHasMoreCachedBack, setThreadHasMoreCachedBack] = useState(false);
   const [threadTailLoaded, setThreadTailLoaded] = useState(false);
   const [threadPaginatingBack, setThreadPaginatingBack] = useState(false);
   const [threadPaginatingFront, setThreadPaginatingFront] = useState(false);
   const [threadTimelineTick, setThreadTimelineTick] = useState(0);
   const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
+  const roomIdRef = useRef(room.roomId);
+  const roomPaginatingBackRef = useRef(false);
   const threadPaginatingBackRef = useRef(false);
   const threadPaginatingFrontRef = useRef(false);
   const threadIdRef = useRef(threadId);
@@ -664,6 +704,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     | undefined
   >();
   const alive = useAlive();
+  roomIdRef.current = room.roomId;
   threadPaginatingBackRef.current = threadPaginatingBack;
   threadPaginatingFrontRef.current = threadPaginatingFront;
   threadIdRef.current = threadId;
@@ -727,6 +768,73 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     PAGINATION_LIMIT
   );
 
+  const handleRoomTimelinePagination = useCallback(
+    async (backwards: boolean) => {
+      if (threadId) return;
+      if (!backwards) {
+        await handleTimelinePagination(false);
+        return;
+      }
+      if (roomPaginatingBackRef.current) return;
+
+      roomPaginatingBackRef.current = true;
+      try {
+        const currentLinkedTimelines = timeline.linkedTimelines;
+        const firstTimeline = currentLinkedTimelines[0];
+        if (!firstTimeline) return;
+
+        const timelinesEventsCount = currentLinkedTimelines.map(timelineToEventsCount);
+        const earliestLoadedEvent = getEarliestLoadedRoomEvent(room, currentLinkedTimelines);
+        const cachedPage = await loadCachedRoomEventsBefore(
+          room.roomId,
+          getRoomCursorAnchor(earliestLoadedEvent?.event as Partial<IEvent> | undefined),
+          PAGINATION_LIMIT
+        );
+
+        if (!alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
+
+        if (cachedPage.events.length > 0) {
+          const mapper = mx.getEventMapper();
+          const cachedEvents = normalizeCachedRoomEvents(cachedPage.events).map((rawEvent) =>
+            mapper(rawEvent)
+          );
+          const paginationToken = firstTimeline.getPaginationToken(Direction.Backward);
+
+          room.addEventsToTimeline(
+            cachedEvents.slice().reverse(),
+            true,
+            false,
+            firstTimeline,
+            paginationToken ?? undefined
+          );
+
+          const fetchedTimeline =
+            firstTimeline.getNeighbouringTimeline(Direction.Backward) ?? firstTimeline;
+          if (room.hasEncryptionStateEvent()) {
+            await to(decryptAllTimelineEvent(mx, fetchedTimeline));
+          }
+
+          if (alive() && roomIdRef.current === room.roomId && !threadIdRef.current) {
+            recalibrateTimelinePagination(
+              setTimeline,
+              currentLinkedTimelines,
+              timelinesEventsCount,
+              true
+            );
+            setRoomHasMoreCachedBack(cachedPage.hasMoreBefore);
+          }
+          return;
+        }
+
+        setRoomHasMoreCachedBack(false);
+        await handleTimelinePagination(true);
+      } finally {
+        roomPaginatingBackRef.current = false;
+      }
+    },
+    [alive, handleTimelinePagination, mx, room, threadId, timeline.linkedTimelines]
+  );
+
   const setSupplementalThreadEvents = useCallback((expectedThreadId: string, events: MatrixEvent[]) => {
     const fallback = fallbackThreadEventsRef.current;
     const currentEvents = fallback.threadId === expectedThreadId ? fallback.events : [];
@@ -747,6 +855,17 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       );
     },
     [room.roomId]
+  );
+
+  const persistRoomEventCache = useCallback(
+    (events: MatrixEvent[]) => {
+      const rawEvents = events
+        .filter((mEvent) => !isThreadOnlyRoomActivity(room, mEvent))
+        .map((mEvent) => mEvent.event as Partial<IEvent> | undefined)
+        .filter((rawEvent): rawEvent is Partial<IEvent> => !!rawEvent);
+      saveRoomEventsToCache(room.roomId, rawEvents).catch(() => undefined);
+    },
+    [room]
   );
 
   const hydrateThreadFromCache = useCallback(
@@ -830,7 +949,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           undefined,
         []
       ),
-      onEnd: handleTimelinePagination,
+      onEnd: handleRoomTimelinePagination,
     });
 
   const loadEventTimeline = useEventTimelineLoader(
@@ -871,15 +990,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         const mEventId = mEvt.getId();
         const relation = mEvt.getRelation();
         const relationTargetId = relation?.event_id;
-        const relatedEvent = relationTargetId ? room.findEventById(relationTargetId) : undefined;
-        const relatedEventId = relatedEvent?.getId();
-        const isThreadReplyMessage =
-          !!mEventId && !!mEvt.threadRootId && mEvt.threadRootId !== mEventId;
-        const isThreadReplyRelatedEvent =
-          !!relatedEventId &&
-          !!relatedEvent?.threadRootId &&
-          relatedEvent.threadRootId !== relatedEventId;
-        const isThreadOnlyActivity = isThreadReplyMessage || isThreadReplyRelatedEvent;
+        const isThreadOnlyActivity = isThreadOnlyRoomActivity(room, mEvt);
 
         if (threadId) {
           if (
@@ -931,6 +1042,8 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           return;
         }
 
+        persistRoomEventCache([mEvt]);
+
         // if user is at bottom of timeline
         // keep paginating timeline and conditionally mark as read
         // otherwise we update timeline without paginating
@@ -966,6 +1079,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       },
       [
         mx,
+        persistRoomEventCache,
         persistThreadEventCache,
         room,
         setSupplementalThreadEvents,
@@ -976,6 +1090,35 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       ]
     )
   );
+
+  useEffect(() => {
+    if (threadId) return;
+    persistRoomEventCache(getMainTimelineCacheEvents(room, timeline.linkedTimelines));
+  }, [eventsLength, persistRoomEventCache, room, threadId, timeline.linkedTimelines]);
+
+  useEffect(() => {
+    if (threadId) {
+      setRoomHasMoreCachedBack(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const refreshRoomCachedBackState = async () => {
+      const earliestLoadedEvent = getEarliestLoadedRoomEvent(room, timeline.linkedTimelines);
+      const cachedPage = await loadCachedRoomEventsBefore(
+        room.roomId,
+        getRoomCursorAnchor(earliestLoadedEvent?.event as Partial<IEvent> | undefined),
+        1
+      );
+      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
+      setRoomHasMoreCachedBack(cachedPage.events.length > 0);
+    };
+
+    refreshRoomCachedBackState();
+    return () => {
+      cancelled = true;
+    };
+  }, [alive, eventId, eventsLength, room, threadId, timeline.linkedTimelines]);
 
   const handleOpenEvent = useCallback(
     async (
@@ -2714,7 +2857,11 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
               }}
             />
           )}
-          {!threadId && !canPaginateBack && rangeAtStart && timelineItems.length > 0 && (
+          {!threadId &&
+            !roomHasMoreCachedBack &&
+            !canPaginateBack &&
+            rangeAtStart &&
+            timelineItems.length > 0 && (
             <div
               style={{
                 padding: `${config.space.S700} ${config.space.S400} ${config.space.S600} ${
@@ -2752,7 +2899,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             </MessageBase>
           )}
           {!threadId &&
-            (canPaginateBack || !rangeAtStart) &&
+            (roomHasMoreCachedBack || canPaginateBack || !rangeAtStart) &&
             (messageLayout === MessageLayout.Compact ? (
               <>
                 <MessageBase>
