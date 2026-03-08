@@ -138,6 +138,7 @@ import {
   eventBelongsToThread,
   isThreadReplyEvent,
 } from './threadUtils';
+import { getThreadInitialRenderMode } from './threadRenderUtils';
 import {
   getThreadCursorAnchor,
   loadCachedThreadEventsBefore,
@@ -710,6 +711,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   const [threadTailLoaded, setThreadTailLoaded] = useState(false);
   const [threadPaginatingBack, setThreadPaginatingBack] = useState(false);
   const [threadPaginatingFront, setThreadPaginatingFront] = useState(false);
+  const [threadInitialCacheHydrated, setThreadInitialCacheHydrated] = useState(false);
   const [threadTimelineTick, setThreadTimelineTick] = useState(0);
   const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
   const roomIdRef = useRef(room.roomId);
@@ -1460,6 +1462,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     setFocusItem(undefined);
     setThreadLoadError(false);
     setThreadHasMoreCachedBack(false);
+    setThreadInitialCacheHydrated(false);
     setThreadTailLoaded(false);
     setThreadTimelineTick(0);
     setPendingThreadOpenTick(0);
@@ -1473,8 +1476,15 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     let mounted = true;
     const shouldScrollToLatestOnOpen = !eventId;
     const loadThreadTimeline = async () => {
-      const hydratedCachedPage = await hydrateThreadFromCache(threadId);
+      let hydratedCachedPage;
+      try {
+        hydratedCachedPage = await hydrateThreadFromCache(threadId);
+      } catch {
+        if (!mounted || threadIdRef.current !== threadId) return;
+        hydratedCachedPage = undefined;
+      }
       if (!mounted || threadIdRef.current !== threadId) return;
+      setThreadInitialCacheHydrated(true);
 
       // First, ensure the thread exists in the SDK.
       // room.getThread() may return null if the SDK hasn't seen the thread yet.
@@ -1620,6 +1630,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     if (threadId) return;
     setThreadLoadError(false);
     setThreadHasMoreCachedBack(false);
+    setThreadInitialCacheHydrated(false);
     setThreadTailLoaded(false);
     setThreadTimelineTick(0);
     setThreadPaginatingBack(false);
@@ -2600,14 +2611,24 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       eventsMap.set(eventId, mEvent);
     };
 
-    const threadModelReady = !!thread;
-    addThreadEvent(thread?.rootEvent ?? room.findEventById(threadId), !threadModelReady);
-    if (threadModelReady) {
-      thread?.events.forEach((mEvent) => addThreadEvent(mEvent, false));
-    }
     const fallback = fallbackThreadEventsRef.current;
-    if (fallback.threadId === threadId && fallback.events.length > 0) {
-      fallback.events.forEach((mEvent) => addThreadEvent(mEvent, false));
+    const fallbackEvents = fallback.threadId === threadId ? fallback.events : [];
+    const initialRenderMode = getThreadInitialRenderMode({
+      threadId,
+      initialCacheHydrated: threadInitialCacheHydrated,
+      fallbackEventCount: fallbackEvents.length,
+    });
+
+    if (initialRenderMode === 'live') {
+      const threadModelReady = !!thread;
+      addThreadEvent(thread?.rootEvent ?? room.findEventById(threadId), !threadModelReady);
+      if (threadModelReady) {
+        thread?.events.forEach((mEvent) => addThreadEvent(mEvent, false));
+      }
+    }
+
+    if (fallbackEvents.length > 0) {
+      fallbackEvents.forEach((mEvent) => addThreadEvent(mEvent, false));
     }
 
     const sortedEvents = Array.from(eventsMap.values()).sort((a, b) => {
@@ -2630,7 +2651,13 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     });
     threadEventIndexMapRef.current = eventIndexMap;
     return sortedEvents;
-  }, [threadId, thread, room, threadTimelineTick]);
+  }, [threadId, thread, room, threadInitialCacheHydrated, threadTimelineTick]);
+
+  const threadInitialRenderMode = getThreadInitialRenderMode({
+    threadId,
+    initialCacheHydrated: threadInitialCacheHydrated,
+    fallbackEventCount: threadEvents.length,
+  });
 
   useEffect(() => {
     if (!threadId || threadEvents.length === 0) return;
@@ -3100,6 +3127,31 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
               </TimelineDivider>
             </MessageBase>
           )}
+          {threadId &&
+            threadInitialRenderMode === 'loading' &&
+            !threadLoadError &&
+            (messageLayout === MessageLayout.Compact ? (
+              <>
+                <MessageBase>
+                  <CompactPlaceholder />
+                </MessageBase>
+                <MessageBase>
+                  <CompactPlaceholder />
+                </MessageBase>
+                <MessageBase>
+                  <CompactPlaceholder />
+                </MessageBase>
+              </>
+            ) : (
+              <>
+                <MessageBase>
+                  <DefaultPlaceholder />
+                </MessageBase>
+                <MessageBase>
+                  <DefaultPlaceholder />
+                </MessageBase>
+              </>
+            ))}
           {!threadId &&
             (roomHasMoreCachedBack || canPaginateBack || !rangeAtStart) &&
             (messageLayout === MessageLayout.Compact ? (
