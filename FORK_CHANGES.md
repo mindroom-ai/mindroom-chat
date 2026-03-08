@@ -748,6 +748,19 @@ Execution notes:
 - Validate each step with targeted tests plus `npm run build` when feasible.
 - Preserve current behavior for targeted event opens inside a thread: those should still open the requested event, not auto-jump to the latest reply.
 
+Thread open follow-up (2026-03-08):
+
+- Problem:
+  - Plain thread opens could still render the top of the thread briefly and only then jump to the bottom.
+  - Root cause: cached/live thread events can render before the async "open at latest reply" flow finishes and schedules the final bottom scroll.
+- Fix direction:
+  - Keep an explicit "thread open to latest is still pending" state for non-targeted thread opens.
+  - While that state is active, pin the first cached/live thread render to bottom in a `useLayoutEffect` before paint.
+  - Clear that pending state once the async thread-open reconciliation completes, leaving targeted thread/event opens unchanged.
+- Validation:
+  - Add focused unit coverage for the bottom-pin gate.
+  - Re-run thread render/timing tests plus `npm run build`.
+
 ## Submission Readiness Check (2026-02-26, macOS/Xcode)
 
 Validation performed on macOS (Xcode + CocoaPods + ImageMagick available):

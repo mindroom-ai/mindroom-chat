@@ -2,6 +2,12 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import { getLatestEdit } from '../../utils/room';
 
 export type ThreadInitialRenderMode = 'loading' | 'cached' | 'live';
+type ThreadOpenBottomPinOpts = {
+  threadId?: string;
+  threadLatestOpenPending: boolean;
+  threadInitialRenderMode: ThreadInitialRenderMode;
+  threadEventCount: number;
+};
 
 export const getThreadInitialRenderMode = ({
   threadId,
@@ -16,6 +22,17 @@ export const getThreadInitialRenderMode = ({
   if (initialCacheHydrated) return 'live';
   return fallbackEventCount > 0 ? 'cached' : 'loading';
 };
+
+export const shouldPinThreadToBottomOnOpen = ({
+  threadId,
+  threadLatestOpenPending,
+  threadInitialRenderMode,
+  threadEventCount,
+}: ThreadOpenBottomPinOpts): boolean =>
+  !!threadId &&
+  threadLatestOpenPending &&
+  threadInitialRenderMode !== 'loading' &&
+  threadEventCount > 0;
 
 export const pickPreferredThreadRenderEvent = (
   existingEvent: MatrixEvent,
