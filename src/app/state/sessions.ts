@@ -39,12 +39,29 @@ type PutSessionInput = {
 
 type LocalStorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 type SessionStoreListener = () => void;
+type SessionStoreSnapshot = {
+  raw: string | null;
+  store: SessionStore;
+  activeSession?: StoredSession;
+  sessions: StoredSession[];
+};
 
 export const SESSION_STORE_KEY = 'mindroom_multi_account_store';
 export const SESSION_STORE_EVENT = 'mindroom-session-store-changed';
 export const SESSION_STORE_VERSION = 1 as const;
 
 const SESSION_DB_PREFIX = '::';
+const EMPTY_SESSIONS: StoredSession[] = [];
+const EMPTY_SESSION_STORE: SessionStore = {
+  version: SESSION_STORE_VERSION,
+  sessions: EMPTY_SESSIONS,
+};
+const EMPTY_SESSION_SNAPSHOT: SessionStoreSnapshot = {
+  raw: null,
+  store: EMPTY_SESSION_STORE,
+  sessions: EMPTY_SESSIONS,
+};
+const sessionStoreSnapshotCache = new WeakMap<object, SessionStoreSnapshot>();
 
 const getLocalStorageSafe = (): LocalStorageLike | undefined => {
   try {
@@ -153,42 +170,61 @@ const writeSessionStore = (
   dispatchSessionStoreEvent();
 };
 
-export const getSessionStore = (
+const createSessionStoreSnapshot = (
+  raw: string | null,
+  store: SessionStore
+): SessionStoreSnapshot => {
+  const activeSession = store.activeSessionId
+    ? store.sessions.find((session) => session.sessionId === store.activeSessionId)
+    : undefined;
+  const sessions =
+    store.sessions.length > 0
+      ? [...store.sessions].sort((a, b) => {
+          const usedDiff = b.lastUsedAt - a.lastUsedAt;
+          if (usedDiff !== 0) return usedDiff;
+          return a.userId.localeCompare(b.userId);
+        })
+      : EMPTY_SESSIONS;
+
+  return {
+    raw,
+    store,
+    activeSession,
+    sessions,
+  };
+};
+
+const getSessionStoreSnapshot = (
   storage: LocalStorageLike | undefined = getLocalStorageSafe()
-): SessionStore => {
+): SessionStoreSnapshot => {
   if (!storage) {
-    return {
-      version: SESSION_STORE_VERSION,
-      sessions: [],
-    };
+    return EMPTY_SESSION_SNAPSHOT;
   }
 
   try {
     const raw = storage.getItem(SESSION_STORE_KEY);
-    if (!raw) {
-      return {
-        version: SESSION_STORE_VERSION,
-        sessions: [],
-      };
+    const cachedSnapshot = sessionStoreSnapshotCache.get(storage);
+    if (cachedSnapshot && cachedSnapshot.raw === raw) {
+      return cachedSnapshot;
     }
 
-    return sanitizeSessionStore(JSON.parse(raw));
+    const store = raw ? sanitizeSessionStore(JSON.parse(raw)) : EMPTY_SESSION_STORE;
+    const snapshot = createSessionStoreSnapshot(raw, store);
+    sessionStoreSnapshotCache.set(storage, snapshot);
+    return snapshot;
   } catch {
-    return {
-      version: SESSION_STORE_VERSION,
-      sessions: [],
-    };
+    const snapshot = createSessionStoreSnapshot(null, EMPTY_SESSION_STORE);
+    sessionStoreSnapshotCache.set(storage, snapshot);
+    return snapshot;
   }
 };
 
-export const listSessions = (
+export const getSessionStore = (
   storage: LocalStorageLike | undefined = getLocalStorageSafe()
-): StoredSession[] =>
-  [...getSessionStore(storage).sessions].sort((a, b) => {
-    const usedDiff = b.lastUsedAt - a.lastUsedAt;
-    if (usedDiff !== 0) return usedDiff;
-    return a.userId.localeCompare(b.userId);
-  });
+) => getSessionStoreSnapshot(storage).store;
+
+export const listSessions = (storage: LocalStorageLike | undefined = getLocalStorageSafe()): StoredSession[] =>
+  getSessionStoreSnapshot(storage).sessions;
 
 export const hasStoredSessions = (
   storage: LocalStorageLike | undefined = getLocalStorageSafe()
@@ -196,11 +232,7 @@ export const hasStoredSessions = (
 
 export const getActiveSession = (
   storage: LocalStorageLike | undefined = getLocalStorageSafe()
-): StoredSession | undefined => {
-  const store = getSessionStore(storage);
-  if (!store.activeSessionId) return undefined;
-  return store.sessions.find((session) => session.sessionId === store.activeSessionId);
-};
+): StoredSession | undefined => getSessionStoreSnapshot(storage).activeSession;
 
 const upsertSession = (sessions: StoredSession[], nextSession: StoredSession): StoredSession[] => {
   const nextSessions = [...sessions];

@@ -258,4 +258,32 @@ describe('sessions', () => {
       `mindroom_ios_push_token::${session.sessionId}`
     );
   });
+
+  it('returns stable store snapshots while the backing storage is unchanged', () => {
+    const storage = createStorage();
+
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_A',
+        accessToken: 'token-a',
+      },
+      undefined,
+      storage
+    );
+
+    const storeA = getSessionStore(storage);
+    const storeB = getSessionStore(storage);
+    const activeA = getActiveSession(storage);
+    const activeB = getActiveSession(storage);
+    const sessionsA = listSessions(storage);
+    const sessionsB = listSessions(storage);
+
+    expect(storeA).toBe(storeB);
+    expect(activeA).toBe(activeB);
+    expect(activeA?.sessionId).toBe(session.sessionId);
+    expect(sessionsA).toBe(sessionsB);
+    expect(sessionsA[0].sessionId).toBe(session.sessionId);
+  });
 });

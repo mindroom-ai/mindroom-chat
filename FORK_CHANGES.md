@@ -549,6 +549,24 @@ Why:
 
 - Hardens multi-account switching so "return me to where I was in that account" is explicitly tested and cannot silently regress into home-only or unsafe external redirects.
 
+### fix(accounts): stabilize session store snapshots
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/state/sessions.test.ts`
+- `src/app/state/sessions.ts`
+
+What changed:
+
+- Changed the session store snapshot readers used by `useSyncExternalStore` to cache and reuse parsed session-store objects while the underlying localStorage value is unchanged.
+- Stabilized `getSessionStore()`, `getActiveSession()`, and `listSessions()` so they no longer allocate fresh objects/arrays on every read with identical backing data.
+- Added regression coverage proving unchanged storage returns referentially stable session store, active-session, and session-list snapshots.
+
+Why:
+
+- Fixes a multi-account regression where unstable `useSyncExternalStore` snapshots could trigger React rerender loops (`Minified React error #185`) during login/session activation, which surfaced most obviously on Google/GitHub SSO return.
+
 # Runbook
 
 ## Purpose
@@ -1061,10 +1079,13 @@ Status as of 2026-03-08:
   - active-account route persistence is covered explicitly,
   - account switching reuses only validated in-app stored paths,
   - invalid or missing stored paths fall back to `/home`.
+- A follow-up stability fix is also now done:
+  - session-store snapshots used by `useSyncExternalStore` are referentially stable while storage is unchanged,
+  - SSO/session-activation no longer risks React rerender loops from freshly parsed session objects on every snapshot read.
 - Validation completed for this slice:
-  - targeted Vitest suite covering sessions/auth helpers/push/media/cache smoke paths,
+  - full `npm run test`,
   - `npm run build`,
-  - targeted eslint pass on touched files with warnings only.
+  - targeted eslint pass on touched files.
 - Still intentionally not finished in this slice:
   - broader account-management polish beyond the first modal/rail,
   - broken-session and last-account recovery paths are still not covered explicitly,
