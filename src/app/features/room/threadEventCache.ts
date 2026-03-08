@@ -74,6 +74,11 @@ const sortThreadEvents = (a: CachedThreadEvent, b: CachedThreadEvent): number =>
   return a.event_id.localeCompare(b.event_id);
 };
 
+export const filterPageableCachedThreadEvents = (
+  rawEvents: CachedThreadEvent[],
+  threadId: string
+): CachedThreadEvent[] => rawEvents.filter((rawEvent) => rawEvent.event_id !== threadId);
+
 export const normalizeCachedThreadEvents = (
   rawEvents: Partial<IEvent>[],
   rootEvent?: Partial<IEvent>
@@ -186,6 +191,10 @@ const runCursorQuery = async (
         cursor.continue();
         return;
       }
+      if (normalized.event_id === threadId) {
+        cursor.continue();
+        return;
+      }
 
       if (events.length < limit) {
         events.push(normalized);
@@ -238,7 +247,10 @@ export const saveThreadEventsToCache = async (
   const db = await openThreadEventCache();
   if (!db) return;
 
-  const normalizedEvents = normalizeCachedThreadEvents(rawEvents);
+  const normalizedEvents = filterPageableCachedThreadEvents(
+    normalizeCachedThreadEvents(rawEvents),
+    threadId
+  );
   if (normalizedEvents.length === 0 && !rootEvent) return;
 
   await new Promise<void>((resolve, reject) => {

@@ -627,6 +627,9 @@ Thread badge behavior:
   `m.replace` relations, the repaired event state is now persisted back into the
   thread cache so the same stale first revision does not keep returning on the
   next refresh.
+- Thread cache pagination now ignores the thread root when computing cached
+  "older messages" state, so reaching the top of a thread no longer leaves a
+  bogus `Load Older Messages` button visible just because the root event exists.
 - Thread view scroll state now uses thread-specific live-end detection: opening a thread and thread-scoped `Jump to Latest` both paginate forward to the newest loaded reply batch before scrolling to bottom, and live replies stick more reliably when the user is already near the bottom.
 - Main timeline thread summary chips render below message body and show participant avatars when available.
 - Base-path bootstrap is server-driven for the local SPA server (`serve.py`) and no longer depends on fragile client-side inference.
