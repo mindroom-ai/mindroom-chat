@@ -1,5 +1,44 @@
+import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { getThreadInitialRenderMode } from './threadRenderUtils';
+import {
+  getThreadInitialRenderMode,
+  mergeThreadRenderEvents,
+  pickPreferredThreadRenderEvent,
+} from './threadRenderUtils';
+
+const makeMessageEvent = (eventId: string, ts = 1) =>
+  new MatrixEvent({
+    content: {
+      body: 'hello',
+      msgtype: 'm.text',
+    },
+    event_id: eventId,
+    origin_server_ts: ts,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    type: 'm.room.message',
+  });
+
+const makeEditEvent = (targetEventId: string, editEventId: string, ts: number) =>
+  new MatrixEvent({
+    content: {
+      body: '* edited',
+      'm.new_content': {
+        body: `edited ${ts}`,
+        msgtype: 'm.text',
+      },
+      'm.relates_to': {
+        event_id: targetEventId,
+        rel_type: 'm.replace',
+      },
+      msgtype: 'm.text',
+    },
+    event_id: editEventId,
+    origin_server_ts: ts,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    type: 'm.room.message',
+  });
 
 describe('getThreadInitialRenderMode', () => {
   it('uses the live render path outside thread view', () => {
@@ -40,5 +79,34 @@ describe('getThreadInitialRenderMode', () => {
         fallbackEventCount: 0,
       })
     ).toBe('live');
+  });
+});
+
+describe('pickPreferredThreadRenderEvent', () => {
+  it('keeps the existing event when it already has the newer edit applied', () => {
+    const existingEvent = makeMessageEvent('$target');
+    const incomingEvent = makeMessageEvent('$target');
+    existingEvent.makeReplaced(makeEditEvent('$target', '$edit-2', 2));
+
+    expect(pickPreferredThreadRenderEvent(existingEvent, incomingEvent)).toBe(existingEvent);
+  });
+
+  it('takes the incoming event when it has the newer edit applied', () => {
+    const existingEvent = makeMessageEvent('$target');
+    const incomingEvent = makeMessageEvent('$target');
+    existingEvent.makeReplaced(makeEditEvent('$target', '$edit-2', 2));
+    incomingEvent.makeReplaced(makeEditEvent('$target', '$edit-3', 3));
+
+    expect(pickPreferredThreadRenderEvent(existingEvent, incomingEvent)).toBe(incomingEvent);
+  });
+});
+
+describe('mergeThreadRenderEvents', () => {
+  it('does not overwrite a corrected cached event with a stale duplicate', () => {
+    const correctedEvent = makeMessageEvent('$target');
+    correctedEvent.makeReplaced(makeEditEvent('$target', '$edit-2', 2));
+    const staleDuplicate = makeMessageEvent('$target');
+
+    expect(mergeThreadRenderEvents([correctedEvent], [staleDuplicate])).toEqual([correctedEvent]);
   });
 });

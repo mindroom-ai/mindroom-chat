@@ -138,7 +138,11 @@ import {
   eventBelongsToThread,
   isThreadReplyEvent,
 } from './threadUtils';
-import { getThreadInitialRenderMode } from './threadRenderUtils';
+import {
+  getThreadInitialRenderMode,
+  mergeThreadRenderEvents,
+  pickPreferredThreadRenderEvent,
+} from './threadRenderUtils';
 import {
   getThreadCursorAnchor,
   loadCachedThreadEventsBefore,
@@ -359,31 +363,6 @@ const getEventElementById = (
     }
   }
   return null;
-};
-
-const mergeThreadRenderEvents = (
-  existingEvents: MatrixEvent[],
-  incomingEvents: MatrixEvent[]
-): MatrixEvent[] => {
-  const eventMap = new Map<string, MatrixEvent>();
-
-  existingEvents.forEach((mEvent) => {
-    const eventId = mEvent.getId();
-    if (!eventId) return;
-    eventMap.set(eventId, mEvent);
-  });
-
-  incomingEvents.forEach((mEvent) => {
-    const eventId = mEvent.getId();
-    if (!eventId) return;
-    eventMap.set(eventId, mEvent);
-  });
-
-  return Array.from(eventMap.values()).sort((a, b) => {
-    const tsDiff = a.getTs() - b.getTs();
-    if (tsDiff !== 0) return tsDiff;
-    return (a.getId() ?? '').localeCompare(b.getId() ?? '');
-  });
 };
 
 const getEarliestLoadedThreadReply = (
@@ -2607,8 +2586,15 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         return;
       if (!eventsMap.has(eventId)) {
         eventOrderMap.set(eventId, eventOrderMap.size);
+        eventsMap.set(eventId, mEvent);
+        return;
       }
-      eventsMap.set(eventId, mEvent);
+
+      const existingEvent = eventsMap.get(eventId);
+      eventsMap.set(
+        eventId,
+        existingEvent ? pickPreferredThreadRenderEvent(existingEvent, mEvent) : mEvent
+      );
     };
 
     const fallback = fallbackThreadEventsRef.current;
