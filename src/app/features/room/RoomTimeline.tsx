@@ -139,11 +139,7 @@ import {
   eventBelongsToThread,
   isThreadReplyEvent,
 } from './threadUtils';
-import {
-  getThreadInitialRenderMode,
-  mergeThreadRenderEvents,
-  pickPreferredThreadRenderEvent,
-} from './threadRenderUtils';
+import { useThreadRenderState } from './useThreadRenderState';
 import {
   getThreadCursorAnchor,
   loadCachedThreadEventsBefore,
@@ -699,23 +695,9 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   const threadPaginatingBackRef = useRef(false);
   const threadPaginatingFrontRef = useRef(false);
   const threadIdRef = useRef(threadId);
-  const threadEventIndexMapRef = useRef<Map<string, number>>(new Map());
   const threadEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
     new WeakMap<MatrixEvent, number>()
   );
-  const threadSupplementalRelationIdsRef = useRef<{
-    threadId?: string;
-    relationEventIds: Set<string>;
-  }>({
-    threadId: undefined,
-    relationEventIds: new Set(),
-  });
-  // Keep supplemental thread events outside the SDK thread model so cached and
-  // freshly fetched reply slices can render immediately before the model catches up.
-  const fallbackThreadEventsRef = useRef<{ threadId?: string; events: MatrixEvent[] }>({
-    threadId: undefined,
-    events: [],
-  });
   const pendingThreadOpenRef = useRef<
     | {
         threadId: string;
@@ -869,32 +851,6 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       }
     },
     [alive, handleTimelinePagination, mx, room, threadId, timeline.linkedTimelines]
-  );
-
-  const setSupplementalThreadEvents = useCallback(
-    (expectedThreadId: string, events: MatrixEvent[]) => {
-      const fallback = fallbackThreadEventsRef.current;
-      const currentEvents = fallback.threadId === expectedThreadId ? fallback.events : [];
-      const mergedEvents = mergeThreadRenderEvents(currentEvents, events);
-
-      hydrateCachedEvents({
-        room,
-        events: mergedEvents,
-      });
-
-      const relationState = threadSupplementalRelationIdsRef.current;
-      if (relationState.threadId !== expectedThreadId) {
-        relationState.threadId = expectedThreadId;
-        relationState.relationEventIds = new Set();
-      }
-      aggregateCachedRelationEvents(events, [threadTimelineSet, roomTimelineSet], relationState.relationEventIds);
-
-      fallbackThreadEventsRef.current = {
-        threadId: expectedThreadId,
-        events: mergedEvents,
-      };
-    },
-    [room, roomTimelineSet, threadTimelineSet]
   );
 
   const persistThreadEventCache = useCallback(
@@ -1447,12 +1403,8 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     setThreadTimelineTick(0);
     setPendingThreadOpenTick(0);
     threadEditFetchAttemptedRef.current = new WeakMap<MatrixEvent, number>();
-    threadSupplementalRelationIdsRef.current = {
-      threadId,
-      relationEventIds: new Set(),
-    };
     pendingThreadOpenRef.current = undefined;
-    fallbackThreadEventsRef.current = { threadId, events: [] };
+    resetThreadRenderState(threadId);
     let mounted = true;
     const shouldScrollToLatestOnOpen = !eventId;
     const loadThreadTimeline = async () => {
@@ -1600,6 +1552,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     hydrateThreadFromCache,
     mx,
     persistThreadEventCache,
+    resetThreadRenderState,
     refreshLatestThreadSlice,
     room,
     setSupplementalThreadEvents,
@@ -1617,13 +1570,9 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     setThreadPaginatingFront(false);
     setPendingThreadOpenTick(0);
     threadEditFetchAttemptedRef.current = new WeakMap<MatrixEvent, number>();
-    threadSupplementalRelationIdsRef.current = {
-      threadId: undefined,
-      relationEventIds: new Set(),
-    };
     pendingThreadOpenRef.current = undefined;
-    fallbackThreadEventsRef.current = { threadId: undefined, events: [] };
-  }, [threadId]);
+    resetThreadRenderState(undefined);
+  }, [resetThreadRenderState, threadId]);
 
   // Scroll to bottom on initial timeline load
   useLayoutEffect(() => {
@@ -2623,78 +2572,19 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     }
   );
   const timelineItems = getItems();
-  const threadEvents = useMemo(() => {
-    if (!threadId) {
-      threadEventIndexMapRef.current = new Map();
-      return [];
-    }
-
-    const eventsMap = new Map<string, MatrixEvent>();
-    const eventOrderMap = new Map<string, number>();
-    const addThreadEvent = (mEvent?: MatrixEvent | null, requireThreadMatch = true) => {
-      const eventId = mEvent?.getId();
-      if (!eventId) return;
-      if (requireThreadMatch && eventId !== threadId && !eventBelongsToThread(mEvent, threadId))
-        return;
-      if (!eventsMap.has(eventId)) {
-        eventOrderMap.set(eventId, eventOrderMap.size);
-        eventsMap.set(eventId, mEvent);
-        return;
-      }
-
-      const existingEvent = eventsMap.get(eventId);
-      eventsMap.set(
-        eventId,
-        existingEvent ? pickPreferredThreadRenderEvent(existingEvent, mEvent) : mEvent
-      );
-    };
-
-    const fallback = fallbackThreadEventsRef.current;
-    const fallbackEvents = fallback.threadId === threadId ? fallback.events : [];
-    const initialRenderMode = getThreadInitialRenderMode({
-      threadId,
-      initialCacheHydrated: threadInitialCacheHydrated,
-      fallbackEventCount: fallbackEvents.length,
-    });
-
-    if (initialRenderMode === 'live') {
-      const threadModelReady = !!thread;
-      addThreadEvent(thread?.rootEvent ?? room.findEventById(threadId), !threadModelReady);
-      if (threadModelReady) {
-        thread?.events.forEach((mEvent) => addThreadEvent(mEvent, false));
-      }
-    }
-
-    if (fallbackEvents.length > 0) {
-      fallbackEvents.forEach((mEvent) => addThreadEvent(mEvent, false));
-    }
-
-    const sortedEvents = Array.from(eventsMap.values()).sort((a, b) => {
-      const timeDiff = a.getTs() - b.getTs();
-      if (timeDiff !== 0) return timeDiff;
-      const aId = a.getId();
-      const bId = b.getId();
-      const aOrder = (aId && eventOrderMap.get(aId)) ?? 0;
-      const bOrder = (bId && eventOrderMap.get(bId)) ?? 0;
-      return aOrder - bOrder;
-    });
-    hydrateCachedEvents({
-      room,
-      events: sortedEvents,
-    });
-    const eventIndexMap = new Map<string, number>();
-    sortedEvents.forEach((mEvent, index) => {
-      const eventId = mEvent.getId();
-      if (eventId) eventIndexMap.set(eventId, index);
-    });
-    threadEventIndexMapRef.current = eventIndexMap;
-    return sortedEvents;
-  }, [threadId, thread, room, threadInitialCacheHydrated, threadTimelineTick]);
-
-  const threadInitialRenderMode = getThreadInitialRenderMode({
+  const {
+    threadEventIndexMapRef,
+    threadEvents,
+    threadInitialRenderMode,
+    setSupplementalThreadEvents,
+    resetThreadRenderState,
+  } = useThreadRenderState({
+    room,
+    roomTimelineSet,
+    threadTimelineSet,
     threadId,
-    initialCacheHydrated: threadInitialCacheHydrated,
-    fallbackEventCount: threadEvents.length,
+    thread,
+    threadInitialCacheHydrated,
   });
 
   useEffect(() => {
