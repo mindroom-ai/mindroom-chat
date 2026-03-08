@@ -641,6 +641,12 @@ Thread badge behavior:
   provisional SDK `replacingEvent()` once the thread tail has settled, so a
   stale first edit does not "win" just because the SDK attached it early before
   the full thread relation slice arrived.
+- Direct thread opens now hold back the initial live thread render until the
+  thread cache hydration attempt completes, rendering cached thread events first
+  when available and otherwise showing a short loading state. This avoids the
+  visible flash where a direct thread URL could briefly paint an older
+  provisional edit/body before cached or fully reconciled thread data replaced
+  it.
 - When late thread edit/relation reconciliation lands while the user is already
   at or near the bottom of a thread, the thread view now re-pins to the latest
   reply instead of leaving the viewport visibly above the bottom after message
