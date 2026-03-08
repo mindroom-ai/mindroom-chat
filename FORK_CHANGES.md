@@ -761,6 +761,151 @@ Thread open follow-up (2026-03-08):
   - Add focused unit coverage for the bottom-pin gate.
   - Re-run thread render/timing tests plus `npm run build`.
 
+## Multi-Account Support Plan (2026-03-08)
+
+Problem statements this plan is solving:
+
+- Problem 1: the app is still single-session at boot. Routing and startup gate on `getFallbackSession()` in `src/app/pages/Router.tsx` and `src/app/pages/client/ClientRoot.tsx`, so there is no first-class concept of "stored accounts" or "active account".
+- Problem 2: the bottom sidebar avatar is only a Settings trigger (`src/app/pages/client/sidebar/SettingsTab.tsx`), so there is no UI surface for "switch account", "add account", or "show me which account I am using".
+- Problem 3: core persistence is singleton-scoped, not account-scoped. Current storage/db names such as `cinny_access_token`, `web-sync-store`, `crypto-store`, `mindroom-room-event-cache`, and `mindroom-thread-event-cache` would collide across accounts.
+- Problem 4: several integrations still assume one global account session, including service-worker media auth (`src/index.tsx`, `src/sw.ts`) and iOS push profile/token helpers (`src/app/utils/iosPush.ts`).
+- Problem 5: a naive "render multiple avatars and swap the client object" implementation would be fragile and hard to maintain because almost the whole app reads one `MatrixClient` from context and assumes it is the active singleton.
+
+Desired product behavior:
+
+- The sidebar should show the active account clearly and expose a fast account switcher at the bottom.
+- Users should be able to add multiple Matrix accounts, including accounts on different homeservers.
+- Switching accounts should feel fast and preserve each account's own navigation state when possible.
+- Logging out one account should not destroy other stored accounts.
+- Room/thread caches, SDK sync stores, crypto stores, and per-account push/session state should be isolated so accounts do not leak into each other.
+
+Chosen architecture for phase 1:
+
+- Support multiple stored accounts, but only one active `MatrixClient` at a time.
+- Keep the existing "one active client in React context" mental model for the rest of the app.
+- Do not try to run multiple live Matrix clients simultaneously in the same UI process for the first version.
+
+Why this is the right first design:
+
+- It matches the current app architecture, where nearly all hooks/components depend on one active `MatrixClient`.
+- It avoids a large second-order rewrite of unread state, notifications, crypto, and room lists.
+- It is more battery-friendly and easier to reason about on iOS.
+- It still solves the main product need: fast account switching with separate avatars and per-account persistence.
+
+Non-goals for the first multi-account release:
+
+- No simultaneous multi-account sync in one foreground UI session.
+- No merged cross-account inbox/unread counters.
+- No cross-account search.
+- No background hydration of every stored account's room/thread caches beyond what the homeserver push pipeline already provides.
+
+Recommended data model:
+
+- Introduce a real persisted session registry, for example:
+  - `MultiAccountStore = { version: 1, activeSessionId?: string, sessions: StoredSession[] }`
+  - `StoredSession = { sessionId, baseUrl, userId, deviceId, accessToken, refreshToken?, expiresInMs?, lastUsedAt, lastKnownDisplayName?, lastKnownAvatarUrl?, legacyStoreNames? }`
+- `sessionId` should be a stable opaque identifier derived from `{baseUrl,userId,deviceId}` or generated once and persisted.
+- Keep the existing fallback single-session keys only as a migration source, not as the long-term source of truth.
+
+Storage and cache isolation plan:
+
+- Namespace every session-bound persistence layer:
+  - Matrix sync store: `web-sync-store::<sessionId>`
+  - Matrix crypto store: `crypto-store::<sessionId>`
+  - room cache DB: `mindroom-room-event-cache::<sessionId>`
+  - thread cache DB: `mindroom-thread-event-cache::<sessionId>`
+  - iOS push profile/tag state: per-session keys instead of one global key
+  - any access-token lookup helpers should read the active session record, not `cinny_access_token` directly
+- Keep existing user-scoped UI preference atoms (`navToActivePath`, opened folders, closed categories) keyed by `userId`; they already align reasonably well with account switching.
+- Preserve compatibility for the first migrated legacy account by allowing one session record to point at legacy store names (`web-sync-store`, `crypto-store`) instead of forcing a huge data copy on migration.
+
+Boot and switching model:
+
+1. App boot resolves the session registry, not `getFallbackSession()`.
+2. If there is no stored account, route to auth as today.
+3. If there is an active account, load exactly one `MatrixClient` for that session and provide it via `MatrixClientProvider`.
+4. When switching accounts:
+   - persist current account metadata/navigation state,
+   - stop the active client cleanly,
+   - load the target session's client with its own store names,
+   - push the new active session to the service worker/native helpers,
+   - navigate to that account's last path or a safe default (`/home`).
+
+Sidebar/UI design:
+
+- Replace the single bottom avatar/settings trigger with an account rail.
+- Proposed bottom section:
+  - active account avatar button
+  - up to 2-4 recent secondary avatars stacked or listed underneath
+  - `+` button for `Add account`
+- Interaction model:
+  - clicking the active avatar opens account menu/settings
+  - clicking another avatar switches immediately to that account
+  - long-press/right-click/menu opens account actions (`Switch`, `Open settings`, `Logout this account`, later `Remove from device`)
+- On mobile, keep the same concept but use a popover or bottom sheet instead of relying on hover.
+
+Auth/add-account flow:
+
+- Add an `Add account` entry point that reuses the existing login/register screens but does not destroy the current stored account.
+- After successful login/register:
+  - append or update the session registry entry,
+  - set the new account active,
+  - return to the main app shell.
+- Keep first-account login behavior unchanged for users who only ever use one account.
+
+Logout/removal semantics:
+
+- `Logout this account` should remove only the selected session's tokens/stores/caches/pusher registration.
+- If the removed account was active and other accounts remain, switch to the most recently used remaining account.
+- Add a separate destructive action later for `Remove all accounts and local data`.
+- Current global `window.localStorage.clear()` and `delete all indexedDB databases` behavior must be replaced with per-session cleanup plus an optional global wipe path.
+
+Service worker / media auth / push implications:
+
+- Service-worker media auth should source its credentials from the active session registry entry, not raw global localStorage keys.
+- On account switch, immediately push the new active session to the service worker.
+- iOS push helpers need to become session-aware:
+  - store pusher/profile metadata per session,
+  - disable pusher only for the account being logged out,
+  - allow multiple Matrix accounts to keep server-side pusher registrations if the user wants notifications from each.
+
+Implementation sequence:
+
+1. Session registry and migration layer.
+   - Add `MultiAccountStore`.
+   - Migrate legacy fallback session into it on first boot.
+   - Add helpers for `getActiveSession`, `putSession`, `removeSession`, `setActiveSession`.
+2. Session-scoped store naming.
+   - Teach Matrix init, room cache, and thread cache code to use session-specific store names.
+   - Replace global logout/cache-clearing with session-aware cleanup helpers.
+3. Client boot/switching shell.
+   - Update `Router.tsx` and `ClientRoot.tsx` to boot from the active session registry entry.
+   - Add a switching state machine so changing accounts is a first-class transition, not a full "pretend logout/login" hack.
+4. Sidebar/UI.
+   - Replace the current bottom settings avatar with an account rail / account menu.
+   - Add `Add account`, `Switch account`, and `Logout this account` flows.
+5. Native/service integration follow-through.
+   - Update service-worker session posting.
+   - Update iOS push/session-bound helpers.
+   - Audit any remaining direct reads of `cinny_access_token`, `cinny_user_id`, `cinny_device_id`, and `cinny_hs_base_url`.
+6. Hardening.
+   - Regression tests for migration, switching, per-session cleanup, and route restoration.
+   - Optional follow-up: move native iOS credentials out of localStorage into Keychain-backed storage.
+
+Estimated size:
+
+- Session registry + migration + store names: medium-large, roughly 250-500 lines of production code plus tests.
+- Boot/switching shell: medium-large, roughly 200-400 lines plus tests.
+- Sidebar/account UI: medium, roughly 150-300 lines plus tests.
+- Push/service/auth cleanup and hardening: medium, roughly 150-300 lines plus tests.
+- Total pragmatic first version: roughly 1 to 2 weeks of careful work, depending on how much UI polish and migration coverage we want in the first pass.
+
+Recommended first implementation commit after this design:
+
+- `feat(accounts): add persisted session registry and legacy session migration`
+
+That is the correct first step because it creates the account model and migration boundary without yet touching the visible UI. Once that exists, the rest of the feature can be built as isolated commits instead of one tangled rewrite.
+
 ## Submission Readiness Check (2026-02-26, macOS/Xcode)
 
 Validation performed on macOS (Xcode + CocoaPods + ImageMagick available):
