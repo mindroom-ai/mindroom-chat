@@ -1481,16 +1481,43 @@ Resolved review blockers from the zero-tolerance PR pass and follow-up typed rev
       with an actual `IDBOpenDBRequest` receiver,
     - extended the login-data reset coverage to assert deletion of the legacy
       plain `crypto-store` database.
+- Final cleanup hardening before merge:
+  - `src/client/initMatrix.ts`
+    - `clearLoginData()` now treats legacy unscoped SDK databases as app-owned
+      only when this app's old `cinny_*` auth footprint is still present,
+      avoiding same-origin deletion of another Matrix app's generic SDK stores,
+    - logout/reset flows now explicitly purge legacy `cinny_*` session keys.
+  - `src/app/state/sessions.ts`
+    - clearing or rewriting the session registry also removes legacy
+      `cinny_*` session keys so stale auth material does not survive reset.
+  - `src/app/pages/client/sessionRouteRestore.ts`
+    - rejects malformed protocol-relative paths like `//evil.com` and falls
+      back to `/home` instead of treating them as valid in-app restore targets.
+  - `src/client/initMatrix.test.ts`
+    - added coverage for legacy-key logout/reset cleanup,
+    - added coverage that shared-origin generic SDK databases are not deleted
+      unless this app's legacy auth state is actually present.
+  - `src/app/state/sessions.test.ts`
+    - added coverage that clearing the session registry also removes legacy
+      `cinny_*` keys.
+  - `src/app/pages/client/sessionRouteRestore.test.ts`
+    - added regression coverage for protocol-relative restore paths.
 
 Validation for this hardening slice:
 
-- Passed: `npm run test` (`57` files / `275` tests)
+- Passed: `npm run test` (`57` files / `276` tests)
 - Passed: `npm run build`
+- Passed (targeted): `npm run test -- src/app/pages/client/sessionRouteRestore.test.ts src/app/state/sessions.test.ts src/client/initMatrix.test.ts`
+- Passed (targeted): `npx eslint src/app/pages/client/sessionRouteRestore.ts src/app/pages/client/sessionRouteRestore.test.ts src/app/state/sessions.ts src/app/state/sessions.test.ts src/client/initMatrix.ts src/client/initMatrix.test.ts`
 - Passed: `git diff --check`
 - Passed (filtered): `npm run typecheck -- --pretty false` no longer reports the
   review-targeted errors for:
   - `src/client/initMatrix.ts`
   - `src/client/initMatrix.test.ts`
+  - `src/app/pages/client/sessionRouteRestore.ts`
+  - `src/app/pages/client/sessionRouteRestore.test.ts`
+  - `src/app/state/sessions.ts`
+  - `src/app/state/sessions.test.ts`
   - `src/app/components/ServerConfigsLoader.tsx`
   - `src/app/components/ServerConfigsLoader.test.ts`
   - `src/app/utils/iosPush.ts`

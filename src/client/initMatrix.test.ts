@@ -12,6 +12,7 @@ import {
 } from './initMatrix';
 import { createMatrixClient } from './matrixClientFactory';
 import {
+  LEGACY_SESSION_STORAGE_KEYS,
   createSessionId,
   getSessionIndexedDbStoreName,
   getLegacySessionRustCryptoStoreNames,
@@ -335,7 +336,9 @@ describe('logoutClient', () => {
   });
 
   it('clears the current session-scoped rust crypto store when the stored session is unavailable', async () => {
-    const storageState = new Map<string, string>();
+    const storageState = new Map<string, string>(
+      LEGACY_SESSION_STORAGE_KEYS.map((key) => [key, `legacy-${key}`])
+    );
     const localStorageMock = {
       getItem: vi.fn((key: string) => storageState.get(key) ?? null),
       setItem: vi.fn((key: string, value: string) => {
@@ -409,6 +412,10 @@ describe('logoutClient', () => {
     expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(sessionId);
     expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(sessionId);
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(sessionId);
+    LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith(key);
+      expect(storageState.has(key)).toBe(false);
+    });
     expect(stopClient).toHaveBeenCalled();
     expect(reload).toHaveBeenCalledTimes(1);
   });
@@ -450,7 +457,111 @@ describe('clearLoginData', () => {
     }
   });
 
-  it('deletes only app-owned IndexedDB databases and waits for completion', async () => {
+  it('deletes session-scoped and legacy app-owned IndexedDB databases when legacy auth state is present', async () => {
+    const storageState = new Map<string, string>();
+    const localStorageMock = {
+      getItem: vi.fn((key: string) => storageState.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        storageState.set(key, value);
+      }),
+      removeItem: vi.fn((key: string) => {
+        storageState.delete(key);
+      }),
+    };
+    const reload = vi.fn();
+
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
+
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_A',
+        accessToken: 'token-a',
+      },
+      undefined,
+      localStorageMock
+    );
+    LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
+      localStorageMock.setItem(key, `legacy-${key}`);
+    });
+
+    const deletedDatabaseNames: string[] = [];
+    const deleteDatabase = vi.fn((name: string) => {
+      deletedDatabaseNames.push(name);
+      const request = {} as IDBOpenDBRequest;
+      queueMicrotask(() => {
+        request.onsuccess?.call(request, new Event('success'));
+      });
+      return request;
+    });
+
+    const indexedDBMock = {
+      databases: vi.fn().mockResolvedValue([
+        { name: getSessionIndexedDbStoreName(session).sync },
+        { name: 'matrix-js-sdk:web-sync-store' },
+        { name: getSessionRustCryptoStoreNames(session)[1] },
+        { name: getSessionRustCryptoStoreNames(session)[0] },
+        { name: getSessionIndexedDbStoreName(session).crypto },
+        { name: 'crypto-store' },
+        { name: 'matrix-js-sdk::matrix-sdk-crypto' },
+        { name: 'matrix-js-sdk::matrix-sdk-crypto-meta' },
+        { name: 'mindroom-room-event-cache' },
+        { name: 'mindroom-thread-event-cache' },
+        { name: 'matrix-js-sdk:web-sync-store::other-session' },
+        { name: 'crypto-store::other-session' },
+        { name: 'matrix-js-sdk::other-session::OTHERDEVICE::matrix-sdk-crypto' },
+        { name: 'unrelated-db' },
+      ]),
+      deleteDatabase,
+    };
+
+    Object.defineProperty(globalThis, 'indexedDB', {
+      value: indexedDBMock,
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        indexedDB: indexedDBMock,
+        localStorage: localStorageMock,
+        dispatchEvent: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        location: {
+          reload,
+        },
+      },
+      configurable: true,
+    });
+
+    await clearLoginData();
+
+    expect(deletedDatabaseNames).toEqual([
+      getSessionIndexedDbStoreName(session).sync,
+      'matrix-js-sdk:web-sync-store',
+      getSessionRustCryptoStoreNames(session)[1],
+      getSessionRustCryptoStoreNames(session)[0],
+      getSessionIndexedDbStoreName(session).crypto,
+      'crypto-store',
+      'matrix-js-sdk::matrix-sdk-crypto',
+      'matrix-js-sdk::matrix-sdk-crypto-meta',
+      'mindroom-room-event-cache',
+      'mindroom-thread-event-cache',
+    ]);
+    expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(session.sessionId);
+    expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(session.sessionId);
+    expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(session.sessionId);
+    LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith(key);
+      expect(storageState.has(key)).toBe(false);
+    });
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not delete legacy singleton IndexedDB databases without this app legacy auth state', async () => {
     const storageState = new Map<string, string>();
     const localStorageMock = {
       getItem: vi.fn((key: string) => storageState.get(key) ?? null),
@@ -493,11 +604,14 @@ describe('clearLoginData', () => {
       databases: vi.fn().mockResolvedValue([
         { name: getSessionIndexedDbStoreName(session).sync },
         { name: getSessionRustCryptoStoreNames(session)[0] },
+        { name: getSessionRustCryptoStoreNames(session)[1] },
         { name: getSessionIndexedDbStoreName(session).crypto },
-        { name: 'crypto-store' },
         { name: 'mindroom-room-event-cache' },
         { name: 'mindroom-thread-event-cache' },
-        { name: 'unrelated-db' },
+        { name: 'matrix-js-sdk:web-sync-store' },
+        { name: 'crypto-store' },
+        { name: 'matrix-js-sdk::matrix-sdk-crypto' },
+        { name: 'matrix-js-sdk::matrix-sdk-crypto-meta' },
       ]),
       deleteDatabase,
     };
@@ -525,14 +639,11 @@ describe('clearLoginData', () => {
     expect(deletedDatabaseNames).toEqual([
       getSessionIndexedDbStoreName(session).sync,
       getSessionRustCryptoStoreNames(session)[0],
+      getSessionRustCryptoStoreNames(session)[1],
       getSessionIndexedDbStoreName(session).crypto,
-      'crypto-store',
       'mindroom-room-event-cache',
       'mindroom-thread-event-cache',
     ]);
-    expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(session.sessionId);
-    expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(session.sessionId);
-    expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(session.sessionId);
     expect(reload).toHaveBeenCalledTimes(1);
   });
 });

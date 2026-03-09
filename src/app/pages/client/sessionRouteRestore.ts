@@ -12,8 +12,11 @@ export const buildSessionLastKnownPath = ({
   hash = '',
 }: LocationParts): string => `${pathname}${search}${hash}`;
 
+const isSafeSessionRestorePath = (lastKnownPath: string): boolean =>
+  lastKnownPath.startsWith('/') && !lastKnownPath.startsWith('//');
+
 export const resolveSessionRestorePath = (lastKnownPath?: string): string => {
-  if (typeof lastKnownPath === 'string' && lastKnownPath.startsWith('/')) {
+  if (typeof lastKnownPath === 'string' && isSafeSessionRestorePath(lastKnownPath)) {
     return lastKnownPath;
   }
 

@@ -49,6 +49,12 @@ type SessionStoreSnapshot = {
 export const SESSION_STORE_KEY = 'mindroom_multi_account_store';
 export const SESSION_STORE_EVENT = 'mindroom-session-store-changed';
 export const SESSION_STORE_VERSION = 1 as const;
+export const LEGACY_SESSION_STORAGE_KEYS = [
+  'cinny_access_token',
+  'cinny_device_id',
+  'cinny_user_id',
+  'cinny_hs_base_url',
+] as const;
 
 const SESSION_DB_PREFIX = '::';
 const EMPTY_SESSIONS: StoredSession[] = [];
@@ -75,6 +81,16 @@ const getLocalStorageSafe = (): LocalStorageLike | undefined => {
 const dispatchSessionStoreEvent = () => {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new Event(SESSION_STORE_EVENT));
+};
+
+export const clearLegacySessionStorage = (
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+): void => {
+  if (!storage) return;
+
+  LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
+    storage.removeItem(key);
+  });
 };
 
 export const normalizeSessionBaseUrl = (baseUrl: string): string => {
@@ -166,6 +182,7 @@ const writeSessionStore = (
 ): void => {
   if (!storage) return;
 
+  clearLegacySessionStorage(storage);
   storage.setItem(SESSION_STORE_KEY, JSON.stringify(store));
   dispatchSessionStoreEvent();
 };
@@ -422,6 +439,7 @@ export const clearSessionStore = (
   storage: LocalStorageLike | undefined = getLocalStorageSafe()
 ): void => {
   if (!storage) return;
+  clearLegacySessionStorage(storage);
   storage.removeItem(SESSION_STORE_KEY);
   dispatchSessionStoreEvent();
 };

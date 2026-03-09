@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  LEGACY_SESSION_STORAGE_KEYS,
   SESSION_STORE_KEY,
   clearSessionStore,
   createSessionId,
@@ -299,17 +300,25 @@ describe('sessions', () => {
   });
 
   it('clears the whole session registry', () => {
+    const legacyStorageEntries = Object.fromEntries(
+      LEGACY_SESSION_STORAGE_KEYS.map((key) => [key, `legacy-${key}`])
+    );
     const storage = createStorage({
       [SESSION_STORE_KEY]: JSON.stringify({
         version: 1,
         activeSessionId: 'session',
         sessions: [],
       }),
+      ...legacyStorageEntries,
     });
 
     clearSessionStore(storage);
 
     expect(storage.removeItem).toHaveBeenCalledWith(SESSION_STORE_KEY);
+    LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
+      expect(storage.removeItem).toHaveBeenCalledWith(key);
+      expect(storage.getItem(key)).toBeNull();
+    });
     expect(getSessionStore(storage).sessions).toEqual([]);
   });
 

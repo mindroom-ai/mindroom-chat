@@ -11,7 +11,9 @@ import { deleteThreadEventCache } from '../app/features/room/threadEventCache';
 import { deleteRoomEventCache } from '../app/features/room/roomEventCache';
 import { clearIOSPushState } from '../app/utils/iosPush';
 import {
+  LEGACY_SESSION_STORAGE_KEYS,
   StoredSession,
+  clearLegacySessionStorage,
   clearSessionStore,
   createSessionId,
   getActiveSession,
@@ -114,13 +116,50 @@ const deleteNamedDatabases = async (names: string[]): Promise<void> => {
   await Promise.all(uniqueNames.map((name) => deleteNamedDatabase(name)));
 };
 
-const APP_OWNED_INDEXED_DB_PREFIXES = ['matrix-js-sdk:', 'matrix-js-sdk::', 'crypto-store::'];
-const APP_OWNED_INDEXED_DB_NAMES = ['mindroom-room-event-cache', 'mindroom-thread-event-cache'];
+const LEGACY_APP_SINGLETON_INDEXED_DB_NAMES = [
+  'matrix-js-sdk:web-sync-store',
+  'crypto-store',
+  'matrix-js-sdk::matrix-sdk-crypto',
+  'matrix-js-sdk::matrix-sdk-crypto-meta',
+];
+const APP_SINGLETON_INDEXED_DB_NAMES = ['mindroom-room-event-cache', 'mindroom-thread-event-cache'];
 
-const isAppOwnedIndexedDbName = (name: string): boolean =>
-  APP_OWNED_INDEXED_DB_PREFIXES.some((prefix) => name.startsWith(prefix)) ||
-  APP_OWNED_INDEXED_DB_NAMES.includes(name) ||
-  name === 'crypto-store';
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const isSessionRustCryptoDbName = (name: string, sessionId: string): boolean => {
+  const escapedSessionId = escapeRegExp(sessionId);
+  const pattern = new RegExp(
+    `^matrix-js-sdk::${escapedSessionId}(?:::.*)?::matrix-sdk-crypto(?:-meta)?$`
+  );
+  return pattern.test(name);
+};
+
+const hasLegacySessionStorage = (): boolean => {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    return LEGACY_SESSION_STORAGE_KEYS.some((key) => Boolean(localStorage.getItem(key)));
+  } catch {
+    return false;
+  }
+};
+
+const isAppOwnedIndexedDbName = (
+  name: string,
+  sessions: StoredSession[],
+  legacySessionStoragePresent: boolean
+): boolean => {
+  if (APP_SINGLETON_INDEXED_DB_NAMES.includes(name)) return true;
+  if (legacySessionStoragePresent && LEGACY_APP_SINGLETON_INDEXED_DB_NAMES.includes(name)) return true;
+
+  return sessions.some((session) => {
+    const indexedDbStoreNames = getSessionIndexedDbStoreName(session);
+    return (
+      name === indexedDbStoreNames.sync ||
+      name === indexedDbStoreNames.crypto ||
+      isSessionRustCryptoDbName(name, session.sessionId)
+    );
+  });
+};
 
 const getMatrixClientSessionCleanupContext = (
   mx: Pick<MatrixClient, 'getDeviceId' | 'getHomeserverUrl' | 'getSafeUserId'>
@@ -183,6 +222,7 @@ export const removeSessionAndReload = async (
   mx?.stopClient();
   await deleteSessionLocalData(session, mx);
   removeSession(session.sessionId);
+  clearLegacySessionStorage();
   window.location.reload();
 };
 
@@ -200,6 +240,7 @@ export const removeCurrentClientSessionAndReload = async (
     removeActiveSession();
   }
 
+  clearLegacySessionStorage();
   window.location.reload();
 };
 
@@ -306,11 +347,12 @@ export const logoutClient = async (mx: MatrixClient) => {
 
 export const clearLoginData = async () => {
   const sessions = listSessions();
+  const legacySessionStoragePresent = hasLegacySessionStorage();
   const dbs = await window.indexedDB.databases();
   const appOwnedDbNames = dbs
     .map((idbInfo) => idbInfo.name)
     .filter((name): name is string => Boolean(name))
-    .filter(isAppOwnedIndexedDbName);
+    .filter((name) => isAppOwnedIndexedDbName(name, sessions, legacySessionStoragePresent));
 
   await deleteNamedDatabases(appOwnedDbNames);
 
@@ -327,6 +369,7 @@ export const clearLoginData = async () => {
     clearIOSPushState(session.sessionId);
   });
 
+  clearLegacySessionStorage();
   clearSessionStore();
   window.location.reload();
 };

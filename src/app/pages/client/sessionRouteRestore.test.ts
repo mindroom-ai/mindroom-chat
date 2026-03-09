@@ -19,6 +19,7 @@ describe('sessionRouteRestore', () => {
     );
     expect(resolveSessionRestorePath(undefined)).toBe(getHomePath());
     expect(resolveSessionRestorePath('')).toBe(getHomePath());
+    expect(resolveSessionRestorePath('//evil.com')).toBe(getHomePath());
     expect(resolveSessionRestorePath('https://example.com/outside')).toBe(getHomePath());
   });
 });
