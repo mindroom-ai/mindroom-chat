@@ -15,7 +15,7 @@ import {
 } from 'folds';
 import { HttpApiEvent, HttpApiEventHandlerMap, MatrixClient } from 'matrix-js-sdk';
 import FocusTrap from 'focus-trap-react';
-import React, { MouseEventHandler, ReactNode, useCallback, useEffect, useState } from 'react';
+import React, { MouseEventHandler, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   clearCacheAndReload,
   clearLoginData,
@@ -172,6 +172,34 @@ export function ClientRoot({ children }: ClientRootProps) {
   const [retryCount, setRetryCount] = useState(0);
   const [clientState, setClientState] = useState<ClientState>({ status: 'idle' });
   const mx = 'mx' in clientState ? clientState.mx : undefined;
+  const activeSessionId = activeSession?.sessionId;
+  const activeSessionBaseUrl = activeSession?.baseUrl;
+  const activeSessionUserId = activeSession?.userId;
+  const activeSessionDeviceId = activeSession?.deviceId;
+  const activeSessionAccessToken = activeSession?.accessToken;
+  const clientBootstrapSession = useMemo(
+    () =>
+      activeSessionId &&
+      activeSessionBaseUrl &&
+      activeSessionUserId &&
+      activeSessionDeviceId &&
+      activeSessionAccessToken
+        ? {
+            sessionId: activeSessionId,
+            baseUrl: activeSessionBaseUrl,
+            userId: activeSessionUserId,
+            deviceId: activeSessionDeviceId,
+            accessToken: activeSessionAccessToken,
+          }
+        : undefined,
+    [
+      activeSessionAccessToken,
+      activeSessionBaseUrl,
+      activeSessionDeviceId,
+      activeSessionId,
+      activeSessionUserId,
+    ]
+  );
 
   useLogoutListener(mx, activeSession);
 
@@ -179,7 +207,7 @@ export function ClientRoot({ children }: ClientRootProps) {
     let disposed = false;
     let nextClient: MatrixClient | undefined;
 
-    if (!activeSession) {
+    if (!clientBootstrapSession) {
       setClientState({ status: 'idle' });
       return () => undefined;
     }
@@ -187,12 +215,12 @@ export function ClientRoot({ children }: ClientRootProps) {
     setLoading(true);
     setClientState({
       status: 'loading',
-      session: activeSession,
+      session: clientBootstrapSession,
     });
 
     const loadClient = async () => {
       try {
-        nextClient = await initClient(activeSession);
+        nextClient = await initClient(clientBootstrapSession);
         if (disposed) {
           nextClient.stopClient();
           return;
@@ -200,7 +228,7 @@ export function ClientRoot({ children }: ClientRootProps) {
 
         setClientState({
           status: 'starting',
-          session: activeSession,
+          session: clientBootstrapSession,
           mx: nextClient,
         });
 
@@ -212,7 +240,7 @@ export function ClientRoot({ children }: ClientRootProps) {
 
         setClientState({
           status: 'success',
-          session: activeSession,
+          session: clientBootstrapSession,
           mx: nextClient,
         });
       } catch (error) {
@@ -224,7 +252,7 @@ export function ClientRoot({ children }: ClientRootProps) {
 
         setClientState({
           status: 'error',
-          session: activeSession,
+          session: clientBootstrapSession,
           error: error instanceof Error ? error : new Error('Failed to initialize Matrix client.'),
           mx: nextClient,
         });
@@ -237,7 +265,7 @@ export function ClientRoot({ children }: ClientRootProps) {
       disposed = true;
       nextClient?.stopClient();
     };
-  }, [activeSession, retryCount]);
+  }, [clientBootstrapSession, retryCount]);
 
   useSyncState(
     mx,

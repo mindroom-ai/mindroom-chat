@@ -20,6 +20,30 @@ export const waitForLoggedInShell = async (page: Page) => {
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
 };
 
+export const expectLoggedInShellStable = async (
+  page: Page,
+  options: {
+    durationMs?: number;
+    sampleIntervalMs?: number;
+  } = {}
+) => {
+  const durationMs = options.durationMs ?? 4_000;
+  const sampleIntervalMs = options.sampleIntervalMs ?? 250;
+  const sampleCount = Math.max(1, Math.ceil(durationMs / sampleIntervalMs));
+
+  const sampleShell = async (remainingSamples: number): Promise<void> => {
+    await expect(page.getByText('Heating up')).toHaveCount(0);
+    await waitForLoggedInShell(page);
+
+    if (remainingSamples > 1) {
+      await page.waitForTimeout(sampleIntervalMs);
+      await sampleShell(remainingSamples - 1);
+    }
+  };
+
+  await sampleShell(sampleCount);
+};
+
 export const loginWithPassword = async (page: Page, options: LoginOptions) => {
   const { homeserver, username, password, addAccount = false } = options;
 

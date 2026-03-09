@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, getSecondaryCredentials } from './env';
-import { accountRailButtonSelector, loginWithPassword } from './helpers/auth';
+import {
+  accountRailButtonSelector,
+  expectLoggedInShellStable,
+  loginWithPassword,
+} from './helpers/auth';
 
 test('adds a second account without leaving the add-account flow', async ({ page }) => {
   const secondaryCredentials = getSecondaryCredentials();
@@ -17,6 +21,7 @@ test('adds a second account without leaving the add-account flow', async ({ page
     username: primaryCredentials.username,
     password: primaryCredentials.password,
   });
+  await expectLoggedInShellStable(page);
 
   await expect(page.locator(accountRailButtonSelector)).toHaveCount(2);
 
@@ -30,6 +35,7 @@ test('adds a second account without leaving the add-account flow', async ({ page
     password: secondaryCredentials.password,
     addAccount: true,
   });
+  await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
 
   await expect(page.locator(accountRailButtonSelector)).toHaveCount(3);
 });

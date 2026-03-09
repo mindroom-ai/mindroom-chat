@@ -645,6 +645,26 @@ Why:
 
 - The prior bootstrap fix was incomplete: even though `ClientRoot` passed `mx`, the context-backed loader branch still existed in production and could remain the crash path. Removing that branch eliminates the exact `MatrixClient not initialized!` failure mode instead of trying to route around it.
 
+### fix(client): avoid reinitializing on session metadata writes
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `e2e/helpers/auth.ts`
+- `e2e/multi-account.spec.ts`
+- `src/app/pages/client/ClientRoot.test.ts`
+- `src/app/pages/client/ClientRoot.tsx`
+
+What changed:
+
+- Narrowed `ClientRoot` bootstrap dependencies to the fields that actually define a Matrix client instance (`sessionId`, `baseUrl`, `userId`, `deviceId`, `accessToken`) instead of the whole active-session object.
+- Added a regression test proving harmless session metadata updates like `lastKnownPath`, display-name caching, and `lastUsedAt` changes do not tear down and recreate the client.
+- Hardened the live multi-account Playwright flow so it samples the shell for several seconds after second-account login and fails if the app starts flickering back to the `Heating up` splash.
+
+Why:
+
+- Fixes the live multi-account regression where adding a second account could cause `ClientRoot` to restart the client repeatedly whenever sidebar/profile/route persistence wrote session metadata back to storage, producing a visible loop between the normal room list and the `Heating up` splash.
+
 # Runbook
 
 ## Purpose
@@ -917,6 +937,7 @@ Thread badge behavior:
 - Left sidebar now includes a MindRoom shortcut button (logo icon) that opens Local MindRoom onboarding.
 - Release automation now supports per-commit `dev` tagging in `v<base_version>-mindroom.<n>` format with base-version-aware incrementing.
 - Startup homeserver capability probing (`/_matrix/client/versions`) now times out after 12s and aborts timed-out fetches, the connecting splash includes a cancel path back to sign-in/server selection, and the connection-error dialog now includes an app-scoped `Clear Cache and Reload` recovery action for stale browser cache cases.
+- Active-session bootstrap is now stable against non-client session metadata writes: updating per-account last-path/profile cache data no longer tears down and recreates the current `MatrixClient`, which previously caused visible `Heating up`/room-list flicker right after second-account login.
 - Live external readiness checks now look healthier than the older 2026-02-26 snapshot:
   - `https://mindroom.chat/_matrix/client/v3/login` currently returns `m.login.sso` and an Apple provider (`id=chat.mindroom.matrix.apple`, `name=Apple`, `brand=appleoidc`).
   - `https://docs.mindroom.chat/support`, `/privacy`, and `/terms` currently resolve over HTTPS and return HTTP 200.

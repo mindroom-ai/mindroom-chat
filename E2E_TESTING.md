@@ -35,6 +35,8 @@ need to.
   - direct router/auth path smoke test
 - `e2e/multi-account.spec.ts`
   - second-account add-account flow
+  - includes a stability window after second-account login to catch repeated
+    `Heating up` / shell flicker
 
 ## Requirements
 
@@ -254,6 +256,9 @@ For deployed-build verification:
   - expected to pass locally
   - specifically verifies that `Add account` preserves the active explicit
     homeserver instead of snapping back to the default server
+  - also samples the shell for several seconds after second-account login so it
+    catches client re-bootstrap loops instead of only checking "eventually
+    loaded"
 
 Treat the multi-account spec as a live regression test for account-switcher
 auth routing.

@@ -137,6 +137,20 @@ const flushEffects = async () => {
   await Promise.resolve();
 };
 
+const toBootstrapSession = (session: {
+  sessionId: string;
+  baseUrl: string;
+  userId: string;
+  deviceId: string;
+  accessToken: string;
+}) => ({
+  sessionId: session.sessionId,
+  baseUrl: session.baseUrl,
+  userId: session.userId,
+  deviceId: session.deviceId,
+  accessToken: session.accessToken,
+});
+
 describe('ClientRoot', () => {
   let renderer: ReactTestRenderer | undefined;
 
@@ -181,7 +195,7 @@ describe('ClientRoot', () => {
       await flushEffects();
     });
 
-    expect(vi.mocked(initClient)).toHaveBeenCalledWith(currentSession);
+    expect(vi.mocked(initClient)).toHaveBeenCalledWith(toBootstrapSession(currentSession));
     expect(vi.mocked(startClient)).toHaveBeenCalledTimes(1);
 
     currentSession = {
@@ -200,10 +214,61 @@ describe('ClientRoot', () => {
       await flushEffects();
     });
 
-    expect(vi.mocked(initClient)).toHaveBeenLastCalledWith(currentSession);
+    expect(vi.mocked(initClient)).toHaveBeenLastCalledWith(toBootstrapSession(currentSession));
     expect(vi.mocked(startClient)).toHaveBeenCalledTimes(2);
     expect(clientA.stopClient).toHaveBeenCalledTimes(1);
     expect(clientB.stopClient).not.toHaveBeenCalled();
+  });
+
+  it('does not restart the client when only session metadata changes', async () => {
+    const client = {
+      stopClient: vi.fn(),
+      on: vi.fn(),
+      removeListener: vi.fn(),
+    };
+
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+      lastKnownPath: '/home/',
+      lastKnownDisplayName: 'Alice',
+    } as typeof currentSession & {
+      lastKnownPath?: string;
+      lastKnownDisplayName?: string;
+    };
+
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(initClient).mockResolvedValue(client as never);
+    vi.mocked(startClient).mockResolvedValue(undefined);
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ClientRoot, null, React.createElement('div', null, 'child'))
+      );
+      await flushEffects();
+    });
+
+    currentSession = {
+      ...currentSession,
+      lastUsedAt: 2,
+      lastKnownPath: '/home/create/',
+      lastKnownDisplayName: 'Alice Updated',
+    };
+
+    await act(async () => {
+      renderer?.update(
+        React.createElement(ClientRoot, null, React.createElement('div', null, 'child'))
+      );
+      await flushEffects();
+    });
+
+    expect(vi.mocked(initClient)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(startClient)).toHaveBeenCalledTimes(1);
+    expect(client.stopClient).not.toHaveBeenCalled();
   });
 
   it('does not initialize a client when there is no active session', async () => {
