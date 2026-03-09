@@ -17,19 +17,19 @@ Rules followed:
 
 ## Working Tree (Not Yet Committed)
 
-Working tree status (2026-03-08):
+Working tree status (2026-03-09):
 
 - Modified: none
 - Added:
-  - `REVIEW.md`
+  - `test-results/` (unrelated local test output)
 
 What changed (uncommitted):
 
-- None. `REVIEW.md` remains an unrelated untracked local note present in the working tree.
+- None beyond the unrelated untracked `test-results/` directory.
 
 Validation (uncommitted):
 
-- None pending beyond the existing untracked `REVIEW.md`.
+- None pending beyond the existing untracked `test-results/` directory.
 
 ## Commit-by-Commit Changes
 
@@ -496,6 +496,26 @@ What changed:
 Why:
 
 - Prevents disruptive forced scroll-to-bottom in the main room while users read older history, while keeping expected auto-scroll behavior scoped to the active thread view.
+
+### fix(sidebar): enlarge local MindRoom tab icon
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/pages/client/sidebar/MindroomTab.tsx`
+
+What changed:
+
+- Increased the local MindRoom sidebar logo render size from `22x22` to `36x36`
+  inside the existing `42x42` sidebar avatar so the shortcut better matches the
+  visual weight of the other sidebar icons.
+- Updated the runbook working-tree section to reflect the current post-commit
+  local state.
+
+Why:
+
+- The previous `22x22` raster render made the MindRoom logo appear undersized in
+  the sidebar button.
 
 # Runbook
 

@@ -16,8 +16,8 @@ export function MindroomTab() {
               <img
                 src={MindRoomLogo}
                 alt="MindRoom"
-                width={22}
-                height={22}
+                width={36}
+                height={36}
                 style={{ objectFit: 'contain' }}
               />
             </SidebarAvatar>
