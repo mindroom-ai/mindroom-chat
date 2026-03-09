@@ -10,12 +10,13 @@ import { PasswordLoginForm } from './PasswordLoginForm';
 import { SSOLogin } from '../SSOLogin';
 import { TokenLogin } from './TokenLogin';
 import { OrDivider } from '../OrDivider';
-import { getLoginPath, getRegisterPath, withSearchParam } from '../../pathUtils';
+import { getLoginPath, getRegisterPath } from '../../pathUtils';
 import { usePathWithOrigin } from '../../../hooks/usePathWithOrigin';
 import { LoginPathSearchParams } from '../../paths';
 import { useClientConfig } from '../../../hooks/useClientConfig';
 import { hasAppleIdentityProvider } from '../ssoProviders';
 import { buildNativeSsoRedirectUrl } from '../../../utils/nativeSso';
+import { isAddAccountSearch, withAddAccountSearch } from '../addAccount';
 
 const getLoginTokenSearchParam = () => {
   // when using hasRouter query params in existing route
@@ -43,23 +44,23 @@ export function Login() {
   const { loginFlows } = useAuthFlows();
   const [searchParams] = useSearchParams();
   const loginSearchParams = useLoginSearchParams(searchParams);
+  const addAccount = isAddAccountSearch(searchParams);
   const webSsoRedirectUrl = usePathWithOrigin(getLoginPath(server));
   const ssoRedirectUrl = useMemo(() => {
+    const redirectPath = addAccount ? withAddAccountSearch(webSsoRedirectUrl) : webSsoRedirectUrl;
     if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios') {
-      return buildNativeSsoRedirectUrl(webSsoRedirectUrl);
+      return buildNativeSsoRedirectUrl(redirectPath);
     }
 
-    return webSsoRedirectUrl;
-  }, [webSsoRedirectUrl]);
+    return redirectPath;
+  }, [addAccount, webSsoRedirectUrl]);
   const loginTokenForHashRouter = getLoginTokenSearchParam();
-  const absoluteLoginPath = webSsoRedirectUrl;
+  const absoluteLoginPath = addAccount ? withAddAccountSearch(webSsoRedirectUrl) : webSsoRedirectUrl;
 
   if (hashRouter?.enabled && loginTokenForHashRouter) {
-    window.location.replace(
-      withSearchParam(absoluteLoginPath, {
-        loginToken: loginTokenForHashRouter,
-      })
-    );
+    const loginTokenUrl = new URL(absoluteLoginPath);
+    loginTokenUrl.searchParams.set('loginToken', loginTokenForHashRouter);
+    window.location.replace(loginTokenUrl.toString());
   }
 
   const parsedFlows = useParsedLoginFlows(loginFlows.flows);
@@ -83,13 +84,14 @@ export function Login() {
         </Text>
       )}
       {parsedFlows.token && loginSearchParams.loginToken && (
-        <TokenLogin token={loginSearchParams.loginToken} />
+        <TokenLogin token={loginSearchParams.loginToken} addAccount={addAccount} />
       )}
       {showPasswordLogin && (
         <>
           <PasswordLoginForm
             defaultUsername={loginSearchParams.username}
             defaultEmail={loginSearchParams.email}
+            addAccount={addAccount}
           />
           <span data-spacing-node />
           {parsedFlows.sso && <OrDivider />}
@@ -118,7 +120,10 @@ export function Login() {
       )}
       {registrationAllowed && !isMindroomServer && (
         <Text align="Center">
-          Do not have an account? <Link to={getRegisterPath(server)}>Register</Link>
+          Do not have an account?{' '}
+          <Link to={addAccount ? withAddAccountSearch(getRegisterPath(server)) : getRegisterPath(server)}>
+            Register
+          </Link>
         </Text>
       )}
     </Box>

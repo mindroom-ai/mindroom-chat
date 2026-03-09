@@ -3,10 +3,12 @@ import { Box, Dialog, config, Text, Button, Spinner } from 'folds';
 import { SpecVersionsLoader } from '../../components/SpecVersionsLoader';
 import { SpecVersionsProvider } from '../../hooks/useSpecVersions';
 import { SplashScreen } from '../../components/splash-screen';
-import { removeFallbackSession } from '../../state/sessions';
-import { clearBrowserCacheAndReload } from '../../../client/initMatrix';
+import { clearBrowserCacheAndReload, removeSessionAndReload } from '../../../client/initMatrix';
+import { useActiveSession } from '../../hooks/useSessionStore';
 
 export function SpecVersions({ baseUrl, children }: { baseUrl: string; children: ReactNode }) {
+  const activeSession = useActiveSession();
+
   return (
     <SpecVersionsLoader
       baseUrl={baseUrl}
@@ -19,7 +21,10 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
               variant="Critical"
               fill="Soft"
               onClick={() => {
-                removeFallbackSession();
+                if (activeSession) {
+                  removeSessionAndReload(activeSession).catch(() => undefined);
+                  return;
+                }
                 window.location.reload();
               }}
             >

@@ -176,6 +176,7 @@ type PasswordRegisterFormProps = {
   defaultUsername?: string;
   defaultEmail?: string;
   defaultRegisterToken?: string;
+  addAccount?: boolean;
 };
 export function PasswordRegisterForm({
   authData,
@@ -183,6 +184,7 @@ export function PasswordRegisterForm({
   defaultUsername,
   defaultEmail,
   defaultRegisterToken,
+  addAccount = false,
 }: PasswordRegisterFormProps) {
   const serverDiscovery = useAutoDiscoveryInfo();
   const baseUrl = serverDiscovery['m.homeserver'].base_url;
@@ -205,7 +207,7 @@ export function PasswordRegisterForm({
   const registerError =
     registerState.status === AsyncStatus.Error ? registerState.error : undefined;
 
-  useRegisterComplete(customRegisterResp);
+  useRegisterComplete(customRegisterResp, addAccount);
 
   const handleSubmit: ChangeEventHandler<HTMLFormElement> = (evt) => {
     evt.preventDefault();

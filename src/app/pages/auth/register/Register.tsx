@@ -16,6 +16,7 @@ import { RegisterPathSearchParams } from '../../paths';
 import { useClientConfig } from '../../../hooks/useClientConfig';
 import { hasAppleIdentityProvider } from '../ssoProviders';
 import { buildNativeSsoRedirectUrl } from '../../../utils/nativeSso';
+import { isAddAccountSearch, withAddAccountSearch } from '../addAccount';
 
 const useRegisterSearchParams = (searchParams: URLSearchParams): RegisterPathSearchParams =>
   useMemo(
@@ -33,6 +34,7 @@ export function Register() {
   const { loginFlows, registerFlows } = useAuthFlows();
   const [searchParams] = useSearchParams();
   const registerSearchParams = useRegisterSearchParams(searchParams);
+  const addAccount = isAddAccountSearch(searchParams);
   const { sso } = useParsedLoginFlows(loginFlows.flows);
   const registrationAllowed = auth?.allowRegistration !== false;
   const requireAppleProvider = auth?.requireAppleProvider === true;
@@ -45,15 +47,16 @@ export function Register() {
   // redirect to /login because only that path handle m.login.token
   const webSsoRedirectUrl = usePathWithOrigin(getLoginPath(server));
   const ssoRedirectUrl = useMemo(() => {
+    const redirectPath = addAccount ? withAddAccountSearch(webSsoRedirectUrl) : webSsoRedirectUrl;
     if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios') {
-      return buildNativeSsoRedirectUrl(webSsoRedirectUrl);
+      return buildNativeSsoRedirectUrl(redirectPath);
     }
 
-    return webSsoRedirectUrl;
-  }, [webSsoRedirectUrl]);
+    return redirectPath;
+  }, [addAccount, webSsoRedirectUrl]);
 
   if (!registrationAllowed) {
-    return <Navigate to={getLoginPath(server)} replace />;
+    return <Navigate to={addAccount ? withAddAccountSearch(getLoginPath(server)) : getLoginPath(server)} replace />;
   }
 
   return (
@@ -105,6 +108,7 @@ export function Register() {
                   defaultUsername={registerSearchParams.username}
                   defaultEmail={registerSearchParams.email}
                   defaultRegisterToken={registerSearchParams.token}
+                  addAccount={addAccount}
                 />
               )
             }
@@ -130,7 +134,10 @@ export function Register() {
         </>
       )}
       <Text align="Center">
-        Already have an account? <Link to={getLoginPath(server)}>Login</Link>
+        Already have an account?{' '}
+        <Link to={addAccount ? withAddAccountSearch(getLoginPath(server)) : getLoginPath(server)}>
+          Login
+        </Link>
       </Text>
     </Box>
   );

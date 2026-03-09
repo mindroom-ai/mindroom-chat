@@ -19,17 +19,18 @@ Rules followed:
 
 Working tree status (2026-03-09):
 
-- Modified: none
-- Added:
-  - `test-results/` (unrelated local test output)
+- Clean after the latest committed slice.
 
 What changed (uncommitted):
 
-- None beyond the unrelated untracked `test-results/` directory.
+- None.
 
 Validation (uncommitted):
 
-- None pending beyond the existing untracked `test-results/` directory.
+- None pending.
+- Failed (pre-existing repo baseline, unrelated to this slice): `npm run typecheck`
+  currently reports broad `matrix-js-sdk` import/type mismatches and Jotai atom
+  typing errors across many untouched files.
 
 ## Commit-by-Commit Changes
 
@@ -153,9 +154,9 @@ Why:
 
 Files changed:
 
-- `APP_STORE_COMPLIANCE.md`
+- `.docs/APP_STORE_COMPLIANCE.md`
 - `FORK_CHANGES.md`
-- `ios-build.md`
+- `.docs/ios-build.md`
 - `public/favicon.ico`
 - `public/res/android/android-chrome-36x36.png`
 - `public/res/android/android-chrome-48x48.png`
@@ -193,9 +194,9 @@ Why:
 
 Files changed:
 
-- `APP_STORE_COMPLIANCE.md`
+- `.docs/APP_STORE_COMPLIANCE.md`
 - `FORK_CHANGES.md`
-- `ios-build.md`
+- `.docs/ios-build.md`
 - `public/favicon.ico`
 - `public/res/android/android-chrome-36x36.png`
 - `public/res/android/android-chrome-48x48.png`
@@ -415,7 +416,7 @@ Why:
 Files changed:
 
 - `capacitor.config.ts`
-- `ios-build.md`
+- `.docs/ios-build.md`
 - `ios/.gitignore`
 - `ios/App/App.xcodeproj/project.pbxproj`
 - `ios/App/App.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist`
@@ -496,6 +497,334 @@ What changed:
 Why:
 
 - Prevents disruptive forced scroll-to-bottom in the main room while users read older history, while keeping expected auto-scroll behavior scoped to the active thread view.
+
+### feat(accounts): add multi-account session foundation
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/components/ClientConfigLoader.tsx`
+- `src/app/features/room/RoomTimeline.test.ts`
+- `src/app/features/room/RoomTimeline.tsx`
+- `src/app/features/room/roomEventCache.ts`
+- `src/app/features/room/roomEventCache.test.ts`
+- `src/app/features/room/threadEventCache.ts`
+- `src/app/features/room/threadEventCache.test.ts`
+- `src/app/features/settings/notifications/SystemNotification.tsx`
+- `src/app/hooks/useIOSPushEnabled.ts`
+- `src/app/hooks/useSessionStore.ts`
+- `src/app/pages/Router.tsx`
+- `src/app/pages/auth/addAccount.test.ts`
+- `src/app/pages/auth/addAccount.ts`
+- `src/app/pages/auth/login/Login.tsx`
+- `src/app/pages/auth/login/PasswordLoginForm.tsx`
+- `src/app/pages/auth/login/TokenLogin.tsx`
+- `src/app/pages/auth/login/loginUtil.ts`
+- `src/app/pages/auth/register/PasswordRegisterForm.tsx`
+- `src/app/pages/auth/register/Register.tsx`
+- `src/app/pages/auth/register/registerUtil.ts`
+- `src/app/pages/client/ClientLayout.tsx`
+- `src/app/pages/client/ClientNonUIFeatures.tsx`
+- `src/app/pages/client/ClientRoot.tsx`
+- `src/app/pages/client/SpecVersions.test.ts`
+- `src/app/pages/client/SpecVersions.tsx`
+- `src/app/pages/client/sidebar/SettingsTab.tsx`
+- `src/app/state/sessions.test.ts`
+- `src/app/state/sessions.ts`
+- `src/app/state/settings.ts`
+- `src/app/utils/iosPush.test.ts`
+- `src/app/utils/iosPush.ts`
+- `src/app/utils/mediaUrl.test.ts`
+- `src/app/utils/mediaUrl.ts`
+- `src/app/utils/roomAvatar.test.ts`
+- `src/client/initMatrix.test.ts`
+- `src/client/initMatrix.ts`
+- `src/index.tsx`
+
+What changed:
+
+- Replaced the old fallback single-session boot/session path with a persisted multi-account session registry keyed by normalized `baseUrl + userId`.
+- Switched Matrix sync/crypto stores and custom room/thread cache databases to session-scoped names so accounts no longer share persistence.
+- Updated auth completion and routing so login/register can either create the first account or add another account without destroying the existing one.
+- Updated app boot so `ClientRoot` starts from the active stored session and can switch between stored sessions cleanly.
+- Replaced the bottom single-avatar Settings trigger with a first-pass account rail:
+  - active avatar still opens Settings,
+  - inactive avatars switch account,
+  - `+` opens auth in add-account mode.
+- Persisted per-account last visited route and last-known profile/avatar metadata to make switching faster and more recognizable.
+- Made service-worker session posting, authenticated media fallback, and native iOS push local state read/write the active session instead of singleton global keys.
+- Added focused regression tests for the session registry, add-account URL helpers, session-aware media/push helpers, namespaced Matrix init, and updated smoke tests for `SpecVersions`/`RoomTimeline`.
+
+Why:
+
+- Required to start multi-account support cleanly without session, cache, media-auth, or push-state leakage between accounts.
+
+### feat(accounts): add inactive account removal actions
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/pages/client/sidebar/AccountSwitcher.test.ts`
+- `src/app/pages/client/sidebar/AccountSwitcher.tsx`
+- `src/app/pages/client/sidebar/SettingsTab.tsx`
+- `src/client/initMatrix.test.ts`
+- `src/client/initMatrix.ts`
+
+What changed:
+
+- Added an account manager modal off the active bottom-sidebar avatar.
+- Kept inactive avatars as direct fast-switch shortcuts, while moving management actions into the modal.
+- Added inactive-account `Remove from Device` support that deletes only that session's local data and leaves the active account running.
+- Added focused tests for the account manager UI and the inactive-account cleanup path.
+
+Why:
+
+- Completes the first usable account-management loop from the multi-account plan without forcing users into destructive global logout/cache-clear flows.
+
+### test(accounts): add router and client switching regressions
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/pages/Router.tsx`
+- `src/app/pages/client/ClientRoot.test.ts`
+- `src/app/pages/routeSessionGuards.test.ts`
+- `src/app/pages/routeSessionGuards.ts`
+
+What changed:
+
+- Extracted the session-aware route gating decisions into pure helpers for root/auth/protected routes.
+- Added focused tests covering:
+  - signed-in root redirect,
+  - add-account access to auth routes,
+  - protected-route login redirects with and without an active session,
+  - `ClientRoot` switching from one active session to another and stopping the old client.
+
+Why:
+
+- Hardens the multi-account boot/switching flow so the highest-risk session-routing and client-lifecycle edges are locked down by tests.
+
+### test(accounts): add route restoration regressions
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/pages/client/ClientLayout.test.ts`
+- `src/app/pages/client/ClientLayout.tsx`
+- `src/app/pages/client/sessionRouteRestore.test.ts`
+- `src/app/pages/client/sessionRouteRestore.ts`
+- `src/app/pages/client/sidebar/SettingsTab.test.ts`
+- `src/app/pages/client/sidebar/SettingsTab.tsx`
+
+What changed:
+
+- Extracted route persistence/restore helpers so last-known account paths are validated and reused consistently instead of being rebuilt ad hoc.
+- Updated `ClientLayout` to persist the exact active-account route, including search and hash, through the shared helper.
+- Updated account switching in `SettingsTab` to restore each account's stored in-app route when valid and to fall back to `/home` when the stored path is missing or external.
+- Added focused tests covering:
+  - exact route persistence with `pathname + search + hash`,
+  - valid vs invalid stored restore paths,
+  - inactive-account switch navigation using the stored last path.
+
+Why:
+
+- Hardens multi-account switching so "return me to where I was in that account" is explicitly tested and cannot silently regress into home-only or unsafe external redirects.
+
+### fix(accounts): stabilize session store snapshots
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/state/sessions.test.ts`
+- `src/app/state/sessions.ts`
+
+What changed:
+
+- Changed the session store snapshot readers used by `useSyncExternalStore` to cache and reuse parsed session-store objects while the underlying localStorage value is unchanged.
+- Stabilized `getSessionStore()`, `getActiveSession()`, and `listSessions()` so they no longer allocate fresh objects/arrays on every read with identical backing data.
+- Added regression coverage proving unchanged storage returns referentially stable session store, active-session, and session-list snapshots.
+
+Why:
+
+- Fixes a multi-account regression where unstable `useSyncExternalStore` snapshots could trigger React rerender loops (`Minified React error #185`) during login/session activation, which surfaced most obviously on Google/GitHub SSO return.
+
+### fix(auth): skip spurious OIDC validation errors when metadata is unavailable
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/components/ServerConfigsLoader.test.ts`
+- `src/app/components/ServerConfigsLoader.tsx`
+
+What changed:
+
+- Stopped `ServerConfigsLoader` from calling `validateAuthMetadata(...)` when `mx.getAuthMetadata()` failed and returned no fulfilled payload.
+- Kept auth-metadata validation/logging for the real malformed-payload case only, instead of turning fetch failures like `404 /_matrix/client/unstable/org.matrix.msc2965/auth_metadata` into a misleading secondary OIDC validation error.
+- Added regression coverage proving rejected auth-metadata fetches still return capabilities/media config and do not emit fake OIDC validation noise.
+
+Why:
+
+- Fixes misleading add-account / startup console noise where missing delegated-auth metadata on the homeserver was being logged as `Configured OIDC OP does not support required functions` even though no auth metadata had been returned to validate.
+
+### fix(auth): preserve add-account auth query params during server normalization
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/pages/auth/AuthLayout.tsx`
+- `src/app/pages/auth/authRouteUtils.test.ts`
+- `src/app/pages/auth/authRouteUtils.ts`
+
+What changed:
+
+- Extracted auth-route path building into a pure helper so auth URL normalization is no longer rebuilt ad hoc inside `AuthLayout`.
+- Changed `AuthLayout` to preserve the current auth-route search params and hash when it rewrites `/login`, `/register`, or `/reset-password` to include the canonical `:server` segment.
+- Added regression coverage proving query params like `?addAccount=1` survive that server-normalization step.
+
+Why:
+
+- Fixes the real add-account redirect bug on active sessions: `?addAccount=1` was being dropped during auth-route normalization, which made the router immediately treat the page as a normal auth route and bounce the user back into the already-active account.
+
+### fix(client): avoid bootstrap context dependency in server config loading
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/components/ServerConfigsLoader.test.ts`
+- `src/app/components/ServerConfigsLoader.tsx`
+- `src/app/pages/client/ClientRoot.test.ts`
+- `src/app/pages/client/ClientRoot.tsx`
+
+What changed:
+
+- Split `ServerConfigsLoader` so it can run either from the Matrix client context or from an explicit `mx` prop without touching `useMatrixClient()`.
+- Changed `ClientRoot` to pass its already-initialized `mx` instance directly into `ServerConfigsLoader` during bootstrap.
+- Added regression coverage proving `ServerConfigsLoader` can load configs without any Matrix client context when an explicit client instance is provided.
+- Tightened `ClientRoot` test coverage so the bootstrap path now fails if `ClientRoot` stops passing that explicit `mx` prop.
+
+Why:
+
+- Fixes the add-account SSO regression where the protected route could hit `ServerConfigsLoader` before the Matrix client context was reliably available, throwing `MatrixClient not initialized!` immediately after successful second-account login.
+
+### fix(client): require explicit Matrix client for server config bootstrap
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/components/ServerConfigsLoader.test.ts`
+- `src/app/components/ServerConfigsLoader.tsx`
+
+What changed:
+
+- Removed the `ServerConfigsLoader` fallback path that tried to read `useMatrixClient()` from context when no explicit client was passed.
+- Made `ServerConfigsLoader` bootstrap-only: it now requires an explicit `mx` prop and only loads capabilities/media/auth metadata from that concrete client instance.
+- Updated the loader tests to reflect that stricter contract.
+
+Why:
+
+- The prior bootstrap fix was incomplete: even though `ClientRoot` passed `mx`, the context-backed loader branch still existed in production and could remain the crash path. Removing that branch eliminates the exact `MatrixClient not initialized!` failure mode instead of trying to route around it.
+
+### fix(client): avoid reinitializing on session metadata writes
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `e2e/helpers/auth.ts`
+- `e2e/multi-account.spec.ts`
+- `src/app/pages/client/ClientRoot.test.ts`
+- `src/app/pages/client/ClientRoot.tsx`
+
+What changed:
+
+- Narrowed `ClientRoot` bootstrap dependencies to the fields that actually define a Matrix client instance (`sessionId`, `baseUrl`, `userId`, `deviceId`, `accessToken`) instead of the whole active-session object.
+- Added a regression test proving harmless session metadata updates like `lastKnownPath`, display-name caching, and `lastUsedAt` changes do not tear down and recreate the client.
+- Hardened the live multi-account Playwright flow so it samples the shell for several seconds after second-account login and fails if the app starts flickering back to the `Heating up` splash.
+
+Why:
+
+- Fixes the live multi-account regression where adding a second account could cause `ClientRoot` to restart the client repeatedly whenever sidebar/profile/route persistence wrote session metadata back to storage, producing a visible loop between the normal room list and the `Heating up` splash.
+
+### test(e2e): expand live multi-account validation
+
+Files changed:
+
+- `.docs/E2E_TESTING.md`
+- `FORK_CHANGES.md`
+- `e2e/account-logout.spec.ts`
+- `e2e/account-switching.spec.ts`
+- `e2e/helpers/accounts.ts`
+- `e2e/helpers/browserDiagnostics.ts`
+
+What changed:
+
+- Added real browser helpers for reading the session store, switching accounts, removing inactive accounts, logging out the active account, and capturing browser diagnostics during live runs.
+- Added a route-restore/reload/removal flow covering per-account last-path persistence, switching between stored accounts, surviving a full reload, and removing an inactive account.
+- Added a logout flow covering active-account logout fallback to the remaining stored account and final logout back to the auth shell.
+- Expanded the local testing guide with the larger one-off multi-account matrix and the current expected local-browser diagnostic noise.
+
+Why:
+
+- Gives the branch meaningful live validation beyond simple login/add-account smoke tests, so multi-account behavior can be exercised against the real homeserver before relying on it.
+
+### test(e2e): expand live browser validation matrix
+
+Files changed:
+
+- `.docs/E2E_TESTING.md`
+- `FORK_CHANGES.md`
+- `.docs/LIVE_BROWSER_VALIDATION.md`
+- `e2e/account-multitab.spec.ts`
+- `e2e/account-offline.spec.ts`
+- `e2e/account-relogin.spec.ts`
+- `e2e/account-storage.spec.ts`
+- `e2e/account-three-account.spec.ts`
+- `e2e/deployed-auth-shell.spec.ts`
+- `e2e/env.ts`
+- `e2e/helpers/accounts.ts`
+- `e2e/helpers/storage.ts`
+- `scripts/test-e2e-mindroom.sh`
+- `src/app/state/sessions.test.ts`
+- `src/app/state/sessions.ts`
+- `src/client/initMatrix.test.ts`
+- `src/client/initMatrix.ts`
+
+What changed:
+
+- Added one-off Playwright coverage for same-account re-login, three-account switching, IndexedDB/localStorage cleanup, multi-tab propagation, homeserver outage handling, and deployed auth-shell route validation.
+- Added third-account disposable provisioning support to the local SSH-backed test runner.
+- Added browser-side storage inspection helpers so live runs can verify that logout and inactive-account removal actually clear the intended session data.
+- Added an explicit helper for the real browser IndexedDB names used by the session-scoped sync and crypto stores, and updated inactive-session cleanup to delete those actual names.
+- Recorded the full one-off validation matrix, observed diagnostics, and blocked deployment cases in `.docs/LIVE_BROWSER_VALIDATION.md`.
+- Expanded `.docs/E2E_TESTING.md` so the router usage guide and live-run instructions cover the larger matrix and current deployed `chat.lab` auth-shell behavior.
+
+Why:
+
+- The earlier harness proved the basic password/add-account flow, but it did not yet exercise the broader web behaviors that can regress in a multi-account client: re-login dedupe, three-account state, multi-tab propagation, session-store cleanup, outage recovery, and route-specific deployed auth behavior. That broader pass also exposed a real cleanup bug where inactive-session removal targeted the constructor store name instead of the actual Chromium IndexedDB sync database name.
+
+### docs(repo): move fork-added operational docs into .docs
+
+Files changed:
+
+- `.docs/APP_STORE_COMPLIANCE.md`
+- `.docs/APP_STORE_SUBMISSION_PACKET.md`
+- `.docs/E2E_TESTING.md`
+- `.docs/LIVE_BROWSER_VALIDATION.md`
+- `.docs/MULTI_ACCOUNT_PLAN.md`
+- `.docs/ios-build.md`
+- `FORK_CHANGES.md`
+- `README.md`
+
+What changed:
+
+- Moved the fork-added operational/reference docs out of the repository root into `.docs/`.
+- Kept `FORK_CHANGES.md` at the root as the fork runbook/change log.
+- Kept the upstream root docs (`README.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `LICENSE`) unchanged in place.
+- Left `AGENTS.md` and `CLAUDE.md` at the root as tool instruction entrypoints rather than ordinary project notes.
+- Rewrote root-level references so README and the runbook point at the new `.docs/*` locations.
+
+Why:
+
+- Keeps the repository root closer to upstream and reduces top-level documentation clutter while preserving a clear home for fork-specific operational notes.
 
 ### fix(sidebar): enlarge local MindRoom tab icon
 
@@ -585,8 +914,8 @@ MindRoom priorities for this fork:
   - `docker-nginx.conf`
 - iOS packaging/compliance:
   - `ios/App/App/Info.plist`
-  - `ios-build.md`
-  - `APP_STORE_COMPLIANCE.md`
+  - `.docs/ios-build.md`
+  - `.docs/APP_STORE_COMPLIANCE.md`
 
 ## Implemented Behavior
 
@@ -721,8 +1050,8 @@ Thread badge behavior:
 - Added `scripts/appstore-preflight.mjs` (`npm run appstore:preflight`) to verify critical iOS/config compliance gates before archive.
 - Added `scripts/generate-ios-icons.sh` (`npm run ios:icons`) and generated full iPhone/iPad AppIcon slot assets from a single 1024 source icon.
 - App Store preflight now validates icon-slot completeness and required icon file presence.
-- Added `APP_STORE_SUBMISSION_PACKET.md` with paste-ready App Review notes and metadata checklist.
-- Added `APP_STORE_COMPLIANCE.md` as a release gate checklist and linked iOS build preflight steps in `ios-build.md`.
+- Added `.docs/APP_STORE_SUBMISSION_PACKET.md` with paste-ready App Review notes and metadata checklist.
+- Added `.docs/APP_STORE_COMPLIANCE.md` as a release gate checklist and linked iOS build preflight steps in `.docs/ios-build.md`.
 
 ## Operational Notes
 
@@ -732,7 +1061,7 @@ Thread badge behavior:
   - `npm run test -- src/app/utils/room.test.ts src/app/matrixRelationsRace.test.ts`
 - `npm run typecheck` currently fails due pre-existing repository-wide type issues (not introduced by recent fork deltas).
 - If deploying behind strict subpath-only ingress/proxy rules, ensure runtime config and assets resolve under your routing policy, or apply equivalent server-side HTML base/script injection in the serving layer.
-- Before shipping iOS builds, run the full checklist in `APP_STORE_COMPLIANCE.md` and verify App Store Connect metadata URLs (support/privacy/terms) are public and final.
+- Before shipping iOS builds, run the full checklist in `.docs/APP_STORE_COMPLIANCE.md` and verify App Store Connect metadata URLs (support/privacy/terms) are public and final.
 
 ## Current Snapshot (2026-03-07)
 
@@ -815,6 +1144,8 @@ Thread badge behavior:
 - Left sidebar now includes a MindRoom shortcut button (logo icon) that opens Local MindRoom onboarding.
 - Release automation now supports per-commit `dev` tagging in `v<base_version>-mindroom.<n>` format with base-version-aware incrementing.
 - Startup homeserver capability probing (`/_matrix/client/versions`) now times out after 12s and aborts timed-out fetches, the connecting splash includes a cancel path back to sign-in/server selection, and the connection-error dialog now includes an app-scoped `Clear Cache and Reload` recovery action for stale browser cache cases.
+- Active-session bootstrap is now stable against non-client session metadata writes: updating per-account last-path/profile cache data no longer tears down and recreates the current `MatrixClient`, which previously caused visible `Heating up`/room-list flicker right after second-account login.
+- Live browser validation now covers password login, direct auth-router entry, add-account, route restore across account switching, reload persistence, inactive-account removal, active-account logout fallback, and final logout back to the auth shell when using the local SSH-tunneled homeserver.
 - Live external readiness checks now look healthier than the older 2026-02-26 snapshot:
   - `https://mindroom.chat/_matrix/client/v3/login` currently returns `m.login.sso` and an Apple provider (`id=chat.mindroom.matrix.apple`, `name=Apple`, `brand=appleoidc`).
   - `https://docs.mindroom.chat/support`, `/privacy`, and `/terms` currently resolve over HTTPS and return HTTP 200.
@@ -886,6 +1217,330 @@ Thread open follow-up (2026-03-08):
   - Add focused unit coverage for the bottom-pin gate.
   - Re-run thread render/timing tests plus `npm run build`.
 
+## Multi-Account Support Plan (2026-03-08)
+
+Detailed design document:
+
+- `.docs/MULTI_ACCOUNT_PLAN.md`
+
+Problem statements this plan is solving:
+
+- Problem 1: the app is still single-session at boot. Routing and startup gate on `getFallbackSession()` in `src/app/pages/Router.tsx` and `src/app/pages/client/ClientRoot.tsx`, so there is no first-class concept of "stored accounts" or "active account".
+- Problem 2: the bottom sidebar avatar is only a Settings trigger (`src/app/pages/client/sidebar/SettingsTab.tsx`), so there is no UI surface for "switch account", "add account", or "show me which account I am using".
+- Problem 3: core persistence is singleton-scoped, not account-scoped. Current storage/db names such as `cinny_access_token`, `web-sync-store`, `crypto-store`, `mindroom-room-event-cache`, and `mindroom-thread-event-cache` would collide across accounts.
+- Problem 4: several integrations still assume one global account session, including service-worker media auth (`src/index.tsx`, `src/sw.ts`) and iOS push profile/token helpers (`src/app/utils/iosPush.ts`).
+- Problem 5: a naive "render multiple avatars and swap the client object" implementation would be fragile and hard to maintain because almost the whole app reads one `MatrixClient` from context and assumes it is the active singleton.
+
+Desired product behavior:
+
+- The sidebar should show the active account clearly and expose a fast account switcher at the bottom.
+- Users should be able to add multiple Matrix accounts, including accounts on different homeservers.
+- Switching accounts should feel fast and preserve each account's own navigation state when possible.
+- Logging out one account should not destroy other stored accounts.
+- Room/thread caches, SDK sync stores, crypto stores, and per-account push/session state should be isolated so accounts do not leak into each other.
+
+Chosen architecture for phase 1:
+
+- Support multiple stored accounts, but only one active `MatrixClient` at a time.
+- Keep the existing "one active client in React context" mental model for the rest of the app.
+- Do not try to run multiple live Matrix clients simultaneously in the same UI process for the first version.
+
+Why this is the right first design:
+
+- It matches the current app architecture, where nearly all hooks/components depend on one active `MatrixClient`.
+- It avoids a large second-order rewrite of unread state, notifications, crypto, and room lists.
+- It is more battery-friendly and easier to reason about on iOS.
+- It still solves the main product need: fast account switching with separate avatars and per-account persistence.
+
+Non-goals for the first multi-account release:
+
+- No simultaneous multi-account sync in one foreground UI session.
+- No merged cross-account inbox/unread counters.
+- No cross-account search.
+- No background hydration of every stored account's room/thread caches beyond what the homeserver push pipeline already provides.
+
+Recommended data model:
+
+- Introduce a real persisted session registry, for example:
+  - `MultiAccountStore = { version: 1, activeSessionId?: string, sessions: StoredSession[] }`
+  - `StoredSession = { sessionId, baseUrl, userId, deviceId, accessToken, refreshToken?, expiresInMs?, lastUsedAt, lastKnownDisplayName?, lastKnownAvatarUrl? }`
+- `sessionId` should be a stable opaque identifier derived from `{baseUrl,userId,deviceId}` or generated once and persisted.
+- Deliberately do not migrate the old fallback single-session keys. The first multi-account build may log existing users out once; they can sign in again cleanly.
+
+Storage and cache isolation plan:
+
+- Namespace every session-bound persistence layer:
+  - Matrix sync store: `web-sync-store::<sessionId>`
+  - Matrix crypto store: `crypto-store::<sessionId>`
+  - room cache DB: `mindroom-room-event-cache::<sessionId>`
+  - thread cache DB: `mindroom-thread-event-cache::<sessionId>`
+  - iOS push profile/tag state: per-session keys instead of one global key
+  - any access-token lookup helpers should read the active session record, not `cinny_access_token` directly
+- Keep existing user-scoped UI preference atoms (`navToActivePath`, opened folders, closed categories) keyed by `userId`; they already align reasonably well with account switching.
+- Do not preserve legacy singleton store names. Multi-account support should start with session-scoped store names only.
+
+Boot and switching model:
+
+1. App boot resolves the session registry, not `getFallbackSession()`.
+2. If there is no stored account, route to auth as today.
+3. If there is an active account, load exactly one `MatrixClient` for that session and provide it via `MatrixClientProvider`.
+4. When switching accounts:
+   - persist current account metadata/navigation state,
+   - stop the active client cleanly,
+   - load the target session's client with its own store names,
+   - push the new active session to the service worker/native helpers,
+   - navigate to that account's last path or a safe default (`/home`).
+
+Sidebar/UI design:
+
+- Replace the single bottom avatar/settings trigger with an account rail.
+- Proposed bottom section:
+  - active account avatar button
+  - up to 2-4 recent secondary avatars stacked or listed underneath
+  - `+` button for `Add account`
+- Interaction model:
+  - clicking the active avatar opens account menu/settings
+  - clicking another avatar switches immediately to that account
+  - long-press/right-click/menu opens account actions (`Switch`, `Open settings`, `Logout this account`, later `Remove from device`)
+- On mobile, keep the same concept but use a popover or bottom sheet instead of relying on hover.
+
+Auth/add-account flow:
+
+- Add an `Add account` entry point that reuses the existing login/register screens but does not destroy the current stored account.
+- After successful login/register:
+  - append or update the session registry entry,
+  - set the new account active,
+  - return to the main app shell.
+- Keep first-account login behavior unchanged for users who only ever use one account.
+
+Logout/removal semantics:
+
+- `Logout this account` should remove only the selected session's tokens/stores/caches/pusher registration.
+- If the removed account was active and other accounts remain, switch to the most recently used remaining account.
+- Add a separate destructive action later for `Remove all accounts and local data`.
+- Current global `window.localStorage.clear()` and `delete all indexedDB databases` behavior must be replaced with per-session cleanup plus an optional global wipe path.
+
+Service worker / media auth / push implications:
+
+- Service-worker media auth should source its credentials from the active session registry entry, not raw global localStorage keys.
+- On account switch, immediately push the new active session to the service worker.
+- iOS push helpers need to become session-aware:
+  - store pusher/profile metadata per session,
+  - disable pusher only for the account being logged out,
+  - allow multiple Matrix accounts to keep server-side pusher registrations if the user wants notifications from each.
+
+Implementation sequence:
+
+1. Session registry layer.
+   - Add `MultiAccountStore`.
+   - Add helpers for `getActiveSession`, `putSession`, `removeSession`, `setActiveSession`.
+   - Remove the old fallback-session boot assumption instead of preserving it.
+2. Session-scoped store naming.
+   - Teach Matrix init, room cache, and thread cache code to use session-specific store names.
+   - Replace global logout/cache-clearing with session-aware cleanup helpers.
+3. Client boot/switching shell.
+   - Update `Router.tsx` and `ClientRoot.tsx` to boot from the active session registry entry.
+   - Add a switching state machine so changing accounts is a first-class transition, not a full "pretend logout/login" hack.
+4. Sidebar/UI.
+   - Replace the current bottom settings avatar with an account rail / account menu.
+   - Add `Add account`, `Switch account`, and `Logout this account` flows.
+5. Native/service integration follow-through.
+   - Update service-worker session posting.
+   - Update iOS push/session-bound helpers.
+   - Audit any remaining direct reads of `cinny_access_token`, `cinny_user_id`, `cinny_device_id`, and `cinny_hs_base_url`.
+6. Hardening.
+   - Regression tests for migration, switching, per-session cleanup, and route restoration.
+   - Optional follow-up: move native iOS credentials out of localStorage into Keychain-backed storage.
+
+Estimated size:
+
+- Session registry + migration + store names: medium-large, roughly 250-500 lines of production code plus tests.
+- Boot/switching shell: medium-large, roughly 200-400 lines plus tests.
+- Sidebar/account UI: medium, roughly 150-300 lines plus tests.
+- Push/service/auth cleanup and hardening: medium, roughly 150-300 lines plus tests.
+- Total pragmatic first version: roughly 1 to 2 weeks of careful work, depending on how much UI polish and migration coverage we want in the first pass.
+
+Recommended first implementation commit after this design:
+
+- `feat(accounts): add persisted session registry`
+
+That is the correct first step because it creates the account model without carrying a fallback compatibility layer. Once that exists, the rest of the feature can be built as isolated commits instead of one tangled rewrite.
+
+Status as of 2026-03-08:
+
+- The first implementation slice is now done:
+  - persisted session registry,
+  - session-scoped SDK stores and room/thread caches,
+  - active-session boot in router/client init,
+  - add-account auth entry path,
+  - first-pass bottom account rail,
+  - session-aware service-worker/media auth wiring,
+  - session-aware iOS push local state.
+- The next account-management slice is also now done:
+  - active avatar opens an account manager modal,
+  - inactive accounts can be removed from device without affecting the active one.
+- The next hardening slice is also now done:
+  - route-session guards are covered by focused tests,
+  - `ClientRoot` active-session switching is covered by focused tests.
+- The next route-restoration hardening slice is now also done:
+  - active-account route persistence is covered explicitly,
+  - account switching reuses only validated in-app stored paths,
+  - invalid or missing stored paths fall back to `/home`.
+- A follow-up stability fix is also now done:
+  - session-store snapshots used by `useSyncExternalStore` are referentially stable while storage is unchanged,
+  - SSO/session-activation no longer risks React rerender loops from freshly parsed session objects on every snapshot read.
+- A follow-up auth/bootstrap noise fix is also now done:
+  - missing delegated-auth metadata no longer gets re-labeled as a fake OIDC validation failure by `ServerConfigsLoader`,
+  - add-account / startup logs stay focused on the real transport result instead of a secondary misleading validation error.
+- A follow-up auth-routing fix is also now done:
+  - auth-route normalization preserves `?addAccount=1` instead of stripping it,
+  - add-account login/register flows can now stay on the auth page even when another session is already active.
+- A follow-up client-bootstrap fix is also now done:
+  - `ClientRoot` passes its concrete `mx` instance directly into `ServerConfigsLoader`,
+  - server-config bootstrap no longer depends on `useMatrixClient()` at that seam,
+  - second-account SSO login no longer crashes on `MatrixClient not initialized!` before the protected client shell finishes booting.
+- A follow-up tightening fix is also now done:
+  - `ServerConfigsLoader` no longer has any context fallback path,
+  - bootstrap server-config loading requires an explicit `mx` instance,
+  - the prior `ServerConfigsLoader` context-wrapper crash path is removed entirely instead of being left dormant in the bundle.
+- A follow-up multi-account crypto-store fix is also now done:
+  - Rust crypto IndexedDB is now session-scoped too, via an explicit `cryptoDatabasePrefix` passed to `initRustCrypto(...)`,
+  - second-account login no longer reuses the default shared `matrix-js-sdk::matrix-sdk-crypto*` wasm store and crash with "the account in the store doesn't match the account in the constructor",
+  - session-aware cleanup paths now also delete the matching Rust crypto IndexedDB databases, so logout/remove-account/clear-cache stays symmetric with initialization.
+- A follow-up rust-crypto hardening fix is now also done:
+  - active rust-crypto prefixes are now keyed by both `sessionId` and `deviceId`, so re-authing the same account on a different device does not reopen the previous device's wasm store,
+  - live-client cleanup fallbacks now derive the same session/device-scoped prefix from `MatrixClient` identity when local session storage is missing,
+  - cleanup also deletes the older session-only rust-crypto database names so the current device-scoped path remains compatible with prior session-only store naming.
+- A local Playwright harness is now also in place for auth and multi-account verification:
+  - `@playwright/test` is wired up with NixOS-friendly system Chromium detection in `playwright.config.ts`,
+  - `scripts/with-mindroom-tunnel.sh` tunnels local `127.0.0.1:8808` to the remote `ssh mindroom` homeserver on `localhost:8008`,
+  - `scripts/create-mindroom-e2e-account.sh` provisions disposable test accounts directly on the remote homeserver via its registration token,
+  - `scripts/test-e2e-mindroom.sh` combines provisioning, tunneling, and Playwright execution into one command,
+  - `e2e/password-login.spec.ts` and `e2e/auth-router.spec.ts` give stable password-login and direct-router smoke coverage,
+  - `e2e/multi-account.spec.ts` now verifies that the add-account flow stays on the active explicit homeserver instead of jumping back to the default server.
+- Auth router handling is now tightened further:
+  - add-account mode is preserved through reset-password links and reset-password completion,
+  - the register fallback path that redirects back to login also preserves `?addAccount=1`,
+  - the account-switcher add-account action now preserves the active session's homeserver in its login route,
+  - a dedicated router smoke spec now covers direct login/register/reset-password route entry with explicit homeserver segments.
+- Detailed local-run instructions now live in `.docs/E2E_TESTING.md`, including literal router URLs, SSH/tunnel assumptions, and recommended agent workflows.
+- A more exhaustive one-off live browser validation pass is now also done and recorded in `.docs/LIVE_BROWSER_VALIDATION.md`:
+  - local Chromium coverage now includes same-account re-login, three-account switching, multi-tab propagation, storage cleanup inspection, and homeserver outage recovery,
+  - deployed `chat.lab.mindroom.chat` auth-route shells are validated directly even though full deployed login remains SSO-gated,
+  - one real browser-found bug was fixed during this pass: inactive-session cleanup now deletes the real browser IndexedDB sync-store name instead of the constructor alias.
+- Validation completed for this slice:
+  - full `npm run test`,
+  - `npm run build`,
+  - targeted eslint pass on touched files,
+  - a full local live browser batch (`12` Playwright tests) against the SSH-tunneled homeserver,
+  - deployed auth-shell Playwright coverage against `https://chat.lab.mindroom.chat`.
+- Still intentionally not finished in this slice:
+  - broader account-management polish beyond the first modal/rail,
+  - full deployed authenticated multi-account coverage is still blocked by SSO-only login without provider credentials,
+  - native iOS/Safari-specific multi-account behavior is still not covered by the browser harness,
+  - later per-account push/account management UX improvements.
+
+Recommended next implementation commit:
+
+- `test(e2e): cover SSO add-account and deployed authenticated flows`
+
+## Review Hardening (2026-03-09)
+
+Resolved review blockers from the zero-tolerance PR pass and follow-up typed review:
+
+- `src/client/initMatrix.ts`
+  - removed the `.ts` crypto-api import suffix,
+  - narrowed `clearLoginData()` to app-owned IndexedDB stores only,
+  - awaited database deletion completion before reload,
+  - cleared per-session nav/push/cache state during full login-data reset.
+- `src/app/components/ServerConfigsLoader.tsx`
+  - replaced root `matrix-js-sdk` imports with stable lib-path type imports,
+  - kept the explicit-`mx` bootstrap seam,
+  - fixed the regression tests around auth-metadata failure handling.
+- `src/app/utils/iosPush.ts`
+  - restored compatibility with the legacy global `settings.nativePushNotifications`
+    value when no per-session iOS push preference exists yet.
+- `src/app/state/sessions.ts`
+  - allowed cached display name / avatar URL / avatar data URL fields to be
+    explicitly cleared instead of sticking forever via `??`.
+- `src/app/pages/client/sidebar/SettingsTab.tsx`
+  - clears cached avatar thumbnail data when the active account removes its
+    avatar.
+- `src/app/pages/client/ClientRoot.tsx`
+  - redirects to login if the active session disappears, avoiding the
+    last-account multitab `Heating up` dead-end.
+- Follow-up hardening after the next review pass:
+  - `src/client/initMatrix.ts`
+    - `clearLoginData()` now also deletes the legacy unscoped `crypto-store`
+      IndexedDB used by older builds, so upgraded users do not retain stale
+      crypto state after a full login-data reset.
+  - `src/client/initMatrix.test.ts`
+    - removed stale `lastUsedAt` bootstrap fields from `initClient()` tests
+      after narrowing `ClientBootstrapSession`,
+    - fixed the IndexedDB mock request callback typing by invoking `onsuccess`
+      with an actual `IDBOpenDBRequest` receiver,
+    - extended the login-data reset coverage to assert deletion of the legacy
+      plain `crypto-store` database.
+- Final cleanup hardening before merge:
+  - `src/client/initMatrix.ts`
+    - `clearLoginData()` now treats legacy unscoped SDK databases as app-owned
+      only when this app's old `cinny_*` auth footprint is still present,
+      avoiding same-origin deletion of another Matrix app's generic SDK stores,
+    - logout/reset flows now explicitly purge legacy `cinny_*` session keys.
+  - `src/app/state/sessions.ts`
+    - clearing or rewriting the session registry also removes legacy
+      `cinny_*` session keys so stale auth material does not survive reset.
+  - `src/app/pages/client/sessionRouteRestore.ts`
+    - rejects malformed protocol-relative paths like `//evil.com` and falls
+      back to `/home` instead of treating them as valid in-app restore targets.
+  - `src/client/initMatrix.test.ts`
+    - added coverage for legacy-key logout/reset cleanup,
+    - added coverage that shared-origin generic SDK databases are not deleted
+      unless this app's legacy auth state is actually present.
+  - `src/app/state/sessions.test.ts`
+    - added coverage that clearing the session registry also removes legacy
+      `cinny_*` keys.
+  - `src/app/pages/client/sessionRouteRestore.test.ts`
+    - added regression coverage for protocol-relative restore paths.
+
+Validation for this hardening slice:
+
+- Passed: `npm run test` (`57` files / `276` tests)
+- Passed: `npm run build`
+- Passed (targeted): `npm run test -- src/app/pages/client/sessionRouteRestore.test.ts src/app/state/sessions.test.ts src/client/initMatrix.test.ts`
+- Passed (targeted): `npx eslint src/app/pages/client/sessionRouteRestore.ts src/app/pages/client/sessionRouteRestore.test.ts src/app/state/sessions.ts src/app/state/sessions.test.ts src/client/initMatrix.ts src/client/initMatrix.test.ts`
+- Passed (live browser): `E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-storage.spec.ts`
+- Passed: `git diff --check`
+- Passed (filtered): `npm run typecheck -- --pretty false` no longer reports the
+  review-targeted errors for:
+  - `src/client/initMatrix.ts`
+  - `src/client/initMatrix.test.ts`
+  - `src/app/pages/client/sessionRouteRestore.ts`
+  - `src/app/pages/client/sessionRouteRestore.test.ts`
+  - `src/app/state/sessions.ts`
+  - `src/app/state/sessions.test.ts`
+  - `src/app/components/ServerConfigsLoader.tsx`
+  - `src/app/components/ServerConfigsLoader.test.ts`
+
+## Extra Live Validation (2026-03-09)
+
+Additional browser validation completed after the merge-readiness pass:
+
+- `e2e/account-storage.spec.ts`
+  - now seeds legacy `cinny_*` localStorage keys plus unrelated same-origin
+    IndexedDB databases before account removal / final logout,
+  - passed locally against the SSH-tunneled homeserver,
+  - confirmed in a real browser that:
+    - legacy `cinny_*` keys are removed by destructive cleanup,
+    - session-owned IndexedDB databases are removed,
+    - unrelated same-origin IndexedDB databases are preserved.
+- I also probed last-account multitab logout with a temporary stricter auth-shell
+  regression. That exploratory run showed the second tab reaches the auth shell,
+  but on the local tunnel setup the server picker falls back to the configured
+  default (`mindroom.chat`) rather than preserving `http://127.0.0.1:8808`.
+  I treated that as an observation, not a merge-blocking bug, and did not keep
+  the temporary regression.
+
 ## Submission Readiness Check (2026-02-26, macOS/Xcode)
 
 Validation performed on macOS (Xcode + CocoaPods + ImageMagick available):
@@ -910,9 +1565,9 @@ Submission blockers / follow-ups before App Store submission (updated 2026-03-09
 - Signed distribution progress:
   - App Store Connect app record `Mindroom AI` was created for bundle ID `chat.mindroom.app`.
   - Signed Xcode Organizer upload succeeded on 2026-03-09.
-  - Physical-device TestFlight smoke testing is still unchecked in `APP_STORE_COMPLIANCE.md`.
+  - Physical-device TestFlight smoke testing is still unchecked in `.docs/APP_STORE_COMPLIANCE.md`.
 - App Store Connect metadata is still incomplete:
-  - `APP_STORE_SUBMISSION_PACKET.md` now reflects the created App Store app name (`Mindroom AI`) and a conservative App Privacy draft.
+  - `.docs/APP_STORE_SUBMISSION_PACKET.md` now reflects the created App Store app name (`Mindroom AI`) and a conservative App Privacy draft.
   - Reviewer access still needs real credentials or a one-time registration token inserted at submission time.
   - Final App Privacy answers still need confirmation against real hosted production/server logging behavior.
 - Final submission version/build chosen for the uploaded build:
@@ -954,7 +1609,7 @@ Remaining mandatory steps before TestFlight/App Store submission:
   - Select the final Apple team/signing profile in target Signing & Capabilities.
   - Archive and upload the signed build to TestFlight from Xcode Organizer.
 - App Store Connect completion:
-  - Insert the real reviewer credentials or one-time registration token in `APP_STORE_SUBMISSION_PACKET.md` / App Review Information.
+  - Insert the real reviewer credentials or one-time registration token in `.docs/APP_STORE_SUBMISSION_PACKET.md` / App Review Information.
   - Finalize App Privacy answers against real production/server behavior.
 - Final release validation on a TestFlight build:
   - Login/Register

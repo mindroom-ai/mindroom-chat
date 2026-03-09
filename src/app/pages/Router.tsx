@@ -31,12 +31,8 @@ import {
   CREATE_PATH,
 } from './paths';
 import {
-  getAppPathFromHref,
   getExploreFeaturedPath,
-  getHomePath,
   getInboxNotificationsPath,
-  getLoginPath,
-  getOriginBaseUrl,
   getSpaceLobbyPath,
 } from './pathUtils';
 import { ClientBindAtoms, ClientLayout, ClientRoot } from './client';
@@ -67,8 +63,12 @@ import { HomeCreateRoom } from './client/home/CreateRoom';
 import { Create } from './client/create';
 import { CreateSpaceModalRenderer } from '../features/create-space';
 import { SearchModalRenderer } from '../features/search';
-import { getFallbackSession } from '../state/sessions';
 import { getAppBasePath } from '../utils/basePath';
+import {
+  resolveAuthRouteRedirect,
+  resolveProtectedRouteRedirect,
+  resolveRootRouteRedirect,
+} from './routeSessionGuards';
 
 export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize) => {
   const { hashRouter } = clientConfig;
@@ -79,16 +79,18 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
       <Route
         index
         loader={() => {
-          if (getFallbackSession()) return redirect(getHomePath());
-          const afterLoginPath = getAppPathFromHref(getOriginBaseUrl(), window.location.href);
-          if (afterLoginPath) setAfterLoginRedirectPath(afterLoginPath);
-          return redirect(getLoginPath());
+          const decision = resolveRootRouteRedirect(window.location.href);
+          if (decision.afterLoginPath) {
+            setAfterLoginRedirectPath(decision.afterLoginPath);
+          }
+          return redirect(decision.redirectTo);
         }}
       />
       <Route
-        loader={() => {
-          if (getFallbackSession()) {
-            return redirect(getHomePath());
+        loader={({ request }) => {
+          const redirectTo = resolveAuthRouteRedirect(request.url);
+          if (redirectTo) {
+            return redirect(redirectTo);
           }
 
           return null;
@@ -107,14 +109,14 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
 
       <Route
         loader={() => {
-          if (!getFallbackSession()) {
-            const afterLoginPath = getAppPathFromHref(
-              getOriginBaseUrl(hashRouter),
-              window.location.href
-            );
-            if (afterLoginPath) setAfterLoginRedirectPath(afterLoginPath);
-            return redirect(getLoginPath());
+          const decision = resolveProtectedRouteRedirect(window.location.href, hashRouter);
+          if (decision) {
+            if (decision.afterLoginPath) {
+              setAfterLoginRedirectPath(decision.afterLoginPath);
+            }
+            return redirect(decision.redirectTo);
           }
+
           return null;
         }}
         element={
