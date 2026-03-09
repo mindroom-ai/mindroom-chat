@@ -3,7 +3,11 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientRoot } from './ClientRoot';
 import { useActiveSession } from '../../hooks/useSessionStore';
-import { initClient, startClient } from '../../../client/initMatrix';
+import {
+  initClient,
+  removeCurrentClientSessionAndReload,
+  startClient,
+} from '../../../client/initMatrix';
 
 const { passthrough } = vi.hoisted(() => ({
   passthrough: 'div',
@@ -52,6 +56,7 @@ vi.mock('../../../client/initMatrix', () => ({
   clearLoginData: vi.fn().mockResolvedValue(undefined),
   initClient: vi.fn(),
   logoutClient: vi.fn().mockResolvedValue(undefined),
+  removeCurrentClientSessionAndReload: vi.fn().mockResolvedValue(undefined),
   removeSessionAndReload: vi.fn().mockResolvedValue(undefined),
   startClient: vi.fn(),
 }));
@@ -66,7 +71,7 @@ vi.mock('../../components/ServerConfigsLoader', () => ({
     children,
   }: {
     mx?: unknown;
-    children: (config: any) => React.ReactNode;
+    children: (config: unknown) => React.ReactNode;
   }) => {
     if (!mx) {
       throw new Error('ServerConfigsLoader missing mx prop');
@@ -213,5 +218,51 @@ describe('ClientRoot', () => {
 
     expect(vi.mocked(initClient)).not.toHaveBeenCalled();
     expect(vi.mocked(startClient)).not.toHaveBeenCalled();
+  });
+
+  it('uses the session-aware cleanup helper when the server logs the client out', async () => {
+    let logoutHandler:
+      | (() => Promise<void>)
+      | undefined;
+    const client = {
+      stopClient: vi.fn(),
+      on: vi.fn((event: string, handler: () => Promise<void>) => {
+        if (event === 'SessionLoggedOut') {
+          logoutHandler = handler;
+        }
+      }),
+      removeListener: vi.fn(),
+    };
+
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+    };
+
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(initClient).mockResolvedValue(client as never);
+    vi.mocked(startClient).mockResolvedValue(undefined);
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ClientRoot, null, React.createElement('div', null, 'child'))
+      );
+      await flushEffects();
+    });
+
+    expect(logoutHandler).toBeTypeOf('function');
+
+    await act(async () => {
+      await logoutHandler?.();
+    });
+
+    expect(vi.mocked(removeCurrentClientSessionAndReload)).toHaveBeenCalledWith(
+      client,
+      currentSession
+    );
   });
 });

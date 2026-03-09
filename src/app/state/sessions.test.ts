@@ -4,6 +4,8 @@ import {
   clearSessionStore,
   createSessionId,
   getActiveSession,
+  getLegacySessionRustCryptoStorePrefix,
+  getSessionRustCryptoStorePrefix,
   getSessionStore,
   getSessionStoreName,
   getSessionScopedStorageKey,
@@ -90,6 +92,37 @@ describe('sessions', () => {
         accessToken: 'token-b',
         lastKnownDisplayName: 'Alice',
       })
+    );
+  });
+
+  it('uses a device-scoped rust crypto prefix while keeping the account session id stable', () => {
+    const storage = createStorage();
+
+    const initial = putSession(
+      {
+        baseUrl: 'https://example.com/',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_A',
+        accessToken: 'token-a',
+      },
+      undefined,
+      storage
+    );
+    const updated = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_B',
+        accessToken: 'token-b',
+      },
+      undefined,
+      storage
+    );
+
+    expect(updated.sessionId).toBe(initial.sessionId);
+    expect(getSessionRustCryptoStorePrefix(updated)).not.toBe(getSessionRustCryptoStorePrefix(initial));
+    expect(getLegacySessionRustCryptoStorePrefix(updated)).toBe(
+      getLegacySessionRustCryptoStorePrefix(initial)
     );
   });
 

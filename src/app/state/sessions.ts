@@ -435,21 +435,34 @@ export const subscribeToSessionStore = (listener: SessionStoreListener): (() => 
   };
 };
 
-export const getSessionStoreName = (session: StoredSession): SessionStoreName => ({
+export const getSessionStoreName = (session: Pick<StoredSession, 'sessionId'>): SessionStoreName => ({
   sync: `web-sync-store${SESSION_DB_PREFIX}${session.sessionId}`,
   crypto: `crypto-store${SESSION_DB_PREFIX}${session.sessionId}`,
 });
 
-export const getSessionRustCryptoStorePrefix = (
+const getRustCryptoStoreNamesForPrefix = (prefix: string): [string, string] => [
+  `${prefix}${SESSION_DB_PREFIX}matrix-sdk-crypto`,
+  `${prefix}${SESSION_DB_PREFIX}matrix-sdk-crypto-meta`,
+];
+
+export const getLegacySessionRustCryptoStorePrefix = (
   session: Pick<StoredSession, 'sessionId'>
 ): string => `matrix-js-sdk${SESSION_DB_PREFIX}${session.sessionId}`;
 
-export const getSessionRustCryptoStoreNames = (
+export const getSessionRustCryptoStorePrefix = (
+  session: Pick<StoredSession, 'sessionId' | 'deviceId'>
+): string =>
+  `matrix-js-sdk${SESSION_DB_PREFIX}${session.sessionId}${SESSION_DB_PREFIX}${encodeURIComponent(
+    session.deviceId
+  )}`;
+
+export const getLegacySessionRustCryptoStoreNames = (
   session: Pick<StoredSession, 'sessionId'>
-): [string, string] => {
-  const prefix = getSessionRustCryptoStorePrefix(session);
-  return [`${prefix}${SESSION_DB_PREFIX}matrix-sdk-crypto`, `${prefix}${SESSION_DB_PREFIX}matrix-sdk-crypto-meta`];
-};
+): [string, string] => getRustCryptoStoreNamesForPrefix(getLegacySessionRustCryptoStorePrefix(session));
+
+export const getSessionRustCryptoStoreNames = (
+  session: Pick<StoredSession, 'sessionId' | 'deviceId'>
+): [string, string] => getRustCryptoStoreNamesForPrefix(getSessionRustCryptoStorePrefix(session));
 
 export const getSessionScopedStorageKey = (sessionId: string, key: string): string =>
   `${key}${SESSION_DB_PREFIX}${sessionId}`;

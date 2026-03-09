@@ -21,6 +21,7 @@ import {
   clearLoginData,
   initClient,
   logoutClient,
+  removeCurrentClientSessionAndReload,
   removeSessionAndReload,
   startClient,
 } from '../../../client/initMatrix';
@@ -131,14 +132,7 @@ const useLogoutListener = (mx: MatrixClient | undefined, activeSession: StoredSe
   useEffect(() => {
     const handleLogout: HttpApiEventHandlerMap[HttpApiEvent.SessionLoggedOut] = async () => {
       if (!mx) return;
-      if (activeSession) {
-        await removeSessionAndReload(activeSession, mx);
-        return;
-      }
-
-      mx.stopClient();
-      await mx.clearStores();
-      window.location.reload();
+      await removeCurrentClientSessionAndReload(mx, activeSession);
     };
 
     mx?.on(HttpApiEvent.SessionLoggedOut, handleLogout);

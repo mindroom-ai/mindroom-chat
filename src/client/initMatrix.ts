@@ -1,4 +1,5 @@
 import { MatrixClient, IndexedDBStore, IndexedDBCryptoStore } from 'matrix-js-sdk';
+import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api/index.ts';
 
 import { cryptoCallbacks } from './secretStorageKeys';
 import { clearNavToActivePathStore } from '../app/state/navToActivePath';
@@ -10,7 +11,9 @@ import { clearIOSPushState } from '../app/utils/iosPush';
 import {
   StoredSession,
   clearSessionStore,
+  createSessionId,
   getActiveSession,
+  getLegacySessionRustCryptoStoreNames,
   getSessionRustCryptoStoreNames,
   getSessionRustCryptoStorePrefix,
   getSessionStoreName,
@@ -20,6 +23,8 @@ import {
 } from '../app/state/sessions';
 
 export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 5000;
+
+type SessionCleanupContext = Pick<StoredSession, 'sessionId' | 'userId' | 'deviceId'>;
 
 type IndexedDBStoreWithSyncAccumulator = IndexedDBStore & {
   backend?: {
@@ -61,7 +66,7 @@ export const initClient = async (session: StoredSession): Promise<MatrixClient> 
     cryptoStore: legacyCryptoStore,
     deviceId: session.deviceId,
     timelineSupport: true,
-    cryptoCallbacks: cryptoCallbacks as any,
+    cryptoCallbacks: cryptoCallbacks as CryptoCallbacks,
     verificationMethods: ['m.sas.v1'],
   });
 
@@ -92,22 +97,61 @@ const deleteNamedDatabase = async (name: string): Promise<void> => {
   });
 };
 
+const deleteNamedDatabases = async (names: string[]): Promise<void> => {
+  const uniqueNames = Array.from(new Set(names));
+  if (uniqueNames.length === 0) return;
+
+  await Promise.all(uniqueNames.map((name) => deleteNamedDatabase(name)));
+};
+
+const getMatrixClientSessionCleanupContext = (
+  mx: Pick<MatrixClient, 'getDeviceId' | 'getHomeserverUrl' | 'getSafeUserId'>
+): SessionCleanupContext | undefined => {
+  const deviceId = mx.getDeviceId();
+  if (!deviceId) return undefined;
+
+  const userId = mx.getSafeUserId();
+  return {
+    sessionId: createSessionId(mx.getHomeserverUrl(), userId),
+    userId,
+    deviceId,
+  };
+};
+
+const clearMatrixClientStores = async (
+  mx: MatrixClient,
+  session: SessionCleanupContext | undefined = getMatrixClientSessionCleanupContext(mx)
+): Promise<SessionCleanupContext | undefined> => {
+  await Promise.all([
+    session
+      ? mx.clearStores({
+          cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),
+        })
+      : mx.clearStores(),
+    session ? deleteNamedDatabases(getLegacySessionRustCryptoStoreNames(session)) : Promise.resolve(),
+  ]);
+
+  return session;
+};
+
 export const deleteSessionLocalData = async (
-  session: StoredSession,
+  session: SessionCleanupContext,
   mx?: MatrixClient
 ): Promise<void> => {
   clearNavToActivePathStore(session.userId);
 
   const storeNames = getSessionStoreName(session);
-  const rustCryptoStoreNames = getSessionRustCryptoStoreNames(session);
-  const rustCryptoStorePrefix = getSessionRustCryptoStorePrefix(session);
+  const rustCryptoStoreNames = Array.from(
+    new Set([
+      ...getSessionRustCryptoStoreNames(session),
+      ...getLegacySessionRustCryptoStoreNames(session),
+    ])
+  );
 
   await Promise.all([
-    mx
-      ? mx.clearStores({ cryptoDatabasePrefix: rustCryptoStorePrefix })
-      : deleteNamedDatabase(storeNames.sync),
+    mx ? clearMatrixClientStores(mx, session) : deleteNamedDatabase(storeNames.sync),
     mx ? Promise.resolve() : deleteNamedDatabase(storeNames.crypto),
-    mx ? Promise.resolve() : Promise.all(rustCryptoStoreNames.map((name) => deleteNamedDatabase(name))),
+    mx ? Promise.resolve() : deleteNamedDatabases(rustCryptoStoreNames),
     deleteThreadEventCache(session.sessionId),
     deleteRoomEventCache(session.sessionId),
   ]);
@@ -115,12 +159,29 @@ export const deleteSessionLocalData = async (
 };
 
 export const removeSessionAndReload = async (
-  session: StoredSession,
+  session: SessionCleanupContext,
   mx?: MatrixClient
 ): Promise<void> => {
   mx?.stopClient();
   await deleteSessionLocalData(session, mx);
   removeSession(session.sessionId);
+  window.location.reload();
+};
+
+export const removeCurrentClientSessionAndReload = async (
+  mx: MatrixClient,
+  session: SessionCleanupContext | undefined = getMatrixClientSessionCleanupContext(mx)
+): Promise<void> => {
+  mx.stopClient();
+
+  if (session) {
+    await deleteSessionLocalData(session, mx);
+    removeSession(session.sessionId);
+  } else {
+    await clearMatrixClientStores(mx);
+    removeActiveSession();
+  }
+
   window.location.reload();
 };
 
@@ -138,13 +199,9 @@ export const removeStoredSession = async (session: StoredSession): Promise<void>
 export const clearCacheAndReload = async (mx: MatrixClient) => {
   mx.stopClient();
   clearNavToActivePathStore(mx.getSafeUserId());
-  const activeSession = getActiveSession();
+  const activeSession = getActiveSession() ?? getMatrixClientSessionCleanupContext(mx);
   await Promise.all([
-    activeSession
-      ? mx.clearStores({
-          cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(activeSession),
-        })
-      : mx.clearStores(),
+    clearMatrixClientStores(mx, activeSession),
     activeSession ? deleteThreadEventCache(activeSession.sessionId) : Promise.resolve(),
     activeSession ? deleteRoomEventCache(activeSession.sessionId) : Promise.resolve(),
   ]);
@@ -226,14 +283,7 @@ export const logoutClient = async (mx: MatrixClient) => {
   } catch {
     // ignore if failed to logout
   }
-  if (activeSession) {
-    await removeSessionAndReload(activeSession, mx);
-    return;
-  }
-
-  await mx.clearStores();
-  removeActiveSession();
-  window.location.reload();
+  await removeCurrentClientSessionAndReload(mx, activeSession);
 };
 
 export const clearLoginData = async () => {

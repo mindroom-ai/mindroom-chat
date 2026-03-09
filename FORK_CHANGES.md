@@ -19,27 +19,15 @@ Rules followed:
 
 Working tree status (2026-03-09):
 
-- Modified:
-  - `src/app/pages/client/ClientRoot.test.ts`
-  - `src/app/pages/client/ClientRoot.tsx`
-  - `src/app/state/sessions.test.ts`
-  - `src/app/state/sessions.ts`
-  - `src/client/initMatrix.test.ts`
-  - `src/client/initMatrix.ts`
+- Clean after the latest committed slice.
 
 What changed (uncommitted):
 
-- Scoped active rust-crypto IndexedDB prefixes by both `sessionId` and `deviceId`,
-  while retaining explicit legacy session-only store-name cleanup helpers.
-- Hardened session cleanup fallbacks so live clients derive the correct
-  rust-crypto prefix even when session storage is unavailable, and added focused
-  regression tests for session reuse, fallback cache clearing, and logout-event cleanup.
+- None.
 
 Validation (uncommitted):
 
-- Passed: `npx vitest run src/app/state/sessions.test.ts src/client/initMatrix.test.ts src/app/pages/client/ClientRoot.test.ts`
-- Passed: `npx eslint src/app/state/sessions.ts src/client/initMatrix.ts src/app/pages/client/ClientRoot.tsx src/app/state/sessions.test.ts src/client/initMatrix.test.ts src/app/pages/client/ClientRoot.test.ts`
-- Passed: `npm run build`
+- None pending.
 - Failed (pre-existing repo baseline, unrelated to this slice): `npm run typecheck`
   currently reports broad `matrix-js-sdk` import/type mismatches and Jotai atom
   typing errors across many untouched files.
@@ -1190,10 +1178,10 @@ Status as of 2026-03-08:
   - Rust crypto IndexedDB is now session-scoped too, via an explicit `cryptoDatabasePrefix` passed to `initRustCrypto(...)`,
   - second-account login no longer reuses the default shared `matrix-js-sdk::matrix-sdk-crypto*` wasm store and crash with "the account in the store doesn't match the account in the constructor",
   - session-aware cleanup paths now also delete the matching Rust crypto IndexedDB databases, so logout/remove-account/clear-cache stays symmetric with initialization.
-- A follow-up rust-crypto hardening fix is now in the current working tree:
+- A follow-up rust-crypto hardening fix is now also done:
   - active rust-crypto prefixes are now keyed by both `sessionId` and `deviceId`, so re-authing the same account on a different device does not reopen the previous device's wasm store,
   - live-client cleanup fallbacks now derive the same session/device-scoped prefix from `MatrixClient` identity when local session storage is missing,
-  - cleanup also deletes the older session-only rust-crypto database names so the current device-scoped path remains compatible with prior uncommitted/previous-slice store naming.
+  - cleanup also deletes the older session-only rust-crypto database names so the current device-scoped path remains compatible with prior session-only store naming.
 - A local Playwright harness is now also in place for auth and multi-account verification:
   - `@playwright/test` is wired up with NixOS-friendly system Chromium detection in `playwright.config.ts`,
   - `scripts/with-mindroom-tunnel.sh` tunnels local `127.0.0.1:8808` to the remote `ssh mindroom` homeserver on `localhost:8008`,
