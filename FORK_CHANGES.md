@@ -821,17 +821,19 @@ Validation performed on macOS (Xcode + CocoaPods + ImageMagick available):
   - `docs.mindroom.chat` homepage is reachable over HTTPS.
   - App Store preflight script catches auth URL/plist/icon gate requirements before archive.
 
-Submission blockers / follow-ups before App Store submission (updated 2026-03-07):
+Submission blockers / follow-ups before App Store submission (updated 2026-03-09):
 
-- Signed distribution still needs to happen:
-  - Xcode Organizer upload is still unchecked in `APP_STORE_COMPLIANCE.md`.
+- Signed distribution progress:
+  - App Store Connect app record `Mindroom AI` was created for bundle ID `chat.mindroom.app`.
+  - Signed Xcode Organizer upload succeeded on 2026-03-09.
   - Physical-device TestFlight smoke testing is still unchecked in `APP_STORE_COMPLIANCE.md`.
 - App Store Connect metadata is still incomplete:
-  - `APP_STORE_SUBMISSION_PACKET.md` now has concrete subtitle/description/keywords/copyright copy and a conservative App Privacy draft.
+  - `APP_STORE_SUBMISSION_PACKET.md` now reflects the created App Store app name (`Mindroom AI`) and a conservative App Privacy draft.
   - Reviewer access still needs real credentials or a one-time registration token inserted at submission time.
   - Final App Privacy answers still need confirmation against real hosted production/server logging behavior.
-- Final submission version/build still needs an explicit release decision at upload time:
-  - Project settings are now `MARKETING_VERSION=4.10.3` and `CURRENT_PROJECT_VERSION=2`, but the checklist still correctly treats the final upload bump as a release-time gate.
+- Final submission version/build chosen for the uploaded build:
+  - Uploaded build uses `MARKETING_VERSION=4.10.3` and `CURRENT_PROJECT_VERSION=2`.
+  - Any subsequent upload still needs a higher build number.
 - Native push remains optional, not a current submission blocker:
   - The app can ship with `push.ios.enabled=false`.
   - If native push is intended for the first App Store build, APNs credentials and a live Sygnal-compatible push gateway still need to be configured and verified on a physical iPhone before upload.
