@@ -517,6 +517,31 @@ Why:
 - The previous `22x22` raster render made the MindRoom logo appear undersized in
   the sidebar button.
 
+### feat(sidebar): add local MindRoom link badge
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/pages/client/sidebar/MindroomTab.css.ts`
+- `src/app/pages/client/sidebar/MindroomTab.test.ts`
+- `src/app/pages/client/sidebar/MindroomTab.tsx`
+
+What changed:
+
+- Added a small top-left circular link badge to the local MindRoom sidebar
+  shortcut using the existing `SidebarItemBadge` positioning.
+- Reused the shared `Icons.Link` glyph instead of introducing a custom inline
+  SVG for the indicator.
+- Added focused test coverage that the shortcut renders the link badge
+  alongside the MindRoom logo.
+- Updated the runbook working-tree section to reflect the current post-commit
+  local state.
+
+Why:
+
+- The local MindRoom shortcut opens connection-related settings, so the badge
+  gives it a clearer visual cue distinct from unread-count badges.
+
 # Runbook
 
 ## Purpose
