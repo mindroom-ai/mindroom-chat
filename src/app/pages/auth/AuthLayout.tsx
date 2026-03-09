@@ -12,7 +12,7 @@ import {
   useClientConfig,
 } from '../../hooks/useClientConfig';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
-import MindRoomSVG from '../../../../public/res/svg/mindroom.svg';
+import MindRoomLogo from '../../../../public/res/branding/mindroom-logo.png';
 import { ServerPicker } from './ServerPicker';
 import { AutoDiscoveryAction, autoDiscovery } from '../../cs-api';
 import { SpecVersionsLoader } from '../../components/SpecVersionsLoader';
@@ -131,7 +131,7 @@ export function AuthLayout() {
         <Box direction="Column" className={css.AuthCard}>
           <Header className={css.AuthHeader} size="600" variant="Surface">
             <Box grow="Yes" direction="Row" gap="300" alignItems="Center">
-              <img className={css.AuthLogo} src={MindRoomSVG} alt="MindRoom Logo" />
+              <img className={css.AuthLogo} src={MindRoomLogo} alt="MindRoom Logo" />
               <Text size="H3">MindRoom</Text>
             </Box>
           </Header>

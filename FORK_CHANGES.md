@@ -150,6 +150,46 @@ Why:
 
 - Stated in commit subject.
 
+### chore(brand): refresh logo assets and split favicon sources
+
+Files changed:
+
+- `APP_STORE_COMPLIANCE.md`
+- `FORK_CHANGES.md`
+- `ios-build.md`
+- `public/favicon.ico`
+- `public/res/android/android-chrome-36x36.png`
+- `public/res/android/android-chrome-48x48.png`
+- `public/res/android/android-chrome-72x72.png`
+- `public/res/android/android-chrome-96x96.png`
+- `public/res/android/android-chrome-144x144.png`
+- `public/res/android/android-chrome-192x192.png`
+- `public/res/android/android-chrome-256x256.png`
+- `public/res/android/android-chrome-384x384.png`
+- `public/res/android/android-chrome-512x512.png`
+- `public/res/apple/apple-touch-icon-57x57.png`
+- `public/res/apple/apple-touch-icon-60x60.png`
+- `public/res/apple/apple-touch-icon-72x72.png`
+- `public/res/apple/apple-touch-icon-76x76.png`
+- `public/res/apple/apple-touch-icon-114x114.png`
+- `public/res/apple/apple-touch-icon-120x120.png`
+- `public/res/apple/apple-touch-icon-144x144.png`
+- `public/res/apple/apple-touch-icon-152x152.png`
+- `public/res/apple/apple-touch-icon-167x167.png`
+- `public/res/apple/apple-touch-icon-180x180.png`
+- `public/res/branding/mindroom-favicon.png`
+- `public/res/branding/mindroom-favicon-source.png`
+- `src/app/pages/client/ClientNonUIFeatures.tsx`
+
+What changed:
+
+- Switched browser favicon and notification icon usage to an optimized MindRoom favicon PNG, and kept a separate master PNG for web/PWA icon generation.
+- Kept native iOS AppIcon and splash generation on the opaque square branding source and clarified that split in the docs.
+
+Why:
+
+- The white/logo-mark variant is more legible at favicon sizes than the full transparent in-app logo.
+
 ### feat(welcome): refine landing actions and attribution
 
 Files changed:
@@ -955,6 +995,7 @@ Thread badge behavior:
 - iOS submission posture has been hardened: stricter ATS behavior, explicit media permission strings, secure homeserver URL enforcement, registration-enabled flow, and Apple-aware SSO provider handling.
 - iOS app icon assets are now generated for all standard iPhone/iPad slots, and preflight checks enforce icon completeness before archive.
 - Native iOS push plumbing is now present in the app and iOS project, but default runtime config still leaves push disabled until a real APNs/Sygnal deployment is configured.
+- Branding assets now use repo-local PNG sources under `public/res/branding/`, with the transparent logo used in-app, the optimized `mindroom-favicon.png` used for browser/runtime favicon updates, the master `mindroom-favicon-source.png` used for web/PWA icon generation, and the square logo driving native iOS icon/splash generation.
 - Submission docs now include a checklist plus a paste-ready App Store metadata/review-notes packet.
 - Left sidebar now includes a MindRoom shortcut button (logo icon) that opens Local MindRoom onboarding.
 - Release automation now supports per-commit `dev` tagging in `v<base_version>-mindroom.<n>` format with base-version-aware incrementing.
