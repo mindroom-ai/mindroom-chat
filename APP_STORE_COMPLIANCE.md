@@ -1,11 +1,11 @@
 # MindRoom iOS App Store Compliance Checklist
 
-Last updated: 2026-03-07
+Last updated: 2026-03-09
 
 Use this checklist before every TestFlight/App Store submission.
 Use `APP_STORE_SUBMISSION_PACKET.md` to populate App Store Connect metadata and review notes.
 
-## Current Progress (2026-03-07)
+## Current Progress (2026-03-09)
 
 Use this section as the live status for the current submission attempt. Keep the main checklist below as the reusable template.
 
@@ -25,12 +25,13 @@ Use this section as the live status for the current submission attempt. Keep the
 - [x] Web/PWA icon assets now derive from the repo-local favicon master source `public/res/branding/mindroom-favicon-source.png`, while the browser/runtime favicon uses the optimized `public/res/branding/mindroom-favicon.png`.
 - [x] Re-test on physical iPhone after switching Capacitor Keyboard resize mode to `native` (fix confirmed for predictive/autocorrect bar overlapping room composer).
 - [x] Manual physical iPhone smoke test: message send/receive works, microphone recording works, camera permission works, photo library permission works, and account deactivation flow works.
-- [ ] Signed Xcode archive upload from Organizer.
+- [x] App Store Connect app record created as `Mindroom AI` with bundle ID `chat.mindroom.app`.
+- [x] Signed Xcode archive upload from Organizer.
 - [ ] TestFlight smoke test on physical iPhone (login, register, Apple SSO, media permissions, account deletion entry).
 - [x] Homeserver used for submission exposes Apple SSO provider (`https://mindroom.chat/_matrix/client/v3/login` returns `m.login.sso` with Apple provider metadata).
 - [x] Review-access requirement clarified: `mindroom.chat` registration is token-gated (`m.login.registration_token`), so App Review must receive a temporary account or one-time registration token.
 - [x] `config.json` support/privacy/terms URLs point to final public endpoints (`https://docs.mindroom.chat/support`, `/privacy`, `/terms`) and are reachable.
-- [ ] Set final App Store version/build in Xcode (`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`) before upload.
+- [x] Final uploaded version/build is `4.10.3` / `2`.
 - [ ] Complete App Store Connect metadata, App Privacy answers, and review notes packet (packet copy is now mostly drafted; reviewer credentials/token still need to be inserted).
 
 ## References (Apple)

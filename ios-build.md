@@ -44,7 +44,7 @@ Or open `ios/App/App.xcworkspace` directly in Xcode.
 2. Select the "App" target
 3. Go to "Signing & Capabilities"
 4. Select your Apple Developer team
-5. Set bundle ID to your app ID (for example `com.mindroom-ai.app`)
+5. Set bundle ID to your app ID (for example `chat.mindroom.app`)
 
 ## Build & Run (Debug)
 

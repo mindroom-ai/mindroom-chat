@@ -1,13 +1,14 @@
 # MindRoom iOS App Store Submission Packet
 
-Last updated: 2026-03-07
+Last updated: 2026-03-09
 
 Use this file to paste content directly into App Store Connect.
 
-## Current Packet Progress (2026-03-07)
+## Current Packet Progress (2026-03-09)
 
 - [x] Reviewer note template drafted below.
 - [x] Product summary / fork positioning note available.
+- [x] App Store Connect app record created as `Mindroom AI` because `MindRoom` was unavailable.
 - [ ] Insert temporary reviewer credentials or a one-time registration token in App Review Information before submission.
 - [x] Confirm final public Support / Privacy / Terms URLs.
 - [x] Fill App Store Connect subtitle and copyright.
@@ -17,7 +18,7 @@ Use this file to paste content directly into App Store Connect.
 ## 1) App Review Notes (Paste As-Is, Then Edit Bracketed Fields)
 
 ```text
-MindRoom is a Matrix client app optimized for AI-agent workflows.
+Mindroom AI is a Matrix client app optimized for AI-agent workflows.
 
 Important behavior for review:
 - This iOS build supports both existing-account login and account creation.
@@ -49,7 +50,7 @@ Reviewer access to include at submission time:
 
 ## 2) Metadata Completion Checklist
 
-- App Name: `MindRoom`
+- App Name: `Mindroom AI`
 - Subtitle: `Free your AI from app silos`
 - Category: `Social Networking` (or your final selected category)
 - Promotional Text:
@@ -61,7 +62,7 @@ Your AI is trapped in apps. We set it free.
 - Description:
 
 ```text
-MindRoom is a Matrix client built for AI-agent collaboration.
+Mindroom AI is a Matrix client built for AI-agent collaboration.
 
 Use secure threaded chat, voice messages, and media sharing in Matrix rooms while keeping compatibility with existing Matrix accounts and homeservers. The app is optimized for fast edit rendering, thread-heavy workflows, and visibility into AI tool and run activity.
 
@@ -72,14 +73,14 @@ Features:
 - In-app account deactivation entry point
 - Open-source client based on Cinny and adapted for MindRoom workflows
 
-MindRoom can connect to your chosen Matrix homeserver. Availability of registration, SSO providers, moderation, and retention policies depends on the homeserver you use.
+Mindroom AI can connect to your chosen Matrix homeserver. Availability of registration, SSO providers, moderation, and retention policies depends on the homeserver you use.
 ```
 
 - Keywords: `matrix,chat,ai agents,threads,encryption,collaboration`
 - Support URL: must be public and live.
 - Privacy Policy URL: must be public and live (required).
 - Marketing URL: optional.
-- Copyright: `2026 MindRoom Team`
+- Copyright: `2026 Bas Nijholt` (individual account) or your final legal entity name
 - Demo account for review: required if using `mindroom.chat`, because self-signup currently requires a registration token.
 - Ensure Support/Privacy/Terms URLs are final legal/support pages before submission (not placeholders).
 
