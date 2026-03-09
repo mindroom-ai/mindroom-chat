@@ -114,7 +114,7 @@ npm run ios:icons
 
 - `npx cap sync ios` must be run before each archive so `ios/App/App/public`, `config.xml`, and `capacitor.config.json` are regenerated.
 - Xcode shows native iOS asset-catalog images (AppIcon/Splash), not the in-app transparent logo directly. If branding changes in `public/res/branding/mindroom-logo-square.png`, re-render native icon/splash assets and rebuild.
-- Web/PWA favicon assets are generated separately from `public/res/branding/mindroom-favicon.png`.
+- Web/PWA favicon assets are generated from `public/res/branding/mindroom-favicon-source.png`, while the browser/runtime favicon uses the optimized `public/res/branding/mindroom-favicon.png`.
 - `NSAppTransportSecurity` allows cleartext only for local-network homeservers; non-local homeservers must use HTTPS.
 - For this build profile, registration is enabled and Apple SSO provider support is required in homeserver auth flows.
 - The app includes usage descriptions for microphone/camera/photo-library access to support voice and media attachment flows.

@@ -187,11 +187,12 @@ Files changed:
 - `public/res/apple/apple-touch-icon-167x167.png`
 - `public/res/apple/apple-touch-icon-180x180.png`
 - `public/res/branding/mindroom-favicon.png`
+- `public/res/branding/mindroom-favicon-source.png`
 - `src/app/pages/client/ClientNonUIFeatures.tsx`
 
 What changed:
 
-- Switched browser favicon, notification icon, and web/PWA icon generation to a dedicated MindRoom favicon PNG.
+- Switched browser favicon and notification icon usage to an optimized MindRoom favicon PNG, and kept a separate master PNG for web/PWA icon generation.
 - Kept native iOS AppIcon and splash generation on the opaque square branding source and clarified that split in the docs.
 
 Why:
@@ -674,7 +675,7 @@ Thread badge behavior:
 - iOS submission posture has been hardened: stricter ATS behavior, explicit media permission strings, secure homeserver URL enforcement, registration-enabled flow, and Apple-aware SSO provider handling.
 - iOS app icon assets are now generated for all standard iPhone/iPad slots, and preflight checks enforce icon completeness before archive.
 - Native iOS push plumbing is now present in the app and iOS project, but default runtime config still leaves push disabled until a real APNs/Sygnal deployment is configured.
-- Branding assets now use repo-local PNG sources under `public/res/branding/`, with the transparent logo used in-app and the square logo driving favicon/PWA/iOS asset generation.
+- Branding assets now use repo-local PNG sources under `public/res/branding/`, with the transparent logo used in-app, the optimized `mindroom-favicon.png` used for browser/runtime favicon updates, the master `mindroom-favicon-source.png` used for web/PWA icon generation, and the square logo driving native iOS icon/splash generation.
 - Submission docs now include a checklist plus a paste-ready App Store metadata/review-notes packet.
 - Left sidebar now includes a MindRoom shortcut button (logo icon) that opens Local MindRoom onboarding.
 - Release automation now supports per-commit `dev` tagging in `v<base_version>-mindroom.<n>` format with base-version-aware incrementing.
