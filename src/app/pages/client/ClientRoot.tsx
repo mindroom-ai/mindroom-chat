@@ -299,7 +299,7 @@ export function ClientRoot({ children }: ClientRootProps) {
         <ClientRootLoading />
       ) : (
         <MatrixClientProvider value={mx}>
-          <ServerConfigsLoader>
+          <ServerConfigsLoader mx={mx}>
             {(serverConfigs) => (
               <CapabilitiesProvider value={serverConfigs.capabilities ?? {}}>
                 <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>

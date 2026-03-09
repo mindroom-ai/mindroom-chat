@@ -61,8 +61,23 @@ vi.mock('../../components/splash-screen', () => ({
 }));
 
 vi.mock('../../components/ServerConfigsLoader', () => ({
-  ServerConfigsLoader: ({ children }: { children: (config: any) => React.ReactNode }) =>
-    React.createElement('div', null, children({ capabilities: {}, mediaConfig: {}, authMetadata: undefined })),
+  ServerConfigsLoader: ({
+    mx,
+    children,
+  }: {
+    mx?: unknown;
+    children: (config: any) => React.ReactNode;
+  }) => {
+    if (!mx) {
+      throw new Error('ServerConfigsLoader missing mx prop');
+    }
+
+    return React.createElement(
+      'div',
+      null,
+      children({ capabilities: {}, mediaConfig: {}, authMetadata: undefined })
+    );
+  },
 }));
 
 vi.mock('../../hooks/useCapabilities', () => ({

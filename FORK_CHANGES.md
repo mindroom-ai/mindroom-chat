@@ -604,6 +604,27 @@ Why:
 
 - Fixes the real add-account redirect bug on active sessions: `?addAccount=1` was being dropped during auth-route normalization, which made the router immediately treat the page as a normal auth route and bounce the user back into the already-active account.
 
+### fix(client): avoid bootstrap context dependency in server config loading
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/components/ServerConfigsLoader.test.ts`
+- `src/app/components/ServerConfigsLoader.tsx`
+- `src/app/pages/client/ClientRoot.test.ts`
+- `src/app/pages/client/ClientRoot.tsx`
+
+What changed:
+
+- Split `ServerConfigsLoader` so it can run either from the Matrix client context or from an explicit `mx` prop without touching `useMatrixClient()`.
+- Changed `ClientRoot` to pass its already-initialized `mx` instance directly into `ServerConfigsLoader` during bootstrap.
+- Added regression coverage proving `ServerConfigsLoader` can load configs without any Matrix client context when an explicit client instance is provided.
+- Tightened `ClientRoot` test coverage so the bootstrap path now fails if `ClientRoot` stops passing that explicit `mx` prop.
+
+Why:
+
+- Fixes the add-account SSO regression where the protected route could hit `ServerConfigsLoader` before the Matrix client context was reliably available, throwing `MatrixClient not initialized!` immediately after successful second-account login.
+
 # Runbook
 
 ## Purpose
@@ -1125,6 +1146,10 @@ Status as of 2026-03-08:
 - A follow-up auth-routing fix is also now done:
   - auth-route normalization preserves `?addAccount=1` instead of stripping it,
   - add-account login/register flows can now stay on the auth page even when another session is already active.
+- A follow-up client-bootstrap fix is also now done:
+  - `ClientRoot` passes its concrete `mx` instance directly into `ServerConfigsLoader`,
+  - server-config bootstrap no longer depends on `useMatrixClient()` at that seam,
+  - second-account SSO login no longer crashes on `MatrixClient not initialized!` before the protected client shell finishes booting.
 - Validation completed for this slice:
   - full `npm run test`,
   - `npm run build`,
