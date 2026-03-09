@@ -159,6 +159,45 @@ Why:
 
 - Stated in commit subject.
 
+### chore(brand): refresh logo assets and split favicon sources
+
+Files changed:
+
+- `APP_STORE_COMPLIANCE.md`
+- `FORK_CHANGES.md`
+- `ios-build.md`
+- `public/favicon.ico`
+- `public/res/android/android-chrome-36x36.png`
+- `public/res/android/android-chrome-48x48.png`
+- `public/res/android/android-chrome-72x72.png`
+- `public/res/android/android-chrome-96x96.png`
+- `public/res/android/android-chrome-144x144.png`
+- `public/res/android/android-chrome-192x192.png`
+- `public/res/android/android-chrome-256x256.png`
+- `public/res/android/android-chrome-384x384.png`
+- `public/res/android/android-chrome-512x512.png`
+- `public/res/apple/apple-touch-icon-57x57.png`
+- `public/res/apple/apple-touch-icon-60x60.png`
+- `public/res/apple/apple-touch-icon-72x72.png`
+- `public/res/apple/apple-touch-icon-76x76.png`
+- `public/res/apple/apple-touch-icon-114x114.png`
+- `public/res/apple/apple-touch-icon-120x120.png`
+- `public/res/apple/apple-touch-icon-144x144.png`
+- `public/res/apple/apple-touch-icon-152x152.png`
+- `public/res/apple/apple-touch-icon-167x167.png`
+- `public/res/apple/apple-touch-icon-180x180.png`
+- `public/res/branding/mindroom-favicon.png`
+- `src/app/pages/client/ClientNonUIFeatures.tsx`
+
+What changed:
+
+- Switched browser favicon, notification icon, and web/PWA icon generation to a dedicated MindRoom favicon PNG.
+- Kept native iOS AppIcon and splash generation on the opaque square branding source and clarified that split in the docs.
+
+Why:
+
+- The white/logo-mark variant is more legible at favicon sizes than the full transparent in-app logo.
+
 ### feat(welcome): refine landing actions and attribution
 
 Files changed:
