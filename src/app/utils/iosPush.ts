@@ -38,6 +38,7 @@ export type IOSPushConfig = {
 const PUSH_TOKEN_STORAGE_KEY = 'mindroom_ios_push_token';
 const PUSH_PROFILE_TAG_STORAGE_KEY = 'mindroom_ios_push_profile_tag';
 const PUSH_ENABLED_STORAGE_KEY = 'mindroom_ios_push_enabled';
+const LEGACY_SETTINGS_STORAGE_KEY = 'settings';
 export const IOS_PUSH_STATE_EVENT = 'mindroom-ios-push-state-changed';
 
 const trimConfigValue = (value: unknown): string | undefined => {
@@ -109,6 +110,22 @@ const defaultLanguage = (): string => {
 };
 
 const generateProfileTag = (): string => Math.random().toString(36).slice(2, 10);
+
+const getLegacyIOSPushEnabled = (): boolean | undefined => {
+  const rawSettings = readStorage(LEGACY_SETTINGS_STORAGE_KEY);
+  if (!rawSettings) return undefined;
+
+  try {
+    const parsed = JSON.parse(rawSettings) as { nativePushNotifications?: unknown };
+    if (typeof parsed.nativePushNotifications === 'boolean') {
+      return parsed.nativePushNotifications;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+};
 
 export const isNativeIOSPlatform = (): boolean =>
   Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
@@ -225,6 +242,9 @@ export const getIOSPushEnabled = (sessionId?: string): boolean => {
   const storageKey = resolveScopedStorageKey(PUSH_ENABLED_STORAGE_KEY, sessionId);
   const stored = trimConfigValue(readStorage(storageKey));
   if (stored === '0' || stored === 'false') return false;
+  if (stored) return true;
+  const legacyValue = getLegacyIOSPushEnabled();
+  if (legacyValue !== undefined) return legacyValue;
   return true;
 };
 

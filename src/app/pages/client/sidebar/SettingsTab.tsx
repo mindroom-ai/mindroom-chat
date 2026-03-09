@@ -54,7 +54,13 @@ export function SettingsTab() {
   }, [activeSession, displayName, profile.avatarUrl]);
 
   useEffect(() => {
-    if (!activeSession || !avatarUrl) return undefined;
+    if (!activeSession) return undefined;
+    if (!avatarUrl) {
+      updateSessionProfile(activeSession.sessionId, {
+        lastKnownAvatarDataUrl: undefined,
+      });
+      return undefined;
+    }
     let disposed = false;
 
     fetch(avatarUrl)

@@ -1444,6 +1444,46 @@ Recommended next implementation commit:
 
 - `test(e2e): cover SSO add-account and deployed authenticated flows`
 
+## Review Hardening (2026-03-09)
+
+Resolved review blockers from the zero-tolerance PR pass and follow-up typed review:
+
+- `src/client/initMatrix.ts`
+  - removed the `.ts` crypto-api import suffix,
+  - narrowed `clearLoginData()` to app-owned IndexedDB stores only,
+  - awaited database deletion completion before reload,
+  - cleared per-session nav/push/cache state during full login-data reset.
+- `src/app/components/ServerConfigsLoader.tsx`
+  - replaced root `matrix-js-sdk` imports with stable lib-path type imports,
+  - kept the explicit-`mx` bootstrap seam,
+  - fixed the regression tests around auth-metadata failure handling.
+- `src/app/utils/iosPush.ts`
+  - restored compatibility with the legacy global `settings.nativePushNotifications`
+    value when no per-session iOS push preference exists yet.
+- `src/app/state/sessions.ts`
+  - allowed cached display name / avatar URL / avatar data URL fields to be
+    explicitly cleared instead of sticking forever via `??`.
+- `src/app/pages/client/sidebar/SettingsTab.tsx`
+  - clears cached avatar thumbnail data when the active account removes its
+    avatar.
+- `src/app/pages/client/ClientRoot.tsx`
+  - redirects to login if the active session disappears, avoiding the
+    last-account multitab `Heating up` dead-end.
+
+Validation for this hardening slice:
+
+- Passed: `npm run test` (`57` files / `275` tests)
+- Passed: `npm run build`
+- Passed: `git diff --check`
+- Passed (filtered): `npm run typecheck -- --pretty false` no longer reports the
+  review-targeted errors for:
+  - `src/client/initMatrix.ts`
+  - `src/app/components/ServerConfigsLoader.tsx`
+  - `src/app/components/ServerConfigsLoader.test.ts`
+  - `src/app/utils/iosPush.ts`
+  - `src/app/state/sessions.ts`
+  - `src/app/pages/client/ClientRoot.tsx`
+
 ## Submission Readiness Check (2026-02-26, macOS/Xcode)
 
 Validation performed on macOS (Xcode + CocoaPods + ImageMagick available):

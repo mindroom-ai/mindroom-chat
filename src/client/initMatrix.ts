@@ -1,5 +1,7 @@
-import { MatrixClient, IndexedDBStore, IndexedDBCryptoStore } from 'matrix-js-sdk';
-import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api/index.ts';
+import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
+import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api';
+import type { MatrixClient } from 'matrix-js-sdk/lib/client';
+import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 
 import { cryptoCallbacks } from './secretStorageKeys';
 import { clearNavToActivePathStore } from '../app/state/navToActivePath';
@@ -48,13 +50,20 @@ export const configureLargeSyncArchive = (indexedDBStore: IndexedDBStore): void 
   );
 };
 
-export const initClient = async (session: StoredSession): Promise<MatrixClient> => {
+export type ClientBootstrapSession = Pick<
+  StoredSession,
+  'sessionId' | 'baseUrl' | 'userId' | 'deviceId' | 'accessToken'
+>;
+
+export const initClient = async (session: ClientBootstrapSession): Promise<MatrixClient> => {
   const storeNames = getSessionStoreName(session);
-  const indexedDBStore = new IndexedDBStore({
-    indexedDB: global.indexedDB,
-    localStorage: global.localStorage,
-    dbName: storeNames.sync,
-  });
+  const indexedDBStore = new IndexedDBStore(
+    {
+      indexedDB: global.indexedDB,
+      localStorage: global.localStorage as Storage,
+      dbName: storeNames.sync,
+    } as ConstructorParameters<typeof IndexedDBStore>[0]
+  );
   configureLargeSyncArchive(indexedDBStore);
 
   const legacyCryptoStore = new IndexedDBCryptoStore(global.indexedDB, storeNames.crypto);
@@ -67,7 +76,7 @@ export const initClient = async (session: StoredSession): Promise<MatrixClient> 
     cryptoStore: legacyCryptoStore,
     deviceId: session.deviceId,
     timelineSupport: true,
-    cryptoCallbacks: cryptoCallbacks as CryptoCallbacks,
+    cryptoCallbacks: cryptoCallbacks as unknown as CryptoCallbacks,
     verificationMethods: ['m.sas.v1'],
   });
 
@@ -104,6 +113,13 @@ const deleteNamedDatabases = async (names: string[]): Promise<void> => {
 
   await Promise.all(uniqueNames.map((name) => deleteNamedDatabase(name)));
 };
+
+const APP_OWNED_INDEXED_DB_PREFIXES = ['matrix-js-sdk:', 'matrix-js-sdk::', 'crypto-store::'];
+const APP_OWNED_INDEXED_DB_NAMES = ['mindroom-room-event-cache', 'mindroom-thread-event-cache'];
+
+const isAppOwnedIndexedDbName = (name: string): boolean =>
+  APP_OWNED_INDEXED_DB_PREFIXES.some((prefix) => name.startsWith(prefix)) ||
+  APP_OWNED_INDEXED_DB_NAMES.includes(name);
 
 const getMatrixClientSessionCleanupContext = (
   mx: Pick<MatrixClient, 'getDeviceId' | 'getHomeserverUrl' | 'getSafeUserId'>
@@ -290,13 +306,12 @@ export const logoutClient = async (mx: MatrixClient) => {
 export const clearLoginData = async () => {
   const sessions = listSessions();
   const dbs = await window.indexedDB.databases();
+  const appOwnedDbNames = dbs
+    .map((idbInfo) => idbInfo.name)
+    .filter((name): name is string => Boolean(name))
+    .filter(isAppOwnedIndexedDbName);
 
-  dbs.forEach((idbInfo) => {
-    const { name } = idbInfo;
-    if (name) {
-      window.indexedDB.deleteDatabase(name);
-    }
-  });
+  await deleteNamedDatabases(appOwnedDbNames);
 
   await Promise.all(
     sessions.map((session) =>
@@ -307,6 +322,7 @@ export const clearLoginData = async () => {
     )
   );
   sessions.forEach((session) => {
+    clearNavToActivePathStore(session.userId);
     clearIOSPushState(session.sessionId);
   });
 

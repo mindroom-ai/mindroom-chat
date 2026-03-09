@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ClientRoot } from './ClientRoot';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import {
@@ -41,9 +42,9 @@ vi.mock('folds', async (importOriginal) => {
   };
 });
 
-vi.mock('matrix-js-sdk', () => ({
+vi.mock('matrix-js-sdk/lib/http-api/interface', () => ({
   HttpApiEvent: {
-    SessionLoggedOut: 'SessionLoggedOut',
+    SessionLoggedOut: 'Session.logged_out',
   },
 }));
 
@@ -151,6 +152,30 @@ const toBootstrapSession = (session: {
   accessToken: session.accessToken,
 });
 
+const renderClientRoot = () =>
+  React.createElement(
+    MemoryRouter,
+    {
+      initialEntries: ['/home/'],
+    },
+    React.createElement(
+      Routes,
+      null,
+      React.createElement(Route, {
+        path: '/login/*',
+        element: React.createElement(React.Fragment, null, 'login page'),
+      }),
+      React.createElement(Route, {
+        path: '*',
+        element: React.createElement(
+          ClientRoot,
+          null,
+          React.createElement('div', null, 'child')
+        ),
+      })
+    )
+  );
+
 describe('ClientRoot', () => {
   let renderer: ReactTestRenderer | undefined;
 
@@ -189,9 +214,7 @@ describe('ClientRoot', () => {
     vi.mocked(startClient).mockResolvedValue(undefined);
 
     await act(async () => {
-      renderer = create(
-        React.createElement(ClientRoot, null, React.createElement('div', null, 'child'))
-      );
+      renderer = create(renderClientRoot());
       await flushEffects();
     });
 
@@ -209,7 +232,7 @@ describe('ClientRoot', () => {
 
     await act(async () => {
       renderer?.update(
-        React.createElement(ClientRoot, null, React.createElement('div', null, 'child'))
+        renderClientRoot()
       );
       await flushEffects();
     });
@@ -246,9 +269,7 @@ describe('ClientRoot', () => {
     vi.mocked(startClient).mockResolvedValue(undefined);
 
     await act(async () => {
-      renderer = create(
-        React.createElement(ClientRoot, null, React.createElement('div', null, 'child'))
-      );
+      renderer = create(renderClientRoot());
       await flushEffects();
     });
 
@@ -261,7 +282,7 @@ describe('ClientRoot', () => {
 
     await act(async () => {
       renderer?.update(
-        React.createElement(ClientRoot, null, React.createElement('div', null, 'child'))
+        renderClientRoot()
       );
       await flushEffects();
     });
@@ -275,14 +296,13 @@ describe('ClientRoot', () => {
     vi.mocked(useActiveSession).mockReturnValue(undefined);
 
     await act(async () => {
-      renderer = create(
-        React.createElement(ClientRoot, null, React.createElement('div', null, 'child'))
-      );
+      renderer = create(renderClientRoot());
       await flushEffects();
     });
 
     expect(vi.mocked(initClient)).not.toHaveBeenCalled();
     expect(vi.mocked(startClient)).not.toHaveBeenCalled();
+    expect(renderer?.toJSON()).toEqual('login page');
   });
 
   it('uses the session-aware cleanup helper when the server logs the client out', async () => {
@@ -292,7 +312,7 @@ describe('ClientRoot', () => {
     const client = {
       stopClient: vi.fn(),
       on: vi.fn((event: string, handler: () => Promise<void>) => {
-        if (event === 'SessionLoggedOut') {
+        if (event === 'Session.logged_out') {
           logoutHandler = handler;
         }
       }),
@@ -313,9 +333,7 @@ describe('ClientRoot', () => {
     vi.mocked(startClient).mockResolvedValue(undefined);
 
     await act(async () => {
-      renderer = create(
-        React.createElement(ClientRoot, null, React.createElement('div', null, 'child'))
-      );
+      renderer = create(renderClientRoot());
       await flushEffects();
     });
 
@@ -329,5 +347,40 @@ describe('ClientRoot', () => {
       client,
       currentSession
     );
+  });
+
+  it('redirects to login if the active session disappears after startup', async () => {
+    const client = {
+      stopClient: vi.fn(),
+      on: vi.fn(),
+      removeListener: vi.fn(),
+    };
+
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+    };
+
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(initClient).mockResolvedValue(client as never);
+    vi.mocked(startClient).mockResolvedValue(undefined);
+
+    await act(async () => {
+      renderer = create(renderClientRoot());
+      await flushEffects();
+    });
+
+    currentSession = undefined;
+
+    await act(async () => {
+      renderer?.update(renderClientRoot());
+      await flushEffects();
+    });
+
+    expect(renderer?.toJSON()).toEqual('login page');
   });
 });

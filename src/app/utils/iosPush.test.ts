@@ -185,6 +185,40 @@ describe('resolveIOSPushConfig', () => {
     expect(getIOSPushEnabled('session-a')).toBe(false);
     expect(getIOSPushEnabled('session-b')).toBe(true);
   });
+
+  it('falls back to the legacy global push preference when no session value exists', () => {
+    const storage = new Map<string, string>([
+      ['settings', JSON.stringify({ nativePushNotifications: false })],
+    ]);
+    const localStorageMock = {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value);
+      },
+      removeItem: (key: string) => {
+        storage.delete(key);
+      },
+    };
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        localStorage: localStorageMock,
+        dispatchEvent: () => true,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+      },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
+
+    expect(getIOSPushEnabled('session-a')).toBe(false);
+
+    setIOSPushEnabled(true, 'session-a');
+
+    expect(getIOSPushEnabled('session-a')).toBe(true);
+  });
 });
 
 describe('buildIOSPushPusherRequest', () => {

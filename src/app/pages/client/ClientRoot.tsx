@@ -13,10 +13,13 @@ import {
   Spinner,
   Text,
 } from 'folds';
-import { HttpApiEvent, HttpApiEventHandlerMap, MatrixClient } from 'matrix-js-sdk';
 import FocusTrap from 'focus-trap-react';
 import React, { MouseEventHandler, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { Navigate } from 'react-router-dom';
+import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
+import type { HttpApiEventHandlerMap } from 'matrix-js-sdk/lib/http-api/interface';
 import {
+  ClientBootstrapSession,
   clearCacheAndReload,
   clearLoginData,
   initClient,
@@ -37,6 +40,18 @@ import { SyncStatus } from './SyncStatus';
 import { AuthMetadataProvider } from '../../hooks/useAuthMetadata';
 import { StoredSession } from '../../state/sessions';
 import { useActiveSession } from '../../hooks/useSessionStore';
+import { getLoginPath } from '../pathUtils';
+
+type ClientMatrixClient = Awaited<ReturnType<typeof initClient>> & {
+  on: (
+    event: HttpApiEvent.SessionLoggedOut,
+    listener: HttpApiEventHandlerMap[HttpApiEvent.SessionLoggedOut]
+  ) => unknown;
+  removeListener: (
+    event: HttpApiEvent.SessionLoggedOut,
+    listener: HttpApiEventHandlerMap[HttpApiEvent.SessionLoggedOut]
+  ) => unknown;
+};
 
 function ClientRootLoading() {
   return (
@@ -49,7 +64,13 @@ function ClientRootLoading() {
   );
 }
 
-function ClientRootOptions({ mx, activeSession }: { mx?: MatrixClient; activeSession?: StoredSession }) {
+function ClientRootOptions({
+  mx,
+  activeSession,
+}: {
+  mx?: ClientMatrixClient;
+  activeSession?: StoredSession;
+}) {
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
 
   const handleToggle: MouseEventHandler<HTMLButtonElement> = (evt) => {
@@ -128,7 +149,10 @@ function ClientRootOptions({ mx, activeSession }: { mx?: MatrixClient; activeSes
   );
 }
 
-const useLogoutListener = (mx: MatrixClient | undefined, activeSession: StoredSession | undefined) => {
+const useLogoutListener = (
+  mx: ClientMatrixClient | undefined,
+  activeSession: StoredSession | undefined
+) => {
   useEffect(() => {
     const handleLogout: HttpApiEventHandlerMap[HttpApiEvent.SessionLoggedOut] = async () => {
       if (!mx) return;
@@ -148,19 +172,19 @@ type ClientState =
     }
   | {
       status: 'loading' | 'starting';
-      session: StoredSession;
-      mx?: MatrixClient;
+      session: ClientBootstrapSession;
+      mx?: ClientMatrixClient;
     }
   | {
       status: 'success';
-      session: StoredSession;
-      mx: MatrixClient;
+      session: ClientBootstrapSession;
+      mx: ClientMatrixClient;
     }
   | {
       status: 'error';
-      session: StoredSession;
+      session: ClientBootstrapSession;
       error: Error;
-      mx?: MatrixClient;
+      mx?: ClientMatrixClient;
     };
 
 type ClientRootProps = {
@@ -178,7 +202,7 @@ export function ClientRoot({ children }: ClientRootProps) {
   const activeSessionDeviceId = activeSession?.deviceId;
   const activeSessionAccessToken = activeSession?.accessToken;
   const clientBootstrapSession = useMemo(
-    () =>
+    (): ClientBootstrapSession | undefined =>
       activeSessionId &&
       activeSessionBaseUrl &&
       activeSessionUserId &&
@@ -205,7 +229,7 @@ export function ClientRoot({ children }: ClientRootProps) {
 
   useEffect(() => {
     let disposed = false;
-    let nextClient: MatrixClient | undefined;
+    let nextClient: ClientMatrixClient | undefined;
 
     if (!clientBootstrapSession) {
       setClientState({ status: 'idle' });
@@ -220,7 +244,7 @@ export function ClientRoot({ children }: ClientRootProps) {
 
     const loadClient = async () => {
       try {
-        nextClient = await initClient(clientBootstrapSession);
+        nextClient = (await initClient(clientBootstrapSession)) as ClientMatrixClient;
         if (disposed) {
           nextClient.stopClient();
           return;
@@ -269,7 +293,7 @@ export function ClientRoot({ children }: ClientRootProps) {
 
   useSyncState(
     mx,
-    useCallback((state) => {
+    useCallback((state: string) => {
       if (state === 'PREPARED') {
         setLoading(false);
       }
@@ -281,8 +305,26 @@ export function ClientRoot({ children }: ClientRootProps) {
   }, [activeSession?.sessionId, retryCount]);
 
   if (!activeSession) {
-    return <ClientRootLoading />;
+    return <Navigate to={getLoginPath()} replace />;
   }
+
+  const readyContent = mx ? (
+    <MatrixClientProvider value={mx as never}>
+      <ServerConfigsLoader mx={mx}>
+        {(serverConfigs) => (
+          <CapabilitiesProvider value={serverConfigs.capabilities ?? {}}>
+            <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>
+              <AuthMetadataProvider value={serverConfigs.authMetadata}>
+                {children}
+              </AuthMetadataProvider>
+            </MediaConfigProvider>
+          </CapabilitiesProvider>
+        )}
+      </ServerConfigsLoader>
+    </MatrixClientProvider>
+  ) : (
+    <ClientRootLoading />
+  );
 
   return (
     <SpecVersions baseUrl={activeSession.baseUrl}>
@@ -317,23 +359,7 @@ export function ClientRoot({ children }: ClientRootProps) {
           </Box>
         </SplashScreen>
       )}
-      {clientState.status !== 'error' && (loading || !mx) ? (
-        <ClientRootLoading />
-      ) : (
-        <MatrixClientProvider value={mx}>
-          <ServerConfigsLoader mx={mx}>
-            {(serverConfigs) => (
-              <CapabilitiesProvider value={serverConfigs.capabilities ?? {}}>
-                <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>
-                  <AuthMetadataProvider value={serverConfigs.authMetadata}>
-                    {children}
-                  </AuthMetadataProvider>
-                </MediaConfigProvider>
-              </CapabilitiesProvider>
-            )}
-          </ServerConfigsLoader>
-        </MatrixClientProvider>
-      )}
+      {clientState.status !== 'error' && (loading || !mx) ? <ClientRootLoading /> : readyContent}
     </SpecVersions>
   );
 }

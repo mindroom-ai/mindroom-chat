@@ -1,11 +1,11 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { validateAuthMetadata } from 'matrix-js-sdk';
-import { ServerConfigsLoader } from './ServerConfigsLoader';
+import { validateAuthMetadata } from 'matrix-js-sdk/lib/oidc/validate';
+import { ServerConfigsLoader, type ServerConfigs } from './ServerConfigsLoader';
 
-vi.mock('matrix-js-sdk', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('matrix-js-sdk')>();
+vi.mock('matrix-js-sdk/lib/oidc/validate', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('matrix-js-sdk/lib/oidc/validate')>();
 
   return {
     ...actual,
@@ -23,34 +23,28 @@ describe('ServerConfigsLoader', () => {
     const getCapabilities = vi.fn().mockResolvedValue({ 'm.change_password': { enabled: true } });
     const getMediaConfig = vi.fn().mockResolvedValue({ 'm.upload.size': 1024 });
     const getAuthMetadata = vi.fn().mockRejectedValue(new Error('auth metadata unavailable'));
-    let latestConfigs:
-      | {
-          capabilities?: unknown;
-          mediaConfig?: unknown;
-          authMetadata?: unknown;
-        }
-      | undefined;
+    let latestConfigs: ServerConfigs | undefined;
 
     const renderer = create(
       React.createElement(
-        ServerConfigsLoader,
+        ServerConfigsLoader as never,
         {
           mx: {
             getCapabilities,
             getMediaConfig,
             getAuthMetadata,
           } as never,
-        },
-        (configs) => {
+        } as never,
+        ((configs: ServerConfigs) => {
           latestConfigs = configs;
           return React.createElement('div', null, 'Loaded');
-        }
+        }) as never
       )
     );
 
     await act(async () => {
       await flushPromises();
-    await flushPromises();
+      await flushPromises();
     });
 
     expect(getCapabilities).toHaveBeenCalledTimes(1);
@@ -70,28 +64,22 @@ describe('ServerConfigsLoader', () => {
     const getMediaConfig = vi.fn().mockResolvedValue({ 'm.upload.size': 1024 });
     const getAuthMetadata = vi.fn().mockRejectedValue(new Error('auth metadata unavailable'));
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    let latestConfigs:
-      | {
-          capabilities?: unknown;
-          mediaConfig?: unknown;
-          authMetadata?: unknown;
-        }
-      | undefined;
+    let latestConfigs: ServerConfigs | undefined;
 
     const renderer = create(
       React.createElement(
-        ServerConfigsLoader,
+        ServerConfigsLoader as never,
         {
           mx: {
             getCapabilities,
             getMediaConfig,
             getAuthMetadata,
           } as never,
-        },
-        (configs) => {
+        } as never,
+        ((configs: ServerConfigs) => {
           latestConfigs = configs;
           return React.createElement('div', null, 'Loaded');
-        }
+        }) as never
       )
     );
 

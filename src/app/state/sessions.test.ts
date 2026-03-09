@@ -256,6 +256,48 @@ describe('sessions', () => {
     );
   });
 
+  it('allows cached profile metadata to be explicitly cleared', () => {
+    const storage = createStorage();
+
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_A',
+        accessToken: 'token-a',
+      },
+      undefined,
+      storage
+    );
+
+    updateSessionProfile(
+      session.sessionId,
+      {
+        lastKnownDisplayName: 'Alice',
+        lastKnownAvatarUrl: 'mxc://example/avatar',
+        lastKnownAvatarDataUrl: 'data:image/png;base64,abc',
+      },
+      storage
+    );
+    updateSessionProfile(
+      session.sessionId,
+      {
+        lastKnownDisplayName: undefined,
+        lastKnownAvatarUrl: undefined,
+        lastKnownAvatarDataUrl: undefined,
+      },
+      storage
+    );
+
+    expect(getActiveSession(storage)).toEqual(
+      expect.objectContaining({
+        lastKnownDisplayName: undefined,
+        lastKnownAvatarUrl: undefined,
+        lastKnownAvatarDataUrl: undefined,
+      })
+    );
+  });
+
   it('clears the whole session registry', () => {
     const storage = createStorage({
       [SESSION_STORE_KEY]: JSON.stringify({

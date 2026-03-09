@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { IndexedDBCryptoStore, IndexedDBStore } from 'matrix-js-sdk';
+import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
+import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import {
   clearBrowserCacheAndReload,
   clearCacheAndReload,
+  clearLoginData,
   initClient,
   LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
   logoutClient,
@@ -23,9 +25,11 @@ import { deleteThreadEventCache } from '../app/features/room/threadEventCache';
 import { deleteRoomEventCache } from '../app/features/room/roomEventCache';
 import { clearIOSPushState } from '../app/utils/iosPush';
 
-vi.mock('matrix-js-sdk', () => ({
-  MatrixClient: vi.fn(),
+vi.mock('matrix-js-sdk/lib/store/indexeddb', () => ({
   IndexedDBStore: vi.fn(),
+}));
+
+vi.mock('matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store', () => ({
   IndexedDBCryptoStore: vi.fn(),
 }));
 
@@ -408,6 +412,127 @@ describe('logoutClient', () => {
     expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(sessionId);
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(sessionId);
     expect(stopClient).toHaveBeenCalled();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('clearLoginData', () => {
+  const originalIndexedDB = globalThis.indexedDB;
+  const originalWindow = globalThis.window;
+  const originalLocalStorage = globalThis.localStorage;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+
+    if (originalIndexedDB === undefined) {
+      Reflect.deleteProperty(globalThis, 'indexedDB');
+    } else {
+      Object.defineProperty(globalThis, 'indexedDB', {
+        value: originalIndexedDB,
+        configurable: true,
+      });
+    }
+
+    if (originalWindow === undefined) {
+      Reflect.deleteProperty(globalThis, 'window');
+    } else {
+      Object.defineProperty(globalThis, 'window', {
+        value: originalWindow,
+        configurable: true,
+      });
+    }
+
+    if (originalLocalStorage === undefined) {
+      Reflect.deleteProperty(globalThis, 'localStorage');
+    } else {
+      Object.defineProperty(globalThis, 'localStorage', {
+        value: originalLocalStorage,
+        configurable: true,
+      });
+    }
+  });
+
+  it('deletes only app-owned IndexedDB databases and waits for completion', async () => {
+    const storageState = new Map<string, string>();
+    const localStorageMock = {
+      getItem: vi.fn((key: string) => storageState.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        storageState.set(key, value);
+      }),
+      removeItem: vi.fn((key: string) => {
+        storageState.delete(key);
+      }),
+    };
+    const reload = vi.fn();
+
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
+
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_A',
+        accessToken: 'token-a',
+      },
+      undefined,
+      localStorageMock
+    );
+
+    const deletedDatabaseNames: string[] = [];
+    const deleteDatabase = vi.fn((name: string) => {
+      deletedDatabaseNames.push(name);
+      const request: Partial<IDBOpenDBRequest> = {};
+      queueMicrotask(() => {
+        request.onsuccess?.(new Event('success') as IDBVersionChangeEvent);
+      });
+      return request as IDBOpenDBRequest;
+    });
+
+    const indexedDBMock = {
+      databases: vi.fn().mockResolvedValue([
+        { name: getSessionIndexedDbStoreName(session).sync },
+        { name: getSessionRustCryptoStoreNames(session)[0] },
+        { name: getSessionIndexedDbStoreName(session).crypto },
+        { name: 'mindroom-room-event-cache' },
+        { name: 'mindroom-thread-event-cache' },
+        { name: 'unrelated-db' },
+      ]),
+      deleteDatabase,
+    };
+
+    Object.defineProperty(globalThis, 'indexedDB', {
+      value: indexedDBMock,
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        indexedDB: indexedDBMock,
+        localStorage: localStorageMock,
+        dispatchEvent: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        location: {
+          reload,
+        },
+      },
+      configurable: true,
+    });
+
+    await clearLoginData();
+
+    expect(deletedDatabaseNames).toEqual([
+      getSessionIndexedDbStoreName(session).sync,
+      getSessionRustCryptoStoreNames(session)[0],
+      getSessionIndexedDbStoreName(session).crypto,
+      'mindroom-room-event-cache',
+      'mindroom-thread-event-cache',
+    ]);
+    expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(session.sessionId);
+    expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(session.sessionId);
+    expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(session.sessionId);
     expect(reload).toHaveBeenCalledTimes(1);
   });
 });

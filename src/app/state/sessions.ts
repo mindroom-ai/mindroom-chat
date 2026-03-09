@@ -332,11 +332,20 @@ export const updateSessionProfile = (
   const session = store.sessions.find((item) => item.sessionId === sessionId);
   if (!session) return undefined;
 
+  const hasOwnProfileValue = <K extends keyof typeof profile>(key: K): boolean =>
+    Object.prototype.hasOwnProperty.call(profile, key);
+
   const nextSession: StoredSession = {
     ...session,
-    lastKnownDisplayName: profile.lastKnownDisplayName ?? session.lastKnownDisplayName,
-    lastKnownAvatarUrl: profile.lastKnownAvatarUrl ?? session.lastKnownAvatarUrl,
-    lastKnownAvatarDataUrl: profile.lastKnownAvatarDataUrl ?? session.lastKnownAvatarDataUrl,
+    lastKnownDisplayName: hasOwnProfileValue('lastKnownDisplayName')
+      ? profile.lastKnownDisplayName
+      : session.lastKnownDisplayName,
+    lastKnownAvatarUrl: hasOwnProfileValue('lastKnownAvatarUrl')
+      ? profile.lastKnownAvatarUrl
+      : session.lastKnownAvatarUrl,
+    lastKnownAvatarDataUrl: hasOwnProfileValue('lastKnownAvatarDataUrl')
+      ? profile.lastKnownAvatarDataUrl
+      : session.lastKnownAvatarDataUrl,
   };
   if (
     nextSession.lastKnownDisplayName === session.lastKnownDisplayName &&
