@@ -54,6 +54,8 @@ need to.
 - `e2e/account-storage.spec.ts`
   - inspects `localStorage` and IndexedDB lifecycle
   - verifies inactive-account removal and final logout clean up per-session stores
+  - seeds legacy `cinny_*` keys and unrelated same-origin IndexedDB databases to
+    verify destructive actions clear only the expected app-owned state
 - `e2e/account-multitab.spec.ts`
   - validates account switching and logout propagation across two tabs
 - `e2e/account-offline.spec.ts`

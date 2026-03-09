@@ -314,10 +314,49 @@ E2E_HOMESERVER='https://mindroom.chat' \
   - `/reset-password/...` renders a local reset-password form and preserves `?addAccount=1`.
   - The deployed auth surface is heterogeneous by route, which is important to know for future automation.
 
+### LV-017 Local storage cleanup hardening
+
+- Status: Passed
+- Command:
+  - `E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-storage.spec.ts`
+- Result:
+  - Passed after extending the spec to seed legacy `cinny_*` keys and unrelated
+    same-origin IndexedDB databases before destructive actions.
+- Diagnostics:
+  - `[diag:session storage cleanup] consoleErrors=20 pageErrors=3 requestFailures=7`
+  - No critical diagnostics matched the browser failure filters.
+- Observations:
+  - Inactive-account removal removed only the expected session-owned databases.
+  - Final logout cleared the seeded legacy `cinny_*` keys.
+  - Final logout left unrelated same-origin IndexedDB databases intact.
+  - This gives real-browser evidence that the latest cleanup hardening behaves
+    correctly against actual IndexedDB and localStorage, not just unit-test mocks.
+
+### LV-018 Local multitab final logout probe
+
+- Status: Observed, not promoted to a committed regression
+- Command:
+  - `./scripts/test-e2e-mindroom.sh e2e/account-multitab.spec.ts -g "propagates final logout across tabs back to the auth shell without flicker"`
+- Result:
+  - Explored manually via a temporary stricter regression, then discarded.
+- Diagnostics:
+  - No critical crash signature was surfaced before the exploratory run was removed.
+- Observations:
+  - After last-account logout in one tab, the other tab does reach the auth shell.
+  - On the local SSH-tunneled setup, the auth shell resets the server picker to
+    the configured default (`mindroom.chat`) instead of preserving the prior
+    non-default tunnel homeserver (`http://127.0.0.1:8808`).
+  - I treated that as an environment-specific UX observation rather than a
+    merge-blocking bug and did not keep the stricter temporary regression.
+
 ## Bugs Found During This Validation Pass
 
 - Real bug fixed:
   - inactive-session cleanup targeted the wrong sync IndexedDB name (`web-sync-store::...` instead of the browser’s real `matrix-js-sdk:web-sync-store::...`)
+- Additional real-browser hardening validated:
+  - legacy `cinny_*` localStorage keys are now removed during destructive
+    cleanup, and unrelated same-origin IndexedDB data survives account removal
+    and final logout
 - Test-assumption corrections made during the pass:
   - active account rail label uses display name, not raw Matrix user ID
   - full browser-offline is not a useful proxy for homeserver outage on a local Vite origin

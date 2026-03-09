@@ -1509,6 +1509,7 @@ Validation for this hardening slice:
 - Passed: `npm run build`
 - Passed (targeted): `npm run test -- src/app/pages/client/sessionRouteRestore.test.ts src/app/state/sessions.test.ts src/client/initMatrix.test.ts`
 - Passed (targeted): `npx eslint src/app/pages/client/sessionRouteRestore.ts src/app/pages/client/sessionRouteRestore.test.ts src/app/state/sessions.ts src/app/state/sessions.test.ts src/client/initMatrix.ts src/client/initMatrix.test.ts`
+- Passed (live browser): `E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-storage.spec.ts`
 - Passed: `git diff --check`
 - Passed (filtered): `npm run typecheck -- --pretty false` no longer reports the
   review-targeted errors for:
@@ -1520,9 +1521,25 @@ Validation for this hardening slice:
   - `src/app/state/sessions.test.ts`
   - `src/app/components/ServerConfigsLoader.tsx`
   - `src/app/components/ServerConfigsLoader.test.ts`
-  - `src/app/utils/iosPush.ts`
-  - `src/app/state/sessions.ts`
-  - `src/app/pages/client/ClientRoot.tsx`
+
+## Extra Live Validation (2026-03-09)
+
+Additional browser validation completed after the merge-readiness pass:
+
+- `e2e/account-storage.spec.ts`
+  - now seeds legacy `cinny_*` localStorage keys plus unrelated same-origin
+    IndexedDB databases before account removal / final logout,
+  - passed locally against the SSH-tunneled homeserver,
+  - confirmed in a real browser that:
+    - legacy `cinny_*` keys are removed by destructive cleanup,
+    - session-owned IndexedDB databases are removed,
+    - unrelated same-origin IndexedDB databases are preserved.
+- I also probed last-account multitab logout with a temporary stricter auth-shell
+  regression. That exploratory run showed the second tab reaches the auth shell,
+  but on the local tunnel setup the server picker falls back to the configured
+  default (`mindroom.chat`) rather than preserving `http://127.0.0.1:8808`.
+  I treated that as an observation, not a merge-blocking bug, and did not keep
+  the temporary regression.
 
 ## Submission Readiness Check (2026-02-26, macOS/Xcode)
 

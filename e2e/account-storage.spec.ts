@@ -11,7 +11,13 @@ import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
 } from './helpers/browserDiagnostics';
-import { getExpectedSessionDbNames, readIndexedDbNames } from './helpers/storage';
+import {
+  createIndexedDbNames,
+  getExpectedSessionDbNames,
+  readIndexedDbNames,
+  readLegacySessionStorage,
+  seedLegacySessionStorage,
+} from './helpers/storage';
 
 test('cleans up session-scoped browser storage after account removal and final logout', async ({
   page,
@@ -49,15 +55,24 @@ test('cleans up session-scoped browser storage after account removal and final l
 
   const secondarySession = await getStoredSessionByUsername(page, secondaryCredentials.username);
   const secondaryDbNames = getExpectedSessionDbNames(secondarySession);
+  const foreignDbNames = [
+    'matrix-js-sdk:web-sync-store::foreign-app',
+    'crypto-store::foreign-app',
+    'matrix-js-sdk::foreign-app::DEVICE::matrix-sdk-crypto',
+  ];
+  await seedLegacySessionStorage(page);
+  await createIndexedDbNames(page, foreignDbNames);
   const bothIndexedDbNames = await readIndexedDbNames(page);
   [...primaryDbNames, ...secondaryDbNames].forEach((name) =>
     expect(bothIndexedDbNames).toContain(name)
   );
+  foreignDbNames.forEach((name) => expect(bothIndexedDbNames).toContain(name));
 
   await removeInactiveStoredUsername(page, primaryCredentials.username);
   const afterRemovalIndexedDbNames = await readIndexedDbNames(page);
   primaryDbNames.forEach((name) => expect(afterRemovalIndexedDbNames).not.toContain(name));
   secondaryDbNames.forEach((name) => expect(afterRemovalIndexedDbNames).toContain(name));
+  foreignDbNames.forEach((name) => expect(afterRemovalIndexedDbNames).toContain(name));
 
   await logoutActiveAccount(page);
   await expect(page.locator('input[name="serverInput"]')).toBeVisible();
@@ -68,6 +83,10 @@ test('cleans up session-scoped browser storage after account removal and final l
 
   const finalIndexedDbNames = await readIndexedDbNames(page);
   secondaryDbNames.forEach((name) => expect(finalIndexedDbNames).not.toContain(name));
+  foreignDbNames.forEach((name) => expect(finalIndexedDbNames).toContain(name));
+
+  const legacyStorage = await readLegacySessionStorage(page);
+  Object.values(legacyStorage).forEach((value) => expect(value).toBeNull());
 
   await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'session storage cleanup');
 });
