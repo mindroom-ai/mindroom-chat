@@ -1469,6 +1469,18 @@ Resolved review blockers from the zero-tolerance PR pass and follow-up typed rev
 - `src/app/pages/client/ClientRoot.tsx`
   - redirects to login if the active session disappears, avoiding the
     last-account multitab `Heating up` dead-end.
+- Follow-up hardening after the next review pass:
+  - `src/client/initMatrix.ts`
+    - `clearLoginData()` now also deletes the legacy unscoped `crypto-store`
+      IndexedDB used by older builds, so upgraded users do not retain stale
+      crypto state after a full login-data reset.
+  - `src/client/initMatrix.test.ts`
+    - removed stale `lastUsedAt` bootstrap fields from `initClient()` tests
+      after narrowing `ClientBootstrapSession`,
+    - fixed the IndexedDB mock request callback typing by invoking `onsuccess`
+      with an actual `IDBOpenDBRequest` receiver,
+    - extended the login-data reset coverage to assert deletion of the legacy
+      plain `crypto-store` database.
 
 Validation for this hardening slice:
 
@@ -1478,6 +1490,7 @@ Validation for this hardening slice:
 - Passed (filtered): `npm run typecheck -- --pretty false` no longer reports the
   review-targeted errors for:
   - `src/client/initMatrix.ts`
+  - `src/client/initMatrix.test.ts`
   - `src/app/components/ServerConfigsLoader.tsx`
   - `src/app/components/ServerConfigsLoader.test.ts`
   - `src/app/utils/iosPush.ts`

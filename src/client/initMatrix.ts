@@ -119,7 +119,8 @@ const APP_OWNED_INDEXED_DB_NAMES = ['mindroom-room-event-cache', 'mindroom-threa
 
 const isAppOwnedIndexedDbName = (name: string): boolean =>
   APP_OWNED_INDEXED_DB_PREFIXES.some((prefix) => name.startsWith(prefix)) ||
-  APP_OWNED_INDEXED_DB_NAMES.includes(name);
+  APP_OWNED_INDEXED_DB_NAMES.includes(name) ||
+  name === 'crypto-store';
 
 const getMatrixClientSessionCleanupContext = (
   mx: Pick<MatrixClient, 'getDeviceId' | 'getHomeserverUrl' | 'getSafeUserId'>

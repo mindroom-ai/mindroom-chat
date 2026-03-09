@@ -96,7 +96,6 @@ describe('initClient', () => {
       accessToken: 'token',
       userId: '@user:example.com',
       deviceId: 'DEVICE',
-      lastUsedAt: 1,
     });
 
     expect(vi.mocked(IndexedDBStore)).toHaveBeenCalledWith(
@@ -150,7 +149,6 @@ describe('initClient', () => {
       accessToken: 'token',
       userId: '@user:example.com',
       deviceId: 'DEVICE',
-      lastUsedAt: 1,
     });
 
     expect(syncAccumulator.opts.maxTimelineEntries).toBe(9000);
@@ -484,11 +482,11 @@ describe('clearLoginData', () => {
     const deletedDatabaseNames: string[] = [];
     const deleteDatabase = vi.fn((name: string) => {
       deletedDatabaseNames.push(name);
-      const request: Partial<IDBOpenDBRequest> = {};
+      const request = {} as IDBOpenDBRequest;
       queueMicrotask(() => {
-        request.onsuccess?.(new Event('success') as IDBVersionChangeEvent);
+        request.onsuccess?.call(request, new Event('success'));
       });
-      return request as IDBOpenDBRequest;
+      return request;
     });
 
     const indexedDBMock = {
@@ -496,6 +494,7 @@ describe('clearLoginData', () => {
         { name: getSessionIndexedDbStoreName(session).sync },
         { name: getSessionRustCryptoStoreNames(session)[0] },
         { name: getSessionIndexedDbStoreName(session).crypto },
+        { name: 'crypto-store' },
         { name: 'mindroom-room-event-cache' },
         { name: 'mindroom-thread-event-cache' },
         { name: 'unrelated-db' },
@@ -527,6 +526,7 @@ describe('clearLoginData', () => {
       getSessionIndexedDbStoreName(session).sync,
       getSessionRustCryptoStoreNames(session)[0],
       getSessionIndexedDbStoreName(session).crypto,
+      'crypto-store',
       'mindroom-room-event-cache',
       'mindroom-thread-event-cache',
     ]);
