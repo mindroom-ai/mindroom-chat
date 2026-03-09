@@ -349,6 +349,27 @@ E2E_HOMESERVER='https://mindroom.chat' \
   - I treated that as an environment-specific UX observation rather than a
     merge-blocking bug and did not keep the stricter temporary regression.
 
+### LV-019 Local active-account deactivation with fallback account
+
+- Status: Passed
+- Command:
+  - `E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-deactivation.spec.ts`
+- Result:
+  - Passed after scripting the Settings -> Account -> Delete / Deactivate flow
+    with the password-based UIA confirmation.
+- Diagnostics:
+  - `[diag:active account deactivation with fallback account] consoleErrors=30 pageErrors=5 requestFailures=4`
+  - No critical diagnostics matched the browser failure filters.
+- Observations:
+  - Deactivating the active account removed only that account from the local
+    session store.
+  - The remaining stored account stayed signed in and became the active account
+    after the deactivation logout/reload.
+  - Attempting to log back into the deactivated account showed `This account
+    has been deactivated.`
+  - This gives real-browser evidence that the deactivation flow is scoped to
+    the currently active account rather than wiping all stored accounts.
+
 ## Bugs Found During This Validation Pass
 
 - Real bug fixed:
