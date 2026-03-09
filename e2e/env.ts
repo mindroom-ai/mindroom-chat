@@ -34,6 +34,20 @@ export const getSecondaryCredentials = (): Credentials | undefined => {
   return { username, password };
 };
 
+export const getThirdCredentials = (): Credentials | undefined => {
+  const username = process.env.E2E_THIRD_USERNAME;
+  const password = process.env.E2E_THIRD_PASSWORD;
+
+  if (!username && !password) return undefined;
+  if (!username || !password) {
+    throw new Error(
+      'E2E_THIRD_USERNAME and E2E_THIRD_PASSWORD must both be set to run three-account e2e tests.'
+    );
+  }
+
+  return { username, password };
+};
+
 const buildAuthPath = (
   authRoute: 'login' | 'register' | 'reset-password',
   homeserver: string,

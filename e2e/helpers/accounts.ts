@@ -5,7 +5,10 @@ type BrowserSessionStore = {
   activeSessionId?: string;
   sessions: Array<{
     sessionId: string;
+    baseUrl?: string;
     userId: string;
+    deviceId?: string;
+    lastKnownPath?: string;
   }>;
 };
 
@@ -46,6 +49,14 @@ export const expectActiveStoredUsername = async (page: Page, username: string) =
       return activeSession?.userId;
     })
     .toMatch(new RegExp(`^@${escapeRegex(username)}:`));
+};
+
+export const expectActiveAccountSwitcherForUsername = async (page: Page, username: string) => {
+  await expect(
+    page.getByRole('button', {
+      name: new RegExp(`Open account switcher for @${escapeRegex(username)}:`),
+    })
+  ).toBeVisible();
 };
 
 export const openAccountSwitcher = async (page: Page) => {

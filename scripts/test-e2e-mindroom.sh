@@ -16,4 +16,11 @@ then
   echo "Provisioned disposable secondary e2e account via ${MINDROOM_SSH_HOST:-mindroom}." >&2
 fi
 
+if [ "${E2E_CREATE_THIRD_ACCOUNT:-0}" = "1" ] &&
+  { [ -z "${E2E_THIRD_USERNAME:-}" ] || [ -z "${E2E_THIRD_PASSWORD:-}" ]; }
+then
+  eval "$("${ROOT_DIR}/scripts/create-mindroom-e2e-account.sh" E2E_THIRD)"
+  echo "Provisioned disposable third e2e account via ${MINDROOM_SSH_HOST:-mindroom}." >&2
+fi
+
 "${ROOT_DIR}/scripts/with-mindroom-tunnel.sh" npx playwright test "$@"

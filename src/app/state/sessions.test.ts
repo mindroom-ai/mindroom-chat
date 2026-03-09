@@ -4,6 +4,7 @@ import {
   clearSessionStore,
   createSessionId,
   getActiveSession,
+  getSessionIndexedDbStoreName,
   getLegacySessionRustCryptoStorePrefix,
   getSessionRustCryptoStorePrefix,
   getSessionStore,
@@ -285,6 +286,10 @@ describe('sessions', () => {
 
     expect(getSessionStoreName(session)).toEqual({
       sync: `web-sync-store::${session.sessionId}`,
+      crypto: `crypto-store::${session.sessionId}`,
+    });
+    expect(getSessionIndexedDbStoreName(session)).toEqual({
+      sync: `matrix-js-sdk:web-sync-store::${session.sessionId}`,
       crypto: `crypto-store::${session.sessionId}`,
     });
     expect(getSessionScopedStorageKey(session.sessionId, 'mindroom_ios_push_token')).toBe(

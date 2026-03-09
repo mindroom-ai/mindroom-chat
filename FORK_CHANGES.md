@@ -727,6 +727,41 @@ Why:
 
 - Gives the branch meaningful live validation beyond simple login/add-account smoke tests, so multi-account behavior can be exercised against the real homeserver before relying on it.
 
+### test(e2e): expand live browser validation matrix
+
+Files changed:
+
+- `E2E_TESTING.md`
+- `FORK_CHANGES.md`
+- `LIVE_BROWSER_VALIDATION.md`
+- `e2e/account-multitab.spec.ts`
+- `e2e/account-offline.spec.ts`
+- `e2e/account-relogin.spec.ts`
+- `e2e/account-storage.spec.ts`
+- `e2e/account-three-account.spec.ts`
+- `e2e/deployed-auth-shell.spec.ts`
+- `e2e/env.ts`
+- `e2e/helpers/accounts.ts`
+- `e2e/helpers/storage.ts`
+- `scripts/test-e2e-mindroom.sh`
+- `src/app/state/sessions.test.ts`
+- `src/app/state/sessions.ts`
+- `src/client/initMatrix.test.ts`
+- `src/client/initMatrix.ts`
+
+What changed:
+
+- Added one-off Playwright coverage for same-account re-login, three-account switching, IndexedDB/localStorage cleanup, multi-tab propagation, homeserver outage handling, and deployed auth-shell route validation.
+- Added third-account disposable provisioning support to the local SSH-backed test runner.
+- Added browser-side storage inspection helpers so live runs can verify that logout and inactive-account removal actually clear the intended session data.
+- Added an explicit helper for the real browser IndexedDB names used by the session-scoped sync and crypto stores, and updated inactive-session cleanup to delete those actual names.
+- Recorded the full one-off validation matrix, observed diagnostics, and blocked deployment cases in `LIVE_BROWSER_VALIDATION.md`.
+- Expanded `E2E_TESTING.md` so the router usage guide and live-run instructions cover the larger matrix and current deployed `chat.lab` auth-shell behavior.
+
+Why:
+
+- The earlier harness proved the basic password/add-account flow, but it did not yet exercise the broader web behaviors that can regress in a multi-account client: re-login dedupe, three-account state, multi-tab propagation, session-store cleanup, outage recovery, and route-specific deployed auth behavior. That broader pass also exposed a real cleanup bug where inactive-session removal targeted the constructor store name instead of the actual Chromium IndexedDB sync database name.
+
 # Runbook
 
 ## Purpose
@@ -1280,18 +1315,25 @@ Status as of 2026-03-08:
   - the account-switcher add-account action now preserves the active session's homeserver in its login route,
   - a dedicated router smoke spec now covers direct login/register/reset-password route entry with explicit homeserver segments.
 - Detailed local-run instructions now live in `E2E_TESTING.md`, including literal router URLs, SSH/tunnel assumptions, and recommended agent workflows.
+- A more exhaustive one-off live browser validation pass is now also done and recorded in `LIVE_BROWSER_VALIDATION.md`:
+  - local Chromium coverage now includes same-account re-login, three-account switching, multi-tab propagation, storage cleanup inspection, and homeserver outage recovery,
+  - deployed `chat.lab.mindroom.chat` auth-route shells are validated directly even though full deployed login remains SSO-gated,
+  - one real browser-found bug was fixed during this pass: inactive-session cleanup now deletes the real browser IndexedDB sync-store name instead of the constructor alias.
 - Validation completed for this slice:
   - full `npm run test`,
   - `npm run build`,
-  - targeted eslint pass on touched files.
+  - targeted eslint pass on touched files,
+  - a full local live browser batch (`12` Playwright tests) against the SSH-tunneled homeserver,
+  - deployed auth-shell Playwright coverage against `https://chat.lab.mindroom.chat`.
 - Still intentionally not finished in this slice:
   - broader account-management polish beyond the first modal/rail,
-  - broken-session and last-account recovery paths are still not covered explicitly,
+  - full deployed authenticated multi-account coverage is still blocked by SSO-only login without provider credentials,
+  - native iOS/Safari-specific multi-account behavior is still not covered by the browser harness,
   - later per-account push/account management UX improvements.
 
 Recommended next implementation commit:
 
-- `test(accounts): cover broken-session and removal recovery`
+- `test(e2e): cover SSO add-account and deployed authenticated flows`
 
 ## Submission Readiness Check (2026-02-26, macOS/Xcode)
 

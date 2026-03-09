@@ -11,6 +11,7 @@ import {
 import { createMatrixClient } from './matrixClientFactory';
 import {
   createSessionId,
+  getSessionIndexedDbStoreName,
   getLegacySessionRustCryptoStoreNames,
   getSessionRustCryptoStoreNames,
   getSessionRustCryptoStorePrefix,
@@ -615,8 +616,9 @@ describe('removeStoredSession', () => {
 
     await removeStoredSession(inactiveSession);
 
-    expect(deleteDatabase).toHaveBeenCalledWith(`web-sync-store::${inactiveSession.sessionId}`);
-    expect(deleteDatabase).toHaveBeenCalledWith(`crypto-store::${inactiveSession.sessionId}`);
+    const indexedDbStoreNames = getSessionIndexedDbStoreName(inactiveSession);
+    expect(deleteDatabase).toHaveBeenCalledWith(indexedDbStoreNames.sync);
+    expect(deleteDatabase).toHaveBeenCalledWith(indexedDbStoreNames.crypto);
     const rustCryptoStoreNames = getSessionRustCryptoStoreNames(inactiveSession);
     expect(deleteDatabase).toHaveBeenCalledWith(rustCryptoStoreNames[0]);
     expect(deleteDatabase).toHaveBeenCalledWith(rustCryptoStoreNames[1]);

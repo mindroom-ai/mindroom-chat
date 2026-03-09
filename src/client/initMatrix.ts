@@ -13,6 +13,7 @@ import {
   clearSessionStore,
   createSessionId,
   getActiveSession,
+  getSessionIndexedDbStoreName,
   getLegacySessionRustCryptoStoreNames,
   getSessionRustCryptoStoreNames,
   getSessionRustCryptoStorePrefix,
@@ -140,7 +141,7 @@ export const deleteSessionLocalData = async (
 ): Promise<void> => {
   clearNavToActivePathStore(session.userId);
 
-  const storeNames = getSessionStoreName(session);
+  const indexedDbStoreNames = getSessionIndexedDbStoreName(session);
   const rustCryptoStoreNames = Array.from(
     new Set([
       ...getSessionRustCryptoStoreNames(session),
@@ -149,8 +150,8 @@ export const deleteSessionLocalData = async (
   );
 
   await Promise.all([
-    mx ? clearMatrixClientStores(mx, session) : deleteNamedDatabase(storeNames.sync),
-    mx ? Promise.resolve() : deleteNamedDatabase(storeNames.crypto),
+    mx ? clearMatrixClientStores(mx, session) : deleteNamedDatabase(indexedDbStoreNames.sync),
+    mx ? Promise.resolve() : deleteNamedDatabase(indexedDbStoreNames.crypto),
     mx ? Promise.resolve() : deleteNamedDatabases(rustCryptoStoreNames),
     deleteThreadEventCache(session.sessionId),
     deleteRoomEventCache(session.sessionId),

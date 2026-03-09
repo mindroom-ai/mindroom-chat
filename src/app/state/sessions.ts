@@ -440,6 +440,16 @@ export const getSessionStoreName = (session: Pick<StoredSession, 'sessionId'>): 
   crypto: `crypto-store${SESSION_DB_PREFIX}${session.sessionId}`,
 });
 
+export const getSessionIndexedDbStoreName = (
+  session: Pick<StoredSession, 'sessionId'>
+): SessionStoreName => {
+  const storeNames = getSessionStoreName(session);
+  return {
+    sync: `matrix-js-sdk:${storeNames.sync}`,
+    crypto: storeNames.crypto,
+  };
+};
+
 const getRustCryptoStoreNamesForPrefix = (prefix: string): [string, string] => [
   `${prefix}${SESSION_DB_PREFIX}matrix-sdk-crypto`,
   `${prefix}${SESSION_DB_PREFIX}matrix-sdk-crypto-meta`,

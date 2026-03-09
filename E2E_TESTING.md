@@ -44,6 +44,23 @@ need to.
 - `e2e/account-logout.spec.ts`
   - logout fallback to the remaining stored account
   - final logout back to the auth shell
+- `e2e/account-relogin.spec.ts`
+  - add-account flow for the same Matrix user
+  - proves existing stored sessions are updated instead of duplicated
+- `e2e/account-three-account.spec.ts`
+  - add third account
+  - switch across three stored accounts
+  - reload persistence with three-account state
+- `e2e/account-storage.spec.ts`
+  - inspects `localStorage` and IndexedDB lifecycle
+  - verifies inactive-account removal and final logout clean up per-session stores
+- `e2e/account-multitab.spec.ts`
+  - validates account switching and logout propagation across two tabs
+- `e2e/account-offline.spec.ts`
+  - simulates homeserver outage while keeping the app origin alive
+  - validates reconnect without a crash
+- `e2e/deployed-auth-shell.spec.ts`
+  - validates deployed `chat.lab.mindroom.chat` auth-route shells without needing SSO completion
 
 ## Requirements
 
@@ -93,15 +110,45 @@ E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-switching
 E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-logout.spec.ts
 ```
 
+Three-account validation:
+
+```bash
+E2E_CREATE_SECOND_ACCOUNT=1 E2E_CREATE_THIRD_ACCOUNT=1 \
+  ./scripts/test-e2e-mindroom.sh e2e/account-three-account.spec.ts
+```
+
+Storage and cleanup validation:
+
+```bash
+E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-storage.spec.ts
+```
+
+Multi-tab validation:
+
+```bash
+E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-multitab.spec.ts
+```
+
+Homeserver outage validation:
+
+```bash
+./scripts/test-e2e-mindroom.sh e2e/account-offline.spec.ts
+```
+
 Full local password-auth batch:
 
 ```bash
-E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh \
+E2E_CREATE_SECOND_ACCOUNT=1 E2E_CREATE_THIRD_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh \
   e2e/password-login.spec.ts \
   e2e/auth-router.spec.ts \
   e2e/multi-account.spec.ts \
   e2e/account-switching.spec.ts \
-  e2e/account-logout.spec.ts
+  e2e/account-logout.spec.ts \
+  e2e/account-relogin.spec.ts \
+  e2e/account-three-account.spec.ts \
+  e2e/account-storage.spec.ts \
+  e2e/account-multitab.spec.ts \
+  e2e/account-offline.spec.ts
 ```
 
 Headed mode:
@@ -172,11 +219,17 @@ For multi-account:
 - `E2E_SECOND_USERNAME`
 - `E2E_SECOND_PASSWORD`
 
+For three-account flows:
+
+- `E2E_THIRD_USERNAME`
+- `E2E_THIRD_PASSWORD`
+
 Manual provisioning:
 
 ```bash
 eval "$(./scripts/create-mindroom-e2e-account.sh E2E)"
 eval "$(./scripts/create-mindroom-e2e-account.sh E2E_SECOND)"
+eval "$(./scripts/create-mindroom-e2e-account.sh E2E_THIRD)"
 ```
 
 If you want stable local credentials instead of disposable ones, hardcode them:
@@ -216,9 +269,24 @@ E2E_BASE_URL='https://chat.lab.mindroom.chat' \
 ./scripts/test-e2e-mindroom.sh e2e/auth-router.spec.ts
 ```
 
+Deployed auth-shell validation without full SSO completion:
+
+```bash
+E2E_NO_WEB_SERVER=1 \
+E2E_BASE_URL='https://chat.lab.mindroom.chat' \
+E2E_HOMESERVER='https://mindroom.chat' \
+./scripts/test-e2e-mindroom.sh e2e/deployed-auth-shell.spec.ts
+```
+
 Use this mode only if the deployed build can actually reach the homeserver URL
 you pass in the router path. The safest reproducible path is still the local app
 plus the SSH tunnel.
+
+Important current lab behavior:
+
+- `https://chat.lab.mindroom.chat/login/...` is SSO-only for `https://mindroom.chat`
+- full deployed password-login automation is therefore not currently possible there
+- deployed route-shell validation is still useful and is covered by `e2e/deployed-auth-shell.spec.ts`
 
 ## Useful Environment Variables
 
@@ -258,6 +326,9 @@ For one-off auth debugging:
 3. Run `./scripts/test-e2e-mindroom.sh e2e/password-login.spec.ts`.
 4. If login works, run the multi-account flow:
    - `E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/multi-account.spec.ts`
+5. Expand to the full matrix only after the core flow is green:
+   - `E2E_CREATE_SECOND_ACCOUNT=1 E2E_CREATE_THIRD_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-switching.spec.ts e2e/account-logout.spec.ts e2e/account-relogin.spec.ts e2e/account-three-account.spec.ts e2e/account-storage.spec.ts e2e/account-multitab.spec.ts e2e/account-offline.spec.ts`
+6. Inspect `LIVE_BROWSER_VALIDATION.md` to compare your current result against the last recorded one-off pass.
 5. If add-account passes, run the broader account behaviors:
    - `E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-switching.spec.ts`
    - `E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-logout.spec.ts`
