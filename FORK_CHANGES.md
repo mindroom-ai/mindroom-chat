@@ -188,7 +188,46 @@ What changed:
 
 Why:
 
-- The white/logo-mark variant is more legible at favicon sizes than the full transparent in-app logo.
+- Used a dedicated favicon helper PNG at the time for browser/favicon asset generation.
+
+### fix(brand): switch favicon and PWA assets back to the transparent logo source
+
+Files changed:
+
+- `APP_STORE_COMPLIANCE.md`
+- `FORK_CHANGES.md`
+- `ios-build.md`
+- `public/favicon.ico`
+- `public/res/android/android-chrome-36x36.png`
+- `public/res/android/android-chrome-48x48.png`
+- `public/res/android/android-chrome-72x72.png`
+- `public/res/android/android-chrome-96x96.png`
+- `public/res/android/android-chrome-144x144.png`
+- `public/res/android/android-chrome-192x192.png`
+- `public/res/android/android-chrome-256x256.png`
+- `public/res/android/android-chrome-384x384.png`
+- `public/res/android/android-chrome-512x512.png`
+- `public/res/apple/apple-touch-icon-57x57.png`
+- `public/res/apple/apple-touch-icon-60x60.png`
+- `public/res/apple/apple-touch-icon-72x72.png`
+- `public/res/apple/apple-touch-icon-76x76.png`
+- `public/res/apple/apple-touch-icon-114x114.png`
+- `public/res/apple/apple-touch-icon-120x120.png`
+- `public/res/apple/apple-touch-icon-144x144.png`
+- `public/res/apple/apple-touch-icon-152x152.png`
+- `public/res/apple/apple-touch-icon-167x167.png`
+- `public/res/apple/apple-touch-icon-180x180.png`
+- `public/res/branding/mindroom-favicon.png`
+- `public/res/branding/mindroom-favicon-source.png`
+
+What changed:
+
+- Rebuilt browser favicon, notification icon, and web/PWA icon assets from the existing transparent `mindroom-logo.png` asset.
+- Dropped the redundant `mindroom-favicon-source.png` helper file once the transparent repo-local logo became the single favicon/PWA source.
+
+Why:
+
+- Browser favicon and web app icon formats support alpha, so the transparent logo is the correct source asset.
 
 ### feat(welcome): refine landing actions and attribution
 
@@ -1030,7 +1069,7 @@ Thread badge behavior:
 - iOS submission posture has been hardened: stricter ATS behavior, explicit media permission strings, secure homeserver URL enforcement, registration-enabled flow, and Apple-aware SSO provider handling.
 - iOS app icon assets are now generated for all standard iPhone/iPad slots, and preflight checks enforce icon completeness before archive.
 - Native iOS push plumbing is now present in the app and iOS project, but default runtime config still leaves push disabled until a real APNs/Sygnal deployment is configured.
-- Branding assets now use repo-local PNG sources under `public/res/branding/`, with the transparent logo used in-app, the optimized `mindroom-favicon.png` used for browser/runtime favicon updates, the master `mindroom-favicon-source.png` used for web/PWA icon generation, and the square logo driving native iOS icon/splash generation.
+- Branding assets now use repo-local PNG sources under `public/res/branding/`, with the transparent `mindroom-logo.png` used for in-app branding plus favicon/PWA generation, the optimized `mindroom-favicon.png` used for browser/runtime favicon updates, and the square logo driving native iOS icon/splash generation.
 - Submission docs now include a checklist plus a paste-ready App Store metadata/review-notes packet.
 - Left sidebar now includes a MindRoom shortcut button (logo icon) that opens Local MindRoom onboarding.
 - Release automation now supports per-commit `dev` tagging in `v<base_version>-mindroom.<n>` format with base-version-aware incrementing.
@@ -1354,17 +1393,19 @@ Validation performed on macOS (Xcode + CocoaPods + ImageMagick available):
   - `docs.mindroom.chat` homepage is reachable over HTTPS.
   - App Store preflight script catches auth URL/plist/icon gate requirements before archive.
 
-Submission blockers / follow-ups before App Store submission (updated 2026-03-07):
+Submission blockers / follow-ups before App Store submission (updated 2026-03-09):
 
-- Signed distribution still needs to happen:
-  - Xcode Organizer upload is still unchecked in `APP_STORE_COMPLIANCE.md`.
+- Signed distribution progress:
+  - App Store Connect app record `Mindroom AI` was created for bundle ID `chat.mindroom.app`.
+  - Signed Xcode Organizer upload succeeded on 2026-03-09.
   - Physical-device TestFlight smoke testing is still unchecked in `APP_STORE_COMPLIANCE.md`.
 - App Store Connect metadata is still incomplete:
-  - `APP_STORE_SUBMISSION_PACKET.md` now has concrete subtitle/description/keywords/copyright copy and a conservative App Privacy draft.
+  - `APP_STORE_SUBMISSION_PACKET.md` now reflects the created App Store app name (`Mindroom AI`) and a conservative App Privacy draft.
   - Reviewer access still needs real credentials or a one-time registration token inserted at submission time.
   - Final App Privacy answers still need confirmation against real hosted production/server logging behavior.
-- Final submission version/build still needs an explicit release decision at upload time:
-  - Project settings are now `MARKETING_VERSION=4.10.3` and `CURRENT_PROJECT_VERSION=2`, but the checklist still correctly treats the final upload bump as a release-time gate.
+- Final submission version/build chosen for the uploaded build:
+  - Uploaded build uses `MARKETING_VERSION=4.10.3` and `CURRENT_PROJECT_VERSION=2`.
+  - Any subsequent upload still needs a higher build number.
 - Native push remains optional, not a current submission blocker:
   - The app can ship with `push.ios.enabled=false`.
   - If native push is intended for the first App Store build, APNs credentials and a live Sygnal-compatible push gateway still need to be configured and verified on a physical iPhone before upload.
