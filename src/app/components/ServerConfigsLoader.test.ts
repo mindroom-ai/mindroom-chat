@@ -3,11 +3,6 @@ import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { validateAuthMetadata } from 'matrix-js-sdk';
 import { ServerConfigsLoader } from './ServerConfigsLoader';
-import { useMatrixClient } from '../hooks/useMatrixClient';
-
-vi.mock('../hooks/useMatrixClient', () => ({
-  useMatrixClient: vi.fn(),
-}));
 
 vi.mock('matrix-js-sdk', async (importOriginal) => {
   const actual = await importOriginal<typeof import('matrix-js-sdk')>();
@@ -55,10 +50,9 @@ describe('ServerConfigsLoader', () => {
 
     await act(async () => {
       await flushPromises();
-      await flushPromises();
+    await flushPromises();
     });
 
-    expect(vi.mocked(useMatrixClient)).not.toHaveBeenCalled();
     expect(getCapabilities).toHaveBeenCalledTimes(1);
     expect(getMediaConfig).toHaveBeenCalledTimes(1);
     expect(getAuthMetadata).toHaveBeenCalledTimes(1);
@@ -84,17 +78,21 @@ describe('ServerConfigsLoader', () => {
         }
       | undefined;
 
-    vi.mocked(useMatrixClient).mockReturnValue({
-      getCapabilities,
-      getMediaConfig,
-      getAuthMetadata,
-    } as never);
-
     const renderer = create(
-      React.createElement(ServerConfigsLoader, null, (configs) => {
-        latestConfigs = configs;
-        return React.createElement('div', null, 'Loaded');
-      })
+      React.createElement(
+        ServerConfigsLoader,
+        {
+          mx: {
+            getCapabilities,
+            getMediaConfig,
+            getAuthMetadata,
+          } as never,
+        },
+        (configs) => {
+          latestConfigs = configs;
+          return React.createElement('div', null, 'Loaded');
+        }
+      )
     );
 
     await act(async () => {

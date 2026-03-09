@@ -625,6 +625,24 @@ Why:
 
 - Fixes the add-account SSO regression where the protected route could hit `ServerConfigsLoader` before the Matrix client context was reliably available, throwing `MatrixClient not initialized!` immediately after successful second-account login.
 
+### fix(client): require explicit Matrix client for server config bootstrap
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/components/ServerConfigsLoader.test.ts`
+- `src/app/components/ServerConfigsLoader.tsx`
+
+What changed:
+
+- Removed the `ServerConfigsLoader` fallback path that tried to read `useMatrixClient()` from context when no explicit client was passed.
+- Made `ServerConfigsLoader` bootstrap-only: it now requires an explicit `mx` prop and only loads capabilities/media/auth metadata from that concrete client instance.
+- Updated the loader tests to reflect that stricter contract.
+
+Why:
+
+- The prior bootstrap fix was incomplete: even though `ClientRoot` passed `mx`, the context-backed loader branch still existed in production and could remain the crash path. Removing that branch eliminates the exact `MatrixClient not initialized!` failure mode instead of trying to route around it.
+
 # Runbook
 
 ## Purpose
@@ -1150,6 +1168,10 @@ Status as of 2026-03-08:
   - `ClientRoot` passes its concrete `mx` instance directly into `ServerConfigsLoader`,
   - server-config bootstrap no longer depends on `useMatrixClient()` at that seam,
   - second-account SSO login no longer crashes on `MatrixClient not initialized!` before the protected client shell finishes booting.
+- A follow-up tightening fix is also now done:
+  - `ServerConfigsLoader` no longer has any context fallback path,
+  - bootstrap server-config loading requires an explicit `mx` instance,
+  - the prior `ServerConfigsLoader` context-wrapper crash path is removed entirely instead of being left dormant in the bundle.
 - Validation completed for this slice:
   - full `npm run test`,
   - `npm run build`,
