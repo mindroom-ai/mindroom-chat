@@ -35,9 +35,9 @@ For detailed implementation and rationale, see:
 
 ## App Store / iOS Submission Docs
 
-- Checklist: [`APP_STORE_COMPLIANCE.md`](./APP_STORE_COMPLIANCE.md)
-- Submission metadata/review notes packet: [`APP_STORE_SUBMISSION_PACKET.md`](./APP_STORE_SUBMISSION_PACKET.md)
-- Build guide: [`ios-build.md`](./ios-build.md)
+- Checklist: [`APP_STORE_COMPLIANCE.md`](./.docs/APP_STORE_COMPLIANCE.md)
+- Submission metadata/review notes packet: [`APP_STORE_SUBMISSION_PACKET.md`](./.docs/APP_STORE_SUBMISSION_PACKET.md)
+- Build guide: [`ios-build.md`](./.docs/ios-build.md)
 
 ## Quick Start
 

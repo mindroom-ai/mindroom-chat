@@ -154,9 +154,9 @@ Why:
 
 Files changed:
 
-- `APP_STORE_COMPLIANCE.md`
+- `.docs/APP_STORE_COMPLIANCE.md`
 - `FORK_CHANGES.md`
-- `ios-build.md`
+- `.docs/ios-build.md`
 - `public/favicon.ico`
 - `public/res/android/android-chrome-36x36.png`
 - `public/res/android/android-chrome-48x48.png`
@@ -194,9 +194,9 @@ Why:
 
 Files changed:
 
-- `APP_STORE_COMPLIANCE.md`
+- `.docs/APP_STORE_COMPLIANCE.md`
 - `FORK_CHANGES.md`
-- `ios-build.md`
+- `.docs/ios-build.md`
 - `public/favicon.ico`
 - `public/res/android/android-chrome-36x36.png`
 - `public/res/android/android-chrome-48x48.png`
@@ -416,7 +416,7 @@ Why:
 Files changed:
 
 - `capacitor.config.ts`
-- `ios-build.md`
+- `.docs/ios-build.md`
 - `ios/.gitignore`
 - `ios/App/App.xcodeproj/project.pbxproj`
 - `ios/App/App.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist`
@@ -748,7 +748,7 @@ Why:
 
 Files changed:
 
-- `E2E_TESTING.md`
+- `.docs/E2E_TESTING.md`
 - `FORK_CHANGES.md`
 - `e2e/account-logout.spec.ts`
 - `e2e/account-switching.spec.ts`
@@ -770,9 +770,9 @@ Why:
 
 Files changed:
 
-- `E2E_TESTING.md`
+- `.docs/E2E_TESTING.md`
 - `FORK_CHANGES.md`
-- `LIVE_BROWSER_VALIDATION.md`
+- `.docs/LIVE_BROWSER_VALIDATION.md`
 - `e2e/account-multitab.spec.ts`
 - `e2e/account-offline.spec.ts`
 - `e2e/account-relogin.spec.ts`
@@ -794,12 +794,37 @@ What changed:
 - Added third-account disposable provisioning support to the local SSH-backed test runner.
 - Added browser-side storage inspection helpers so live runs can verify that logout and inactive-account removal actually clear the intended session data.
 - Added an explicit helper for the real browser IndexedDB names used by the session-scoped sync and crypto stores, and updated inactive-session cleanup to delete those actual names.
-- Recorded the full one-off validation matrix, observed diagnostics, and blocked deployment cases in `LIVE_BROWSER_VALIDATION.md`.
-- Expanded `E2E_TESTING.md` so the router usage guide and live-run instructions cover the larger matrix and current deployed `chat.lab` auth-shell behavior.
+- Recorded the full one-off validation matrix, observed diagnostics, and blocked deployment cases in `.docs/LIVE_BROWSER_VALIDATION.md`.
+- Expanded `.docs/E2E_TESTING.md` so the router usage guide and live-run instructions cover the larger matrix and current deployed `chat.lab` auth-shell behavior.
 
 Why:
 
 - The earlier harness proved the basic password/add-account flow, but it did not yet exercise the broader web behaviors that can regress in a multi-account client: re-login dedupe, three-account state, multi-tab propagation, session-store cleanup, outage recovery, and route-specific deployed auth behavior. That broader pass also exposed a real cleanup bug where inactive-session removal targeted the constructor store name instead of the actual Chromium IndexedDB sync database name.
+
+### docs(repo): move fork-added operational docs into .docs
+
+Files changed:
+
+- `.docs/APP_STORE_COMPLIANCE.md`
+- `.docs/APP_STORE_SUBMISSION_PACKET.md`
+- `.docs/E2E_TESTING.md`
+- `.docs/LIVE_BROWSER_VALIDATION.md`
+- `.docs/MULTI_ACCOUNT_PLAN.md`
+- `.docs/ios-build.md`
+- `FORK_CHANGES.md`
+- `README.md`
+
+What changed:
+
+- Moved the fork-added operational/reference docs out of the repository root into `.docs/`.
+- Kept `FORK_CHANGES.md` at the root as the fork runbook/change log.
+- Kept the upstream root docs (`README.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `LICENSE`) unchanged in place.
+- Left `AGENTS.md` and `CLAUDE.md` at the root as tool instruction entrypoints rather than ordinary project notes.
+- Rewrote root-level references so README and the runbook point at the new `.docs/*` locations.
+
+Why:
+
+- Keeps the repository root closer to upstream and reduces top-level documentation clutter while preserving a clear home for fork-specific operational notes.
 
 ### fix(sidebar): enlarge local MindRoom tab icon
 
@@ -889,8 +914,8 @@ MindRoom priorities for this fork:
   - `docker-nginx.conf`
 - iOS packaging/compliance:
   - `ios/App/App/Info.plist`
-  - `ios-build.md`
-  - `APP_STORE_COMPLIANCE.md`
+  - `.docs/ios-build.md`
+  - `.docs/APP_STORE_COMPLIANCE.md`
 
 ## Implemented Behavior
 
@@ -1025,8 +1050,8 @@ Thread badge behavior:
 - Added `scripts/appstore-preflight.mjs` (`npm run appstore:preflight`) to verify critical iOS/config compliance gates before archive.
 - Added `scripts/generate-ios-icons.sh` (`npm run ios:icons`) and generated full iPhone/iPad AppIcon slot assets from a single 1024 source icon.
 - App Store preflight now validates icon-slot completeness and required icon file presence.
-- Added `APP_STORE_SUBMISSION_PACKET.md` with paste-ready App Review notes and metadata checklist.
-- Added `APP_STORE_COMPLIANCE.md` as a release gate checklist and linked iOS build preflight steps in `ios-build.md`.
+- Added `.docs/APP_STORE_SUBMISSION_PACKET.md` with paste-ready App Review notes and metadata checklist.
+- Added `.docs/APP_STORE_COMPLIANCE.md` as a release gate checklist and linked iOS build preflight steps in `.docs/ios-build.md`.
 
 ## Operational Notes
 
@@ -1036,7 +1061,7 @@ Thread badge behavior:
   - `npm run test -- src/app/utils/room.test.ts src/app/matrixRelationsRace.test.ts`
 - `npm run typecheck` currently fails due pre-existing repository-wide type issues (not introduced by recent fork deltas).
 - If deploying behind strict subpath-only ingress/proxy rules, ensure runtime config and assets resolve under your routing policy, or apply equivalent server-side HTML base/script injection in the serving layer.
-- Before shipping iOS builds, run the full checklist in `APP_STORE_COMPLIANCE.md` and verify App Store Connect metadata URLs (support/privacy/terms) are public and final.
+- Before shipping iOS builds, run the full checklist in `.docs/APP_STORE_COMPLIANCE.md` and verify App Store Connect metadata URLs (support/privacy/terms) are public and final.
 
 ## Current Snapshot (2026-03-07)
 
@@ -1196,7 +1221,7 @@ Thread open follow-up (2026-03-08):
 
 Detailed design document:
 
-- `MULTI_ACCOUNT_PLAN.md`
+- `.docs/MULTI_ACCOUNT_PLAN.md`
 
 Problem statements this plan is solving:
 
@@ -1398,8 +1423,8 @@ Status as of 2026-03-08:
   - the register fallback path that redirects back to login also preserves `?addAccount=1`,
   - the account-switcher add-account action now preserves the active session's homeserver in its login route,
   - a dedicated router smoke spec now covers direct login/register/reset-password route entry with explicit homeserver segments.
-- Detailed local-run instructions now live in `E2E_TESTING.md`, including literal router URLs, SSH/tunnel assumptions, and recommended agent workflows.
-- A more exhaustive one-off live browser validation pass is now also done and recorded in `LIVE_BROWSER_VALIDATION.md`:
+- Detailed local-run instructions now live in `.docs/E2E_TESTING.md`, including literal router URLs, SSH/tunnel assumptions, and recommended agent workflows.
+- A more exhaustive one-off live browser validation pass is now also done and recorded in `.docs/LIVE_BROWSER_VALIDATION.md`:
   - local Chromium coverage now includes same-account re-login, three-account switching, multi-tab propagation, storage cleanup inspection, and homeserver outage recovery,
   - deployed `chat.lab.mindroom.chat` auth-route shells are validated directly even though full deployed login remains SSO-gated,
   - one real browser-found bug was fixed during this pass: inactive-session cleanup now deletes the real browser IndexedDB sync-store name instead of the constructor alias.
@@ -1443,9 +1468,9 @@ Submission blockers / follow-ups before App Store submission (updated 2026-03-09
 - Signed distribution progress:
   - App Store Connect app record `Mindroom AI` was created for bundle ID `chat.mindroom.app`.
   - Signed Xcode Organizer upload succeeded on 2026-03-09.
-  - Physical-device TestFlight smoke testing is still unchecked in `APP_STORE_COMPLIANCE.md`.
+  - Physical-device TestFlight smoke testing is still unchecked in `.docs/APP_STORE_COMPLIANCE.md`.
 - App Store Connect metadata is still incomplete:
-  - `APP_STORE_SUBMISSION_PACKET.md` now reflects the created App Store app name (`Mindroom AI`) and a conservative App Privacy draft.
+  - `.docs/APP_STORE_SUBMISSION_PACKET.md` now reflects the created App Store app name (`Mindroom AI`) and a conservative App Privacy draft.
   - Reviewer access still needs real credentials or a one-time registration token inserted at submission time.
   - Final App Privacy answers still need confirmation against real hosted production/server logging behavior.
 - Final submission version/build chosen for the uploaded build:
@@ -1487,7 +1512,7 @@ Remaining mandatory steps before TestFlight/App Store submission:
   - Select the final Apple team/signing profile in target Signing & Capabilities.
   - Archive and upload the signed build to TestFlight from Xcode Organizer.
 - App Store Connect completion:
-  - Insert the real reviewer credentials or one-time registration token in `APP_STORE_SUBMISSION_PACKET.md` / App Review Information.
+  - Insert the real reviewer credentials or one-time registration token in `.docs/APP_STORE_SUBMISSION_PACKET.md` / App Review Information.
   - Finalize App Privacy answers against real production/server behavior.
 - Final release validation on a TestFlight build:
   - Login/Register
