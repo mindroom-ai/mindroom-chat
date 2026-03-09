@@ -1540,6 +1540,14 @@ Additional browser validation completed after the merge-readiness pass:
   default (`mindroom.chat`) rather than preserving `http://127.0.0.1:8808`.
   I treated that as an observation, not a merge-blocking bug, and did not keep
   the temporary regression.
+- `e2e/account-deactivation.spec.ts`
+  - now exercises Settings -> Account -> Delete / Deactivate for the active
+    account with the password-based UIA flow,
+  - passed locally against the SSH-tunneled homeserver,
+  - confirmed in a real browser that:
+    - only the active account is removed locally after deactivation,
+    - the remaining stored account stays signed in,
+    - the deactivated account can no longer log in afterward.
 
 ## Submission Readiness Check (2026-02-26, macOS/Xcode)
 

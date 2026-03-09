@@ -92,3 +92,31 @@ export const logoutActiveAccount = async (page: Page) => {
   await expect(page.getByText('You’re about to log out. Are you sure?')).toBeVisible();
   await page.getByRole('button', { name: 'Logout' }).last().click();
 };
+
+export const deactivateActiveAccount = async (
+  page: Page,
+  password: string,
+  options: {
+    eraseData?: boolean;
+  } = {}
+) => {
+  await openAccountSwitcher(page);
+  await page.getByRole('button', { name: 'Open Settings' }).click();
+
+  await page.getByRole('button', { name: 'Account', exact: true }).click();
+  await expect(page.getByText('Delete / Deactivate Account')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Delete / Deactivate' }).first().click();
+  await expect(page.getByText('This will request account deactivation on your Matrix homeserver.')).toBeVisible();
+
+  if (options.eraseData) {
+    await page.getByRole('switch', { name: 'Erase account data (if supported)' }).click();
+  }
+
+  await page.getByRole('button', { name: 'Delete / Deactivate' }).last().click();
+
+  const passwordInput = page.locator('input[name="passwordInput"]');
+  await expect(passwordInput).toBeVisible();
+  await passwordInput.fill(password);
+  await page.getByRole('button', { name: 'Continue' }).click();
+};

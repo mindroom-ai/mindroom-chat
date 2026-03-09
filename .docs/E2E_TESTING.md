@@ -56,6 +56,11 @@ need to.
   - verifies inactive-account removal and final logout clean up per-session stores
   - seeds legacy `cinny_*` keys and unrelated same-origin IndexedDB databases to
     verify destructive actions clear only the expected app-owned state
+- `e2e/account-deactivation.spec.ts`
+  - deactivates the currently active account from Settings -> Account
+  - verifies only that account is removed locally while the other account stays
+    signed in
+  - verifies the deactivated account can no longer log in afterward
 - `e2e/account-multitab.spec.ts`
   - validates account switching and logout propagation across two tabs
 - `e2e/account-offline.spec.ts`
@@ -110,6 +115,7 @@ Broader multi-account validation:
 ```bash
 E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-switching.spec.ts
 E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-logout.spec.ts
+E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-deactivation.spec.ts
 ```
 
 Three-account validation:
@@ -146,6 +152,7 @@ E2E_CREATE_SECOND_ACCOUNT=1 E2E_CREATE_THIRD_ACCOUNT=1 ./scripts/test-e2e-mindro
   e2e/multi-account.spec.ts \
   e2e/account-switching.spec.ts \
   e2e/account-logout.spec.ts \
+  e2e/account-deactivation.spec.ts \
   e2e/account-relogin.spec.ts \
   e2e/account-three-account.spec.ts \
   e2e/account-storage.spec.ts \
@@ -328,12 +335,13 @@ For one-off auth debugging:
 3. Run `./scripts/test-e2e-mindroom.sh e2e/password-login.spec.ts`.
 4. If login works, run the multi-account flow:
    - `E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/multi-account.spec.ts`
-5. Expand to the full matrix only after the core flow is green:
-   - `E2E_CREATE_SECOND_ACCOUNT=1 E2E_CREATE_THIRD_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-switching.spec.ts e2e/account-logout.spec.ts e2e/account-relogin.spec.ts e2e/account-three-account.spec.ts e2e/account-storage.spec.ts e2e/account-multitab.spec.ts e2e/account-offline.spec.ts`
-6. Inspect `LIVE_BROWSER_VALIDATION.md` to compare your current result against the last recorded one-off pass.
 5. If add-account passes, run the broader account behaviors:
    - `E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-switching.spec.ts`
    - `E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-logout.spec.ts`
+   - `E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-deactivation.spec.ts`
+6. Expand to the full matrix only after the core flow is green:
+   - `E2E_CREATE_SECOND_ACCOUNT=1 E2E_CREATE_THIRD_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-switching.spec.ts e2e/account-logout.spec.ts e2e/account-deactivation.spec.ts e2e/account-relogin.spec.ts e2e/account-three-account.spec.ts e2e/account-storage.spec.ts e2e/account-multitab.spec.ts e2e/account-offline.spec.ts`
+7. Inspect `LIVE_BROWSER_VALIDATION.md` to compare your current result against the last recorded one-off pass.
 
 For headed debugging:
 
@@ -370,6 +378,12 @@ For deployed-build verification:
   - verifies logging out the active account falls back to the remaining stored
     account
   - verifies logging out the last stored account returns to the auth shell
+- `e2e/account-deactivation.spec.ts`
+  - expected to pass locally
+  - verifies deactivating the active account from Settings removes only that
+    account locally
+  - verifies the remaining stored account stays signed in
+  - verifies the deactivated account can no longer log in afterward
 
 Observed live diagnostics on the local Vite + SSH-tunnel setup:
 
