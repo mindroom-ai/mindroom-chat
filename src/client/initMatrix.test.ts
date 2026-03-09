@@ -2,12 +2,20 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { IndexedDBCryptoStore, IndexedDBStore } from 'matrix-js-sdk';
 import {
   clearBrowserCacheAndReload,
+  clearCacheAndReload,
   initClient,
   LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
   removeStoredSession,
 } from './initMatrix';
 import { createMatrixClient } from './matrixClientFactory';
-import { createSessionId, getSessionStore, putSession, setActiveSession } from '../app/state/sessions';
+import {
+  createSessionId,
+  getSessionRustCryptoStoreNames,
+  getSessionRustCryptoStorePrefix,
+  getSessionStore,
+  putSession,
+  setActiveSession,
+} from '../app/state/sessions';
 import { deleteThreadEventCache } from '../app/features/room/threadEventCache';
 import { deleteRoomEventCache } from '../app/features/room/roomEventCache';
 import { clearIOSPushState } from '../app/utils/iosPush';
@@ -95,7 +103,11 @@ describe('initClient', () => {
     );
     expect(syncAccumulator.opts.maxTimelineEntries).toBe(LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT);
     expect(startup).toHaveBeenCalledTimes(1);
-    expect(initRustCrypto).toHaveBeenCalledTimes(1);
+    expect(initRustCrypto).toHaveBeenCalledWith({
+      cryptoDatabasePrefix: getSessionRustCryptoStorePrefix({
+        sessionId,
+      }),
+    });
     expect(setMaxListeners).toHaveBeenCalledWith(50);
   });
 
@@ -134,6 +146,91 @@ describe('initClient', () => {
     });
 
     expect(syncAccumulator.opts.maxTimelineEntries).toBe(9000);
+  });
+});
+
+describe('clearCacheAndReload', () => {
+  const originalLocalStorage = globalThis.localStorage;
+  const originalWindow = globalThis.window;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+
+    if (originalLocalStorage === undefined) {
+      Reflect.deleteProperty(globalThis, 'localStorage');
+    } else {
+      Object.defineProperty(globalThis, 'localStorage', {
+        value: originalLocalStorage,
+        configurable: true,
+      });
+    }
+
+    if (originalWindow === undefined) {
+      Reflect.deleteProperty(globalThis, 'window');
+    } else {
+      Object.defineProperty(globalThis, 'window', {
+        value: originalWindow,
+        configurable: true,
+      });
+    }
+  });
+
+  it('clears session-scoped rust crypto stores for the active session', async () => {
+    const storageState = new Map<string, string>();
+    const localStorageMock = {
+      getItem: vi.fn((key: string) => storageState.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        storageState.set(key, value);
+      }),
+      removeItem: vi.fn((key: string) => {
+        storageState.delete(key);
+      }),
+    };
+    const reload = vi.fn();
+
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        localStorage: localStorageMock,
+        dispatchEvent: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        location: {
+          reload,
+        },
+      },
+      configurable: true,
+    });
+
+    const session = putSession({
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+    });
+    setActiveSession(session.sessionId);
+
+    const stopClient = vi.fn();
+    const clearStores = vi.fn().mockResolvedValue(undefined);
+    const getSafeUserId = vi.fn().mockReturnValue(session.userId);
+
+    await clearCacheAndReload({
+      clearStores,
+      getSafeUserId,
+      stopClient,
+    } as never);
+
+    expect(stopClient).toHaveBeenCalledTimes(1);
+    expect(getSafeUserId).toHaveBeenCalledTimes(1);
+    expect(clearStores).toHaveBeenCalledWith({
+      cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),
+    });
+    expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(session.sessionId);
+    expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(session.sessionId);
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -343,6 +440,9 @@ describe('removeStoredSession', () => {
 
     expect(deleteDatabase).toHaveBeenCalledWith(`web-sync-store::${inactiveSession.sessionId}`);
     expect(deleteDatabase).toHaveBeenCalledWith(`crypto-store::${inactiveSession.sessionId}`);
+    const rustCryptoStoreNames = getSessionRustCryptoStoreNames(inactiveSession);
+    expect(deleteDatabase).toHaveBeenCalledWith(rustCryptoStoreNames[0]);
+    expect(deleteDatabase).toHaveBeenCalledWith(rustCryptoStoreNames[1]);
     expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(inactiveSession.sessionId);
     expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(inactiveSession.sessionId);
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(inactiveSession.sessionId);

@@ -1172,6 +1172,10 @@ Status as of 2026-03-08:
   - `ServerConfigsLoader` no longer has any context fallback path,
   - bootstrap server-config loading requires an explicit `mx` instance,
   - the prior `ServerConfigsLoader` context-wrapper crash path is removed entirely instead of being left dormant in the bundle.
+- A follow-up multi-account crypto-store fix is also now done:
+  - Rust crypto IndexedDB is now session-scoped too, via an explicit `cryptoDatabasePrefix` passed to `initRustCrypto(...)`,
+  - second-account login no longer reuses the default shared `matrix-js-sdk::matrix-sdk-crypto*` wasm store and crash with "the account in the store doesn't match the account in the constructor",
+  - session-aware cleanup paths now also delete the matching Rust crypto IndexedDB databases, so logout/remove-account/clear-cache stays symmetric with initialization.
 - Validation completed for this slice:
   - full `npm run test`,
   - `npm run build`,

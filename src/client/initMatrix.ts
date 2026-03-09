@@ -11,6 +11,8 @@ import {
   StoredSession,
   clearSessionStore,
   getActiveSession,
+  getSessionRustCryptoStoreNames,
+  getSessionRustCryptoStorePrefix,
   getSessionStoreName,
   listSessions,
   removeSession,
@@ -64,7 +66,9 @@ export const initClient = async (session: StoredSession): Promise<MatrixClient> 
   });
 
   await indexedDBStore.startup();
-  await mx.initRustCrypto();
+  await mx.initRustCrypto({
+    cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),
+  });
 
   mx.setMaxListeners(50);
 
@@ -95,10 +99,15 @@ export const deleteSessionLocalData = async (
   clearNavToActivePathStore(session.userId);
 
   const storeNames = getSessionStoreName(session);
+  const rustCryptoStoreNames = getSessionRustCryptoStoreNames(session);
+  const rustCryptoStorePrefix = getSessionRustCryptoStorePrefix(session);
 
   await Promise.all([
-    mx ? mx.clearStores() : deleteNamedDatabase(storeNames.sync),
+    mx
+      ? mx.clearStores({ cryptoDatabasePrefix: rustCryptoStorePrefix })
+      : deleteNamedDatabase(storeNames.sync),
     mx ? Promise.resolve() : deleteNamedDatabase(storeNames.crypto),
+    mx ? Promise.resolve() : Promise.all(rustCryptoStoreNames.map((name) => deleteNamedDatabase(name))),
     deleteThreadEventCache(session.sessionId),
     deleteRoomEventCache(session.sessionId),
   ]);
@@ -131,7 +140,11 @@ export const clearCacheAndReload = async (mx: MatrixClient) => {
   clearNavToActivePathStore(mx.getSafeUserId());
   const activeSession = getActiveSession();
   await Promise.all([
-    mx.store.deleteAllData(),
+    activeSession
+      ? mx.clearStores({
+          cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(activeSession),
+        })
+      : mx.clearStores(),
     activeSession ? deleteThreadEventCache(activeSession.sessionId) : Promise.resolve(),
     activeSession ? deleteRoomEventCache(activeSession.sessionId) : Promise.resolve(),
   ]);
