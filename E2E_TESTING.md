@@ -37,6 +37,13 @@ need to.
   - second-account add-account flow
   - includes a stability window after second-account login to catch repeated
     `Heating up` / shell flicker
+- `e2e/account-switching.spec.ts`
+  - per-account route restore
+  - reload persistence for the active account
+  - inactive-account removal
+- `e2e/account-logout.spec.ts`
+  - logout fallback to the remaining stored account
+  - final logout back to the auth shell
 
 ## Requirements
 
@@ -77,6 +84,24 @@ Multi-account reproduction:
 
 ```bash
 E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/multi-account.spec.ts
+```
+
+Broader multi-account validation:
+
+```bash
+E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-switching.spec.ts
+E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-logout.spec.ts
+```
+
+Full local password-auth batch:
+
+```bash
+E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh \
+  e2e/password-login.spec.ts \
+  e2e/auth-router.spec.ts \
+  e2e/multi-account.spec.ts \
+  e2e/account-switching.spec.ts \
+  e2e/account-logout.spec.ts
 ```
 
 Headed mode:
@@ -233,6 +258,9 @@ For one-off auth debugging:
 3. Run `./scripts/test-e2e-mindroom.sh e2e/password-login.spec.ts`.
 4. If login works, run the multi-account flow:
    - `E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/multi-account.spec.ts`
+5. If add-account passes, run the broader account behaviors:
+   - `E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-switching.spec.ts`
+   - `E2E_CREATE_SECOND_ACCOUNT=1 ./scripts/test-e2e-mindroom.sh e2e/account-logout.spec.ts`
 
 For headed debugging:
 
@@ -259,6 +287,29 @@ For deployed-build verification:
   - also samples the shell for several seconds after second-account login so it
     catches client re-bootstrap loops instead of only checking "eventually
     loaded"
+- `e2e/account-switching.spec.ts`
+  - expected to pass locally
+  - verifies route restore between `/home/create/` and `/home/join/`
+  - verifies the active account and route survive a full browser reload
+  - verifies removing an inactive account updates the account rail correctly
+- `e2e/account-logout.spec.ts`
+  - expected to pass locally
+  - verifies logging out the active account falls back to the remaining stored
+    account
+  - verifies logging out the last stored account returns to the auth shell
+
+Observed live diagnostics on the local Vite + SSH-tunnel setup:
+
+- Console logs are noisy even on passing runs.
+- Common non-critical messages during switch/reload/logout:
+  - `turnServer` `404` / `Failed to get TURN URIs`
+  - `dev-sw` service-worker registration failures in local dev mode
+  - aborted `/sync` requests during account switches, reloads, and logout
+- The browser helpers only fail on critical regression signatures such as:
+  - `Unexpected Application Error!`
+  - `MatrixClient not initialized!`
+  - session-store / rust-crypto account mismatch errors
+  - render-loop / initialization-order crashes
 
 Treat the multi-account spec as a live regression test for account-switcher
 auth routing.

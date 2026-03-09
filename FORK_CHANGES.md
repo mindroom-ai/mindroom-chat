@@ -665,6 +665,28 @@ Why:
 
 - Fixes the live multi-account regression where adding a second account could cause `ClientRoot` to restart the client repeatedly whenever sidebar/profile/route persistence wrote session metadata back to storage, producing a visible loop between the normal room list and the `Heating up` splash.
 
+### test(e2e): expand live multi-account validation
+
+Files changed:
+
+- `E2E_TESTING.md`
+- `FORK_CHANGES.md`
+- `e2e/account-logout.spec.ts`
+- `e2e/account-switching.spec.ts`
+- `e2e/helpers/accounts.ts`
+- `e2e/helpers/browserDiagnostics.ts`
+
+What changed:
+
+- Added real browser helpers for reading the session store, switching accounts, removing inactive accounts, logging out the active account, and capturing browser diagnostics during live runs.
+- Added a route-restore/reload/removal flow covering per-account last-path persistence, switching between stored accounts, surviving a full reload, and removing an inactive account.
+- Added a logout flow covering active-account logout fallback to the remaining stored account and final logout back to the auth shell.
+- Expanded the local testing guide with the larger one-off multi-account matrix and the current expected local-browser diagnostic noise.
+
+Why:
+
+- Gives the branch meaningful live validation beyond simple login/add-account smoke tests, so multi-account behavior can be exercised against the real homeserver before relying on it.
+
 # Runbook
 
 ## Purpose
@@ -938,6 +960,7 @@ Thread badge behavior:
 - Release automation now supports per-commit `dev` tagging in `v<base_version>-mindroom.<n>` format with base-version-aware incrementing.
 - Startup homeserver capability probing (`/_matrix/client/versions`) now times out after 12s and aborts timed-out fetches, the connecting splash includes a cancel path back to sign-in/server selection, and the connection-error dialog now includes an app-scoped `Clear Cache and Reload` recovery action for stale browser cache cases.
 - Active-session bootstrap is now stable against non-client session metadata writes: updating per-account last-path/profile cache data no longer tears down and recreates the current `MatrixClient`, which previously caused visible `Heating up`/room-list flicker right after second-account login.
+- Live browser validation now covers password login, direct auth-router entry, add-account, route restore across account switching, reload persistence, inactive-account removal, active-account logout fallback, and final logout back to the auth shell when using the local SSH-tunneled homeserver.
 - Live external readiness checks now look healthier than the older 2026-02-26 snapshot:
   - `https://mindroom.chat/_matrix/client/v3/login` currently returns `m.login.sso` and an Apple provider (`id=chat.mindroom.matrix.apple`, `name=Apple`, `brand=appleoidc`).
   - `https://docs.mindroom.chat/support`, `/privacy`, and `/terms` currently resolve over HTTPS and return HTTP 200.
