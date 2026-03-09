@@ -1,4 +1,5 @@
 import { MatrixClient } from 'matrix-js-sdk';
+import { getActiveSession } from '../state/sessions';
 
 export const mxcUrlToHttp = (
   mx: MatrixClient,
@@ -25,7 +26,7 @@ export const mxcUrlToHttp = (
   if (window.location?.protocol !== 'capacitor:') return mediaUrl;
   if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) return mediaUrl;
 
-  const accessToken = localStorage.getItem('cinny_access_token');
+  const accessToken = getActiveSession()?.accessToken;
   if (!accessToken) return mediaUrl;
 
   try {

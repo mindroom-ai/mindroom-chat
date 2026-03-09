@@ -1,13 +1,6 @@
 import React, { useCallback, useEffect } from 'react';
 import { Box, Header, Scroll, Spinner, Text, color } from 'folds';
-import {
-  Outlet,
-  generatePath,
-  matchPath,
-  useLocation,
-  useNavigate,
-  useParams,
-} from 'react-router-dom';
+import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import classNames from 'classnames';
 
 import { AuthFooter } from './AuthFooter';
@@ -19,7 +12,6 @@ import {
   useClientConfig,
 } from '../../hooks/useClientConfig';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
-import { LOGIN_PATH, REGISTER_PATH, RESET_PASSWORD_PATH } from '../paths';
 import MindRoomLogo from '../../../../public/res/branding/mindroom-logo.png';
 import { ServerPicker } from './ServerPicker';
 import { AutoDiscoveryAction, autoDiscovery } from '../../cs-api';
@@ -30,19 +22,7 @@ import { AuthFlowsLoader } from '../../components/AuthFlowsLoader';
 import { AuthFlowsProvider } from '../../hooks/useAuthFlows';
 import { AuthServerProvider } from '../../hooks/useAuthServer';
 import { tryDecodeURIComponent } from '../../utils/dom';
-
-const currentAuthPath = (pathname: string, registrationAllowed: boolean): string => {
-  if (matchPath(LOGIN_PATH, pathname)) {
-    return LOGIN_PATH;
-  }
-  if (matchPath(RESET_PASSWORD_PATH, pathname)) {
-    return RESET_PASSWORD_PATH;
-  }
-  if (registrationAllowed && matchPath(REGISTER_PATH, pathname)) {
-    return REGISTER_PATH;
-  }
-  return LOGIN_PATH;
-};
+import { buildAuthRoutePath } from './authRouteUtils';
 
 function AuthLayoutLoading({ message }: { message: string }) {
   return (
@@ -98,8 +78,12 @@ export function AuthLayout() {
   useEffect(() => {
     if (!urlEncodedServer || tryDecodeURIComponent(urlEncodedServer) !== server) {
       navigate(
-        generatePath(currentAuthPath(location.pathname, registrationAllowed), {
-          server: encodeURIComponent(server),
+        buildAuthRoutePath({
+          pathname: location.pathname,
+          search: location.search,
+          hash: location.hash,
+          registrationAllowed,
+          server,
         }),
         { replace: true }
       );
@@ -114,8 +98,12 @@ export function AuthLayout() {
         return;
       }
       navigate(
-        generatePath(currentAuthPath(location.pathname, registrationAllowed), {
-          server: encodeURIComponent(newServer),
+        buildAuthRoutePath({
+          pathname: location.pathname,
+          search: location.search,
+          hash: location.hash,
+          registrationAllowed,
+          server: newServer,
         })
       );
     },
