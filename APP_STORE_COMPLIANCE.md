@@ -22,7 +22,7 @@ Use this section as the live status for the current submission attempt. Keep the
 - [x] Manual iOS Simulator smoke test: app launches, message send works, microphone recording works, and account deactivation entry is visible (deactivation action not executed yet).
 - [x] In-app account deletion/deactivation entry point added in Settings → Account.
 - [x] Native iOS AppIcon and Splash assets refreshed from the repo-local square branding source `public/res/branding/mindroom-logo-square.png` (icon slots regenerated + `cap sync ios` run).
-- [x] Web/PWA icon assets now derive from the repo-local favicon master source `public/res/branding/mindroom-favicon-source.png`, while the browser/runtime favicon uses the optimized `public/res/branding/mindroom-favicon.png`.
+- [x] Web/PWA icon assets now derive from the repo-local transparent branding source `public/res/branding/mindroom-logo.png`, while the browser/runtime favicon uses the optimized `public/res/branding/mindroom-favicon.png`.
 - [x] Re-test on physical iPhone after switching Capacitor Keyboard resize mode to `native` (fix confirmed for predictive/autocorrect bar overlapping room composer).
 - [x] Manual physical iPhone smoke test: message send/receive works, microphone recording works, camera permission works, photo library permission works, and account deactivation flow works.
 - [x] App Store Connect app record created as `Mindroom AI` with bundle ID `chat.mindroom.app`.
