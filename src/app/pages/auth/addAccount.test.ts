@@ -4,6 +4,7 @@ import {
   ADD_ACCOUNT_SEARCH_VALUE,
   isAddAccountSearch,
   withAddAccountSearch,
+  withAddAccountSearchIf,
 } from './addAccount';
 
 describe('addAccount helpers', () => {
@@ -22,5 +23,10 @@ describe('addAccount helpers', () => {
     expect(withAddAccountSearch('/login?server=https%3A%2F%2Fexample.com')).toBe(
       '/login?server=https%3A%2F%2Fexample.com&addAccount=1'
     );
+  });
+
+  it('conditionally appends the add-account flag', () => {
+    expect(withAddAccountSearchIf('/login', true)).toBe('/login?addAccount=1');
+    expect(withAddAccountSearchIf('/login', false)).toBe('/login');
   });
 });

@@ -17,18 +17,32 @@ Rules followed:
 
 ## Working Tree (Not Yet Committed)
 
-Working tree status (2026-03-08):
+Working tree status (2026-03-09):
 
-- Modified: none
-- Added: none
+- Modified:
+  - `src/app/pages/client/ClientRoot.test.ts`
+  - `src/app/pages/client/ClientRoot.tsx`
+  - `src/app/state/sessions.test.ts`
+  - `src/app/state/sessions.ts`
+  - `src/client/initMatrix.test.ts`
+  - `src/client/initMatrix.ts`
 
 What changed (uncommitted):
 
-- None.
+- Scoped active rust-crypto IndexedDB prefixes by both `sessionId` and `deviceId`,
+  while retaining explicit legacy session-only store-name cleanup helpers.
+- Hardened session cleanup fallbacks so live clients derive the correct
+  rust-crypto prefix even when session storage is unavailable, and added focused
+  regression tests for session reuse, fallback cache clearing, and logout-event cleanup.
 
 Validation (uncommitted):
 
-- None.
+- Passed: `npx vitest run src/app/state/sessions.test.ts src/client/initMatrix.test.ts src/app/pages/client/ClientRoot.test.ts`
+- Passed: `npx eslint src/app/state/sessions.ts src/client/initMatrix.ts src/app/pages/client/ClientRoot.tsx src/app/state/sessions.test.ts src/client/initMatrix.test.ts src/app/pages/client/ClientRoot.test.ts`
+- Passed: `npm run build`
+- Failed (pre-existing repo baseline, unrelated to this slice): `npm run typecheck`
+  currently reports broad `matrix-js-sdk` import/type mismatches and Jotai atom
+  typing errors across many untouched files.
 
 ## Commit-by-Commit Changes
 
@@ -1176,6 +1190,23 @@ Status as of 2026-03-08:
   - Rust crypto IndexedDB is now session-scoped too, via an explicit `cryptoDatabasePrefix` passed to `initRustCrypto(...)`,
   - second-account login no longer reuses the default shared `matrix-js-sdk::matrix-sdk-crypto*` wasm store and crash with "the account in the store doesn't match the account in the constructor",
   - session-aware cleanup paths now also delete the matching Rust crypto IndexedDB databases, so logout/remove-account/clear-cache stays symmetric with initialization.
+- A follow-up rust-crypto hardening fix is now in the current working tree:
+  - active rust-crypto prefixes are now keyed by both `sessionId` and `deviceId`, so re-authing the same account on a different device does not reopen the previous device's wasm store,
+  - live-client cleanup fallbacks now derive the same session/device-scoped prefix from `MatrixClient` identity when local session storage is missing,
+  - cleanup also deletes the older session-only rust-crypto database names so the current device-scoped path remains compatible with prior uncommitted/previous-slice store naming.
+- A local Playwright harness is now also in place for auth and multi-account verification:
+  - `@playwright/test` is wired up with NixOS-friendly system Chromium detection in `playwright.config.ts`,
+  - `scripts/with-mindroom-tunnel.sh` tunnels local `127.0.0.1:8808` to the remote `ssh mindroom` homeserver on `localhost:8008`,
+  - `scripts/create-mindroom-e2e-account.sh` provisions disposable test accounts directly on the remote homeserver via its registration token,
+  - `scripts/test-e2e-mindroom.sh` combines provisioning, tunneling, and Playwright execution into one command,
+  - `e2e/password-login.spec.ts` and `e2e/auth-router.spec.ts` give stable password-login and direct-router smoke coverage,
+  - `e2e/multi-account.spec.ts` now verifies that the add-account flow stays on the active explicit homeserver instead of jumping back to the default server.
+- Auth router handling is now tightened further:
+  - add-account mode is preserved through reset-password links and reset-password completion,
+  - the register fallback path that redirects back to login also preserves `?addAccount=1`,
+  - the account-switcher add-account action now preserves the active session's homeserver in its login route,
+  - a dedicated router smoke spec now covers direct login/register/reset-password route entry with explicit homeserver segments.
+- Detailed local-run instructions now live in `E2E_TESTING.md`, including literal router URLs, SSH/tunnel assumptions, and recommended agent workflows.
 - Validation completed for this slice:
   - full `npm run test`,
   - `npm run build`,

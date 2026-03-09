@@ -105,7 +105,7 @@ export function SettingsTab() {
 
   const addAccount = () => {
     closeAccountSwitcher();
-    navigate(withAddAccountSearch(getLoginPath()));
+    navigate(withAddAccountSearch(getLoginPath(activeSession?.baseUrl ?? mx.baseUrl)));
   };
 
   const switchAccount = (sessionId: string, path?: string) => {
@@ -141,6 +141,11 @@ export function SettingsTab() {
               {(triggerRef) => (
                 <SidebarAvatar
                   as="button"
+                  aria-label={
+                    active
+                      ? `Open account switcher for ${sessionDisplayName}`
+                      : `Switch to account ${sessionDisplayName} (${session.userId})`
+                  }
                   ref={triggerRef}
                   onClick={() => {
                     if (active) {
@@ -167,6 +172,7 @@ export function SettingsTab() {
           {(triggerRef) => (
             <SidebarAvatar
               as="button"
+              aria-label="Add account"
               ref={triggerRef}
               outlined
               onClick={addAccount}

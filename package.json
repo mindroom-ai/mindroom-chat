@@ -17,6 +17,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:mindroom": "./scripts/test-e2e-mindroom.sh",
+    "test:e2e:mindroom:headed": "./scripts/test-e2e-mindroom.sh --headed",
     "postinstall": "patch-package",
     "ios:icons": "bash scripts/generate-ios-icons.sh",
     "appstore:preflight": "node scripts/appstore-preflight.mjs",
@@ -94,6 +98,7 @@
   "devDependencies": {
     "@capacitor/cli": "8.1.0",
     "@esbuild-plugins/node-globals-polyfill": "0.2.3",
+    "@playwright/test": "1.58.2",
     "@rollup/plugin-inject": "5.0.3",
     "@rollup/plugin-wasm": "6.1.1",
     "@types/chroma-js": "3.1.1",

@@ -37,6 +37,7 @@ import { PasswordInput } from '../../../components/password-input';
 import { FieldError } from '../FiledError';
 import { getResetPasswordPath } from '../../pathUtils';
 import { stopPropagation } from '../../../utils/keyboard';
+import { withAddAccountSearchIf } from '../addAccount';
 
 function UsernameHint({ server }: { server: string }) {
   const [anchor, setAnchor] = useState<RectCords>();
@@ -208,6 +209,7 @@ export function PasswordLoginForm({
           Username
         </Text>
         <Input
+          aria-label="Username"
           defaultValue={defaultUsername ?? defaultEmail}
           style={{ paddingRight: config.space.S300 }}
           name="usernameInput"
@@ -232,7 +234,14 @@ export function PasswordLoginForm({
         <Text as="label" size="L400" priority="300">
           Password
         </Text>
-        <PasswordInput name="passwordInput" variant="Background" size="500" outlined required />
+        <PasswordInput
+          aria-label="Password"
+          name="passwordInput"
+          variant="Background"
+          size="500"
+          outlined
+          required
+        />
         <Box alignItems="Start" justifyContent="SpaceBetween" gap="200">
           {loginState.status === AsyncStatus.Error && (
             <>
@@ -255,7 +264,9 @@ export function PasswordLoginForm({
           )}
           <Box grow="Yes" shrink="No" justifyContent="End">
             <Text as="span" size="T200" priority="400" align="Right">
-              <Link to={getResetPasswordPath(server)}>Forget Password?</Link>
+              <Link to={withAddAccountSearchIf(getResetPasswordPath(server), addAccount)}>
+                Forget Password?
+              </Link>
             </Text>
           </Box>
         </Box>

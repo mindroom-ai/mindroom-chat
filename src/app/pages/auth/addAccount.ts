@@ -21,3 +21,6 @@ export const withAddAccountSearch = (path: string): string => {
   const nextHash = hash ? `#${hash}` : '';
   return `${pathname}${nextSearch ? `?${nextSearch}` : ''}${nextHash}`;
 };
+
+export const withAddAccountSearchIf = (path: string, addAccount: boolean): string =>
+  addAccount ? withAddAccountSearch(path) : path;

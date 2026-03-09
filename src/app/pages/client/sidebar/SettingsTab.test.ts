@@ -1,10 +1,11 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getHomePath } from '../../pathUtils';
+import { getHomePath, getLoginPath } from '../../pathUtils';
 import { SettingsTab } from './SettingsTab';
 import { useActiveSession, useStoredSessions } from '../../../hooks/useSessionStore';
 import { setActiveSession, updateSessionProfile } from '../../../state/sessions';
+import { withAddAccountSearch } from '../../auth/addAccount';
 
 const navigate = vi.fn();
 
@@ -20,9 +21,13 @@ vi.mock('folds', async () => {
   };
 });
 
-vi.mock('react-router-dom', () => ({
-  useNavigate: () => navigate,
-}));
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router-dom')>();
+  return {
+    ...actual,
+    useNavigate: () => navigate,
+  };
+});
 
 vi.mock('../../../components/sidebar', () => ({
   SidebarItem: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
@@ -179,5 +184,37 @@ describe('SettingsTab', () => {
     expect(vi.mocked(setActiveSession)).toHaveBeenCalledWith('session-b');
     expect(navigate).toHaveBeenCalledWith(getHomePath());
     expect(vi.mocked(updateSessionProfile)).toHaveBeenCalled();
+  });
+
+  it('preserves the active homeserver when opening add account', async () => {
+    vi.mocked(useActiveSession).mockReturnValue({
+      sessionId: 'session-a',
+      baseUrl: 'http://127.0.0.1:8808',
+      userId: '@alice:mindroom.local',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+    });
+    vi.mocked(useStoredSessions).mockReturnValue([
+      {
+        sessionId: 'session-a',
+        baseUrl: 'http://127.0.0.1:8808',
+        userId: '@alice:mindroom.local',
+        deviceId: 'DEVICE_A',
+        accessToken: 'token-a',
+        lastUsedAt: 1,
+      },
+    ]);
+
+    const renderer = create(React.createElement(SettingsTab));
+    const buttons = renderer.root.findAllByType('button');
+
+    await act(async () => {
+      buttons[1].props.onClick();
+    });
+
+    expect(navigate).toHaveBeenCalledWith(
+      withAddAccountSearch(getLoginPath('http://127.0.0.1:8808'))
+    );
   });
 });

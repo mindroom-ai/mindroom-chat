@@ -17,6 +17,7 @@ import {
 import { getHomePath, getLoginPath, withSearchParam } from '../../pathUtils';
 import { getMxIdLocalPart, getMxIdServer } from '../../../utils/matrix';
 import { putSession } from '../../../state/sessions';
+import { withAddAccountSearchIf } from '../addAccount';
 
 export enum RegisterError {
   UserTaken = 'UserTaken',
@@ -140,9 +141,12 @@ export const useRegisterComplete = (data?: CustomRegisterResponse, addAccount = 
         const username = getMxIdLocalPart(userId);
         const userServer = getMxIdServer(userId);
         navigate(
-          withSearchParam<LoginPathSearchParams>(getLoginPath(userServer), {
-            username,
-          }),
+          withSearchParam<LoginPathSearchParams>(
+            withAddAccountSearchIf(getLoginPath(userServer), addAccount),
+            {
+              username,
+            }
+          ),
           { replace: true }
         );
       }
