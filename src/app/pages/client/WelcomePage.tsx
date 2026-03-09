@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Button, Icon, Icons, Text, config, toRem } from 'folds';
 import { Page, PageHero, PageHeroSection } from '../../components/page';
 import { useClientConfig } from '../../hooks/useClientConfig';
-import MindRoomSVG from '../../../../public/res/svg/mindroom.svg';
+import MindRoomLogo from '../../../../public/res/branding/mindroom-logo.png';
 
 const safeIcon = (icon?: (filled?: boolean) => JSX.Element) => icon ?? Icons.Info;
 
@@ -32,7 +32,7 @@ export function WelcomePage() {
       >
         <PageHeroSection>
           <PageHero
-            icon={<img width="70" height="70" src={MindRoomSVG} alt="MindRoom Logo" />}
+            icon={<img width="70" height="70" src={MindRoomLogo} alt="MindRoom Logo" />}
             title={title}
             subTitle={
               <span>{subtitle}</span>

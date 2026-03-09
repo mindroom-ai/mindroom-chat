@@ -4,7 +4,7 @@ import { Page, PageContent, PageHeader } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';
-import MindRoomSVG from '../../../../../public/res/svg/mindroom.svg';
+import MindRoomLogo from '../../../../../public/res/branding/mindroom-logo.png';
 import { clearCacheAndReload } from '../../../../client/initMatrix';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 
@@ -38,7 +38,7 @@ export function About({ requestClose }: AboutProps) {
                 <Box shrink="No">
                   <img
                     style={{ width: toRem(60), height: toRem(60) }}
-                    src={MindRoomSVG}
+                    src={MindRoomLogo}
                     alt="MindRoom logo"
                   />
                 </Box>
