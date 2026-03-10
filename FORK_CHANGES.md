@@ -17,9 +17,10 @@ Rules followed:
 
 ## Working Tree (Not Yet Committed)
 
-Working tree status (2026-03-09):
+Working tree status (2026-03-10):
 
 - Clean after the latest committed slice.
+- Unrelated untracked local `.claude/` directory is present in this worktree.
 
 What changed (uncommitted):
 
@@ -29,7 +30,7 @@ Validation (uncommitted):
 
 - None pending.
 - Failed (pre-existing repo baseline, unrelated to this slice): `npm run typecheck`
-  currently reports broad `matrix-js-sdk` import/type mismatches and Jotai atom
+  still reports broad `matrix-js-sdk` import/type mismatches and Jotai atom
   typing errors across many untouched files.
 
 ## Commit-by-Commit Changes
@@ -871,6 +872,37 @@ Why:
 - The local MindRoom shortcut opens connection-related settings, so the badge
   gives it a clearer visual cue distinct from unread-count badges.
 
+### fix(settings): hide local mindroom when disabled
+
+Files changed:
+
+- `FORK_CHANGES.md`
+- `src/app/features/settings/Settings.tsx`
+- `src/app/features/settings/index.ts`
+- `src/app/features/settings/settingsMenu.test.ts`
+- `src/app/features/settings/settingsMenu.ts`
+- `src/app/features/settings/settingsPages.ts`
+
+What changed:
+
+- Moved settings page/menu derivation into small helper modules so `Settings`
+  can filter menu items from a single definition while preserving the existing
+  page order and icons.
+- Hid the `Settings -> Local MindRoom` entry when `sidebar.showMindRoom` is
+  `false`, matching the existing sidebar shortcut gating.
+- Added fallback logic so an initial settings request for `Local MindRoom`
+  resolves to `General` when that page is disabled, preventing an empty
+  settings body.
+- Added focused tests for menu filtering and initial-page resolution,
+  including the explicit `GeneralPage` enum case.
+- Updated the runbook behavior notes to document that `sidebar.showMindRoom`
+  now hides both the sidebar shortcut and the settings page entry.
+
+Why:
+
+- Local-only deployments need one config flag to remove the entire Local
+  MindRoom UI surface cleanly, not just the sidebar shortcut.
+
 # Runbook
 
 ## Purpose
@@ -955,6 +987,7 @@ Thread badge behavior:
 - The left sidebar now supports a dedicated MindRoom button rendered with the MindRoom logo.
 - The button opens Settings directly to a new **Local MindRoom** onboarding page (`Settings -> Local MindRoom`) instead of deep-linking to external docs.
 - Sidebar visibility remains deployment-configurable via `config.json` using `sidebar.showMindRoom`.
+- When `sidebar.showMindRoom` is `false`, the Local MindRoom settings entry is also hidden so deployments can remove the feature surface cleanly instead of only hiding the sidebar shortcut.
 
 ### Local MindRoom Onboarding UI
 
@@ -970,6 +1003,7 @@ Thread badge behavior:
 - Transport failures are normalized to a clearer provisioning-specific error message instead of leaking the raw browser/webview exception text.
 - Flow handles pending, connected, expired, and network/API error states with retry affordances.
 - Added unit tests for helper logic and provisioning API client wrappers.
+- If the Local MindRoom feature is disabled in config, settings requests targeting that page now fall back to `General` rather than rendering a blank settings body.
 
 ### Tool Metadata Visibility
 
