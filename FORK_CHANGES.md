@@ -19,32 +19,20 @@ Rules followed:
 
 Working tree status (2026-03-12):
 
-- Local uncommitted changes are present in the iOS project/AppIcon asset set.
-- Unrelated untracked local `.claude/` directory is present in this worktree.
+- Local uncommitted changes are present in `justfile` and `FORK_CHANGES.md`.
 
 What changed (uncommitted):
 
-- iOS auth SSO launch now stays inside Capacitor Browser / `SFSafariViewController`
-  instead of handing login/register off to Safari via `AppLauncher`.
-- Native SSO callback handling now closes the in-app browser on return to the
-  app.
-- Added a focused regression test for native iOS SSO launch behavior.
-- Updated App Store compliance/submission docs to reflect the in-app SSO fix.
+- Added `just rebuild` to mirror the repo rebuild steps from
+  `~/update-cinny.sh` (`npm ci`, `npm run build`).
+- Kept the existing iOS-focused `just` recipes unchanged.
 
 Validation (uncommitted):
 
 - Completed for the current working-tree slice:
-  - `npm run test -- src/app/pages/auth/SSOLogin.test.ts src/app/utils/nativeSso.test.ts`
-  - `npm run build`
-  - `npm run appstore:preflight`
-  - `npx cap copy ios`
-  - `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO build`
-- Failed (pre-existing repo baseline, unrelated to this slice): `npm run typecheck`
-  still reports broad `matrix-js-sdk` import/type mismatches and Jotai atom
-  typing errors across many untouched files.
-- Warning (pre-existing/local asset state): `xcodebuild` succeeded but emitted the
-  existing `AppIcon-512@2x.png` unassigned-child asset warning from the current
-  iOS asset catalog.
+  - `just --list`
+  - `just rebuild`
+  - `git diff --check`
 
 ## Commit-by-Commit Changes
 
