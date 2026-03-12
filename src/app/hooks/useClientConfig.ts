@@ -44,6 +44,7 @@ export type ClientConfig = {
   auth?: {
     hideServerPickerWhenSingle?: boolean;
     allowRegistration?: boolean;
+    disablePasswordLogin?: boolean;
     requireAppleProvider?: boolean;
     supportUrl?: string;
     privacyPolicyUrl?: string;
