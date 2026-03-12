@@ -1,11 +1,11 @@
 # MindRoom iOS App Store Compliance Checklist
 
-Last updated: 2026-03-09
+Last updated: 2026-03-12
 
 Use this checklist before every TestFlight/App Store submission.
 Use `APP_STORE_SUBMISSION_PACKET.md` to populate App Store Connect metadata and review notes.
 
-## Current Progress (2026-03-09)
+## Current Progress (2026-03-12)
 
 Use this section as the live status for the current submission attempt. Keep the main checklist below as the reusable template.
 
@@ -27,6 +27,7 @@ Use this section as the live status for the current submission attempt. Keep the
 - [x] Manual physical iPhone smoke test: message send/receive works, microphone recording works, camera permission works, photo library permission works, and account deactivation flow works.
 - [x] App Store Connect app record created as `Mindroom AI` with bundle ID `chat.mindroom.app`.
 - [x] Signed Xcode archive upload from Organizer.
+- [x] Native iOS login/register SSO now stays inside the app via Safari View Controller (`SFSafariViewController`) instead of handing off to Safari.
 - [ ] TestFlight smoke test on physical iPhone (login, register, Apple SSO, media permissions, account deletion entry).
 - [x] Homeserver used for submission exposes Apple SSO provider (`https://mindroom.chat/_matrix/client/v3/login` returns `m.login.sso` with Apple provider metadata).
 - [x] Review-access requirement clarified: `mindroom.chat` registration is token-gated (`m.login.registration_token`), so App Review must receive a temporary account or one-time registration token.
@@ -59,6 +60,7 @@ Use this section as the live status for the current submission attempt. Keep the
 - [ ] In-app registration is enabled for this build (`config.json` -> `auth.allowRegistration: true`).
 - [ ] Apple sign-in requirement is enabled (`config.json` -> `auth.requireAppleProvider: true`).
 - [ ] Homeserver SSO provider list includes Apple (`brand=apple` or equivalent provider metadata).
+- [ ] Native iOS login/register SSO stays inside the app via Safari View Controller (no Safari handoff).
 - [ ] Homeserver policy is enforced:
   - non-local servers must be `https://`
   - `http://` is only accepted for local-network hosts.

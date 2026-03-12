@@ -2,7 +2,6 @@ import { Avatar, AvatarImage, Box, Button, Text } from 'folds';
 import { IIdentityProvider, SSOAction } from 'matrix-js-sdk';
 import React, { useMemo, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { AppLauncher } from '@capacitor/app-launcher';
 import { Browser } from '@capacitor/browser';
 import { createMatrixClient } from '../../../client/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
@@ -34,12 +33,11 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
   const nativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
   const openingNativeSSORef = useRef(false);
 
-  const openFallbackBrowser = async (url: string): Promise<void> => {
+  const openNativeSSOBrowser = async (url: string): Promise<void> => {
     try {
-      await Browser.open({ url });
-      return undefined;
+      await Browser.open({ url, presentationStyle: 'fullscreen' });
     } catch {
-      return undefined;
+      window.location.assign(url);
     }
   };
 
@@ -52,12 +50,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
       if (openingNativeSSORef.current) return;
       openingNativeSSORef.current = true;
       try {
-        const result = await AppLauncher.openUrl({ url });
-        if (!result.completed) {
-          await openFallbackBrowser(url);
-        }
-      } catch {
-        await openFallbackBrowser(url);
+        await openNativeSSOBrowser(url);
       } finally {
         // Avoid multiple rapid taps creating overlapping SSO sessions/states.
         window.setTimeout(() => {
