@@ -1,10 +1,10 @@
 # MindRoom iOS App Store Submission Packet
 
-Last updated: 2026-03-09
+Last updated: 2026-03-12
 
 Use this file to paste content directly into App Store Connect.
 
-## Current Packet Progress (2026-03-09)
+## Current Packet Progress (2026-03-12)
 
 - [x] Reviewer note template drafted below.
 - [x] Product summary / fork positioning note available.
@@ -23,6 +23,7 @@ Mindroom AI is a Matrix client app optimized for AI-agent workflows.
 Important behavior for review:
 - This iOS build supports both existing-account login and account creation.
 - Sign in with Apple is supported via homeserver SSO identity providers.
+- On iOS, SSO login and registration open inside an in-app Safari View Controller rather than the Safari app.
 - Users sign in to Matrix homeservers and can send/receive end-to-end encrypted messages, voice messages, and media attachments.
 - The review homeserver for this build is https://mindroom.chat.
 - Reviewer self-signup on this homeserver is not fully open: Matrix registration currently requires an `m.login.registration_token` stage.

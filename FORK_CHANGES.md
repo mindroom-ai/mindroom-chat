@@ -17,21 +17,34 @@ Rules followed:
 
 ## Working Tree (Not Yet Committed)
 
-Working tree status (2026-03-10):
+Working tree status (2026-03-12):
 
-- Clean after the latest committed slice.
+- Local uncommitted changes are present in the iOS project/AppIcon asset set.
 - Unrelated untracked local `.claude/` directory is present in this worktree.
 
 What changed (uncommitted):
 
-- None.
+- iOS auth SSO launch now stays inside Capacitor Browser / `SFSafariViewController`
+  instead of handing login/register off to Safari via `AppLauncher`.
+- Native SSO callback handling now closes the in-app browser on return to the
+  app.
+- Added a focused regression test for native iOS SSO launch behavior.
+- Updated App Store compliance/submission docs to reflect the in-app SSO fix.
 
 Validation (uncommitted):
 
-- None pending.
+- Completed for the current working-tree slice:
+  - `npm run test -- src/app/pages/auth/SSOLogin.test.ts src/app/utils/nativeSso.test.ts`
+  - `npm run build`
+  - `npm run appstore:preflight`
+  - `npx cap copy ios`
+  - `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO build`
 - Failed (pre-existing repo baseline, unrelated to this slice): `npm run typecheck`
   still reports broad `matrix-js-sdk` import/type mismatches and Jotai atom
   typing errors across many untouched files.
+- Warning (pre-existing/local asset state): `xcodebuild` succeeded but emitted the
+  existing `AppIcon-512@2x.png` unassigned-child asset warning from the current
+  iOS asset catalog.
 
 ## Commit-by-Commit Changes
 
@@ -1081,6 +1094,9 @@ Thread badge behavior:
   - Apple providers are detected from `brand`, `id`, and `name`.
   - Apple providers are prioritized to the top of the list and use explicit Apple labels (`Sign in with Apple` / `Sign up with Apple`).
   - Icon-only SSO rendering is avoided when Apple is present to keep label visibility.
+- On native iOS, login/register SSO now opens inside Capacitor Browser
+  (`SFSafariViewController`) and the in-app browser is closed when the custom
+  scheme callback returns to the app, avoiding Safari handoff during App Review.
 - Added `scripts/appstore-preflight.mjs` (`npm run appstore:preflight`) to verify critical iOS/config compliance gates before archive.
 - Added `scripts/generate-ios-icons.sh` (`npm run ios:icons`) and generated full iPhone/iPad AppIcon slot assets from a single 1024 source icon.
 - App Store preflight now validates icon-slot completeness and required icon file presence.
@@ -1171,6 +1187,8 @@ Thread badge behavior:
 - AI run metadata (`io.mindroom.ai_run`) is surfaced via a subtle per-message hover tooltip in the timeline header.
 - Long-message handling is v2-only; users can download the original long-text sidecar directly from the message menu.
 - iOS submission posture has been hardened: stricter ATS behavior, explicit media permission strings, secure homeserver URL enforcement, registration-enabled flow, and Apple-aware SSO provider handling.
+- Native iOS login/register SSO now stays inside the app via Safari View
+  Controller instead of handing the user to Safari.
 - iOS app icon assets are now generated for all standard iPhone/iPad slots, and preflight checks enforce icon completeness before archive.
 - Native iOS push plumbing is now present in the app and iOS project, but default runtime config still leaves push disabled until a real APNs/Sygnal deployment is configured.
 - Branding assets now use repo-local PNG sources under `public/res/branding/`, with the transparent `mindroom-logo.png` used for in-app branding plus favicon/PWA generation, the optimized `mindroom-favicon.png` used for browser/runtime favicon updates, and the square logo driving native iOS icon/splash generation.
