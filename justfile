@@ -8,6 +8,11 @@ rebuild:
   npm ci
   npm run build
 
+# Build once, then start the local dev server
+run:
+  npm run build
+  npm start
+
 # Full refresh after pulling commits (safe if dependencies changed)
 ios-rebuild:
   npm install
