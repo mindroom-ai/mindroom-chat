@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect } from 'react';
-import { Box, Header, Scroll, Spinner, Text, color } from 'folds';
+import { Box, Button, Header, Scroll, Spinner, Text, color } from 'folds';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import classNames from 'classnames';
 
@@ -21,8 +21,10 @@ import { AutoDiscoveryInfoProvider } from '../../hooks/useAutoDiscoveryInfo';
 import { AuthFlowsLoader } from '../../components/AuthFlowsLoader';
 import { AuthFlowsProvider } from '../../hooks/useAuthFlows';
 import { AuthServerProvider } from '../../hooks/useAuthServer';
+import { useActiveSession } from '../../hooks/useSessionStore';
 import { tryDecodeURIComponent } from '../../utils/dom';
 import { buildAuthRoutePath } from './authRouteUtils';
+import { resolveAddAccountReturnPath } from './addAccount';
 
 function AuthLayoutLoading({ message }: { message: string }) {
   return (
@@ -49,6 +51,7 @@ export function AuthLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { server: urlEncodedServer } = useParams();
+  const activeSession = useActiveSession();
 
   const clientConfig = useClientConfig();
   const registrationAllowed = clientConfig.auth?.allowRegistration !== false;
@@ -118,6 +121,7 @@ export function AuthLayout() {
     clientConfig.auth?.hideServerPickerWhenSingle === true &&
     !clientConfig.allowCustomHomeservers &&
     serverList.length === 1;
+  const addAccountReturnPath = resolveAddAccountReturnPath(location.search, activeSession);
 
   return (
     <Scroll variant="Background" visibility="Hover" size="300" hideTrack>
@@ -136,6 +140,16 @@ export function AuthLayout() {
             </Box>
           </Header>
           <Box className={css.AuthCardContent} direction="Column">
+            {addAccountReturnPath && (
+              <Button
+                variant="Secondary"
+                fill="Soft"
+                size="400"
+                onClick={() => navigate(addAccountReturnPath, { replace: true })}
+              >
+                Back to current account
+              </Button>
+            )}
             {!hideServerPicker && (
               <Box direction="Column" gap="100">
                 <Text as="label" size="L400" priority="300">
