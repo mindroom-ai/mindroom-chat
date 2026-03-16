@@ -1064,6 +1064,7 @@ Thread badge behavior:
 
 - Matrix client creation is centralized with same-origin credentialed fetch behavior.
 - Auth flow loading was made recoverable (retry path instead of hard failure UX).
+- Add-account auth routes now show a shared "Back to current account" action when an active session exists, restoring the session's last in-app route (or home) so native iOS users are not trapped on the secondary login screen.
 - On startup, when config enforces exactly one homeserver, stale stored `cinny_hs_base_url` is reconciled to that configured homeserver to avoid unusable-server auth errors from legacy localStorage values.
 - Current session storage remains localStorage-based in this branch; native Keychain-backed storage is a TODO gap for iOS hardening.
 
@@ -1101,7 +1102,7 @@ Thread badge behavior:
 - If deploying behind strict subpath-only ingress/proxy rules, ensure runtime config and assets resolve under your routing policy, or apply equivalent server-side HTML base/script injection in the serving layer.
 - Before shipping iOS builds, run the full checklist in `.docs/APP_STORE_COMPLIANCE.md` and verify App Store Connect metadata URLs (support/privacy/terms) are public and final.
 
-## Current Snapshot (2026-03-07)
+## Current Snapshot (2026-03-15)
 
 - Thread mode, tool-ref v2 rendering, long-message v2 hydration, and `!` autocomplete are implemented.
 - Edit rendering hardening now prioritizes SDK replacement state over relation
@@ -1121,6 +1122,9 @@ Thread badge behavior:
 - Thread cache pagination now ignores the thread root when computing cached
   "older messages" state, so reaching the top of a thread no longer leaves a
   bogus `Load Older Messages` button visible just because the root event exists.
+- Add-account auth flows now expose an in-app return path back to the active
+  session, preventing native iOS users from getting stranded on login when they
+  decide not to finish adding a second account.
 - Direct deep links into thread view now retry thread edit backfill after the
   initial thread tail finishes loading, and backfill attempt tracking is tied
   to `MatrixEvent` instances instead of event IDs. This avoids a first-load race
