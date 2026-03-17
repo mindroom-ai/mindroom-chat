@@ -20,6 +20,18 @@ const makeMessageEvent = (eventId: string, ts = 1) =>
     type: 'm.room.message',
   });
 
+const makeLocalEchoPair = (txnId: string) => {
+  const localEcho = makeMessageEvent(`~local-${txnId}`, 10);
+  localEcho.setTxnId(txnId);
+
+  const remoteEcho = makeMessageEvent(`$remote-${txnId}`, 10);
+  remoteEcho.event.unsigned = {
+    transaction_id: txnId,
+  };
+
+  return { localEcho, remoteEcho };
+};
+
 const makeEditEvent = (targetEventId: string, editEventId: string, ts: number) =>
   new MatrixEvent({
     content: {
@@ -84,6 +96,13 @@ describe('getThreadInitialRenderMode', () => {
 });
 
 describe('pickPreferredThreadRenderEvent', () => {
+  it('prefers the confirmed remote event over a local echo with the same transaction id', () => {
+    const { localEcho, remoteEcho } = makeLocalEchoPair('txn-1');
+
+    expect(pickPreferredThreadRenderEvent(localEcho, remoteEcho)).toBe(remoteEcho);
+    expect(pickPreferredThreadRenderEvent(remoteEcho, localEcho)).toBe(remoteEcho);
+  });
+
   it('keeps the existing event when it already has the newer edit applied', () => {
     const existingEvent = makeMessageEvent('$target');
     const incomingEvent = makeMessageEvent('$target');
@@ -152,5 +171,12 @@ describe('mergeThreadRenderEvents', () => {
     const staleDuplicate = makeMessageEvent('$target');
 
     expect(mergeThreadRenderEvents([correctedEvent], [staleDuplicate])).toEqual([correctedEvent]);
+  });
+
+  it('deduplicates local echo and confirmed thread events using transaction id', () => {
+    const { localEcho, remoteEcho } = makeLocalEchoPair('txn-2');
+
+    expect(mergeThreadRenderEvents([localEcho], [remoteEcho])).toEqual([remoteEcho]);
+    expect(mergeThreadRenderEvents([remoteEcho], [localEcho])).toEqual([remoteEcho]);
   });
 });

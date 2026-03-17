@@ -60,6 +60,45 @@ const getEventTs = (rawEvent: Partial<IEvent>): number =>
     ? rawEvent.origin_server_ts
     : 0;
 
+const getRawTransactionId = (rawEvent: Partial<IEvent>): string | undefined => {
+  const txnId =
+    typeof rawEvent.txn_id === 'string' && rawEvent.txn_id.length > 0
+      ? rawEvent.txn_id
+      : typeof rawEvent.unsigned?.transaction_id === 'string' &&
+          rawEvent.unsigned.transaction_id.length > 0
+        ? rawEvent.unsigned.transaction_id
+        : undefined;
+
+  return txnId;
+};
+
+const getRawEventKey = (rawEvent: Partial<IEvent>): string | undefined => {
+  const txnId = getRawTransactionId(rawEvent);
+  if (txnId) return `txn:${txnId}`;
+
+  if (typeof rawEvent.event_id === 'string' && rawEvent.event_id.length > 0) {
+    return `event:${rawEvent.event_id}`;
+  }
+
+  return undefined;
+};
+
+const isRawLocalEchoEvent = (rawEvent: Partial<IEvent>): boolean =>
+  typeof rawEvent.event_id === 'string' && rawEvent.event_id.startsWith('~');
+
+const pickPreferredCachedThreadEvent = (
+  existingEvent: CachedThreadEvent,
+  incomingEvent: CachedThreadEvent
+): CachedThreadEvent => {
+  const existingLocalEcho = isRawLocalEchoEvent(existingEvent);
+  const incomingLocalEcho = isRawLocalEchoEvent(incomingEvent);
+  if (existingLocalEcho !== incomingLocalEcho) {
+    return existingLocalEcho ? incomingEvent : existingEvent;
+  }
+
+  return incomingEvent;
+};
+
 const toCachedThreadEvent = (rawEvent: Partial<IEvent>): CachedThreadEvent | undefined => {
   if (typeof rawEvent.event_id !== 'string' || rawEvent.event_id.length === 0) return undefined;
   return {
@@ -89,12 +128,21 @@ export const normalizeCachedThreadEvents = (
   rawEvents.forEach((rawEvent) => {
     const normalized = toCachedThreadEvent(rawEvent);
     if (!normalized) return;
-    eventMap.set(normalized.event_id, normalized);
+    const eventKey = getRawEventKey(normalized);
+    if (!eventKey) return;
+    const existingEvent = eventMap.get(eventKey);
+    eventMap.set(
+      eventKey,
+      existingEvent ? pickPreferredCachedThreadEvent(existingEvent, normalized) : normalized
+    );
   });
 
   const normalizedRoot = rootEvent ? toCachedThreadEvent(rootEvent) : undefined;
-  if (normalizedRoot && !eventMap.has(normalizedRoot.event_id)) {
-    eventMap.set(normalizedRoot.event_id, normalizedRoot);
+  if (normalizedRoot) {
+    const rootKey = getRawEventKey(normalizedRoot);
+    if (rootKey && !eventMap.has(rootKey)) {
+      eventMap.set(rootKey, normalizedRoot);
+    }
   }
 
   return Array.from(eventMap.values()).sort(sortThreadEvents);

@@ -54,6 +54,25 @@ describe('normalizeCachedThreadEvents', () => {
       { event_id: '$c', origin_server_ts: 200 },
     ]);
   });
+
+  it('deduplicates local echo and confirmed cached thread events by transaction id', () => {
+    expect(
+      normalizeCachedThreadEvents([
+        { event_id: '~local-txn', origin_server_ts: 200, txn_id: 'txn-1' },
+        {
+          event_id: '$remote-txn',
+          origin_server_ts: 200,
+          unsigned: { transaction_id: 'txn-1' },
+        },
+      ])
+    ).toEqual([
+      {
+        event_id: '$remote-txn',
+        origin_server_ts: 200,
+        unsigned: { transaction_id: 'txn-1' },
+      },
+    ]);
+  });
 });
 
 describe('filterPageableCachedThreadEvents', () => {
