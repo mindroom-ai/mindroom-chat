@@ -73,6 +73,19 @@ describe('normalizeCachedThreadEvents', () => {
       },
     ]);
   });
+
+  it('deduplicates identical cached remote events when one copy still includes the transaction id', () => {
+    expect(
+      normalizeCachedThreadEvents([
+        {
+          event_id: '$remote',
+          origin_server_ts: 200,
+          unsigned: { transaction_id: 'txn-2' },
+        },
+        { event_id: '$remote', origin_server_ts: 200 },
+      ])
+    ).toEqual([{ event_id: '$remote', origin_server_ts: 200 }]);
+  });
 });
 
 describe('filterPageableCachedThreadEvents', () => {

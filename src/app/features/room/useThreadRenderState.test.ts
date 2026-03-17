@@ -186,6 +186,42 @@ describe('useThreadRenderState', () => {
     renderer.unmount();
   });
 
+  it('deduplicates a confirmed thread event when cached and live copies disagree on transaction metadata', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+    const cachedReply = makeMessageEvent('$reply', 2);
+    cachedReply.event.unsigned = { transaction_id: 'txn-4' };
+    const liveReply = makeMessageEvent('$reply', 2);
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+    const thread = makeThread(rootEvent, [liveReply]);
+
+    const { getSnapshot, update, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: false,
+    });
+
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [cachedReply]);
+    });
+
+    update({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: true,
+    });
+
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
+
+    renderer.unmount();
+  });
+
   it('resets supplemental thread state cleanly', () => {
     const rootEvent = makeMessageEvent('$root', 1);
     const replyEvent = makeMessageEvent('$reply', 2);

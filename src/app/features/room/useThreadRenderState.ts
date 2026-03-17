@@ -3,9 +3,7 @@ import { EventTimelineSet, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { aggregateCachedRelationEvents, hydrateCachedEvents } from './eventCacheEditUtils';
 import {
   getThreadInitialRenderMode,
-  getThreadRenderEventKey,
   mergeThreadRenderEvents,
-  pickPreferredThreadRenderEvent,
   ThreadInitialRenderMode,
 } from './threadRenderUtils';
 import { eventBelongsToThread } from './threadUtils';
@@ -47,8 +45,7 @@ const buildThreadEvents = ({
   events: MatrixEvent[];
   indexMap: Map<string, number>;
 } => {
-  const eventsMap = new Map<string, MatrixEvent>();
-  const eventOrderMap = new Map<string, number>();
+  const collectedEvents: MatrixEvent[] = [];
   const initialRenderMode = getThreadInitialRenderMode({
     threadId,
     initialCacheHydrated: threadInitialCacheHydrated,
@@ -59,19 +56,7 @@ const buildThreadEvents = ({
     const eventId = mEvent?.getId();
     if (!eventId) return;
     if (requireThreadMatch && eventId !== threadId && !eventBelongsToThread(mEvent, threadId)) return;
-    const eventKey = getThreadRenderEventKey(mEvent);
-    if (!eventKey) return;
-    if (!eventsMap.has(eventKey)) {
-      eventOrderMap.set(eventKey, eventOrderMap.size);
-      eventsMap.set(eventKey, mEvent);
-      return;
-    }
-
-    const existingEvent = eventsMap.get(eventKey);
-    eventsMap.set(
-      eventKey,
-      existingEvent ? pickPreferredThreadRenderEvent(existingEvent, mEvent) : mEvent
-    );
+    collectedEvents.push(mEvent);
   };
 
   if (initialRenderMode === 'live') {
@@ -86,15 +71,7 @@ const buildThreadEvents = ({
     fallbackEvents.forEach((mEvent) => addThreadEvent(mEvent, false));
   }
 
-  const sortedEvents = Array.from(eventsMap.values()).sort((a, b) => {
-    const timeDiff = a.getTs() - b.getTs();
-    if (timeDiff !== 0) return timeDiff;
-    const aId = a.getId();
-    const bId = b.getId();
-    const aOrder = (aId && eventOrderMap.get(aId)) ?? 0;
-    const bOrder = (bId && eventOrderMap.get(bId)) ?? 0;
-    return aOrder - bOrder;
-  });
+  const sortedEvents = mergeThreadRenderEvents([], collectedEvents);
 
   hydrateCachedEvents({
     room,
