@@ -444,7 +444,7 @@ type RoomTimelineProps = {
   editor: Editor;
 };
 
-const PAGINATION_LIMIT = 80;
+const PAGINATION_LIMIT = 300;
 const THREAD_LATEST_SLICE_LIMIT = PAGINATION_LIMIT;
 const THREAD_CACHE_OPEN_LIMIT = PAGINATION_LIMIT;
 
