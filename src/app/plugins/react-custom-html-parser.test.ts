@@ -124,9 +124,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
         events: [{ type: 'tool_call_completed', tool_name: 'search_web', result_preview: 'Done' }],
       },
     });
-    expect(hydratedMarkup).toContain('>Tool<');
-    expect(hydratedMarkup).toContain('search_web');
-    expect(hydratedMarkup).toContain('Done');
+    expect(hydratedMarkup).toContain('1 tool call');
   });
 
   it('groups consecutive markers into one tool-calls block', () => {
@@ -188,8 +186,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     );
 
     expect(markup).not.toContain('2 tool calls');
-    expect(markup.match(/>Tool</g)).toHaveLength(2);
-    expect(markup).toContain('run_shell_command');
+    expect(markup.match(/1 tool call/g)).toHaveLength(2);
     expect(markup).toContain('Now let me find one');
     expect(markup).toContain('Now let me find two');
     expect(markup).not.toContain('🔧');
@@ -223,7 +220,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
       },
     });
 
-    expect(markup).toContain('tool3');
+    expect(markup).toContain('1 tool call');
     expect(markup).toContain('<p>Waiting</p>');
     expect(markup).not.toContain('⏳');
   });
@@ -242,7 +239,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
       }
     );
 
-    expect(markup).toContain('>Tool<');
+    expect(markup).toContain('1 tool call');
     expect(markup).toContain('<p>No magic - just dropping old turns when the window fills up.</p>');
     expect(markup).not.toContain('<p><br/>No magic');
   });
@@ -259,8 +256,66 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
       },
     });
 
-    expect(markup).toContain('tool3');
+    expect(markup).toContain('1 tool call');
     expect(markup).not.toContain('⏳');
+  });
+
+  it('renders single tool call using group path with Tool #1 label', () => {
+    const renderer = renderTreeWithToolTrace('<p>🔧 <code>search_web</code> [1]</p>', {
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [
+          { type: 'tool_call_completed', tool_name: 'search_web', result_preview: 'Found it' },
+        ],
+      },
+    });
+
+    const collapsed = collectTextContent(renderer.toJSON());
+    expect(collapsed).toContain('1 tool call');
+
+    const toggle = renderer.root.findByType('button');
+    act(() => {
+      toggle.props.onClick();
+    });
+
+    const expanded = collectTextContent(renderer.toJSON());
+    expect(expanded).toContain('Tool #1: search_web');
+    expect(expanded).toContain('Found it');
+  });
+
+  it('shows pending badge in collapsed header for single pending tool', () => {
+    const renderer = renderTreeWithToolTrace('<p>🔧 <code>search_web</code> [1]</p>', {
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [{ type: 'tool_call_started', tool_name: 'search_web' }],
+      },
+    });
+
+    const header = renderer.root.findByType('button');
+    const headerSpans = header.findAllByType('span');
+    const spinnerSpan = headerSpans.find(
+      (s) => s.props.size === '100' && s.props.variant === 'Secondary'
+    );
+    expect(spinnerSpan).toBeDefined();
+
+    const completedRenderer = renderTreeWithToolTrace('<p>🔧 <code>search_web</code> [1]</p>', {
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [
+          { type: 'tool_call_completed', tool_name: 'search_web', result_preview: 'Done' },
+        ],
+      },
+    });
+
+    const completedHeader = completedRenderer.root.findByType('button');
+    const completedSpans = completedHeader.findAllByType('span');
+    const completedSpinnerSpan = completedSpans.find(
+      (s) => s.props.size === '100' && s.props.variant === 'Secondary'
+    );
+    expect(completedSpinnerSpan).toBeUndefined();
+
+    const checkIcon = completedSpans.find((s) => s.props.src === 'Check' && s.props.size === '50');
+    expect(checkIcon).toBeDefined();
   });
 
   it('shows single-line inline result inside expanded body for copyability', () => {
