@@ -466,30 +466,6 @@ const buildToolRefRenderData = (
   };
 };
 
-const renderMindroomToolRefBlock = (parsedTool: MindroomToolBlockRenderData) => {
-  const showResultBlock = parsedTool.status === 'completed_with_result' && !!parsedTool.result;
-  const inlineResult =
-    parsedTool.status === 'completed_with_result' && parsedTool.resultInline
-      ? parsedTool.result
-      : undefined;
-
-  return (
-    <MindroomCollapsibleBlock
-      icon={Icons.Terminal}
-      label="Tool"
-      subtitle={parsedTool.command}
-      pending={parsedTool.status === 'pending'}
-      inlineResult={inlineResult}
-    >
-      {showResultBlock && parsedTool.result && (
-        <Text as="pre" size="T200" className={css.MindroomBlockResult}>
-          {parsedTool.result}
-        </Text>
-      )}
-    </MindroomCollapsibleBlock>
-  );
-};
-
 const renderMindroomToolRefGroupItem = (parsedTool: MindroomToolBlockRenderData) => {
   const prefix = `Tool #${parsedTool.index}: ${parsedTool.command}`;
   const key = `tool-group-item-${parsedTool.index}-${parsedTool.command}`;
@@ -521,10 +497,11 @@ const renderMindroomToolRefGroupItem = (parsedTool: MindroomToolBlockRenderData)
 };
 
 const renderMindroomToolRefGroupBlock = (parsedTools: MindroomToolBlockRenderData[]) => {
-  if (parsedTools.length === 1) return renderMindroomToolRefBlock(parsedTools[0]);
+  const label = parsedTools.length === 1 ? '1 tool call' : `${parsedTools.length} tool calls`;
+  const pending = parsedTools.length === 1 ? parsedTools[0].status === 'pending' : undefined;
 
   return (
-    <MindroomCollapsibleBlock icon={Icons.Terminal} label={`${parsedTools.length} tool calls`}>
+    <MindroomCollapsibleBlock icon={Icons.Terminal} label={label} pending={pending}>
       <Box className={css.MindroomToolGroupList}>
         {parsedTools.map((parsedTool) => renderMindroomToolRefGroupItem(parsedTool))}
       </Box>

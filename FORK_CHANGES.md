@@ -1016,6 +1016,7 @@ Thread badge behavior:
 - No legacy `<tool>` / `<tool-group>` compatibility is kept in sanitizer or parser paths.
 - Marker prefixes at the start of a block element continue to render as tool blocks even when trailing content follows in the same block.
 - Expanded tool dropdown now shows result text even for single-line inline results to support copy workflows.
+- Single and multi tool call markers use the same group rendering path: a single tool renders as "1 tool call" with the same expandable dropdown as multi-tool groups, showing `Tool #1: command` inside.
 
 ### AI Run Metadata Visibility
 
