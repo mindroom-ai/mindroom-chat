@@ -73,11 +73,15 @@ const makeTimelineSet = (): EventTimelineSet =>
     },
   } as unknown as EventTimelineSet);
 
-const makeRoom = (rootEvent?: MatrixEvent): Room =>
+const makeRoom = (
+  rootEvent?: MatrixEvent,
+  txnMap?: Map<string, MatrixEvent>
+): Room =>
   ({
     findEventById: vi.fn((eventId: string) =>
       rootEvent?.getId() === eventId ? rootEvent : undefined
     ),
+    getEventForTxnId: vi.fn((txnId: string) => txnMap?.get(txnId)),
   } as unknown as Room);
 
 const makeThread = (rootEvent: MatrixEvent, events: MatrixEvent[]): Thread =>
@@ -218,6 +222,54 @@ describe('useThreadRenderState', () => {
     });
 
     expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
+
+    renderer.unmount();
+  });
+
+  it('deduplicates local echo against confirmed event from /relations when room resolves the confirmed id', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+
+    // Local echo: still has ~-prefix ID, txnId set
+    const localEcho = makeMessageEvent('~local-txn-5', 2);
+    localEcho.setTxnId('txn-5');
+
+    // Simulate updatePendingEvent having updated the local echo's ID
+    const localEchoAfterSent = makeMessageEvent('$reply', 2);
+    localEchoAfterSent.setTxnId('txn-5');
+
+    // Confirmed event from /relations API — no transaction_id
+    const confirmedReply = makeMessageEvent('$reply', 2);
+
+    const txnMap = new Map<string, MatrixEvent>([['txn-5', localEchoAfterSent]]);
+    const room = makeRoom(rootEvent, txnMap);
+    const roomTimelineSet = makeTimelineSet();
+    const thread = makeThread(rootEvent, [confirmedReply]);
+
+    const { getSnapshot, update, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: false,
+    });
+
+    // Supplemental events include the local echo (from timeline listener)
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [localEcho]);
+    });
+
+    update({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: true,
+    });
+
+    // Should deduplicate: local echo and confirmed reply are the same message
+    expect(getSnapshot().threadEvents.map((e) => e.getId())).toEqual(['$root', '$reply']);
 
     renderer.unmount();
   });
