@@ -29,6 +29,20 @@ type ThreadFallbackState = {
 
 const EMPTY_THREAD_EVENTS: MatrixEvent[] = [];
 
+const buildResolveConfirmedId = (
+  room: Room
+): ((txnId: string) => string | undefined) => {
+  return (txnId: string): string | undefined => {
+    const event = room.getEventForTxnId?.(txnId);
+    if (!event) return undefined;
+    const confirmedId = event.getId();
+    if (typeof confirmedId === 'string' && !confirmedId.startsWith('~')) {
+      return confirmedId;
+    }
+    return undefined;
+  };
+};
+
 const buildThreadEvents = ({
   room,
   threadId,
@@ -72,7 +86,8 @@ const buildThreadEvents = ({
     fallbackEvents.forEach((mEvent) => addThreadEvent(mEvent, false));
   }
 
-  const sortedEvents = mergeThreadRenderEvents([], collectedEvents);
+  const resolveConfirmedId = buildResolveConfirmedId(room);
+  const sortedEvents = mergeThreadRenderEvents([], collectedEvents, resolveConfirmedId);
 
   hydrateCachedEvents({
     room,
