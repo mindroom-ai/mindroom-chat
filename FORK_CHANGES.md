@@ -1212,6 +1212,50 @@ Thread summary preview (CINNY-003b, upgraded in CINNY-003c):
 
 Current task:
 
+- CINNY-008 fix room scroll count-vs-render mismatch.
+
+### CINNY-008: Room Scroll Count-vs-Render Mismatch (2026-03-21)
+
+**Status:** Complete.
+
+**Problem:** The virtual paginator counted ALL timeline events but
+`renderResolvedEvent` returned `null` for most (thread replies, reactions,
+edits). With 95%+ invisible events, only ~4 messages rendered in an 80-event
+window, causing infinite skeleton loading.
+
+**Solution:** Pre-filter timeline events so the paginator operates on renderable
+events only.
+
+**Changes in `src/app/features/room/RoomTimeline.tsx`:**
+
+1. Added `isRenderableEvent()` predicate and `getRenderableEvents()` helper
+   (~L254-284) that mirror `renderResolvedEvent`'s null-return guards.
+2. Memoized `renderableEvents` / `filteredLength` in the component (~L831-847).
+3. Wired paginator `count` from `eventsLength` → `filteredLength`; updated
+   `eventRenderer` to look up `renderableEvents[item]` instead of raw timeline
+   index.
+4. Updated `getInitialTimeline()` to accept optional filter params so initial
+   range is computed in filtered space.
+5. Guarded live-event range bump (`ct.range.start + 1, end + 1`) behind
+   `isRenderableEvent` check.
+6. Converted `loadEventTimeline` callback, `handleOpenEvent`, and unread
+   scroll-to logic from raw `absoluteIndex` to filtered index.
+7. Updated `recalibrateTimelinePagination` to accept filter opts and compute
+   offsets in filtered space; plumbed through `useTimelinePagination` via a ref.
+8. Kept raw `eventsLength` and `getTimelinesEventsCount` for cache persistence
+   and pagination token management (unchanged).
+9. Thread rendering path (`threadEvents.map()`) untouched.
+10. `useVirtualPaginator.ts` not modified.
+
+**Validation:**
+
+- `npm run typecheck` — no new errors (only pre-existing matrix-js-sdk import
+  warnings).
+- `npm run build` — successful.
+- `npm run lint --quiet` — no errors in changed file.
+
+Previous task:
+
 - CINNY-003 frontend support for MindRoom thread summary events.
 
 Requested behavior:
