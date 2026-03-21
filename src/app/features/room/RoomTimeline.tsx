@@ -259,6 +259,70 @@ const withStateTargetEvents = (room: Room, events: MatrixEvent[]): MatrixEvent[]
   return Array.from(eventsById.values());
 };
 
+const KNOWN_EVENT_TYPES = new Set<string>([
+  MessageEvent.RoomMessage,
+  MessageEvent.RoomMessageEncrypted,
+  MessageEvent.Sticker,
+  StateEvent.RoomMember,
+  StateEvent.RoomName,
+  StateEvent.RoomTopic,
+  StateEvent.RoomAvatar,
+]);
+
+const isRenderableEvent = (
+  mEvent: MatrixEvent,
+  _room: Room,
+  threadId: string | undefined,
+  ignoredUsersSet: Set<string>,
+  showHiddenEvents: boolean,
+  hideMembershipEvents: boolean,
+  hideNickAvatarEvents: boolean
+): boolean => {
+  const mEventId = mEvent.getId();
+  if (!mEvent || !mEventId) return false;
+  const eventSender = mEvent.getSender();
+  if (eventSender && ignoredUsersSet.has(eventSender)) return false;
+  if (!threadId && mEvent.threadRootId && mEvent.threadRootId !== mEventId) return false;
+  if (mEvent.isRedacted() && !showHiddenEvents) return false;
+  if (reactionOrEditEvent(mEvent)) return false;
+  if (mEvent.isRedaction()) return false;
+
+  // Membership / nick-avatar filtering
+  if (mEvent.getType() === StateEvent.RoomMember) {
+    const membershipChanged = isMembershipChanged(mEvent);
+    if (membershipChanged && hideMembershipEvents) return false;
+    if (!membershipChanged && hideNickAvatarEvents) return false;
+  }
+
+  // Unknown event types: only renderable when showHiddenEvents is true
+  if (!KNOWN_EVENT_TYPES.has(mEvent.getType()) && !showHiddenEvents) return false;
+
+  // Unknown message fallback filters (apply when showHiddenEvents is true)
+  if (!KNOWN_EVENT_TYPES.has(mEvent.getType()) && typeof mEvent.getStateKey() !== 'string') {
+    if (Object.keys(mEvent.getContent()).length === 0) return false;
+    if (mEvent.getRelation()) return false;
+  }
+
+  return true;
+};
+
+const getRenderableEvents = (
+  linkedTimelines: EventTimeline[],
+  room: Room,
+  threadId: string | undefined,
+  ignoredUsersSet: Set<string>,
+  showHiddenEvents: boolean,
+  hideMembershipEvents: boolean,
+  hideNickAvatarEvents: boolean
+): MatrixEvent[] =>
+  linkedTimelines.flatMap((tl) =>
+    tl
+      .getEvents()
+      .filter((mEvent) =>
+        isRenderableEvent(mEvent, room, threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents)
+      )
+  );
+
 export const timelineToEventsCount = (t: EventTimeline) => t.getEvents().length;
 export const getTimelinesEventsCount = (timelines: EventTimeline[]): number => {
   const timelineEventCountReducer = (count: number, tm: EventTimeline) =>
@@ -439,7 +503,15 @@ const recalibrateTimelinePagination = (
   >,
   linkedTimelines: EventTimeline[],
   timelinesEventsCount: number[],
-  backwards: boolean
+  backwards: boolean,
+  filterOpts?: {
+    room: Room;
+    threadId: string | undefined;
+    ignoredUsersSet: Set<string>;
+    showHiddenEvents: boolean;
+    hideMembershipEvents: boolean;
+    hideNickAvatarEvents: boolean;
+  }
 ) => {
   const topTimeline = linkedTimelines[0];
   const timelineMatch = (mt: EventTimeline) => (t: EventTimeline) => t === mt;
@@ -448,8 +520,28 @@ const recalibrateTimelinePagination = (
   const topTmIndex = newLTimelines.findIndex(timelineMatch(topTimeline));
   const topAddedTm = topTmIndex === -1 ? [] : newLTimelines.slice(0, topTmIndex);
 
-  const topTmAddedEvt = timelineToEventsCount(newLTimelines[topTmIndex]) - timelinesEventsCount[0];
-  const offsetRange = getTimelinesEventsCount(topAddedTm) + (backwards ? topTmAddedEvt : 0);
+  let offsetRange: number;
+  if (filterOpts) {
+    const countRenderable = (tms: EventTimeline[]) =>
+      getRenderableEvents(
+        tms,
+        filterOpts.room,
+        filterOpts.threadId,
+        filterOpts.ignoredUsersSet,
+        filterOpts.showHiddenEvents,
+        filterOpts.hideMembershipEvents,
+        filterOpts.hideNickAvatarEvents
+      ).length;
+    const oldTopRenderableCount = countRenderable([linkedTimelines[0]]);
+    const newTopRenderableCount = countRenderable([newLTimelines[topTmIndex]]);
+    const topTmAddedRenderable = newTopRenderableCount - oldTopRenderableCount;
+    const addedTmRenderable = countRenderable(topAddedTm);
+    offsetRange = addedTmRenderable + (backwards ? topTmAddedRenderable : 0);
+  } else {
+    const topTmAddedEvt =
+      timelineToEventsCount(newLTimelines[topTmIndex]) - timelinesEventsCount[0];
+    offsetRange = getTimelinesEventsCount(topAddedTm) + (backwards ? topTmAddedEvt : 0);
+  }
 
   setTimeline((currentTimeline) => ({
     linkedTimelines: newLTimelines,
@@ -499,11 +591,21 @@ const useEventTimelineLoader = (
   return loadEventTimeline;
 };
 
+type RecalibrateFilterOpts = {
+  room: Room;
+  threadId: string | undefined;
+  ignoredUsersSet: Set<string>;
+  showHiddenEvents: boolean;
+  hideMembershipEvents: boolean;
+  hideNickAvatarEvents: boolean;
+};
+
 const useTimelinePagination = (
   mx: MatrixClient,
   timeline: Timeline,
   setTimeline: Dispatch<SetStateAction<Timeline>>,
-  limit: number
+  limit: number,
+  filterOptsRef: RefObject<RecalibrateFilterOpts | undefined>
 ) => {
   const timelineRef = useRef(timeline);
   timelineRef.current = timeline;
@@ -528,7 +630,7 @@ const useTimelinePagination = (
         getTimelinesEventsCount(lTimelines) !==
           getTimelinesEventsCount(getLinkedTimelines(timelineToPaginate))
       ) {
-        recalibrateTimelinePagination(setTimeline, lTimelines, timelinesEventsCount, backwards);
+        recalibrateTimelinePagination(setTimeline, lTimelines, timelinesEventsCount, backwards, filterOptsRef.current ?? undefined);
         return;
       }
 
@@ -557,10 +659,10 @@ const useTimelinePagination = (
 
       fetching = false;
       if (alive()) {
-        recalibrateTimelinePagination(setTimeline, lTimelines, timelinesEventsCount, backwards);
+        recalibrateTimelinePagination(setTimeline, lTimelines, timelinesEventsCount, backwards, filterOptsRef.current ?? undefined);
       }
     };
-  }, [mx, alive, setTimeline, limit]);
+  }, [mx, alive, setTimeline, limit, filterOptsRef]);
   return handleTimelinePagination;
 };
 
@@ -604,14 +706,33 @@ const useLiveTimelineRefresh = (room: Room, onRefresh: () => void) => {
   }, [room, onRefresh]);
 };
 
-const getInitialTimeline = (room: Room) => {
+const getInitialTimeline = (
+  room: Room,
+  filterOpts?: {
+    threadId: string | undefined;
+    ignoredUsersSet: Set<string>;
+    showHiddenEvents: boolean;
+    hideMembershipEvents: boolean;
+    hideNickAvatarEvents: boolean;
+  }
+) => {
   const linkedTimelines = getLinkedTimelines(getLiveTimeline(room));
-  const evLength = getTimelinesEventsCount(linkedTimelines);
+  const count = filterOpts
+    ? getRenderableEvents(
+        linkedTimelines,
+        room,
+        filterOpts.threadId,
+        filterOpts.ignoredUsersSet,
+        filterOpts.showHiddenEvents,
+        filterOpts.hideMembershipEvents,
+        filterOpts.hideNickAvatarEvents
+      ).length
+    : getTimelinesEventsCount(linkedTimelines);
   return {
     linkedTimelines,
     range: {
-      start: Math.max(evLength - PAGINATION_LIMIT, 0),
-      end: evLength,
+      start: Math.max(count - PAGINATION_LIMIT, 0),
+      end: count,
     },
   };
 };
@@ -771,15 +892,32 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   const parseMemberEvent = useMemberEventParser();
 
   const [timeline, setTimeline] = useState<Timeline>(() =>
-    eventId ? getEmptyTimeline() : getInitialTimeline(room)
+    eventId
+      ? getEmptyTimeline()
+      : getInitialTimeline(room, { threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents })
   );
   const eventsLength = getTimelinesEventsCount(timeline.linkedTimelines);
+  const renderableEvents = useMemo(
+    () =>
+      getRenderableEvents(
+        timeline.linkedTimelines,
+        room,
+        threadId,
+        ignoredUsersSet,
+        showHiddenEvents,
+        hideMembershipEvents,
+        hideNickAvatarEvents
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [timeline.linkedTimelines, eventsLength, threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents]
+  );
+  const filteredLength = renderableEvents.length;
   const liveTimelineLinked =
     timeline.linkedTimelines[timeline.linkedTimelines.length - 1] === getLiveTimeline(room);
   const canPaginateBack =
     typeof timeline.linkedTimelines[0]?.getPaginationToken(Direction.Backward) === 'string';
   const rangeAtStart = timeline.range.start === 0;
-  const rangeAtEnd = timeline.range.end === eventsLength;
+  const rangeAtEnd = timeline.range.end === filteredLength;
   const thread = threadId ? room.getThread(threadId) : null;
   const roomTimelineSet = room.getUnfilteredTimelineSet();
   const threadTimelineSet = thread?.getUnfilteredTimelineSet();
@@ -815,11 +953,22 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   const atLiveEndRef = useRef(timelineAtLiveEnd);
   atLiveEndRef.current = timelineAtLiveEnd;
 
+  const recalibrateFilterOptsRef = useRef<RecalibrateFilterOpts | undefined>({
+    room,
+    threadId,
+    ignoredUsersSet,
+    showHiddenEvents,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+  });
+  recalibrateFilterOptsRef.current = { room, threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents };
+
   const handleTimelinePagination = useTimelinePagination(
     mx,
     timeline,
     setTimeline,
-    PAGINATION_LIMIT
+    PAGINATION_LIMIT,
+    recalibrateFilterOptsRef
   );
 
   const handleRoomTimelinePagination = useCallback(
@@ -887,7 +1036,8 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
               setTimeline,
               currentLinkedTimelines,
               timelinesEventsCount,
-              true
+              true,
+              recalibrateFilterOptsRef.current ?? undefined
             );
             setRoomHasMoreCachedBack(cachedPage.hasMoreBefore);
           }
@@ -1021,7 +1171,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
 
   const { getItems, scrollToItem, scrollToElement, observeBackAnchor, observeFrontAnchor } =
     useVirtualPaginator({
-      count: threadId ? 0 : eventsLength,
+      count: threadId ? 0 : filteredLength,
       limit: PAGINATION_LIMIT,
       range: threadId ? { start: 0, end: 0 } : timeline.range,
       onRangeChange: useCallback(
@@ -1045,31 +1195,42 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     mx,
     room,
     useCallback(
-      (evtId, lTimelines, evtAbsIndex) => {
+      (evtId, lTimelines, _evtAbsIndex) => {
         if (!alive()) return;
-        const evLength = getTimelinesEventsCount(lTimelines);
+        const filtered = getRenderableEvents(
+          lTimelines,
+          room,
+          threadId,
+          ignoredUsersSet,
+          showHiddenEvents,
+          hideMembershipEvents,
+          hideNickAvatarEvents
+        );
+        const filteredIndex = filtered.findIndex((e) => e.getId() === evtId);
+        const idx = filteredIndex === -1 ? 0 : filteredIndex;
+        const fLen = filtered.length;
 
         setFocusItem({
-          index: evtAbsIndex,
+          index: idx,
           scrollTo: !threadId,
           highlight: evtId !== readUptoEventIdRef.current,
         });
         setTimeline({
           linkedTimelines: lTimelines,
           range: {
-            start: Math.max(evtAbsIndex - PAGINATION_LIMIT, 0),
-            end: Math.min(evtAbsIndex + PAGINATION_LIMIT, evLength),
+            start: Math.max(idx - PAGINATION_LIMIT, 0),
+            end: Math.min(idx + PAGINATION_LIMIT, fLen),
           },
         });
       },
-      [alive, threadId]
+      [alive, threadId, room, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents]
     ),
     useCallback(() => {
       if (!alive()) return;
-      setTimeline(getInitialTimeline(room));
+      setTimeline(getInitialTimeline(room, { threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents }));
       scrollToBottomRef.current.count += 1;
       scrollToBottomRef.current.smooth = false;
-    }, [alive, room])
+    }, [alive, room, threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents])
   );
 
   useLiveEventArrive(
@@ -1164,13 +1325,15 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           scrollToBottomRef.current.count += 1;
           scrollToBottomRef.current.smooth = true;
 
-          setTimeline((ct) => ({
-            ...ct,
-            range: {
-              start: ct.range.start + 1,
-              end: ct.range.end + 1,
-            },
-          }));
+          if (isRenderableEvent(mEvt, room, threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents)) {
+            setTimeline((ct) => ({
+              ...ct,
+              range: {
+                start: ct.range.start + 1,
+                end: ct.range.end + 1,
+              },
+            }));
+          }
           return;
         }
         setTimeline((ct) => ({ ...ct }));
@@ -1188,6 +1351,10 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         hideActivity,
         threadId,
         timelineAtLiveEnd,
+        ignoredUsersSet,
+        showHiddenEvents,
+        hideMembershipEvents,
+        hideNickAvatarEvents,
       ]
     )
   );
@@ -1261,19 +1428,17 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         }
       }
 
-      const evtTimeline = getEventTimeline(room, evtId);
-      const absoluteIndex =
-        evtTimeline && getEventIdAbsoluteIndex(timeline.linkedTimelines, evtTimeline, evtId);
+      const filteredIndex = renderableEvents.findIndex((e) => e.getId() === evtId);
 
-      if (typeof absoluteIndex === 'number') {
-        const scrolled = scrollToItem(absoluteIndex, {
+      if (filteredIndex !== -1) {
+        const scrolled = scrollToItem(filteredIndex, {
           behavior: 'smooth',
           align: 'center',
           stopInView: true,
         });
         if (onScroll) onScroll(scrolled);
         setFocusItem({
-          index: absoluteIndex,
+          index: filteredIndex,
           scrollTo: false,
           highlight,
         });
@@ -1316,16 +1481,18 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         loadEventTimeline(evtId);
       }
     },
-    [mx, room, timeline, scrollToItem, scrollToElement, loadEventTimeline, threadId]
+    [mx, room, renderableEvents, scrollToItem, scrollToElement, loadEventTimeline, threadId]
   );
 
   useLiveTimelineRefresh(
     room,
     useCallback(() => {
       if (liveTimelineLinked) {
-        setTimeline(getInitialTimeline(room));
+        setTimeline(
+          getInitialTimeline(room, { threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents })
+        );
       }
-    }, [room, liveTimelineLinked])
+    }, [room, liveTimelineLinked, threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents])
   );
 
   // Stay at bottom when room editor resize
@@ -1663,19 +1830,16 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     if (threadId) return;
     const { readUptoEventId, inLiveTimeline, scrollTo } = unreadInfo ?? {};
     if (readUptoEventId && inLiveTimeline && scrollTo) {
-      const linkedTimelines = getLinkedTimelines(getLiveTimeline(room));
-      const evtTimeline = getEventTimeline(room, readUptoEventId);
-      const absoluteIndex =
-        evtTimeline && getEventIdAbsoluteIndex(linkedTimelines, evtTimeline, readUptoEventId);
-      if (absoluteIndex) {
-        scrollToItem(absoluteIndex, {
+      const fIdx = renderableEvents.findIndex((e) => e.getId() === readUptoEventId);
+      if (fIdx !== -1) {
+        scrollToItem(fIdx, {
           behavior: 'instant',
           align: 'start',
           stopInView: true,
         });
       }
     }
-  }, [room, unreadInfo, scrollToItem, threadId]);
+  }, [room, unreadInfo, scrollToItem, threadId, renderableEvents]);
 
   // scroll to focused message
   useLayoutEffect(() => {
@@ -1821,10 +1985,10 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     if (eventId) {
       navigateRoom(room.roomId, undefined, { replace: true });
     }
-    setTimeline(getInitialTimeline(room));
+    setTimeline(getInitialTimeline(room, { threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents }));
     scrollToBottomRef.current.count += 1;
     scrollToBottomRef.current.smooth = false;
-  }, [eventId, navigateRoom, navigateRoomThread, refreshLatestThreadSlice, room, threadId]);
+  }, [eventId, navigateRoom, navigateRoomThread, refreshLatestThreadSlice, room, threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents]);
 
   const handleJumpToUnread = () => {
     if (unreadInfo?.readUptoEventId) {
@@ -3051,11 +3215,14 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   };
 
   const eventRenderer = (item: number) => {
-    const [eventTimeline, baseIndex] = getTimelineAndBaseIndex(timeline.linkedTimelines, item);
-    if (!eventTimeline) return null;
-    const timelineSet = eventTimeline.getTimelineSet();
-    const mEvent = getTimelineEvent(eventTimeline, getTimelineRelativeIndex(item, baseIndex));
+    const mEvent = renderableEvents[item];
     if (!mEvent) return null;
+    const mEventId = mEvent.getId();
+    if (!mEventId) return null;
+    const evtTimeline = room
+      .getUnfilteredTimelineSet()
+      .getTimelineForEvent(mEventId);
+    const timelineSet = evtTimeline?.getTimelineSet() ?? room.getUnfilteredTimelineSet();
 
     return renderResolvedEvent(mEvent, item, timelineSet);
   };
