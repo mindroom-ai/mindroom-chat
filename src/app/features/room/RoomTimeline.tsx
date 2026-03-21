@@ -512,7 +512,8 @@ const recalibrateTimelinePagination = (
     showHiddenEvents: boolean;
     hideMembershipEvents: boolean;
     hideNickAvatarEvents: boolean;
-  }
+  },
+  timelinesRenderableCounts?: number[]
 ) => {
   const topTimeline = linkedTimelines[0];
   const timelineMatch = (mt: EventTimeline) => (t: EventTimeline) => t === mt;
@@ -533,7 +534,7 @@ const recalibrateTimelinePagination = (
         filterOpts.hideMembershipEvents,
         filterOpts.hideNickAvatarEvents
       ).length;
-    const oldTopRenderableCount = countRenderable([linkedTimelines[0]]);
+    const oldTopRenderableCount = timelinesRenderableCounts?.[0] ?? countRenderable([linkedTimelines[0]]);
     const newTopRenderableCount = countRenderable([newLTimelines[topTmIndex]]);
     const topTmAddedRenderable = newTopRenderableCount - oldTopRenderableCount;
     const addedTmRenderable = countRenderable(topAddedTm);
@@ -619,6 +620,21 @@ const useTimelinePagination = (
       if (fetching) return;
       const { linkedTimelines: lTimelines } = timelineRef.current;
       const timelinesEventsCount = lTimelines.map(timelineToEventsCount);
+      const fOpts = filterOptsRef.current ?? undefined;
+      const timelinesRenderableCounts = fOpts
+        ? lTimelines.map(
+            (tl) =>
+              getRenderableEvents(
+                [tl],
+                fOpts.room,
+                fOpts.threadId,
+                fOpts.ignoredUsersSet,
+                fOpts.showHiddenEvents,
+                fOpts.hideMembershipEvents,
+                fOpts.hideNickAvatarEvents
+              ).length
+          )
+        : undefined;
 
       const timelineToPaginate = backwards ? lTimelines[0] : lTimelines[lTimelines.length - 1];
       if (!timelineToPaginate) return;
@@ -631,36 +647,39 @@ const useTimelinePagination = (
         getTimelinesEventsCount(lTimelines) !==
           getTimelinesEventsCount(getLinkedTimelines(timelineToPaginate))
       ) {
-        recalibrateTimelinePagination(setTimeline, lTimelines, timelinesEventsCount, backwards, filterOptsRef.current ?? undefined);
+        recalibrateTimelinePagination(setTimeline, lTimelines, timelinesEventsCount, backwards, fOpts, timelinesRenderableCounts);
         return;
       }
 
       fetching = true;
-      const [err] = await to(
-        mx.paginateEventTimeline(timelineToPaginate, {
-          backwards,
-          limit,
-        })
-      );
-      if (err) {
-        // TODO: handle pagination error.
-        return;
-      }
-      const fetchedTimeline =
-        timelineToPaginate.getNeighbouringTimeline(
-          backwards ? Direction.Backward : Direction.Forward
-        ) ?? timelineToPaginate;
-      // Decrypt all event ahead of render cycle
-      const roomId = fetchedTimeline.getRoomId();
-      const room = roomId ? mx.getRoom(roomId) : null;
+      try {
+        const [err] = await to(
+          mx.paginateEventTimeline(timelineToPaginate, {
+            backwards,
+            limit,
+          })
+        );
+        if (err) {
+          // TODO: handle pagination error.
+          return;
+        }
+        const fetchedTimeline =
+          timelineToPaginate.getNeighbouringTimeline(
+            backwards ? Direction.Backward : Direction.Forward
+          ) ?? timelineToPaginate;
+        // Decrypt all event ahead of render cycle
+        const roomId = fetchedTimeline.getRoomId();
+        const room = roomId ? mx.getRoom(roomId) : null;
 
-      if (room?.hasEncryptionStateEvent()) {
-        await to(decryptAllTimelineEvent(mx, fetchedTimeline));
-      }
+        if (room?.hasEncryptionStateEvent()) {
+          await to(decryptAllTimelineEvent(mx, fetchedTimeline));
+        }
 
-      fetching = false;
-      if (alive()) {
-        recalibrateTimelinePagination(setTimeline, lTimelines, timelinesEventsCount, backwards, filterOptsRef.current ?? undefined);
+        if (alive()) {
+          recalibrateTimelinePagination(setTimeline, lTimelines, timelinesEventsCount, backwards, fOpts, timelinesRenderableCounts);
+        }
+      } finally {
+        fetching = false;
       }
     };
   }, [mx, alive, setTimeline, limit, filterOptsRef]);
@@ -988,6 +1007,21 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         if (!firstTimeline) return;
 
         const timelinesEventsCount = currentLinkedTimelines.map(timelineToEventsCount);
+        const rFilterOpts = recalibrateFilterOptsRef.current;
+        const timelinesRenderableCounts = rFilterOpts
+          ? currentLinkedTimelines.map(
+              (tl) =>
+                getRenderableEvents(
+                  [tl],
+                  rFilterOpts.room,
+                  rFilterOpts.threadId,
+                  rFilterOpts.ignoredUsersSet,
+                  rFilterOpts.showHiddenEvents,
+                  rFilterOpts.hideMembershipEvents,
+                  rFilterOpts.hideNickAvatarEvents
+                ).length
+            )
+          : undefined;
         const earliestLoadedEvent = getEarliestLoadedRoomEvent(room, currentLinkedTimelines);
         const cachedPage = await loadCachedRoomEventsBefore(
           sessionId,
@@ -1038,7 +1072,8 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
               currentLinkedTimelines,
               timelinesEventsCount,
               true,
-              recalibrateFilterOptsRef.current ?? undefined
+              recalibrateFilterOptsRef.current ?? undefined,
+              timelinesRenderableCounts
             );
             setRoomHasMoreCachedBack(cachedPage.hasMoreBefore);
           }
