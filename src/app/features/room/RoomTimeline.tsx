@@ -1104,8 +1104,12 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
 
         // Ignore thread-only live activity in the main room timeline for auto-scroll.
         // These events are hidden there, so forcing bottom jumps is disruptive.
+        // Only re-render when at bottom so thread previews update without causing
+        // scroll jumps for users reading history.
         if (isThreadOnlyActivity) {
-          setTimeline((ct) => ({ ...ct }));
+          if (atBottomRef.current) {
+            setTimeline((ct) => ({ ...ct }));
+          }
           if (!unreadInfo) {
             setUnreadInfo(getRoomUnreadInfo(room));
           }
@@ -3032,7 +3036,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           </Chip>
         </TimelineFloat>
       )}
-      <Scroll ref={scrollRef} visibility="Hover">
+      <Scroll ref={scrollRef} visibility="Hover" style={{ overflowAnchor: 'auto' }}>
         <Box
           direction="Column"
           justifyContent="End"
