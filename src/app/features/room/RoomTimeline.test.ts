@@ -1,14 +1,39 @@
 import React, { createRef } from 'react';
+import { RoomEvent } from 'matrix-js-sdk';
 import { Editor } from 'slate';
-import { create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { act, create } from 'react-test-renderer';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { passthrough, scrollType } = vi.hoisted(() => ({
+const {
+  passthrough,
+  scrollType,
+  roomThreadOverviewType,
+  matrixClientMock,
+  threadRenderStateMock,
+} = vi.hoisted(() => ({
   passthrough: 'div',
   scrollType: 'room-timeline-scroll',
-}));
-const { roomThreadOverviewType } = vi.hoisted(() => ({
   roomThreadOverviewType: 'room-thread-overview',
+  matrixClientMock: {
+    fetchRelations: vi.fn(),
+    getEventMapper: vi.fn(() => (rawEvent: unknown) => rawEvent),
+    getEventTimeline: vi.fn(),
+    getHomeserverUrl: vi.fn(() => 'https://example.org'),
+    getRoom: vi.fn(() => null),
+    getSafeUserId: vi.fn(() => '@alice:example.org'),
+    getThreadTimeline: vi.fn(),
+    getUserId: vi.fn(() => '@alice:example.org'),
+    paginateEventTimeline: vi.fn(),
+    processAggregatedTimelineEvents: vi.fn(),
+    relations: vi.fn(),
+  },
+  threadRenderStateMock: {
+    threadEventIndexMapRef: { current: new Map() },
+    threadEvents: [],
+    threadInitialRenderMode: 'live',
+    setSupplementalThreadEvents: vi.fn(),
+    resetThreadRenderState: vi.fn(),
+  },
 }));
 
 vi.mock('folds', async (importOriginal) => {
@@ -58,19 +83,7 @@ vi.mock('folds', async (importOriginal) => {
 });
 
 vi.mock('../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({
-    getHomeserverUrl: () => 'https://example.org',
-    getSafeUserId: () => '@alice:example.org',
-    getUserId: () => '@alice:example.org',
-    getEventMapper: () => (rawEvent: unknown) => rawEvent,
-    getRoom: () => null,
-    paginateEventTimeline: vi.fn(),
-    processAggregatedTimelineEvents: vi.fn(),
-    fetchRelations: vi.fn(),
-    getEventTimeline: vi.fn(),
-    getThreadTimeline: vi.fn(),
-    relations: vi.fn(),
-  }),
+  useMatrixClient: () => matrixClientMock,
 }));
 
 vi.mock('../../hooks/useAlive', () => ({
@@ -352,13 +365,7 @@ vi.mock('../../components/message/mindroomThreadSummary', () => ({
 }));
 
 vi.mock('./useThreadRenderState', () => ({
-  useThreadRenderState: () => ({
-    threadEventIndexMapRef: { current: new Map() },
-    threadEvents: [],
-    threadInitialRenderMode: 'live',
-    setSupplementalThreadEvents: vi.fn(),
-    resetThreadRenderState: vi.fn(),
-  }),
+  useThreadRenderState: () => threadRenderStateMock,
 }));
 
 vi.mock('./threadEventCache', () => ({
@@ -445,8 +452,10 @@ const makeRoom = () => {
     getLiveTimeline: () => liveTimeline,
     getTimelineForEvent: () => undefined,
   };
+  const listeners = new Map<string | symbol, (...args: unknown[]) => void>();
 
   return {
+    __listeners: listeners,
     roomId: '!room:example.org',
     client: {
       getUserId: () => '@alice:example.org',
@@ -457,9 +466,59 @@ const makeRoom = () => {
     getThread: () => null,
     getUnfilteredTimelineSet: () => timelineSet,
     hasEncryptionStateEvent: () => false,
-    on: vi.fn(),
-    removeListener: vi.fn(),
+    on: vi.fn((event, handler) => {
+      listeners.set(event, handler);
+    }),
+    removeListener: vi.fn((event) => {
+      listeners.delete(event);
+    }),
   };
+};
+
+const flushAsyncWork = async (cycles = 5) => {
+  for (let index = 0; index < cycles; index += 1) {
+    await Promise.resolve();
+  }
+};
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  matrixClientMock.fetchRelations.mockResolvedValue({
+    chunk: [],
+    next_batch: null,
+  });
+  matrixClientMock.getEventTimeline.mockResolvedValue(undefined);
+  matrixClientMock.getThreadTimeline.mockResolvedValue(undefined);
+});
+
+let useThreadAwareTimelineRefreshHook:
+  | typeof import('./RoomTimeline').useThreadAwareTimelineRefresh
+  | undefined;
+
+type TimelineRefreshHarnessProps = {
+  room: ReturnType<typeof makeRoom>;
+  threadId?: string;
+  liveTimelineLinked: boolean;
+  refreshLatestThreadSlice: (threadId: string) => Promise<boolean>;
+  onRoomRefresh: () => void;
+};
+
+const TimelineRefreshHarness = ({
+  room,
+  threadId,
+  liveTimelineLinked,
+  refreshLatestThreadSlice,
+  onRoomRefresh,
+}: TimelineRefreshHarnessProps) => {
+  useThreadAwareTimelineRefreshHook?.({
+    room: room as never,
+    threadId,
+    liveTimelineLinked,
+    refreshLatestThreadSlice,
+    onRoomRefresh,
+  });
+
+  return null;
 };
 
 describe('RoomTimeline', () => {
@@ -498,5 +557,149 @@ describe('RoomTimeline', () => {
     expect(renderer.root.findByType(scrollType).findAllByType(roomThreadOverviewType)).toHaveLength(
       0
     );
+  });
+
+  it('coalesces queued refreshes and reruns after in-flight settles', async () => {
+    const roomTimelineModule = await import('./RoomTimeline');
+    useThreadAwareTimelineRefreshHook = roomTimelineModule.useThreadAwareTimelineRefresh;
+    const threadId = '$thread';
+    const room = makeRoom();
+    const onRoomRefresh = vi.fn();
+    let resolveRefresh: ((value: boolean) => void) | undefined;
+    const refreshLatestThreadSlice = vi
+      .fn(async (_expectedThreadId: string) => true)
+      .mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolveRefresh = resolve;
+          })
+      );
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(TimelineRefreshHarness, {
+          room,
+          threadId,
+          liveTimelineLinked: true,
+          refreshLatestThreadSlice,
+          onRoomRefresh,
+        })
+      );
+      await flushAsyncWork(1);
+    });
+
+    const refreshHandler = room.__listeners.get(RoomEvent.TimelineRefresh);
+    expect(refreshHandler).toBeTypeOf('function');
+
+    // Fire twice while first is in-flight — only one call, second is queued
+    await act(async () => {
+      refreshHandler?.(room);
+      refreshHandler?.(room);
+      await flushAsyncWork(1);
+    });
+
+    expect(refreshLatestThreadSlice).toHaveBeenCalledTimes(1);
+    expect(refreshLatestThreadSlice).toHaveBeenCalledWith(threadId);
+    expect(onRoomRefresh).not.toHaveBeenCalled();
+
+    // Settle the first — the coalesced pending triggers a second call
+    await act(async () => {
+      resolveRefresh?.(true);
+      await flushAsyncWork();
+    });
+
+    expect(refreshLatestThreadSlice).toHaveBeenCalledTimes(2);
+
+    // After both settle, a fresh event still works
+    await act(async () => {
+      refreshHandler?.(room);
+      await flushAsyncWork();
+    });
+
+    expect(refreshLatestThreadSlice).toHaveBeenCalledTimes(3);
+
+    await act(async () => {
+      renderer?.unmount();
+      await flushAsyncWork(1);
+    });
+  });
+
+  it('cancels a queued refresh when the thread closes mid-flight', async () => {
+    const roomTimelineModule = await import('./RoomTimeline');
+    useThreadAwareTimelineRefreshHook = roomTimelineModule.useThreadAwareTimelineRefresh;
+    const threadId = '$thread';
+    const room = makeRoom();
+    const onRoomRefresh = vi.fn();
+    let resolveRefresh: ((value: boolean) => void) | undefined;
+    const refreshLatestThreadSlice = vi
+      .fn(async (_expectedThreadId: string) => true)
+      .mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolveRefresh = resolve;
+          })
+      );
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(TimelineRefreshHarness, {
+          room,
+          threadId,
+          liveTimelineLinked: true,
+          refreshLatestThreadSlice,
+          onRoomRefresh,
+        })
+      );
+      await flushAsyncWork(1);
+    });
+
+    const refreshHandler = room.__listeners.get(RoomEvent.TimelineRefresh);
+    expect(refreshHandler).toBeTypeOf('function');
+
+    // Fire refresh — starts in-flight
+    await act(async () => {
+      refreshHandler?.(room);
+      await flushAsyncWork(1);
+    });
+
+    expect(refreshLatestThreadSlice).toHaveBeenCalledTimes(1);
+
+    // Queue another refresh while the first request is still in-flight.
+    await act(async () => {
+      refreshHandler?.(room);
+      await flushAsyncWork(1);
+    });
+
+    expect(refreshLatestThreadSlice).toHaveBeenCalledTimes(1);
+
+    // Re-render without threadId (thread closed) before the queued rerun can start.
+    await act(async () => {
+      renderer?.update(
+        React.createElement(TimelineRefreshHarness, {
+          room,
+          threadId: undefined,
+          liveTimelineLinked: true,
+          refreshLatestThreadSlice,
+          onRoomRefresh,
+        })
+      );
+      await flushAsyncWork(1);
+    });
+
+    // Settle the original in-flight — the queued rerun should be discarded.
+    await act(async () => {
+      resolveRefresh?.(true);
+      await flushAsyncWork();
+    });
+
+    expect(refreshLatestThreadSlice).toHaveBeenCalledTimes(1);
+    expect(onRoomRefresh).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer?.unmount();
+      await flushAsyncWork(1);
+    });
   });
 });
