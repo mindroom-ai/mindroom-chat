@@ -1218,6 +1218,29 @@ Thread summary preview (CINNY-003b, upgraded in CINNY-003c):
 - Base-path bootstrap is server-driven for the local SPA server (`serve.py`) and no longer depends on fragile client-side inference.
 - Service-worker media auth matching handles both root and subpath media endpoints on the same origin, reducing `M_MISSING_TOKEN` failures under subpath deployments.
 - Voice message recording/sending is available in room input, recorded uploads now default to Ogg/Opus when supported by `MediaRecorder`, and voice-tagged incoming audio messages render/play in the existing audio controls.
+
+## Active Investigation (2026-03-21)
+
+- ISSUE-023 implementation is complete.
+- Root cause was in the custom thread cache path: stale `~...` local-echo rows
+  persisted under the old event ID, later `$...` confirmed rows stored
+  separately, and cold-start render dedup couldn't link them without transaction
+  metadata.
+- Fix applied in two layers:
+  1. `threadEventCache.ts`: `normalizeCachedThreadEvents()` now filters out
+     `~`-prefixed local echo events (both reply events and rootEvent).
+     `saveThreadEventsToCache()` skips `~`-prefixed rootEvent on write.
+  2. `useThreadRenderState.ts`: `buildResolveConfirmedId()` now accepts an
+     optional events array and builds a fallback txnId→eventId map from
+     `unsigned.transaction_id` when `room.getEventForTxnId()` returns undefined
+     (cold reload). Resolver is wired into both `buildThreadEvents()` and
+     `setSupplementalThreadEvents()`.
+- Tests added: 3 new cache filter tests, 2 new render state dedup tests.
+  All 37 tests pass (13 cache + 7 render state + 17 render utils).
+- Remaining ISSUE-023 product decision:
+  the base dedup fix does not preserve "send -> kill -> reload -> unsent reply
+  still visible" on this branch, so NOT_SENT reload persistence needs separate
+  explicit follow-up work if it is required for shipment.
 - AI run metadata (`io.mindroom.ai_run`) is surfaced via a subtle per-message hover tooltip in the timeline header.
 - Long-message handling is v2-only; users can download the original long-text sidecar directly from the message menu.
 - iOS submission posture has been hardened: stricter ATS behavior, explicit media permission strings, secure homeserver URL enforcement, registration-enabled flow, and Apple-aware SSO provider handling.

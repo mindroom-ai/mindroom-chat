@@ -74,6 +74,32 @@ describe('normalizeCachedThreadEvents', () => {
     ]);
   });
 
+  it('excludes local echo replies from normalized output', () => {
+    expect(
+      normalizeCachedThreadEvents([
+        { event_id: '~!local-only', origin_server_ts: 100 },
+      ])
+    ).toEqual([]);
+  });
+
+  it('excludes local echo replies but keeps confirmed events on cold reload', () => {
+    expect(
+      normalizeCachedThreadEvents([
+        { event_id: '~!local-echo', origin_server_ts: 100 },
+        { event_id: '$confirmed', origin_server_ts: 200 },
+      ])
+    ).toEqual([{ event_id: '$confirmed', origin_server_ts: 200 }]);
+  });
+
+  it('excludes local echo rootEvent but keeps confirmed replies', () => {
+    expect(
+      normalizeCachedThreadEvents(
+        [{ event_id: '$reply', origin_server_ts: 200 }],
+        { event_id: '~!local-root', origin_server_ts: 100 }
+      )
+    ).toEqual([{ event_id: '$reply', origin_server_ts: 200 }]);
+  });
+
   it('deduplicates identical cached remote events when one copy still includes the transaction id', () => {
     expect(
       normalizeCachedThreadEvents([
