@@ -1944,3 +1944,24 @@ Required prep before any upstream PR:
 - Open maintainer discussion first for anything beyond a narrow bugfix.
 - Split each candidate into the smallest independently testable branch/PR.
 - Include tests and only the docs needed for that specific change.
+
+## Investigation Log (2026-03-21)
+
+### CINNY-011: thread reconnect gap on mobile
+
+- Planning/investigation completed in `PLAN.md`.
+- Status update:
+  - Implemented the Plan B consensus fix in `src/app/features/room/RoomTimeline.tsx`.
+  - `RoomEvent.TimelineRefresh` now refreshes the latest slice for the active thread, while the room timeline keeps its existing live-timeline reset behavior when no thread is open.
+  - Replaced the pure same-thread in-flight drop with a coalesced rerun pattern so reconnect bursts still stay one request at a time without losing a later refresh that arrives while `/relations` is in flight.
+  - The queued rerun is canceled if the active thread closes or changes before the in-flight refresh settles, so stale thread fetches are not replayed after the user leaves the thread.
+  - Extracted the refresh wiring into `useThreadAwareTimelineRefresh` so the guarded callback can be regression-tested without mounting the full thread timeline bootstrap path.
+  - Added focused regression tests in `src/app/features/room/RoomTimeline.test.ts` covering both the rapid reconnect rerun path and the thread-close-mid-refresh cancellation path.
+- Validation:
+  - `npx vitest run src/app/features/room/RoomTimeline.test.ts --no-coverage` ✅
+  - `npx tsc --noEmit` ❌ existing repo-wide failures unrelated to this slice (Matrix SDK import/type surface, React JSX typing, and Jotai atom typing errors across many files).
+  - `npm run build` ✅
+- Review:
+  - Second self-review completed against `git diff`, the updated regression tests, and `git diff --check`.
+- Remaining validation:
+  - Manual mobile lock/resume verification is still pending.
