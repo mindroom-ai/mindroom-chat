@@ -274,6 +274,92 @@ describe('useThreadRenderState', () => {
     renderer.unmount();
   });
 
+  it('deduplicates local echo against confirmed event in setSupplementalThreadEvents via fallback resolver', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+
+    // Local echo with txnId
+    const localEcho = makeMessageEvent('~local-txn-7', 2);
+    localEcho.setTxnId('txn-7');
+
+    // Confirmed event with unsigned.transaction_id (from cache/API)
+    const confirmedReply = makeMessageEvent('$confirmed-7', 2);
+    confirmedReply.event.unsigned = { transaction_id: 'txn-7' };
+
+    // Room does NOT resolve txnId (simulates cold reload)
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+
+    const { getSnapshot, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread: null,
+      threadInitialCacheHydrated: false,
+    });
+
+    // First supplemental batch: the local echo
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [localEcho]);
+    });
+
+    // Second supplemental batch: the confirmed reply with txn metadata
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [confirmedReply]);
+    });
+
+    // Should deduplicate: only the confirmed event survives
+    expect(getSnapshot().threadEvents.map((e) => e.getId())).toEqual(['$confirmed-7']);
+
+    renderer.unmount();
+  });
+
+  it('composed resolver falls back to event-derived txnId map when room.getEventForTxnId returns undefined', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+
+    // Local echo
+    const localEcho = makeMessageEvent('~local-txn-8', 2);
+    localEcho.setTxnId('txn-8');
+
+    // Confirmed event from /relations with unsigned.transaction_id
+    const confirmedReply = makeMessageEvent('$confirmed-8', 2);
+    confirmedReply.event.unsigned = { transaction_id: 'txn-8' };
+
+    // Room does NOT know about txn-8 (cold reload scenario)
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+    const thread = makeThread(rootEvent, [confirmedReply]);
+
+    const { getSnapshot, update, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: false,
+    });
+
+    // Supplemental: add local echo (from cached events)
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [localEcho]);
+    });
+
+    // Hydrate live thread
+    update({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: true,
+    });
+
+    // Should deduplicate via fallback resolver
+    expect(getSnapshot().threadEvents.map((e) => e.getId())).toEqual(['$root', '$confirmed-8']);
+
+    renderer.unmount();
+  });
+
   it('resets supplemental thread state cleanly', () => {
     const rootEvent = makeMessageEvent('$root', 1);
     const replyEvent = makeMessageEvent('$reply', 2);
