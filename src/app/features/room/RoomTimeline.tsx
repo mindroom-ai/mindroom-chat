@@ -69,6 +69,7 @@ import {
   MSticker,
   ImageContent,
   EventContent,
+  MindroomThreadSummaryCard,
 } from '../../components/message';
 import {
   factoryRenderLinkifyWithMention,
@@ -82,6 +83,7 @@ import {
   decryptAllTimelineEvent,
   getEditedEvent,
   getEventReactions,
+  getLatestMessageContent,
   getLatestEdit,
   getLatestEditableEvt,
   getMemberDisplayName,
@@ -113,6 +115,7 @@ import { GetContentCallback, MessageEvent, StateEvent } from '../../../types/mat
 import { useKeyDown } from '../../hooks/useKeyDown';
 import { useDocumentFocusChange } from '../../hooks/useDocumentFocusChange';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
+import { TruncatedThreadRootBody } from '../../components/TruncatedThreadRootBody';
 import { Image } from '../../components/media';
 import { ImageViewer } from '../../components/image-viewer';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
@@ -140,6 +143,12 @@ import {
   eventBelongsToThread,
   isThreadReplyEvent,
 } from './threadUtils';
+import {
+  buildThreadSummaryMap,
+  findLatestThreadSummaryEvent,
+  getThreadSummaryEventInfo,
+  MindroomThreadSummaryInfo,
+} from '../../components/message/mindroomThreadSummary';
 import { shouldPinThreadToBottomOnOpen } from './threadRenderUtils';
 import { useThreadRenderState } from './useThreadRenderState';
 import {
@@ -301,6 +310,26 @@ const getThreadParticipantIds = (
   }
 
   return undefined;
+};
+
+const getThreadSummaryInfo = (
+  room: Room,
+  mEvent: MatrixEvent,
+  fallbackInfo?: MindroomThreadSummaryInfo
+): MindroomThreadSummaryInfo | undefined => {
+  const eventId = mEvent.getId();
+  if (eventId) {
+    const thread = room.getThread(eventId);
+    if (thread?.events?.length) {
+      const summaryEvent = findLatestThreadSummaryEvent(thread.events);
+      if (summaryEvent) {
+        const info = getThreadSummaryEventInfo(summaryEvent);
+        if (info?.summaryText) return info;
+      }
+    }
+  }
+
+  return fallbackInfo;
 };
 
 export const getTimelineAndBaseIndex = (
@@ -1949,6 +1978,13 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       threadId ? new Map<string, string[]>() : buildThreadParticipantMap(loadedTimelineEvents),
     [threadId, loadedTimelineEvents]
   );
+  const threadSummaryInfoMap = useMemo(
+    () =>
+      threadId
+        ? new Map<string, MindroomThreadSummaryInfo>()
+        : buildThreadSummaryMap(loadedTimelineEvents),
+    [threadId, loadedTimelineEvents]
+  );
 
   const renderMatrixEvent = useMatrixEventRenderer<
     [string, MatrixEvent, number, EventTimelineSet, boolean]
@@ -1963,7 +1999,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
 
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
         const getContent = (() =>
-          editedEvent?.getContent()['m.new_content'] ?? mEvent.getContent()) as GetContentCallback;
+          getLatestMessageContent(mEvent, editedEvent)) as GetContentCallback;
 
         const senderId = mEvent.getSender() ?? '';
         const senderDisplayName =
@@ -1979,22 +2015,37 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           threadParticipantMap.get(mEventId)
         );
         const isThreadReply = isThreadReplyEvent(mEventId, threadRootId);
+        const summaryInfo =
+          !threadId && !isThreadReply && mEventId
+            ? getThreadSummaryInfo(room, mEvent, threadSummaryInfoMap.get(mEventId))
+            : undefined;
         const threadSummary =
           !threadId &&
           !isThreadReply &&
           mEventId &&
           typeof threadReplyCount === 'number' &&
           threadReplyCount > 0 ? (
-            <ThreadIndicator
-              as="button"
-              style={{ marginTop: config.space.S200 }}
-              data-thread-root-id={mEventId}
-              data-event-id={mEventId}
-              threadReplyCount={threadReplyCount}
-              threadParticipantIds={threadParticipantIds}
-              room={room}
-              onClick={handleOpenReply}
-            />
+            <>
+              {summaryInfo && (
+                <Box style={{ marginTop: config.space.S200 }}>
+                  <MindroomThreadSummaryCard
+                    compact
+                    summaryInfo={summaryInfo}
+                    renderBody={({ body }) => <>{body}</>}
+                  />
+                </Box>
+              )}
+              <ThreadIndicator
+                as="button"
+                style={{ marginTop: summaryInfo ? config.space.S100 : config.space.S200 }}
+                data-thread-root-id={mEventId}
+                data-event-id={mEventId}
+                threadReplyCount={threadReplyCount}
+                threadParticipantIds={threadParticipantIds}
+                room={room}
+                onClick={handleOpenReply}
+              />
+            </>
           ) : null;
 
         return (
@@ -2066,6 +2117,24 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           >
             {mEvent.isRedacted() ? (
               <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />
+            ) : summaryInfo ? (
+              <TruncatedThreadRootBody
+                mEventId={mEventId}
+                onClick={handleOpenReply}
+              >
+                <RenderMessageContent
+                  displayName={senderDisplayName}
+                  msgType={mEvent.getContent().msgtype ?? ''}
+                  ts={mEvent.getTs()}
+                  edited={!!editedEvent}
+                  getContent={getContent}
+                  mediaAutoLoad={mediaAutoLoad}
+                  urlPreview={showUrlPreview}
+                  htmlReactParserOptions={htmlReactParserOptions}
+                  linkifyOpts={linkifyOpts}
+                  outlineAttachment={messageLayout === MessageLayout.Bubble}
+                />
+              </TruncatedThreadRootBody>
             ) : (
               <RenderMessageContent
                 displayName={senderDisplayName}
@@ -2100,22 +2169,37 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           threadParticipantMap.get(mEventId)
         );
         const isThreadReply = isThreadReplyEvent(mEventId, threadRootId);
+        const encSummaryInfo =
+          !threadId && !isThreadReply && mEventId
+            ? getThreadSummaryInfo(room, mEvent, threadSummaryInfoMap.get(mEventId))
+            : undefined;
         const threadSummary =
           !threadId &&
           !isThreadReply &&
           mEventId &&
           typeof threadReplyCount === 'number' &&
           threadReplyCount > 0 ? (
-            <ThreadIndicator
-              as="button"
-              style={{ marginTop: config.space.S200 }}
-              data-thread-root-id={mEventId}
-              data-event-id={mEventId}
-              threadReplyCount={threadReplyCount}
-              threadParticipantIds={threadParticipantIds}
-              room={room}
-              onClick={handleOpenReply}
-            />
+            <>
+              {encSummaryInfo && (
+                <Box style={{ marginTop: config.space.S200 }}>
+                  <MindroomThreadSummaryCard
+                    compact
+                    summaryInfo={encSummaryInfo}
+                    renderBody={({ body }) => <>{body}</>}
+                  />
+                </Box>
+              )}
+              <ThreadIndicator
+                as="button"
+                style={{ marginTop: encSummaryInfo ? config.space.S100 : config.space.S200 }}
+                data-thread-root-id={mEventId}
+                data-event-id={mEventId}
+                threadReplyCount={threadReplyCount}
+                threadParticipantIds={threadParticipantIds}
+                room={room}
+                onClick={handleOpenReply}
+              />
+            </>
           ) : null;
 
         return (
@@ -2205,13 +2289,12 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
                 if (mEvent.getType() === MessageEvent.RoomMessage) {
                   const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
                   const getContent = (() =>
-                    editedEvent?.getContent()['m.new_content'] ??
-                    mEvent.getContent()) as GetContentCallback;
+                    getLatestMessageContent(mEvent, editedEvent)) as GetContentCallback;
 
                   const senderId = mEvent.getSender() ?? '';
                   const senderDisplayName =
                     getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-                  return (
+                  const messageContent = (
                     <RenderMessageContent
                       displayName={senderDisplayName}
                       msgType={mEvent.getContent().msgtype ?? ''}
@@ -2225,6 +2308,19 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
                       outlineAttachment={messageLayout === MessageLayout.Bubble}
                     />
                   );
+
+                  if (encSummaryInfo) {
+                    return (
+                      <TruncatedThreadRootBody
+                        mEventId={mEventId}
+                        onClick={handleOpenReply}
+                      >
+                        {messageContent}
+                      </TruncatedThreadRootBody>
+                    );
+                  }
+
+                  return messageContent;
                 }
                 if (mEvent.getType() === MessageEvent.RoomMessageEncrypted)
                   return (

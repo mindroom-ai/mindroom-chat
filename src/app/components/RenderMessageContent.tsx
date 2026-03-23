@@ -15,6 +15,7 @@ import {
   MImage,
   MLocation,
   MNotice,
+  MindroomThreadSummaryCard,
   MText,
   MVideo,
   ReadPdfFile,
@@ -33,6 +34,7 @@ import { testMatrixTo } from '../plugins/matrix-to';
 import { IImageContent } from '../../types/matrix/common';
 import { getMindroomLongTextSource } from './message/mindroomLongText';
 import { MindroomLongTextKind, MindroomLongTextText } from './message/MindroomLongTextText';
+import { getMindroomThreadSummaryInfo } from './message/mindroomThreadSummary';
 import { withMindroomToolTraceMarkerParserOptions } from '../plugins/react-custom-html-parser';
 
 type RenderMessageContentProps = {
@@ -61,8 +63,7 @@ export function RenderMessageContent({
   linkifyOpts,
   outlineAttachment,
 }: RenderMessageContentProps) {
-  const getMindroomAwareContent = (): Record<string, unknown> =>
-    getContent<Record<string, unknown>>();
+  const getMindroomAwareContent = (): Record<string, unknown> => getContent<Record<string, unknown>>();
 
   const renderUrlsPreview = (urls: string[]) => {
     const filteredUrls = urls.filter((url) => !testMatrixTo(url));
@@ -138,8 +139,26 @@ export function RenderMessageContent({
     </>
   );
 
+  const content = getMindroomAwareContent();
+  const threadSummaryInfo = getMindroomThreadSummaryInfo(content);
+  if (threadSummaryInfo) {
+    return (
+      <MindroomThreadSummaryCard
+        edited={edited}
+        summaryInfo={threadSummaryInfo}
+        renderBody={(props) => (
+          <RenderBody
+            {...props}
+            highlightRegex={highlightRegex}
+            htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(content)}
+            linkifyOpts={linkifyOpts}
+          />
+        )}
+      />
+    );
+  }
+
   if (msgType === MsgType.Text) {
-    const content = getMindroomAwareContent();
     const longTextSource = getMindroomLongTextSource(content);
     if (longTextSource) {
       return (
@@ -180,7 +199,6 @@ export function RenderMessageContent({
   }
 
   if (msgType === MsgType.Emote) {
-    const content = getMindroomAwareContent();
     const longTextSource = getMindroomLongTextSource(content);
     if (longTextSource) {
       return (
@@ -223,7 +241,6 @@ export function RenderMessageContent({
   }
 
   if (msgType === MsgType.Notice) {
-    const content = getMindroomAwareContent();
     const longTextSource = getMindroomLongTextSource(content);
     if (longTextSource) {
       return (
@@ -333,7 +350,6 @@ export function RenderMessageContent({
   }
 
   if (msgType === MsgType.File) {
-    const content = getMindroomAwareContent();
     const longTextSource = getMindroomLongTextSource(content);
     if (longTextSource) {
       return (

@@ -341,6 +341,12 @@ vi.mock('./threadUtils', () => ({
   isThreadReplyEvent: () => false,
 }));
 
+vi.mock('../../components/message/mindroomThreadSummary', () => ({
+  buildThreadSummaryMap: () => new Map(),
+  findLatestThreadSummaryEvent: () => undefined,
+  getThreadSummaryEventInfo: () => undefined,
+}));
+
 vi.mock('./useThreadRenderState', () => ({
   useThreadRenderState: () => ({
     threadEventIndexMapRef: { current: new Map() },
