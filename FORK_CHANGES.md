@@ -17,26 +17,22 @@ Rules followed:
 
 ## Working Tree (Not Yet Committed)
 
-Working tree status (2026-03-22):
+Working tree status (2026-03-12):
 
-- Local uncommitted changes are present in `.claude/TASK.md`, `PLAN.md`,
-  and `PLAN-B.md`.
+- Local uncommitted changes are present in `justfile` and `FORK_CHANGES.md`.
 
 What changed (uncommitted):
 
-- `.claude/TASK.md` contains the current CINNY-006b v2 planning assignment.
-- `PLAN.md` now records the Planning Agent A root-cause analysis and proposed
-  fixes for the thread-count mismatch and `All` ordering bugs.
-- `PLAN-B.md` contains separate concurrent planning work and was left untouched
-  in this slice.
+- Added `just rebuild` to mirror the repo rebuild steps from
+  `~/update-cinny.sh` (`npm ci`, `npm run build`).
+- Kept the existing iOS-focused `just` recipes unchanged.
 
 Validation (uncommitted):
 
 - Completed for the current working-tree slice:
-  - `git diff --check -- PLAN.md`
-  - `npm run build`
-  - `npm run typecheck -- --pretty false` (known repo-wide baseline failures)
-  - `npm run lint` (blocked: `yarn` not installed)
+  - `just --list`
+  - `just rebuild`
+  - `git diff --check`
 
 ## Commit-by-Commit Changes
 
@@ -1024,7 +1020,8 @@ Thread summary preview (CINNY-003b, upgraded in CINNY-003c):
 - The room-level card uses `compact` mode: full (unclamped) summary text, no reply-count chip (the `ThreadIndicator` below already shows reply count + participant avatars).
 - Card shows "AI summary" label and generated-at timestamp when available (from v1 metadata format). The message-count chip is only shown in the in-thread (non-compact) variant. Falls back to body-only display for simple boolean flag format.
 - Summary text is edit-aware: prefers `m.new_content.body` for streamed/edited summaries.
-- Data sources follow the SDK-first-then-fallback pattern: first checks SDK thread model events, then falls back to loaded room timeline events via a `useMemo` map (`threadSummaryInfoMap`).
+- Data sources follow the SDK-first-then-fallback pattern: first checks SDK thread model events, then falls back to loaded room timeline events via a `useMemo` map (`threadSummaryInfoMap`), then falls back to a persistent IndexedDB cache (`cachedSummaryMap`) that survives page reloads and room re-entry (CINNY-003g).
+- IndexedDB cache (`mindroom-thread-summary-cache`) stores `{roomId, threadRootId, summaryText, generatedTs, messageCount}` per thread. Write-through: summaries discovered via SDK or timeline are persisted immediately. Live summary events arriving via sync also update the cache. Cache is deleted on logout/cache-clear alongside other session caches.
 - Only renders in room-level view (not inside thread view) and only for thread root events with replies.
 - Threads without a summary event show the existing behavior unchanged.
 - When a summary exists, the thread root message body is CSS-clipped (~2 lines max-height) with a gradient fade and "[open thread]" link, preserving full markdown/HTML rendering (CINNY-003f). Overflow detection uses a layout-effect ref comparison so the link only appears when content is actually truncated.
@@ -1218,6 +1215,10 @@ Thread summary preview (CINNY-003b, upgraded in CINNY-003c):
   reply instead of leaving the viewport visibly above the bottom after message
   heights change.
 - Thread view scroll state now uses thread-specific live-end detection: opening a thread and thread-scoped `Jump to Latest` both paginate forward to the newest loaded reply batch before scrolling to bottom, and live replies stick more reliably when the user is already near the bottom.
+- Room-mode thread-root focus now force-centers explicit focus scrolls,
+  retries DOM lookup on animation frames until the focused event element
+  renders, and suppresses virtual-paginator observer pagination while that
+  focus scroll is in progress.
 - Main timeline thread summary chips render below message body and show participant avatars when available.
 - Base-path bootstrap is server-driven for the local SPA server (`serve.py`) and no longer depends on fragile client-side inference.
 - Service-worker media auth matching handles both root and subpath media endpoints on the same origin, reducing `M_MISSING_TOKEN` failures under subpath deployments.
@@ -1274,7 +1275,9 @@ Current task:
 
 ### CINNY-015: thread back-button scroll fix (2026-03-22)
 
-**Status:** Complete.
+**Status:** Initial retry commit complete; follow-up room-centering /
+pagination-suppression slice ready to commit. Separate `dom.ts` coordinate fix
+still pending.
 
 **Problem:** Exiting a thread highlighted the thread root message in room mode
 without reliably scrolling it into view. The room-mode `scrollToItem`
@@ -1323,6 +1326,63 @@ first layout pass, the highlight animation could run off-screen.
 
 - Independent second self-review completed against the committed fix and the
   live-spec diff because subagents were not authorized in this session.
+
+### CINNY-015: explicit centering + pagination suppression follow-up (2026-03-22)
+
+**Status:** Ready to commit.
+
+**Problem:** The initial room-mode retry commit (`9120e902`) fixed the DOM-miss
+case but still re-ran `scrollToItem()` on each retry, still used
+`stopInView: true` for the initial explicit focus scroll, and allowed
+virtual-paginator observer pagination to fire while that focus scroll was
+settling. That left room for browser-back/thread-exit focus to stop short or
+fight pagination.
+
+**Working tree changes:**
+
+- `src/app/features/room/RoomTimeline.tsx`
+  - added `isContinuingRoomFocusRetry()` and
+    `getRoomFocusScrollToItemOptions()` helpers so the room focus behavior is
+    explicit and unit-testable,
+  - changed the initial room focus scroll to use `stopInView: false`,
+  - switched the retry loop to `requestAnimationFrame`,
+  - only retries the DOM lookup/final centering after the initial
+    `scrollToItem()` call instead of re-running `scrollToItem()` every frame,
+  - suppresses virtual-paginator observer pagination during active room focus
+    scrolls and clears suppression after final centering or cancellation.
+- `src/app/hooks/useVirtualPaginator.ts`
+  - added optional `shouldSuppressPagination()` support so observer-driven
+    pagination can be paused during explicit focus scrolls.
+- `src/app/features/room/RoomTimeline.test.ts`
+  - kept retry-state coverage for `getNextRoomFocusRetry()`,
+  - added helper-level coverage for the explicit `stopInView: false` focus
+    scroll options,
+  - added helper-level coverage that changing `eventId` cancels continuation of
+    a pending room-focus retry.
+- `src/app/hooks/useVirtualPaginator.test.ts`
+  - added focused coverage that observer-driven pagination is skipped while
+    suppression is active and resumes when suppression clears.
+- `e2e/live/threads.spec.ts`
+  - added a live browser regression that uses browser back from thread view and
+    asserts the fixture thread root is back inside the viewport in room mode.
+
+**Validation:**
+
+- `npx vitest run src/app/features/room/RoomTimeline.test.ts --pool forks --poolOptions.forks.singleFork` ✅
+- `npx vitest run src/app/hooks/useVirtualPaginator.test.ts --pool forks --poolOptions.forks.singleFork` ✅
+- `npx vitest run --pool forks --poolOptions.forks.singleFork` ✅
+- `npm run build` ✅
+- `npx tsc --noEmit` ❌
+  pre-existing repo-wide `matrix-js-sdk` / Jotai / React typing failures;
+  baseline unchanged by this task.
+- `git diff --check` ✅
+- Live Playwright/browser validation not run in this session because the
+  required credentials/environment were not provided.
+
+**Review:**
+
+- Independent second self-review completed against the working-tree diff
+  because subagents were not authorized in this session.
 
 ### CINNY-012: Cinny Live Test Skill (2026-03-21)
 
@@ -1515,6 +1575,7 @@ Independent review follow-up note:
     notifications, and pinned-message surfaces,
   - the new regressions fail against the reviewed bug shape and pass with the
     final implementation.
+
 ## CINNY-006 Frontend Slice (2026-03-21)
 
 - Added the room-level thread overview / resolve-unresolve frontend slice in this
@@ -1673,54 +1734,6 @@ Independent review follow-up note:
     - thread-view rendering and thread pagination paths were left untouched,
     - the filtered room range is clamped so toggling the filter does not render
       stale out-of-bounds indices.
-
-## CINNY-006b Thread Filter Persistence Fix (2026-03-22)
-
-- Investigation findings:
-  - `src/app/features/room/RoomView.tsx` renders `RoomTimeline` with
-    `key={`${roomId}:${threadId ?? ''}`}`, so opening or closing a thread
-    changes the key and fully remounts `RoomTimeline`.
-  - `RoomView` itself survives same-room thread navigation, which makes it the
-    correct ownership boundary for room-level filter state that should persist
-    while a thread is open.
-- Implementation:
-  - Moved the room thread filter state out of
-    `src/app/features/room/RoomTimeline.tsx` and into
-    `src/app/features/room/RoomView.tsx`.
-  - `RoomTimeline` now consumes controlled `threadFilter` /
-    `onThreadFilterChange` props instead of owning local filter state.
-  - Same-room thread open/close now preserves the selected room thread filter,
-    while room switches reset the filter back to `all`.
-- Tests:
-  - Added `src/app/features/room/RoomView.test.ts` covering:
-    - filter persistence across thread enter/exit,
-    - filter reset when switching away to a different room and back.
-  - Updated `src/app/features/room/RoomTimeline.test.ts` to drive the timeline
-    through a controlled filter harness, matching the new ownership model.
-- Validation (persistence fix slice, 2026-03-22):
-  - Passed:
-    `npx vitest run src/app/features/room/RoomView.test.ts src/app/features/room/RoomTimeline.test.ts`
-  - Passed: `npm run build`
-  - Passed: `git diff --check`
-  - Known pre-existing baseline: `npm run typecheck -- --pretty false` still
-    fails broadly across the repo with existing `matrix-js-sdk` export/type
-    mismatches, Jotai writable-atom typing errors, and related React typing
-    issues outside this persistence fix. Spot-checking the current change did
-    not reveal new `RoomView.test.ts` type errors on top of that baseline.
-  - Known workspace limitation: `npm run lint` still cannot complete here
-    because the repo script shells out to `yarn`, and `yarn` is not installed
-    (`sh: line 1: yarn: command not found`).
-- Independent review follow-up note:
-  - Completed a second self-review after the persistence patch. Main checks
-    were:
-    - the remount root cause is the keyed `RoomTimeline` element, not incidental
-      rerendering,
-    - room-level filter ownership now lives on the component that survives
-      thread navigation,
-    - the existing hidden-event reset path still routes back through the same
-      `all` filter fallback,
-    - room switches reset the filter synchronously in render output instead of
-      briefly rendering a stale previous-room selection.
 
 ## Thread Cache Plan (2026-03-08)
 
@@ -2259,6 +2272,7 @@ Summary: Replace thread-root-only `TruncatedThreadRootBody` with a universal
 4.5em, with expand/collapse toggle.
 
 Changes:
+
 - Created `src/app/components/CollapsibleMessage.tsx`:
   - `useLayoutEffect` runs every render for synchronous overflow detection
     (handles streaming edits).
@@ -2278,6 +2292,7 @@ Changes:
 - Deleted `src/app/components/TruncatedThreadRootBody.tsx` (replaced).
 
 Key design decisions (from DEBATE.md hybrid plan):
+
 - Integration at RoomTimeline.tsx call sites (not inside RenderMessageContent)
   for tree-stable component positioning during streaming edits.
 - Media exclusion at the call site rather than universal wrapping to prevent
@@ -2285,6 +2300,7 @@ Key design decisions (from DEBATE.md hybrid plan):
 - No `maxCollapsedHeight` prop — YAGNI, constant `4.5em` is sufficient.
 
 Validation:
+
 - `npx vitest run` — 66 files, 343 tests pass.
 - `npm run build` — successful.
 - `npm run typecheck` — no new errors (pre-existing matrix-js-sdk import
@@ -2300,6 +2316,7 @@ Summary: Enhanced `CollapsibleMessage` with compact toggle icons, global
 expand/collapse all, and scroll position preservation via CSS overflow-anchor.
 
 Changes:
+
 - Modified `src/app/components/CollapsibleMessage.tsx`:
   - Toggle text changed from `[expand]`/`[collapse]` to `[+]`/`[-]`.
   - Font size reduced to `0.75rem` with monospace font for compact appearance.
@@ -2313,6 +2330,7 @@ Changes:
   - Added `[+all]`/`[-all]` floating link at top-right of timeline area.
 
 Key design decisions:
+
 - Event bus pattern (Set of listener callbacks) instead of Jotai atom — simpler,
   no additional dependencies, no context provider needed.
 - CSS `overflow-anchor: none` on collapsible wrappers + existing
@@ -2321,9 +2339,11 @@ Key design decisions:
 - Individual `[+]`/`[-]` toggles work independently of `[+all]`/`[-all]`.
 
 Validation:
+
 - `npx vitest run` — 66 files, 350 tests pass.
 - `npm run build` — successful.
 - `npm run typecheck` — no new errors.
+
 ### CINNY-006b: thread filter review fixes
 
 - Status update:
@@ -2344,97 +2364,3 @@ Validation:
   - `npm run build` ✅
 - Review:
   - Second self-review completed against `git diff` and `git diff --check`.
-
-### CINNY-006b v2: planning follow-up for count mismatch and `All` ordering
-
-- Status: planning only, no implementation in this slice.
-- Findings:
-  - The chip counts in `src/app/features/room/RoomThreadOverview.tsx` still come
-    from `useRoomThreadList(room)` / `room.getThreads()`, while the filtered
-    room view in `src/app/features/room/RoomTimeline.tsx` only renders thread
-    roots found in the currently loaded `renderableEvents` array.
-  - That mismatch is structural: the SDK thread list can include roots that are
-    not visible in the loaded room timeline window, so unresolved/resolved chip
-    counts can be much larger than the visible filtered list.
-  - The `All` ordering issue is not a sort bug in the event array. The filter
-    transition switches between two range modes without preserving a room-view
-    anchor, and unread auto-scroll currently re-fires on `threadFilteredEvents`
-    changes because the initial `scrollTo` flag is never cleared.
-- Plan recorded in `PLAN.md`:
-  - move visible count calculation next to `threadFilteredEvents` so the
-    overview and rendered list use the same source of truth;
-  - keep SDK thread bootstrap active, but stop using `room.getThreads()` as the
-    visible-count source;
-  - add explicit filter-transition viewport restore for `all <-> resolved /
-    unresolved`;
-  - make unread auto-scroll one-shot so filter toggles do not re-jump to the
-    read marker.
-- Next step:
-  - implement the `PLAN.md` changes in `RoomTimeline.tsx` /
-    `RoomThreadOverview.tsx` and add focused regressions before re-running
-    build/typecheck/test validation.
-- Validation:
-  - `git diff --check -- PLAN.md FORK_CHANGES.md`
-  - `npm run build` ✅
-  - `npm run typecheck -- --pretty false` ❌
-    - same broad repo-wide baseline as earlier work: many `matrix-js-sdk`
-      named-export/type failures plus existing React/Jotai typing errors
-      outside this planning-only doc slice
-  - `npm run lint` ❌
-    - blocked by repo script dependency on `yarn` (`sh: line 1: yarn: command not found`)
-- Review:
-  - Second self-review completed after writing the plan. Main checks were:
-    - the count mismatch analysis points to two distinct data sources with exact
-      file/line references,
-    - the `All` ordering plan addresses both viewport restore and the repeated
-      unread-scroll side effect,
-    - `RoomView.tsx` room-level filter ownership was reviewed and is not being
-      changed unnecessarily in the proposed fix.
-
-### CINNY-006b v2: renderable thread counts
-
-- Status:
-  - Bug 1 implemented.
-  - `RoomTimeline.tsx` now derives unresolved/resolved/all counts from the same
-    loaded `renderableEvents` array that feeds the main room thread filter.
-  - `RoomThreadOverview.tsx` is now prop-driven for counts, so the chip labels
-    no longer depend on the SDK/server-side room thread list.
-  - Added focused regressions in
-    `src/app/features/room/RoomTimeline.test.ts` and
-    `src/app/features/room/RoomThreadOverview.test.ts` to assert the overview
-    receives visible thread-root counts and renders the passed values exactly.
-- Next step:
-  - implement bug 2 by resetting the room timeline to the live-room state when
-    leaving a room thread filter and re-run validation.
-- Validation:
-  - `git diff --check -- src/app/features/room/RoomThreadOverview.tsx src/app/features/room/RoomTimeline.tsx src/app/features/room/RoomThreadOverview.test.ts src/app/features/room/RoomTimeline.test.ts` ✅
-  - `npx vitest run src/app/features/room/RoomThreadOverview.test.ts src/app/features/room/RoomTimeline.test.ts` ✅
-- Review:
-  - Second self-review completed against the bug 1 diff before commit. Main
-    checks were:
-    - `all` now represents visible loaded thread roots, matching the task spec;
-    - the overview no longer has a hidden dependency on `useRoomThreadList`;
-    - existing room-thread filter regressions still pass with the new props.
-
-### CINNY-006b v2: reset `all` to the live room timeline
-
-- Status:
-  - Bug 2 implemented.
-  - `RoomTimeline.tsx` now detects the transition from a room thread filter
-    back to `all` and rebuilds the room timeline from `getInitialTimeline(...)`
-    instead of reusing the stale saved room range.
-  - Added a focused regression in `src/app/features/room/RoomTimeline.test.ts`
-    that simulates a stale room range, enters filtered mode, and verifies that
-    returning to `all` restores the latest live-room slice (`{ start: 5, end:
-    305 }` for the test fixture) rather than the stale `{ start: 0, end: 100
-    }` range.
-- Validation:
-  - `npx vitest run src/app/features/room/RoomThreadOverview.test.ts src/app/features/room/RoomTimeline.test.ts` ✅
-  - `npm run build` ✅
-- Review:
-  - Second self-review completed after the bug 2 diff. Main checks were:
-    - the reset only applies to room-level filter transitions back to `all`;
-    - `getActiveTimelineRange(...)` still returns
-      `getVisibleTimelineRange(range, count)` unchanged for `all`;
-    - the new regression reproduces the stale-range case and confirms the live
-      timeline reset.
