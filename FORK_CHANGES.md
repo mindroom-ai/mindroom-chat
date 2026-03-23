@@ -2027,3 +2027,80 @@ Required prep before any upstream PR:
   - Second self-review completed against `git diff`, the updated regression tests, and `git diff --check`.
 - Remaining validation:
   - Manual mobile lock/resume verification is still pending.
+
+### CINNY-013: Universal Collapsible Long Messages
+
+- Status: **Implemented**
+- Ticket: CINNY-013
+- Branch: `cinny-013-collapsible`
+
+Summary: Replace thread-root-only `TruncatedThreadRootBody` with a universal
+`CollapsibleMessage` component that collapses any text-based message exceeding
+4.5em, with expand/collapse toggle.
+
+Changes:
+- Created `src/app/components/CollapsibleMessage.tsx`:
+  - `useLayoutEffect` runs every render for synchronous overflow detection
+    (handles streaming edits).
+  - `ResizeObserver` via `useEffect` for async layout shifts (lazy images,
+    font loading).
+  - `+1` sub-pixel tolerance on `scrollHeight > clientHeight` comparison.
+  - `overflow: hidden` and `maxHeight` only applied when collapsed.
+  - Gradient fade overlay when collapsed and overflowing.
+  - `[expand]`/`[collapse]` toggle link in accent color.
+- Modified `src/app/features/room/RoomTimeline.tsx`:
+  - Unencrypted renderer: replaced `TruncatedThreadRootBody` conditional with
+    universal `CollapsibleMessage` wrapping. Media guard skips wrapping for
+    `MsgType.Image` and `MsgType.Video`.
+  - Encrypted renderer: same pattern — media guard + `CollapsibleMessage`.
+  - Added `MsgType` import from `matrix-js-sdk`.
+  - Replaced `TruncatedThreadRootBody` import with `CollapsibleMessage`.
+- Deleted `src/app/components/TruncatedThreadRootBody.tsx` (replaced).
+
+Key design decisions (from DEBATE.md hybrid plan):
+- Integration at RoomTimeline.tsx call sites (not inside RenderMessageContent)
+  for tree-stable component positioning during streaming edits.
+- Media exclusion at the call site rather than universal wrapping to prevent
+  images/videos being clipped at 72px.
+- No `maxCollapsedHeight` prop — YAGNI, constant `4.5em` is sufficient.
+
+Validation:
+- `npx vitest run` — 66 files, 343 tests pass.
+- `npm run build` — successful.
+- `npm run typecheck` — no new errors (pre-existing matrix-js-sdk import
+  warnings only).
+
+### CINNY-013b: Enhanced CollapsibleMessage UX
+
+- Status: **Implemented**
+- Ticket: CINNY-013b
+- Branch: `cinny-013b-ux`
+
+Summary: Enhanced `CollapsibleMessage` with compact toggle icons, global
+expand/collapse all, and scroll position preservation via CSS overflow-anchor.
+
+Changes:
+- Modified `src/app/components/CollapsibleMessage.tsx`:
+  - Toggle text changed from `[expand]`/`[collapse]` to `[+]`/`[-]`.
+  - Font size reduced to `0.75rem` with monospace font for compact appearance.
+  - Added module-level event bus (`expandAllMessages`/`collapseAllMessages`)
+    for global expand/collapse coordination.
+  - Each instance subscribes via `useExpandAllListener` hook.
+  - Added `overflow-anchor: none` on wrapper div for scroll preservation.
+- Modified `src/app/features/room/RoomTimeline.tsx`:
+  - Imported `expandAllMessages`/`collapseAllMessages` from CollapsibleMessage.
+  - Added `allExpanded` state for toggle tracking.
+  - Added `[+all]`/`[-all]` floating link at top-right of timeline area.
+
+Key design decisions:
+- Event bus pattern (Set of listener callbacks) instead of Jotai atom — simpler,
+  no additional dependencies, no context provider needed.
+- CSS `overflow-anchor: none` on collapsible wrappers + existing
+  `overflow-anchor: auto` on scroll container — browser-native scroll anchoring
+  is simpler and more reliable than manual scroll compensation.
+- Individual `[+]`/`[-]` toggles work independently of `[+all]`/`[-all]`.
+
+Validation:
+- `npx vitest run` — 66 files, 350 tests pass.
+- `npm run build` — successful.
+- `npm run typecheck` — no new errors.

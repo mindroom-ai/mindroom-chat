@@ -25,6 +25,7 @@ import {
   RoomEvent,
   RoomEventHandlerMap,
   THREAD_RELATION_TYPE,
+  MsgType,
 } from 'matrix-js-sdk';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import classNames from 'classnames';
@@ -115,7 +116,7 @@ import { GetContentCallback, MessageEvent, StateEvent } from '../../../types/mat
 import { useKeyDown } from '../../hooks/useKeyDown';
 import { useDocumentFocusChange } from '../../hooks/useDocumentFocusChange';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
-import { TruncatedThreadRootBody } from '../../components/TruncatedThreadRootBody';
+import { CollapsibleMessage, expandAllMessages, collapseAllMessages } from '../../components/CollapsibleMessage';
 import { Image } from '../../components/media';
 import { ImageViewer } from '../../components/image-viewer';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
@@ -892,6 +893,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
 
   const atBottomAnchorRef = useRef<HTMLElement>(null);
   const [atBottom, setAtBottom] = useState<boolean>(true);
+  const [allExpanded, setAllExpanded] = useState(false);
   const atBottomRef = useRef(atBottom);
   atBottomRef.current = atBottom;
 
@@ -2386,16 +2388,16 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             hour24Clock={hour24Clock}
             dateFormatString={dateFormatString}
           >
-            {mEvent.isRedacted() ? (
-              <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />
-            ) : summaryInfo ? (
-              <TruncatedThreadRootBody
-                mEventId={mEventId}
-                onClick={handleOpenReply}
-              >
+            {(() => {
+              if (mEvent.isRedacted()) {
+                return <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />;
+              }
+              const msgType = mEvent.getContent().msgtype;
+              const isVisualMedia = msgType === MsgType.Image || msgType === MsgType.Video;
+              const content = (
                 <RenderMessageContent
                   displayName={senderDisplayName}
-                  msgType={mEvent.getContent().msgtype ?? ''}
+                  msgType={msgType ?? ''}
                   ts={mEvent.getTs()}
                   edited={!!editedEvent}
                   getContent={getContent}
@@ -2405,21 +2407,10 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
                   linkifyOpts={linkifyOpts}
                   outlineAttachment={messageLayout === MessageLayout.Bubble}
                 />
-              </TruncatedThreadRootBody>
-            ) : (
-              <RenderMessageContent
-                displayName={senderDisplayName}
-                msgType={mEvent.getContent().msgtype ?? ''}
-                ts={mEvent.getTs()}
-                edited={!!editedEvent}
-                getContent={getContent}
-                mediaAutoLoad={mediaAutoLoad}
-                urlPreview={showUrlPreview}
-                htmlReactParserOptions={htmlReactParserOptions}
-                linkifyOpts={linkifyOpts}
-                outlineAttachment={messageLayout === MessageLayout.Bubble}
-              />
-            )}
+              );
+              if (isVisualMedia || threadId) return content;
+              return <CollapsibleMessage>{content}</CollapsibleMessage>;
+            })()}
           </Message>
         );
       },
@@ -2584,18 +2575,10 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
                     />
                   );
 
-                  if (encSummaryInfo) {
-                    return (
-                      <TruncatedThreadRootBody
-                        mEventId={mEventId}
-                        onClick={handleOpenReply}
-                      >
-                        {messageContent}
-                      </TruncatedThreadRootBody>
-                    );
-                  }
-
-                  return messageContent;
+                  const encMsgType = mEvent.getContent().msgtype;
+                  const isEncVisualMedia = encMsgType === MsgType.Image || encMsgType === MsgType.Video;
+                  if (isEncVisualMedia || threadId) return messageContent;
+                  return <CollapsibleMessage>{messageContent}</CollapsibleMessage>;
                 }
                 if (mEvent.getType() === MessageEvent.RoomMessageEncrypted)
                   return (
@@ -3414,6 +3397,32 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             </Chip>
           </TimelineFloat>
         )}
+        <a
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            if (allExpanded) {
+              collapseAllMessages();
+              setAllExpanded(false);
+            } else {
+              expandAllMessages();
+              setAllExpanded(true);
+            }
+          }}
+          style={{
+            position: 'absolute',
+            top: config.space.S200,
+            right: config.space.S400,
+            zIndex: 2,
+            color: color.Primary.Main,
+            cursor: 'pointer',
+            fontSize: '0.75rem',
+            fontFamily: 'monospace',
+            opacity: 0.7,
+          }}
+        >
+          {allExpanded ? '[-all]' : '[+all]'}
+        </a>
         <Scroll ref={scrollRef} visibility="Hover" style={{ overflowAnchor: 'auto' }}>
           <Box
             direction="Column"
