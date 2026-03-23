@@ -1075,6 +1075,7 @@ export function RoomTimeline({
   const threadPaginatingBackRef = useRef(false);
   const threadPaginatingFrontRef = useRef(false);
   const threadIdRef = useRef(threadId);
+  const prevThreadFilterRef = useRef(threadFilter);
   const threadEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
     new WeakMap<MatrixEvent, number>()
   );
@@ -1984,6 +1985,31 @@ export function RoomTimeline({
       loadEventTimeline(eventId);
     }
   }, [eventId, loadEventTimeline]);
+
+  useEffect(() => {
+    const prevThreadFilter = prevThreadFilterRef.current;
+    prevThreadFilterRef.current = threadFilter;
+
+    if (prevThreadFilter !== 'all' && threadFilter === 'all' && !threadId) {
+      setTimeline(
+        getInitialTimeline(room, {
+          threadId,
+          ignoredUsersSet,
+          showHiddenEvents,
+          hideMembershipEvents,
+          hideNickAvatarEvents,
+        })
+      );
+    }
+  }, [
+    room,
+    threadFilter,
+    threadId,
+    ignoredUsersSet,
+    showHiddenEvents,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+  ]);
 
   useEffect(() => {
     if (!threadId) return;

@@ -20,7 +20,7 @@ Rules followed:
 Working tree status (2026-03-22):
 
 - Local uncommitted changes are present in `.claude/TASK.md`, `PLAN.md`,
-  `PLAN-B.md`, and `FORK_CHANGES.md`.
+  and `PLAN-B.md`.
 
 What changed (uncommitted):
 
@@ -29,12 +29,11 @@ What changed (uncommitted):
   fixes for the thread-count mismatch and `All` ordering bugs.
 - `PLAN-B.md` contains separate concurrent planning work and was left untouched
   in this slice.
-- `FORK_CHANGES.md` now records this planning slice in the runbook.
 
 Validation (uncommitted):
 
 - Completed for the current working-tree slice:
-  - `git diff --check -- PLAN.md FORK_CHANGES.md`
+  - `git diff --check -- PLAN.md`
   - `npm run build`
   - `npm run typecheck -- --pretty false` (known repo-wide baseline failures)
   - `npm run lint` (blocked: `yarn` not installed)
@@ -2416,3 +2415,26 @@ Validation:
     - `all` now represents visible loaded thread roots, matching the task spec;
     - the overview no longer has a hidden dependency on `useRoomThreadList`;
     - existing room-thread filter regressions still pass with the new props.
+
+### CINNY-006b v2: reset `all` to the live room timeline
+
+- Status:
+  - Bug 2 implemented.
+  - `RoomTimeline.tsx` now detects the transition from a room thread filter
+    back to `all` and rebuilds the room timeline from `getInitialTimeline(...)`
+    instead of reusing the stale saved room range.
+  - Added a focused regression in `src/app/features/room/RoomTimeline.test.ts`
+    that simulates a stale room range, enters filtered mode, and verifies that
+    returning to `all` restores the latest live-room slice (`{ start: 5, end:
+    305 }` for the test fixture) rather than the stale `{ start: 0, end: 100
+    }` range.
+- Validation:
+  - `npx vitest run src/app/features/room/RoomThreadOverview.test.ts src/app/features/room/RoomTimeline.test.ts` ✅
+  - `npm run build` ✅
+- Review:
+  - Second self-review completed after the bug 2 diff. Main checks were:
+    - the reset only applies to room-level filter transitions back to `all`;
+    - `getActiveTimelineRange(...)` still returns
+      `getVisibleTimelineRange(range, count)` unchanged for `all`;
+    - the new regression reproduces the stale-range case and confirms the live
+      timeline reset.
