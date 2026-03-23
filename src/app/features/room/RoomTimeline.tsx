@@ -483,6 +483,41 @@ type RoomTimelineProps = {
 const PAGINATION_LIMIT = 300;
 const THREAD_LATEST_SLICE_LIMIT = PAGINATION_LIMIT;
 const THREAD_CACHE_OPEN_LIMIT = PAGINATION_LIMIT;
+const ROOM_FOCUS_SCROLL_RETRY_DELAY = 16;
+const ROOM_FOCUS_SCROLL_RETRY_MAX_ATTEMPTS = 10;
+
+type RoomFocusRetry = {
+  eventId: string;
+  attempts: number;
+};
+
+export const getNextRoomFocusRetry = ({
+  focusEventId,
+  pendingRetry,
+  scrolled,
+  targetFound,
+}: {
+  focusEventId: string | undefined;
+  pendingRetry: RoomFocusRetry | undefined;
+  scrolled: boolean;
+  targetFound: boolean;
+}): RoomFocusRetry | undefined => {
+  if (!focusEventId || targetFound || !scrolled) {
+    return undefined;
+  }
+
+  const attempts =
+    pendingRetry?.eventId === focusEventId ? pendingRetry.attempts + 1 : 1;
+
+  if (attempts > ROOM_FOCUS_SCROLL_RETRY_MAX_ATTEMPTS) {
+    return undefined;
+  }
+
+  return {
+    eventId: focusEventId,
+    attempts,
+  };
+};
 
 const getEventElementById = (
   container: ParentNode | null | undefined,
@@ -1013,6 +1048,7 @@ export function RoomTimeline({
 
   const [focusItem, setFocusItem] = useState<
     | {
+        eventId?: string;
         index: number;
         scrollTo: boolean;
         highlight: boolean;
@@ -1027,6 +1063,7 @@ export function RoomTimeline({
   const [threadPaginatingFront, setThreadPaginatingFront] = useState(false);
   const [threadInitialCacheHydrated, setThreadInitialCacheHydrated] = useState(false);
   const [threadLatestOpenPending, setThreadLatestOpenPending] = useState(false);
+  const [pendingRoomFocusTick, setPendingRoomFocusTick] = useState(0);
   const [threadTimelineTick, setThreadTimelineTick] = useState(0);
   const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
   const roomIdRef = useRef(room.roomId);
@@ -1047,6 +1084,7 @@ export function RoomTimeline({
       }
     | undefined
   >();
+  const pendingRoomFocusRef = useRef<RoomFocusRetry | undefined>();
   const alive = useAlive();
   roomIdRef.current = room.roomId;
   threadPaginatingBackRef.current = threadPaginatingBack;
@@ -1441,6 +1479,7 @@ export function RoomTimeline({
         const fLen = filtered.length;
 
         setFocusItem({
+          eventId: evtId,
           index: idx,
           scrollTo: !threadId,
           highlight: evtId !== readUptoEventIdRef.current,
@@ -1679,6 +1718,7 @@ export function RoomTimeline({
         if (typeof threadItemIndex === 'number') {
           const target = getEventElementById(scrollRef.current, evtId);
           setFocusItem({
+            eventId: evtId,
             index: threadItemIndex,
             scrollTo: false,
             highlight,
@@ -1707,6 +1747,7 @@ export function RoomTimeline({
         });
         if (onScroll) onScroll(scrolled);
         setFocusItem({
+          eventId: evtId,
           index: filteredIndex,
           scrollTo: false,
           highlight,
@@ -2141,22 +2182,57 @@ export function RoomTimeline({
 
   // scroll to focused message
   useLayoutEffect(() => {
+    let roomFocusRetryTimeoutId: ReturnType<typeof setTimeout> | undefined;
+    let clearFocusTimeoutId: ReturnType<typeof setTimeout> | undefined;
+
     if (!threadId && focusItem && focusItem.scrollTo) {
-      scrollToItem(focusItem.index, {
+      const scrolled = scrollToItem(focusItem.index, {
         behavior: 'instant',
         align: 'center',
         stopInView: true,
       });
+      const focusEventId = focusItem.eventId;
+
+      const nextRoomFocusRetry = getNextRoomFocusRetry({
+        focusEventId,
+        pendingRetry: pendingRoomFocusRef.current,
+        scrolled,
+        targetFound: !!(focusEventId && getEventElementById(scrollRef.current, focusEventId)),
+      });
+
+      if (nextRoomFocusRetry) {
+        pendingRoomFocusRef.current = nextRoomFocusRetry;
+        roomFocusRetryTimeoutId = setTimeout(() => {
+          if (!alive()) return;
+          if (pendingRoomFocusRef.current?.eventId !== focusEventId) return;
+          setPendingRoomFocusTick((val) => val + 1);
+        }, ROOM_FOCUS_SCROLL_RETRY_DELAY);
+      } else {
+        pendingRoomFocusRef.current = undefined;
+      }
+    } else {
+      pendingRoomFocusRef.current = undefined;
     }
 
-    setTimeout(() => {
-      if (!alive()) return;
-      setFocusItem((currentItem) => {
-        if (currentItem === focusItem) return undefined;
-        return currentItem;
-      });
-    }, 2000);
-  }, [alive, focusItem, scrollToItem, threadId]);
+    if (focusItem) {
+      clearFocusTimeoutId = setTimeout(() => {
+        if (!alive()) return;
+        setFocusItem((currentItem) => {
+          if (currentItem === focusItem) return undefined;
+          return currentItem;
+        });
+      }, 2000);
+    }
+
+    return () => {
+      if (roomFocusRetryTimeoutId !== undefined) {
+        clearTimeout(roomFocusRetryTimeoutId);
+      }
+      if (clearFocusTimeoutId !== undefined) {
+        clearTimeout(clearFocusTimeoutId);
+      }
+    };
+  }, [alive, focusItem, pendingRoomFocusTick, scrollToItem, threadId]);
 
   useLayoutEffect(() => {
     if (!threadId) return;
@@ -2188,6 +2264,7 @@ export function RoomTimeline({
     const nextItemIndex = threadEventIndexMapRef.current.get(pendingOpen.eventId);
     if (typeof nextItemIndex === 'number') {
       setFocusItem({
+        eventId: pendingOpen.eventId,
         index: nextItemIndex,
         scrollTo: false,
         highlight: pendingOpen.highlight,

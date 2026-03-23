@@ -1262,11 +1262,63 @@ Thread summary preview (CINNY-003b, upgraded in CINNY-003c):
 - Remaining known product gap: no dedicated thread list sidebar or thread-specific unread model yet.
 - Remaining iOS hardening gap: session credentials are still localStorage-based in this branch (Keychain migration is still pending).
 
-## Active Task Log (2026-03-21)
+## Active Task Log (2026-03-22)
 
 Current task:
 
-- CINNY-012 investigate a Cinny live test skill for browser-based validation.
+- CINNY-015 thread back-button scroll fix.
+
+### CINNY-015: thread back-button scroll fix (2026-03-22)
+
+**Status:** Complete.
+
+**Problem:** Exiting a thread highlighted the thread root message in room mode
+without reliably scrolling it into view. The room-mode `scrollToItem`
+layout-effect path only made a single attempt, so when the virtualized range
+already included the target index but the DOM node was not rendered on the
+first layout pass, the highlight animation could run off-screen.
+
+**Changes:**
+
+- `src/app/features/room/RoomTimeline.tsx`
+  - added room-mode retry constants plus `getNextRoomFocusRetry()` so the
+    retry decision is testable,
+  - carried the focused `eventId` in `focusItem`,
+  - added a bounded room-only retry loop (16 ms delay, max 10 attempts) for
+    focused room-event scrolls,
+  - keyed retries to the current `eventId` and cleared pending timers on
+    context change / unmount,
+  - kept the existing thread-mode retry path separate and unchanged.
+- `src/app/features/room/RoomTimeline.test.ts`
+  - added regression coverage for the room-mode retry state progression.
+- `e2e/live/cinny015-thread-exit-scroll.spec.ts`
+  - added a bespoke live browser test that seeds a >300-message room, deep-links
+    into thread view, exits via the thread banner back button, and asserts the
+    thread root is back inside the viewport in room mode.
+
+**Commit:**
+
+- `9120e902` — `fix(scroll): retry room-mode event-target scroll on DOM miss (CINNY-015)`
+
+**Validation:**
+
+- `npx vitest run src/app/features/room/RoomTimeline.test.ts --no-coverage` ✅
+- `npm run build` ✅
+- `npm run typecheck -- --pretty false` ❌
+  pre-existing repo-wide `matrix-js-sdk` / Jotai / React typing failures;
+  baseline unchanged by this task.
+- `npx eslint src/app/features/room/RoomTimeline.tsx src/app/features/room/RoomTimeline.test.ts` ❌
+  pre-existing file-level lint failures in those files; baseline unchanged by
+  this task.
+- `git diff --check -- src/app/features/room/RoomTimeline.tsx src/app/features/room/RoomTimeline.test.ts` ✅
+- `bash .claude/skills/cinny-live-test/run-live-tests.sh smoke` ✅
+- `E2E_BASE_URL=http://localhost:8090 E2E_HOMESERVER=http://localhost:8008 E2E_USERNAME=e2e-test-bot E2E_PASSWORD=e2e-test-pw-2026 bash .claude/skills/cinny-live-test/run-live-tests.sh cinny015-thread-exit-scroll.spec.ts` ✅
+  - screenshot: `test-results/cinny015-thread-exit-scroll.png`
+
+**Review:**
+
+- Independent second self-review completed against the committed fix and the
+  live-spec diff because subagents were not authorized in this session.
 
 ### CINNY-012: Cinny Live Test Skill (2026-03-21)
 
