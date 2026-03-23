@@ -672,7 +672,32 @@ describe('RoomTimeline', () => {
       0
     );
     expect(overview.props.filter).toBe('all');
+    expect(overview.props.counts).toEqual({ unresolved: 0, resolved: 0, all: 0 });
     expect(overview.props.onFilterChange).toBeTypeOf('function');
+  });
+
+  it('passes visible room thread counts to the overview', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const unresolvedThread = makeEvent('$thread-unresolved', { isThreadRoot: true });
+    const resolvedThread = makeEvent('$thread-resolved', { isThreadRoot: true });
+    const messageEvent = makeEvent('$message');
+    const room = makeRoom({
+      liveEvents: [messageEvent, unresolvedThread, resolvedThread],
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true });
+
+    const renderer = create(
+      React.createElement(ControlledRoomTimeline, {
+        room,
+      })
+    );
+
+    expect(renderer.root.findByType(roomThreadOverviewType).props.counts).toEqual({
+      unresolved: 1,
+      resolved: 1,
+      all: 2,
+    });
   });
 
   it('filters room events by thread resolution state', async () => {
@@ -749,6 +774,48 @@ describe('RoomTimeline', () => {
 
     expect(virtualPaginatorState.lastOptions?.count).toBe(3);
     expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 3 });
+  });
+
+  it('resets the room timeline to the latest live range when returning to all threads', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const unresolvedThread = makeEvent('$thread-unresolved', { isThreadRoot: true });
+    const liveEvents = Array.from({ length: 304 }, (_, index) => makeEvent(`$message-${index}`));
+    liveEvents.push(unresolvedThread);
+    const room = makeRoom({ liveEvents });
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(1);
+    });
+
+    expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 5, end: 305 });
+
+    await act(async () => {
+      virtualPaginatorState.lastOptions?.onRangeChange({ start: 0, end: 10 });
+      await flushAsyncWork(1);
+    });
+
+    expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 10 });
+
+    await act(async () => {
+      renderer?.root.findByType(roomThreadOverviewType).props.onFilterChange('unresolved');
+      await flushAsyncWork(1);
+    });
+
+    expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 1 });
+
+    await act(async () => {
+      renderer?.root.findByType(roomThreadOverviewType).props.onFilterChange('all');
+      await flushAsyncWork(1);
+    });
+
+    expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 5, end: 305 });
   });
 
   it('switches back to all threads before jumping to an unread event hidden by the active filter', async () => {
