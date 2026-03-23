@@ -797,6 +797,58 @@ describe('RoomTimeline', () => {
     );
   });
 
+  it('tracks room-mode focus retries while the target event is still missing from the DOM', async () => {
+    const { getNextRoomFocusRetry } = await import('./RoomTimeline');
+
+    expect(
+      getNextRoomFocusRetry({
+        focusEventId: '$target',
+        pendingRetry: undefined,
+        scrolled: true,
+        targetFound: false,
+      })
+    ).toEqual({
+      eventId: '$target',
+      attempts: 1,
+    });
+
+    expect(
+      getNextRoomFocusRetry({
+        focusEventId: '$target',
+        pendingRetry: {
+          eventId: '$target',
+          attempts: 1,
+        },
+        scrolled: true,
+        targetFound: false,
+      })
+    ).toEqual({
+      eventId: '$target',
+      attempts: 2,
+    });
+
+    expect(
+      getNextRoomFocusRetry({
+        focusEventId: '$target',
+        pendingRetry: {
+          eventId: '$target',
+          attempts: 10,
+        },
+        scrolled: true,
+        targetFound: false,
+      })
+    ).toBeUndefined();
+
+    expect(
+      getNextRoomFocusRetry({
+        focusEventId: '$target',
+        pendingRetry: undefined,
+        scrolled: true,
+        targetFound: true,
+      })
+    ).toBeUndefined();
+  });
+
   it('coalesces queued refreshes and reruns after in-flight settles', async () => {
     const roomTimelineModule = await import('./RoomTimeline');
     useThreadAwareTimelineRefreshHook = roomTimelineModule.useThreadAwareTimelineRefresh;
