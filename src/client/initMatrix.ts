@@ -59,13 +59,11 @@ export type ClientBootstrapSession = Pick<
 
 export const initClient = async (session: ClientBootstrapSession): Promise<MatrixClient> => {
   const storeNames = getSessionStoreName(session);
-  const indexedDBStore = new IndexedDBStore(
-    {
-      indexedDB: global.indexedDB,
-      localStorage: global.localStorage as Storage,
-      dbName: storeNames.sync,
-    } as ConstructorParameters<typeof IndexedDBStore>[0]
-  );
+  const indexedDBStore = new IndexedDBStore({
+    indexedDB: global.indexedDB,
+    localStorage: global.localStorage as Storage,
+    dbName: storeNames.sync,
+  } as ConstructorParameters<typeof IndexedDBStore>[0]);
   configureLargeSyncArchive(indexedDBStore);
 
   const legacyCryptoStore = new IndexedDBCryptoStore(global.indexedDB, storeNames.crypto);
@@ -78,6 +76,7 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
     cryptoStore: legacyCryptoStore,
     deviceId: session.deviceId,
     timelineSupport: true,
+    threadSupport: true,
     cryptoCallbacks: cryptoCallbacks as unknown as CryptoCallbacks,
     verificationMethods: ['m.sas.v1'],
   });
@@ -95,6 +94,7 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
 export const startClient = async (mx: MatrixClient) => {
   await mx.startClient({
     lazyLoadMembers: true,
+    threadSupport: true,
   });
 };
 
@@ -149,7 +149,8 @@ const isAppOwnedIndexedDbName = (
   legacySessionStoragePresent: boolean
 ): boolean => {
   if (APP_SINGLETON_INDEXED_DB_NAMES.includes(name)) return true;
-  if (legacySessionStoragePresent && LEGACY_APP_SINGLETON_INDEXED_DB_NAMES.includes(name)) return true;
+  if (legacySessionStoragePresent && LEGACY_APP_SINGLETON_INDEXED_DB_NAMES.includes(name))
+    return true;
 
   return sessions.some((session) => {
     const indexedDbStoreNames = getSessionIndexedDbStoreName(session);
@@ -185,7 +186,9 @@ const clearMatrixClientStores = async (
           cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),
         })
       : mx.clearStores(),
-    session ? deleteNamedDatabases(getLegacySessionRustCryptoStoreNames(session)) : Promise.resolve(),
+    session
+      ? deleteNamedDatabases(getLegacySessionRustCryptoStoreNames(session))
+      : Promise.resolve(),
   ]);
 
   return session;
@@ -268,10 +271,8 @@ export const clearCacheAndReload = async (mx: MatrixClient) => {
 };
 
 export const clearBrowserCacheAndReload = async () => {
-  const appScopeUrl = new URL(
-    ensureBasePathTrailingSlash(getAppBasePath()),
-    window.location.origin
-  ).href;
+  const appScopeUrl = new URL(ensureBasePathTrailingSlash(getAppBasePath()), window.location.origin)
+    .href;
   const normalizeUrl = (url: string): string => {
     const parsed = new URL(url, window.location.origin);
     parsed.hash = '';
@@ -289,11 +290,19 @@ export const clearBrowserCacheAndReload = async () => {
       await Promise.all(
         registrations
           .filter((registration) => {
-            const workerScriptUrls = [registration.active, registration.installing, registration.waiting]
+            const workerScriptUrls = [
+              registration.active,
+              registration.installing,
+              registration.waiting,
+            ]
               .filter((worker): worker is ServiceWorker => Boolean(worker))
               .map((worker) => normalizeUrl(worker.scriptURL));
 
-            if (workerScriptUrls.some((workerScriptUrl) => appServiceWorkerScriptUrls.has(workerScriptUrl))) {
+            if (
+              workerScriptUrls.some((workerScriptUrl) =>
+                appServiceWorkerScriptUrls.has(workerScriptUrl)
+              )
+            ) {
               return true;
             }
 

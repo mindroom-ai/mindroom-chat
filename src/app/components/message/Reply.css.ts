@@ -29,6 +29,12 @@ export const ThreadIndicator = style({
   },
 });
 
+export const ThreadIndicatorResolved = style({
+  borderColor: color.Success.ContainerLine,
+  backgroundColor: color.Success.Container,
+  color: color.Success.OnContainer,
+});
+
 export const ThreadParticipants = style({
   flexShrink: 0,
 });
