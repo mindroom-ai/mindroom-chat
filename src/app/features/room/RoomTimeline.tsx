@@ -24,6 +24,7 @@ import {
   Room,
   RoomEvent,
   RoomEventHandlerMap,
+  ThreadEvent,
   THREAD_RELATION_TYPE,
   MsgType,
 } from 'matrix-js-sdk';
@@ -1089,6 +1090,7 @@ export function RoomTimeline({
   const [pendingRoomFocusTick, setPendingRoomFocusTick] = useState(0);
   const [threadTimelineTick, setThreadTimelineTick] = useState(0);
   const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
+  const [threadRevision, setThreadRevision] = useState(0);
   const roomIdRef = useRef(room.roomId);
   const roomPaginatingBackRef = useRef(false);
   const threadPaginatingBackRef = useRef(false);
@@ -1195,12 +1197,12 @@ export function RoomTimeline({
       resolved,
       all: unresolved + resolved,
     };
-  }, [renderableEvents, room, threadResolutionMap]);
+  }, [renderableEvents, room, threadResolutionMap, threadRevision]);
   const roomThreadFilterActive = isRoomThreadFilterActive(threadId, threadFilter);
   const threadFilteredEvents = useMemo(
     () =>
       getThreadFilteredEvents(renderableEvents, room, threadResolutionMap, threadId, threadFilter),
-    [renderableEvents, room, threadResolutionMap, threadId, threadFilter]
+    [renderableEvents, room, threadResolutionMap, threadId, threadFilter, threadRevision]
   );
   const filteredLength = threadFilteredEvents.length;
   const activeTimelineRange = useMemo(
@@ -1239,6 +1241,17 @@ export function RoomTimeline({
     typeof threadLinkedTimelines[0]?.getPaginationToken(Direction.Backward) === 'string';
   const canPaginateThreadFront =
     typeof lastThreadTimeline?.getPaginationToken(Direction.Forward) === 'string';
+
+  useEffect(() => {
+    const bump = () => setThreadRevision((n) => n + 1);
+
+    room.on(ThreadEvent.New, bump);
+    room.on(ThreadEvent.Delete, bump);
+    return () => {
+      room.removeListener(ThreadEvent.New, bump);
+      room.removeListener(ThreadEvent.Delete, bump);
+    };
+  }, [room]);
 
   useEffect(() => {
     const prevThreadFilter = prevThreadFilterRef.current;
