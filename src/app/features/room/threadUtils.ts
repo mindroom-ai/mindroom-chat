@@ -1,4 +1,6 @@
-import { RelationType } from 'matrix-js-sdk';
+import { RelationType } from 'matrix-js-sdk/lib/@types/event';
+import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
+import type { Room } from 'matrix-js-sdk/lib/models/room';
 
 type ThreadEventLike = {
   getId(): string | undefined;
@@ -71,4 +73,20 @@ export const buildThreadParticipantMap = (
   });
 
   return participants;
+};
+
+export const getValidThreadRootEvent = (
+  room: Pick<Room, 'findEventById' | 'getThread'>,
+  threadRootId?: string
+): MatrixEvent | undefined => {
+  if (!threadRootId) return undefined;
+
+  const candidateThreadRoot =
+    room.getThread(threadRootId)?.rootEvent ?? room.findEventById(threadRootId);
+
+  if (!candidateThreadRoot || candidateThreadRoot.getId() !== threadRootId) {
+    return undefined;
+  }
+
+  return candidateThreadRoot.isThreadRoot ? candidateThreadRoot : undefined;
 };

@@ -3,8 +3,12 @@ import { Editor } from 'slate';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
-const { passthrough } = vi.hoisted(() => ({
+const { passthrough, scrollType } = vi.hoisted(() => ({
   passthrough: 'div',
+  scrollType: 'room-timeline-scroll',
+}));
+const { roomThreadOverviewType } = vi.hoisted(() => ({
+  roomThreadOverviewType: 'room-thread-overview',
 }));
 
 vi.mock('folds', async (importOriginal) => {
@@ -25,7 +29,7 @@ vi.mock('folds', async (importOriginal) => {
       Search: 'Search',
     },
     Line: passthrough,
-    Scroll: passthrough,
+    Scroll: scrollType,
     Text: passthrough,
     as: () => passthrough,
     color: {
@@ -393,6 +397,14 @@ vi.mock('./threadEditBackfillUtils', () => ({
   shouldFetchThreadEditBackfill: () => false,
 }));
 
+vi.mock('./RoomThreadOverview', () => ({
+  RoomThreadOverview: roomThreadOverviewType,
+}));
+
+vi.mock('./useRoomThreadResolution', () => ({
+  useRoomThreadResolutionMap: () => new Map(),
+}));
+
 vi.stubGlobal('window', {
   addEventListener: vi.fn(),
   removeEventListener: vi.fn(),
@@ -466,5 +478,25 @@ describe('RoomTimeline', () => {
         })
       )
     ).not.toThrow();
+  });
+
+  it('renders the room thread overview outside thread view', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const room = makeRoom();
+    const roomInputRef = createRef<HTMLElement>();
+    const editor = {} as Editor;
+
+    const renderer = create(
+      React.createElement(RoomTimeline, {
+        room,
+        roomInputRef,
+        editor,
+      })
+    );
+
+    expect(renderer.root.findAllByType(roomThreadOverviewType)).toHaveLength(1);
+    expect(renderer.root.findByType(scrollType).findAllByType(roomThreadOverviewType)).toHaveLength(
+      0
+    );
   });
 });

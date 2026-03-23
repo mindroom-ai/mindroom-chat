@@ -34,6 +34,7 @@ export enum StateEvent {
   RoomTombstone = 'm.room.tombstone',
   GroupCallPrefix = 'org.matrix.msc3401.call',
   GroupCallMemberPrefix = 'org.matrix.msc3401.call.member',
+  ThreadResolution = 'com.mindroom.thread.resolution',
 
   SpaceChild = 'm.space.child',
   SpaceParent = 'm.space.parent',
