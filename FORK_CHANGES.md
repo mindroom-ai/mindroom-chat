@@ -1525,6 +1525,147 @@ Independent review follow-up note:
     - missing timeline sets now fall back to sync-derived completeness instead of hanging in a loading state,
     - the obsolete wedged-room recovery code and its focused test were removed together.
 
+## CINNY-006b Thread Filter Planning (2026-03-22)
+
+- Planning-only work in this worktree. No implementation was done for CINNY-006b in this step.
+- Investigation findings:
+  - Room message visibility is derived from `getRenderableEvents(...)` in
+    `src/app/features/room/RoomTimeline.tsx`, and that filtered event list also
+    drives initial range setup, pagination recalibration, event jumps, and final
+    render output.
+  - The main room timeline still suppresses thread replies, so the recommended
+    first pass treats the new resolved/unresolved filter as a filter over
+    thread-root room messages already shown in the main room view, not as a
+    request to inject reply events into room view.
+  - `RoomThreadOverview.tsx` currently owns the selected filter locally, while
+    `useRoomThreadResolutionMap(...)` in
+    `src/app/features/room/useRoomThreadResolution.ts` already provides the
+    resolved/unresolved status keyed by thread root ID.
+- Recommended plan recorded in `PLAN.md`:
+  - Move selected filter ownership into `RoomTimeline` and default it to `all`
+    so normal room behavior remains unchanged until the user opts into a filter.
+  - Convert `RoomThreadOverview` into a controlled toolbar-only component that
+    keeps the existing counts/loading state but drops the separate thread list
+    panel/body.
+  - Add shared thread-filter matching helpers in
+    `src/app/features/room/threadUtils.ts`.
+  - Thread the active room-thread filter through all `RoomTimeline.tsx` paths
+    that already depend on `getRenderableEvents(...)`.
+  - Add focused tests for the matcher, the controlled toolbar, and the filtered
+    room timeline behavior.
+- Next step:
+  - Implement the planned room timeline filter wiring and validate with focused
+    Vitest coverage plus build/typecheck checks.
+- Validation (planning slice, 2026-03-22):
+  - Passed: `git diff --check -- PLAN.md FORK_CHANGES.md`
+  - Passed: `npm run build`
+  - Known pre-existing baseline: `npm run typecheck -- --pretty false` still
+    fails with broad repo-wide `matrix-js-sdk` named-export/type errors, React
+    JSX return-type mismatches, and Jotai atom typing issues outside this
+    planning-only documentation change.
+  - Known workspace limitation: `npm run lint` still cannot complete here
+    because the repo script shells out to `yarn`, and `yarn` is not installed
+    (`sh: line 1: yarn: command not found`).
+- Independent review follow-up note:
+  - Completed a second self-review after writing the plan. Main checks were:
+    - the plan routes the filter through the same room-timeline code paths that
+      already own pagination/range math,
+    - the largest product assumption (thread-root-only filtering vs surfacing
+      replies in room view) is called out explicitly as a risk/open question,
+    - the plan recommends `all` as the default to preserve existing room-open
+      behavior,
+    - navigation/unread-jump ambiguity under active filters is documented as a
+      required product decision before implementation.
+
+## CINNY-006b Thread Filter Implementation (2026-03-22)
+
+- Implemented the room timeline thread filter in
+  `src/app/features/room/RoomTimeline.tsx`:
+  - added local `threadFilter` state with `all` as the default,
+  - derived `threadFilteredEvents` from the existing renderable room events plus
+    `useRoomThreadResolutionMap(room)`,
+  - switched the room paginator/event renderer to the filtered event array while
+    keeping thread-view rendering unchanged,
+  - clamped the visible room range against the filtered event count so filter
+    changes do not leave the room timeline pointed past the new array bounds.
+- Converted `src/app/features/room/RoomThreadOverview.tsx` into a controlled,
+  toolbar-only component:
+  - removed the separate thread list body and per-thread action rows,
+  - kept the existing thread-count loading/error sources,
+  - made filter chips controlled via `filter` / `onFilterChange` props from
+    `RoomTimeline`.
+- Removed now-unused list/panel body styles from
+  `src/app/features/room/RoomThreadOverview.css.ts`.
+- Updated focused tests:
+  - `src/app/features/room/RoomThreadOverview.test.ts` now covers controlled
+    chip state/callbacks, placeholder counts, and retry UI.
+  - `src/app/features/room/RoomTimeline.test.ts` now checks that the overview
+    receives the default `all` filter and change handler from `RoomTimeline`.
+- Validation (implementation slice, 2026-03-22):
+  - Passed:
+    `npx vitest run src/app/features/room/RoomThreadOverview.test.ts src/app/features/room/RoomTimeline.test.ts`
+  - Passed: `npm run build`
+  - Passed:
+    `git diff --check -- src/app/features/room/RoomThreadOverview.tsx src/app/features/room/RoomThreadOverview.css.ts src/app/features/room/RoomTimeline.tsx src/app/features/room/RoomThreadOverview.test.ts src/app/features/room/RoomTimeline.test.ts`
+- Independent review follow-up note:
+  - Completed a second self-review after the implementation pass. Main checks
+    were:
+    - the overview is now a controlled toolbar and no longer owns hidden local
+      filter state,
+    - room-view indices/pagination read from the filtered event array instead of
+      the unfiltered one,
+    - thread-view rendering and thread pagination paths were left untouched,
+    - the filtered room range is clamped so toggling the filter does not render
+      stale out-of-bounds indices.
+
+## CINNY-006b Thread Filter Persistence Fix (2026-03-22)
+
+- Investigation findings:
+  - `src/app/features/room/RoomView.tsx` renders `RoomTimeline` with
+    `key={`${roomId}:${threadId ?? ''}`}`, so opening or closing a thread
+    changes the key and fully remounts `RoomTimeline`.
+  - `RoomView` itself survives same-room thread navigation, which makes it the
+    correct ownership boundary for room-level filter state that should persist
+    while a thread is open.
+- Implementation:
+  - Moved the room thread filter state out of
+    `src/app/features/room/RoomTimeline.tsx` and into
+    `src/app/features/room/RoomView.tsx`.
+  - `RoomTimeline` now consumes controlled `threadFilter` /
+    `onThreadFilterChange` props instead of owning local filter state.
+  - Same-room thread open/close now preserves the selected room thread filter,
+    while room switches reset the filter back to `all`.
+- Tests:
+  - Added `src/app/features/room/RoomView.test.ts` covering:
+    - filter persistence across thread enter/exit,
+    - filter reset when switching away to a different room and back.
+  - Updated `src/app/features/room/RoomTimeline.test.ts` to drive the timeline
+    through a controlled filter harness, matching the new ownership model.
+- Validation (persistence fix slice, 2026-03-22):
+  - Passed:
+    `npx vitest run src/app/features/room/RoomView.test.ts src/app/features/room/RoomTimeline.test.ts`
+  - Passed: `npm run build`
+  - Passed: `git diff --check`
+  - Known pre-existing baseline: `npm run typecheck -- --pretty false` still
+    fails broadly across the repo with existing `matrix-js-sdk` export/type
+    mismatches, Jotai writable-atom typing errors, and related React typing
+    issues outside this persistence fix. Spot-checking the current change did
+    not reveal new `RoomView.test.ts` type errors on top of that baseline.
+  - Known workspace limitation: `npm run lint` still cannot complete here
+    because the repo script shells out to `yarn`, and `yarn` is not installed
+    (`sh: line 1: yarn: command not found`).
+- Independent review follow-up note:
+  - Completed a second self-review after the persistence patch. Main checks
+    were:
+    - the remount root cause is the keyed `RoomTimeline` element, not incidental
+      rerendering,
+    - room-level filter ownership now lives on the component that survives
+      thread navigation,
+    - the existing hidden-event reset path still routes back through the same
+      `all` filter fallback,
+    - room switches reset the filter synchronously in render output instead of
+      briefly rendering a stale previous-room selection.
+
 ## Thread Cache Plan (2026-03-08)
 
 Problem statements this plan is solving:
@@ -2127,3 +2268,23 @@ Validation:
 - `npx vitest run` — 66 files, 350 tests pass.
 - `npm run build` — successful.
 - `npm run typecheck` — no new errors.
+### CINNY-006b: thread filter review fixes
+
+- Status update:
+  - Main-room thread filters now render as a flat filtered list using an active
+    range of `{ start: 0, end: filteredLength }`, instead of reusing the stored
+    room paginator range.
+  - While a room thread filter is active, paginator `onRangeChange` and live
+    room events no longer mutate the stored room range, so non-matching live
+    events cannot push filtered thread roots out of view.
+  - Room-scoped jumps, including **Jump to Unread**, now reset the room thread
+    filter to `all` before loading an event that is hidden by the active
+    filter, ensuring the target becomes visible after the jump.
+  - Added focused regressions in
+    `src/app/features/room/RoomTimeline.test.ts` for resolution filtering,
+    filtered-mode live-event stability, and jumping to hidden unread events.
+- Validation:
+  - `npx vitest run src/app/features/room/RoomTimeline.test.ts src/app/features/room/RoomThreadOverview.test.ts` ✅
+  - `npm run build` ✅
+- Review:
+  - Second self-review completed against `git diff` and `git diff --check`.

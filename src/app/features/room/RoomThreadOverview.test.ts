@@ -1,9 +1,9 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RoomThreadOverview } from './RoomThreadOverview';
 
-const { passthrough, threadListState, toggleState } = vi.hoisted(() => ({
+const { passthrough, threadListState, resolutionMap } = vi.hoisted(() => ({
   passthrough: 'div',
   threadListState: {
     threads: [],
@@ -12,12 +12,7 @@ const { passthrough, threadListState, toggleState } = vi.hoisted(() => ({
     error: new Error('boom') as Error | undefined,
     retry: vi.fn(),
   },
-  toggleState: {
-    canToggle: true,
-    setResolved: vi.fn(),
-    updating: false,
-    error: undefined as Error | undefined,
-  },
+  resolutionMap: new Map<string, { isResolved: boolean }>(),
 }));
 
 vi.mock('folds', async (importOriginal) => {
@@ -25,14 +20,8 @@ vi.mock('folds', async (importOriginal) => {
 
   return {
     ...actual,
-    Badge: passthrough,
     Box: passthrough,
     Chip: passthrough,
-    Icon: passthrough,
-    Icons: {
-      Check: 'Check',
-      CheckTwice: 'CheckTwice',
-    },
     Spinner: passthrough,
     Text: passthrough,
     color: {
@@ -45,25 +34,9 @@ vi.mock('folds', async (importOriginal) => {
   };
 });
 
-vi.mock('../../components/message', () => ({
-  ThreadIndicator: passthrough,
-  Time: passthrough,
-}));
-
-vi.mock('../../hooks/useRoomNavigate', () => ({
-  useRoomNavigate: () => ({
-    navigateRoomThread: vi.fn(),
-  }),
-}));
-
 vi.mock('./RoomThreadOverview.css', () => ({
   Overview: 'Overview',
   FilterRow: 'FilterRow',
-  ThreadList: 'ThreadList',
-  ThreadRow: 'ThreadRow',
-  ThreadRowResolved: 'ThreadRowResolved',
-  ActionRow: 'ActionRow',
-  ThreadPreview: 'ThreadPreview',
 }));
 
 vi.mock('./useRoomThreadList', () => ({
@@ -71,8 +44,7 @@ vi.mock('./useRoomThreadList', () => ({
 }));
 
 vi.mock('./useRoomThreadResolution', () => ({
-  useRoomThreadResolutionMap: () => new Map(),
-  useToggleThreadResolution: () => toggleState,
+  useRoomThreadResolutionMap: () => resolutionMap,
 }));
 
 describe('RoomThreadOverview', () => {
@@ -82,29 +54,45 @@ describe('RoomThreadOverview', () => {
     threadListState.fullyLoaded = false;
     threadListState.error = new Error('boom');
     threadListState.retry = vi.fn();
-    toggleState.canToggle = true;
-    toggleState.setResolved = vi.fn();
-    toggleState.updating = false;
-    toggleState.error = undefined;
+    resolutionMap.clear();
   });
 
-  it('shows an error-aware empty state after a failed initial thread-list load', () => {
+  it('uses the controlled filter state for chip selection and callbacks', () => {
+    threadListState.threads = [{ id: '$a' }, { id: '$b' }] as never[];
+    threadListState.fullyLoaded = true;
+    threadListState.error = undefined;
+    resolutionMap.set('$b', { isResolved: true });
+
     const room = {
       roomId: '!room:example.org',
     };
+    const onFilterChange = vi.fn();
 
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         room: room as never,
-        hour24Clock: true,
-        dateFormatString: 'MMM D',
+        filter: 'resolved',
+        onFilterChange,
       })
     );
 
-    const renderedText = JSON.stringify(renderer.toJSON());
+    const unresolvedChip = renderer.root.find(
+      (node) => node.props['aria-label'] === 'Show unresolved threads (1)'
+    );
+    const resolvedChip = renderer.root.find(
+      (node) => node.props['aria-label'] === 'Show resolved threads (1)'
+    );
+    const allChip = renderer.root.find((node) => node.props['aria-label'] === 'Show all threads (2)');
 
-    expect(renderedText).toContain('Unable to load threads right now.');
-    expect(renderedText).not.toContain('Loading threads.');
+    expect(unresolvedChip.props['aria-pressed']).toBe(false);
+    expect(resolvedChip.props['aria-pressed']).toBe(true);
+    expect(allChip.props['aria-pressed']).toBe(false);
+
+    act(() => {
+      unresolvedChip.props.onClick();
+    });
+
+    expect(onFilterChange).toHaveBeenCalledWith('unresolved');
 
     renderer.unmount();
   });
@@ -120,8 +108,8 @@ describe('RoomThreadOverview', () => {
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         room: room as never,
-        hour24Clock: true,
-        dateFormatString: 'MMM D',
+        filter: 'all',
+        onFilterChange: vi.fn(),
       })
     );
 
@@ -130,6 +118,27 @@ describe('RoomThreadOverview', () => {
     );
     expect(renderer.root.findAll((node) => node.children.includes('Resolved (-)'))).toHaveLength(1);
     expect(renderer.root.findAll((node) => node.children.includes('All (-)'))).toHaveLength(1);
+
+    renderer.unmount();
+  });
+
+  it('shows retry UI when the thread list fails to load', () => {
+    const room = {
+      roomId: '!room:example.org',
+    };
+
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        room: room as never,
+        filter: 'all',
+        onFilterChange: vi.fn(),
+      })
+    );
+
+    const renderedText = JSON.stringify(renderer.toJSON());
+
+    expect(renderedText).toContain('boom');
+    expect(renderedText).toContain('Retry');
 
     renderer.unmount();
   });
