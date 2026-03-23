@@ -670,7 +670,35 @@ describe('RoomTimeline', () => {
       0
     );
     expect(overview.props.filter).toBe('all');
+    expect(overview.props.counts).toEqual({
+      unresolved: 0,
+      resolved: 0,
+      all: 0,
+    });
     expect(overview.props.onFilterChange).toBeTypeOf('function');
+  });
+
+  it('passes visible thread-root counts to the room thread overview', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const unresolvedEvent = makeEvent('$thread-unresolved', { isThreadRoot: true });
+    const resolvedEvent = makeEvent('$thread-resolved', { isThreadRoot: true });
+    const room = makeRoom({
+      liveEvents: [makeEvent('$message'), unresolvedEvent, resolvedEvent],
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    threadResolutionMapMock.set(resolvedEvent.getId(), { isResolved: true });
+
+    const renderer = create(
+      React.createElement(ControlledRoomTimeline, {
+        room,
+      })
+    );
+
+    expect(renderer.root.findByType(roomThreadOverviewType).props.counts).toEqual({
+      unresolved: 1,
+      resolved: 1,
+      all: 2,
+    });
   });
 
   it('filters room events by thread resolution state', async () => {
