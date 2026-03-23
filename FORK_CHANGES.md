@@ -17,22 +17,27 @@ Rules followed:
 
 ## Working Tree (Not Yet Committed)
 
-Working tree status (2026-03-12):
+Working tree status (2026-03-22):
 
-- Local uncommitted changes are present in `justfile` and `FORK_CHANGES.md`.
+- Local uncommitted changes are present in `.claude/TASK.md`, `PLAN.md`,
+  `PLAN-B.md`, and `FORK_CHANGES.md`.
 
 What changed (uncommitted):
 
-- Added `just rebuild` to mirror the repo rebuild steps from
-  `~/update-cinny.sh` (`npm ci`, `npm run build`).
-- Kept the existing iOS-focused `just` recipes unchanged.
+- `.claude/TASK.md` contains the current CINNY-006b v2 planning assignment.
+- `PLAN.md` now records the Planning Agent A root-cause analysis and proposed
+  fixes for the thread-count mismatch and `All` ordering bugs.
+- `PLAN-B.md` contains separate concurrent planning work and was left untouched
+  in this slice.
+- `FORK_CHANGES.md` now records this planning slice in the runbook.
 
 Validation (uncommitted):
 
 - Completed for the current working-tree slice:
-  - `just --list`
-  - `just rebuild`
-  - `git diff --check`
+  - `git diff --check -- PLAN.md FORK_CHANGES.md`
+  - `npm run build`
+  - `npm run typecheck -- --pretty false` (known repo-wide baseline failures)
+  - `npm run lint` (blocked: `yarn` not installed)
 
 ## Commit-by-Commit Changes
 
@@ -2340,3 +2345,74 @@ Validation:
   - `npm run build` ✅
 - Review:
   - Second self-review completed against `git diff` and `git diff --check`.
+
+### CINNY-006b v2: planning follow-up for count mismatch and `All` ordering
+
+- Status: planning only, no implementation in this slice.
+- Findings:
+  - The chip counts in `src/app/features/room/RoomThreadOverview.tsx` still come
+    from `useRoomThreadList(room)` / `room.getThreads()`, while the filtered
+    room view in `src/app/features/room/RoomTimeline.tsx` only renders thread
+    roots found in the currently loaded `renderableEvents` array.
+  - That mismatch is structural: the SDK thread list can include roots that are
+    not visible in the loaded room timeline window, so unresolved/resolved chip
+    counts can be much larger than the visible filtered list.
+  - The `All` ordering issue is not a sort bug in the event array. The filter
+    transition switches between two range modes without preserving a room-view
+    anchor, and unread auto-scroll currently re-fires on `threadFilteredEvents`
+    changes because the initial `scrollTo` flag is never cleared.
+- Plan recorded in `PLAN.md`:
+  - move visible count calculation next to `threadFilteredEvents` so the
+    overview and rendered list use the same source of truth;
+  - keep SDK thread bootstrap active, but stop using `room.getThreads()` as the
+    visible-count source;
+  - add explicit filter-transition viewport restore for `all <-> resolved /
+    unresolved`;
+  - make unread auto-scroll one-shot so filter toggles do not re-jump to the
+    read marker.
+- Next step:
+  - implement the `PLAN.md` changes in `RoomTimeline.tsx` /
+    `RoomThreadOverview.tsx` and add focused regressions before re-running
+    build/typecheck/test validation.
+- Validation:
+  - `git diff --check -- PLAN.md FORK_CHANGES.md`
+  - `npm run build` ✅
+  - `npm run typecheck -- --pretty false` ❌
+    - same broad repo-wide baseline as earlier work: many `matrix-js-sdk`
+      named-export/type failures plus existing React/Jotai typing errors
+      outside this planning-only doc slice
+  - `npm run lint` ❌
+    - blocked by repo script dependency on `yarn` (`sh: line 1: yarn: command not found`)
+- Review:
+  - Second self-review completed after writing the plan. Main checks were:
+    - the count mismatch analysis points to two distinct data sources with exact
+      file/line references,
+    - the `All` ordering plan addresses both viewport restore and the repeated
+      unread-scroll side effect,
+    - `RoomView.tsx` room-level filter ownership was reviewed and is not being
+      changed unnecessarily in the proposed fix.
+
+### CINNY-006b v2: renderable thread counts
+
+- Status:
+  - Bug 1 implemented.
+  - `RoomTimeline.tsx` now derives unresolved/resolved/all counts from the same
+    loaded `renderableEvents` array that feeds the main room thread filter.
+  - `RoomThreadOverview.tsx` is now prop-driven for counts, so the chip labels
+    no longer depend on the SDK/server-side room thread list.
+  - Added focused regressions in
+    `src/app/features/room/RoomTimeline.test.ts` and
+    `src/app/features/room/RoomThreadOverview.test.ts` to assert the overview
+    receives visible thread-root counts and renders the passed values exactly.
+- Next step:
+  - implement bug 2 by resetting the room timeline to the live-room state when
+    leaving a room thread filter and re-run validation.
+- Validation:
+  - `git diff --check -- src/app/features/room/RoomThreadOverview.tsx src/app/features/room/RoomTimeline.tsx src/app/features/room/RoomThreadOverview.test.ts src/app/features/room/RoomTimeline.test.ts` ✅
+  - `npx vitest run src/app/features/room/RoomThreadOverview.test.ts src/app/features/room/RoomTimeline.test.ts` ✅
+- Review:
+  - Second self-review completed against the bug 1 diff before commit. Main
+    checks were:
+    - `all` now represents visible loaded thread roots, matching the task spec;
+    - the overview no longer has a hidden dependency on `useRoomThreadList`;
+    - existing room-thread filter regressions still pass with the new props.

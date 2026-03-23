@@ -152,7 +152,11 @@ import {
 } from '../../components/message/mindroomThreadSummary';
 import { shouldPinThreadToBottomOnOpen } from './threadRenderUtils';
 import { useThreadRenderState } from './useThreadRenderState';
-import { RoomThreadOverview, type ThreadFilter } from './RoomThreadOverview';
+import {
+  RoomThreadOverview,
+  type RoomThreadOverviewCounts,
+  type ThreadFilter,
+} from './RoomThreadOverview';
 import {
   getThreadCursorAnchor,
   loadCachedThreadEventsBefore,
@@ -1152,6 +1156,32 @@ export function RoomTimeline({
       getThreadFilteredEvents(renderableEvents, room, threadResolutionMap, threadId, threadFilter),
     [renderableEvents, room, threadResolutionMap, threadId, threadFilter]
   );
+  const visibleThreadCounts = useMemo<RoomThreadOverviewCounts>(() => {
+    let unresolved = 0;
+    let resolved = 0;
+
+    for (const event of renderableEvents) {
+      const eventId = event.getId();
+      if (!eventId) continue;
+
+      const isRoot =
+        event.isThreadRoot || !!room.getThread(eventId) || threadResolutionMap.has(eventId);
+      if (!isRoot) continue;
+
+      const resolution = threadResolutionMap.get(eventId);
+      if (resolution?.isResolved) {
+        resolved += 1;
+      } else {
+        unresolved += 1;
+      }
+    }
+
+    return {
+      unresolved,
+      resolved,
+      all: unresolved + resolved,
+    };
+  }, [renderableEvents, room, threadResolutionMap]);
   const filteredLength = threadFilteredEvents.length;
   const activeTimelineRange = useMemo(
     () => getActiveTimelineRange(threadId, threadFilter, timeline.range, filteredLength),
@@ -3656,7 +3686,7 @@ export function RoomTimeline({
     <Box grow="Yes" direction="Column">
       {!threadId && (
         <RoomThreadOverview
-          room={room}
+          counts={visibleThreadCounts}
           filter={threadFilter}
           onFilterChange={onThreadFilterChange}
         />
