@@ -904,6 +904,37 @@ Why:
 - Local-only deployments need one config flag to remove the entire Local
   MindRoom UI surface cleanly, not just the sidebar shortcut.
 
+### feat(e2e): CINNY-012 live test skill
+
+Files changed:
+
+- `.claude/skills/cinny-live-test/skill.md` (NEW)
+- `.claude/skills/cinny-live-test/run-live-tests.sh` (NEW)
+- `e2e/live/smoke.spec.ts` (NEW)
+- `e2e/live/login.spec.ts` (NEW)
+- `e2e/live/rooms.spec.ts` (NEW)
+- `e2e/live/threads.spec.ts` (NEW)
+- `e2e/live/seed-fixture-room.mjs` (NEW)
+- `PLAN-DEBATE.md` (NEW)
+- `.claude/REPORT.md`
+
+What changed:
+
+- Added a Claude Code skill for running Playwright live tests against the deployed
+  Cinny instance at `http://localhost:8090` with `https://mindroom.chat` as homeserver.
+- Tier 1 smoke tests (4): app title, auth shell, SSO providers, no critical console errors.
+- Tier 2 login tests (3): password login, shell stability, session persistence.
+- Tier 2 room tests (3): room list renders, room navigation, no app errors.
+- Tier 3 thread tests (4): thread overview, numeric counts, thread navigation, summary card.
+- Idempotent fixture seeder for thread/summary test data via Matrix CS API.
+- Runner script with Nix Chromium fallback, credential resolution chain, and auto-registration.
+- All tests gracefully skip when prerequisites (credentials, fixture room) are missing.
+
+Why:
+
+- Mock-heavy tests were insufficient for thread/edit/streaming behavior; the skill
+  provides reproducible live browser validation against the real app and homeserver.
+
 # Runbook
 
 ## Purpose
@@ -1212,7 +1243,38 @@ Thread summary preview (CINNY-003b, upgraded in CINNY-003c):
 
 Current task:
 
-- CINNY-008 fix room scroll count-vs-render mismatch.
+- CINNY-012 investigate a Cinny live test skill for browser-based validation.
+
+### CINNY-012: Cinny Live Test Skill (2026-03-21)
+
+**Status:** Phase 4 complete. All test tiers implemented.
+
+**Problem:** Mock-heavy tests have not been sufficient for thread/edit behavior;
+we need a reproducible live browser test workflow against the real app and real
+homeserver behavior.
+
+**Key investigation findings:**
+
+- The lightest working runtime in this container is repo-local
+  `npx playwright` (`1.58.2`) driving the already-installed user-profile
+  Chromium at `~/.nix-profile/bin/chromium`.
+- Playwright's cached Chromium fails here with missing shared libraries
+  (`libglib-2.0.so.0`), so the skill should not rely on bundled browsers in
+  this NixOS container.
+- `https://mindroom.chat/_matrix/client/v3/login` currently advertises
+  `m.login.password` in addition to SSO flows, so password-based browser login
+  is possible when credentials exist.
+- Public registration remains token-gated:
+  `POST https://mindroom.chat/_matrix/client/v3/register` returns only
+  `m.login.registration_token`.
+- Existing SSH-based disposable-account provisioning is not usable in this
+  container yet because `ssh mindroom` is blocked by host-key / public-key
+  setup.
+
+**Output:**
+
+- Added `PLAN.md` with the recommended runtime approach, proposed skill
+  structure, scenario matrix, edge cases, and risks.
 
 ### CINNY-008: Room Scroll Count-vs-Render Mismatch (2026-03-21)
 
