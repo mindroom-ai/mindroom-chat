@@ -150,6 +150,7 @@ import {
 } from '../../components/message/mindroomThreadSummary';
 import { shouldPinThreadToBottomOnOpen } from './threadRenderUtils';
 import { useThreadRenderState } from './useThreadRenderState';
+import { RoomThreadOverview } from './RoomThreadOverview';
 import {
   getThreadCursorAnchor,
   loadCachedThreadEventsBefore,
@@ -164,7 +165,11 @@ import {
   normalizeCachedRoomEvents,
   saveRoomEventsToCache,
 } from './roomEventCache';
-import { aggregateCachedRelationEvents, hydrateCachedEvents, serializeEventsForCache } from './eventCacheEditUtils';
+import {
+  aggregateCachedRelationEvents,
+  hydrateCachedEvents,
+  serializeEventsForCache,
+} from './eventCacheEditUtils';
 import {
   isScrollNearBottom,
   isTimelineAtLiveEnd,
@@ -174,6 +179,7 @@ import {
   markThreadEditBackfillAttempted,
   shouldFetchThreadEditBackfill,
 } from './threadEditBackfillUtils';
+import { useRoomThreadResolutionMap } from './useRoomThreadResolution';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -414,10 +420,7 @@ const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
   return isThreadReplyMessage || isThreadReplyRelatedEvent;
 };
 
-const getMainTimelineCacheEvents = (
-  room: Room,
-  linkedTimelines: EventTimeline[]
-): MatrixEvent[] =>
+const getMainTimelineCacheEvents = (room: Room, linkedTimelines: EventTimeline[]): MatrixEvent[] =>
   linkedTimelines.flatMap((timeline) =>
     timeline.getEvents().filter((mEvent) => !isThreadOnlyRoomActivity(room, mEvent))
   );
@@ -632,10 +635,7 @@ const getRoomUnreadInfo = (room: Room, scrollTo = false) => {
 
 export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: RoomTimelineProps) {
   const mx = useMatrixClient();
-  const sessionId = useMemo(
-    () => createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()),
-    [mx]
-  );
+  const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()), [mx]);
   const useAuthentication = useMediaAuthentication();
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
   const [messageLayout] = useSetting(settingsAtom, 'messageLayout');
@@ -910,10 +910,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       rootEvent?: MatrixEvent | null,
       beforeTokenForEarliest?: string | null
     ) => {
-      const cacheEvents = withStateTargetEvents(
-        room,
-        rootEvent ? [rootEvent, ...events] : events
-      );
+      const cacheEvents = withStateTargetEvents(room, rootEvent ? [rootEvent, ...events] : events);
       const rawEvents = serializeEventsForCache(room, cacheEvents);
       const rawRootEvent = rootEvent
         ? rawEvents.find((rawEvent) => rawEvent.event_id === rootEvent.getId())
@@ -956,10 +953,9 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       if (!alive() || threadIdRef.current !== expectedThreadId) return undefined;
 
       const mapper = mx.getEventMapper();
-      const cachedEvents = normalizeCachedThreadEvents(
-        cachedPage.events,
-        cachedPage.rootEvent
-      ).map((rawEvent) => mapper(rawEvent));
+      const cachedEvents = normalizeCachedThreadEvents(cachedPage.events, cachedPage.rootEvent).map(
+        (rawEvent) => mapper(rawEvent)
+      );
       setThreadHasMoreCachedBack(
         cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string'
       );
@@ -1097,7 +1093,10 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
               [mEvt],
               room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId)
             );
-            if ((mEventId === threadId || eventBelongsToThread(mEvt, threadId)) && atLiveEndRef.current) {
+            if (
+              (mEventId === threadId || eventBelongsToThread(mEvt, threadId)) &&
+              atLiveEndRef.current
+            ) {
               setThreadTailLoaded(true);
             }
 
@@ -1512,7 +1511,10 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             // We need to render something even without a Thread model, so store
             // mapped relation events for thread view fallback rendering.
             const mapper = mx.getEventMapper();
-            const mappedEvents = relData.chunk.slice().reverse().map((evt) => mapper(evt));
+            const mappedEvents = relData.chunk
+              .slice()
+              .reverse()
+              .map((evt) => mapper(evt));
             setSupplementalThreadEvents(threadId, mappedEvents);
             persistThreadEventCache(
               threadId,
@@ -1533,7 +1535,9 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             // may already be populated from the relations fetch above
             console.warn('getThreadTimeline failed, using fallback:', err);
           }
-          const firstThreadTimeline = getLinkedTimelines(loadedThreadTimelineSet.getLiveTimeline())[0];
+          const firstThreadTimeline = getLinkedTimelines(
+            loadedThreadTimelineSet.getLiveTimeline()
+          )[0];
           const cachedEarliestAnchor = getThreadCursorAnchor(hydratedCachedPage?.events[0]);
           const earliestThreadReply = getEarliestLoadedThreadReply(threadModel.events, threadId);
           const threadTimelineAnchor = getThreadCursorAnchor(
@@ -1563,7 +1567,10 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
             if (!mounted) return;
             if (!relErr && relData?.chunk?.length) {
               const mapper = mx.getEventMapper();
-              const mappedEvents = relData.chunk.slice().reverse().map((evt) => mapper(evt));
+              const mappedEvents = relData.chunk
+                .slice()
+                .reverse()
+                .map((evt) => mapper(evt));
               threadModel.addEvents(mappedEvents, true);
               firstThreadTimeline?.setPaginationToken(
                 relData.next_batch ?? null,
@@ -1817,14 +1824,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     setTimeline(getInitialTimeline(room));
     scrollToBottomRef.current.count += 1;
     scrollToBottomRef.current.smooth = false;
-  }, [
-    eventId,
-    navigateRoom,
-    navigateRoomThread,
-    refreshLatestThreadSlice,
-    room,
-    threadId,
-  ]);
+  }, [eventId, navigateRoom, navigateRoomThread, refreshLatestThreadSlice, room, threadId]);
 
   const handleJumpToUnread = () => {
     if (unreadInfo?.readUptoEventId) {
@@ -1968,6 +1968,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     });
     return loadedEvents;
   }, [threadId, timeline]);
+  const threadResolutionMap = useRoomThreadResolutionMap(room);
   const threadReplyCountMap = useMemo(
     () => (threadId ? new Map<string, number>() : buildThreadReplyCountMap(loadedTimelineEvents)),
     [threadId, loadedTimelineEvents]
@@ -2013,6 +2014,9 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           mEvent,
           threadParticipantMap.get(mEventId)
         );
+        const threadResolved = mEventId
+          ? threadResolutionMap.get(mEventId)?.isResolved ?? false
+          : false;
         const isThreadReply = isThreadReplyEvent(mEventId, threadRootId);
         const summaryInfo =
           !threadId && !isThreadReply && mEventId
@@ -2041,6 +2045,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
                 data-event-id={mEventId}
                 threadReplyCount={threadReplyCount}
                 threadParticipantIds={threadParticipantIds}
+                isResolved={threadResolved}
                 room={room}
                 onClick={handleOpenReply}
               />
@@ -2167,6 +2172,9 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           mEvent,
           threadParticipantMap.get(mEventId)
         );
+        const threadResolved = mEventId
+          ? threadResolutionMap.get(mEventId)?.isResolved ?? false
+          : false;
         const isThreadReply = isThreadReplyEvent(mEventId, threadRootId);
         const encSummaryInfo =
           !threadId && !isThreadReply && mEventId
@@ -2195,6 +2203,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
                 data-event-id={mEventId}
                 threadReplyCount={threadReplyCount}
                 threadParticipantIds={threadParticipantIds}
+                isResolved={threadResolved}
                 room={room}
                 onClick={handleOpenReply}
               />
@@ -2679,11 +2688,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     if (!threadId || threadEvents.length === 0) return;
 
     const missingEditEvents = threadEvents.filter((mEvent) =>
-      shouldFetchThreadEditBackfill(
-        mEvent,
-        threadEditFetchAttemptedRef.current,
-        threadTailLoaded
-      )
+      shouldFetchThreadEditBackfill(mEvent, threadEditFetchAttemptedRef.current, threadTailLoaded)
     );
     if (missingEditEvents.length === 0) {
       logEditDebug('threadBackfill:noneMissing', {
@@ -2920,7 +2925,9 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   const handleThreadPaginateFront = useCallback(async () => {
     if (!threadId || !thread || threadPaginatingFrontRef.current) return;
     const currentThreadTimelineSet = thread.getUnfilteredTimelineSet();
-    const currentThreadLinkedTimelines = getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline());
+    const currentThreadLinkedTimelines = getLinkedTimelines(
+      currentThreadTimelineSet.getLiveTimeline()
+    );
     const currentLastThreadTimeline =
       currentThreadLinkedTimelines[currentThreadLinkedTimelines.length - 1];
     if (!currentLastThreadTimeline) return;
@@ -2939,9 +2946,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     threadPaginatingFrontRef.current = false;
     if (!err && threadIdRef.current === expectedThreadId) {
       persistThreadEventCache(expectedThreadId, thread.events, thread.rootEvent);
-      setThreadTailLoaded(
-        !currentLastThreadTimeline.getPaginationToken(Direction.Forward)
-      );
+      setThreadTailLoaded(!currentLastThreadTimeline.getPaginationToken(Direction.Forward));
       setTimeline((ct) => ({ ...ct }));
       setThreadTimelineTick((val) => val + 1);
     }
@@ -3056,235 +3061,244 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   };
 
   return (
-    <Box grow="Yes" style={{ position: 'relative' }}>
-      {!threadId && unreadInfo?.readUptoEventId && !unreadInfo?.inLiveTimeline && (
-        <TimelineFloat position="Top">
-          <Chip
-            variant="Primary"
-            radii="Pill"
-            outlined
-            before={<Icon size="50" src={Icons.MessageUnread} />}
-            onClick={handleJumpToUnread}
-          >
-            <Text size="L400">Jump to Unread</Text>
-          </Chip>
-
-          <Chip
-            variant="SurfaceVariant"
-            radii="Pill"
-            outlined
-            before={<Icon size="50" src={Icons.CheckTwice} />}
-            onClick={handleMarkAsRead}
-          >
-            <Text size="L400">Mark as Read</Text>
-          </Chip>
-        </TimelineFloat>
+    <Box grow="Yes" direction="Column">
+      {!threadId && (
+        <RoomThreadOverview
+          room={room}
+          hour24Clock={hour24Clock}
+          dateFormatString={dateFormatString}
+        />
       )}
-      <Scroll ref={scrollRef} visibility="Hover" style={{ overflowAnchor: 'auto' }}>
-        <Box
-          direction="Column"
-          justifyContent="End"
-          style={{
-            minHeight: '100%',
-            padding: `${config.space.S600} 0`,
-            position: 'relative',
-          }}
-        >
-          {threadId && (
-            <Box
-              style={{
-                position: 'absolute',
-                top: config.space.S600,
-                bottom: config.space.S600,
-                left: messageLayout === MessageLayout.Compact ? toRem(5) : toRem(7),
-                width: config.borderWidth.B300,
-                backgroundColor: color.Warning.ContainerLine,
-                opacity: 0.7,
-                pointerEvents: 'none',
-              }}
-            />
-          )}
-          {!threadId &&
-            !roomHasMoreCachedBack &&
-            !canPaginateBack &&
-            rangeAtStart &&
-            timelineItems.length > 0 && (
-            <div
-              style={{
-                padding: `${config.space.S700} ${config.space.S400} ${config.space.S600} ${
-                  messageLayout === MessageLayout.Compact ? config.space.S400 : toRem(64)
-                }`,
-              }}
+      <Box grow="Yes" style={{ position: 'relative' }}>
+        {!threadId && unreadInfo?.readUptoEventId && !unreadInfo?.inLiveTimeline && (
+          <TimelineFloat position="Top">
+            <Chip
+              variant="Primary"
+              radii="Pill"
+              outlined
+              before={<Icon size="50" src={Icons.MessageUnread} />}
+              onClick={handleJumpToUnread}
             >
-              <RoomIntro room={room} />
-            </div>
-          )}
-          {threadId && threadLoadError && (
-            <MessageBase space={messageSpacing}>
-              <TimelineDivider variant="Surface">
-                <Badge as="span" size="500" variant="Critical" fill="None" radii="300">
-                  <Text size="L400">Failed to load this thread.</Text>
-                </Badge>
-              </TimelineDivider>
-            </MessageBase>
-          )}
-          {threadId && (threadHasMoreCachedBack || canPaginateThreadBack) && (
-            <MessageBase space={messageSpacing}>
-              <TimelineDivider variant="Surface">
-                <Chip
-                  variant="SurfaceVariant"
-                  radii="Pill"
-                  outlined
-                  before={<Icon size="50" src={Icons.ArrowTop} />}
-                  onClick={handleThreadPaginateBack}
-                >
-                  <Text size="L400">
-                    {threadPaginatingBack ? 'Loading...' : 'Load Older Messages'}
-                  </Text>
-                </Chip>
-              </TimelineDivider>
-            </MessageBase>
-          )}
-          {threadId &&
-            threadInitialRenderMode === 'loading' &&
-            !threadLoadError &&
-            (messageLayout === MessageLayout.Compact ? (
-              <>
-                <MessageBase>
-                  <CompactPlaceholder />
-                </MessageBase>
-                <MessageBase>
-                  <CompactPlaceholder />
-                </MessageBase>
-                <MessageBase>
-                  <CompactPlaceholder />
-                </MessageBase>
-              </>
-            ) : (
-              <>
-                <MessageBase>
-                  <DefaultPlaceholder />
-                </MessageBase>
-                <MessageBase>
-                  <DefaultPlaceholder />
-                </MessageBase>
-              </>
-            ))}
-          {!threadId &&
-            (roomHasMoreCachedBack || canPaginateBack || !rangeAtStart) &&
-            (messageLayout === MessageLayout.Compact ? (
-              <>
-                <MessageBase>
-                  <CompactPlaceholder key={timelineItems.length} />
-                </MessageBase>
-                <MessageBase>
-                  <CompactPlaceholder key={timelineItems.length} />
-                </MessageBase>
-                <MessageBase>
-                  <CompactPlaceholder key={timelineItems.length} />
-                </MessageBase>
-                <MessageBase>
-                  <CompactPlaceholder key={timelineItems.length} />
-                </MessageBase>
-                <MessageBase ref={observeBackAnchor}>
-                  <CompactPlaceholder key={timelineItems.length} />
-                </MessageBase>
-              </>
-            ) : (
-              <>
-                <MessageBase>
-                  <DefaultPlaceholder key={timelineItems.length} />
-                </MessageBase>
-                <MessageBase>
-                  <DefaultPlaceholder key={timelineItems.length} />
-                </MessageBase>
-                <MessageBase ref={observeBackAnchor}>
-                  <DefaultPlaceholder key={timelineItems.length} />
-                </MessageBase>
-              </>
-            ))}
+              <Text size="L400">Jump to Unread</Text>
+            </Chip>
 
-          {threadId
-            ? threadEvents.map((mEvent, index) => {
-                const eventId = mEvent.getId();
-                if (!eventId) return null;
-                const threadTimeline = threadTimelineSet?.getTimelineForEvent(eventId);
-                const roomTimeline = roomTimelineSet.getTimelineForEvent(eventId);
-                const timelineSet =
-                  threadTimeline?.getTimelineSet() ??
-                  roomTimeline?.getTimelineSet() ??
-                  threadTimelineSet ??
-                  roomTimelineSet;
-                return renderResolvedEvent(mEvent, index, timelineSet);
-              })
-            : timelineItems.map(eventRenderer)}
-          {threadId && canPaginateThreadFront && (
-            <MessageBase space={messageSpacing}>
-              <TimelineDivider variant="Surface">
-                <Chip
-                  variant="SurfaceVariant"
-                  radii="Pill"
-                  outlined
-                  before={<Icon size="50" src={Icons.ArrowBottom} />}
-                  onClick={handleThreadPaginateFront}
-                >
-                  <Text size="L400">
-                    {threadPaginatingFront ? 'Loading...' : 'Load Newer Messages'}
-                  </Text>
-                </Chip>
-              </TimelineDivider>
-            </MessageBase>
-          )}
-
-          {!threadId &&
-            (!liveTimelineLinked || !rangeAtEnd) &&
-            (messageLayout === MessageLayout.Compact ? (
-              <>
-                <MessageBase ref={observeFrontAnchor}>
-                  <CompactPlaceholder key={timelineItems.length} />
-                </MessageBase>
-                <MessageBase>
-                  <CompactPlaceholder key={timelineItems.length} />
-                </MessageBase>
-                <MessageBase>
-                  <CompactPlaceholder key={timelineItems.length} />
-                </MessageBase>
-                <MessageBase>
-                  <CompactPlaceholder key={timelineItems.length} />
-                </MessageBase>
-                <MessageBase>
-                  <CompactPlaceholder key={timelineItems.length} />
-                </MessageBase>
-              </>
-            ) : (
-              <>
-                <MessageBase ref={observeFrontAnchor}>
-                  <DefaultPlaceholder key={timelineItems.length} />
-                </MessageBase>
-                <MessageBase>
-                  <DefaultPlaceholder key={timelineItems.length} />
-                </MessageBase>
-                <MessageBase>
-                  <DefaultPlaceholder key={timelineItems.length} />
-                </MessageBase>
-              </>
-            ))}
-          <span ref={atBottomAnchorRef} />
-        </Box>
-      </Scroll>
-      {!atBottom && (
-        <TimelineFloat position="Bottom">
-          <Chip
-            variant="SurfaceVariant"
-            radii="Pill"
-            outlined
-            before={<Icon size="50" src={Icons.ArrowBottom} />}
-            onClick={handleJumpToLatest}
+            <Chip
+              variant="SurfaceVariant"
+              radii="Pill"
+              outlined
+              before={<Icon size="50" src={Icons.CheckTwice} />}
+              onClick={handleMarkAsRead}
+            >
+              <Text size="L400">Mark as Read</Text>
+            </Chip>
+          </TimelineFloat>
+        )}
+        <Scroll ref={scrollRef} visibility="Hover" style={{ overflowAnchor: 'auto' }}>
+          <Box
+            direction="Column"
+            justifyContent="End"
+            style={{
+              minHeight: '100%',
+              padding: `${config.space.S600} 0`,
+              position: 'relative',
+            }}
           >
-            <Text size="L400">Jump to Latest</Text>
-          </Chip>
-        </TimelineFloat>
-      )}
+            {threadId && (
+              <Box
+                style={{
+                  position: 'absolute',
+                  top: config.space.S600,
+                  bottom: config.space.S600,
+                  left: messageLayout === MessageLayout.Compact ? toRem(5) : toRem(7),
+                  width: config.borderWidth.B300,
+                  backgroundColor: color.Warning.ContainerLine,
+                  opacity: 0.7,
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
+            {!threadId &&
+              !roomHasMoreCachedBack &&
+              !canPaginateBack &&
+              rangeAtStart &&
+              timelineItems.length > 0 && (
+                <div
+                  style={{
+                    padding: `${config.space.S700} ${config.space.S400} ${config.space.S600} ${
+                      messageLayout === MessageLayout.Compact ? config.space.S400 : toRem(64)
+                    }`,
+                  }}
+                >
+                  <RoomIntro room={room} />
+                </div>
+              )}
+            {threadId && threadLoadError && (
+              <MessageBase space={messageSpacing}>
+                <TimelineDivider variant="Surface">
+                  <Badge as="span" size="500" variant="Critical" fill="None" radii="300">
+                    <Text size="L400">Failed to load this thread.</Text>
+                  </Badge>
+                </TimelineDivider>
+              </MessageBase>
+            )}
+            {threadId && (threadHasMoreCachedBack || canPaginateThreadBack) && (
+              <MessageBase space={messageSpacing}>
+                <TimelineDivider variant="Surface">
+                  <Chip
+                    variant="SurfaceVariant"
+                    radii="Pill"
+                    outlined
+                    before={<Icon size="50" src={Icons.ArrowTop} />}
+                    onClick={handleThreadPaginateBack}
+                  >
+                    <Text size="L400">
+                      {threadPaginatingBack ? 'Loading...' : 'Load Older Messages'}
+                    </Text>
+                  </Chip>
+                </TimelineDivider>
+              </MessageBase>
+            )}
+            {threadId &&
+              threadInitialRenderMode === 'loading' &&
+              !threadLoadError &&
+              (messageLayout === MessageLayout.Compact ? (
+                <>
+                  <MessageBase>
+                    <CompactPlaceholder />
+                  </MessageBase>
+                  <MessageBase>
+                    <CompactPlaceholder />
+                  </MessageBase>
+                  <MessageBase>
+                    <CompactPlaceholder />
+                  </MessageBase>
+                </>
+              ) : (
+                <>
+                  <MessageBase>
+                    <DefaultPlaceholder />
+                  </MessageBase>
+                  <MessageBase>
+                    <DefaultPlaceholder />
+                  </MessageBase>
+                </>
+              ))}
+            {!threadId &&
+              (roomHasMoreCachedBack || canPaginateBack || !rangeAtStart) &&
+              (messageLayout === MessageLayout.Compact ? (
+                <>
+                  <MessageBase>
+                    <CompactPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                  <MessageBase>
+                    <CompactPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                  <MessageBase>
+                    <CompactPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                  <MessageBase>
+                    <CompactPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                  <MessageBase ref={observeBackAnchor}>
+                    <CompactPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                </>
+              ) : (
+                <>
+                  <MessageBase>
+                    <DefaultPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                  <MessageBase>
+                    <DefaultPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                  <MessageBase ref={observeBackAnchor}>
+                    <DefaultPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                </>
+              ))}
+
+            {threadId
+              ? threadEvents.map((mEvent, index) => {
+                  const eventId = mEvent.getId();
+                  if (!eventId) return null;
+                  const threadTimeline = threadTimelineSet?.getTimelineForEvent(eventId);
+                  const roomTimeline = roomTimelineSet.getTimelineForEvent(eventId);
+                  const timelineSet =
+                    threadTimeline?.getTimelineSet() ??
+                    roomTimeline?.getTimelineSet() ??
+                    threadTimelineSet ??
+                    roomTimelineSet;
+                  return renderResolvedEvent(mEvent, index, timelineSet);
+                })
+              : timelineItems.map(eventRenderer)}
+            {threadId && canPaginateThreadFront && (
+              <MessageBase space={messageSpacing}>
+                <TimelineDivider variant="Surface">
+                  <Chip
+                    variant="SurfaceVariant"
+                    radii="Pill"
+                    outlined
+                    before={<Icon size="50" src={Icons.ArrowBottom} />}
+                    onClick={handleThreadPaginateFront}
+                  >
+                    <Text size="L400">
+                      {threadPaginatingFront ? 'Loading...' : 'Load Newer Messages'}
+                    </Text>
+                  </Chip>
+                </TimelineDivider>
+              </MessageBase>
+            )}
+
+            {!threadId &&
+              (!liveTimelineLinked || !rangeAtEnd) &&
+              (messageLayout === MessageLayout.Compact ? (
+                <>
+                  <MessageBase ref={observeFrontAnchor}>
+                    <CompactPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                  <MessageBase>
+                    <CompactPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                  <MessageBase>
+                    <CompactPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                  <MessageBase>
+                    <CompactPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                  <MessageBase>
+                    <CompactPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                </>
+              ) : (
+                <>
+                  <MessageBase ref={observeFrontAnchor}>
+                    <DefaultPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                  <MessageBase>
+                    <DefaultPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                  <MessageBase>
+                    <DefaultPlaceholder key={timelineItems.length} />
+                  </MessageBase>
+                </>
+              ))}
+            <span ref={atBottomAnchorRef} />
+          </Box>
+        </Scroll>
+        {!atBottom && (
+          <TimelineFloat position="Bottom">
+            <Chip
+              variant="SurfaceVariant"
+              radii="Pill"
+              outlined
+              before={<Icon size="50" src={Icons.ArrowBottom} />}
+              onClick={handleJumpToLatest}
+            >
+              <Text size="L400">Jump to Latest</Text>
+            </Chip>
+          </TimelineFloat>
+        )}
+      </Box>
     </Box>
   );
 }

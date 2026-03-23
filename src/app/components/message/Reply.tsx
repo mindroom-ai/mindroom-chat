@@ -15,6 +15,7 @@ import { GetMemberPowerTag } from '../../hooks/useMemberPowerTag';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { UserAvatar } from '../user-avatar';
+import { useThreadResolution } from '../../features/room/useRoomThreadResolution';
 
 type ReplyLayoutProps = {
   userColor?: string;
@@ -44,9 +45,10 @@ type ThreadIndicatorProps = {
   threadReplyCount?: number;
   threadParticipantIds?: string[];
   room?: Room;
+  isResolved?: boolean;
 };
 export const ThreadIndicator = as<'div', ThreadIndicatorProps>(
-  ({ threadReplyCount, threadParticipantIds, room, ...props }, ref) => {
+  ({ className, threadReplyCount, threadParticipantIds, room, isResolved, ...props }, ref) => {
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
 
@@ -69,9 +71,14 @@ export const ThreadIndicator = as<'div', ThreadIndicatorProps>(
     return (
       <Box
         shrink="No"
-        className={css.ThreadIndicator}
+        className={classNames(
+          css.ThreadIndicator,
+          isResolved && css.ThreadIndicatorResolved,
+          className
+        )}
         alignItems="Center"
         gap="100"
+        data-thread-resolved={isResolved || undefined}
         {...props}
         ref={ref}
       >
@@ -102,8 +109,10 @@ export const ThreadIndicator = as<'div', ThreadIndicatorProps>(
             ))}
           </Box>
         )}
+        {isResolved && <Icon size="100" src={Icons.CheckTwice} />}
         <Icon size="100" src={Icons.Thread} />
         <Text size="T200">Thread</Text>
+        {isResolved && <Text size="T200">Resolved</Text>}
         {typeof threadReplyCount === 'number' && (
           <Text size="T200">
             {threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}
@@ -143,6 +152,7 @@ export const Reply = as<'div', ReplyProps>(
     ref
   ) => {
     const placeholderWidth = useMemo(() => randomNumberBetween(40, 400), []);
+    const { isResolved: threadResolved } = useThreadResolution(room, threadRootId);
     const getFromLocalTimeline = useCallback(
       () => timelineSet?.findEventById(replyEventId),
       [timelineSet, replyEventId]
@@ -187,6 +197,7 @@ export const Reply = as<'div', ReplyProps>(
             data-thread-root-id={threadRootId}
             threadReplyCount={threadReplyCount}
             data-event-id={threadRootId}
+            isResolved={threadResolved}
             onClick={onClick}
           />
         )}

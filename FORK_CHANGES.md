@@ -1330,6 +1330,71 @@ Independent review follow-up note:
     notifications, and pinned-message surfaces,
   - the new regressions fail against the reviewed bug shape and pass with the
     final implementation.
+## CINNY-006 Frontend Slice (2026-03-21)
+
+- Added the room-level thread overview / resolve-unresolve frontend slice in this
+  worktree, including:
+  - `RoomThreadOverview` with unresolved/resolved/all filters and per-thread actions.
+  - room thread list/resolution helpers and focused tests.
+  - resolved-state styling on thread summary chips.
+- Fixed the thread overview layout regression by rendering `RoomThreadOverview`
+  above the scroll container in `src/app/features/room/RoomTimeline.tsx`, so
+  backward pagination no longer pushes it out of view.
+- Compacted the overview container into a toolbar-like header by reducing outer
+  spacing, lowering the height cap to `min(18vh, 12rem)`, tightening thread-row
+  density, and keeping internal vertical scrolling in
+  `src/app/features/room/RoomThreadOverview.css.ts`.
+- Enabled Matrix SDK thread support during client bootstrap in
+  `src/client/initMatrix.ts`, so room thread loading/counts can use the SDK
+  thread model instead of staying empty in thread-support-disabled mode.
+- While thread discovery is still incomplete, zero-count filter chips now render
+  `-` instead of `0` to avoid implying a confirmed empty result before loading settles.
+- Investigation confirmed room thread loading stalled because app code never
+  called `room.createThreadsTimelineSets()` before `room.fetchRoomThreads()` in
+  server-side list mode.
+- Investigation also confirmed the current overview placement test only proves
+  the component is outside the inner `Scroll`; a real sticky wrapper/test is
+  still a separate follow-up if the product wants browser-level stickiness
+  verified.
+- Validation status:
+  - Passed: `npx vitest run` (`64` files / `313` tests)
+  - Passed: `npm run build`
+  - Passed: `git diff --check`
+  - Known pre-existing baseline: `npm run typecheck -- --pretty false` still fails with broad repo-wide `matrix-js-sdk` named-export/type errors and unrelated React/Jotai typing issues outside the CINNY-006 files touched here.
+- Follow-up status (worktree, 2026-03-21):
+  - Committed `104080f3` (`fix(threads): call createThreadsTimelineSets before fetchRoomThreads`) after validating `npx vitest run src/app/features/room/roomThreadList.test.ts` and `npm run build`.
+  - That fix now bootstraps `room.createThreadsTimelineSets()` before the first server-side thread fetch and resets stale SDK thread listeners when a room had already latched `threadsReady` without timeline sets.
+  - Tightened `RoomThreadOverview.tsx` so the title, loading summary, and filter chips sit inline when space allows, which keeps the overview closer to a compact toolbar than a separate panel.
+  - Removed the extra "loading more threads" row once thread entries are already visible; the inline summary text now carries that state instead.
+- Validation follow-up (worktree, 2026-03-21):
+  - Passed: `npx vitest run src/app/features/room/RoomThreadOverview.test.ts src/app/features/room/RoomTimeline.test.ts`
+  - Passed: `npm run build`
+  - Passed: `git diff --check`
+  - Known pre-existing baseline: `npm run typecheck -- --pretty false` still fails with broad repo-wide `matrix-js-sdk` named-export/type errors and unrelated React/Jotai typing issues outside the CINNY-006 files touched here; no new errors were isolated to `RoomThreadOverview.tsx` or `RoomThreadOverview.css.ts`.
+  - Known workspace limitation: `npm run lint` cannot complete here because the repo script shells out to `yarn`, and `yarn` is not installed (`sh: line 1: yarn: command not found`).
+- Independent review follow-up note:
+  - Completed a second self-review after the compact-UI pass. Main checks were:
+    - filter labels/counts and per-thread actions stayed unchanged,
+    - the overview still relies on the existing placement/sticky behavior and only changed its internal density,
+    - the smaller height cap still preserves internal scrolling instead of clipping thread entries,
+    - loading/error states still surface clearly without the removed secondary loading row.
+- Resilience follow-up (worktree, 2026-03-21):
+  - `src/app/features/room/roomThreadList.ts` now treats thread timeline-set bootstrap as best effort. `ensureThreadTimelineSets()` warns when SDK thread support is disabled, when `createThreadsTimelineSets()` throws, and when the SDK leaves `threadsTimelineSets` empty, instead of throwing before the first fetch.
+  - `loadRoomThreads()` now catches `room.fetchRoomThreads()` failures and leaves the overview on sync-derived `room.getThreads()` data instead of surfacing a Retry-only empty state.
+  - `roomThreadListIsComplete()` now treats missing thread timeline sets as locally complete so sync-derived thread lists do not stay stuck in an incomplete/loading state.
+  - Removed the older `threadsReady` / thread-listener reset recovery hack from `roomThreadList.ts`; that workaround is no longer needed once the bootstrap failure path is non-fatal.
+- Validation follow-up (worktree, 2026-03-21):
+  - Passed: `npx vitest run src/app/features/room/roomThreadList.test.ts`
+  - Passed: `npm run build`
+  - Passed: `git diff --check -- src/app/features/room/roomThreadList.ts src/app/features/room/roomThreadList.test.ts`
+  - Known pre-existing baseline: `npm run typecheck -- --pretty false` still fails with broad repo-wide `matrix-js-sdk` named-export/type errors and unrelated React/Jotai typing issues outside this thread-list change.
+  - Known workspace limitation: `npm run lint` still cannot complete here because the repo script shells out to `yarn`, and `yarn` is not installed (`sh: line 1: yarn: command not found`).
+- Independent review follow-up note:
+  - Completed a second self-review after the resilience patch. Main checks were:
+    - warnings only replace the fatal bootstrap path,
+    - server-side pagination remains unchanged when a live thread timeline exists,
+    - missing timeline sets now fall back to sync-derived completeness instead of hanging in a loading state,
+    - the obsolete wedged-room recovery code and its focused test were removed together.
 
 ## Thread Cache Plan (2026-03-08)
 
