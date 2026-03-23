@@ -115,7 +115,11 @@ import { GetContentCallback, MessageEvent, StateEvent } from '../../../types/mat
 import { useKeyDown } from '../../hooks/useKeyDown';
 import { useDocumentFocusChange } from '../../hooks/useDocumentFocusChange';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
-import { CollapsibleMessage, expandAllMessages, collapseAllMessages } from '../../components/CollapsibleMessage';
+import {
+  CollapsibleMessage,
+  expandAllMessages,
+  collapseAllMessages,
+} from '../../components/CollapsibleMessage';
 import { Image } from '../../components/media';
 import { ImageViewer } from '../../components/image-viewer';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
@@ -147,15 +151,12 @@ import {
   buildThreadSummaryMap,
   findLatestThreadSummaryEvent,
   getThreadSummaryEventInfo,
+  isMindroomThreadSummaryEvent,
   MindroomThreadSummaryInfo,
 } from '../../components/message/mindroomThreadSummary';
 import { shouldPinThreadToBottomOnOpen } from './threadRenderUtils';
 import { useThreadRenderState } from './useThreadRenderState';
-import {
-  RoomThreadOverview,
-  type RoomThreadOverviewCounts,
-  type ThreadFilter,
-} from './RoomThreadOverview';
+import { RoomThreadOverview, type ThreadFilter } from './RoomThreadOverview';
 import {
   getThreadCursorAnchor,
   loadCachedThreadEventsBefore,
@@ -170,6 +171,10 @@ import {
   normalizeCachedRoomEvents,
   saveRoomEventsToCache,
 } from './roomEventCache';
+import {
+  loadCachedThreadSummaries,
+  saveCachedThreadSummary,
+} from './threadSummaryCache';
 import {
   aggregateCachedRelationEvents,
   hydrateCachedEvents,
@@ -421,7 +426,8 @@ const getThreadParticipantIds = (
 const getThreadSummaryInfo = (
   room: Room,
   mEvent: MatrixEvent,
-  fallbackInfo?: MindroomThreadSummaryInfo
+  fallbackInfo?: MindroomThreadSummaryInfo,
+  cachedInfo?: MindroomThreadSummaryInfo
 ): MindroomThreadSummaryInfo | undefined => {
   const eventId = mEvent.getId();
   if (eventId) {
@@ -435,7 +441,7 @@ const getThreadSummaryInfo = (
     }
   }
 
-  return fallbackInfo;
+  return fallbackInfo ?? cachedInfo;
 };
 
 export const getTimelineAndBaseIndex = (
@@ -486,7 +492,6 @@ type RoomTimelineProps = {
 const PAGINATION_LIMIT = 300;
 const THREAD_LATEST_SLICE_LIMIT = PAGINATION_LIMIT;
 const THREAD_CACHE_OPEN_LIMIT = PAGINATION_LIMIT;
-const ROOM_FOCUS_SCROLL_RETRY_DELAY = 16;
 const ROOM_FOCUS_SCROLL_RETRY_MAX_ATTEMPTS = 10;
 
 type RoomFocusRetry = {
@@ -509,8 +514,7 @@ export const getNextRoomFocusRetry = ({
     return undefined;
   }
 
-  const attempts =
-    pendingRetry?.eventId === focusEventId ? pendingRetry.attempts + 1 : 1;
+  const attempts = pendingRetry?.eventId === focusEventId ? pendingRetry.attempts + 1 : 1;
 
   if (attempts > ROOM_FOCUS_SCROLL_RETRY_MAX_ATTEMPTS) {
     return undefined;
@@ -521,6 +525,17 @@ export const getNextRoomFocusRetry = ({
     attempts,
   };
 };
+
+export const isContinuingRoomFocusRetry = (
+  focusEventId: string | undefined,
+  pendingRetry: RoomFocusRetry | undefined
+): boolean => !!focusEventId && pendingRetry?.eventId === focusEventId;
+
+export const getRoomFocusScrollToItemOptions = () => ({
+  behavior: 'instant' as const,
+  align: 'center' as const,
+  stopInView: false,
+});
 
 const getEventElementById = (
   container: ParentNode | null | undefined,
@@ -1074,7 +1089,6 @@ export function RoomTimeline({
   const threadPaginatingBackRef = useRef(false);
   const threadPaginatingFrontRef = useRef(false);
   const threadIdRef = useRef(threadId);
-  const prevThreadFilterRef = useRef(threadFilter);
   const threadEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
     new WeakMap<MatrixEvent, number>()
   );
@@ -1089,6 +1103,7 @@ export function RoomTimeline({
     | undefined
   >();
   const pendingRoomFocusRef = useRef<RoomFocusRetry | undefined>();
+  const suppressFocusPaginationRef = useRef(false);
   const alive = useAlive();
   roomIdRef.current = room.roomId;
   threadPaginatingBackRef.current = threadPaginatingBack;
@@ -1156,32 +1171,6 @@ export function RoomTimeline({
       getThreadFilteredEvents(renderableEvents, room, threadResolutionMap, threadId, threadFilter),
     [renderableEvents, room, threadResolutionMap, threadId, threadFilter]
   );
-  const visibleThreadCounts = useMemo<RoomThreadOverviewCounts>(() => {
-    let unresolved = 0;
-    let resolved = 0;
-
-    for (const event of renderableEvents) {
-      const eventId = event.getId();
-      if (!eventId) continue;
-
-      const isRoot =
-        event.isThreadRoot || !!room.getThread(eventId) || threadResolutionMap.has(eventId);
-      if (!isRoot) continue;
-
-      const resolution = threadResolutionMap.get(eventId);
-      if (resolution?.isResolved) {
-        resolved += 1;
-      } else {
-        unresolved += 1;
-      }
-    }
-
-    return {
-      unresolved,
-      resolved,
-      all: unresolved + resolved,
-    };
-  }, [renderableEvents, room, threadResolutionMap]);
   const filteredLength = threadFilteredEvents.length;
   const activeTimelineRange = useMemo(
     () => getActiveTimelineRange(threadId, threadFilter, timeline.range, filteredLength),
@@ -1487,6 +1476,7 @@ export function RoomTimeline({
         []
       ),
       onEnd: handleRoomTimelinePagination,
+      shouldSuppressPagination: useCallback(() => suppressFocusPaginationRef.current, []),
     });
 
   const loadEventTimeline = useEventTimelineLoader(
@@ -1618,6 +1608,21 @@ export function RoomTimeline({
         // Only re-render when at bottom so thread previews update without causing
         // scroll jumps for users reading history.
         if (isThreadOnlyActivity) {
+          // Cache summary events arriving via sync for persistence across sessions
+          if (isMindroomThreadSummaryEvent(mEvt)) {
+            const rootId = mEvt.threadRootId;
+            if (rootId) {
+              const info = getThreadSummaryEventInfo(mEvt);
+              if (info?.summaryText) {
+                setCachedSummaryMap((prev) => {
+                  const next = new Map(prev);
+                  next.set(rootId, info);
+                  return next;
+                });
+                saveCachedThreadSummary(sessionId, room.roomId, rootId, info).catch(() => {});
+              }
+            }
+          }
           if (atBottomRef.current) {
             setTimeline((ct) => ({ ...ct }));
           }
@@ -1693,6 +1698,7 @@ export function RoomTimeline({
         hideMembershipEvents,
         hideNickAvatarEvents,
         roomThreadFilterActive,
+        sessionId,
       ]
     )
   );
@@ -1986,31 +1992,6 @@ export function RoomTimeline({
   }, [eventId, loadEventTimeline]);
 
   useEffect(() => {
-    const prevThreadFilter = prevThreadFilterRef.current;
-    prevThreadFilterRef.current = threadFilter;
-
-    if (prevThreadFilter !== 'all' && threadFilter === 'all' && !threadId) {
-      setTimeline(
-        getInitialTimeline(room, {
-          threadId,
-          ignoredUsersSet,
-          showHiddenEvents,
-          hideMembershipEvents,
-          hideNickAvatarEvents,
-        })
-      );
-    }
-  }, [
-    room,
-    threadFilter,
-    threadId,
-    ignoredUsersSet,
-    showHiddenEvents,
-    hideMembershipEvents,
-    hideNickAvatarEvents,
-  ]);
-
-  useEffect(() => {
     if (!threadId) return;
     setFocusItem(undefined);
     setThreadLoadError(false);
@@ -2237,36 +2218,51 @@ export function RoomTimeline({
 
   // scroll to focused message
   useLayoutEffect(() => {
-    let roomFocusRetryTimeoutId: ReturnType<typeof setTimeout> | undefined;
+    let roomFocusRetryFrameId: number | undefined;
     let clearFocusTimeoutId: ReturnType<typeof setTimeout> | undefined;
 
     if (!threadId && focusItem && focusItem.scrollTo) {
-      const scrolled = scrollToItem(focusItem.index, {
-        behavior: 'instant',
-        align: 'center',
-        stopInView: true,
-      });
       const focusEventId = focusItem.eventId;
+      const pendingRetry = pendingRoomFocusRef.current;
+      const continuingFocusRetry = isContinuingRoomFocusRetry(focusEventId, pendingRetry);
+      suppressFocusPaginationRef.current = true;
 
-      const nextRoomFocusRetry = getNextRoomFocusRetry({
-        focusEventId,
-        pendingRetry: pendingRoomFocusRef.current,
-        scrolled,
-        targetFound: !!(focusEventId && getEventElementById(scrollRef.current, focusEventId)),
-      });
+      const scrolled = continuingFocusRetry
+        ? true
+        : scrollToItem(focusItem.index, getRoomFocusScrollToItemOptions());
+      const target = focusEventId ? getEventElementById(scrollRef.current, focusEventId) : null;
 
-      if (nextRoomFocusRetry) {
-        pendingRoomFocusRef.current = nextRoomFocusRetry;
-        roomFocusRetryTimeoutId = setTimeout(() => {
-          if (!alive()) return;
-          if (pendingRoomFocusRef.current?.eventId !== focusEventId) return;
-          setPendingRoomFocusTick((val) => val + 1);
-        }, ROOM_FOCUS_SCROLL_RETRY_DELAY);
-      } else {
+      if (target) {
+        scrollToElement(target, {
+          behavior: 'instant',
+          align: 'center',
+          stopInView: true,
+        });
         pendingRoomFocusRef.current = undefined;
+        suppressFocusPaginationRef.current = false;
+      } else {
+        const nextRoomFocusRetry = getNextRoomFocusRetry({
+          focusEventId,
+          pendingRetry: continuingFocusRetry ? pendingRetry : undefined,
+          scrolled,
+          targetFound: false,
+        });
+
+        if (nextRoomFocusRetry) {
+          pendingRoomFocusRef.current = nextRoomFocusRetry;
+          roomFocusRetryFrameId = requestAnimationFrame(() => {
+            if (!alive()) return;
+            if (pendingRoomFocusRef.current?.eventId !== focusEventId) return;
+            setPendingRoomFocusTick((val) => val + 1);
+          });
+        } else {
+          pendingRoomFocusRef.current = undefined;
+          suppressFocusPaginationRef.current = false;
+        }
       }
     } else {
       pendingRoomFocusRef.current = undefined;
+      suppressFocusPaginationRef.current = false;
     }
 
     if (focusItem) {
@@ -2280,14 +2276,14 @@ export function RoomTimeline({
     }
 
     return () => {
-      if (roomFocusRetryTimeoutId !== undefined) {
-        clearTimeout(roomFocusRetryTimeoutId);
+      if (roomFocusRetryFrameId !== undefined) {
+        cancelAnimationFrame(roomFocusRetryFrameId);
       }
       if (clearFocusTimeoutId !== undefined) {
         clearTimeout(clearFocusTimeoutId);
       }
     };
-  }, [alive, focusItem, pendingRoomFocusTick, scrollToItem, threadId]);
+  }, [alive, focusItem, pendingRoomFocusTick, scrollToElement, scrollToItem, threadId]);
 
   useLayoutEffect(() => {
     if (!threadId) return;
@@ -2597,6 +2593,37 @@ export function RoomTimeline({
     [threadId, loadedTimelineEvents]
   );
 
+  // Persistent cache for thread summaries (survives page reloads / room re-entry)
+  const [cachedSummaryMap, setCachedSummaryMap] = useState<Map<string, MindroomThreadSummaryInfo>>(
+    () => new Map()
+  );
+
+  // Load cached summaries from IndexedDB on room entry
+  useEffect(() => {
+    if (threadId) return;
+    let cancelled = false;
+    loadCachedThreadSummaries(sessionId, room.roomId).then((cached) => {
+      if (!cancelled && cached.size > 0) setCachedSummaryMap(cached);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [sessionId, room.roomId, threadId]);
+
+  // Write-through: persist newly discovered summaries to IndexedDB
+  useEffect(() => {
+    if (threadId) return;
+    threadSummaryInfoMap.forEach((info, threadRootId) => {
+      if (!info.summaryText) return;
+      const cached = cachedSummaryMap.get(threadRootId);
+      if (cached?.summaryText === info.summaryText) return;
+      setCachedSummaryMap((prev) => {
+        const next = new Map(prev);
+        next.set(threadRootId, info);
+        return next;
+      });
+      saveCachedThreadSummary(sessionId, room.roomId, threadRootId, info).catch(() => {});
+    });
+  }, [threadId, threadSummaryInfoMap, cachedSummaryMap, sessionId, room.roomId]);
+
   const renderMatrixEvent = useMatrixEventRenderer<
     [string, MatrixEvent, number, EventTimelineSet, boolean]
   >(
@@ -2631,7 +2658,7 @@ export function RoomTimeline({
         const isThreadReply = isThreadReplyEvent(mEventId, threadRootId);
         const summaryInfo =
           !threadId && !isThreadReply && mEventId
-            ? getThreadSummaryInfo(room, mEvent, threadSummaryInfoMap.get(mEventId))
+            ? getThreadSummaryInfo(room, mEvent, threadSummaryInfoMap.get(mEventId), cachedSummaryMap.get(mEventId))
             : undefined;
         const threadSummary =
           !threadId &&
@@ -2752,7 +2779,7 @@ export function RoomTimeline({
                   outlineAttachment={messageLayout === MessageLayout.Bubble}
                 />
               );
-              if (isVisualMedia || threadId) return content;
+              if (isVisualMedia) return content;
               return <CollapsibleMessage>{content}</CollapsibleMessage>;
             })()}
           </Message>
@@ -2780,7 +2807,7 @@ export function RoomTimeline({
         const isThreadReply = isThreadReplyEvent(mEventId, threadRootId);
         const encSummaryInfo =
           !threadId && !isThreadReply && mEventId
-            ? getThreadSummaryInfo(room, mEvent, threadSummaryInfoMap.get(mEventId))
+            ? getThreadSummaryInfo(room, mEvent, threadSummaryInfoMap.get(mEventId), cachedSummaryMap.get(mEventId))
             : undefined;
         const threadSummary =
           !threadId &&
@@ -2922,7 +2949,7 @@ export function RoomTimeline({
                   const encMsgType = mEvent.getContent().msgtype;
                   const isEncVisualMedia =
                     encMsgType === MsgType.Image || encMsgType === MsgType.Video;
-                  if (isEncVisualMedia || threadId) return messageContent;
+                  if (isEncVisualMedia) return messageContent;
                   return <CollapsibleMessage>{messageContent}</CollapsibleMessage>;
                 }
                 if (mEvent.getType() === MessageEvent.RoomMessageEncrypted)
@@ -3660,7 +3687,7 @@ export function RoomTimeline({
     <Box grow="Yes" direction="Column">
       {!threadId && (
         <RoomThreadOverview
-          counts={visibleThreadCounts}
+          room={room}
           filter={threadFilter}
           onFilterChange={onThreadFilterChange}
         />
