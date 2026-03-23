@@ -157,7 +157,11 @@ import {
 } from '../../components/message/mindroomThreadSummary';
 import { shouldPinThreadToBottomOnOpen } from './threadRenderUtils';
 import { useThreadRenderState } from './useThreadRenderState';
-import { RoomThreadOverview, type ThreadFilter } from './RoomThreadOverview';
+import {
+  RoomThreadOverview,
+  type RoomThreadOverviewCounts,
+  type ThreadFilter,
+} from './RoomThreadOverview';
 import {
   getThreadCursorAnchor,
   loadCachedThreadEventsBefore,
@@ -1166,6 +1170,32 @@ export function RoomTimeline({
       hideNickAvatarEvents,
     ]
   );
+  const visibleThreadCounts = useMemo<RoomThreadOverviewCounts>(() => {
+    let unresolved = 0;
+    let resolved = 0;
+
+    for (const event of renderableEvents) {
+      const eventId = event.getId();
+      if (!eventId) continue;
+
+      const isRoot =
+        event.isThreadRoot || !!room.getThread(eventId) || threadResolutionMap.has(eventId);
+      if (!isRoot) continue;
+
+      const resolution = threadResolutionMap.get(eventId);
+      if (resolution?.isResolved) {
+        resolved += 1;
+      } else {
+        unresolved += 1;
+      }
+    }
+
+    return {
+      unresolved,
+      resolved,
+      all: unresolved + resolved,
+    };
+  }, [renderableEvents, room, threadResolutionMap]);
   const roomThreadFilterActive = isRoomThreadFilterActive(threadId, threadFilter);
   const threadFilteredEvents = useMemo(
     () =>
@@ -1177,6 +1207,7 @@ export function RoomTimeline({
     () => getActiveTimelineRange(threadId, threadFilter, timeline.range, filteredLength),
     [threadId, threadFilter, timeline.range, filteredLength]
   );
+  const prevThreadFilterRef = useRef(threadFilter);
   const liveTimelineLinked =
     timeline.linkedTimelines[timeline.linkedTimelines.length - 1] === getLiveTimeline(room);
   const canPaginateBack =
@@ -1208,6 +1239,32 @@ export function RoomTimeline({
     typeof threadLinkedTimelines[0]?.getPaginationToken(Direction.Backward) === 'string';
   const canPaginateThreadFront =
     typeof lastThreadTimeline?.getPaginationToken(Direction.Forward) === 'string';
+
+  useEffect(() => {
+    const prevThreadFilter = prevThreadFilterRef.current;
+    prevThreadFilterRef.current = threadFilter;
+
+    if (prevThreadFilter !== 'all' && threadFilter === 'all' && !threadId) {
+      setTimeline(
+        getInitialTimeline(room, {
+          threadId,
+          ignoredUsersSet,
+          showHiddenEvents,
+          hideMembershipEvents,
+          hideNickAvatarEvents,
+        })
+      );
+    }
+  }, [
+    threadFilter,
+    threadId,
+    room,
+    ignoredUsersSet,
+    showHiddenEvents,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+  ]);
+
   const timelineAtLiveEnd = isTimelineAtLiveEnd({
     threadId,
     liveTimelineLinked,
@@ -3739,7 +3796,7 @@ export function RoomTimeline({
     <Box grow="Yes" direction="Column">
       {!threadId && (
         <RoomThreadOverview
-          room={room}
+          counts={visibleThreadCounts}
           filter={threadFilter}
           onFilterChange={onThreadFilterChange}
         />
