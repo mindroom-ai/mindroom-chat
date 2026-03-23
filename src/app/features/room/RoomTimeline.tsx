@@ -152,7 +152,7 @@ import {
 } from '../../components/message/mindroomThreadSummary';
 import { shouldPinThreadToBottomOnOpen } from './threadRenderUtils';
 import { useThreadRenderState } from './useThreadRenderState';
-import { RoomThreadOverview } from './RoomThreadOverview';
+import { RoomThreadOverview, type ThreadFilter } from './RoomThreadOverview';
 import {
   getThreadCursorAnchor,
   loadCachedThreadEventsBefore,
@@ -321,9 +321,41 @@ const getRenderableEvents = (
     tl
       .getEvents()
       .filter((mEvent) =>
-        isRenderableEvent(mEvent, room, threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents)
+        isRenderableEvent(
+          mEvent,
+          room,
+          threadId,
+          ignoredUsersSet,
+          showHiddenEvents,
+          hideMembershipEvents,
+          hideNickAvatarEvents
+        )
       )
   );
+
+export const getThreadFilteredEvents = (
+  renderableEvents: MatrixEvent[],
+  room: Room,
+  threadResolutionMap: Map<string, { isResolved: boolean }>,
+  threadId: string | undefined,
+  threadFilter: ThreadFilter
+): MatrixEvent[] => {
+  if (threadId || threadFilter === 'all') return renderableEvents;
+
+  return renderableEvents.filter((event) => {
+    const eventId = event.getId();
+    if (!eventId) return false;
+
+    const isThreadRoot =
+      event.isThreadRoot || !!room.getThread(eventId) || threadResolutionMap.has(eventId);
+    if (!isThreadRoot) return false;
+
+    const resolution = threadResolutionMap.get(eventId);
+    const isResolved = resolution?.isResolved ?? false;
+
+    return threadFilter === 'resolved' ? isResolved : !isResolved;
+  });
+};
 
 export const timelineToEventsCount = (t: EventTimeline) => t.getEvents().length;
 export const getTimelinesEventsCount = (timelines: EventTimeline[]): number => {
@@ -442,6 +474,8 @@ type RoomTimelineProps = {
   room: Room;
   eventId?: string;
   threadId?: string;
+  threadFilter: ThreadFilter;
+  onThreadFilterChange: (filter: ThreadFilter) => void;
   roomInputRef: RefObject<HTMLElement>;
   editor: Editor;
 };
@@ -535,7 +569,8 @@ const recalibrateTimelinePagination = (
         filterOpts.hideMembershipEvents,
         filterOpts.hideNickAvatarEvents
       ).length;
-    const oldTopRenderableCount = timelinesRenderableCounts?.[0] ?? countRenderable([linkedTimelines[0]]);
+    const oldTopRenderableCount =
+      timelinesRenderableCounts?.[0] ?? countRenderable([linkedTimelines[0]]);
     const newTopRenderableCount = countRenderable([newLTimelines[topTmIndex]]);
     const topTmAddedRenderable = newTopRenderableCount - oldTopRenderableCount;
     const addedTmRenderable = countRenderable(topAddedTm);
@@ -648,7 +683,14 @@ const useTimelinePagination = (
         getTimelinesEventsCount(lTimelines) !==
           getTimelinesEventsCount(getLinkedTimelines(timelineToPaginate))
       ) {
-        recalibrateTimelinePagination(setTimeline, lTimelines, timelinesEventsCount, backwards, fOpts, timelinesRenderableCounts);
+        recalibrateTimelinePagination(
+          setTimeline,
+          lTimelines,
+          timelinesEventsCount,
+          backwards,
+          fOpts,
+          timelinesRenderableCounts
+        );
         return;
       }
 
@@ -677,7 +719,14 @@ const useTimelinePagination = (
         }
 
         if (alive()) {
-          recalibrateTimelinePagination(setTimeline, lTimelines, timelinesEventsCount, backwards, fOpts, timelinesRenderableCounts);
+          recalibrateTimelinePagination(
+            setTimeline,
+            lTimelines,
+            timelinesEventsCount,
+            backwards,
+            fOpts,
+            timelinesRenderableCounts
+          );
         }
       } finally {
         fetching = false;
@@ -816,6 +865,57 @@ const getEmptyTimeline = () => ({
   linkedTimelines: [],
 });
 
+const getLatestTimelineRange = (count: number): ItemRange => ({
+  start: Math.max(count - PAGINATION_LIMIT, 0),
+  end: count,
+});
+
+const getVisibleTimelineRange = (range: ItemRange, count: number): ItemRange => {
+  if (count === 0) {
+    return { start: 0, end: 0 };
+  }
+
+  if (range.start >= count || range.start >= range.end) {
+    return getLatestTimelineRange(count);
+  }
+
+  const start = Math.max(range.start, 0);
+  const end = Math.min(Math.max(range.end, start + 1), count);
+
+  return { start, end };
+};
+
+export const isRoomThreadFilterActive = (
+  threadId: string | undefined,
+  threadFilter: ThreadFilter
+): boolean => !threadId && threadFilter !== 'all';
+
+export const getActiveTimelineRange = (
+  threadId: string | undefined,
+  threadFilter: ThreadFilter,
+  range: ItemRange,
+  count: number
+): ItemRange => {
+  if (threadId) {
+    return { start: 0, end: 0 };
+  }
+
+  if (isRoomThreadFilterActive(threadId, threadFilter)) {
+    return { start: 0, end: count };
+  }
+
+  return getVisibleTimelineRange(range, count);
+};
+
+export const shouldResetRoomThreadFilterForEvent = (
+  threadId: string | undefined,
+  threadFilter: ThreadFilter,
+  filteredEvents: MatrixEvent[],
+  eventId: string
+): boolean =>
+  isRoomThreadFilterActive(threadId, threadFilter) &&
+  filteredEvents.findIndex((event) => event.getId() === eventId) === -1;
+
 const getRoomUnreadInfo = (room: Room, scrollTo = false) => {
   const readUptoEventId = room.getEventReadUpTo(room.client.getUserId() ?? '');
   if (!readUptoEventId) return undefined;
@@ -828,7 +928,15 @@ const getRoomUnreadInfo = (room: Room, scrollTo = false) => {
   };
 };
 
-export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: RoomTimelineProps) {
+export function RoomTimeline({
+  room,
+  eventId,
+  threadId,
+  threadFilter,
+  onThreadFilterChange,
+  roomInputRef,
+  editor,
+}: RoomTimelineProps) {
   const mx = useMatrixClient();
   const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()), [mx]);
   const useAuthentication = useMediaAuthentication();
@@ -965,13 +1073,19 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     [mx, room, linkifyOpts, spoilerClickHandler, mentionClickHandler, useAuthentication]
   );
   const parseMemberEvent = useMemberEventParser();
-
   const [timeline, setTimeline] = useState<Timeline>(() =>
     eventId
       ? getEmptyTimeline()
-      : getInitialTimeline(room, { threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents })
+      : getInitialTimeline(room, {
+          threadId,
+          ignoredUsersSet,
+          showHiddenEvents,
+          hideMembershipEvents,
+          hideNickAvatarEvents,
+        })
   );
   const eventsLength = getTimelinesEventsCount(timeline.linkedTimelines);
+  const threadResolutionMap = useRoomThreadResolutionMap(room);
   const renderableEvents = useMemo(
     () =>
       getRenderableEvents(
@@ -984,15 +1098,33 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         hideNickAvatarEvents
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [timeline.linkedTimelines, eventsLength, threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents]
+    [
+      timeline.linkedTimelines,
+      eventsLength,
+      threadId,
+      ignoredUsersSet,
+      showHiddenEvents,
+      hideMembershipEvents,
+      hideNickAvatarEvents,
+    ]
   );
-  const filteredLength = renderableEvents.length;
+  const roomThreadFilterActive = isRoomThreadFilterActive(threadId, threadFilter);
+  const threadFilteredEvents = useMemo(
+    () =>
+      getThreadFilteredEvents(renderableEvents, room, threadResolutionMap, threadId, threadFilter),
+    [renderableEvents, room, threadResolutionMap, threadId, threadFilter]
+  );
+  const filteredLength = threadFilteredEvents.length;
+  const activeTimelineRange = useMemo(
+    () => getActiveTimelineRange(threadId, threadFilter, timeline.range, filteredLength),
+    [threadId, threadFilter, timeline.range, filteredLength]
+  );
   const liveTimelineLinked =
     timeline.linkedTimelines[timeline.linkedTimelines.length - 1] === getLiveTimeline(room);
   const canPaginateBack =
     typeof timeline.linkedTimelines[0]?.getPaginationToken(Direction.Backward) === 'string';
-  const rangeAtStart = timeline.range.start === 0;
-  const rangeAtEnd = timeline.range.end === filteredLength;
+  const rangeAtStart = activeTimelineRange.start === 0;
+  const rangeAtEnd = activeTimelineRange.end === filteredLength;
   const thread = threadId ? room.getThread(threadId) : null;
   const roomTimelineSet = room.getUnfilteredTimelineSet();
   const threadTimelineSet = thread?.getUnfilteredTimelineSet();
@@ -1036,7 +1168,14 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     hideMembershipEvents,
     hideNickAvatarEvents,
   });
-  recalibrateFilterOptsRef.current = { room, threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents };
+  recalibrateFilterOptsRef.current = {
+    room,
+    threadId,
+    ignoredUsersSet,
+    showHiddenEvents,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+  };
 
   const handleTimelinePagination = useTimelinePagination(
     mx,
@@ -1264,13 +1403,13 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     useVirtualPaginator({
       count: threadId ? 0 : filteredLength,
       limit: PAGINATION_LIMIT,
-      range: threadId ? { start: 0, end: 0 } : timeline.range,
+      range: activeTimelineRange,
       onRangeChange: useCallback(
         (r) => {
-          if (threadId) return;
+          if (threadId || roomThreadFilterActive) return;
           setTimeline((cs) => ({ ...cs, range: r }));
         },
-        [threadId]
+        [threadId, roomThreadFilterActive]
       ),
       getScrollElement,
       getItemElement: useCallback(
@@ -1314,14 +1453,38 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           },
         });
       },
-      [alive, threadId, room, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents]
+      [
+        alive,
+        threadId,
+        room,
+        ignoredUsersSet,
+        showHiddenEvents,
+        hideMembershipEvents,
+        hideNickAvatarEvents,
+      ]
     ),
     useCallback(() => {
       if (!alive()) return;
-      setTimeline(getInitialTimeline(room, { threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents }));
+      setTimeline(
+        getInitialTimeline(room, {
+          threadId,
+          ignoredUsersSet,
+          showHiddenEvents,
+          hideMembershipEvents,
+          hideNickAvatarEvents,
+        })
+      );
       scrollToBottomRef.current.count += 1;
       scrollToBottomRef.current.smooth = false;
-    }, [alive, room, threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents])
+    }, [
+      alive,
+      room,
+      threadId,
+      ignoredUsersSet,
+      showHiddenEvents,
+      hideMembershipEvents,
+      hideNickAvatarEvents,
+    ])
   );
 
   useLiveEventArrive(
@@ -1416,14 +1579,28 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           scrollToBottomRef.current.count += 1;
           scrollToBottomRef.current.smooth = true;
 
-          if (isRenderableEvent(mEvt, room, threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents)) {
-            setTimeline((ct) => ({
-              ...ct,
-              range: {
-                start: ct.range.start + 1,
-                end: ct.range.end + 1,
-              },
-            }));
+          if (
+            isRenderableEvent(
+              mEvt,
+              room,
+              threadId,
+              ignoredUsersSet,
+              showHiddenEvents,
+              hideMembershipEvents,
+              hideNickAvatarEvents
+            )
+          ) {
+            if (roomThreadFilterActive) {
+              setTimeline((ct) => ({ ...ct }));
+            } else {
+              setTimeline((ct) => ({
+                ...ct,
+                range: {
+                  start: ct.range.start + 1,
+                  end: ct.range.end + 1,
+                },
+              }));
+            }
           }
           return;
         }
@@ -1446,6 +1623,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         showHiddenEvents,
         hideMembershipEvents,
         hideNickAvatarEvents,
+        roomThreadFilterActive,
       ]
     )
   );
@@ -1519,7 +1697,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         }
       }
 
-      const filteredIndex = renderableEvents.findIndex((e) => e.getId() === evtId);
+      const filteredIndex = threadFilteredEvents.findIndex((e) => e.getId() === evtId);
 
       if (filteredIndex !== -1) {
         const scrolled = scrollToItem(filteredIndex, {
@@ -1568,11 +1746,26 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           setPendingThreadOpenTick((val) => val + 1);
           return;
         }
+        if (
+          shouldResetRoomThreadFilterForEvent(threadId, threadFilter, threadFilteredEvents, evtId)
+        ) {
+          onThreadFilterChange('all');
+        }
         setTimeline(getEmptyTimeline());
         loadEventTimeline(evtId);
       }
     },
-    [mx, room, renderableEvents, scrollToItem, scrollToElement, loadEventTimeline, threadId]
+    [
+      mx,
+      room,
+      threadFilteredEvents,
+      scrollToItem,
+      scrollToElement,
+      loadEventTimeline,
+      onThreadFilterChange,
+      threadId,
+      threadFilter,
+    ]
   );
 
   useThreadAwareTimelineRefresh({
@@ -1935,7 +2128,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     if (threadId) return;
     const { readUptoEventId, inLiveTimeline, scrollTo } = unreadInfo ?? {};
     if (readUptoEventId && inLiveTimeline && scrollTo) {
-      const fIdx = renderableEvents.findIndex((e) => e.getId() === readUptoEventId);
+      const fIdx = threadFilteredEvents.findIndex((e) => e.getId() === readUptoEventId);
       if (fIdx !== -1) {
         scrollToItem(fIdx, {
           behavior: 'instant',
@@ -1944,7 +2137,7 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
         });
       }
     }
-  }, [room, unreadInfo, scrollToItem, threadId, renderableEvents]);
+  }, [room, unreadInfo, scrollToItem, threadId, threadFilteredEvents]);
 
   // scroll to focused message
   useLayoutEffect(() => {
@@ -2090,15 +2283,33 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     if (eventId) {
       navigateRoom(room.roomId, undefined, { replace: true });
     }
-    setTimeline(getInitialTimeline(room, { threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents }));
+    setTimeline(
+      getInitialTimeline(room, {
+        threadId,
+        ignoredUsersSet,
+        showHiddenEvents,
+        hideMembershipEvents,
+        hideNickAvatarEvents,
+      })
+    );
     scrollToBottomRef.current.count += 1;
     scrollToBottomRef.current.smooth = false;
-  }, [eventId, navigateRoom, navigateRoomThread, refreshLatestThreadSlice, room, threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents]);
+  }, [
+    eventId,
+    navigateRoom,
+    navigateRoomThread,
+    refreshLatestThreadSlice,
+    room,
+    threadId,
+    ignoredUsersSet,
+    showHiddenEvents,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+  ]);
 
   const handleJumpToUnread = () => {
     if (unreadInfo?.readUptoEventId) {
-      setTimeline(getEmptyTimeline());
-      loadEventTimeline(unreadInfo.readUptoEventId);
+      void handleOpenEvent(unreadInfo.readUptoEventId, false);
     }
   };
 
@@ -2237,7 +2448,6 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     });
     return loadedEvents;
   }, [threadId, timeline]);
-  const threadResolutionMap = useRoomThreadResolutionMap(room);
   const threadReplyCountMap = useMemo(
     () => (threadId ? new Map<string, number>() : buildThreadReplyCountMap(loadedTimelineEvents)),
     [threadId, loadedTimelineEvents]
@@ -2390,7 +2600,9 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
           >
             {(() => {
               if (mEvent.isRedacted()) {
-                return <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />;
+                return (
+                  <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />
+                );
               }
               const msgType = mEvent.getContent().msgtype;
               const isVisualMedia = msgType === MsgType.Image || msgType === MsgType.Video;
@@ -2576,7 +2788,8 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
                   );
 
                   const encMsgType = mEvent.getContent().msgtype;
-                  const isEncVisualMedia = encMsgType === MsgType.Image || encMsgType === MsgType.Video;
+                  const isEncVisualMedia =
+                    encMsgType === MsgType.Image || encMsgType === MsgType.Video;
                   if (isEncVisualMedia || threadId) return messageContent;
                   return <CollapsibleMessage>{messageContent}</CollapsibleMessage>;
                 }
@@ -3352,13 +3565,11 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
   };
 
   const eventRenderer = (item: number) => {
-    const mEvent = renderableEvents[item];
+    const mEvent = threadFilteredEvents[item];
     if (!mEvent) return null;
     const mEventId = mEvent.getId();
     if (!mEventId) return null;
-    const evtTimeline = room
-      .getUnfilteredTimelineSet()
-      .getTimelineForEvent(mEventId);
+    const evtTimeline = room.getUnfilteredTimelineSet().getTimelineForEvent(mEventId);
     const timelineSet = evtTimeline?.getTimelineSet() ?? room.getUnfilteredTimelineSet();
 
     return renderResolvedEvent(mEvent, item, timelineSet);
@@ -3369,8 +3580,8 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
       {!threadId && (
         <RoomThreadOverview
           room={room}
-          hour24Clock={hour24Clock}
-          dateFormatString={dateFormatString}
+          filter={threadFilter}
+          onFilterChange={onThreadFilterChange}
         />
       )}
       <Box grow="Yes" style={{ position: 'relative' }}>
