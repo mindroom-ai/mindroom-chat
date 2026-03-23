@@ -983,6 +983,17 @@ Thread badge behavior:
 - In main timeline message cards, the thread summary chip is rendered below message content (not in the reply-preview row).
 - When thread participant senders are available from SDK thread events or loaded timeline fallback, the thread summary chip includes a compact avatar stack.
 
+Thread summary preview (CINNY-003b, upgraded in CINNY-003c):
+
+- When MindRoom sends an AI thread summary event (`m.notice` with `io.mindroom.thread_summary` metadata), the summary is displayed as a styled summary **card** (using the same `MindroomThreadSummaryCard` component as in-thread rendering) above the `ThreadIndicator` chip in the room-level timeline view.
+- The room-level card uses `compact` mode: full (unclamped) summary text, no reply-count chip (the `ThreadIndicator` below already shows reply count + participant avatars).
+- Card shows "AI summary" label and generated-at timestamp when available (from v1 metadata format). The message-count chip is only shown in the in-thread (non-compact) variant. Falls back to body-only display for simple boolean flag format.
+- Summary text is edit-aware: prefers `m.new_content.body` for streamed/edited summaries.
+- Data sources follow the SDK-first-then-fallback pattern: first checks SDK thread model events, then falls back to loaded room timeline events via a `useMemo` map (`threadSummaryInfoMap`).
+- Only renders in room-level view (not inside thread view) and only for thread root events with replies.
+- Threads without a summary event show the existing behavior unchanged.
+- When a summary exists, the thread root message body is CSS-clipped (~2 lines max-height) with a gradient fade and "[open thread]" link, preserving full markdown/HTML rendering (CINNY-003f). Overflow detection uses a layout-effect ref comparison so the link only appears when content is actually truncated.
+
 ### MindRoom Sidebar Shortcut
 
 - The left sidebar now supports a dedicated MindRoom button rendered with the MindRoom logo.
@@ -1016,7 +1027,6 @@ Thread badge behavior:
 - No legacy `<tool>` / `<tool-group>` compatibility is kept in sanitizer or parser paths.
 - Marker prefixes at the start of a block element continue to render as tool blocks even when trailing content follows in the same block.
 - Expanded tool dropdown now shows result text even for single-line inline results to support copy workflows.
-- Single and multi tool call markers use the same group rendering path: a single tool renders as "1 tool call" with the same expandable dropdown as multi-tool groups, showing `Tool #1: command` inside.
 
 ### AI Run Metadata Visibility
 
@@ -1197,6 +1207,129 @@ Thread badge behavior:
   - Xcode project build settings currently declare `MARKETING_VERSION=4.10.3` and `CURRENT_PROJECT_VERSION=2`.
 - Remaining known product gap: no dedicated thread list sidebar or thread-specific unread model yet.
 - Remaining iOS hardening gap: session credentials are still localStorage-based in this branch (Keychain migration is still pending).
+
+## Active Task Log (2026-03-21)
+
+Current task:
+
+- CINNY-003 frontend support for MindRoom thread summary events.
+
+Requested behavior:
+
+- Render events carrying `io.mindroom.thread_summary` as compact summary cards in
+  the timeline instead of plain notices.
+- Keep backward compatibility with the legacy `msgtype: "m.thread.summary"`
+  variant by checking the metadata field independent of `msgtype`.
+- Prefer summary text in the room thread overview list when a loaded thread
+  contains a summary event.
+
+Planned implementation shape:
+
+- Add a shared parser/helper for `io.mindroom.thread_summary` content so
+  timeline rendering and thread-list preview logic reuse one metadata contract.
+- Add a dedicated message renderer for the summary card using existing `folds`
+  tokens and `vanilla-extract` styling, keeping the card compact and visually
+  distinct but low-noise.
+- Hook `RenderMessageContent.tsx` to dispatch to the summary card before normal
+  msgtype-specific branches so both `m.notice` and legacy msgtypes render
+  through one path.
+- Update `RoomThreadOverview.tsx` to scan loaded thread events for the latest
+  summary event and use its text as the preview when available.
+
+Validation / review plan for this slice:
+
+- Add focused unit coverage for summary metadata parsing.
+- Extend thread overview tests for summary-preview selection.
+- Run targeted tests plus `npm run build`.
+- Do an explicit second self-review after implementation because no separate
+  review agent is being used in this turn.
+
+Implementation status (worktree, 2026-03-21):
+
+- Added `src/app/components/message/mindroomThreadSummary.ts` to parse
+  `io.mindroom.thread_summary` from top-level or `m.new_content` payloads and
+  normalize summary text, generated timestamp, and message count.
+- Added `src/app/components/message/mindroomThreadSummaryCard.css.ts` and
+  `MindroomThreadSummaryCard` in `MsgTypeRenderers.tsx` to render a compact AI
+  summary card with a subtle label, message-count badge, and generated-at time.
+- Updated `RenderMessageContent.tsx` to route any event carrying summary
+  metadata through the summary card before normal `msgtype` branches, which
+  keeps `m.notice` and legacy `m.thread.summary` events on the same renderer.
+- Updated `RoomThreadOverview.tsx` to prefer the latest loaded summary-event
+  text for thread previews instead of the root-message fallback when available.
+- Added focused tests in:
+  - `src/app/components/message/mindroomThreadSummary.test.ts`
+  - `src/app/components/RenderMessageContent.test.ts`
+  - `src/app/features/room/RoomThreadOverview.test.ts`
+
+Validation completed for this slice:
+
+- `npm test -- src/app/components/message/mindroomThreadSummary.test.ts src/app/components/RenderMessageContent.test.ts src/app/features/room/RoomThreadOverview.test.ts`
+- `npm run build`
+
+Validation note:
+
+- `npm run typecheck` still fails on a large pre-existing repo baseline unrelated
+  to this slice (numerous `matrix-js-sdk` export/type errors and Jotai typing
+  issues across untouched files). No new typecheck regression was isolated to
+  the thread-summary files during this task.
+
+Independent review note:
+
+- Completed a second self-review against the final diff after validation. Main
+  checks were:
+  - summary detection stays metadata-driven rather than `msgtype`-driven,
+  - edited/wrapper payloads (`m.new_content`) are handled in both renderer and
+    thread-preview paths,
+  - thread overview falls back to existing root preview behavior when no summary
+    event is loaded,
+  - summary card styling stays within existing `folds` / `vanilla-extract`
+    patterns and remains compact.
+
+Review follow-up status (worktree, 2026-03-21):
+
+- Fixed the code-review regression where edited summary events lost
+  `io.mindroom.thread_summary` metadata during render-time edit resolution.
+- Added `getLatestMessageContent()` in `src/app/utils/room.ts` so edited content
+  keeps the edited body while selectively carrying forward missing MindRoom
+  metadata keys from the original event instead of blindly reusing all original
+  content fields.
+- Routed `RoomTimeline.tsx`, `RoomPinMenu.tsx`, `Notifications.tsx`, and
+  `RoomThreadOverview.tsx` through that helper so edited summaries continue to
+  render as summary cards outside the main timeline too.
+- Updated `src/app/components/message/mindroomThreadSummary.ts` so when an event
+  includes `m.new_content`, summary text prefers the edited body over stale
+  `io.mindroom.thread_summary.summary` text while still falling back to original
+  metadata when the replacement content omits it.
+- Added regression coverage for:
+  - summary detection when `m.new_content` lacks summary metadata,
+  - edited summary text winning over stale metadata summary text,
+  - thread overview previewing the edited summary body when replacement content
+    omits metadata.
+
+Validation completed for review follow-up:
+
+- `npm test -- --run mindroomThreadSummary.test.ts RenderMessageContent.test.ts RoomThreadOverview.test.ts`
+- `npm run build`
+- `npm run typecheck`
+  - still fails on the existing repo baseline unrelated to this slice
+    (`matrix-js-sdk` export/type mismatches, Jotai typing issues, and other
+    long-standing errors across untouched files).
+- `npm run lint`
+  - cannot complete in this workspace because the repo script invokes `yarn`
+    and `yarn` is not installed here (`sh: line 1: yarn: command not found`).
+
+Independent review follow-up note:
+
+- Completed a second self-review after the fix pass. Main checks were:
+  - the new edited-content helper preserves only missing MindRoom metadata and
+    does not keep stale formatting/body fields from the original event,
+  - summary text now follows the edited body whenever `m.new_content` is
+    present,
+  - summary rendering and thread-preview behavior stay aligned across timeline,
+    notifications, and pinned-message surfaces,
+  - the new regressions fail against the reviewed bug shape and pass with the
+    final implementation.
 
 ## Thread Cache Plan (2026-03-08)
 
