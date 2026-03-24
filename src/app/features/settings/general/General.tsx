@@ -966,7 +966,7 @@ function Messages() {
       <SequenceCard className={SequenceCardStyle} variant="SurfaceVariant" direction="Column">
         <SettingTile
           title="Message Preload Limit"
-          description="Number of messages to load per batch for rooms and threads. Minimum 50. Higher values use more memory."
+          description="Target number of history entries to preload for rooms and threads. The client fetches them in smaller batches under the hood. Minimum 50. Higher values use more memory."
           after={<PaginationLimitInput />}
         />
       </SequenceCard>
