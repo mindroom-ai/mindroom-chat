@@ -1875,9 +1875,9 @@ describe('RoomTimeline', () => {
     const initialScrollCallCount = scrollToItemMock.mock.calls.length;
     expect(initialScrollCallCount).toBeGreaterThan(0);
     expect(scrollToItemMock).toHaveBeenLastCalledWith(0, {
-      align: 'end',
+      align: 'start',
       behavior: 'instant',
-      offset: -32,
+      offset: 32,
       stopInView: false,
     });
 
@@ -2350,6 +2350,29 @@ describe('RoomTimeline', () => {
       align: 'center',
       behavior: 'instant',
       offset: undefined,
+      stopInView: false,
+    });
+  });
+
+  it('switches room focus to start alignment near the loaded room start', async () => {
+    const { getRoomFocusScrollOptions, getRoomFocusScrollToItemOptions } = await import(
+      './RoomTimeline'
+    );
+
+    expect(getRoomFocusScrollOptions(0, 100)).toEqual({
+      align: 'start',
+      behavior: 'instant',
+      offset: 32,
+    });
+    expect(getRoomFocusScrollOptions(4, 100)).toEqual({
+      align: 'start',
+      behavior: 'instant',
+      offset: 32,
+    });
+    expect(getRoomFocusScrollToItemOptions(2, 100)).toEqual({
+      align: 'start',
+      behavior: 'instant',
+      offset: 32,
       stopInView: false,
     });
   });
