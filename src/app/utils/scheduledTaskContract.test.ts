@@ -31,6 +31,7 @@ describe('parseScheduledTaskStateEvent', () => {
       status: 'pending',
       threadId: '$thread',
       newThread: false,
+      executeAt: null,
     });
   });
 
@@ -48,6 +49,7 @@ describe('parseScheduledTaskStateEvent', () => {
       status: 'pending',
       threadId: '$thread',
       newThread: false,
+      executeAt: null,
     });
   });
 
@@ -70,6 +72,7 @@ describe('parseScheduledTaskStateEvent', () => {
       status: 'pending',
       threadId: null,
       newThread: false,
+      executeAt: null,
     });
   });
 

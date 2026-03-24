@@ -10,6 +10,7 @@ export const useThreadScheduledTasks = (room: Room, threadRootId: string | undef
   return useMemo(() => {
     if (!threadRootId) return 0;
 
+    const now = new Date();
     let pendingTaskCount = 0;
 
     scheduledTaskEvents.forEach((event) => {
@@ -18,6 +19,12 @@ export const useThreadScheduledTasks = (room: Room, threadRootId: string | undef
       if (parsedTask.status !== 'pending') return;
       if (parsedTask.threadId !== threadRootId) return;
       if (parsedTask.newThread) return;
+
+      // Only count tasks that haven't fired yet
+      if (parsedTask.executeAt) {
+        const executeAtDate = new Date(parsedTask.executeAt);
+        if (executeAtDate <= now) return;
+      }
 
       pendingTaskCount += 1;
     });
