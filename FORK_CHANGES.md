@@ -1267,7 +1267,103 @@ Thread summary preview (CINNY-003b, upgraded in CINNY-003c):
 
 Current task:
 
-- CINNY-008 squash-merge conflict-marker audit for `804f112a`.
+- resolve the leftover CINNY-015-on-`dev` merge conflicts in
+  `FORK_CHANGES.md`, `src/app/features/room/RoomTimeline.test.ts`, and
+  `src/app/features/room/RoomTimeline.tsx`.
+
+### fix: resolve merge conflicts (CINNY-015 onto dev) (2026-03-23)
+
+**Status:** Complete.
+
+**Problem:** A previous merge/cherry-pick of CINNY-015 onto local `dev`
+left unresolved conflict markers in the runbook and the room-timeline source /
+tests. The task is to reconcile the newer `dev` timeline changes with the
+CINNY-015 filter-aware thread-exit scroll work without dropping either side.
+
+**Worktree changes:**
+
+- `FORK_CHANGES.md`
+  - kept both historical task-log entries from the conflicting sides and
+    recorded this cleanup slice with the final validation outcome.
+- `src/app/features/room/RoomTimeline.test.ts`
+  - kept both sets of room-timeline test additions: the older
+    helper/anchor/filter coverage and the CINNY-015 room-focus regressions.
+- `src/app/features/room/RoomTimeline.tsx`
+  - reconciled the `dev` helper exports with the CINNY-015 filter-aware
+    room-focus targeting, latest-filtered-event tracking, and
+    observer-based DOM focus handling.
+
+**Validation:**
+
+- `grep -rn "<<<<<<<" src/` ✅
+  no unresolved conflict markers remain under `src/`.
+- `npx vitest run src/app/features/room/RoomTimeline.test.ts --pool forks --poolOptions.forks.singleFork` ✅
+- `npx vite build` ✅
+- `npx vitest run` ✅
+- `npm run typecheck` ⚠️
+  still fails with the existing repository-wide Matrix SDK / Jotai typing
+  issues already noted elsewhere in this runbook; this merge did not introduce
+  a new typecheck regression in the touched files.
+- `git diff --check` ✅
+
+**Review:**
+
+- Independent second self-review completed against the merged diff and the
+  validation output because subagents were not authorized in this session.
+
+### CINNY-015: reapply filter-aware thread-exit scroll on latest `dev` (2026-03-23)
+
+**Status:** Complete.
+
+**Problem:** The requested `cinny-015-r2` follow-up commits (`8d2b4630`,
+`ea138d52`) targeted the local `dev` branch at `804f112a`, but this worktree
+started on `origin/dev` at `5ed95f37`. That older base was missing the
+post-CINNY-008 room thread-filter stack entirely, so the first step was to
+fast-forward this branch to local `dev` before reapplying the round-2
+filter-aware room-focus fixes on the current code shape.
+
+**Worktree changes:**
+
+- branch state
+  - fast-forwarded `cinny-015-r2b` from `5ed95f37` to local `dev`
+    `804f112a` with `git merge --ff-only dev` so the timeline code matched the
+    expected CINNY-008 review-fix base.
+- `src/app/features/room/RoomTimeline.tsx`
+  - added `getRoomEventFocusTarget()` so room-mode event focus derives its
+    index/count from the active `threadFilteredEvents` list instead of the raw
+    renderable room list,
+  - kept the existing anchor-selection logic from CINNY-008
+    (`getTimelineTargetAnchor()` / `getUnreadTargetAnchor()`) and applied the
+    filter-aware focus targeting on top of that newer path,
+  - integrated filter auto-reset into the room-focus load path so hidden room
+    targets still switch the room filter back to `all`,
+  - replaced the bounded RAF retry loop with a `MutationObserver` plus a
+    2000 ms safety timeout for room-focus DOM arrival,
+  - cached the latest `threadFilteredEvents` in `threadFilteredEventsRef` and
+    removed the filtered-list dependency from the room-focus effects so
+    unrelated live room updates no longer retrigger the explicit focus scroll.
+- `src/app/features/room/RoomTimeline.test.ts`
+  - stabilized the mocked `useAlive()` and ignored-user list identities so the
+    new regression measures the real room-focus dependencies,
+  - replaced the old retry-helper assertions with focused coverage for
+    filter-aware room-focus index derivation and filter auto-reset,
+  - added a regression proving an unrelated room rerender after `Jump to
+    Unread` does not add another room-focus `scrollToItem(...)` call.
+- `FORK_CHANGES.md`
+  - recorded the base correction, implementation details, validation, and
+    review outcome for this slice.
+- `REPORT.md`
+  - added a close-out report for CINNY-015 round 2 on the latest `dev` base.
+
+**Validation:**
+
+- `npx vitest run src/app/features/room/RoomTimeline.test.ts --pool forks --poolOptions.forks.singleFork` ✅
+- `npx vitest run` ✅
+
+**Review:**
+
+- Independent second self-review completed against the final diff and the
+  validation output because subagents were not authorized in this session.
 
 ### CINNY-008: squash-merge conflict-marker audit for `804f112a` (2026-03-23)
 
