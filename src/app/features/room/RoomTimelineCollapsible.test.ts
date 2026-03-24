@@ -118,6 +118,8 @@ vi.mock('../../state/hooks/settings', () => ({
         return ['400'];
       case 'dateFormatString':
         return ['MMM D'];
+      case 'paginationLimit':
+        return [300];
       default:
         return [false];
     }
@@ -130,6 +132,8 @@ vi.mock('../../state/settings', () => ({
     Bubble: 'Bubble',
     Modern: 'Modern',
   },
+  sanitizePaginationLimit: (v: unknown) =>
+    typeof v === 'number' && Number.isFinite(v) ? Math.max(Math.trunc(v), 50) : 300,
   settingsAtom: {},
 }));
 
