@@ -1392,6 +1392,52 @@ found`).
 - implement the CINNY-015 R3 architectural focus-scroll fix across the
   virtual paginator, room focus handoff, and DOM geometry helpers.
 
+### CINNY-015 R3b: boundary scroll overshoot fix (2026-03-23)
+
+**Status:** Complete.
+
+**Problem:** The R3 architectural fix (commit `b988c82d`) replaced `offsetTop`-based
+scroll positioning with `getBoundingClientRect()` delta scrolling, which fixed
+middle-of-timeline scroll but introduced a boundary bug: when opening/closing
+threads near the **top** of the room (first few messages), the scroll position
+overshoots — scrolling too far down so the target message ends up above the
+viewport. Two root causes:
+1. No near-start detection: `isRoomFocusNearTimelineEnd()` handled the last 5
+   items with `align: 'end'`, but there was no equivalent for the first 5 items.
+   Centering the first message requires negative scroll that clamps at 0.
+2. RAF verify-and-correct overcorrection at boundaries: when `scrollTop` is at 0
+   (or max), the verify pass computes a residual error and attempts a correction
+   `scrollBy` that can't succeed, potentially causing a secondary scroll in the
+   wrong direction on the next frame.
+
+**Worktree changes:**
+
+- `src/app/features/room/RoomTimeline.tsx`
+  - added `isRoomFocusNearTimelineStart(focusIndex)` — returns true when focus
+    is within the first 5 items,
+  - updated `getRoomFocusScrollOptions()` to check near-start before near-end,
+    returning `align: 'start'` with a top margin for near-start targets,
+  - added `ROOM_FOCUS_NEAR_START_THRESHOLD` and `ROOM_FOCUS_START_MARGIN_PX`
+    constants.
+- `src/app/hooks/useVirtualPaginator.ts`
+  - added boundary clamp guard in the RAF verify-and-correct pass: when
+    `scrollTop <= 0` and `error < 0`, or `scrollTop >= maxScrollTop` and
+    `error > 0`, the correction is skipped.
+- `src/app/features/room/RoomTimeline.test.ts`
+  - added test for near-start alignment (`align: 'start'`, `offset: 32`),
+  - updated existing test expectation for single-item timeline (index 0,
+    count 1) which is now near-start rather than near-end.
+- `src/app/hooks/useVirtualPaginator.test.ts`
+  - added two boundary clamp tests: one for top boundary (scrollTop=0, negative
+    error skipped) and one for bottom boundary (scrollTop=max, positive error
+    skipped).
+
+**Validation:**
+
+- `npx vitest run RoomTimeline.test.ts useVirtualPaginator.test.ts dom.test.ts` — 54 tests pass ✅
+- `npm run build` — clean ✅
+- `npm run typecheck` — no new errors beyond pre-existing baseline ✅
+
 ### CINNY-015 R3: architectural focus-scroll fix (2026-03-23)
 
 **Status:** Complete.

@@ -789,7 +789,9 @@ type RoomTimelineProps = {
 const ROOM_FOCUS_SCROLL_RETRY_MAX_ATTEMPTS = 10;
 const ROOM_FOCUS_OBSERVER_IDLE_MS = 200;
 const ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS = 2000;
+const ROOM_FOCUS_NEAR_START_THRESHOLD = 5;
 const ROOM_FOCUS_NEAR_END_THRESHOLD = 5;
+const ROOM_FOCUS_START_MARGIN_PX = 32;
 const ROOM_FOCUS_END_MARGIN_PX = 32;
 
 type RoomFocusRetry = {
@@ -833,6 +835,11 @@ export const isContinuingRoomFocusRetry = (
   pendingRetry: RoomFocusRetry | undefined
 ): boolean => !!focusEventId && pendingRetry?.eventId === focusEventId;
 
+export const isRoomFocusNearTimelineStart = (
+  focusIndex: number,
+  threshold = ROOM_FOCUS_NEAR_START_THRESHOLD
+): boolean => focusIndex < threshold;
+
 export const isRoomFocusNearTimelineEnd = (
   focusIndex: number,
   itemCount: number,
@@ -840,12 +847,29 @@ export const isRoomFocusNearTimelineEnd = (
 ): boolean => itemCount - focusIndex <= threshold;
 
 export const getRoomFocusScrollOptions = (focusIndex: number, itemCount: number) => {
+  const nearStart = isRoomFocusNearTimelineStart(focusIndex);
   const nearEnd = isRoomFocusNearTimelineEnd(focusIndex, itemCount);
+
+  if (nearStart) {
+    return {
+      behavior: 'instant' as const,
+      align: 'start' as const,
+      offset: ROOM_FOCUS_START_MARGIN_PX,
+    };
+  }
+
+  if (nearEnd) {
+    return {
+      behavior: 'instant' as const,
+      align: 'end' as const,
+      offset: -ROOM_FOCUS_END_MARGIN_PX,
+    };
+  }
 
   return {
     behavior: 'instant' as const,
-    align: nearEnd ? ('end' as const) : ('center' as const),
-    offset: nearEnd ? -ROOM_FOCUS_END_MARGIN_PX : undefined,
+    align: 'center' as const,
+    offset: undefined,
   };
 };
 
