@@ -240,14 +240,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
 
     const createVoiceUploadItems = useCallback(
-      async (file: File, duration: number) => {
-        return createUploadItems([file], () => ({
+      async (file: File, duration: number) =>
+        createUploadItems([file], () => ({
           markedAsSpoiler: false,
           voiceMessage: {
             duration,
           },
-        }));
-      },
+        })),
       [createUploadItems]
     );
     const handleVoiceRecording = useCallback(
@@ -680,7 +679,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                     <Box direction="Row" gap="200" alignItems="Center">
                       {/* Only show thread badge for reply-in-thread from main timeline. */}
                       {replyDraft?.relation?.rel_type === RelationType.Thread && (
-                        <ThreadIndicator />
+                        <ThreadIndicator room={room} />
                       )}
                       {replyDraft ? (
                         <ReplyLayout
