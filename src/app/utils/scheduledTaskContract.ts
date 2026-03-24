@@ -10,11 +10,13 @@ type ScheduledTaskStateEventContent = {
 type ScheduledTaskWorkflow = {
   thread_id?: unknown;
   new_thread?: unknown;
+  execute_at?: unknown;
 };
 
 type ParsedWorkflow = {
   threadId?: string | null;
   newThread?: boolean;
+  executeAt?: string | null;
 };
 
 export type ParsedScheduledTask = {
@@ -22,6 +24,7 @@ export type ParsedScheduledTask = {
   status: string;
   threadId: string | null;
   newThread: boolean;
+  executeAt: string | null;
 };
 
 const parseThreadId = (value: unknown): string | null | undefined => {
@@ -50,12 +53,13 @@ const parseWorkflow = (workflow: unknown): ParsedWorkflow | null => {
     return null;
   }
 
-  const { thread_id: threadIdValue, new_thread: newThreadValue } =
+  const { thread_id: threadIdValue, new_thread: newThreadValue, execute_at: executeAtValue } =
     parsedWorkflow as ScheduledTaskWorkflow;
 
   return {
     threadId: parseThreadId(threadIdValue),
     newThread: parseNewThread(newThreadValue),
+    executeAt: typeof executeAtValue === 'string' ? executeAtValue : null,
   };
 };
 
@@ -86,5 +90,6 @@ export const parseScheduledTaskStateEvent = (event: MatrixEvent): ParsedSchedule
     status,
     threadId: parsedTopLevelThreadId ?? parsedWorkflow?.threadId ?? null,
     newThread: parsedTopLevelNewThread ?? parsedWorkflow?.newThread ?? false,
+    executeAt: parsedWorkflow?.executeAt ?? null,
   };
 };
