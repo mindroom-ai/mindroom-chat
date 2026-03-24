@@ -17,22 +17,18 @@ Rules followed:
 
 ## Working Tree (Not Yet Committed)
 
-Working tree status (2026-03-12):
+Working tree status (2026-03-23):
 
-- Local uncommitted changes are present in `justfile` and `FORK_CHANGES.md`.
+- No tracked working-tree changes were present at task start.
+- Local untracked scratch file `.claude/TASK.md` is present.
 
 What changed (uncommitted):
 
-- Added `just rebuild` to mirror the repo rebuild steps from
-  `~/update-cinny.sh` (`npm ci`, `npm run build`).
-- Kept the existing iOS-focused `just` recipes unchanged.
+- None tracked at task start.
 
 Validation (uncommitted):
 
-- Completed for the current working-tree slice:
-  - `just --list`
-  - `just rebuild`
-  - `git diff --check`
+- Not applicable at task start.
 
 ## Commit-by-Commit Changes
 
@@ -1267,9 +1263,327 @@ Thread summary preview (CINNY-003b, upgraded in CINNY-003c):
 - Remaining known product gap: no dedicated thread list sidebar or thread-specific unread model yet.
 - Remaining iOS hardening gap: session credentials are still localStorage-based in this branch (Keychain migration is still pending).
 
-## Active Task Log (2026-03-22)
+## Active Task Log (2026-03-23)
 
 Current task:
+
+- CINNY-008 squash-merge conflict-marker audit for `804f112a`.
+
+### CINNY-008: squash-merge conflict-marker audit for `804f112a` (2026-03-23)
+
+**Status:** Audit, validation, and independent second self-review completed.
+
+**Problem:** A follow-up audit was requested for squash commit `804f112a`
+because `RoomTimeline.test.ts` and `RoomTimeline.tsx` were reported as still
+containing unresolved merge conflict markers. The task was to verify the
+committed files, reconstruct the original `dev` vs `cinny008-review` conflict
+state, and confirm that both sides of each hunk survived the squash merge.
+
+**Worktree changes:**
+
+- `FORK_CHANGES.md`
+  - recorded this audit and validation slice.
+- `src/app/features/room/RoomTimeline.test.ts`
+  - audited the five synthetic merge hunks produced by `git merge-tree`
+    between `266a3316` and `a93f5f5b`; the committed file already keeps both
+    the `dev` placeholder/cache harness pieces and the review-side paginator /
+    render / event-mock fixes, so no code change was required.
+- `src/app/features/room/RoomTimeline.tsx`
+  - audited the two synthetic merge hunks from the same merge reconstruction;
+    the committed file already keeps both the `dev` live-expand reset behavior
+    and the review-side renderable-entry / non-renderable rerender behavior,
+    so no code change was required.
+
+**Validation:**
+
+- `git grep -n '<<<<<<<\|=======\|>>>>>>>' 804f112a -- src/app/features/room/RoomTimeline.test.ts src/app/features/room/RoomTimeline.tsx` ✅
+  no literal conflict markers in the committed files.
+- `git merge-tree --messages --merge-base bd6776ca87f3dc7a5c74f7521d1530af94fed83c 266a3316 a93f5f5b` ✅
+  reproduces content conflicts in exactly those two files, and the resulting
+  seven conflict hunks were checked against the committed resolution.
+- `npm test` ✅
+- `npm run build` ✅
+- `git diff --check` ✅
+
+**Review:**
+
+- Independent second self-review completed against the reconstructed merge
+  hunks, the current committed file contents, and the validation results
+  because subagents were not authorized in this session.
+
+**Commit:**
+
+- `git commit --amend --no-edit`
+
+### CINNY-008: rebase & squash merge onto `dev` (2026-03-23)
+
+**Status:** Rebase, conflict resolution, validation, squash preparation, and
+independent second self-review completed.
+
+**Problem:** `dev` advanced by three room-timeline commits after the CINNY-008
+review-fix stack forked from `bd6776ca`. Both lines of work edited
+`RoomTimeline.tsx` and `RoomTimeline.test.ts`, so the review fixes had to be
+rebased onto `266a3316` without losing:
+
+- CINNY-008 review behavior (`hidden anchor`, live non-renderable re-render,
+  unread divider placement, permalink filter reset hardening, off-slice false
+  positives, deferred tri-state rechecks, fresh-timeline post-load filter
+  bypass),
+- `dev` behavior from CINNY-013d / CINNY-016 / CINNY-017 (collapsible message
+  live expansion, null room backward-token preservation, live thread-filter
+  updates).
+
+**Worktree changes:**
+
+- `src/app/features/room/RoomTimeline.tsx`
+  - resolved the round-1 rebase conflicts by keeping the live collapsible
+    message tracking / pagination-token work from `dev` and layering the
+    CINNY-008 renderable-entry anchor, unread-divider, and room-filter-reset
+    fixes on top,
+  - preserved the broader CINNY-008 non-renderable live re-render path so
+    edits/reactions/redactions still trigger room-mode repainting while the
+    newer collapsible-message expand-once hooks continue to function.
+- `src/app/features/room/RoomTimeline.test.ts`
+  - merged the CINNY-008 review regression coverage with the existing
+    `dev` cache / collapsible / live-thread-filter test harness,
+  - restored the paginator mock's render-by-default behavior so pre-existing
+    room-start/cache tests continue to render `RoomIntro` / placeholders after
+    the combined suite lands.
+- `src/app/features/room/RoomTimelineCollapsible.test.ts`
+  - added the missing `loadCachedRoomPaginationToken(...)` room-cache mock so
+    the rebased `RoomTimeline` API surface matches the full-suite harness.
+- `FORK_CHANGES.md`
+  - recorded this rebase/squash integration slice in the runbook.
+
+**Validation:**
+
+- `npm test` ✅
+- `npm run build` ✅
+- `git diff --check` ✅
+
+**Review:**
+
+- Independent second self-review completed against the final `dev..HEAD` diff,
+  the conflict resolutions in `RoomTimeline.tsx` / `RoomTimeline.test.ts`, and
+  the full validation results because subagents were not authorized in this
+  session.
+
+### CINNY-008: round 5 review follow-up (2026-03-23)
+
+**Status:** Fix, coverage, validation, and independent review completed for
+this slice.
+
+**Problem:** The Round 4 deferred room-filter recheck still reused
+pre-`await loadEventTimeline(...)` memo data. `handleOpenEvent(...)` called
+`shouldResetRoomThreadFilterForEvent(...)` again immediately after the load,
+but that second call still saw stale `threadFilteredEvents` and the old
+`threadReplyCountMap`. Fallback-only thread roots that only become identifiable
+from newly loaded reply counts could therefore still be misclassified as
+non-thread-root events and incorrectly reset the active room filter to `all`.
+
+**Worktree changes:**
+
+- `src/app/features/room/RoomTimeline.tsx`
+  - added a post-load room-filter reset helper that computes the thread-root
+    decision directly from the freshly loaded permalink timelines instead of
+    reusing pre-render memo state,
+  - changed `loadEventTimeline(...)` to return the loaded linked timelines to
+    the room-mode `handleOpenEvent(...)` caller,
+  - updated the deferred room-mode recheck to use the freshly loaded timeline
+    reply counts plus `room.findEventById(...)` and current filter refs,
+    preserving the active filter for fallback-only thread roots that still
+    match it after load,
+  - kept the safe default of not resetting when the target event still cannot
+    be found after the load completes.
+- `src/app/features/room/RoomTimeline.test.ts`
+  - added coverage for an unloaded fallback-only thread root whose root status
+    is discoverable only after the permalink load pulls in the root plus a
+    reply,
+  - keeps `findEventById(...)` returning `undefined` before the load resolves
+    so the regression exercises the stale post-load recheck path rather than a
+    pre-seeded room lookup.
+
+**Validation:**
+
+- `npm test -- --run src/app/features/room/RoomTimeline.test.ts` ✅
+- `npm test` ✅
+- `npm run build` ✅
+- `npm run typecheck` ❌
+  pre-existing repo-wide baseline, unchanged by this slice.
+- `npx eslint src/app/features/room/RoomTimeline.tsx src/app/features/room/RoomTimeline.test.ts` ❌
+  pre-existing file-level lint baseline in these files; the slice-specific
+  helper placement issue was corrected and no new lint issue remained from this
+  change.
+- `git diff --check` ✅
+
+**Review:**
+
+- Four independent Codex subagent reviews completed with no findings across:
+  - the post-load `RoomTimeline.tsx` logic,
+  - the fallback-only regression test realism / failure-before-fix behavior,
+  - room-thread-filter / permalink behavioral regression scan,
+  - runbook / validation / report accuracy.
+
+**Commit:**
+
+- `fix(room): CINNY-008 round 5 review findings`
+
+### CINNY-008: round 4 review follow-up (2026-03-23)
+
+**Status:** Fix, coverage, and validation completed for this slice.
+
+**Problem:** The Round 3 room-thread-filter reset guard still collapsed
+`matchesRoomThreadFilter(...) === undefined` into "reset to `all`". That was
+still wrong for unloaded unresolved thread roots with no local metadata:
+permalink / router opens could clear the active `unresolved` room filter
+before `getEventTimeline(...)` had loaded the target timeline.
+
+**Worktree changes:**
+
+- `src/app/features/room/RoomTimeline.tsx`
+  - changed `shouldResetRoomThreadFilterForEvent(...)` to preserve the
+    tri-state reset result so locally unknown targets return `undefined`
+    instead of forcing an immediate room-filter reset,
+  - updated the room-mode `handleOpenEvent(...)` path to defer room-filter
+    resets for that unknown case until after `loadEventTimeline(...)` /
+    `mx.getEventTimeline(...)` loads the target timeline,
+  - if the post-load recheck proves the target is actually hidden by the
+    active room filter, resets back to `all` while preserving the freshly
+    loaded target timeline instead of snapping back to the latest live slice.
+- `src/app/features/room/RoomTimeline.test.ts`
+  - fixed the existing unloaded-target regression harness so
+    `findEventById(...)` keeps returning `undefined` until
+    `getEventTimeline(...)` resolves,
+  - added coverage that an unloaded unresolved thread root with no preloaded
+    resolution / reply-count / thread metadata keeps the active `unresolved`
+    filter while its target timeline loads.
+
+**Validation:**
+
+- `npx vitest run src/app/features/room/RoomTimeline.test.ts --no-coverage` ✅
+- `npm test` ✅
+- `npm run build` ✅
+- `npm run typecheck -- --pretty false` ❌
+  pre-existing repo-wide baseline, unchanged by this slice.
+- `npx eslint src/app/features/room/RoomTimeline.tsx src/app/features/room/RoomTimeline.test.ts` ❌
+  pre-existing file-level lint baseline in these files; no new lint issue kept
+  from this slice.
+- `git diff --check` ✅
+
+**Review:**
+
+- Independent second self-review completed against the deferred reset path, the
+  post-load recheck, the timeline-preservation guard, and the unloaded
+  unresolved-root regression because subagents were not authorized in this
+  session.
+
+**Commit:**
+
+- `fix(room): CINNY-008 round 4 review findings`
+
+### CINNY-008: round 3 review follow-up (2026-03-23)
+
+**Status:** Fix + coverage added in worktree; ready to commit.
+
+**Problem:** The Round 2 room-thread-filter reset guard treated "not present
+in the currently loaded filtered slice" as equivalent to "hidden by the active
+filter". Opening an older matching thread root via permalink / `eventId`
+therefore reset the filter to `all` even when the target still matched the
+active `resolved` / `unresolved` filter.
+
+**Worktree changes:**
+
+- `src/app/features/room/RoomTimeline.tsx`
+  - tightened `shouldResetRoomThreadFilterForEvent(...)` so it no longer uses
+    `threadFilteredEvents` as the sole source of truth for hidden-vs-matching
+    decisions,
+  - added metadata-aware matching checks that consult `room.findEventById(...)`,
+    `room.getThread(...)`, thread-resolution state, and loaded fallback reply
+    counts before deciding whether a room-level thread filter must be reset,
+  - preserved the existing reset behavior for targets that are actually hidden
+    by the active room filter while avoiding false-positive resets for matching
+    thread roots that are simply outside the currently loaded slice.
+- `src/app/features/room/RoomTimeline.test.ts`
+  - added component coverage that mounting `RoomTimeline` with an `eventId`
+    pointing at an unloaded resolved thread root keeps the active `resolved`
+    filter intact while still loading the target timeline.
+
+**Validation:**
+
+- `npx vitest run src/app/features/room/RoomTimeline.test.ts --no-coverage` ✅
+- `npm test` ✅
+- `npm run build` ✅
+- `npm run typecheck -- --pretty false` ❌
+  pre-existing repo-wide `matrix-js-sdk` / Jotai / React typing baseline,
+  unchanged by this slice.
+- `npx eslint src/app/features/room/RoomTimeline.tsx src/app/features/room/RoomTimeline.test.ts` ❌
+  pre-existing file-level lint baseline in these files; no new lint error kept
+  from this slice.
+- `git diff --check` ✅
+
+**Review:**
+
+- Independent second self-review completed against the filter-reset helper, the
+  unloaded-target regression path, and the final worktree diff because
+  subagents were not authorized in this session.
+
+### CINNY-008: round 2 review follow-up (2026-03-23)
+
+**Status:** Fix + coverage added in worktree; ready to commit.
+
+**Round 2 verdict:** Reviewer C's permalink/thread-filter issue is
+pre-existing, not introduced by `39b88ee1`.
+
+**Why this is pre-existing:**
+
+- Parent commit `bd6776ca` already used a direct `eventId` effect that called
+  `setTimeline(getEmptyTimeline())` + `loadEventTimeline(eventId)` instead of
+  routing through `handleOpenEvent()`.
+- The room-thread-filter reset guard
+  (`shouldResetRoomThreadFilterForEvent(...)`) already lived only inside
+  `handleOpenEvent()` on `bd6776ca`; `39b88ee1` did not remove or bypass it.
+- `39b88ee1` changed anchor selection for hidden targets/unread fallbacks, but
+  it did not introduce the direct-router `eventId` path that bypassed the room
+  filter reset.
+
+**Worktree changes:**
+
+- `src/app/features/room/RoomTimeline.tsx`
+  - routed router/deep-link `eventId` handling through the existing
+    `handleOpenEvent()` path via a ref-backed effect so permalink opens now
+    honor the room thread-filter reset guard just like in-app event jumps,
+  - kept the change narrowly scoped to the `eventId` path; no new timeline
+    anchor math was introduced here.
+- `src/app/features/room/RoomTimeline.test.ts`
+  - added direct coverage for `getTimelineTargetAnchor()` falling back to the
+    closest renderable entry when every candidate target is still hidden,
+  - added direct coverage for `getUnreadTargetAnchor()` falling back to the
+    last renderable entry when the read-up-to event lies beyond all visible
+    entries,
+  - added component coverage that mounting `RoomTimeline` with `eventId` while
+    a room-level thread filter is active switches the filter back to `all`
+    before loading the permalink target.
+
+**Validation:**
+
+- `npx vitest run src/app/features/room/RoomTimeline.test.ts --no-coverage` ✅
+- `npm test` ✅
+- `npm run build` ✅
+- `npm run typecheck -- --pretty false` ❌
+  pre-existing repo-wide `matrix-js-sdk` / Jotai / React typing baseline,
+  unchanged by this slice.
+- `npx eslint src/app/features/room/RoomTimeline.tsx src/app/features/room/RoomTimeline.test.ts` ❌
+  pre-existing file-level lint baseline in these files; no new lint error kept
+  from this slice.
+- `git diff --check` ✅
+
+**Review:**
+
+- Independent second self-review completed against the exact `bd6776ca` vs
+  `39b88ee1` code paths and the final worktree diff because subagents were not
+  authorized in this session.
+
+Previous task:
 
 - CINNY-015 thread back-button scroll fix.
 
@@ -1454,6 +1768,67 @@ events only.
   warnings).
 - `npm run build` — successful.
 - `npm run lint --quiet` — no errors in changed file.
+
+**Independent review update (2026-03-22):**
+
+- External review report written to `REVIEW-A.md`.
+- Verdict: `CHANGES REQUIRED`.
+- Findings summary: 2 MAJOR issues and 1 MINOR issue remain in the filtered
+  room-timeline path:
+  - non-renderable live room events at bottom no longer trigger a repaint,
+  - deep-links to filtered-out events can fall back to filtered index `0`,
+  - cached back-pagination still has a filter-snapshot/settings race.
+
+**Round 1 fixer update (2026-03-22):**
+
+- Mapped non-renderable room targets back to visible anchors using raw timeline
+  absolute indices. Hidden thread replies now prefer the loaded thread root;
+  hidden edit/reaction/redaction targets prefer their associated visible event;
+  unread targets fall forward to the next visible event when the receipt event
+  itself is filtered out.
+- Restored room-mode live-bottom repainting for non-renderable events
+  (edits/reactions/redactions) with a no-op `setTimeline` update so visible
+  relation-backed UI refreshes without shifting the filtered range.
+- Changed unread divider placement to compare raw absolute indices from the
+  loaded timeline instead of rendered-only predecessor ids, so hidden
+  read-receipt targets still produce a visible `New Messages` boundary.
+- Aligned room thread overview counts and room thread filtering with the same
+  fallback reply-count map used by the visible thread indicator, so fallback-only
+  thread roots are no longer omitted from `All / Resolved / Unresolved`.
+- Added focused regression coverage in
+  `src/app/features/room/RoomTimeline.test.ts` for:
+  - `isRenderableEvent()`,
+  - fallback-only thread roots,
+  - hidden target anchor mapping,
+  - hidden unread anchors/dividers,
+  - live non-renderable bottom re-rendering.
+
+Validation completed for this fixer slice:
+
+- `npm test -- src/app/features/room/RoomTimeline.test.ts`
+- `npm test`
+- `npm run build`
+- `git diff --check`
+
+Validation notes:
+
+- `npm run typecheck` still fails on the pre-existing repo-wide baseline of
+  `matrix-js-sdk` and Jotai typing errors outside this slice.
+- `npm run lint --quiet` is not runnable in this container because the script
+  shells out to `yarn` and `yarn` is not installed. A targeted
+  `npx eslint src/app/features/room/RoomTimeline.tsx src/app/features/room/RoomTimeline.test.ts`
+  run also reports a large pre-existing lint baseline in `RoomTimeline.tsx`.
+
+Independent self-review note:
+
+- Completed a second self-review against the final diff after validation.
+  Checks focused on:
+  - preserving paginator math in filtered space,
+  - avoiding focus retries on hidden targets that can never render,
+  - keeping unread-scroll behavior unchanged for visible receipts while fixing
+    hidden-receipt anchors,
+  - ensuring fallback-only thread-root detection now matches the visible thread
+    indicator path rather than introducing a new divergent predicate.
 
 Previous task:
 
