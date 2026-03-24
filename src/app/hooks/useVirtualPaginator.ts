@@ -26,6 +26,10 @@ export type ScrollToOptions = {
   stopInView?: boolean;
 };
 
+export type RetryPaginationOptions = {
+  preserveAnchorIndex?: number;
+};
+
 /**
  * Scrolls the page to a specified element in the DOM.
  *
@@ -61,6 +65,7 @@ type VirtualPaginator = {
   getItems: () => number[];
   scrollToElement: ScrollToElement;
   scrollToItem: ScrollToItem;
+  retryPagination: (opts?: RetryPaginationOptions) => void;
   observeBackAnchor: HandleObserveAnchor;
   observeFrontAnchor: HandleObserveAnchor;
 };
@@ -132,16 +137,33 @@ const getRestoreAnchor = (
   return [scrollAnchorItem, scrollAnchorEl];
 };
 
-const getRestoreScrollData = (scrollTop: number, restoreAnchorData: RestoreAnchorData) => {
+const getRestoreScrollData = (restoreAnchorData: RestoreAnchorData) => {
   const [anchorItem, anchorElement] = restoreAnchorData;
-  if (!anchorItem || !anchorElement) {
+  if (anchorItem === undefined || !anchorElement) {
     return undefined;
   }
   return {
-    scrollTop,
     anchorItem,
-    anchorOffsetTop: anchorElement.offsetTop,
+    anchorBcrTop: anchorElement.getBoundingClientRect().top,
   };
+};
+
+const getDesiredElementTop = (
+  scrollElement: HTMLElement,
+  element: HTMLElement,
+  opts?: ScrollToOptions
+): number => {
+  const containerRect = scrollElement.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+  let desiredTop = containerRect.top;
+
+  if (opts?.align === 'center' && canFitInScrollView(scrollElement, element)) {
+    desiredTop = containerRect.top + containerRect.height / 2 - elementRect.height / 2;
+  } else if (opts?.align === 'end' && canFitInScrollView(scrollElement, element)) {
+    desiredTop = containerRect.bottom - elementRect.height;
+  }
+
+  return desiredTop + (opts?.offset ?? 0);
 };
 
 const useObserveAnchorHandle = (
@@ -177,8 +199,7 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
   const initialRenderRef = useRef(true);
 
   const restoreScrollRef = useRef<{
-    scrollTop: number;
-    anchorOffsetTop: number;
+    anchorBcrTop: number;
     anchorItem: number;
   }>();
 
@@ -216,21 +237,23 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
       if (opts?.stopInView && isInScrollView(scrollElement, element)) {
         return false;
       }
-      let scrollTo = element.offsetTop;
-      if (opts?.align === 'center' && canFitInScrollView(scrollElement, element)) {
-        const scrollInfo = getScrollInfo(scrollElement);
-        scrollTo =
-          element.offsetTop -
-          Math.round(scrollInfo.viewHeight / 2) +
-          Math.round(element.clientHeight / 2);
-      } else if (opts?.align === 'end' && canFitInScrollView(scrollElement, element)) {
-        const scrollInfo = getScrollInfo(scrollElement);
-        scrollTo = element.offsetTop - Math.round(scrollInfo.viewHeight) + element.clientHeight;
-      }
 
-      scrollElement.scrollTo({
-        top: scrollTo - (opts?.offset ?? 0),
+      const delta = element.getBoundingClientRect().top - getDesiredElementTop(scrollElement, element, opts);
+
+      scrollElement.scrollBy({
+        top: delta,
         behavior: opts?.behavior,
+      });
+
+      requestAnimationFrame(() => {
+        const error =
+          element.getBoundingClientRect().top - getDesiredElementTop(scrollElement, element, opts);
+        if (Math.abs(error) > 2) {
+          scrollElement.scrollBy({
+            top: error,
+            behavior: 'instant',
+          });
+        }
       });
       return true;
     },
@@ -275,12 +298,23 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
   );
 
   const paginate = useCallback(
-    (direction: Direction) => {
+    (direction: Direction, opts?: RetryPaginationOptions) => {
       if (shouldSuppressPagination?.()) return;
 
       const scrollEl = getScrollElement();
       const { range: currentRange, limit: currentLimit, count: currentCount } = propRef.current;
       let { start, end } = currentRange;
+      const preserveAnchorIndex = opts?.preserveAnchorIndex;
+      const getRestoreAnchorData = (fallbackDirection: Direction) => {
+        if (preserveAnchorIndex !== undefined) {
+          const preserveAnchorElement = getItemElement(preserveAnchorIndex);
+          if (preserveAnchorElement) {
+            return [preserveAnchorIndex, preserveAnchorElement] as RestoreAnchorData;
+          }
+        }
+
+        return getRestoreAnchor({ start, end }, getItemElement, fallbackDirection);
+      };
 
       if (direction === Direction.Backward) {
         restoreScrollRef.current = undefined;
@@ -289,10 +323,7 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
           return;
         }
         if (scrollEl) {
-          restoreScrollRef.current = getRestoreScrollData(
-            scrollEl.scrollTop,
-            getRestoreAnchor({ start, end }, getItemElement, Direction.Backward)
-          );
+          restoreScrollRef.current = getRestoreScrollData(getRestoreAnchorData(Direction.Backward));
         }
         if (scrollEl) {
           end = getDropIndex(scrollEl, currentRange, Direction.Forward, getItemElement, 2) ?? end;
@@ -307,10 +338,7 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
           return;
         }
         if (scrollEl) {
-          restoreScrollRef.current = getRestoreScrollData(
-            scrollEl.scrollTop,
-            getRestoreAnchor({ start, end }, getItemElement, Direction.Forward)
-          );
+          restoreScrollRef.current = getRestoreScrollData(getRestoreAnchorData(Direction.Forward));
         }
         end = Math.min(end + currentLimit, currentCount);
         if (scrollEl) {
@@ -325,6 +353,29 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
       });
     },
     [getScrollElement, getItemElement, onEnd, onRangeChange, shouldSuppressPagination]
+  );
+
+  const retryPagination = useCallback(
+    (opts?: RetryPaginationOptions) => {
+      const scrollElement = getScrollElement();
+      if (!scrollElement) return;
+
+      const backAnchor = scrollElement.querySelector(
+        `[${PAGINATOR_ANCHOR_ATTR}="${Direction.Backward}"]`
+      ) as HTMLElement | null;
+      const frontAnchor = scrollElement.querySelector(
+        `[${PAGINATOR_ANCHOR_ATTR}="${Direction.Forward}"]`
+      ) as HTMLElement | null;
+
+      if (backAnchor && isIntersectingScrollView(scrollElement, backAnchor)) {
+        paginate(Direction.Backward, opts);
+        return;
+      }
+      if (frontAnchor && isIntersectingScrollView(scrollElement, frontAnchor)) {
+        paginate(Direction.Forward, opts);
+      }
+    },
+    [getScrollElement, paginate]
   );
 
   const handlePaginatorElIntersection: OnIntersectionCallback = useCallback(
@@ -364,20 +415,15 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
   useLayoutEffect(() => {
     const scrollEl = getScrollElement();
     if (!restoreScrollRef.current || !scrollEl) return;
-    const {
-      anchorOffsetTop: oldOffsetTop,
-      anchorItem,
-      scrollTop: oldScrollTop,
-    } = restoreScrollRef.current;
+    const { anchorBcrTop: anchorTopBefore, anchorItem } = restoreScrollRef.current;
     const anchorEl = getItemElement(anchorItem);
 
     if (!anchorEl) return;
-    const { offsetTop } = anchorEl;
-    const offsetAddition = offsetTop - oldOffsetTop;
-    const restoreTop = oldScrollTop + offsetAddition;
+    const anchorTopAfter = anchorEl.getBoundingClientRect().top;
+    const delta = anchorTopAfter - anchorTopBefore;
 
-    scrollEl.scrollTo({
-      top: restoreTop,
+    scrollEl.scrollBy({
+      top: delta,
       behavior: 'instant',
     });
     restoreScrollRef.current = undefined;
@@ -405,28 +451,14 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
       initialRenderRef.current = false;
       return;
     }
-    const scrollElement = getScrollElement();
-    if (!scrollElement) return;
-    const backAnchor = scrollElement.querySelector(
-      `[${PAGINATOR_ANCHOR_ATTR}="${Direction.Backward}"]`
-    ) as HTMLElement | null;
-    const frontAnchor = scrollElement.querySelector(
-      `[${PAGINATOR_ANCHOR_ATTR}="${Direction.Forward}"]`
-    ) as HTMLElement | null;
-
-    if (backAnchor && isIntersectingScrollView(scrollElement, backAnchor)) {
-      paginate(Direction.Backward);
-      return;
-    }
-    if (frontAnchor && isIntersectingScrollView(scrollElement, frontAnchor)) {
-      paginate(Direction.Forward);
-    }
-  }, [range, getScrollElement, paginate]);
+    retryPagination();
+  }, [range, retryPagination]);
 
   return {
     getItems,
     scrollToItem,
     scrollToElement,
+    retryPagination,
     observeBackAnchor,
     observeFrontAnchor,
   };
