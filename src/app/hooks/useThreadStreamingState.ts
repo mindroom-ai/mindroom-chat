@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { RelationsEvent, type Relations } from 'matrix-js-sdk/lib/models/relations';
 import { getMindroomAiRunInfo } from '../components/message/mindroomAiRun';
 import { getEventReactions } from '../utils/room';
+import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../utils/thread';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 
 const STREAM_STATUS_KEY = 'io.mindroom.stream_status';
@@ -19,7 +20,8 @@ const STOP_REACTION_KEYS = new Set(['⏹', '⏹️']);
 
 type ThreadStreamingSnapshot = {
   isStreaming: boolean;
-  replyEventId: string | undefined;
+  trackedEvents: MatrixEvent[];
+  trackedRelations: Relations[];
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -62,26 +64,21 @@ const hasStopReaction = (relations: Relations | undefined): boolean =>
     ?.getSortedAnnotationsByKey()
     ?.some(([key, events]) => STOP_REACTION_KEYS.has(key) && events.size > 0);
 
-const getThreadStreamingSnapshot = (
+const getThreadStreamingEvents = (
   room: Room | undefined,
   threadRootId: string | undefined
-): ThreadStreamingSnapshot => {
-  if (!room || !threadRootId) {
-    return { isStreaming: false, replyEventId: undefined };
-  }
+): MatrixEvent[] => {
+  if (!room || !threadRootId) return [];
 
   const thread = room.getThread(threadRootId);
-  const lastReply = thread?.lastReply();
-  const replyEventId = lastReply?.getId() ?? undefined;
+  return getThreadTailEvents(thread, DEFAULT_THREAD_TAIL_EVENT_COUNT);
+};
 
-  if (!lastReply || !replyEventId) {
-    return { isStreaming: false, replyEventId };
-  }
-
-  const content = getPreferredEventContent(lastReply);
+const isEventStreaming = (mEvent: MatrixEvent, relations: Relations | undefined): boolean => {
+  const content = getPreferredEventContent(mEvent);
   const aiRunStatus = getMindroomAiRunInfo(content)?.status?.toLowerCase();
   if (aiRunStatus === 'streaming') {
-    return { isStreaming: true, replyEventId };
+    return true;
   }
 
   const streamStatus = getMindroomStreamStatus(content);
@@ -89,17 +86,40 @@ const getThreadStreamingSnapshot = (
     (aiRunStatus && TERMINAL_STREAM_STATES.has(aiRunStatus)) ||
     (streamStatus && TERMINAL_STREAM_STATES.has(streamStatus));
 
-  const timelineSet = thread?.getUnfilteredTimelineSet?.() ?? room.getUnfilteredTimelineSet();
-  const reactions = getEventReactions(timelineSet, replyEventId);
-
-  if (hasStopReaction(reactions) && !terminalMetadata) {
-    return { isStreaming: true, replyEventId };
+  if (hasStopReaction(relations) && !terminalMetadata) {
+    return true;
   }
 
-  return {
-    isStreaming: !!streamStatus && ACTIVE_STREAM_STATES.has(streamStatus) && !terminalMetadata,
-    replyEventId,
-  };
+  return !!streamStatus && ACTIVE_STREAM_STATES.has(streamStatus) && !terminalMetadata;
+};
+
+const getThreadStreamingSnapshot = (
+  room: Room | undefined,
+  threadRootId: string | undefined
+): ThreadStreamingSnapshot => {
+  const trackedEvents = getThreadStreamingEvents(room, threadRootId);
+  if (!room || !threadRootId || trackedEvents.length === 0) {
+    return { isStreaming: false, trackedEvents, trackedRelations: [] };
+  }
+
+  const thread = room.getThread(threadRootId);
+  const timelineSet = thread?.getUnfilteredTimelineSet?.() ?? room.getUnfilteredTimelineSet();
+  const trackedRelations: Relations[] = [];
+  let isStreaming = false;
+
+  trackedEvents.forEach((mEvent) => {
+    const eventId = mEvent.getId();
+    const relations = eventId ? getEventReactions(timelineSet, eventId) : undefined;
+    if (relations && !trackedRelations.includes(relations)) {
+      trackedRelations.push(relations);
+    }
+
+    if (!isStreaming && isEventStreaming(mEvent, relations)) {
+      isStreaming = true;
+    }
+  });
+
+  return { isStreaming, trackedEvents, trackedRelations };
 };
 
 export const getThreadStreamingState = (
@@ -112,31 +132,28 @@ export const useThreadStreamingState = (
   threadRootId: string | undefined
 ): boolean => {
   const thread = room && threadRootId ? room.getThread(threadRootId) ?? undefined : undefined;
-  const lastReply = thread?.lastReply() ?? undefined;
-  const trackedEvents = useMemo(() => [lastReply], [lastReply]);
   const [snapshot, setSnapshot] = useState(() => getThreadStreamingSnapshot(room, threadRootId));
   const refresh = useCallback(() => {
     setSnapshot(getThreadStreamingSnapshot(room, threadRootId));
   }, [room, threadRootId]);
-  const reactionRelations = useMemo(() => {
-    if (!room || !thread || !snapshot.replyEventId) return undefined;
 
-    return getEventReactions(thread.getUnfilteredTimelineSet(), snapshot.replyEventId);
-  }, [room, snapshot.replyEventId, thread]);
-
-  useThreadEventRefresh(thread, trackedEvents, refresh);
+  useThreadEventRefresh(thread, snapshot.trackedEvents, refresh);
 
   useEffect(() => {
-    if (!reactionRelations) return undefined;
+    if (snapshot.trackedRelations.length === 0) return undefined;
 
-    reactionRelations.on(RelationsEvent.Add, refresh);
-    reactionRelations.on(RelationsEvent.Remove, refresh);
+    snapshot.trackedRelations.forEach((relations) => {
+      relations.on(RelationsEvent.Add, refresh);
+      relations.on(RelationsEvent.Remove, refresh);
+    });
 
     return () => {
-      reactionRelations.removeListener(RelationsEvent.Add, refresh);
-      reactionRelations.removeListener(RelationsEvent.Remove, refresh);
+      snapshot.trackedRelations.forEach((relations) => {
+        relations.removeListener(RelationsEvent.Add, refresh);
+        relations.removeListener(RelationsEvent.Remove, refresh);
+      });
     };
-  }, [reactionRelations, refresh]);
+  }, [refresh, snapshot.trackedRelations]);
 
   return snapshot.isStreaming;
 };
