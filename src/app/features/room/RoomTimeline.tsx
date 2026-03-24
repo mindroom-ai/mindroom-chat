@@ -756,10 +756,15 @@ const PAGINATION_LIMIT = 300;
 const THREAD_LATEST_SLICE_LIMIT = PAGINATION_LIMIT;
 const THREAD_CACHE_OPEN_LIMIT = PAGINATION_LIMIT;
 const ROOM_FOCUS_SCROLL_RETRY_MAX_ATTEMPTS = 10;
+const ROOM_FOCUS_SCROLL_OBSERVER_TIMEOUT_MS = 2000;
 
 type RoomFocusRetry = {
   eventId: string;
   attempts: number;
+};
+
+type PendingRoomFocus = {
+  eventId: string;
 };
 
 export const getNextRoomFocusRetry = ({
@@ -1385,6 +1390,82 @@ export const shouldResetRoomThreadFilterForEvent = (
   return !matchesThreadFilter;
 };
 
+export const getRoomEventFocusTarget = ({
+  eventId,
+  renderableEvents,
+  room,
+  threadResolutionMap,
+  threadId,
+  threadFilter,
+  threadReplyCountMap,
+}: {
+  eventId: string;
+  renderableEvents: MatrixEvent[];
+  room: Room;
+  threadResolutionMap: Map<string, { isResolved: boolean }>;
+  threadId: string | undefined;
+  threadFilter: ThreadFilter;
+  threadReplyCountMap?: Map<string, number>;
+}): {
+  index: number;
+  count: number;
+  resetThreadFilter: boolean;
+} => {
+  const filteredEvents = getThreadFilteredEvents(
+    renderableEvents,
+    room,
+    threadResolutionMap,
+    threadId,
+    threadFilter,
+    threadReplyCountMap
+  );
+  const filteredIndex = filteredEvents.findIndex((event) => event.getId() === eventId);
+  if (filteredIndex !== -1) {
+    return {
+      index: filteredIndex,
+      count: filteredEvents.length,
+      resetThreadFilter: false,
+    };
+  }
+
+  const renderableIndex = renderableEvents.findIndex((event) => event.getId() === eventId);
+  const resetThreadFilter =
+    renderableIndex !== -1 &&
+    shouldResetRoomThreadFilterForEvent(
+      threadId,
+      threadFilter,
+      filteredEvents,
+      room,
+      threadResolutionMap,
+      eventId,
+      threadReplyCountMap
+    ) === true;
+  if (resetThreadFilter) {
+    return {
+      index: renderableIndex,
+      count: renderableEvents.length,
+      resetThreadFilter: true,
+    };
+  }
+
+  return {
+    index: 0,
+    count: isRoomThreadFilterActive(threadId, threadFilter)
+      ? filteredEvents.length
+      : renderableEvents.length,
+    resetThreadFilter: false,
+  };
+};
+
+const getFocusedRoomEventIndex = (
+  filteredEvents: MatrixEvent[],
+  eventId: string | undefined,
+  fallbackIndex: number
+): number => {
+  if (!eventId) return fallbackIndex;
+  const filteredIndex = filteredEvents.findIndex((event) => event.getId() === eventId);
+  return filteredIndex === -1 ? fallbackIndex : filteredIndex;
+};
 const shouldResetRoomThreadFilterForLoadedEvent = (
   threadId: string | undefined,
   threadFilter: ThreadFilter,
@@ -1529,7 +1610,6 @@ export function RoomTimeline({
   const [threadPaginatingFront, setThreadPaginatingFront] = useState(false);
   const [threadInitialCacheHydrated, setThreadInitialCacheHydrated] = useState(false);
   const [threadLatestOpenPending, setThreadLatestOpenPending] = useState(false);
-  const [pendingRoomFocusTick, setPendingRoomFocusTick] = useState(0);
   const [threadTimelineTick, setThreadTimelineTick] = useState(0);
   const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
   const roomIdRef = useRef(room.roomId);
@@ -1551,7 +1631,7 @@ export function RoomTimeline({
       }
     | undefined
   >();
-  const pendingRoomFocusRef = useRef<RoomFocusRetry | undefined>();
+  const pendingRoomFocusRef = useRef<PendingRoomFocus | undefined>();
   const skipNextRoomTimelineResetRef = useRef(false);
   const suppressFocusPaginationRef = useRef(false);
   const alive = useAlive();
@@ -1706,6 +1786,8 @@ export function RoomTimeline({
       ),
     [renderableEvents, room, threadResolutionMap, threadId, threadFilter, threadReplyCountMap]
   );
+  const threadFilteredEventsRef = useRef(threadFilteredEvents);
+  threadFilteredEventsRef.current = threadFilteredEvents;
   const threadFilteredEventEntries = useMemo(() => {
     const filteredEventIds = new Set<string>();
     threadFilteredEvents.forEach((event) => {
@@ -2125,6 +2207,10 @@ export function RoomTimeline({
           hideMembershipEvents,
           hideNickAvatarEvents
         );
+        const loadedRenderableEvents = renderableEntries.map(({ event }) => event);
+        const loadedThreadReplyCountMap = buildThreadReplyCountMap(
+          lTimelines.flatMap((timeline) => timeline.getEvents())
+        );
         const anchor =
           evtId === readUptoEventIdRef.current
             ? getUnreadTargetAnchor({
@@ -2138,8 +2224,29 @@ export function RoomTimeline({
                 eventId: evtId,
                 absoluteIndex: evtAbsIndex,
               });
-        const idx = anchor?.index ?? 0;
-        const fLen = renderableEntries.length;
+        const {
+          index: idx,
+          count,
+          resetThreadFilter,
+        } = anchor
+          ? getRoomEventFocusTarget({
+              eventId: anchor.eventId,
+              renderableEvents: loadedRenderableEvents,
+              room,
+              threadResolutionMap,
+              threadId,
+              threadFilter,
+              threadReplyCountMap: loadedThreadReplyCountMap,
+            })
+          : {
+              index: 0,
+              count: loadedRenderableEvents.length,
+              resetThreadFilter: false,
+            };
+
+        if (resetThreadFilter) {
+          onThreadFilterChange('all');
+        }
 
         setFocusItem(
           anchor
@@ -2155,13 +2262,16 @@ export function RoomTimeline({
           linkedTimelines: lTimelines,
           range: {
             start: Math.max(idx - PAGINATION_LIMIT, 0),
-            end: Math.min(idx + PAGINATION_LIMIT, fLen),
+            end: Math.min(idx + PAGINATION_LIMIT, count),
           },
         });
       },
       [
         alive,
+        onThreadFilterChange,
         threadId,
+        threadFilter,
+        threadResolutionMap,
         room,
         ignoredUsersSet,
         showHiddenEvents,
@@ -2966,49 +3076,102 @@ export function RoomTimeline({
     }
   }, [room, unreadInfo, unreadScrollAnchorIndex, scrollToItem, threadId]);
 
+  useEffect(() => {
+    if (threadId || !focusItem?.eventId) return;
+
+    const nextIndex = threadFilteredEventsRef.current.findIndex(
+      (event) => event.getId() === focusItem.eventId
+    );
+    if (nextIndex === -1 || nextIndex === focusItem.index) return;
+
+    setFocusItem((currentItem) => {
+      if (
+        !currentItem ||
+        currentItem.eventId !== focusItem.eventId ||
+        currentItem.index === nextIndex
+      ) {
+        return currentItem;
+      }
+
+      return {
+        ...currentItem,
+        index: nextIndex,
+      };
+    });
+  }, [focusItem, threadFilter, threadId]);
+
   // scroll to focused message
   useLayoutEffect(() => {
-    let roomFocusRetryFrameId: number | undefined;
     let clearFocusTimeoutId: ReturnType<typeof setTimeout> | undefined;
+    let roomFocusObserver: MutationObserver | undefined;
+    let roomFocusObserverTimeoutId: ReturnType<typeof setTimeout> | undefined;
+    const focusEventId = focusItem?.eventId;
+
+    const clearPendingRoomFocus = () => {
+      roomFocusObserver?.disconnect();
+      roomFocusObserver = undefined;
+
+      if (roomFocusObserverTimeoutId !== undefined) {
+        clearTimeout(roomFocusObserverTimeoutId);
+        roomFocusObserverTimeoutId = undefined;
+      }
+
+      if (pendingRoomFocusRef.current?.eventId === focusEventId) {
+        pendingRoomFocusRef.current = undefined;
+      }
+
+      suppressFocusPaginationRef.current = false;
+    };
 
     if (!threadId && focusItem && focusItem.scrollTo) {
-      const focusEventId = focusItem.eventId;
-      const pendingRetry = pendingRoomFocusRef.current;
-      const continuingFocusRetry = isContinuingRoomFocusRetry(focusEventId, pendingRetry);
+      const focusIndex = getFocusedRoomEventIndex(
+        threadFilteredEventsRef.current,
+        focusEventId,
+        focusItem.index
+      );
       suppressFocusPaginationRef.current = true;
 
-      const scrolled = continuingFocusRetry
-        ? true
-        : scrollToItem(focusItem.index, getRoomFocusScrollToItemOptions());
+      scrollToItem(focusIndex, getRoomFocusScrollToItemOptions());
       const target = focusEventId ? getEventElementById(scrollRef.current, focusEventId) : null;
 
       if (target) {
         scrollToElement(target, {
           behavior: 'instant',
           align: 'center',
-          stopInView: true,
         });
+        clearPendingRoomFocus();
+      } else if (focusEventId && scrollRef.current && typeof MutationObserver !== 'undefined') {
+        pendingRoomFocusRef.current = {
+          eventId: focusEventId,
+        };
+        roomFocusObserver = new MutationObserver(() => {
+          if (!alive()) {
+            clearPendingRoomFocus();
+            return;
+          }
+
+          if (pendingRoomFocusRef.current?.eventId !== focusEventId) return;
+
+          const observedTarget = getEventElementById(scrollRef.current, focusEventId);
+          if (!observedTarget) return;
+
+          scrollToElement(observedTarget, {
+            behavior: 'instant',
+            align: 'center',
+          });
+          clearPendingRoomFocus();
+        });
+        roomFocusObserver.observe(scrollRef.current, {
+          childList: true,
+          subtree: true,
+        });
+        roomFocusObserverTimeoutId = setTimeout(() => {
+          if (pendingRoomFocusRef.current?.eventId !== focusEventId) return;
+          clearPendingRoomFocus();
+        }, ROOM_FOCUS_SCROLL_OBSERVER_TIMEOUT_MS);
+      } else {
         pendingRoomFocusRef.current = undefined;
         suppressFocusPaginationRef.current = false;
-      } else {
-        const nextRoomFocusRetry = getNextRoomFocusRetry({
-          focusEventId,
-          pendingRetry: continuingFocusRetry ? pendingRetry : undefined,
-          scrolled,
-          targetFound: false,
-        });
-
-        if (nextRoomFocusRetry) {
-          pendingRoomFocusRef.current = nextRoomFocusRetry;
-          roomFocusRetryFrameId = requestAnimationFrame(() => {
-            if (!alive()) return;
-            if (pendingRoomFocusRef.current?.eventId !== focusEventId) return;
-            setPendingRoomFocusTick((val) => val + 1);
-          });
-        } else {
-          pendingRoomFocusRef.current = undefined;
-          suppressFocusPaginationRef.current = false;
-        }
       }
     } else {
       pendingRoomFocusRef.current = undefined;
@@ -3026,14 +3189,12 @@ export function RoomTimeline({
     }
 
     return () => {
-      if (roomFocusRetryFrameId !== undefined) {
-        cancelAnimationFrame(roomFocusRetryFrameId);
-      }
+      clearPendingRoomFocus();
       if (clearFocusTimeoutId !== undefined) {
         clearTimeout(clearFocusTimeoutId);
       }
     };
-  }, [alive, focusItem, pendingRoomFocusTick, scrollToElement, scrollToItem, threadId]);
+  }, [alive, focusItem, scrollToElement, scrollToItem, threadFilter, threadId]);
 
   useLayoutEffect(() => {
     if (!threadId) return;
