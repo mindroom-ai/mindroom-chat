@@ -1389,6 +1389,108 @@ found`).
   - added utility coverage for that threaded `m.sticker` case.
 - Final re-review found no remaining issues in the changed files.
 
+- implement the CINNY-015 R3 architectural focus-scroll fix across the
+  virtual paginator, room focus handoff, and DOM geometry helpers.
+
+### CINNY-015 R3: architectural focus-scroll fix (2026-03-23)
+
+**Status:** Complete.
+
+**Problem:** Three earlier CINNY-015 rounds were still fighting the DOM because
+room focus centering, paginator restore, and post-render height changes used
+different coordinate systems and different anchors. The remaining work was to
+replace the `offsetTop`-based scroll math with viewport-relative geometry,
+hold pagination suppression through a targeted post-focus observer window, and
+resume pagination around the focused event instead of a paginator edge anchor.
+
+**Worktree changes:**
+
+- `src/app/hooks/useVirtualPaginator.ts`
+  - replaced `scrollToElement(...)` math with
+    `getBoundingClientRect()`-based delta scrolling and added a single-RAF
+    verify/correct pass,
+  - changed restore-anchor bookkeeping from `anchorOffsetTop` to
+    `anchorBcrTop`,
+  - restored pagination scroll position with `scrollBy(...)` against the
+    anchor element’s viewport delta instead of recomputing an absolute
+    `scrollTop`,
+  - added `retryPagination({ preserveAnchorIndex })` so RoomTimeline can
+    resume visible-anchor pagination immediately after focus suppression clears
+    while keeping the focused event as the restore anchor.
+- `src/app/features/room/RoomTimeline.tsx`
+  - replaced the room-focus completion handoff with `setupFocusObserver(...)`,
+    a targeted `ResizeObserver` idle/hard-timeout window that recenters the
+    focused event while async height changes settle,
+  - kept `suppressFocusPaginationRef` active until that observer finishes, then
+    resumed pagination through `retryPagination({ preserveAnchorIndex })`,
+  - added near-end room-focus alignment helpers so the last few room events use
+    end alignment with bottom margin instead of impossible centering,
+  - kept the existing `MutationObserver` DOM-arrival path for cases where the
+    focused event is not yet mounted, but now routes successful arrival through
+    the same targeted focus observer.
+- `src/app/utils/dom.ts`
+  - switched `isIntersectingScrollView(...)`, `isInScrollView(...)`, and
+    `canFitInScrollView(...)` to viewport-relative
+    `getBoundingClientRect()` comparisons.
+- `src/app/hooks/useVirtualPaginator.test.ts`
+  - added coverage for the new `retryPagination(...)` resume path, the
+    `getBoundingClientRect()` delta scroll math, the RAF correction pass, and
+    preserve-anchor restore behavior.
+- `src/app/utils/dom.test.ts`
+  - updated DOM-helper coverage to assert viewport-relative containment and
+    intersection checks.
+- `src/app/features/room/RoomTimeline.test.ts`
+  - updated room-focus helper expectations for the new near-end alignment
+    behavior,
+  - added helper-level coverage for the targeted focus observer lifecycle.
+- `FORK_CHANGES.md`
+  - recorded this architectural fix, validation, and review outcome.
+- `REPORT.md`
+  - added a close-out report for CINNY-015 R3.
+
+**Validation:**
+
+- `npx vitest run src/app/features/room/RoomTimeline.test.ts` ✅
+- `npx vitest run src/app/hooks/useVirtualPaginator.test.ts` ✅
+- `npx vitest run src/app/utils/dom.test.ts` ✅
+- `npm run build` ✅
+- `npm run typecheck -- --pretty false` ⚠️
+  still fails with the existing repository-wide Matrix SDK / Jotai typing
+  baseline already documented elsewhere in this runbook; no new patch-specific
+  typecheck issue was investigated beyond the touched focus-scroll slice.
+- `npx eslint src/app/hooks/useVirtualPaginator.ts src/app/hooks/useVirtualPaginator.test.ts src/app/utils/dom.ts src/app/utils/dom.test.ts` ✅
+- `npx eslint src/app/hooks/useVirtualPaginator.ts src/app/hooks/useVirtualPaginator.test.ts src/app/features/room/RoomTimeline.tsx src/app/features/room/RoomTimeline.test.ts src/app/utils/dom.ts src/app/utils/dom.test.ts` ⚠️
+  the broader lint pass still reports the long-standing file-level baseline in
+  `RoomTimeline.tsx` / `RoomTimeline.test.ts`; the newly added paginator/DOM
+  test coverage is lint-clean.
+- `git diff --check` ✅
+- `E2E_BASE_URL=http://localhost:8090 E2E_HOMESERVER=http://localhost:8008 E2E_USERNAME=e2e-test-bot E2E_PASSWORD=e2e-test-pw-2026 bash .claude/skills/cinny-live-test/run-live-tests.sh cinny015-thread-exit-scroll.spec.ts` ✅
+  - canonical near-end thread-exit Playwright regression passed and wrote
+    `test-results/cinny015-thread-exit-scroll.png`.
+- ad hoc Playwright browser script against the same local app / homeserver ✅
+  - middle thread exit landed with `centerDelta=30.5`,
+  - top thread exit landed with `centerDelta=30.5`,
+  - near-end thread exit stayed visible with `centerDelta=190.5`,
+  - three rapid reopen/exit cycles all returned to visible targets without a
+    stuck suppression state,
+  - screenshots written to `test-results/cinny015-r3-middle.png`,
+    `test-results/cinny015-r3-top.png`,
+    `test-results/cinny015-r3-end.png`, and
+    `test-results/cinny015-r3-rapid.png`,
+  - observed request failures were aborted `/sync` calls during forced route
+    changes; the canonical helper-backed live spec above still passed its
+    browser-diagnostics gate.
+
+**Review:**
+
+- Independent second self-review completed against the final diff, targeted
+  tests, build output, and live browser traces because subagents were not
+  authorized in this session.
+
+- resolve the leftover CINNY-015-on-`dev` merge conflicts in
+  `FORK_CHANGES.md`, `src/app/features/room/RoomTimeline.test.ts`, and
+  `src/app/features/room/RoomTimeline.tsx`.
+
 ### fix: resolve merge conflicts (CINNY-015 onto dev) (2026-03-23)
 
 **Status:** Complete.

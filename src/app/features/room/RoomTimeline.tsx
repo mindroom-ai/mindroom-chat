@@ -786,7 +786,10 @@ type RoomTimelineProps = {
 };
 
 const ROOM_FOCUS_SCROLL_RETRY_MAX_ATTEMPTS = 10;
-const ROOM_FOCUS_SCROLL_OBSERVER_TIMEOUT_MS = 2000;
+const ROOM_FOCUS_OBSERVER_IDLE_MS = 200;
+const ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS = 2000;
+const ROOM_FOCUS_NEAR_END_THRESHOLD = 5;
+const ROOM_FOCUS_END_MARGIN_PX = 32;
 
 type RoomFocusRetry = {
   eventId: string;
@@ -829,11 +832,79 @@ export const isContinuingRoomFocusRetry = (
   pendingRetry: RoomFocusRetry | undefined
 ): boolean => !!focusEventId && pendingRetry?.eventId === focusEventId;
 
-export const getRoomFocusScrollToItemOptions = () => ({
-  behavior: 'instant' as const,
-  align: 'center' as const,
+export const isRoomFocusNearTimelineEnd = (
+  focusIndex: number,
+  itemCount: number,
+  threshold = ROOM_FOCUS_NEAR_END_THRESHOLD
+): boolean => itemCount - focusIndex <= threshold;
+
+export const getRoomFocusScrollOptions = (focusIndex: number, itemCount: number) => {
+  const nearEnd = isRoomFocusNearTimelineEnd(focusIndex, itemCount);
+
+  return {
+    behavior: 'instant' as const,
+    align: nearEnd ? ('end' as const) : ('center' as const),
+    offset: nearEnd ? -ROOM_FOCUS_END_MARGIN_PX : undefined,
+  };
+};
+
+export const getRoomFocusScrollToItemOptions = (focusIndex: number, itemCount: number) => ({
+  ...getRoomFocusScrollOptions(focusIndex, itemCount),
   stopInView: false,
 });
+
+export const setupFocusObserver = (opts: {
+  scrollContainer: HTMLElement;
+  target: HTMLElement;
+  onRecenter: () => void;
+  onDone: () => void;
+  idleMs?: number;
+  hardMs?: number;
+}): (() => void) => {
+  if (typeof ResizeObserver === 'undefined') {
+    opts.onDone();
+    return () => undefined;
+  }
+
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  let hardTimer: ReturnType<typeof setTimeout> | undefined;
+  let rafId: number | undefined;
+  let done = false;
+
+  let ro: ResizeObserver | undefined;
+
+  const finish = () => {
+    if (done) return;
+    done = true;
+    ro?.disconnect();
+    if (idleTimer) clearTimeout(idleTimer);
+    if (hardTimer) clearTimeout(hardTimer);
+    if (rafId !== undefined) cancelAnimationFrame(rafId);
+    opts.onDone();
+  };
+
+  const scheduleRecenter = () => {
+    if (done) return;
+    if (rafId !== undefined) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(() => {
+      opts.onRecenter();
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(finish, opts.idleMs ?? ROOM_FOCUS_OBSERVER_IDLE_MS);
+    });
+  };
+
+  ro = new ResizeObserver(scheduleRecenter);
+  ro.observe(opts.target);
+  ro.observe(opts.scrollContainer);
+
+  idleTimer = setTimeout(finish, opts.idleMs ?? ROOM_FOCUS_OBSERVER_IDLE_MS);
+  hardTimer = setTimeout(() => {
+    opts.onRecenter();
+    finish();
+  }, opts.hardMs ?? ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS);
+
+  return finish;
+};
 
 const getEventElementById = (
   container: ParentNode | null | undefined,
@@ -2399,7 +2470,14 @@ export function RoomTimeline({
 
   const getScrollElement = useCallback(() => scrollRef.current, []);
 
-  const { getItems, scrollToItem, scrollToElement, observeBackAnchor, observeFrontAnchor } =
+  const {
+    getItems,
+    scrollToItem,
+    scrollToElement,
+    retryPagination,
+    observeBackAnchor,
+    observeFrontAnchor,
+  } =
     useVirtualPaginator({
       count: threadId ? 0 : filteredLength,
       limit: safePaginationLimit,
@@ -3337,9 +3415,18 @@ export function RoomTimeline({
     let clearFocusTimeoutId: ReturnType<typeof setTimeout> | undefined;
     let roomFocusObserver: MutationObserver | undefined;
     let roomFocusObserverTimeoutId: ReturnType<typeof setTimeout> | undefined;
+    let roomFocusResizeCleanup: (() => void) | undefined;
+    let allowObserverPaginationHandoff = true;
     const focusEventId = focusItem?.eventId;
+    const focusIndex =
+      !threadId && focusItem
+        ? getFocusedRoomEventIndex(threadFilteredEventsRef.current, focusEventId, focusItem.index)
+        : focusItem?.index ?? 0;
+    const focusItemCount = threadFilteredEventsRef.current.length;
+    const focusScrollToItemOptions = getRoomFocusScrollToItemOptions(focusIndex, focusItemCount);
+    const focusScrollOptions = getRoomFocusScrollOptions(focusIndex, focusItemCount);
 
-    const clearPendingRoomFocus = () => {
+    const clearPendingRoomFocus = (resumePagination: boolean) => {
       roomFocusObserver?.disconnect();
       roomFocusObserver = undefined;
 
@@ -3353,32 +3440,53 @@ export function RoomTimeline({
       }
 
       suppressFocusPaginationRef.current = false;
+
+      if (resumePagination) {
+        retryPagination({
+          preserveAnchorIndex: focusIndex,
+        });
+      }
+    };
+
+    const startRoomFocusObserver = (target: HTMLElement) => {
+      const scrollContainer = scrollRef.current;
+      if (!scrollContainer) {
+        clearPendingRoomFocus(true);
+        return;
+      }
+
+      roomFocusResizeCleanup = setupFocusObserver({
+        scrollContainer,
+        target,
+        onRecenter: () => {
+          scrollToElement(target, focusScrollOptions);
+        },
+        onDone: () => {
+          roomFocusResizeCleanup = undefined;
+          if (!allowObserverPaginationHandoff) return;
+          clearPendingRoomFocus(true);
+        },
+        idleMs: ROOM_FOCUS_OBSERVER_IDLE_MS,
+        hardMs: ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS,
+      });
     };
 
     if (!threadId && focusItem && focusItem.scrollTo) {
-      const focusIndex = getFocusedRoomEventIndex(
-        threadFilteredEventsRef.current,
-        focusEventId,
-        focusItem.index
-      );
       suppressFocusPaginationRef.current = true;
 
-      scrollToItem(focusIndex, getRoomFocusScrollToItemOptions());
+      scrollToItem(focusIndex, focusScrollToItemOptions);
       const target = focusEventId ? getEventElementById(scrollRef.current, focusEventId) : null;
 
       if (target) {
-        scrollToElement(target, {
-          behavior: 'instant',
-          align: 'center',
-        });
-        clearPendingRoomFocus();
+        scrollToElement(target, focusScrollOptions);
+        startRoomFocusObserver(target);
       } else if (focusEventId && scrollRef.current && typeof MutationObserver !== 'undefined') {
         pendingRoomFocusRef.current = {
           eventId: focusEventId,
         };
         roomFocusObserver = new MutationObserver(() => {
           if (!alive()) {
-            clearPendingRoomFocus();
+            clearPendingRoomFocus(false);
             return;
           }
 
@@ -3387,11 +3495,14 @@ export function RoomTimeline({
           const observedTarget = getEventElementById(scrollRef.current, focusEventId);
           if (!observedTarget) return;
 
-          scrollToElement(observedTarget, {
-            behavior: 'instant',
-            align: 'center',
-          });
-          clearPendingRoomFocus();
+          scrollToElement(observedTarget, focusScrollOptions);
+          roomFocusObserver?.disconnect();
+          roomFocusObserver = undefined;
+          if (roomFocusObserverTimeoutId !== undefined) {
+            clearTimeout(roomFocusObserverTimeoutId);
+            roomFocusObserverTimeoutId = undefined;
+          }
+          startRoomFocusObserver(observedTarget);
         });
         roomFocusObserver.observe(scrollRef.current, {
           childList: true,
@@ -3399,8 +3510,8 @@ export function RoomTimeline({
         });
         roomFocusObserverTimeoutId = setTimeout(() => {
           if (pendingRoomFocusRef.current?.eventId !== focusEventId) return;
-          clearPendingRoomFocus();
-        }, ROOM_FOCUS_SCROLL_OBSERVER_TIMEOUT_MS);
+          clearPendingRoomFocus(false);
+        }, ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS);
       } else {
         pendingRoomFocusRef.current = undefined;
         suppressFocusPaginationRef.current = false;
@@ -3421,12 +3532,15 @@ export function RoomTimeline({
     }
 
     return () => {
-      clearPendingRoomFocus();
+      allowObserverPaginationHandoff = false;
+      roomFocusResizeCleanup?.();
+      roomFocusResizeCleanup = undefined;
+      clearPendingRoomFocus(false);
       if (clearFocusTimeoutId !== undefined) {
         clearTimeout(clearFocusTimeoutId);
       }
     };
-  }, [alive, focusItem, scrollToElement, scrollToItem, threadFilter, threadId]);
+  }, [alive, focusItem, retryPagination, scrollToElement, scrollToItem, threadFilter, threadId]);
 
   useLayoutEffect(() => {
     if (!threadId) return;
