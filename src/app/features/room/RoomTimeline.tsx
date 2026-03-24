@@ -93,7 +93,7 @@ import {
   reactionOrEditEvent,
 } from '../../utils/room';
 import { useSetting } from '../../state/hooks/settings';
-import { MessageLayout, settingsAtom } from '../../state/settings';
+import { MessageLayout, sanitizePaginationLimit, settingsAtom } from '../../state/settings';
 import { useMatrixEventRenderer } from '../../hooks/useMatrixEventRenderer';
 import { Reactions, Message, Event, EncryptedContent } from './message';
 import { useMemberEventParser } from '../../hooks/useMemberEventParser';
@@ -752,9 +752,6 @@ type RoomTimelineProps = {
   editor: Editor;
 };
 
-const PAGINATION_LIMIT = 300;
-const THREAD_LATEST_SLICE_LIMIT = PAGINATION_LIMIT;
-const THREAD_CACHE_OPEN_LIMIT = PAGINATION_LIMIT;
 const ROOM_FOCUS_SCROLL_RETRY_MAX_ATTEMPTS = 10;
 const ROOM_FOCUS_SCROLL_OBSERVER_TIMEOUT_MS = 2000;
 
@@ -1282,6 +1279,7 @@ export const useThreadAwareTimelineRefresh = ({
 
 const getInitialTimeline = (
   room: Room,
+  paginationLimit: number,
   filterOpts?: {
     threadId: string | undefined;
     ignoredUsersSet: Set<string>;
@@ -1305,7 +1303,7 @@ const getInitialTimeline = (
   return {
     linkedTimelines,
     range: {
-      start: Math.max(count - PAGINATION_LIMIT, 0),
+      start: Math.max(count - paginationLimit, 0),
       end: count,
     },
   };
@@ -1316,18 +1314,22 @@ const getEmptyTimeline = () => ({
   linkedTimelines: [],
 });
 
-const getLatestTimelineRange = (count: number): ItemRange => ({
-  start: Math.max(count - PAGINATION_LIMIT, 0),
+const getLatestTimelineRange = (count: number, paginationLimit: number): ItemRange => ({
+  start: Math.max(count - paginationLimit, 0),
   end: count,
 });
 
-const getVisibleTimelineRange = (range: ItemRange, count: number): ItemRange => {
+const getVisibleTimelineRange = (
+  range: ItemRange,
+  count: number,
+  paginationLimit: number
+): ItemRange => {
   if (count === 0) {
     return { start: 0, end: 0 };
   }
 
   if (range.start >= count || range.start >= range.end) {
-    return getLatestTimelineRange(count);
+    return getLatestTimelineRange(count, paginationLimit);
   }
 
   const start = Math.max(range.start, 0);
@@ -1345,7 +1347,8 @@ export const getActiveTimelineRange = (
   threadId: string | undefined,
   threadFilter: ThreadFilter,
   range: ItemRange,
-  count: number
+  count: number,
+  paginationLimit: number
 ): ItemRange => {
   if (threadId) {
     return { start: 0, end: 0 };
@@ -1355,7 +1358,7 @@ export const getActiveTimelineRange = (
     return { start: 0, end: count };
   }
 
-  return getVisibleTimelineRange(range, count);
+  return getVisibleTimelineRange(range, count, paginationLimit);
 };
 
 export const shouldResetRoomThreadFilterForEvent = (
@@ -1534,6 +1537,10 @@ export function RoomTimeline({
   const showUrlPreview = room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview;
   const [showHiddenEvents] = useSetting(settingsAtom, 'showHiddenEvents');
   const [showDeveloperTools] = useSetting(settingsAtom, 'developerTools');
+  const [paginationLimitSetting] = useSetting(settingsAtom, 'paginationLimit');
+  const safePaginationLimit = sanitizePaginationLimit(paginationLimitSetting);
+  const safePaginationLimitRef = useRef(safePaginationLimit);
+  safePaginationLimitRef.current = safePaginationLimit;
 
   const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
   const [dateFormatString] = useSetting(settingsAtom, 'dateFormatString');
@@ -1664,7 +1671,7 @@ export function RoomTimeline({
   const [timeline, setTimeline] = useState<Timeline>(() =>
     eventId
       ? getEmptyTimeline()
-      : getInitialTimeline(room, {
+      : getInitialTimeline(room, safePaginationLimit, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -1826,8 +1833,15 @@ export function RoomTimeline({
   }, [threadFilteredEventEntries, threadId, unreadInfo?.readUptoEventId, readUptoAbsoluteIndex]);
   const filteredLength = threadFilteredEvents.length;
   const activeTimelineRange = useMemo(
-    () => getActiveTimelineRange(threadId, threadFilter, timeline.range, filteredLength),
-    [threadId, threadFilter, timeline.range, filteredLength]
+    () =>
+      getActiveTimelineRange(
+        threadId,
+        threadFilter,
+        timeline.range,
+        filteredLength,
+        safePaginationLimit
+      ),
+    [threadId, threadFilter, timeline.range, filteredLength, safePaginationLimit]
   );
   const prevThreadFilterRef = useRef(threadFilter);
   const liveTimelineLinked =
@@ -1872,7 +1886,7 @@ export function RoomTimeline({
         return;
       }
       setTimeline(
-        getInitialTimeline(room, {
+        getInitialTimeline(room, safePaginationLimit, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -1889,6 +1903,7 @@ export function RoomTimeline({
     showHiddenEvents,
     hideMembershipEvents,
     hideNickAvatarEvents,
+    safePaginationLimit,
   ]);
 
   const timelineAtLiveEnd = isTimelineAtLiveEnd({
@@ -1922,7 +1937,7 @@ export function RoomTimeline({
     mx,
     timeline,
     setTimeline,
-    PAGINATION_LIMIT,
+    safePaginationLimit,
     recalibrateFilterOptsRef
   );
 
@@ -1983,7 +1998,7 @@ export function RoomTimeline({
           sessionId,
           room.roomId,
           getRoomCursorAnchor(earliestLoadedEvent?.event as Partial<IEvent> | undefined),
-          PAGINATION_LIMIT
+          safePaginationLimitRef.current
         );
 
         if (!alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
@@ -2098,7 +2113,7 @@ export function RoomTimeline({
         sessionId,
         room.roomId,
         expectedThreadId,
-        THREAD_CACHE_OPEN_LIMIT
+        safePaginationLimitRef.current
       );
       if (!alive() || threadIdRef.current !== expectedThreadId) return undefined;
 
@@ -2124,7 +2139,7 @@ export function RoomTimeline({
       const [err, relData] = await to(
         mx.fetchRelations(room.roomId, expectedThreadId, 'm.thread' as any, null, {
           dir: Direction.Backward,
-          limit: THREAD_LATEST_SLICE_LIMIT,
+          limit: safePaginationLimitRef.current,
         })
       );
       if (err || !relData) return false;
@@ -2172,7 +2187,7 @@ export function RoomTimeline({
   const { getItems, scrollToItem, scrollToElement, observeBackAnchor, observeFrontAnchor } =
     useVirtualPaginator({
       count: threadId ? 0 : filteredLength,
-      limit: PAGINATION_LIMIT,
+      limit: safePaginationLimit,
       range: activeTimelineRange,
       onRangeChange: useCallback(
         (r) => {
@@ -2261,8 +2276,8 @@ export function RoomTimeline({
         setTimeline({
           linkedTimelines: lTimelines,
           range: {
-            start: Math.max(idx - PAGINATION_LIMIT, 0),
-            end: Math.min(idx + PAGINATION_LIMIT, count),
+            start: Math.max(idx - safePaginationLimitRef.current, 0),
+            end: Math.min(idx + safePaginationLimitRef.current, count),
           },
         });
       },
@@ -2282,7 +2297,7 @@ export function RoomTimeline({
     useCallback(() => {
       if (!alive()) return;
       setTimeline(
-        getInitialTimeline(room, {
+        getInitialTimeline(room, safePaginationLimit, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -2300,6 +2315,7 @@ export function RoomTimeline({
       showHiddenEvents,
       hideMembershipEvents,
       hideNickAvatarEvents,
+      safePaginationLimit,
     ])
   );
 
@@ -2716,7 +2732,7 @@ export function RoomTimeline({
     refreshLatestThreadSlice,
     onRoomRefresh: useCallback(() => {
       setTimeline(
-        getInitialTimeline(room, {
+        getInitialTimeline(room, safePaginationLimit, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -2731,6 +2747,7 @@ export function RoomTimeline({
       showHiddenEvents,
       hideMembershipEvents,
       hideNickAvatarEvents,
+      safePaginationLimit,
     ]),
   });
 
@@ -3323,7 +3340,7 @@ export function RoomTimeline({
       navigateRoom(room.roomId, undefined, { replace: true });
     }
     setTimeline(
-      getInitialTimeline(room, {
+      getInitialTimeline(room, safePaginationLimit, {
         threadId,
         ignoredUsersSet,
         showHiddenEvents,
@@ -3344,6 +3361,7 @@ export function RoomTimeline({
     showHiddenEvents,
     hideMembershipEvents,
     hideNickAvatarEvents,
+    safePaginationLimit,
   ]);
 
   const handleJumpToUnread = () => {
@@ -4402,7 +4420,7 @@ export function RoomTimeline({
         room.roomId,
         expectedThreadId,
         getThreadCursorAnchor(earliestThreadReply?.event as Partial<IEvent> | undefined),
-        PAGINATION_LIMIT
+        safePaginationLimitRef.current
       );
       if (threadIdRef.current !== expectedThreadId) return;
 
@@ -4440,7 +4458,7 @@ export function RoomTimeline({
       const [err] = await to(
         mx.paginateEventTimeline(firstThreadTimeline, {
           backwards: true,
-          limit: PAGINATION_LIMIT,
+          limit: safePaginationLimitRef.current,
         })
       );
       if (!err && threadIdRef.current === expectedThreadId) {
@@ -4484,7 +4502,7 @@ export function RoomTimeline({
     const [err] = await to(
       mx.paginateEventTimeline(currentLastThreadTimeline, {
         backwards: false,
-        limit: PAGINATION_LIMIT,
+        limit: safePaginationLimitRef.current,
       })
     );
     setThreadPaginatingFront(false);
