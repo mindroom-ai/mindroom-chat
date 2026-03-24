@@ -1377,7 +1377,7 @@ streaming-state checks.
 - `npm run lint` ⚠️
   cannot complete in this workspace because the repo script shells out to
   `yarn`, and `yarn` is not installed here (`sh: line 1: yarn: command not
-  found`).
+found`).
 
 **Review:**
 
@@ -1466,7 +1466,7 @@ filter-aware room-focus fixes on the current code shape.
   - replaced the old retry-helper assertions with focused coverage for
     filter-aware room-focus index derivation and filter auto-reset,
   - added a regression proving an unrelated room rerender after `Jump to
-    Unread` does not add another room-focus `scrollToItem(...)` call.
+Unread` does not add another room-focus `scrollToItem(...)` call.
 - `FORK_CHANGES.md`
   - recorded the base correction, implementation details, validation, and
     review outcome for this slice.
@@ -3115,6 +3115,7 @@ Why:
 - The previous `paginationLimit` setting only controlled the visible window size;
   users still had to scroll up manually to load history. This change makes setting
   `paginationLimit` to e.g. 5000 actually load 5000 messages on room entry.
+
 ## CINNY-021 Clear Cache Investigation (2026-03-23)
 
 Status:
@@ -3170,3 +3171,32 @@ Review:
 
 - Independent second self-review completed via `git diff --check` plus a manual diff read of the touched files after validation.
 - Live-test slice second self-review completed via `git diff --check`, `npx eslint e2e/cinny-021-clear-cache.spec.ts`, `npx prettier --check e2e/cinny-021-clear-cache.spec.ts LIVE-TEST-RESULTS.md FORK_CHANGES.md`, a filtered `tsc` grep for `e2e/cinny-021-clear-cache.spec.ts` (no matches), and a manual review of `e2e/cinny-021-clear-cache.spec.ts`, `LIVE-TEST-RESULTS.md`, and `FORK_CHANGES.md`.
+
+## CINNY-009c Scheduled Task Indicator (2026-03-23)
+
+Status:
+
+- Implemented and validated in worktree `cinny-009c-scheduled`; commit pending.
+- Task goal: surface a scheduled-task indicator on thread chips when a thread has pending scheduled tasks.
+
+Implementation notes:
+
+- Ticket expectation is `useThreadScheduledTasks(room, threadRootId)` returning a per-thread count for the chip.
+- The staged hook initially returned a room-wide `Map<string, number>`, so this slice normalized the hook API to the ticketed per-thread usage before wiring the UI.
+- `ThreadIndicator` already renders participant avatars, resolution state, reply count, last-activity timestamp, and streaming dot; the scheduled indicator must slot into that existing activity row after the streaming dot.
+- `RoomTimeline` already passes `room` and `threadRootId` into the thread-summary chip path; `Reply` also passes them for reply previews. `RoomInput` now supplies `room` for its bare `ThreadIndicator` usage.
+- Added `@tabler/icons-react@3.40.0` for the calendar icon and added the missing `StateEvent.MindRoomScheduledTask` enum entry required by the staged hook/contract files.
+
+Validation:
+
+- `npx vitest run src/app/hooks/useThreadScheduledTasks.test.ts src/app/utils/scheduledTaskContract.test.ts` ✅
+- `npx eslint src/app/components/message/Reply.tsx src/app/components/message/Reply.css.ts src/app/features/room/RoomInput.tsx src/app/hooks/useThreadScheduledTasks.ts src/app/hooks/useThreadScheduledTasks.test.ts src/app/utils/scheduledTaskContract.ts src/app/utils/scheduledTaskContract.test.ts` ✅ with two pre-existing `@typescript-eslint/no-explicit-any` warnings in `RoomInput.tsx`.
+- `npx prettier --check src/app/components/message/Reply.tsx src/app/components/message/Reply.css.ts src/app/features/room/RoomInput.tsx src/app/hooks/useThreadScheduledTasks.ts src/app/hooks/useThreadScheduledTasks.test.ts src/app/utils/scheduledTaskContract.ts src/app/utils/scheduledTaskContract.test.ts src/types/matrix/room.ts FORK_CHANGES.md package.json package-lock.json` ✅
+- `npm run test` ✅ (`79` files, `468` tests)
+- `npm run build` ✅
+- `npm run typecheck` ⚠️ still fails on this branch due broad pre-existing Matrix SDK and Jotai typing errors outside this slice.
+- Filtered typecheck (`./node_modules/.bin/tsc --noEmit --pretty false 2>&1 | rg -n "src/app/components/message/Reply.tsx|src/app/hooks/useThreadScheduledTasks|src/app/utils/scheduledTaskContract|src/types/matrix/room.ts"`) returned no matches after the local fixes.
+
+Review:
+
+- Independent second self-review completed via `git diff --check` and a manual diff read of the touched files after validation.

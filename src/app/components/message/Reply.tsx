@@ -1,7 +1,9 @@
 import { Avatar, Box, Icon, Icons, Text, as, color, toRem } from 'folds';
-import { EventTimelineSet, Room } from 'matrix-js-sdk';
 import React, { MouseEventHandler, ReactNode, useCallback, useMemo } from 'react';
 import classNames from 'classnames';
+import { IconCalendarEvent } from '@tabler/icons-react';
+import type { EventTimelineSet } from 'matrix-js-sdk/lib/models/event-timeline-set';
+import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { getMemberAvatarMxc, getMemberDisplayName, trimReplyFromBody } from '../../utils/room';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { LinePlaceholder } from './placeholder';
@@ -18,8 +20,8 @@ import { UserAvatar } from '../user-avatar';
 import { useThreadResolution } from '../../features/room/useRoomThreadResolution';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { useThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
+import { useThreadScheduledTasks } from '../../hooks/useThreadScheduledTasks';
 import { useThreadStreamingState } from '../../hooks/useThreadStreamingState';
-
 
 type ReplyLayoutProps = {
   userColor?: string;
@@ -48,21 +50,42 @@ export const ReplyLayout = as<'div', ReplyLayoutProps>(
 type ThreadIndicatorProps = {
   threadReplyCount?: number;
   threadParticipantIds?: string[];
-  room?: Room;
+  room: Room;
   isResolved?: boolean;
   threadRootId?: string;
+  scheduledCount?: number;
 };
 export const ThreadIndicator = as<'div', ThreadIndicatorProps>(
-  ({ className, threadReplyCount, threadParticipantIds, room, isResolved, threadRootId, ...props }, ref) => {
+  (
+    {
+      className,
+      threadReplyCount,
+      threadParticipantIds,
+      room,
+      isResolved,
+      threadRootId,
+      scheduledCount,
+      ...props
+    },
+    ref
+  ) => {
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const lastActivityTs = useThreadLastActivityTs(room, threadRootId);
     const relativeTime = useRelativeTime(lastActivityTs);
     const isStreaming = useThreadStreamingState(room, threadRootId);
+    const pendingScheduledCount = useThreadScheduledTasks(room, threadRootId);
+    const resolvedScheduledCount = scheduledCount ?? pendingScheduledCount;
     const lastActivityTitle = useMemo(
       () => (lastActivityTs !== undefined ? new Date(lastActivityTs).toLocaleString() : undefined),
       [lastActivityTs]
     );
+    const scheduledTaskLabel = useMemo(() => {
+      if (resolvedScheduledCount <= 0) return undefined;
+      return `${resolvedScheduledCount} pending scheduled ${
+        resolvedScheduledCount === 1 ? 'task' : 'tasks'
+      }`;
+    }, [resolvedScheduledCount]);
 
     const threadParticipants = useMemo(() => {
       if (!room || !threadParticipantIds?.length) return [];
@@ -130,7 +153,7 @@ export const ThreadIndicator = as<'div', ThreadIndicatorProps>(
             {threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}
           </Text>
         )}
-        {(relativeTime || isStreaming) && (
+        {(relativeTime || isStreaming || resolvedScheduledCount > 0) && (
           <Box as="span" className={css.ThreadActivity} alignItems="Center" gap="100">
             <Text as="span" size="T200" className={css.ThreadSeparator} aria-hidden="true">
               |
@@ -147,13 +170,29 @@ export const ThreadIndicator = as<'div', ThreadIndicatorProps>(
               </Text>
             )}
             {isStreaming && (
-              <span
-                className={css.ThreadStreamingDot}
-                role="img"
-                aria-label="Agent streaming"
-              />
+              <span className={css.ThreadStreamingDot} role="img" aria-label="Agent streaming" />
             )}
-            {/* TODO: Add the scheduled-indicator slot once backend thread summary data exists. */}
+            {resolvedScheduledCount > 0 && scheduledTaskLabel && (
+              <Box
+                as="span"
+                className={css.ThreadScheduledIndicator}
+                alignItems="Center"
+                gap="100"
+                role="img"
+                aria-label={scheduledTaskLabel}
+                title={scheduledTaskLabel}
+              >
+                <IconCalendarEvent
+                  size={12}
+                  stroke={1.8}
+                  className={css.ThreadScheduledIcon}
+                  aria-hidden="true"
+                />
+                <Text as="span" size="T200" aria-hidden="true">
+                  {resolvedScheduledCount}
+                </Text>
+              </Box>
+            )}
           </Box>
         )}
       </Box>
@@ -236,8 +275,8 @@ export const Reply = as<'div', ReplyProps>(
             threadReplyCount={threadReplyCount}
             threadRootId={threadRootId}
             data-event-id={threadRootId}
-              isResolved={threadResolved}
-              room={room}
+            isResolved={threadResolved}
+            room={room}
             onClick={onClick}
           />
         )}
