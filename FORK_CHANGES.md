@@ -3212,6 +3212,34 @@ What changed:
 - Tracks completion per room via `eagerPreloadDoneForRoomRef` to avoid re-running.
 - Cancellable: navigating away sets `cancelled = true` and breaks the loop.
 
+### fix: eager preload actually loads messages on room entry (CINNY-019)
+
+Files changed:
+
+- `src/app/features/room/RoomTimeline.tsx`
+
+What changed:
+
+- Fixed the eager preload not checking the boolean return value of
+  `mx.paginateEventTimeline()`. When it resolved to `false` (e.g. SDK could
+  not paginate), the loop continued without loading events and spun until
+  MAX_ITERATIONS.
+- Added saved pagination token recovery: the initial `prev_batch` token from
+  the live timeline is captured before cache hydration effects can potentially
+  clear it. If the token is missing on the first iteration, the saved token is
+  restored.
+- Added comprehensive `[eager-preload]` console.log diagnostics at every
+  decision point (start, each batch, each exit reason, completion with final
+  count) to enable runtime debugging.
+
+Why:
+
+- The previous eager preload implementation could silently fail in two ways:
+  (1) `paginateEventTimeline` returning `false` was not caught—the `to()`
+  wrapper returns `[null, false]`, so `err` was null and the loop kept going
+  without any events loaded; (2) cache hydration effects could race and clear
+  the backward pagination token before the eager preload loop started.
+
 Why:
 
 - The previous `paginationLimit` setting only controlled the visible window size;
