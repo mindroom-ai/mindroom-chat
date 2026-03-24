@@ -73,13 +73,18 @@ const getMindroomThreadSummaryMetadata = (
     .map(getThreadSummaryMetadataFromCandidate)
     .find((metadata): metadata is MindroomThreadSummaryMetadata => metadata !== undefined);
 
+const hasLegacyMindroomThreadSummary = (content: Record<string, unknown>): boolean =>
+  getThreadSummaryCandidates(content).some(
+    (candidate) => candidate[THREAD_SUMMARY_METADATA_KEY] === true
+  );
+
 const getThreadSummaryBody = (content: Record<string, unknown>): string | undefined =>
   getThreadSummaryCandidates(content)
     .map((candidate) => asSummaryBody(candidate.body))
     .find((body): body is string => body !== undefined);
 
 export const hasMindroomThreadSummary = (content: Record<string, unknown>): boolean =>
-  !!getMindroomThreadSummaryMetadata(content);
+  hasLegacyMindroomThreadSummary(content) || !!getMindroomThreadSummaryMetadata(content);
 
 export const getMindroomThreadSummaryInfo = (
   content: Record<string, unknown>

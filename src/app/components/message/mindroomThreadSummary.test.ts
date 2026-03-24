@@ -4,6 +4,7 @@ import {
   findLatestThreadSummaryEvent,
   getThreadSummaryPreviewText,
   buildThreadSummaryMap,
+  hasMindroomThreadSummary,
 } from './mindroomThreadSummary';
 
 const makeEvent = (content: Record<string, unknown>) => ({
@@ -79,6 +80,48 @@ describe('findLatestThreadSummaryEvent', () => {
 
   it('returns undefined for empty array', () => {
     expect(findLatestThreadSummaryEvent([])).toBeUndefined();
+  });
+});
+
+describe('hasMindroomThreadSummary', () => {
+  it('returns true for versioned thread summary metadata objects', () => {
+    expect(
+      hasMindroomThreadSummary({
+        msgtype: 'm.notice',
+        body: 'Summary body',
+        'io.mindroom.thread_summary': {
+          version: 1,
+          summary: 'Summary body',
+        },
+      })
+    ).toBe(true);
+  });
+
+  it('returns true when edited m.new_content carries the versioned metadata', () => {
+    expect(
+      hasMindroomThreadSummary({
+        msgtype: 'm.notice',
+        body: 'Original body',
+        'm.new_content': {
+          msgtype: 'm.notice',
+          body: 'Edited body',
+          'io.mindroom.thread_summary': {
+            version: 1,
+            summary: 'Edited body',
+          },
+        },
+      })
+    ).toBe(true);
+  });
+
+  it('returns true for legacy boolean thread summary flags', () => {
+    expect(
+      hasMindroomThreadSummary({
+        msgtype: 'm.notice',
+        body: 'Legacy summary body',
+        'io.mindroom.thread_summary': true,
+      })
+    ).toBe(true);
   });
 });
 

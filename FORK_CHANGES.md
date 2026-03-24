@@ -2365,42 +2365,110 @@ Validation:
 - Review:
   - Second self-review completed against `git diff` and `git diff --check`.
 
-### CINNY-016: room re-entry skeleton wedge from stale backward token
+### CINNY-013d: collapsible message exemptions planning (2026-03-22)
 
-- Planning/investigation completed in `PLAN.md`.
-- Status update:
-  - Added `loadCachedRoomPaginationToken(...)` in
-    `src/app/features/room/roomEventCache.ts` so room timeline code can
-    distinguish cached `null` (known room start) from `undefined` (no cached
-    token metadata).
-  - Fixed room cache hydration in
-    `src/app/features/room/RoomTimeline.tsx` to preserve explicit `null`
-    backward tokens instead of reviving a stale SDK token via `??` fallback.
-  - Added a recovery path that clears the first room timeline's backward token
-    only when cached metadata for the earliest loaded event explicitly proves
-    there is no earlier page.
-  - Updated room cache persistence so already-proven room-start state is saved
-    back as `null` instead of re-persisting a stale backward token string.
-  - Aligned room-side "earliest loaded event" selection with the cache's
-    normalized `(origin_server_ts, event_id)` ordering in both the recovery and
-    persistence paths, preventing same-timestamp SDK/cache anchor mismatches
-    from reviving stale backward tokens.
-  - Kept `getInitialTimeline()` and the existing room-switch/range reset model
-    unchanged.
-  - Added focused regressions in
-    `src/app/features/room/RoomTimeline.test.ts` covering:
-    - cached `beforeToken: null` hydration semantics,
-    - room re-entry with a reused room object at room start,
-    - `undefined` fallback preserving the SDK token,
-    - stale-token recovery showing `RoomIntro` instead of permanent skeletons,
-    - same-timestamp earliest-event ordering using the cache tie-breaker.
-- Validation:
-  - `npx vitest run src/app/features/room/RoomTimeline.test.ts` ✅
-  - `npx tsc --noEmit --pretty false 2>&1 | head -20` ❌ existing repo-wide
-    failures unrelated to this slice (Matrix SDK export/type surface, React JSX
-    typing, and related pre-existing component typing errors).
-  - `npm run build` ✅
-  - `git diff --check` ✅
+- Planning-only work in this step. No implementation was done.
+- Recommended plan recorded in `PLAN.md`:
+  - Pass merged message content into `CollapsibleMessage` and use the existing
+    `hasMindroomThreadSummary(...)` helper so MindRoom thread summary cards are
+    fully exempt from clipping/toggles.
+  - Use the real Matrix `liveEvent` signal, but store it as a one-shot
+    event-ID set in `RoomTimeline` so live messages mount expanded once and
+    then collapse normally on later remounts/reloads.
+  - Plumb the new `content`, `startExpanded`, and
+    `onInitialExpandConsumed` props through both unencrypted and encrypted
+    room-message render paths.
+- Key edge cases called out in the plan:
+  - edited summaries must use merged render content, not raw event content,
+  - hidden thread-only activity in the main room timeline must not consume the
+    one-shot expansion flag,
+  - thread-view live replies should still get first-arrival expansion,
+  - summary cards should ignore `[+all]` / `[-all]`.
+- Next step:
+  - Implement the plan in `CollapsibleMessage.tsx` and `RoomTimeline.tsx`, then
+    validate with focused Vitest coverage plus build/typecheck checks.
+- Validation (planning slice, 2026-03-22):
+  - Passed: `git diff --check -- PLAN.md FORK_CHANGES.md`
+  - Passed: `npm run build`
+  - Known pre-existing baseline: `npm run typecheck -- --pretty false` still
+    fails with broad repo-wide `matrix-js-sdk` named-export/type issues,
+    React JSX return-type mismatches, and Jotai atom typing errors outside this
+    planning-only documentation change.
+  - Known workspace limitation: `npm run lint` remains blocked here because the
+    repo lint script shells out to `yarn`, and `yarn` is not installed in this
+    workspace.
 - Review:
-  - Second self-review completed against `git diff`, the updated regression
-    tests, and the validation outputs above.
+  - Second self-review completed against `git diff` and `git diff --check`.
+
+### CINNY-013d: collapsible message exemptions implementation (2026-03-22)
+
+- Implemented the planned collapse-mode exemptions in
+  `src/app/components/CollapsibleMessage.tsx`:
+  - added `collapseMode: 'default' | 'always-expanded' | 'initially-expanded'`,
+  - added `onInitialExpandConsumed`,
+  - kept summary-exempt messages fully expanded with no clipping, toggle,
+    measurement observer, or global expand/collapse subscription,
+  - made initially-expanded messages mount expanded once and then fall back to
+    normal toggle behavior after the one-shot callback is consumed,
+  - updated overflow detection so expanded live messages still show `[-]` once
+    they exceed the collapsed height.
+- Wired both room-message render sites in
+  `src/app/features/room/RoomTimeline.tsx`:
+  - added a one-shot `liveExpandOnceIds` ref keyed by event ID,
+  - track only visible live text messages, skipping redactions, reactions,
+    edits, hidden thread-only room activity, and thread-filtered-out room
+    events,
+  - resolve edited content before collapse-mode selection so edited MindRoom
+    summaries stay exempt,
+  - apply priority `always-expanded` > `initially-expanded` > `default` in both
+    the unencrypted and encrypted room-message render paths.
+- Added focused regression coverage:
+  - `src/app/components/CollapsibleMessage.test.ts`
+  - `src/app/features/room/RoomTimelineCollapsible.test.ts`
+  - `src/app/components/message/mindroomThreadSummary.test.ts`
+- Exported small `RoomTimeline` helper functions for live-collapse tracking so
+  the thread-reply edge case can be tested directly without a brittle thread
+  view harness.
+- Validation (implementation slice, 2026-03-22):
+  - Passed: `npx vitest run`
+  - Passed: `npm run build`
+  - Passed: `git diff --check`
+  - Known pre-existing baseline: `npx tsc --noEmit --pretty false` still fails
+    with the same broad repo-wide `matrix-js-sdk` named-export/type issues,
+    React JSX return-type mismatches, Jotai atom typing failures, and existing
+    `RoomTimeline.tsx` type errors outside this change slice.
+- Review:
+  - Second self-review completed against the final `git diff`,
+    `git diff --check`, focused regression runs, and full validation output.
+
+### CINNY-013d: review fixes for summary/live-edit exemptions (2026-03-23)
+
+- Addressed the follow-up review items recorded in `REVIEW_FINDINGS.md` for the
+  collapsible-message exemption work.
+- Updated `src/app/components/message/mindroomThreadSummary.ts` so
+  `hasMindroomThreadSummary(...)` now recognizes the legacy boolean
+  `io.mindroom.thread_summary: true` shape in addition to the versioned object
+  form.
+- Updated `src/app/features/room/RoomTimeline.tsx` so live `m.replace` events
+  resolve their target message ID into `liveExpandOnceIds` when the target is
+  visible in the current timeline/thread view, and force a lightweight timeline
+  refresh at live-end when that one-shot expansion needs to be applied to an
+  already-mounted message.
+- Updated `src/app/components/CollapsibleMessage.tsx` so
+  `collapseMode="initially-expanded"` is consumed on prop transition as well as
+  on initial mount, which is required for streaming-edit growth on existing
+  rendered messages.
+- Added regression coverage in:
+  - `src/app/components/CollapsibleMessage.test.ts`
+  - `src/app/components/message/mindroomThreadSummary.test.ts`
+  - `src/app/features/room/RoomTimelineCollapsible.test.ts`
+- Intentionally left the reconnect / `TimelineRefresh` bypass behavior
+  unchanged for this slice, matching the review disposition that reconnect is
+  acceptable as reload-like behavior.
+- Validation:
+  - Passed: `npx vitest run`
+  - Passed: `npm run build`
+  - Passed: `git diff --check`
+- Review:
+  - Second self-review completed against `git diff`, focused regression output,
+    and the full validation commands above.
