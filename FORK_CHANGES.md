@@ -2972,3 +2972,28 @@ Why:
 - MindRoom agent conversations in threads can generate large message volumes.
   Users need to control how many messages are preloaded per batch to balance
   between context visibility and memory usage.
+
+### feat: eager message preloading on room entry up to configured limit (CINNY-019)
+
+Files changed:
+
+- `src/app/features/room/RoomTimeline.tsx`
+
+What changed:
+
+- Added an eager backward pagination loop (`useEffect`) that runs automatically
+  after a room timeline is initialized (not for threads or focused-event views).
+- On room entry, the loop calls `mx.paginateEventTimeline()` in batches of 200
+  until either the configured `paginationLimit` is reached, no more backward
+  pagination tokens remain, or a safety limit of 50 iterations is hit.
+- Uses the existing `roomPaginatingBackRef` mutex to coordinate with scroll-triggered
+  pagination and `recalibrateTimelinePagination()` to update React state after each batch
+  (preserving the user's scroll position).
+- Tracks completion per room via `eagerPreloadDoneForRoomRef` to avoid re-running.
+- Cancellable: navigating away sets `cancelled = true` and breaks the loop.
+
+Why:
+
+- The previous `paginationLimit` setting only controlled the visible window size;
+  users still had to scroll up manually to load history. This change makes setting
+  `paginationLimit` to e.g. 5000 actually load 5000 messages on room entry.

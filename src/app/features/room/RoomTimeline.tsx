@@ -385,6 +385,39 @@ const getRenderableEvents = (
     hideNickAvatarEvents
   ).map(({ event }) => event);
 
+type RoomPreloadCounts = {
+  cacheCount: number;
+  renderableCount: number;
+};
+
+export const getRoomPreloadCounts = (
+  linkedTimelines: EventTimeline[],
+  room: Room,
+  filterOpts: {
+    threadId: string | undefined;
+    ignoredUsersSet: Set<string>;
+    showHiddenEvents: boolean;
+    hideMembershipEvents: boolean;
+    hideNickAvatarEvents: boolean;
+  }
+): RoomPreloadCounts => ({
+  cacheCount: linkedTimelines.reduce(
+    (count, timeline) =>
+      count +
+      timeline.getEvents().filter((mEvent) => !isThreadOnlyRoomActivity(room, mEvent)).length,
+    0
+  ),
+  renderableCount: getRenderableEvents(
+    linkedTimelines,
+    room,
+    filterOpts.threadId,
+    filterOpts.ignoredUsersSet,
+    filterOpts.showHiddenEvents,
+    filterOpts.hideMembershipEvents,
+    filterOpts.hideNickAvatarEvents
+  ).length,
+});
+
 const isVisibleThreadRootEvent = (
   event: MatrixEvent,
   room: Room,
@@ -1621,6 +1654,7 @@ export function RoomTimeline({
   const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
   const roomIdRef = useRef(room.roomId);
   const roomPaginatingBackRef = useRef(false);
+  const eagerPreloadDoneForRoomRef = useRef<string | null>(null);
   const threadPaginatingBackRef = useRef(false);
   const threadPaginatingFrontRef = useRef(false);
   const threadIdRef = useRef(threadId);
@@ -2067,6 +2101,187 @@ export function RoomTimeline({
     },
     [alive, handleTimelinePagination, mx, room, sessionId, threadId, timeline.linkedTimelines]
   );
+
+  // Eager backward preload: on room entry, paginate until paginationLimit is reached
+  useEffect(() => {
+    if (threadId || eventId) return undefined;
+    if (eagerPreloadDoneForRoomRef.current === room.roomId) return undefined;
+
+    let cancelled = false;
+    const BATCH_SIZE = 200;
+    const MAX_STALLED_BATCHES = 3;
+
+    const preload = async () => {
+      // Let cache hydration effects settle first
+      await new Promise<void>((r) => {
+        setTimeout(r, 100);
+      });
+      if (cancelled || !alive()) return;
+
+      let iterations = 0;
+      let stalledBatches = 0;
+      let preloadSucceeded = false;
+      while (true) {
+        if (cancelled || !alive()) {
+          console.log(`[eager-preload] cancelled or unmounted at iteration ${iterations}`);
+          break;
+        }
+        if (roomIdRef.current !== room.roomId || threadIdRef.current) {
+          console.log(`[eager-preload] room/thread changed at iteration ${iterations}`);
+          break;
+        }
+
+        // Wait for any ongoing pagination to complete
+        if (roomPaginatingBackRef.current) {
+          await new Promise<void>((r) => {
+            setTimeout(r, 50);
+          });
+          continue;
+        }
+
+        // Get fresh timeline state from SDK
+        const linkedTimelines = getLinkedTimelines(getLiveTimeline(room));
+        const filterOpts = recalibrateFilterOptsRef.current;
+        if (!filterOpts) {
+          console.log('[eager-preload] missing filter opts, breaking');
+          break;
+        }
+
+        const counts = getRoomPreloadCounts(linkedTimelines, filterOpts.room, filterOpts);
+
+        if (counts.renderableCount >= safePaginationLimitRef.current) {
+          console.log(
+            `[eager-preload] done: renderableCount=${counts.renderableCount} >= limit=${safePaginationLimitRef.current}`
+          );
+          preloadSucceeded = true;
+          break;
+        }
+
+        const firstTimeline = linkedTimelines[0];
+        if (!firstTimeline) {
+          console.log('[eager-preload] no first timeline, breaking');
+          preloadSucceeded = true;
+          break;
+        }
+
+        const backwardToken = firstTimeline.getPaginationToken(Direction.Backward) ?? null;
+        if (!backwardToken) {
+          console.log('[eager-preload] no backward pagination token, breaking');
+          preloadSucceeded = true;
+          break;
+        }
+
+        const timelinesEventsCount = linkedTimelines.map(timelineToEventsCount);
+        const timelinesRenderableCounts = linkedTimelines.map(
+          (tl) =>
+            getRenderableEvents(
+              [tl],
+              filterOpts.room,
+              filterOpts.threadId,
+              filterOpts.ignoredUsersSet,
+              filterOpts.showHiddenEvents,
+              filterOpts.hideMembershipEvents,
+              filterOpts.hideNickAvatarEvents
+            ).length
+        );
+
+        roomPaginatingBackRef.current = true;
+        try {
+          const [err, didPaginate] = await to(
+            mx.paginateEventTimeline(firstTimeline, {
+              backwards: true,
+              limit: BATCH_SIZE,
+            })
+          );
+          if (err) {
+            console.log(`[eager-preload] pagination error at iteration ${iterations}:`, err);
+            break;
+          }
+          if (didPaginate === false) {
+            console.log(
+              `[eager-preload] paginateEventTimeline returned false at iteration ${iterations}`
+            );
+            preloadSucceeded = true;
+            break;
+          }
+
+          const fetchedTimeline =
+            firstTimeline.getNeighbouringTimeline(Direction.Backward) ?? firstTimeline;
+          if (room.hasEncryptionStateEvent()) {
+            await to(decryptAllTimelineEvent(mx, fetchedTimeline));
+          }
+
+          if (!cancelled && alive() && roomIdRef.current === room.roomId && !threadIdRef.current) {
+            recalibrateTimelinePagination(
+              setTimeline,
+              linkedTimelines,
+              timelinesEventsCount,
+              true,
+              filterOpts,
+              timelinesRenderableCounts
+            );
+          }
+
+          const refreshedLinkedTimelines = getLinkedTimelines(getLiveTimeline(room));
+          const refreshedCounts = getRoomPreloadCounts(
+            refreshedLinkedTimelines,
+            filterOpts.room,
+            filterOpts
+          );
+          const refreshedBackwardToken =
+            refreshedLinkedTimelines[0]?.getPaginationToken(Direction.Backward) ?? null;
+
+          const progressed =
+            refreshedCounts.cacheCount > counts.cacheCount ||
+            refreshedCounts.renderableCount > counts.renderableCount ||
+            refreshedBackwardToken !== backwardToken;
+
+          if (!progressed) {
+            stalledBatches += 1;
+            console.log(
+              `[eager-preload] batch ${iterations + 1}: no progress (cached=${refreshedCounts.cacheCount}, renderable=${refreshedCounts.renderableCount}, stalled=${stalledBatches}/${MAX_STALLED_BATCHES})`
+            );
+            if (stalledBatches >= MAX_STALLED_BATCHES) {
+              console.log('[eager-preload] pagination stalled, breaking');
+              break;
+            }
+          } else {
+            stalledBatches = 0;
+          }
+
+          iterations++;
+          console.log(
+            `[eager-preload] batch ${iterations}: cached ${refreshedCounts.cacheCount} room events, renderable ${refreshedCounts.renderableCount} / ${safePaginationLimitRef.current}`
+          );
+        } finally {
+          roomPaginatingBackRef.current = false;
+        }
+      }
+
+      if (!cancelled) {
+        if (preloadSucceeded) {
+          eagerPreloadDoneForRoomRef.current = room.roomId;
+        }
+        const finalLinkedTimelines = getLinkedTimelines(getLiveTimeline(room));
+        const finalFilterOpts = recalibrateFilterOptsRef.current;
+        const finalCounts = finalFilterOpts
+          ? getRoomPreloadCounts(finalLinkedTimelines, finalFilterOpts.room, finalFilterOpts)
+          : {
+              cacheCount: getTimelinesEventsCount(finalLinkedTimelines),
+              renderableCount: getTimelinesEventsCount(finalLinkedTimelines),
+            };
+        console.log(
+          `[eager-preload] complete for room ${room.roomId}: ${iterations} batches, ${finalCounts.cacheCount} cached room events, ${finalCounts.renderableCount} renderable events`
+        );
+      }
+    };
+
+    preload();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [alive, mx, room, threadId, eventId]);
 
   const persistThreadEventCache = useCallback(
     (
