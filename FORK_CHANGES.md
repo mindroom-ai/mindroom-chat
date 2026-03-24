@@ -2364,3 +2364,43 @@ Validation:
   - `npm run build` ✅
 - Review:
   - Second self-review completed against `git diff` and `git diff --check`.
+
+### CINNY-016: room re-entry skeleton wedge from stale backward token
+
+- Planning/investigation completed in `PLAN.md`.
+- Status update:
+  - Added `loadCachedRoomPaginationToken(...)` in
+    `src/app/features/room/roomEventCache.ts` so room timeline code can
+    distinguish cached `null` (known room start) from `undefined` (no cached
+    token metadata).
+  - Fixed room cache hydration in
+    `src/app/features/room/RoomTimeline.tsx` to preserve explicit `null`
+    backward tokens instead of reviving a stale SDK token via `??` fallback.
+  - Added a recovery path that clears the first room timeline's backward token
+    only when cached metadata for the earliest loaded event explicitly proves
+    there is no earlier page.
+  - Updated room cache persistence so already-proven room-start state is saved
+    back as `null` instead of re-persisting a stale backward token string.
+  - Aligned room-side "earliest loaded event" selection with the cache's
+    normalized `(origin_server_ts, event_id)` ordering in both the recovery and
+    persistence paths, preventing same-timestamp SDK/cache anchor mismatches
+    from reviving stale backward tokens.
+  - Kept `getInitialTimeline()` and the existing room-switch/range reset model
+    unchanged.
+  - Added focused regressions in
+    `src/app/features/room/RoomTimeline.test.ts` covering:
+    - cached `beforeToken: null` hydration semantics,
+    - room re-entry with a reused room object at room start,
+    - `undefined` fallback preserving the SDK token,
+    - stale-token recovery showing `RoomIntro` instead of permanent skeletons,
+    - same-timestamp earliest-event ordering using the cache tie-breaker.
+- Validation:
+  - `npx vitest run src/app/features/room/RoomTimeline.test.ts` ✅
+  - `npx tsc --noEmit --pretty false 2>&1 | head -20` ❌ existing repo-wide
+    failures unrelated to this slice (Matrix SDK export/type surface, React JSX
+    typing, and related pre-existing component typing errors).
+  - `npm run build` ✅
+  - `git diff --check` ✅
+- Review:
+  - Second self-review completed against `git diff`, the updated regression
+    tests, and the validation outputs above.
