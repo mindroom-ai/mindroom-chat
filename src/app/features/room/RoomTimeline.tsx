@@ -3601,10 +3601,12 @@ export function RoomTimeline({
                 threadReplyCount={threadReplyCount}
                 threadParticipantIds={threadParticipantIds}
                 isResolved={threadResolved}
+                          threadRootId={mEventId}
                 room={room}
                 onClick={handleOpenReply}
               />
             </>
+
           ) : null;
 
         return (
@@ -3757,10 +3759,12 @@ export function RoomTimeline({
                 threadReplyCount={threadReplyCount}
                 threadParticipantIds={threadParticipantIds}
                 isResolved={threadResolved}
+                          threadRootId={mEventId}
                 room={room}
                 onClick={handleOpenReply}
               />
             </>
+
           ) : null;
 
         return (
