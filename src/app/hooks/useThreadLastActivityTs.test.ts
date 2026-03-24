@@ -6,22 +6,39 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { useThreadLastActivityTs } from './useThreadLastActivityTs';
 
+const THREAD_ROOT_ID = '$root';
+
 const makeMessageEvent = (
   eventId: string,
   ts: number,
   sender = '@alice:example.org',
-  body = eventId
+  body = eventId,
+  content: Record<string, unknown> = {}
 ) =>
   new MatrixEvent({
     content: {
       body,
       msgtype: 'm.text',
+      ...content,
     },
     event_id: eventId,
     origin_server_ts: ts,
     room_id: '!room:example.org',
     sender,
     type: 'm.room.message',
+  });
+
+const makeThreadReplyEvent = (
+  eventId: string,
+  ts: number,
+  sender = '@alice:example.org',
+  body = eventId
+) =>
+  makeMessageEvent(eventId, ts, sender, body, {
+    'm.relates_to': {
+      event_id: THREAD_ROOT_ID,
+      rel_type: 'm.thread',
+    },
   });
 
 const makeEditEvent = (
@@ -61,6 +78,13 @@ type HarnessProps = {
 type MockThread = Thread &
   EventEmitter & {
     setLastReply: (event: MatrixEvent | null) => void;
+    setTimelineEvents: (events: MatrixEvent[]) => void;
+    getUnfilteredTimelineSet: () => {
+      getLiveTimeline: () => {
+        getEvents: () => MatrixEvent[];
+        getNeighbouringTimeline: () => null;
+      };
+    };
   };
 
 function Harness({ room, threadRootId, onRender }: HarnessProps) {
@@ -73,13 +97,21 @@ const makeThread = ({
   rootEvent,
   lastReply,
   replyToEvent,
+  timelineEvents,
 }: {
   rootEvent: MatrixEvent;
   lastReply?: MatrixEvent | null;
   replyToEvent?: MatrixEvent | null;
+  timelineEvents?: MatrixEvent[];
 }): MockThread => {
   const emitter = new EventEmitter();
   let currentLastReply = lastReply ?? null;
+  let currentTimelineEvents =
+    timelineEvents ?? [rootEvent, ...(lastReply ? [lastReply] : replyToEvent ? [replyToEvent] : [])];
+  const liveTimeline = {
+    getEvents: () => currentTimelineEvents,
+    getNeighbouringTimeline: () => null,
+  };
 
   return Object.assign(emitter, {
     rootEvent,
@@ -88,6 +120,12 @@ const makeThread = ({
     setLastReply: (event: MatrixEvent | null) => {
       currentLastReply = event;
     },
+    setTimelineEvents: (events: MatrixEvent[]) => {
+      currentTimelineEvents = events;
+    },
+    getUnfilteredTimelineSet: () => ({
+      getLiveTimeline: () => liveTimeline,
+    }),
   }) as unknown as MockThread;
 };
 
@@ -127,7 +165,7 @@ const renderHookHarness = (room: Room, threadRootId = '$root'): {
 describe('useThreadLastActivityTs', () => {
   it('uses a newer reply when the thread emits a new reply event', () => {
     const rootEvent = makeMessageEvent('$root', 100);
-    const replyEvent = makeMessageEvent('$reply', 200);
+    const replyEvent = makeThreadReplyEvent('$reply', 200);
     const thread = makeThread({ rootEvent });
     const room = makeRoom(rootEvent, thread);
 
@@ -136,6 +174,7 @@ describe('useThreadLastActivityTs', () => {
     expect(getSnapshot()).toBe(100);
 
     act(() => {
+      thread.setTimelineEvents([rootEvent, replyEvent]);
       thread.setLastReply(replyEvent);
       thread.emit(ThreadEvent.NewReply, thread, replyEvent);
     });
@@ -147,7 +186,7 @@ describe('useThreadLastActivityTs', () => {
 
   it('prefers the latest edit timestamp over the original reply timestamp', () => {
     const rootEvent = makeMessageEvent('$root', 100);
-    const replyEvent = makeMessageEvent('$reply', 200);
+    const replyEvent = makeThreadReplyEvent('$reply', 200);
     const replyEdit = makeEditEvent('$edit', 300, '$reply');
     const thread = makeThread({ rootEvent, lastReply: replyEvent });
     const room = makeRoom(rootEvent, thread);
@@ -186,8 +225,8 @@ describe('useThreadLastActivityTs', () => {
 
   it('re-subscribes when a new last reply has the same activity timestamp', () => {
     const rootEvent = makeMessageEvent('$root', 100);
-    const firstReply = makeMessageEvent('$reply-1', 200);
-    const secondReply = makeMessageEvent('$reply-2', 200);
+    const firstReply = makeThreadReplyEvent('$reply-1', 200);
+    const secondReply = makeThreadReplyEvent('$reply-2', 200);
     const secondReplyEdit = makeEditEvent('$reply-2-edit', 320, '$reply-2');
     const thread = makeThread({ rootEvent, lastReply: firstReply });
     const room = makeRoom(rootEvent, thread);
@@ -197,6 +236,7 @@ describe('useThreadLastActivityTs', () => {
     expect(getSnapshot()).toBe(200);
 
     act(() => {
+      thread.setTimelineEvents([rootEvent, firstReply, secondReply]);
       thread.setLastReply(secondReply);
       thread.emit(ThreadEvent.NewReply, thread, secondReply);
     });
@@ -214,8 +254,8 @@ describe('useThreadLastActivityTs', () => {
 
   it('falls back to replyToEvent when lastReply is unavailable', () => {
     const rootEvent = makeMessageEvent('$root', 100);
-    const replyToEvent = makeMessageEvent('$latest-known', 180);
-    const thread = makeThread({ rootEvent, lastReply: null, replyToEvent });
+    const replyToEvent = makeThreadReplyEvent('$latest-known', 180);
+    const thread = makeThread({ rootEvent, lastReply: null, replyToEvent, timelineEvents: [] });
     const room = makeRoom(rootEvent, thread);
 
     const { getSnapshot, renderer } = renderHookHarness(room);
@@ -232,6 +272,57 @@ describe('useThreadLastActivityTs', () => {
     const { getSnapshot, renderer } = renderHookHarness(room);
 
     expect(getSnapshot()).toBe(100);
+
+    renderer.unmount();
+  });
+
+  it('uses the latest edit timestamp from a non-last reply in the scanned tail', () => {
+    const rootEvent = makeMessageEvent('$root', 100);
+    const firstReply = makeThreadReplyEvent('$reply-1', 200);
+    const secondReply = makeThreadReplyEvent('$reply-2', 250);
+    const firstReplyEdit = makeEditEvent('$reply-1-edit', 320, '$reply-1');
+    const thread = makeThread({
+      rootEvent,
+      lastReply: secondReply,
+      timelineEvents: [rootEvent, firstReply, secondReply],
+    });
+    const room = makeRoom(rootEvent, thread);
+
+    const { getSnapshot, renderer } = renderHookHarness(room);
+
+    expect(getSnapshot()).toBe(250);
+
+    act(() => {
+      firstReply.makeReplaced(firstReplyEdit);
+    });
+
+    expect(getSnapshot()).toBe(320);
+
+    renderer.unmount();
+  });
+
+  it('ignores edits on messages older than the last 10 scanned thread messages', () => {
+    const rootEvent = makeMessageEvent('$root', 100);
+    const replies = Array.from({ length: 11 }, (_, index) =>
+      makeThreadReplyEvent(`$reply-${index + 1}`, 200 + index)
+    );
+    const outsideTailEdit = makeEditEvent('$reply-1-edit', 999, '$reply-1');
+    const thread = makeThread({
+      rootEvent,
+      lastReply: replies[replies.length - 1],
+      timelineEvents: [rootEvent, ...replies],
+    });
+    const room = makeRoom(rootEvent, thread);
+
+    const { getSnapshot, renderer } = renderHookHarness(room);
+
+    expect(getSnapshot()).toBe(210);
+
+    act(() => {
+      replies[0].makeReplaced(outsideTailEdit);
+    });
+
+    expect(getSnapshot()).toBe(210);
 
     renderer.unmount();
   });

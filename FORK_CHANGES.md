@@ -1267,9 +1267,127 @@ Thread summary preview (CINNY-003b, upgraded in CINNY-003c):
 
 Current task:
 
-- resolve the leftover CINNY-015-on-`dev` merge conflicts in
-  `FORK_CHANGES.md`, `src/app/features/room/RoomTimeline.test.ts`, and
-  `src/app/features/room/RoomTimeline.tsx`.
+- resolve the CINNY-009b review finding by filtering relation events out of
+  `getThreadTailEvents()` and adding dedicated tail-scan unit coverage.
+
+### fix(thread): scan last N messages for activity indicators (CINNY-009) (2026-03-23)
+
+**Status:** Complete.
+
+**Problem:** `useThreadLastActivityTs` and `useThreadStreamingState` only
+inspected `thread.lastReply()`. When an agent was still streaming/editing
+message N-1 while sending a new non-streaming message N, the thread reply chip
+could show a stale timestamp and hide the streaming dot even though an older
+tail message was still active.
+
+**Worktree changes:**
+
+- `src/app/utils/thread.ts`
+  - added `getThreadTailEvents()` to walk the loaded thread timeline backward
+    from `thread.getUnfilteredTimelineSet().getLiveTimeline()` and return the
+    last 10 unique thread events, with short-thread fallbacks for partially
+    populated thread models.
+- `src/app/hooks/useThreadLastActivityTs.ts`
+  - replaced the old root + `lastReply()` check with a scan of the last 10
+    thread tail events,
+  - now returns the maximum timestamp across all scanned events and their
+    same-sender `replacingEvent()` timestamps,
+  - now subscribes `useThreadEventRefresh` to every scanned tail event instead
+    of only the root and a single latest reply.
+- `src/app/hooks/useThreadStreamingState.ts`
+  - replaced the single-`lastReply()` streaming probe with a scan across the
+    last 10 thread tail events,
+  - now treats any scanned tail event with active `io.mindroom.ai_run`,
+    active `io.mindroom.stream_status`, or a non-terminal stop reaction as
+    streaming,
+  - now subscribes refresh listeners to every scanned event plus every scanned
+    event's reaction relations.
+- `src/app/hooks/useThreadLastActivityTs.test.ts`
+  - expanded the thread mock to expose the loaded tail timeline,
+  - added coverage for latest activity on a non-last reply and for ignoring
+    edits outside the last 10 scanned messages.
+- `src/app/hooks/useThreadStreamingState.test.ts`
+  - expanded the thread mock to expose loaded tail events plus per-event
+    reaction relations,
+  - added coverage for non-last-reply streaming, non-last-reply stop-reaction
+    refresh, and ignoring streaming metadata outside the last 10 scanned
+    messages.
+
+**Validation:**
+
+- `npx vitest run src/app/hooks/useThreadLastActivityTs.test.ts` ✅
+- `npx vitest run src/app/hooks/useThreadStreamingState.test.ts` ✅
+- `npx vitest run src/app/utils/time.test.ts src/app/hooks/useRelativeTime.test.ts src/app/hooks/useThreadLastActivityTs.test.ts src/app/hooks/useThreadStreamingState.test.ts` ✅
+- `npm run build` ✅
+- `npm run typecheck -- --pretty false` ⚠️
+  still fails with the pre-existing repository-wide Matrix SDK / React /
+  Jotai typing issues already documented in this runbook; the rerun no longer
+  reports `src/app/utils/thread.ts`, so this task did not add a new typecheck
+  failure on top of that baseline.
+- `git diff --check` ✅
+
+**Review:**
+
+- Independent second self-review completed against the final hook/test diff and
+  validation output because subagents were not authorized in this session.
+
+### fix(thread): filter relation events from tail scan (CINNY-009) (2026-03-23)
+
+**Status:** Complete.
+
+**Problem:** Review found that `getThreadTailEvents()` scanned raw loaded
+thread timeline events, so `m.annotation` reactions and `m.replace` edits
+could consume part or all of the 10-event window. That let relation events
+push real thread replies out of scope for thread activity timestamps and
+streaming-state checks.
+
+**Worktree changes:**
+
+- `src/app/utils/thread.ts`
+  - aligned the thread-tail filter with the Matrix SDK's `lastReply()`
+    semantics so the backward scan only counts events where
+    `event.isRelation('m.thread')` is true,
+  - kept the existing dedupe and root/reply fallback behavior for short or
+    partially loaded threads.
+- `src/app/utils/thread.test.ts`
+  - added focused coverage for:
+    - basic last-N tail selection,
+    - filtering out `m.annotation` and `m.replace` relations while keeping a
+      valid threaded `m.sticker` reply in scope,
+    - short-thread root fallback when fewer than N replies are loaded,
+    - empty loaded thread timelines.
+- `src/app/hooks/useThreadLastActivityTs.test.ts`
+  - updated thread-reply fixtures to model real `m.thread` relations so the
+    hook tests exercise the filtered tail scanner against SDK-realistic reply
+    events.
+- `src/app/hooks/useThreadStreamingState.test.ts`
+  - updated thread-reply fixtures to the same SDK-realistic `m.thread`
+    relation shape so streaming-state tests keep covering the tail scan path.
+
+**Validation:**
+
+- `npx vitest run src/app/utils/thread.test.ts src/app/hooks/useThreadLastActivityTs.test.ts src/app/hooks/useThreadStreamingState.test.ts --no-coverage` ✅
+- `npm run build` ✅
+- `npm run typecheck -- --pretty false` ⚠️
+  still fails on the existing repo-wide baseline unrelated to this slice
+  (Matrix SDK export/type mismatches, React return-type issues, and Jotai atom
+  typing errors across untouched files). After adjusting the new test imports,
+  the rerun no longer reports `src/app/utils/thread.ts` or
+  `src/app/utils/thread.test.ts`.
+- `npm run lint` ⚠️
+  cannot complete in this workspace because the repo script shells out to
+  `yarn`, and `yarn` is not installed here (`sh: line 1: yarn: command not
+  found`).
+
+**Review:**
+
+- Independent review completed with a separate agent after validation.
+- Review follow-up:
+  - widened the tail filter from a message/encrypted-only check to the SDK's
+    actual `event.isRelation('m.thread')` predicate so threaded `m.sticker`
+    replies remain in scope,
+  - added utility coverage for that threaded `m.sticker` case.
+- Final re-review found no remaining issues in the changed files.
 
 ### fix: resolve merge conflicts (CINNY-015 onto dev) (2026-03-23)
 

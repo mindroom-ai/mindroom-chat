@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
+import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../utils/thread';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 
 const getEventActivityTs = (mEvent: MatrixEvent | null | undefined): number | undefined => {
@@ -14,61 +15,61 @@ const getEventActivityTs = (mEvent: MatrixEvent | null | undefined): number | un
   return Math.max(mEvent.getTs(), replacingTs ?? 0);
 };
 
-const getThreadActivityTailEvent = (room: Room | undefined, threadRootId: string | undefined) => {
-  if (!room || !threadRootId) return undefined;
+const getThreadActivityEvents = (
+  room: Room | undefined,
+  threadRootId: string | undefined
+): MatrixEvent[] => {
+  if (!room || !threadRootId) return [];
 
   const thread = room.getThread(threadRootId);
-  return thread?.lastReply() ?? thread?.replyToEvent ?? undefined;
+  const tailEvents = getThreadTailEvents(thread, DEFAULT_THREAD_TAIL_EVENT_COUNT);
+  if (tailEvents.length > 0) return tailEvents;
+
+  const rootEvent = thread?.rootEvent ?? room.findEventById(threadRootId);
+  return rootEvent ? [rootEvent] : [];
 };
 
 type ThreadLastActivitySnapshot = {
   activityTs: number | undefined;
-  tailEventId: string | undefined;
-};
-
-export const getThreadLastActivityTs = (
-  room: Room | undefined,
-  threadRootId: string | undefined
-): number | undefined => {
-  if (!room || !threadRootId) return undefined;
-
-  const thread = room.getThread(threadRootId);
-  const rootEvent = thread?.rootEvent ?? room.findEventById(threadRootId);
-  if (!rootEvent) return undefined;
-
-  const latestReply = thread?.lastReply() ?? thread?.replyToEvent ?? undefined;
-  const activityCandidates = [getEventActivityTs(rootEvent), getEventActivityTs(latestReply)];
-
-  return activityCandidates.reduce<number | undefined>((latestTs, candidateTs) => {
-    if (candidateTs === undefined) return latestTs;
-    if (latestTs === undefined) return candidateTs;
-    return candidateTs > latestTs ? candidateTs : latestTs;
-  }, undefined);
+  trackedEvents: MatrixEvent[];
 };
 
 const getThreadLastActivitySnapshot = (
   room: Room | undefined,
   threadRootId: string | undefined
-): ThreadLastActivitySnapshot => ({
-  activityTs: getThreadLastActivityTs(room, threadRootId),
-  tailEventId: getThreadActivityTailEvent(room, threadRootId)?.getId() ?? undefined,
-});
+): ThreadLastActivitySnapshot => {
+  const trackedEvents = getThreadActivityEvents(room, threadRootId);
+  const activityTs = trackedEvents
+    .map((mEvent) => getEventActivityTs(mEvent))
+    .reduce<number | undefined>((latestTs, candidateTs) => {
+      if (candidateTs === undefined) return latestTs;
+      if (latestTs === undefined) return candidateTs;
+      return candidateTs > latestTs ? candidateTs : latestTs;
+    }, undefined);
+
+  return {
+    activityTs,
+    trackedEvents,
+  };
+};
+
+export const getThreadLastActivityTs = (
+  room: Room | undefined,
+  threadRootId: string | undefined
+): number | undefined =>
+  getThreadLastActivitySnapshot(room, threadRootId).activityTs;
 
 export const useThreadLastActivityTs = (
   room: Room | undefined,
   threadRootId: string | undefined
 ): number | undefined => {
   const thread = room && threadRootId ? room.getThread(threadRootId) ?? undefined : undefined;
-  const rootEvent =
-    thread?.rootEvent ?? (room && threadRootId ? room.findEventById(threadRootId) : undefined);
-  const tailEvent = getThreadActivityTailEvent(room, threadRootId);
-  const trackedEvents = useMemo(() => [rootEvent, tailEvent], [rootEvent, tailEvent]);
   const [snapshot, setSnapshot] = useState(() => getThreadLastActivitySnapshot(room, threadRootId));
   const refresh = useCallback(() => {
     setSnapshot(getThreadLastActivitySnapshot(room, threadRootId));
   }, [room, threadRootId]);
 
-  useThreadEventRefresh(thread, trackedEvents, refresh);
+  useThreadEventRefresh(thread, snapshot.trackedEvents, refresh);
 
   return snapshot.activityTs;
 };
