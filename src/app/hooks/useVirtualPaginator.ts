@@ -249,6 +249,14 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
         const error =
           element.getBoundingClientRect().top - getDesiredElementTop(scrollElement, element, opts);
         if (Math.abs(error) > 2) {
+          // At scroll boundaries, correction in the clamped direction is impossible
+          // and would cause overshoot if the element position shifts in the next frame.
+          const { scrollTop, scrollHeight, clientHeight } = scrollElement;
+          const atTop = scrollTop <= 0;
+          const atBottom = scrollTop >= scrollHeight - clientHeight;
+          if ((atTop && error < 0) || (atBottom && error > 0)) {
+            return;
+          }
           scrollElement.scrollBy({
             top: error,
             behavior: 'instant',
