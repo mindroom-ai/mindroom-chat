@@ -155,7 +155,11 @@ import {
   isMindroomThreadSummaryEvent,
   MindroomThreadSummaryInfo,
 } from '../../components/message/mindroomThreadSummary';
-import { shouldPinThreadToBottomOnOpen } from './threadRenderUtils';
+import {
+  buildResolveConfirmedEventId,
+  dedupeThreadRenderEventEntries,
+  shouldPinThreadToBottomOnOpen,
+} from './threadRenderUtils';
 import { useThreadRenderState } from './useThreadRenderState';
 import {
   RoomThreadOverview,
@@ -285,7 +289,12 @@ const KNOWN_EVENT_TYPES = new Set<string>([
   StateEvent.RoomAvatar,
 ]);
 
-const isRenderableEvent = (
+export type TimelineEventEntry = {
+  event: MatrixEvent;
+  absoluteIndex: number;
+};
+
+export const isRenderableEvent = (
   mEvent: MatrixEvent,
   _room: Room,
   threadId: string | undefined,
@@ -322,7 +331,7 @@ const isRenderableEvent = (
   return true;
 };
 
-const getRenderableEvents = (
+export const getRenderableEventEntries = (
   linkedTimelines: EventTimeline[],
   room: Room,
   threadId: string | undefined,
@@ -330,11 +339,13 @@ const getRenderableEvents = (
   showHiddenEvents: boolean,
   hideMembershipEvents: boolean,
   hideNickAvatarEvents: boolean
-): MatrixEvent[] =>
-  linkedTimelines.flatMap((tl) =>
-    tl
-      .getEvents()
-      .filter((mEvent) =>
+): TimelineEventEntry[] => {
+  const entries: TimelineEventEntry[] = [];
+  let absoluteIndex = 0;
+
+  linkedTimelines.forEach((timeline) => {
+    timeline.getEvents().forEach((mEvent) => {
+      if (
         isRenderableEvent(
           mEvent,
           room,
@@ -344,25 +355,100 @@ const getRenderableEvents = (
           hideMembershipEvents,
           hideNickAvatarEvents
         )
-      )
+      ) {
+        entries.push({ event: mEvent, absoluteIndex });
+      }
+
+      absoluteIndex += 1;
+    });
+  });
+
+  return entries;
+};
+
+const getRenderableEvents = (
+  linkedTimelines: EventTimeline[],
+  room: Room,
+  threadId: string | undefined,
+  ignoredUsersSet: Set<string>,
+  showHiddenEvents: boolean,
+  hideMembershipEvents: boolean,
+  hideNickAvatarEvents: boolean
+): MatrixEvent[] =>
+  getRenderableEventEntries(
+    linkedTimelines,
+    room,
+    threadId,
+    ignoredUsersSet,
+    showHiddenEvents,
+    hideMembershipEvents,
+    hideNickAvatarEvents
+  ).map(({ event }) => event);
+
+const isVisibleThreadRootEvent = (
+  event: MatrixEvent,
+  room: Room,
+  threadResolutionMap: Map<string, { isResolved: boolean }>,
+  threadReplyCountMap?: Map<string, number>
+): boolean => {
+  const eventId = event.getId();
+  if (!eventId) return false;
+
+  return (
+    event.isThreadRoot ||
+    !!room.getThread(eventId) ||
+    threadResolutionMap.has(eventId) ||
+    (threadReplyCountMap?.get(eventId) ?? 0) > 0
   );
+};
+
+const isKnownThreadRootEventId = (
+  room: Room,
+  threadResolutionMap: Map<string, { isResolved: boolean }>,
+  eventId: string,
+  threadReplyCountMap?: Map<string, number>
+): boolean =>
+  !!room.getThread(eventId) ||
+  threadResolutionMap.has(eventId) ||
+  (threadReplyCountMap?.get(eventId) ?? 0) > 0;
+
+const matchesRoomThreadFilter = (
+  room: Room,
+  threadResolutionMap: Map<string, { isResolved: boolean }>,
+  eventId: string,
+  threadFilter: Exclude<ThreadFilter, 'all'>,
+  threadReplyCountMap?: Map<string, number>
+): boolean | undefined => {
+  const targetEvent = room.findEventById(eventId);
+
+  if (targetEvent) {
+    if (!isVisibleThreadRootEvent(targetEvent, room, threadResolutionMap, threadReplyCountMap)) {
+      return false;
+    }
+  } else if (!isKnownThreadRootEventId(room, threadResolutionMap, eventId, threadReplyCountMap)) {
+    return undefined;
+  }
+
+  const isResolved = threadResolutionMap.get(eventId)?.isResolved ?? false;
+  return threadFilter === 'resolved' ? isResolved : !isResolved;
+};
 
 export const getThreadFilteredEvents = (
   renderableEvents: MatrixEvent[],
   room: Room,
   threadResolutionMap: Map<string, { isResolved: boolean }>,
   threadId: string | undefined,
-  threadFilter: ThreadFilter
+  threadFilter: ThreadFilter,
+  threadReplyCountMap?: Map<string, number>
 ): MatrixEvent[] => {
   if (threadId || threadFilter === 'all') return renderableEvents;
 
   return renderableEvents.filter((event) => {
     const eventId = event.getId();
     if (!eventId) return false;
-
-    const isThreadRoot =
-      event.isThreadRoot || !!room.getThread(eventId) || threadResolutionMap.has(eventId);
-    if (!isThreadRoot) return false;
+    if (!isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)) {
+      return false;
+    }
 
     const resolution = threadResolutionMap.get(eventId);
     const isResolved = resolution?.isResolved ?? false;
@@ -370,6 +456,177 @@ export const getThreadFilteredEvents = (
     return threadFilter === 'resolved' ? isResolved : !isResolved;
   });
 };
+
+const getEventEntryIndex = (entries: TimelineEventEntry[], eventId: string): number =>
+  entries.findIndex(({ event }) => event.getId() === eventId);
+
+const getTimelineEventById = (
+  linkedTimelines: EventTimeline[],
+  eventId: string
+): MatrixEvent | undefined => {
+  for (const timeline of linkedTimelines) {
+    const event = timeline.getEvents().find((mEvent) => mEvent.getId() === eventId);
+    if (event) {
+      return event;
+    }
+  }
+
+  return undefined;
+};
+
+const getLinkedTimelinesEventAbsoluteIndex = (
+  linkedTimelines: EventTimeline[],
+  eventId: string
+): number | undefined => {
+  let absoluteIndex = 0;
+
+  for (const timeline of linkedTimelines) {
+    const relativeIndex = timeline.getEvents().findIndex((mEvent) => mEvent.getId() === eventId);
+    if (relativeIndex !== -1) {
+      return absoluteIndex + relativeIndex;
+    }
+
+    absoluteIndex += timeline.getEvents().length;
+  }
+
+  return undefined;
+};
+
+const getVisibleAnchorCandidateIds = (mEvent: MatrixEvent): string[] => {
+  const eventId = mEvent.getId();
+  if (!eventId) return [];
+
+  const candidateIds = new Set<string>();
+  const associatedEventId = mEvent.getAssociatedId() ?? mEvent.getRelation()?.event_id;
+  if (associatedEventId && associatedEventId !== eventId) {
+    candidateIds.add(associatedEventId);
+  }
+
+  const threadRootId = mEvent.threadRootId;
+  if (threadRootId && threadRootId !== eventId) {
+    candidateIds.add(threadRootId);
+  }
+
+  return Array.from(candidateIds);
+};
+
+const getClosestRenderableEntryIndex = (
+  entries: TimelineEventEntry[],
+  absoluteIndex: number
+): number | undefined => {
+  if (entries.length === 0) return undefined;
+
+  const nextIndex = entries.findIndex((entry) => entry.absoluteIndex > absoluteIndex);
+  if (nextIndex === -1) return entries.length - 1;
+  if (nextIndex === 0) return 0;
+
+  const previousIndex = nextIndex - 1;
+  const previousDistance = absoluteIndex - entries[previousIndex].absoluteIndex;
+  const nextDistance = entries[nextIndex].absoluteIndex - absoluteIndex;
+
+  return nextDistance < previousDistance ? nextIndex : previousIndex;
+};
+
+const getNextRenderableEntryIndex = (
+  entries: TimelineEventEntry[],
+  absoluteIndex: number
+): number | undefined => {
+  const nextIndex = entries.findIndex((entry) => entry.absoluteIndex > absoluteIndex);
+  return nextIndex === -1 ? undefined : nextIndex;
+};
+
+const getEntryAnchor = (
+  entries: TimelineEventEntry[],
+  entryIndex: number
+):
+  | {
+      eventId: string;
+      index: number;
+      absoluteIndex: number;
+    }
+  | undefined => {
+  const entry = entries[entryIndex];
+  const eventId = entry?.event.getId();
+  if (!entry || !eventId) return undefined;
+
+  return {
+    eventId,
+    index: entryIndex,
+    absoluteIndex: entry.absoluteIndex,
+  };
+};
+
+export const getTimelineTargetAnchor = ({
+  linkedTimelines,
+  renderableEntries,
+  eventId,
+  absoluteIndex,
+}: {
+  linkedTimelines: EventTimeline[];
+  renderableEntries: TimelineEventEntry[];
+  eventId: string;
+  absoluteIndex: number;
+}) => {
+  const visibleIndex = getEventEntryIndex(renderableEntries, eventId);
+  if (visibleIndex !== -1) {
+    return getEntryAnchor(renderableEntries, visibleIndex);
+  }
+
+  const targetEvent = getTimelineEventById(linkedTimelines, eventId);
+  if (targetEvent) {
+    for (const candidateId of getVisibleAnchorCandidateIds(targetEvent)) {
+      const candidateIndex = getEventEntryIndex(renderableEntries, candidateId);
+      if (candidateIndex !== -1) {
+        return getEntryAnchor(renderableEntries, candidateIndex);
+      }
+    }
+  }
+
+  const closestIndex = getClosestRenderableEntryIndex(renderableEntries, absoluteIndex);
+  if (closestIndex === undefined) return undefined;
+
+  return getEntryAnchor(renderableEntries, closestIndex);
+};
+
+export const getUnreadTargetAnchor = ({
+  renderableEntries,
+  eventId,
+  absoluteIndex,
+}: {
+  renderableEntries: TimelineEventEntry[];
+  eventId: string;
+  absoluteIndex: number;
+}) => {
+  const visibleIndex = getEventEntryIndex(renderableEntries, eventId);
+  if (visibleIndex !== -1) {
+    return getEntryAnchor(renderableEntries, visibleIndex);
+  }
+
+  const nextIndex = getNextRenderableEntryIndex(renderableEntries, absoluteIndex);
+  if (nextIndex !== undefined) {
+    return getEntryAnchor(renderableEntries, nextIndex);
+  }
+
+  const closestIndex = getClosestRenderableEntryIndex(renderableEntries, absoluteIndex);
+  if (closestIndex === undefined) return undefined;
+
+  return getEntryAnchor(renderableEntries, closestIndex);
+};
+
+export const shouldRenderUnreadDividerAt = ({
+  readUptoAbsoluteIndex,
+  eventAbsoluteIndex,
+  prevRenderedEventAbsoluteIndex,
+}: {
+  readUptoAbsoluteIndex: number | undefined;
+  eventAbsoluteIndex: number | undefined;
+  prevRenderedEventAbsoluteIndex: number | undefined;
+}): boolean =>
+  readUptoAbsoluteIndex !== undefined &&
+  eventAbsoluteIndex !== undefined &&
+  eventAbsoluteIndex > readUptoAbsoluteIndex &&
+  (prevRenderedEventAbsoluteIndex === undefined ||
+    prevRenderedEventAbsoluteIndex <= readUptoAbsoluteIndex);
 
 export const timelineToEventsCount = (t: EventTimeline) => t.getEvents().length;
 export const getTimelinesEventsCount = (timelines: EventTimeline[]): number => {
@@ -793,23 +1050,24 @@ const useEventTimelineLoader = (
   onError: (err: Error | null) => void
 ) => {
   const loadEventTimeline = useCallback(
-    async (eventId: string) => {
+    async (eventId: string): Promise<EventTimeline[] | undefined> => {
       const [err, replyEvtTimeline] = await to(
         mx.getEventTimeline(room.getUnfilteredTimelineSet(), eventId)
       );
       if (!replyEvtTimeline) {
         onError(err ?? null);
-        return;
+        return undefined;
       }
       const linkedTimelines = getLinkedTimelines(replyEvtTimeline);
       const absIndex = getEventIdAbsoluteIndex(linkedTimelines, replyEvtTimeline, eventId);
 
       if (absIndex === undefined) {
         onError(err ?? null);
-        return;
+        return undefined;
       }
 
       onLoad(eventId, linkedTimelines, absIndex);
+      return linkedTimelines;
     },
     [mx, room, onLoad, onError]
   );
@@ -1099,10 +1357,64 @@ export const shouldResetRoomThreadFilterForEvent = (
   threadId: string | undefined,
   threadFilter: ThreadFilter,
   filteredEvents: MatrixEvent[],
-  eventId: string
-): boolean =>
-  isRoomThreadFilterActive(threadId, threadFilter) &&
-  filteredEvents.findIndex((event) => event.getId() === eventId) === -1;
+  room: Room,
+  threadResolutionMap: Map<string, { isResolved: boolean }>,
+  eventId: string,
+  threadReplyCountMap?: Map<string, number>
+): boolean | undefined => {
+  if (!isRoomThreadFilterActive(threadId, threadFilter)) {
+    return false;
+  }
+
+  if (filteredEvents.findIndex((event) => event.getId() === eventId) !== -1) {
+    return false;
+  }
+
+  const matchesThreadFilter = matchesRoomThreadFilter(
+    room,
+    threadResolutionMap,
+    eventId,
+    threadFilter as Exclude<ThreadFilter, 'all'>,
+    threadReplyCountMap
+  );
+
+  if (matchesThreadFilter === undefined) {
+    return undefined;
+  }
+
+  return !matchesThreadFilter;
+};
+
+const shouldResetRoomThreadFilterForLoadedEvent = (
+  threadId: string | undefined,
+  threadFilter: ThreadFilter,
+  room: Room,
+  threadResolutionMap: Map<string, { isResolved: boolean }>,
+  eventId: string,
+  linkedTimelines: EventTimeline[] | undefined
+): boolean => {
+  if (!isRoomThreadFilterActive(threadId, threadFilter) || !linkedTimelines) {
+    return false;
+  }
+
+  const targetEvent = room.findEventById(eventId);
+  if (!targetEvent) {
+    return false;
+  }
+
+  const loadedThreadReplyCountMap = buildThreadReplyCountMap(
+    linkedTimelines.flatMap((timeline) => timeline.getEvents())
+  );
+
+  if (!isVisibleThreadRootEvent(targetEvent, room, threadResolutionMap, loadedThreadReplyCountMap)) {
+    return true;
+  }
+
+  const isResolved = threadResolutionMap.get(eventId)?.isResolved ?? false;
+  const matchesThreadFilter = threadFilter === 'resolved' ? isResolved : !isResolved;
+
+  return !matchesThreadFilter;
+};
 
 const getRoomUnreadInfo = (room: Room, scrollTo = false) => {
   const readUptoEventId = room.getEventReadUpTo(room.client.getUserId() ?? '');
@@ -1225,6 +1537,7 @@ export function RoomTimeline({
   const threadPaginatingBackRef = useRef(false);
   const threadPaginatingFrontRef = useRef(false);
   const threadIdRef = useRef(threadId);
+  const threadFilterRef = useRef(threadFilter);
   const threadEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
     new WeakMap<MatrixEvent, number>()
   );
@@ -1239,12 +1552,14 @@ export function RoomTimeline({
     | undefined
   >();
   const pendingRoomFocusRef = useRef<RoomFocusRetry | undefined>();
+  const skipNextRoomTimelineResetRef = useRef(false);
   const suppressFocusPaginationRef = useRef(false);
   const alive = useAlive();
   roomIdRef.current = room.roomId;
   threadPaginatingBackRef.current = threadPaginatingBack;
   threadPaginatingFrontRef.current = threadPaginatingFront;
   threadIdRef.current = threadId;
+  threadFilterRef.current = threadFilter;
 
   const linkifyOpts = useMemo<LinkifyOpts>(
     () => ({
@@ -1279,14 +1594,12 @@ export function RoomTimeline({
   );
   const eventsLength = getTimelinesEventsCount(timeline.linkedTimelines);
   const threadResolutionMap = useRoomThreadResolutionMap(room);
-
   useEffect(() => {
     liveExpandOnceIds.current.clear();
   }, [room.roomId, threadId]);
-
-  const renderableEvents = useMemo(
+  const rawRenderableEventEntries = useMemo(
     () =>
-      getRenderableEvents(
+      getRenderableEventEntries(
         timeline.linkedTimelines,
         room,
         threadId,
@@ -1306,6 +1619,54 @@ export function RoomTimeline({
       hideNickAvatarEvents,
     ]
   );
+  const resolveConfirmedRoomEventId = useMemo(
+    () =>
+      threadId
+        ? undefined
+        : buildResolveConfirmedEventId(
+            room,
+            rawRenderableEventEntries.map(({ event }) => event)
+          ),
+    [threadId, room, rawRenderableEventEntries]
+  );
+  const renderableEventEntries = useMemo(
+    () =>
+      threadId
+        ? rawRenderableEventEntries
+        : dedupeThreadRenderEventEntries(
+            rawRenderableEventEntries,
+            resolveConfirmedRoomEventId
+          ),
+    [threadId, rawRenderableEventEntries, resolveConfirmedRoomEventId]
+  );
+  const renderableEvents = useMemo(
+    () => renderableEventEntries.map(({ event }) => event),
+    [renderableEventEntries]
+  );
+  const loadedTimelineEvents = useMemo(() => {
+    if (threadId) return [] as MatrixEvent[];
+    const loadedEvents: MatrixEvent[] = [];
+    timeline.linkedTimelines.forEach((linkedTimeline) => {
+      loadedEvents.push(...linkedTimeline.getEvents());
+    });
+    return loadedEvents;
+  }, [threadId, timeline]);
+  const threadReplyCountMap = useMemo(
+    () => (threadId ? new Map<string, number>() : buildThreadReplyCountMap(loadedTimelineEvents)),
+    [threadId, loadedTimelineEvents]
+  );
+  const threadParticipantMap = useMemo(
+    () =>
+      threadId ? new Map<string, string[]>() : buildThreadParticipantMap(loadedTimelineEvents),
+    [threadId, loadedTimelineEvents]
+  );
+  const threadSummaryInfoMap = useMemo(
+    () =>
+      threadId
+        ? new Map<string, MindroomThreadSummaryInfo>()
+        : buildThreadSummaryMap(loadedTimelineEvents),
+    [threadId, loadedTimelineEvents]
+  );
   const visibleThreadCounts = useMemo<RoomThreadOverviewCounts>(() => {
     let unresolved = 0;
     let resolved = 0;
@@ -1314,9 +1675,9 @@ export function RoomTimeline({
       const eventId = event.getId();
       if (!eventId) continue;
 
-      const isRoot =
-        event.isThreadRoot || !!room.getThread(eventId) || threadResolutionMap.has(eventId);
-      if (!isRoot) continue;
+      if (!isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)) {
+        continue;
+      }
 
       const resolution = threadResolutionMap.get(eventId);
       if (resolution?.isResolved) {
@@ -1331,13 +1692,56 @@ export function RoomTimeline({
       resolved,
       all: unresolved + resolved,
     };
-  }, [renderableEvents, room, threadResolutionMap]);
+  }, [renderableEvents, room, threadReplyCountMap, threadResolutionMap]);
   const roomThreadFilterActive = isRoomThreadFilterActive(threadId, threadFilter);
   const threadFilteredEvents = useMemo(
     () =>
-      getThreadFilteredEvents(renderableEvents, room, threadResolutionMap, threadId, threadFilter),
-    [renderableEvents, room, threadResolutionMap, threadId, threadFilter]
+      getThreadFilteredEvents(
+        renderableEvents,
+        room,
+        threadResolutionMap,
+        threadId,
+        threadFilter,
+        threadReplyCountMap
+      ),
+    [renderableEvents, room, threadResolutionMap, threadId, threadFilter, threadReplyCountMap]
   );
+  const threadFilteredEventEntries = useMemo(() => {
+    const filteredEventIds = new Set<string>();
+    threadFilteredEvents.forEach((event) => {
+      const filteredEventId = event.getId();
+      if (filteredEventId) {
+        filteredEventIds.add(filteredEventId);
+      }
+    });
+
+    return renderableEventEntries.filter(({ event }) => {
+      const filteredEventId = event.getId();
+      return !!filteredEventId && filteredEventIds.has(filteredEventId);
+    });
+  }, [renderableEventEntries, threadFilteredEvents]);
+  const readUptoAbsoluteIndex = useMemo(() => {
+    if (threadId) return undefined;
+    const currentReadUptoEventId = unreadInfo?.readUptoEventId;
+    if (!currentReadUptoEventId) return undefined;
+
+    return getLinkedTimelinesEventAbsoluteIndex(
+      timeline.linkedTimelines,
+      currentReadUptoEventId
+    );
+  }, [threadId, timeline.linkedTimelines, unreadInfo?.readUptoEventId]);
+  const unreadScrollAnchorIndex = useMemo(() => {
+    const currentReadUptoEventId = unreadInfo?.readUptoEventId;
+    if (threadId || !currentReadUptoEventId) return undefined;
+
+    const visibleIndex = getEventEntryIndex(threadFilteredEventEntries, currentReadUptoEventId);
+    if (visibleIndex !== -1) {
+      return visibleIndex;
+    }
+
+    if (readUptoAbsoluteIndex === undefined) return undefined;
+    return getNextRenderableEntryIndex(threadFilteredEventEntries, readUptoAbsoluteIndex);
+  }, [threadFilteredEventEntries, threadId, unreadInfo?.readUptoEventId, readUptoAbsoluteIndex]);
   const filteredLength = threadFilteredEvents.length;
   const activeTimelineRange = useMemo(
     () => getActiveTimelineRange(threadId, threadFilter, timeline.range, filteredLength),
@@ -1381,6 +1785,10 @@ export function RoomTimeline({
     prevThreadFilterRef.current = threadFilter;
 
     if (prevThreadFilter !== 'all' && threadFilter === 'all' && !threadId) {
+      if (skipNextRoomTimelineResetRef.current) {
+        skipNextRoomTimelineResetRef.current = false;
+        return;
+      }
       setTimeline(
         getInitialTimeline(room, {
           threadId,
@@ -1706,9 +2114,9 @@ export function RoomTimeline({
     mx,
     room,
     useCallback(
-      (evtId, lTimelines, _evtAbsIndex) => {
+      (evtId, lTimelines, evtAbsIndex) => {
         if (!alive()) return;
-        const filtered = getRenderableEvents(
+        const renderableEntries = getRenderableEventEntries(
           lTimelines,
           room,
           threadId,
@@ -1717,16 +2125,32 @@ export function RoomTimeline({
           hideMembershipEvents,
           hideNickAvatarEvents
         );
-        const filteredIndex = filtered.findIndex((e) => e.getId() === evtId);
-        const idx = filteredIndex === -1 ? 0 : filteredIndex;
-        const fLen = filtered.length;
+        const anchor =
+          evtId === readUptoEventIdRef.current
+            ? getUnreadTargetAnchor({
+                renderableEntries,
+                eventId: evtId,
+                absoluteIndex: evtAbsIndex,
+              })
+            : getTimelineTargetAnchor({
+                linkedTimelines: lTimelines,
+                renderableEntries,
+                eventId: evtId,
+                absoluteIndex: evtAbsIndex,
+              });
+        const idx = anchor?.index ?? 0;
+        const fLen = renderableEntries.length;
 
-        setFocusItem({
-          eventId: evtId,
-          index: idx,
-          scrollTo: !threadId,
-          highlight: evtId !== readUptoEventIdRef.current,
-        });
+        setFocusItem(
+          anchor
+            ? {
+                eventId: anchor.eventId,
+                index: idx,
+                scrollTo: !threadId,
+                highlight: evtId !== readUptoEventIdRef.current,
+              }
+            : undefined
+        );
         setTimeline({
           linkedTimelines: lTimelines,
           range: {
@@ -1912,7 +2336,7 @@ export function RoomTimeline({
                 },
               }));
             }
-          } else if (liveExpandOnceId) {
+          } else {
             setTimeline((ct) => ({ ...ct }));
           }
           return;
@@ -2119,19 +2543,48 @@ export function RoomTimeline({
           setPendingThreadOpenTick((val) => val + 1);
           return;
         }
-        if (
-          shouldResetRoomThreadFilterForEvent(threadId, threadFilter, threadFilteredEvents, evtId)
-        ) {
+        const shouldResetRoomThreadFilter = shouldResetRoomThreadFilterForEvent(
+          threadId,
+          threadFilter,
+          threadFilteredEvents,
+          room,
+          threadResolutionMap,
+          evtId,
+          threadReplyCountMap
+        );
+
+        if (shouldResetRoomThreadFilter === true) {
           onThreadFilterChange('all');
         }
         setTimeline(getEmptyTimeline());
-        loadEventTimeline(evtId);
+        const loadedEventTimelines = await loadEventTimeline(evtId);
+
+        if (
+          shouldResetRoomThreadFilter === undefined &&
+          alive() &&
+          roomIdRef.current === room.roomId &&
+          !threadIdRef.current &&
+          shouldResetRoomThreadFilterForLoadedEvent(
+            threadIdRef.current,
+            threadFilterRef.current,
+            room,
+            threadResolutionMap,
+            evtId,
+            loadedEventTimelines
+          ) === true
+        ) {
+          skipNextRoomTimelineResetRef.current = true;
+          onThreadFilterChange('all');
+        }
       }
     },
     [
+      alive,
       mx,
       room,
       threadFilteredEvents,
+      threadResolutionMap,
+      threadReplyCountMap,
       scrollToItem,
       scrollToElement,
       loadEventTimeline,
@@ -2140,6 +2593,11 @@ export function RoomTimeline({
       threadFilter,
     ]
   );
+  const handleOpenEventRef = useRef(handleOpenEvent);
+
+  useEffect(() => {
+    handleOpenEventRef.current = handleOpenEvent;
+  }, [handleOpenEvent]);
 
   useThreadAwareTimelineRefresh({
     room,
@@ -2282,10 +2740,9 @@ export function RoomTimeline({
 
   useEffect(() => {
     if (eventId) {
-      setTimeline(getEmptyTimeline());
-      loadEventTimeline(eventId);
+      handleOpenEventRef.current(eventId);
     }
-  }, [eventId, loadEventTimeline]);
+  }, [eventId]);
 
   useEffect(() => {
     if (!threadId) return;
@@ -2500,17 +2957,14 @@ export function RoomTimeline({
   useLayoutEffect(() => {
     if (threadId) return;
     const { readUptoEventId, inLiveTimeline, scrollTo } = unreadInfo ?? {};
-    if (readUptoEventId && inLiveTimeline && scrollTo) {
-      const fIdx = threadFilteredEvents.findIndex((e) => e.getId() === readUptoEventId);
-      if (fIdx !== -1) {
-        scrollToItem(fIdx, {
-          behavior: 'instant',
-          align: 'start',
-          stopInView: true,
-        });
-      }
+    if (readUptoEventId && inLiveTimeline && scrollTo && unreadScrollAnchorIndex !== undefined) {
+      scrollToItem(unreadScrollAnchorIndex, {
+        behavior: 'instant',
+        align: 'start',
+        stopInView: true,
+      });
     }
-  }, [room, unreadInfo, scrollToItem, threadId, threadFilteredEvents]);
+  }, [room, unreadInfo, unreadScrollAnchorIndex, scrollToItem, threadId]);
 
   // scroll to focused message
   useLayoutEffect(() => {
@@ -2864,30 +3318,6 @@ export function RoomTimeline({
     [editor]
   );
   const { t } = useTranslation();
-  const loadedTimelineEvents = useMemo(() => {
-    if (threadId) return [] as MatrixEvent[];
-    const loadedEvents: MatrixEvent[] = [];
-    timeline.linkedTimelines.forEach((linkedTimeline) => {
-      loadedEvents.push(...linkedTimeline.getEvents());
-    });
-    return loadedEvents;
-  }, [threadId, timeline]);
-  const threadReplyCountMap = useMemo(
-    () => (threadId ? new Map<string, number>() : buildThreadReplyCountMap(loadedTimelineEvents)),
-    [threadId, loadedTimelineEvents]
-  );
-  const threadParticipantMap = useMemo(
-    () =>
-      threadId ? new Map<string, string[]>() : buildThreadParticipantMap(loadedTimelineEvents),
-    [threadId, loadedTimelineEvents]
-  );
-  const threadSummaryInfoMap = useMemo(
-    () =>
-      threadId
-        ? new Map<string, MindroomThreadSummaryInfo>()
-        : buildThreadSummaryMap(loadedTimelineEvents),
-    [threadId, loadedTimelineEvents]
-  );
 
   // Persistent cache for thread summaries (survives page reloads / room re-entry)
   const [cachedSummaryMap, setCachedSummaryMap] = useState<Map<string, MindroomThreadSummaryInfo>>(
@@ -3907,13 +4337,15 @@ export function RoomTimeline({
   }, [mx, persistThreadEventCache, thread, threadId]);
 
   let prevEvent: MatrixEvent | undefined;
+  let prevRenderedEventAbsoluteIndex: number | undefined;
   let isPrevRendered = false;
   let newDivider = false;
   let dayDivider = false;
   const renderResolvedEvent = (
     mEvent: MatrixEvent,
     item: number,
-    timelineSet: EventTimelineSet
+    timelineSet: EventTimelineSet,
+    eventAbsoluteIndex?: number
   ) => {
     const mEventId = mEvent?.getId();
 
@@ -3930,8 +4362,12 @@ export function RoomTimeline({
       return null;
     }
 
-    if (!newDivider && readUptoEventIdRef.current) {
-      newDivider = prevEvent?.getId() === readUptoEventIdRef.current;
+    if (!newDivider) {
+      newDivider = shouldRenderUnreadDividerAt({
+        readUptoAbsoluteIndex,
+        eventAbsoluteIndex,
+        prevRenderedEventAbsoluteIndex,
+      });
     }
     if (!dayDivider) {
       dayDivider = prevEvent ? !inSameDay(prevEvent.getTs(), mEvent.getTs()) : false;
@@ -3959,6 +4395,9 @@ export function RoomTimeline({
         );
     prevEvent = mEvent;
     isPrevRendered = !!eventJSX;
+    if (eventJSX) {
+      prevRenderedEventAbsoluteIndex = eventAbsoluteIndex;
+    }
 
     const newDividerJSX =
       newDivider && eventJSX && eventSender !== mx.getUserId() ? (
@@ -4005,14 +4444,15 @@ export function RoomTimeline({
   };
 
   const eventRenderer = (item: number) => {
-    const mEvent = threadFilteredEvents[item];
+    const eventEntry = threadFilteredEventEntries[item];
+    const mEvent = eventEntry?.event;
     if (!mEvent) return null;
     const mEventId = mEvent.getId();
     if (!mEventId) return null;
     const evtTimeline = room.getUnfilteredTimelineSet().getTimelineForEvent(mEventId);
     const timelineSet = evtTimeline?.getTimelineSet() ?? room.getUnfilteredTimelineSet();
 
-    return renderResolvedEvent(mEvent, item, timelineSet);
+    return renderResolvedEvent(mEvent, item, timelineSet, eventEntry.absoluteIndex);
   };
 
   return (
