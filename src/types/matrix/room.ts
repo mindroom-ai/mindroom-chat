@@ -35,7 +35,7 @@ export enum StateEvent {
   GroupCallPrefix = 'org.matrix.msc3401.call',
   GroupCallMemberPrefix = 'org.matrix.msc3401.call.member',
   ThreadResolution = 'com.mindroom.thread.resolution',
-  MindRoomScheduledTask = 'io.mindroom.scheduled_task',
+  MindRoomScheduledTask = 'com.mindroom.scheduled.task',
 
   SpaceChild = 'm.space.child',
   SpaceParent = 'm.space.parent',
