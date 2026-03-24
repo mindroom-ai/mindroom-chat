@@ -2943,3 +2943,32 @@ Validation:
 - Review:
   - Second self-review completed against `git diff`, focused regression output,
     and the full validation commands above.
+
+### feat: configurable pagination limit in Settings > Messages (CINNY-019)
+
+Files changed:
+
+- `src/app/state/settings.ts`
+- `src/app/state/settings.test.ts` (new)
+- `src/app/features/settings/general/General.tsx`
+- `src/app/features/room/RoomTimeline.tsx`
+- `src/app/features/room/RoomTimeline.test.ts`
+
+What changed:
+
+- Made the hardcoded `PAGINATION_LIMIT` (300) configurable via Settings > General > Messages.
+- Added `paginationLimit` to the `Settings` interface with a default of 300 and minimum of 50.
+- Exported `sanitizePaginationLimit()` for runtime validation of the setting.
+- Added "Message Preload Limit" number input in the Messages section of General settings.
+- Replaced all module-level constant usages in `RoomTimeline.tsx` with reactive values
+  from `useSetting`, using refs inside callbacks to avoid stale closures.
+- Updated `getInitialTimeline`, `getLatestTimelineRange`, `getVisibleTimelineRange`,
+  and `getActiveTimelineRange` to accept `paginationLimit` as a parameter.
+- Added unit tests for `sanitizePaginationLimit` covering edge cases.
+- Updated existing `RoomTimeline.test.ts` mocks for the new setting.
+
+Why:
+
+- MindRoom agent conversations in threads can generate large message volumes.
+  Users need to control how many messages are preloaded per batch to balance
+  between context visibility and memory usage.

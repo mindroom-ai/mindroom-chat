@@ -1,6 +1,14 @@
 import { atom } from 'jotai';
 
 const STORAGE_KEY = 'settings';
+
+export const DEFAULT_PAGINATION_LIMIT = 300;
+export const MIN_PAGINATION_LIMIT = 50;
+
+export const sanitizePaginationLimit = (value: unknown): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_PAGINATION_LIMIT;
+  return Math.max(Math.trunc(value), MIN_PAGINATION_LIMIT);
+};
 export type DateFormat = 'D MMM YYYY' | 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY/MM/DD' | '';
 export type MessageSpacing = '0' | '100' | '200' | '300' | '400' | '500';
 export enum MessageLayout {
@@ -40,6 +48,8 @@ export interface Settings {
   hour24Clock: boolean;
   dateFormatString: string;
 
+  paginationLimit: number;
+
   developerTools: boolean;
 }
 
@@ -74,16 +84,20 @@ const defaultSettings: Settings = {
   hour24Clock: false,
   dateFormatString: 'D MMM YYYY',
 
+  paginationLimit: DEFAULT_PAGINATION_LIMIT,
+
   developerTools: false,
 };
 
 export const getSettings = () => {
   const settings = localStorage.getItem(STORAGE_KEY);
   if (settings === null) return defaultSettings;
-  return {
+  const merged = {
     ...defaultSettings,
     ...(JSON.parse(settings) as Settings),
   };
+  merged.paginationLimit = sanitizePaginationLimit(merged.paginationLimit);
+  return merged;
 };
 
 export const setSettings = (settings: Settings) => {
