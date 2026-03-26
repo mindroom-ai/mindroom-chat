@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ClientRoot } from './ClientRoot';
 import { useActiveSession } from '../../hooks/useSessionStore';
+import { useSyncState } from '../../hooks/useSyncState';
+import { StoredSession } from '../../state/sessions';
 import {
   initClient,
   removeCurrentClientSessionAndReload,
@@ -122,16 +124,7 @@ vi.mock('../../hooks/useSessionStore', () => ({
   useActiveSession: vi.fn(),
 }));
 
-let currentSession:
-  | {
-      sessionId: string;
-      baseUrl: string;
-      userId: string;
-      deviceId: string;
-      accessToken: string;
-      lastUsedAt: number;
-    }
-  | undefined;
+let currentSession: StoredSession | undefined;
 
 const flushEffects = async () => {
   await Promise.resolve();
@@ -175,6 +168,14 @@ const renderClientRoot = () =>
       })
     )
   );
+
+const hasRenderedText = (
+  renderer: ReactTestRenderer | undefined,
+  text: string
+): boolean =>
+  !!renderer?.root.findAll(
+    (node) => typeof node.type === 'string' && node.children.includes(text)
+  ).length;
 
 describe('ClientRoot', () => {
   let renderer: ReactTestRenderer | undefined;
@@ -259,9 +260,6 @@ describe('ClientRoot', () => {
       lastUsedAt: 1,
       lastKnownPath: '/home/',
       lastKnownDisplayName: 'Alice',
-    } as typeof currentSession & {
-      lastKnownPath?: string;
-      lastKnownDisplayName?: string;
     };
 
     vi.mocked(useActiveSession).mockImplementation(() => currentSession);
@@ -382,5 +380,75 @@ describe('ClientRoot', () => {
     });
 
     expect(renderer?.toJSON()).toEqual('login page');
+  });
+
+  it('clears loading immediately when the client is already syncing before the hook listener attaches', async () => {
+    const client = {
+      getSyncState: vi.fn(() => 'SYNCING'),
+      stopClient: vi.fn(),
+      on: vi.fn(),
+      removeListener: vi.fn(),
+    };
+
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+    };
+
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(initClient).mockResolvedValue(client as never);
+    vi.mocked(startClient).mockResolvedValue(undefined);
+
+    await act(async () => {
+      renderer = create(renderClientRoot());
+      await flushEffects();
+    });
+
+    expect(client.getSyncState).toHaveBeenCalled();
+    expect(hasRenderedText(renderer, 'child')).toBe(true);
+  });
+
+  it('clears loading when the sync listener reaches a ready state', async () => {
+    let syncStateHandler: ((state: string) => void) | undefined;
+    const client = {
+      getSyncState: vi.fn(() => null),
+      stopClient: vi.fn(),
+      on: vi.fn(),
+      removeListener: vi.fn(),
+    };
+
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+    };
+
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(useSyncState).mockImplementation((_mx, onChange) => {
+      syncStateHandler = onChange;
+    });
+    vi.mocked(initClient).mockResolvedValue(client as never);
+    vi.mocked(startClient).mockResolvedValue(undefined);
+
+    await act(async () => {
+      renderer = create(renderClientRoot());
+      await flushEffects();
+    });
+
+    expect(hasRenderedText(renderer, 'child')).toBe(false);
+
+    await act(async () => {
+      syncStateHandler?.('CATCHUP');
+      await flushEffects();
+    });
+
+    expect(hasRenderedText(renderer, 'child')).toBe(true);
   });
 });

@@ -1263,6 +1263,45 @@ Thread summary preview (CINNY-003b, upgraded in CINNY-003c):
 - Remaining known product gap: no dedicated thread list sidebar or thread-specific unread model yet.
 - Remaining iOS hardening gap: session credentials are still localStorage-based in this branch (Keychain migration is still pending).
 
+## Active Work (2026-03-25)
+
+- CINNY-026 is implemented in the working tree to restore instant cached main-room message display after the session-scoped cache bootstrap changes in `904061b9`.
+- Completed implementation for this slice:
+  1. `ClientRoot` now starts the client in a second effect and has a sync-state safety net for missed cached `PREPARED`/`SYNCING`/`CATCHUP` startup states.
+  2. `RoomTimeline` now loads the latest room cache slice on room open, hydrates only when the loaded tail is missing/older, and deduplicates cached events against already loaded SDK events by event id.
+  3. Room/thread caches now attempt a copy-first legacy IndexedDB migration from the singleton DB names into the session-scoped DBs when the target cache is still empty.
+- Validation completed for this slice:
+  - focused tests:
+    - `npm run test -- src/app/pages/client/ClientRoot.test.ts src/app/features/room/RoomTimeline.test.ts src/app/features/room/roomEventCache.test.ts src/app/features/room/threadEventCache.test.ts src/app/features/room/cacheDbMigrationUtils.test.ts`
+  - `npm run build`
+  - `git diff --check`
+- Validation caveats for this slice:
+  - `npm run typecheck` still fails on broad pre-existing repository typing issues around `matrix-js-sdk` imports and unrelated app state/component files; no new typecheck matches were found for `ClientRoot.test.ts` or the new cache migration helper files after the implementation fixes.
+  - The requested live browser hard-gate could not be completed in this environment:
+    - the normal disposable-account path (`scripts/create-mindroom-e2e-account.sh` / `scripts/with-mindroom-tunnel.sh`) is blocked because `ssh mindroom` rejects the available SSH auth,
+    - a fallback plan to stand up a disposable local Matrix homeserver via Docker was blocked by command policy.
+- Review expectation for this slice:
+  - no sub-agent delegation was available in this run, so each logical step used an independent self-review before moving on.
+
+### CINNY-026 Fix Round 1 (2026-03-25)
+
+- Fixed the main-room cache hydration regression in `src/app/features/room/RoomTimeline.tsx`:
+  - replaced the invalid live-timeline call to `room.addEventsToTimeline(...)` with `await room.addLiveEvents(...)`,
+  - preserved extra poll/beacon aggregation via `mx.processAggregatedTimelineEvents(...)`,
+  - removed the silent hydration catch and now log room cache hydration failures with the room id.
+- Verified the thread cache-open path does not have the same live-timeline bug:
+  - `hydrateThreadFromCache(...)` only stages cached events into supplemental thread render state,
+  - it does not call `addEventsToTimeline(...)` on a live SDK timeline.
+- Added focused regression coverage in `src/app/features/room/RoomTimeline.test.ts` for:
+  - successful cached room hydration into the live timeline,
+  - error logging when room cache hydration fails.
+- Validation for Fix Round 1:
+  - `npm run test -- src/app/features/room/RoomTimeline.test.ts` passed
+  - `npm run build` passed
+  - `npm run typecheck` failed due pre-existing repository-wide `matrix-js-sdk` typing/import failures; the log included existing `RoomTimeline.tsx` errors from this branch baseline and no `RoomTimeline.test.ts` hits.
+- Review note:
+  - no sub-agent delegation was available in this run, so Fix Round 1 used an explicit second self-review of the final diff and validation output.
+
 ## Active Task Log (2026-03-23)
 
 Current task:

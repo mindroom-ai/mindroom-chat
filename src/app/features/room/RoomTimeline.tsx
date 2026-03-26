@@ -179,6 +179,7 @@ import {
   getRoomCursorAnchor,
   loadCachedRoomEventsBefore,
   loadCachedRoomPaginationToken,
+  loadLatestCachedRoomEvents,
   normalizeCachedRoomEvents,
   saveRoomEventsToCache,
 } from './roomEventCache';
@@ -1104,6 +1105,39 @@ const resolvePersistedRoomBeforeToken = (
   if (paginationToken === null || cachedBeforeToken === null) return null;
   if (typeof paginationToken === 'string') return paginationToken;
   return cachedBeforeToken;
+};
+
+const getLatestLoadedRoomEvent = (
+  room: Room,
+  linkedTimelines: EventTimeline[]
+): MatrixEvent | undefined => {
+  const loadedEvents = getMainTimelineCacheEvents(room, linkedTimelines);
+  return loadedEvents[loadedEvents.length - 1];
+};
+
+export const shouldHydrateLatestRoomCache = (
+  loadedLatestEvent: Partial<IEvent> | undefined,
+  cachedLatestEvent: Partial<IEvent> | undefined
+): boolean =>
+  compareCachedPaginationAnchors(
+    getRoomCursorAnchor(cachedLatestEvent),
+    getRoomCursorAnchor(loadedLatestEvent)
+  ) > 0;
+
+export const filterLatestRoomCacheHydrationEvents = (
+  rawCachedEvents: Partial<IEvent>[],
+  loadedEvents: MatrixEvent[]
+): Partial<IEvent>[] => {
+  const loadedEventIds = new Set(
+    loadedEvents
+      .map((mEvent) => mEvent.getId())
+      .filter((eventId): eventId is string => !!eventId)
+  );
+
+  return rawCachedEvents.filter(
+    (rawEvent) =>
+      typeof rawEvent.event_id === 'string' && !loadedEventIds.has(rawEvent.event_id)
+  );
 };
 
 const recalibrateTimelinePagination = (
@@ -2872,6 +2906,77 @@ export function RoomTimeline({
       cancelled = true;
     };
   }, [alive, eventsLength, persistRoomEventCache, room, sessionId, threadId, timeline.linkedTimelines]);
+
+  useEffect(() => {
+    if (threadId || eventId) return undefined;
+
+    let cancelled = false;
+    const hydrateRoomFromCache = async () => {
+      const cachedPage = await loadLatestCachedRoomEvents(
+        sessionId,
+        room.roomId,
+        safePaginationLimit
+      );
+
+      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
+
+      const currentLinkedTimelines = getLinkedTimelines(getLiveTimeline(room));
+      const loadedRoomEvents = getMainTimelineCacheEvents(room, currentLinkedTimelines);
+
+      if (
+        !shouldHydrateLatestRoomCache(
+          getLatestLoadedRoomEvent(room, currentLinkedTimelines)?.event as Partial<IEvent> | undefined,
+          cachedPage.events[cachedPage.events.length - 1]
+        )
+      ) {
+        return;
+      }
+
+      const mapper = mx.getEventMapper();
+      const cachedEvents = normalizeCachedRoomEvents(
+        filterLatestRoomCacheHydrationEvents(cachedPage.events, loadedRoomEvents)
+      ).map((rawEvent) => mapper(rawEvent));
+      if (cachedEvents.length === 0) return;
+
+      hydrateCachedEvents({
+        room,
+        events: cachedEvents,
+      });
+
+      const liveTimeline = getLiveTimeline(room);
+      const timelineWasEmpty = liveTimeline.getEvents().length === 0;
+      await room.addLiveEvents(cachedEvents, {
+        fromCache: true,
+        timelineWasEmpty,
+        addToState: false,
+      });
+      mx.processAggregatedTimelineEvents(room, cachedEvents);
+
+      if (room.hasEncryptionStateEvent()) {
+        await to(decryptAllTimelineEvent(mx, liveTimeline));
+      }
+
+      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
+
+      setTimeline(getInitialTimeline(room, safePaginationLimitRef.current, {
+        threadId: undefined,
+        ignoredUsersSet: recalibrateFilterOptsRef.current?.ignoredUsersSet ?? new Set(),
+        showHiddenEvents: recalibrateFilterOptsRef.current?.showHiddenEvents ?? false,
+        hideMembershipEvents: recalibrateFilterOptsRef.current?.hideMembershipEvents ?? false,
+        hideNickAvatarEvents: recalibrateFilterOptsRef.current?.hideNickAvatarEvents ?? false,
+      }));
+      scrollToBottomRef.current.count += 1;
+      scrollToBottomRef.current.smooth = false;
+      setAtBottom(true);
+    };
+
+    hydrateRoomFromCache().catch((error) => {
+      console.error('Failed to hydrate latest room cache for', room.roomId, error);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [alive, eventId, mx, room, safePaginationLimit, sessionId, threadId]);
 
   useEffect(() => {
     if (threadId) {
