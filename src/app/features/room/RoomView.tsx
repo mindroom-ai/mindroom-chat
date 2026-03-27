@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef } from 'react';
+import { useAtom } from 'jotai';
 import { Badge, Box, Chip, Icon, IconButton, Icons, Spinner, Text, color, config } from 'folds';
 import { EventType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
@@ -27,6 +28,7 @@ import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 import { useThreadResolution, useToggleThreadResolution } from './useRoomThreadResolution';
 import { useThreadRootEvent } from './useThreadRootEvent';
 import { type ThreadFilter, type ThreadSort } from './RoomThreadOverview';
+import { roomIdToThreadFilterAtomFamily } from '../../state/room/roomThreadFilters';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -79,16 +81,9 @@ export function RoomView({
   const editor = useEditor();
   // RoomTimeline is keyed by roomId/threadId below, so room-level filter state
   // must live here to survive thread open/close.
-  const [roomThreadFilter, setRoomThreadFilter] = useState<{ roomId: string; filter: ThreadFilter }>(
-    () => ({
-      roomId,
-      filter: 'all',
-    })
+  const [{ threadFilter, threadSort }, setThreadFilterState] = useAtom(
+    roomIdToThreadFilterAtomFamily(roomId)
   );
-  const [roomThreadSort, setRoomThreadSort] = useState<{ roomId: string; sort: ThreadSort }>(() => ({
-    roomId,
-    sort: 'default',
-  }));
 
   const mx = useMatrixClient();
 
@@ -116,31 +111,18 @@ export function RoomView({
     if (!threadId) return;
     navigateRoom(room.roomId, threadId, { replace: true });
   }, [navigateRoom, room.roomId, threadId]);
-  const threadFilter = roomThreadFilter.roomId === roomId ? roomThreadFilter.filter : 'all';
   const handleThreadFilterChange = useCallback(
     (filter: ThreadFilter) => {
-      setRoomThreadFilter({ roomId, filter });
+      setThreadFilterState((current) => ({ ...current, threadFilter: filter }));
     },
-    [roomId]
+    [setThreadFilterState]
   );
-  const threadSort = roomThreadSort.roomId === roomId ? roomThreadSort.sort : 'default';
   const handleThreadSortChange = useCallback(
     (sort: ThreadSort) => {
-      setRoomThreadSort({ roomId, sort });
+      setThreadFilterState((current) => ({ ...current, threadSort: sort }));
     },
-    [roomId]
+    [setThreadFilterState]
   );
-
-  useEffect(() => {
-    setRoomThreadFilter((current) =>
-      current.roomId === roomId && current.filter === 'all' ? current : { roomId, filter: 'all' }
-    );
-    setRoomThreadSort((current) =>
-      current.roomId === roomId && current.sort === 'default'
-        ? current
-        : { roomId, sort: 'default' }
-    );
-  }, [roomId]);
 
   // Thread view has a more specific "back" action than the generic room-page back:
   // first swipe exits the thread, then the room header/back handler can navigate out.
@@ -167,72 +149,70 @@ export function RoomView({
     <Page ref={roomViewRef}>
       <RoomViewHeader threadId={threadId} />
       {threadId && (
-        <>
-          <Box
-            alignItems="Center"
-            gap="300"
-            style={{
-              padding: `${config.space.S400} ${config.space.S400}`,
-              backgroundColor: threadResolved
-                ? color.Success.Container
-                : color.SurfaceVariant.Container,
-              borderBottom: `${config.borderWidth.B300} solid ${
-                threadResolved ? color.Success.ContainerLine : color.SurfaceVariant.ContainerLine
-              }`,
-              color: threadResolved ? color.Success.OnContainer : undefined,
-            }}
-          >
-            <IconButton size="300" radii="300" onClick={handleExitThread}>
-              <Icon src={Icons.ArrowLeft} />
-            </IconButton>
-            <Box direction="Column" grow="Yes" gap="100">
-              <Box direction="Row" alignItems="Center" gap="200">
-                <Text size="B400">Thread View</Text>
-                {threadResolved && (
-                  <Badge as="span" size="400" variant="Success" fill="Soft" radii="Pill" outlined>
-                    <Text size="T200">Resolved</Text>
-                  </Badge>
-                )}
-              </Box>
-              <Text size="T200" priority="300" truncate>
-                Focused thread context is active.
-              </Text>
-            </Box>
-            <Box shrink="No" direction="Column" alignItems="End" gap="100">
-              <Chip
-                variant={threadResolved ? 'Secondary' : 'Success'}
-                radii="Pill"
-                outlined={threadResolved}
-                disabled={
-                  !canToggleThreadResolution ||
-                  !validThreadId ||
-                  updatingThreadResolution ||
-                  threadResolutionPending
-                }
-                aria-label={threadResolved ? 'Unresolve this thread' : 'Resolve this thread'}
-                before={
-                  threadResolutionPending ? (
-                    <Spinner
-                      size="100"
-                      variant={threadResolved ? 'Secondary' : 'Success'}
-                      fill={threadResolved ? 'Soft' : 'Solid'}
-                    />
-                  ) : (
-                    <Icon size="50" src={threadResolved ? Icons.CheckTwice : Icons.Check} />
-                  )
-                }
-                onClick={() => validThreadId && setResolved(validThreadId, !threadResolved)}
-              >
-                <Text size="T200">{threadResolved ? 'Unresolve' : 'Resolve'}</Text>
-              </Chip>
-              {threadResolutionError && (
-                <Text size="T200" style={{ color: color.Critical.Main, maxWidth: '20rem' }}>
-                  {threadResolutionError.message}
-                </Text>
+        <Box
+          alignItems="Center"
+          gap="300"
+          style={{
+            padding: `${config.space.S400} ${config.space.S400}`,
+            backgroundColor: threadResolved
+              ? color.Success.Container
+              : color.SurfaceVariant.Container,
+            borderBottom: `${config.borderWidth.B300} solid ${
+              threadResolved ? color.Success.ContainerLine : color.SurfaceVariant.ContainerLine
+            }`,
+            color: threadResolved ? color.Success.OnContainer : undefined,
+          }}
+        >
+          <IconButton size="300" radii="300" onClick={handleExitThread}>
+            <Icon src={Icons.ArrowLeft} />
+          </IconButton>
+          <Box direction="Column" grow="Yes" gap="100">
+            <Box direction="Row" alignItems="Center" gap="200">
+              <Text size="B400">Thread View</Text>
+              {threadResolved && (
+                <Badge as="span" size="400" variant="Success" fill="Soft" radii="Pill" outlined>
+                  <Text size="T200">Resolved</Text>
+                </Badge>
               )}
             </Box>
+            <Text size="T200" priority="300" truncate>
+              Focused thread context is active.
+            </Text>
           </Box>
-        </>
+          <Box shrink="No" direction="Column" alignItems="End" gap="100">
+            <Chip
+              variant={threadResolved ? 'Secondary' : 'Success'}
+              radii="Pill"
+              outlined={threadResolved}
+              disabled={
+                !canToggleThreadResolution ||
+                !validThreadId ||
+                updatingThreadResolution ||
+                threadResolutionPending
+              }
+              aria-label={threadResolved ? 'Unresolve this thread' : 'Resolve this thread'}
+              before={
+                threadResolutionPending ? (
+                  <Spinner
+                    size="100"
+                    variant={threadResolved ? 'Secondary' : 'Success'}
+                    fill={threadResolved ? 'Soft' : 'Solid'}
+                  />
+                ) : (
+                  <Icon size="50" src={threadResolved ? Icons.CheckTwice : Icons.Check} />
+                )
+              }
+              onClick={() => validThreadId && setResolved(validThreadId, !threadResolved)}
+            >
+              <Text size="T200">{threadResolved ? 'Unresolve' : 'Resolve'}</Text>
+            </Chip>
+            {threadResolutionError && (
+              <Text size="T200" style={{ color: color.Critical.Main, maxWidth: '20rem' }}>
+                {threadResolutionError.message}
+              </Text>
+            )}
+          </Box>
+        </Box>
       )}
       <Box grow="Yes" direction="Column">
         <RoomTimeline
