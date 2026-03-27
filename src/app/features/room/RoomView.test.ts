@@ -1,4 +1,5 @@
 import React from 'react';
+import { Provider as JotaiProvider } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -171,68 +172,213 @@ vi.mock('./useThreadRootEvent', () => ({
 
 const makeRoom = (roomId: string) => ({ roomId });
 const getTimeline = (renderer: ReturnType<typeof create>) =>
-  (renderer.root.findByType(roomTimelineType as never) as unknown) as {
+  renderer.root.findByType(roomTimelineType as never) as unknown as {
     props: {
-      onThreadFilterChange: (filter: 'all' | 'resolved' | 'unresolved') => void;
-      threadFilter: 'all' | 'resolved' | 'unresolved';
+      onThreadFilterChange: (filter: 'all' | 'resolved' | 'unresolved' | 'unread') => void;
+      threadFilter: 'all' | 'resolved' | 'unresolved' | 'unread';
+      onThreadSortChange: (sort: 'default' | 'last-reply' | 'streaming' | 'scheduled') => void;
+      threadSort: 'default' | 'last-reply' | 'streaming' | 'scheduled';
     };
   };
+
+const renderRoomView = async (element: React.ReactElement): Promise<ReturnType<typeof create>> => {
+  let renderer: ReturnType<typeof create> | undefined;
+
+  await act(async () => {
+    renderer = create(React.createElement(JotaiProvider, undefined, element));
+  });
+
+  if (!renderer) {
+    throw new Error('RoomView renderer was not created');
+  }
+
+  return renderer;
+};
 
 describe('RoomView', () => {
   it('persists the room thread filter across thread enter/exit', async () => {
     const { RoomView } = await import('./RoomView');
     const room = makeRoom('!room-a:example.org');
-    let renderer: ReturnType<typeof create> | undefined;
+    const renderer = await renderRoomView(React.createElement(RoomView, { room: room as never }));
 
     await act(async () => {
-      renderer = create(React.createElement(RoomView, { room: room as never }));
+      getTimeline(renderer).props.onThreadFilterChange('unresolved');
     });
+
+    expect(getTimeline(renderer).props.threadFilter).toBe('unresolved');
 
     await act(async () => {
-      getTimeline(renderer!).props.onThreadFilterChange('unresolved');
+      renderer.update(
+        React.createElement(
+          JotaiProvider,
+          undefined,
+          React.createElement(RoomView, { room: room as never, threadId: '$thread' })
+        )
+      );
     });
 
-    expect(getTimeline(renderer!).props.threadFilter).toBe('unresolved');
+    expect(getTimeline(renderer).props.threadFilter).toBe('unresolved');
 
     await act(async () => {
-      renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+      renderer.update(
+        React.createElement(
+          JotaiProvider,
+          undefined,
+          React.createElement(RoomView, { room: room as never })
+        )
+      );
     });
 
-    expect(getTimeline(renderer!).props.threadFilter).toBe('unresolved');
-
-    await act(async () => {
-      renderer?.update(React.createElement(RoomView, { room: room as never }));
-    });
-
-    expect(getTimeline(renderer!).props.threadFilter).toBe('unresolved');
+    expect(getTimeline(renderer).props.threadFilter).toBe('unresolved');
   });
 
-  it('resets the room thread filter when switching rooms', async () => {
+  it('preserves the room thread filter when switching back to a room', async () => {
     const { RoomView } = await import('./RoomView');
     const roomA = makeRoom('!room-a:example.org');
     const roomB = makeRoom('!room-b:example.org');
-    let renderer: ReturnType<typeof create> | undefined;
+    const renderer = await renderRoomView(React.createElement(RoomView, { room: roomA as never }));
 
     await act(async () => {
-      renderer = create(React.createElement(RoomView, { room: roomA as never }));
+      getTimeline(renderer).props.onThreadFilterChange('resolved');
+    });
+
+    expect(getTimeline(renderer).props.threadFilter).toBe('resolved');
+
+    await act(async () => {
+      renderer.update(
+        React.createElement(
+          JotaiProvider,
+          undefined,
+          React.createElement(RoomView, { room: roomB as never })
+        )
+      );
+    });
+
+    expect(getTimeline(renderer).props.threadFilter).toBe('all');
+
+    await act(async () => {
+      renderer.update(
+        React.createElement(
+          JotaiProvider,
+          undefined,
+          React.createElement(RoomView, { room: roomA as never })
+        )
+      );
+    });
+
+    expect(getTimeline(renderer).props.threadFilter).toBe('resolved');
+  });
+
+  it('keeps per-room thread filter state independent', async () => {
+    const { RoomView } = await import('./RoomView');
+    const roomA = makeRoom('!room-a:example.org');
+    const roomB = makeRoom('!room-b:example.org');
+    const renderer = await renderRoomView(React.createElement(RoomView, { room: roomA as never }));
+
+    await act(async () => {
+      getTimeline(renderer).props.onThreadFilterChange('unresolved');
     });
 
     await act(async () => {
-      getTimeline(renderer!).props.onThreadFilterChange('resolved');
+      renderer.update(
+        React.createElement(
+          JotaiProvider,
+          undefined,
+          React.createElement(RoomView, { room: roomB as never })
+        )
+      );
     });
-
-    expect(getTimeline(renderer!).props.threadFilter).toBe('resolved');
 
     await act(async () => {
-      renderer?.update(React.createElement(RoomView, { room: roomB as never }));
+      getTimeline(renderer).props.onThreadFilterChange('resolved');
     });
 
-    expect(getTimeline(renderer!).props.threadFilter).toBe('all');
+    expect(getTimeline(renderer).props.threadFilter).toBe('resolved');
 
     await act(async () => {
-      renderer?.update(React.createElement(RoomView, { room: roomA as never }));
+      renderer.update(
+        React.createElement(
+          JotaiProvider,
+          undefined,
+          React.createElement(RoomView, { room: roomA as never })
+        )
+      );
     });
 
-    expect(getTimeline(renderer!).props.threadFilter).toBe('all');
+    expect(getTimeline(renderer).props.threadFilter).toBe('unresolved');
+
+    await act(async () => {
+      renderer.update(
+        React.createElement(
+          JotaiProvider,
+          undefined,
+          React.createElement(RoomView, { room: roomB as never })
+        )
+      );
+    });
+
+    expect(getTimeline(renderer).props.threadFilter).toBe('resolved');
+  });
+
+  it('persists thread sort across room switches', async () => {
+    const { RoomView } = await import('./RoomView');
+    const roomA = makeRoom('!room-a:example.org');
+    const roomB = makeRoom('!room-b:example.org');
+    const renderer = await renderRoomView(React.createElement(RoomView, { room: roomA as never }));
+
+    await act(async () => {
+      getTimeline(renderer).props.onThreadSortChange('streaming');
+    });
+
+    expect(getTimeline(renderer).props.threadSort).toBe('streaming');
+
+    await act(async () => {
+      renderer.update(
+        React.createElement(
+          JotaiProvider,
+          undefined,
+          React.createElement(RoomView, { room: roomB as never })
+        )
+      );
+    });
+
+    expect(getTimeline(renderer).props.threadSort).toBe('default');
+
+    await act(async () => {
+      renderer.update(
+        React.createElement(
+          JotaiProvider,
+          undefined,
+          React.createElement(RoomView, { room: roomA as never })
+        )
+      );
+    });
+
+    expect(getTimeline(renderer).props.threadSort).toBe('streaming');
+  });
+
+  it('uses default thread toolbar state for rooms that have not been visited', async () => {
+    const { RoomView } = await import('./RoomView');
+    const roomA = makeRoom('!room-a:example.org');
+    const roomC = makeRoom('!room-c:example.org');
+    const renderer = await renderRoomView(React.createElement(RoomView, { room: roomA as never }));
+
+    await act(async () => {
+      getTimeline(renderer).props.onThreadFilterChange('unread');
+      getTimeline(renderer).props.onThreadSortChange('scheduled');
+    });
+
+    await act(async () => {
+      renderer.update(
+        React.createElement(
+          JotaiProvider,
+          undefined,
+          React.createElement(RoomView, { room: roomC as never })
+        )
+      );
+    });
+
+    expect(getTimeline(renderer).props.threadFilter).toBe('all');
+    expect(getTimeline(renderer).props.threadSort).toBe('default');
   });
 });

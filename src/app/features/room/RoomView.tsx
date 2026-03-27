@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef } from 'react';
+import { useAtom } from 'jotai';
 import { Badge, Box, Chip, Icon, IconButton, Icons, Spinner, Text, color, config } from 'folds';
 import { EventType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
@@ -27,6 +28,7 @@ import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 import { useThreadResolution, useToggleThreadResolution } from './useRoomThreadResolution';
 import { useThreadRootEvent } from './useThreadRootEvent';
 import { type ThreadFilter, type ThreadSort } from './RoomThreadOverview';
+import { roomIdToThreadFilterAtomFamily } from '../../state/room/roomThreadFilters';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -77,16 +79,9 @@ export function RoomView({
   const editor = useEditor();
   // RoomTimeline is keyed by roomId/threadId below, so room-level filter state
   // must live here to survive thread open/close.
-  const [roomThreadFilter, setRoomThreadFilter] = useState<{ roomId: string; filter: ThreadFilter }>(
-    () => ({
-      roomId,
-      filter: 'all',
-    })
+  const [{ threadFilter, threadSort }, setThreadFilterState] = useAtom(
+    roomIdToThreadFilterAtomFamily(roomId)
   );
-  const [roomThreadSort, setRoomThreadSort] = useState<{ roomId: string; sort: ThreadSort }>(() => ({
-    roomId,
-    sort: 'default',
-  }));
 
   const mx = useMatrixClient();
 
@@ -114,31 +109,18 @@ export function RoomView({
     if (!threadId) return;
     navigateRoom(room.roomId, threadId, { replace: true });
   }, [navigateRoom, room.roomId, threadId]);
-  const threadFilter = roomThreadFilter.roomId === roomId ? roomThreadFilter.filter : 'all';
   const handleThreadFilterChange = useCallback(
     (filter: ThreadFilter) => {
-      setRoomThreadFilter({ roomId, filter });
+      setThreadFilterState((current) => ({ ...current, threadFilter: filter }));
     },
-    [roomId]
+    [setThreadFilterState]
   );
-  const threadSort = roomThreadSort.roomId === roomId ? roomThreadSort.sort : 'default';
   const handleThreadSortChange = useCallback(
     (sort: ThreadSort) => {
-      setRoomThreadSort({ roomId, sort });
+      setThreadFilterState((current) => ({ ...current, threadSort: sort }));
     },
-    [roomId]
+    [setThreadFilterState]
   );
-
-  useEffect(() => {
-    setRoomThreadFilter((current) =>
-      current.roomId === roomId && current.filter === 'all' ? current : { roomId, filter: 'all' }
-    );
-    setRoomThreadSort((current) =>
-      current.roomId === roomId && current.sort === 'default'
-        ? current
-        : { roomId, sort: 'default' }
-    );
-  }, [roomId]);
 
   // Thread view has a more specific "back" action than the generic room-page back:
   // first swipe exits the thread, then the room header/back handler can navigate out.
