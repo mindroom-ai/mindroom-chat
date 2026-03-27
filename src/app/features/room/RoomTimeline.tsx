@@ -166,11 +166,19 @@ import {
   shouldPinThreadToBottomOnOpen,
 } from './threadRenderUtils';
 import { useThreadRenderState } from './useThreadRenderState';
+import { RoomThreadOverview } from './RoomThreadOverview';
 import {
-  RoomThreadOverview,
-  type RoomThreadOverviewCounts,
   type ThreadFilter,
-} from './RoomThreadOverview';
+  type ThreadSort,
+  type RoomThreadOverviewCounts,
+  type ThreadOverviewMetadata,
+  buildThreadMetadataMap,
+  computeOverviewCounts,
+  filterThreadRootEvents,
+  sortThreadRootEvents,
+  getRoomScheduledTaskCounts,
+} from './roomThreadOverviewModel';
+import { useStateEvents } from '../../hooks/useStateEvents';
 import {
   getThreadCursorAnchor,
   loadCachedThreadEventsBefore,
@@ -456,7 +464,8 @@ const matchesRoomThreadFilter = (
   threadResolutionMap: Map<string, { isResolved: boolean }>,
   eventId: string,
   threadFilter: Exclude<ThreadFilter, 'all'>,
-  threadReplyCountMap?: Map<string, number>
+  threadReplyCountMap?: Map<string, number>,
+  threadMetadataMap?: Map<string, ThreadOverviewMetadata>
 ): boolean | undefined => {
   const targetEvent = room.findEventById(eventId);
 
@@ -466,6 +475,10 @@ const matchesRoomThreadFilter = (
     }
   } else if (!isKnownThreadRootEventId(room, threadResolutionMap, eventId, threadReplyCountMap)) {
     return undefined;
+  }
+
+  if (threadFilter === 'unread') {
+    return threadMetadataMap?.get(eventId)?.isUnread ?? false;
   }
 
   const isResolved = threadResolutionMap.get(eventId)?.isResolved ?? false;
@@ -478,7 +491,8 @@ export const getThreadFilteredEvents = (
   threadResolutionMap: Map<string, { isResolved: boolean }>,
   threadId: string | undefined,
   threadFilter: ThreadFilter,
-  threadReplyCountMap?: Map<string, number>
+  threadReplyCountMap?: Map<string, number>,
+  threadMetadataMap?: Map<string, ThreadOverviewMetadata>
 ): MatrixEvent[] => {
   if (threadId || threadFilter === 'all') return renderableEvents;
 
@@ -487,6 +501,10 @@ export const getThreadFilteredEvents = (
     if (!eventId) return false;
     if (!isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)) {
       return false;
+    }
+
+    if (threadFilter === 'unread') {
+      return threadMetadataMap?.get(eventId)?.isUnread ?? false;
     }
 
     const resolution = threadResolutionMap.get(eventId);
@@ -787,6 +805,8 @@ type RoomTimelineProps = {
   threadId?: string;
   threadFilter: ThreadFilter;
   onThreadFilterChange: (filter: ThreadFilter) => void;
+  threadSort: ThreadSort;
+  onThreadSortChange: (sort: ThreadSort) => void;
   roomInputRef: RefObject<HTMLElement>;
   editor: Editor;
 };
@@ -1494,12 +1514,14 @@ const getVisibleTimelineRange = (
 
 export const isRoomThreadFilterActive = (
   threadId: string | undefined,
-  threadFilter: ThreadFilter
-): boolean => !threadId && threadFilter !== 'all';
+  threadFilter: ThreadFilter,
+  threadSort: ThreadSort = 'default'
+): boolean => !threadId && (threadFilter !== 'all' || threadSort !== 'default');
 
 export const getActiveTimelineRange = (
   threadId: string | undefined,
   threadFilter: ThreadFilter,
+  threadSort: ThreadSort,
   range: ItemRange,
   count: number,
   paginationLimit: number
@@ -1508,7 +1530,7 @@ export const getActiveTimelineRange = (
     return { start: 0, end: 0 };
   }
 
-  if (isRoomThreadFilterActive(threadId, threadFilter)) {
+  if (isRoomThreadFilterActive(threadId, threadFilter, threadSort)) {
     return { start: 0, end: count };
   }
 
@@ -1522,14 +1544,21 @@ export const shouldResetRoomThreadFilterForEvent = (
   room: Room,
   threadResolutionMap: Map<string, { isResolved: boolean }>,
   eventId: string,
-  threadReplyCountMap?: Map<string, number>
+  threadReplyCountMap?: Map<string, number>,
+  threadSort: ThreadSort = 'default'
 ): boolean | undefined => {
-  if (!isRoomThreadFilterActive(threadId, threadFilter)) {
+  if (!isRoomThreadFilterActive(threadId, threadFilter, threadSort)) {
     return false;
   }
 
   if (filteredEvents.findIndex((event) => event.getId() === eventId) !== -1) {
     return false;
+  }
+
+  // When sort is non-default, the event may be hidden by sort-based overview mode
+  // even if it would match the current filter. Reset both.
+  if (threadSort !== 'default') {
+    return true;
   }
 
   const matchesThreadFilter = matchesRoomThreadFilter(
@@ -1555,6 +1584,7 @@ export const getRoomEventFocusTarget = ({
   threadId,
   threadFilter,
   threadReplyCountMap,
+  threadSort = 'default',
 }: {
   eventId: string;
   renderableEvents: MatrixEvent[];
@@ -1563,6 +1593,7 @@ export const getRoomEventFocusTarget = ({
   threadId: string | undefined;
   threadFilter: ThreadFilter;
   threadReplyCountMap?: Map<string, number>;
+  threadSort?: ThreadSort;
 }): {
   index: number;
   count: number;
@@ -1595,7 +1626,8 @@ export const getRoomEventFocusTarget = ({
       room,
       threadResolutionMap,
       eventId,
-      threadReplyCountMap
+      threadReplyCountMap,
+      threadSort
     ) === true;
   if (resetThreadFilter) {
     return {
@@ -1607,7 +1639,7 @@ export const getRoomEventFocusTarget = ({
 
   return {
     index: 0,
-    count: isRoomThreadFilterActive(threadId, threadFilter)
+    count: isRoomThreadFilterActive(threadId, threadFilter, threadSort)
       ? filteredEvents.length
       : renderableEvents.length,
     resetThreadFilter: false,
@@ -1629,9 +1661,10 @@ const shouldResetRoomThreadFilterForLoadedEvent = (
   room: Room,
   threadResolutionMap: Map<string, { isResolved: boolean }>,
   eventId: string,
-  linkedTimelines: EventTimeline[] | undefined
+  linkedTimelines: EventTimeline[] | undefined,
+  threadSort: ThreadSort = 'default'
 ): boolean => {
-  if (!isRoomThreadFilterActive(threadId, threadFilter) || !linkedTimelines) {
+  if (!isRoomThreadFilterActive(threadId, threadFilter, threadSort) || !linkedTimelines) {
     return false;
   }
 
@@ -1645,6 +1678,16 @@ const shouldResetRoomThreadFilterForLoadedEvent = (
   );
 
   if (!isVisibleThreadRootEvent(targetEvent, room, threadResolutionMap, loadedThreadReplyCountMap)) {
+    return true;
+  }
+
+  // When sort is non-default, always reset (target may not appear in sorted overview)
+  if (threadSort !== 'default') {
+    return true;
+  }
+
+  if (threadFilter === 'unread') {
+    // For unread filter on loaded events, conservatively reset
     return true;
   }
 
@@ -1672,6 +1715,8 @@ export function RoomTimeline({
   threadId,
   threadFilter,
   onThreadFilterChange,
+  threadSort,
+  onThreadSortChange,
   roomInputRef,
   editor,
 }: RoomTimelineProps) {
@@ -1909,61 +1954,147 @@ export function RoomTimeline({
         : buildThreadSummaryMap(loadedTimelineEvents),
     [threadId, loadedTimelineEvents]
   );
-  const visibleThreadCounts = useMemo<RoomThreadOverviewCounts>(() => {
-    let unresolved = 0;
-    let resolved = 0;
+  // ── Scheduled task state events (batch) ──
+  const scheduledTaskEvents = useStateEvents(room, StateEvent.MindRoomScheduledTask);
+  const scheduledTaskCounts = useMemo(
+    () => (threadId ? new Map<string, number>() : getRoomScheduledTaskCounts(scheduledTaskEvents)),
+    [threadId, scheduledTaskEvents]
+  );
 
-    for (const event of renderableEvents) {
-      const eventId = event.getId();
-      if (!eventId) continue;
+  // ── Batch metadata reactivity ──
+  // Bump a refresh counter on room-level events that affect overview metadata
+  const [overviewRefreshCounter, setOverviewRefreshCounter] = useState(0);
+  useEffect(() => {
+    if (threadId) return undefined;
+    const bumpRefresh = () => setOverviewRefreshCounter((c) => c + 1);
+    room.on(RoomEvent.Timeline, bumpRefresh);
+    room.on(RoomEvent.Receipt, bumpRefresh);
+    return () => {
+      room.removeListener(RoomEvent.Timeline, bumpRefresh);
+      room.removeListener(RoomEvent.Receipt, bumpRefresh);
+    };
+  }, [room, threadId]);
 
-      if (!isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)) {
-        continue;
+  // ── Visible thread root IDs + absoluteIndex map ──
+  const visibleThreadRootData = useMemo(() => {
+    const ids: string[] = [];
+    const indexMap = new Map<string, number>();
+    renderableEventEntries.forEach(({ event, absoluteIndex }) => {
+      const evtId = event.getId();
+      if (!evtId) return;
+      if (isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)) {
+        ids.push(evtId);
+        indexMap.set(evtId, absoluteIndex);
       }
+    });
+    return { ids, indexMap };
+  }, [renderableEventEntries, room, threadResolutionMap, threadReplyCountMap]);
 
-      const resolution = threadResolutionMap.get(eventId);
-      if (resolution?.isResolved) {
-        resolved += 1;
-      } else {
-        unresolved += 1;
-      }
+  // ── Read-up-to timestamp for unread heuristic ──
+  const readUpToTs = useMemo(() => {
+    if (threadId) return undefined;
+    const readUpToId = room.getEventReadUpTo(mx.getSafeUserId());
+    if (!readUpToId) return undefined;
+    const readUpToEvent = room.findEventById(readUpToId);
+    return readUpToEvent?.getTs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadId, room, mx, overviewRefreshCounter]);
+
+  // ── Thread metadata map ──
+  const threadMetadataMap = useMemo(
+    () => {
+      if (threadId) return new Map<string, ThreadOverviewMetadata>();
+      return buildThreadMetadataMap(
+        room,
+        visibleThreadRootData.ids,
+        threadResolutionMap,
+        scheduledTaskCounts,
+        mx.getSafeUserId(),
+        readUpToTs,
+        visibleThreadRootData.indexMap
+      );
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      threadId,
+      room,
+      visibleThreadRootData,
+      threadResolutionMap,
+      scheduledTaskCounts,
+      mx,
+      readUpToTs,
+      overviewRefreshCounter,
+    ]
+  );
+
+  // ── Counts from metadata ──
+  const visibleThreadCounts = useMemo<RoomThreadOverviewCounts>(
+    () => computeOverviewCounts(threadMetadataMap),
+    [threadMetadataMap]
+  );
+
+  // ── Overview pipeline: filter → sort → Map-based entry construction ──
+  const roomThreadFilterActive = isRoomThreadFilterActive(threadId, threadFilter, threadSort);
+
+  const threadFilteredEvents = useMemo(() => {
+    if (threadId) return renderableEvents;
+
+    // When overview mode is active (filter!=all OR sort!=default), show only thread roots
+    if (roomThreadFilterActive) {
+      // Filter
+      const filteredIds = filterThreadRootEvents(
+        visibleThreadRootData.ids,
+        threadFilter,
+        threadMetadataMap
+      );
+      // Sort
+      const sortedIds = sortThreadRootEvents(filteredIds, threadSort, threadMetadataMap);
+
+      // Map IDs back to MatrixEvents
+      const eventMap = new Map<string, MatrixEvent>();
+      renderableEvents.forEach((event) => {
+        const evtId = event.getId();
+        if (evtId) eventMap.set(evtId, event);
+      });
+
+      return sortedIds
+        .map((id) => eventMap.get(id))
+        .filter((evt): evt is MatrixEvent => evt !== undefined);
     }
 
-    return {
-      unresolved,
-      resolved,
-      all: unresolved + resolved,
-    };
-  }, [renderableEvents, room, threadReplyCountMap, threadResolutionMap]);
-  const roomThreadFilterActive = isRoomThreadFilterActive(threadId, threadFilter);
-  const threadFilteredEvents = useMemo(
-    () =>
-      getThreadFilteredEvents(
-        renderableEvents,
-        room,
-        threadResolutionMap,
-        threadId,
-        threadFilter,
-        threadReplyCountMap
-      ),
-    [renderableEvents, room, threadResolutionMap, threadId, threadFilter, threadReplyCountMap]
-  );
+    return renderableEvents;
+  }, [
+    renderableEvents,
+    threadId,
+    roomThreadFilterActive,
+    visibleThreadRootData.ids,
+    threadFilter,
+    threadSort,
+    threadMetadataMap,
+  ]);
+
   const threadFilteredEventsRef = useRef(threadFilteredEvents);
   threadFilteredEventsRef.current = threadFilteredEvents;
+
+  // Map-based entry construction: preserve entry metadata while allowing new display order
   const threadFilteredEventEntries = useMemo(() => {
-    const filteredEventIds = new Set<string>();
-    threadFilteredEvents.forEach((event) => {
-      const filteredEventId = event.getId();
-      if (filteredEventId) {
-        filteredEventIds.add(filteredEventId);
-      }
+    if (!roomThreadFilterActive) {
+      return renderableEventEntries;
+    }
+
+    const entryMap = new Map<string, TimelineEventEntry>();
+    renderableEventEntries.forEach((entry) => {
+      const entryEventId = entry.event.getId();
+      if (entryEventId) entryMap.set(entryEventId, entry);
     });
 
-    return renderableEventEntries.filter(({ event }) => {
-      const filteredEventId = event.getId();
-      return !!filteredEventId && filteredEventIds.has(filteredEventId);
-    });
-  }, [renderableEventEntries, threadFilteredEvents]);
+    return threadFilteredEvents
+      .map((event) => {
+        const eventId = event.getId();
+        return eventId ? entryMap.get(eventId) : undefined;
+      })
+      .filter((entry): entry is TimelineEventEntry => entry !== undefined);
+  }, [renderableEventEntries, threadFilteredEvents, roomThreadFilterActive]);
   const readUptoAbsoluteIndex = useMemo(() => {
     if (threadId) return undefined;
     const currentReadUptoEventId = unreadInfo?.readUptoEventId;
@@ -1992,13 +2123,15 @@ export function RoomTimeline({
       getActiveTimelineRange(
         threadId,
         threadFilter,
+        threadSort,
         timeline.range,
         filteredLength,
         safePaginationLimit
       ),
-    [threadId, threadFilter, timeline.range, filteredLength, safePaginationLimit]
+    [threadId, threadFilter, threadSort, timeline.range, filteredLength, safePaginationLimit]
   );
   const prevThreadFilterRef = useRef(threadFilter);
+  const prevThreadSortRef = useRef(threadSort);
   const liveTimelineLinked =
     timeline.linkedTimelines[timeline.linkedTimelines.length - 1] === getLiveTimeline(room);
   const canPaginateBack =
@@ -2033,9 +2166,14 @@ export function RoomTimeline({
 
   useEffect(() => {
     const prevThreadFilter = prevThreadFilterRef.current;
+    const prevThreadSort = prevThreadSortRef.current;
     prevThreadFilterRef.current = threadFilter;
+    prevThreadSortRef.current = threadSort;
 
-    if (prevThreadFilter !== 'all' && threadFilter === 'all' && !threadId) {
+    const wasActive = isRoomThreadFilterActive(threadId, prevThreadFilter, prevThreadSort);
+    const isActive = isRoomThreadFilterActive(threadId, threadFilter, threadSort);
+
+    if (wasActive && !isActive && !threadId) {
       if (skipNextRoomTimelineResetRef.current) {
         skipNextRoomTimelineResetRef.current = false;
         return;
@@ -2052,6 +2190,7 @@ export function RoomTimeline({
     }
   }, [
     threadFilter,
+    threadSort,
     threadId,
     room,
     ignoredUsersSet,
@@ -2611,6 +2750,7 @@ export function RoomTimeline({
               threadId,
               threadFilter,
               threadReplyCountMap: loadedThreadReplyCountMap,
+              threadSort: threadFilterRef.current === threadFilter ? threadSort : 'default',
             })
           : {
               index: 0,
@@ -2620,6 +2760,7 @@ export function RoomTimeline({
 
         if (resetThreadFilter) {
           onThreadFilterChange('all');
+          onThreadSortChange('default');
         }
 
         setFocusItem(
@@ -2643,8 +2784,10 @@ export function RoomTimeline({
       [
         alive,
         onThreadFilterChange,
+        onThreadSortChange,
         threadId,
         threadFilter,
+        threadSort,
         threadResolutionMap,
         room,
         ignoredUsersSet,
@@ -3108,11 +3251,13 @@ export function RoomTimeline({
           room,
           threadResolutionMap,
           evtId,
-          threadReplyCountMap
+          threadReplyCountMap,
+          threadSort
         );
 
         if (shouldResetRoomThreadFilter === true) {
           onThreadFilterChange('all');
+          onThreadSortChange('default');
         }
         setTimeline(getEmptyTimeline());
         const loadedEventTimelines = await loadEventTimeline(evtId);
@@ -3133,6 +3278,7 @@ export function RoomTimeline({
         ) {
           skipNextRoomTimelineResetRef.current = true;
           onThreadFilterChange('all');
+          onThreadSortChange('default');
         }
       }
     },
@@ -3147,8 +3293,10 @@ export function RoomTimeline({
       scrollToElement,
       loadEventTimeline,
       onThreadFilterChange,
+      onThreadSortChange,
       threadId,
       threadFilter,
+      threadSort,
     ]
   );
   const handleOpenEventRef = useRef(handleOpenEvent);
@@ -3601,7 +3749,7 @@ export function RoomTimeline({
         index: nextIndex,
       };
     });
-  }, [focusItem, threadFilter, threadId]);
+  }, [focusItem, threadFilter, threadSort, threadId]);
 
   // scroll to focused message
   useLayoutEffect(() => {
@@ -3733,7 +3881,7 @@ export function RoomTimeline({
         clearTimeout(clearFocusTimeoutId);
       }
     };
-  }, [alive, focusItem, retryPagination, scrollToElement, scrollToItem, threadFilter, threadId]);
+  }, [alive, focusItem, retryPagination, scrollToElement, scrollToItem, threadFilter, threadSort, threadId]);
 
   useLayoutEffect(() => {
     if (!threadId) return;
@@ -5071,15 +5219,18 @@ export function RoomTimeline({
       return null;
     }
 
-    if (!newDivider) {
-      newDivider = shouldRenderUnreadDividerAt({
-        readUptoAbsoluteIndex,
-        eventAbsoluteIndex,
-        prevRenderedEventAbsoluteIndex,
-      });
-    }
-    if (!dayDivider) {
-      dayDivider = prevEvent ? !inSameDay(prevEvent.getTs(), mEvent.getTs()) : false;
+    // Suppress dividers when sort is active — chronological constructs don't apply
+    if (threadSort === 'default') {
+      if (!newDivider) {
+        newDivider = shouldRenderUnreadDividerAt({
+          readUptoAbsoluteIndex,
+          eventAbsoluteIndex,
+          prevRenderedEventAbsoluteIndex,
+        });
+      }
+      if (!dayDivider) {
+        dayDivider = prevEvent ? !inSameDay(prevEvent.getTs(), mEvent.getTs()) : false;
+      }
     }
 
     const collapsed =
@@ -5171,6 +5322,8 @@ export function RoomTimeline({
           counts={visibleThreadCounts}
           filter={threadFilter}
           onFilterChange={onThreadFilterChange}
+          sort={threadSort}
+          onSortChange={onThreadSortChange}
         />
       )}
       <Box grow="Yes" style={{ position: 'relative' }}>

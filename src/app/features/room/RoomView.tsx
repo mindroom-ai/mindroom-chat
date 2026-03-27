@@ -26,7 +26,7 @@ import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 import { useThreadResolution, useToggleThreadResolution } from './useRoomThreadResolution';
 import { useThreadRootEvent } from './useThreadRootEvent';
-import { type ThreadFilter } from './RoomThreadOverview';
+import { type ThreadFilter, type ThreadSort } from './RoomThreadOverview';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -85,6 +85,10 @@ export function RoomView({
       filter: 'all',
     })
   );
+  const [roomThreadSort, setRoomThreadSort] = useState<{ roomId: string; sort: ThreadSort }>(() => ({
+    roomId,
+    sort: 'default',
+  }));
 
   const mx = useMatrixClient();
 
@@ -119,10 +123,22 @@ export function RoomView({
     },
     [roomId]
   );
+  const threadSort = roomThreadSort.roomId === roomId ? roomThreadSort.sort : 'default';
+  const handleThreadSortChange = useCallback(
+    (sort: ThreadSort) => {
+      setRoomThreadSort({ roomId, sort });
+    },
+    [roomId]
+  );
 
   useEffect(() => {
     setRoomThreadFilter((current) =>
       current.roomId === roomId && current.filter === 'all' ? current : { roomId, filter: 'all' }
+    );
+    setRoomThreadSort((current) =>
+      current.roomId === roomId && current.sort === 'default'
+        ? current
+        : { roomId, sort: 'default' }
     );
   }, [roomId]);
 
@@ -226,6 +242,8 @@ export function RoomView({
           threadId={threadId}
           threadFilter={threadFilter}
           onThreadFilterChange={handleThreadFilterChange}
+          threadSort={threadSort}
+          onThreadSortChange={handleThreadSortChange}
           roomInputRef={roomInputRef}
           editor={editor}
         />

@@ -16,3 +16,12 @@ export const FilterRow = style({
   alignItems: 'center',
   gap: config.space.S100,
 });
+
+export const SortRow = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: config.space.S100,
+  borderTop: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  paddingTop: config.space.S200,
+});
