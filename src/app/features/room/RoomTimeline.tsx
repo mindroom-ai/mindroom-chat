@@ -104,7 +104,11 @@ import {
   getIntersectionObserverEntry,
   useIntersectionObserver,
 } from '../../hooks/useIntersectionObserver';
-import { markAsRead } from '../../utils/notifications';
+import {
+  markMainTimelineAsRead,
+  markRoomAndThreadsAsRead,
+  markThreadAsRead,
+} from '../../utils/notifications';
 import { useDebounce } from '../../hooks/useDebounce';
 import { getResizeObserverEntry, useResizeObserver } from '../../hooks/useResizeObserver';
 import * as css from './RoomTimeline.css';
@@ -159,6 +163,7 @@ import {
 import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
+  isThreadOnlyRoomActivity,
   shouldPinThreadToBottomOnOpen,
 } from './threadRenderUtils';
 import { useThreadRenderState } from './useThreadRenderState';
@@ -954,19 +959,6 @@ const getEarliestLoadedThreadReply = (
     const eventId = mEvent.getId();
     return !!eventId && eventId !== threadId && eventBelongsToThread(mEvent, threadId);
   });
-
-const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
-  const mEventId = mEvt.getId();
-  const relationTargetId = mEvt.getRelation()?.event_id;
-  const relatedEvent = relationTargetId ? room.findEventById(relationTargetId) : undefined;
-  const relatedEventId = relatedEvent?.getId();
-  const isThreadReplyMessage = !!mEventId && !!mEvt.threadRootId && mEvt.threadRootId !== mEventId;
-  const isThreadReplyRelatedEvent =
-    !!relatedEventId &&
-    !!relatedEvent?.threadRootId &&
-    relatedEvent.threadRootId !== relatedEventId;
-  return isThreadReplyMessage || isThreadReplyRelatedEvent;
-};
 
 const isCollapsibleTextMessageEvent = (mEvent: MatrixEvent): boolean =>
   mEvent.getType() === MessageEvent.RoomMessage ||
@@ -2798,7 +2790,9 @@ export function RoomTimeline({
             // Check if the document is in focus (user is actively viewing the app),
             // and either there are no unread messages or the latest message is from the current user.
             // If either condition is met, trigger the markAsRead function to send a read receipt.
-            requestAnimationFrame(() => markAsRead(mx, mEvt.getRoomId()!, hideActivity));
+            requestAnimationFrame(() =>
+              markMainTimelineAsRead(mx, mEvt.getRoomId()!, hideActivity)
+            );
           }
 
           if (!document.hasFocus() && !unreadInfo) {
@@ -3216,15 +3210,36 @@ export function RoomTimeline({
   const tryAutoMarkAsRead = useCallback(() => {
     const readUptoEventId = readUptoEventIdRef.current;
     if (!readUptoEventId) {
-      requestAnimationFrame(() => markAsRead(mx, room.roomId, hideActivity));
+      requestAnimationFrame(() => markMainTimelineAsRead(mx, room.roomId, hideActivity));
       return;
     }
     const evtTimeline = getEventTimeline(room, readUptoEventId);
     const latestTimeline = evtTimeline && getFirstLinkedTimeline(evtTimeline, Direction.Forward);
     if (latestTimeline === room.getLiveTimeline()) {
-      requestAnimationFrame(() => markAsRead(mx, room.roomId, hideActivity));
+      requestAnimationFrame(() => markMainTimelineAsRead(mx, room.roomId, hideActivity));
     }
   }, [mx, room, hideActivity]);
+
+  const tryAutoMarkThreadAsRead = useCallback(() => {
+    if (
+      !threadId ||
+      threadTailLoaded === false ||
+      threadInitialRenderMode === 'loading' ||
+      threadEvents.length === 0
+    ) {
+      return;
+    }
+
+    requestAnimationFrame(() => markThreadAsRead(mx, room.roomId, threadId, hideActivity));
+  }, [
+    hideActivity,
+    mx,
+    room.roomId,
+    threadEvents.length,
+    threadId,
+    threadInitialRenderMode,
+    threadTailLoaded,
+  ]);
 
   const debounceSetAtBottom = useDebounce(
     useCallback((entry: IntersectionObserverEntry) => {
@@ -3241,12 +3256,16 @@ export function RoomTimeline({
         if (targetEntry) debounceSetAtBottom(targetEntry);
         if (targetEntry?.isIntersecting && atLiveEndRef.current) {
           setAtBottom(true);
-          if (!threadId && document.hasFocus()) {
-            tryAutoMarkAsRead();
+          if (document.hasFocus()) {
+            if (threadId) {
+              tryAutoMarkThreadAsRead();
+            } else {
+              tryAutoMarkAsRead();
+            }
           }
         }
       },
-      [debounceSetAtBottom, tryAutoMarkAsRead, threadId]
+      [debounceSetAtBottom, threadId, tryAutoMarkAsRead, tryAutoMarkThreadAsRead]
     ),
     useCallback(
       () => ({
@@ -3261,8 +3280,13 @@ export function RoomTimeline({
   useDocumentFocusChange(
     useCallback(
       (inFocus) => {
-        if (threadId) return;
         if (inFocus && atBottomRef.current) {
+          if (threadId) {
+            if (atLiveEndRef.current) {
+              tryAutoMarkThreadAsRead();
+            }
+            return;
+          }
           if (unreadInfo?.inLiveTimeline) {
             handleOpenEvent(unreadInfo.readUptoEventId, false, (scrolled) => {
               // the unread event is already in view
@@ -3276,9 +3300,33 @@ export function RoomTimeline({
           tryAutoMarkAsRead();
         }
       },
-      [tryAutoMarkAsRead, unreadInfo, handleOpenEvent, threadId]
+      [handleOpenEvent, threadId, tryAutoMarkAsRead, tryAutoMarkThreadAsRead, unreadInfo]
     )
   );
+
+  useEffect(() => {
+    if (
+      !threadId ||
+      !atBottom ||
+      !timelineAtLiveEnd ||
+      !threadTailLoaded ||
+      threadInitialRenderMode === 'loading' ||
+      threadEvents.length === 0 ||
+      !document.hasFocus()
+    ) {
+      return;
+    }
+
+    tryAutoMarkThreadAsRead();
+  }, [
+    atBottom,
+    threadEvents.length,
+    threadId,
+    threadInitialRenderMode,
+    threadTailLoaded,
+    timelineAtLiveEnd,
+    tryAutoMarkThreadAsRead,
+  ]);
 
   // Handle up arrow edit
   useKeyDown(
@@ -3846,7 +3894,11 @@ export function RoomTimeline({
   };
 
   const handleMarkAsRead = () => {
-    markAsRead(mx, room.roomId, hideActivity);
+    if (threadId) {
+      markThreadAsRead(mx, room.roomId, threadId, hideActivity);
+      return;
+    }
+    markRoomAndThreadsAsRead(mx, room.roomId, hideActivity);
   };
 
   const handleOpenReply: MouseEventHandler = useCallback(
