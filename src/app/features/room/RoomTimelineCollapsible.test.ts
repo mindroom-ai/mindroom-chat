@@ -17,6 +17,7 @@ const {
   collapsibleType,
   collapsibleTestId,
   matrixClientMock,
+  shouldAutoScrollRoomOnLiveEventMock,
   threadResolutionMapMock,
   threadRenderStateControl,
 } = vi.hoisted(() => ({
@@ -40,6 +41,7 @@ const {
     processAggregatedTimelineEvents: vi.fn(),
     relations: vi.fn(),
   },
+  shouldAutoScrollRoomOnLiveEventMock: vi.fn(() => true),
   threadResolutionMapMock: new Map<string, { isResolved: boolean }>(),
   threadRenderStateControl: {
     currentThreadEvents: [] as unknown[],
@@ -454,6 +456,8 @@ vi.mock('../../components/image-viewer', () => ({
 vi.mock('../../utils/notifications', () => ({
   markAsRead: vi.fn(),
   markMainTimelineAsRead: vi.fn(),
+  markRoomAndThreadsAsRead: vi.fn(),
+  markThreadAsRead: vi.fn(),
 }));
 
 vi.mock('../../utils/dom', () => ({
@@ -545,6 +549,7 @@ vi.mock('./eventCacheTokenUtils', () => ({
 vi.mock('./roomEventCache', () => ({
   getRoomCursorAnchor: () => undefined,
   loadCachedRoomEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+  loadLatestCachedRoomEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
   loadCachedRoomPaginationToken: vi.fn(async () => undefined),
   normalizeCachedRoomEvents: (events: unknown[]) => events,
   saveRoomEventsToCache: vi.fn(async () => undefined),
@@ -564,6 +569,7 @@ vi.mock('./eventCacheEditUtils', () => ({
 vi.mock('./timelineScrollUtils', () => ({
   isScrollNearBottom: () => true,
   isTimelineAtLiveEnd: () => true,
+  shouldAutoScrollRoomOnLiveEvent: shouldAutoScrollRoomOnLiveEventMock,
   shouldAutoScrollThreadOnLiveEvent: () => false,
 }));
 
@@ -820,6 +826,7 @@ beforeEach(() => {
   });
   matrixClientMock.getEventTimeline.mockResolvedValue(undefined);
   matrixClientMock.getThreadTimeline.mockResolvedValue(undefined);
+  shouldAutoScrollRoomOnLiveEventMock.mockReturnValue(true);
   threadResolutionMapMock.clear();
   threadRenderStateControl.initialThreadEvents = [];
   threadRenderStateControl.currentThreadEvents = [];

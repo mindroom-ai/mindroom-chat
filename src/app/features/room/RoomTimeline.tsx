@@ -207,6 +207,7 @@ import {
 import {
   isScrollNearBottom,
   isTimelineAtLiveEnd,
+  shouldAutoScrollRoomOnLiveEvent,
   shouldAutoScrollThreadOnLiveEvent,
 } from './timelineScrollUtils';
 import {
@@ -2850,7 +2851,13 @@ export function RoomTimeline({
 
         if (threadId) {
           if (isVisibleThreadActivity) {
-            setSupplementalThreadEvents(threadId, [mEvt]);
+            // Only add non-edit events to supplemental thread events.
+            // m.replace edits modify existing events in-place (via makeReplaced)
+            // and are filtered by reactionOrEditEvent() during rendering.
+            // Adding them inflates threadEvents with non-renderable entries (CINNY-031).
+            if (relation?.rel_type !== RelationType.Replace) {
+              setSupplementalThreadEvents(threadId, [mEvt]);
+            }
             persistThreadEventCache(
               threadId,
               [mEvt],
@@ -2881,9 +2888,9 @@ export function RoomTimeline({
               ) {
                 scrollToBottomRef.current.count += 1;
                 scrollToBottomRef.current.smooth = true;
-              } else if (atLiveEndRef.current && (atBottomRef.current || isNearBottom)) {
-                // Relation updates can change message height above the viewport.
-                // Keep the thread pinned when the user was already reading the latest reply.
+              } else if (atLiveEndRef.current && isNearBottom) {
+                // Use only fresh scroll measurement, not debounced atBottomRef,
+                // to prevent streaming edits from trapping user at bottom (CINNY-031).
                 scrollToBottomRef.current.count += 1;
                 scrollToBottomRef.current.smooth = false;
               }
@@ -2923,15 +2930,18 @@ export function RoomTimeline({
 
         persistRoomEventCache([mEvt]);
 
-        // if user is at bottom of timeline
-        // keep paginating timeline and conditionally mark as read
-        // otherwise we update timeline without paginating
-        // so timeline can be updated with evt like: edits, reactions etc
-        if (atBottomRef.current) {
+        // Use a fresh scroll-position measurement instead of the debounced
+        // atBottomRef to decide whether to auto-follow.  The debounced state
+        // can be stale-true for up to 1 s after the user scrolls away, which
+        // causes streaming m.replace edits to trap the user at the bottom
+        // (CINNY-031).
+        const shouldAutoFollow = shouldAutoScrollRoomOnLiveEvent({
+          scrollElement: scrollRef.current,
+          isTimelineAtLiveEnd: atLiveEndRef.current,
+        });
+
+        if (shouldAutoFollow) {
           if (document.hasFocus() && (!unreadInfo || mEvt.getSender() === mx.getUserId())) {
-            // Check if the document is in focus (user is actively viewing the app),
-            // and either there are no unread messages or the latest message is from the current user.
-            // If either condition is met, trigger the markAsRead function to send a read receipt.
             requestAnimationFrame(() =>
               markMainTimelineAsRead(mx, mEvt.getRoomId()!, hideActivity)
             );
@@ -5051,15 +5061,15 @@ export function RoomTimeline({
           updatedCount,
         });
         const scrollElement = scrollRef.current;
+        // Use only fresh scroll measurement, not debounced atBottomRef (CINNY-031).
         if (
           atLiveEndRef.current &&
-          ((scrollElement &&
-            isScrollNearBottom({
-              scrollHeight: scrollElement.scrollHeight,
-              scrollTop: scrollElement.scrollTop,
-              clientHeight: scrollElement.clientHeight,
-            })) ||
-            atBottomRef.current)
+          scrollElement &&
+          isScrollNearBottom({
+            scrollHeight: scrollElement.scrollHeight,
+            scrollTop: scrollElement.scrollTop,
+            clientHeight: scrollElement.clientHeight,
+          })
         ) {
           scrollToBottomRef.current.count += 1;
           scrollToBottomRef.current.smooth = false;
