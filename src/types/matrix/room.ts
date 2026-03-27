@@ -32,7 +32,7 @@ export enum StateEvent {
   RoomGuestAccess = 'm.room.guest_access',
   RoomServerAcl = 'm.room.server_acl',
   RoomTombstone = 'm.room.tombstone',
-  ThreadResolution = 'com.mindroom.thread.resolution',
+  ThreadTags = 'com.mindroom.thread.tags',
   MindRoomScheduledTask = 'com.mindroom.scheduled.task',
 
   SpaceChild = 'm.space.child',

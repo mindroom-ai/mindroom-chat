@@ -156,7 +156,7 @@ vi.mock('../../hooks/useEdgeSwipeBack', () => ({
   useEdgeSwipeBack: vi.fn(),
 }));
 
-vi.mock('./useRoomThreadResolution', () => ({
+vi.mock('./useRoomThreadTags', () => ({
   useThreadResolution: () => ({ isResolved: false, isPending: false }),
   useToggleThreadResolution: () => ({
     canToggle: false,

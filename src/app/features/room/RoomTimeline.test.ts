@@ -520,7 +520,7 @@ vi.mock('../../utils/scheduledTaskContract', () => ({
   parseScheduledTaskStateEvent: () => null,
 }));
 
-vi.mock('./useRoomThreadResolution', () => ({
+vi.mock('./useRoomThreadTags', () => ({
   useRoomThreadResolutionMap: () => threadResolutionMapMock,
 }));
 

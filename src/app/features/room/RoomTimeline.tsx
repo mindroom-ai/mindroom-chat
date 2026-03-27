@@ -214,7 +214,7 @@ import {
   markThreadEditBackfillAttempted,
   shouldFetchThreadEditBackfill,
 } from './threadEditBackfillUtils';
-import { useRoomThreadResolutionMap } from './useRoomThreadResolution';
+import { useRoomThreadResolutionMap } from './useRoomThreadTags';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (

@@ -25,7 +25,7 @@ import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
-import { useThreadResolution, useToggleThreadResolution } from './useRoomThreadResolution';
+import { useThreadResolution, useToggleThreadResolution } from './useRoomThreadTags';
 import { useThreadRootEvent } from './useThreadRootEvent';
 import { type ThreadFilter, type ThreadSort } from './RoomThreadOverview';
 import { roomIdToThreadFilterAtomFamily } from '../../state/room/roomThreadFilters';
