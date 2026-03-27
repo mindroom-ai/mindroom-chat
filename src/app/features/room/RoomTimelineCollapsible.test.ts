@@ -262,6 +262,24 @@ vi.mock('../../hooks/useResizeObserver', () => ({
   useResizeObserver: vi.fn(),
 }));
 
+vi.mock('../../hooks/useStateEvents', () => ({
+  useStateEvents: () => [],
+}));
+
+vi.mock('../../hooks/useThreadLastActivityTs', () => ({
+  getThreadLastActivityTs: () => 0,
+  useThreadLastActivityTs: () => 0,
+}));
+
+vi.mock('../../hooks/useThreadStreamingState', () => ({
+  getThreadStreamingState: () => false,
+  useThreadStreamingState: () => false,
+}));
+
+vi.mock('../../utils/scheduledTaskContract', () => ({
+  parseScheduledTaskStateEvent: () => null,
+}));
+
 vi.mock('../../hooks/useDocumentFocusChange', () => ({
   useDocumentFocusChange: vi.fn(),
 }));
@@ -752,15 +770,20 @@ const createControlledRoomTimelineHarness = (
     room: ReturnType<typeof makeRoom>;
     threadId?: string;
   }) {
-    const [threadFilter, setThreadFilter] = React.useState<'all' | 'resolved' | 'unresolved'>(
-      'all'
-    );
+    const [threadFilter, setThreadFilter] = React.useState<
+      'all' | 'resolved' | 'unresolved' | 'unread'
+    >('all');
+    const [threadSort, setThreadSort] = React.useState<
+      'default' | 'last-reply' | 'streaming' | 'scheduled'
+    >('default');
 
     return React.createElement(RoomTimelineComponent, {
       room,
       threadId,
       threadFilter,
       onThreadFilterChange: setThreadFilter,
+      threadSort,
+      onThreadSortChange: setThreadSort,
       roomInputRef,
       editor,
     });

@@ -1,23 +1,34 @@
 import React from 'react';
 import { Box, Chip, Text } from 'folds';
+import { IconCalendarEvent } from '@tabler/icons-react';
 import * as css from './RoomThreadOverview.css';
+import * as replyCss from '../../components/message/Reply.css';
+import type {
+  ThreadFilter,
+  ThreadSort,
+  RoomThreadOverviewCounts,
+} from './roomThreadOverviewModel';
 
-export type ThreadFilter = 'unresolved' | 'resolved' | 'all';
-export type RoomThreadOverviewCounts = {
-  unresolved: number;
-  resolved: number;
-  all: number;
-};
+export type { ThreadFilter, ThreadSort, RoomThreadOverviewCounts };
 
 export function RoomThreadOverview({
   counts,
   filter,
   onFilterChange,
+  sort,
+  onSortChange,
 }: {
   counts: RoomThreadOverviewCounts;
   filter: ThreadFilter;
   onFilterChange: (filter: ThreadFilter) => void;
+  sort: ThreadSort;
+  onSortChange: (sort: ThreadSort) => void;
 }) {
+  const handleSortClick = (s: ThreadSort) => {
+    // Clicking an already-active sort chip clears it back to default
+    onSortChange(sort === s ? 'default' : s);
+  };
+
   return (
     <Box className={css.Overview} direction="Column" gap="200" data-room-thread-overview="true">
       <Box
@@ -59,6 +70,16 @@ export function RoomThreadOverview({
             <Text size="T200">{`Resolved (${counts.resolved})`}</Text>
           </Chip>
           <Chip
+            variant={filter === 'unread' ? 'Primary' : 'SurfaceVariant'}
+            radii="Pill"
+            outlined={filter !== 'unread'}
+            aria-pressed={filter === 'unread'}
+            aria-label={`Show unread threads (${counts.unread})`}
+            onClick={() => onFilterChange('unread')}
+          >
+            <Text size="T200">{`Unread (${counts.unread})`}</Text>
+          </Chip>
+          <Chip
             variant={filter === 'all' ? 'Primary' : 'SurfaceVariant'}
             radii="Pill"
             outlined={filter !== 'all'}
@@ -69,6 +90,53 @@ export function RoomThreadOverview({
             <Text size="T200">{`All (${counts.all})`}</Text>
           </Chip>
         </Box>
+      </Box>
+
+      <Box className={css.SortRow}>
+        <Text size="T200" priority="300">
+          Sort:
+        </Text>
+        <Chip
+          variant={sort === 'last-reply' ? 'Primary' : 'SurfaceVariant'}
+          radii="Pill"
+          outlined={sort !== 'last-reply'}
+          aria-pressed={sort === 'last-reply'}
+          aria-label="Sort threads by last reply"
+          onClick={() => handleSortClick('last-reply')}
+        >
+          <Text size="T200">Last Reply</Text>
+        </Chip>
+        <Chip
+          variant={sort === 'streaming' ? 'Primary' : 'SurfaceVariant'}
+          radii="Pill"
+          outlined={sort !== 'streaming'}
+          aria-pressed={sort === 'streaming'}
+          aria-label="Sort threads by streaming activity"
+          onClick={() => handleSortClick('streaming')}
+          before={
+            <span className={replyCss.ThreadStreamingDot} aria-hidden="true" />
+          }
+        >
+          <Text size="T200">Streaming</Text>
+        </Chip>
+        <Chip
+          variant={sort === 'scheduled' ? 'Primary' : 'SurfaceVariant'}
+          radii="Pill"
+          outlined={sort !== 'scheduled'}
+          aria-pressed={sort === 'scheduled'}
+          aria-label="Sort threads by scheduled tasks"
+          onClick={() => handleSortClick('scheduled')}
+          before={
+            <IconCalendarEvent
+              size={12}
+              stroke={1.8}
+              className={replyCss.ThreadScheduledIcon}
+              aria-hidden="true"
+            />
+          }
+        >
+          <Text size="T200">Scheduled</Text>
+        </Chip>
       </Box>
     </Box>
   );
