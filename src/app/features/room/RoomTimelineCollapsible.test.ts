@@ -582,7 +582,7 @@ vi.mock('./RoomThreadOverview', () => ({
   RoomThreadOverview: roomThreadOverviewType,
 }));
 
-vi.mock('./useRoomThreadResolution', () => ({
+vi.mock('./useRoomThreadTags', () => ({
   useRoomThreadResolutionMap: () => threadResolutionMapMock,
 }));
 
