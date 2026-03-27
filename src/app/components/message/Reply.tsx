@@ -22,6 +22,7 @@ import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { useThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
 import { useThreadScheduledTasks } from '../../hooks/useThreadScheduledTasks';
 import { useThreadStreamingState } from '../../hooks/useThreadStreamingState';
+import { getThreadUnread } from '../../features/room/roomThreadList';
 
 type ReplyLayoutProps = {
   userColor?: string;
@@ -74,6 +75,14 @@ export const ThreadIndicator = as<'div', ThreadIndicatorProps>(
     const lastActivityTs = useThreadLastActivityTs(room, threadRootId);
     const relativeTime = useRelativeTime(lastActivityTs);
     const isStreaming = useThreadStreamingState(room, threadRootId);
+    const isUnread = useMemo(() => {
+      if (!threadRootId) return false;
+      const thread = room.getThread(threadRootId);
+      if (!thread) return false;
+      const userId = mx.getUserId();
+      if (!userId) return false;
+      return getThreadUnread(room, thread, userId);
+    }, [room, threadRootId, mx]);
     const pendingScheduledCount = useThreadScheduledTasks(room, threadRootId);
     const resolvedScheduledCount = scheduledCount ?? pendingScheduledCount;
     const lastActivityTitle = useMemo(
@@ -148,6 +157,9 @@ export const ThreadIndicator = as<'div', ThreadIndicatorProps>(
         <Icon size="100" src={Icons.Thread} />
         <Text size="T200">Thread</Text>
         {isResolved && <Text size="T200">Resolved</Text>}
+        {isUnread && (
+          <span className={css.ThreadUnreadDot} role="img" aria-label="Unread messages" />
+        )}
         {typeof threadReplyCount === 'number' && (
           <Text size="T200">
             {threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}
