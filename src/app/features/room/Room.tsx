@@ -10,7 +10,7 @@ import { settingsAtom } from '../../state/settings';
 import { PowerLevelsContextProvider, usePowerLevels } from '../../hooks/usePowerLevels';
 import { useRoom } from '../../hooks/useRoom';
 import { useKeyDown } from '../../hooks/useKeyDown';
-import { markAsRead } from '../../utils/notifications';
+import { markRoomAndThreadsAsRead, markThreadAsRead } from '../../utils/notifications';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { getRoomSearchParams } from '../../pages/pathSearchParam';
@@ -34,10 +34,14 @@ export function Room() {
     useCallback(
       (evt) => {
         if (isKeyHotkey('escape', evt)) {
-          markAsRead(mx, room.roomId, hideActivity);
+          if (threadId) {
+            markThreadAsRead(mx, room.roomId, threadId, hideActivity);
+            return;
+          }
+          markRoomAndThreadsAsRead(mx, room.roomId, hideActivity);
         }
       },
-      [mx, room.roomId, hideActivity]
+      [hideActivity, mx, room.roomId, threadId]
     )
   );
 

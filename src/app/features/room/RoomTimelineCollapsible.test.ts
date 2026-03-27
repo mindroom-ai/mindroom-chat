@@ -435,6 +435,7 @@ vi.mock('../../components/image-viewer', () => ({
 
 vi.mock('../../utils/notifications', () => ({
   markAsRead: vi.fn(),
+  markMainTimelineAsRead: vi.fn(),
 }));
 
 vi.mock('../../utils/dom', () => ({
