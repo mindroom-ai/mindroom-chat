@@ -21,7 +21,7 @@ import { UnreadBadge } from '../../../components/unread-badge';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
 import { useNavToActivePathAtom } from '../../../state/hooks/navToActivePath';
 import { useDirectRooms } from '../direct/useDirectRooms';
-import { markAsRead } from '../../../utils/notifications';
+import { markRoomAndThreadsAsRead } from '../../../utils/notifications';
 import { stopPropagation } from '../../../utils/keyboard';
 import { settingsAtom } from '../../../state/settings';
 import { useSetting } from '../../../state/hooks/settings';
@@ -37,7 +37,7 @@ const DirectMenu = forwardRef<HTMLDivElement, DirectMenuProps>(({ requestClose }
 
   const handleMarkAsRead = () => {
     if (!unread) return;
-    orphanRooms.forEach((rId) => markAsRead(mx, rId, hideActivity));
+    orphanRooms.forEach((rId) => markRoomAndThreadsAsRead(mx, rId, hideActivity));
     requestClose();
   };
 

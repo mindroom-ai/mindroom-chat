@@ -73,7 +73,7 @@ import * as customHtmlCss from '../../../styles/CustomHtml.css';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { useRoomUnread } from '../../../state/hooks/unread';
 import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
-import { markAsRead } from '../../../utils/notifications';
+import { markRoomAndThreadsAsRead } from '../../../utils/notifications';
 import { ContainerColor } from '../../../styles/ContainerColor.css';
 import { VirtualTile } from '../../../components/virtualizer';
 import { UserAvatar } from '../../../components/user-avatar';
@@ -404,7 +404,7 @@ function RoomNotificationsGroupComp({
     onOpen(room.roomId, eventId);
   };
   const handleMarkAsRead = () => {
-    markAsRead(mx, room.roomId, hideActivity);
+    markRoomAndThreadsAsRead(mx, room.roomId, hideActivity);
   };
 
   return (

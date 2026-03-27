@@ -80,7 +80,7 @@ import { useOpenedSidebarFolderAtom } from '../../../state/hooks/openedSidebarFo
 import { usePowerLevels } from '../../../hooks/usePowerLevels';
 import { useRoomsUnread } from '../../../state/hooks/unread';
 import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
-import { markAsRead } from '../../../utils/notifications';
+import { markRoomAndThreadsAsRead } from '../../../utils/notifications';
 import { copyToClipboard } from '../../../utils/dom';
 import { stopPropagation } from '../../../utils/keyboard';
 import { getMatrixToRoom } from '../../../plugins/matrix-to';
@@ -121,7 +121,9 @@ const SpaceMenu = forwardRef<HTMLDivElement, SpaceMenuProps>(
     const unread = useRoomsUnread(allChild, roomToUnreadAtom);
 
     const handleMarkAsRead = () => {
-      allChild.forEach((childRoomId) => markAsRead(mx, childRoomId, hideActivity));
+      allChild.forEach((childRoomId) =>
+        markRoomAndThreadsAsRead(mx, childRoomId, hideActivity)
+      );
       requestClose();
     };
 
