@@ -62,3 +62,29 @@
 - **Secondary bug:** `setThreadHasMoreCachedBack` used a sticky-OR updater (`currentValue || newCondition`) that never reset to false after full pagination, causing the "Load Older Messages" button to persist even when all events were loaded.
 - **Fix:** Replaced `fetchAllThreadRelations` + `Thread.addEvents` in `refreshLatestThreadSlice()` with a `paginateEventTimeline` loop — the same mechanism used by the working room preload loop and `handleThreadPaginateBack`. Fixed `setThreadHasMoreCachedBack` to directly set (not OR) based on actual backward pagination token.
 - Validated: `npm run typecheck`, `npm run build`, and `npm run test -- src/app/features/room/RoomTimeline.test.ts` all pass (59/59 tests, all typecheck errors pre-existing).
+### CINNY-037: Browser Back Button Thread Navigation
+
+- Status: implemented on 2026-03-27 and corrected on 2026-03-27 after review.
+
+#### Root Cause
+
+1. Opening a thread pushed `?threadId=...` onto history without updating the prior room entry.
+2. Browser back therefore returned to a plain room URL instead of an event-focused room URL for the thread root.
+3. The existing room event-focus scroll logic only runs when the room route includes that root event ID.
+
+#### Fixes Applied
+
+1. Updated `navigateRoomThread` in `src/app/hooks/useRoomNavigate.ts` to call `window.history.replaceState(window.history.state, '', getRoomPath(roomId, threadId))` before pushing the thread URL.
+2. This bypasses React Router's async data-router navigation, so the back-stack pre-seed is committed synchronously even with ancestor loaders.
+3. Kept the pre-seed disabled for `opts?.replace` so `handleJumpToLatest` continues to replace the current thread URL without adding an extra history mutation.
+
+#### Validation
+
+- `npm run typecheck` — fails due to pre-existing repo-wide `matrix-js-sdk` type import and typing errors unrelated to this change
+- `npm run build` — succeeds
+- `npm run lint` — not re-run; the script shells out to `yarn`, which is not installed in this environment
+- `npm run check:eslint` — not re-run; prior repo-wide lint failures were unrelated to this change
+- `npm run check:prettier` — not re-run; prior repo-wide formatting drift was unrelated to this change
+- `npx vitest run src/app/hooks/useRoomNavigate.test.ts` — succeeds
+- `npx eslint src/app/hooks/useRoomNavigate.ts src/app/hooks/useRoomNavigate.test.ts` — succeeds
+- `npx prettier --check src/app/hooks/useRoomNavigate.ts src/app/hooks/useRoomNavigate.test.ts FORK_CHANGES.md .claude/REPORT.md` — succeeds
