@@ -164,7 +164,9 @@ export function AddExistingModal({ parentId, space, requestClose }: AddExistingM
   };
 
   const handleApplyChanges = () => {
-    const selectedRooms = selected.map((rId) => getRoom(rId)).filter((room) => room !== undefined);
+    const selectedRooms = selected
+      .map((rId) => getRoom(rId))
+      .filter((room): room is Room => room !== undefined);
     applyChanges(selectedRooms).then(() => {
       if (alive()) {
         setSelected([]);

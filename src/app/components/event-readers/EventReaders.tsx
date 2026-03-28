@@ -71,7 +71,7 @@ export const EventReaders = as<'div', EventReadersProps>(
                     key={readerId}
                     style={{ padding: `0 ${config.space.S200}` }}
                     radii="400"
-                    onClick={(event) => {
+                    onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
                       openProfile(
                         room.roomId,
                         space?.roomId,

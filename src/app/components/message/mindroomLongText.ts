@@ -25,7 +25,7 @@ const isMxc = (value: unknown): value is string =>
 
 const asEncryptedFile = (value: unknown): IEncryptedFile | undefined => {
   if (!isRecord(value) || !isMxc(value.url)) return undefined;
-  return value as IEncryptedFile;
+  return value as unknown as IEncryptedFile;
 };
 
 const isMindroomLongTextV2Meta = (meta: unknown): boolean =>

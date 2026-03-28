@@ -86,10 +86,12 @@ export function RoomJoinRules({ permissions }: RoomJoinRulesProps) {
         if (joinRule === JoinRule.Restricted || joinRule === 'knock_restricted') {
           const roomParents = roomIdToParents.get(room.roomId);
 
-          const parents = getStateEvents(room, StateEvent.SpaceParent)
-            .map((event) => event.getStateKey())
-            .filter((parentId) => typeof parentId === 'string')
-            .filter((parentId) => roomParents?.has(parentId));
+          const parents = roomParents
+            ? getStateEvents(room, StateEvent.SpaceParent)
+                .map((event) => event.getStateKey())
+                .filter((parentId): parentId is string => typeof parentId === 'string')
+                .filter((parentId) => roomParents.has(parentId))
+            : [];
 
           if (parents.length === 0 && space && roomParents) {
             // if no m.space.parent found

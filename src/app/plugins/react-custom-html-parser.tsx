@@ -600,8 +600,9 @@ const normalizeLeadingToolRefBoundaryInPlace = (element: Element): boolean => {
     index += 1;
   }
 
+  const leadingChild = children[index];
   const hasLeadingBreak =
-    index < children.length && isDomElementNode(children[index]) && children[index].name === 'br';
+    index < children.length && isDomElementNode(leadingChild) && leadingChild.name === 'br';
   if (!hasLeadingBreak) return false;
 
   const trimmedChildren = trimLeadingToolRefBoundary(children);
