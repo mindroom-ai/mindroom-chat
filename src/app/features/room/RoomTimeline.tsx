@@ -94,7 +94,7 @@ import {
   reactionOrEditEvent,
 } from '../../utils/room';
 import { useSetting } from '../../state/hooks/settings';
-import { MessageLayout, sanitizePaginationLimit, settingsAtom } from '../../state/settings';
+import { MessageLayout, sanitizePaginationLimit, settingsAtom, THREAD_BATCH_SIZE } from '../../state/settings';
 import { useMatrixEventRenderer } from '../../hooks/useMatrixEventRenderer';
 import { Reactions, Message, Event, EncryptedContent } from './message';
 import { useMemberEventParser } from '../../hooks/useMemberEventParser';
@@ -1126,6 +1126,60 @@ export const filterLatestRoomCacheHydrationEvents = (
       typeof rawEvent.event_id === 'string' && !loadedEventIds.has(rawEvent.event_id)
   );
 };
+
+export const MAX_THREAD_FETCH_EVENTS = 5000;
+export const MAX_THREAD_FETCH_ITERATIONS = 50;
+
+export type ThreadRelationPageResult = {
+  events: MatrixEvent[];
+  nextBatchToken: string | undefined;
+};
+
+export async function fetchAllThreadRelations(
+  mx: MatrixClient,
+  roomId: string,
+  threadId: string,
+  batchSize: number,
+  isAborted: () => boolean
+): Promise<ThreadRelationPageResult | null> {
+  const mapper = mx.getEventMapper();
+  const allBatches: MatrixEvent[][] = [];
+  let nextBatchToken: string | undefined;
+  let totalEventCount = 0;
+
+  for (let iteration = 0; iteration < MAX_THREAD_FETCH_ITERATIONS; iteration++) {
+    const [err, relData] = await to(
+      mx.fetchRelations(roomId, threadId, 'm.thread' as any, null, {
+        dir: Direction.Backward,
+        limit: batchSize,
+        ...(nextBatchToken ? { from: nextBatchToken } : {}),
+      })
+    );
+    if (err || !relData) {
+      if (iteration === 0) return null;
+      break;
+    }
+    if (isAborted()) return null;
+
+    const batchEvents = relData.chunk
+      .slice()
+      .reverse()
+      .map((rawEvent) => mapper(rawEvent));
+    allBatches.push(batchEvents);
+    totalEventCount += batchEvents.length;
+    nextBatchToken = relData.next_batch ?? undefined;
+
+    if (!nextBatchToken || totalEventCount >= MAX_THREAD_FETCH_EVENTS) break;
+  }
+
+  if (isAborted()) return null;
+
+  // Batches arrive newest-first (backward pagination); reverse so the
+  // combined array is in chronological order (oldest first).
+  const events = allBatches.reverse().flat();
+
+  return { events, nextBatchToken };
+}
 
 const recalibrateTimelinePagination = (
   setTimeline: Dispatch<
@@ -2574,41 +2628,47 @@ export function RoomTimeline({
 
   const refreshLatestThreadSlice = useCallback(
     async (expectedThreadId: string): Promise<boolean> => {
-      const [err, relData] = await to(
-        mx.fetchRelations(room.roomId, expectedThreadId, 'm.thread' as any, null, {
-          dir: Direction.Backward,
-          limit: safePaginationLimitRef.current,
-        })
-      );
-      if (err || !relData) return false;
+      const currentThread = room.getThread(expectedThreadId);
+      if (!currentThread) return false;
+
+      // Use the SDK's paginateEventTimeline in a loop — the same mechanism used
+      // by the working room preload loop and handleThreadPaginateBack.
+      // Unlike Thread.addEvents(), paginateEventTimeline uses the SDK's proper
+      // timelineSet.addEventsToTimeline() + thread.processEvent() path.
+      const threadTimelineSet = currentThread.getUnfilteredTimelineSet();
+      for (let iteration = 0; iteration < MAX_THREAD_FETCH_ITERATIONS; iteration++) {
+        if (threadIdRef.current !== expectedThreadId) return false;
+
+        const linkedTimelines = getLinkedTimelines(threadTimelineSet.getLiveTimeline());
+        const firstTimeline = linkedTimelines[0];
+        if (!firstTimeline?.getPaginationToken(Direction.Backward)) break;
+
+        const [err, didPaginate] = await to(
+          mx.paginateEventTimeline(firstTimeline, {
+            backwards: true,
+            limit: THREAD_BATCH_SIZE,
+          })
+        );
+        if (err || didPaginate === false) break;
+      }
+
       if (threadIdRef.current !== expectedThreadId) return false;
 
-      const mapper = mx.getEventMapper();
-      const latestEvents = relData.chunk
-        .slice()
-        .reverse()
-        .map((rawEvent) => mapper(rawEvent));
-      const currentThread = room.getThread(expectedThreadId);
-      const rootEvent = currentThread?.rootEvent ?? room.findEventById(expectedThreadId);
-      const firstThreadTimeline = currentThread
-        ? getLinkedTimelines(currentThread.getUnfilteredTimelineSet().getLiveTimeline())[0]
-        : undefined;
-      setThreadHasMoreCachedBack(
-        (currentHasMoreCachedBack) =>
-          currentHasMoreCachedBack || typeof relData.next_batch === 'string'
-      );
+      const allEvents = currentThread.events;
+      const rootEvent = currentThread.rootEvent ?? room.findEventById(expectedThreadId);
+      const firstThreadTimeline = getLinkedTimelines(threadTimelineSet.getLiveTimeline())[0];
+      const backwardToken = firstThreadTimeline?.getPaginationToken(Direction.Backward) ?? null;
 
-      if (latestEvents.length > 0) {
-        currentThread?.addEvents(latestEvents, false);
-        setSupplementalThreadEvents(expectedThreadId, latestEvents);
-        if (firstThreadTimeline) {
-          firstThreadTimeline.setPaginationToken(relData.next_batch ?? null, Direction.Backward);
-        }
+      // Directly set (not sticky-OR) so the flag is accurate after full pagination
+      setThreadHasMoreCachedBack(typeof backwardToken === 'string');
+
+      if (allEvents.length > 0) {
+        setSupplementalThreadEvents(expectedThreadId, allEvents);
         persistThreadEventCache(
           expectedThreadId,
-          latestEvents,
+          allEvents,
           rootEvent,
-          firstThreadTimeline?.getPaginationToken(Direction.Backward) ?? relData.next_batch
+          backwardToken
         );
         setTimeline((ct) => ({ ...ct }));
         setThreadTimelineTick((val) => val + 1);
@@ -5080,7 +5140,7 @@ export function RoomTimeline({
         room.roomId,
         expectedThreadId,
         getThreadCursorAnchor(earliestThreadReply?.event as Partial<IEvent> | undefined),
-        safePaginationLimitRef.current
+        THREAD_BATCH_SIZE
       );
       if (threadIdRef.current !== expectedThreadId) return;
 
@@ -5118,7 +5178,7 @@ export function RoomTimeline({
       const [err] = await to(
         mx.paginateEventTimeline(firstThreadTimeline, {
           backwards: true,
-          limit: safePaginationLimitRef.current,
+          limit: THREAD_BATCH_SIZE,
         })
       );
       if (!err && threadIdRef.current === expectedThreadId) {
@@ -5162,7 +5222,7 @@ export function RoomTimeline({
     const [err] = await to(
       mx.paginateEventTimeline(currentLastThreadTimeline, {
         backwards: false,
-        limit: safePaginationLimitRef.current,
+        limit: THREAD_BATCH_SIZE,
       })
     );
     setThreadPaginatingFront(false);
