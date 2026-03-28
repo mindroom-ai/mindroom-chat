@@ -1744,6 +1744,7 @@ export function RoomTimeline({
   >();
   const [threadLoadError, setThreadLoadError] = useState(false);
   const [roomHasMoreCachedBack, setRoomHasMoreCachedBack] = useState(false);
+  const [eagerPreloading, setEagerPreloading] = useState(!threadId && !eventId);
   const [threadHasMoreCachedBack, setThreadHasMoreCachedBack] = useState(false);
   const [threadTailLoaded, setThreadTailLoaded] = useState(false);
   const [threadPaginatingBack, setThreadPaginatingBack] = useState(false);
@@ -1817,6 +1818,14 @@ export function RoomTimeline({
   useEffect(() => {
     liveExpandOnceIds.current.clear();
   }, [room.roomId, threadId]);
+  // Reset eagerPreloading when transitioning from event-focused view back to room
+  // (component is reused since key is roomId:threadId, so useState initializer won't re-run)
+  // useLayoutEffect so the reset fires before paint, preventing a single-frame skeleton flash
+  useLayoutEffect(() => {
+    if (!eventId && !threadId) {
+      setEagerPreloading(true);
+    }
+  }, [eventId, threadId]);
   const rawRenderableEventEntries = useMemo(
     () =>
       getRenderableEventEntries(
@@ -2294,7 +2303,11 @@ export function RoomTimeline({
   // Eager backward preload: on room entry, paginate until paginationLimit is reached
   useEffect(() => {
     if (threadId || eventId) return undefined;
-    if (eagerPreloadDoneForRoomRef.current === room.roomId) return undefined;
+    if (eagerPreloadDoneForRoomRef.current === room.roomId) {
+      // Don't clear eagerPreloading here — the cache-hydration effect still needs
+      // to reset timeline.range first. It will clear eagerPreloading after setTimeline.
+      return undefined;
+    }
 
     let cancelled = false;
     const BATCH_SIZE = 200;
@@ -2305,12 +2318,14 @@ export function RoomTimeline({
     const savedPaginationToken = initialLiveTimeline.getPaginationToken(Direction.Backward);
 
     const preload = async () => {
+      setEagerPreloading(true);
       // Let cache hydration effects settle first
       await new Promise<void>((r) => {
         setTimeout(r, 100);
       });
       if (cancelled || !alive()) {
         console.log('[eager-preload] cancelled or unmounted before starting loop');
+        setEagerPreloading(false);
         return;
       }
 
@@ -2464,6 +2479,7 @@ export function RoomTimeline({
       }
 
       if (!cancelled) {
+        setEagerPreloading(false);
         if (preloadSucceeded) {
           eagerPreloadDoneForRoomRef.current = room.roomId;
         }
@@ -2485,6 +2501,7 @@ export function RoomTimeline({
 
     return () => {
       cancelled = true;
+      setEagerPreloading(false);
     };
   }, [alive, mx, room, threadId, eventId]);
 
@@ -3045,6 +3062,13 @@ export function RoomTimeline({
 
     hydrateRoomFromCache().catch((error) => {
       console.error('Failed to hydrate latest room cache for', room.roomId, error);
+    }).finally(() => {
+      // On re-entry (preload already done for this room), clear eagerPreloading
+      // regardless of whether cache hydration ran. On initial mount the preload
+      // effect handles clearing it, so only clear when preload is already done.
+      if (!cancelled && eagerPreloadDoneForRoomRef.current === room.roomId) {
+        setEagerPreloading(false);
+      }
     });
     return () => {
       cancelled = true;
@@ -5373,6 +5397,7 @@ export function RoomTimeline({
                 </>
               ))}
             {!threadId &&
+              !eagerPreloading &&
               (roomHasMoreCachedBack || canPaginateBack || !rangeAtStart) &&
               (messageLayout === MessageLayout.Compact ? (
                 <>
