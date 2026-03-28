@@ -33,3 +33,11 @@ declare module '*.svg' {
   const content: string;
   export default content;
 }
+
+declare module 'scheduler/tracing' {
+  export interface Interaction {
+    id: number;
+    name: string;
+    timestamp: number;
+  }
+}

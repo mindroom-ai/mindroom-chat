@@ -289,7 +289,7 @@ export const MindroomBlockBody = style({
 });
 
 export const MindroomBlockInlineResult = style({
-  color: color.Surface.OnContainerVariant,
+  color: color.SurfaceVariant.OnContainer,
   marginLeft: config.space.S200,
 });
 
