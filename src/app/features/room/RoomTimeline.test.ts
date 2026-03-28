@@ -1591,7 +1591,7 @@ describe('RoomTimeline', () => {
     expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 5, end: 305 });
   });
 
-  it('switches back to all threads before jumping to an unread event hidden by the active filter', async () => {
+  it('keeps the active filter when jumping to an unread event hidden by the overview', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const resolvedThread = makeEvent('$thread-resolved', { isThreadRoot: true });
@@ -1632,7 +1632,7 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
-    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('all');
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('resolved');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
       unreadMessage.getId()
@@ -1826,7 +1826,7 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
-    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('all');
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('resolved');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
       permalinkMessage.getId()
@@ -2307,7 +2307,7 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
-    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('all');
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('resolved');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
       permalinkMessage.getId()
@@ -2503,11 +2503,14 @@ describe('RoomTimeline', () => {
         threadResolutionMap: threadResolutionMapMock,
         threadId: undefined,
         threadFilter: 'unresolved',
+        scheduledTaskCounts: new Map(),
+        currentUserId: '@alice:example.org',
+        readUpToTs: undefined,
       })
     ).toEqual({
       index: 1,
       count: 2,
-      resetThreadFilter: false,
+      canFocus: true,
     });
   });
 
@@ -2659,7 +2662,7 @@ describe('RoomTimeline', () => {
     expect(isContinuingRoomFocusRetry(undefined, { eventId: '$first', attempts: 1 })).toBe(false);
   });
 
-  it('resets the room thread filter when the focused event is hidden by the active filter', async () => {
+  it('does not focus room events hidden by the active filter', async () => {
     const { getRoomEventFocusTarget } = await import('./RoomTimeline');
     const unresolvedThread = makeEvent('$thread-unresolved', { isThreadRoot: true });
     const resolvedThread = makeEvent('$thread-resolved', { isThreadRoot: true });
@@ -2674,11 +2677,14 @@ describe('RoomTimeline', () => {
         threadResolutionMap: threadResolutionMapMock,
         threadId: undefined,
         threadFilter: 'unresolved',
+        scheduledTaskCounts: new Map(),
+        currentUserId: '@alice:example.org',
+        readUpToTs: undefined,
       })
     ).toEqual({
-      index: 1,
-      count: 2,
-      resetThreadFilter: true,
+      index: 0,
+      count: 1,
+      canFocus: false,
     });
   });
 
