@@ -26,6 +26,7 @@ const {
   loadCachedRoomPaginationTokenMock,
   loadLatestCachedRoomEventsMock,
   saveRoomEventsToCacheMock,
+  isTimelineAtLiveEndMock,
   virtualPaginatorState,
   settingsState,
 } = vi.hoisted(() => ({
@@ -492,7 +493,7 @@ vi.mock('./eventCacheEditUtils', () => ({
 
 vi.mock('./timelineScrollUtils', () => ({
   isScrollNearBottom: () => true,
-  isTimelineAtLiveEnd: () => true,
+  isTimelineAtLiveEnd: isTimelineAtLiveEndMock,
   shouldAutoScrollRoomOnLiveEvent: () => false,
   shouldAutoScrollThreadOnLiveEvent: () => false,
 }));
@@ -743,6 +744,7 @@ beforeEach(() => {
   virtualPaginatorState.lastOptions = undefined;
   virtualPaginatorState.callCount = 0;
   virtualPaginatorState.renderItems = true;
+  isTimelineAtLiveEndMock.mockReturnValue(true);
   reactionOrEditEventMock.mockImplementation(() => false);
   isMembershipChangedMock.mockImplementation(() => false);
   matrixClientMock.fetchRelations.mockResolvedValue({
@@ -2830,5 +2832,106 @@ describe('RoomTimeline', () => {
       renderer?.unmount();
       await flushAsyncWork(1);
     });
+  });
+
+  it('shows Jump to Latest when timeline is not at live end (non-live navigation)', async () => {
+    isTimelineAtLiveEndMock.mockReturnValue(false);
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const room = makeRoom({ liveEvents: [makeEvent('$1')] });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(ControlledRoomTimeline, { room }));
+        await flushAsyncWork();
+      });
+
+      const jumpLabels = renderer!.root.findAll(
+        (node) => {
+          try {
+            return node.children.includes('Jump to Latest');
+          } catch {
+            return false;
+          }
+        }
+      );
+      expect(jumpLabels.length).toBeGreaterThan(0);
+    } finally {
+      await act(async () => {
+        renderer?.unmount();
+        await flushAsyncWork(1);
+      });
+    }
+  });
+
+  it('recovery effect hides Jump to Latest when anchor is visible and timelineAtLiveEnd flips to true', async () => {
+    isTimelineAtLiveEndMock.mockReturnValue(false);
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const room = makeRoom({ liveEvents: [makeEvent('$1')] });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    const createNodeMock = (element: { type: string }) => {
+      if (element.type === scrollType) {
+        return { getBoundingClientRect: () => ({ bottom: 500 }) };
+      }
+      if (element.type === 'span') {
+        return { getBoundingClientRect: () => ({ top: 400 }) };
+      }
+      return null;
+    };
+
+    try {
+      // Render with timelineAtLiveEnd=false → atBottom=false → button visible
+      await act(async () => {
+        renderer = create(React.createElement(ControlledRoomTimeline, { room }), {
+          createNodeMock,
+        });
+        await flushAsyncWork();
+      });
+
+      const findJumpLabels = () =>
+        renderer!.root.findAll((node) => {
+          try {
+            return node.children.includes('Jump to Latest');
+          } catch {
+            return false;
+          }
+        });
+
+      expect(findJumpLabels().length).toBeGreaterThan(0);
+
+      // Flip timelineAtLiveEnd to true and re-render.
+      // The recovery useEffect sees anchor visible → setAtBottom(true) → button hides.
+      isTimelineAtLiveEndMock.mockReturnValue(true);
+      await act(async () => {
+        renderer!.update(React.createElement(ControlledRoomTimeline, { room }));
+        await flushAsyncWork();
+      });
+
+      expect(findJumpLabels().length).toBe(0);
+    } finally {
+      await act(async () => {
+        renderer?.unmount();
+        await flushAsyncWork(1);
+      });
+    }
+  });
+
+  it('isAnchorVisibleInScroll returns true when anchor is within scroll bounds plus margin', async () => {
+    const { isAnchorVisibleInScroll } = await import('./RoomTimeline');
+
+    const anchor = { getBoundingClientRect: () => ({ top: 500 }) } as Element;
+    const scroll = { getBoundingClientRect: () => ({ bottom: 450 }) } as Element;
+    expect(isAnchorVisibleInScroll(anchor, scroll, 100)).toBe(true);
+  });
+
+  it('isAnchorVisibleInScroll returns false when anchor is below scroll bounds plus margin', async () => {
+    const { isAnchorVisibleInScroll } = await import('./RoomTimeline');
+
+    const anchor = { getBoundingClientRect: () => ({ top: 600 }) } as Element;
+    const scroll = { getBoundingClientRect: () => ({ bottom: 450 }) } as Element;
+    expect(isAnchorVisibleInScroll(anchor, scroll, 100)).toBe(false);
   });
 });

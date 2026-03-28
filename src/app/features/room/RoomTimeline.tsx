@@ -1092,6 +1092,16 @@ const getLatestLoadedRoomEvent = (
   return loadedEvents[loadedEvents.length - 1];
 };
 
+export const isAnchorVisibleInScroll = (
+  anchor: Element,
+  scroll: Element,
+  marginPx = 100
+): boolean => {
+  const anchorRect = anchor.getBoundingClientRect();
+  const scrollRect = scroll.getBoundingClientRect();
+  return anchorRect.top <= scrollRect.bottom + marginPx;
+};
+
 export const shouldHydrateLatestRoomCache = (
   loadedLatestEvent: Partial<IEvent> | undefined,
   cachedLatestEvent: Partial<IEvent> | undefined
@@ -3867,8 +3877,17 @@ export function RoomTimeline({
   }, [scrollToElement, editId]);
 
   useEffect(() => {
-    if (timelineAtLiveEnd) return;
-    setAtBottom(false);
+    if (!timelineAtLiveEnd) {
+      setAtBottom(false);
+    } else {
+      // Recovery: when timelineAtLiveEnd becomes true and the bottom anchor
+      // is already visible, restore atBottom so the jump-to-latest button hides.
+      const anchor = atBottomAnchorRef.current;
+      const scroll = scrollRef.current;
+      if (anchor && scroll && isAnchorVisibleInScroll(anchor, scroll)) {
+        setAtBottom(true);
+      }
+    }
   }, [timelineAtLiveEnd]);
 
   const handleJumpToLatest = useCallback(async () => {
