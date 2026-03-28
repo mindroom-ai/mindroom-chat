@@ -124,11 +124,10 @@ const waitForThreadOverview = async (page: Page) => {
 };
 
 const navigateToRoom = async (page: Page, roomName: string) => {
-  const roomLink = page.locator('nav a', { hasText: roomName }).first();
+  const roomLink = page.getByRole('link', { name: roomName }).first();
 
   await expect(roomLink).toBeVisible({ timeout: 30_000 });
   await roomLink.click();
-  await expect(roomLink).toHaveAttribute('aria-selected', 'true');
   await waitForThreadOverview(page);
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
 };
@@ -136,6 +135,38 @@ const navigateToRoom = async (page: Page, roomName: string) => {
 const expectPressedState = async (page: Page, label: RegExp | string, pressed: boolean) => {
   const button = page.getByRole('button', { name: label });
   await expect(button).toHaveAttribute('aria-pressed', pressed ? 'true' : 'false');
+};
+
+const openThreadAndReturn = async (page: Page, rootId: string) => {
+  const threadButton = page.getByRole('button', { name: /Thread/ }).first();
+
+  await expect(threadButton).toBeVisible({ timeout: 30_000 });
+  await threadButton.click();
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get('threadId'))
+    .toBe(rootId);
+
+  await page.goBack();
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get('threadId'))
+    .toBeNull();
+  await waitForThreadOverview(page);
+};
+
+const switchAwayAndBack = async (page: Page) => {
+  const focusStealer = await page.context().newPage();
+
+  await page.getByRole('button', { name: /Show unresolved threads/ }).focus();
+  await focusStealer.goto('data:text/html,<input aria-label="focus-stealer" autofocus />');
+  await focusStealer.bringToFront();
+  await focusStealer.getByLabel('focus-stealer').focus();
+  await page.waitForTimeout(250);
+
+  await page.bringToFront();
+  await page.getByRole('button', { name: /Show unresolved threads/ }).focus();
+  await page.waitForTimeout(250);
+
+  await focusStealer.close();
 };
 
 test.describe('live cinny-030 thread filter persistence', () => {
@@ -155,8 +186,18 @@ test.describe('live cinny-030 thread filter persistence', () => {
 
     await navigateToRoom(page, roomA.roomName);
     await page.getByRole('button', { name: /Show unresolved threads/ }).click();
-    await page.getByRole('button', { name: 'Sort threads by streaming activity' }).click();
     await expectPressedState(page, /Show unresolved threads/, true);
+    await expectPressedState(page, /Show all threads/, false);
+
+    await openThreadAndReturn(page, roomA.rootId);
+    await expectPressedState(page, /Show unresolved threads/, true);
+    await expectPressedState(page, /Show all threads/, false);
+
+    await switchAwayAndBack(page);
+    await expectPressedState(page, /Show unresolved threads/, true);
+    await expectPressedState(page, /Show all threads/, false);
+
+    await page.getByRole('button', { name: 'Sort threads by streaming activity' }).click();
     await expectPressedState(page, 'Sort threads by streaming activity', true);
 
     await navigateToRoom(page, roomB.roomName);
