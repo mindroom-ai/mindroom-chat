@@ -24,6 +24,12 @@ describe('mergeCachedPaginationTokens', () => {
       $old: 'old-token',
     });
   });
+
+  it('overwrites a stale string token with null when server reports no more pages', () => {
+    expect(mergeCachedPaginationTokens({ $event: 'stale-token' }, '$event', null)).toEqual({
+      $event: null,
+    });
+  });
 });
 
 describe('getCachedPaginationToken', () => {
@@ -31,7 +37,11 @@ describe('getCachedPaginationToken', () => {
     expect(getCachedPaginationToken({ $event: 'token' }, '$event')).toBe('token');
   });
 
-  it('returns undefined for unknown events', () => {
+  it('returns null for explicitly cleared tokens (no more pages)', () => {
+    expect(getCachedPaginationToken({ $event: null }, '$event')).toBeNull();
+  });
+
+  it('returns undefined for unknown events (no cache data)', () => {
     expect(getCachedPaginationToken({ $event: 'token' }, '$other')).toBeUndefined();
     expect(getCachedPaginationToken(undefined, '$event')).toBeUndefined();
   });

@@ -169,17 +169,20 @@ import {
 import { useThreadRenderState } from './useThreadRenderState';
 import { createTimelineDebugTrace, logTimelineDebug } from './timelineDebug';
 import { RoomThreadOverview } from './RoomThreadOverview';
+import type { ThreadFilterKey } from './RoomThreadOverview';
 import {
-  type ThreadFilter,
-  type ThreadSort,
-  type RoomThreadOverviewCounts,
+  type ThreadFilterState,
   type ThreadOverviewMetadata,
   buildThreadMetadataMap,
-  computeOverviewCounts,
   filterThreadRootEvents,
   sortThreadRootEvents,
   getRoomScheduledTaskCounts,
+  isRoomThreadOverviewActive,
+  matchesThreadFilterState,
+  hasActiveThreadFilters,
+  collectAvailableRoomTags,
 } from './roomThreadOverviewModel';
+import type { RoomViewMode } from '../../state/room/roomViewMode';
 import { useStateEvents } from '../../hooks/useStateEvents';
 import {
   getThreadCursorAnchor,
@@ -189,6 +192,11 @@ import {
   saveThreadEventsToCache,
 } from './threadEventCache';
 import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
+import {
+  computeReconciliationToken,
+  findEarliestLoadedThreadReplyByCacheOrder,
+  reconcileThreadBackwardPagination,
+} from './threadPaginationUtils';
 import {
   getRoomCursorAnchor,
   loadCachedRoomEventsBefore,
@@ -564,11 +572,11 @@ export const getThreadFilteredEvents = (
   room: Room,
   threadResolutionMap: Map<string, { isResolved: boolean }>,
   threadId: string | undefined,
-  threadFilter: ThreadFilter,
+  threadFilterState: ThreadFilterState,
   threadReplyCountMap?: Map<string, number>,
   threadMetadataMap?: Map<string, ThreadOverviewMetadata>
 ): MatrixEvent[] => {
-  if (threadId || threadFilter === 'all') return renderableEvents;
+  if (threadId || !hasActiveThreadFilters(threadFilterState)) return renderableEvents;
 
   return renderableEvents.filter((event) => {
     const eventId = event.getId();
@@ -577,14 +585,30 @@ export const getThreadFilteredEvents = (
       return false;
     }
 
-    if (threadFilter === 'unread') {
-      return threadMetadataMap?.get(eventId)?.isUnread ?? false;
+    const meta = threadMetadataMap?.get(eventId);
+    if (!meta) {
+      // Fallback: derive minimal metadata from the resolution map when no
+      // prebuilt metadata map is available (e.g. during initial render before
+      // the full metadata map is constructed).
+      const resolution = threadResolutionMap.get(eventId);
+      const fallback: ThreadOverviewMetadata = {
+        isResolved: resolution?.isResolved ?? false,
+        isUnread: false,
+        isStreaming: false,
+        scheduledTaskCount: 0,
+        lastActivityTs: 0,
+        absoluteIndex: 0,
+        lastSenderId: undefined,
+        lastSenderDisplayName: undefined,
+        participantDisplayName: undefined,
+        summaryText: undefined,
+        rootPreviewText: undefined,
+        messageCount: 0,
+        tags: [],
+      };
+      return matchesThreadFilterState(fallback, threadFilterState);
     }
-
-    const resolution = threadResolutionMap.get(eventId);
-    const isResolved = resolution?.isResolved ?? false;
-
-    return threadFilter === 'resolved' ? isResolved : !isResolved;
+    return matchesThreadFilterState(meta, threadFilterState);
   });
 };
 
@@ -989,10 +1013,15 @@ type RoomTimelineProps = {
   room: Room;
   eventId?: string;
   threadId?: string;
-  threadFilter: ThreadFilter;
-  onThreadFilterChange: (filter: ThreadFilter) => void;
-  threadSort: ThreadSort;
-  onThreadSortChange: (sort: ThreadSort) => void;
+  threadFilterState: ThreadFilterState;
+  onToggle: (key: ThreadFilterKey) => void;
+  onSortDirectionChange: () => void;
+  onCycleTag: (tag: string) => void;
+  onAddTag: (tag: string) => void;
+  onRemoveTag: (tag: string) => void;
+  onReset: () => void;
+  viewMode: RoomViewMode;
+  onViewModeChange: (viewMode: RoomViewMode) => void;
   roomInputRef: RefObject<HTMLElement>;
   editor: Editor;
 };
@@ -1330,7 +1359,7 @@ type ShouldTrackLiveCollapsibleMessage = {
   mEvent: MatrixEvent;
   room: Room;
   threadId: string | undefined;
-  threadFilter: ThreadFilter;
+  threadFilterState: ThreadFilterState;
   threadResolutionMap: Map<string, { isResolved: boolean }>;
   ignoredUsersSet: Set<string>;
   showHiddenEvents: boolean;
@@ -1342,7 +1371,7 @@ export const shouldTrackLiveCollapsibleMessage = ({
   mEvent,
   room,
   threadId,
-  threadFilter,
+  threadFilterState,
   threadResolutionMap,
   ignoredUsersSet,
   showHiddenEvents,
@@ -1375,7 +1404,7 @@ export const shouldTrackLiveCollapsibleMessage = ({
   }
 
   return (
-    getThreadFilteredEvents([mEvent], room, threadResolutionMap, threadId, threadFilter).length > 0
+    getThreadFilteredEvents([mEvent], room, threadResolutionMap, threadId, threadFilterState).length > 0
   );
 };
 
@@ -1938,16 +1967,9 @@ const getVisibleTimelineRange = (
   return { start, end };
 };
 
-export const isRoomThreadFilterActive = (
-  threadId: string | undefined,
-  threadFilter: ThreadFilter,
-  threadSort: ThreadSort = 'default'
-): boolean => !threadId && (threadFilter !== 'all' || threadSort !== 'default');
-
 export const getActiveTimelineRange = (
   threadId: string | undefined,
-  threadFilter: ThreadFilter,
-  threadSort: ThreadSort,
+  threadFilterState: ThreadFilterState,
   range: ItemRange,
   count: number,
   paginationLimit: number
@@ -1956,7 +1978,7 @@ export const getActiveTimelineRange = (
     return { start: 0, end: 0 };
   }
 
-  if (isRoomThreadFilterActive(threadId, threadFilter, threadSort)) {
+  if (isRoomThreadOverviewActive(threadId, threadFilterState)) {
     return { start: 0, end: count };
   }
 
@@ -1966,15 +1988,17 @@ export const getActiveTimelineRange = (
 const getFilteredRoomOverviewEvents = (
   renderableEvents: MatrixEvent[],
   room: Room,
-  threadResolutionMap: Map<string, { isResolved: boolean }>,
-  threadFilter: ThreadFilter,
+  threadResolutionMap: Map<string, { isResolved: boolean; tags: Record<string, unknown> | null }>,
+  threadFilterState: ThreadFilterState,
   threadReplyCountMap: Map<string, number> | undefined,
-  threadSort: ThreadSort,
   scheduledTaskCounts: Map<string, number>,
+  threadReplyCountMapForMeta: Map<string, number>,
+  threadParticipantMap: Map<string, string[]>,
+  summaryMap: Map<string, MindroomThreadSummaryInfo>,
   currentUserId: string,
   readUpToTs: number | undefined
 ): MatrixEvent[] => {
-  if (!isRoomThreadFilterActive(undefined, threadFilter, threadSort)) {
+  if (!isRoomThreadOverviewActive(undefined, threadFilterState)) {
     return renderableEvents;
   }
 
@@ -1985,7 +2009,6 @@ const getFilteredRoomOverviewEvents = (
   renderableEvents.forEach((event, index) => {
     const currentEventId = event.getId();
     if (!currentEventId) return;
-
     eventMap.set(currentEventId, event);
     if (!isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)) {
       return;
@@ -2000,14 +2023,18 @@ const getFilteredRoomOverviewEvents = (
     visibleThreadRootIds,
     threadResolutionMap,
     scheduledTaskCounts,
+    threadReplyCountMapForMeta,
+    threadParticipantMap,
+    summaryMap,
     currentUserId,
     readUpToTs,
     absoluteIndexMap
   );
 
   return sortThreadRootEvents(
-    filterThreadRootEvents(visibleThreadRootIds, threadFilter, metadataMap),
-    threadSort,
+    filterThreadRootEvents(visibleThreadRootIds, threadFilterState, metadataMap),
+    threadFilterState.sortBy,
+    threadFilterState.sortDirection,
     metadataMap
   )
     .map((currentEventId) => eventMap.get(currentEventId))
@@ -2020,22 +2047,26 @@ export const getRoomEventFocusTarget = ({
   room,
   threadResolutionMap,
   threadId,
-  threadFilter,
+  threadFilterState,
   threadReplyCountMap,
-  threadSort = 'default',
   scheduledTaskCounts,
+  threadReplyCountMapForMeta,
+  threadParticipantMap,
+  summaryMap,
   currentUserId,
   readUpToTs,
 }: {
   eventId: string;
   renderableEvents: MatrixEvent[];
   room: Room;
-  threadResolutionMap: Map<string, { isResolved: boolean }>;
+  threadResolutionMap: Map<string, { isResolved: boolean; tags: Record<string, unknown> | null }>;
   threadId: string | undefined;
-  threadFilter: ThreadFilter;
+  threadFilterState: ThreadFilterState;
   threadReplyCountMap?: Map<string, number>;
-  threadSort?: ThreadSort;
   scheduledTaskCounts: Map<string, number>;
+  threadReplyCountMapForMeta: Map<string, number>;
+  threadParticipantMap: Map<string, string[]>;
+  summaryMap: Map<string, MindroomThreadSummaryInfo>;
   currentUserId: string;
   readUpToTs: number | undefined;
 }): {
@@ -2049,10 +2080,12 @@ export const getRoomEventFocusTarget = ({
         renderableEvents,
         room,
         threadResolutionMap,
-        threadFilter,
+        threadFilterState,
         threadReplyCountMap,
-        threadSort,
         scheduledTaskCounts,
+        threadReplyCountMapForMeta,
+        threadParticipantMap,
+        summaryMap,
         currentUserId,
         readUpToTs
       );
@@ -2098,10 +2131,15 @@ export function RoomTimeline({
   room,
   eventId,
   threadId,
-  threadFilter,
-  onThreadFilterChange,
-  threadSort,
-  onThreadSortChange,
+  threadFilterState,
+  onToggle,
+  onSortDirectionChange,
+  onCycleTag,
+  onAddTag,
+  onRemoveTag,
+  onReset,
+  viewMode,
+  onViewModeChange,
   roomInputRef,
   editor,
 }: RoomTimelineProps) {
@@ -2210,6 +2248,7 @@ export function RoomTimeline({
   const threadPaginatingBackRef = useRef(false);
   const threadPaginatingFrontRef = useRef(false);
   const threadIdRef = useRef(threadId);
+  const threadFilterStateRef = useRef(threadFilterState);
   const roomDebugTraceRef = useRef({
     roomId: room.roomId,
     traceId: createTimelineDebugTrace('room-open', room.roomId),
@@ -2221,7 +2260,6 @@ export function RoomTimeline({
       : undefined,
     traceKey: currentThreadTraceKey,
   });
-  const threadFilterRef = useRef(threadFilter);
   const threadEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
     new WeakMap<MatrixEvent, number>()
   );
@@ -2242,7 +2280,7 @@ export function RoomTimeline({
   threadPaginatingBackRef.current = threadPaginatingBack;
   threadPaginatingFrontRef.current = threadPaginatingFront;
   threadIdRef.current = threadId;
-  threadFilterRef.current = threadFilter;
+  threadFilterStateRef.current = threadFilterState;
   if (roomDebugTraceRef.current.roomId !== room.roomId) {
     roomDebugTraceRef.current = {
       roomId: room.roomId,
@@ -2468,6 +2506,9 @@ export function RoomTimeline({
         visibleThreadRootData.ids,
         threadResolutionMap,
         scheduledTaskCounts,
+        threadReplyCountMap,
+        threadParticipantMap,
+        threadSummaryInfoMap,
         mx.getSafeUserId(),
         readUpToTs,
         visibleThreadRootData.indexMap
@@ -2480,34 +2521,43 @@ export function RoomTimeline({
       visibleThreadRootData,
       threadResolutionMap,
       scheduledTaskCounts,
+      threadReplyCountMap,
+      threadParticipantMap,
+      threadSummaryInfoMap,
       mx,
       readUpToTs,
       overviewRefreshCounter,
     ]
   );
 
-  // ── Counts from metadata ──
-  const visibleThreadCounts = useMemo<RoomThreadOverviewCounts>(
-    () => computeOverviewCounts(threadMetadataMap),
-    [threadMetadataMap]
-  );
-
   // ── Overview pipeline: filter → sort → Map-based entry construction ──
-  const roomThreadFilterActive = isRoomThreadFilterActive(threadId, threadFilter, threadSort);
+  const roomThreadFilterActive = isRoomThreadOverviewActive(threadId, threadFilterState);
+
+  // Filtered thread root IDs (used for threadCount prop)
+  const filteredThreadRootIds = useMemo(() => {
+    if (threadId) return visibleThreadRootData.ids;
+    return filterThreadRootEvents(visibleThreadRootData.ids, threadFilterState, threadMetadataMap);
+  }, [threadId, visibleThreadRootData.ids, threadFilterState, threadMetadataMap]);
+
+  // Available tags from resolution map
+  const availableRoomTags = useMemo(
+    () => collectAvailableRoomTags(threadResolutionMap),
+    [threadResolutionMap]
+  );
 
   const threadFilteredEvents = useMemo(() => {
     if (threadId) return renderableEvents;
 
-    // When overview mode is active (filter!=all OR sort!=default), show only thread roots
+    // When overview mode is active (any filter or non-default sort), show only thread roots
     if (roomThreadFilterActive) {
       // Filter
       const filteredIds = filterThreadRootEvents(
         visibleThreadRootData.ids,
-        threadFilter,
+        threadFilterState,
         threadMetadataMap
       );
       // Sort
-      const sortedIds = sortThreadRootEvents(filteredIds, threadSort, threadMetadataMap);
+      const sortedIds = sortThreadRootEvents(filteredIds, threadFilterState.sortBy, threadFilterState.sortDirection, threadMetadataMap);
 
       // Map IDs back to MatrixEvents
       const eventMap = new Map<string, MatrixEvent>();
@@ -2528,8 +2578,7 @@ export function RoomTimeline({
     threadId,
     roomThreadFilterActive,
     visibleThreadRootData.ids,
-    threadFilter,
-    threadSort,
+    threadFilterState,
     threadMetadataMap,
   ]);
 
@@ -2582,16 +2631,14 @@ export function RoomTimeline({
     () =>
       getActiveTimelineRange(
         threadId,
-        threadFilter,
-        threadSort,
+        threadFilterState,
         timeline.range,
         filteredLength,
         safePaginationLimit
       ),
-    [threadId, threadFilter, threadSort, timeline.range, filteredLength, safePaginationLimit]
+    [threadId, threadFilterState, timeline.range, filteredLength, safePaginationLimit]
   );
-  const prevThreadFilterRef = useRef(threadFilter);
-  const prevThreadSortRef = useRef(threadSort);
+  const prevThreadFilterStateRef = useRef(threadFilterState);
   const liveTimelineLinked =
     timeline.linkedTimelines[timeline.linkedTimelines.length - 1] === getLiveTimeline(room);
   const canPaginateBack =
@@ -2688,13 +2735,11 @@ export function RoomTimeline({
   ]);
 
   useEffect(() => {
-    const prevThreadFilter = prevThreadFilterRef.current;
-    const prevThreadSort = prevThreadSortRef.current;
-    prevThreadFilterRef.current = threadFilter;
-    prevThreadSortRef.current = threadSort;
+    const prevThreadFilterState = prevThreadFilterStateRef.current;
+    prevThreadFilterStateRef.current = threadFilterState;
 
-    const wasActive = isRoomThreadFilterActive(threadId, prevThreadFilter, prevThreadSort);
-    const isActive = isRoomThreadFilterActive(threadId, threadFilter, threadSort);
+    const wasActive = isRoomThreadOverviewActive(threadId, prevThreadFilterState);
+    const isActive = isRoomThreadOverviewActive(threadId, threadFilterState);
 
     if (wasActive && !isActive && !threadId) {
       setTimeline(
@@ -2708,8 +2753,7 @@ export function RoomTimeline({
       );
     }
   }, [
-    threadFilter,
-    threadSort,
+    threadFilterState,
     threadId,
     room,
     ignoredUsersSet,
@@ -3493,9 +3537,6 @@ export function RoomTimeline({
         tailLoaded: true,
       });
 
-      // Directly set (not sticky-OR) so the flag is accurate after full pagination
-      setThreadHasMoreCachedBack(typeof backwardToken === 'string');
-
       if (allEvents.length > 0) {
         setSupplementalThreadEvents(expectedThreadId, allEvents);
         saveThreadOpenSeedSnapshot(room, expectedThreadId, allEvents);
@@ -3507,10 +3548,18 @@ export function RoomTimeline({
           true,
           snapshotComplete
         );
-        setTimeline((ct) => ({ ...ct }));
-        setThreadTimelineTick((val) => val + 1);
       }
 
+      if (firstThreadTimeline) {
+        reconcileThreadBackwardPagination(
+          firstThreadTimeline,
+          backwardToken,
+          setThreadHasMoreCachedBack
+        );
+      }
+
+      setTimeline((ct) => ({ ...ct }));
+      setThreadTimelineTick((val) => val + 1);
       setThreadTailLoaded(true);
       logTimelineDebug(threadDebugTraceId, 'thread-refresh-latest-complete', {
         snapshotComplete,
@@ -3695,10 +3744,12 @@ export function RoomTimeline({
               room,
               threadResolutionMap,
               threadId,
-              threadFilter,
+              threadFilterState: threadFilterStateRef.current,
               threadReplyCountMap: loadedThreadReplyCountMap,
-              threadSort: threadFilterRef.current === threadFilter ? threadSort : 'default',
               scheduledTaskCounts,
+              threadReplyCountMapForMeta: threadReplyCountMap,
+              threadParticipantMap,
+              summaryMap: threadSummaryInfoMap,
               currentUserId: mx.getSafeUserId(),
               readUpToTs,
             })
@@ -3730,8 +3781,6 @@ export function RoomTimeline({
         alive,
         mx,
         threadId,
-        threadFilter,
-        threadSort,
         threadResolutionMap,
         room,
         ignoredUsersSet,
@@ -3739,6 +3788,9 @@ export function RoomTimeline({
         hideMembershipEvents,
         hideNickAvatarEvents,
         scheduledTaskCounts,
+        threadReplyCountMap,
+        threadParticipantMap,
+        threadSummaryInfoMap,
         readUpToTs,
       ]
     ),
@@ -3778,7 +3830,7 @@ export function RoomTimeline({
           mEvent: mEvt,
           room,
           threadId,
-          threadFilter,
+          threadFilterState,
           threadResolutionMap,
           ignoredUsersSet,
           showHiddenEvents,
@@ -3969,7 +4021,7 @@ export function RoomTimeline({
         hideMembershipEvents,
         hideNickAvatarEvents,
         roomThreadFilterActive,
-        threadFilter,
+        threadFilterState,
         threadResolutionMap,
         sessionId,
       ]
@@ -4107,7 +4159,6 @@ export function RoomTimeline({
       }
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
-
       setTimeline(getInitialTimeline(room, safePaginationLimitRef.current, {
         threadId: undefined,
         ignoredUsersSet: recalibrateFilterOptsRef.current?.ignoredUsersSet ?? new Set(),
@@ -4697,6 +4748,13 @@ export function RoomTimeline({
               room.findEventById(threadId),
               relData.next_batch
             );
+            // Reconcile backward pagination even without a Thread model so
+            // stale cached threadHasMoreCachedBack doesn't show a bogus button.
+            reconcileThreadBackwardPagination(
+              undefined,
+              relData.next_batch ?? null,
+              setThreadHasMoreCachedBack
+            );
             logTimelineDebug(threadDebugTraceId, 'thread-sdk-bootstrap-relations-fallback', {
               mappedCount: mappedEvents.length,
               nextBatchPresent: typeof relData.next_batch === 'string',
@@ -4722,7 +4780,7 @@ export function RoomTimeline({
             loadedThreadTimelineSet.getLiveTimeline()
           )[0];
           const cachedEarliestAnchor = getThreadCursorAnchor(hydratedCachedPage?.events[0]);
-          const earliestThreadReply = getEarliestLoadedThreadReply(threadModel.events, threadId);
+          const earliestThreadReply = findEarliestLoadedThreadReplyByCacheOrder(threadModel.events, threadId);
           const threadTimelineAnchor = getThreadCursorAnchor(
             earliestThreadReply?.event as Partial<IEvent> | undefined
           );
@@ -4777,6 +4835,18 @@ export function RoomTimeline({
             threadModel.rootEvent,
             firstThreadTimeline?.getPaginationToken(Direction.Backward)
           );
+
+          // Reconcile backward pagination using the SDK token directly,
+          // avoiding the async race from persist→read-back through IndexedDB.
+          if (firstThreadTimeline) {
+            const sdkBackwardToken =
+              firstThreadTimeline.getPaginationToken(Direction.Backward) ?? null;
+            reconcileThreadBackwardPagination(
+              firstThreadTimeline,
+              sdkBackwardToken,
+              setThreadHasMoreCachedBack
+            );
+          }
         } else {
           console.warn('Could not create thread object for', threadId);
           logTimelineDebug(threadDebugTraceId, 'thread-sdk-bootstrap-missing-thread-model', {
@@ -4788,6 +4858,61 @@ export function RoomTimeline({
           await refreshLatestThreadSlice(threadId);
           if (!mounted || threadIdRef.current !== threadId) return;
         } else {
+          // Targeted open (permalink/search jump): fetch authoritative backward
+          // pagination state from server to clear stale cached tokens on short
+          // threads that would otherwise show a spurious "Load Older Messages".
+          const currentThread = room.getThread(threadId);
+          if (currentThread) {
+            const [relErr, relData] = await to(
+              mx.fetchRelations(room.roomId, threadId, 'm.thread' as any, null, {
+                dir: Direction.Backward,
+                limit: THREAD_BATCH_SIZE,
+              })
+            );
+            if (!mounted || threadIdRef.current !== threadId) return;
+            if (!relErr && relData) {
+              // Merge fetched latest slice into the live thread before trusting
+              // relData.next_batch, matching the refreshLatestThreadSlice flow.
+              const mapper = mx.getEventMapper();
+              const latestEvents = relData.chunk
+                .slice()
+                .reverse()
+                .map((rawEvent: Parameters<typeof mapper>[0]) => mapper(rawEvent));
+              if (latestEvents.length > 0) {
+                currentThread.addEvents(latestEvents, false);
+                setSupplementalThreadEvents(threadId, latestEvents);
+              }
+
+              const currentFirstTimeline = getLinkedTimelines(
+                currentThread.getUnfilteredTimelineSet().getLiveTimeline()
+              )[0];
+              // Persist only the fetched slice (not full currentThread.events)
+              // to avoid mis-keying the pagination token to an older reply.
+              persistThreadEventCache(
+                threadId,
+                latestEvents,
+                currentThread.rootEvent,
+                relData.next_batch ?? null
+              );
+
+              // Reconcile using in-memory values directly, avoiding
+              // the async race from persist→read-back through IndexedDB.
+              if (currentFirstTimeline) {
+                const reconcileToken = computeReconciliationToken(
+                  relData.next_batch ?? null,
+                  latestEvents,
+                  currentThread.events,
+                  threadId
+                );
+                reconcileThreadBackwardPagination(
+                  currentFirstTimeline,
+                  reconcileToken,
+                  setThreadHasMoreCachedBack
+                );
+              }
+            }
+          }
+
           const hasForwardGap = !!room
             .getThread(threadId)
             ?.getUnfilteredTimelineSet()
@@ -4899,7 +5024,7 @@ export function RoomTimeline({
         index: nextIndex,
       };
     });
-  }, [focusItem, threadFilter, threadSort, threadId]);
+  }, [focusItem, threadFilterState, threadId]);
 
   // scroll to focused message
   useLayoutEffect(() => {
@@ -5031,7 +5156,7 @@ export function RoomTimeline({
         clearTimeout(clearFocusTimeoutId);
       }
     };
-  }, [alive, focusItem, retryPagination, scrollToElement, scrollToItem, threadFilter, threadSort, threadId]);
+  }, [alive, focusItem, retryPagination, scrollToElement, scrollToItem, threadFilterState, threadId]);
 
   useLayoutEffect(() => {
     if (!threadId) return;
@@ -6322,7 +6447,7 @@ export function RoomTimeline({
     setThreadPaginatingBack(true);
     threadPaginatingBackRef.current = true;
     try {
-      const earliestThreadReply = getEarliestLoadedThreadReply(threadEvents, expectedThreadId);
+      const earliestThreadReply = findEarliestLoadedThreadReplyByCacheOrder(threadEvents, expectedThreadId);
       const cachedPage = await loadCachedThreadEventsBefore(
         sessionId,
         room.roomId,
@@ -6375,6 +6500,12 @@ export function RoomTimeline({
           thread.events,
           thread.rootEvent,
           firstThreadTimeline.getPaginationToken(Direction.Backward)
+        );
+        // Reconcile backward pagination after SDK pagination
+        reconcileThreadBackwardPagination(
+          firstThreadTimeline,
+          firstThreadTimeline.getPaginationToken(Direction.Backward),
+          setThreadHasMoreCachedBack
         );
         setTimeline((ct) => ({ ...ct }));
         setThreadTimelineTick((val) => val + 1);
@@ -6456,8 +6587,8 @@ export function RoomTimeline({
       return null;
     }
 
-    // Suppress dividers when sort is active — chronological constructs don't apply
-    if (threadSort === 'default') {
+    // Suppress dividers when overview is active — chronological constructs don't apply
+    if (!roomThreadFilterActive) {
       if (!newDivider) {
         newDivider = shouldRenderUnreadDividerAt({
           readUptoAbsoluteIndex,
@@ -6556,11 +6687,15 @@ export function RoomTimeline({
     <Box grow="Yes" direction="Column">
       {!threadId && (
         <RoomThreadOverview
-          counts={visibleThreadCounts}
-          filter={threadFilter}
-          onFilterChange={onThreadFilterChange}
-          sort={threadSort}
-          onSortChange={onThreadSortChange}
+          threadCount={filteredThreadRootIds.length}
+          state={threadFilterState}
+          availableTags={availableRoomTags}
+          onToggle={onToggle}
+          onSortDirectionChange={onSortDirectionChange}
+          onReset={onReset}
+          onCycleTag={onCycleTag}
+          onAddTag={onAddTag}
+          onRemoveTag={onRemoveTag}
         />
       )}
       <Box grow="Yes" style={{ position: 'relative' }}>
