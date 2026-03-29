@@ -1,5 +1,6 @@
 import React, { ReactNode, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
-import { color } from 'folds';
+import { Icon, Icons } from 'folds';
+import * as css from './CollapsibleMessage.css';
 
 const MAX_HEIGHT = '4.5em';
 
@@ -39,7 +40,15 @@ const getCollapsedMaxHeight = (el: HTMLDivElement): number | undefined => {
   return Number.parseFloat(MAX_HEIGHT) * fontSize;
 };
 
-const isContentOverflowing = (el: HTMLDivElement, expanded: boolean): boolean => {
+/**
+ * Returns whether the element's content overflows the collapsed max-height.
+ * Returns `null` when the element hasn't been laid out yet (scrollHeight === 0),
+ * so callers can preserve their current assumption instead of recording a
+ * false negative.
+ */
+const isContentOverflowing = (el: HTMLDivElement, expanded: boolean): boolean | null => {
+  if (el.scrollHeight === 0) return null;
+
   const collapsedMaxHeight = getCollapsedMaxHeight(el);
   if (collapsedMaxHeight !== undefined) {
     return el.scrollHeight > collapsedMaxHeight + 1;
@@ -66,9 +75,11 @@ export function CollapsibleMessage({
 }: CollapsibleMessageProps) {
   const isExempt = collapseMode === 'always-expanded';
   const contentRef = useRef<HTMLDivElement>(null);
+  const gradientRef = useRef<HTMLDivElement>(null);
   const initialExpandConsumedRef = useRef(onInitialExpandConsumed);
   const previousCollapseModeRef = useRef<CollapsibleMessageCollapseMode | undefined>(undefined);
-  const [overflowing, setOverflowing] = useState(false);
+  const needsFocusOnCollapseRef = useRef(false);
+  const [overflowing, setOverflowing] = useState(true);
   const [expanded, setExpanded] = useState(() => collapseMode !== 'default');
 
   initialExpandConsumedRef.current = onInitialExpandConsumed;
@@ -77,7 +88,10 @@ export function CollapsibleMessage({
     if (isExempt) return;
     const el = contentRef.current;
     if (!el) return;
-    setOverflowing(isContentOverflowing(el, expanded));
+    const result = isContentOverflowing(el, expanded);
+    if (result !== null) {
+      setOverflowing(result);
+    }
   }, [expanded, isExempt]);
 
   useEffect(() => {
@@ -99,8 +113,31 @@ export function CollapsibleMessage({
     const el = contentRef.current;
     if (isExempt || !el || expanded || typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(() => {
-      setOverflowing(isContentOverflowing(el, expanded));
+      const result = isContentOverflowing(el, expanded);
+      if (result !== null) {
+        setOverflowing(result);
+      }
     });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [expanded, isExempt]);
+
+  // IntersectionObserver: re-check overflow when element enters the viewport.
+  // Catches elements that had zero scrollHeight when first measured off-screen.
+  useEffect(() => {
+    const el = contentRef.current;
+    if (isExempt || !el || expanded || typeof IntersectionObserver === 'undefined') return undefined;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          const result = isContentOverflowing(el, expanded);
+          if (result !== null) {
+            setOverflowing(result);
+          }
+        }
+      },
+      { threshold: 0 }
+    );
     observer.observe(el);
     return () => observer.disconnect();
   }, [expanded, isExempt]);
@@ -114,52 +151,84 @@ export function CollapsibleMessage({
   }, []);
   useExpandAllListener(handleGlobalToggle, !isExempt);
 
+  // Focus management: after collapse, focus the gradient expand control
+  useEffect(() => {
+    if (needsFocusOnCollapseRef.current && !expanded && overflowing && gradientRef.current) {
+      gradientRef.current.focus();
+      needsFocusOnCollapseRef.current = false;
+    }
+  }, [expanded, overflowing]);
+
+  const handleGradientClick = useCallback(() => {
+    setExpanded(true);
+  }, []);
+
+  const handleGradientKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setExpanded(true);
+    }
+  }, []);
+
+  const handleCollapseClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    needsFocusOnCollapseRef.current = true;
+    setExpanded(false);
+    setOverflowing(false);
+  }, []);
+
+  const handleCollapseKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      e.stopPropagation();
+      needsFocusOnCollapseRef.current = true;
+      setExpanded(false);
+      setOverflowing(false);
+    }
+  }, []);
+
+  const showCloseButton = !isExempt && expanded && overflowing;
+  const showGradient = !isExempt && !expanded && overflowing;
+
   return (
     <div style={{ overflowAnchor: 'none' }}>
       <div
         ref={contentRef}
+        className={css.CollapsibleContent()}
+        aria-expanded={isExempt ? undefined : expanded}
         style={{
           maxHeight: isExempt || expanded ? undefined : MAX_HEIGHT,
           overflow: isExempt || expanded ? undefined : 'hidden',
-          position: 'relative',
+          paddingRight: showCloseButton ? '2rem' : undefined,
         }}
       >
         {children}
-        {!isExempt && !expanded && overflowing && (
+        {showGradient && (
           <div
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: '1.5em',
-              background: `linear-gradient(transparent, ${color.Surface.Container})`,
-              pointerEvents: 'none',
-            }}
-          />
+            ref={gradientRef}
+            className={css.CollapsibleGradientOverlay}
+            role="button"
+            tabIndex={0}
+            aria-label="Expand message"
+            onClick={handleGradientClick}
+            onKeyDown={handleGradientKeyDown}
+          >
+            <span className={css.CollapsibleShowMore}>Show more</span>
+          </div>
+        )}
+        {showCloseButton && (
+          <button
+            type="button"
+            className={css.CollapsibleCloseButton}
+            aria-label="Collapse message"
+            title="Collapse message"
+            onClick={handleCollapseClick}
+            onKeyDown={handleCollapseKeyDown}
+          >
+            <Icon size="50" src={Icons.ChevronTop} />
+          </button>
         )}
       </div>
-      {!isExempt && overflowing && (
-        <a
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            setExpanded((prev) => !prev);
-            if (expanded) {
-              // Collapsing — overflow will be re-detected by useLayoutEffect on next render
-              setOverflowing(false);
-            }
-          }}
-          style={{
-            color: color.Primary.Main,
-            cursor: 'pointer',
-            fontSize: '0.75rem',
-            fontFamily: 'monospace',
-          }}
-        >
-          {expanded ? '[-]' : '[+]'}
-        </a>
-      )}
     </div>
   );
 }
