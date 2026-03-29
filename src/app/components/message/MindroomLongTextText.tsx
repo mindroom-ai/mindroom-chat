@@ -38,6 +38,14 @@ type MindroomLongTextTextProps = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
+const getStringValue = (
+  record: Record<string, unknown>,
+  key: string
+): string | undefined => {
+  const value = record[key];
+  return typeof value === 'string' ? value : undefined;
+};
+
 const hasRenderableFormattedBody = (value: Record<string, unknown>): boolean =>
   typeof value.formatted_body === 'string' && value.formatted_body.length > 0;
 
@@ -89,6 +97,39 @@ export const downloadMindroomLongTextSidecarText = async (
   return blob.text();
 };
 
+export const getMindroomLongTextHydrationIdentity = (
+  content: Record<string, unknown>,
+  source: Pick<MindroomLongTextSource, 'encryptedFile' | 'isV2ContentJson' | 'mxcUri'>
+): string => {
+  const info = isRecord(content.info) ? content.info : undefined;
+  const meta = isRecord(content['io.mindroom.long_text'])
+    ? content['io.mindroom.long_text']
+    : undefined;
+
+  return JSON.stringify({
+    body: getStringValue(content, 'body'),
+    encryptedFileHashes: isRecord(source.encryptedFile?.hashes)
+      ? JSON.stringify(source.encryptedFile.hashes)
+      : undefined,
+    encryptedFileIv: source.encryptedFile?.iv,
+    encryptedFileKey: isRecord(source.encryptedFile?.key)
+      ? JSON.stringify(source.encryptedFile.key)
+      : undefined,
+    encryptedFileUrl: source.encryptedFile?.url,
+    encryptedFileVersion: source.encryptedFile?.v,
+    filename: getStringValue(content, 'filename'),
+    format: getStringValue(content, 'format'),
+    formattedBody: getStringValue(content, 'formatted_body'),
+    infoMimetype: typeof info?.mimetype === 'string' ? info.mimetype : undefined,
+    isV2ContentJson: source.isV2ContentJson,
+    longTextEncoding: typeof meta?.encoding === 'string' ? meta.encoding : undefined,
+    longTextVersion: typeof meta?.version === 'number' ? meta.version : undefined,
+    msgtype: getStringValue(content, 'msgtype'),
+    mxcUri: source.mxcUri,
+    url: getStringValue(content, 'url'),
+  });
+};
+
 export function MindroomLongTextText({
   kind,
   displayName,
@@ -101,6 +142,7 @@ export function MindroomLongTextText({
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const { encryptedFile, isV2ContentJson, mxcUri } = longTextSource;
+  const hydrationIdentity = getMindroomLongTextHydrationIdentity(content, longTextSource);
   const [loading, setLoading] = useState(false);
   const [showLoadingIndicator, setShowLoadingIndicator] = useState(false);
   const [resolvedContent, setResolvedContent] = useState<Record<string, unknown>>(content);
@@ -136,7 +178,7 @@ export function MindroomLongTextText({
     return () => {
       cancelled = true;
     };
-  }, [content, encryptedFile, isV2ContentJson, mxcUri, mx, useAuthentication]);
+  }, [hydrationIdentity, mx, useAuthentication]);
 
   useEffect(() => {
     if (!loading) {
