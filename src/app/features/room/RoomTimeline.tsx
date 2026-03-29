@@ -181,6 +181,7 @@ import {
   matchesThreadFilterState,
   hasActiveThreadFilters,
   collectAvailableRoomTags,
+  computeStatusCounts,
 } from './roomThreadOverviewModel';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
 import { useStateEvents } from '../../hooks/useStateEvents';
@@ -2538,6 +2539,12 @@ export function RoomTimeline({
     if (threadId) return visibleThreadRootData.ids;
     return filterThreadRootEvents(visibleThreadRootData.ids, threadFilterState, threadMetadataMap);
   }, [threadId, visibleThreadRootData.ids, threadFilterState, threadMetadataMap]);
+
+  // Per-status counts over ALL threads (unfiltered)
+  const statusCounts = useMemo(
+    () => computeStatusCounts(visibleThreadRootData.ids, threadMetadataMap),
+    [visibleThreadRootData.ids, threadMetadataMap]
+  );
 
   // Available tags from resolution map
   const availableRoomTags = useMemo(
@@ -6688,6 +6695,7 @@ export function RoomTimeline({
       {!threadId && (
         <RoomThreadOverview
           threadCount={filteredThreadRootIds.length}
+          statusCounts={statusCounts}
           state={threadFilterState}
           availableTags={availableRoomTags}
           onToggle={onToggle}
