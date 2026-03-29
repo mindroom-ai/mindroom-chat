@@ -1,6 +1,16 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { Box, Icon, Icons, Text, Tooltip, TooltipProvider, toRem } from 'folds';
-import { IconCalendarEvent, IconZzz } from '@tabler/icons-react';
+import {
+  IconCalendarEvent,
+  IconChevronDown,
+  IconInfoCircle,
+  IconLayoutList,
+  IconLayoutRows,
+  IconMessages,
+  IconSortAscending,
+  IconSortDescending,
+  IconZzz,
+} from '@tabler/icons-react';
 import classNames from 'classnames';
 import * as css from './RoomThreadOverview.css';
 import * as replyCss from '../../components/message/Reply.css';
@@ -684,6 +694,8 @@ export function RoomThreadOverview({
   );
 
   const activeTagEntries = [...state.tags.entries()];
+  const compactViewActive = viewMode === 'compact';
+  const viewModeLabel = compactViewActive ? 'Compact view' : 'Expanded view';
 
   const filterSummary = filtersActive
     ? `Showing ${threadCount} thread${threadCount !== 1 ? 's' : ''} with active filters.`
@@ -789,6 +801,34 @@ export function RoomThreadOverview({
         <div className={css.SectionSeparator} aria-hidden="true" />
 
         {/* Sort */}
+        <TooltipProvider
+          position="Bottom"
+          align="Center"
+          tooltip={
+            <Tooltip style={{ maxWidth: toRem(220) }}>
+              <Text size="T200">{viewModeLabel}</Text>
+            </Tooltip>
+          }
+        >
+          {(triggerRef) => (
+            <button
+              ref={triggerRef}
+              type="button"
+              className={css.ToggleButton}
+              aria-label={viewModeLabel}
+              aria-pressed={compactViewActive}
+              onClick={() => onViewModeChange?.(compactViewActive ? 'normal' : 'compact')}
+              data-view-mode-toggle="true"
+              data-view-mode={compactViewActive ? 'compact' : 'normal'}
+            >
+              {compactViewActive ? (
+                <IconLayoutRows size={14} stroke={1.8} aria-hidden="true" />
+              ) : (
+                <IconLayoutList size={14} stroke={1.8} aria-hidden="true" />
+              )}
+            </button>
+          )}
+        </TooltipProvider>
         <TooltipProvider
           position="Bottom"
           align="Center"
