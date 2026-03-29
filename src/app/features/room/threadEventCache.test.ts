@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   filterPageableCachedThreadEvents,
   getThreadCursorAnchor,
+  loadCachedThreadPaginationToken,
   mergeThreadCacheFlag,
   normalizeCachedThreadEvents,
 } from './threadEventCache';
@@ -130,6 +131,52 @@ describe('filterPageableCachedThreadEvents', () => {
       { event_id: '$reply-1', origin_server_ts: 200 },
       { event_id: '$reply-2', origin_server_ts: 300 },
     ]);
+  });
+});
+
+describe('loadCachedThreadPaginationToken', () => {
+  it('returns undefined when indexedDB is not available', async () => {
+    const result = await loadCachedThreadPaginationToken(
+      'session',
+      '!room:example.org',
+      '$thread',
+      '$event'
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it('returns undefined (no cache data) for any event when DB is unavailable', async () => {
+    // When undefined is returned, reconcileThreadBackwardPagination preserves the
+    // SDK token — this is the safe fallback that avoids overwriting legitimate state.
+    const result = await loadCachedThreadPaginationToken(
+      'session',
+      '!room:example.org',
+      '$thread',
+      '$unknown-event'
+    );
+    expect(result).toBeUndefined();
+  });
+});
+
+describe('filterPageableCachedThreadEvents', () => {
+  it('returns all replies for a thread with >80 replies', () => {
+    const replies = Array.from({ length: 85 }, (_, i) => ({
+      event_id: `$reply-${i}`,
+      origin_server_ts: 1000 + i * 100,
+    }));
+    const allEvents = [{ event_id: '$root', origin_server_ts: 0 }, ...replies];
+    const result = filterPageableCachedThreadEvents(allEvents, '$root');
+    expect(result).toHaveLength(85);
+    expect(result[0].event_id).toBe('$reply-0');
+    expect(result[84].event_id).toBe('$reply-84');
+  });
+
+  it('returns empty array when thread has only the root event', () => {
+    const result = filterPageableCachedThreadEvents(
+      [{ event_id: '$root', origin_server_ts: 0 }],
+      '$root'
+    );
+    expect(result).toHaveLength(0);
   });
 });
 

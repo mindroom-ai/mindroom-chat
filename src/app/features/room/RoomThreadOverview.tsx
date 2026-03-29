@@ -1,143 +1,466 @@
-import React from 'react';
-import { Box, Chip, Text } from 'folds';
-import { IconCalendarEvent } from '@tabler/icons-react';
+import React, { useCallback, useRef, useState } from 'react';
+import { Box, Icon, Icons, Text, Tooltip, TooltipProvider, toRem } from 'folds';
+import { IconCalendarEvent, IconZzz } from '@tabler/icons-react';
+import classNames from 'classnames';
 import * as css from './RoomThreadOverview.css';
 import * as replyCss from '../../components/message/Reply.css';
 import type {
-  ThreadFilter,
-  ThreadSort,
-  RoomThreadOverviewCounts,
+  ThreadFilterState,
+  ThreadFilterKey,
+  TriState,
 } from './roomThreadOverviewModel';
+import { hasActiveThreadFilters } from './roomThreadOverviewModel';
 
-export type { ThreadFilter, ThreadSort, RoomThreadOverviewCounts };
+export type { ThreadFilterState, ThreadFilterKey };
+
+// ─── Tooltip text helpers ────────────────────────────────────────────────────
+
+const FILTER_LABELS: Record<ThreadFilterKey, string> = {
+  resolved: 'Resolved',
+  streaming: 'Streaming',
+  scheduled: 'Scheduled',
+  unread: 'Unread',
+  idle: 'Idle (resolved, not streaming, no tasks)',
+};
+
+const getTooltipText = (key: ThreadFilterKey, state: TriState): string => {
+  const label = FILTER_LABELS[key];
+  switch (state) {
+    case 'any':
+      return `${label}: showing all. Click to show only.`;
+    case 'include':
+      return `${label}: show only. Click to hide.`;
+    case 'exclude':
+      return `${label}: hiding. Click to clear filter.`;
+    default:
+      return label;
+  }
+};
+
+const getAriaValueText = (state: TriState): string => {
+  switch (state) {
+    case 'any':
+      return 'showing all';
+    case 'include':
+      return 'show only';
+    case 'exclude':
+      return 'hiding';
+    default:
+      return state;
+  }
+};
+
+const getTagTooltipText = (tag: string, state: TriState): string => {
+  switch (state) {
+    case 'include':
+      return `Tag "${tag}": show only. Click to hide.`;
+    case 'exclude':
+      return `Tag "${tag}": hiding. Click to clear filter.`;
+    default:
+      return `Tag "${tag}"`;
+  }
+};
+
+// ─── TriStateIconToggle ──────────────────────────────────────────────────────
+
+function TriStateIconToggle({
+  filterKey,
+  state,
+  onToggle,
+  children,
+}: {
+  filterKey: ThreadFilterKey;
+  state: TriState;
+  onToggle: (key: ThreadFilterKey) => void;
+  children: React.ReactNode;
+}) {
+  const tooltipText = getTooltipText(filterKey, state);
+
+  return (
+    <TooltipProvider
+      position="Bottom"
+      align="Center"
+      tooltip={
+        <Tooltip style={{ maxWidth: toRem(280) }}>
+          <Text size="T200">{tooltipText}</Text>
+        </Tooltip>
+      }
+    >
+      {(triggerRef) => (
+        <button
+          ref={triggerRef}
+          type="button"
+          className={classNames(
+            css.ToggleButton,
+            state === 'include' && css.ToggleInclude,
+            state === 'exclude' && css.ToggleExclude
+          )}
+          onClick={() => onToggle(filterKey)}
+          aria-roledescription="tri-state toggle"
+          aria-valuetext={getAriaValueText(state)}
+          aria-label={tooltipText}
+          data-filter-key={filterKey}
+          data-filter-state={state}
+        >
+          {children}
+        </button>
+      )}
+    </TooltipProvider>
+  );
+}
+
+// ─── TagPill ─────────────────────────────────────────────────────────────────
+
+function TagPill({
+  tag,
+  state,
+  onCycle,
+  onRemove,
+}: {
+  tag: string;
+  state: TriState;
+  onCycle: (tag: string) => void;
+  onRemove: (tag: string) => void;
+}) {
+  const tooltipText = getTagTooltipText(tag, state);
+
+  return (
+    <TooltipProvider
+      position="Bottom"
+      align="Center"
+      tooltip={
+        <Tooltip style={{ maxWidth: toRem(280) }}>
+          <Text size="T200">{tooltipText}</Text>
+        </Tooltip>
+      }
+    >
+      {(triggerRef) => (
+        <span
+          ref={triggerRef}
+          className={classNames(
+            css.TagPill,
+            state === 'include' && css.TagPillInclude,
+            state === 'exclude' && css.TagPillExclude
+          )}
+          data-tag-name={tag}
+          data-tag-state={state}
+        >
+          <button
+            type="button"
+            className={css.TagPillLabel}
+            onClick={() => onCycle(tag)}
+            aria-roledescription="tri-state toggle"
+            aria-valuetext={getAriaValueText(state)}
+            aria-label={tooltipText}
+          >
+            <Text size="T200">{tag}</Text>
+          </button>
+          <button
+            type="button"
+            className={css.TagPillRemove}
+            onClick={() => onRemove(tag)}
+            aria-label={`Remove ${tag} filter`}
+          >
+            <Text size="T200">&times;</Text>
+          </button>
+        </span>
+      )}
+    </TooltipProvider>
+  );
+}
+
+// ─── AddTagDropdown ──────────────────────────────────────────────────────────
+
+function AddTagDropdown({
+  availableTags,
+  activeTags,
+  onAddTag,
+}: {
+  availableTags: string[];
+  activeTags: Map<string, TriState>;
+  onAddTag: (tag: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const unselectedTags = availableTags.filter((tag) => !activeTags.has(tag));
+
+  const handleToggle = useCallback(() => {
+    setOpen((prev) => {
+      if (!prev) setFocusedIndex(0);
+      return !prev;
+    });
+  }, []);
+
+  const handleSelect = useCallback(
+    (tag: string) => {
+      onAddTag(tag);
+      setOpen(false);
+      setFocusedIndex(-1);
+    },
+    [onAddTag]
+  );
+
+  const handleBlur = useCallback(
+    (e: React.FocusEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
+        setOpen(false);
+        setFocusedIndex(-1);
+      }
+    },
+    []
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!open) return;
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setFocusedIndex((prev) => (prev + 1) % unselectedTags.length);
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setFocusedIndex((prev) => (prev - 1 + unselectedTags.length) % unselectedTags.length);
+          break;
+        case 'Enter': {
+          e.preventDefault();
+          const tag = unselectedTags[focusedIndex];
+          if (tag) handleSelect(tag);
+          break;
+        }
+        case 'Escape':
+          e.preventDefault();
+          setOpen(false);
+          setFocusedIndex(-1);
+          break;
+        default:
+          break;
+      }
+    },
+    [open, unselectedTags, focusedIndex, handleSelect]
+  );
+
+  if (unselectedTags.length === 0) return null;
+
+  return (
+    <div
+      ref={containerRef}
+      className={css.AddTagContainer}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+    >
+      <button
+        type="button"
+        className={css.AddTagButton}
+        onClick={handleToggle}
+        aria-label="Add tag filter"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        data-add-tag-button="true"
+      >
+        <Text size="T200">+ tag</Text>
+      </button>
+      {open && (
+        <div className={css.AddTagDropdown} role="listbox" aria-label="Available tags">
+          {unselectedTags.map((tag, index) => (
+            <button
+              key={tag}
+              type="button"
+              className={css.AddTagOption}
+              role="option"
+              aria-selected={index === focusedIndex}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(tag);
+              }}
+              data-tag-option={tag}
+              data-focused={index === focusedIndex || undefined}
+              ref={(el) => {
+                if (index === focusedIndex) el?.focus();
+              }}
+            >
+              <Text size="T200">{tag}</Text>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── RoomThreadOverview ──────────────────────────────────────────────────────
+
+export type RoomThreadOverviewProps = {
+  threadCount: number;
+  state: ThreadFilterState;
+  availableTags: string[];
+  onToggle: (key: ThreadFilterKey) => void;
+  onSortDirectionChange: () => void;
+  onReset: () => void;
+  onCycleTag: (tag: string) => void;
+  onAddTag: (tag: string) => void;
+  onRemoveTag: (tag: string) => void;
+};
 
 export function RoomThreadOverview({
-  counts,
-  filter,
-  onFilterChange,
-  sort,
-  onSortChange,
-}: {
-  counts: RoomThreadOverviewCounts;
-  filter: ThreadFilter;
-  onFilterChange: (filter: ThreadFilter) => void;
-  sort: ThreadSort;
-  onSortChange: (sort: ThreadSort) => void;
-}) {
-  const handleSortClick = (s: ThreadSort) => {
-    // Clicking an already-active sort chip clears it back to default
-    onSortChange(sort === s ? 'default' : s);
-  };
+  threadCount,
+  state,
+  availableTags,
+  onToggle,
+  onSortDirectionChange,
+  onReset,
+  onCycleTag,
+  onAddTag,
+  onRemoveTag,
+}: RoomThreadOverviewProps) {
+  const filtersActive = hasActiveThreadFilters(state);
+  const sortLabel =
+    state.sortBy === 'natural'
+      ? 'Threads in timeline order'
+      : state.sortDirection === 'desc'
+        ? 'Sort threads by last reply, newest first'
+        : 'Sort threads by last reply, oldest first';
+
+  const activeTagEntries = [...state.tags.entries()];
+
+  const filterSummary = filtersActive
+    ? `Showing ${threadCount} thread${threadCount !== 1 ? 's' : ''} with active filters.`
+    : `Showing all ${threadCount} thread${threadCount !== 1 ? 's' : ''}.`;
 
   return (
     <Box className={css.Overview} direction="Column" gap="200" data-room-thread-overview="true">
-      <Box
-        direction="Row"
-        gap="200"
-        style={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}
-      >
-        <Box
-          direction="Row"
-          gap="200"
-          alignItems="Center"
-          style={{ minWidth: 0, flexGrow: 1, flexWrap: 'wrap' }}
-        >
-          <Text size="B300">Threads</Text>
-          <Text size="T200" priority="300" truncate>
-            Filter the room timeline by thread status.
-          </Text>
-        </Box>
+      <div aria-live="polite" aria-atomic="true" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
+        {filterSummary}
+      </div>
+      {/* Row 1: Status toggles */}
+      <div className={css.ToolbarHeader}>
+        <Text size="B300">{`Threads (${threadCount})`}</Text>
 
-        <Box className={css.FilterRow}>
-          <Chip
-            variant={filter === 'unresolved' ? 'Primary' : 'SurfaceVariant'}
-            radii="Pill"
-            outlined={filter !== 'unresolved'}
-            aria-pressed={filter === 'unresolved'}
-            aria-label={`Show unresolved threads (${counts.unresolved})`}
-            onClick={() => onFilterChange('unresolved')}
-          >
-            <Text size="T200">{`Unresolved (${counts.unresolved})`}</Text>
-          </Chip>
-          <Chip
-            variant={filter === 'resolved' ? 'Success' : 'SurfaceVariant'}
-            radii="Pill"
-            outlined={filter !== 'resolved'}
-            aria-pressed={filter === 'resolved'}
-            aria-label={`Show resolved threads (${counts.resolved})`}
-            onClick={() => onFilterChange('resolved')}
-          >
-            <Text size="T200">{`Resolved (${counts.resolved})`}</Text>
-          </Chip>
-          <Chip
-            variant={filter === 'unread' ? 'Primary' : 'SurfaceVariant'}
-            radii="Pill"
-            outlined={filter !== 'unread'}
-            aria-pressed={filter === 'unread'}
-            aria-label={`Show unread threads (${counts.unread})`}
-            onClick={() => onFilterChange('unread')}
-          >
-            <Text size="T200">{`Unread (${counts.unread})`}</Text>
-          </Chip>
-          <Chip
-            variant={filter === 'all' ? 'Primary' : 'SurfaceVariant'}
-            radii="Pill"
-            outlined={filter !== 'all'}
-            aria-pressed={filter === 'all'}
-            aria-label={`Show all threads (${counts.all})`}
-            onClick={() => onFilterChange('all')}
-          >
-            <Text size="T200">{`All (${counts.all})`}</Text>
-          </Chip>
-        </Box>
-      </Box>
+        <div className={css.ToolbarControls}>
+          <div className={css.ToggleGroup} role="group" aria-label="Thread filters">
+            <TriStateIconToggle
+              filterKey="resolved"
+              state={state.resolved}
+              onToggle={onToggle}
+            >
+              <Icon size="50" src={Icons.CheckTwice} />
+            </TriStateIconToggle>
 
-      <Box className={css.SortRow}>
-        <Text size="T200" priority="300">
-          Sort:
-        </Text>
-        <Chip
-          variant={sort === 'last-reply' ? 'Primary' : 'SurfaceVariant'}
-          radii="Pill"
-          outlined={sort !== 'last-reply'}
-          aria-pressed={sort === 'last-reply'}
-          aria-label="Sort threads by last reply"
-          onClick={() => handleSortClick('last-reply')}
-        >
-          <Text size="T200">Last Reply</Text>
-        </Chip>
-        <Chip
-          variant={sort === 'streaming' ? 'Primary' : 'SurfaceVariant'}
-          radii="Pill"
-          outlined={sort !== 'streaming'}
-          aria-pressed={sort === 'streaming'}
-          aria-label="Sort threads by streaming activity"
-          onClick={() => handleSortClick('streaming')}
-          before={
-            <span className={replyCss.ThreadStreamingDot} aria-hidden="true" />
-          }
-        >
-          <Text size="T200">Streaming</Text>
-        </Chip>
-        <Chip
-          variant={sort === 'scheduled' ? 'Primary' : 'SurfaceVariant'}
-          radii="Pill"
-          outlined={sort !== 'scheduled'}
-          aria-pressed={sort === 'scheduled'}
-          aria-label="Sort threads by scheduled tasks"
-          onClick={() => handleSortClick('scheduled')}
-          before={
-            <IconCalendarEvent
-              size={12}
-              stroke={1.8}
-              className={replyCss.ThreadScheduledIcon}
-              aria-hidden="true"
-            />
-          }
-        >
-          <Text size="T200">Scheduled</Text>
-        </Chip>
-      </Box>
+            <TriStateIconToggle
+              filterKey="streaming"
+              state={state.streaming}
+              onToggle={onToggle}
+            >
+              <span className={replyCss.ThreadStreamingDot} aria-hidden="true" />
+            </TriStateIconToggle>
+
+            <TriStateIconToggle
+              filterKey="scheduled"
+              state={state.scheduled}
+              onToggle={onToggle}
+            >
+              <IconCalendarEvent
+                size={14}
+                stroke={1.8}
+                className={replyCss.ThreadScheduledIcon}
+                aria-hidden="true"
+              />
+            </TriStateIconToggle>
+
+            <TriStateIconToggle
+              filterKey="unread"
+              state={state.unread}
+              onToggle={onToggle}
+            >
+              <Icon size="50" src={Icons.MessageUnread} />
+            </TriStateIconToggle>
+
+            <TriStateIconToggle
+              filterKey="idle"
+              state={state.idle}
+              onToggle={onToggle}
+            >
+              <IconZzz size={14} stroke={1.8} aria-hidden="true" />
+            </TriStateIconToggle>
+          </div>
+
+          <div className={css.ToggleSortSeparator} aria-hidden="true" />
+
+          <TooltipProvider
+            position="Bottom"
+            align="Center"
+            tooltip={
+              <Tooltip style={{ maxWidth: toRem(220) }}>
+                <Text size="T200">{sortLabel}</Text>
+              </Tooltip>
+            }
+          >
+            {(triggerRef) => (
+              <button
+                ref={triggerRef}
+                type="button"
+                className={classNames(
+                  css.SortButton,
+                  filtersActive && css.SortButtonActive
+                )}
+                onClick={onSortDirectionChange}
+                aria-label={sortLabel}
+                data-sort-by={state.sortBy}
+                data-sort-direction={state.sortDirection}
+              >
+                {state.sortBy === 'natural' ? (
+                  <Text size="T200">Natural</Text>
+                ) : (
+                  <>
+                    <Text size="T200">Last Reply</Text>
+                    <Text size="T200" aria-hidden="true">
+                      {state.sortDirection === 'desc' ? '\u25BE' : '\u25B4'}
+                    </Text>
+                  </>
+                )}
+              </button>
+            )}
+          </TooltipProvider>
+        </div>
+      </div>
+
+      {/* Row 2: Tag filters */}
+      {(activeTagEntries.length > 0 || availableTags.length > 0) && (
+        <div className={css.TagRow} role="group" aria-label="Tag filters" data-tag-filter-row="true">
+          <div className={css.TagList}>
+            {activeTagEntries.map(([tag, tagState]) => (
+              <TagPill
+                key={tag}
+                tag={tag}
+                state={tagState}
+                onCycle={onCycleTag}
+                onRemove={onRemoveTag}
+              />
+            ))}
+          </div>
+          <AddTagDropdown
+            availableTags={availableTags}
+            activeTags={state.tags}
+            onAddTag={onAddTag}
+          />
+        </div>
+      )}
+
+      {threadCount === 0 && filtersActive && (
+        <div className={css.EmptyState}>
+          <Text size="T200">No threads match current filters.</Text>
+          <button
+            type="button"
+            className={css.ResetLink}
+            onClick={onReset}
+            aria-label="Reset all thread filters"
+          >
+            <Text size="T200">Reset</Text>
+          </button>
+        </div>
+      )}
     </Box>
   );
 }
