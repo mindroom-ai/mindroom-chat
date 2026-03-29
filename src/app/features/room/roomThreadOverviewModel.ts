@@ -1,21 +1,46 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
+import {
+  findLatestThreadSummaryEvent,
+  getThreadSummaryEventInfo,
+  type MindroomThreadSummaryInfo,
+} from '../../components/message/mindroomThreadSummary';
 import { getThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
 import { getThreadStreamingState } from '../../hooks/useThreadStreamingState';
+import { trimReplyFromBody } from '../../utils/room';
 import { parseScheduledTaskStateEvent } from '../../utils/scheduledTaskContract';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// ─── Tri-state types ─────────────────────────────────────────────────────────
 
-export type ThreadFilter = 'all' | 'unresolved' | 'resolved' | 'unread';
+export type TriState = 'any' | 'include' | 'exclude';
 
-export type ThreadSort = 'default' | 'last-reply' | 'streaming' | 'scheduled';
+export type ThreadFilterKey = 'resolved' | 'streaming' | 'scheduled' | 'unread' | 'idle';
 
-export type RoomThreadOverviewCounts = {
-  all: number;
-  unresolved: number;
-  resolved: number;
-  unread: number;
-};
+export interface ThreadFilterState {
+  // Row 1: Status toggles
+  resolved: TriState;
+  streaming: TriState;
+  scheduled: TriState;
+  unread: TriState;
+  idle: TriState;
+  sortBy: 'natural' | 'lastReply';
+  sortDirection: 'asc' | 'desc';
+  // Row 2: Tag filters
+  tags: Map<string, TriState>;
+}
+
+export const createDefaultThreadFilterState = (): ThreadFilterState => ({
+  resolved: 'any',
+  streaming: 'any',
+  scheduled: 'any',
+  unread: 'any',
+  idle: 'any',
+  sortBy: 'natural',
+  sortDirection: 'desc',
+  tags: new Map(),
+});
+
+// ─── Core metadata types ─────────────────────────────────────────────────────
 
 export type ThreadOverviewMetadata = {
   isResolved: boolean;
@@ -24,14 +49,333 @@ export type ThreadOverviewMetadata = {
   scheduledTaskCount: number;
   lastActivityTs: number;
   absoluteIndex: number;
+  lastSenderId: string | undefined;
+  lastSenderDisplayName: string | undefined;
+  participantDisplayName: string | undefined;
+  summaryText: string | undefined;
+  rootPreviewText: string | undefined;
+  messageCount: number;
+  tags: string[];
 };
+
+export type AttentionState = 'needs-attention' | 'waiting' | 'streaming' | 'resolved' | 'idle';
+
+export type VisibleThreadRootData = {
+  ids: string[];
+  indexMap: Map<string, number>;
+};
+
+// ─── Tri-state helpers ───────────────────────────────────────────────────────
+
+export const cycleTriState = (state: TriState): TriState => {
+  if (state === 'any') return 'include';
+  if (state === 'include') return 'exclude';
+  return 'any';
+};
+
+export const matchesTriState = (value: boolean, state: TriState): boolean => {
+  if (state === 'any') return true;
+  return state === 'include' ? value : !value;
+};
+
+export const dimensionMatchers: Record<
+  ThreadFilterKey,
+  (meta: ThreadOverviewMetadata) => boolean
+> = {
+  resolved: (meta) => meta.isResolved,
+  streaming: (meta) => meta.isStreaming,
+  scheduled: (meta) => meta.scheduledTaskCount > 0,
+  unread: (meta) => meta.isUnread,
+  idle: (meta) => !meta.isStreaming && meta.scheduledTaskCount === 0 && meta.isResolved,
+};
+
+export const matchesTagFilters = (
+  threadTags: string[],
+  tagFilters: Map<string, TriState>
+): boolean => {
+  for (const [tag, filterState] of tagFilters) {
+    if (!matchesTriState(threadTags.includes(tag), filterState)) return false;
+  }
+  return true;
+};
+
+export const matchesThreadFilterState = (
+  meta: ThreadOverviewMetadata,
+  state: ThreadFilterState
+): boolean =>
+  (Object.keys(dimensionMatchers) as ThreadFilterKey[]).every((key) =>
+    matchesTriState(dimensionMatchers[key](meta), state[key])
+  ) && matchesTagFilters(meta.tags, state.tags);
+
+export const hasActiveThreadFilters = (state: ThreadFilterState): boolean =>
+  (Object.keys(dimensionMatchers) as ThreadFilterKey[]).some((key) => state[key] !== 'any') ||
+  state.tags.size > 0;
+
+export const isDefaultThreadFilterState = (state: ThreadFilterState): boolean =>
+  !hasActiveThreadFilters(state) && state.sortBy === 'natural';
+
+export const isRoomThreadOverviewActive = (
+  threadId: string | undefined,
+  state: ThreadFilterState
+): boolean => !threadId && (hasActiveThreadFilters(state) || state.sortBy !== 'natural');
+
+export const updateThreadFilterKey = (
+  state: ThreadFilterState,
+  key: ThreadFilterKey
+): ThreadFilterState => ({
+  ...state,
+  [key]: cycleTriState(state[key]),
+});
+
+export const cycleSortMode = (
+  state: ThreadFilterState
+): Pick<ThreadFilterState, 'sortBy' | 'sortDirection'> => {
+  if (state.sortBy === 'natural') return { sortBy: 'lastReply', sortDirection: 'desc' };
+  if (state.sortDirection === 'desc') return { sortBy: 'lastReply', sortDirection: 'asc' };
+  return { sortBy: 'natural', sortDirection: 'desc' };
+};
+
+export const resetThreadFilterState = (): ThreadFilterState =>
+  createDefaultThreadFilterState();
+
+// ─── Tag filter helpers ──────────────────────────────────────────────────────
+
+export const cycleTagFilter = (
+  state: ThreadFilterState,
+  tagName: string
+): ThreadFilterState => {
+  const newTags = new Map(state.tags);
+  const current = newTags.get(tagName) ?? 'any';
+  const next = cycleTriState(current);
+  if (next === 'any') {
+    newTags.delete(tagName);
+  } else {
+    newTags.set(tagName, next);
+  }
+  return { ...state, tags: newTags };
+};
+
+export const addTagFilter = (
+  state: ThreadFilterState,
+  tagName: string
+): ThreadFilterState => {
+  if (state.tags.has(tagName)) return state;
+  const newTags = new Map(state.tags);
+  newTags.set(tagName, 'include');
+  return { ...state, tags: newTags };
+};
+
+export const removeTagFilter = (
+  state: ThreadFilterState,
+  tagName: string
+): ThreadFilterState => {
+  if (!state.tags.has(tagName)) return state;
+  const newTags = new Map(state.tags);
+  newTags.delete(tagName);
+  return { ...state, tags: newTags };
+};
+
+export const collectAvailableRoomTags = (
+  tagsMap: Map<string, { tags: Record<string, unknown> | null }>
+): string[] => {
+  const tagSet = new Set<string>();
+  tagsMap.forEach((state) => {
+    if (state.tags) {
+      Object.keys(state.tags).forEach((tag) => tagSet.add(tag));
+    }
+  });
+  const sorted = [...tagSet];
+  sorted.sort();
+  return sorted;
+};
+
+// ─── Thread root visibility ─────────────────────────────────────────────────
+
+const getThreadRootEvent = (room: Room, threadRootId: string): MatrixEvent | undefined =>
+  room.getThread(threadRootId)?.rootEvent ?? room.findEventById(threadRootId);
+
+const getEventBodyPreviewText = (event: MatrixEvent | undefined): string | undefined => {
+  const content =
+    event && typeof event.getContent === 'function'
+      ? (event.getContent() as Record<string, unknown> | null | undefined)
+      : undefined;
+  if (!content || typeof content !== 'object' || Array.isArray(content)) return undefined;
+
+  const newContent = content['m.new_content'];
+  const editedBody =
+    newContent && typeof newContent === 'object' && !Array.isArray(newContent)
+      ? (newContent as Record<string, unknown>).body
+      : undefined;
+  const body = editedBody ?? content.body;
+
+  if (typeof body !== 'string') return undefined;
+
+  const normalized = trimReplyFromBody(body).replace(/\s+/g, ' ').trim();
+  return normalized.length > 0 ? normalized : undefined;
+};
+
+const isVisibleThreadRootEvent = (
+  event: MatrixEvent,
+  room: Room,
+  threadResolutionMap: Map<string, { isResolved: boolean }>,
+  threadReplyCountMap?: Map<string, number>
+): boolean => {
+  const eventId = event.getId();
+  if (!eventId) return false;
+
+  return (
+    event.isThreadRoot ||
+    !!room.getThread(eventId) ||
+    threadResolutionMap.has(eventId) ||
+    (threadReplyCountMap?.get(eventId) ?? 0) > 0
+  );
+};
+
+// ─── Summary helpers ─────────────────────────────────────────────────────────
+
+const getSdkThreadSummaryInfo = (
+  room: Room,
+  threadRootId: string
+): MindroomThreadSummaryInfo | undefined => {
+  const thread = room.getThread(threadRootId);
+  const threadEvents = thread?.events?.length ? thread.events : thread?.timeline ?? [];
+  if (threadEvents.length === 0) return undefined;
+
+  const summaryEvent = findLatestThreadSummaryEvent(threadEvents);
+  if (!summaryEvent) return undefined;
+
+  const info = getThreadSummaryEventInfo(summaryEvent);
+  return info?.summaryText ? info : undefined;
+};
+
+export const buildVisibleThreadRootData = (
+  renderableEventEntries: Array<{ event: MatrixEvent; absoluteIndex: number }>,
+  room: Room,
+  threadResolutionMap: Map<string, { isResolved: boolean }>,
+  threadReplyCountMap?: Map<string, number>
+): VisibleThreadRootData => {
+  const ids: string[] = [];
+  const indexMap = new Map<string, number>();
+
+  renderableEventEntries.forEach(({ event, absoluteIndex }) => {
+    const eventId = event.getId();
+    if (!eventId) return;
+    if (!isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)) return;
+
+    ids.push(eventId);
+    indexMap.set(eventId, absoluteIndex);
+  });
+
+  return { ids, indexMap };
+};
+
+export const buildThreadOverviewSummaryMap = (
+  room: Room,
+  threadRootIds: string[],
+  loadedSummaryMap: Map<string, MindroomThreadSummaryInfo>,
+  cachedSummaryMap: Map<string, MindroomThreadSummaryInfo>
+): Map<string, MindroomThreadSummaryInfo> => {
+  const summaryMap = new Map<string, MindroomThreadSummaryInfo>();
+
+  threadRootIds.forEach((threadRootId) => {
+    const summaryInfo =
+      getSdkThreadSummaryInfo(room, threadRootId) ??
+      loadedSummaryMap.get(threadRootId) ??
+      cachedSummaryMap.get(threadRootId);
+
+    if (summaryInfo?.summaryText) {
+      summaryMap.set(threadRootId, summaryInfo);
+    }
+  });
+
+  return summaryMap;
+};
+
+export const getThreadRootPreviewText = (room: Room, threadRootId: string): string | undefined =>
+  getEventBodyPreviewText(getThreadRootEvent(room, threadRootId));
+
+// ─── Thread metadata helpers ─────────────────────────────────────────────────
+
+const getPreferredThreadReplyEvents = (
+  thread:
+    | {
+        events?: MatrixEvent[];
+        timeline?: MatrixEvent[];
+      }
+    | null
+    | undefined
+): MatrixEvent[] => {
+  if (thread?.events?.length) return thread.events;
+  if (thread?.timeline?.length) return thread.timeline;
+  return thread?.events ?? thread?.timeline ?? [];
+};
+
+const getThreadMessageCount = (
+  thread:
+    | {
+        length?: number;
+        events?: MatrixEvent[];
+        timeline?: MatrixEvent[];
+      }
+    | null
+    | undefined,
+  fallbackMessageCount?: number
+): number => {
+  if (typeof thread?.length === 'number' && thread.length > 0) return thread.length;
+
+  const replyEvents = getPreferredThreadReplyEvents(thread);
+  if (replyEvents.length > 0) return replyEvents.length;
+  if (typeof fallbackMessageCount === 'number' && fallbackMessageCount > 0) {
+    return fallbackMessageCount;
+  }
+
+  return 0;
+};
+
+const getParticipantDisplayNameFromIds = (
+  room: Room,
+  participantIds: string[] | undefined,
+  currentUserId: string
+): string | undefined => {
+  const senderId = participantIds?.find(
+    (candidateId) => !!candidateId && candidateId !== currentUserId
+  );
+  return senderId ? room.getMember(senderId)?.name ?? senderId : undefined;
+};
+
+const getThreadNonUserParticipantDisplayName = (
+  room: Room,
+  thread:
+    | {
+        rootEvent?: MatrixEvent;
+        events?: MatrixEvent[];
+        timeline?: MatrixEvent[];
+      }
+    | null
+    | undefined,
+  currentUserId: string
+): string | undefined => {
+  const candidateEvents = [thread?.rootEvent, ...getPreferredThreadReplyEvents(thread)];
+  const participantEvent = candidateEvents.find(
+    (event) =>
+      !!event &&
+      typeof event.getSender === 'function' &&
+      !!event.getSender() &&
+      event.getSender() !== currentUserId
+  );
+  const senderId =
+    participantEvent && typeof participantEvent.getSender === 'function'
+      ? participantEvent.getSender()
+      : undefined;
+  return senderId ? room.getMember(senderId)?.name ?? senderId : undefined;
+};
+
+export const getThreadOverviewSummaryText = (
+  metadata: ThreadOverviewMetadata
+): string | undefined => metadata.summaryText ?? metadata.rootPreviewText;
 
 // ─── Batch scheduled task helper ────────────────────────────────────────────
 
-/**
- * Groups pending future scheduled tasks by threadId.
- * Reused by `useThreadScheduledTasks` and the batch metadata builder.
- */
 export const getRoomScheduledTaskCounts = (
   scheduledTaskEvents: MatrixEvent[]
 ): Map<string, number> => {
@@ -58,15 +402,6 @@ export const getRoomScheduledTaskCounts = (
 
 // ─── Unread heuristic ───────────────────────────────────────────────────────
 
-/**
- * Room-level receipt heuristic for thread unread state.
- *
- * A thread is considered unread when its latest relevant reply:
- * - is newer than the room-level read-up-to timestamp,
- * - comes from another sender (not the current user).
- *
- * This is an approximation — thread-scoped receipts are not supported.
- */
 export const isThreadUnread = (
   room: Room,
   threadRootId: string,
@@ -79,12 +414,9 @@ export const isThreadUnread = (
   const replyEvents = thread.events ?? [];
   if (replyEvents.length === 0) return false;
 
-  // The latest reply in the thread determines unread state.
-  // If the current user sent the last reply, the thread is not unread.
   const latestReply = replyEvents[replyEvents.length - 1];
   if (latestReply.getSender() === currentUserId) return false;
 
-  // If no read marker exists, any latest reply from another user = unread
   if (readUpToTs === undefined) return true;
 
   return latestReply.getTs() > readUpToTs;
@@ -95,21 +427,45 @@ export const isThreadUnread = (
 export const buildThreadMetadataMap = (
   room: Room,
   threadRootIds: string[],
-  threadResolutionMap: Map<string, { isResolved: boolean }>,
+  threadResolutionMap: Map<string, { isResolved: boolean; tags: Record<string, unknown> | null }>,
   scheduledTaskCounts: Map<string, number>,
+  threadReplyCountMap: Map<string, number>,
+  threadParticipantMap: Map<string, string[]>,
+  summaryMap: Map<string, MindroomThreadSummaryInfo>,
   currentUserId: string,
   readUpToTs: number | undefined,
   absoluteIndexMap: Map<string, number>
 ): Map<string, ThreadOverviewMetadata> => {
   const metadataMap = new Map<string, ThreadOverviewMetadata>();
 
-  for (const threadRootId of threadRootIds) {
-    const isResolved = threadResolutionMap.get(threadRootId)?.isResolved ?? false;
+  threadRootIds.forEach((threadRootId) => {
+    const thread = room.getThread(threadRootId);
+    const resolutionState = threadResolutionMap.get(threadRootId);
+    const isResolved = resolutionState?.isResolved ?? false;
+    const tags = resolutionState?.tags ? Object.keys(resolutionState.tags) : [];
     const isStreaming = getThreadStreamingState(room, threadRootId);
     const scheduledTaskCount = scheduledTaskCounts.get(threadRootId) ?? 0;
     const lastActivityTs = getThreadLastActivityTs(room, threadRootId) ?? 0;
     const absoluteIndex = absoluteIndexMap.get(threadRootId) ?? 0;
     const unread = isThreadUnread(room, threadRootId, currentUserId, readUpToTs);
+    const replyEvents = getPreferredThreadReplyEvents(thread);
+    const fallbackParticipantIds = threadParticipantMap.get(threadRootId);
+    const lastEvent = replyEvents[replyEvents.length - 1];
+    const lastSenderId =
+      lastEvent?.getSender() ??
+      (fallbackParticipantIds && fallbackParticipantIds.length > 0
+        ? fallbackParticipantIds[0]
+        : undefined);
+    const lastSenderDisplayName = lastSenderId
+      ? room.getMember(lastSenderId)?.name ?? lastSenderId
+      : undefined;
+    const summaryInfo = summaryMap.get(threadRootId);
+    const messageCount =
+      summaryInfo?.messageCount ??
+      getThreadMessageCount(thread, threadReplyCountMap.get(threadRootId));
+    const participantDisplayName =
+      getThreadNonUserParticipantDisplayName(room, thread, currentUserId) ??
+      getParticipantDisplayNameFromIds(room, fallbackParticipantIds, currentUserId);
 
     metadataMap.set(threadRootId, {
       isResolved,
@@ -118,41 +474,51 @@ export const buildThreadMetadataMap = (
       scheduledTaskCount,
       lastActivityTs,
       absoluteIndex,
+      lastSenderId,
+      lastSenderDisplayName,
+      participantDisplayName,
+      summaryText: summaryInfo?.summaryText,
+      rootPreviewText: getThreadRootPreviewText(room, threadRootId),
+      messageCount,
+      tags,
     });
-  }
+  });
 
   return metadataMap;
 };
 
-// ─── Filter ─────────────────────────────────────────────────────────────────
+// ─── Attention state (compact view) ─────────────────────────────────────────
+
+export const getAttentionState = (
+  metadata: ThreadOverviewMetadata,
+  currentUserId: string
+): AttentionState => {
+  if (metadata.isStreaming) return 'streaming';
+  if (metadata.isResolved) return 'resolved';
+  if (!metadata.lastSenderId) return 'idle';
+  if (metadata.lastSenderId === currentUserId) return 'waiting';
+  return 'needs-attention';
+};
+
+// ─── Filter (v2 tri-state) ───────────────────────────────────────────────────
 
 export const filterThreadRootEvents = (
   threadRootEventIds: string[],
-  filter: ThreadFilter,
+  state: ThreadFilterState,
   metadataMap: Map<string, ThreadOverviewMetadata>
 ): string[] => {
-  if (filter === 'all') return threadRootEventIds;
+  if (!hasActiveThreadFilters(state)) return threadRootEventIds;
 
   return threadRootEventIds.filter((id) => {
     const meta = metadataMap.get(id);
     if (!meta) return false;
-
-    switch (filter) {
-      case 'unresolved':
-        return !meta.isResolved;
-      case 'resolved':
-        return meta.isResolved;
-      case 'unread':
-        return meta.isUnread;
-      default:
-        return true;
-    }
+    return matchesThreadFilterState(meta, state);
   });
 };
 
-// ─── Sort comparators ───────────────────────────────────────────────────────
+// ─── Sort (v2 direction-aware) ───────────────────────────────────────────────
 
-const compareByLastActivity = (
+const compareByLastActivityDesc = (
   a: ThreadOverviewMetadata,
   b: ThreadOverviewMetadata
 ): number => {
@@ -160,74 +526,31 @@ const compareByLastActivity = (
   return diff !== 0 ? diff : a.absoluteIndex - b.absoluteIndex;
 };
 
+const compareByLastActivityAsc = (
+  a: ThreadOverviewMetadata,
+  b: ThreadOverviewMetadata
+): number => {
+  const diff = a.lastActivityTs - b.lastActivityTs;
+  return diff !== 0 ? diff : a.absoluteIndex - b.absoluteIndex;
+};
+
 export const sortThreadRootEvents = (
   threadRootEventIds: string[],
-  sort: ThreadSort,
+  sortBy: 'natural' | 'lastReply',
+  sortDirection: 'asc' | 'desc',
   metadataMap: Map<string, ThreadOverviewMetadata>
 ): string[] => {
-  if (sort === 'default') return threadRootEventIds;
+  if (sortBy === 'natural') return threadRootEventIds;
 
   const sorted = [...threadRootEventIds];
+  const comparator = sortDirection === 'asc' ? compareByLastActivityAsc : compareByLastActivityDesc;
 
   sorted.sort((aId, bId) => {
     const a = metadataMap.get(aId);
     const b = metadataMap.get(bId);
     if (!a || !b) return 0;
-
-    switch (sort) {
-      case 'last-reply':
-        return compareByLastActivity(a, b);
-
-      case 'streaming': {
-        // Streaming threads first
-        if (a.isStreaming !== b.isStreaming) {
-          return a.isStreaming ? -1 : 1;
-        }
-        return compareByLastActivity(a, b);
-      }
-
-      case 'scheduled': {
-        // Threads with scheduled tasks first
-        const aHasScheduled = a.scheduledTaskCount > 0;
-        const bHasScheduled = b.scheduledTaskCount > 0;
-        if (aHasScheduled !== bHasScheduled) {
-          return aHasScheduled ? -1 : 1;
-        }
-        return compareByLastActivity(a, b);
-      }
-
-      default:
-        return 0;
-    }
+    return comparator(a, b);
   });
 
   return sorted;
-};
-
-// ─── Counts ─────────────────────────────────────────────────────────────────
-
-export const computeOverviewCounts = (
-  metadataMap: Map<string, ThreadOverviewMetadata>
-): RoomThreadOverviewCounts => {
-  let unresolved = 0;
-  let resolved = 0;
-  let unread = 0;
-
-  metadataMap.forEach((meta) => {
-    if (meta.isResolved) {
-      resolved += 1;
-    } else {
-      unresolved += 1;
-    }
-    if (meta.isUnread) {
-      unread += 1;
-    }
-  });
-
-  return {
-    all: unresolved + resolved,
-    unresolved,
-    resolved,
-    unread,
-  };
 };

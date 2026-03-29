@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAtom } from 'jotai';
 import { Badge, Box, Chip, Icon, IconButton, Icons, Spinner, Text, color, config } from 'folds';
 import { EventType, Room } from 'matrix-js-sdk';
@@ -27,8 +27,17 @@ import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 import { useThreadResolution, useToggleThreadResolution } from './useRoomThreadTags';
 import { useThreadRootEvent } from './useThreadRootEvent';
-import { type ThreadFilter, type ThreadSort } from './RoomThreadOverview';
-import { roomIdToThreadFilterAtomFamily } from '../../state/room/roomThreadFilters';
+import type { ThreadFilterState, ThreadFilterKey } from './roomThreadOverviewModel';
+import {
+  createDefaultThreadFilterState,
+  isDefaultThreadFilterState,
+  updateThreadFilterKey,
+  cycleSortMode,
+  cycleTagFilter,
+  addTagFilter,
+  removeTagFilter,
+} from './roomThreadOverviewModel';
+import { roomViewModeAtomFamily, type RoomViewMode } from '../../state/room/roomViewMode';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -79,11 +88,17 @@ export function RoomView({
 
   const { roomId } = room;
   const editor = useEditor();
+  const roomViewModeAtom = useMemo(() => roomViewModeAtomFamily(roomId), [roomId]);
+  const [viewMode, setViewMode] = useAtom(roomViewModeAtom);
   // RoomTimeline is keyed by roomId/threadId below, so room-level filter state
   // must live here to survive thread open/close.
-  const [{ threadFilter, threadSort }, setThreadFilterState] = useAtom(
-    roomIdToThreadFilterAtomFamily(roomId)
-  );
+  const [roomThreadFilterState, setRoomThreadFilterState] = useState<{
+    roomId: string;
+    state: ThreadFilterState;
+  }>(() => ({
+    roomId,
+    state: createDefaultThreadFilterState(),
+  }));
 
   const mx = useMatrixClient();
 
@@ -111,18 +126,96 @@ export function RoomView({
     if (!threadId) return;
     navigateRoom(room.roomId, threadId, { replace: true });
   }, [navigateRoom, room.roomId, threadId]);
-  const handleThreadFilterChange = useCallback(
-    (filter: ThreadFilter) => {
-      setThreadFilterState((current) => ({ ...current, threadFilter: filter }));
+
+  const threadFilterState =
+    roomThreadFilterState.roomId === roomId
+      ? roomThreadFilterState.state
+      : createDefaultThreadFilterState();
+
+  const handleToggle = useCallback(
+    (key: ThreadFilterKey) => {
+      setRoomThreadFilterState((prev) => ({
+        roomId,
+        state: updateThreadFilterKey(
+          prev.roomId === roomId ? prev.state : createDefaultThreadFilterState(),
+          key
+        ),
+      }));
     },
-    [setThreadFilterState]
+    [roomId]
   );
-  const handleThreadSortChange = useCallback(
-    (sort: ThreadSort) => {
-      setThreadFilterState((current) => ({ ...current, threadSort: sort }));
+
+  const handleSortDirectionChange = useCallback(() => {
+    setRoomThreadFilterState((prev) => {
+      const currentState =
+        prev.roomId === roomId ? prev.state : createDefaultThreadFilterState();
+      return {
+        roomId,
+        state: {
+          ...currentState,
+          ...cycleSortMode(currentState),
+        },
+      };
+    });
+  }, [roomId]);
+
+  const handleReset = useCallback(() => {
+    setRoomThreadFilterState({ roomId, state: createDefaultThreadFilterState() });
+  }, [roomId]);
+
+  const handleCycleTag = useCallback(
+    (tag: string) => {
+      setRoomThreadFilterState((prev) => ({
+        roomId,
+        state: cycleTagFilter(
+          prev.roomId === roomId ? prev.state : createDefaultThreadFilterState(),
+          tag
+        ),
+      }));
     },
-    [setThreadFilterState]
+    [roomId]
   );
+
+  const handleAddTag = useCallback(
+    (tag: string) => {
+      setRoomThreadFilterState((prev) => ({
+        roomId,
+        state: addTagFilter(
+          prev.roomId === roomId ? prev.state : createDefaultThreadFilterState(),
+          tag
+        ),
+      }));
+    },
+    [roomId]
+  );
+
+  const handleRemoveTag = useCallback(
+    (tag: string) => {
+      setRoomThreadFilterState((prev) => ({
+        roomId,
+        state: removeTagFilter(
+          prev.roomId === roomId ? prev.state : createDefaultThreadFilterState(),
+          tag
+        ),
+      }));
+    },
+    [roomId]
+  );
+
+  const handleViewModeChange = useCallback(
+    (nextViewMode: RoomViewMode) => {
+      setViewMode(nextViewMode);
+    },
+    [setViewMode]
+  );
+
+  useEffect(() => {
+    setRoomThreadFilterState((current) =>
+      current.roomId === roomId && isDefaultThreadFilterState(current.state)
+        ? current
+        : { roomId, state: createDefaultThreadFilterState() }
+    );
+  }, [roomId]);
 
   // Thread view has a more specific "back" action than the generic room-page back:
   // first swipe exits the thread, then the room header/back handler can navigate out.
@@ -220,10 +313,15 @@ export function RoomView({
           room={room}
           eventId={eventId}
           threadId={threadId}
-          threadFilter={threadFilter}
-          onThreadFilterChange={handleThreadFilterChange}
-          threadSort={threadSort}
-          onThreadSortChange={handleThreadSortChange}
+          threadFilterState={threadFilterState}
+          onToggle={handleToggle}
+          onSortDirectionChange={handleSortDirectionChange}
+          onCycleTag={handleCycleTag}
+          onAddTag={handleAddTag}
+          onRemoveTag={handleRemoveTag}
+          onReset={handleReset}
+          viewMode={viewMode}
+          onViewModeChange={handleViewModeChange}
           roomInputRef={roomInputRef}
           editor={editor}
         />

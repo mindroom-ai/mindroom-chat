@@ -64,7 +64,7 @@ const {
     setSupplementalThreadEvents: vi.fn(),
     resetThreadRenderState: vi.fn(),
   },
-  threadResolutionMapMock: new Map<string, { isResolved: boolean }>(),
+  threadResolutionMapMock: new Map<string, { isResolved: boolean; tags: Record<string, unknown> | null }>(),
   ignoredUsersMock: [] as string[],
   roomUnreadState: { value: false },
   scrollToItemMock: vi.fn(),
@@ -368,6 +368,7 @@ vi.mock('../../utils/room', () => ({
   isMembershipChanged: isMembershipChangedMock,
   logEditDebug: vi.fn(),
   reactionOrEditEvent: reactionOrEditEventMock,
+  trimReplyFromBody: (body: string) => body,
 }));
 
 vi.mock('../../components/message', () => ({
@@ -490,9 +491,17 @@ vi.mock('./threadEventCache', () => ({
   saveThreadEventsToCache: vi.fn(async () => undefined),
 }));
 
-vi.mock('./eventCacheTokenUtils', async (importOriginal) =>
-  importOriginal<typeof import('./eventCacheTokenUtils')>()
-);
+vi.mock('./threadPaginationUtils', () => ({
+  computeReconciliationToken: () => undefined,
+  findEarliestLoadedThreadReplyByCacheOrder: () => undefined,
+  reconcileThreadBackwardPagination: vi.fn(),
+}));
+
+vi.mock('./eventCacheTokenUtils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./eventCacheTokenUtils')>();
+  return actual;
+});
+
 
 vi.mock('./roomEventCache', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./roomEventCache')>();
@@ -785,6 +794,7 @@ beforeEach(() => {
   });
   matrixClientMock.getEventTimeline.mockResolvedValue(undefined);
   matrixClientMock.getThreadTimeline.mockResolvedValue(undefined);
+  matrixClientMock.paginateEventTimeline.mockResolvedValue(false);
 });
 
 let useThreadAwareTimelineRefreshHook:
@@ -834,6 +844,32 @@ const getClickableByText = (renderer: ReturnType<typeof create>, text: string) =
   return clickable;
 };
 
+const DEFAULT_THREAD_FILTER_STATE: import('./roomThreadOverviewModel').ThreadFilterState = {
+  resolved: 'any',
+  streaming: 'any',
+  scheduled: 'any',
+  unread: 'any',
+  idle: 'any',
+  sortBy: 'natural',
+  sortDirection: 'desc',
+  tags: new Map(),
+};
+
+const threadFilterStateFromLegacy = (
+  filter?: 'all' | 'resolved' | 'unresolved' | 'unread'
+): import('./roomThreadOverviewModel').ThreadFilterState => {
+  switch (filter) {
+    case 'resolved':
+      return { ...DEFAULT_THREAD_FILTER_STATE, resolved: 'include' as const, tags: new Map() };
+    case 'unresolved':
+      return { ...DEFAULT_THREAD_FILTER_STATE, resolved: 'exclude' as const, tags: new Map() };
+    case 'unread':
+      return { ...DEFAULT_THREAD_FILTER_STATE, unread: 'include' as const, tags: new Map() };
+    default:
+      return { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() };
+  }
+};
+
 const createControlledRoomTimelineHarness = (
   RoomTimelineComponent: (props: Record<string, unknown>) => React.ReactElement | null
 ) => {
@@ -845,29 +881,52 @@ const createControlledRoomTimelineHarness = (
     eventId,
     threadId,
     initialThreadFilter,
-    initialThreadSort,
   }: {
     room: ReturnType<typeof makeRoom>;
     eventId?: string;
     threadId?: string;
     initialThreadFilter?: 'all' | 'resolved' | 'unresolved' | 'unread';
-    initialThreadSort?: 'default' | 'last-reply' | 'streaming' | 'scheduled';
   }) {
-    const [threadFilter, setThreadFilter] = React.useState<
-      'all' | 'resolved' | 'unresolved' | 'unread'
-    >(initialThreadFilter ?? 'all');
-    const [threadSort, setThreadSort] = React.useState<
-      'default' | 'last-reply' | 'streaming' | 'scheduled'
-    >(initialThreadSort ?? 'default');
+    const [threadFilterState, setThreadFilterState] =
+      React.useState<import('./roomThreadOverviewModel').ThreadFilterState>(
+        threadFilterStateFromLegacy(initialThreadFilter)
+      );
+
+    const onToggle = React.useCallback(
+      (key: 'resolved' | 'streaming' | 'scheduled' | 'unread' | 'idle') => {
+        setThreadFilterState((prev) => {
+          const current = prev[key];
+          const next = current === 'any' ? 'include' : current === 'include' ? 'exclude' : 'any';
+          return { ...prev, [key]: next };
+        });
+      },
+      []
+    );
+
+    const onSortDirectionChange = React.useCallback(() => {
+      setThreadFilterState((prev) => {
+        const { cycleSortMode } = require('./roomThreadOverviewModel');
+        return { ...prev, ...cycleSortMode(prev) };
+      });
+    }, []);
+
+    const onReset = React.useCallback(() => {
+      setThreadFilterState({ ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() });
+    }, []);
 
     return React.createElement(RoomTimelineComponent, {
       room,
       eventId,
       threadId,
-      threadFilter,
-      onThreadFilterChange: setThreadFilter,
-      threadSort,
-      onThreadSortChange: setThreadSort,
+      threadFilterState,
+      onToggle,
+      onSortDirectionChange,
+      onCycleTag: vi.fn(),
+      onAddTag: vi.fn(),
+      onRemoveTag: vi.fn(),
+      onReset,
+      viewMode: 'default',
+      onViewModeChange: vi.fn(),
       roomInputRef,
       editor,
     });
@@ -937,6 +996,15 @@ describe('RoomTimeline', () => {
             room,
             roomInputRef,
             editor,
+            threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+            onToggle: vi.fn(),
+            onSortDirectionChange: vi.fn(),
+            onCycleTag: vi.fn(),
+            onAddTag: vi.fn(),
+            onRemoveTag: vi.fn(),
+            onReset: vi.fn(),
+            viewMode: 'default',
+            onViewModeChange: vi.fn(),
           })
         );
         await flushAsyncWork();
@@ -999,6 +1067,15 @@ describe('RoomTimeline', () => {
             room,
             roomInputRef,
             editor,
+            threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+            onToggle: vi.fn(),
+            onSortDirectionChange: vi.fn(),
+            onCycleTag: vi.fn(),
+            onAddTag: vi.fn(),
+            onRemoveTag: vi.fn(),
+            onReset: vi.fn(),
+            viewMode: 'default',
+            onViewModeChange: vi.fn(),
           })
         );
         await flushAsyncWork();
@@ -1298,9 +1375,9 @@ describe('RoomTimeline', () => {
     expect(renderer.root.findByType(scrollType).findAllByType(roomThreadOverviewType)).toHaveLength(
       0
     );
-    expect(overview.props.filter).toBe('all');
-    expect(overview.props.counts).toEqual({ unresolved: 0, resolved: 0, unread: 0, all: 0 });
-    expect(overview.props.onFilterChange).toBeTypeOf('function');
+    expect(overview.props.state).toEqual({ ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() });
+    expect(overview.props.threadCount).toBe(0);
+    expect(overview.props.onToggle).toBeTypeOf('function');
   });
 
   it('passes visible room thread counts to the overview', async () => {
@@ -1312,7 +1389,7 @@ describe('RoomTimeline', () => {
       liveEvents: [messageEvent, unresolvedThread, resolvedThread],
     });
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-    threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true });
+    threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true, tags: null });
 
     const renderer = create(
       React.createElement(ControlledRoomTimeline, {
@@ -1320,12 +1397,7 @@ describe('RoomTimeline', () => {
       })
     );
 
-    expect(renderer.root.findByType(roomThreadOverviewType).props.counts).toEqual({
-      unresolved: 1,
-      resolved: 1,
-      unread: 0,
-      all: 2,
-    });
+    expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(2);
   });
 
   it('counts fallback-only thread roots in the room thread overview', async () => {
@@ -1345,12 +1417,7 @@ describe('RoomTimeline', () => {
       })
     );
 
-    expect(renderer.root.findByType(roomThreadOverviewType).props.counts).toEqual({
-      unresolved: 1,
-      resolved: 0,
-      unread: 0,
-      all: 1,
-    });
+    expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(1);
   });
 
   it('counts reply-backed thread roots in preload surface counts even when the root is not renderable in the room timeline', async () => {
@@ -3596,6 +3663,10 @@ describe('RoomTimeline', () => {
     const messageEvent = makeEvent('$message');
     const renderableEvents = [messageEvent, unresolvedEvent, resolvedEvent];
     const resolutionMap = new Map([['$thread-resolved', { isResolved: true }]]);
+    const threadMetadataMap = new Map<string, import('./roomThreadOverviewModel').ThreadOverviewMetadata>([
+      ['$thread-unresolved', { isResolved: false, isUnread: false, isStreaming: false, scheduledTaskCount: 0, lastActivityTs: 0, absoluteIndex: 0, lastSenderId: undefined, lastSenderDisplayName: undefined, participantDisplayName: undefined, summaryText: undefined, rootPreviewText: undefined, messageCount: 0, tags: [] }],
+      ['$thread-resolved', { isResolved: true, isUnread: false, isStreaming: false, scheduledTaskCount: 0, lastActivityTs: 0, absoluteIndex: 0, lastSenderId: undefined, lastSenderDisplayName: undefined, participantDisplayName: undefined, summaryText: undefined, rootPreviewText: undefined, messageCount: 0, tags: [] }],
+    ]);
 
     expect(
       getThreadFilteredEvents(
@@ -3603,7 +3674,9 @@ describe('RoomTimeline', () => {
         room as never,
         resolutionMap,
         undefined,
-        'unresolved'
+        { ...DEFAULT_THREAD_FILTER_STATE, resolved: 'exclude' as const, tags: new Map() },
+        undefined,
+        threadMetadataMap
       ).map((event) => event.getId())
     ).toEqual(['$thread-unresolved']);
     expect(
@@ -3612,7 +3685,9 @@ describe('RoomTimeline', () => {
         room as never,
         resolutionMap,
         undefined,
-        'resolved'
+        { ...DEFAULT_THREAD_FILTER_STATE, resolved: 'include' as const, tags: new Map() },
+        undefined,
+        threadMetadataMap
       ).map((event) => event.getId())
     ).toEqual(['$thread-resolved']);
   });
@@ -3624,6 +3699,9 @@ describe('RoomTimeline', () => {
     const messageEvent = makeEvent('$message');
     const fallbackCounts = new Map([[fallbackRoot.getId(), 2]]);
     const resolutionMap = new Map<string, { isResolved: boolean }>();
+    const makeMeta = (isResolved: boolean): import('./roomThreadOverviewModel').ThreadOverviewMetadata => ({
+      isResolved, isUnread: false, isStreaming: false, scheduledTaskCount: 0, lastActivityTs: 0, absoluteIndex: 0, lastSenderId: undefined, lastSenderDisplayName: undefined, participantDisplayName: undefined, summaryText: undefined, rootPreviewText: undefined, messageCount: 0, tags: [],
+    });
 
     expect(
       getThreadFilteredEvents(
@@ -3631,20 +3709,22 @@ describe('RoomTimeline', () => {
         room as never,
         resolutionMap,
         undefined,
-        'unresolved',
-        fallbackCounts
+        { ...DEFAULT_THREAD_FILTER_STATE, resolved: 'exclude' as const, tags: new Map() },
+        fallbackCounts,
+        new Map([['$thread-root', makeMeta(false)]])
       ).map((event) => event.getId())
     ).toEqual(['$thread-root']);
 
-    resolutionMap.set(fallbackRoot.getId(), { isResolved: true });
+    resolutionMap.set(fallbackRoot.getId(), { isResolved: true, tags: null });
     expect(
       getThreadFilteredEvents(
         [messageEvent, fallbackRoot] as never,
         room as never,
         resolutionMap,
         undefined,
-        'resolved',
-        fallbackCounts
+        { ...DEFAULT_THREAD_FILTER_STATE, resolved: 'include' as const, tags: new Map() },
+        fallbackCounts,
+        new Map([['$thread-root', makeMeta(true)]])
       ).map((event) => event.getId())
     ).toEqual(['$thread-root']);
   });
@@ -3752,7 +3832,8 @@ describe('RoomTimeline', () => {
     });
 
     await act(async () => {
-      renderer?.root.findByType(roomThreadOverviewType).props.onFilterChange('unresolved');
+      renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
+      renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
       await flushAsyncWork(1);
     });
 
@@ -3847,14 +3928,15 @@ describe('RoomTimeline', () => {
     });
 
     await act(async () => {
-      renderer?.root.findByType(roomThreadOverviewType).props.onFilterChange('unresolved');
+      renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
+      renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
       await flushAsyncWork(1);
     });
 
     expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 1 });
 
     await act(async () => {
-      renderer?.root.findByType(roomThreadOverviewType).props.onFilterChange('all');
+      renderer?.root.findByType(roomThreadOverviewType).props.onReset();
       await flushAsyncWork(1);
     });
 
@@ -3880,7 +3962,7 @@ describe('RoomTimeline', () => {
     });
     room.getEventReadUpTo = () => unreadMessage.getId();
     roomUnreadState.value = true;
-    threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true });
+    threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true, tags: null });
     matrixClientMock.getEventTimeline.mockResolvedValue(unreadTimeline);
 
     let renderer: ReturnType<typeof create> | undefined;
@@ -3895,11 +3977,11 @@ describe('RoomTimeline', () => {
     });
 
     await act(async () => {
-      renderer?.root.findByType(roomThreadOverviewType).props.onFilterChange('resolved');
+      renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
       await flushAsyncWork(1);
     });
 
-    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('resolved');
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('include');
 
     const jumpToUnread = getClickableByText(renderer!, 'Jump to Unread');
 
@@ -3908,7 +3990,7 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
-    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('resolved');
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('include');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
       unreadMessage.getId()
@@ -4079,7 +4161,7 @@ describe('RoomTimeline', () => {
         return eventId === resolvedThread.getId() ? resolvedThread : undefined;
       },
     });
-    threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true });
+    threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true, tags: null });
     matrixClientMock.getEventTimeline.mockImplementation(async (_timelineSet, eventId) => {
       if (eventId === permalinkMessage.getId()) {
         targetTimelineLoaded = true;
@@ -4102,7 +4184,7 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
-    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('resolved');
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('include');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
       permalinkMessage.getId()
@@ -4126,8 +4208,8 @@ describe('RoomTimeline', () => {
         return eventId === visibleResolvedThread.getId() ? visibleResolvedThread : undefined;
       },
     });
-    threadResolutionMapMock.set(visibleResolvedThread.getId(), { isResolved: true });
-    threadResolutionMapMock.set(olderResolvedThread.getId(), { isResolved: true });
+    threadResolutionMapMock.set(visibleResolvedThread.getId(), { isResolved: true, tags: null });
+    threadResolutionMapMock.set(olderResolvedThread.getId(), { isResolved: true, tags: null });
     matrixClientMock.getEventTimeline.mockImplementation(async (_timelineSet, eventId) => {
       if (eventId === olderResolvedThread.getId()) {
         targetTimelineLoaded = true;
@@ -4150,7 +4232,7 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
-    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('resolved');
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('include');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
       olderResolvedThread.getId()
@@ -4196,7 +4278,7 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
-    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('unresolved');
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('exclude');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
       olderUnresolvedThread.getId()
@@ -4248,7 +4330,7 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
-    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('unresolved');
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('exclude');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
       fallbackThreadRoot.getId()
@@ -4560,7 +4642,7 @@ describe('RoomTimeline', () => {
         return eventId === resolvedThread.getId() ? resolvedThread : undefined;
       },
     });
-    threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true });
+    threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true, tags: null });
     matrixClientMock.getEventTimeline.mockImplementation(async (_timelineSet, eventId) => {
       if (eventId === permalinkMessage.getId()) {
         targetTimelineLoaded = true;
@@ -4583,7 +4665,7 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
-    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('resolved');
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('include');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
       permalinkMessage.getId()
@@ -4607,8 +4689,8 @@ describe('RoomTimeline', () => {
         return eventId === visibleResolvedThread.getId() ? visibleResolvedThread : undefined;
       },
     });
-    threadResolutionMapMock.set(visibleResolvedThread.getId(), { isResolved: true });
-    threadResolutionMapMock.set(olderResolvedThread.getId(), { isResolved: true });
+    threadResolutionMapMock.set(visibleResolvedThread.getId(), { isResolved: true, tags: null });
+    threadResolutionMapMock.set(olderResolvedThread.getId(), { isResolved: true, tags: null });
     matrixClientMock.getEventTimeline.mockImplementation(async (_timelineSet, eventId) => {
       if (eventId === olderResolvedThread.getId()) {
         targetTimelineLoaded = true;
@@ -4631,7 +4713,7 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
-    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('resolved');
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('include');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
       olderResolvedThread.getId()
@@ -4677,7 +4759,7 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
-    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('unresolved');
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('exclude');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
       olderUnresolvedThread.getId()
@@ -4729,7 +4811,7 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
-    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('unresolved');
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('exclude');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
       fallbackThreadRoot.getId()
@@ -4776,10 +4858,13 @@ describe('RoomTimeline', () => {
         eventId: secondThread.getId(),
         renderableEvents: [firstThread, messageEvent, secondThread] as never,
         room: room as never,
-        threadResolutionMap: threadResolutionMapMock,
+        threadResolutionMap: threadResolutionMapMock as never,
         threadId: undefined,
-        threadFilter: 'unresolved',
+        threadFilterState: { resolved: 'exclude' as const, streaming: 'any' as const, scheduled: 'any' as const, unread: 'any' as const, idle: 'any' as const, sortBy: 'natural' as const, sortDirection: 'desc' as const, tags: new Map() },
         scheduledTaskCounts: new Map(),
+        threadReplyCountMapForMeta: new Map(),
+        threadParticipantMap: new Map(),
+        summaryMap: new Map(),
         currentUserId: '@alice:example.org',
         readUpToTs: undefined,
       })
@@ -4943,7 +5028,7 @@ describe('RoomTimeline', () => {
     const unresolvedThread = makeEvent('$thread-unresolved', { isThreadRoot: true });
     const resolvedThread = makeEvent('$thread-resolved', { isThreadRoot: true });
     const room = makeRoom();
-    threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true });
+    threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true, tags: null });
 
     expect(
       getRoomEventFocusTarget({
@@ -4952,8 +5037,11 @@ describe('RoomTimeline', () => {
         room: room as never,
         threadResolutionMap: threadResolutionMapMock,
         threadId: undefined,
-        threadFilter: 'unresolved',
+        threadFilterState: { resolved: 'exclude' as const, streaming: 'any' as const, scheduled: 'any' as const, unread: 'any' as const, idle: 'any' as const, sortBy: 'natural' as const, sortDirection: 'desc' as const, tags: new Map() },
         scheduledTaskCounts: new Map(),
+        threadReplyCountMapForMeta: new Map(),
+        threadParticipantMap: new Map(),
+        summaryMap: new Map(),
         currentUserId: '@alice:example.org',
         readUpToTs: undefined,
       })
