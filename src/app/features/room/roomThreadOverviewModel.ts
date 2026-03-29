@@ -500,6 +500,27 @@ export const getAttentionState = (
   return 'needs-attention';
 };
 
+// ─── Status counts ─────────────────────────────────────────────────────────
+
+export type StatusCounts = Record<ThreadFilterKey, number>;
+
+export const computeStatusCounts = (
+  threadRootIds: string[],
+  metadataMap: Map<string, ThreadOverviewMetadata>
+): StatusCounts => {
+  const counts: StatusCounts = { resolved: 0, streaming: 0, scheduled: 0, unread: 0, idle: 0 };
+
+  threadRootIds.forEach((id) => {
+    const meta = metadataMap.get(id);
+    if (!meta) return;
+    for (const key of Object.keys(dimensionMatchers) as ThreadFilterKey[]) {
+      if (dimensionMatchers[key](meta)) counts[key]++;
+    }
+  });
+
+  return counts;
+};
+
 // ─── Filter (v2 tri-state) ───────────────────────────────────────────────────
 
 export const filterThreadRootEvents = (
