@@ -49,6 +49,16 @@ type ThreadLike =
   | null
   | undefined;
 
+const tagColor = (tagName: string): string => {
+  let hash = 0;
+  for (let i = 0; i < tagName.length; i++) {
+    hash = tagName.charCodeAt(i) + ((hash << 5) - hash);
+    hash = hash & hash;
+  }
+  const hue = ((hash % 360) + 360) % 360;
+  return `hsl(${hue}, 65%, 82%)`;
+};
+
 const truncateText = (value: string, limit: number): string =>
   value.length <= limit ? value : `${value.slice(0, limit - 1).trimEnd()}...`;
 
@@ -202,7 +212,10 @@ export function CompactThreadCard({
 }: CompactThreadCardProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
-  const { isResolved } = useThreadResolution(room, threadRootId);
+  const { isResolved, tags } = useThreadResolution(room, threadRootId);
+  const displayTags = tags
+    ? Object.keys(tags).filter((t) => t !== 'resolved')
+    : [];
   const lastActivityTs = useThreadLastActivityTs(room, threadRootId);
   const relativeTime = useRelativeTime(lastActivityTs);
   const isStreaming = useThreadStreamingState(room, threadRootId);
@@ -429,6 +442,26 @@ export function CompactThreadCard({
             ))}
           </Box>
         )}
+        {displayTags.map((tagName) => (
+          <Box
+            key={tagName}
+            as="span"
+            style={{
+              backgroundColor: tagColor(tagName),
+              color: '#1a1a1a',
+              fontSize: '0.65rem',
+              fontWeight: 500,
+              padding: '0.1rem 0.4rem',
+              borderRadius: '0.5rem',
+              whiteSpace: 'nowrap',
+              display: 'inline-flex',
+              alignItems: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {tagName}
+          </Box>
+        ))}
         <Chip
           as="span"
           className={css.StatusChip}
