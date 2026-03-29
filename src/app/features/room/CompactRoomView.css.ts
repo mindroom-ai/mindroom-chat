@@ -5,9 +5,12 @@ import { DefaultReset, color, config } from 'folds';
 export const View = style({
   display: 'flex',
   flexDirection: 'column',
+  flex: '1 1 auto',
   gap: config.space.S100,
+  minWidth: 0,
   padding: `0 ${config.space.S300} ${config.space.S300}`,
   overflowY: 'auto',
+  width: '100%',
 });
 
 export const EmptyState = style({
