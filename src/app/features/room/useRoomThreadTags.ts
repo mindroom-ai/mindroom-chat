@@ -1,3 +1,4 @@
+import { EventTimeline } from 'matrix-js-sdk';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
@@ -274,8 +275,8 @@ export const useToggleThreadResolution = (room: Room) => {
         // Read current tags to preserve other tags when toggling resolved
         const currentEvent = room
           .getLiveTimeline()
-          .getState('forward' as any)
-          ?.getStateEvents(StateEvent.ThreadTags as any, validThreadRootId);
+          .getState(EventTimeline.FORWARDS)
+          ?.getStateEvents(StateEvent.ThreadTags as string, validThreadRootId);
         const currentTags = currentEvent
           ? parseThreadTagsContent(currentEvent.getContent())
           : null;
