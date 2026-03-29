@@ -114,6 +114,8 @@ const defaultProps = {
   onRemoveTag: vi.fn(),
   onApplyPreset: vi.fn(),
   onSearchQueryChange: vi.fn(),
+  viewMode: 'normal' as const,
+  onViewModeChange: vi.fn(),
 };
 
 describe('RoomThreadOverview', () => {
@@ -259,6 +261,57 @@ describe('RoomThreadOverview', () => {
       (node) => node.props['data-sort-by'] !== undefined
     );
     expect(sortBtn.props.className).toContain('SortButtonActive');
+
+    renderer.unmount();
+  });
+
+  it('renders an icon-only expanded view toggle with the shared toolbar button styling', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, defaultProps)
+    );
+
+    const viewToggle = renderer.root.find(
+      (node) => node.props['data-view-mode-toggle'] === 'true'
+    );
+    expect(viewToggle.props.className).toBe('ToggleButton');
+    expect(viewToggle.props['aria-label']).toBe('Expanded view');
+    expect(viewToggle.props['aria-pressed']).toBe(false);
+    expect(viewToggle.props['data-view-mode']).toBe('normal');
+    expect(viewToggle.findAllByType('icon-layout-list')).toHaveLength(1);
+    expect(viewToggle.findAllByType('icon-layout-rows')).toHaveLength(0);
+
+    const compactText = renderer.root.findAll(
+      (node) => typeof node.children[0] === 'string' && node.children[0] === 'Compact'
+    );
+    expect(compactText).toHaveLength(0);
+
+    renderer.unmount();
+  });
+
+  it('renders the compact icon and toggles back to expanded mode on click', () => {
+    const onViewModeChange = vi.fn();
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        viewMode: 'compact',
+        onViewModeChange,
+      })
+    );
+
+    const viewToggle = renderer.root.find(
+      (node) => node.props['data-view-mode-toggle'] === 'true'
+    );
+    expect(viewToggle.props['aria-label']).toBe('Compact view');
+    expect(viewToggle.props['aria-pressed']).toBe(true);
+    expect(viewToggle.props['data-view-mode']).toBe('compact');
+    expect(viewToggle.findAllByType('icon-layout-rows')).toHaveLength(1);
+    expect(viewToggle.findAllByType('icon-layout-list')).toHaveLength(0);
+
+    act(() => {
+      viewToggle.props.onClick();
+    });
+
+    expect(onViewModeChange).toHaveBeenCalledWith('normal');
 
     renderer.unmount();
   });
