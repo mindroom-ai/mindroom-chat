@@ -17,7 +17,6 @@ import FocusTrap from 'focus-trap-react';
 import React, {
   MouseEventHandler,
   ReactNode,
-  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -41,18 +40,12 @@ import { CapabilitiesProvider } from '../../hooks/useCapabilities';
 import { MediaConfigProvider } from '../../hooks/useMediaConfig';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { SpecVersions } from './SpecVersions';
-import { useSyncState } from '../../hooks/useSyncState';
 import { stopPropagation } from '../../utils/keyboard';
 import { SyncStatus } from './SyncStatus';
 import { AuthMetadataProvider } from '../../hooks/useAuthMetadata';
 import { StoredSession } from '../../state/sessions';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { getLoginPath } from '../pathUtils';
-
-const READY_SYNC_STATES = new Set(['PREPARED', 'SYNCING', 'CATCHUP']);
-
-const isClientReadySyncState = (state: string | null | undefined): boolean =>
-  !!state && READY_SYNC_STATES.has(state);
 
 type ClientMatrixClient = Awaited<ReturnType<typeof initClient>> & {
   on: (
@@ -73,6 +66,22 @@ function ClientRootLoading() {
         <Text>Heating up</Text>
       </Box>
     </SplashScreen>
+  );
+}
+
+function ClientRootSyncingStatus() {
+  return (
+    <Box
+      direction="Row"
+      shrink="No"
+      alignItems="Center"
+      justifyContent="Center"
+      gap="100"
+      style={{ padding: config.space.S100 }}
+    >
+      <Spinner variant="Secondary" size="100" />
+      <Text size="T300">Catching up...</Text>
+    </Box>
   );
 }
 
@@ -223,7 +232,6 @@ type ClientRootProps = {
 };
 export function ClientRoot({ children }: ClientRootProps) {
   const activeSession = useActiveSession();
-  const [loading, setLoading] = useState(true);
   const [retryCount, setRetryCount] = useState(0);
   const [clientState, setClientState] = useState<ClientState>({ status: 'idle' });
   const mx = 'mx' in clientState ? clientState.mx : undefined;
@@ -267,7 +275,6 @@ export function ClientRoot({ children }: ClientRootProps) {
       return () => undefined;
     }
 
-    setLoading(true);
     setClientState({
       status: 'loading',
       session: clientBootstrapSession,
@@ -291,7 +298,6 @@ export function ClientRoot({ children }: ClientRootProps) {
           nextClient.stopClient();
         }
         if (disposed) return;
-        setLoading(false);
 
         setClientState({
           status: 'error',
@@ -340,7 +346,6 @@ export function ClientRoot({ children }: ClientRootProps) {
         nextClient.stopClient();
         if (disposed) return;
 
-        setLoading(false);
         setClientState({
           status: 'error',
           session,
@@ -355,26 +360,6 @@ export function ClientRoot({ children }: ClientRootProps) {
       disposed = true;
     };
   }, [clientState]);
-
-  useSyncState(
-    mx,
-    useCallback((state: string) => {
-      if (isClientReadySyncState(state)) {
-        setLoading(false);
-      }
-    }, [])
-  );
-
-  useEffect(() => {
-    if (!mx || typeof mx.getSyncState !== 'function') return;
-    if (isClientReadySyncState(mx.getSyncState())) {
-      setLoading(false);
-    }
-  }, [mx]);
-
-  useEffect(() => {
-    setLoading(true);
-  }, [activeSession?.sessionId, retryCount]);
 
   if (!activeSession) {
     return <Navigate to={getLoginPath()} replace />;
@@ -394,14 +379,19 @@ export function ClientRoot({ children }: ClientRootProps) {
         )}
       </ServerConfigsLoader>
     </MatrixClientProvider>
-  ) : (
-    <ClientRootLoading />
-  );
+  ) : null;
 
   return (
     <SpecVersions baseUrl={activeSession.baseUrl}>
-      {mx && <SyncStatus mx={mx} />}
-      {loading && <ClientRootOptions mx={mx} activeSession={activeSession} />}
+      {clientState.status !== 'error' &&
+        (clientState.status === 'starting' && mx ? (
+          <ClientRootSyncingStatus />
+        ) : (
+          mx && <SyncStatus mx={mx} />
+        ))}
+      {clientState.status !== 'error' && !mx && (
+        <ClientRootOptions mx={mx} activeSession={activeSession} />
+      )}
       {clientState.status === 'error' && (
         <SplashScreen>
           <Box direction="Column" grow="Yes" alignItems="Center" justifyContent="Center" gap="400">
@@ -431,7 +421,7 @@ export function ClientRoot({ children }: ClientRootProps) {
           </Box>
         </SplashScreen>
       )}
-      {clientState.status !== 'error' && (loading || !mx) ? <ClientRootLoading /> : readyContent}
+      {clientState.status !== 'error' && !mx ? <ClientRootLoading /> : readyContent}
     </SpecVersions>
   );
 }

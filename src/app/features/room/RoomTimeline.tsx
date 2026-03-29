@@ -24,6 +24,7 @@ import {
   Room,
   RoomEvent,
   RoomEventHandlerMap,
+  ThreadEvent,
   THREAD_RELATION_TYPE,
   MsgType,
 } from 'matrix-js-sdk';
@@ -1535,6 +1536,93 @@ export const filterLatestRoomCacheHydrationEvents = (
 
 export const MAX_THREAD_FETCH_EVENTS = 5000;
 export const MAX_THREAD_FETCH_ITERATIONS = 50;
+const VISIBLE_THREAD_CACHE_PREWARM_LIMIT = 8;
+const VISIBLE_THREAD_CACHE_PREWARM_MIN_REPLY_COUNT = 20;
+const VISIBLE_THREAD_CACHE_PREWARM_OVERSCAN = 8;
+const THREAD_OPEN_PREWARM_WAIT_MS = 400;
+
+type ThreadSeedPrewarmTarget = {
+  threadId: string;
+  replyCount: number;
+  visible: boolean;
+};
+
+export const collectPriorityThreadSeedPrewarmRoots = ({
+  room,
+  threadFilteredEventEntries,
+  threadId,
+  threadReplyCountMap,
+  threadResolutionMap,
+  rangeEnd,
+  rangeStart,
+}: {
+  room: Room;
+  threadFilteredEventEntries: TimelineEventEntry[];
+  threadId?: string;
+  threadReplyCountMap: Map<string, number>;
+  threadResolutionMap: Map<string, { isResolved: boolean }>;
+  rangeStart: number;
+  rangeEnd: number;
+}): ThreadSeedPrewarmTarget[] => {
+  if (threadId) return [];
+
+  const candidateRoots = new Map<string, ThreadSeedPrewarmTarget>();
+
+  const recordCandidate = (expectedThreadId: string, replyCount: number, visible: boolean) => {
+    if (replyCount < VISIBLE_THREAD_CACHE_PREWARM_MIN_REPLY_COUNT) return;
+    const existingCandidate = candidateRoots.get(expectedThreadId);
+    if (!existingCandidate) {
+      candidateRoots.set(expectedThreadId, {
+        threadId: expectedThreadId,
+        replyCount,
+        visible,
+      });
+      return;
+    }
+
+    candidateRoots.set(expectedThreadId, {
+      threadId: expectedThreadId,
+      replyCount: Math.max(existingCandidate.replyCount, replyCount),
+      visible: existingCandidate.visible || visible,
+    });
+  };
+
+  const overscanStart = Math.max(0, rangeStart - VISIBLE_THREAD_CACHE_PREWARM_OVERSCAN);
+  const overscanEnd = Math.min(
+    threadFilteredEventEntries.length,
+    rangeEnd + VISIBLE_THREAD_CACHE_PREWARM_OVERSCAN + 1
+  );
+
+  for (const entry of threadFilteredEventEntries.slice(overscanStart, overscanEnd)) {
+    const event = entry.event;
+    const eventId = event.getId();
+    if (!eventId) continue;
+    if (!isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)) continue;
+
+    const replyCount = threadReplyCountMap.get(eventId) ?? getKnownThreadReplyCount(event) ?? 0;
+    recordCandidate(eventId, replyCount, true);
+  }
+
+  const roomThreads = typeof room.getThreads === 'function' ? room.getThreads() : [];
+  roomThreads.forEach((thread) => {
+    const expectedThreadId = thread.id;
+    if (!expectedThreadId) return;
+    const threadRootEvent = thread.rootEvent ?? room.findEventById(expectedThreadId);
+    const replyCount =
+      threadReplyCountMap.get(expectedThreadId) ??
+      (typeof thread.length === 'number' && thread.length > 0 ? thread.length : undefined) ??
+      (threadRootEvent ? getKnownThreadReplyCount(threadRootEvent) : undefined) ??
+      0;
+    recordCandidate(expectedThreadId, replyCount, false);
+  });
+
+  return [...candidateRoots.values()]
+    .sort((left, right) => {
+      if (left.visible !== right.visible) return left.visible ? -1 : 1;
+      return right.replyCount - left.replyCount;
+    })
+    .slice(0, VISIBLE_THREAD_CACHE_PREWARM_LIMIT);
+};
 
 export type ThreadRelationPageResult = {
   events: MatrixEvent[];
@@ -2440,9 +2528,17 @@ export function RoomTimeline({
     const bumpRefresh = () => setOverviewRefreshCounter((c) => c + 1);
     room.on(RoomEvent.Timeline, bumpRefresh);
     room.on(RoomEvent.Receipt, bumpRefresh);
+    room.on(ThreadEvent.New, bumpRefresh);
+    room.on(ThreadEvent.Update, bumpRefresh);
+    room.on(ThreadEvent.NewReply, bumpRefresh);
+    room.on(ThreadEvent.Delete, bumpRefresh);
     return () => {
       room.removeListener(RoomEvent.Timeline, bumpRefresh);
       room.removeListener(RoomEvent.Receipt, bumpRefresh);
+      room.removeListener(ThreadEvent.New, bumpRefresh);
+      room.removeListener(ThreadEvent.Update, bumpRefresh);
+      room.removeListener(ThreadEvent.NewReply, bumpRefresh);
+      room.removeListener(ThreadEvent.Delete, bumpRefresh);
     };
   }, [room, threadId]);
 
@@ -2644,6 +2740,26 @@ export function RoomTimeline({
       ),
     [threadId, threadFilterState, timeline.range, filteredLength, safePaginationLimit]
   );
+  const priorityThreadSeedPrewarmRoots = useMemo(() => {
+    return collectPriorityThreadSeedPrewarmRoots({
+      room,
+      threadFilteredEventEntries,
+      threadId,
+      threadReplyCountMap,
+      threadResolutionMap,
+      rangeEnd: activeTimelineRange.end,
+      rangeStart: activeTimelineRange.start,
+    });
+  }, [
+    activeTimelineRange.end,
+    activeTimelineRange.start,
+    overviewRefreshCounter,
+    room,
+    threadFilteredEventEntries,
+    threadId,
+    threadReplyCountMap,
+    threadResolutionMap,
+  ]);
   const prevThreadFilterStateRef = useRef(threadFilterState);
   const liveTimelineLinked =
     timeline.linkedTimelines[timeline.linkedTimelines.length - 1] === getLiveTimeline(room);
@@ -3246,6 +3362,14 @@ export function RoomTimeline({
       groupedThreadEvents.forEach((threadEvents, expectedThreadId) => {
         const rootEvent =
           room.getThread(expectedThreadId)?.rootEvent ?? room.findEventById(expectedThreadId);
+        const existingThreadSeedEvents = getThreadOpenSeedSnapshot(room, expectedThreadId);
+        const roomDerivedThreadSeedEvents = rootEvent
+          ? mergeThreadBackfillEvents([rootEvent], threadEvents)
+          : threadEvents;
+        const nextThreadSeedEvents = mergeThreadBackfillEvents(
+          existingThreadSeedEvents,
+          roomDerivedThreadSeedEvents
+        );
         let beforeTokenForEarliest = opts?.beforeTokenForEarliest;
         let expectedReplyCount: number | undefined;
         let snapshotComplete = opts?.snapshotComplete;
@@ -3268,11 +3392,14 @@ export function RoomTimeline({
             beforeTokenForEarliest: beforeTokenForEarliest ?? null,
             expectedReplyCount: roomDerivedSnapshot.expectedReplyCount ?? null,
             loadedReplyCount: roomDerivedSnapshot.loadedReplyCount,
+            seedCount: nextThreadSeedEvents.length,
             snapshotComplete,
             tailLoaded,
             threadId: expectedThreadId,
           });
         }
+
+        saveThreadOpenSeedSnapshot(room, expectedThreadId, nextThreadSeedEvents);
 
         persistThreadEventCache(
           expectedThreadId,
@@ -3497,6 +3624,194 @@ export function RoomTimeline({
     },
     [alive, mx, room.roomId, sessionId, setSupplementalThreadEvents, threadDebugTraceId]
   );
+
+  const loadThreadOpenSeedSnapshotFromCache = useCallback(
+    async (expectedThreadId: string): Promise<MatrixEvent[]> => {
+      let cachedPage = await loadLatestCachedThreadEvents(
+        sessionId,
+        room.roomId,
+        expectedThreadId,
+        safePaginationLimitRef.current
+      );
+      const cachedThreadEvents = [...cachedPage.events];
+      let cachedRootEvent = cachedPage.rootEvent;
+
+      for (
+        let pageIndex = 1;
+        cachedPage.hasMoreBefore && pageIndex < MAX_THREAD_FETCH_ITERATIONS;
+        pageIndex += 1
+      ) {
+        const earliestCachedReply = cachedPage.events[0];
+        const beforeAnchor = getThreadCursorAnchor(earliestCachedReply);
+        if (!beforeAnchor) break;
+
+        cachedPage = await loadCachedThreadEventsBefore(
+          sessionId,
+          room.roomId,
+          expectedThreadId,
+          beforeAnchor,
+          safePaginationLimitRef.current
+        );
+        cachedThreadEvents.unshift(...cachedPage.events);
+        cachedRootEvent ??= cachedPage.rootEvent;
+        if (cachedPage.events.length === 0) break;
+      }
+
+      const mapper = mx.getEventMapper();
+      return normalizeCachedThreadEvents(cachedThreadEvents, cachedRootEvent).map((rawEvent) =>
+        mapper(rawEvent)
+      );
+    },
+    [mx, room.roomId, sessionId]
+  );
+
+  const prewarmedVisibleThreadSeedIdsRef = useRef<Set<string>>(new Set());
+  const prewarmingVisibleThreadSeedIdsRef = useRef<Set<string>>(new Set());
+  const prewarmingVisibleThreadSeedPromisesRef = useRef<Map<string, Promise<void>>>(new Map());
+  const queuedVisibleThreadSeedIdsRef = useRef<Set<string>>(new Set());
+  const visibleThreadSeedPrewarmQueueRef = useRef<string[]>([]);
+  const visibleThreadSeedPrewarmRunningRef = useRef(false);
+  const visibleThreadSeedPrewarmGenerationRef = useRef(0);
+  useEffect(() => {
+    visibleThreadSeedPrewarmGenerationRef.current += 1;
+    prewarmedVisibleThreadSeedIdsRef.current.clear();
+    prewarmingVisibleThreadSeedIdsRef.current.clear();
+    prewarmingVisibleThreadSeedPromisesRef.current.clear();
+    queuedVisibleThreadSeedIdsRef.current.clear();
+    visibleThreadSeedPrewarmQueueRef.current = [];
+    visibleThreadSeedPrewarmRunningRef.current = false;
+  }, [room.roomId]);
+
+  const ensureThreadSeedPrewarm = useCallback(
+    (
+      expectedThreadId: string,
+      opts?: {
+        allowWhileThreadOpen?: boolean;
+        generation?: number;
+        logPrefix?: string;
+        traceId?: string;
+      }
+    ): Promise<void> => {
+      const existingPromise = prewarmingVisibleThreadSeedPromisesRef.current.get(expectedThreadId);
+      if (existingPromise) return existingPromise;
+      if (prewarmedVisibleThreadSeedIdsRef.current.has(expectedThreadId)) {
+        return Promise.resolve();
+      }
+
+      const generation = opts?.generation ?? visibleThreadSeedPrewarmGenerationRef.current;
+      const traceId = opts?.traceId ?? roomDebugTraceId;
+      const logPrefix = opts?.logPrefix ?? 'room-thread-seed-prewarm';
+      prewarmingVisibleThreadSeedIdsRef.current.add(expectedThreadId);
+      logTimelineDebug(traceId, `${logPrefix}-start`, {
+        threadId: expectedThreadId,
+      });
+
+      const prewarmPromise = (async () => {
+        try {
+          const cachedSeedEvents = await loadThreadOpenSeedSnapshotFromCache(expectedThreadId);
+          if (generation !== visibleThreadSeedPrewarmGenerationRef.current) return;
+          if (!opts?.allowWhileThreadOpen && threadIdRef.current) return;
+
+          if (cachedSeedEvents.length > 0) {
+            const nextSeedEvents = mergeThreadBackfillEvents(
+              getThreadOpenSeedSnapshot(room, expectedThreadId),
+              cachedSeedEvents
+            );
+            saveThreadOpenSeedSnapshot(room, expectedThreadId, nextSeedEvents);
+            logTimelineDebug(traceId, `${logPrefix}-complete`, {
+              cachedCount: cachedSeedEvents.length,
+              seedCount: nextSeedEvents.length,
+              threadId: expectedThreadId,
+            });
+          } else {
+            logTimelineDebug(traceId, `${logPrefix}-empty`, {
+              threadId: expectedThreadId,
+            });
+          }
+
+          prewarmedVisibleThreadSeedIdsRef.current.add(expectedThreadId);
+        } catch (error) {
+          logTimelineDebug(traceId, `${logPrefix}-error`, {
+            error: error instanceof Error ? error.message : String(error),
+            threadId: expectedThreadId,
+          });
+        } finally {
+          prewarmingVisibleThreadSeedIdsRef.current.delete(expectedThreadId);
+        }
+      })();
+
+      prewarmingVisibleThreadSeedPromisesRef.current.set(expectedThreadId, prewarmPromise);
+      void prewarmPromise.finally(() => {
+        if (prewarmingVisibleThreadSeedPromisesRef.current.get(expectedThreadId) === prewarmPromise) {
+          prewarmingVisibleThreadSeedPromisesRef.current.delete(expectedThreadId);
+        }
+      });
+
+      return prewarmPromise;
+    },
+    [loadThreadOpenSeedSnapshotFromCache, room, roomDebugTraceId]
+  );
+
+  useEffect(() => {
+    if (threadId || priorityThreadSeedPrewarmRoots.length === 0) return undefined;
+
+    priorityThreadSeedPrewarmRoots.forEach(({ threadId: expectedThreadId }) => {
+      if (prewarmedVisibleThreadSeedIdsRef.current.has(expectedThreadId)) return;
+      if (prewarmingVisibleThreadSeedIdsRef.current.has(expectedThreadId)) return;
+      if (queuedVisibleThreadSeedIdsRef.current.has(expectedThreadId)) return;
+      queuedVisibleThreadSeedIdsRef.current.add(expectedThreadId);
+      visibleThreadSeedPrewarmQueueRef.current.push(expectedThreadId);
+    });
+
+    if (visibleThreadSeedPrewarmRunningRef.current) return undefined;
+    visibleThreadSeedPrewarmRunningRef.current = true;
+    const generation = visibleThreadSeedPrewarmGenerationRef.current;
+
+    const prewarmVisibleThreadSeeds = async () => {
+      try {
+        while (visibleThreadSeedPrewarmQueueRef.current.length > 0) {
+          if (generation !== visibleThreadSeedPrewarmGenerationRef.current) return;
+          if (threadIdRef.current) return;
+
+          const expectedThreadId = visibleThreadSeedPrewarmQueueRef.current.shift();
+          if (!expectedThreadId) continue;
+          queuedVisibleThreadSeedIdsRef.current.delete(expectedThreadId);
+          if (prewarmedVisibleThreadSeedIdsRef.current.has(expectedThreadId)) continue;
+          if (prewarmingVisibleThreadSeedIdsRef.current.has(expectedThreadId)) continue;
+
+          const prewarmPromise = ensureThreadSeedPrewarm(expectedThreadId, {
+            generation,
+            logPrefix: 'room-thread-seed-prewarm',
+            traceId: roomDebugTraceId,
+          });
+
+          try {
+            await prewarmPromise;
+          } finally {
+          }
+        }
+      } finally {
+        if (generation === visibleThreadSeedPrewarmGenerationRef.current) {
+          visibleThreadSeedPrewarmRunningRef.current = false;
+        }
+        if (
+          generation === visibleThreadSeedPrewarmGenerationRef.current &&
+          !threadIdRef.current &&
+          visibleThreadSeedPrewarmQueueRef.current.length > 0
+        ) {
+          queueMicrotask(() => {
+            if (visibleThreadSeedPrewarmRunningRef.current) return;
+            visibleThreadSeedPrewarmRunningRef.current = true;
+            void prewarmVisibleThreadSeeds();
+          });
+        }
+      }
+    };
+
+    void prewarmVisibleThreadSeeds();
+
+    return undefined;
+  }, [ensureThreadSeedPrewarm, priorityThreadSeedPrewarmRoots, roomDebugTraceId, threadId]);
 
   const refreshLatestThreadSlice = useCallback(
     async (expectedThreadId: string): Promise<boolean> => {
@@ -4574,20 +4889,67 @@ export function RoomTimeline({
     const initialRoomThreadSeedEvents = hasInitialRoomThreadReplies
       ? getLoadedRoomThreadSeedEvents(room, threadId)
       : [];
+    const buildUntargetedThreadSeedEvents = (memorySeedEvents: MatrixEvent[]) =>
+      shouldScrollToLatestOnOpen
+        ? mergeThreadBackfillEvents(
+            memorySeedEvents,
+            mergeThreadBackfillEvents(initialThreadModelSeedEvents, initialRoomThreadSeedEvents)
+          )
+        : [];
+    const initialUntargetedThreadSeedEvents = buildUntargetedThreadSeedEvents(
+      initialThreadMemorySeedEvents
+    );
     logTimelineDebug(threadDebugTraceId, 'thread-open-seed-scan', {
       localThreadMemorySeedCount: initialThreadMemorySeedEvents.length,
       localThreadModelSeedCount: initialThreadModelSeedEvents.length,
+      mergedSeedVisibleCount: initialUntargetedThreadSeedEvents.filter(
+        (mEvent) => !reactionOrEditEvent(mEvent) && !mEvent.isRedaction()
+      ).length,
+      mergedSeedCount: initialUntargetedThreadSeedEvents.length,
       seedRelationCount: Math.max(0, initialRoomThreadSeedEvents.length - initialRoomThreadEvents.length),
       seedVisibleCount: initialRoomThreadEvents.length,
       threadId,
     });
-    const applyInitialThreadModelSeed = () => {
-      if (initialThreadModelSeedEvents.length === 0) return;
-      setSupplementalThreadEvents(threadId, initialThreadModelSeedEvents);
+    let untargetedThreadSeedApplied = false;
+    let untargetedThreadSeedFallbackTimeout: ReturnType<typeof setTimeout> | undefined;
+    const shouldAwaitRoomPrewarm =
+      shouldScrollToLatestOnOpen &&
+      (prewarmedVisibleThreadSeedIdsRef.current.has(threadId) ||
+        prewarmingVisibleThreadSeedIdsRef.current.has(threadId) ||
+        queuedVisibleThreadSeedIdsRef.current.has(threadId));
+    const threadSeedPrewarmPromise = shouldAwaitRoomPrewarm
+      ? prewarmingVisibleThreadSeedPromisesRef.current.get(threadId) ??
+        ensureThreadSeedPrewarm(threadId, {
+          allowWhileThreadOpen: true,
+          logPrefix: 'thread-open-room-prewarm',
+          traceId: threadDebugTraceId,
+        })
+      : undefined;
+    const applyInitialUntargetedThreadSeed = (
+      memorySeedEvents: MatrixEvent[],
+      source: 'initial' | 'room-prewarm'
+    ): boolean => {
+      if (untargetedThreadSeedApplied) return true;
+      if (hasInitialRoomThreadReplies) {
+        hydrateCachedEvents({
+          room,
+          events: initialRoomThreadSeedEvents,
+          timelineSets: [roomTimelineSet],
+        });
+      }
+      const nextUntargetedThreadSeedEvents = buildUntargetedThreadSeedEvents(memorySeedEvents);
+      if (nextUntargetedThreadSeedEvents.length === 0) return false;
+      untargetedThreadSeedApplied = true;
+      setSupplementalThreadEvents(threadId, nextUntargetedThreadSeedEvents);
       logTimelineDebug(threadDebugTraceId, 'thread-open-live-seed-applied', {
-        seedVisibleCount: initialThreadModelSeedEvents.length,
+        memorySeedCount: memorySeedEvents.length,
+        modelSeedVisibleCount: initialThreadModelSeedEvents.length,
+        roomSeedVisibleCount: initialRoomThreadEvents.length,
+        seedCount: nextUntargetedThreadSeedEvents.length,
+        source,
         threadId,
       });
+      return true;
     };
     const applyInitialRoomThreadSeed = () => {
       if (!hasInitialRoomThreadReplies) return;
@@ -4605,7 +4967,36 @@ export function RoomTimeline({
     };
     let mounted = true;
     if (shouldScrollToLatestOnOpen) {
-      applyInitialThreadModelSeed();
+      const maybeApplyPrewarmedUntargetedThreadSeed = () => {
+        const prewarmedMemorySeedEvents = getThreadOpenSeedSnapshot(room, threadId);
+        if (prewarmedMemorySeedEvents.length > initialThreadMemorySeedEvents.length) {
+          return applyInitialUntargetedThreadSeed(prewarmedMemorySeedEvents, 'room-prewarm');
+        }
+        return false;
+      };
+      if (threadSeedPrewarmPromise) {
+        logTimelineDebug(threadDebugTraceId, 'thread-open-awaiting-room-prewarm', {
+          threadId,
+        });
+        untargetedThreadSeedFallbackTimeout = setTimeout(() => {
+          if (!mounted || threadIdRef.current !== threadId) return;
+          if (maybeApplyPrewarmedUntargetedThreadSeed()) return;
+          applyInitialUntargetedThreadSeed(initialThreadMemorySeedEvents, 'initial');
+        }, THREAD_OPEN_PREWARM_WAIT_MS);
+        void threadSeedPrewarmPromise.finally(() => {
+          if (untargetedThreadSeedFallbackTimeout !== undefined) {
+            clearTimeout(untargetedThreadSeedFallbackTimeout);
+            untargetedThreadSeedFallbackTimeout = undefined;
+          }
+          if (!mounted || threadIdRef.current !== threadId) return;
+          if (maybeApplyPrewarmedUntargetedThreadSeed()) return;
+          applyInitialUntargetedThreadSeed(initialThreadMemorySeedEvents, 'initial');
+        });
+      } else {
+        if (!maybeApplyPrewarmedUntargetedThreadSeed()) {
+          applyInitialUntargetedThreadSeed(initialThreadMemorySeedEvents, 'initial');
+        }
+      }
     }
     if (!shouldScrollToLatestOnOpen) {
       applyInitialRoomThreadSeed();
@@ -4625,7 +5016,7 @@ export function RoomTimeline({
           !!hydratedCachedPage &&
           (hydratedCachedPage.events.length > 0 || !!hydratedCachedPage.rootEvent);
         if (shouldScrollToLatestOnOpen && !cachedThreadHasLocalSnapshot) {
-          applyInitialRoomThreadSeed();
+          applyInitialUntargetedThreadSeed(initialThreadMemorySeedEvents, 'initial');
         }
         setThreadInitialCacheHydrated(true);
         const hasCompleteCachedThreadSnapshot =
@@ -4955,8 +5346,12 @@ export function RoomTimeline({
 
     return () => {
       mounted = false;
+      if (untargetedThreadSeedFallbackTimeout !== undefined) {
+        clearTimeout(untargetedThreadSeedFallbackTimeout);
+      }
     };
   }, [
+    ensureThreadSeedPrewarm,
     eventId,
     hydrateThreadFromCache,
     mx,
