@@ -18,6 +18,39 @@ import { removeStoredSession } from '../../../../client/initMatrix';
 import { AccountSwitcher, AccountSwitcherItem } from './AccountSwitcher';
 import { resolveSessionRestorePath } from '../sessionRouteRestore';
 
+const buildStoredAvatarHttpUrl = (
+  homeserverUrl: string,
+  mxcUrl: string,
+  width: number,
+  height: number,
+  accessToken?: string
+): string | undefined => {
+  const match = mxcUrl.match(/^mxc:\/\/([^/]+)\/(.+)$/);
+  if (!match) return undefined;
+
+  try {
+    const [, serverName, mediaId] = match;
+    const homeserver = new URL(homeserverUrl);
+    const basePath = homeserver.pathname.replace(/\/+$/, '');
+    const mediaPath = `${basePath}/_matrix/client/v1/media/thumbnail/${serverName}/${mediaId}`.replace(
+      /\/{2,}/g,
+      '/'
+    );
+    homeserver.pathname = mediaPath;
+    homeserver.search = '';
+    homeserver.searchParams.set('width', String(width));
+    homeserver.searchParams.set('height', String(height));
+    homeserver.searchParams.set('method', 'crop');
+    homeserver.searchParams.set('allow_redirect', 'true');
+    if (accessToken) {
+      homeserver.searchParams.set('access_token', accessToken);
+    }
+    return homeserver.toString();
+  } catch {
+    return undefined;
+  }
+};
+
 const blobToDataUrl = async (blob: Blob): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -30,8 +63,13 @@ export function SettingsTab() {
   const navigate = useNavigate();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
-  const activeSession = useActiveSession();
+  const rawActiveSession = useActiveSession();
   const sessions = useStoredSessions();
+  const activeSession = useMemo(
+    () =>
+      sessions.find((session) => session.sessionId === rawActiveSession?.sessionId) ?? rawActiveSession,
+    [rawActiveSession, sessions]
+  );
   const userId = mx.getUserId() ?? activeSession?.userId ?? '';
   const profile = useUserProfile(userId);
 
@@ -40,30 +78,52 @@ export function SettingsTab() {
   const [removingSessionId, setRemovingSessionId] = useState<string>();
 
   const displayName = profile.displayName ?? getMxIdLocalPart(userId) ?? userId;
+  const activeSessionId = activeSession?.sessionId;
+  const lastKnownAvatarUrl = activeSession?.lastKnownAvatarUrl;
+  const lastKnownAvatarDataUrl = activeSession?.lastKnownAvatarDataUrl;
   const avatarUrl = profile.avatarUrl
     ? mxcUrlToHttp(mx, profile.avatarUrl, useAuthentication, 96, 96, 'crop') ?? undefined
     : undefined;
+  const lastKnownAvatarHttpUrl =
+    (lastKnownAvatarUrl
+      ? buildStoredAvatarHttpUrl(
+          mx.getHomeserverUrl(),
+          lastKnownAvatarUrl,
+          96,
+          96,
+          activeSession?.accessToken
+        )
+      : undefined) ??
+    (lastKnownAvatarUrl
+      ? mxcUrlToHttp(mx, lastKnownAvatarUrl, useAuthentication, 96, 96, 'crop') ?? undefined
+      : undefined);
+  const activeAvatarSrc = lastKnownAvatarDataUrl ?? lastKnownAvatarHttpUrl ?? avatarUrl;
 
   useEffect(() => {
-    if (!activeSession) return;
+    if (!activeSessionId) return;
 
-    updateSessionProfile(activeSession.sessionId, {
+    updateSessionProfile(activeSessionId, {
       lastKnownDisplayName: displayName,
       lastKnownAvatarUrl: profile.avatarUrl ?? undefined,
     });
-  }, [activeSession, displayName, profile.avatarUrl]);
+  }, [activeSessionId, displayName, profile.avatarUrl]);
 
   useEffect(() => {
-    if (!activeSession) return undefined;
-    if (!avatarUrl) {
-      updateSessionProfile(activeSession.sessionId, {
+    if (!activeSessionId) return undefined;
+    const avatarFetchUrl = avatarUrl ?? lastKnownAvatarHttpUrl;
+    if (!avatarFetchUrl) {
+      updateSessionProfile(activeSessionId, {
         lastKnownAvatarDataUrl: undefined,
       });
       return undefined;
     }
-    let disposed = false;
+    if (profile.avatarUrl === lastKnownAvatarUrl && lastKnownAvatarDataUrl) {
+      return undefined;
+    }
 
-    fetch(avatarUrl)
+    const abortController = new AbortController();
+
+    fetch(avatarFetchUrl, { signal: abortController.signal })
       .then(async (response) => {
         if (!response.ok) return undefined;
         const blob = await response.blob();
@@ -71,33 +131,51 @@ export function SettingsTab() {
         return blobToDataUrl(blob);
       })
       .then((dataUrl) => {
-        if (disposed || !dataUrl) return;
-        updateSessionProfile(activeSession.sessionId, {
+        if (abortController.signal.aborted || !dataUrl) return;
+        updateSessionProfile(activeSessionId, {
           lastKnownAvatarDataUrl: dataUrl,
         });
       })
       .catch(() => undefined);
 
     return () => {
-      disposed = true;
+      abortController.abort();
     };
-  }, [activeSession, avatarUrl]);
+  }, [
+    activeSessionId,
+    avatarUrl,
+    lastKnownAvatarDataUrl,
+    lastKnownAvatarHttpUrl,
+    lastKnownAvatarUrl,
+    profile.avatarUrl,
+  ]);
 
   const orderedSessions = useMemo(() => sessions, [sessions]);
   const accountItems = useMemo<AccountSwitcherItem[]>(
     () =>
       orderedSessions.map((session) => {
         const active = session.sessionId === activeSession?.sessionId;
+        const sessionStoredAvatarHttpUrl = session.lastKnownAvatarUrl
+          ? buildStoredAvatarHttpUrl(
+              session.baseUrl,
+              session.lastKnownAvatarUrl,
+              96,
+              96,
+              session.accessToken
+            )
+          : undefined;
         return {
           session,
           active,
           displayName: active
             ? displayName
             : session.lastKnownDisplayName ?? getMxIdLocalPart(session.userId) ?? session.userId,
-          avatarUrl: active ? avatarUrl : session.lastKnownAvatarDataUrl,
+          avatarUrl: active
+            ? activeAvatarSrc ?? session.lastKnownAvatarDataUrl ?? sessionStoredAvatarHttpUrl
+            : session.lastKnownAvatarDataUrl ?? sessionStoredAvatarHttpUrl,
         };
       }),
-    [activeSession?.sessionId, avatarUrl, displayName, orderedSessions]
+    [activeAvatarSrc, activeSession?.sessionId, displayName, orderedSessions]
   );
 
   const openAccountSwitcher = () => setAccountSwitcher(true);
@@ -140,7 +218,7 @@ export function SettingsTab() {
             <SidebarItemTooltip
               tooltip={
                 active
-                  ? `Manage accounts: ${sessionDisplayName}`
+                  ? `Settings: ${sessionDisplayName}`
                   : `Switch to ${sessionDisplayName} (${session.userId})`
               }
             >
@@ -149,13 +227,13 @@ export function SettingsTab() {
                   as="button"
                   aria-label={
                     active
-                      ? `Open account switcher for ${sessionDisplayName}`
+                      ? `Open settings for ${sessionDisplayName}`
                       : `Switch to account ${sessionDisplayName} (${session.userId})`
                   }
                   ref={triggerRef}
                   onClick={() => {
                     if (active) {
-                      openAccountSwitcher();
+                      openSettings();
                       return;
                     }
 
@@ -172,6 +250,23 @@ export function SettingsTab() {
             </SidebarItemTooltip>
           </SidebarItem>
         )
+      )}
+      {accountItems.length > 1 && (
+        <SidebarItem>
+          <SidebarItemTooltip tooltip="Manage accounts">
+            {(triggerRef) => (
+              <SidebarAvatar
+                as="button"
+                aria-label="Manage accounts"
+                ref={triggerRef}
+                outlined
+                onClick={openAccountSwitcher}
+              >
+                <Icon src={Icons.User} />
+              </SidebarAvatar>
+            )}
+          </SidebarItemTooltip>
+        </SidebarItem>
       )}
       <SidebarItem>
         <SidebarItemTooltip tooltip="Add Account">
