@@ -13,6 +13,25 @@ run:
   npm run build
   npm start
 
+# Run the repo lint checks
+lint:
+  npm run lint
+
+# Run TypeScript without emitting build output
+typecheck:
+  npm run typecheck
+
+# Run the Vitest suite once
+test:
+  npm run test
+
+# Run the full repo verification suite
+check:
+  just lint
+  just typecheck
+  just test
+  npm run build
+
 # Full refresh after pulling commits (safe if dependencies changed)
 ios-rebuild:
   npm install
