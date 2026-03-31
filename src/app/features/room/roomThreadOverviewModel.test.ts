@@ -69,6 +69,161 @@ const mkMeta = (overrides: Partial<ThreadOverviewMetadata> = {}): ThreadOverview
 });
 
 describe('roomThreadOverviewModel', () => {
+  describe('serializeThreadFilterState', () => {
+    it('round-trips the default filter state', async () => {
+      const {
+        createDefaultThreadFilterState,
+        deserializeThreadFilterState,
+        serializeThreadFilterState,
+      } = await import('./roomThreadOverviewModel');
+
+      const state = createDefaultThreadFilterState();
+      expect(serializeThreadFilterState(state)).toEqual({
+        v: 1,
+        resolved: 'any',
+        streaming: 'any',
+        scheduled: 'any',
+        unread: 'any',
+        idle: 'any',
+        sortBy: 'natural',
+        sortDirection: 'desc',
+        tags: {},
+        searchQuery: '',
+        statusMode: 'and',
+      });
+      expect(deserializeThreadFilterState(serializeThreadFilterState(state))).toEqual(state);
+    });
+
+    it('round-trips non-default filters, sort state, and tags', async () => {
+      const {
+        deserializeThreadFilterState,
+        serializeThreadFilterState,
+      } = await import('./roomThreadOverviewModel');
+
+      const state = makeDefaultState({
+        resolved: 'include',
+        streaming: 'exclude',
+        scheduled: 'include',
+        unread: 'exclude',
+        idle: 'include',
+        sortBy: 'lastReply',
+        sortDirection: 'asc',
+        searchQuery: 'hello',
+        statusMode: 'or',
+        tags: new Map([
+          ['blocked', 'exclude'],
+          ['needs-review', 'include'],
+        ]),
+      });
+
+      const serialized = serializeThreadFilterState(state);
+      expect(serialized).toEqual({
+        v: 1,
+        resolved: 'include',
+        streaming: 'exclude',
+        scheduled: 'include',
+        unread: 'exclude',
+        idle: 'include',
+        sortBy: 'lastReply',
+        sortDirection: 'asc',
+        tags: {
+          blocked: 'exclude',
+          'needs-review': 'include',
+        },
+        searchQuery: 'hello',
+        statusMode: 'or',
+      });
+      expect(deserializeThreadFilterState(serialized)).toEqual(state);
+    });
+
+    it('falls back to defaults for malformed payloads', async () => {
+      const {
+        createDefaultThreadFilterState,
+        deserializeThreadFilterState,
+      } = await import('./roomThreadOverviewModel');
+
+      expect(deserializeThreadFilterState('nope')).toEqual(createDefaultThreadFilterState());
+      expect(deserializeThreadFilterState(null)).toEqual(createDefaultThreadFilterState());
+      expect(deserializeThreadFilterState(['bad'])).toEqual(createDefaultThreadFilterState());
+    });
+
+    it('recovers valid fields from partially invalid payloads', async () => {
+      const { deserializeThreadFilterState } = await import('./roomThreadOverviewModel');
+
+      expect(
+        deserializeThreadFilterState({
+          v: 1,
+          resolved: 'include',
+          streaming: 'broken',
+          scheduled: 'exclude',
+          unread: 'any',
+          idle: 'include',
+          sortBy: 'natural',
+          sortDirection: 'asc',
+          tags: {
+            blocked: 'exclude',
+            ignored: 'any',
+            broken: 'maybe',
+          },
+        })
+      ).toEqual(
+        makeDefaultState({
+          resolved: 'include',
+          scheduled: 'exclude',
+          idle: 'include',
+          sortBy: 'natural',
+          sortDirection: 'desc',
+          tags: new Map([['blocked', 'exclude']]),
+        })
+      );
+    });
+
+    it('defaults missing searchQuery and statusMode for older persisted payloads', async () => {
+      const { deserializeThreadFilterState } = await import('./roomThreadOverviewModel');
+
+      expect(
+        deserializeThreadFilterState({
+          v: 1,
+          resolved: 'include',
+          streaming: 'exclude',
+          scheduled: 'any',
+          unread: 'include',
+          idle: 'any',
+          sortBy: 'lastReply',
+          sortDirection: 'asc',
+          tags: {
+            blocked: 'exclude',
+          },
+        })
+      ).toEqual(
+        makeDefaultState({
+          resolved: 'include',
+          streaming: 'exclude',
+          unread: 'include',
+          sortBy: 'lastReply',
+          sortDirection: 'asc',
+          tags: new Map([['blocked', 'exclude']]),
+          searchQuery: '',
+          statusMode: 'and',
+        })
+      );
+    });
+
+    it('guards on the serialized version field', async () => {
+      const {
+        createDefaultThreadFilterState,
+        deserializeThreadFilterState,
+      } = await import('./roomThreadOverviewModel');
+
+      expect(
+        deserializeThreadFilterState({
+          v: 2,
+          resolved: 'include',
+        })
+      ).toEqual(createDefaultThreadFilterState());
+    });
+  });
+
   // ═══ Tri-state cycling ═══════════════════════════════════════════════════
 
   describe('cycleTriState', () => {
@@ -1066,6 +1221,7 @@ describe('roomThreadOverviewModel', () => {
       const { filterThreadsBySearch } = await import('./roomThreadOverviewModel');
       expect(filterThreadsBySearch(ids, '', metadataMap)).toEqual(ids);
       expect(filterThreadsBySearch(ids, '   ', metadataMap)).toEqual(ids);
+      expect(filterThreadsBySearch(ids, undefined, metadataMap)).toEqual(ids);
     });
 
     it('matches summaryText case-insensitively', async () => {

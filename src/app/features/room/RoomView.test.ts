@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { passthrough, roomTimelineType, navigateRoomMock } = vi.hoisted(() => ({
   passthrough: 'div',
@@ -8,10 +8,23 @@ const { passthrough, roomTimelineType, navigateRoomMock } = vi.hoisted(() => ({
   navigateRoomMock: vi.fn(),
 }));
 
+const storageState = new Map<string, string>();
+
 vi.stubGlobal('localStorage', {
-  getItem: () => null,
-  setItem: () => undefined,
-  removeItem: () => undefined,
+  get length() {
+    return storageState.size;
+  },
+  clear: () => {
+    storageState.clear();
+  },
+  getItem: (key: string) => storageState.get(key) ?? null,
+  key: (index: number) => Array.from(storageState.keys())[index] ?? null,
+  setItem: (key: string, value: string) => {
+    storageState.set(key, value);
+  },
+  removeItem: (key: string) => {
+    storageState.delete(key);
+  },
 });
 vi.stubGlobal('window', {
   addEventListener: () => undefined,
@@ -195,6 +208,12 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
   };
 
 describe('RoomView', () => {
+  beforeEach(() => {
+    storageState.clear();
+    navigateRoomMock.mockReset();
+    vi.resetModules();
+  });
+
   it('persists the thread filter state across thread enter/exit', async () => {
     const { RoomView } = await import('./RoomView');
     const room = makeRoom('!room-a:example.org');
@@ -226,7 +245,7 @@ describe('RoomView', () => {
     expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
   });
 
-  it('resets the thread filter state when switching rooms', async () => {
+  it('keeps thread filter state isolated per room when switching rooms', async () => {
     const { RoomView } = await import('./RoomView');
     const roomA = makeRoom('!room-a:example.org');
     const roomB = makeRoom('!room-b:example.org');
@@ -242,19 +261,37 @@ describe('RoomView', () => {
 
     expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
 
-    // Switch rooms
+    // Switch rooms; room B starts with its own default state.
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: roomB as never }));
     });
 
     expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('any');
 
-    // Switch back — should still be reset
+    // Give room B a different persisted value.
+    await act(async () => {
+      getTimeline(renderer!).props.onToggle('resolved');
+    });
+
+    await act(async () => {
+      getTimeline(renderer!).props.onToggle('resolved');
+    });
+
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('exclude');
+
+    // Switch back; room A should keep its own persisted value.
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: roomA as never }));
     });
 
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('any');
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
+
+    // Room B should also keep its own persisted value when revisited.
+    await act(async () => {
+      renderer?.update(React.createElement(RoomView, { room: roomB as never }));
+    });
+
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('exclude');
   });
 
   it('resets all filters on onReset', async () => {

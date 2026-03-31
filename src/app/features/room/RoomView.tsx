@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { useAtom } from 'jotai';
 import { Badge, Box, Chip, Icon, IconButton, Icons, Spinner, Text, color, config } from 'folds';
 import { EventType, Room } from 'matrix-js-sdk';
@@ -27,18 +27,17 @@ import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 import { useThreadResolution, useToggleThreadResolution } from './useRoomThreadTags';
 import { useThreadRootEvent } from './useThreadRootEvent';
-import type { ThreadFilterState, ThreadFilterKey } from './roomThreadOverviewModel';
-import type { FilterPreset } from './roomThreadOverviewModel';
+import type { ThreadFilterState, ThreadFilterKey, FilterPreset } from './roomThreadOverviewModel';
 import {
-  createDefaultThreadFilterState,
-  isDefaultThreadFilterState,
   updateThreadFilterKey,
   cycleSortMode,
   cycleTagFilter,
   addTagFilter,
   removeTagFilter,
   applyPreset,
+  resetThreadFilterState,
 } from './roomThreadOverviewModel';
+import { roomThreadFilterAtomFamily } from '../../state/room/roomThreadFilterState';
 import { roomViewModeAtomFamily, type RoomViewMode } from '../../state/room/roomViewMode';
 
 const FN_KEYS_REGEX = /^F\d+$/;
@@ -87,20 +86,16 @@ export function RoomView({
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
 
   const { roomId } = room;
+  const mx = useMatrixClient();
+  const userId = mx.getSafeUserId();
   const editor = useEditor();
   const roomViewModeAtom = useMemo(() => roomViewModeAtomFamily(roomId), [roomId]);
   const [viewMode, setViewMode] = useAtom(roomViewModeAtom);
-  // RoomTimeline is keyed by roomId/threadId below, so room-level filter state
-  // must live here to survive thread open/close.
-  const [roomThreadFilterState, setRoomThreadFilterState] = useState<{
-    roomId: string;
-    state: ThreadFilterState;
-  }>(() => ({
-    roomId,
-    state: createDefaultThreadFilterState(),
-  }));
-
-  const mx = useMatrixClient();
+  const threadFilterAtom = useMemo(
+    () => roomThreadFilterAtomFamily(userId, roomId),
+    [roomId, userId]
+  );
+  const [threadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
 
   const tombstoneEvent = useStateEvent(room, StateEvent.RoomTombstone);
   const powerLevels = usePowerLevelsContext();
@@ -127,79 +122,43 @@ export function RoomView({
     navigateRoom(room.roomId, threadId, { replace: true });
   }, [navigateRoom, room.roomId, threadId]);
 
-  const threadFilterState =
-    roomThreadFilterState.roomId === roomId
-      ? roomThreadFilterState.state
-      : createDefaultThreadFilterState();
-
   const handleToggle = useCallback(
     (key: ThreadFilterKey) => {
-      setRoomThreadFilterState((prev) => ({
-        roomId,
-        state: updateThreadFilterKey(
-          prev.roomId === roomId ? prev.state : createDefaultThreadFilterState(),
-          key
-        ),
-      }));
+      setThreadFilterState(updateThreadFilterKey(threadFilterState, key));
     },
-    [roomId]
+    [setThreadFilterState, threadFilterState]
   );
 
   const handleSortDirectionChange = useCallback(() => {
-    setRoomThreadFilterState((prev) => {
-      const currentState =
-        prev.roomId === roomId ? prev.state : createDefaultThreadFilterState();
-      return {
-        roomId,
-        state: {
-          ...currentState,
-          ...cycleSortMode(currentState),
-        },
-      };
+    setThreadFilterState({
+      ...threadFilterState,
+      ...cycleSortMode(threadFilterState),
     });
-  }, [roomId]);
+  }, [setThreadFilterState, threadFilterState]);
 
   const handleReset = useCallback(() => {
-    setRoomThreadFilterState({ roomId, state: createDefaultThreadFilterState() });
-  }, [roomId]);
+    setThreadFilterState(resetThreadFilterState());
+  }, [setThreadFilterState]);
 
   const handleCycleTag = useCallback(
     (tag: string) => {
-      setRoomThreadFilterState((prev) => ({
-        roomId,
-        state: cycleTagFilter(
-          prev.roomId === roomId ? prev.state : createDefaultThreadFilterState(),
-          tag
-        ),
-      }));
+      setThreadFilterState(cycleTagFilter(threadFilterState, tag));
     },
-    [roomId]
+    [setThreadFilterState, threadFilterState]
   );
 
   const handleAddTag = useCallback(
     (tag: string) => {
-      setRoomThreadFilterState((prev) => ({
-        roomId,
-        state: addTagFilter(
-          prev.roomId === roomId ? prev.state : createDefaultThreadFilterState(),
-          tag
-        ),
-      }));
+      setThreadFilterState(addTagFilter(threadFilterState, tag));
     },
-    [roomId]
+    [setThreadFilterState, threadFilterState]
   );
 
   const handleRemoveTag = useCallback(
     (tag: string) => {
-      setRoomThreadFilterState((prev) => ({
-        roomId,
-        state: removeTagFilter(
-          prev.roomId === roomId ? prev.state : createDefaultThreadFilterState(),
-          tag
-        ),
-      }));
+      setThreadFilterState(removeTagFilter(threadFilterState, tag));
     },
-    [roomId]
+    [setThreadFilterState, threadFilterState]
   );
 
   const handleApplyPreset = useCallback(
@@ -234,14 +193,6 @@ export function RoomView({
     },
     [setViewMode]
   );
-
-  useEffect(() => {
-    setRoomThreadFilterState((current) =>
-      current.roomId === roomId && isDefaultThreadFilterState(current.state)
-        ? current
-        : { roomId, state: createDefaultThreadFilterState() }
-    );
-  }, [roomId]);
 
   // Thread view has a more specific "back" action than the generic room-page back:
   // first swipe exits the thread, then the room header/back handler can navigate out.
