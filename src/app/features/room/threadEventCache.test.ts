@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   filterPageableCachedThreadEvents,
+  getCachedThreadSummaryInfoFromRawEvent,
   getThreadCursorAnchor,
   loadCachedThreadPaginationToken,
   mergeThreadCacheFlag,
@@ -207,6 +208,31 @@ describe('getThreadCursorAnchor', () => {
       eventId: '$reply',
       ts: 0,
     });
+  });
+});
+
+describe('getCachedThreadSummaryInfoFromRawEvent', () => {
+  it('extracts summary info from cached summary events', () => {
+    expect(
+      getCachedThreadSummaryInfoFromRawEvent({
+        content: {
+          body: 'Latest summary',
+          msgtype: 'm.notice',
+          'io.mindroom.thread_summary': true,
+        },
+      })
+    ).toEqual({ summaryText: 'Latest summary' });
+  });
+
+  it('returns undefined for non-summary cached events', () => {
+    expect(
+      getCachedThreadSummaryInfoFromRawEvent({
+        content: {
+          body: 'Regular message',
+          msgtype: 'm.text',
+        },
+      })
+    ).toBeUndefined();
   });
 });
 
