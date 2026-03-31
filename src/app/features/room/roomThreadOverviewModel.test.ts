@@ -44,6 +44,8 @@ const makeDefaultState = (overrides?: Partial<ThreadFilterState>): ThreadFilterS
   sortBy: 'natural',
   sortDirection: 'desc',
   tags: new Map(),
+  searchQuery: '',
+  statusMode: 'and',
   ...overrides,
 });
 
@@ -906,6 +908,194 @@ describe('roomThreadOverviewModel', () => {
         messageCount: 0,
         tags: [],
       });
+    });
+  });
+
+  // ═══ statusMode OR semantics ═════════════════════════════════════════════
+
+  describe('matchesThreadFilterState with statusMode or', () => {
+    it('OR mode: streaming OR scheduled matches either', async () => {
+      const { matchesThreadFilterState } = await import('./roomThreadOverviewModel');
+      const state = makeDefaultState({
+        streaming: 'include',
+        scheduled: 'include',
+        statusMode: 'or',
+      });
+      // streaming only
+      expect(matchesThreadFilterState(mkMeta({ isStreaming: true, scheduledTaskCount: 0 }), state)).toBe(true);
+      // scheduled only
+      expect(matchesThreadFilterState(mkMeta({ isStreaming: false, scheduledTaskCount: 2 }), state)).toBe(true);
+      // both
+      expect(matchesThreadFilterState(mkMeta({ isStreaming: true, scheduledTaskCount: 1 }), state)).toBe(true);
+      // neither
+      expect(matchesThreadFilterState(mkMeta({ isStreaming: false, scheduledTaskCount: 0 }), state)).toBe(false);
+    });
+
+    it('OR mode: exclude filters are still hard rejections', async () => {
+      const { matchesThreadFilterState } = await import('./roomThreadOverviewModel');
+      const state = makeDefaultState({
+        streaming: 'include',
+        scheduled: 'include',
+        resolved: 'exclude',
+        statusMode: 'or',
+      });
+      // streaming + resolved should be excluded
+      expect(matchesThreadFilterState(mkMeta({ isStreaming: true, isResolved: true }), state)).toBe(false);
+      // streaming + not resolved should pass
+      expect(matchesThreadFilterState(mkMeta({ isStreaming: true, isResolved: false }), state)).toBe(true);
+    });
+
+    it('OR mode: no include filters behaves like AND (passes all non-excluded)', async () => {
+      const { matchesThreadFilterState } = await import('./roomThreadOverviewModel');
+      const state = makeDefaultState({
+        resolved: 'exclude',
+        statusMode: 'or',
+      });
+      expect(matchesThreadFilterState(mkMeta({ isResolved: false }), state)).toBe(true);
+      expect(matchesThreadFilterState(mkMeta({ isResolved: true }), state)).toBe(false);
+    });
+
+    it('OR mode: tags still AND with status', async () => {
+      const { matchesThreadFilterState } = await import('./roomThreadOverviewModel');
+      const state = makeDefaultState({
+        streaming: 'include',
+        statusMode: 'or',
+        tags: new Map([['priority', 'include']]),
+      });
+      // streaming + priority → match
+      expect(matchesThreadFilterState(mkMeta({ isStreaming: true, tags: ['priority'] }), state)).toBe(true);
+      // streaming + no priority → no match
+      expect(matchesThreadFilterState(mkMeta({ isStreaming: true, tags: [] }), state)).toBe(false);
+    });
+  });
+
+  // ═══ applyPreset ═══════════════════════════════════════════════════════════
+
+  describe('applyPreset', () => {
+    it('resets all status toggles and applies preset overrides', async () => {
+      const { applyPreset, FILTER_PRESETS } = await import('./roomThreadOverviewModel');
+      const base = makeDefaultState({ resolved: 'include', streaming: 'exclude' });
+      const needsAttention = FILTER_PRESETS.find((p) => p.id === 'needs-attention')!;
+      const result = applyPreset(base, needsAttention);
+      expect(result.resolved).toBe('exclude');
+      expect(result.streaming).toBe('exclude');
+      expect(result.scheduled).toBe('exclude');
+      expect(result.unread).toBe('any');
+      expect(result.idle).toBe('any');
+      expect(result.statusMode).toBe('and');
+    });
+
+    it('active-work preset sets statusMode to or', async () => {
+      const { applyPreset, FILTER_PRESETS } = await import('./roomThreadOverviewModel');
+      const activeWork = FILTER_PRESETS.find((p) => p.id === 'active-work')!;
+      const result = applyPreset(makeDefaultState(), activeWork);
+      expect(result.streaming).toBe('include');
+      expect(result.scheduled).toBe('include');
+      expect(result.statusMode).toBe('or');
+    });
+
+    it('all preset resets everything to default', async () => {
+      const { applyPreset, FILTER_PRESETS } = await import('./roomThreadOverviewModel');
+      const all = FILTER_PRESETS.find((p) => p.id === 'all')!;
+      const base = makeDefaultState({ resolved: 'include', streaming: 'exclude' });
+      const result = applyPreset(base, all);
+      expect(result.resolved).toBe('any');
+      expect(result.streaming).toBe('any');
+      expect(result.scheduled).toBe('any');
+      expect(result.statusMode).toBe('and');
+    });
+
+    it('preserves tags, sort, and searchQuery', async () => {
+      const { applyPreset, FILTER_PRESETS } = await import('./roomThreadOverviewModel');
+      const base = makeDefaultState({
+        tags: new Map([['priority', 'include']]),
+        sortBy: 'lastReply',
+        searchQuery: 'hello',
+      });
+      const archived = FILTER_PRESETS.find((p) => p.id === 'archived')!;
+      const result = applyPreset(base, archived);
+      expect(result.tags.get('priority')).toBe('include');
+      expect(result.sortBy).toBe('lastReply');
+      expect(result.searchQuery).toBe('hello');
+    });
+  });
+
+  // ═══ updateThreadFilterKey resets statusMode ════════════════════════════
+
+  describe('updateThreadFilterKey resets statusMode', () => {
+    it('resets statusMode to and on manual toggle', async () => {
+      const { updateThreadFilterKey } = await import('./roomThreadOverviewModel');
+      const state = makeDefaultState({ statusMode: 'or', streaming: 'include' });
+      const result = updateThreadFilterKey(state, 'resolved');
+      expect(result.statusMode).toBe('and');
+    });
+  });
+
+  // ═══ computeTagCounts ═════════════════════════════════════════════════════
+
+  describe('computeTagCounts', () => {
+    it('counts tags across threads', async () => {
+      const { computeTagCounts } = await import('./roomThreadOverviewModel');
+      const metadataMap = new Map([
+        ['$a', mkMeta({ tags: ['resolved', 'priority'] })],
+        ['$b', mkMeta({ tags: ['blocked'] })],
+        ['$c', mkMeta({ tags: ['resolved'] })],
+      ]);
+      const counts = computeTagCounts(['$a', '$b', '$c'], metadataMap);
+      expect(counts).toEqual({ resolved: 2, priority: 1, blocked: 1 });
+    });
+
+    it('returns empty object for no threads', async () => {
+      const { computeTagCounts } = await import('./roomThreadOverviewModel');
+      expect(computeTagCounts([], new Map())).toEqual({});
+    });
+  });
+
+  // ═══ filterThreadsBySearch ═══════════════════════════════════════════════
+
+  describe('filterThreadsBySearch', () => {
+    const metadataMap = new Map([
+      ['$a', mkMeta({ summaryText: 'Hello world', rootPreviewText: 'Original question' })],
+      ['$b', mkMeta({ summaryText: 'Deploy pipeline', rootPreviewText: 'Build failed' })],
+      ['$c', mkMeta({ summaryText: undefined, rootPreviewText: 'Hello again' })],
+      ['$d', mkMeta({ summaryText: undefined, rootPreviewText: undefined })],
+    ]);
+    const ids = ['$a', '$b', '$c', '$d'];
+
+    it('returns all when query is empty', async () => {
+      const { filterThreadsBySearch } = await import('./roomThreadOverviewModel');
+      expect(filterThreadsBySearch(ids, '', metadataMap)).toEqual(ids);
+      expect(filterThreadsBySearch(ids, '   ', metadataMap)).toEqual(ids);
+    });
+
+    it('matches summaryText case-insensitively', async () => {
+      const { filterThreadsBySearch } = await import('./roomThreadOverviewModel');
+      expect(filterThreadsBySearch(ids, 'hello', metadataMap)).toEqual(['$a', '$c']);
+      expect(filterThreadsBySearch(ids, 'DEPLOY', metadataMap)).toEqual(['$b']);
+    });
+
+    it('matches rootPreviewText', async () => {
+      const { filterThreadsBySearch } = await import('./roomThreadOverviewModel');
+      expect(filterThreadsBySearch(ids, 'Build', metadataMap)).toEqual(['$b']);
+    });
+
+    it('returns empty when nothing matches', async () => {
+      const { filterThreadsBySearch } = await import('./roomThreadOverviewModel');
+      expect(filterThreadsBySearch(ids, 'nonexistent', metadataMap)).toEqual([]);
+    });
+  });
+
+  // ═══ hasActiveThreadFilters with searchQuery ══════════════════════════════
+
+  describe('hasActiveThreadFilters with searchQuery', () => {
+    it('returns true when searchQuery is non-empty', async () => {
+      const { hasActiveThreadFilters } = await import('./roomThreadOverviewModel');
+      expect(hasActiveThreadFilters(makeDefaultState({ searchQuery: 'test' }))).toBe(true);
+    });
+
+    it('returns false when searchQuery is empty', async () => {
+      const { hasActiveThreadFilters } = await import('./roomThreadOverviewModel');
+      expect(hasActiveThreadFilters(makeDefaultState({ searchQuery: '' }))).toBe(false);
     });
   });
 });

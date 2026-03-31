@@ -17,7 +17,7 @@ export type TriState = 'any' | 'include' | 'exclude';
 export type ThreadFilterKey = 'resolved' | 'streaming' | 'scheduled' | 'unread' | 'idle';
 
 export interface ThreadFilterState {
-  // Row 1: Status toggles
+  // Status toggles
   resolved: TriState;
   streaming: TriState;
   scheduled: TriState;
@@ -25,8 +25,12 @@ export interface ThreadFilterState {
   idle: TriState;
   sortBy: 'natural' | 'lastReply';
   sortDirection: 'asc' | 'desc';
-  // Row 2: Tag filters
+  // Tag filters
   tags: Map<string, TriState>;
+  // Search
+  searchQuery: string;
+  // OR/AND mode for status include filters (presets can set 'or')
+  statusMode: 'and' | 'or';
 }
 
 export const createDefaultThreadFilterState = (): ThreadFilterState => ({
@@ -38,6 +42,8 @@ export const createDefaultThreadFilterState = (): ThreadFilterState => ({
   sortBy: 'natural',
   sortDirection: 'desc',
   tags: new Map(),
+  searchQuery: '',
+  statusMode: 'and',
 });
 
 // ─── Core metadata types ─────────────────────────────────────────────────────
@@ -63,6 +69,7 @@ export type AttentionState = 'needs-attention' | 'waiting' | 'streaming' | 'reso
 export type VisibleThreadRootData = {
   ids: string[];
   indexMap: Map<string, number>;
+  bodyMap: Map<string, string>;
 };
 
 // ─── Tri-state helpers ───────────────────────────────────────────────────────
@@ -102,14 +109,33 @@ export const matchesTagFilters = (
 export const matchesThreadFilterState = (
   meta: ThreadOverviewMetadata,
   state: ThreadFilterState
-): boolean =>
-  (Object.keys(dimensionMatchers) as ThreadFilterKey[]).every((key) =>
-    matchesTriState(dimensionMatchers[key](meta), state[key])
-  ) && matchesTagFilters(meta.tags, state.tags);
+): boolean => {
+  const keys = Object.keys(dimensionMatchers) as ThreadFilterKey[];
+
+  if (state.statusMode === 'or') {
+    // Exclude filters are always hard rejections
+    for (const key of keys) {
+      if (state[key] === 'exclude' && dimensionMatchers[key](meta)) return false;
+    }
+    // Include filters: at least one must match (OR)
+    const includeKeys = keys.filter((key) => state[key] === 'include');
+    if (includeKeys.length > 0 && !includeKeys.some((key) => dimensionMatchers[key](meta))) {
+      return false;
+    }
+  } else {
+    // AND mode: every status filter must match
+    for (const key of keys) {
+      if (!matchesTriState(dimensionMatchers[key](meta), state[key])) return false;
+    }
+  }
+
+  return matchesTagFilters(meta.tags, state.tags);
+};
 
 export const hasActiveThreadFilters = (state: ThreadFilterState): boolean =>
   (Object.keys(dimensionMatchers) as ThreadFilterKey[]).some((key) => state[key] !== 'any') ||
-  state.tags.size > 0;
+  state.tags.size > 0 ||
+  state.searchQuery.length > 0;
 
 export const isDefaultThreadFilterState = (state: ThreadFilterState): boolean =>
   !hasActiveThreadFilters(state) && state.sortBy === 'natural';
@@ -125,6 +151,7 @@ export const updateThreadFilterKey = (
 ): ThreadFilterState => ({
   ...state,
   [key]: cycleTriState(state[key]),
+  statusMode: 'and',
 });
 
 export const cycleSortMode = (
@@ -256,6 +283,7 @@ export const buildVisibleThreadRootData = (
 ): VisibleThreadRootData => {
   const ids: string[] = [];
   const indexMap = new Map<string, number>();
+  const bodyMap = new Map<string, string>();
 
   renderableEventEntries.forEach(({ event, absoluteIndex }) => {
     const eventId = event.getId();
@@ -264,9 +292,11 @@ export const buildVisibleThreadRootData = (
 
     ids.push(eventId);
     indexMap.set(eventId, absoluteIndex);
+    const body = event.getContent()?.body;
+    if (typeof body === 'string') bodyMap.set(eventId, body);
   });
 
-  return { ids, indexMap };
+  return { ids, indexMap, bodyMap };
 };
 
 export const buildThreadOverviewSummaryMap = (
@@ -434,7 +464,8 @@ export const buildThreadMetadataMap = (
   summaryMap: Map<string, MindroomThreadSummaryInfo>,
   currentUserId: string,
   readUpToTs: number | undefined,
-  absoluteIndexMap: Map<string, number>
+  absoluteIndexMap: Map<string, number>,
+  eventBodyFallbackMap?: Map<string, string>
 ): Map<string, ThreadOverviewMetadata> => {
   const metadataMap = new Map<string, ThreadOverviewMetadata>();
 
@@ -478,7 +509,7 @@ export const buildThreadMetadataMap = (
       lastSenderDisplayName,
       participantDisplayName,
       summaryText: summaryInfo?.summaryText,
-      rootPreviewText: getThreadRootPreviewText(room, threadRootId),
+      rootPreviewText: getThreadRootPreviewText(room, threadRootId) ?? eventBodyFallbackMap?.get(threadRootId),
       messageCount,
       tags,
     });
@@ -574,4 +605,99 @@ export const sortThreadRootEvents = (
   });
 
   return sorted;
+};
+
+// ─── Filter presets ─────────────────────────────────────────────────────────
+
+export type FilterPreset = {
+  id: string;
+  label: string;
+  description: string;
+  apply: Partial<Record<ThreadFilterKey, TriState>> & { statusMode?: 'and' | 'or' };
+};
+
+export const FILTER_PRESETS: FilterPreset[] = [
+  {
+    id: 'needs-attention',
+    label: 'Needs attention',
+    description: 'Unresolved, non-streaming, non-scheduled threads',
+    apply: { resolved: 'exclude', streaming: 'exclude', scheduled: 'exclude' },
+  },
+  {
+    id: 'active-work',
+    label: 'Active work',
+    description: 'Streaming or scheduled threads',
+    apply: { streaming: 'include', scheduled: 'include', statusMode: 'or' },
+  },
+  {
+    id: 'review-queue',
+    label: 'Review queue',
+    description: 'Unresolved threads with unread replies',
+    apply: { resolved: 'exclude', unread: 'include' },
+  },
+  {
+    id: 'archived',
+    label: 'Archived',
+    description: 'Resolved threads only',
+    apply: { resolved: 'include' },
+  },
+  {
+    id: 'all',
+    label: 'All',
+    description: 'Reset all filters',
+    apply: {},
+  },
+];
+
+export const applyPreset = (
+  state: ThreadFilterState,
+  preset: FilterPreset
+): ThreadFilterState => {
+  const { statusMode, ...statusOverrides } = preset.apply;
+  return {
+    ...state,
+    resolved: 'any',
+    streaming: 'any',
+    scheduled: 'any',
+    unread: 'any',
+    idle: 'any',
+    statusMode: statusMode ?? 'and',
+    ...statusOverrides,
+  };
+};
+
+// ─── Tag counts ─────────────────────────────────────────────────────────────
+
+export const computeTagCounts = (
+  threadRootIds: string[],
+  metadataMap: Map<string, ThreadOverviewMetadata>
+): Record<string, number> => {
+  const counts: Record<string, number> = {};
+  threadRootIds.forEach((id) => {
+    const meta = metadataMap.get(id);
+    if (!meta) return;
+    meta.tags.forEach((tag) => {
+      counts[tag] = (counts[tag] ?? 0) + 1;
+    });
+  });
+  return counts;
+};
+
+// ─── Search filter ──────────────────────────────────────────────────────────
+
+export const filterThreadsBySearch = (
+  threadRootIds: string[],
+  searchQuery: string,
+  metadataMap: Map<string, ThreadOverviewMetadata>
+): string[] => {
+  const q = searchQuery.trim().toLowerCase();
+  if (!q) return threadRootIds;
+  return threadRootIds.filter((id) => {
+    const meta = metadataMap.get(id);
+    if (!meta) return false;
+    return (
+      (meta.summaryText && meta.summaryText.toLowerCase().includes(q)) ||
+      (meta.rootPreviewText && meta.rootPreviewText.toLowerCase().includes(q))
+    );
+  });
 };
