@@ -82,7 +82,10 @@
 - [justfile](/Users/basnijholt/Code/dev/mindroom-cinny/justfile) is intentionally kept for common local validation commands.
 - [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) is the persistent debugging reference for timeline/cache/search work.
 - Current `dev` also restores two small non-issue runtime guards that were accidentally dropped during issue-history cleanup:
+  - the active settings avatar now survives clear-cache reload by preferring the stored avatar fallback with authenticated thumbnail URLs,
   - the Settings avatar-cache refetch guard,
   - and swallowed URL preview effect rejection.
+- Authenticated media URLs now fall back to query-token URLs before service-worker control is established.
+  - This restores room/sidebar/header/settings avatars during startup and clear-cache reloads, when the page can render before the service worker is actively controlling the document.
 - Backup branch created before the issue-only history cleanup:
   - `backup/dev-before-issue-squash-20260330-102644`
