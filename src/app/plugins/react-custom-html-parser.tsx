@@ -67,6 +67,7 @@ import { useTimeoutToggle } from '../hooks/useTimeoutToggle';
 const ReactPrism = lazy(() => import('./react-prism/ReactPrism'));
 
 const EMOJI_REG_G = new RegExp(`${URL_NEG_LB}(${EMOJI_PATTERN})`, 'g');
+const TABLE_STRUCTURE_TAGS = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 'colgroup']);
 
 export const LINKIFY_OPTS: LinkifyOpts = {
   attributes: {
@@ -1010,9 +1011,14 @@ export const getReactCustomHtmlParser = (
       }
 
       if (domNode instanceof DOMText) {
-        const linkify =
-          !(domNode.parent && 'name' in domNode.parent && domNode.parent.name === 'code') &&
-          !(domNode.parent && 'name' in domNode.parent && domNode.parent.name === 'a');
+        const parentName = domNode.parent && 'name' in domNode.parent ? domNode.parent.name : undefined;
+
+        // React rejects whitespace text nodes directly under table structure tags.
+        if (parentName && TABLE_STRUCTURE_TAGS.has(parentName) && domNode.data.trim().length === 0) {
+          return null;
+        }
+
+        const linkify = parentName !== 'code' && parentName !== 'a';
 
         let jsx = scaleSystemEmoji(domNode.data);
 
