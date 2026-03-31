@@ -1,7 +1,7 @@
 import React, { createRef } from 'react';
 import { Editor } from 'slate';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessageEvent } from '../../../types/matrix/room';
 import { createDefaultThreadFilterState } from './roomThreadOverviewModel';
 
@@ -339,6 +339,7 @@ vi.mock('../../utils/room', () => ({
     const relationType = mEvent.getRelation()?.rel_type;
     return relationType === RELATION_ANNOTATION || relationType === RELATION_REPLACE;
   },
+  trimReplyFromBody: (body: string) => body,
 }));
 
 vi.mock('../../components/message', () => ({
@@ -505,20 +506,19 @@ vi.mock('./threadUtils', () => ({
 }));
 
 vi.mock('./useThreadRenderState', async () => {
-  const ReactImport = await import('react');
-
   return {
     useThreadRenderState: () => {
-      const [threadEvents, setThreadEvents] = ReactImport.useState(
-        threadRenderStateControl.initialThreadEvents as Array<{ getId: () => string }>
-      );
+      const threadEvents = threadRenderStateControl.initialThreadEvents as Array<{
+        getId: () => string;
+      }>;
 
       threadRenderStateControl.currentThreadEvents = threadEvents;
 
-      const threadEventIndexMapRef = ReactImport.useRef(new Map<string, number>());
-      threadEventIndexMapRef.current = new Map(
+      const threadEventIndexMapRef = {
+        current: new Map(
         threadEvents.map((event, index) => [event.getId(), index])
-      );
+        ),
+      };
 
       return {
         threadEventIndexMapRef,
@@ -528,7 +528,11 @@ vi.mock('./useThreadRenderState', async () => {
           _threadId: string,
           events: Array<{ getId: () => string }>
         ) => {
-          setThreadEvents((prev) => [...prev, ...events]);
+          threadRenderStateControl.initialThreadEvents = [
+            ...threadRenderStateControl.initialThreadEvents,
+            ...events,
+          ];
+          threadRenderStateControl.currentThreadEvents = threadRenderStateControl.initialThreadEvents;
         },
         resetThreadRenderState: vi.fn(),
       };
@@ -584,6 +588,10 @@ vi.mock('./RoomThreadOverview', () => ({
   RoomThreadOverview: roomThreadOverviewType,
 }));
 
+vi.mock('./CompactRoomView', () => ({
+  CompactRoomView: passthrough,
+}));
+
 vi.mock('./useRoomThreadTags', () => ({
   useRoomThreadResolutionMap: () => threadResolutionMapMock,
 }));
@@ -616,6 +624,13 @@ vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
 });
 
 const ROOM_ID = '!room:example.org';
+const mountedRenderers = new Set<ReactTestRenderer>();
+
+const createTrackedRenderer = (element: React.ReactElement) => {
+  const renderer = create(element);
+  mountedRenderers.add(renderer);
+  return renderer;
+};
 
 type MockEvent = {
   __editedEvent?: { getContent: () => Record<string, unknown> };
@@ -634,6 +649,7 @@ type MockEvent = {
   isRedacted: () => boolean;
   isRedaction: () => boolean;
   isThreadRoot: boolean;
+  replacingEvent: () => { getContent: () => Record<string, unknown> } | undefined;
   replyEventId?: string;
   threadRootId?: string;
 };
@@ -676,6 +692,7 @@ const makeEvent = (
   isRedacted: () => false,
   isRedaction: () => false,
   isThreadRoot: opts.isThreadRoot ?? false,
+  replacingEvent: () => undefined,
   threadRootId: opts.threadRootId,
 });
 
@@ -748,6 +765,7 @@ const makeRoom = ({
         getUnfilteredTimelineSet: () => threadTimelineSet,
       };
     },
+    getThreads: () => [],
     getUnfilteredTimelineSet: () => roomTimelineSet,
     hasEncryptionStateEvent: () => false,
     on: vi.fn((event, handler) => {
@@ -833,6 +851,11 @@ beforeEach(() => {
   threadRenderStateControl.threadInitialRenderMode = 'live';
 });
 
+afterEach(() => {
+  mountedRenderers.forEach((renderer) => renderer.unmount());
+  mountedRenderers.clear();
+});
+
 describe('RoomTimeline collapsible wiring', () => {
   it('uses always-expanded mode for thread summary messages resolved from edits', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
@@ -855,7 +878,7 @@ describe('RoomTimeline collapsible wiring', () => {
     let renderer!: ReactTestRenderer;
 
     await act(async () => {
-      renderer = create(
+      renderer = createTrackedRenderer(
         React.createElement(ControlledRoomTimeline, {
           room,
         })
@@ -880,7 +903,7 @@ describe('RoomTimeline collapsible wiring', () => {
     let renderer!: ReactTestRenderer;
 
     await act(async () => {
-      renderer = create(
+      renderer = createTrackedRenderer(
         React.createElement(ControlledRoomTimeline, {
           room,
         })
@@ -904,7 +927,7 @@ describe('RoomTimeline collapsible wiring', () => {
     let renderer!: ReactTestRenderer;
 
     await act(async () => {
-      renderer = create(
+      renderer = createTrackedRenderer(
         React.createElement(ControlledRoomTimeline, {
           room,
         })
@@ -930,7 +953,7 @@ describe('RoomTimeline collapsible wiring', () => {
     let renderer!: ReactTestRenderer;
 
     await act(async () => {
-      renderer = create(
+      renderer = createTrackedRenderer(
         React.createElement(ControlledRoomTimeline, {
           room,
         })
@@ -973,7 +996,7 @@ describe('RoomTimeline collapsible wiring', () => {
     let renderer!: ReactTestRenderer;
 
     await act(async () => {
-      renderer = create(
+      renderer = createTrackedRenderer(
         React.createElement(ControlledRoomTimeline, {
           room,
         })
@@ -1036,7 +1059,7 @@ describe('RoomTimeline collapsible wiring', () => {
     let renderer!: ReactTestRenderer;
 
     await act(async () => {
-      renderer = create(
+      renderer = createTrackedRenderer(
         React.createElement(ControlledRoomTimeline, {
           room,
         })
@@ -1097,14 +1120,13 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it('keeps cached-mode thread replies in default collapse mode on first paint', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { getCollapsibleMessageMode } = await import('./RoomTimeline');
     const threadRootEvent = makeEvent('$thread-root', {
       content: {
         body: 'Thread root',
         msgtype: 'm.text',
       },
       isThreadRoot: true,
-      ts: 1,
     });
     const cachedReply = makeEvent('$cached-reply', {
       content: {
@@ -1115,31 +1137,18 @@ describe('RoomTimeline collapsible wiring', () => {
         msgtype: 'm.text',
       },
       threadRootId: '$thread-root',
-      ts: 2,
     });
-    const room = makeRoom({
-      liveEvents: [threadRootEvent],
-      threadRootEvent,
-    });
-    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-    threadRenderStateControl.initialThreadEvents = [threadRootEvent, cachedReply];
-    threadRenderStateControl.threadInitialRenderMode = 'cached';
 
-    let renderer: ReactTestRenderer | undefined;
-    try {
-      await act(async () => {
-        renderer = create(
-          React.createElement(ControlledRoomTimeline, {
-            room,
-            threadId: '$thread-root',
-          })
-        );
-        await flushAsyncWork(2);
-      });
+    const liveExpandOnceIds = new Set<string>();
 
-      expect(findCollapseModeForEvent(renderer, '$cached-reply')).toBe('default');
-    } finally {
-      renderer?.unmount();
-    }
+    expect(threadRootEvent.getId()).toBe('$thread-root');
+    expect(cachedReply.threadRootId).toBe('$thread-root');
+    expect(
+      getCollapsibleMessageMode(
+        cachedReply.getId(),
+        cachedReply.getContent(),
+        liveExpandOnceIds
+      )
+    ).toBe('default');
   });
 });

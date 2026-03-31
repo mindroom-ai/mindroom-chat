@@ -28,10 +28,12 @@ export const Card = style([
     flexDirection: 'column',
     gap: config.space.S100,
     width: '100%',
+    minWidth: 0,
     padding: `${config.space.S200} ${config.space.S300}`,
-    borderRadius: config.radii.R400,
+    borderRadius: config.radii.R300,
     border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
     backgroundColor: color.SurfaceVariant.Container,
+    color: color.SurfaceVariant.OnContainer,
     textAlign: 'left',
     cursor: 'pointer',
     transition: 'background-color 120ms ease, border-color 120ms ease',
@@ -45,18 +47,21 @@ export const Card = style([
   },
 ]);
 
-export const Row = style({
+export const CardResolved = style({
+  borderColor: color.Success.ContainerLine,
+  backgroundColor: color.Success.Container,
+  color: color.Success.OnContainer,
+});
+
+export const TitleRow = style({
   display: 'flex',
   alignItems: 'center',
   gap: config.space.S100,
   minWidth: 0,
-});
-
-export const SummaryRow = style({
   justifyContent: 'space-between',
 });
 
-export const SummaryLead = style({
+export const TitleLead = style({
   display: 'flex',
   alignItems: 'center',
   gap: config.space.S100,
@@ -64,7 +69,7 @@ export const SummaryLead = style({
   flex: 1,
 });
 
-export const SummaryText = style({
+export const TitleText = style({
   minWidth: 0,
   flex: 1,
 });
@@ -74,19 +79,70 @@ export const TimeText = style({
   flexShrink: 0,
 });
 
-export const MetaText = style({
+export const MessageRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S100,
   minWidth: 0,
+  justifyContent: 'space-between',
+});
+
+export const MessageText = style({
+  minWidth: 0,
+  flex: 1,
+});
+
+export const Stats = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S100,
+  rowGap: config.space.S100,
+  flexShrink: 0,
+  flexWrap: 'wrap',
+  justifyContent: 'flex-end',
+});
+
+export const StatBadge = style({
+  flexShrink: 0,
   whiteSpace: 'nowrap',
 });
 
-export const MetaTruncate = style({
+export const ScheduledIndicator = style({
   minWidth: 0,
-  flex: 1,
+  flexShrink: 0,
+  whiteSpace: 'nowrap',
 });
 
-export const MetaSpacer = style({
+export const MetadataRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S100,
+  rowGap: config.space.S100,
   minWidth: 0,
-  flex: 1,
+  flexWrap: 'wrap',
+});
+
+export const Participants = style({
+  display: 'flex',
+  alignItems: 'center',
+  flexShrink: 0,
+});
+
+export const ParticipantAvatar = style({
+  flexShrink: 0,
+});
+
+export const StatusChip = style({
+  flexShrink: 0,
+});
+
+export const UnreadWrap = style({
+  flexShrink: 0,
+  color: color.SurfaceVariant.OnContainer,
+});
+
+export const UnreadDot = style({
+  display: 'inline-block',
 });
 
 export const ScreenReaderText = style({

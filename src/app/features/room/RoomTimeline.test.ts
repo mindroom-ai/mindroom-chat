@@ -31,7 +31,10 @@ const {
   loadCachedRoomEventsBeforeMock,
   loadCachedRoomPaginationTokenMock,
   loadLatestCachedRoomEventsMock,
+  loadLatestCachedThreadSummaryInfoMock,
+  loadCachedThreadSummariesMock,
   saveRoomEventsToCacheMock,
+  saveCachedThreadSummaryMock,
   isTimelineAtLiveEndMock,
   virtualPaginatorState,
   settingsState,
@@ -74,7 +77,10 @@ const {
   loadCachedRoomEventsBeforeMock: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
   loadCachedRoomPaginationTokenMock: vi.fn(async () => undefined),
   loadLatestCachedRoomEventsMock: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+  loadLatestCachedThreadSummaryInfoMock: vi.fn(async () => undefined),
+  loadCachedThreadSummariesMock: vi.fn(async () => new Map()),
   saveRoomEventsToCacheMock: vi.fn(async () => undefined),
+  saveCachedThreadSummaryMock: vi.fn(async () => undefined),
   isTimelineAtLiveEndMock: vi.fn(() => true),
   settingsState: {
     paginationLimit: 300,
@@ -361,6 +367,10 @@ vi.mock('../../utils/room', () => ({
   decryptAllTimelineEvent: vi.fn(),
   getEditedEvent: () => undefined,
   getEventReactions: () => undefined,
+  getLatestMessageContent: (
+    event?: { getContent?: () => Record<string, unknown> | undefined },
+    editedEvent?: { getContent?: () => Record<string, unknown> | undefined }
+  ) => editedEvent?.getContent?.() ?? event?.getContent?.(),
   getLatestEdit: (_target: unknown, edits: Array<{ getTs: () => number }>) =>
     edits.reduce((latest, edit) => (edit.getTs() >= latest.getTs() ? edit : latest), edits[0]),
   getLatestEditableEvt: () => undefined,
@@ -478,11 +488,16 @@ vi.mock('./threadUtils', () => ({
     !!threadRootId && threadRootId !== eventId,
 }));
 
-vi.mock('../../components/message/mindroomThreadSummary', () => ({
-  buildThreadSummaryMap: () => new Map(),
-  findLatestThreadSummaryEvent: () => undefined,
-  getThreadSummaryEventInfo: () => undefined,
-}));
+vi.mock('../../components/message/mindroomThreadSummary', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../components/message/mindroomThreadSummary')>();
+  return {
+    ...actual,
+    buildThreadSummaryMap: () => new Map(),
+    findLatestThreadSummaryEvent: () => undefined,
+    getThreadSummaryEventInfo: () => undefined,
+  };
+});
 
 vi.mock('./useThreadRenderState', () => ({
   useThreadRenderState: () => threadRenderStateMock,
@@ -498,6 +513,7 @@ vi.mock('./threadEventCache', () => ({
       : undefined
   ),
   loadCachedThreadEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+  loadLatestCachedThreadSummaryInfo: loadLatestCachedThreadSummaryInfoMock,
   loadLatestCachedThreadEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
   normalizeCachedThreadEvents: (events: unknown[]) => events,
   saveThreadEventsToCache: vi.fn(async () => undefined),
@@ -513,6 +529,11 @@ vi.mock('./eventCacheTokenUtils', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./eventCacheTokenUtils')>();
   return actual;
 });
+
+vi.mock('./threadSummaryCache', () => ({
+  loadCachedThreadSummaries: loadCachedThreadSummariesMock,
+  saveCachedThreadSummary: saveCachedThreadSummaryMock,
+}));
 
 
 vi.mock('./roomEventCache', async (importOriginal) => {
@@ -547,12 +568,18 @@ vi.mock('./timelineScrollUtils', () => ({
 }));
 
 vi.mock('./threadEditBackfillUtils', () => ({
+  hasLikelyIncompleteStreamingBody: (value: unknown) =>
+    typeof value === 'string' && /^thinking(?:\.{3}|…)(?:\s*⋯)?$/i.test(value.trim()),
   markThreadEditBackfillAttempted: vi.fn(),
   shouldFetchThreadEditBackfill: () => false,
 }));
 
 vi.mock('./RoomThreadOverview', () => ({
   RoomThreadOverview: roomThreadOverviewType,
+}));
+
+vi.mock('./CompactRoomView', () => ({
+  CompactRoomView: compactPlaceholderType,
 }));
 
 vi.mock('../../hooks/useThreadLastActivityTs', () => ({
@@ -681,11 +708,13 @@ const makeRoom = ({
   liveTimeline,
   timelinesByEventId = new Map<string, ReturnType<typeof makeTimeline>>(),
   findEventById,
+  threads = [],
 }: {
   liveEvents?: ReturnType<typeof makeEvent>[];
   liveTimeline?: ReturnType<typeof makeTimeline>;
   timelinesByEventId?: Map<string, ReturnType<typeof makeTimeline>>;
   findEventById?: (eventId: string) => ReturnType<typeof makeEvent> | undefined;
+  threads?: Array<{ id?: string; rootEvent?: ReturnType<typeof makeEvent> | undefined }>;
 } = {}) => {
   const roomLiveTimeline = liveTimeline ?? makeTimeline(liveEvents);
   const currentLiveEvents = roomLiveTimeline.getEvents();
@@ -729,7 +758,8 @@ const makeRoom = ({
     findEventById: findEventById ?? ((eventId: string) => getEventFromTimelines(eventId)),
     getEventReadUpTo: () => undefined,
     getLiveTimeline: () => roomLiveTimeline,
-    getThread: () => null,
+    getThread: (threadId: string) => threads.find((thread) => thread.id === threadId) ?? null,
+    getThreads: () => threads,
     getUnfilteredTimelineSet: () => timelineSet,
     hasEncryptionStateEvent: () => false,
     partitionThreadedEvents: (events: ReturnType<typeof makeEvent>[]) => [events, [], []],
@@ -792,7 +822,10 @@ beforeEach(() => {
   loadCachedRoomEventsBeforeMock.mockResolvedValue({ events: [], hasMoreBefore: false });
   loadCachedRoomPaginationTokenMock.mockResolvedValue(undefined);
   loadLatestCachedRoomEventsMock.mockResolvedValue({ events: [], hasMoreBefore: false });
+  loadLatestCachedThreadSummaryInfoMock.mockResolvedValue(undefined);
+  loadCachedThreadSummariesMock.mockResolvedValue(new Map());
   saveRoomEventsToCacheMock.mockResolvedValue(undefined);
+  saveCachedThreadSummaryMock.mockResolvedValue(undefined);
   settingsState.paginationLimit = 300;
   virtualPaginatorState.lastOptions = undefined;
   virtualPaginatorState.callCount = 0;
@@ -809,6 +842,10 @@ beforeEach(() => {
   matrixClientMock.paginateEventTimeline.mockResolvedValue(false);
 });
 
+afterEach(() => {
+  mountedRenderers.forEach((renderer) => renderer.unmount());
+  mountedRenderers.clear();
+});
 let useThreadAwareTimelineRefreshHook:
   | typeof import('./RoomTimeline').useThreadAwareTimelineRefresh
   | undefined;
@@ -4088,6 +4125,53 @@ describe('RoomTimeline', () => {
     ).toEqual(['$thread-root']);
   });
 
+  it('does not treat thread replies as visible thread roots for filtering', async () => {
+    const { getThreadFilteredEvents } = await import('./RoomTimeline');
+    const room = makeRoom();
+    const fakeReply = makeEvent('$reply-event', {
+      threadRootId: '$actual-root',
+    });
+    const actualRoot = makeEvent('$actual-root');
+    const fallbackCounts = new Map([
+      [fakeReply.getId(), 1],
+      [actualRoot.getId(), 1],
+    ]);
+    const resolutionMap = new Map<string, { isResolved: boolean }>([
+      ['$reply-event', { isResolved: false, tags: null }],
+      ['$actual-root', { isResolved: false, tags: null }],
+    ]);
+    const makeMeta = (): import('./roomThreadOverviewModel').ThreadOverviewMetadata => ({
+      isResolved: false,
+      isUnread: false,
+      isStreaming: false,
+      scheduledTaskCount: 0,
+      lastActivityTs: 0,
+      absoluteIndex: 0,
+      lastSenderId: undefined,
+      lastSenderDisplayName: undefined,
+      participantDisplayName: undefined,
+      summaryText: undefined,
+      rootPreviewText: undefined,
+      messageCount: 0,
+      tags: [],
+    });
+
+    expect(
+      getThreadFilteredEvents(
+        [fakeReply, actualRoot] as never,
+        room as never,
+        resolutionMap,
+        undefined,
+        { ...DEFAULT_THREAD_FILTER_STATE, resolved: 'exclude' as const, tags: new Map() },
+        fallbackCounts,
+        new Map([
+          ['$reply-event', makeMeta()],
+          ['$actual-root', makeMeta()],
+        ])
+      ).map((event) => event.getId())
+    ).toEqual(['$actual-root']);
+  });
+
   it('filters hidden relations, thread replies, and ignored senders in isRenderableEvent', async () => {
     const { isRenderableEvent } = await import('./RoomTimeline');
     const baseArgs = [
@@ -5841,5 +5925,116 @@ describe('fetchAllThreadRelations', () => {
       null,
       expect.objectContaining({ limit: 200, recurse: true })
     );
+  });
+
+  it('backfills visible room thread summaries from cached thread events', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const rootEvent = makeEvent('$root', {
+      content: { body: 'Root prompt', msgtype: 'm.text' },
+      isThreadRoot: true,
+      ts: 100,
+    });
+    const replyEvent = makeEvent('$reply', {
+      content: { body: 'Reply', msgtype: 'm.text' },
+      threadRootId: '$root',
+      ts: 200,
+    });
+    const room = makeRoom({ liveEvents: [rootEvent, replyEvent] });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    loadLatestCachedThreadSummaryInfoMock.mockResolvedValue({
+      summaryText: 'Cached summary text',
+      generatedTs: 123,
+      messageCount: 12,
+    });
+
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(ControlledRoomTimeline, { room }));
+        await flushAsyncWork();
+      });
+
+      await act(async () => {
+        await flushAsyncWork(5);
+      });
+
+      expect(loadLatestCachedThreadSummaryInfoMock).toHaveBeenCalledWith(
+        expect.any(String),
+        '!room:example.org',
+        '$root'
+      );
+      expect(saveCachedThreadSummaryMock).toHaveBeenCalledWith(
+        expect.any(String),
+        '!room:example.org',
+        '$root',
+        expect.objectContaining({ summaryText: 'Cached summary text' })
+      );
+    } finally {
+      await act(async () => {
+        renderer?.unmount();
+        await flushAsyncWork(1);
+      });
+    }
+  });
+
+  it('backfills visible room thread summaries beyond the first 24 summaryless roots', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const liveEvents = Array.from({ length: 30 }, (_, index) => {
+      const rootId = `$root-${index}`;
+      return [
+        makeEvent(rootId, {
+          content: { body: `Root ${index}`, msgtype: 'm.text' },
+          isThreadRoot: true,
+          ts: index * 100,
+        }),
+        makeEvent(`$reply-${index}`, {
+          content: { body: `Reply ${index}`, msgtype: 'm.text' },
+          threadRootId: rootId,
+          ts: index * 100 + 50,
+        }),
+      ];
+    }).flat();
+    const room = makeRoom({ liveEvents });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    loadLatestCachedThreadSummaryInfoMock.mockImplementation(async (_sessionId, _roomId, threadId) =>
+      threadId === '$root-29'
+        ? {
+            summaryText: 'Later cached summary text',
+            generatedTs: 999,
+            messageCount: 30,
+          }
+        : undefined
+    );
+
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(ControlledRoomTimeline, { room }));
+        await flushAsyncWork();
+      });
+
+      await act(async () => {
+        await flushAsyncWork(10);
+      });
+
+      expect(loadLatestCachedThreadSummaryInfoMock).toHaveBeenCalledWith(
+        expect.any(String),
+        '!room:example.org',
+        '$root-29'
+      );
+      expect(saveCachedThreadSummaryMock).toHaveBeenCalledWith(
+        expect.any(String),
+        '!room:example.org',
+        '$root-29',
+        expect.objectContaining({ summaryText: 'Later cached summary text' })
+      );
+    } finally {
+      await act(async () => {
+        renderer?.unmount();
+        await flushAsyncWork(1);
+      });
+    }
   });
 });

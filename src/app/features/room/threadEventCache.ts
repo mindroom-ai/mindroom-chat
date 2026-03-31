@@ -1,6 +1,11 @@
 import { IEvent } from 'matrix-js-sdk';
 import { getSessionScopedStorageKey, listSessions } from '../../state/sessions';
 import {
+  getThreadSummaryEventInfo,
+  hasMindroomThreadSummary,
+  MindroomThreadSummaryInfo,
+} from '../../components/message/mindroomThreadSummary';
+import {
   CachedPaginationTokenMap,
   getCachedPaginationToken,
   mergeCachedPaginationTokens,
@@ -71,6 +76,25 @@ const getEventTs = (rawEvent: Partial<IEvent>): number =>
   typeof rawEvent.origin_server_ts === 'number' && Number.isFinite(rawEvent.origin_server_ts)
     ? rawEvent.origin_server_ts
     : 0;
+
+const hasRequiredThreadEventCacheStores = (
+  db: Pick<IDBDatabase, 'objectStoreNames'>
+): boolean =>
+  db.objectStoreNames.contains(EVENT_STORE) && db.objectStoreNames.contains(META_STORE);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
+
+export const getCachedThreadSummaryInfoFromRawEvent = (
+  rawEvent: Partial<IEvent>
+): MindroomThreadSummaryInfo | undefined => {
+  const content = rawEvent.content;
+  if (!isRecord(content) || !hasMindroomThreadSummary(content)) return undefined;
+
+  return getThreadSummaryEventInfo({
+    getContent: () => content,
+  });
+};
 
 const getRawTransactionId = (rawEvent: Partial<IEvent>): string | undefined => {
   const txnId =
@@ -221,7 +245,21 @@ const migrateLegacyThreadEventCacheIfNeeded = async (
   }
 };
 
-const openThreadEventCache = (sessionId: string): Promise<IDBDatabase | undefined> => {
+const deleteIndexedDb = async (dbName: string): Promise<void> => {
+  if (typeof indexedDB === 'undefined') return;
+
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(dbName);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+    request.onblocked = () => resolve();
+  });
+};
+
+const openThreadEventCache = (
+  sessionId: string,
+  allowRecovery = true
+): Promise<IDBDatabase | undefined> => {
   const dbName = getThreadEventCacheDbName(sessionId);
   const currentPromise = dbPromiseByName.get(dbName);
   if (currentPromise) return currentPromise;
@@ -254,6 +292,37 @@ const openThreadEventCache = (sessionId: string): Promise<IDBDatabase | undefine
 
     request.onsuccess = () => {
       const db = request.result;
+      if (!hasRequiredThreadEventCacheStores(db)) {
+        db.close();
+        dbPromiseByName.delete(dbName);
+
+        if (allowRecovery) {
+          deleteIndexedDb(dbName)
+            .catch(() => undefined)
+            .then(() => openThreadEventCache(sessionId, false))
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
+
+        openExistingDatabase(DB_NAME)
+          .then((legacyDb) => {
+            if (!legacyDb) return undefined;
+            if (!hasRequiredThreadEventCacheStores(legacyDb)) {
+              legacyDb.close();
+              return undefined;
+            }
+            legacyDb.onversionchange = () => {
+              legacyDb.close();
+              dbPromiseByName.delete(dbName);
+            };
+            return legacyDb;
+          })
+          .then(resolve)
+          .catch(reject);
+        return;
+      }
+
       db.onversionchange = () => {
         db.close();
         dbPromiseByName.delete(dbName);
@@ -391,6 +460,52 @@ export const loadCachedThreadEventsBefore = async (
 ): Promise<CachedThreadEventPage> => {
   if (!before) return { events: [], hasMoreBefore: false };
   return runCursorQuery(sessionId, roomId, threadId, limit, before);
+};
+
+export const loadLatestCachedThreadSummaryInfo = async (
+  sessionId: string,
+  roomId: string,
+  threadId: string
+): Promise<MindroomThreadSummaryInfo | undefined> => {
+  const db = await openThreadEventCache(sessionId);
+  if (!db) return undefined;
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(EVENT_STORE, 'readonly');
+    const eventStore = transaction.objectStore(EVENT_STORE);
+    const index = eventStore.index(EVENT_THREAD_TS_INDEX);
+    const range = IDBKeyRange.bound(
+      [roomId, threadId, 0, ''],
+      [roomId, threadId, MAX_EVENT_TS, MAX_EVENT_ID]
+    );
+
+    let summaryInfo: MindroomThreadSummaryInfo | undefined;
+
+    const cursorRequest = index.openCursor(range, 'prev');
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor || summaryInfo?.summaryText) return;
+
+      const record = cursor.value as CachedThreadEventRecord;
+      if (record.eventId === threadId) {
+        cursor.continue();
+        return;
+      }
+
+      const info = getCachedThreadSummaryInfoFromRawEvent(record.rawEvent);
+      if (!info?.summaryText) {
+        cursor.continue();
+        return;
+      }
+
+      summaryInfo = info;
+    };
+    cursorRequest.onerror = () => reject(cursorRequest.error);
+
+    transaction.oncomplete = () => resolve(summaryInfo);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
 };
 
 export const loadCachedThreadEvent = async (

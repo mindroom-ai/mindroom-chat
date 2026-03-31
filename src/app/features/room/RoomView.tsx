@@ -91,7 +91,7 @@ export function RoomView({
   const mx = useMatrixClient();
   const userId = mx.getSafeUserId();
   const editor = useEditor();
-  const roomViewModeAtom = useMemo(() => roomViewModeAtomFamily(roomId), [roomId]);
+  const roomViewModeAtom = roomViewModeAtomFamily(roomId);
   const [viewMode, setViewMode] = useAtom(roomViewModeAtom);
   const threadFilterAtom = useMemo(
     () => roomThreadFilterAtomFamily(userId, roomId),
@@ -165,34 +165,23 @@ export function RoomView({
 
   const handleApplyPreset = useCallback(
     (preset: FilterPreset) => {
-      setRoomThreadFilterState((prev) => ({
-        roomId,
-        state: applyPreset(
-          prev.roomId === roomId ? prev.state : createDefaultThreadFilterState(),
-          preset
-        ),
-      }));
+      setThreadFilterState(applyPreset(threadFilterState, preset));
     },
-    [roomId]
+    [setThreadFilterState, threadFilterState]
   );
 
   const handleSearchQueryChange = useCallback(
     (query: string) => {
-      setRoomThreadFilterState((prev) => ({
-        roomId,
-        state: {
-          ...(prev.roomId === roomId ? prev.state : createDefaultThreadFilterState()),
-          searchQuery: query,
-        },
-      }));
+      setThreadFilterState({
+        ...threadFilterState,
+        searchQuery: query,
+      });
     },
-    [roomId]
+    [setThreadFilterState, threadFilterState]
   );
 
   const handleViewModeChange = useCallback(
-    (nextViewMode: RoomViewMode) => {
-      setViewMode(nextViewMode);
-    },
+    (mode: RoomViewMode) => setViewMode(mode),
     [setViewMode]
   );
 
