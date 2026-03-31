@@ -25,6 +25,7 @@ import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
+import { useIOSKeyboardFix } from '../../hooks/useIOSKeyboardFix';
 import type { ThreadFilterKey, FilterPreset } from './roomThreadOverviewModel';
 import {
   updateThreadFilterKey,
@@ -175,6 +176,7 @@ export function RoomView({
   // Thread view has a more specific "back" action than the generic room-page back:
   // first swipe exits the thread, then the room header/back handler can navigate out.
   useEdgeSwipeBack(handleExitThread, !!threadId);
+  useIOSKeyboardFix();
 
   useKeyDown(
     window,
