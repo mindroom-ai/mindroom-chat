@@ -1,4 +1,4 @@
-import { MutableRefObject, useCallback, useMemo, useRef, useState } from 'react';
+import { MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EventTimelineSet, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { aggregateCachedRelationEvents, hydrateCachedEvents } from './eventCacheEditUtils';
 import {
@@ -8,6 +8,7 @@ import {
   ThreadInitialRenderMode,
 } from './threadRenderUtils';
 import { eventBelongsToThread } from './threadUtils';
+import { logTimelineDebug } from './timelineDebug';
 
 type UseThreadRenderStateOpts = {
   room: Room;
@@ -16,6 +17,7 @@ type UseThreadRenderStateOpts = {
   threadId?: string;
   thread: Thread | null;
   threadInitialCacheHydrated: boolean;
+  debugTraceId?: string;
 };
 
 type ThreadRelationState = {
@@ -100,6 +102,7 @@ export const useThreadRenderState = ({
   threadId,
   thread,
   threadInitialCacheHydrated,
+  debugTraceId,
 }: UseThreadRenderStateOpts): {
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
   threadEvents: MatrixEvent[];
@@ -197,6 +200,26 @@ export const useThreadRenderState = ({
     initialCacheHydrated: threadInitialCacheHydrated,
     fallbackEventCount: fallbackEvents.length,
   });
+
+  useEffect(() => {
+    if (!threadId) return;
+    logTimelineDebug(debugTraceId, 'render-state', {
+      fallbackCount: fallbackEvents.length,
+      indexCount: threadEventIndexMapRef.current.size,
+      initialCacheHydrated: threadInitialCacheHydrated,
+      initialRenderMode: threadInitialRenderMode,
+      mergedCount: threadEvents.length,
+      sdkThreadCount: thread?.events.length ?? 0,
+    });
+  }, [
+    debugTraceId,
+    fallbackEvents.length,
+    thread,
+    threadEvents.length,
+    threadId,
+    threadInitialCacheHydrated,
+    threadInitialRenderMode,
+  ]);
 
   return {
     threadEventIndexMapRef,

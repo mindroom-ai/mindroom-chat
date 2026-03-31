@@ -33,6 +33,10 @@ type CachedThreadMetaRecord = {
   threadId: string;
   beforeTokens?: CachedPaginationTokenMap;
   rootEvent?: Partial<IEvent>;
+  expectedReplyCount?: number;
+  snapshotComplete?: boolean;
+  relationSnapshotComplete?: boolean;
+  tailLoaded?: boolean;
   updatedAt: number;
 };
 
@@ -46,6 +50,10 @@ export type CachedThreadEventPage = {
   events: CachedThreadEvent[];
   hasMoreBefore: boolean;
   beforeToken?: string | null;
+  expectedReplyCount?: number;
+  snapshotComplete?: boolean;
+  relationSnapshotComplete?: boolean;
+  tailLoaded?: boolean;
 };
 
 type ThreadCursorAnchor = {
@@ -322,12 +330,25 @@ const runCursorQuery = async (
         events: orderedEvents,
         hasMoreBefore,
         beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
+        expectedReplyCount: normalizeExpectedReplyCount(meta?.expectedReplyCount),
+        snapshotComplete: meta?.snapshotComplete === true,
+        relationSnapshotComplete: meta?.relationSnapshotComplete === true,
+        tailLoaded: meta?.tailLoaded === true,
       });
     };
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });
 };
+
+export const mergeThreadCacheFlag = (
+  currentValue: boolean | undefined,
+  nextValue: boolean | undefined
+): boolean | undefined =>
+  nextValue === undefined ? (currentValue === true ? true : undefined) : nextValue === true;
+
+const normalizeExpectedReplyCount = (value: number | undefined): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 
 export const loadLatestCachedThreadEvents = async (
   sessionId: string,
@@ -347,13 +368,57 @@ export const loadCachedThreadEventsBefore = async (
   return runCursorQuery(sessionId, roomId, threadId, limit, before);
 };
 
+export const loadCachedThreadEvent = async (
+  sessionId: string,
+  roomId: string,
+  threadId: string,
+  eventId: string
+): Promise<CachedThreadEvent | undefined> => {
+  const db = await openThreadEventCache(sessionId);
+  if (!db) return undefined;
+
+  const threadKey = getThreadKey(roomId, threadId);
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([EVENT_STORE, META_STORE], 'readonly');
+    const eventStore = transaction.objectStore(EVENT_STORE);
+    const metaStore = transaction.objectStore(META_STORE);
+    const eventRequest = eventStore.get(getEventCacheKey(roomId, threadId, eventId));
+    const metaRequest = eventId === threadId ? metaStore.get(threadKey) : undefined;
+
+    transaction.oncomplete = () => {
+      const record = eventRequest.result as CachedThreadEventRecord | undefined;
+      if (record) {
+        resolve(toCachedThreadEvent(record.rawEvent));
+        return;
+      }
+
+      if (!metaRequest) {
+        resolve(undefined);
+        return;
+      }
+
+      const meta = metaRequest.result as CachedThreadMetaRecord | undefined;
+      resolve(meta?.rootEvent ? toCachedThreadEvent(meta.rootEvent) : undefined);
+    };
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+    eventRequest.onerror = () => reject(eventRequest.error);
+    metaRequest?.addEventListener('error', () => reject(metaRequest.error));
+  });
+};
+
 export const saveThreadEventsToCache = async (
   sessionId: string,
   roomId: string,
   threadId: string,
   rawEvents: Partial<IEvent>[],
   rootEvent?: Partial<IEvent>,
-  beforeTokenForEarliest?: string | null
+  beforeTokenForEarliest?: string | null,
+  tailLoaded?: boolean,
+  snapshotComplete?: boolean,
+  expectedReplyCount?: number,
+  relationSnapshotComplete?: boolean
 ): Promise<void> => {
   const db = await openThreadEventCache(sessionId);
   if (!db) return;
@@ -370,6 +435,7 @@ export const saveThreadEventsToCache = async (
     const metaStore = transaction.objectStore(META_STORE);
     const threadKey = getThreadKey(roomId, threadId);
     const earliestEventId = normalizedEvents[0]?.event_id;
+    const normalizedExpectedReplyCount = normalizeExpectedReplyCount(expectedReplyCount);
 
     normalizedEvents.forEach((rawEvent) => {
       const eventRecord: CachedThreadEventRecord = {
@@ -396,6 +462,13 @@ export const saveThreadEventsToCache = async (
           beforeTokenForEarliest
         ),
         rootEvent: (rootEvent && !isRawLocalEchoEvent(rootEvent)) ? rootEvent : currentMeta?.rootEvent,
+        expectedReplyCount: normalizedExpectedReplyCount ?? currentMeta?.expectedReplyCount,
+        snapshotComplete: mergeThreadCacheFlag(currentMeta?.snapshotComplete, snapshotComplete),
+        relationSnapshotComplete: mergeThreadCacheFlag(
+          currentMeta?.relationSnapshotComplete,
+          relationSnapshotComplete
+        ),
+        tailLoaded: mergeThreadCacheFlag(currentMeta?.tailLoaded, tailLoaded),
         updatedAt: Date.now(),
       };
       metaStore.put(nextMeta);

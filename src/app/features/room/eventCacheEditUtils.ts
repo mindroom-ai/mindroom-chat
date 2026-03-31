@@ -27,6 +27,21 @@ const setSerializedReplacement = (
 
 const getTargetEventId = (mEvent: MatrixEvent): string | undefined => mEvent.getRelation()?.event_id;
 
+const getSerializedRelationEvent = (
+  mEvent: MatrixEvent,
+  relationType: RelationType
+): Partial<IEvent> | undefined => {
+  const relations = mEvent.getUnsigned()?.['m.relations'];
+  if (!relations || typeof relations !== 'object' || Array.isArray(relations)) return undefined;
+
+  const relationEvent = (relations as Record<string, unknown>)[relationType];
+  if (!relationEvent || typeof relationEvent !== 'object' || Array.isArray(relationEvent)) {
+    return undefined;
+  }
+
+  return relationEvent as Partial<IEvent>;
+};
+
 const getLatestEvent = (events: MatrixEvent[]): MatrixEvent | undefined =>
   events.reduce<MatrixEvent | undefined>((latest, mEvent) => {
     if (!latest) return mEvent;
@@ -107,6 +122,33 @@ export const applyCachedReplaceRelations = (events: MatrixEvent[]): void => {
   });
 };
 
+export const applySerializedCachedReplaceRelations = (events: MatrixEvent[]): void => {
+  events.forEach((targetEvent) => {
+    const serializedReplacement = getSerializedRelationEvent(targetEvent, RelationType.Replace);
+    if (
+      !serializedReplacement ||
+      typeof serializedReplacement.event_id !== 'string' ||
+      serializedReplacement.event_id.length === 0
+    ) {
+      return;
+    }
+
+    const existingReplacement = targetEvent.replacingEvent() ?? undefined;
+    const serializedReplacementEvent = new MatrixEvent(
+      cloneRawEvent(serializedReplacement) as IEvent
+    );
+    const latestEdit = getLatestEdit(
+      targetEvent,
+      [existingReplacement, serializedReplacementEvent].filter(
+        (mEvent): mEvent is MatrixEvent => !!mEvent
+      )
+    );
+
+    if (!latestEdit || latestEdit === existingReplacement) return;
+    targetEvent.makeReplaced(latestEdit);
+  });
+};
+
 export const aggregateCachedRelationEvents = (
   events: MatrixEvent[],
   timelineSets: Array<EventTimelineSet | undefined>,
@@ -146,6 +188,7 @@ export const hydrateCachedEvents = ({
 }): void => {
   applyCachedRedactions(room, events);
   applyCachedReplaceRelations(events);
+  applySerializedCachedReplaceRelations(events);
   if (timelineSets) {
     aggregateCachedRelationEvents(events, timelineSets, seenRelationEventIds);
   }
