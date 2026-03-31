@@ -8,6 +8,11 @@ import {
 import { getThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
 import { getThreadStreamingState } from '../../hooks/useThreadStreamingState';
 import { trimReplyFromBody } from '../../utils/room';
+import {
+  getCompactThreadRootBodyPreviewText,
+  isNestedThreadReplyEvent,
+  pickPreferredThreadRootPreviewText,
+} from './compactThreadRootData';
 import { parseScheduledTaskStateEvent } from '../../utils/scheduledTaskContract';
 
 // ─── Tri-state types ─────────────────────────────────────────────────────────
@@ -322,7 +327,7 @@ export const collectAvailableRoomTags = (
 // ─── Thread root visibility ─────────────────────────────────────────────────
 
 const getThreadRootEvent = (room: Room, threadRootId: string): MatrixEvent | undefined =>
-  room.getThread(threadRootId)?.rootEvent ?? room.findEventById(threadRootId);
+  room.findEventById(threadRootId) ?? room.getThread(threadRootId)?.rootEvent;
 
 const getEventBodyPreviewText = (event: MatrixEvent | undefined): string | undefined => {
   const content =
@@ -352,6 +357,8 @@ const isVisibleThreadRootEvent = (
 ): boolean => {
   const eventId = event.getId();
   if (!eventId) return false;
+  if (event.threadRootId && event.threadRootId !== eventId) return false;
+  if (isNestedThreadReplyEvent(event)) return false;
 
   return (
     event.isThreadRoot ||
@@ -425,7 +432,10 @@ export const buildThreadOverviewSummaryMap = (
 };
 
 export const getThreadRootPreviewText = (room: Room, threadRootId: string): string | undefined =>
-  getEventBodyPreviewText(getThreadRootEvent(room, threadRootId));
+  getCompactThreadRootBodyPreviewText(getThreadRootEvent(room, threadRootId), {
+    eventId: threadRootId,
+    room,
+  }) ?? getEventBodyPreviewText(getThreadRootEvent(room, threadRootId));
 
 // ─── Thread metadata helpers ─────────────────────────────────────────────────
 
@@ -612,7 +622,10 @@ export const buildThreadMetadataMap = (
       lastSenderDisplayName,
       participantDisplayName,
       summaryText: summaryInfo?.summaryText,
-      rootPreviewText: getThreadRootPreviewText(room, threadRootId) ?? eventBodyFallbackMap?.get(threadRootId),
+      rootPreviewText: pickPreferredThreadRootPreviewText({
+        preferredPreviewText: eventBodyFallbackMap?.get(threadRootId),
+        fallbackPreviewText: getThreadRootPreviewText(room, threadRootId),
+      }),
       messageCount,
       tags,
     });

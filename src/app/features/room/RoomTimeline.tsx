@@ -160,6 +160,7 @@ import {
   hasMindroomThreadSummary,
   isMindroomThreadSummaryEvent,
   MindroomThreadSummaryInfo,
+  pickLatestThreadSummaryInfo,
 } from '../../components/message/mindroomThreadSummary';
 import {
   buildResolveConfirmedEventId,
@@ -169,7 +170,19 @@ import {
 } from './threadRenderUtils';
 import { useThreadRenderState } from './useThreadRenderState';
 import { createTimelineDebugTrace, logTimelineDebug } from './timelineDebug';
+import { shouldUseSurfacePreloadTarget } from './roomPreloadTarget';
+import {
+  buildCompactThreadRootData,
+  getCompactCachedThreadRootPreviewInfo,
+  getCompactThreadRootBodyPreviewText,
+  isNestedThreadReplyEvent,
+} from './compactThreadRootData';
+import { CompactRoomView } from './CompactRoomView';
 import { RoomThreadOverview } from './RoomThreadOverview';
+import {
+  buildPreferredThreadSummaryMap,
+  shouldWriteThreadSummaryToCache,
+} from './threadSummarySelection';
 import type { ThreadFilterKey } from './RoomThreadOverview';
 import {
   type ThreadFilterState,
@@ -188,10 +201,12 @@ import {
   computeTagCounts,
 } from './roomThreadOverviewModel';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
+import { useRoomThreadList } from './useRoomThreadList';
 import { useStateEvents } from '../../hooks/useStateEvents';
 import {
   getThreadCursorAnchor,
   loadCachedThreadEventsBefore,
+  loadLatestCachedThreadSummaryInfo,
   loadLatestCachedThreadEvents,
   normalizeCachedThreadEvents,
   saveThreadEventsToCache,
@@ -226,6 +241,7 @@ import {
   shouldAutoScrollThreadOnLiveEvent,
 } from './timelineScrollUtils';
 import {
+  hasLikelyIncompleteStreamingBody,
   markThreadEditBackfillAttempted,
   shouldFetchThreadEditBackfill,
 } from './threadEditBackfillUtils';
@@ -477,6 +493,8 @@ const isVisibleThreadRootEvent = (
 ): boolean => {
   const eventId = event.getId();
   if (!eventId) return false;
+  if (event.threadRootId && event.threadRootId !== eventId) return false;
+  if (isNestedThreadReplyEvent(event)) return false;
 
   return (
     event.isThreadRoot ||
@@ -971,12 +989,13 @@ const getThreadSummaryInfo = (
       const summaryEvent = findLatestThreadSummaryEvent(thread.events);
       if (summaryEvent) {
         const info = getThreadSummaryEventInfo(summaryEvent);
-        if (info?.summaryText) return info;
+        const preferred = pickLatestThreadSummaryInfo(cachedInfo, fallbackInfo, info);
+        if (preferred?.summaryText) return preferred;
       }
     }
   }
 
-  return fallbackInfo ?? cachedInfo;
+  return pickLatestThreadSummaryInfo(cachedInfo, fallbackInfo);
 };
 
 export const getTimelineAndBaseIndex = (
@@ -1027,8 +1046,8 @@ type RoomTimelineProps = {
   onReset: () => void;
   onApplyPreset: (preset: FilterPreset) => void;
   onSearchQueryChange: (query: string) => void;
-  viewMode: RoomViewMode;
-  onViewModeChange: (viewMode: RoomViewMode) => void;
+  viewMode?: RoomViewMode;
+  onViewModeChange?: (viewMode: RoomViewMode) => void;
   roomInputRef: RefObject<HTMLElement>;
   editor: Editor;
 };
@@ -1686,6 +1705,46 @@ export async function fetchAllThreadRelations(
   return { events, nextBatchToken };
 }
 
+export const getCompactRootEventsNeedingBackfill = ({
+  room,
+  roomSurfaceEventEntries,
+  threadRootIds,
+  roomThreadListThreads,
+  attemptedEvents,
+}: {
+  room: Pick<Room, 'findEventById' | 'getThread' | 'getUnfilteredTimelineSet'>;
+  roomSurfaceEventEntries: Array<{ event: MatrixEvent }>;
+  threadRootIds: string[];
+  roomThreadListThreads: Array<{ id?: string; rootEvent?: MatrixEvent }>;
+  attemptedEvents: WeakMap<MatrixEvent, number>;
+}): Array<{ threadRootId: string; events: MatrixEvent[] }> =>
+  threadRootIds
+    .map((threadRootId) => ({
+      threadRootId,
+      events: [
+        roomSurfaceEventEntries.find((entry) => entry.event.getId() === threadRootId)?.event,
+        room.findEventById(threadRootId),
+        room.getThread(threadRootId)?.rootEvent,
+        roomThreadListThreads.find((thread) => thread.id === threadRootId)?.rootEvent,
+      ].filter(
+        (event, index, allEvents): event is MatrixEvent =>
+          !!event && allEvents.indexOf(event) === index
+      ),
+    }))
+    .map(({ threadRootId, events }) => ({
+      threadRootId,
+      events: events.filter((event) => {
+        const resolvedPreview = getCompactThreadRootBodyPreviewText(event, {
+          eventId: threadRootId,
+          room,
+        });
+        if (!hasLikelyIncompleteStreamingBody(resolvedPreview)) return false;
+
+        return shouldFetchThreadEditBackfill(event, attemptedEvents, true, false);
+      }),
+    }))
+    .filter(({ events }) => events.length > 0);
+
 const recalibrateTimelinePagination = (
   setTimeline: Dispatch<
     SetStateAction<{
@@ -2240,7 +2299,7 @@ export function RoomTimeline({
   onReset,
   onApplyPreset,
   onSearchQueryChange,
-  viewMode,
+  viewMode = 'normal',
   onViewModeChange,
   roomInputRef,
   editor,
@@ -2363,6 +2422,9 @@ export function RoomTimeline({
     traceKey: currentThreadTraceKey,
   });
   const threadEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
+    new WeakMap<MatrixEvent, number>()
+  );
+  const compactRootEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
     new WeakMap<MatrixEvent, number>()
   );
   const pendingThreadOpenRef = useRef<
@@ -2581,6 +2643,7 @@ export function RoomTimeline({
     hideNickAvatarEvents,
     threadReplyCountMap,
     threadResolutionMap,
+    overviewRefreshCounter,
   ]);
 
   const visibleThreadRootData = useMemo(() => {
@@ -2593,12 +2656,47 @@ export function RoomTimeline({
       if (isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)) {
         ids.push(evtId);
         indexMap.set(evtId, absoluteIndex);
-        const body = event.getContent()?.body;
-        if (typeof body === 'string') bodyMap.set(evtId, body);
+        const body = getCompactThreadRootBodyPreviewText(event, {
+          eventId: evtId,
+          room,
+        });
+        if (body) bodyMap.set(evtId, body);
       }
     });
     return { ids, indexMap, bodyMap };
   }, [roomSurfaceEventEntries, room, threadResolutionMap, threadReplyCountMap]);
+  const compactViewRequested = !threadId && viewMode === 'compact';
+  const { threads: roomThreadListThreads } = useRoomThreadList(room, compactViewRequested);
+  const compactThreadRootData = useMemo(
+    () =>
+      threadId || !compactViewRequested
+        ? visibleThreadRootData
+        : buildCompactThreadRootData({
+            room,
+            visibleIds: visibleThreadRootData.ids,
+            visibleIndexMap: visibleThreadRootData.indexMap,
+            visibleBodyMap: visibleThreadRootData.bodyMap,
+            threads: roomThreadListThreads,
+          }),
+    [threadId, compactViewRequested, visibleThreadRootData, roomThreadListThreads]
+  );
+  const [compactCachedThreadRootBodyMap, setCompactCachedThreadRootBodyMap] = useState(
+    () => new Map<string, string>()
+  );
+  const compactCachedRootPreviewAttemptCountsRef = useRef<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    compactCachedRootPreviewAttemptCountsRef.current = new Map();
+    setCompactCachedThreadRootBodyMap(new Map());
+  }, [room.roomId]);
+
+  const compactThreadRootBodyMap = useMemo(() => {
+    const bodyMap = new Map(compactThreadRootData.bodyMap);
+    compactCachedThreadRootBodyMap.forEach((value, key) => {
+      bodyMap.set(key, value);
+    });
+    return bodyMap;
+  }, [compactThreadRootData.bodyMap, compactCachedThreadRootBodyMap]);
 
   // ── Read-up-to timestamp for unread heuristic ──
   const readUpToTs = useMemo(() => {
@@ -2643,6 +2741,41 @@ export function RoomTimeline({
       overviewRefreshCounter,
     ]
   );
+  const compactThreadMetadataMap = useMemo(
+    () => {
+      if (threadId) return new Map<string, ThreadOverviewMetadata>();
+      if (!compactViewRequested) return threadMetadataMap;
+      return buildThreadMetadataMap(
+        room,
+        compactThreadRootData.ids,
+        threadResolutionMap,
+        scheduledTaskCounts,
+        threadReplyCountMap,
+        threadParticipantMap,
+        threadSummaryInfoMap,
+        mx.getSafeUserId(),
+        readUpToTs,
+        compactThreadRootData.indexMap,
+        compactThreadRootBodyMap
+      );
+    },
+    [
+      threadId,
+      compactViewRequested,
+      room,
+      compactThreadRootData,
+      compactThreadRootBodyMap,
+      threadResolutionMap,
+      scheduledTaskCounts,
+      threadReplyCountMap,
+      threadParticipantMap,
+      threadSummaryInfoMap,
+      mx,
+      readUpToTs,
+      overviewRefreshCounter,
+      threadMetadataMap,
+    ]
+  );
 
   // ── Debounced search query (300ms) ──
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(
@@ -2662,17 +2795,161 @@ export function RoomTimeline({
     const statusFiltered = filterThreadRootEvents(visibleThreadRootData.ids, threadFilterState, threadMetadataMap);
     return filterThreadsBySearch(statusFiltered, debouncedSearchQuery, threadMetadataMap);
   }, [threadId, visibleThreadRootData.ids, threadFilterState, threadMetadataMap, debouncedSearchQuery]);
+  const compactFilteredThreadRootIds = useMemo(() => {
+    if (threadId) return compactThreadRootData.ids;
+    if (!compactViewRequested) return filteredThreadRootIds;
+    const statusFiltered = filterThreadRootEvents(
+      compactThreadRootData.ids,
+      threadFilterState,
+      compactThreadMetadataMap
+    );
+    return filterThreadsBySearch(statusFiltered, debouncedSearchQuery, compactThreadMetadataMap);
+  }, [
+    threadId,
+    compactViewRequested,
+    compactThreadRootData.ids,
+    filteredThreadRootIds,
+    threadFilterState,
+    compactThreadMetadataMap,
+    debouncedSearchQuery,
+  ]);
+  const compactThreadRootIds = useMemo(
+    () =>
+      sortThreadRootEvents(
+        compactFilteredThreadRootIds,
+        threadFilterState.sortBy,
+        threadFilterState.sortDirection,
+        compactThreadMetadataMap
+      ),
+    [
+      compactFilteredThreadRootIds,
+      threadFilterState.sortBy,
+      threadFilterState.sortDirection,
+      compactThreadMetadataMap,
+    ]
+  );
+  const showCompactRoomView = compactViewRequested && compactThreadRootData.ids.length > 0;
+
+  useEffect(() => {
+    if (threadId || !compactViewRequested) return;
+
+    const threadRootIdsToLoad = compactThreadRootIds
+      .slice(0, 64)
+      .filter((rootId) => {
+        if (compactCachedThreadRootBodyMap.has(rootId)) return false;
+
+        const currentPreview = compactThreadRootData.bodyMap.get(rootId);
+        const attemptCount = compactCachedRootPreviewAttemptCountsRef.current.get(rootId) ?? 0;
+        const maxAttempts =
+          !currentPreview || hasLikelyIncompleteStreamingBody(currentPreview) ? 3 : 1;
+        return attemptCount < maxAttempts;
+      });
+    if (threadRootIdsToLoad.length === 0) return;
+
+    threadRootIdsToLoad.forEach((rootId) => {
+      const currentCount = compactCachedRootPreviewAttemptCountsRef.current.get(rootId) ?? 0;
+      compactCachedRootPreviewAttemptCountsRef.current.set(rootId, currentCount + 1);
+    });
+
+    let cancelled = false;
+    const mapper = mx.getEventMapper();
+
+    const loadCachedRootPreviews = async () => {
+      const updates = await Promise.all(
+        threadRootIdsToLoad.map(async (rootId) => {
+          const cachedPage = await loadLatestCachedThreadEvents(sessionId, room.roomId, rootId, 32);
+          const cachedPreview = getCompactCachedThreadRootPreviewInfo({
+            threadId: rootId,
+            cachedPage,
+            mapper,
+          });
+          if (!cachedPreview) return null;
+
+          const currentPreview = compactThreadRootData.bodyMap.get(rootId);
+          if (cachedPreview.previewText === currentPreview) return null;
+
+          const currentRootEvent =
+            room.findEventById(rootId) ??
+            room.getThread(rootId)?.rootEvent ??
+            roomThreadListThreads.find((thread) => thread.id === rootId)?.rootEvent;
+          const currentSourceTs =
+            currentRootEvent?.replacingEvent()?.getTs() ?? currentRootEvent?.getTs() ?? 0;
+          if (currentPreview && cachedPreview.sourceTs <= currentSourceTs) return null;
+
+          return [rootId, cachedPreview.previewText] as const;
+        })
+      );
+
+      if (cancelled) return;
+
+      const nextEntries = updates.filter(
+        (entry): entry is readonly [string, string] => !!entry
+      );
+      if (nextEntries.length === 0) return;
+
+      setCompactCachedThreadRootBodyMap((prev) => {
+        const next = new Map(prev);
+        nextEntries.forEach(([rootId, cachedPreview]) => {
+          next.set(rootId, cachedPreview);
+        });
+        return next;
+      });
+    };
+
+    loadCachedRootPreviews();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    compactCachedThreadRootBodyMap,
+    compactThreadRootData.bodyMap,
+    compactThreadRootIds,
+    compactViewRequested,
+    mx,
+    room,
+    room.roomId,
+    roomThreadListThreads,
+    sessionId,
+    threadId,
+  ]);
+
+  const useSurfacePreloadTarget = shouldUseSurfacePreloadTarget({
+    threadId,
+    roomThreadFilterActive,
+    viewMode,
+  });
 
   // Per-status counts over ALL threads (unfiltered)
   const statusCounts = useMemo(
-    () => computeStatusCounts(visibleThreadRootData.ids, threadMetadataMap),
-    [visibleThreadRootData.ids, threadMetadataMap]
+    () =>
+      computeStatusCounts(
+        showCompactRoomView ? compactThreadRootData.ids : visibleThreadRootData.ids,
+        showCompactRoomView ? compactThreadMetadataMap : threadMetadataMap
+      ),
+    [
+      compactThreadMetadataMap,
+      compactThreadRootData.ids,
+      showCompactRoomView,
+      threadMetadataMap,
+      visibleThreadRootData.ids,
+    ]
   );
 
   // Tag distribution over ALL threads (unfiltered)
   const tagCounts = useMemo(
-    () => computeTagCounts(visibleThreadRootData.ids, threadMetadataMap),
-    [visibleThreadRootData.ids, threadMetadataMap]
+    () =>
+      computeTagCounts(
+        showCompactRoomView ? compactThreadRootData.ids : visibleThreadRootData.ids,
+        showCompactRoomView ? compactThreadMetadataMap : threadMetadataMap
+      ),
+    [
+      compactThreadMetadataMap,
+      compactThreadRootData.ids,
+      showCompactRoomView,
+      threadMetadataMap,
+      visibleThreadRootData.ids,
+    ]
   );
 
   // Available tags from resolution map
@@ -2844,6 +3121,7 @@ export function RoomTimeline({
       activeRangeStart: activeTimelineRange.start,
       cacheCount: eventsLength,
       eagerPreloading,
+      preloadTarget: useSurfacePreloadTarget ? 'surface' : 'renderable',
       renderableCount: renderableEventEntries.length,
       surfaceCount: roomSurfaceEventEntries.length,
       threadOverviewCount: threadFilteredEvents.length,
@@ -2855,6 +3133,7 @@ export function RoomTimeline({
     eagerPreloading,
     eventsLength,
     renderableEventEntries.length,
+    useSurfacePreloadTarget,
     roomSurfaceEventEntries.length,
     threadFilteredEvents.length,
     threadId,
@@ -3158,7 +3437,9 @@ export function RoomTimeline({
 
         const counts = getRoomPreloadCounts(linkedTimelines, filterOpts.room, filterOpts);
 
-        const surfacedCount = roomThreadFilterActive ? counts.surfaceCount : counts.renderableCount;
+        const surfacedCount = useSurfacePreloadTarget
+          ? counts.surfaceCount
+          : counts.renderableCount;
 
         if (surfacedCount >= safePaginationLimitRef.current) {
           console.log(
@@ -3302,6 +3583,10 @@ export function RoomTimeline({
           eagerPreloadDoneForRoomRef.current = room.roomId;
         }
         const finalLinkedTimelines = getLinkedTimelines(getLiveTimeline(room));
+        setTimeline((current) => ({
+          ...current,
+          linkedTimelines: finalLinkedTimelines,
+        }));
         const finalFilterOpts = recalibrateFilterOptsRef.current;
         const finalCounts = finalFilterOpts
           ? getRoomPreloadCounts(finalLinkedTimelines, finalFilterOpts.room, finalFilterOpts)
@@ -3329,7 +3614,7 @@ export function RoomTimeline({
       cancelled = true;
       setEagerPreloading(false);
     };
-  }, [alive, eventId, mx, room, roomDebugTraceId, roomThreadFilterActive, threadId]);
+  }, [alive, eventId, mx, room, roomDebugTraceId, threadId, useSurfacePreloadTarget]);
 
   const persistThreadEventCache = useCallback(
     (
@@ -3469,6 +3754,159 @@ export function RoomTimeline({
     },
     [room, roomDebugTraceId, sessionId]
   );
+
+  useEffect(() => {
+    if (threadId || !showCompactRoomView) return;
+
+    const compactRootEvents = getCompactRootEventsNeedingBackfill({
+      room,
+      roomSurfaceEventEntries,
+      threadRootIds: compactThreadRootIds,
+      roomThreadListThreads,
+      attemptedEvents: compactRootEditFetchAttemptedRef.current,
+    });
+
+    if (compactRootEvents.length === 0) {
+      logEditDebug('compactRootBackfill:noneMissing', {
+        compactRootCount: compactThreadRootIds.length,
+        roomId: room.roomId,
+      });
+      return;
+    }
+
+    logEditDebug('compactRootBackfill:start', {
+      compactRootCount: compactThreadRootIds.length,
+      missingRootCount: compactRootEvents.length,
+      roomId: room.roomId,
+    });
+
+    compactRootEvents.forEach(({ events }) => {
+      events.forEach((event) => {
+        markThreadEditBackfillAttempted(
+          event,
+          compactRootEditFetchAttemptedRef.current,
+          true
+        );
+      });
+    });
+
+    let cancelled = false;
+    const loadMissingCompactRootEdits = async () => {
+      const updatedEvents: MatrixEvent[] = [];
+      const concurrency = 4;
+      let cursor = 0;
+
+      const worker = async () => {
+        while (!cancelled && cursor < compactRootEvents.length) {
+          const currentIndex = cursor;
+          cursor += 1;
+
+          const { threadRootId, events } = compactRootEvents[currentIndex];
+          const targetEvent = events[0];
+          const eventId = targetEvent?.getId();
+          if (!eventId) continue;
+
+          const [relErr, relData] = await to(
+            mx.relations(room.roomId, eventId, RelationType.Replace, targetEvent.getType(), {
+              dir: Direction.Backward,
+              limit: 100,
+            })
+          );
+          if (cancelled) continue;
+          if (relErr) {
+            logEditDebug('compactRootBackfill:fetchError', {
+              eventId,
+              roomId: room.roomId,
+              error: String(relErr),
+            });
+            continue;
+          }
+
+          const currentReplacement = targetEvent.replacingEvent() ?? undefined;
+          const relationEvents = relData?.events ?? [];
+          if (relationEvents.length === 0 && !currentReplacement) {
+            logEditDebug('compactRootBackfill:noRelations', {
+              eventId,
+              roomId: room.roomId,
+            });
+            continue;
+          }
+
+          const latestEdit = getLatestEdit(
+            targetEvent,
+            currentReplacement ? [currentReplacement, ...relationEvents] : relationEvents
+          );
+          if (!latestEdit) continue;
+          if (latestEdit.getSender() !== targetEvent.getSender()) {
+            logEditDebug('compactRootBackfill:senderMismatch', {
+              eventId,
+              roomId: room.roomId,
+              editEventId: latestEdit.getId(),
+              editSender: latestEdit.getSender(),
+              targetSender: targetEvent.getSender(),
+            });
+            continue;
+          }
+
+          let didUpdateEvent = false;
+          events.forEach((event) => {
+            if (event.replacingEvent() === latestEdit) return;
+            event.makeReplaced(latestEdit);
+            updatedEvents.push(event);
+            didUpdateEvent = true;
+          });
+          if (!didUpdateEvent) {
+            logEditDebug('compactRootBackfill:alreadyLatest', {
+              eventId,
+              roomId: room.roomId,
+              editEventId: latestEdit.getId(),
+            });
+            continue;
+          }
+          logEditDebug('compactRootBackfill:applied', {
+            eventId,
+            roomId: room.roomId,
+            threadRootId,
+            editEventId: latestEdit.getId(),
+            relationCount: relationEvents.length,
+            updatedCopies: events.length,
+          });
+        }
+      };
+
+      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+      if (updatedEvents.length > 0 && !cancelled) {
+        persistRoomEventCache(updatedEvents);
+        setOverviewRefreshCounter((value) => value + 1);
+        logEditDebug('compactRootBackfill:updated', {
+          roomId: room.roomId,
+          updatedCount: updatedEvents.length,
+        });
+        return;
+      }
+
+      logEditDebug('compactRootBackfill:noUpdate', {
+        roomId: room.roomId,
+      });
+    };
+
+    loadMissingCompactRootEdits();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    compactThreadRootIds,
+    mx,
+    persistRoomEventCache,
+    room,
+    room.roomId,
+    roomSurfaceEventEntries,
+    roomThreadListThreads,
+    showCompactRoomView,
+    threadId,
+  ]);
 
   const pendingRoomThreadCacheEventsRef = useRef<MatrixEvent[]>([]);
   const roomThreadCacheFlushQueuedRef = useRef(false);
@@ -4898,6 +5336,10 @@ export function RoomTimeline({
   }, [eventId]);
 
   useEffect(() => {
+    compactRootEditFetchAttemptedRef.current = new WeakMap<MatrixEvent, number>();
+  }, [room.roomId]);
+
+  useEffect(() => {
     if (!threadId) return;
     setFocusItem(undefined);
     setThreadLoadError(false);
@@ -5370,6 +5812,28 @@ export function RoomTimeline({
           scrollToBottomRef.current.smooth = false;
           setAtBottom(true);
         }
+
+        // When opening a thread with a specific eventId (e.g. from search),
+        // load that event's context into the thread timeline and scroll to it.
+        if (!shouldScrollToLatestOnOpen && eventId && eventId !== threadId) {
+          const evtThreadTimelineSet = room.getThread(threadId)?.getUnfilteredTimelineSet();
+          if (evtThreadTimelineSet) {
+            const [evtErr] = await to(mx.getEventTimeline(evtThreadTimelineSet, eventId));
+            if (!mounted || threadIdRef.current !== threadId) return;
+            if (!evtErr) {
+              setTimeline((ct) => ({ ...ct }));
+              setThreadTimelineTick((val) => val + 1);
+            }
+          }
+          pendingThreadOpenRef.current = {
+            threadId,
+            eventId,
+            highlight: true,
+            onScroll: undefined,
+            attempts: 0,
+          };
+          setPendingThreadOpenTick((val) => val + 1);
+        }
       } finally {
         if (mounted && threadIdRef.current === threadId) {
           setThreadLatestOpenPending(false);
@@ -5781,6 +6245,12 @@ export function RoomTimeline({
     },
     [handleOpenEvent, navigateRoomThread, room.roomId]
   );
+  const handleOpenCompactThread = useCallback(
+    (threadRootId: string) => {
+      navigateRoomThread(room.roomId, threadRootId);
+    },
+    [navigateRoomThread, room.roomId]
+  );
 
   const handleUserClick: MouseEventHandler<HTMLButtonElement> = useCallback(
     (evt) => {
@@ -5896,13 +6366,19 @@ export function RoomTimeline({
   const [cachedSummaryMap, setCachedSummaryMap] = useState<Map<string, MindroomThreadSummaryInfo>>(
     () => new Map()
   );
+  const pendingThreadSummaryBackfillIdsRef = useRef(new Set<string>());
+  const cachedSummaryMapRef = useRef(cachedSummaryMap);
+  cachedSummaryMapRef.current = cachedSummaryMap;
 
   // Load cached summaries from IndexedDB on room entry
   useEffect(() => {
     if (threadId) return;
     let cancelled = false;
     loadCachedThreadSummaries(sessionId, room.roomId).then((cached) => {
-      if (!cancelled && cached.size > 0) setCachedSummaryMap(cached);
+      if (!cancelled && cached.size > 0) {
+        cachedSummaryMapRef.current = cached;
+        setCachedSummaryMap(cached);
+      }
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [sessionId, room.roomId, threadId]);
@@ -5911,17 +6387,84 @@ export function RoomTimeline({
   useEffect(() => {
     if (threadId) return;
     threadSummaryInfoMap.forEach((info, threadRootId) => {
-      if (!info.summaryText) return;
       const cached = cachedSummaryMap.get(threadRootId);
-      if (cached?.summaryText === info.summaryText) return;
+      if (!shouldWriteThreadSummaryToCache(cached, info)) return;
       setCachedSummaryMap((prev) => {
         const next = new Map(prev);
         next.set(threadRootId, info);
+        cachedSummaryMapRef.current = next;
         return next;
       });
       saveCachedThreadSummary(sessionId, room.roomId, threadRootId, info).catch(() => {});
     });
   }, [threadId, threadSummaryInfoMap, cachedSummaryMap, sessionId, room.roomId]);
+
+  const visibleThreadSummaryRefreshIds = useMemo(() => {
+    if (threadId) return [] as string[];
+
+    return threadFilteredEventEntries
+      .slice(activeTimelineRange.start, activeTimelineRange.end)
+      .map((entry) => entry.event)
+      .filter((event) =>
+        isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)
+      )
+      .map((event) => event.getId())
+      .filter((eventId): eventId is string => !!eventId);
+  }, [
+    activeTimelineRange.end,
+    activeTimelineRange.start,
+    room,
+    threadId,
+    threadFilteredEventEntries,
+    threadReplyCountMap,
+    threadResolutionMap,
+  ]);
+
+  useEffect(() => {
+    if (threadId || visibleThreadSummaryRefreshIds.length === 0) return undefined;
+    const refreshIds = visibleThreadSummaryRefreshIds;
+
+    const backfillVisibleThreadSummaries = async () => {
+      for (const threadRootId of refreshIds) {
+        if (pendingThreadSummaryBackfillIdsRef.current.has(threadRootId)) continue;
+
+        pendingThreadSummaryBackfillIdsRef.current.add(threadRootId);
+        try {
+          const info = await loadLatestCachedThreadSummaryInfo(sessionId, room.roomId, threadRootId);
+          if (!info?.summaryText) continue;
+          if (!shouldWriteThreadSummaryToCache(cachedSummaryMapRef.current.get(threadRootId), info)) {
+            continue;
+          }
+          let shouldPersist = false;
+          setCachedSummaryMap((prev) => {
+            if (!shouldWriteThreadSummaryToCache(prev.get(threadRootId), info)) return prev;
+            const next = new Map(prev);
+            next.set(threadRootId, info);
+            cachedSummaryMapRef.current = next;
+            shouldPersist = true;
+            return next;
+          });
+          if (shouldPersist) {
+            saveCachedThreadSummary(sessionId, room.roomId, threadRootId, info).catch(() => {});
+          }
+        } finally {
+          pendingThreadSummaryBackfillIdsRef.current.delete(threadRootId);
+        }
+      }
+    };
+
+    backfillVisibleThreadSummaries().catch(() => {});
+    return undefined;
+  }, [
+    room.roomId,
+    sessionId,
+    threadId,
+    visibleThreadSummaryRefreshIds,
+  ]);
+
+  const preferredThreadSummaryMap = useMemo(() => {
+    return buildPreferredThreadSummaryMap(cachedSummaryMap, threadSummaryInfoMap);
+  }, [cachedSummaryMap, threadSummaryInfoMap]);
 
   const renderMatrixEvent = useMatrixEventRenderer<
     [string, MatrixEvent, number, EventTimelineSet, boolean]
@@ -7123,12 +7666,14 @@ export function RoomTimeline({
     <Box grow="Yes" direction="Column">
       {!threadId && (
         <RoomThreadOverview
-          threadCount={filteredThreadRootIds.length}
-          totalThreadCount={visibleThreadRootData.ids.length}
+          threadCount={showCompactRoomView ? compactFilteredThreadRootIds.length : filteredThreadRootIds.length}
+          totalThreadCount={showCompactRoomView ? compactThreadRootData.ids.length : visibleThreadRootData.ids.length}
           statusCounts={statusCounts}
           tagCounts={tagCounts}
           state={threadFilterState}
           availableTags={availableRoomTags}
+          viewMode={viewMode}
+          onViewModeChange={onViewModeChange}
           onToggle={onToggle}
           onSortDirectionChange={onSortDirectionChange}
           onReset={onReset}
@@ -7140,260 +7685,272 @@ export function RoomTimeline({
         />
       )}
       <Box grow="Yes" style={{ position: 'relative' }}>
-        {!threadId && unreadInfo?.readUptoEventId && !unreadInfo?.inLiveTimeline && (
-          <TimelineFloat position="Top">
-            <Chip
-              variant="Primary"
-              radii="Pill"
-              outlined
-              before={<Icon size="50" src={Icons.MessageUnread} />}
-              onClick={handleJumpToUnread}
-            >
-              <Text size="L400">Jump to Unread</Text>
-            </Chip>
-
-            <Chip
-              variant="SurfaceVariant"
-              radii="Pill"
-              outlined
-              before={<Icon size="50" src={Icons.CheckTwice} />}
-              onClick={handleMarkAsRead}
-            >
-              <Text size="L400">Mark as Read</Text>
-            </Chip>
-          </TimelineFloat>
-        )}
-        <a
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            if (allExpanded) {
-              collapseAllMessages();
-              setAllExpanded(false);
-            } else {
-              expandAllMessages();
-              setAllExpanded(true);
-            }
-          }}
-          style={{
-            position: 'absolute',
-            top: config.space.S200,
-            right: config.space.S400,
-            zIndex: 2,
-            color: color.Primary.Main,
-            cursor: 'pointer',
-            fontSize: '0.75rem',
-            fontFamily: 'monospace',
-            opacity: 0.7,
-          }}
-        >
-          {allExpanded ? '[-all]' : '[+all]'}
-        </a>
-        <Scroll ref={scrollRef} visibility="Hover" style={{ overflowAnchor: 'auto' }}>
-          <Box
-            direction="Column"
-            justifyContent="End"
-            style={{
-              minHeight: '100%',
-              padding: `${config.space.S600} 0`,
-              position: 'relative',
-            }}
-          >
-            {threadId && (
-              <Box
-                style={{
-                  position: 'absolute',
-                  top: config.space.S600,
-                  bottom: config.space.S600,
-                  left: messageLayout === MessageLayout.Compact ? toRem(5) : toRem(7),
-                  width: config.borderWidth.B300,
-                  backgroundColor: color.Warning.ContainerLine,
-                  opacity: 0.7,
-                  pointerEvents: 'none',
-                }}
-              />
-            )}
-            {!threadId &&
-              !roomHasMoreCachedBack &&
-              !canPaginateBack &&
-              rangeAtStart &&
-              timelineItems.length > 0 && (
-                <div
-                  style={{
-                    padding: `${config.space.S700} ${config.space.S400} ${config.space.S600} ${
-                      messageLayout === MessageLayout.Compact ? config.space.S400 : toRem(64)
-                    }`,
-                  }}
+        {showCompactRoomView ? (
+          <CompactRoomView
+            room={room}
+            threadRootIds={compactThreadRootIds}
+            metadataMap={compactThreadMetadataMap}
+            summaryMap={preferredThreadSummaryMap}
+            onThreadClick={handleOpenCompactThread}
+          />
+        ) : (
+          <>
+            {!threadId && unreadInfo?.readUptoEventId && !unreadInfo?.inLiveTimeline && (
+              <TimelineFloat position="Top">
+                <Chip
+                  variant="Primary"
+                  radii="Pill"
+                  outlined
+                  before={<Icon size="50" src={Icons.MessageUnread} />}
+                  onClick={handleJumpToUnread}
                 >
-                  <RoomIntro room={room} />
-                </div>
-              )}
-            {threadId && threadLoadError && (
-              <MessageBase space={messageSpacing}>
-                <TimelineDivider variant="Surface">
-                  <Badge as="span" size="500" variant="Critical" fill="None" radii="300">
-                    <Text size="L400">Failed to load this thread.</Text>
-                  </Badge>
-                </TimelineDivider>
-              </MessageBase>
-            )}
-            {threadId && (threadHasMoreCachedBack || canPaginateThreadBack) && (
-              <MessageBase space={messageSpacing}>
-                <TimelineDivider variant="Surface">
-                  <Chip
-                    variant="SurfaceVariant"
-                    radii="Pill"
-                    outlined
-                    before={<Icon size="50" src={Icons.ArrowTop} />}
-                    onClick={handleThreadPaginateBack}
-                  >
-                    <Text size="L400">
-                      {threadPaginatingBack ? 'Loading...' : 'Load Older Messages'}
-                    </Text>
-                  </Chip>
-                </TimelineDivider>
-              </MessageBase>
-            )}
-            {threadId &&
-              threadInitialRenderMode === 'loading' &&
-              !threadLoadError &&
-              (messageLayout === MessageLayout.Compact ? (
-                <>
-                  <MessageBase>
-                    <CompactPlaceholder />
-                  </MessageBase>
-                  <MessageBase>
-                    <CompactPlaceholder />
-                  </MessageBase>
-                  <MessageBase>
-                    <CompactPlaceholder />
-                  </MessageBase>
-                </>
-              ) : (
-                <>
-                  <MessageBase>
-                    <DefaultPlaceholder />
-                  </MessageBase>
-                  <MessageBase>
-                    <DefaultPlaceholder />
-                  </MessageBase>
-                </>
-              ))}
-            {!threadId &&
-              !eagerPreloading &&
-              (roomHasMoreCachedBack || canPaginateBack || !rangeAtStart) &&
-              (messageLayout === MessageLayout.Compact ? (
-                <>
-                  <MessageBase>
-                    <CompactPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                  <MessageBase>
-                    <CompactPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                  <MessageBase>
-                    <CompactPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                  <MessageBase>
-                    <CompactPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                  <MessageBase ref={observeBackAnchor}>
-                    <CompactPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                </>
-              ) : (
-                <>
-                  <MessageBase>
-                    <DefaultPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                  <MessageBase>
-                    <DefaultPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                  <MessageBase ref={observeBackAnchor}>
-                    <DefaultPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                </>
-              ))}
+                  <Text size="L400">Jump to Unread</Text>
+                </Chip>
 
-            {threadId
-              ? threadEvents.map((mEvent, index) => {
-                  const eventId = mEvent.getId();
-                  if (!eventId) return null;
-                  const threadTimeline = threadTimelineSet?.getTimelineForEvent(eventId);
-                  const roomTimeline = roomTimelineSet.getTimelineForEvent(eventId);
-                  const timelineSet =
-                    threadTimeline?.getTimelineSet() ??
-                    roomTimeline?.getTimelineSet() ??
-                    threadTimelineSet ??
-                    roomTimelineSet;
-                  return renderResolvedEvent(mEvent, index, timelineSet);
-                })
-              : timelineItems.map(eventRenderer)}
-            {threadId && canPaginateThreadFront && (
-              <MessageBase space={messageSpacing}>
-                <TimelineDivider variant="Surface">
-                  <Chip
-                    variant="SurfaceVariant"
-                    radii="Pill"
-                    outlined
-                    before={<Icon size="50" src={Icons.ArrowBottom} />}
-                    onClick={handleThreadPaginateFront}
-                  >
-                    <Text size="L400">
-                      {threadPaginatingFront ? 'Loading...' : 'Load Newer Messages'}
-                    </Text>
-                  </Chip>
-                </TimelineDivider>
-              </MessageBase>
+                <Chip
+                  variant="SurfaceVariant"
+                  radii="Pill"
+                  outlined
+                  before={<Icon size="50" src={Icons.CheckTwice} />}
+                  onClick={handleMarkAsRead}
+                >
+                  <Text size="L400">Mark as Read</Text>
+                </Chip>
+              </TimelineFloat>
             )}
-
-            {!threadId &&
-              (!liveTimelineLinked || !rangeAtEnd) &&
-              (messageLayout === MessageLayout.Compact ? (
-                <>
-                  <MessageBase ref={observeFrontAnchor}>
-                    <CompactPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                  <MessageBase>
-                    <CompactPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                  <MessageBase>
-                    <CompactPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                  <MessageBase>
-                    <CompactPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                  <MessageBase>
-                    <CompactPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                </>
-              ) : (
-                <>
-                  <MessageBase ref={observeFrontAnchor}>
-                    <DefaultPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                  <MessageBase>
-                    <DefaultPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                  <MessageBase>
-                    <DefaultPlaceholder key={timelineItems.length} />
-                  </MessageBase>
-                </>
-              ))}
-            <span ref={atBottomAnchorRef} />
-          </Box>
-        </Scroll>
-        {!atBottom && (
-          <TimelineFloat position="Bottom">
-            <Chip
-              variant="SurfaceVariant"
-              radii="Pill"
-              outlined
-              before={<Icon size="50" src={Icons.ArrowBottom} />}
-              onClick={handleJumpToLatest}
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                if (allExpanded) {
+                  collapseAllMessages();
+                  setAllExpanded(false);
+                } else {
+                  expandAllMessages();
+                  setAllExpanded(true);
+                }
+              }}
+              style={{
+                position: 'absolute',
+                top: config.space.S200,
+                right: config.space.S400,
+                zIndex: 2,
+                color: color.Primary.Main,
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+                fontFamily: 'monospace',
+                opacity: 0.7,
+              }}
             >
-              <Text size="L400">Jump to Latest</Text>
-            </Chip>
-          </TimelineFloat>
+              {allExpanded ? '[-all]' : '[+all]'}
+            </a>
+            <Scroll ref={scrollRef} visibility="Hover" style={{ overflowAnchor: 'auto' }}>
+              <Box
+                direction="Column"
+                justifyContent="End"
+                style={{
+                  minHeight: '100%',
+                  padding: `${config.space.S600} 0`,
+                  position: 'relative',
+                }}
+              >
+                {threadId && (
+                  <Box
+                    style={{
+                      position: 'absolute',
+                      top: config.space.S600,
+                      bottom: config.space.S600,
+                      left: messageLayout === MessageLayout.Compact ? toRem(5) : toRem(7),
+                      width: config.borderWidth.B300,
+                      backgroundColor: color.Warning.ContainerLine,
+                      opacity: 0.7,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
+                {!threadId &&
+                  !roomHasMoreCachedBack &&
+                  !canPaginateBack &&
+                  rangeAtStart &&
+                  timelineItems.length > 0 && (
+                    <div
+                      style={{
+                        padding: `${config.space.S700} ${config.space.S400} ${config.space.S600} ${
+                          messageLayout === MessageLayout.Compact ? config.space.S400 : toRem(64)
+                        }`,
+                      }}
+                    >
+                      <RoomIntro room={room} />
+                    </div>
+                  )}
+                {threadId && threadLoadError && (
+                  <MessageBase space={messageSpacing}>
+                    <TimelineDivider variant="Surface">
+                      <Badge as="span" size="500" variant="Critical" fill="None" radii="300">
+                        <Text size="L400">Failed to load this thread.</Text>
+                      </Badge>
+                    </TimelineDivider>
+                  </MessageBase>
+                )}
+                {threadId && (threadHasMoreCachedBack || canPaginateThreadBack) && (
+                  <MessageBase space={messageSpacing}>
+                    <TimelineDivider variant="Surface">
+                      <Chip
+                        variant="SurfaceVariant"
+                        radii="Pill"
+                        outlined
+                        before={<Icon size="50" src={Icons.ArrowTop} />}
+                        onClick={handleThreadPaginateBack}
+                      >
+                        <Text size="L400">
+                          {threadPaginatingBack ? 'Loading...' : 'Load Older Messages'}
+                        </Text>
+                      </Chip>
+                    </TimelineDivider>
+                  </MessageBase>
+                )}
+                {threadId &&
+                  threadInitialRenderMode === 'loading' &&
+                  !threadLoadError &&
+                  (messageLayout === MessageLayout.Compact ? (
+                    <>
+                      <MessageBase>
+                        <CompactPlaceholder />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder />
+                      </MessageBase>
+                    </>
+                  ) : (
+                    <>
+                      <MessageBase>
+                        <DefaultPlaceholder />
+                      </MessageBase>
+                      <MessageBase>
+                        <DefaultPlaceholder />
+                      </MessageBase>
+                    </>
+                  ))}
+                {!threadId &&
+                  !eagerPreloading &&
+                  (roomHasMoreCachedBack || canPaginateBack || !rangeAtStart) &&
+                  (messageLayout === MessageLayout.Compact ? (
+                    <>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase ref={observeBackAnchor}>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                    </>
+                  ) : (
+                    <>
+                      <MessageBase>
+                        <DefaultPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <DefaultPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase ref={observeBackAnchor}>
+                        <DefaultPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                    </>
+                  ))}
+
+                {threadId
+                  ? threadEvents.map((mEvent, index) => {
+                      const eventId = mEvent.getId();
+                      if (!eventId) return null;
+                      const threadTimeline = threadTimelineSet?.getTimelineForEvent(eventId);
+                      const roomTimeline = roomTimelineSet.getTimelineForEvent(eventId);
+                      const timelineSet =
+                        threadTimeline?.getTimelineSet() ??
+                        roomTimeline?.getTimelineSet() ??
+                        threadTimelineSet ??
+                        roomTimelineSet;
+                      return renderResolvedEvent(mEvent, index, timelineSet);
+                    })
+                  : timelineItems.map(eventRenderer)}
+                {threadId && canPaginateThreadFront && (
+                  <MessageBase space={messageSpacing}>
+                    <TimelineDivider variant="Surface">
+                      <Chip
+                        variant="SurfaceVariant"
+                        radii="Pill"
+                        outlined
+                        before={<Icon size="50" src={Icons.ArrowBottom} />}
+                        onClick={handleThreadPaginateFront}
+                      >
+                        <Text size="L400">
+                          {threadPaginatingFront ? 'Loading...' : 'Load Newer Messages'}
+                        </Text>
+                      </Chip>
+                    </TimelineDivider>
+                  </MessageBase>
+                )}
+
+                {!threadId &&
+                  (!liveTimelineLinked || !rangeAtEnd) &&
+                  (messageLayout === MessageLayout.Compact ? (
+                    <>
+                      <MessageBase ref={observeFrontAnchor}>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                    </>
+                  ) : (
+                    <>
+                      <MessageBase ref={observeFrontAnchor}>
+                        <DefaultPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <DefaultPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <DefaultPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                    </>
+                  ))}
+                <span ref={atBottomAnchorRef} />
+              </Box>
+            </Scroll>
+            {!atBottom && (
+              <TimelineFloat position="Bottom">
+                <Chip
+                  variant="SurfaceVariant"
+                  radii="Pill"
+                  outlined
+                  before={<Icon size="50" src={Icons.ArrowBottom} />}
+                  onClick={handleJumpToLatest}
+                >
+                  <Text size="L400">Jump to Latest</Text>
+                </Chip>
+              </TimelineFloat>
+            )}
+          </>
         )}
       </Box>
     </Box>
