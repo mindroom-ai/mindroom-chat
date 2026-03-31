@@ -2645,9 +2645,11 @@ export function RoomTimeline({
   );
 
   // ── Debounced search query (300ms) ──
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(threadFilterState.searchQuery);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(
+    threadFilterState.searchQuery ?? ''
+  );
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearchQuery(threadFilterState.searchQuery), 300);
+    const timer = setTimeout(() => setDebouncedSearchQuery(threadFilterState.searchQuery ?? ''), 300);
     return () => clearTimeout(timer);
   }, [threadFilterState.searchQuery]);
 
