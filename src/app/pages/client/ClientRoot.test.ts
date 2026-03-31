@@ -2,6 +2,7 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { ClientEvent } from 'matrix-js-sdk';
 import { ClientRoot } from './ClientRoot';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { StoredSession } from '../../state/sessions';
@@ -121,6 +122,34 @@ vi.mock('../../hooks/useSessionStore', () => ({
 
 let currentSession: StoredSession | undefined;
 
+type MockClient = {
+  stopClient: ReturnType<typeof vi.fn>;
+  on: ReturnType<typeof vi.fn>;
+  once: ReturnType<typeof vi.fn>;
+  removeListener: ReturnType<typeof vi.fn>;
+  emitSync: () => void;
+};
+
+const createMockClient = (): MockClient => {
+  let syncHandler: (() => void) | undefined;
+
+  return {
+    stopClient: vi.fn(),
+    on: vi.fn(),
+    once: vi.fn((event: string, handler: () => void) => {
+      if (event === ClientEvent.Sync) syncHandler = handler;
+    }),
+    removeListener: vi.fn((event: string, handler: () => void) => {
+      if (event === ClientEvent.Sync && syncHandler === handler) {
+        syncHandler = undefined;
+      }
+    }),
+    emitSync: () => {
+      syncHandler?.();
+    },
+  };
+};
+
 const flushEffects = async () => {
   await Promise.resolve();
   await Promise.resolve();
@@ -183,16 +212,8 @@ describe('ClientRoot', () => {
   });
 
   it('switches clients when the active session changes', async () => {
-    const clientA = {
-      stopClient: vi.fn(),
-      on: vi.fn(),
-      removeListener: vi.fn(),
-    };
-    const clientB = {
-      stopClient: vi.fn(),
-      on: vi.fn(),
-      removeListener: vi.fn(),
-    };
+    const clientA = createMockClient();
+    const clientB = createMockClient();
 
     currentSession = {
       sessionId: 'session-a',
@@ -240,11 +261,7 @@ describe('ClientRoot', () => {
   });
 
   it('does not restart the client when only session metadata changes', async () => {
-    const client = {
-      stopClient: vi.fn(),
-      on: vi.fn(),
-      removeListener: vi.fn(),
-    };
+    const client = createMockClient();
 
     currentSession = {
       sessionId: 'session-a',
@@ -309,6 +326,7 @@ describe('ClientRoot', () => {
           logoutHandler = handler;
         }
       }),
+      once: vi.fn(),
       removeListener: vi.fn(),
     };
 
@@ -343,11 +361,7 @@ describe('ClientRoot', () => {
   });
 
   it('redirects to login if the active session disappears after startup', async () => {
-    const client = {
-      stopClient: vi.fn(),
-      on: vi.fn(),
-      removeListener: vi.fn(),
-    };
+    const client = createMockClient();
 
     currentSession = {
       sessionId: 'session-a',
@@ -377,12 +391,8 @@ describe('ClientRoot', () => {
     expect(renderer?.toJSON()).toEqual('login page');
   });
 
-  it('renders cached UI as soon as the client initializes, before sync catches up', async () => {
-    const client = {
-      stopClient: vi.fn(),
-      on: vi.fn(),
-      removeListener: vi.fn(),
-    };
+  it('keeps the loading screen rendered until the first sync arrives', async () => {
+    const client = createMockClient();
 
     currentSession = {
       sessionId: 'session-a',
@@ -408,7 +418,7 @@ describe('ClientRoot', () => {
       await flushEffects();
     });
 
-    expect(hasRenderedText(renderer, 'child')).toBe(true);
+    expect(hasRenderedText(renderer, 'child')).toBe(false);
     expect(hasRenderedText(renderer, 'Catching up...')).toBe(true);
     expect(hasRenderedText(renderer, 'sync')).toBe(false);
 
@@ -417,16 +427,12 @@ describe('ClientRoot', () => {
       await flushEffects();
     });
 
-    expect(hasRenderedText(renderer, 'child')).toBe(true);
-    expect(hasRenderedText(renderer, 'sync')).toBe(true);
+    expect(hasRenderedText(renderer, 'child')).toBe(false);
+    expect(hasRenderedText(renderer, 'Catching up...')).toBe(true);
   });
 
-  it('keeps cached UI rendered after startClient resolves', async () => {
-    const client = {
-      stopClient: vi.fn(),
-      on: vi.fn(),
-      removeListener: vi.fn(),
-    };
+  it('renders cached UI after the first sync event arrives', async () => {
+    const client = createMockClient();
 
     currentSession = {
       sessionId: 'session-a',
@@ -443,6 +449,44 @@ describe('ClientRoot', () => {
 
     await act(async () => {
       renderer = create(renderClientRoot());
+      await flushEffects();
+    });
+
+    expect(hasRenderedText(renderer, 'child')).toBe(false);
+    expect(hasRenderedText(renderer, 'Catching up...')).toBe(true);
+
+    await act(async () => {
+      client.emitSync();
+      await flushEffects();
+    });
+
+    expect(hasRenderedText(renderer, 'child')).toBe(true);
+    expect(hasRenderedText(renderer, 'sync')).toBe(true);
+  });
+
+  it('keeps cached UI rendered after startClient resolves once the client has synced', async () => {
+    const client = createMockClient();
+
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+    };
+
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(initClient).mockResolvedValue(client as never);
+    vi.mocked(startClient).mockResolvedValue(undefined);
+
+    await act(async () => {
+      renderer = create(renderClientRoot());
+      await flushEffects();
+    });
+
+    await act(async () => {
+      client.emitSync();
       await flushEffects();
     });
 
