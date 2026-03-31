@@ -3,6 +3,7 @@ import { Direction, RoomEvent } from 'matrix-js-sdk';
 import { Editor } from 'slate';
 import { act, create as baseCreate } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createDefaultThreadFilterState } from './roomThreadOverviewModel';
 import {
   clearThreadOpenSeedSnapshotsForTests,
   getThreadOpenSeedSnapshot,
@@ -406,6 +407,17 @@ vi.mock('../../components/CollapsibleMessage', () => ({
 vi.mock('../../components/RenderMessageContent', () => ({
   RenderMessageContent: passthrough,
 }));
+
+vi.mock('../../components/CollapsibleMessage', async () => {
+  const ReactImport = await import('react');
+
+  return {
+    expandAllMessages: vi.fn(),
+    collapseAllMessages: vi.fn(),
+    CollapsibleMessage: ({ children }: { children: React.ReactNode }) =>
+      ReactImport.createElement(passthrough, undefined, children),
+  };
+});
 
 vi.mock('../../components/media', () => ({
   Image: passthrough,
@@ -850,16 +862,7 @@ const getClickableByText = (renderer: ReturnType<typeof create>, text: string) =
   return clickable;
 };
 
-const DEFAULT_THREAD_FILTER_STATE: import('./roomThreadOverviewModel').ThreadFilterState = {
-  resolved: 'any',
-  streaming: 'any',
-  scheduled: 'any',
-  unread: 'any',
-  idle: 'any',
-  sortBy: 'natural',
-  sortDirection: 'desc',
-  tags: new Map(),
-};
+const DEFAULT_THREAD_FILTER_STATE = createDefaultThreadFilterState();
 
 const threadFilterStateFromLegacy = (
   filter?: 'all' | 'resolved' | 'unresolved' | 'unread'
@@ -5224,7 +5227,11 @@ describe('RoomTimeline', () => {
         room: room as never,
         threadResolutionMap: threadResolutionMapMock as never,
         threadId: undefined,
-        threadFilterState: { resolved: 'exclude' as const, streaming: 'any' as const, scheduled: 'any' as const, unread: 'any' as const, idle: 'any' as const, sortBy: 'natural' as const, sortDirection: 'desc' as const, tags: new Map() },
+        threadFilterState: {
+          ...DEFAULT_THREAD_FILTER_STATE,
+          resolved: 'exclude' as const,
+          tags: new Map(),
+        },
         scheduledTaskCounts: new Map(),
         threadReplyCountMapForMeta: new Map(),
         threadParticipantMap: new Map(),
@@ -5401,7 +5408,11 @@ describe('RoomTimeline', () => {
         room: room as never,
         threadResolutionMap: threadResolutionMapMock,
         threadId: undefined,
-        threadFilterState: { resolved: 'exclude' as const, streaming: 'any' as const, scheduled: 'any' as const, unread: 'any' as const, idle: 'any' as const, sortBy: 'natural' as const, sortDirection: 'desc' as const, tags: new Map() },
+        threadFilterState: {
+          ...DEFAULT_THREAD_FILTER_STATE,
+          resolved: 'exclude' as const,
+          tags: new Map(),
+        },
         scheduledTaskCounts: new Map(),
         threadReplyCountMapForMeta: new Map(),
         threadParticipantMap: new Map(),
