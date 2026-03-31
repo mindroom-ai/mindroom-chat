@@ -4,6 +4,7 @@ import {
   ISearchRequestBody,
   ISearchResponse,
   ISearchResult,
+  RelationType,
   SearchOrderBy,
 } from 'matrix-js-sdk';
 import { useCallback } from 'react';
@@ -51,13 +52,62 @@ const groupSearchResult = (results: ISearchResult[]): ResultGroup[] => {
   return groups;
 };
 
+export const getCanonicalSearchEventId = (event: IEventWithRoomId): string | undefined => {
+  const relation = event.content?.['m.relates_to'];
+
+  if (
+    relation?.rel_type === RelationType.Replace &&
+    typeof relation.event_id === 'string' &&
+    relation.event_id.length > 0
+  ) {
+    return relation.event_id;
+  }
+
+  if (typeof event.event_id === 'string' && event.event_id.length > 0) {
+    return event.event_id;
+  }
+
+  return undefined;
+};
+
+export const getCanonicalSearchEventKey = (event: IEventWithRoomId): string | undefined => {
+  const canonicalEventId = getCanonicalSearchEventId(event);
+  if (!canonicalEventId) return undefined;
+
+  return `${event.room_id}|${canonicalEventId}`;
+};
+
+const getSearchResultTimestamp = (result: ISearchResult): number =>
+  typeof result.result.origin_server_ts === 'number' ? result.result.origin_server_ts : 0;
+
+export const deduplicateResults = (results: ISearchResult[]): ISearchResult[] => {
+  const winners = new Map<string, ISearchResult>();
+
+  results.forEach((result) => {
+    const canonicalEventKey = getCanonicalSearchEventKey(result.result);
+    if (!canonicalEventKey) return;
+
+    const currentWinner = winners.get(canonicalEventKey);
+    if (!currentWinner || getSearchResultTimestamp(result) >= getSearchResultTimestamp(currentWinner)) {
+      winners.set(canonicalEventKey, result);
+    }
+  });
+
+  return results.filter((result) => {
+    const canonicalEventKey = getCanonicalSearchEventKey(result.result);
+    if (!canonicalEventKey) return true;
+
+    return winners.get(canonicalEventKey) === result;
+  });
+};
+
 const parseSearchResult = (result: ISearchResponse): SearchResult => {
   const roomEvents = result.search_categories.room_events;
 
   const searchResult: SearchResult = {
     nextToken: roomEvents?.next_batch,
     highlights: roomEvents?.highlights ?? [],
-    groups: groupSearchResult(roomEvents?.results ?? []),
+    groups: groupSearchResult(deduplicateResults(roomEvents?.results ?? [])),
   };
 
   return searchResult;
