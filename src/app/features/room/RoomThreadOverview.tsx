@@ -794,7 +794,7 @@ export function RoomThreadOverview({
           totalThreadCount={totalThreadCount}
         />
         <ThreadSearchBar
-          searchQuery={state.searchQuery}
+          searchQuery={state.searchQuery ?? ''}
           onSearchQueryChange={handleSearchWithPresetClear}
         />
 

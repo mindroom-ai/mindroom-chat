@@ -46,6 +46,109 @@ export const createDefaultThreadFilterState = (): ThreadFilterState => ({
   statusMode: 'and',
 });
 
+export interface SerializedThreadFilterState {
+  v: 1;
+  resolved: TriState;
+  streaming: TriState;
+  scheduled: TriState;
+  unread: TriState;
+  idle: TriState;
+  sortBy: ThreadFilterState['sortBy'];
+  sortDirection: ThreadFilterState['sortDirection'];
+  tags: Record<string, Exclude<TriState, 'any'>>;
+  searchQuery?: string;
+  statusMode?: ThreadFilterState['statusMode'];
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isTriState = (value: unknown): value is TriState =>
+  value === 'any' || value === 'include' || value === 'exclude';
+
+const isStoredTagTriState = (value: unknown): value is Exclude<TriState, 'any'> =>
+  value === 'include' || value === 'exclude';
+
+const isSortBy = (value: unknown): value is ThreadFilterState['sortBy'] =>
+  value === 'natural' || value === 'lastReply';
+
+const isSortDirection = (value: unknown): value is ThreadFilterState['sortDirection'] =>
+  value === 'asc' || value === 'desc';
+
+const isStatusMode = (value: unknown): value is ThreadFilterState['statusMode'] =>
+  value === 'and' || value === 'or';
+
+export const serializeThreadFilterState = (
+  state: ThreadFilterState
+): SerializedThreadFilterState => {
+  const sortBy = isSortBy(state.sortBy) ? state.sortBy : 'natural';
+  const sortDirection =
+    sortBy === 'natural' ? 'desc' : isSortDirection(state.sortDirection) ? state.sortDirection : 'desc';
+  const searchQuery = typeof state.searchQuery === 'string' ? state.searchQuery : '';
+  const statusMode = isStatusMode(state.statusMode) ? state.statusMode : 'and';
+
+  const tags = Object.fromEntries(
+    [...state.tags.entries()]
+      .filter((entry): entry is [string, Exclude<TriState, 'any'>] => isStoredTagTriState(entry[1]))
+      .sort(([tagA], [tagB]) => tagA.localeCompare(tagB))
+  );
+
+  return {
+    v: 1,
+    resolved: isTriState(state.resolved) ? state.resolved : 'any',
+    streaming: isTriState(state.streaming) ? state.streaming : 'any',
+    scheduled: isTriState(state.scheduled) ? state.scheduled : 'any',
+    unread: isTriState(state.unread) ? state.unread : 'any',
+    idle: isTriState(state.idle) ? state.idle : 'any',
+    sortBy,
+    sortDirection,
+    tags,
+    searchQuery,
+    statusMode,
+  };
+};
+
+export const deserializeThreadFilterState = (value: unknown): ThreadFilterState => {
+  const defaultState = createDefaultThreadFilterState();
+
+  if (!isRecord(value) || value.v !== 1) {
+    return defaultState;
+  }
+
+  const sortBy = isSortBy(value.sortBy) ? value.sortBy : defaultState.sortBy;
+  const rawSortDirection = isSortDirection(value.sortDirection)
+    ? value.sortDirection
+    : defaultState.sortDirection;
+  const sortDirection = sortBy === 'natural' ? 'desc' : rawSortDirection;
+  const searchQuery =
+    typeof value.searchQuery === 'string' ? value.searchQuery : defaultState.searchQuery;
+  const statusMode = isStatusMode(value.statusMode) ? value.statusMode : defaultState.statusMode;
+
+  const tags = new Map<string, TriState>();
+  if (isRecord(value.tags)) {
+    Object.entries(value.tags)
+      .sort(([tagA], [tagB]) => tagA.localeCompare(tagB))
+      .forEach(([tagName, tagState]) => {
+        if (isStoredTagTriState(tagState)) {
+          tags.set(tagName, tagState);
+        }
+      });
+  }
+
+  return {
+    resolved: isTriState(value.resolved) ? value.resolved : defaultState.resolved,
+    streaming: isTriState(value.streaming) ? value.streaming : defaultState.streaming,
+    scheduled: isTriState(value.scheduled) ? value.scheduled : defaultState.scheduled,
+    unread: isTriState(value.unread) ? value.unread : defaultState.unread,
+    idle: isTriState(value.idle) ? value.idle : defaultState.idle,
+    sortBy,
+    sortDirection,
+    tags,
+    searchQuery,
+    statusMode,
+  };
+};
+
 // ─── Core metadata types ─────────────────────────────────────────────────────
 
 export type ThreadOverviewMetadata = {
@@ -135,7 +238,7 @@ export const matchesThreadFilterState = (
 export const hasActiveThreadFilters = (state: ThreadFilterState): boolean =>
   (Object.keys(dimensionMatchers) as ThreadFilterKey[]).some((key) => state[key] !== 'any') ||
   state.tags.size > 0 ||
-  state.searchQuery.length > 0;
+  (state.searchQuery ?? '').length > 0;
 
 export const isDefaultThreadFilterState = (state: ThreadFilterState): boolean =>
   !hasActiveThreadFilters(state) && state.sortBy === 'natural';
@@ -687,10 +790,10 @@ export const computeTagCounts = (
 
 export const filterThreadsBySearch = (
   threadRootIds: string[],
-  searchQuery: string,
+  searchQuery: string | undefined,
   metadataMap: Map<string, ThreadOverviewMetadata>
 ): string[] => {
-  const q = searchQuery.trim().toLowerCase();
+  const q = (searchQuery ?? '').trim().toLowerCase();
   if (!q) return threadRootIds;
   return threadRootIds.filter((id) => {
     const meta = metadataMap.get(id);
