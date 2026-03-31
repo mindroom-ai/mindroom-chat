@@ -190,6 +190,65 @@ describe('useThreadRenderState', () => {
     renderer.unmount();
   });
 
+  it('rehydrates serialized replacements from cached fallback events', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+    const cachedReply = new MatrixEvent({
+      content: {
+        body: 'Thinking...  ⋯',
+        msgtype: 'm.text',
+      },
+      event_id: '$reply',
+      origin_server_ts: 2,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      unsigned: {
+        'm.relations': {
+          'm.replace': {
+            content: {
+              body: '* Final answer',
+              'm.new_content': {
+                body: 'Final answer',
+                msgtype: 'm.text',
+              },
+              'm.relates_to': {
+                event_id: '$reply',
+                rel_type: 'm.replace',
+              },
+              msgtype: 'm.text',
+            },
+            event_id: '$edit-1',
+            origin_server_ts: 3,
+            room_id: '!room:example.org',
+            sender: '@alice:example.org',
+            type: 'm.room.message',
+          },
+        },
+      },
+    });
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+
+    const { getSnapshot, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread: null,
+      threadInitialCacheHydrated: false,
+    });
+
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [cachedReply]);
+    });
+
+    expect(getSnapshot().threadInitialRenderMode).toBe('cached');
+    expect(getSnapshot().threadEvents[0].getId()).toBe('$reply');
+    expect(getSnapshot().threadEvents[0].replacingEvent()?.getId()).toBe('$edit-1');
+
+    renderer.unmount();
+  });
+
   it('deduplicates a confirmed thread event when cached and live copies disagree on transaction metadata', () => {
     const rootEvent = makeMessageEvent('$root', 1);
     const cachedReply = makeMessageEvent('$reply', 2);

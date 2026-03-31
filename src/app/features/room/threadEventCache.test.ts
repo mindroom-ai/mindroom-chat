@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   filterPageableCachedThreadEvents,
   getThreadCursorAnchor,
+  mergeThreadCacheFlag,
   normalizeCachedThreadEvents,
 } from './threadEventCache';
 
@@ -159,5 +160,18 @@ describe('getThreadCursorAnchor', () => {
       eventId: '$reply',
       ts: 0,
     });
+  });
+});
+
+describe('mergeThreadCacheFlag', () => {
+  it('preserves true when there is no explicit replacement flag', () => {
+    expect(mergeThreadCacheFlag(true, undefined)).toBe(true);
+    expect(mergeThreadCacheFlag(undefined, undefined)).toBeUndefined();
+  });
+
+  it('lets explicit false clear a previously true cache flag', () => {
+    expect(mergeThreadCacheFlag(true, false)).toBe(false);
+    expect(mergeThreadCacheFlag(false, false)).toBe(false);
+    expect(mergeThreadCacheFlag(undefined, false)).toBe(false);
   });
 });

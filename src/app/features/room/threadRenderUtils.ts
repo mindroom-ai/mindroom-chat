@@ -88,6 +88,7 @@ export const buildResolveConfirmedEventId = (
     return getFallbackMap().get(txnId);
   };
 };
+
 const getThreadRenderEventId = (mEvent: MatrixEvent): string | undefined => {
   const eventId = mEvent.getId();
   return typeof eventId === 'string' && eventId.length > 0 ? eventId : undefined;
