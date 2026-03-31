@@ -69,6 +69,7 @@ import { useFilePicker } from '../../hooks/useFilePicker';
 import { useFilePasteHandler } from '../../hooks/useFilePasteHandler';
 import { useFileDropZone } from '../../hooks/useFileDrop';
 import {
+  IReplyDraft,
   TUploadItem,
   TUploadMetadata,
   roomIdToMsgDraftAtomFamily,
@@ -125,6 +126,13 @@ import { VoiceRecorderComposer } from './VoiceRecorderDialog';
 import { isSignalBridgeRoom } from './bridgeDetection';
 
 type RoomInputAutocompletePrefix = AutocompletePrefix | typeof MINDROOM_COMMAND_PREFIX;
+
+type SendAfterUploadContext = {
+  files: Set<TUploadContent>;
+  roomId: string;
+  threadId: string | undefined;
+  replyDraft: IReplyDraft | undefined;
+};
 
 interface RoomInputProps {
   editor: Editor;
@@ -256,15 +264,21 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       },
       [appendUploadItems, createVoiceUploadItems]
     );
-    const sendAfterUploadFilesRef = useRef<Set<TUploadContent> | undefined>();
+    const sendAfterUploadContextRef = useRef<SendAfterUploadContext | undefined>();
     const handleVoiceSend = useCallback(
       async (file: File, duration: number) => {
         const fileItems = await createVoiceUploadItems(file, duration);
-        // Track the actual upload file objects (post-safeFile/encryption), not the raw recorded file.
-        sendAfterUploadFilesRef.current = new Set(fileItems.map((item) => item.file));
+        // Capture the full send context now so the message targets the correct thread
+        // even if the user navigates away before the upload completes.
+        sendAfterUploadContextRef.current = {
+          files: new Set(fileItems.map((item) => item.file)),
+          roomId,
+          threadId,
+          replyDraft,
+        };
         appendUploadItems(fileItems);
       },
-      [appendUploadItems, createVoiceUploadItems]
+      [appendUploadItems, createVoiceUploadItems, roomId, threadId, replyDraft]
     );
     const pickFile = useFilePicker(handleFiles, true);
     const handlePaste = useFilePasteHandler(handleFiles);
@@ -328,7 +342,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       handleRemoveUpload(uploads.map((upload) => upload.file));
     };
 
-    const handleSendUpload = async (uploads: UploadSuccess[]) => {
+    const handleSendUpload = async (
+      uploads: UploadSuccess[],
+      overrideContext?: { roomId: string; threadId: string | undefined; replyDraft: IReplyDraft | undefined }
+    ) => {
+      const effectiveRoomId = overrideContext ? overrideContext.roomId : roomId;
+      const effectiveThreadId = overrideContext ? overrideContext.threadId : threadId;
+      const effectiveReplyDraft = overrideContext ? overrideContext.replyDraft : replyDraft;
+
       const signalBridgedRoom = isSignalBridgeRoom(room);
       const contentsPromises = uploads.map(async (upload) => {
         const fileItem = selectedFiles.find((f) => f.file === upload.file);
@@ -349,7 +370,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       });
       handleCancelUpload(uploads);
       const contents = fulfilledPromiseSettledResult(await Promise.allSettled(contentsPromises));
-      const relation = getMessageRelation(replyDraft?.eventId, replyDraft?.relation, threadId);
+      const relation = getMessageRelation(effectiveReplyDraft?.eventId, effectiveReplyDraft?.relation, effectiveThreadId);
       contents.forEach((content) => {
         const contentWithRelation: IContent = relation
           ? {
@@ -357,9 +378,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               'm.relates_to': relation,
             }
           : content;
-        mx.sendMessage(roomId, contentWithRelation as any);
+        mx.sendMessage(effectiveRoomId, contentWithRelation as any);
       });
-      setReplyDraft(undefined);
+      // Only clear the current reply draft if we used it (no override context).
+      if (!overrideContext) {
+        setReplyDraft(undefined);
+      }
     };
 
     const submit = useCallback(() => {
@@ -447,29 +471,37 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       threadId,
     ]);
 
+    const handleSendUploadRef = useRef(handleSendUpload);
+    handleSendUploadRef.current = handleSendUpload;
+
     const uploads = useAtomValue(uploadFamilyObserverAtom);
     useEffect(() => {
-      const trackedFiles = sendAfterUploadFilesRef.current;
-      if (!trackedFiles || trackedFiles.size === 0) return;
+      const ctx = sendAfterUploadContextRef.current;
+      if (!ctx || ctx.files.size === 0) return;
 
-      const trackedUploads = uploads.filter((upload) => trackedFiles.has(upload.file));
+      const trackedUploads = uploads.filter((upload) => ctx.files.has(upload.file));
       if (trackedUploads.length === 0) {
         // Uploads were cancelled/removed before completion.
-        sendAfterUploadFilesRef.current = undefined;
+        sendAfterUploadContextRef.current = undefined;
         return;
       }
 
       const hasFailure = trackedUploads.some((u) => u.status === UploadStatus.Error);
       if (hasFailure) {
-        sendAfterUploadFilesRef.current = undefined;
+        sendAfterUploadContextRef.current = undefined;
         return;
       }
 
       const allSuccess = trackedUploads.every((u) => u.status === UploadStatus.Success);
       if (allSuccess) {
-        sendAfterUploadFilesRef.current = undefined;
-        // All uploads finished — trigger send
-        uploadBoardHandlers.current?.handleSend();
+        sendAfterUploadContextRef.current = undefined;
+        // All uploads finished — send using the captured thread context.
+        const successUploads = trackedUploads as UploadSuccess[];
+        handleSendUploadRef.current(successUploads, {
+          roomId: ctx.roomId,
+          threadId: ctx.threadId,
+          replyDraft: ctx.replyDraft,
+        });
       }
     }, [uploads]);
 
