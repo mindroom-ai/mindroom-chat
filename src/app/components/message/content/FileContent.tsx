@@ -19,6 +19,7 @@ import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import FocusTrap from 'focus-trap-react';
 import { IFileInfo } from '../../../../types/matrix/common';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
+import { useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { bytesToSize } from '../../../utils/common';
 import {
@@ -186,6 +187,7 @@ export function ReadPdfFile({ body, mimeType, url, encInfo, renderViewer }: Read
       return URL.createObjectURL(fileContent);
     }, [mx, url, useAuthentication, mimeType, encInfo])
   );
+  useBlobUrlCleanup(pdfState);
 
   return (
     <>
@@ -266,6 +268,7 @@ export function DownloadFile({ body, mimeType, url, info, encInfo }: DownloadFil
       return fileURL;
     }, [mx, url, useAuthentication, mimeType, encInfo, body])
   );
+  useBlobUrlCleanup(downloadState);
 
   return downloadState.status === AsyncStatus.Error ? (
     renderErrorButton(download, `Retry Download (${bytesToSize(info.size ?? 0)})`)
