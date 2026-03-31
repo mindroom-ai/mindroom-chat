@@ -2,6 +2,7 @@ import { Avatar, Box, Icon, Icons, Text, as, color, toRem } from 'folds';
 import React, { MouseEventHandler, ReactNode, useCallback, useMemo } from 'react';
 import classNames from 'classnames';
 import { IconCalendarEvent } from '@tabler/icons-react';
+import type { MatrixEvent } from 'matrix-js-sdk';
 import type { EventTimelineSet } from 'matrix-js-sdk/lib/models/event-timeline-set';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { getMemberAvatarMxc, getMemberDisplayName, trimReplyFromBody } from '../../utils/room';
@@ -217,6 +218,7 @@ type ReplyProps = {
   timelineSet?: EventTimelineSet | undefined;
   replyEventId: string;
   threadRootId?: string | undefined;
+  getLocally?: (() => MatrixEvent | undefined) | undefined;
   hideThreadIndicator?: boolean;
   onClick?: MouseEventHandler | undefined;
   getMemberPowerTag?: GetMemberPowerTag;
@@ -231,6 +233,7 @@ export const Reply = as<'div', ReplyProps>(
       timelineSet,
       replyEventId,
       threadRootId,
+      getLocally,
       hideThreadIndicator,
       onClick,
       getMemberPowerTag,
@@ -243,10 +246,12 @@ export const Reply = as<'div', ReplyProps>(
     const placeholderWidth = useMemo(() => randomNumberBetween(40, 400), []);
     const { isResolved: threadResolved } = useThreadResolution(room, threadRootId);
     const getFromLocalTimeline = useCallback(
-      () => timelineSet?.findEventById(replyEventId),
-      [timelineSet, replyEventId]
+      () => getLocally?.() ?? timelineSet?.findEventById(replyEventId) ?? room.findEventById(replyEventId),
+      [getLocally, room, timelineSet, replyEventId]
     );
-    const replyEvent = useRoomEvent(room, replyEventId, getFromLocalTimeline);
+    const replyEvent = useRoomEvent(room, replyEventId, getFromLocalTimeline, {
+      threadId: threadRootId,
+    });
 
     const { body } = replyEvent?.getContent() ?? {};
     const sender = replyEvent?.getSender();
