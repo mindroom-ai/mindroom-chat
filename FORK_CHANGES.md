@@ -10,6 +10,8 @@
 
 ### Current Feature Set On `dev`
 
+- `CINNY-037`
+  - Revokes blob URLs across media/file previews and cleans up `usePan` document listeners on unmount to stop client-side leaks during room and media navigation.
 - `CINNY-038`
   - Recovers cached thread hydration and truncation behavior so cached thread opens prefer complete local thread data instead of thin slices.
 - `CINNY-040`
@@ -81,6 +83,11 @@
 
 - [justfile](/Users/basnijholt/Code/dev/mindroom-cinny/justfile) is intentionally kept for common local validation commands.
 - [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) is the persistent debugging reference for timeline/cache/search work.
+- `CINNY-037` was reapplied on top of the cleaned issue-backed `dev` history:
+  - `src/app/hooks/useBlobUrlCleanup.ts` revokes blob URLs on URL change and unmount.
+  - Media/file consumers wired into that cleanup: `ImageContent`, `VideoContent`, `AudioContent`, `ThumbnailContent`, `FileContent`, and `FileHeader`.
+  - `src/app/hooks/usePan.ts` now tears down active document listeners on unmount.
+  - Reapplied validation: `npm run typecheck`.
 - Current `dev` also restores two small non-issue runtime guards that were accidentally dropped during issue-history cleanup:
   - the active settings avatar now survives clear-cache reload by preferring the stored avatar fallback with authenticated thumbnail URLs,
   - the Settings avatar-cache refetch guard,

@@ -5,6 +5,7 @@ import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { Range } from 'react-range';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
+import { useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
 import { IAudioInfo } from '../../../../types/matrix/common';
 import {
   PlayTimeCallback,
@@ -62,6 +63,7 @@ export function AudioContent({
       return URL.createObjectURL(fileContent);
     }, [mx, url, useAuthentication, mimeType, encInfo])
   );
+  useBlobUrlCleanup(srcState);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
