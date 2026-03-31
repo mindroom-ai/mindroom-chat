@@ -28,6 +28,7 @@ import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 import { useThreadResolution, useToggleThreadResolution } from './useRoomThreadTags';
 import { useThreadRootEvent } from './useThreadRootEvent';
 import type { ThreadFilterState, ThreadFilterKey } from './roomThreadOverviewModel';
+import type { FilterPreset } from './roomThreadOverviewModel';
 import {
   createDefaultThreadFilterState,
   isDefaultThreadFilterState,
@@ -36,6 +37,7 @@ import {
   cycleTagFilter,
   addTagFilter,
   removeTagFilter,
+  applyPreset,
 } from './roomThreadOverviewModel';
 import { roomViewModeAtomFamily, type RoomViewMode } from '../../state/room/roomViewMode';
 
@@ -202,6 +204,32 @@ export function RoomView({
     [roomId]
   );
 
+  const handleApplyPreset = useCallback(
+    (preset: FilterPreset) => {
+      setRoomThreadFilterState((prev) => ({
+        roomId,
+        state: applyPreset(
+          prev.roomId === roomId ? prev.state : createDefaultThreadFilterState(),
+          preset
+        ),
+      }));
+    },
+    [roomId]
+  );
+
+  const handleSearchQueryChange = useCallback(
+    (query: string) => {
+      setRoomThreadFilterState((prev) => ({
+        roomId,
+        state: {
+          ...(prev.roomId === roomId ? prev.state : createDefaultThreadFilterState()),
+          searchQuery: query,
+        },
+      }));
+    },
+    [roomId]
+  );
+
   const handleViewModeChange = useCallback(
     (nextViewMode: RoomViewMode) => {
       setViewMode(nextViewMode);
@@ -320,6 +348,8 @@ export function RoomView({
           onAddTag={handleAddTag}
           onRemoveTag={handleRemoveTag}
           onReset={handleReset}
+          onApplyPreset={handleApplyPreset}
+          onSearchQueryChange={handleSearchQueryChange}
           viewMode={viewMode}
           onViewModeChange={handleViewModeChange}
           roomInputRef={roomInputRef}

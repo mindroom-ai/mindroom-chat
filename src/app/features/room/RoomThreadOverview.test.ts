@@ -26,15 +26,12 @@ vi.mock('folds', async (importOriginal) => {
 vi.mock('./RoomThreadOverview.css', () => ({
   Overview: 'Overview',
   ToolbarHeader: 'ToolbarHeader',
-  ToolbarControls: 'ToolbarControls',
   ToggleGroup: 'ToggleGroup',
-  ToggleButtonWrap: 'ToggleButtonWrap',
   ToggleButton: 'ToggleButton',
   ToggleInclude: 'ToggleInclude',
   ToggleExclude: 'ToggleExclude',
-  ToggleCount: 'ToggleCount',
-  ToggleCountActive: 'ToggleCountActive',
-  ToggleSortSeparator: 'ToggleSortSeparator',
+  SectionSeparator: 'SectionSeparator',
+  CompactCount: 'CompactCount',
   SortButton: 'SortButton',
   SortButtonActive: 'SortButtonActive',
   EmptyState: 'EmptyState',
@@ -50,6 +47,17 @@ vi.mock('./RoomThreadOverview.css', () => ({
   AddTagButton: 'AddTagButton',
   AddTagDropdown: 'AddTagDropdown',
   AddTagOption: 'AddTagOption',
+  PresetContainer: 'PresetContainer',
+  PresetButton: 'PresetButton',
+  PresetDropdown: 'PresetDropdown',
+  PresetOption: 'PresetOption',
+  InfoContainer: 'InfoContainer',
+  InfoButton: 'InfoButton',
+  InfoPopover: 'InfoPopover',
+  InfoStatRow: 'InfoStatRow',
+  InfoSectionDivider: 'InfoSectionDivider',
+  SearchContainer: 'SearchContainer',
+  SearchInput: 'SearchInput',
 }));
 
 vi.mock('../../components/message/Reply.css', () => ({
@@ -57,10 +65,22 @@ vi.mock('../../components/message/Reply.css', () => ({
   ThreadScheduledIcon: 'ThreadScheduledIcon',
 }));
 
-vi.mock('@tabler/icons-react', () => ({
-  IconCalendarEvent: passthrough,
-  IconZzz: passthrough,
-}));
+vi.mock('@tabler/icons-react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tabler/icons-react')>();
+
+  return {
+    ...actual,
+    IconCalendarEvent: 'icon-calendar-event',
+    IconChevronDown: 'icon-chevron-down',
+    IconInfoCircle: 'icon-info-circle',
+    IconLayoutList: 'icon-layout-list',
+    IconLayoutRows: 'icon-layout-rows',
+    IconMessages: 'icon-messages',
+    IconSortAscending: 'icon-sort-ascending',
+    IconSortDescending: 'icon-sort-descending',
+    IconZzz: 'icon-zzz',
+  };
+});
 
 vi.mock('classnames', () => ({
   default: (...args: (string | boolean | undefined | null)[]) =>
@@ -76,11 +96,14 @@ const makeDefaultState = (overrides?: Partial<ThreadFilterState>): ThreadFilterS
   sortBy: 'natural',
   sortDirection: 'desc',
   tags: new Map(),
+  searchQuery: '',
+  statusMode: 'and',
   ...overrides,
 });
 
 const defaultProps = {
   threadCount: 5,
+  totalThreadCount: 5,
   state: makeDefaultState(),
   availableTags: [] as string[],
   onToggle: vi.fn(),
@@ -89,6 +112,8 @@ const defaultProps = {
   onCycleTag: vi.fn(),
   onAddTag: vi.fn(),
   onRemoveTag: vi.fn(),
+  onApplyPreset: vi.fn(),
+  onSearchQueryChange: vi.fn(),
 };
 
 describe('RoomThreadOverview', () => {
@@ -238,7 +263,7 @@ describe('RoomThreadOverview', () => {
     renderer.unmount();
   });
 
-  it('renders thread count in title', () => {
+  it('renders compact thread count instead of Threads (N)', () => {
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
@@ -246,10 +271,17 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const titleNodes = renderer.root.findAll(
+    // Should NOT render old format
+    const oldFormat = renderer.root.findAll(
       (node) => typeof node.children[0] === 'string' && node.children[0] === 'Threads (42)'
     );
-    expect(titleNodes.length).toBeGreaterThan(0);
+    expect(oldFormat).toHaveLength(0);
+
+    // Should render compact count with data attribute
+    const countElement = renderer.root.find(
+      (node) => node.props['data-thread-count'] === 'true'
+    );
+    expect(countElement).toBeTruthy();
 
     renderer.unmount();
   });
@@ -313,9 +345,9 @@ describe('RoomThreadOverview', () => {
     renderer.unmount();
   });
 
-  // ═══ Status counts ═════════════════════════════════════════════════════
+  // ═══ No count badges ═══════════════════════════════════════════════════
 
-  it('renders status counts next to each toggle when provided', () => {
+  it('does NOT render per-icon count badges', () => {
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
@@ -326,53 +358,196 @@ describe('RoomThreadOverview', () => {
     const countNodes = renderer.root.findAll(
       (node) => node.props['data-status-count'] !== undefined
     );
-    expect(countNodes).toHaveLength(5);
-
-    const countMap = Object.fromEntries(
-      countNodes.map((n) => [n.props['data-status-count'], n.children[0]])
-    );
-    expect(countMap).toEqual({
-      resolved: '42',
-      streaming: '3',
-      scheduled: '5',
-      unread: '12',
-      idle: '28',
-    });
-
-    renderer.unmount();
-  });
-
-  it('does not render count badges when statusCounts is not provided', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, defaultProps)
-    );
-
-    const countNodes = renderer.root.findAll(
-      (node) => node.props['data-status-count'] !== undefined
-    );
     expect(countNodes).toHaveLength(0);
 
     renderer.unmount();
   });
 
-  it('uses active count style when filter is not any', () => {
+  // ═══ Preset dropdown ══════════════════════════════════════════════════
+
+  it('renders preset button', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, defaultProps)
+    );
+
+    const presetBtn = renderer.root.findAll(
+      (node) => node.props['data-preset-button'] === 'true'
+    );
+    expect(presetBtn).toHaveLength(1);
+
+    renderer.unmount();
+  });
+
+  it('opens preset dropdown on click', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, defaultProps)
+    );
+
+    const presetBtn = renderer.root.find(
+      (node) => node.props['data-preset-button'] === 'true'
+    );
+
+    act(() => {
+      presetBtn.props.onClick();
+    });
+
+    const dropdown = renderer.root.findAll(
+      (node) => node.props['data-preset-dropdown'] === 'true'
+    );
+    expect(dropdown).toHaveLength(1);
+
+    // Should have 5 preset options
+    const options = renderer.root.findAll(
+      (node) => node.props['data-preset-option'] !== undefined
+    );
+    expect(options).toHaveLength(5);
+
+    renderer.unmount();
+  });
+
+  it('calls onApplyPreset when preset option is selected', () => {
+    const onApplyPreset = vi.fn();
+
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
-        statusCounts: { resolved: 10, streaming: 0, scheduled: 0, unread: 0, idle: 0 },
-        state: makeDefaultState({ resolved: 'include' }),
+        onApplyPreset,
       })
     );
 
-    const resolvedCount = renderer.root.find(
-      (node) => node.props['data-status-count'] === 'resolved'
+    // Open dropdown
+    const presetBtn = renderer.root.find(
+      (node) => node.props['data-preset-button'] === 'true'
     );
-    expect(resolvedCount.props.className).toContain('ToggleCountActive');
+    act(() => {
+      presetBtn.props.onClick();
+    });
 
-    const streamingCount = renderer.root.find(
-      (node) => node.props['data-status-count'] === 'streaming'
+    // Select "Needs attention"
+    const option = renderer.root.find(
+      (node) => node.props['data-preset-option'] === 'needs-attention'
     );
-    expect(streamingCount.props.className).not.toContain('ToggleCountActive');
+    act(() => {
+      option.props.onMouseDown({ preventDefault: vi.fn() });
+    });
+
+    expect(onApplyPreset).toHaveBeenCalledTimes(1);
+    expect(onApplyPreset.mock.calls[0][0].id).toBe('needs-attention');
+
+    renderer.unmount();
+  });
+
+  // ═══ Info popover ═════════════════════════════════════════════════════
+
+  it('renders info button', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, defaultProps)
+    );
+
+    const infoBtn = renderer.root.findAll(
+      (node) => node.props['data-info-button'] === 'true'
+    );
+    expect(infoBtn).toHaveLength(1);
+
+    renderer.unmount();
+  });
+
+  it('opens info popover on click', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        statusCounts: { resolved: 10, streaming: 2, scheduled: 1, unread: 3, idle: 5 },
+        tagCounts: { bug: 3, feature: 2 },
+      })
+    );
+
+    const infoBtn = renderer.root.find(
+      (node) => node.props['data-info-button'] === 'true'
+    );
+
+    act(() => {
+      infoBtn.props.onClick();
+    });
+
+    const popover = renderer.root.findAll(
+      (node) => node.props['data-info-popover'] === 'true'
+    );
+    expect(popover).toHaveLength(1);
+
+    renderer.unmount();
+  });
+
+  // ═══ Search bar ═══════════════════════════════════════════════════════
+
+  it('renders search toggle button', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, defaultProps)
+    );
+
+    const searchBtn = renderer.root.findAll(
+      (node) => node.props['data-search-toggle'] === 'true'
+    );
+    expect(searchBtn).toHaveLength(1);
+
+    renderer.unmount();
+  });
+
+  it('expands search input on click', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, defaultProps)
+    );
+
+    // Initially no input
+    let inputs = renderer.root.findAll(
+      (node) => node.props['data-search-input'] === 'true'
+    );
+    expect(inputs).toHaveLength(0);
+
+    // Click search toggle
+    const searchBtn = renderer.root.find(
+      (node) => node.props['data-search-toggle'] === 'true'
+    );
+    act(() => {
+      searchBtn.props.onClick();
+    });
+
+    // Now input should be visible
+    inputs = renderer.root.findAll(
+      (node) => node.props['data-search-input'] === 'true'
+    );
+    expect(inputs).toHaveLength(1);
+
+    renderer.unmount();
+  });
+
+  it('calls onSearchQueryChange when search input changes', () => {
+    const onSearchQueryChange = vi.fn();
+
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        onSearchQueryChange,
+        state: makeDefaultState({ searchQuery: '' }),
+      })
+    );
+
+    // Expand search
+    const searchBtn = renderer.root.find(
+      (node) => node.props['data-search-toggle'] === 'true'
+    );
+    act(() => {
+      searchBtn.props.onClick();
+    });
+
+    // Type in input
+    const input = renderer.root.find(
+      (node) => node.props['data-search-input'] === 'true'
+    );
+    act(() => {
+      input.props.onChange({ target: { value: 'test query' } });
+    });
+
+    expect(onSearchQueryChange).toHaveBeenCalledWith('test query');
 
     renderer.unmount();
   });

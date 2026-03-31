@@ -173,8 +173,10 @@ import type { ThreadFilterKey } from './RoomThreadOverview';
 import {
   type ThreadFilterState,
   type ThreadOverviewMetadata,
+  type FilterPreset,
   buildThreadMetadataMap,
   filterThreadRootEvents,
+  filterThreadsBySearch,
   sortThreadRootEvents,
   getRoomScheduledTaskCounts,
   isRoomThreadOverviewActive,
@@ -182,6 +184,7 @@ import {
   hasActiveThreadFilters,
   collectAvailableRoomTags,
   computeStatusCounts,
+  computeTagCounts,
 } from './roomThreadOverviewModel';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
 import { useStateEvents } from '../../hooks/useStateEvents';
@@ -1021,6 +1024,8 @@ type RoomTimelineProps = {
   onAddTag: (tag: string) => void;
   onRemoveTag: (tag: string) => void;
   onReset: () => void;
+  onApplyPreset: (preset: FilterPreset) => void;
+  onSearchQueryChange: (query: string) => void;
   viewMode: RoomViewMode;
   onViewModeChange: (viewMode: RoomViewMode) => void;
   roomInputRef: RefObject<HTMLElement>;
@@ -2093,6 +2098,7 @@ const getFilteredRoomOverviewEvents = (
   const visibleThreadRootIds: string[] = [];
   const absoluteIndexMap = new Map<string, number>();
   const eventMap = new Map<string, MatrixEvent>();
+  const bodyMap = new Map<string, string>();
 
   renderableEvents.forEach((event, index) => {
     const currentEventId = event.getId();
@@ -2104,6 +2110,8 @@ const getFilteredRoomOverviewEvents = (
 
     visibleThreadRootIds.push(currentEventId);
     absoluteIndexMap.set(currentEventId, index);
+    const body = event.getContent()?.body;
+    if (typeof body === 'string') bodyMap.set(currentEventId, body);
   });
 
   const metadataMap = buildThreadMetadataMap(
@@ -2116,11 +2124,14 @@ const getFilteredRoomOverviewEvents = (
     summaryMap,
     currentUserId,
     readUpToTs,
-    absoluteIndexMap
+    absoluteIndexMap,
+    bodyMap
   );
 
+  const statusFiltered = filterThreadRootEvents(visibleThreadRootIds, threadFilterState, metadataMap);
+  const searchFiltered = filterThreadsBySearch(statusFiltered, threadFilterState.searchQuery, metadataMap);
   return sortThreadRootEvents(
-    filterThreadRootEvents(visibleThreadRootIds, threadFilterState, metadataMap),
+    searchFiltered,
     threadFilterState.sortBy,
     threadFilterState.sortDirection,
     metadataMap
@@ -2226,6 +2237,8 @@ export function RoomTimeline({
   onAddTag,
   onRemoveTag,
   onReset,
+  onApplyPreset,
+  onSearchQueryChange,
   viewMode,
   onViewModeChange,
   roomInputRef,
@@ -2572,15 +2585,18 @@ export function RoomTimeline({
   const visibleThreadRootData = useMemo(() => {
     const ids: string[] = [];
     const indexMap = new Map<string, number>();
+    const bodyMap = new Map<string, string>();
     roomSurfaceEventEntries.forEach(({ event, absoluteIndex }) => {
       const evtId = event.getId();
       if (!evtId) return;
       if (isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)) {
         ids.push(evtId);
         indexMap.set(evtId, absoluteIndex);
+        const body = event.getContent()?.body;
+        if (typeof body === 'string') bodyMap.set(evtId, body);
       }
     });
-    return { ids, indexMap };
+    return { ids, indexMap, bodyMap };
   }, [roomSurfaceEventEntries, room, threadResolutionMap, threadReplyCountMap]);
 
   // ── Read-up-to timestamp for unread heuristic ──
@@ -2607,7 +2623,8 @@ export function RoomTimeline({
         threadSummaryInfoMap,
         mx.getSafeUserId(),
         readUpToTs,
-        visibleThreadRootData.indexMap
+        visibleThreadRootData.indexMap,
+        visibleThreadRootData.bodyMap
       );
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2626,18 +2643,32 @@ export function RoomTimeline({
     ]
   );
 
+  // ── Debounced search query (300ms) ──
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(threadFilterState.searchQuery);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchQuery(threadFilterState.searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [threadFilterState.searchQuery]);
+
   // ── Overview pipeline: filter → sort → Map-based entry construction ──
   const roomThreadFilterActive = isRoomThreadOverviewActive(threadId, threadFilterState);
 
-  // Filtered thread root IDs (used for threadCount prop)
+  // Filtered thread root IDs (status+tag filter → search → used for threadCount prop)
   const filteredThreadRootIds = useMemo(() => {
     if (threadId) return visibleThreadRootData.ids;
-    return filterThreadRootEvents(visibleThreadRootData.ids, threadFilterState, threadMetadataMap);
-  }, [threadId, visibleThreadRootData.ids, threadFilterState, threadMetadataMap]);
+    const statusFiltered = filterThreadRootEvents(visibleThreadRootData.ids, threadFilterState, threadMetadataMap);
+    return filterThreadsBySearch(statusFiltered, debouncedSearchQuery, threadMetadataMap);
+  }, [threadId, visibleThreadRootData.ids, threadFilterState, threadMetadataMap, debouncedSearchQuery]);
 
   // Per-status counts over ALL threads (unfiltered)
   const statusCounts = useMemo(
     () => computeStatusCounts(visibleThreadRootData.ids, threadMetadataMap),
+    [visibleThreadRootData.ids, threadMetadataMap]
+  );
+
+  // Tag distribution over ALL threads (unfiltered)
+  const tagCounts = useMemo(
+    () => computeTagCounts(visibleThreadRootData.ids, threadMetadataMap),
     [visibleThreadRootData.ids, threadMetadataMap]
   );
 
@@ -2652,14 +2683,14 @@ export function RoomTimeline({
 
     // When overview mode is active (any filter or non-default sort), show only thread roots
     if (roomThreadFilterActive) {
-      // Filter
-      const filteredIds = filterThreadRootEvents(
+      // Filter → Search → Sort
+      const statusFiltered = filterThreadRootEvents(
         visibleThreadRootData.ids,
         threadFilterState,
         threadMetadataMap
       );
-      // Sort
-      const sortedIds = sortThreadRootEvents(filteredIds, threadFilterState.sortBy, threadFilterState.sortDirection, threadMetadataMap);
+      const searchFiltered = filterThreadsBySearch(statusFiltered, debouncedSearchQuery, threadMetadataMap);
+      const sortedIds = sortThreadRootEvents(searchFiltered, threadFilterState.sortBy, threadFilterState.sortDirection, threadMetadataMap);
 
       // Map IDs back to MatrixEvents
       const eventMap = new Map<string, MatrixEvent>();
@@ -2682,6 +2713,7 @@ export function RoomTimeline({
     visibleThreadRootData.ids,
     threadFilterState,
     threadMetadataMap,
+    debouncedSearchQuery,
   ]);
 
   const threadFilteredEventsRef = useRef(threadFilteredEvents);
@@ -7038,7 +7070,9 @@ export function RoomTimeline({
       {!threadId && (
         <RoomThreadOverview
           threadCount={filteredThreadRootIds.length}
+          totalThreadCount={visibleThreadRootData.ids.length}
           statusCounts={statusCounts}
+          tagCounts={tagCounts}
           state={threadFilterState}
           availableTags={availableRoomTags}
           onToggle={onToggle}
@@ -7047,6 +7081,8 @@ export function RoomTimeline({
           onCycleTag={onCycleTag}
           onAddTag={onAddTag}
           onRemoveTag={onRemoveTag}
+          onApplyPreset={onApplyPreset}
+          onSearchQueryChange={onSearchQueryChange}
         />
       )}
       <Box grow="Yes" style={{ position: 'relative' }}>
