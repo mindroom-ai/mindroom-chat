@@ -81,5 +81,8 @@
 
 - [justfile](/Users/basnijholt/Code/dev/mindroom-cinny/justfile) is intentionally kept for common local validation commands.
 - [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) is the persistent debugging reference for timeline/cache/search work.
+- Current `dev` also restores two small non-issue runtime guards that were accidentally dropped during issue-history cleanup:
+  - the Settings avatar-cache refetch guard,
+  - and swallowed URL preview effect rejection.
 - Backup branch created before the issue-only history cleanup:
   - `backup/dev-before-issue-squash-20260330-102644`
