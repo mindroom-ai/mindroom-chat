@@ -9,6 +9,11 @@ import {
   buildUnresolvedTagsContent,
   parseThreadTagsContent,
 } from './threadTags';
+import { getValidThreadRootEvent } from './threadUtils';
+import {
+  clearPendingThreadTagsContent,
+  setPendingThreadTagsContent,
+} from './threadTagPending';
 
 export type UseMutateThreadTagsResult = {
   addTag: (threadRootId: string, tagName: string) => Promise<void>;
@@ -58,16 +63,26 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
       setError(null);
       try {
         const userId = mx.getSafeUserId();
-        const current = readLiveTagsContent(room, threadRootId);
+        const validThreadRootId = getValidThreadRootEvent(room, threadRootId)?.getId();
+        if (!validThreadRootId) {
+          throw new Error('Thread tags are only available for known thread roots.');
+        }
+
+        const current = readLiveTagsContent(room, validThreadRootId);
         const next = buildContent(current, userId);
+        setPendingThreadTagsContent(room.roomId, validThreadRootId, next);
         await mx.sendStateEvent(
           room.roomId,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           StateEvent.ThreadTags as any,
           next,
-          threadRootId
+          validThreadRootId
         );
       } catch (err) {
+        const validThreadRootId = getValidThreadRootEvent(room, threadRootId)?.getId();
+        if (validThreadRootId) {
+          clearPendingThreadTagsContent(room.roomId, validThreadRootId);
+        }
         setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         pendingRef.current = false;

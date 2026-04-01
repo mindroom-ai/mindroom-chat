@@ -6,6 +6,10 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { StateEvent } from '../../../types/matrix/room';
 import { useStateEvent } from '../../hooks/useStateEvent';
 import { useStateEvents } from '../../hooks/useStateEvents';
+import {
+  resetPendingThreadTagsForTests,
+  setPendingThreadTagsContent,
+} from './threadTagPending';
 import { useRoomThreadResolutionMap, useThreadResolution } from './useRoomThreadTags';
 
 vi.mock('../../hooks/useStateEvent', () => ({
@@ -21,6 +25,7 @@ const mockedUseStateEvents = vi.mocked(useStateEvents);
 
 afterEach(() => {
   vi.clearAllMocks();
+  resetPendingThreadTagsForTests();
 });
 
 const makeThreadTagsEvent = (stateKey: string) =>
@@ -109,6 +114,38 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
 
     expect(snapshot?.get('$root')).toMatchObject({
       isResolved: true,
+      tags: {
+        resolved: { set_by: '@alice:example.org', set_at: 1000 },
+        urgent: { set_by: '@alice:example.org', set_at: 1001 },
+      },
+    });
+
+    renderer.unmount();
+  });
+
+  it('applies pending custom tags before state sync arrives', () => {
+    const room = { roomId: '!room:example.org' } as Room;
+    setPendingThreadTagsContent(room.roomId, '$root', {
+      tags: {
+        resolved: { set_by: '@alice:example.org', set_at: 1000 },
+        urgent: { set_by: '@alice:example.org', set_at: 1001 },
+      },
+    });
+
+    let snapshot: ReturnType<typeof useThreadResolution> | undefined;
+    const renderer = create(
+      React.createElement(ResolutionHarness, {
+        room,
+        threadRootId: '$root',
+        onRender: (value) => {
+          snapshot = value;
+        },
+      })
+    );
+
+    expect(snapshot).toMatchObject({
+      isResolved: true,
+      isPending: true,
       tags: {
         resolved: { set_by: '@alice:example.org', set_at: 1000 },
         urgent: { set_by: '@alice:example.org', set_at: 1001 },

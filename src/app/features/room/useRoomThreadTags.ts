@@ -1,7 +1,7 @@
 import { EventTimeline } from 'matrix-js-sdk';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
@@ -16,85 +16,17 @@ import {
   buildResolvedTagsContent,
   buildUnresolvedTagsContent,
   isThreadResolved,
+  type ThreadTagsContent,
 } from './threadTags';
 import { getValidThreadRootEvent } from './threadUtils';
-
-// ─── Pending tag state (optimistic UI) ───────────────────────────────────────
-
-type PendingThreadTag = {
-  resolved: boolean;
-};
-
-const PENDING_TIMEOUT_MS = 15000;
-const pendingTags = new Map<string, PendingThreadTag>();
-const pendingTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
-const pendingListeners = new Set<() => void>();
-let pendingVersion = 0;
-
-const pendingKey = (roomId: string, threadRootId: string): string =>
-  `${roomId}\0${threadRootId}`;
-
-const emitPendingChange = () => {
-  pendingVersion += 1;
-  pendingListeners.forEach((l) => l());
-};
-
-const clearPendingTimeout = (key: string) => {
-  const t = pendingTimeouts.get(key);
-  if (t !== undefined) {
-    clearTimeout(t);
-    pendingTimeouts.delete(key);
-  }
-};
-
-const subscribePending = (listener: () => void) => {
-  pendingListeners.add(listener);
-  return () => {
-    pendingListeners.delete(listener);
-  };
-};
-
-const getPendingVersion = () => pendingVersion;
-
-const setPendingTag = (
-  roomId: string,
-  threadRootId: string,
-  resolved: boolean
-) => {
-  const key = pendingKey(roomId, threadRootId);
-  clearPendingTimeout(key);
-  pendingTags.set(key, { resolved });
-  pendingTimeouts.set(
-    key,
-    setTimeout(() => {
-      clearPendingTag(roomId, threadRootId);
-    }, PENDING_TIMEOUT_MS)
-  );
-  emitPendingChange();
-};
-
-const clearPendingTag = (roomId: string, threadRootId: string) => {
-  const key = pendingKey(roomId, threadRootId);
-  const had = pendingTags.delete(key);
-  clearPendingTimeout(key);
-  if (had) emitPendingChange();
-};
-
-const getPendingTag = (
-  roomId: string,
-  threadRootId: string
-): PendingThreadTag | undefined => pendingTags.get(pendingKey(roomId, threadRootId));
-
-const getPendingTagMap = (roomId: string): Map<string, PendingThreadTag> => {
-  const prefix = `${roomId}\0`;
-  const result = new Map<string, PendingThreadTag>();
-  pendingTags.forEach((tag, key) => {
-    if (key.startsWith(prefix)) {
-      result.set(key.slice(prefix.length), tag);
-    }
-  });
-  return result;
-};
+import {
+  clearPendingThreadTagsContent,
+  getPendingThreadTagsContent,
+  getPendingThreadTagsContentMap,
+  sameThreadTagsContent,
+  setPendingThreadTagsContent,
+  usePendingThreadTagsVersion,
+} from './threadTagPending';
 
 // ─── Legacy fallback ─────────────────────────────────────────────────────────
 
@@ -165,20 +97,21 @@ const getThreadResolutionState = (
 
 const applyPending = (
   state: ThreadResolutionState,
-  pending?: PendingThreadTag
+  pending?: ThreadTagsContent
 ): ThreadResolutionState => {
   if (!pending) return state;
+  const tags = Object.keys(pending.tags).length > 0 ? pending.tags : null;
   return {
     ...state,
-    isResolved: pending.resolved,
+    tags,
+    isResolved: isThreadResolved(pending),
     isPending: true,
   };
 };
 
 // ─── Hooks (pending version) ────────────────────────────────────────────────
 
-const usePendingVersion = () =>
-  useSyncExternalStore(subscribePending, getPendingVersion, getPendingVersion);
+const usePendingVersion = usePendingThreadTagsVersion;
 
 // ─── Public hooks ───────────────────────────────────────────────────────────
 
@@ -187,7 +120,7 @@ export const useThreadResolution = (room: Room, threadRootId?: string): ThreadRe
   const legacyEvent = useStateEvent(room, LEGACY_THREAD_RESOLUTION, threadRootId ?? '');
   const pVersion = usePendingVersion();
   const pending = useMemo(
-    () => (threadRootId ? getPendingTag(room.roomId, threadRootId) : undefined),
+    () => (threadRootId ? getPendingThreadTagsContent(room.roomId, threadRootId) : undefined),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [room.roomId, threadRootId, pVersion]
   );
@@ -199,10 +132,11 @@ export const useThreadResolution = (room: Room, threadRootId?: string): ThreadRe
 
   useEffect(() => {
     if (!threadRootId || !pending) return;
-    if (resolutionState.isResolved === pending.resolved) {
-      clearPendingTag(room.roomId, threadRootId);
+    const actualContent = { tags: resolutionState.tags ?? {} };
+    if (sameThreadTagsContent(actualContent, pending)) {
+      clearPendingThreadTagsContent(room.roomId, threadRootId);
     }
-  }, [pending, resolutionState.isResolved, room.roomId, threadRootId]);
+  }, [pending, resolutionState.tags, room.roomId, threadRootId]);
 
   return useMemo(
     () => applyPending(resolutionState, pending),
@@ -215,7 +149,7 @@ export const useRoomThreadResolutionMap = (room: Room): Map<string, ThreadResolu
   const legacyEvents = useStateEvents(room, LEGACY_THREAD_RESOLUTION);
   const pVersion = usePendingVersion();
   const pendingMap = useMemo(
-    () => getPendingTagMap(room.roomId),
+    () => getPendingThreadTagsContentMap(room.roomId),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [room.roomId, pVersion]
   );
@@ -239,9 +173,9 @@ export const useRoomThreadResolutionMap = (room: Room): Map<string, ThreadResolu
   useEffect(() => {
     pendingMap.forEach((pend, threadRootId) => {
       const actual = resolutionMap.get(threadRootId);
-      const isResolved = actual?.isResolved ?? false;
-      if (isResolved === pend.resolved) {
-        clearPendingTag(room.roomId, threadRootId);
+      const actualContent = { tags: actual?.tags ?? {} };
+      if (sameThreadTagsContent(actualContent, pend)) {
+        clearPendingThreadTagsContent(room.roomId, threadRootId);
       }
     });
   }, [pendingMap, resolutionMap, room.roomId]);
@@ -287,6 +221,8 @@ export const useToggleThreadResolution = (room: Room) => {
           ? buildResolvedTagsContent(currentTags, userId)
           : buildUnresolvedTagsContent(currentTags);
 
+        setPendingThreadTagsContent(room.roomId, validThreadRootId, content);
+
         await mx.sendStateEvent(
           room.roomId,
           StateEvent.ThreadTags as any,
@@ -301,17 +237,13 @@ export const useToggleThreadResolution = (room: Room) => {
   const setResolved = useCallback(
     async (threadRootId: string, resolved: boolean) => {
       const validThreadRootId = getValidThreadRootEvent(room, threadRootId)?.getId();
-      if (validThreadRootId) {
-        setPendingTag(room.roomId, validThreadRootId, resolved);
-      }
-
       try {
         await sendThreadTags(threadRootId, resolved);
       } catch (err) {
         const replaced =
           err instanceof Error && err.message === 'AsyncCallbackHook: Request replaced!';
         if (validThreadRootId && !replaced) {
-          clearPendingTag(room.roomId, validThreadRootId);
+          clearPendingThreadTagsContent(room.roomId, validThreadRootId);
         }
       }
     },
