@@ -1,10 +1,18 @@
 import { EventTimelineSet, IEvent, MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
+import { Relations } from 'matrix-js-sdk/lib/models/relations';
 import {
   cloneRawEvent,
   getSerializedRelationEvent,
   isSameSenderEditEvent,
 } from '../../utils/editEvent';
 import { getLatestEdit } from '../../utils/room';
+
+export type RedactedRelationTarget = {
+  eventId: string;
+  eventType: string;
+  parentEventId: string;
+  relationType: string;
+};
 
 const setSerializedReplacement = (
   targetRawEvent: Partial<IEvent>,
@@ -37,9 +45,57 @@ const getLatestEvent = (events: MatrixEvent[]): MatrixEvent | undefined =>
     return latest;
   }, undefined);
 
-export const applyCachedRedactions = (room: Room, events: MatrixEvent[]): void => {
+const getRedactedRelationTarget = (mEvent: MatrixEvent): RedactedRelationTarget | undefined => {
+  const eventId = mEvent.getId();
+  const eventType = mEvent.getType();
+  const relation = mEvent.getRelation();
+
+  if (!eventId || !eventType || !relation?.event_id || !relation.rel_type) {
+    return undefined;
+  }
+
+  return {
+    eventId,
+    eventType,
+    parentEventId: relation.event_id,
+    relationType: relation.rel_type,
+  };
+};
+
+export const collectRedactedRelationTargetsFromLookup = (
+  events: MatrixEvent[],
+  relationLookupEvents: MatrixEvent[] = []
+): RedactedRelationTarget[] => {
+  const relationLookupById = new Map<string, MatrixEvent>();
+  relationLookupEvents.forEach((mEvent) => {
+    const eventId = mEvent.getId();
+    if (eventId) {
+      relationLookupById.set(eventId, mEvent);
+    }
+  });
+
+  return events.reduce<RedactedRelationTarget[]>((targets, mEvent) => {
+    if (!mEvent.isRedacted()) return targets;
+
+    const directTarget = getRedactedRelationTarget(mEvent);
+    if (directTarget) {
+      targets.push(directTarget);
+      return targets;
+    }
+
+    const lookupEvent = mEvent.getId() ? relationLookupById.get(mEvent.getId()!) : undefined;
+    const lookupTarget = lookupEvent ? getRedactedRelationTarget(lookupEvent) : undefined;
+    if (lookupTarget) {
+      targets.push(lookupTarget);
+    }
+    return targets;
+  }, []);
+};
+
+export const applyCachedRedactions = (room: Room, events: MatrixEvent[]): RedactedRelationTarget[] => {
   const redactionEventsByTarget = new Map<string, MatrixEvent[]>();
   const eventById = new Map<string, MatrixEvent>();
+  const redactedRelationTargets: RedactedRelationTarget[] = [];
 
   events.forEach((mEvent) => {
     const eventId = mEvent.getId();
@@ -73,8 +129,13 @@ export const applyCachedRedactions = (room: Room, events: MatrixEvent[]): void =
         : undefined;
     if (targetEvent.isRedacted() && currentRedactionId === latestRedaction.getId()) return;
 
+    const relationTarget = getRedactedRelationTarget(targetEvent);
+    if (relationTarget) redactedRelationTargets.push(relationTarget);
+
     targetEvent.makeRedacted(latestRedaction, room);
   });
+
+  return redactedRelationTargets;
 };
 
 export const applyCachedReplaceRelations = (events: MatrixEvent[]): void => {
@@ -133,21 +194,85 @@ export const applySerializedCachedReplaceRelations = (events: MatrixEvent[]): vo
 export const aggregateCachedRelationEvents = (
   events: MatrixEvent[],
   timelineSets: Array<EventTimelineSet | undefined>,
-  seenRelationEventIds?: Set<string>
+  seenRelationEventIds?: Set<string>,
+  redactedRelationTargets?: RedactedRelationTarget[]
 ): void => {
   const uniqueTimelineSets = Array.from(
     new Set(timelineSets.filter((timelineSet): timelineSet is EventTimelineSet => !!timelineSet))
   );
   if (uniqueTimelineSets.length === 0) return;
 
+  reconcileRelationEventsWithAggregation(
+    events,
+    uniqueTimelineSets.map((timelineSet) => ({ relations: timelineSet.relations, timelineSet })),
+    seenRelationEventIds,
+    redactedRelationTargets
+  );
+};
+
+type RelationAggregationTarget = {
+  relations: {
+    getChildEventsForEvent: EventTimelineSet['relations']['getChildEventsForEvent'];
+    aggregateChildEvent: (event: MatrixEvent, timelineSet?: EventTimelineSet) => void;
+  };
+  timelineSet?: EventTimelineSet;
+};
+
+const removeMatchingAggregatedRelationEvent = (
+  relations: Relations | undefined,
+  eventId: string | undefined
+): void => {
+  if (!relations || !eventId) return;
+
+  const existingEvent = relations.getRelations().find((relationEvent) => relationEvent.getId() === eventId);
+  if (!existingEvent) return;
+
+  void relations.removeEvent(existingEvent);
+};
+
+export const reconcileRelationEventsWithAggregation = (
+  events: MatrixEvent[],
+  aggregationTargets: Array<RelationAggregationTarget | undefined>,
+  seenRelationEventIds?: Set<string>,
+  redactedRelationTargets: RedactedRelationTarget[] = []
+): void => {
+  const targets = aggregationTargets.filter(
+    (target): target is RelationAggregationTarget => !!target
+  );
+  if (targets.length === 0) return;
+
+  redactedRelationTargets.forEach(({ eventId, eventType, parentEventId, relationType }) => {
+    targets.forEach(({ relations }) => {
+      removeMatchingAggregatedRelationEvent(
+        relations.getChildEventsForEvent(parentEventId, relationType, eventType),
+        eventId
+      );
+    });
+    seenRelationEventIds?.add(eventId);
+  });
+
   events.forEach((mEvent) => {
-    if (!mEvent.getRelation()) return;
+    const relation = mEvent.getRelation();
+    if (!relation) return;
 
     const eventId = mEvent.getId();
+    if (mEvent.isRedacted()) {
+      targets.forEach(({ relations }) => {
+        removeMatchingAggregatedRelationEvent(
+          relations.getChildEventsForEvent(relation.event_id!, relation.rel_type!, mEvent.getType()),
+          eventId
+        );
+      });
+      if (eventId) {
+        seenRelationEventIds?.add(eventId);
+      }
+      return;
+    }
+
     if (eventId && seenRelationEventIds?.has(eventId)) return;
 
-    uniqueTimelineSets.forEach((timelineSet) => {
-      timelineSet.relations.aggregateChildEvent(mEvent, timelineSet);
+    targets.forEach(({ relations, timelineSet }) => {
+      relations.aggregateChildEvent(mEvent, timelineSet);
     });
 
     if (eventId) {
@@ -166,13 +291,14 @@ export const hydrateCachedEvents = ({
   events: MatrixEvent[];
   timelineSets?: Array<EventTimelineSet | undefined>;
   seenRelationEventIds?: Set<string>;
-}): void => {
-  applyCachedRedactions(room, events);
+}): RedactedRelationTarget[] => {
+  const redactedRelationTargets = applyCachedRedactions(room, events);
   applyCachedReplaceRelations(events);
   applySerializedCachedReplaceRelations(events);
   if (timelineSets) {
-    aggregateCachedRelationEvents(events, timelineSets, seenRelationEventIds);
+    aggregateCachedRelationEvents(events, timelineSets, seenRelationEventIds, redactedRelationTargets);
   }
+  return redactedRelationTargets;
 };
 
 export const serializeEventsForCache = (room: Room, events: MatrixEvent[]): Partial<IEvent>[] => {

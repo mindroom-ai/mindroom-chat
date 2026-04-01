@@ -104,7 +104,7 @@
 
 - Cleaned issue-backed `dev` history starts at `96b13bcc`.
 - Current green baseline at `HEAD`:
-  - `npm test` passes (`109/109` files, `931/931` tests)
+  - `npm test` passes (`112/112` files, `946/946` tests)
   - `npm run typecheck` passes
   - `npm run build` passes
 
@@ -195,6 +195,38 @@
     - baseline visible pill: `🔄 1`
     - first click: `🔄 2`, pressed
     - second click: returned to `🔄 1` without refresh
+  - validation:
+    - `npm test`
+    - `npm run typecheck`
+    - `npm run build`
+- Latest local thread refresh reconciliation hardening (2026-03-31):
+  - addressed the remaining cached-thread reload bug where a complete thread-cache hit could still show stale redacted stop reactions until a manual refresh.
+  - root cause:
+    - the background `/relations?recurse=true` refresh on complete cache hits updated cached/supplemental thread events, but did not reconcile the live `timelineSet.relations` containers used by `Reactions`.
+    - the homeserver returns already-redacted relation shells via `unsigned.redacted_because`; those events no longer expose `getRelation()`, so relation cleanup must recover the old parent relation metadata from the cached thread snapshot by event id.
+  - implementation:
+    - `src/app/features/room/eventCacheEditUtils.ts`
+      - exports `collectRedactedRelationTargetsFromLookup(...)` to recover relation ancestry for already-redacted shells from prior cached/live copies of the same relation event.
+      - reuses the same redacted-target shape for cached redaction events and refresh reconciliation.
+    - `src/app/features/room/RoomTimeline.tsx`
+      - complete cached thread opens still render immediately from cache,
+      - but the background latest-tail relations refresh now reconciles the fetched relation events into both room and thread timeline-set relations, using cached snapshot metadata to remove stale aggregated reactions by id.
+    - `src/app/hooks/useThreadStreamingState.ts`
+      - streaming state now reads effective edited content via `getEditedEvent(...)` / `getLatestMessageContent(...)`, so compacted server sync payloads do not leave stale raw `streaming` metadata in control of the indicator.
+  - added regression coverage in:
+    - `src/app/features/room/eventCacheEditUtils.test.ts`
+    - `src/app/hooks/useThreadStreamingState.test.ts`
+    - `src/app/features/room/message/Reactions.test.ts`
+    - `src/app/features/room/RoomTimeline.test.ts`
+  - live MCP validation:
+    - exact thread permalink:
+      - `http://127.0.0.1:8080/!8sLvq34Z5eu5QvnZWj%3Amindroom.chat/%23mindroom-dev%3Amindroom.chat?threadId=%24j9ieLcrMb3cUSp1c7yJeKppPMYfg-3P0Fh9K4bVSsII`
+    - before fix:
+      - reloading the thread kept stale `🛑 1` pills visible on `$ebjexl5b3-itRScoedE6lmjsFWHnEvnWovAXUaFc-rQ` and `$6mKAOaDkrDFy69C2SXfJbNII-gveF7ItT1V3aQp-NDw`
+      - network refresh payload already contained the reaction `$4cbaZAx-EC34suTShlQ_6aIuuGc_aAnBsYVEJqZW-5o` in redacted form
+    - after fix:
+      - hard reload of the same thread no longer showed either stale stop pill
+      - returning to `#mindroom-dev` room view with `Streaming: show only` active showed `0` matching threads instead of surfacing this completed thread as still streaming
   - validation:
     - `npm test`
     - `npm run typecheck`
