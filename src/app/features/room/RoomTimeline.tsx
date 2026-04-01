@@ -28,6 +28,7 @@ import {
   THREAD_RELATION_TYPE,
   MsgType,
 } from 'matrix-js-sdk';
+import { type Relations } from 'matrix-js-sdk/lib/models/relations';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import classNames from 'classnames';
 import { ReactEditor } from 'slate-react';
@@ -6441,11 +6442,19 @@ export function RoomTimeline({
   );
 
   const handleReactionToggle = useCallback(
-    (targetEventId: string, key: string, shortcode?: string) => {
-      const relations = getEventReactions(room.getUnfilteredTimelineSet(), targetEventId);
-      const allReactions = relations?.getSortedAnnotationsByKey() ?? [];
+    (
+      targetEventId: string,
+      key: string,
+      shortcode?: string,
+      currentRelations?: Relations
+    ) => {
+      const reactionRelations =
+        currentRelations ?? getEventReactions(room.getUnfilteredTimelineSet(), targetEventId);
+      const allReactions =
+        (reactionRelations?.getSortedAnnotationsByKey() as [string, Set<MatrixEvent>][] | undefined) ??
+        [];
       const [, reactionsSet] = allReactions.find(([k]) => k === key) ?? [];
-      const reactions = reactionsSet ? Array.from(reactionsSet) : [];
+      const reactions = reactionsSet ? Array.from(reactionsSet) : ([] as MatrixEvent[]);
       const myReaction = reactions.find(factoryEventSentBy(mx.getUserId()!));
 
       if (myReaction && !!myReaction?.isRelation()) {

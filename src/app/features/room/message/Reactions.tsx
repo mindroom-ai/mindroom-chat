@@ -29,7 +29,12 @@ export type ReactionsProps = {
   mEventId: string;
   canSendReaction?: boolean;
   relations: Relations;
-  onReactionToggle: (targetEventId: string, key: string, shortcode?: string) => void;
+  onReactionToggle: (
+    targetEventId: string,
+    key: string,
+    shortcode?: string,
+    relations?: Relations
+  ) => void;
 };
 export const Reactions = as<'div', ReactionsProps>(
   ({ className, room, relations, mEventId, canSendReaction, onReactionToggle, ...props }, ref) => {
@@ -85,7 +90,9 @@ export const Reactions = as<'div', ReactionsProps>(
                   mx={mx}
                   reaction={key}
                   count={events.size}
-                  onClick={canSendReaction ? () => onReactionToggle(mEventId, key) : undefined}
+                  onClick={
+                    canSendReaction ? () => onReactionToggle(mEventId, key, undefined, relations) : undefined
+                  }
                   onContextMenu={handleViewReaction}
                   aria-disabled={!canSendReaction}
                   useAuthentication={useAuthentication}

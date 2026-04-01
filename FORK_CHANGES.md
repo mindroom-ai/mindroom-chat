@@ -183,5 +183,21 @@
     - `npm test`
     - `npm run typecheck`
     - `npm run build`
+- Latest local reaction-redaction fix (2026-03-31):
+  - fixed two separate stale-reaction paths that could leave a redacted reaction visible until refresh:
+    - `src/app/hooks/useRelations.ts` now refreshes derived relation state when the `Relations` object identity changes, not only when it receives add/remove/redaction events on the original object.
+    - thread-view reaction toggles now operate on the exact rendered `Relations` object from `src/app/features/room/message/Reactions.tsx` instead of re-looking up reactions from `room.getUnfilteredTimelineSet()` inside `src/app/features/room/RoomTimeline.tsx`.
+  - this prevents the thread view from treating a visibly pressed reaction as missing and sending another `m.reaction` instead of redacting the existing one.
+  - added regression coverage in:
+    - `src/app/hooks/useRelations.test.ts`
+    - `src/app/features/room/message/Reactions.test.ts`
+  - live MCP repro on `#mindroom-dev` thread permalink `threadId=$rqMlfFsK8quuecnitF4NmwJpExQwY3Rj5ZdUo-w2V20`:
+    - baseline visible pill: `🔄 1`
+    - first click: `🔄 2`, pressed
+    - second click: returned to `🔄 1` without refresh
+  - validation:
+    - `npm test`
+    - `npm run typecheck`
+    - `npm run build`
 - Backup branch created before the issue-only history cleanup:
   - `backup/dev-before-issue-squash-20260330-102644`
