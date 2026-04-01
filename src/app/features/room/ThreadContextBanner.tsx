@@ -97,7 +97,7 @@ export function ThreadContextBanner({
   const hasTags = displayTags.length > 0;
 
   return (
-    <div className={css.Banner}>
+    <div className={isResolved ? css.BannerResolved : css.Banner}>
       <div className={css.TitleRow}>
         <IconButton size="300" radii="300" onClick={onExitThread}>
           <Icon src={Icons.ArrowLeft} />
