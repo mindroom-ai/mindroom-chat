@@ -79,6 +79,16 @@
   - Removes the legacy `com.mindroom.thread.resolution` fallback from `useRoomThreadTags`.
   - All thread resolution/tag readers now depend only on `com.mindroom.thread.tags`.
   - This assumes thread resolution data has already been migrated to the new state-event format.
+- `CINNY-050f`
+  - Fixes the thread tag picker input styling in the thread context banner:
+    - typed text and caret now use the themed surface-variant foreground instead of browser-default black,
+    - and the placeholder fades out on focus so the caret no longer appears underneath the leading "F".
+  - Adds focused regression coverage in `src/app/features/room/ThreadTagPicker.test.ts` to keep the picker on the shared class-based styling path.
+  - Validation:
+    - `npm test` passes (`110/110` files, `932/932` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` still fails at repo baseline because `eslint src/*` crashes across the tree with the existing TypeScript parser `originalKeywordKind` deprecation error
 - `CINNY-053`
   - Fixes iOS Safari keyboard dismiss scroll bug: adds `interactive-widget=resizes-content` to the viewport meta tag and a `useIOSKeyboardFix` hook that resets stale scroll offsets when the virtual keyboard is dismissed.
 
