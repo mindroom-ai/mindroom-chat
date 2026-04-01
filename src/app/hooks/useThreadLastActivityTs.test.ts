@@ -28,6 +28,59 @@ const makeMessageEvent = (
     type: 'm.room.message',
   });
 
+const makeThreadRootWithBundledLatestEvent = ({
+  eventId = THREAD_ROOT_ID,
+  ts,
+  latestEventTs,
+  latestEditTs,
+}: {
+  eventId?: string;
+  ts: number;
+  latestEventTs?: number;
+  latestEditTs?: number;
+}) =>
+  new MatrixEvent({
+    content: {
+      body: eventId,
+      msgtype: 'm.text',
+    },
+    event_id: eventId,
+    origin_server_ts: ts,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    type: 'm.room.message',
+    unsigned: {
+      'm.relations':
+        latestEventTs || latestEditTs
+          ? {
+              'm.thread': {
+                latest_event: {
+                  content: {
+                    body: '$latest',
+                    msgtype: 'm.text',
+                  },
+                  event_id: '$latest',
+                  origin_server_ts: latestEventTs,
+                  room_id: '!room:example.org',
+                  sender: '@alice:example.org',
+                  type: 'm.room.message',
+                  unsigned:
+                    latestEditTs !== undefined
+                      ? {
+                          'm.relations': {
+                            'm.replace': {
+                              origin_server_ts: latestEditTs,
+                            },
+                          },
+                        }
+                      : undefined,
+                },
+              },
+            }
+          : undefined,
+    },
+  });
+
 const makeThreadReplyEvent = (
   eventId: string,
   ts: number,
@@ -272,6 +325,56 @@ describe('useThreadLastActivityTs', () => {
     const { getSnapshot, renderer } = renderHookHarness(room);
 
     expect(getSnapshot()).toBe(100);
+
+    renderer.unmount();
+  });
+
+  it('uses a newer lastReply even when the loaded thread tail is stale', () => {
+    const rootEvent = makeMessageEvent('$root', 100);
+    const olderReply = makeThreadReplyEvent('$reply-old', 180);
+    const newerReply = makeThreadReplyEvent('$reply-new', 260);
+    const thread = makeThread({
+      rootEvent,
+      lastReply: newerReply,
+      replyToEvent: newerReply,
+      timelineEvents: [rootEvent, olderReply],
+    });
+    const room = makeRoom(rootEvent, thread);
+
+    const { getSnapshot, renderer } = renderHookHarness(room);
+
+    expect(getSnapshot()).toBe(260);
+
+    renderer.unmount();
+  });
+
+  it('uses bundled latest_event timestamps when the thread model is missing', () => {
+    const rootEvent = makeThreadRootWithBundledLatestEvent({
+      eventId: '$root',
+      ts: 100,
+      latestEventTs: 240,
+    });
+    const room = makeRoom(rootEvent, undefined);
+
+    const { getSnapshot, renderer } = renderHookHarness(room);
+
+    expect(getSnapshot()).toBe(240);
+
+    renderer.unmount();
+  });
+
+  it('uses bundled latest_event replacement timestamps when they are newer', () => {
+    const rootEvent = makeThreadRootWithBundledLatestEvent({
+      eventId: '$root',
+      ts: 100,
+      latestEventTs: 220,
+      latestEditTs: 310,
+    });
+    const room = makeRoom(rootEvent, undefined);
+
+    const { getSnapshot, renderer } = renderHookHarness(room);
+
+    expect(getSnapshot()).toBe(310);
 
     renderer.unmount();
   });
