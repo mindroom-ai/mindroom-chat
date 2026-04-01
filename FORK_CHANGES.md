@@ -154,5 +154,24 @@
       - first load and hard reload both rendered `96` message rows,
       - the first `12` visible message ids/text snippets stayed identical across reload,
       - visible `Thinking...` count remained `0`.
+- Latest local room/thread overview timestamp hardening (2026-03-31):
+  - compact and expanded overview cards now backfill `lastActivityTs` from cached thread-event pages when the overview metadata is older than the local thread cache.
+  - `src/app/hooks/useThreadLastActivityTs.ts` now considers `thread.lastReply()`, `thread.replyToEvent`, the root event, bundled `unsigned["m.relations"]["m.thread"].latest_event`, and bundled latest-event replacement timestamps.
+  - `src/app/features/room/compactThreadRootData.ts` now computes a cached thread-activity timestamp from cached root/reply/edit events while ignoring non-message noise such as reactions.
+  - `src/app/features/room/roomThreadOverviewModel.ts` now prefers the fresher of the live overview timestamp and the cached thread timestamp.
+  - `src/app/features/room/RoomTimeline.tsx` hydrates cached last-activity timestamps for the active overview roots, and compact cards receive the cached-aware fallback timestamp directly.
+  - live MCP evidence on `#mindroom-dev`:
+    - previously-bad root `$BOeDM9ovZv1eUvD3QlBYxE-VWuU0wPvsaL21V1o5up4` now matches cache exactly (`deltaMs: 0`) instead of lagging by ~202s,
+    - active compact view now shows at most a small live race (`~6s`) on an actively changing thread rather than multi-minute stale times,
+    - unresolved-only compact reload in the open tab settled directly to the full filtered set (`Showing 11 threads with active filters.`) in the MCP reload repro instead of reproducing the earlier `1`-thread startup state.
+  - added regression coverage in:
+    - `src/app/hooks/useThreadLastActivityTs.test.ts`
+    - `src/app/features/room/compactThreadRootData.test.ts`
+    - `src/app/features/room/roomThreadOverviewModel.test.ts`
+  - validation:
+    - focused Vitest on the new room/timestamp suites
+    - `npm test`
+    - `npm run typecheck`
+    - `npm run build`
 - Backup branch created before the issue-only history cleanup:
   - `backup/dev-before-issue-squash-20260330-102644`
