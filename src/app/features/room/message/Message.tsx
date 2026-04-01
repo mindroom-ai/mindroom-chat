@@ -95,6 +95,7 @@ import {
   getMindroomAiRunUsageLabel,
 } from '../../../components/message/mindroomAiRunDisplay';
 
+import { getMessageCopyTextBody, isCopyTextMessageContent } from './messageCopyText';
 export type ReactionHandler = (keyOrMxc: string, shortcode: string) => void;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -497,7 +498,40 @@ export const MessageMindroomDownloadOriginalItem = as<
   );
 });
 
-export const MessageCopyLinkItem = as<
+export const MessageCopyTextItem = as<
+  'button',
+  { room: Room; mEvent: MatrixEvent; onClose: () => void }
+>(({ room, mEvent, onClose, ...props }, ref) => {
+  const handleCopy = () => {
+    const content = getMenuMessageContent(room, mEvent);
+    const originalContent = mEvent.getContent();
+    const body = getMessageCopyTextBody(
+      content as Record<string, unknown>,
+      originalContent as Record<string, unknown>
+    );
+    if (body) {
+      copyToClipboard(body);
+    }
+    onClose();
+  };
+
+  return (
+    <MenuItem
+      size="300"
+      after={<Icon size="100" src={Icons.Text} />}
+      radii="300"
+      onClick={handleCopy}
+      {...props}
+      ref={ref}
+    >
+      <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
+        Copy Text
+      </Text>
+    </MenuItem>
+  );
+});
+
+const MessageCopyLinkItem = as<
   'button',
   {
     room: Room;
@@ -909,6 +943,8 @@ export const Message = as<'div', MessageProps>(
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const [emojiBoardAnchor, setEmojiBoardAnchor] = useState<RectCords>();
     const menuMessageContent = getMenuMessageContent(room, mEvent);
+    const menuMessageOriginalContent = mEvent.getContent();
+    const isTextMessage = isCopyTextMessageContent(menuMessageOriginalContent as Record<string, unknown>);
     const longTextSource = getMindroomLongTextSource(menuMessageContent);
     const mindroomAiRunInfo = getMindroomAiRunInfo(menuMessageContent);
     const showMindroomAiRunInfo = !!mindroomAiRunInfo;
@@ -1280,7 +1316,10 @@ export const Message = as<'div', MessageProps>(
                               onClose={closeMenu}
                             />
                           )}
-                          <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
+                            {!mEvent.isRedacted() && isTextMessage && (
+                <MessageCopyTextItem room={room} mEvent={mEvent} onClose={closeMenu} />
+              )}
+              <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
                           {canPinEvent && (
                             <MessagePinItem room={room} mEvent={mEvent} onClose={closeMenu} />
                           )}
@@ -1449,7 +1488,10 @@ export const Event = as<'div', EventProps>(
                               onClose={closeMenu}
                             />
                           )}
-                          <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
+                            {!mEvent.isRedacted() && isTextMessage && (
+                <MessageCopyTextItem room={room} mEvent={mEvent} onClose={closeMenu} />
+              )}
+              <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
                         </Box>
                         {((!mEvent.isRedacted() && canDelete && !stateEvent) ||
                           (mEvent.getSender() !== mx.getUserId() && !stateEvent)) && (
