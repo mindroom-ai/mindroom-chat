@@ -75,6 +75,13 @@ export const MobileOnlyTags = style({
   },
 });
 
+export const BannerResolved = style({
+  padding: `${config.space.S400} ${config.space.S400}`,
+  backgroundColor: color.Success.Container,
+  borderBottom: `${config.borderWidth.B300} solid ${color.Success.ContainerLine}`,
+  color: color.Success.OnContainer,
+});
+
 export const BannerDisabled = style({
   opacity: 0.6,
   pointerEvents: 'none',

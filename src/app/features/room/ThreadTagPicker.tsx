@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Menu, MenuItem, PopOut, RectCords, Text, config, color } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { stopPropagation } from '../../utils/keyboard';
@@ -39,6 +39,7 @@ const inputStyle: React.CSSProperties = {
 export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTagPickerProps) {
   const [menuCords, setMenuCords] = useState<RectCords>();
   const [filter, setFilter] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleOpen = useCallback(
     (evt: React.MouseEvent<HTMLButtonElement>) => {
@@ -73,6 +74,17 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
     [filter, handleAdd]
   );
 
+  // Safety net: programmatically focus the input when the menu opens.
+  // FocusTrap should handle this via its default "first tabbable element" behavior,
+  // but portal rendering can introduce timing edge cases.
+  useEffect(() => {
+    if (!menuCords) return undefined;
+    const raf = requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [menuCords]);
+
   const normalized = normalizeTagName(filter);
   const filtered = availableTags.filter(
     (t) => !normalized || t.toLowerCase().includes(normalized)
@@ -102,7 +114,6 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
         content={
           <FocusTrap
             focusTrapOptions={{
-              initialFocus: false,
               onDeactivate: handleClose,
               clickOutsideDeactivates: true,
               escapeDeactivates: stopPropagation,
@@ -117,14 +128,13 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
                   }}
                 >
                   <input
+                    ref={inputRef}
                     type="text"
                     placeholder="Filter / new..."
                     style={inputStyle}
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    // eslint-disable-next-line jsx-a11y/no-autofocus
-                    autoFocus
                   />
                 </div>
                 <Box
@@ -179,7 +189,7 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
                       justifyContent="Center"
                     >
                       <Text size="T200" priority="300">
-                        No tags available
+                        {normalized ? 'No matches' : 'Type to create a tag'}
                       </Text>
                     </Box>
                   )}
