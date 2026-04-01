@@ -72,6 +72,9 @@
     - `useRoomThreadTags` now unwraps `parseThreadTagsContent(...).tags` correctly,
     - resolved status is computed with `isThreadResolved(...)`,
     - and room/thread resolved filters render correctly again after the tag-management merge.
+- `CINNY-050c`
+  - Fixes tag picker input focus: removes explicit `initialFocus` from FocusTrap (lets it default to first tabbable element, matching working patterns like AdditionalCreatorInput), adds `useEffect`+`requestAnimationFrame` safety net for portal timing.
+  - Improves empty-state UX: shows "Type to create a tag" when no tags exist instead of "No tags available".
 - `CINNY-053`
   - Fixes iOS Safari keyboard dismiss scroll bug: adds `interactive-widget=resizes-content` to the viewport meta tag and a `useIOSKeyboardFix` hook that resets stale scroll offsets when the virtual keyboard is dismissed.
 
