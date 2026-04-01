@@ -13,7 +13,6 @@ import { MessageEvent } from '../../../types/matrix/room';
 import {
   getSearchResultEffectiveContent,
   getSearchResultLightweightCustomBody,
-  getSearchResultLightweightFormattedBody,
   getSearchResultPreviewText,
   isSearchResultEdited,
   shouldUseLightweightSearchResultBody,
@@ -42,18 +41,17 @@ export function SearchResultBody({
   const edited = isSearchResultEdited(event);
   const effectiveContent = getSearchResultEffectiveContent(event);
   const useLightweightBody = shouldUseLightweightSearchResultBody(effectiveContent);
-  const lightweightFormattedBody = getSearchResultLightweightFormattedBody(effectiveContent);
   const highlightRegex = useMemo(() => makeHighlightRegex(highlights), [highlights]);
-  const htmlReactParserOptions = useMemo(() => {
-    if ((!lightweightFormattedBody && useLightweightBody) || !highlightRegex) return undefined;
-
-    return getReactCustomHtmlParser(mx, roomId, {
-      linkifyOpts: LINKIFY_OPTS,
-      highlightRegex,
-      useAuthentication,
-    });
-  }, [highlightRegex, lightweightFormattedBody, mx, roomId, useAuthentication, useLightweightBody]);
-  const needsPreviewText = useLightweightBody || !highlightRegex || !htmlReactParserOptions;
+  const htmlReactParserOptions = useMemo(
+    () =>
+      getReactCustomHtmlParser(mx, roomId, {
+        linkifyOpts: LINKIFY_OPTS,
+        highlightRegex,
+        useAuthentication,
+      }),
+    [highlightRegex, mx, roomId, useAuthentication]
+  );
+  const needsPreviewText = useLightweightBody || !highlightRegex;
   const previewText = useMemo(
     () => (needsPreviewText ? getSearchResultPreviewText(event, highlights) : undefined),
     [event, highlights, needsPreviewText]
@@ -76,7 +74,7 @@ export function SearchResultBody({
       <RenderBody
         body={previewText}
         highlightRegex={highlightRegex}
-        htmlReactParserOptions={{}}
+        htmlReactParserOptions={htmlReactParserOptions}
         linkifyOpts={LINKIFY_OPTS}
       />
     );
@@ -88,7 +86,7 @@ export function SearchResultBody({
         <RenderBody
           {...props}
           highlightRegex={highlightRegex}
-          htmlReactParserOptions={{}}
+          htmlReactParserOptions={htmlReactParserOptions}
           linkifyOpts={LINKIFY_OPTS}
         />
       );
@@ -120,7 +118,7 @@ export function SearchResultBody({
     );
   }
 
-  if (!highlightRegex || !htmlReactParserOptions) {
+  if (!highlightRegex) {
     return (
       <Text size="T400" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
         {renderSnippetBody()}

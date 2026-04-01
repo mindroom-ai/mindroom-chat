@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { color, config, DefaultReset, toRem } from 'folds';
 import { ContainerColor } from './ContainerColor.css';
@@ -118,6 +118,51 @@ export const CodeBlockBottomShadow = style({
 
   height: config.space.S400,
   background: `linear-gradient(to top, #00000022, #00000000)`,
+});
+
+export const MathInline = style([
+  DefaultReset,
+  {
+    display: 'inline-block',
+    maxWidth: '100%',
+    verticalAlign: 'middle',
+    color: 'inherit',
+  },
+]);
+
+export const MathBlock = style([
+  DefaultReset,
+  MarginSpaced,
+  {
+    display: 'block',
+    maxWidth: '100%',
+    overflowX: 'auto',
+    overflowY: 'hidden',
+    textAlign: 'center',
+    color: 'inherit',
+  },
+]);
+
+globalStyle(`${MathInline} .katex, ${MathBlock} .katex`, {
+  color: 'inherit',
+});
+
+globalStyle(`${MathInline} .katex`, {
+  fontSize: '1em',
+});
+
+globalStyle(`${MathInline} .katex-display, ${MathBlock} .katex-display`, {
+  margin: 0,
+});
+
+globalStyle(`${MathBlock} .katex-display`, {
+  overflowX: 'auto',
+  overflowY: 'hidden',
+  padding: `0 ${config.space.S100}`,
+});
+
+globalStyle(`${MathInline} .katex-error, ${MathBlock} .katex-error`, {
+  color: 'inherit',
 });
 
 export const List = style([

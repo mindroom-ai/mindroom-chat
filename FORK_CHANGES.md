@@ -75,10 +75,6 @@
 - `CINNY-050c`
   - Fixes tag picker input focus: removes explicit `initialFocus` from FocusTrap (lets it default to first tabbable element, matching working patterns like AdditionalCreatorInput), adds `useEffect`+`requestAnimationFrame` safety net for portal timing.
   - Improves empty-state UX: shows "Type to create a tag" when no tags exist instead of "No tags available".
-  - Banner tag mutations now also:
-    - resolve writes against the canonical known thread root,
-    - seed pending tag content immediately for add/remove/resolve actions,
-    - and surface that pending content through both the thread banner and room overview readers instead of waiting for a later state refresh.
 - `CINNY-053`
   - Fixes iOS Safari keyboard dismiss scroll bug: adds `interactive-widget=resizes-content` to the viewport meta tag and a `useIOSKeyboardFix` hook that resets stale scroll offsets when the virtual keyboard is dismissed.
 
@@ -94,7 +90,7 @@
 
 - Cleaned issue-backed `dev` history starts at `96b13bcc`.
 - Current green baseline at `HEAD`:
-  - `npx vitest run` passes (`107/107` files, `904/904` tests)
+  - `npx vitest run` passes (`105/105` files, `900/900` tests)
   - `npm run typecheck` passes
   - `npm run build` passes
 
@@ -102,6 +98,26 @@
 
 - [justfile](/Users/basnijholt/Code/dev/mindroom-cinny/justfile) is intentionally kept for common local validation commands.
 - [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) is the persistent debugging reference for timeline/cache/search work.
+- `CINNY-054` planning investigation (2026-03-31):
+  - confirmed the markdown pipeline is Cinny's in-repo regex parser under `src/app/plugins/markdown/*`, wired into compose/search via `src/app/components/editor/output.ts` and `src/app/features/message-search/searchResultPreview.ts`; it is neither `unified/remark/rehype` nor `markdown-it`.
+  - confirmed incoming formatted HTML is sanitized in `src/app/utils/sanitize.ts` and rendered through `src/app/plugins/react-custom-html-parser.tsx`.
+  - `data-mx-maths` is already allowlisted in the sanitizer, but no render-time or compose-time math handling exists yet.
+  - implementation plan recorded in `.claude/PLAN.md`.
+  - implementation status (2026-03-31):
+    - added `katex` plus shared math parsing/rendering helpers in `src/app/plugins/math.tsx`, with app-level KaTeX CSS loaded from `src/index.tsx`.
+    - incoming render paths now handle `span/div[data-mx-maths]` and raw `$...$` / `$$...$$` text, while skipping escaped dollars, currency-like text, and backtick code spans/blocks.
+    - markdown compose now emits Matrix math HTML (`data-mx-maths`) for inline and display math, and editor markdown mode reconstructs `$...$` / `$$...$$` when loading incoming Matrix math HTML.
+    - added focused coverage in `src/app/plugins/react-custom-html-parser.test.ts` and `src/app/components/editor/math.test.ts`.
+    - review-fix follow-up:
+      - `tokenizeTextWithLatex()` now preserves backtick spans as verbatim segments and protects URL spans before math scanning, so escaped `\$` remains literal inside backticks and raw URLs containing `$...$` are linkified intact instead of being split by math rendering.
+      - inline math now requires non-alphanumeric boundaries around the delimiters, and numeric-only inline content is left raw to avoid currency false positives such as `$5+$10$`.
+      - display math remains top-level only by design; nested `div[data-mx-maths]` inside blockquotes/lists is preserved as raw `$$...$$` text on markdown import instead of flattening to bare LaTeX.
+      - added regressions for escaped `\$` inside backticks, currency-like inline text, URLs containing `$`, and blockquote display-math raw round-tripping.
+    - validation:
+      - `npm test` passes (`106/106` files, `911/911` tests).
+      - `npm run typecheck` passes.
+      - `npm run build` passes; build now emits KaTeX font assets/CSS as part of the bundle.
+      - `npm run lint` does not pass at repo baseline because `eslint src/*` crashes across the tree with the existing TypeScript parser `originalKeywordKind` deprecation error, and `npm run check:prettier` also reports broad pre-existing formatting drift outside this change.
 - `CINNY-037` was reapplied on top of the cleaned issue-backed `dev` history:
   - `src/app/hooks/useBlobUrlCleanup.ts` revokes blob URLs on URL change and unmount.
   - Media/file consumers wired into that cleanup: `ImageContent`, `VideoContent`, `AudioContent`, `ThumbnailContent`, `FileContent`, and `FileHeader`.
