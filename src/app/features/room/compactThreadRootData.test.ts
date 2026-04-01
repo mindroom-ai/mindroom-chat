@@ -32,12 +32,14 @@ const makeEvent = (
     getType: () => 'm.room.message',
     getSender: () => '@bot:mindroom.chat',
     getTs: () => 1,
+    getUnsigned: () => undefined,
     replacingEvent: () =>
       editedBody
         ? ({
             getId: () => `${eventId}-edit`,
             getTs: () => 2,
             getSender: () => '@bot:mindroom.chat',
+            getUnsigned: () => undefined,
             getContent: () => ({
               body: `* ${editedBody}`,
               'm.new_content': {

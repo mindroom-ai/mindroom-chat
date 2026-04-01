@@ -1,8 +1,10 @@
 import { EventTimelineSet, IEvent, MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
+import {
+  cloneRawEvent,
+  getSerializedRelationEvent,
+  isSameSenderEditEvent,
+} from '../../utils/editEvent';
 import { getLatestEdit } from '../../utils/room';
-
-const cloneRawEvent = (rawEvent: Partial<IEvent>): Partial<IEvent> =>
-  JSON.parse(JSON.stringify(rawEvent)) as Partial<IEvent>;
 
 const setSerializedReplacement = (
   targetRawEvent: Partial<IEvent>,
@@ -26,21 +28,6 @@ const setSerializedReplacement = (
 };
 
 const getTargetEventId = (mEvent: MatrixEvent): string | undefined => mEvent.getRelation()?.event_id;
-
-const getSerializedRelationEvent = (
-  mEvent: MatrixEvent,
-  relationType: RelationType
-): Partial<IEvent> | undefined => {
-  const relations = mEvent.getUnsigned()?.['m.relations'];
-  if (!relations || typeof relations !== 'object' || Array.isArray(relations)) return undefined;
-
-  const relationEvent = (relations as Record<string, unknown>)[relationType];
-  if (!relationEvent || typeof relationEvent !== 'object' || Array.isArray(relationEvent)) {
-    return undefined;
-  }
-
-  return relationEvent as Partial<IEvent>;
-};
 
 const getLatestEvent = (events: MatrixEvent[]): MatrixEvent | undefined =>
   events.reduce<MatrixEvent | undefined>((latest, mEvent) => {
@@ -124,22 +111,16 @@ export const applyCachedReplaceRelations = (events: MatrixEvent[]): void => {
 
 export const applySerializedCachedReplaceRelations = (events: MatrixEvent[]): void => {
   events.forEach((targetEvent) => {
-    const serializedReplacement = getSerializedRelationEvent(targetEvent, RelationType.Replace);
-    if (
-      !serializedReplacement ||
-      typeof serializedReplacement.event_id !== 'string' ||
-      serializedReplacement.event_id.length === 0
-    ) {
-      return;
-    }
+    const serializedReplacementCandidate = getSerializedRelationEvent(targetEvent, RelationType.Replace);
+    const serializedReplacement = isSameSenderEditEvent(targetEvent, serializedReplacementCandidate)
+      ? serializedReplacementCandidate
+      : undefined;
+    if (!serializedReplacement) return;
 
     const existingReplacement = targetEvent.replacingEvent() ?? undefined;
-    const serializedReplacementEvent = new MatrixEvent(
-      cloneRawEvent(serializedReplacement) as IEvent
-    );
     const latestEdit = getLatestEdit(
       targetEvent,
-      [existingReplacement, serializedReplacementEvent].filter(
+      [existingReplacement, serializedReplacement].filter(
         (mEvent): mEvent is MatrixEvent => !!mEvent
       )
     );

@@ -48,6 +48,36 @@ const makeEditEvent = (
     type: 'm.room.message',
   });
 
+const attachSerializedReplacement = (
+  targetEvent: MatrixEvent,
+  replacementEventId: string,
+  ts: number
+) => {
+  targetEvent.event.unsigned = {
+    'm.relations': {
+      'm.replace': {
+        content: {
+          body: `* ${replacementEventId}`,
+          'm.new_content': {
+            body: replacementEventId,
+            msgtype: 'm.text',
+          },
+          'm.relates_to': {
+            event_id: targetEvent.getId(),
+            rel_type: 'm.replace',
+          },
+          msgtype: 'm.text',
+        },
+        event_id: replacementEventId,
+        origin_server_ts: ts,
+        room_id: '!room:example.org',
+        sender: '@alice:example.org',
+        type: 'm.room.message',
+      },
+    },
+  };
+};
+
 type HookSnapshot = ReturnType<typeof useThreadRenderState>;
 
 type HarnessProps = {
@@ -186,6 +216,48 @@ describe('useThreadRenderState', () => {
     ]);
     expect(getSnapshot().threadEvents[1]).toBe(correctedFallbackReply);
     expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$edit-2');
+
+    renderer.unmount();
+  });
+
+  it('prefers a cached fallback event when it carries a newer bundled replacement than the live duplicate', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+    const staleLiveReply = makeMessageEvent('$reply', 2);
+    staleLiveReply.makeReplaced(makeEditEvent('$edit-8', 8, '$reply'));
+    const refetchedFallbackReply = makeMessageEvent('$reply', 2);
+    attachSerializedReplacement(refetchedFallbackReply, '$edit-13', 13);
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+    const thread = makeThread(rootEvent, [staleLiveReply]);
+
+    const { getSnapshot, update, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: false,
+    });
+
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [refetchedFallbackReply]);
+    });
+
+    update({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: true,
+    });
+
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual([
+      '$root',
+      '$reply',
+    ]);
+    expect(getSnapshot().threadEvents[1]).toBe(refetchedFallbackReply);
+    expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$edit-13');
 
     renderer.unmount();
   });
