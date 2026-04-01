@@ -15,6 +15,7 @@ import {
   parseThreadTagsContent,
   buildResolvedTagsContent,
   buildUnresolvedTagsContent,
+  isThreadResolved,
 } from './threadTags';
 import { getValidThreadRootEvent } from './threadUtils';
 
@@ -114,7 +115,7 @@ export const parseLegacyResolutionContent = (
   return {
     isResolved,
     tags: isResolved
-      ? { resolved: { set_by: 'legacy', set_at: '' } }
+      ? { resolved: { set_by: 'legacy', set_at: 0 } }
       : null,
   };
 };
@@ -141,8 +142,9 @@ const getThreadResolutionState = (
   legacyEvent?: MatrixEvent
 ): ThreadResolutionState => {
   if (event) {
-    const tags = parseThreadTagsContent(event.getContent());
-    const isResolved = tags !== null && 'resolved' in tags;
+    const content = parseThreadTagsContent(event.getContent());
+    const tags = Object.keys(content.tags).length > 0 ? content.tags : null;
+    const isResolved = isThreadResolved(content);
     return { event, tags, isResolved, isPending: false };
   }
 
@@ -279,10 +281,10 @@ export const useToggleThreadResolution = (room: Room) => {
           ?.getStateEvents(StateEvent.ThreadTags as string, validThreadRootId);
         const currentTags = currentEvent
           ? parseThreadTagsContent(currentEvent.getContent())
-          : null;
+          : { tags: {} };
 
         const content = resolved
-          ? buildResolvedTagsContent(userId, currentTags)
+          ? buildResolvedTagsContent(currentTags, userId)
           : buildUnresolvedTagsContent(currentTags);
 
         await mx.sendStateEvent(

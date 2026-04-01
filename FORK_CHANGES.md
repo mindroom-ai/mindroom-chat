@@ -68,6 +68,12 @@
   - Gates UI on first sync to avoid the startup screen flash.
 - `CINNY-050`
   - Adds tag management UI to the thread context banner (ThreadContextBanner component with tag pills, picker, and resolve toggle).
+  - Includes the compatibility fix for the parsed thread-tags shape:
+    - `useRoomThreadTags` now unwraps `parseThreadTagsContent(...).tags` correctly,
+    - resolved status is computed with `isThreadResolved(...)`,
+    - and room/thread resolved filters render correctly again after the tag-management merge.
+- `CINNY-053`
+  - Fixes iOS Safari keyboard dismiss scroll bug: adds `interactive-widget=resizes-content` to the viewport meta tag and a `useIOSKeyboardFix` hook that resets stale scroll offsets when the virtual keyboard is dismissed.
 
 ### Validation Standard
 
@@ -81,7 +87,7 @@
 
 - Cleaned issue-backed `dev` history starts at `96b13bcc`.
 - Current green baseline at `HEAD`:
-  - `npx vitest run` passes (`103/103` files, `873/873` tests)
+  - `npx vitest run` passes (`105/105` files, `900/900` tests)
   - `npm run typecheck` passes
   - `npm run build` passes
 
@@ -100,5 +106,9 @@
   - and swallowed URL preview effect rejection.
 - Authenticated media URLs now fall back to query-token URLs before service-worker control is established.
   - This restores room/sidebar/header/settings avatars during startup and clear-cache reloads, when the page can render before the service worker is actively controlling the document.
+- Latest remote regression fixed on top of `gitea/dev`:
+  - `CINNY-050` introduced a parser/API mismatch where `parseThreadTagsContent()` returned `{ tags }`, but `useRoomThreadTags` still treated the parsed object itself as the tag map.
+  - Symptom: compact/room thread buttons stopped showing `Resolved`, and the `Resolved` filter in Personal returned zero threads live.
+  - Validation: live MCP repro on Personal room plus `npm test`, `npm run typecheck`, and `npm run build`.
 - Backup branch created before the issue-only history cleanup:
   - `backup/dev-before-issue-squash-20260330-102644`
