@@ -125,6 +125,22 @@ const renderCollapsibleMessage = (
   return renderer;
 };
 
+const createMeasuredContentElement = () => {
+  let scrollHeightReads = 0;
+  const contentElement = {
+    clientHeight: 72,
+    get scrollHeight() {
+      scrollHeightReads += 1;
+      return 160;
+    },
+  };
+
+  return {
+    contentElement,
+    getScrollHeightReads: () => scrollHeightReads,
+  };
+};
+
 beforeEach(() => {
   resizeObserverConstructed = vi.fn();
   intersectionObserverConstructed = vi.fn();
@@ -530,6 +546,79 @@ describe('CollapsibleMessage', () => {
     expect(findExpandZones(renderer)).toHaveLength(0);
     expect(findGradientOverlays(renderer)).toHaveLength(0);
     expect(findCloseButtons(renderer)).toHaveLength(0);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('does not rerun overflow measurement when rerendered with the same measurement key', () => {
+    const { contentElement, getScrollHeightReads } = createMeasuredContentElement();
+    const renderer = renderCollapsibleMessage(
+      {
+        collapseMode: 'default',
+        measurementKey: '$message|active||default',
+      },
+      contentElement,
+    );
+    const readsAfterMount = getScrollHeightReads();
+
+    act(() => {
+      renderer.update(
+        React.createElement(
+          CollapsibleMessage as never,
+          {
+            collapseMode: 'default',
+            measurementKey: '$message|active||default',
+          } as never,
+          React.createElement('span', undefined, 'message')
+        )
+      );
+    });
+
+    expect(getScrollHeightReads()).toBe(readsAfterMount);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('reruns overflow measurement when the measurement key changes', () => {
+    const { contentElement, getScrollHeightReads } = createMeasuredContentElement();
+    const renderer = renderCollapsibleMessage(
+      {
+        collapseMode: 'default',
+        measurementKey: '$message|active||default',
+      },
+      contentElement,
+    );
+    const readsAfterMount = getScrollHeightReads();
+
+    act(() => {
+      renderer.update(
+        React.createElement(
+          CollapsibleMessage as never,
+          {
+            collapseMode: 'default',
+            measurementKey: '$message|active|$edit|default',
+          } as never,
+          React.createElement('span', undefined, 'message')
+        )
+      );
+    });
+
+    expect(getScrollHeightReads()).toBeGreaterThan(readsAfterMount);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('does not disable scroll anchoring on the wrapper', () => {
+    const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
+    const wrapper = renderer.root.findAllByType('div')[0];
+
+    expect(wrapper.props.style?.overflowAnchor).toBeUndefined();
 
     act(() => {
       renderer.unmount();
