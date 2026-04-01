@@ -1246,6 +1246,18 @@ const getThreadCacheTargetId = (room: Room, mEvent: MatrixEvent): string | undef
     : undefined;
 };
 
+export const shouldRefreshOverviewForTimelineEvent = (
+  room: Room,
+  mEvent: MatrixEvent
+): boolean => {
+  const eventId = mEvent.getId();
+  if (eventId && (mEvent.isThreadRoot || isThreadReplyEvent(eventId, mEvent.threadRootId))) {
+    return true;
+  }
+
+  return getThreadCacheTargetId(room, mEvent) !== undefined;
+};
+
 const groupThreadCacheEvents = (
   room: Room,
   events: MatrixEvent[]
@@ -1474,6 +1486,18 @@ export const getCollapsibleMessageMode = (
     : liveExpandOnceIds.has(mEventId)
       ? 'initially-expanded'
       : 'default';
+
+export const getCollapsibleMessageMeasurementKey = (
+  mEvent: MatrixEvent,
+  collapseMode: ReturnType<typeof getCollapsibleMessageMode>,
+  editedEvent?: MatrixEvent
+): string =>
+  [
+    mEvent.getId() ?? '',
+    mEvent.isRedacted() ? 'redacted' : 'active',
+    editedEvent?.getId() ?? '',
+    collapseMode,
+  ].join('|');
 
 export const consumeLiveExpandOnceId = (liveExpandOnceIds: Set<string>, mEventId: string) => {
   liveExpandOnceIds.delete(mEventId);
@@ -2602,15 +2626,29 @@ export function RoomTimeline({
   useEffect(() => {
     if (threadId) return undefined;
     const bumpRefresh = () => setOverviewRefreshCounter((c) => c + 1);
-    room.on(RoomEvent.Timeline, bumpRefresh);
-    room.on(RoomEvent.Receipt, bumpRefresh);
+    const handleTimelineRefresh: RoomEventHandlerMap[RoomEvent.Timeline] = (
+      mEvent,
+      eventRoom,
+      _toStartOfTimeline,
+      removed
+    ) => {
+      if (eventRoom?.roomId !== room.roomId || removed) return;
+      if (!shouldRefreshOverviewForTimelineEvent(room, mEvent)) return;
+      bumpRefresh();
+    };
+    const handleReceiptRefresh: RoomEventHandlerMap[RoomEvent.Receipt] = (_receipt, eventRoom) => {
+      if (eventRoom?.roomId !== room.roomId) return;
+      bumpRefresh();
+    };
+    room.on(RoomEvent.Timeline, handleTimelineRefresh);
+    room.on(RoomEvent.Receipt, handleReceiptRefresh);
     room.on(ThreadEvent.New, bumpRefresh);
     room.on(ThreadEvent.Update, bumpRefresh);
     room.on(ThreadEvent.NewReply, bumpRefresh);
     room.on(ThreadEvent.Delete, bumpRefresh);
     return () => {
-      room.removeListener(RoomEvent.Timeline, bumpRefresh);
-      room.removeListener(RoomEvent.Receipt, bumpRefresh);
+      room.removeListener(RoomEvent.Timeline, handleTimelineRefresh);
+      room.removeListener(RoomEvent.Receipt, handleReceiptRefresh);
       room.removeListener(ThreadEvent.New, bumpRefresh);
       room.removeListener(ThreadEvent.Update, bumpRefresh);
       room.removeListener(ThreadEvent.NewReply, bumpRefresh);
@@ -6635,10 +6673,16 @@ export function RoomTimeline({
                   outlineAttachment={messageLayout === MessageLayout.Bubble}
                 />
               );
+              const measurementKey = getCollapsibleMessageMeasurementKey(
+                mEvent,
+                collapseMode,
+                editedEvent
+              );
               if (isVisualMedia) return content;
               return (
                 <CollapsibleMessage
                   collapseMode={collapseMode}
+                  measurementKey={measurementKey}
                   onInitialExpandConsumed={onInitialExpandConsumed}
                 >
                   {content}
@@ -6798,6 +6842,11 @@ export function RoomTimeline({
                     resolvedContent,
                     liveExpandOnceIds.current
                   );
+                  const measurementKey = getCollapsibleMessageMeasurementKey(
+                    mEvent,
+                    collapseMode,
+                    editedEvent
+                  );
                   const onInitialExpandConsumed =
                     collapseMode === 'initially-expanded'
                       ? () => {
@@ -6830,6 +6879,7 @@ export function RoomTimeline({
                   return (
                     <CollapsibleMessage
                       collapseMode={collapseMode}
+                      measurementKey={measurementKey}
                       onInitialExpandConsumed={onInitialExpandConsumed}
                     >
                       {messageContent}
