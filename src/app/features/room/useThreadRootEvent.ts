@@ -1,47 +1,39 @@
-import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
-import { RoomEvent } from 'matrix-js-sdk/lib/models/room';
-import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
-import { useEffect, useMemo } from 'react';
-import { useForceUpdate } from '../../hooks/useForceUpdate';
-import { getValidThreadRootEvent } from './threadUtils';
+import { useMemo } from 'react';
+import { Room } from 'matrix-js-sdk';
 
-export const useThreadRootEvent = (room: Room, threadRootId?: string): MatrixEvent | undefined => {
-  const [version, forceUpdate] = useForceUpdate();
-  const roomEvents = room as Room & {
-    on: (event: string, listener: (...args: any[]) => void) => void;
-    removeListener: (event: string, listener: (...args: any[]) => void) => void;
-  };
+/**
+ * Resolve the canonical thread root event ID from a threadId.
+ *
+ * The threadId passed via URL may be a reply event ID rather than the actual
+ * thread root. This hook resolves to the canonical root by checking the SDK
+ * thread model and event metadata.
+ *
+ * Returns undefined only when threadId is undefined.
+ * When threadId is defined, always returns a string (falls back to threadId itself).
+ */
+export const useThreadRootEvent = (
+  room: Room,
+  threadId: string | undefined
+): string | undefined =>
+  useMemo(() => {
+    if (!threadId) return undefined;
 
-  useEffect(() => {
-    if (!threadRootId) return undefined;
+    // Check if the SDK has a thread model for this ID — that means it IS the root.
+    const thread = room.getThread(threadId);
+    if (thread) return threadId;
 
-    const handleThreadChange = (thread?: { id?: string }) => {
-      if (!thread || thread.id === threadRootId) {
-        forceUpdate();
-      }
-    };
+    // Check if we can find the event and it has a threadRootId pointing elsewhere.
+    const event = room.findEventById(threadId);
+    if (event) {
+      const rootId = event.threadRootId;
+      // If threadRootId exists and differs from the event ID, the event is a reply.
+      if (rootId && rootId !== threadId) return rootId;
+      // Otherwise, this event IS the root (or standalone).
+      return threadId;
+    }
 
-    const handleTimelineEvent = (event: MatrixEvent) => {
-      if (event.getId() === threadRootId || event.threadRootId === threadRootId) {
-        forceUpdate();
-      }
-    };
-
-    roomEvents.on(ThreadEvent.New, handleThreadChange);
-    roomEvents.on(ThreadEvent.Update, handleThreadChange);
-    roomEvents.on(ThreadEvent.NewReply, handleThreadChange);
-    roomEvents.on(ThreadEvent.Delete, handleThreadChange);
-    roomEvents.on(RoomEvent.Timeline, handleTimelineEvent);
-
-    return () => {
-      roomEvents.removeListener(ThreadEvent.New, handleThreadChange);
-      roomEvents.removeListener(ThreadEvent.Update, handleThreadChange);
-      roomEvents.removeListener(ThreadEvent.NewReply, handleThreadChange);
-      roomEvents.removeListener(ThreadEvent.Delete, handleThreadChange);
-      roomEvents.removeListener(RoomEvent.Timeline, handleTimelineEvent);
-    };
-  }, [forceUpdate, roomEvents, threadRootId]);
-
-  return useMemo(() => getValidThreadRootEvent(room, threadRootId), [room, threadRootId, version]);
-};
+    // Event not found yet — return the threadId as-is (it's almost always the root
+    // when navigating via thread view). The caller should still succeed because
+    // state events keyed by root ID will match.
+    return threadId;
+  }, [room, threadId]);

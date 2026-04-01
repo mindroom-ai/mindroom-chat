@@ -66,6 +66,8 @@
   - Preserves `mx.sendStateEvent` binding by calling it directly.
 - `CINNY-048`
   - Gates UI on first sync to avoid the startup screen flash.
+- `CINNY-050`
+  - Adds tag management UI to the thread context banner (ThreadContextBanner component with tag pills, picker, and resolve toggle).
 
 ### Validation Standard
 
