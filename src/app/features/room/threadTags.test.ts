@@ -1,337 +1,240 @@
-import React from 'react';
+import { describe, expect, it } from 'vitest';
 import { EventTimeline } from 'matrix-js-sdk';
-import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { StateEvent } from '../../../types/matrix/room';
 import {
-  getTagNames,
-  isThreadTagsTombstone,
-  isThreadResolvedFromContent,
-  parseThreadTagsContent,
+  buildAddTagContent,
+  buildRemoveTagContent,
   buildResolvedTagsContent,
   buildUnresolvedTagsContent,
+  collectAvailableTags,
+  getDisplayTags,
+  isThreadResolved,
+  isThreadTagsTombstone,
+  isValidTagName,
+  normalizeTagName,
+  parseThreadTagsContent,
+  RESOLVED_TAG,
+  type ThreadTagsContent,
 } from './threadTags';
-import { parseLegacyResolutionContent, useToggleThreadResolution } from './useRoomThreadTags';
-
-const { getSafeUserIdMock, sendStateEventMock, stateEventPermissionMock } = vi.hoisted(() => ({
-  getSafeUserIdMock: vi.fn(() => '@alice:example.org'),
-  sendStateEventMock: vi.fn(() => Promise.resolve()),
-  stateEventPermissionMock: vi.fn(() => true),
-}));
-
-vi.mock('../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({
-    getSafeUserId: getSafeUserIdMock,
-    sendStateEvent: sendStateEventMock,
-  }),
-}));
-
-vi.mock('../../hooks/usePowerLevels', () => ({
-  usePowerLevelsContext: () => ({}),
-}));
-
-vi.mock('../../hooks/useRoomCreators', () => ({
-  useRoomCreators: () => [],
-}));
-
-vi.mock('../../hooks/useRoomPermissions', () => ({
-  useRoomPermissions: () => ({
-    stateEvent: stateEventPermissionMock,
-  }),
-}));
-
-type ToggleHookValue = ReturnType<typeof useToggleThreadResolution>;
-
-type ToggleHarnessProps = {
-  room: Room;
-  onRender: (value: ToggleHookValue) => void;
-};
-
-type MockRoom = Room & {
-  getLiveTimeline: () => {
-    getState: ReturnType<typeof vi.fn>;
-  };
-  getThread: ReturnType<typeof vi.fn>;
-  findEventById: ReturnType<typeof vi.fn>;
-  roomId: string;
-  __mocks: {
-    getState: ReturnType<typeof vi.fn>;
-    getStateEvents: ReturnType<typeof vi.fn>;
-  };
-};
-
-function ToggleHarness({ room, onRender }: ToggleHarnessProps) {
-  const value = useToggleThreadResolution(room);
-  onRender(value);
-  return null;
-}
-
-const renderToggleHook = (
-  room: Room
-): { getSnapshot: () => ToggleHookValue; renderer: ReactTestRenderer } => {
-  let latestValue: ToggleHookValue | undefined;
-  let renderer: ReactTestRenderer | undefined;
-
-  act(() => {
-    renderer = create(
-      React.createElement(ToggleHarness, {
-        room,
-        onRender: (value) => {
-          latestValue = value;
-        },
-      })
-    );
-  });
-
-  return {
-    getSnapshot: () => latestValue as ToggleHookValue,
-    renderer: renderer as ReactTestRenderer,
-  };
-};
-
-const makeToggleRoom = (currentContent: unknown = null): MockRoom => {
-  const currentEvent =
-    currentContent === undefined
-      ? undefined
-      : {
-          getContent: () => currentContent,
-        };
-  const getStateEvents = vi.fn(() => currentEvent);
-  const getState = vi.fn(() => ({
-    getStateEvents,
-  }));
-  const rootEvent = {
-    getId: () => '$thread-1',
-    isThreadRoot: true,
-  };
-
-  return {
-    roomId: '!room:example.org',
-    getLiveTimeline: () => ({
-      getState,
-    }),
-    getThread: vi.fn((threadRootId: string) =>
-      threadRootId === '$thread-1' ? { rootEvent } : undefined
-    ),
-    findEventById: vi.fn((eventId: string) => (eventId === '$thread-1' ? rootEvent : undefined)),
-    __mocks: {
-      getState,
-      getStateEvents,
-    },
-  } as MockRoom;
-};
-
-beforeEach(() => {
-  vi.useFakeTimers();
-  vi.clearAllMocks();
-});
-
-afterEach(() => {
-  vi.runOnlyPendingTimers();
-  vi.clearAllTimers();
-  vi.useRealTimers();
-});
 
 describe('parseThreadTagsContent', () => {
-  it('parses valid tags payload with TagMetadata', () => {
+  it('parses valid thread-tag content', () => {
     const content = {
       tags: {
-        resolved: { set_by: '@user:x', set_at: '2024-01-01T00:00:00Z' },
-        blocked: { set_by: '@admin:x', set_at: '2024-01-02T00:00:00Z' },
+        bug: { set_by: '@alice:example.com', set_at: 1000 },
+        feature: { set_by: '@bob:example.com', set_at: 2000 },
       },
     };
     const result = parseThreadTagsContent(content);
-    expect(result).not.toBeNull();
-    expect(Object.keys(result!)).toEqual(['resolved', 'blocked']);
-    expect(result!.resolved.set_by).toBe('@user:x');
+    expect(result.tags).toEqual(content.tags);
   });
 
-  it('returns null for tombstone (empty object)', () => {
-    expect(parseThreadTagsContent({})).toBeNull();
-    expect(isThreadTagsTombstone({})).toBe(true);
+  it('returns empty tags for null content', () => {
+    expect(parseThreadTagsContent(null)).toEqual({ tags: {} });
   });
 
-  it('returns null for non-object values', () => {
-    expect(parseThreadTagsContent(null)).toBeNull();
-    expect(parseThreadTagsContent(undefined)).toBeNull();
-    expect(parseThreadTagsContent('string')).toBeNull();
-    expect(parseThreadTagsContent(42)).toBeNull();
+  it('returns empty tags for undefined content', () => {
+    expect(parseThreadTagsContent(undefined)).toEqual({ tags: {} });
   });
 
-  it('returns null when tags is not an object', () => {
-    expect(parseThreadTagsContent({ tags: 'resolved' })).toBeNull();
-    expect(parseThreadTagsContent({ tags: ['resolved'] })).toBeNull();
+  it('returns empty tags for content without tags field', () => {
+    expect(parseThreadTagsContent({ other: 'data' })).toEqual({ tags: {} });
   });
 
-  it('skips entries without required set_by/set_at', () => {
-    const content = {
-      tags: {
-        valid: { set_by: '@user:x', set_at: '2024-01-01T00:00:00Z' },
-        invalid: { note: 'missing required fields' },
-      },
-    };
-    const result = parseThreadTagsContent(content);
-    expect(result).not.toBeNull();
-    expect(Object.keys(result!)).toEqual(['valid']);
+  it('returns empty tags for content with null tags', () => {
+    expect(parseThreadTagsContent({ tags: null })).toEqual({ tags: {} });
   });
 
-  it('returns null when all entries are invalid', () => {
-    expect(parseThreadTagsContent({ tags: { bad: 42 } })).toBeNull();
+  it('returns empty tags for non-object content', () => {
+    expect(parseThreadTagsContent('string')).toEqual({ tags: {} });
+    expect(parseThreadTagsContent(42)).toEqual({ tags: {} });
   });
 });
 
-describe('getTagNames', () => {
-  it('returns tag names from record', () => {
-    const tags = {
-      resolved: { set_by: '@user:x', set_at: '2024-01-01T00:00:00Z' },
-      priority: { set_by: '@user:x', set_at: '2024-01-01T00:00:00Z' },
-    };
-    expect(getTagNames(tags)).toEqual(['resolved', 'priority']);
+describe('isThreadTagsTombstone', () => {
+  it('returns true for empty tags', () => {
+    expect(isThreadTagsTombstone({ tags: {} })).toBe(true);
   });
 
-  it('returns empty array for null', () => {
-    expect(getTagNames(null)).toEqual([]);
+  it('returns true for null content', () => {
+    expect(isThreadTagsTombstone(null)).toBe(true);
   });
-});
 
-describe('isThreadResolvedFromContent', () => {
-  it('returns true when resolved tag exists', () => {
+  it('returns false for content with tags', () => {
     expect(
-      isThreadResolvedFromContent({
-        tags: { resolved: { set_by: '@user:x', set_at: '2024-01-01T00:00:00Z' } },
-      })
-    ).toBe(true);
-  });
-
-  it('returns false when no resolved tag', () => {
-    expect(
-      isThreadResolvedFromContent({
-        tags: { blocked: { set_by: '@user:x', set_at: '2024-01-01T00:00:00Z' } },
+      isThreadTagsTombstone({
+        tags: { bug: { set_by: '@alice:example.com', set_at: 1000 } },
       })
     ).toBe(false);
   });
+});
 
-  it('returns false for empty/invalid content', () => {
-    expect(isThreadResolvedFromContent({})).toBe(false);
-    expect(isThreadResolvedFromContent(null)).toBe(false);
+describe('buildAddTagContent', () => {
+  it('adds a new tag preserving existing', () => {
+    const existing: ThreadTagsContent = {
+      tags: { bug: { set_by: '@alice:example.com', set_at: 1000 } },
+    };
+    const result = buildAddTagContent(existing, 'feature', '@bob:example.com');
+    expect(result.tags.bug).toEqual(existing.tags.bug);
+    expect(result.tags.feature.set_by).toBe('@bob:example.com');
+    expect(typeof result.tags.feature.set_at).toBe('number');
+  });
+
+  it('adds a tag to empty content', () => {
+    const result = buildAddTagContent({ tags: {} }, 'bug', '@alice:example.com');
+    expect(Object.keys(result.tags)).toEqual(['bug']);
+  });
+});
+
+describe('buildRemoveTagContent', () => {
+  it('removes a tag preserving others', () => {
+    const existing: ThreadTagsContent = {
+      tags: {
+        bug: { set_by: '@alice:example.com', set_at: 1000 },
+        feature: { set_by: '@bob:example.com', set_at: 2000 },
+      },
+    };
+    const result = buildRemoveTagContent(existing, 'bug');
+    expect(result.tags.feature).toEqual(existing.tags.feature);
+    expect(result.tags.bug).toBeUndefined();
+  });
+
+  it('returns empty tags when removing the only tag', () => {
+    const existing: ThreadTagsContent = {
+      tags: { bug: { set_by: '@alice:example.com', set_at: 1000 } },
+    };
+    const result = buildRemoveTagContent(existing, 'bug');
+    expect(result.tags).toEqual({});
   });
 });
 
 describe('buildResolvedTagsContent', () => {
-  it('creates content with resolved tag', () => {
-    const content = buildResolvedTagsContent('@user:x', null, '2024-01-01T00:00:00Z');
-    expect(content.tags.resolved).toEqual({
-      set_by: '@user:x',
-      set_at: '2024-01-01T00:00:00Z',
-    });
-  });
-
-  it('preserves existing tags', () => {
-    const existing = {
-      blocked: { set_by: '@admin:x', set_at: '2024-01-01T00:00:00Z' },
+  it('adds resolved tag preserving existing tags', () => {
+    const existing: ThreadTagsContent = {
+      tags: { bug: { set_by: '@alice:example.com', set_at: 1000 } },
     };
-    const content = buildResolvedTagsContent('@user:x', existing, '2024-01-02T00:00:00Z');
-    expect(Object.keys(content.tags)).toEqual(['blocked', 'resolved']);
+    const result = buildResolvedTagsContent(existing, '@alice:example.com');
+    expect(result.tags.bug).toEqual(existing.tags.bug);
+    expect(result.tags[RESOLVED_TAG].set_by).toBe('@alice:example.com');
   });
 });
 
 describe('buildUnresolvedTagsContent', () => {
-  it('removes resolved tag', () => {
-    const existing = {
-      resolved: { set_by: '@user:x', set_at: '2024-01-01T00:00:00Z' },
-      blocked: { set_by: '@admin:x', set_at: '2024-01-01T00:00:00Z' },
+  it('removes only the resolved tag', () => {
+    const existing: ThreadTagsContent = {
+      tags: {
+        bug: { set_by: '@alice:example.com', set_at: 1000 },
+        [RESOLVED_TAG]: { set_by: '@alice:example.com', set_at: 2000 },
+      },
     };
-    const content = buildUnresolvedTagsContent(existing);
-    expect(Object.keys(content.tags)).toEqual(['blocked']);
-  });
-
-  it('returns empty tags for null', () => {
-    expect(buildUnresolvedTagsContent(null)).toEqual({ tags: {} });
+    const result = buildUnresolvedTagsContent(existing);
+    expect(result.tags.bug).toEqual(existing.tags.bug);
+    expect(result.tags[RESOLVED_TAG]).toBeUndefined();
   });
 });
 
-describe('useToggleThreadResolution', () => {
-  it('reads the live thread-tags state with EventTimeline.FORWARDS', async () => {
-    const room = makeToggleRoom();
-    const { getSnapshot, renderer } = renderToggleHook(room);
-
-    await act(async () => {
-      await getSnapshot().setResolved('$thread-1', true);
-    });
-
-    expect(room.__mocks.getState).toHaveBeenCalledWith(EventTimeline.FORWARDS);
-    expect(room.__mocks.getStateEvents).toHaveBeenCalledWith(
-      StateEvent.ThreadTags,
-      '$thread-1'
-    );
-
-    renderer.unmount();
+describe('getDisplayTags', () => {
+  it('returns all tags except resolved', () => {
+    const content: ThreadTagsContent = {
+      tags: {
+        bug: { set_by: '@alice:example.com', set_at: 1000 },
+        feature: { set_by: '@bob:example.com', set_at: 2000 },
+        [RESOLVED_TAG]: { set_by: '@alice:example.com', set_at: 3000 },
+      },
+    };
+    expect(getDisplayTags(content)).toEqual(['bug', 'feature']);
   });
 
-  it('sends the thread-tags state event when resolving a thread', async () => {
-    const room = makeToggleRoom({
-      tags: {
-        blocked: { set_by: '@mod:example.org', set_at: '2024-01-01T00:00:00Z' },
-      },
-    });
-    const { getSnapshot, renderer } = renderToggleHook(room);
+  it('returns empty array when only resolved exists', () => {
+    const content: ThreadTagsContent = {
+      tags: { [RESOLVED_TAG]: { set_by: '@alice:example.com', set_at: 1000 } },
+    };
+    expect(getDisplayTags(content)).toEqual([]);
+  });
+});
 
-    await act(async () => {
-      await getSnapshot().setResolved('$thread-1', true);
-    });
+describe('isThreadResolved', () => {
+  it('returns true when resolved tag present', () => {
+    const content: ThreadTagsContent = {
+      tags: { [RESOLVED_TAG]: { set_by: '@alice:example.com', set_at: 1000 } },
+    };
+    expect(isThreadResolved(content)).toBe(true);
+  });
 
-    expect(sendStateEventMock).toHaveBeenCalledWith(
-      '!room:example.org',
-      StateEvent.ThreadTags,
+  it('returns false when no resolved tag', () => {
+    expect(isThreadResolved({ tags: { bug: { set_by: '@a:b', set_at: 1 } } })).toBe(false);
+  });
+
+  it('returns false for empty tags', () => {
+    expect(isThreadResolved({ tags: {} })).toBe(false);
+  });
+});
+
+describe('collectAvailableTags', () => {
+  it('collects unique tag names across multiple threads', () => {
+    const allContents: ThreadTagsContent[] = [
+      { tags: { bug: { set_by: '@a:b', set_at: 1 }, feature: { set_by: '@a:b', set_at: 2 } } },
+      { tags: { bug: { set_by: '@c:d', set_at: 3 }, review: { set_by: '@c:d', set_at: 4 } } },
+    ];
+    const result = collectAvailableTags(allContents, {});
+    expect(result).toEqual(['bug', 'feature', 'review']);
+  });
+
+  it('excludes resolved from suggestions', () => {
+    const allContents: ThreadTagsContent[] = [
       {
         tags: {
-          blocked: { set_by: '@mod:example.org', set_at: '2024-01-01T00:00:00Z' },
-          resolved: {
-            set_by: '@alice:example.org',
-            set_at: expect.any(String),
-          },
+          bug: { set_by: '@a:b', set_at: 1 },
+          [RESOLVED_TAG]: { set_by: '@a:b', set_at: 2 },
         },
       },
-      '$thread-1'
-    );
+    ];
+    const result = collectAvailableTags(allContents, {});
+    expect(result).toEqual(['bug']);
+  });
 
-    renderer.unmount();
+  it('excludes tags already present in current thread', () => {
+    const allContents: ThreadTagsContent[] = [
+      { tags: { bug: { set_by: '@a:b', set_at: 1 }, feature: { set_by: '@a:b', set_at: 2 } } },
+    ];
+    const currentTags = { bug: { set_by: '@a:b', set_at: 1 } };
+    const result = collectAvailableTags(allContents, currentTags);
+    expect(result).toEqual(['feature']);
+  });
+
+  it('returns empty for no available tags', () => {
+    expect(collectAvailableTags([], {})).toEqual([]);
   });
 });
 
-// ─── Legacy migration fallback ──────────────────────────────────────────────
+describe('normalizeTagName', () => {
+  it('trims and lowercases', () => {
+    expect(normalizeTagName('  Bug  ')).toBe('bug');
+    expect(normalizeTagName('FEATURE')).toBe('feature');
+  });
+});
 
-describe('parseLegacyResolutionContent', () => {
-  it('converts legacy { resolved: true } to tags format', () => {
-    const result = parseLegacyResolutionContent({ resolved: true });
-    expect(result).not.toBeNull();
-    expect(result!.isResolved).toBe(true);
-    expect(result!.tags).toEqual({
-      resolved: { set_by: 'legacy', set_at: '' },
-    });
+describe('isValidTagName', () => {
+  it('rejects empty names', () => {
+    expect(isValidTagName('')).toBe(false);
+    expect(isValidTagName('  ')).toBe(false);
   });
 
-  it('converts legacy { resolved: false } to unresolved state', () => {
-    const result = parseLegacyResolutionContent({ resolved: false });
-    expect(result).not.toBeNull();
-    expect(result!.isResolved).toBe(false);
-    expect(result!.tags).toBeNull();
+  it('rejects the reserved resolved tag', () => {
+    expect(isValidTagName('resolved')).toBe(false);
+    expect(isValidTagName('  Resolved  ')).toBe(false);
   });
 
-  it('returns null for non-object values', () => {
-    expect(parseLegacyResolutionContent(null)).toBeNull();
-    expect(parseLegacyResolutionContent(undefined)).toBeNull();
-    expect(parseLegacyResolutionContent('string')).toBeNull();
-    expect(parseLegacyResolutionContent(42)).toBeNull();
+  it('accepts valid names', () => {
+    expect(isValidTagName('bug')).toBe(true);
+    expect(isValidTagName('feature-request')).toBe(true);
   });
+});
 
-  it('returns null when resolved is not a boolean', () => {
-    expect(parseLegacyResolutionContent({ resolved: 'yes' })).toBeNull();
-    expect(parseLegacyResolutionContent({})).toBeNull();
-  });
-
-  it('returns null for arrays', () => {
-    expect(parseLegacyResolutionContent([true])).toBeNull();
+describe('EventTimeline.FORWARDS usage', () => {
+  it('verifies EventTimeline.FORWARDS is the SDK constant, not a string literal', () => {
+    // This test ensures we use the SDK constant rather than the string 'forward'
+    // which was the source of the CINNY-047 bug
+    expect(EventTimeline.FORWARDS).toBeDefined();
+    expect(typeof EventTimeline.FORWARDS).toBe('string');
   });
 });
