@@ -172,6 +172,7 @@ import { useThreadRenderState } from './useThreadRenderState';
 import { createTimelineDebugTrace, logTimelineDebug } from './timelineDebug';
 import { shouldUseSurfacePreloadTarget } from './roomPreloadTarget';
 import {
+  getCompactCachedThreadActivityTs,
   buildCompactThreadRootData,
   getCompactCachedThreadRootPreviewInfo,
   getCompactThreadRootBodyPreviewText,
@@ -2721,11 +2722,15 @@ export function RoomTimeline({
   const [compactCachedThreadRootBodyMap, setCompactCachedThreadRootBodyMap] = useState(
     () => new Map<string, string>()
   );
+  const [cachedThreadLastActivityTsMap, setCachedThreadLastActivityTsMap] = useState(
+    () => new Map<string, number>()
+  );
   const compactCachedRootPreviewAttemptCountsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     compactCachedRootPreviewAttemptCountsRef.current = new Map();
     setCompactCachedThreadRootBodyMap(new Map());
+    setCachedThreadLastActivityTsMap(new Map());
   }, [room.roomId]);
 
   const compactThreadRootBodyMap = useMemo(() => {
@@ -2761,7 +2766,8 @@ export function RoomTimeline({
         mx.getSafeUserId(),
         readUpToTs,
         visibleThreadRootData.indexMap,
-        visibleThreadRootData.bodyMap
+        visibleThreadRootData.bodyMap,
+        cachedThreadLastActivityTsMap
       );
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2777,6 +2783,7 @@ export function RoomTimeline({
       mx,
       readUpToTs,
       overviewRefreshCounter,
+      cachedThreadLastActivityTsMap,
     ]
   );
   const compactThreadMetadataMap = useMemo(
@@ -2794,7 +2801,8 @@ export function RoomTimeline({
         mx.getSafeUserId(),
         readUpToTs,
         compactThreadRootData.indexMap,
-        compactThreadRootBodyMap
+        compactThreadRootBodyMap,
+        cachedThreadLastActivityTsMap
       );
     },
     [
@@ -2811,6 +2819,7 @@ export function RoomTimeline({
       mx,
       readUpToTs,
       overviewRefreshCounter,
+      cachedThreadLastActivityTsMap,
       threadMetadataMap,
     ]
   );
@@ -2867,89 +2876,156 @@ export function RoomTimeline({
     ]
   );
   const showCompactRoomView = compactViewRequested && compactThreadRootData.ids.length > 0;
+  const overviewThreadRootIds = showCompactRoomView
+    ? compactThreadRootIds
+    : roomThreadFilterActive
+      ? filteredThreadRootIds
+      : [];
 
   useEffect(() => {
-    if (threadId || !compactViewRequested) return;
+    if (threadId || overviewThreadRootIds.length === 0) return;
 
-    const threadRootIdsToLoad = compactThreadRootIds
+    const threadRootIdsToLoad = overviewThreadRootIds
       .slice(0, 64)
       .filter((rootId) => {
-        if (compactCachedThreadRootBodyMap.has(rootId)) return false;
+        const needsActivityTs = !cachedThreadLastActivityTsMap.has(rootId);
+
+        if (!showCompactRoomView) {
+          return needsActivityTs;
+        }
 
         const currentPreview = compactThreadRootData.bodyMap.get(rootId);
         const attemptCount = compactCachedRootPreviewAttemptCountsRef.current.get(rootId) ?? 0;
         const maxAttempts =
           !currentPreview || hasLikelyIncompleteStreamingBody(currentPreview) ? 3 : 1;
-        return attemptCount < maxAttempts;
+        const needsPreview =
+          !compactCachedThreadRootBodyMap.has(rootId) && attemptCount < maxAttempts;
+
+        return needsActivityTs || needsPreview;
       });
     if (threadRootIdsToLoad.length === 0) return;
 
-    threadRootIdsToLoad.forEach((rootId) => {
-      const currentCount = compactCachedRootPreviewAttemptCountsRef.current.get(rootId) ?? 0;
-      compactCachedRootPreviewAttemptCountsRef.current.set(rootId, currentCount + 1);
-    });
+    if (showCompactRoomView) {
+      threadRootIdsToLoad.forEach((rootId) => {
+        if (compactCachedThreadRootBodyMap.has(rootId)) return;
+        const currentCount = compactCachedRootPreviewAttemptCountsRef.current.get(rootId) ?? 0;
+        compactCachedRootPreviewAttemptCountsRef.current.set(rootId, currentCount + 1);
+      });
+    }
 
     let cancelled = false;
     const mapper = mx.getEventMapper();
 
-    const loadCachedRootPreviews = async () => {
+    const loadCachedThreadOverviewMetadata = async () => {
+      type CachedOverviewUpdate = {
+        rootId: string;
+        nextActivityTs?: number;
+        nextPreview?: string;
+      };
+
       const updates = await Promise.all(
         threadRootIdsToLoad.map(async (rootId) => {
           const cachedPage = await loadLatestCachedThreadEvents(sessionId, room.roomId, rootId, 32);
-          const cachedPreview = getCompactCachedThreadRootPreviewInfo({
+          const cachedActivityTs = getCompactCachedThreadActivityTs({
             threadId: rootId,
             cachedPage,
             mapper,
           });
-          if (!cachedPreview) return null;
+          const liveActivityTs =
+            (showCompactRoomView ? compactThreadMetadataMap : threadMetadataMap).get(rootId)
+              ?.lastActivityTs ?? 0;
+          const nextActivityTs =
+            cachedActivityTs && cachedActivityTs > liveActivityTs ? cachedActivityTs : undefined;
 
-          const currentPreview = compactThreadRootData.bodyMap.get(rootId);
-          if (cachedPreview.previewText === currentPreview) return null;
+          let nextPreview: string | undefined;
+          if (showCompactRoomView && !compactCachedThreadRootBodyMap.has(rootId)) {
+            const cachedPreview = getCompactCachedThreadRootPreviewInfo({
+              threadId: rootId,
+              cachedPage,
+              mapper,
+            });
+            if (cachedPreview) {
+              const currentPreview = compactThreadRootData.bodyMap.get(rootId);
+              const currentRootEvent =
+                room.findEventById(rootId) ??
+                room.getThread(rootId)?.rootEvent ??
+                roomThreadListThreads.find((thread) => thread.id === rootId)?.rootEvent;
+              const currentSourceTs =
+                currentRootEvent?.replacingEvent()?.getTs() ?? currentRootEvent?.getTs() ?? 0;
+              if (
+                cachedPreview.previewText !== currentPreview &&
+                (!currentPreview || cachedPreview.sourceTs > currentSourceTs)
+              ) {
+                nextPreview = cachedPreview.previewText;
+              }
+            }
+          }
 
-          const currentRootEvent =
-            room.findEventById(rootId) ??
-            room.getThread(rootId)?.rootEvent ??
-            roomThreadListThreads.find((thread) => thread.id === rootId)?.rootEvent;
-          const currentSourceTs =
-            currentRootEvent?.replacingEvent()?.getTs() ?? currentRootEvent?.getTs() ?? 0;
-          if (currentPreview && cachedPreview.sourceTs <= currentSourceTs) return null;
+          if (nextActivityTs === undefined && nextPreview === undefined) return null;
 
-          return [rootId, cachedPreview.previewText] as const;
+          return {
+            rootId,
+            nextActivityTs,
+            nextPreview,
+          };
         })
       );
 
       if (cancelled) return;
 
-      const nextEntries = updates.filter(
-        (entry): entry is readonly [string, string] => !!entry
-      );
-      if (nextEntries.length === 0) return;
-
-      setCompactCachedThreadRootBodyMap((prev) => {
-        const next = new Map(prev);
-        nextEntries.forEach(([rootId, cachedPreview]) => {
-          next.set(rootId, cachedPreview);
-        });
-        return next;
+      const nextUpdates: CachedOverviewUpdate[] = [];
+      updates.forEach((entry) => {
+        if (entry !== null) nextUpdates.push(entry);
       });
+      if (nextUpdates.length === 0) return;
+
+      const activityUpdates = nextUpdates.filter((entry) => entry.nextActivityTs !== undefined);
+      if (activityUpdates.length > 0) {
+        setCachedThreadLastActivityTsMap((prev) => {
+          const next = new Map(prev);
+          activityUpdates.forEach(({ rootId, nextActivityTs }) => {
+            if (nextActivityTs === undefined) return;
+            next.set(rootId, nextActivityTs);
+          });
+          return next;
+        });
+      }
+
+      if (showCompactRoomView) {
+        const previewUpdates = nextUpdates.filter((entry) => entry.nextPreview !== undefined);
+        if (previewUpdates.length > 0) {
+          setCompactCachedThreadRootBodyMap((prev) => {
+            const next = new Map(prev);
+            previewUpdates.forEach(({ rootId, nextPreview }) => {
+              if (nextPreview === undefined) return;
+              next.set(rootId, nextPreview);
+            });
+            return next;
+          });
+        }
+      }
     };
 
-    loadCachedRootPreviews();
+    loadCachedThreadOverviewMetadata();
 
     return () => {
       cancelled = true;
     };
   }, [
+    cachedThreadLastActivityTsMap,
     compactCachedThreadRootBodyMap,
+    compactThreadMetadataMap,
     compactThreadRootData.bodyMap,
-    compactThreadRootIds,
-    compactViewRequested,
+    overviewThreadRootIds,
+    roomThreadFilterActive,
+    showCompactRoomView,
     mx,
     room,
     room.roomId,
     roomThreadListThreads,
     sessionId,
     threadId,
+    threadMetadataMap,
   ]);
 
   const useSurfacePreloadTarget = shouldUseSurfacePreloadTarget({

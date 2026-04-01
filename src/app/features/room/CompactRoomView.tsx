@@ -59,6 +59,7 @@ export function CompactRoomView({
             threadRootEvent={threadRootEvent}
             rootPreviewText={metadata?.rootPreviewText}
             summaryInfo={resolvedSummaryInfo}
+            lastActivityTs={metadata?.lastActivityTs}
             onClick={onThreadClick}
           />
         );
