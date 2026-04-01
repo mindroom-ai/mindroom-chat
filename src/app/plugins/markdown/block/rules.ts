@@ -1,3 +1,5 @@
+import { sanitizeText } from '../../../utils/sanitize';
+import { findDisplayLatexBlockMatch } from '../../math';
 import { BlockMDRule } from './type';
 
 const HEADING_REG_1 = /^(#{1,6}) +(.+)\n?/m;
@@ -18,6 +20,32 @@ export const CodeBlockRule: BlockMDRule = {
     const [, g1, g2] = match;
     const classNameAtt = g1 ? ` class="language-${g1}"` : '';
     return `<pre data-md="${CODEBLOCK_MD_1}"><code${classNameAtt}>${g2}</code></pre>`;
+  },
+};
+
+const createBlockRuleMatch = (
+  text: string,
+  fullMatch: string,
+  content: string,
+  index: number
+): RegExpExecArray => {
+  const match = [fullMatch, content] as unknown as RegExpExecArray;
+  match.index = index;
+  match.input = text;
+  return match;
+};
+
+export const DisplayMathBlockRule: BlockMDRule = {
+  match: (text) => {
+    const match = findDisplayLatexBlockMatch(text);
+    if (!match) return null;
+
+    return createBlockRuleMatch(text, match.fullMatch, match.latex, match.start);
+  },
+  html: (match) => {
+    const [, g1] = match;
+    const latex = sanitizeText(g1);
+    return `<div data-mx-maths="${latex}">${latex}</div>`;
   },
 };
 

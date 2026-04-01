@@ -2,6 +2,7 @@ import { replaceMatch } from '../internal';
 import {
   BlockQuoteRule,
   CodeBlockRule,
+  DisplayMathBlockRule,
   ESC_BLOCK_SEQ,
   HeadingRule,
   OrderedListRule,
@@ -22,6 +23,10 @@ export const parseBlockMD: BlockMDParser = (text, parseInline) => {
   let result: string | undefined;
 
   if (!result) result = runBlockRule(text, CodeBlockRule, parseBlockMD, parseInline);
+  // Display math is intentionally top-level only. Nested block containers
+  // like blockquotes/lists keep raw $$...$$ text until the parser can round-trip
+  // nested block math nodes without flattening them on import.
+  if (!result) result = runBlockRule(text, DisplayMathBlockRule, parseBlockMD, parseInline);
   if (!result) result = runBlockRule(text, BlockQuoteRule, parseBlockMD, parseInline);
   if (!result) result = runBlockRule(text, OrderedListRule, parseBlockMD, parseInline);
   if (!result) result = runBlockRule(text, UnorderedListRule, parseBlockMD, parseInline);

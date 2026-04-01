@@ -60,6 +60,7 @@ import {
   parseMatrixToUser,
   testMatrixTo,
 } from './matrix-to';
+import { renderLatexToHtml, tokenizeTextWithLatex, unescapeLatexDelimiters } from './math';
 import { onEnterOrSpace } from '../utils/keyboard';
 import { copyToClipboard, tryDecodeURIComponent } from '../utils/dom';
 import { useTimeoutToggle } from '../hooks/useTimeoutToggle';
@@ -227,6 +228,100 @@ export const highlightText = (
     );
   });
 
+const formatRawLatex = (latex: string, displayMode: boolean): string =>
+  displayMode ? `$$${latex}$$` : `$${latex}$`;
+
+const renderStyledText = (text: string, highlightRegex?: RegExp): (string | JSX.Element)[] => {
+  let jsx = scaleSystemEmoji(text);
+
+  if (highlightRegex) {
+    jsx = highlightText(highlightRegex, jsx);
+  }
+
+  return jsx;
+};
+
+const MathHtml = ({
+  latex,
+  displayMode,
+  className,
+  fallback,
+  as = 'span',
+}: {
+  latex: string;
+  displayMode: boolean;
+  className: string;
+  fallback?: React.ReactNode;
+  as?: 'span' | 'div';
+}) => {
+  const renderedHtml = renderLatexToHtml(latex, displayMode);
+  const Tag = as;
+
+  if (renderedHtml === latex) {
+    return <Tag className={className}>{fallback ?? formatRawLatex(latex, displayMode)}</Tag>;
+  }
+
+  return <Tag className={className} dangerouslySetInnerHTML={{ __html: renderedHtml }} />;
+};
+
+export const renderTextWithLatex = (
+  text: string,
+  params: {
+    linkify?: boolean;
+    linkifyOpts: LinkifyOpts;
+    highlightRegex?: RegExp;
+    keyPrefix?: string;
+  }
+): React.ReactNode => {
+  const segments = tokenizeTextWithLatex(text, params.linkifyOpts);
+  const hasEscapedDelimiters = segments.some(
+    (segment) =>
+      segment.type === 'text' &&
+      unescapeLatexDelimiters(segment.content) !== segment.content
+  );
+  const hasMath = segments.some((segment) => segment.type === 'math');
+  const hasOnlyPlainText = segments.every((segment) => segment.type === 'text');
+
+  if (hasOnlyPlainText && !hasEscapedDelimiters && !hasMath) {
+    const jsx = renderStyledText(text, params.highlightRegex);
+    if (params.linkify === false) return jsx;
+    return <Linkify options={params.linkifyOpts}>{jsx}</Linkify>;
+  }
+
+  return segments
+    .map((segment, index) => {
+      const key = `${params.keyPrefix ?? 'latex'}-${index}`;
+
+      if (segment.type === 'math') {
+        return (
+          <MathHtml
+            key={key}
+            as="span"
+            latex={segment.content}
+            displayMode={segment.displayMode}
+            className={segment.displayMode ? css.MathBlock : css.MathInline}
+          />
+        );
+      }
+
+      const content =
+        segment.type === 'text' ? unescapeLatexDelimiters(segment.content) : segment.content;
+      if (content === '') return null;
+
+      const jsx = renderStyledText(content, params.highlightRegex);
+      if (params.linkify === false || segment.type === 'verbatim') {
+        return <React.Fragment key={key}>{jsx}</React.Fragment>;
+      }
+
+      return (
+        <Linkify key={key} options={params.linkifyOpts}>
+          {jsx}
+        </Linkify>
+      );
+    })
+    .filter((node) => node !== null);
+};
+
 /**
  * Recursively extracts and concatenates all text content from an array of ChildNode objects.
  *
@@ -362,7 +457,11 @@ const MINDROOM_BLOCK_META: Record<MindroomTagName, { label: string; icon: IconSr
 };
 
 function ToolStatusBadge({ pending }: { pending: boolean }) {
-  return pending ? <Spinner size="100" variant="Secondary" /> : <Icon size="50" src={Icons.Check} />;
+  return pending ? (
+    <Spinner size="100" variant="Secondary" />
+  ) : (
+    <Icon size="50" src={Icons.Check} />
+  );
 }
 
 function MindroomCollapsibleBlock({
@@ -684,8 +783,7 @@ export const withMindroomToolTraceMarkerParserOptions = (
   const nextOpts: HTMLReactParserOptions = {
     ...baseOpts,
     replace: (domNode) => {
-      const isContainer =
-        isDomElementNode(domNode) && ['p', 'div', 'li'].includes(domNode.name);
+      const isContainer = isDomElementNode(domNode) && ['p', 'div', 'li'].includes(domNode.name);
 
       if (isContainer) {
         const maybeChildren = domNode.children;
@@ -791,8 +889,7 @@ export const withMindroomToolTraceMarkerParserOptions = (
       return baseReplace ? baseReplace(domNode) : undefined;
     },
     transform: (reactNode, domNode, index) => {
-      const isContainer =
-        isDomElementNode(domNode) && ['p', 'div', 'li'].includes(domNode.name);
+      const isContainer = isDomElementNode(domNode) && ['p', 'div', 'li'].includes(domNode.name);
 
       if (isContainer) {
         const maybeChildren = domNode.children;
@@ -971,6 +1068,24 @@ export const getReactCustomHtmlParser = (
           if (mention) return mention;
         }
 
+        if ((name === 'span' || name === 'div') && typeof attribs['data-mx-maths'] === 'string') {
+          const latex = attribs['data-mx-maths'];
+          const fallback = children.length > 0 ? domToReact(children, opts) : undefined;
+
+          return (
+            <MathHtml
+              as={name === 'div' ? 'div' : 'span'}
+              latex={latex}
+              displayMode={name === 'div'}
+              fallback={fallback}
+              className={classNames(
+                name === 'div' ? css.MathBlock : css.MathInline,
+                props.className
+              )}
+            />
+          );
+        }
+
         if (name === 'span' && 'data-mx-spoiler' in props) {
           return (
             <span
@@ -1011,25 +1126,35 @@ export const getReactCustomHtmlParser = (
       }
 
       if (domNode instanceof DOMText) {
-        const parentName = domNode.parent && 'name' in domNode.parent ? domNode.parent.name : undefined;
+        const parentName =
+          domNode.parent && 'name' in domNode.parent ? domNode.parent.name : undefined;
 
         // React rejects whitespace text nodes directly under table structure tags.
-        if (parentName && TABLE_STRUCTURE_TAGS.has(parentName) && domNode.data.trim().length === 0) {
+        if (
+          parentName &&
+          TABLE_STRUCTURE_TAGS.has(parentName) &&
+          domNode.data.trim().length === 0
+        ) {
           return null;
         }
 
         const linkify = parentName !== 'code' && parentName !== 'a';
+        const parseMath = parentName !== 'code' && parentName !== 'pre' && parentName !== 'a';
 
-        let jsx = scaleSystemEmoji(domNode.data);
-
-        if (params.highlightRegex) {
-          jsx = highlightText(params.highlightRegex, jsx);
+        if (parseMath) {
+          return (
+            <>
+              {renderTextWithLatex(domNode.data, {
+                linkify,
+                linkifyOpts: params.linkifyOpts,
+                highlightRegex: params.highlightRegex,
+                keyPrefix: `${parentName ?? 'text'}-${domNode.startIndex ?? 0}`,
+              })}
+            </>
+          );
         }
 
-        if (linkify) {
-          return <Linkify options={params.linkifyOpts}>{jsx}</Linkify>;
-        }
-        return jsx;
+        return <>{renderStyledText(domNode.data, params.highlightRegex)}</>;
       }
       return undefined;
     },
