@@ -17,6 +17,7 @@ import { type Relations } from 'matrix-js-sdk/lib/models/relations';
 import FocusTrap from 'focus-trap-react';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { factoryEventSentBy } from '../../../utils/matrix';
+import { getActiveAnnotationsByKey } from '../../../utils/reactionAnnotations';
 import { Reaction, ReactionTooltipMsg } from '../../../components/message';
 import { useRelations } from '../../../hooks/useRelations';
 import * as css from './styles.css';
@@ -44,7 +45,7 @@ export const Reactions = as<'div', ReactionsProps>(
     const myUserId = mx.getUserId();
     const reactions = useRelations(
       relations,
-      useCallback((rel) => [...(rel.getSortedAnnotationsByKey() ?? [])], [])
+      useCallback((rel) => getActiveAnnotationsByKey(rel), [])
     );
 
     const handleViewReaction: MouseEventHandler<HTMLButtonElement> = (evt) => {

@@ -4,6 +4,7 @@ import {
   aggregateCachedRelationEvents,
   applyCachedRedactions,
   applyCachedReplaceRelations,
+  collectRedactedRelationTargetsFromLookup,
   hydrateCachedEvents,
   serializeEventsForCache,
 } from './eventCacheEditUtils';
@@ -281,5 +282,70 @@ describe('aggregateCachedRelationEvents', () => {
 
     expect(aggregateChildEvent).toHaveBeenCalledTimes(1);
     expect(aggregateChildEvent).toHaveBeenCalledWith(reactionEvent, timelineSet);
+  });
+
+  it('removes a stale aggregated reaction when a redacted shell for the same event id arrives', () => {
+    const existingReaction = makeReactionEvent('$reaction', 2000, '$target');
+    const staleRelations = {
+      getRelations: () => [existingReaction],
+      removeEvent: vi.fn(() => Promise.resolve()),
+    };
+    const timelineSet = {
+      relations: {
+        aggregateChildEvent: vi.fn(),
+        getChildEventsForEvent: vi.fn(() => staleRelations),
+      },
+    } as any;
+    const seenEventIds = new Set<string>(['$reaction']);
+    const redactedReactionShell = makeReactionEvent('$reaction', 2100, '$target');
+    vi.spyOn(redactedReactionShell, 'isRedacted').mockReturnValue(true);
+
+    aggregateCachedRelationEvents([redactedReactionShell], [timelineSet], seenEventIds);
+
+    expect(staleRelations.removeEvent).toHaveBeenCalledWith(existingReaction);
+    expect(timelineSet.relations.aggregateChildEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe('collectRedactedRelationTargetsFromLookup', () => {
+  it('recovers parent relation metadata for an already-redacted relation shell', () => {
+    const staleReaction = makeReactionEvent('$reaction', 2000, '$target');
+    const redactedReactionShell = new MatrixEvent({
+      content: {},
+      event_id: '$reaction',
+      origin_server_ts: 2100,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.reaction',
+      unsigned: {
+        redacted_because: {
+          auth_events: [],
+          content: {
+            redacts: '$reaction',
+          },
+          depth: 1,
+          event_id: '$redaction',
+          hashes: {
+            sha256: '',
+          },
+          origin: 'example.org',
+          origin_server_ts: 2200,
+          prev_events: [],
+          redacts: '$reaction',
+          room_id: '!room:example.org',
+          sender: '@alice:example.org',
+          type: 'm.room.redaction',
+        },
+      },
+    });
+
+    expect(collectRedactedRelationTargetsFromLookup([redactedReactionShell], [staleReaction])).toEqual([
+      {
+        eventId: '$reaction',
+        eventType: 'm.reaction',
+        parentEventId: '$target',
+        relationType: 'm.annotation',
+      },
+    ]);
   });
 });
