@@ -890,7 +890,12 @@ export type MessageProps = {
     startThread?: boolean
   ) => void;
   onEditId?: (eventId?: string) => void;
-  onReactionToggle: (targetEventId: string, key: string, shortcode?: string) => void;
+  onReactionToggle: (
+    targetEventId: string,
+    key: string,
+    shortcode?: string,
+    relations?: Relations
+  ) => void;
   reply?: ReactNode;
   reactions?: ReactNode;
   hideReadReceipts?: boolean;
