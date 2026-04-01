@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Room } from 'matrix-js-sdk';
 import { useStateEvent } from '../../hooks/useStateEvent';
 import { useStateEvents } from '../../hooks/useStateEvents';
@@ -15,6 +15,12 @@ import {
   type TagMetadata,
   type ThreadTagsContent,
 } from './threadTags';
+import {
+  clearPendingThreadTagsContent,
+  getPendingThreadTagsContent,
+  sameThreadTagsContent,
+  usePendingThreadTagsVersion,
+} from './threadTagPending';
 
 export type UseThreadTagsResult = {
   /** Full parsed tag map */
@@ -55,11 +61,25 @@ export const useThreadTags = (
 
   // Subscribe to ALL thread tag events for suggestion collection
   const allTagEvents = useStateEvents(room, StateEvent.ThreadTags);
+  const pVersion = usePendingThreadTagsVersion();
 
-  const content = useMemo(
+  const actualContent = useMemo(
     () => parseThreadTagsContent(tagEvent?.getContent()),
     [tagEvent]
   );
+  const pendingContent = useMemo(
+    () => (threadRootId ? getPendingThreadTagsContent(room.roomId, threadRootId) : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [room.roomId, threadRootId, pVersion]
+  );
+  const content = pendingContent ?? actualContent;
+
+  useEffect(() => {
+    if (!threadRootId || !pendingContent) return;
+    if (sameThreadTagsContent(actualContent, pendingContent)) {
+      clearPendingThreadTagsContent(room.roomId, threadRootId);
+    }
+  }, [actualContent, pendingContent, room.roomId, threadRootId]);
 
   const displayTags = useMemo(() => getDisplayTags(content), [content]);
 

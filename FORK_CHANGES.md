@@ -75,6 +75,10 @@
 - `CINNY-050c`
   - Fixes tag picker input focus: removes explicit `initialFocus` from FocusTrap (lets it default to first tabbable element, matching working patterns like AdditionalCreatorInput), adds `useEffect`+`requestAnimationFrame` safety net for portal timing.
   - Improves empty-state UX: shows "Type to create a tag" when no tags exist instead of "No tags available".
+  - Banner tag mutations now also:
+    - resolve writes against the canonical known thread root,
+    - seed pending tag content immediately for add/remove/resolve actions,
+    - and surface that pending content through both the thread banner and room overview readers instead of waiting for a later state refresh.
 - `CINNY-053`
   - Fixes iOS Safari keyboard dismiss scroll bug: adds `interactive-widget=resizes-content` to the viewport meta tag and a `useIOSKeyboardFix` hook that resets stale scroll offsets when the virtual keyboard is dismissed.
 
@@ -90,7 +94,7 @@
 
 - Cleaned issue-backed `dev` history starts at `96b13bcc`.
 - Current green baseline at `HEAD`:
-  - `npx vitest run` passes (`105/105` files, `900/900` tests)
+  - `npx vitest run` passes (`107/107` files, `904/904` tests)
   - `npm run typecheck` passes
   - `npm run build` passes
 
