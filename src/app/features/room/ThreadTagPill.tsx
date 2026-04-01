@@ -34,7 +34,6 @@ const removeButtonStyle: React.CSSProperties = {
   fontSize: '0.6rem',
   lineHeight: 1,
   color: TAG_TEXT_COLOR,
-  opacity: 0,
   transition: 'opacity 0.15s',
   display: 'inline-flex',
   alignItems: 'center',
