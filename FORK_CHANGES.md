@@ -75,6 +75,10 @@
 - `CINNY-050c`
   - Fixes tag picker input focus: removes explicit `initialFocus` from FocusTrap (lets it default to first tabbable element, matching working patterns like AdditionalCreatorInput), adds `useEffect`+`requestAnimationFrame` safety net for portal timing.
   - Improves empty-state UX: shows "Type to create a tag" when no tags exist instead of "No tags available".
+- `CINNY-050d`
+  - Removes the legacy `com.mindroom.thread.resolution` fallback from `useRoomThreadTags`.
+  - All thread resolution/tag readers now depend only on `com.mindroom.thread.tags`.
+  - This assumes thread resolution data has already been migrated to the new state-event format.
 - `CINNY-053`
   - Fixes iOS Safari keyboard dismiss scroll bug: adds `interactive-widget=resizes-content` to the viewport meta tag and a `useIOSKeyboardFix` hook that resets stale scroll offsets when the virtual keyboard is dismissed.
 
