@@ -65,12 +65,14 @@ export type CollapsibleMessageCollapseMode =
 type CollapsibleMessageProps = {
   children: ReactNode;
   collapseMode?: CollapsibleMessageCollapseMode;
+  measurementKey?: string;
   onInitialExpandConsumed?: () => void;
 };
 
 export function CollapsibleMessage({
   children,
   collapseMode = 'default',
+  measurementKey,
   onInitialExpandConsumed,
 }: CollapsibleMessageProps) {
   const isExempt = collapseMode === 'always-expanded';
@@ -105,8 +107,8 @@ export function CollapsibleMessage({
     previousCollapseModeRef.current = collapseMode;
   }, [collapseMode]);
 
-  // Runs synchronously after every render — catches streaming edits
-  useLayoutEffect(checkOverflow);
+  // Re-measure when the collapse state or the semantic message identity changes.
+  useLayoutEffect(checkOverflow, [checkOverflow, measurementKey]);
 
   // ResizeObserver for async layout shifts (lazy images, font loading, etc.)
   useEffect(() => {
@@ -191,7 +193,7 @@ export function CollapsibleMessage({
   const showGradient = !isExempt && !expanded && overflowing;
 
   return (
-    <div style={{ overflowAnchor: 'none' }}>
+    <div>
       <div
         ref={contentRef}
         className={css.CollapsibleContent()}
