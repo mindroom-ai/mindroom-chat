@@ -5927,6 +5927,82 @@ describe('fetchAllThreadRelations', () => {
     );
   });
 
+  it('refreshes overview metadata only for thread-targeted timeline events', async () => {
+    const { shouldRefreshOverviewForTimelineEvent } = await import('./RoomTimeline');
+    const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
+    const threadReply = makeEvent('$thread-reply', {
+      threadRootId: threadRoot.getId(),
+    });
+    const roomMessage = makeEvent('$message');
+    const threadRootEdit = makeEvent('$thread-root-edit', {
+      associatedId: threadRoot.getId(),
+      relation: { rel_type: 'm.replace', event_id: threadRoot.getId() },
+    });
+    const threadReplyEdit = makeEvent('$thread-reply-edit', {
+      associatedId: threadReply.getId(),
+      relation: { rel_type: 'm.replace', event_id: threadReply.getId() },
+    });
+    const roomAnnotation = makeEvent('$annotation', {
+      associatedId: roomMessage.getId(),
+      relation: { rel_type: 'm.annotation', event_id: roomMessage.getId() },
+    });
+    const room = makeRoom({
+      liveEvents: [threadRoot, roomMessage],
+      findEventById: (eventId: string) => {
+        if (eventId === threadRoot.getId()) return threadRoot;
+        if (eventId === threadReply.getId()) return threadReply;
+        if (eventId === roomMessage.getId()) return roomMessage;
+        return undefined;
+      },
+    });
+
+    expect(shouldRefreshOverviewForTimelineEvent(room as never, roomMessage as never)).toBe(false);
+    expect(shouldRefreshOverviewForTimelineEvent(room as never, threadRoot as never)).toBe(true);
+    expect(shouldRefreshOverviewForTimelineEvent(room as never, threadReply as never)).toBe(true);
+    expect(shouldRefreshOverviewForTimelineEvent(room as never, threadRootEdit as never)).toBe(
+      true
+    );
+    expect(shouldRefreshOverviewForTimelineEvent(room as never, threadReplyEdit as never)).toBe(
+      true
+    );
+    expect(shouldRefreshOverviewForTimelineEvent(room as never, roomAnnotation as never)).toBe(
+      false
+    );
+  });
+
+  it('recomputes overview read-up-to metadata on receipts', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
+    const room = makeRoom({
+      liveEvents: [threadRoot],
+    });
+    const getEventReadUpTo = vi.fn(() => undefined);
+    room.getEventReadUpTo = getEventReadUpTo;
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(ControlledRoomTimeline, { room }));
+      await flushAsyncWork(1);
+    });
+
+    const receiptHandler = room.__listeners.get(RoomEvent.Receipt);
+    expect(receiptHandler).toBeTypeOf('function');
+
+    const readUpToCallsBeforeReceipt = getEventReadUpTo.mock.calls.length;
+    await act(async () => {
+      receiptHandler?.({}, room);
+      await flushAsyncWork(1);
+    });
+
+    expect(getEventReadUpTo.mock.calls.length).toBeGreaterThan(readUpToCallsBeforeReceipt);
+
+    await act(async () => {
+      renderer?.unmount();
+      await flushAsyncWork(1);
+    });
+  });
+
   it('backfills visible room thread summaries from cached thread events', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
     const rootEvent = makeEvent('$root', {

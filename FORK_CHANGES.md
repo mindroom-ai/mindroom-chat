@@ -16,6 +16,10 @@
   - Recovers cached thread hydration and truncation behavior so cached thread opens prefer complete local thread data instead of thin slices.
 - `CINNY-040`
   - Drops structural table whitespace parser nodes that polluted rendering.
+- `CINNY-041`
+  - Applies the safe subset only:
+    - `CollapsibleMessage` overflow measurement now re-runs only when the semantic message identity changes, and no longer disables wrapper scroll anchoring.
+    - Room overview refresh ignores non-thread `RoomEvent.Timeline` traffic while still refreshing for thread-targeted events and receipts.
 - `CINNY-028`
   - Adds tri-state thread filters, tag filtering, natural sort, and `threadTags` migration.
 - `CINNY-028b`
@@ -75,7 +79,7 @@
 
 - Cleaned issue-backed `dev` history starts at `96b13bcc`.
 - Current green baseline at `HEAD`:
-  - `npm test` passes (`102/102` files, `861/861` tests)
+  - `npx vitest run` passes (`103/103` files, `873/873` tests)
   - `npm run typecheck` passes
   - `npm run build` passes
 
