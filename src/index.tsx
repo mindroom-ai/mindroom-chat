@@ -7,6 +7,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import '@fontsource/inter/variable.css';
 import 'folds/dist/style.css';
+import 'katex/dist/katex.min.css';
 import { configClass, varsClass } from 'folds';
 
 enableMapSet();
@@ -70,11 +71,14 @@ const mountApp = () => {
 const bootstrap = async () => {
   // Request persistent storage to prevent browser from evicting IndexedDB
   if (navigator.storage?.persist) {
-    navigator.storage.persist().then((granted) => {
-      console.log(`[Cinny] Persistent storage: ${granted ? 'granted' : 'denied'}`);
-    }).catch((err) => {
-      console.warn('[Cinny] Persistent storage request failed:', err);
-    });
+    navigator.storage
+      .persist()
+      .then((granted) => {
+        console.log(`[Cinny] Persistent storage: ${granted ? 'granted' : 'denied'}`);
+      })
+      .catch((err) => {
+        console.warn('[Cinny] Persistent storage request failed:', err);
+      });
   }
 
   if ('serviceWorker' in navigator && isServiceWorkerEnabled()) {
@@ -85,9 +89,7 @@ const bootstrap = async () => {
     subscribeToSessionStore(postCurrentSessionToSW);
 
     const swUrl =
-      import.meta.env.MODE === 'production'
-        ? appUrl('sw.js')
-        : appUrl('dev-sw.js?dev-sw');
+      import.meta.env.MODE === 'production' ? appUrl('sw.js') : appUrl('dev-sw.js?dev-sw');
 
     navigator.serviceWorker.ready.then(postCurrentSessionToSW).catch(() => undefined);
     navigator.serviceWorker.addEventListener('controllerchange', postCurrentSessionToSW);

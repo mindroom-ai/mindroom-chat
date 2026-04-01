@@ -74,6 +74,7 @@
     "immer": "9.0.16",
     "is-hotkey": "0.2.0",
     "jotai": "2.6.0",
+    "katex": "0.16.44",
     "linkify-react": "4.3.2",
     "linkifyjs": "4.3.2",
     "matrix-js-sdk": "38.2.0",
