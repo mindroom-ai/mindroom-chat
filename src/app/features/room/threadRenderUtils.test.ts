@@ -55,6 +55,37 @@ const makeEditEvent = (targetEventId: string, editEventId: string, ts: number) =
     type: 'm.room.message',
   });
 
+const attachSerializedReplacement = (
+  targetEvent: MatrixEvent,
+  replacementEventId: string,
+  ts?: number,
+  sender = '@alice:example.org'
+) => {
+  targetEvent.event.unsigned = {
+    'm.relations': {
+      'm.replace': {
+        content: {
+          body: '* edited',
+          'm.new_content': {
+            body: `edited ${ts}`,
+            msgtype: 'm.text',
+          },
+          'm.relates_to': {
+            event_id: targetEvent.getId(),
+            rel_type: 'm.replace',
+          },
+          msgtype: 'm.text',
+        },
+        event_id: replacementEventId,
+        ...(typeof ts === 'number' ? { origin_server_ts: ts } : {}),
+        room_id: '!room:example.org',
+        sender,
+        type: 'm.room.message',
+      },
+    },
+  };
+};
+
 const makeRoom = (txnMap?: Map<string, MatrixEvent>) =>
   ({
     getEventForTxnId: (txnId: string) => txnMap?.get(txnId),
@@ -125,6 +156,33 @@ describe('pickPreferredThreadRenderEvent', () => {
     incomingEvent.makeReplaced(makeEditEvent('$target', '$edit-3', 3));
 
     expect(pickPreferredThreadRenderEvent(existingEvent, incomingEvent)).toBe(incomingEvent);
+  });
+
+  it('prefers an incoming event with a newer bundled replacement over a stale live edit', () => {
+    const existingEvent = makeMessageEvent('$target');
+    const incomingEvent = makeMessageEvent('$target');
+    existingEvent.makeReplaced(makeEditEvent('$target', '$edit-8', 8));
+    attachSerializedReplacement(incomingEvent, '$edit-13', 13);
+
+    expect(pickPreferredThreadRenderEvent(existingEvent, incomingEvent)).toBe(incomingEvent);
+  });
+
+  it('ignores bundled replacements without origin_server_ts when picking the preferred event', () => {
+    const existingEvent = makeMessageEvent('$target');
+    const incomingEvent = makeMessageEvent('$target');
+    existingEvent.makeReplaced(makeEditEvent('$target', '$edit-8', 8));
+    attachSerializedReplacement(incomingEvent, '$edit-13');
+
+    expect(pickPreferredThreadRenderEvent(existingEvent, incomingEvent)).toBe(existingEvent);
+  });
+
+  it('ignores bundled replacements from other senders when picking the preferred event', () => {
+    const existingEvent = makeMessageEvent('$target');
+    const incomingEvent = makeMessageEvent('$target');
+    existingEvent.makeReplaced(makeEditEvent('$target', '$edit-8', 8));
+    attachSerializedReplacement(incomingEvent, '$edit-13', 13, '@mallory:example.org');
+
+    expect(pickPreferredThreadRenderEvent(existingEvent, incomingEvent)).toBe(existingEvent);
   });
 });
 
