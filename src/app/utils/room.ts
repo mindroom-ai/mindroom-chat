@@ -29,6 +29,10 @@ import {
   StateEvent,
   UnreadInfo,
 } from '../../types/matrix/room';
+import {
+  getSerializedReplacementEvent,
+  isSameSenderEditEvent,
+} from './editEvent';
 import { mxcUrlToHttp } from './mediaUrl';
 
 const EDIT_DEBUG_FLAG_STORAGE_KEY = 'mindroom.debug.edits';
@@ -440,16 +444,35 @@ export const getLatestEdit = (
 ): MatrixEvent | undefined => {
   const targetSender = targetEvent.getSender();
 
-  // Prefer higher timestamp; when equal, prefer the later relation entry
-  // so we don't get stuck on the earliest edit.
+  // Prefer higher timestamp; when equal, prefer the later candidate so callers
+  // can encode source priority by candidate ordering.
   return editEvents.reduce<MatrixEvent | undefined>((latest, editEvent) => {
     if (editEvent.getSender() !== targetSender) return latest;
     if (!latest) return editEvent;
 
-    if (editEvent.getTs() > latest.getTs()) return editEvent;
-    if (editEvent.getTs() === latest.getTs()) return editEvent;
+    if (editEvent.getTs() >= latest.getTs()) return editEvent;
     return latest;
   }, undefined);
+};
+
+const copyResolvedMessageMetadata = (
+  resolvedContent: Record<string, unknown>,
+  sources: Array<Record<string, unknown> | undefined>
+): void => {
+  sources.forEach((source) => {
+    if (!source) return;
+
+    Object.entries(source).forEach(([key, value]) => {
+      if (resolvedContent[key] !== undefined) return;
+      if (
+        key === 'm.mentions' ||
+        key.startsWith('io.mindroom.') ||
+        key.startsWith('com.mindroom.')
+      ) {
+        resolvedContent[key] = value;
+      }
+    });
+  });
 };
 
 export const getEditedEvent = (
@@ -457,43 +480,59 @@ export const getEditedEvent = (
   mEvent: MatrixEvent,
   timelineSet: EventTimelineSet
 ): MatrixEvent | undefined => {
-  const replacingEvent = mEvent.replacingEvent();
-  if (replacingEvent && replacingEvent.getSender() === mEvent.getSender()) {
-    logEditDebug('getEditedEvent:replacingEvent', {
-      eventId: mEventId,
-      replacingEventId: replacingEvent.getId(),
-      replacingTs: replacingEvent.getTs(),
-      source: 'sdk',
-    });
-    return replacingEvent;
-  }
-  if (replacingEvent && replacingEvent.getSender() !== mEvent.getSender()) {
+  const replacingEventCandidate = mEvent.replacingEvent() ?? undefined;
+  const replacingEvent = isSameSenderEditEvent(mEvent, replacingEventCandidate)
+    ? replacingEventCandidate
+    : undefined;
+  if (replacingEventCandidate && !replacingEvent) {
     logEditDebug('getEditedEvent:replacingEventRejected', {
       eventId: mEventId,
-      replacingEventId: replacingEvent.getId(),
-      replacingSender: replacingEvent.getSender(),
+      replacingEventId: replacingEventCandidate.getId(),
+      replacingSender: replacingEventCandidate.getSender(),
+      targetSender: mEvent.getSender(),
+      reason: 'sender_mismatch',
+    });
+  }
+
+  const serializedReplacementCandidate = getSerializedReplacementEvent(mEvent);
+  const serializedReplacement = isSameSenderEditEvent(mEvent, serializedReplacementCandidate)
+    ? serializedReplacementCandidate
+    : undefined;
+  if (serializedReplacementCandidate && !serializedReplacement) {
+    logEditDebug('getEditedEvent:serializedReplacementRejected', {
+      eventId: mEventId,
+      replacingEventId: serializedReplacementCandidate.getId(),
+      replacingSender: serializedReplacementCandidate.getSender(),
       targetSender: mEvent.getSender(),
       reason: 'sender_mismatch',
     });
   }
 
   const edits = getEventEdits(timelineSet, mEventId, mEvent.getType());
-  if (!edits) {
-    logEditDebug('getEditedEvent:noRelationEdits', {
-      eventId: mEventId,
-      eventType: mEvent.getType(),
-    });
-    return undefined;
-  }
-
-  const relations = edits.getRelations();
-  const latestEdit = getLatestEdit(mEvent, relations);
-  logEditDebug('getEditedEvent:relationFallback', {
+  const relations = edits?.getRelations() ?? [];
+  const candidateEdits = [
+    ...relations,
+    replacingEvent,
+    serializedReplacement,
+  ].filter((editEvent): editEvent is MatrixEvent => !!editEvent);
+  const latestEdit = getLatestEdit(mEvent, candidateEdits);
+  logEditDebug('getEditedEvent:resolved', {
     eventId: mEventId,
+    sdkReplacementId: replacingEvent?.getId(),
+    sdkReplacementTs: replacingEvent?.getTs(),
+    serializedReplacementId: serializedReplacement?.getId(),
+    serializedReplacementTs: serializedReplacement?.getTs(),
     relationCount: relations.length,
     selectedEditId: latestEdit?.getId(),
     selectedEditTs: latestEdit?.getTs(),
-    source: 'relations',
+    source:
+      latestEdit === replacingEvent
+        ? 'sdk'
+        : latestEdit === serializedReplacement
+          ? 'serialized'
+          : latestEdit
+            ? 'relations'
+            : 'none',
   });
   return latestEdit;
 };
@@ -503,7 +542,8 @@ export const getLatestMessageContent = (
   editedEvent?: MatrixEvent
 ): Record<string, unknown> => {
   const originalContent = mEvent.getContent() as Record<string, unknown>;
-  const newContent = editedEvent?.getContent()['m.new_content'];
+  const editedContent = editedEvent?.getContent() as Record<string, unknown> | undefined;
+  const newContent = editedContent?.['m.new_content'];
 
   if (!newContent || typeof newContent !== 'object' || Array.isArray(newContent)) {
     return originalContent;
@@ -514,14 +554,7 @@ export const getLatestMessageContent = (
     'm.new_content': newContent as Record<string, unknown>,
   };
 
-  Object.entries(originalContent).forEach(([key, value]) => {
-    if (
-      resolvedContent[key] === undefined &&
-      (key.startsWith('io.mindroom.') || key.startsWith('com.mindroom.'))
-    ) {
-      resolvedContent[key] = value;
-    }
-  });
+  copyResolvedMessageMetadata(resolvedContent, [editedContent, originalContent]);
 
   return resolvedContent;
 };

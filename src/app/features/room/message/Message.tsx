@@ -51,6 +51,7 @@ import {
   canEditEvent,
   getEventEdits,
   getEditedEvent,
+  getLatestMessageContent,
   getMemberAvatarMxc,
   getMemberDisplayName,
 } from '../../../utils/room';
@@ -112,9 +113,8 @@ const getMenuMessageContent = (room: Room, mEvent: MatrixEvent): Record<string, 
   if (!eventId) return content;
 
   const evtTimeline = room.getTimelineForEvent(eventId);
-  const editedEvent = evtTimeline && getEditedEvent(eventId, mEvent, evtTimeline.getTimelineSet());
-  const editedContent = editedEvent?.getContent()['m.new_content'];
-  return isRecord(editedContent) ? editedContent : content;
+  const editedEvent = evtTimeline ? getEditedEvent(eventId, mEvent, evtTimeline.getTimelineSet()) : undefined;
+  return getLatestMessageContent(mEvent, editedEvent);
 };
 
 const sanitizeFilename = (value: string): string =>
@@ -872,6 +872,7 @@ export const MessageReportItem = as<
 export type MessageProps = {
   room: Room;
   mEvent: MatrixEvent;
+  resolvedMessageContent?: Record<string, unknown>;
   collapse: boolean;
   highlight: boolean;
   edit?: boolean;
@@ -906,6 +907,7 @@ export const Message = as<'div', MessageProps>(
       className,
       room,
       mEvent,
+      resolvedMessageContent,
       collapse,
       highlight,
       edit,
@@ -944,9 +946,11 @@ export const Message = as<'div', MessageProps>(
     const { focusWithinProps } = useFocusWithin({ onFocusWithinChange: setHover });
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const [emojiBoardAnchor, setEmojiBoardAnchor] = useState<RectCords>();
-    const menuMessageContent = getMenuMessageContent(room, mEvent);
+    const menuMessageContent = resolvedMessageContent ?? getMenuMessageContent(room, mEvent);
     const menuMessageOriginalContent = mEvent.getContent();
-    const isTextMessage = isCopyTextMessageContent(menuMessageOriginalContent as Record<string, unknown>);
+    const isTextMessage = isCopyTextMessageContent(
+      menuMessageOriginalContent as Record<string, unknown>
+    );
     const longTextSource = getMindroomLongTextSource(menuMessageContent);
     const mindroomAiRunInfo = getMindroomAiRunInfo(menuMessageContent);
     const showMindroomAiRunInfo = !!mindroomAiRunInfo;
@@ -1318,10 +1322,10 @@ export const Message = as<'div', MessageProps>(
                               onClose={closeMenu}
                             />
                           )}
-                            {!mEvent.isRedacted() && isTextMessage && (
-                <MessageCopyTextItem room={room} mEvent={mEvent} onClose={closeMenu} />
-              )}
-              <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
+                          {!mEvent.isRedacted() && isTextMessage && (
+                            <MessageCopyTextItem room={room} mEvent={mEvent} onClose={closeMenu} />
+                          )}
+                          <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
                           {canPinEvent && (
                             <MessagePinItem room={room} mEvent={mEvent} onClose={closeMenu} />
                           )}
@@ -1490,10 +1494,7 @@ export const Event = as<'div', EventProps>(
                               onClose={closeMenu}
                             />
                           )}
-                            {!mEvent.isRedacted() && isTextMessage && (
-                <MessageCopyTextItem room={room} mEvent={mEvent} onClose={closeMenu} />
-              )}
-              <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
+                          <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
                         </Box>
                         {((!mEvent.isRedacted() && canDelete && !stateEvent) ||
                           (mEvent.getSender() !== mx.getUserId() && !stateEvent)) && (

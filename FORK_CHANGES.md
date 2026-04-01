@@ -90,7 +90,7 @@
 
 - Cleaned issue-backed `dev` history starts at `96b13bcc`.
 - Current green baseline at `HEAD`:
-  - `npx vitest run` passes (`105/105` files, `900/900` tests)
+  - `npm test` passes (`109/109` files, `931/931` tests)
   - `npm run typecheck` passes
   - `npm run build` passes
 
@@ -133,5 +133,22 @@
   - `CINNY-050` introduced a parser/API mismatch where `parseThreadTagsContent()` returned `{ tags }`, but `useRoomThreadTags` still treated the parsed object itself as the tag map.
   - Symptom: compact/room thread buttons stopped showing `Resolved`, and the `Resolved` filter in Personal returned zero threads live.
   - Validation: live MCP repro on Personal room plus `npm test`, `npm run typecheck`, and `npm run build`.
+- Latest local edit-reconciliation hardening (2026-03-31):
+  - extracted shared serialized edit helpers into `src/app/utils/editEvent.ts` so room render, thread render, and cached-event hydration all apply the same validation rules.
+  - serialized bundled replacements now require a real positive `origin_server_ts`; malformed bundled edits are ignored consistently.
+  - `getEditedEvent()` now truthfully rejects sender-mismatched SDK/bundled replacements before candidate selection, instead of logging `*Rejected` while still passing them downstream.
+  - room edit resolution now uses explicit candidate ordering so same-timestamp ties prefer the server-bundled replacement over raw relation edits.
+  - added regression coverage in:
+    - `src/app/utils/room.test.ts`
+    - `src/app/features/room/threadRenderUtils.test.ts`
+    - `src/app/features/room/eventCacheEditUtils.test.ts`
+  - validation:
+    - `npm test`
+    - `npm run typecheck`
+    - `npm run build`
+    - live MCP repro on `/#personal` thread permalink `threadId=$eLBXTjJGVLGW3clgjAjBTI9SsBapa6hwl70_tVbjlUA`:
+      - first load and hard reload both rendered `96` message rows,
+      - the first `12` visible message ids/text snippets stayed identical across reload,
+      - visible `Thinking...` count remained `0`.
 - Backup branch created before the issue-only history cleanup:
   - `backup/dev-before-issue-squash-20260330-102644`
