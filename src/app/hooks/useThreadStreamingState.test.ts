@@ -257,6 +257,32 @@ describe('useThreadStreamingState', () => {
     renderer.unmount();
   });
 
+  it('ignores a redacted stop reaction shell after reload', () => {
+    const relationMap = new Map<string, MockRelations>();
+    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
+    const replyEvent = makeThreadReplyEvent('$reply', 200);
+    const redactedStopReaction = makeMessageEvent('$reaction', 210, {
+      'm.relates_to': { event_id: '$reply', key: '⏹', rel_type: 'm.annotation' },
+    });
+    vi.spyOn(redactedStopReaction, 'isRedacted').mockReturnValue(true);
+    const relations = makeRelations();
+    relations.setGroupedAnnotations([['⏹', new Set([redactedStopReaction])]]);
+    relationMap.set('$reply', relations);
+
+    const thread = makeThread({
+      lastReply: replyEvent,
+      relationMap,
+      timelineEvents: [replyEvent],
+    });
+    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
+
+    const { getSnapshot, renderer } = renderHookHarness(room);
+
+    expect(getSnapshot()).toBe(false);
+
+    renderer.unmount();
+  });
+
   it('returns false when there is no streaming metadata or stop reaction', () => {
     const relationMap = new Map<string, MockRelations>();
     const roomTimelineSet = makeTimelineSet(relationMap, () => []);
@@ -357,6 +383,33 @@ describe('useThreadStreamingState', () => {
     renderer.unmount();
   });
 
+  it('treats completed ai_run metadata on a replacement as stronger than stale raw streaming metadata', () => {
+    const relationMap = new Map<string, MockRelations>();
+    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
+    const replyEvent = makeThreadReplyEvent('$reply', 200, {
+      'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+    });
+    const completedEdit = makeEditEvent('$reply-edit', 300, '$reply', {
+      'io.mindroom.ai_run': { version: 1, status: 'completed' },
+    });
+    const thread = makeThread({
+      lastReply: replyEvent,
+      relationMap,
+      timelineEvents: [replyEvent, completedEdit],
+    });
+    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
+
+    const { getSnapshot, renderer } = renderHookHarness(room);
+
+    act(() => {
+      replyEvent.makeReplaced(completedEdit);
+    });
+
+    expect(getSnapshot()).toBe(false);
+
+    renderer.unmount();
+  });
+
   it('updates when stream_status changes to a terminal state via a replacement event', () => {
     const relationMap = new Map<string, MockRelations>();
     const roomTimelineSet = makeTimelineSet(relationMap, () => []);
@@ -434,6 +487,37 @@ describe('useThreadStreamingState', () => {
     });
 
     expect(getSnapshot()).toBe(true);
+
+    renderer.unmount();
+  });
+
+  it('refreshes when a stop reaction is redacted away', () => {
+    const relationMap = new Map<string, MockRelations>();
+    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
+    const replyEvent = makeThreadReplyEvent('$reply', 200);
+    const stopReaction = makeMessageEvent('$reaction', 210, {
+      'm.relates_to': { event_id: '$reply', key: '⏹', rel_type: 'm.annotation' },
+    });
+    const relations = makeRelations();
+    relations.setGroupedAnnotations([['⏹', new Set([stopReaction])]]);
+    relationMap.set('$reply', relations);
+
+    const thread = makeThread({
+      lastReply: replyEvent,
+      relationMap,
+      timelineEvents: [replyEvent],
+    });
+    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
+    const { getSnapshot, renderer } = renderHookHarness(room);
+
+    expect(getSnapshot()).toBe(true);
+
+    act(() => {
+      vi.spyOn(stopReaction, 'isRedacted').mockReturnValue(true);
+      relations.emit(RelationsEvent.Redaction);
+    });
+
+    expect(getSnapshot()).toBe(false);
 
     renderer.unmount();
   });

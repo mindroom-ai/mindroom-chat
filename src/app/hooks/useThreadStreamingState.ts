@@ -2,7 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { RelationsEvent, type Relations } from 'matrix-js-sdk/lib/models/relations';
 import { getMindroomAiRunInfo } from '../components/message/mindroomAiRun';
-import { getEventReactions } from '../utils/room';
+import {
+  getSerializedReplacementEvent,
+  isSameSenderEditEvent,
+} from '../utils/editEvent';
+import { getActiveAnnotationsByKey } from '../utils/reactionAnnotations';
+import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../utils/room';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../utils/thread';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 
@@ -28,12 +33,25 @@ type ThreadStreamingSnapshot = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
-const getPreferredEventContent = (mEvent: MatrixEvent): Record<string, unknown> => {
-  const replacingEvent = mEvent.replacingEvent();
-  const eventForContent =
-    replacingEvent && replacingEvent.getSender() === mEvent.getSender() ? replacingEvent : mEvent;
+const getPreferredEventContent = (
+  mEvent: MatrixEvent,
+  timelineSet?: ReturnType<Room['getUnfilteredTimelineSet']>
+): Record<string, unknown> => {
+  const replacingEventCandidate = mEvent.replacingEvent() ?? undefined;
+  const serializedReplacementCandidate = getSerializedReplacementEvent(mEvent);
+  const hasResolvableReplacement =
+    isSameSenderEditEvent(mEvent, replacingEventCandidate) ||
+    isSameSenderEditEvent(mEvent, serializedReplacementCandidate);
 
-  return eventForContent.getContent() as Record<string, unknown>;
+  if (!hasResolvableReplacement || !timelineSet) {
+    return (mEvent.getContent() as Record<string, unknown>) ?? {};
+  }
+
+  const eventId = mEvent.getId();
+  const editedEvent =
+    eventId && timelineSet ? getEditedEvent(eventId, mEvent, timelineSet) : undefined;
+
+  return getLatestMessageContent(mEvent, editedEvent);
 };
 
 const getStatusFromMetadata = (metadata: unknown): string | undefined => {
@@ -61,9 +79,9 @@ const getMindroomStreamStatus = (content: Record<string, unknown>): string | und
 };
 
 const hasStopReaction = (relations: Relations | undefined): boolean =>
-  !!relations
-    ?.getSortedAnnotationsByKey()
-    ?.some(([key, events]) => STOP_REACTION_KEYS.has(key) && events.size > 0);
+  getActiveAnnotationsByKey(relations).some(
+    ([key, events]) => STOP_REACTION_KEYS.has(key) && events.size > 0
+  );
 
 const getThreadStreamingEvents = (
   room: Room | undefined,
@@ -75,8 +93,12 @@ const getThreadStreamingEvents = (
   return getThreadTailEvents(thread, DEFAULT_THREAD_TAIL_EVENT_COUNT);
 };
 
-const isEventStreaming = (mEvent: MatrixEvent, relations: Relations | undefined): boolean => {
-  const content = getPreferredEventContent(mEvent);
+const isEventStreaming = (
+  mEvent: MatrixEvent,
+  relations: Relations | undefined,
+  timelineSet: ReturnType<Room['getUnfilteredTimelineSet']>
+): boolean => {
+  const content = getPreferredEventContent(mEvent, timelineSet);
   const aiRunStatus = getMindroomAiRunInfo(content)?.status?.toLowerCase();
   if (aiRunStatus === 'streaming') {
     return true;
@@ -115,7 +137,7 @@ const getThreadStreamingSnapshot = (
       trackedRelations.push(relations);
     }
 
-    if (!isStreaming && isEventStreaming(mEvent, relations)) {
+    if (!isStreaming && isEventStreaming(mEvent, relations, timelineSet)) {
       isStreaming = true;
     }
   });
@@ -145,12 +167,14 @@ export const useThreadStreamingState = (
 
     snapshot.trackedRelations.forEach((relations) => {
       relations.on(RelationsEvent.Add, refresh);
+      relations.on(RelationsEvent.Redaction, refresh);
       relations.on(RelationsEvent.Remove, refresh);
     });
 
     return () => {
       snapshot.trackedRelations.forEach((relations) => {
         relations.removeListener(RelationsEvent.Add, refresh);
+        relations.removeListener(RelationsEvent.Redaction, refresh);
         relations.removeListener(RelationsEvent.Remove, refresh);
       });
     };

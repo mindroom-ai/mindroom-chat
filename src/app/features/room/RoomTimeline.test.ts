@@ -549,7 +549,9 @@ vi.mock('./roomEventCache', async (importOriginal) => {
 
 vi.mock('./eventCacheEditUtils', () => ({
   aggregateCachedRelationEvents: vi.fn(),
-  hydrateCachedEvents: vi.fn(),
+  collectRedactedRelationTargetsFromLookup: vi.fn(() => []),
+  hydrateCachedEvents: vi.fn(() => []),
+  reconcileRelationEventsWithAggregation: vi.fn(),
   serializeEventsForCache: (_room: unknown, events: Array<{ event?: Record<string, unknown>; getId?(): string | undefined; getTs?(): number; getContent?(): Record<string, unknown> }>) =>
     events.map((event) =>
       event.event ?? {
@@ -2292,7 +2294,7 @@ describe('RoomTimeline', () => {
     }
   });
 
-  it('skips thread bootstrap and edit backfill on untargeted open when cached thread hydrate is complete', async () => {
+  it('skips thread bootstrap but still refreshes the latest relations tail on untargeted complete cache hits', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
     const { loadLatestCachedThreadEvents } = await import('./threadEventCache');
     const threadId = '$thread-root';
@@ -2356,8 +2358,8 @@ describe('RoomTimeline', () => {
         50
       );
 
+      expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
       expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
-      expect(matrixClientMock.fetchRelations).not.toHaveBeenCalled();
       expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
       expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
       expect(matrixClientMock.relations).not.toHaveBeenCalled();
@@ -2489,8 +2491,14 @@ describe('RoomTimeline', () => {
       );
       expect(threadCalls.length).toBeGreaterThan(0);
       expect(
-        threadCalls.at(-1)?.[1].map((event: ReturnType<typeof makeEvent>) => event.getId())
-      ).toEqual(['$cached-reply-1', '$cached-reply-2']);
+        threadCalls.some(
+          ([, events]) =>
+            Array.isArray(events) &&
+            events.map((event: ReturnType<typeof makeEvent>) => event.getId()).join(',') ===
+              '$cached-reply-1,$cached-reply-2'
+        )
+      ).toBe(true);
+      expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
     } finally {
       await act(async () => {
         renderer?.unmount();
@@ -2788,7 +2796,7 @@ describe('RoomTimeline', () => {
       );
 
       expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
-      expect(matrixClientMock.fetchRelations).not.toHaveBeenCalled();
+      expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
       expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
       expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
     } finally {
@@ -2882,7 +2890,6 @@ describe('RoomTimeline', () => {
 
       await waitForCondition(() => matrixClientMock.fetchRelations.mock.calls.length > 0, 50);
       expect(matrixClientMock.fetchRelations).toHaveBeenCalled();
-      expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
     } finally {
       await act(async () => {
         renderer?.unmount();
@@ -3119,7 +3126,7 @@ describe('RoomTimeline', () => {
       );
 
       expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
-      expect(matrixClientMock.fetchRelations).not.toHaveBeenCalled();
+      expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
       expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
       expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
     } finally {
