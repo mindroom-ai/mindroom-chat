@@ -191,7 +191,7 @@ function MindroomAiRunInfoButton({ info }: { info: MindroomAiRunInfo }) {
                 <MindroomAiRunDetail label="Status" value={info.status} />
                 <MindroomAiRunDetail label="Model" value={modelLabel} />
                 <MindroomAiRunDetail label="Tokens" value={usageLabel} />
-                <MindroomAiRunDetail label="Context" value={contextLabel} />
+                <MindroomAiRunDetail label="Request Context" value={contextLabel} />
                 <MindroomAiRunDetail label="Tools" value={toolsLabel} />
                 <MindroomAiRunDetail label="TTFT" value={ttftLabel} />
                 <MindroomAiRunDetail label="Run" value={info.runId} />
