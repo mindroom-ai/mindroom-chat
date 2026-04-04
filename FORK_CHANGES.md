@@ -91,6 +91,32 @@
     - `npm run lint` still fails at repo baseline because `eslint src/*` crashes across the tree with the existing TypeScript parser `originalKeywordKind` deprecation error
 - `CINNY-053`
   - Fixes iOS Safari keyboard dismiss scroll bug: adds `interactive-widget=resizes-content` to the viewport meta tag and a `useIOSKeyboardFix` hook that resets stale scroll offsets when the virtual keyboard is dismissed.
+- `CINNY-060`
+  - Adds pinch-to-zoom UI scale control on top of the existing `Settings.pageZoom` setting:
+    - ctrl/trackpad pinch wheel gestures now adjust the stored page zoom,
+    - two-finger touch pinch and Safari `gesture*` events also update the same setting,
+    - and the Settings page zoom input now shares the central min/max constants and resyncs when zoom changes outside the form.
+  - Follow-up fixes from user feedback:
+    - lowers the supported minimum UI scale from `75%` to `50%`,
+    - and skips the global page-zoom pinch interception while the fullscreen `ImageViewer` overlay is mounted so image-viewer gestures are not hijacked by layout zoom.
+    - validation (2026-04-03):
+      - focused Vitest passes for `src/app/utils/pageZoom.test.ts`, `src/app/state/settings.test.ts`, and new `src/app/hooks/usePinchToZoom.test.ts`
+      - `npm run typecheck` passes
+      - `npm run build` passes
+      - `npm test` is still red at the current branch baseline; the same 16 failures reproduce from a clean `HEAD` snapshot in `RoomTimeline.test.ts`, `RoomTimelineCollapsible.test.ts`, `roomThreadOverviewModel.test.ts`, and `roomThreadFilterState.test.ts`
+  - Image viewer pinch-to-zoom follow-up (2026-04-04):
+    - investigated `src/app/hooks/useZoom.ts` and confirmed it previously only exposed bounded zoom state plus button helpers; it did not listen for `touchstart` / `touchmove` / `touchend` or Safari `gesture*` events.
+    - confirmed `index.html` still declares `maximum-scale=1.0`, so native page pinch zoom remains intentionally disabled and the fullscreen image viewer must handle pinch scaling itself.
+    - extended `src/app/hooks/useZoom.ts` with element-scoped touch-pinch and Safari gesture listeners that reuse the same zoom state, clamp through the existing min/max bounds, and call `preventDefault()` from a non-passive `touchmove` listener.
+    - wired `src/app/components/image-viewer/ImageViewer.tsx` to attach the zoom-listener ref to the lightbox content surface, added `touch-action: none` to the viewer content, and disabled the image transform transition during active pinch so the image tracks the gesture directly.
+    - added focused regression coverage in `src/app/hooks/useZoom.test.ts`.
+    - review:
+      - independent second self-review completed via a fresh `git diff` pass after the code/test changes; no unrelated files or behavior changes were introduced outside the image-viewer zoom path plus docs/report updates.
+    - validation (2026-04-04):
+      - `npm test -- src/app/hooks/useZoom.test.ts` passes
+      - `npm run typecheck` passes
+      - `npm run build` passes
+      - `npm test` is still red at the current branch baseline with the same 16 unrelated failures in `RoomTimeline.test.ts`, `RoomTimelineCollapsible.test.ts`, `roomThreadOverviewModel.test.ts`, and `roomThreadFilterState.test.ts`
 
 ### Validation Standard
 
@@ -103,8 +129,16 @@
 ### Current Baseline
 
 - Cleaned issue-backed `dev` history starts at `96b13bcc`.
-- Current green baseline at `HEAD`:
-  - `npm test` passes (`112/112` files, `946/946` tests)
+- Last confirmed green snapshot on the cleaned issue-backed `dev` line:
+  - `npm test` passes (`113/113` files, `950/950` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+- Current `CINNY-060` worktree full-suite baseline (2026-04-04):
+  - `npm test` reproduces the same 16 unrelated failures currently called out under the `CINNY-060` runbook entry:
+    - `src/app/features/room/RoomTimeline.test.ts`
+    - `src/app/features/room/RoomTimelineCollapsible.test.ts`
+    - `src/app/features/room/roomThreadOverviewModel.test.ts`
+    - `src/app/state/room/roomThreadFilterState.test.ts`
   - `npm run typecheck` passes
   - `npm run build` passes
 
@@ -147,6 +181,16 @@
   - `CINNY-050` introduced a parser/API mismatch where `parseThreadTagsContent()` returned `{ tags }`, but `useRoomThreadTags` still treated the parsed object itself as the tag map.
   - Symptom: compact/room thread buttons stopped showing `Resolved`, and the `Resolved` filter in Personal returned zero threads live.
   - Validation: live MCP repro on Personal room plus `npm test`, `npm run typecheck`, and `npm run build`.
+- Latest local pinch-to-zoom UI scale support (2026-04-03):
+  - extracted shared page zoom constants plus `sanitizePageZoom()` / `getTouchDistance()` helpers so the settings UI and gesture logic use the same zoom bounds and rounding behavior.
+  - added `src/app/hooks/usePinchToZoom.ts`, which listens for ctrl+wheel trackpad pinch, two-finger touch pinch, and Safari `gesturestart` / `gesturechange` / `gestureend`, then batches setting updates through `requestAnimationFrame`.
+  - mounted the gesture hook alongside `PageZoomFeature`, so pinch gestures update the persisted `pageZoom` setting and therefore the existing root `font-size` application path.
+  - `PageZoomInput` now resyncs its draft value when `pageZoom` changes externally, fixing the stale-input case introduced by gesture-driven updates.
+  - added focused regression coverage in `src/app/utils/pageZoom.test.ts`.
+  - validation:
+    - `npm test`
+    - `npm run typecheck`
+    - `npm run build`
 - Latest local edit-reconciliation hardening (2026-03-31):
   - extracted shared serialized edit helpers into `src/app/utils/editEvent.ts` so room render, thread render, and cached-event hydration all apply the same validation rules.
   - serialized bundled replacements now require a real positive `origin_server_ts`; malformed bundled edits are ignored consistently.
