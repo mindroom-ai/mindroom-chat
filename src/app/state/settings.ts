@@ -5,7 +5,7 @@ const STORAGE_KEY = 'settings';
 export const DEFAULT_PAGINATION_LIMIT = 10000;
 export const MIN_PAGINATION_LIMIT = 50;
 export const THREAD_BATCH_SIZE = 200;
-export const PAGE_ZOOM_MIN = 75;
+export const PAGE_ZOOM_MIN = 50;
 export const PAGE_ZOOM_MAX = 150;
 export const PAGE_ZOOM_DEFAULT = 100;
 

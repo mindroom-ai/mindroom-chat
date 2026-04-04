@@ -100,6 +100,14 @@
     - ctrl/trackpad pinch wheel gestures now adjust the stored page zoom,
     - two-finger touch pinch and Safari `gesture*` events also update the same setting,
     - and the Settings page zoom input now shares the central min/max constants and resyncs when zoom changes outside the form.
+  - Follow-up fixes from user feedback:
+    - lowers the supported minimum UI scale from `75%` to `50%`,
+    - and skips the global page-zoom pinch interception while the fullscreen `ImageViewer` overlay is mounted so image-viewer gestures are not hijacked by layout zoom.
+    - validation (2026-04-03):
+      - focused Vitest passes for `src/app/utils/pageZoom.test.ts`, `src/app/state/settings.test.ts`, and new `src/app/hooks/usePinchToZoom.test.ts`
+      - `npm run typecheck` passes
+      - `npm run build` passes
+      - `npm test` is still red at the current branch baseline; the same 16 failures reproduce from a clean `HEAD` snapshot in `RoomTimeline.test.ts`, `RoomTimelineCollapsible.test.ts`, `roomThreadOverviewModel.test.ts`, and `roomThreadFilterState.test.ts`
 
 ### Validation Standard
 

@@ -28,6 +28,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
       <Box
         className={classNames(css.ImageViewer, className)}
         direction="Column"
+        data-image-viewer="true"
         {...props}
         ref={ref}
       >

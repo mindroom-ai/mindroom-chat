@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { PAGE_ZOOM_DEFAULT, PAGE_ZOOM_MAX, PAGE_ZOOM_MIN } from '../state/settings';
 import { getTouchDistance, sanitizePageZoom } from './pageZoom';
-
-const PAGE_ZOOM_MIN = 75;
-const PAGE_ZOOM_MAX = 150;
-const PAGE_ZOOM_DEFAULT = 100;
 
 describe('sanitizePageZoom', () => {
   it('returns the default zoom for non-finite values', () => {

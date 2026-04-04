@@ -63,7 +63,12 @@ describe('sanitizePaginationLimit', () => {
 
 describe('getSettings', () => {
   it('sanitizes persisted page zoom values', async () => {
-    const { getSettings, PAGE_ZOOM_DEFAULT, PAGE_ZOOM_MAX } = await import('./settings');
+    const { getSettings, PAGE_ZOOM_DEFAULT, PAGE_ZOOM_MAX, PAGE_ZOOM_MIN } = await import(
+      './settings'
+    );
+
+    storageValue = JSON.stringify({ pageZoom: 0 });
+    expect(getSettings().pageZoom).toBe(PAGE_ZOOM_MIN);
 
     storageValue = JSON.stringify({ pageZoom: 200 });
     expect(getSettings().pageZoom).toBe(PAGE_ZOOM_MAX);

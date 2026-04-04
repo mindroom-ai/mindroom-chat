@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { sanitizePageZoom, getTouchDistance } from '../utils/pageZoom';
 
 const WHEEL_ZOOM_SENSITIVITY = 0.02;
+const OPEN_IMAGE_VIEWER_SELECTOR = '[data-image-viewer="true"]';
 
 type GestureEventWithScale = Event & {
   scale: number;
@@ -31,6 +32,22 @@ export const usePinchToZoom = (
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const resetGestureState = () => {
+      wheelDeltaRef.current = 0;
+      touchStartDistanceRef.current = null;
+      gestureStartZoomRef.current = null;
+    };
+
+    const shouldIgnorePinch = () => {
+      const imageViewerOpen = document.querySelector(OPEN_IMAGE_VIEWER_SELECTOR) !== null;
+
+      if (imageViewerOpen) {
+        resetGestureState();
+      }
+
+      return imageViewerOpen;
+    };
 
     const flushPendingZoom = () => {
       rafIdRef.current = undefined;
@@ -68,6 +85,7 @@ export const usePinchToZoom = (
 
     const handleWheel = (evt: WheelEvent) => {
       if (!evt.ctrlKey || !Number.isFinite(evt.deltaY)) return;
+      if (shouldIgnorePinch()) return;
       if (evt.cancelable) evt.preventDefault();
 
       wheelDeltaRef.current += -evt.deltaY * WHEEL_ZOOM_SENSITIVITY;
@@ -92,10 +110,13 @@ export const usePinchToZoom = (
     };
 
     const handleTouchStart = (evt: TouchEvent) => {
+      if (shouldIgnorePinch()) return;
       startTouchPinch(evt.touches);
     };
 
     const handleTouchMove = (evt: TouchEvent) => {
+      if (shouldIgnorePinch()) return;
+
       const startDistance = touchStartDistanceRef.current;
       if (evt.touches.length < 2 || startDistance === null || startDistance <= 0) {
         touchStartDistanceRef.current = null;
@@ -110,6 +131,8 @@ export const usePinchToZoom = (
     };
 
     const handleTouchEnd = (evt: TouchEvent) => {
+      if (shouldIgnorePinch()) return;
+
       if (evt.touches.length >= 2) {
         startTouchPinch(evt.touches);
         return;
@@ -121,6 +144,7 @@ export const usePinchToZoom = (
     const handleGestureStart = (evt: Event) => {
       const gestureEvent = evt as GestureEventWithScale;
 
+      if (shouldIgnorePinch()) return;
       if (gestureEvent.cancelable) gestureEvent.preventDefault();
       gestureStartZoomRef.current = pendingZoomRef.current ?? pageZoomRef.current;
     };
@@ -128,6 +152,7 @@ export const usePinchToZoom = (
     const handleGestureChange = (evt: Event) => {
       const gestureEvent = evt as GestureEventWithScale;
       if (!Number.isFinite(gestureEvent.scale) || gestureEvent.scale <= 0) return;
+      if (shouldIgnorePinch()) return;
 
       if (gestureStartZoomRef.current === null) {
         gestureStartZoomRef.current = pendingZoomRef.current ?? pageZoomRef.current;
@@ -159,6 +184,7 @@ export const usePinchToZoom = (
         window.cancelAnimationFrame(rafIdRef.current);
       }
 
+      resetGestureState();
       window.removeEventListener('wheel', handleWheel);
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
