@@ -11,6 +11,28 @@ import {
 import { useSetting } from '../state/hooks/settings';
 import { settingsAtom } from '../state/settings';
 
+const THEME_BG_COLORS: Record<string, string> = {
+  'light-theme': '#F2F2F2',
+  'silver-theme': '#DEDEDE',
+  'dark-theme': '#1A1A1A',
+  'butter-theme': '#1A1916',
+};
+
+function updateThemeMeta(themeId: string, kind: ThemeKind): void {
+  const bgColor = THEME_BG_COLORS[themeId] ?? '#1A1A1A';
+  const colorScheme = kind === ThemeKind.Dark ? 'dark' : 'light';
+
+  let metaThemeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (metaThemeColor) {
+    metaThemeColor.content = bgColor;
+  }
+
+  let metaColorScheme = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
+  if (metaColorScheme) {
+    metaColorScheme.content = colorScheme;
+  }
+}
+
 export function UnAuthRouteThemeManager() {
   const systemThemeKind = useSystemThemeKind();
 
@@ -19,9 +41,11 @@ export function UnAuthRouteThemeManager() {
     document.body.classList.add(configClass, varsClass);
     if (systemThemeKind === ThemeKind.Dark) {
       document.body.classList.add(...DarkTheme.classNames);
+      updateThemeMeta(DarkTheme.id, DarkTheme.kind);
     }
     if (systemThemeKind === ThemeKind.Light) {
       document.body.classList.add(...LightTheme.classNames);
+      updateThemeMeta(LightTheme.id, LightTheme.kind);
     }
   }, [systemThemeKind]);
 
@@ -37,6 +61,7 @@ export function AuthRouteThemeManager({ children }: { children: ReactNode }) {
     document.body.classList.add(configClass, varsClass);
 
     document.body.classList.add(...activeTheme.classNames);
+    updateThemeMeta(activeTheme.id, activeTheme.kind);
 
     if (monochromeMode) {
       document.body.style.filter = 'grayscale(1)';
