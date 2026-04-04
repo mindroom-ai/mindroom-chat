@@ -28,6 +28,7 @@ import React, {
   MouseEventHandler,
   ReactNode,
   useCallback,
+  useRef,
   useState,
 } from 'react';
 import FocusTrap from 'focus-trap-react';
@@ -137,6 +138,21 @@ const getLongTextDownloadName = (source: MindroomLongTextSource): string => {
   return `${baseName}${ext}`;
 };
 
+const assignElementRef = <T extends HTMLElement>(
+  targetRef: React.Ref<T> | undefined,
+  value: T | null
+) => {
+  if (typeof targetRef === 'function') {
+    targetRef(value);
+    return;
+  }
+
+  if (targetRef) {
+    const mutableRef = targetRef as React.MutableRefObject<T | null>;
+    mutableRef.current = value;
+  }
+};
+
 function MindroomAiRunDetail({ label, value }: { label: string; value?: string }) {
   if (!value) return null;
   return (
@@ -146,74 +162,109 @@ function MindroomAiRunDetail({ label, value }: { label: string; value?: string }
   );
 }
 
-function MindroomAiRunInfoButton({ info }: { info: MindroomAiRunInfo }) {
-  const [open, setOpen] = useState(false);
+function MindroomAiRunInfoDialog({
+  info,
+  open,
+  onClose,
+  returnFocusRef,
+}: {
+  info: MindroomAiRunInfo;
+  open: boolean;
+  onClose: () => void;
+  returnFocusRef: React.RefObject<HTMLElement | null>;
+}) {
   const modelLabel = getMindroomAiRunModelLabel(info);
   const usageLabel = getMindroomAiRunUsageLabel(info);
   const contextLabel = getMindroomAiRunContextLabel(info);
   const toolsLabel = formatMindroomAiRunNumber(info.toolCount);
   const ttftLabel = formatMindroomAiRunTimeToFirstToken(info.timeToFirstToken);
-  const handleClose = () => setOpen(false);
 
   return (
-    <>
-      <Overlay open={open} backdrop={<OverlayBackdrop />}>
-        <OverlayCenter>
-          <FocusTrap
-            focusTrapOptions={{
-              initialFocus: false,
-              onDeactivate: handleClose,
-              clickOutsideDeactivates: true,
-              escapeDeactivates: stopPropagation,
-            }}
-          >
-            <Dialog variant="Surface">
-              <Header
-                style={{
-                  padding: `0 ${config.space.S200} 0 ${config.space.S400}`,
-                  borderBottomWidth: config.borderWidth.B300,
-                }}
-                variant="Surface"
-                size="500"
-              >
-                <Box grow="Yes">
-                  <Text size="H4">AI Run Metadata</Text>
-                </Box>
-                <IconButton size="300" onClick={handleClose} radii="300" aria-label="Close">
-                  <Icon src={Icons.Cross} />
-                </IconButton>
-              </Header>
-              <Box
-                style={{ padding: config.space.S400, maxWidth: '24rem' }}
-                direction="Column"
-                gap="100"
-              >
-                <MindroomAiRunDetail label="Status" value={info.status} />
-                <MindroomAiRunDetail label="Model" value={modelLabel} />
-                <MindroomAiRunDetail label="Tokens" value={usageLabel} />
-                <MindroomAiRunDetail label="Request Context" value={contextLabel} />
-                <MindroomAiRunDetail label="Tools" value={toolsLabel} />
-                <MindroomAiRunDetail label="TTFT" value={ttftLabel} />
-                <MindroomAiRunDetail label="Run" value={info.runId} />
-                <MindroomAiRunDetail label="Session" value={info.sessionId} />
+    <Overlay open={open} backdrop={<OverlayBackdrop />}>
+      <OverlayCenter>
+        <FocusTrap
+          focusTrapOptions={{
+            initialFocus: false,
+            setReturnFocus: () => returnFocusRef.current ?? false,
+            onDeactivate: onClose,
+            clickOutsideDeactivates: true,
+            escapeDeactivates: stopPropagation,
+          }}
+        >
+          <Dialog variant="Surface">
+            <Header
+              style={{
+                padding: `0 ${config.space.S200} 0 ${config.space.S400}`,
+                borderBottomWidth: config.borderWidth.B300,
+              }}
+              variant="Surface"
+              size="500"
+            >
+              <Box grow="Yes">
+                <Text size="H4">AI Run Metadata</Text>
               </Box>
-            </Dialog>
-          </FocusTrap>
-        </OverlayCenter>
-      </Overlay>
-      <button
-        type="button"
-        className={css.MessageAiRunInfoButton}
-        aria-label="Open AI run metadata"
-        aria-haspopup="dialog"
-        aria-pressed={open}
-        onClick={() => setOpen(true)}
-      >
-        <Icon size="50" src={Icons.Info} />
-      </button>
-    </>
+              <IconButton size="300" onClick={onClose} radii="300" aria-label="Close">
+                <Icon src={Icons.Cross} />
+              </IconButton>
+            </Header>
+            <Box
+              style={{ padding: config.space.S400, maxWidth: '24rem' }}
+              direction="Column"
+              gap="100"
+            >
+              <MindroomAiRunDetail label="Status" value={info.status} />
+              <MindroomAiRunDetail label="Model" value={modelLabel} />
+              <MindroomAiRunDetail label="Tokens" value={usageLabel} />
+              <MindroomAiRunDetail label="Request Context" value={contextLabel} />
+              <MindroomAiRunDetail label="Tools" value={toolsLabel} />
+              <MindroomAiRunDetail label="TTFT" value={ttftLabel} />
+              <MindroomAiRunDetail label="Run" value={info.runId} />
+              <MindroomAiRunDetail label="Session" value={info.sessionId} />
+            </Box>
+          </Dialog>
+        </FocusTrap>
+      </OverlayCenter>
+    </Overlay>
   );
 }
+
+function MindroomAiRunInfoButton({ open, onOpen }: { open: boolean; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      className={css.MessageAiRunInfoButton}
+      aria-label="Open AI run metadata"
+      aria-haspopup="dialog"
+      aria-pressed={open}
+      onClick={onOpen}
+    >
+      <Icon size="50" src={Icons.Info} />
+    </button>
+  );
+}
+
+export const MessageMindroomAiRunItem = as<
+  'button',
+  {
+    open: boolean;
+    onOpen: () => void;
+  }
+>(({ open, onOpen, ...props }, ref) => (
+  <MenuItem
+    size="300"
+    after={<Icon size="100" src={Icons.Info} />}
+    radii="300"
+    onClick={onOpen}
+    aria-haspopup="dialog"
+    aria-pressed={open}
+    {...props}
+    ref={ref}
+  >
+    <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
+      Token usage
+    </Text>
+  </MenuItem>
+));
 
 type MessageQuickReactionsProps = {
   onReaction: ReactionHandler;
@@ -949,8 +1000,10 @@ export const Message = as<'div', MessageProps>(
     const [hover, setHover] = useState(false);
     const { hoverProps } = useHover({ onHoverChange: setHover });
     const { focusWithinProps } = useFocusWithin({ onFocusWithinChange: setHover });
+    const messageBaseRef = useRef<HTMLDivElement | null>(null);
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const [emojiBoardAnchor, setEmojiBoardAnchor] = useState<RectCords>();
+    const [mindroomAiRunOpen, setMindroomAiRunOpen] = useState(false);
     const menuMessageContent = resolvedMessageContent ?? getMenuMessageContent(room, mEvent);
     const menuMessageOriginalContent = mEvent.getContent();
     const isTextMessage = isCopyTextMessageContent(
@@ -972,6 +1025,23 @@ export const Message = as<'div', MessageProps>(
       : undefined;
 
     const usernameColor = legacyUsernameColor ? colorMXID(senderId) : tagColor;
+
+    const closeMenu = () => {
+      setMenuAnchor(undefined);
+    };
+
+    const handleMessageBaseRef = useCallback(
+      (node: HTMLDivElement | null) => {
+        messageBaseRef.current = node;
+        assignElementRef(ref, node);
+      },
+      [ref]
+    );
+
+    const handleOpenMindroomAiRun = () => {
+      closeMenu();
+      setMindroomAiRunOpen(true);
+    };
 
     const headerJSX = !collapse && (
       <Box
@@ -1011,7 +1081,7 @@ export const Message = as<'div', MessageProps>(
             </>
           )}
           {showMindroomAiRunInfo && mindroomAiRunInfo && (
-            <MindroomAiRunInfoButton info={mindroomAiRunInfo} />
+            <MindroomAiRunInfoButton open={mindroomAiRunOpen} onOpen={handleOpenMindroomAiRun} />
           )}
           <Time
             ts={mEvent.getTs()}
@@ -1088,10 +1158,6 @@ export const Message = as<'div', MessageProps>(
       setMenuAnchor(target.getBoundingClientRect());
     };
 
-    const closeMenu = () => {
-      setMenuAnchor(undefined);
-    };
-
     const handleOpenEmojiBoard: MouseEventHandler<HTMLButtonElement> = (evt) => {
       const target = evt.currentTarget.parentElement?.parentElement ?? evt.currentTarget;
       setEmojiBoardAnchor(target.getBoundingClientRect());
@@ -1122,8 +1188,16 @@ export const Message = as<'div', MessageProps>(
         {...props}
         {...hoverProps}
         {...focusWithinProps}
-        ref={ref}
+        ref={handleMessageBaseRef}
       >
+        {showMindroomAiRunInfo && mindroomAiRunInfo && (
+          <MindroomAiRunInfoDialog
+            info={mindroomAiRunInfo}
+            open={mindroomAiRunOpen}
+            onClose={() => setMindroomAiRunOpen(false)}
+            returnFocusRef={messageBaseRef}
+          />
+        )}
         {!edit && (hover || !!menuAnchor || !!emojiBoardAnchor) && (
           <div className={css.MessageOptionsBase}>
             <Menu className={css.MessageOptionsBar} variant="SurfaceVariant">
@@ -1312,6 +1386,12 @@ export const Message = as<'div', MessageProps>(
                               room={room}
                               eventId={mEvent.getId() ?? ''}
                               onClose={closeMenu}
+                            />
+                          )}
+                          {showMindroomAiRunInfo && (
+                            <MessageMindroomAiRunItem
+                              open={mindroomAiRunOpen}
+                              onOpen={handleOpenMindroomAiRun}
                             />
                           )}
                           {longTextSource && (

@@ -260,3 +260,9 @@
     - `npm run build`
 - Backup branch created before the issue-only history cleanup:
   - `backup/dev-before-issue-squash-20260330-102644`
+
+### CINNY-056: Token usage context menu item (2026-04-04)
+- Context menu exposes "Token usage" when `io.mindroom.ai_run` metadata present, reusing same metadata dialog
+- Works for grouped/continuation messages where the header info button is not shown
+- Shared AI run metadata dialog resolves return focus to containing message element
+- Files: `src/app/features/room/message/Message.tsx`, `src/app/features/room/message/Message.test.ts`
