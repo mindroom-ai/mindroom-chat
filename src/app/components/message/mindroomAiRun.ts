@@ -118,4 +118,18 @@ export const getMindroomAiRunInfo = (
 export const hasMindroomAiRunMetadata = (content: Record<string, unknown>): boolean =>
   !!getMindroomAiRunMetadata(content);
 
+const TERMINAL_AI_RUN_STATUSES = new Set([
+  'completed',
+  'cached',
+  'error',
+  'cancelled',
+]);
+
+export const isMindroomAiRunStreaming = (content: Record<string, unknown>): boolean => {
+  const metadata = getMindroomAiRunMetadata(content);
+  if (!metadata) return false;
+  const status = typeof metadata.status === 'string' ? metadata.status : undefined;
+  return !status || !TERMINAL_AI_RUN_STATUSES.has(status);
+};
+
 export { AI_RUN_METADATA_KEY };

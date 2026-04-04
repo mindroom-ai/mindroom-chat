@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getMindroomAiRunInfo, hasMindroomAiRunMetadata } from './mindroomAiRun';
+import { getMindroomAiRunInfo, hasMindroomAiRunMetadata, isMindroomAiRunStreaming } from './mindroomAiRun';
 
 describe('hasMindroomAiRunMetadata', () => {
   it('returns true only for version 1 ai_run metadata', () => {
@@ -68,5 +68,56 @@ describe('getMindroomAiRunInfo', () => {
       getMindroomAiRunInfo({ 'io.mindroom.ai_run': { version: 1, usage: 'bad' } })
     ).toBeUndefined();
     expect(getMindroomAiRunInfo({ 'io.mindroom.ai_run': { version: 3 } })).toBeUndefined();
+  });
+});
+
+describe('isMindroomAiRunStreaming', () => {
+  it('returns false when no ai_run metadata is present', () => {
+    expect(isMindroomAiRunStreaming({})).toBe(false);
+    expect(isMindroomAiRunStreaming({ 'io.mindroom.ai_run': { version: 2 } })).toBe(false);
+  });
+
+  it('returns false for terminal statuses', () => {
+    const terminalStatuses = ['completed', 'cached', 'error', 'cancelled'];
+    for (const status of terminalStatuses) {
+      expect(
+        isMindroomAiRunStreaming({ 'io.mindroom.ai_run': { version: 1, status } })
+      ).toBe(false);
+    }
+  });
+
+  it('returns true for non-terminal statuses', () => {
+    const activeStatuses = ['streaming', 'running', 'active', 'thinking'];
+    for (const status of activeStatuses) {
+      expect(
+        isMindroomAiRunStreaming({ 'io.mindroom.ai_run': { version: 1, status } })
+      ).toBe(true);
+    }
+  });
+
+  it('returns true when metadata exists but status is absent', () => {
+    expect(
+      isMindroomAiRunStreaming({ 'io.mindroom.ai_run': { version: 1 } })
+    ).toBe(true);
+  });
+
+  it('reads metadata from m.new_content wrapper', () => {
+    expect(
+      isMindroomAiRunStreaming({
+        'm.new_content': {
+          body: 'partial',
+          'io.mindroom.ai_run': { version: 1, status: 'running' },
+        },
+      })
+    ).toBe(true);
+
+    expect(
+      isMindroomAiRunStreaming({
+        'm.new_content': {
+          body: 'done',
+          'io.mindroom.ai_run': { version: 1, status: 'completed' },
+        },
+      })
+    ).toBe(false);
   });
 });
