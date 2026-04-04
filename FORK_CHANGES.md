@@ -90,7 +90,11 @@
     - `npm run build` passes
     - `npm run lint` still fails at repo baseline because `eslint src/*` crashes across the tree with the existing TypeScript parser `originalKeywordKind` deprecation error
 - `CINNY-053`
-  - Fixes iOS Safari keyboard dismiss scroll bug: adds `interactive-widget=resizes-content` to the viewport meta tag and a `useIOSKeyboardFix` hook that resets stale scroll offsets when the virtual keyboard is dismissed.
+  - Fixes iOS Safari keyboard/viewport layout when virtual keyboard opens or closes:
+    - `index.css`: root layout uses `100dvh` on `html` (Safari 15.4+) and `var(--app-height)` on `#root` as JS-driven fallback; `body` gets `overflow: hidden`.
+    - `useIOSKeyboardFix`: rewritten to listen to `visualViewport.resize` on both keyboard open and dismiss, sets `--app-height` CSS custom property via `requestAnimationFrame`, and resets scroll offset drift.
+    - `Editor.tsx`: `maxHeight` default changed from `50vh` to `min(50dvh, calc(var(--app-height, 100vh) * 0.5))` so the editor respects the dynamic viewport with fallbacks.
+    - `index.html`: retains `interactive-widget=resizes-content` for future-proofing (no-op on iOS Safari currently).
 - `CINNY-060`
   - Adds pinch-to-zoom UI scale control on top of the existing `Settings.pageZoom` setting:
     - ctrl/trackpad pinch wheel gestures now adjust the stored page zoom,

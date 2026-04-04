@@ -2,52 +2,44 @@ import { useEffect } from 'react';
 import { isIOS } from '../utils/user-agent';
 
 /**
- * iOS Safari doesn't properly recalculate viewport/scroll state after virtual
- * keyboard dismissal, leaving a stale scroll offset that creates white space
- * below content. This hook resets the scroll position when it detects the
- * keyboard has been dismissed (viewport height increases or input loses focus).
+ * iOS Safari doesn't resize the viewport when the virtual keyboard opens/closes.
+ * This hook listens to `visualViewport.resize` events and sets a `--app-height`
+ * CSS custom property on the document element so the layout tracks the actual
+ * visible area. It also resets scroll offset drift caused by iOS keyboard
+ * animations.
  *
- * The viewport meta tag `interactive-widget=resizes-content` in index.html is
- * a complementary measure: as of March 2026 WebKit has not shipped support for
- * it (see WebKit bug 259770), so this JS hook must work standalone.
+ * The CSS in index.css consumes `--app-height` on `#root` as a JS-driven
+ * fallback alongside `100dvh` on `html` (Safari 15.4+).
  */
 export function useIOSKeyboardFix(): void {
   useEffect(() => {
     if (!isIOS()) return undefined;
 
-    let lastViewportHeight = window.visualViewport?.height ?? window.innerHeight;
-    let focusOutTimerId: ReturnType<typeof setTimeout> | undefined;
+    const { visualViewport } = window;
+    if (!visualViewport) return undefined;
 
-    const handleViewportResize = () => {
-      const currentHeight = window.visualViewport?.height ?? window.innerHeight;
-      // Viewport grew = keyboard dismissed
-      if (currentHeight > lastViewportHeight && window.scrollY !== 0) {
+    let rafId: number | undefined;
+
+    const updateHeight = () => {
+      rafId = requestAnimationFrame(() => {
+        rafId = undefined;
+        document.documentElement.style.setProperty(
+          '--app-height',
+          `${visualViewport.height}px`
+        );
         window.scrollTo(0, 0);
-      }
-      lastViewportHeight = currentHeight;
+      });
     };
 
-    const handleFocusOut = (event: FocusEvent) => {
-      // If focus is moving to another element, keyboard isn't dismissing
-      if (event.relatedTarget instanceof HTMLElement) return;
+    // Set initial value
+    updateHeight();
 
-      // Small delay to let iOS finish its animation
-      if (focusOutTimerId !== undefined) clearTimeout(focusOutTimerId);
-      focusOutTimerId = setTimeout(() => {
-        if (window.scrollY !== 0) {
-          window.scrollTo(0, 0);
-        }
-        focusOutTimerId = undefined;
-      }, 100);
-    };
-
-    window.visualViewport?.addEventListener('resize', handleViewportResize);
-    document.addEventListener('focusout', handleFocusOut);
+    visualViewport.addEventListener('resize', updateHeight);
 
     return () => {
-      if (focusOutTimerId !== undefined) clearTimeout(focusOutTimerId);
-      window.visualViewport?.removeEventListener('resize', handleViewportResize);
-      document.removeEventListener('focusout', handleFocusOut);
+      visualViewport.removeEventListener('resize', updateHeight);
+      if (rafId !== undefined) cancelAnimationFrame(rafId);
+      document.documentElement.style.removeProperty('--app-height');
     };
   }, []);
 }

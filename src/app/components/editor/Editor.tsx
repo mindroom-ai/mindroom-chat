@@ -80,7 +80,7 @@ export const CustomEditor = forwardRef<HTMLDivElement, CustomEditorProps>(
       bottom,
       before,
       after,
-      maxHeight = '50vh',
+      maxHeight = 'min(50dvh, calc(var(--app-height, 100vh) * 0.5))',
       editor,
       placeholder,
       onKeyDown,
