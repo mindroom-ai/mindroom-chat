@@ -36,12 +36,24 @@
   --mx-uc-8: hsl(94, 100%, 80%);
 
   --font-secondary: 'InterVariable', var(--font-emoji), sans-serif;
+
+  color-scheme: dark;
+}
+.dark-theme {
+  background-color: #1A1A1A;
+}
+.butter-theme {
+  background-color: #1A1916;
+}
+.silver-theme {
+  background-color: #DEDEDE;
 }
 
 html {
   height: 100%;
   height: 100dvh; /* dynamic viewport height - accounts for keyboard on iOS 15.4+ */
   overflow: hidden;
+  background-color: #1A1A1A; /* dark fallback — prevents white flash before theme loads */
 }
 
 body {
@@ -52,6 +64,8 @@ body {
   font-family: var(--font-secondary);
   font-size: 16px;
   font-weight: 400;
+  background-color: #F2F2F2; /* light theme default */
+  color-scheme: light;
 
   /*Why font-variant-ligatures => https://github.com/rsms/inter/issues/222 */
   font-variant-ligatures: no-contextual;
