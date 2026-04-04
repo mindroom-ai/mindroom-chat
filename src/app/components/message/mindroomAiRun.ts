@@ -125,11 +125,42 @@ const TERMINAL_AI_RUN_STATUSES = new Set([
   'cancelled',
 ]);
 
+const STREAM_STATUS_KEY = 'io.mindroom.stream_status';
+const ACTIVE_STREAM_STATUSES = new Set(['active', 'running', 'streaming']);
+const TERMINAL_STREAM_STATUSES = new Set([
+  'complete',
+  'completed',
+  'done',
+  'error',
+  'failed',
+  'stopped',
+  'cancelled',
+]);
+
+const getStreamStatusFromContent = (content: Record<string, unknown>): string | undefined => {
+  const newContent = isRecord(content['m.new_content'])
+    ? (content['m.new_content'] as Record<string, unknown>)
+    : undefined;
+
+  const raw = newContent?.[STREAM_STATUS_KEY] ?? content[STREAM_STATUS_KEY];
+  return typeof raw === 'string' && raw.length > 0 ? raw.toLowerCase() : undefined;
+};
+
 export const isMindroomAiRunStreaming = (content: Record<string, unknown>): boolean => {
+  // Check io.mindroom.ai_run metadata (present on final edits)
   const metadata = getMindroomAiRunMetadata(content);
-  if (!metadata) return false;
-  const status = typeof metadata.status === 'string' ? metadata.status : undefined;
-  return !status || !TERMINAL_AI_RUN_STATUSES.has(status);
+  if (metadata) {
+    const status = typeof metadata.status === 'string' ? metadata.status : undefined;
+    return !status || !TERMINAL_AI_RUN_STATUSES.has(status);
+  }
+
+  // Check io.mindroom.stream_status (present on intermediate streaming edits)
+  const streamStatus = getStreamStatusFromContent(content);
+  if (streamStatus) {
+    return ACTIVE_STREAM_STATUSES.has(streamStatus) && !TERMINAL_STREAM_STATUSES.has(streamStatus);
+  }
+
+  return false;
 };
 
 export { AI_RUN_METADATA_KEY };
