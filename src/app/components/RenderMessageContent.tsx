@@ -36,6 +36,7 @@ import { getMindroomLongTextSource } from './message/mindroomLongText';
 import { MindroomLongTextKind, MindroomLongTextText } from './message/MindroomLongTextText';
 import { getMindroomThreadSummaryInfo } from './message/mindroomThreadSummary';
 import { withMindroomToolTraceMarkerParserOptions } from '../plugins/react-custom-html-parser';
+import { isMindroomAiRunStreaming } from './message/mindroomAiRun';
 
 type RenderMessageContentProps = {
   displayName: string;
@@ -159,12 +160,14 @@ export function RenderMessageContent({
   }
 
   if (msgType === MsgType.Text) {
+    const isStreaming = isMindroomAiRunStreaming(content);
     const longTextSource = getMindroomLongTextSource(content);
     if (longTextSource) {
       return (
         <MindroomLongTextText
           kind={MindroomLongTextKind.Text}
           edited={edited}
+          isStreaming={isStreaming}
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
           renderBody={(resolvedContent, props) => (
@@ -184,6 +187,7 @@ export function RenderMessageContent({
     return (
       <MText
         edited={edited}
+        isStreaming={isStreaming}
         content={content}
         renderBody={(props) => (
           <RenderBody
@@ -199,6 +203,7 @@ export function RenderMessageContent({
   }
 
   if (msgType === MsgType.Emote) {
+    const isStreaming = isMindroomAiRunStreaming(content);
     const longTextSource = getMindroomLongTextSource(content);
     if (longTextSource) {
       return (
@@ -206,6 +211,7 @@ export function RenderMessageContent({
           kind={MindroomLongTextKind.Emote}
           displayName={displayName}
           edited={edited}
+          isStreaming={isStreaming}
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
           renderBody={(resolvedContent, props) => (
@@ -226,6 +232,7 @@ export function RenderMessageContent({
       <MEmote
         displayName={displayName}
         edited={edited}
+        isStreaming={isStreaming}
         content={content}
         renderBody={(props) => (
           <RenderBody
@@ -241,12 +248,14 @@ export function RenderMessageContent({
   }
 
   if (msgType === MsgType.Notice) {
+    const isStreaming = isMindroomAiRunStreaming(content);
     const longTextSource = getMindroomLongTextSource(content);
     if (longTextSource) {
       return (
         <MindroomLongTextText
           kind={MindroomLongTextKind.Notice}
           edited={edited}
+          isStreaming={isStreaming}
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
           renderBody={(resolvedContent, props) => (
@@ -266,6 +275,7 @@ export function RenderMessageContent({
     return (
       <MNotice
         edited={edited}
+        isStreaming={isStreaming}
         content={content}
         renderBody={(props) => (
           <RenderBody
@@ -352,10 +362,12 @@ export function RenderMessageContent({
   if (msgType === MsgType.File) {
     const longTextSource = getMindroomLongTextSource(content);
     if (longTextSource) {
+      const isStreaming = isMindroomAiRunStreaming(content);
       return (
         <MindroomLongTextText
           kind={MindroomLongTextKind.Text}
           edited={edited}
+          isStreaming={isStreaming}
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
           renderBody={(resolvedContent, props) => (
