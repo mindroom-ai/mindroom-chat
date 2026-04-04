@@ -91,6 +91,11 @@
     - `npm run lint` still fails at repo baseline because `eslint src/*` crashes across the tree with the existing TypeScript parser `originalKeywordKind` deprecation error
 - `CINNY-053`
   - Fixes iOS Safari keyboard dismiss scroll bug: adds `interactive-widget=resizes-content` to the viewport meta tag and a `useIOSKeyboardFix` hook that resets stale scroll offsets when the virtual keyboard is dismissed.
+- `CINNY-060`
+  - Adds pinch-to-zoom UI scale control on top of the existing `Settings.pageZoom` setting:
+    - ctrl/trackpad pinch wheel gestures now adjust the stored page zoom,
+    - two-finger touch pinch and Safari `gesture*` events also update the same setting,
+    - and the Settings page zoom input now shares the central min/max constants and resyncs when zoom changes outside the form.
 
 ### Validation Standard
 
@@ -104,7 +109,7 @@
 
 - Cleaned issue-backed `dev` history starts at `96b13bcc`.
 - Current green baseline at `HEAD`:
-  - `npm test` passes (`112/112` files, `946/946` tests)
+  - `npm test` passes (`113/113` files, `950/950` tests)
   - `npm run typecheck` passes
   - `npm run build` passes
 
@@ -147,6 +152,16 @@
   - `CINNY-050` introduced a parser/API mismatch where `parseThreadTagsContent()` returned `{ tags }`, but `useRoomThreadTags` still treated the parsed object itself as the tag map.
   - Symptom: compact/room thread buttons stopped showing `Resolved`, and the `Resolved` filter in Personal returned zero threads live.
   - Validation: live MCP repro on Personal room plus `npm test`, `npm run typecheck`, and `npm run build`.
+- Latest local pinch-to-zoom UI scale support (2026-04-03):
+  - extracted shared page zoom constants plus `sanitizePageZoom()` / `getTouchDistance()` helpers so the settings UI and gesture logic use the same zoom bounds and rounding behavior.
+  - added `src/app/hooks/usePinchToZoom.ts`, which listens for ctrl+wheel trackpad pinch, two-finger touch pinch, and Safari `gesturestart` / `gesturechange` / `gestureend`, then batches setting updates through `requestAnimationFrame`.
+  - mounted the gesture hook alongside `PageZoomFeature`, so pinch gestures update the persisted `pageZoom` setting and therefore the existing root `font-size` application path.
+  - `PageZoomInput` now resyncs its draft value when `pageZoom` changes externally, fixing the stale-input case introduced by gesture-driven updates.
+  - added focused regression coverage in `src/app/utils/pageZoom.test.ts`.
+  - validation:
+    - `npm test`
+    - `npm run typecheck`
+    - `npm run build`
 - Latest local edit-reconciliation hardening (2026-03-31):
   - extracted shared serialized edit helpers into `src/app/utils/editEvent.ts` so room render, thread render, and cached-event hydration all apply the same validation rules.
   - serialized bundled replacements now require a real positive `origin_server_ts`; malformed bundled edits are ignored consistently.

@@ -10,7 +10,7 @@ import NotificationSound from '../../../../public/sound/notification.ogg';
 import InviteSound from '../../../../public/sound/invite.ogg';
 import { notificationPermission, setFavicon } from '../../utils/dom';
 import { useSetting } from '../../state/hooks/settings';
-import { settingsAtom } from '../../state/settings';
+import { PAGE_ZOOM_DEFAULT, settingsAtom } from '../../state/settings';
 import { allInvitesAtom } from '../../state/room-list/inviteList';
 import { usePreviousValue } from '../../hooks/usePreviousValue';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -29,6 +29,7 @@ import { useInboxNotificationsSelected } from '../../hooks/router/useInbox';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { useIOSPushEnabled } from '../../hooks/useIOSPushEnabled';
+import { usePinchToZoom } from '../../hooks/usePinchToZoom';
 import {
   checkIOSPushPermission,
   disableIOSPushPusher,
@@ -58,11 +59,19 @@ function SystemEmojiFeature() {
 function PageZoomFeature() {
   const [pageZoom] = useSetting(settingsAtom, 'pageZoom');
 
-  if (pageZoom === 100) {
+  if (pageZoom === PAGE_ZOOM_DEFAULT) {
     document.documentElement.style.removeProperty('font-size');
   } else {
     document.documentElement.style.setProperty('font-size', `calc(1em * ${pageZoom / 100})`);
   }
+
+  return null;
+}
+
+function PinchToZoomFeature() {
+  const [pageZoom, setPageZoom] = useSetting(settingsAtom, 'pageZoom');
+
+  usePinchToZoom(pageZoom, setPageZoom);
 
   return null;
 }
@@ -355,6 +364,7 @@ export function ClientNonUIFeatures({ children }: ClientNonUIFeaturesProps) {
     <>
       <SystemEmojiFeature />
       <PageZoomFeature />
+      <PinchToZoomFeature />
       <FaviconUpdater />
       <InviteNotifications />
       <MessageNotifications />

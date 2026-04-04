@@ -1,8 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
+let storageValue: string | null = null;
+
 beforeAll(() => {
   globalThis.localStorage = {
-    getItem: () => null,
+    getItem: () => storageValue,
     setItem: () => undefined,
     removeItem: () => undefined,
     clear: () => undefined,
@@ -56,5 +58,22 @@ describe('sanitizePaginationLimit', () => {
     expect(sanitizePaginationLimit(100)).toBe(100);
     expect(sanitizePaginationLimit(300)).toBe(300);
     expect(sanitizePaginationLimit(1000)).toBe(1000);
+  });
+});
+
+describe('getSettings', () => {
+  it('sanitizes persisted page zoom values', async () => {
+    const { getSettings, PAGE_ZOOM_DEFAULT, PAGE_ZOOM_MAX } = await import('./settings');
+
+    storageValue = JSON.stringify({ pageZoom: 200 });
+    expect(getSettings().pageZoom).toBe(PAGE_ZOOM_MAX);
+
+    storageValue = JSON.stringify({ pageZoom: Number.NaN });
+    expect(getSettings().pageZoom).toBe(PAGE_ZOOM_DEFAULT);
+
+    storageValue = JSON.stringify({ pageZoom: 89.6 });
+    expect(getSettings().pageZoom).toBe(90);
+
+    storageValue = null;
   });
 });

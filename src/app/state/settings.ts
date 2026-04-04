@@ -5,11 +5,20 @@ const STORAGE_KEY = 'settings';
 export const DEFAULT_PAGINATION_LIMIT = 10000;
 export const MIN_PAGINATION_LIMIT = 50;
 export const THREAD_BATCH_SIZE = 200;
+export const PAGE_ZOOM_MIN = 75;
+export const PAGE_ZOOM_MAX = 150;
+export const PAGE_ZOOM_DEFAULT = 100;
 
 export const sanitizePaginationLimit = (value: unknown): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_PAGINATION_LIMIT;
   return Math.max(Math.trunc(value), MIN_PAGINATION_LIMIT);
 };
+
+const sanitizeStoredPageZoom = (value: unknown): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return PAGE_ZOOM_DEFAULT;
+  return Math.min(PAGE_ZOOM_MAX, Math.max(PAGE_ZOOM_MIN, Math.round(value)));
+};
+
 export type DateFormat = 'D MMM YYYY' | 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY/MM/DD' | '';
 export type MessageSpacing = '0' | '100' | '200' | '300' | '400' | '500';
 export enum MessageLayout {
@@ -63,7 +72,7 @@ const defaultSettings: Settings = {
   isMarkdown: true,
   editorToolbar: false,
   twitterEmoji: false,
-  pageZoom: 100,
+  pageZoom: PAGE_ZOOM_DEFAULT,
   hideActivity: false,
 
   isPeopleDrawer: true,
@@ -91,17 +100,22 @@ const defaultSettings: Settings = {
 };
 
 export const getSettings = () => {
+  if (typeof localStorage === 'undefined') return defaultSettings;
+
   const settings = localStorage.getItem(STORAGE_KEY);
   if (settings === null) return defaultSettings;
   const merged = {
     ...defaultSettings,
     ...(JSON.parse(settings) as Settings),
   };
+  merged.pageZoom = sanitizeStoredPageZoom(merged.pageZoom);
   merged.paginationLimit = sanitizePaginationLimit(merged.paginationLimit);
   return merged;
 };
 
 export const setSettings = (settings: Settings) => {
+  if (typeof localStorage === 'undefined') return;
+
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 };
 
