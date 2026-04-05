@@ -34,6 +34,7 @@ vi.mock('./RoomThreadOverview.css', () => ({
   CompactCount: 'CompactCount',
   SortButton: 'SortButton',
   SortButtonActive: 'SortButtonActive',
+  PauseButtonActive: 'PauseButtonActive',
   EmptyState: 'EmptyState',
   ResetLink: 'ResetLink',
   TagRow: 'TagRow',
@@ -75,6 +76,8 @@ vi.mock('@tabler/icons-react', async (importOriginal) => {
     IconInfoCircle: 'icon-info-circle',
     IconLayoutList: 'icon-layout-list',
     IconLayoutRows: 'icon-layout-rows',
+    IconLock: 'icon-lock',
+    IconLockOpen: 'icon-lock-open',
     IconMessages: 'icon-messages',
     IconSortAscending: 'icon-sort-ascending',
     IconSortDescending: 'icon-sort-descending',
@@ -106,8 +109,10 @@ const defaultProps = {
   totalThreadCount: 5,
   state: makeDefaultState(),
   availableTags: [] as string[],
+  isThreadSortFrozen: false,
   onToggle: vi.fn(),
   onSortDirectionChange: vi.fn(),
+  onToggleThreadSortFreeze: vi.fn(),
   onReset: vi.fn(),
   onCycleTag: vi.fn(),
   onAddTag: vi.fn(),
@@ -245,6 +250,79 @@ describe('RoomThreadOverview', () => {
     });
 
     expect(onSortDirectionChange).toHaveBeenCalled();
+
+    renderer.unmount();
+  });
+
+  it('hides the freeze button when sort is natural', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, defaultProps)
+    );
+
+    expect(
+      renderer.root.findAll((node) => node.props['data-thread-sort-freeze'] === 'true')
+    ).toHaveLength(0);
+
+    renderer.unmount();
+  });
+
+  it('shows an inactive freeze button for non-natural sorting', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        state: makeDefaultState({ sortBy: 'lastReply', sortDirection: 'desc' }),
+      })
+    );
+
+    const freezeButton = renderer.root.find(
+      (node) => node.props['data-thread-sort-freeze'] === 'true'
+    );
+    expect(freezeButton.props['aria-pressed']).toBe(false);
+    expect(freezeButton.props['aria-label']).toBe('Lock thread sort order');
+    expect(freezeButton.findAllByType('icon-lock')).toHaveLength(1);
+
+    renderer.unmount();
+  });
+
+  it('shows the active freeze button state when sorting is paused', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        isThreadSortFrozen: true,
+        state: makeDefaultState({ sortBy: 'lastReply', sortDirection: 'desc' }),
+      })
+    );
+
+    const freezeButton = renderer.root.find(
+      (node) => node.props['data-thread-sort-freeze'] === 'true'
+    );
+    expect(freezeButton.props.className).toContain('PauseButtonActive');
+    expect(freezeButton.props['aria-pressed']).toBe(true);
+    expect(freezeButton.props['aria-label']).toBe('Unlock thread sort order');
+    expect(freezeButton.findAllByType('icon-lock-open')).toHaveLength(1);
+
+    renderer.unmount();
+  });
+
+  it('freeze button calls onToggleThreadSortFreeze on click', () => {
+    const onToggleThreadSortFreeze = vi.fn();
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        state: makeDefaultState({ sortBy: 'lastReply', sortDirection: 'desc' }),
+        onToggleThreadSortFreeze,
+      })
+    );
+
+    const freezeButton = renderer.root.find(
+      (node) => node.props['data-thread-sort-freeze'] === 'true'
+    );
+
+    act(() => {
+      freezeButton.props.onClick();
+    });
+
+    expect(onToggleThreadSortFreeze).toHaveBeenCalledTimes(1);
 
     renderer.unmount();
   });

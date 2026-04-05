@@ -158,6 +158,19 @@ export const SortButtonActive = style({
   },
 });
 
+export const PauseButtonActive = style({
+  backgroundColor: color.Warning.Container,
+  borderColor: color.Warning.ContainerLine,
+  color: color.Warning.OnContainer,
+  opacity: '1',
+
+  selectors: {
+    '&:hover': {
+      backgroundColor: color.Warning.ContainerHover,
+    },
+  },
+});
+
 // ─── Tag filter row (Row 2) ──────────────────────────────────────────────────
 
 export const TagRow = style({
