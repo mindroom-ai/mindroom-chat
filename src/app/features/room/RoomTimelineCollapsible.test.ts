@@ -792,6 +792,12 @@ const createControlledRoomTimelineHarness = (
 ) => {
   const roomInputRef = createRef<HTMLElement>();
   const editor = {} as Editor;
+  const defaultThreadFilterState = {
+    ...createDefaultThreadFilterState(),
+    sortBy: 'natural' as const,
+    sortDirection: 'desc' as const,
+    tags: new Map(),
+  };
 
   return function ControlledRoomTimelineHarness({
     room,
@@ -803,13 +809,18 @@ const createControlledRoomTimelineHarness = (
     return React.createElement(RoomTimelineComponent, {
       room,
       threadId,
-      threadFilterState: createDefaultThreadFilterState(),
+      threadFilterState: defaultThreadFilterState,
+      threadSortFreezeState: null,
       onToggle: vi.fn(),
       onSortDirectionChange: vi.fn(),
+      onToggleThreadSortFreeze: vi.fn(),
+      setThreadSortFreezeState: vi.fn(),
       onCycleTag: vi.fn(),
       onAddTag: vi.fn(),
       onRemoveTag: vi.fn(),
       onReset: vi.fn(),
+      onApplyPreset: vi.fn(),
+      onSearchQueryChange: vi.fn(),
       viewMode: 'normal',
       onViewModeChange: vi.fn(),
       roomInputRef,
