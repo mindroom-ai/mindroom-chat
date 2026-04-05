@@ -6,9 +6,9 @@ import {
   IconInfoCircle,
   IconLayoutList,
   IconLayoutRows,
+  IconLock,
+  IconLockOpen,
   IconMessages,
-  IconPlayerPause,
-  IconPlayerPlay,
   IconSortAscending,
   IconSortDescending,
   IconZzz,
@@ -711,10 +711,10 @@ export function RoomThreadOverview({
   const filterSummary = filtersActive
     ? `Showing ${threadCount} thread${threadCount !== 1 ? 's' : ''} with active filters.`
     : `Showing all ${threadCount} thread${threadCount !== 1 ? 's' : ''}.`;
-  const liveSummary = isThreadSortFrozen ? `${filterSummary} Sorting paused.` : filterSummary;
+  const liveSummary = isThreadSortFrozen ? `${filterSummary} Thread sort order locked.` : filterSummary;
   const freezeLabel = isThreadSortFrozen
-    ? 'Resume live thread sorting'
-    : 'Pause thread sorting and freeze the current order';
+    ? 'Unlock thread sort order'
+    : 'Lock thread sort order';
 
   return (
     <Box className={css.Overview} direction="Column" gap="200" data-room-thread-overview="true">
@@ -905,9 +905,9 @@ export function RoomThreadOverview({
                 data-thread-sort-freeze="true"
               >
                 {isThreadSortFrozen ? (
-                  <IconPlayerPlay size={14} stroke={1.8} aria-hidden="true" />
+                  <IconLockOpen size={14} stroke={1.8} aria-hidden="true" />
                 ) : (
-                  <IconPlayerPause size={14} stroke={1.8} aria-hidden="true" />
+                  <IconLock size={14} stroke={1.8} aria-hidden="true" />
                 )}
               </button>
             )}

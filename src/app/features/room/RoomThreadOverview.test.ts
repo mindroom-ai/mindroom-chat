@@ -76,9 +76,9 @@ vi.mock('@tabler/icons-react', async (importOriginal) => {
     IconInfoCircle: 'icon-info-circle',
     IconLayoutList: 'icon-layout-list',
     IconLayoutRows: 'icon-layout-rows',
+    IconLock: 'icon-lock',
+    IconLockOpen: 'icon-lock-open',
     IconMessages: 'icon-messages',
-    IconPlayerPause: 'icon-player-pause',
-    IconPlayerPlay: 'icon-player-play',
     IconSortAscending: 'icon-sort-ascending',
     IconSortDescending: 'icon-sort-descending',
     IconZzz: 'icon-zzz',
@@ -278,8 +278,8 @@ describe('RoomThreadOverview', () => {
       (node) => node.props['data-thread-sort-freeze'] === 'true'
     );
     expect(freezeButton.props['aria-pressed']).toBe(false);
-    expect(freezeButton.props['aria-label']).toBe('Pause thread sorting and freeze the current order');
-    expect(freezeButton.findAllByType('icon-player-pause')).toHaveLength(1);
+    expect(freezeButton.props['aria-label']).toBe('Lock thread sort order');
+    expect(freezeButton.findAllByType('icon-lock')).toHaveLength(1);
 
     renderer.unmount();
   });
@@ -298,8 +298,8 @@ describe('RoomThreadOverview', () => {
     );
     expect(freezeButton.props.className).toContain('PauseButtonActive');
     expect(freezeButton.props['aria-pressed']).toBe(true);
-    expect(freezeButton.props['aria-label']).toBe('Resume live thread sorting');
-    expect(freezeButton.findAllByType('icon-player-play')).toHaveLength(1);
+    expect(freezeButton.props['aria-label']).toBe('Unlock thread sort order');
+    expect(freezeButton.findAllByType('icon-lock-open')).toHaveLength(1);
 
     renderer.unmount();
   });

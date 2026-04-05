@@ -493,19 +493,28 @@ describe('roomThreadOverviewModel', () => {
   // ═══ isDefaultThreadFilterState ═══════════════════════════════════════
 
   describe('isDefaultThreadFilterState', () => {
-    it('returns true for default state', async () => {
-      const { isDefaultThreadFilterState } = await import('./roomThreadOverviewModel');
-      expect(isDefaultThreadFilterState(makeDefaultState())).toBe(true);
+    it('returns true for the persisted default state', async () => {
+      const { createDefaultThreadFilterState, isDefaultThreadFilterState } = await import(
+        './roomThreadOverviewModel'
+      );
+      expect(isDefaultThreadFilterState(createDefaultThreadFilterState())).toBe(true);
     });
 
     it('returns false when filter is active', async () => {
-      const { isDefaultThreadFilterState } = await import('./roomThreadOverviewModel');
-      expect(isDefaultThreadFilterState(makeDefaultState({ resolved: 'include' }))).toBe(false);
+      const { createDefaultThreadFilterState, isDefaultThreadFilterState } = await import(
+        './roomThreadOverviewModel'
+      );
+      expect(
+        isDefaultThreadFilterState({
+          ...createDefaultThreadFilterState(),
+          resolved: 'include',
+        })
+      ).toBe(false);
     });
 
-    it('returns false when sortBy is lastReply', async () => {
+    it('returns false for the natural-sort inactive baseline', async () => {
       const { isDefaultThreadFilterState } = await import('./roomThreadOverviewModel');
-      expect(isDefaultThreadFilterState(makeDefaultState({ sortBy: 'lastReply' }))).toBe(false);
+      expect(isDefaultThreadFilterState(makeDefaultState())).toBe(false);
     });
   });
 

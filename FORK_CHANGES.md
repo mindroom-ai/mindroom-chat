@@ -163,18 +163,19 @@
     - `RoomView.tsx` now owns the room-session freeze snapshot and clears it on room switch or when sort returns to `natural`.
     - `roomThreadOverviewModel.ts` now exports `applyFrozenThreadOrder(...)` plus `createThreadSortControlSignature(...)` so freeze stays outside the sort comparators and control changes can resnapshot deterministically.
     - `RoomTimeline.tsx` now resolves one live/display thread-id order per overview mode and reuses the same resolved ids for expanded overview rendering, compact view props, focus targeting, and top-of-list cached metadata preload.
-    - `RoomThreadOverview.tsx` / `RoomThreadOverview.css.ts` now render the pause/play toolbar button with paused styling, tooltip copy, `aria-pressed`, and live-region text updates.
+    - `RoomThreadOverview.tsx` / `RoomThreadOverview.css.ts` now render the lock/unlock toolbar button with paused styling, tooltip copy, `aria-pressed`, and live-region text updates.
     - focused regression coverage was added in `RoomThreadOverview.test.ts`, `RoomView.test.ts`, `RoomTimeline.test.ts`, and `roomThreadOverviewModel.test.ts`; `RoomTimelineCollapsible.test.ts` was updated so its harness keeps natural-sort message rendering for non-overview timeline assertions.
   - review-fix follow-up (2026-04-04):
     - `RoomTimeline.tsx` now drives `threadFilteredEvents` from the active resolved overview ids, so room focus/scroll helpers follow the same compact-vs-expanded and frozen-vs-live ordering that the user sees.
     - `getFilteredRoomOverviewEvents(...)` and `getRoomEventFocusTarget(...)` now accept compact-view context plus server thread-list roots, so compact-only roots participate in focus targeting even when they are not in the current `renderableEvents` slice.
     - `CompactRoomView` props and compact-root edit backfill now read the same resolved `overviewThreadRootIds` used by the rest of the overview pipeline, and `compactOverviewOrdering` skips the extra compute path when compact view is not requested.
     - `RoomTimeline.test.ts` now covers frozen compact scroll-index alignment and compact-only frozen focus targeting; the test harness `sortBy: 'natural'` override is documented inline.
+  - validation follow-up (2026-04-04):
+    - `isDefaultThreadFilterState(...)` now treats `createDefaultThreadFilterState()` as the persisted default again, so resetting room thread filters removes the room-scoped `localStorage` key.
+    - `roomThreadOverviewModel.test.ts` and `roomThreadFilterState.test.ts` now cover the corrected persisted-default semantics.
   - validation (2026-04-04):
-    - `npm test -- RoomThreadOverview RoomView RoomTimeline roomThreadOverviewModel` passes (`6/6` files, `263/263` tests).
-    - `npm run typecheck` passes.
-    - `npm test -- RoomTimeline` passes (`2/2` files, `115/115` tests).
-    - `npm test` still has the known unrelated baseline failure in `src/app/state/room/roomThreadFilterState.test.ts:110`.
+    - `npm test` passes (`115/115` files, `980/980` tests).
+    - `npx tsc --noEmit` passes.
     - `npm run build` passes.
 - `CINNY-054` planning investigation (2026-03-31):
   - confirmed the markdown pipeline is Cinny's in-repo regex parser under `src/app/plugins/markdown/*`, wired into compose/search via `src/app/components/editor/output.ts` and `src/app/features/message-search/searchResultPreview.ts`; it is neither `unified/remark/rehype` nor `markdown-it`.
