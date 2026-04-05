@@ -6,6 +6,7 @@ import { Filter } from 'matrix-js-sdk/lib/filter';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 
 import { clearSecretStorageKeys, cryptoCallbacks } from './secretStorageKeys';
+import { clearLastOpenThreadStore } from '../app/state/lastOpenThread';
 import { clearNavToActivePathStore } from '../app/state/navToActivePath';
 import { clearRoomThreadFiltersStore } from '../app/state/room/roomThreadFilterState';
 import { createMatrixClient } from './matrixClientFactory';
@@ -428,6 +429,7 @@ export const deleteSessionLocalData = async (
   session: SessionCleanupContext,
   mx?: MatrixClient
 ): Promise<void> => {
+  clearLastOpenThreadStore(session.userId);
   clearNavToActivePathStore(session.userId);
   clearRoomThreadFiltersStore(session.userId);
 
@@ -472,6 +474,7 @@ export const removeCurrentClientSessionAndReload = async (
     removeSession(session.sessionId);
   } else {
     await clearMatrixClientStores(mx);
+    clearLastOpenThreadStore(mx.getSafeUserId());
     removeActiveSession();
   }
 
@@ -492,7 +495,8 @@ export const removeStoredSession = async (session: StoredSession): Promise<void>
 
 export const clearCacheAndReload = async (mx: MatrixClient) => {
   mx.stopClient();
-  const userId = mx.getSafeUserId();
+const userId = mx.getSafeUserId();
+  clearLastOpenThreadStore(userId);
   clearNavToActivePathStore(userId);
   clearRoomThreadFiltersStore(userId);
   const activeSession = getActiveSession() ?? getMatrixClientSessionCleanupContext(mx);
@@ -617,6 +621,7 @@ export const clearLoginData = async () => {
     )
   );
   sessions.forEach((session) => {
+    clearLastOpenThreadStore(session.userId);
     clearNavToActivePathStore(session.userId);
     clearRoomThreadFiltersStore(session.userId);
     clearIOSPushState(session.sessionId);
