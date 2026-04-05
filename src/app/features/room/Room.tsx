@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Box, Line } from 'folds';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { isKeyHotkey } from 'is-hotkey';
@@ -14,6 +14,12 @@ import { markRoomAndThreadsAsRead, markThreadAsRead } from '../../utils/notifica
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { getRoomSearchParams } from '../../pages/pathSearchParam';
+import {
+  clearLastOpenThread,
+  getLastOpenThread,
+  setLastOpenThread,
+} from '../../state/lastOpenThread';
+import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 
 export function Room() {
   const { eventId } = useParams();
@@ -28,6 +34,11 @@ export function Room() {
   const screenSize = useScreenSizeContext();
   const powerLevels = usePowerLevels(room);
   const members = useRoomMembers(mx, room.roomId);
+  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
+  const previousRoomIdRef = useRef(room.roomId);
+  const previousThreadIdRef = useRef<string | undefined>(threadId);
+  const attemptedRestoreRef = useRef<string>();
+  const autoRestoredThreadIdRef = useRef<string>();
 
   useKeyDown(
     window,
@@ -45,10 +56,62 @@ export function Room() {
     )
   );
 
+  useEffect(() => {
+    if (!threadId) return;
+    setLastOpenThread(room.roomId, threadId);
+  }, [room.roomId, threadId]);
+
+  useEffect(() => {
+    const previousRoomId = previousRoomIdRef.current;
+    const previousThreadId = previousThreadIdRef.current;
+
+    if (previousRoomId === room.roomId && previousThreadId && !threadId) {
+      clearLastOpenThread(room.roomId);
+      if (autoRestoredThreadIdRef.current === previousThreadId) {
+        autoRestoredThreadIdRef.current = undefined;
+      }
+    }
+
+    previousRoomIdRef.current = room.roomId;
+    previousThreadIdRef.current = threadId;
+  }, [room.roomId, threadId]);
+
+  useEffect(() => {
+    if (threadId || eventId) return;
+
+    const savedThreadId = getLastOpenThread(room.roomId);
+    if (!savedThreadId) return;
+
+    const restoreKey = `${room.roomId}|${savedThreadId}`;
+    if (attemptedRestoreRef.current === restoreKey) return;
+
+    attemptedRestoreRef.current = restoreKey;
+    autoRestoredThreadIdRef.current = savedThreadId;
+    navigateRoomThread(room.roomId, savedThreadId, undefined, { replace: true });
+  }, [eventId, navigateRoomThread, room.roomId, threadId]);
+
+  const handleThreadLoadError = useCallback(
+    (failedThreadId: string) => {
+      if (getLastOpenThread(room.roomId) === failedThreadId) {
+        clearLastOpenThread(room.roomId);
+      }
+      if (autoRestoredThreadIdRef.current !== failedThreadId) return;
+
+      autoRestoredThreadIdRef.current = undefined;
+      navigateRoom(room.roomId, undefined, { replace: true });
+    },
+    [navigateRoom, room.roomId]
+  );
+
   return (
     <PowerLevelsContextProvider value={powerLevels}>
       <Box grow="Yes">
-        <RoomView room={room} eventId={eventId} threadId={threadId} />
+        <RoomView
+          room={room}
+          eventId={eventId}
+          threadId={threadId}
+          onThreadLoadError={handleThreadLoadError}
+        />
         {screenSize === ScreenSize.Desktop && isDrawer && (
           <>
             <Line variant="Background" direction="Vertical" size="300" />

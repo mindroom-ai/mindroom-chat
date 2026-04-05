@@ -81,10 +81,12 @@ export function RoomView({
   room,
   eventId,
   threadId,
+  onThreadLoadError,
 }: {
   room: Room;
   eventId?: string;
   threadId?: string;
+  onThreadLoadError?: (threadId: string) => void;
 }) {
   const roomInputRef = useRef<HTMLDivElement>(null);
   const roomViewRef = useRef<HTMLDivElement>(null);
@@ -238,7 +240,7 @@ export function RoomView({
           room={room}
           eventId={eventId}
           threadId={threadId}
-          threadFilterState={threadFilterState}
+threadFilterState={threadFilterState}
           threadSortFreezeState={threadSortFreezeState}
           onToggle={handleToggle}
           onSortDirectionChange={handleSortDirectionChange}
@@ -252,6 +254,7 @@ export function RoomView({
           onSearchQueryChange={handleSearchQueryChange}
           viewMode={viewMode}
           onViewModeChange={handleViewModeChange}
+          onThreadLoadError={onThreadLoadError}
           roomInputRef={roomInputRef}
           editor={editor}
         />
