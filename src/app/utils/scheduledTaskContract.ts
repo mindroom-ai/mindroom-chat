@@ -5,12 +5,15 @@ type ScheduledTaskStateEventContent = {
   workflow?: unknown;
   thread_id?: unknown;
   new_thread?: unknown;
+  execute_at?: unknown;
+  scheduled_at?: unknown;
 };
 
 type ScheduledTaskWorkflow = {
   thread_id?: unknown;
   new_thread?: unknown;
   execute_at?: unknown;
+  scheduled_at?: unknown;
 };
 
 type ParsedWorkflow = {
@@ -36,6 +39,12 @@ const parseThreadId = (value: unknown): string | null | undefined => {
 const parseNewThread = (value: unknown): boolean | undefined =>
   typeof value === 'boolean' ? value : undefined;
 
+const parseScheduledAt = (value: unknown): string | null | undefined => {
+  if (typeof value === 'string') return value;
+  if (value === null) return null;
+  return undefined;
+};
+
 const parseWorkflow = (workflow: unknown): ParsedWorkflow | null => {
   if (workflow === undefined) return {};
 
@@ -53,13 +62,17 @@ const parseWorkflow = (workflow: unknown): ParsedWorkflow | null => {
     return null;
   }
 
-  const { thread_id: threadIdValue, new_thread: newThreadValue, execute_at: executeAtValue } =
-    parsedWorkflow as ScheduledTaskWorkflow;
+  const {
+    thread_id: threadIdValue,
+    new_thread: newThreadValue,
+    execute_at: executeAtValue,
+    scheduled_at: scheduledAtValue,
+  } = parsedWorkflow as ScheduledTaskWorkflow;
 
   return {
     threadId: parseThreadId(threadIdValue),
     newThread: parseNewThread(newThreadValue),
-    executeAt: typeof executeAtValue === 'string' ? executeAtValue : null,
+    executeAt: parseScheduledAt(executeAtValue) ?? parseScheduledAt(scheduledAtValue) ?? null,
   };
 };
 
@@ -70,12 +83,21 @@ export const parseScheduledTaskStateEvent = (event: MatrixEvent): ParsedSchedule
   const content = event.getContent<ScheduledTaskStateEventContent>();
   if (!content || typeof content !== 'object') return null;
 
-  const { status, thread_id: topLevelThreadId, new_thread: topLevelNewThread, workflow } = content;
+  const {
+    status,
+    thread_id: topLevelThreadId,
+    new_thread: topLevelNewThread,
+    execute_at: topLevelExecuteAt,
+    scheduled_at: topLevelScheduledAt,
+    workflow,
+  } = content;
   if (typeof status !== 'string') return null;
 
   const parsedWorkflow = parseWorkflow(workflow);
   const parsedTopLevelThreadId = parseThreadId(topLevelThreadId);
   const parsedTopLevelNewThread = parseNewThread(topLevelNewThread);
+  const parsedTopLevelExecuteAt =
+    parseScheduledAt(topLevelExecuteAt) ?? parseScheduledAt(topLevelScheduledAt);
 
   if (
     workflow !== undefined &&
@@ -90,6 +112,6 @@ export const parseScheduledTaskStateEvent = (event: MatrixEvent): ParsedSchedule
     status,
     threadId: parsedTopLevelThreadId ?? parsedWorkflow?.threadId ?? null,
     newThread: parsedTopLevelNewThread ?? parsedWorkflow?.newThread ?? false,
-    executeAt: parsedWorkflow?.executeAt ?? null,
+    executeAt: parsedTopLevelExecuteAt ?? parsedWorkflow?.executeAt ?? null,
   };
 };

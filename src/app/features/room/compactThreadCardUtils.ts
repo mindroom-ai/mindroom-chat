@@ -1,4 +1,7 @@
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+const TEN_MINUTES_MS = 10 * 60 * 1000;
+const ONE_HOUR_MS = 60 * 60 * 1000;
+const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 
 const isSameCalendarDay = (leftTs: number, rightTs: number): boolean => {
   const left = new Date(leftTs);
@@ -48,4 +51,14 @@ export const formatScheduledTime = (ts: number): string => {
     hour: 'numeric',
     minute: '2-digit',
   }).format(ts);
+};
+
+export const getScheduledTimeUpdateInterval = (ts: number, now = Date.now()): number => {
+  const deltaMs = ts - now;
+
+  if (deltaMs <= 0) return -1;
+  if (deltaMs < TEN_MINUTES_MS) return 1000;
+  if (deltaMs < SIX_HOURS_MS) return 60 * 1000;
+  if (deltaMs < ONE_HOUR_MS * 24) return FIFTEEN_MINUTES_MS;
+  return ONE_HOUR_MS;
 };
