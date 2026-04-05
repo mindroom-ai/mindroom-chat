@@ -18,6 +18,7 @@ import {
   EventTimelineSetHandlerMap,
   IEvent,
   IContent,
+  MatrixError,
   MatrixClient,
   MatrixEvent,
   RelationType,
@@ -124,6 +125,7 @@ import { createMentionElement, isEmptyEditor, moveCursor } from '../../component
 import { roomIdToReplyDraftAtomFamily } from '../../state/room/roomInputDrafts';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { GetContentCallback, MessageEvent, StateEvent } from '../../../types/matrix/room';
+import { ErrorCode } from '../../cs-errorcode';
 import { useKeyDown } from '../../hooks/useKeyDown';
 import { useDocumentFocusChange } from '../../hooks/useDocumentFocusChange';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
@@ -1049,7 +1051,7 @@ type RoomTimelineProps = {
   room: Room;
   eventId?: string;
   threadId?: string;
-  threadFilterState: ThreadFilterState;
+threadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
   onToggle: (key: ThreadFilterKey) => void;
   onSortDirectionChange: () => void;
@@ -1063,6 +1065,7 @@ type RoomTimelineProps = {
   onSearchQueryChange: (query: string) => void;
   viewMode?: RoomViewMode;
   onViewModeChange?: (viewMode: RoomViewMode) => void;
+  onThreadLoadError?: (threadId: string) => void;
   roomInputRef: RefObject<HTMLElement>;
   editor: Editor;
 };
@@ -1260,6 +1263,10 @@ const getThreadCacheTargetId = (room: Room, mEvent: MatrixEvent): string | undef
     ? relatedEventId
     : undefined;
 };
+
+const isThreadNotFoundError = (error: unknown): error is MatrixError =>
+  error instanceof MatrixError &&
+  (error.httpStatus === 404 || error.errcode === ErrorCode.M_NOT_FOUND);
 
 export const shouldRefreshOverviewForTimelineEvent = (
   room: Room,
@@ -2455,7 +2462,7 @@ export function RoomTimeline({
   room,
   eventId,
   threadId,
-  threadFilterState,
+threadFilterState,
   threadSortFreezeState,
   onToggle,
   onSortDirectionChange,
@@ -2469,6 +2476,7 @@ export function RoomTimeline({
   onSearchQueryChange,
   viewMode = 'normal',
   onViewModeChange,
+  onThreadLoadError,
   roomInputRef,
   editor,
 }: RoomTimelineProps) {
@@ -5974,6 +5982,9 @@ export function RoomTimeline({
               threadId,
             });
             setThreadLoadError(true);
+            if (isThreadNotFoundError(ctxErr)) {
+              onThreadLoadError?.(threadId);
+            }
             return;
           }
           threadModel = room.getThread(threadId);
@@ -5994,6 +6005,9 @@ export function RoomTimeline({
               threadId,
             });
             setThreadLoadError(true);
+            if (isThreadNotFoundError(relErr)) {
+              onThreadLoadError?.(threadId);
+            }
             return;
           }
           // Check if SDK created a Thread from the fetched relations
@@ -6252,7 +6266,8 @@ export function RoomTimeline({
     refreshLatestThreadSlice,
     room,
     setSupplementalThreadEvents,
-    threadDebugTraceId,
+threadDebugTraceId,
+    onThreadLoadError,
     threadId,
   ]);
 
