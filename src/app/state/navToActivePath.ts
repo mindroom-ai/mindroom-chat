@@ -67,6 +67,15 @@ export const makeNavToActivePathAtom = (userId: string): NavToActivePathAtom => 
   return navToActivePathAtom;
 };
 
+export const getStoredNavToActivePath = (userId: string): NavToActivePath => {
+  try {
+    const obj: Record<string, Path> = getLocalStorageItem(getStoreKey(userId), {});
+    return new Map(Object.entries(obj));
+  } catch {
+    return new Map();
+  }
+};
+
 export const clearNavToActivePathStore = (userId: string) => {
   localStorage.removeItem(getStoreKey(userId));
 };
