@@ -1,7 +1,15 @@
 import { ClientConfig } from '../hooks/useClientConfig';
 import { getActiveSession, hasStoredSessions } from '../state/sessions';
+import { getStoredNavToActivePath } from '../state/navToActivePath';
 import { isAddAccountSearch } from './auth/addAccount';
-import { getAppPathFromHref, getHomePath, getLoginPath, getOriginBaseUrl } from './pathUtils';
+import { resolveSessionRestorePath } from './client/sessionRouteRestore';
+import {
+  getAppPathFromHref,
+  getHomePath,
+  getLoginPath,
+  getOriginBaseUrl,
+  joinPathComponent,
+} from './pathUtils';
 
 export type RouteRedirectDecision = {
   redirectTo: string;
@@ -13,8 +21,11 @@ export const resolveRootRouteRedirect = (
   activeSession = getActiveSession()
 ): RouteRedirectDecision => {
   if (activeSession) {
+    const savedHomePath = getStoredNavToActivePath(activeSession.userId).get('home');
     return {
-      redirectTo: getHomePath(),
+      redirectTo: resolveSessionRestorePath(
+        savedHomePath ? joinPathComponent(savedHomePath) : undefined
+      ),
     };
   }
 
