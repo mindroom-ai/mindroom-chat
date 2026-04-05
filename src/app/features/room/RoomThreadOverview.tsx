@@ -6,6 +6,8 @@ import {
   IconInfoCircle,
   IconLayoutList,
   IconLayoutRows,
+  IconLock,
+  IconLockOpen,
   IconMessages,
   IconSortAscending,
   IconSortDescending,
@@ -608,8 +610,10 @@ export type RoomThreadOverviewProps = {
   availableTags: string[];
   viewMode?: RoomViewMode;
   onViewModeChange?: (mode: RoomViewMode) => void;
+  isThreadSortFrozen?: boolean;
   onToggle: (key: ThreadFilterKey) => void;
   onSortDirectionChange: () => void;
+  onToggleThreadSortFreeze: () => void;
   onReset: () => void;
   onCycleTag: (tag: string) => void;
   onAddTag: (tag: string) => void;
@@ -627,8 +631,10 @@ export function RoomThreadOverview({
   availableTags,
   viewMode,
   onViewModeChange,
+  isThreadSortFrozen = false,
   onToggle,
   onSortDirectionChange,
+  onToggleThreadSortFreeze,
   onReset,
   onCycleTag,
   onAddTag,
@@ -705,11 +711,15 @@ export function RoomThreadOverview({
   const filterSummary = filtersActive
     ? `Showing ${threadCount} thread${threadCount !== 1 ? 's' : ''} with active filters.`
     : `Showing all ${threadCount} thread${threadCount !== 1 ? 's' : ''}.`;
+  const liveSummary = isThreadSortFrozen ? `${filterSummary} Thread sort order locked.` : filterSummary;
+  const freezeLabel = isThreadSortFrozen
+    ? 'Unlock thread sort order'
+    : 'Lock thread sort order';
 
   return (
     <Box className={css.Overview} direction="Column" gap="200" data-room-thread-overview="true">
       <div aria-live="polite" aria-atomic="true" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
-        {filterSummary}
+        {liveSummary}
       </div>
       {/* Single-line toolbar */}
       <div className={css.ToolbarHeader} role="toolbar" aria-label="Thread filters">
@@ -871,6 +881,38 @@ export function RoomThreadOverview({
             </button>
           )}
         </TooltipProvider>
+        {state.sortBy !== 'natural' && (
+          <TooltipProvider
+            position="Bottom"
+            align="Center"
+            tooltip={
+              <Tooltip style={{ maxWidth: toRem(220) }}>
+                <Text size="T200">{freezeLabel}</Text>
+              </Tooltip>
+            }
+          >
+            {(triggerRef) => (
+              <button
+                ref={triggerRef}
+                type="button"
+                className={classNames(
+                  css.ToggleButton,
+                  isThreadSortFrozen && css.PauseButtonActive
+                )}
+                aria-label={freezeLabel}
+                aria-pressed={isThreadSortFrozen}
+                onClick={onToggleThreadSortFreeze}
+                data-thread-sort-freeze="true"
+              >
+                {isThreadSortFrozen ? (
+                  <IconLockOpen size={14} stroke={1.8} aria-hidden="true" />
+                ) : (
+                  <IconLock size={14} stroke={1.8} aria-hidden="true" />
+                )}
+              </button>
+            )}
+          </TooltipProvider>
+        )}
       </div>
 
       {/* Row 2: Tag filters */}

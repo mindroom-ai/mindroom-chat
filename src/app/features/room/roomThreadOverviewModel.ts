@@ -14,6 +14,7 @@ import {
   pickPreferredThreadRootPreviewText,
 } from './compactThreadRootData';
 import { parseScheduledTaskStateEvent } from '../../utils/scheduledTaskContract';
+import type { RoomViewMode } from '../../state/room/roomViewMode';
 
 // ─── Tri-state types ─────────────────────────────────────────────────────────
 
@@ -37,6 +38,11 @@ export interface ThreadFilterState {
   // OR/AND mode for status include filters (presets can set 'or')
   statusMode: 'and' | 'or';
 }
+
+export type ThreadSortFreezeState = {
+  controlSignature: string | null;
+  orderedRootIds: string[];
+};
 
 export const createDefaultThreadFilterState = (): ThreadFilterState => ({
   resolved: 'any',
@@ -112,6 +118,10 @@ export const serializeThreadFilterState = (
     statusMode,
   };
 };
+
+const DEFAULT_SERIALIZED_THREAD_FILTER_STATE = JSON.stringify(
+  serializeThreadFilterState(createDefaultThreadFilterState())
+);
 
 export const deserializeThreadFilterState = (value: unknown): ThreadFilterState => {
   const defaultState = createDefaultThreadFilterState();
@@ -246,7 +256,7 @@ export const hasActiveThreadFilters = (state: ThreadFilterState): boolean =>
   (state.searchQuery ?? '').length > 0;
 
 export const isDefaultThreadFilterState = (state: ThreadFilterState): boolean =>
-  !hasActiveThreadFilters(state) && state.sortBy === 'natural';
+  JSON.stringify(serializeThreadFilterState(state)) === DEFAULT_SERIALIZED_THREAD_FILTER_STATE;
 
 export const isRoomThreadOverviewActive = (
   threadId: string | undefined,
@@ -268,6 +278,46 @@ export const cycleSortMode = (
   if (state.sortBy === 'natural') return { sortBy: 'lastReply', sortDirection: 'desc' };
   if (state.sortDirection === 'desc') return { sortBy: 'lastReply', sortDirection: 'asc' };
   return { sortBy: 'natural', sortDirection: 'desc' };
+};
+
+export const createThreadSortControlSignature = ({
+  state,
+  searchQuery,
+  viewMode,
+}: {
+  state: ThreadFilterState;
+  searchQuery?: string;
+  viewMode?: RoomViewMode;
+}): string =>
+  JSON.stringify({
+    sortBy: state.sortBy,
+    sortDirection: state.sortDirection,
+    resolved: state.resolved,
+    streaming: state.streaming,
+    scheduled: state.scheduled,
+    unread: state.unread,
+    idle: state.idle,
+    statusMode: state.statusMode,
+    tags: [...state.tags.entries()].sort(([tagA], [tagB]) => tagA.localeCompare(tagB)),
+    searchQuery: searchQuery ?? state.searchQuery ?? '',
+    viewMode: viewMode ?? 'normal',
+  });
+
+export const applyFrozenThreadOrder = (
+  frozenOrderedIds: string[],
+  liveOrderedIds: string[]
+): string[] => {
+  const liveIdSet = new Set(liveOrderedIds);
+  const resolvedOrderedIds = frozenOrderedIds.filter((id) => liveIdSet.has(id));
+  const resolvedIdSet = new Set(resolvedOrderedIds);
+
+  liveOrderedIds.forEach((id) => {
+    if (!resolvedIdSet.has(id)) {
+      resolvedOrderedIds.push(id);
+    }
+  });
+
+  return resolvedOrderedIds;
 };
 
 export const resetThreadFilterState = (): ThreadFilterState =>
