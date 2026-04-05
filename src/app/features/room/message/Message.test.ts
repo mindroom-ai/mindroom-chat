@@ -11,6 +11,7 @@ type HostNodeMock = {
 
 let lastMessageBaseNode: HostNodeMock | undefined;
 
+// These renderer/UI mocks should move into shared Vitest setup once the repo adds one.
 vi.mock('./styles.css', () => ({
   BubbleAvatarBase: 'BubbleAvatarBase',
   MessageAiRunInfoButton: 'MessageAiRunInfoButton',
@@ -50,13 +51,7 @@ vi.mock('folds', async () => {
 
   const div =
     (tag = 'div') =>
-    ({
-      children,
-      ...props
-    }: {
-      children?: React.ReactNode;
-      [key: string]: unknown;
-    }) =>
+    ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
       createElement(tag, props, children);
 
   return {
@@ -104,13 +99,8 @@ vi.mock('folds', async () => {
       [key: string]: unknown;
     }) => createElement('button', { ...props, onClick, type: 'button' }, children),
     Modal: div(),
-    Overlay: ({
-      children,
-      open,
-    }: {
-      children?: React.ReactNode;
-      open?: boolean;
-    }) => (open ? createElement('div', null, children) : null),
+    Overlay: ({ children, open }: { children?: React.ReactNode; open?: boolean }) =>
+      open ? createElement('div', null, children) : null,
     OverlayBackdrop: div(),
     OverlayCenter: div(),
     PopOut: ({
@@ -123,13 +113,8 @@ vi.mock('folds', async () => {
       anchor?: unknown;
     }) => createElement('div', null, children, anchor ? content : null),
     Spinner: () => createElement('div', null, 'spinner'),
-    Text: ({
-      children,
-      ...props
-    }: {
-      children?: React.ReactNode;
-      [key: string]: unknown;
-    }) => createElement('span', props, children),
+    Text: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
+      createElement('span', props, children),
     as: (render: (props: Record<string, unknown>, ref: React.Ref<unknown>) => React.ReactNode) =>
       reactModule.forwardRef(render),
     color: {
@@ -149,7 +134,8 @@ vi.mock('folds', async () => {
 });
 
 vi.mock('../../../components/message', () => ({
-  AvatarBase: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
+  AvatarBase: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement('div', null, children),
   BubbleLayout: ({
     before,
     header,
@@ -159,13 +145,8 @@ vi.mock('../../../components/message', () => ({
     header?: React.ReactNode;
     children?: React.ReactNode;
   }) => React.createElement('div', null, before, header, children),
-  CompactLayout: ({
-    before,
-    children,
-  }: {
-    before?: React.ReactNode;
-    children?: React.ReactNode;
-  }) => React.createElement('div', null, before, children),
+  CompactLayout: ({ before, children }: { before?: React.ReactNode; children?: React.ReactNode }) =>
+    React.createElement('div', null, before, children),
   MessageBase: React.forwardRef(
     (
       {
@@ -202,21 +183,11 @@ vi.mock('../../../components/message', () => ({
       return React.createElement('div', props, children);
     }
   ),
-  ModernLayout: ({
-    before,
-    children,
-  }: {
-    before?: React.ReactNode;
-    children?: React.ReactNode;
-  }) => React.createElement('div', null, before, children),
+  ModernLayout: ({ before, children }: { before?: React.ReactNode; children?: React.ReactNode }) =>
+    React.createElement('div', null, before, children),
   Time: () => React.createElement('span', null, 'time'),
-  Username: ({
-    children,
-    ...props
-  }: {
-    children?: React.ReactNode;
-    [key: string]: unknown;
-  }) => React.createElement('button', { ...props, type: 'button' }, children),
+  Username: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
+    React.createElement('button', { ...props, type: 'button' }, children),
   UsernameBold: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('span', null, children),
 }));
@@ -402,10 +373,15 @@ const renderMessage = async (
 const hasSpanText = (renderer: ReactTestRenderer, text: string): boolean =>
   renderer.root.findAllByType('span').some((node) => node.children.join('') === text);
 
-const getButtonByText = (renderer: ReactTestRenderer, text: string): ReactTestInstance | undefined =>
-  renderer.root.findAllByType('button').find((node) =>
-    node.findAllByType('span').some((spanNode) => spanNode.children.join('') === text)
-  );
+const getButtonByText = (
+  renderer: ReactTestRenderer,
+  text: string
+): ReactTestInstance | undefined =>
+  renderer.root
+    .findAllByType('button')
+    .find((node) =>
+      node.findAllByType('span').some((spanNode) => spanNode.children.join('') === text)
+    );
 
 const getButtonByAriaLabel = (
   renderer: ReactTestRenderer,
@@ -413,10 +389,15 @@ const getButtonByAriaLabel = (
 ): ReactTestInstance | undefined =>
   renderer.root.findAllByType('button').find((node) => node.props['aria-label'] === ariaLabel);
 
-const getButtonByIcon = (renderer: ReactTestRenderer, icon: string): ReactTestInstance | undefined =>
-  renderer.root.findAllByType('button').find((node) =>
-    node.findAllByType('span').some((spanNode) => spanNode.children.join('') === icon)
-  );
+const getButtonByIcon = (
+  renderer: ReactTestRenderer,
+  icon: string
+): ReactTestInstance | undefined =>
+  renderer.root
+    .findAllByType('button')
+    .find((node) =>
+      node.findAllByType('span').some((spanNode) => spanNode.children.join('') === icon)
+    );
 
 const getDialogFocusTrapOptions = (renderer: ReactTestRenderer): Record<string, unknown> => {
   const dialogFocusTrap = renderer.root
@@ -506,6 +487,7 @@ describe('Message token usage menu item', () => {
     const tokenUsageButton = getButtonByText(renderer, 'Token usage');
 
     expect(tokenUsageButton).toBeDefined();
+    expect(tokenUsageButton?.props['aria-pressed']).toBeUndefined();
     expect(messageBaseNode).toBeDefined();
 
     await act(async () => {
@@ -515,8 +497,9 @@ describe('Message token usage menu item', () => {
     expect(hasSpanText(renderer, 'AI Run Metadata')).toBe(true);
     expect(hasSpanText(renderer, 'Status: completed')).toBe(true);
     expect(hasSpanText(renderer, 'Tokens: in 40 • out 2 • total 42')).toBe(true);
-    const setReturnFocus = getDialogFocusTrapOptions(renderer)
-      .setReturnFocus as () => HostNodeMock | false;
+    const setReturnFocus = getDialogFocusTrapOptions(renderer).setReturnFocus as () =>
+      | HostNodeMock
+      | false;
     expect(messageBaseNode).toBeDefined();
     expect(setReturnFocus).toBeTypeOf('function');
   });

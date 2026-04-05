@@ -96,6 +96,7 @@ import {
   getMindroomAiRunModelLabel,
   getMindroomAiRunUsageLabel,
 } from '../../../components/message/mindroomAiRunDisplay';
+import { assignElementRef } from '../../../utils/react';
 
 import { getMessageCopyTextBody, isCopyTextMessageContent } from './messageCopyText';
 export type ReactionHandler = (keyOrMxc: string, shortcode: string) => void;
@@ -114,7 +115,9 @@ const getMenuMessageContent = (room: Room, mEvent: MatrixEvent): Record<string, 
   if (!eventId) return content;
 
   const evtTimeline = room.getTimelineForEvent(eventId);
-  const editedEvent = evtTimeline ? getEditedEvent(eventId, mEvent, evtTimeline.getTimelineSet()) : undefined;
+  const editedEvent = evtTimeline
+    ? getEditedEvent(eventId, mEvent, evtTimeline.getTimelineSet())
+    : undefined;
   return getLatestMessageContent(mEvent, editedEvent);
 };
 
@@ -136,21 +139,6 @@ const getLongTextDownloadName = (source: MindroomLongTextSource): string => {
   const ext = source.isV2ContentJson ? '.json' : '.txt';
   if (FILENAME_EXT_REG.test(baseName)) return baseName;
   return `${baseName}${ext}`;
-};
-
-const assignElementRef = <T extends HTMLElement>(
-  targetRef: React.Ref<T> | undefined,
-  value: T | null
-) => {
-  if (typeof targetRef === 'function') {
-    targetRef(value);
-    return;
-  }
-
-  if (targetRef) {
-    const mutableRef = targetRef as React.MutableRefObject<T | null>;
-    mutableRef.current = value;
-  }
 };
 
 function MindroomAiRunDetail({ label, value }: { label: string; value?: string }) {
@@ -246,17 +234,15 @@ function MindroomAiRunInfoButton({ open, onOpen }: { open: boolean; onOpen: () =
 export const MessageMindroomAiRunItem = as<
   'button',
   {
-    open: boolean;
     onOpen: () => void;
   }
->(({ open, onOpen, ...props }, ref) => (
+>(({ onOpen, ...props }, ref) => (
   <MenuItem
     size="300"
     after={<Icon size="100" src={Icons.Info} />}
     radii="300"
     onClick={onOpen}
     aria-haspopup="dialog"
-    aria-pressed={open}
     {...props}
     ref={ref}
   >
@@ -265,6 +251,48 @@ export const MessageMindroomAiRunItem = as<
     </Text>
   </MenuItem>
 ));
+
+type MessageMindroomAiRunControlsRenderProps = {
+  dialog: ReactNode;
+  messageBaseRef: React.Ref<HTMLDivElement>;
+  onOpen: () => void;
+  open: boolean;
+};
+
+function MessageMindroomAiRunControls({
+  info,
+  forwardedRef,
+  children,
+}: {
+  info: MindroomAiRunInfo;
+  forwardedRef: React.Ref<HTMLDivElement> | undefined;
+  children: (props: MessageMindroomAiRunControlsRenderProps) => ReactNode;
+}) {
+  const messageBaseRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const handleMessageBaseRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      messageBaseRef.current = node;
+      assignElementRef(forwardedRef, node);
+    },
+    [forwardedRef]
+  );
+
+  return children({
+    dialog: (
+      <MindroomAiRunInfoDialog
+        info={info}
+        open={open}
+        onClose={() => setOpen(false)}
+        returnFocusRef={messageBaseRef}
+      />
+    ),
+    messageBaseRef: handleMessageBaseRef,
+    onOpen: () => setOpen(true),
+    open,
+  });
+}
 
 type MessageQuickReactionsProps = {
   onReaction: ReactionHandler;
@@ -1000,10 +1028,8 @@ export const Message = as<'div', MessageProps>(
     const [hover, setHover] = useState(false);
     const { hoverProps } = useHover({ onHoverChange: setHover });
     const { focusWithinProps } = useFocusWithin({ onFocusWithinChange: setHover });
-    const messageBaseRef = useRef<HTMLDivElement | null>(null);
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const [emojiBoardAnchor, setEmojiBoardAnchor] = useState<RectCords>();
-    const [mindroomAiRunOpen, setMindroomAiRunOpen] = useState(false);
     const menuMessageContent = resolvedMessageContent ?? getMenuMessageContent(room, mEvent);
     const menuMessageOriginalContent = mEvent.getContent();
     const isTextMessage = isCopyTextMessageContent(
@@ -1011,7 +1037,6 @@ export const Message = as<'div', MessageProps>(
     );
     const longTextSource = getMindroomLongTextSource(menuMessageContent);
     const mindroomAiRunInfo = getMindroomAiRunInfo(menuMessageContent);
-    const showMindroomAiRunInfo = !!mindroomAiRunInfo;
 
     const senderDisplayName =
       getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
@@ -1029,69 +1054,6 @@ export const Message = as<'div', MessageProps>(
     const closeMenu = () => {
       setMenuAnchor(undefined);
     };
-
-    const handleMessageBaseRef = useCallback(
-      (node: HTMLDivElement | null) => {
-        messageBaseRef.current = node;
-        assignElementRef(ref, node);
-      },
-      [ref]
-    );
-
-    const handleOpenMindroomAiRun = () => {
-      closeMenu();
-      setMindroomAiRunOpen(true);
-    };
-
-    const headerJSX = !collapse && (
-      <Box
-        gap="300"
-        direction={messageLayout === MessageLayout.Compact ? 'RowReverse' : 'Row'}
-        justifyContent="SpaceBetween"
-        alignItems="Baseline"
-        grow="Yes"
-      >
-        <Box alignItems="Center" gap="200">
-          <Username
-            as="button"
-            style={{ color: usernameColor }}
-            data-user-id={senderId}
-            onContextMenu={onUserClick}
-            onClick={onUsernameClick}
-          >
-            <Text
-              as="span"
-              size={messageLayout === MessageLayout.Bubble ? 'T300' : 'T400'}
-              truncate
-            >
-              <UsernameBold>{senderDisplayName}</UsernameBold>
-            </Text>
-          </Username>
-          {tagIconSrc && <PowerIcon size="100" iconSrc={tagIconSrc} />}
-        </Box>
-        <Box shrink="No" gap="100">
-          {messageLayout === MessageLayout.Modern && hover && (
-            <>
-              <Text as="span" size="T200" priority="300">
-                {senderId}
-              </Text>
-              <Text as="span" size="T200" priority="300">
-                |
-              </Text>
-            </>
-          )}
-          {showMindroomAiRunInfo && mindroomAiRunInfo && (
-            <MindroomAiRunInfoButton open={mindroomAiRunOpen} onOpen={handleOpenMindroomAiRun} />
-          )}
-          <Time
-            ts={mEvent.getTs()}
-            compact={messageLayout === MessageLayout.Compact}
-            hour24Clock={hour24Clock}
-            dateFormatString={dateFormatString}
-          />
-        </Box>
-      </Box>
-    );
 
     const avatarJSX = !collapse && messageLayout !== MessageLayout.Compact && (
       <AvatarBase
@@ -1175,178 +1137,210 @@ export const Message = as<'div', MessageProps>(
 
     const isThreadedMessage = mEvent.threadRootId !== undefined;
 
-    return (
-      <MessageBase
-        className={classNames(css.MessageBase, className, {
-          [css.MessageBaseBubbleCollapsed]: messageLayout === MessageLayout.Bubble && collapse,
-        })}
-        tabIndex={0}
-        space={messageSpacing}
-        collapse={collapse}
-        highlight={highlight}
-        selected={!!menuAnchor || !!emojiBoardAnchor}
-        {...props}
-        {...hoverProps}
-        {...focusWithinProps}
-        ref={handleMessageBaseRef}
-      >
-        {showMindroomAiRunInfo && mindroomAiRunInfo && (
-          <MindroomAiRunInfoDialog
-            info={mindroomAiRunInfo}
-            open={mindroomAiRunOpen}
-            onClose={() => setMindroomAiRunOpen(false)}
-            returnFocusRef={messageBaseRef}
-          />
-        )}
-        {!edit && (hover || !!menuAnchor || !!emojiBoardAnchor) && (
-          <div className={css.MessageOptionsBase}>
-            <Menu className={css.MessageOptionsBar} variant="SurfaceVariant">
-              <Box gap="100">
-                {canSendReaction && (
-                  <PopOut
-                    position="Bottom"
-                    align={emojiBoardAnchor?.width === 0 ? 'Start' : 'End'}
-                    offset={emojiBoardAnchor?.width === 0 ? 0 : undefined}
-                    anchor={emojiBoardAnchor}
-                    content={
-                      <EmojiBoard
-                        imagePackRooms={imagePackRooms ?? []}
-                        returnFocusOnDeactivate={false}
-                        allowTextCustomEmoji
-                        onEmojiSelect={(key) => {
-                          onReactionToggle(mEvent.getId()!, key);
-                          setEmojiBoardAnchor(undefined);
-                        }}
-                        onCustomEmojiSelect={(mxc, shortcode) => {
-                          onReactionToggle(mEvent.getId()!, mxc, shortcode);
-                          setEmojiBoardAnchor(undefined);
-                        }}
-                        requestClose={() => {
-                          setEmojiBoardAnchor(undefined);
-                        }}
-                      />
-                    }
-                  >
-                    <IconButton
-                      onClick={handleOpenEmojiBoard}
-                      variant="SurfaceVariant"
-                      size="300"
-                      radii="300"
-                      aria-pressed={!!emojiBoardAnchor}
+    const renderMessageBase = (mindroomAiRunControls?: MessageMindroomAiRunControlsRenderProps) => {
+      const handleOpenMindroomAiRun = () => {
+        closeMenu();
+        mindroomAiRunControls?.onOpen();
+      };
+
+      const headerJSX = !collapse && (
+        <Box
+          gap="300"
+          direction={messageLayout === MessageLayout.Compact ? 'RowReverse' : 'Row'}
+          justifyContent="SpaceBetween"
+          alignItems="Baseline"
+          grow="Yes"
+        >
+          <Box alignItems="Center" gap="200">
+            <Username
+              as="button"
+              style={{ color: usernameColor }}
+              data-user-id={senderId}
+              onContextMenu={onUserClick}
+              onClick={onUsernameClick}
+            >
+              <Text
+                as="span"
+                size={messageLayout === MessageLayout.Bubble ? 'T300' : 'T400'}
+                truncate
+              >
+                <UsernameBold>{senderDisplayName}</UsernameBold>
+              </Text>
+            </Username>
+            {tagIconSrc && <PowerIcon size="100" iconSrc={tagIconSrc} />}
+          </Box>
+          <Box shrink="No" gap="100">
+            {messageLayout === MessageLayout.Modern && hover && (
+              <>
+                <Text as="span" size="T200" priority="300">
+                  {senderId}
+                </Text>
+                <Text as="span" size="T200" priority="300">
+                  |
+                </Text>
+              </>
+            )}
+            {mindroomAiRunControls && (
+              <MindroomAiRunInfoButton
+                open={mindroomAiRunControls.open}
+                onOpen={handleOpenMindroomAiRun}
+              />
+            )}
+            <Time
+              ts={mEvent.getTs()}
+              compact={messageLayout === MessageLayout.Compact}
+              hour24Clock={hour24Clock}
+              dateFormatString={dateFormatString}
+            />
+          </Box>
+        </Box>
+      );
+
+      return (
+        <MessageBase
+          className={classNames(css.MessageBase, className, {
+            [css.MessageBaseBubbleCollapsed]: messageLayout === MessageLayout.Bubble && collapse,
+          })}
+          tabIndex={0}
+          space={messageSpacing}
+          collapse={collapse}
+          highlight={highlight}
+          selected={!!menuAnchor || !!emojiBoardAnchor}
+          {...props}
+          {...hoverProps}
+          {...focusWithinProps}
+          ref={mindroomAiRunControls?.messageBaseRef ?? ref}
+        >
+          {mindroomAiRunControls?.dialog}
+          {!edit && (hover || !!menuAnchor || !!emojiBoardAnchor) && (
+            <div className={css.MessageOptionsBase}>
+              <Menu className={css.MessageOptionsBar} variant="SurfaceVariant">
+                <Box gap="100">
+                  {canSendReaction && (
+                    <PopOut
+                      position="Bottom"
+                      align={emojiBoardAnchor?.width === 0 ? 'Start' : 'End'}
+                      offset={emojiBoardAnchor?.width === 0 ? 0 : undefined}
+                      anchor={emojiBoardAnchor}
+                      content={
+                        <EmojiBoard
+                          imagePackRooms={imagePackRooms ?? []}
+                          returnFocusOnDeactivate={false}
+                          allowTextCustomEmoji
+                          onEmojiSelect={(key) => {
+                            onReactionToggle(mEvent.getId()!, key);
+                            setEmojiBoardAnchor(undefined);
+                          }}
+                          onCustomEmojiSelect={(mxc, shortcode) => {
+                            onReactionToggle(mEvent.getId()!, mxc, shortcode);
+                            setEmojiBoardAnchor(undefined);
+                          }}
+                          requestClose={() => {
+                            setEmojiBoardAnchor(undefined);
+                          }}
+                        />
+                      }
                     >
-                      <Icon src={Icons.SmilePlus} size="100" />
-                    </IconButton>
-                  </PopOut>
-                )}
-                <IconButton
-                  onClick={(ev: React.MouseEvent<HTMLButtonElement>) =>
-                    onReplyClick(ev, isThreadedMessage)
-                  }
-                  data-event-id={mEvent.getId()}
-                  variant="SurfaceVariant"
-                  size="300"
-                  radii="300"
-                >
-                  <Icon src={Icons.ReplyArrow} size="100" />
-                </IconButton>
-                {!isThreadedMessage && (
+                      <IconButton
+                        onClick={handleOpenEmojiBoard}
+                        variant="SurfaceVariant"
+                        size="300"
+                        radii="300"
+                        aria-pressed={!!emojiBoardAnchor}
+                      >
+                        <Icon src={Icons.SmilePlus} size="100" />
+                      </IconButton>
+                    </PopOut>
+                  )}
                   <IconButton
-                    onClick={(ev: React.MouseEvent<HTMLButtonElement>) => onReplyClick(ev, true)}
+                    onClick={(ev: React.MouseEvent<HTMLButtonElement>) =>
+                      onReplyClick(ev, isThreadedMessage)
+                    }
                     data-event-id={mEvent.getId()}
                     variant="SurfaceVariant"
                     size="300"
                     radii="300"
                   >
-                    <Icon src={Icons.ThreadPlus} size="100" />
+                    <Icon src={Icons.ReplyArrow} size="100" />
                   </IconButton>
-                )}
-                {canEditEvent(mx, mEvent) && onEditId && (
-                  <IconButton
-                    onClick={() => onEditId(mEvent.getId())}
-                    variant="SurfaceVariant"
-                    size="300"
-                    radii="300"
-                  >
-                    <Icon src={Icons.Pencil} size="100" />
-                  </IconButton>
-                )}
-                <PopOut
-                  anchor={menuAnchor}
-                  position="Bottom"
-                  align={menuAnchor?.width === 0 ? 'Start' : 'End'}
-                  offset={menuAnchor?.width === 0 ? 0 : undefined}
-                  content={
-                    <FocusTrap
-                      focusTrapOptions={{
-                        initialFocus: false,
-                        onDeactivate: () => setMenuAnchor(undefined),
-                        clickOutsideDeactivates: true,
-                        isKeyForward: (evt: KeyboardEvent) => evt.key === 'ArrowDown',
-                        isKeyBackward: (evt: KeyboardEvent) => evt.key === 'ArrowUp',
-                        escapeDeactivates: stopPropagation,
-                      }}
+                  {!isThreadedMessage && (
+                    <IconButton
+                      onClick={(ev: React.MouseEvent<HTMLButtonElement>) => onReplyClick(ev, true)}
+                      data-event-id={mEvent.getId()}
+                      variant="SurfaceVariant"
+                      size="300"
+                      radii="300"
                     >
-                      <Menu>
-                        {canSendReaction && (
-                          <MessageQuickReactions
-                            onReaction={(key, shortcode) => {
-                              onReactionToggle(mEvent.getId()!, key, shortcode);
-                              closeMenu();
-                            }}
-                          />
-                        )}
-                        <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
+                      <Icon src={Icons.ThreadPlus} size="100" />
+                    </IconButton>
+                  )}
+                  {canEditEvent(mx, mEvent) && onEditId && (
+                    <IconButton
+                      onClick={() => onEditId(mEvent.getId())}
+                      variant="SurfaceVariant"
+                      size="300"
+                      radii="300"
+                    >
+                      <Icon src={Icons.Pencil} size="100" />
+                    </IconButton>
+                  )}
+                  <PopOut
+                    anchor={menuAnchor}
+                    position="Bottom"
+                    align={menuAnchor?.width === 0 ? 'Start' : 'End'}
+                    offset={menuAnchor?.width === 0 ? 0 : undefined}
+                    content={
+                      <FocusTrap
+                        focusTrapOptions={{
+                          initialFocus: false,
+                          onDeactivate: () => setMenuAnchor(undefined),
+                          clickOutsideDeactivates: true,
+                          isKeyForward: (evt: KeyboardEvent) => evt.key === 'ArrowDown',
+                          isKeyBackward: (evt: KeyboardEvent) => evt.key === 'ArrowUp',
+                          escapeDeactivates: stopPropagation,
+                        }}
+                      >
+                        <Menu>
                           {canSendReaction && (
-                            <MenuItem
-                              size="300"
-                              after={<Icon size="100" src={Icons.SmilePlus} />}
-                              radii="300"
-                              onClick={handleAddReactions}
-                            >
-                              <Text
-                                className={css.MessageMenuItemText}
-                                as="span"
-                                size="T300"
-                                truncate
-                              >
-                                Add Reaction
-                              </Text>
-                            </MenuItem>
-                          )}
-                          {relations && (
-                            <MessageAllReactionItem
-                              room={room}
-                              relations={relations}
-                              onClose={closeMenu}
+                            <MessageQuickReactions
+                              onReaction={(key, shortcode) => {
+                                onReactionToggle(mEvent.getId()!, key, shortcode);
+                                closeMenu();
+                              }}
                             />
                           )}
-                          <MenuItem
-                            size="300"
-                            after={<Icon size="100" src={Icons.ReplyArrow} />}
-                            radii="300"
-                            data-event-id={mEvent.getId()}
-                            onClick={(evt: any) => {
-                              onReplyClick(evt, isThreadedMessage);
-                              closeMenu();
-                            }}
-                          >
-                            <Text
-                              className={css.MessageMenuItemText}
-                              as="span"
-                              size="T300"
-                              truncate
-                            >
-                              Reply
-                            </Text>
-                          </MenuItem>
-                          {!isThreadedMessage && (
+                          <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
+                            {canSendReaction && (
+                              <MenuItem
+                                size="300"
+                                after={<Icon size="100" src={Icons.SmilePlus} />}
+                                radii="300"
+                                onClick={handleAddReactions}
+                              >
+                                <Text
+                                  className={css.MessageMenuItemText}
+                                  as="span"
+                                  size="T300"
+                                  truncate
+                                >
+                                  Add Reaction
+                                </Text>
+                              </MenuItem>
+                            )}
+                            {relations && (
+                              <MessageAllReactionItem
+                                room={room}
+                                relations={relations}
+                                onClose={closeMenu}
+                              />
+                            )}
                             <MenuItem
                               size="300"
-                              after={<Icon src={Icons.ThreadPlus} size="100" />}
+                              after={<Icon size="100" src={Icons.ReplyArrow} />}
                               radii="300"
                               data-event-id={mEvent.getId()}
                               onClick={(evt: any) => {
-                                onReplyClick(evt, true);
+                                onReplyClick(evt, isThreadedMessage);
                                 closeMenu();
                               }}
                             >
@@ -1356,123 +1350,155 @@ export const Message = as<'div', MessageProps>(
                                 size="T300"
                                 truncate
                               >
-                                Reply in Thread
+                                Reply
                               </Text>
                             </MenuItem>
-                          )}
-                          {canEditEvent(mx, mEvent) && onEditId && (
-                            <MenuItem
-                              size="300"
-                              after={<Icon size="100" src={Icons.Pencil} />}
-                              radii="300"
-                              data-event-id={mEvent.getId()}
-                              onClick={() => {
-                                onEditId(mEvent.getId());
-                                closeMenu();
-                              }}
-                            >
-                              <Text
-                                className={css.MessageMenuItemText}
-                                as="span"
-                                size="T300"
-                                truncate
+                            {!isThreadedMessage && (
+                              <MenuItem
+                                size="300"
+                                after={<Icon src={Icons.ThreadPlus} size="100" />}
+                                radii="300"
+                                data-event-id={mEvent.getId()}
+                                onClick={(evt: any) => {
+                                  onReplyClick(evt, true);
+                                  closeMenu();
+                                }}
                               >
-                                Edit Message
-                              </Text>
-                            </MenuItem>
+                                <Text
+                                  className={css.MessageMenuItemText}
+                                  as="span"
+                                  size="T300"
+                                  truncate
+                                >
+                                  Reply in Thread
+                                </Text>
+                              </MenuItem>
+                            )}
+                            {canEditEvent(mx, mEvent) && onEditId && (
+                              <MenuItem
+                                size="300"
+                                after={<Icon size="100" src={Icons.Pencil} />}
+                                radii="300"
+                                data-event-id={mEvent.getId()}
+                                onClick={() => {
+                                  onEditId(mEvent.getId());
+                                  closeMenu();
+                                }}
+                              >
+                                <Text
+                                  className={css.MessageMenuItemText}
+                                  as="span"
+                                  size="T300"
+                                  truncate
+                                >
+                                  Edit Message
+                                </Text>
+                              </MenuItem>
+                            )}
+                            {!hideReadReceipts && (
+                              <MessageReadReceiptItem
+                                room={room}
+                                eventId={mEvent.getId() ?? ''}
+                                onClose={closeMenu}
+                              />
+                            )}
+                            {mindroomAiRunControls && (
+                              <MessageMindroomAiRunItem onOpen={handleOpenMindroomAiRun} />
+                            )}
+                            {longTextSource && (
+                              <MessageMindroomDownloadOriginalItem
+                                source={longTextSource}
+                                onClose={closeMenu}
+                              />
+                            )}
+                            {showDeveloperTools && (
+                              <MessageSourceCodeItem
+                                room={room}
+                                mEvent={mEvent}
+                                onClose={closeMenu}
+                              />
+                            )}
+                            {!mEvent.isRedacted() && isTextMessage && (
+                              <MessageCopyTextItem
+                                room={room}
+                                mEvent={mEvent}
+                                onClose={closeMenu}
+                              />
+                            )}
+                            <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
+                            {canPinEvent && (
+                              <MessagePinItem room={room} mEvent={mEvent} onClose={closeMenu} />
+                            )}
+                          </Box>
+                          {((!mEvent.isRedacted() && canDelete) ||
+                            mEvent.getSender() !== mx.getUserId()) && (
+                            <>
+                              <Line size="300" />
+                              <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
+                                {!mEvent.isRedacted() && canDelete && (
+                                  <MessageDeleteItem
+                                    room={room}
+                                    mEvent={mEvent}
+                                    onClose={closeMenu}
+                                  />
+                                )}
+                                {mEvent.getSender() !== mx.getUserId() && (
+                                  <MessageReportItem
+                                    room={room}
+                                    mEvent={mEvent}
+                                    onClose={closeMenu}
+                                  />
+                                )}
+                              </Box>
+                            </>
                           )}
-                          {!hideReadReceipts && (
-                            <MessageReadReceiptItem
-                              room={room}
-                              eventId={mEvent.getId() ?? ''}
-                              onClose={closeMenu}
-                            />
-                          )}
-                          {showMindroomAiRunInfo && (
-                            <MessageMindroomAiRunItem
-                              open={mindroomAiRunOpen}
-                              onOpen={handleOpenMindroomAiRun}
-                            />
-                          )}
-                          {longTextSource && (
-                            <MessageMindroomDownloadOriginalItem
-                              source={longTextSource}
-                              onClose={closeMenu}
-                            />
-                          )}
-                          {showDeveloperTools && (
-                            <MessageSourceCodeItem
-                              room={room}
-                              mEvent={mEvent}
-                              onClose={closeMenu}
-                            />
-                          )}
-                          {!mEvent.isRedacted() && isTextMessage && (
-                            <MessageCopyTextItem room={room} mEvent={mEvent} onClose={closeMenu} />
-                          )}
-                          <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
-                          {canPinEvent && (
-                            <MessagePinItem room={room} mEvent={mEvent} onClose={closeMenu} />
-                          )}
-                        </Box>
-                        {((!mEvent.isRedacted() && canDelete) ||
-                          mEvent.getSender() !== mx.getUserId()) && (
-                          <>
-                            <Line size="300" />
-                            <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
-                              {!mEvent.isRedacted() && canDelete && (
-                                <MessageDeleteItem
-                                  room={room}
-                                  mEvent={mEvent}
-                                  onClose={closeMenu}
-                                />
-                              )}
-                              {mEvent.getSender() !== mx.getUserId() && (
-                                <MessageReportItem
-                                  room={room}
-                                  mEvent={mEvent}
-                                  onClose={closeMenu}
-                                />
-                              )}
-                            </Box>
-                          </>
-                        )}
-                      </Menu>
-                    </FocusTrap>
-                  }
-                >
-                  <IconButton
-                    variant="SurfaceVariant"
-                    size="300"
-                    radii="300"
-                    onClick={handleOpenMenu}
-                    aria-pressed={!!menuAnchor}
+                        </Menu>
+                      </FocusTrap>
+                    }
                   >
-                    <Icon src={Icons.VerticalDots} size="100" />
-                  </IconButton>
-                </PopOut>
-              </Box>
-            </Menu>
-          </div>
-        )}
-        {messageLayout === MessageLayout.Compact && (
-          <CompactLayout before={headerJSX} onContextMenu={handleContextMenu}>
-            {msgContentJSX}
-          </CompactLayout>
-        )}
-        {messageLayout === MessageLayout.Bubble && (
-          <BubbleLayout before={avatarJSX} header={headerJSX} onContextMenu={handleContextMenu}>
-            {msgContentJSX}
-          </BubbleLayout>
-        )}
-        {messageLayout !== MessageLayout.Compact && messageLayout !== MessageLayout.Bubble && (
-          <ModernLayout before={avatarJSX} onContextMenu={handleContextMenu}>
-            {headerJSX}
-            {msgContentJSX}
-          </ModernLayout>
-        )}
-      </MessageBase>
-    );
+                    <IconButton
+                      variant="SurfaceVariant"
+                      size="300"
+                      radii="300"
+                      onClick={handleOpenMenu}
+                      aria-pressed={!!menuAnchor}
+                    >
+                      <Icon src={Icons.VerticalDots} size="100" />
+                    </IconButton>
+                  </PopOut>
+                </Box>
+              </Menu>
+            </div>
+          )}
+          {messageLayout === MessageLayout.Compact && (
+            <CompactLayout before={headerJSX} onContextMenu={handleContextMenu}>
+              {msgContentJSX}
+            </CompactLayout>
+          )}
+          {messageLayout === MessageLayout.Bubble && (
+            <BubbleLayout before={avatarJSX} header={headerJSX} onContextMenu={handleContextMenu}>
+              {msgContentJSX}
+            </BubbleLayout>
+          )}
+          {messageLayout !== MessageLayout.Compact && messageLayout !== MessageLayout.Bubble && (
+            <ModernLayout before={avatarJSX} onContextMenu={handleContextMenu}>
+              {headerJSX}
+              {msgContentJSX}
+            </ModernLayout>
+          )}
+        </MessageBase>
+      );
+    };
+
+    if (mindroomAiRunInfo) {
+      return (
+        <MessageMindroomAiRunControls info={mindroomAiRunInfo} forwardedRef={ref}>
+          {renderMessageBase}
+        </MessageMindroomAiRunControls>
+      );
+    }
+
+    return renderMessageBase();
   }
 );
 

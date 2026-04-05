@@ -310,7 +310,18 @@
   - `backup/dev-before-issue-squash-20260330-102644`
 
 ### CINNY-056: Token usage context menu item (2026-04-04)
+
 - Context menu exposes "Token usage" when `io.mindroom.ai_run` metadata present, reusing same metadata dialog
 - Works for grouped/continuation messages where the header info button is not shown
 - Shared AI run metadata dialog resolves return focus to containing message element
 - Files: `src/app/features/room/message/Message.tsx`, `src/app/features/room/message/Message.test.ts`
+- Cleanup follow-up (2026-04-04):
+  - moved generic `assignElementRef(...)` into shared `src/app/utils/react.ts` and re-imported it into `Message.tsx`
+  - wrapped the AI-run dialog state/ref in `MessageMindroomAiRunControls`, so messages without `io.mindroom.ai_run` metadata no longer allocate those hooks
+  - removed the unused `open` prop and `aria-pressed` from `MessageMindroomAiRunItem`
+  - kept `Message.test.ts` UI mocks local because the repo still has no shared Vitest setup file; added a note to extract them once such setup exists
+- Validation (2026-04-04):
+  - `npm test -- src/app/features/room/message/Message.test.ts` passes
+  - `npm test` passes (`118/118` files, `996/996` tests)
+  - `npm run build` passes
+  - `npm run typecheck` is currently blocked by an unrelated existing error in `src/app/features/room/RoomTimeline.tsx(175,3)`: import declaration conflicts with local declaration of `isThreadOnlyRoomActivity`
