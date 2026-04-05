@@ -7,11 +7,21 @@ import {
 import { getHomePath, getLoginPath } from './pathUtils';
 
 describe('routeSessionGuards', () => {
+  const originalLocalStorage = globalThis.localStorage;
   const originalWindow = globalThis.window;
   const originalBasePath = (globalThis as { __APP_BASE_PATH__?: string }).__APP_BASE_PATH__;
 
   afterEach(() => {
     (globalThis as { __APP_BASE_PATH__?: string }).__APP_BASE_PATH__ = originalBasePath;
+
+    if (originalLocalStorage === undefined) {
+      Reflect.deleteProperty(globalThis, 'localStorage');
+    } else {
+      Object.defineProperty(globalThis, 'localStorage', {
+        value: originalLocalStorage,
+        configurable: true,
+      });
+    }
 
     if (originalWindow === undefined) {
       Reflect.deleteProperty(globalThis, 'window');
@@ -35,6 +45,49 @@ describe('routeSessionGuards', () => {
       })
     ).toEqual({
       redirectTo: getHomePath(),
+    });
+  });
+
+  it('restores the saved home path for signed-in root visits', () => {
+    const store = new Map<string, string>();
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          store.set(key, value);
+        },
+        removeItem: (key: string) => {
+          store.delete(key);
+        },
+        clear: () => {
+          store.clear();
+        },
+      },
+      configurable: true,
+    });
+
+    globalThis.localStorage.setItem(
+      'navToActivePath@alice:mindroom.chat',
+      JSON.stringify({
+        home: {
+          pathname: '/home/%23room%3Amindroom.chat',
+          search: '?threadId=%24abc',
+          hash: '#reply',
+        },
+      })
+    );
+
+    expect(
+      resolveRootRouteRedirect('https://chat.mindroom.chat/', {
+        sessionId: 'session-a',
+        baseUrl: 'https://chat.mindroom.chat',
+        userId: '@alice:mindroom.chat',
+        deviceId: 'DEVICE',
+        accessToken: 'token',
+        lastUsedAt: 1,
+      })
+    ).toEqual({
+      redirectTo: '/home/%23room%3Amindroom.chat?threadId=%24abc#reply',
     });
   });
 
