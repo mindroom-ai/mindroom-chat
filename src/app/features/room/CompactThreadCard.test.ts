@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { formatScheduledTime } from './compactThreadCardUtils';
+import { formatScheduledTime, getScheduledTimeUpdateInterval } from './compactThreadCardUtils';
 
 describe('formatScheduledTime', () => {
   beforeEach(() => {
@@ -24,5 +24,16 @@ describe('formatScheduledTime', () => {
 
   it('renders future-day tasks as a short date plus time', () => {
     expect(formatScheduledTime(Date.now() + 26 * 60 * 60 * 1000)).toMatch(/^Mar \d{1,2},? /);
+  });
+
+  it('uses adaptive refresh cadence for countdown updates', () => {
+    expect(getScheduledTimeUpdateInterval(Date.now() + 3 * 60 * 1000)).toBe(1000);
+    expect(getScheduledTimeUpdateInterval(Date.now() + 45 * 60 * 1000)).toBe(60 * 1000);
+    expect(getScheduledTimeUpdateInterval(Date.now() + 8 * 60 * 60 * 1000)).toBe(
+      15 * 60 * 1000
+    );
+    expect(getScheduledTimeUpdateInterval(Date.now() + 30 * 60 * 60 * 1000)).toBe(
+      60 * 60 * 1000
+    );
   });
 });
