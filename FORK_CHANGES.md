@@ -150,6 +150,32 @@
 
 - [justfile](/Users/basnijholt/Code/dev/mindroom-cinny/justfile) is intentionally kept for common local validation commands.
 - [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) is the persistent debugging reference for timeline/cache/search work.
+- `CINNY-063` planning note (2026-04-04):
+  - added repo-root `PLAN.md` for freeze/pause thread sorting.
+  - recommended design is a room-scoped, session-only freeze state plus a pure frozen-order layer applied after the existing filter/search/sort pipeline.
+  - important implementation constraint: reuse the same resolved order for render, compact view, focus/navigation helpers, and overview preload selection so paused ordering does not drift from what the user sees.
+  - plan debate finalized:
+    - compared `PLAN.md` vs `PLAN-B.md` against the live code paths in `RoomView.tsx`, `RoomTimeline.tsx`, and `roomThreadOverviewModel.ts`.
+    - final direction is to keep freeze state ephemeral and local in `RoomView` (not persisted, not a new atom), because `RoomTimeline` is keyed by `threadId` and would otherwise lose the snapshot on thread enter/exit.
+    - final plan keeps the pure frozen-order helper approach and resnapshots on deliberate control changes instead of auto-unfreezing.
+    - docs-only validation target for this planning step is `git diff --check`.
+  - implementation status (2026-04-04):
+    - `RoomView.tsx` now owns the room-session freeze snapshot and clears it on room switch or when sort returns to `natural`.
+    - `roomThreadOverviewModel.ts` now exports `applyFrozenThreadOrder(...)` plus `createThreadSortControlSignature(...)` so freeze stays outside the sort comparators and control changes can resnapshot deterministically.
+    - `RoomTimeline.tsx` now resolves one live/display thread-id order per overview mode and reuses the same resolved ids for expanded overview rendering, compact view props, focus targeting, and top-of-list cached metadata preload.
+    - `RoomThreadOverview.tsx` / `RoomThreadOverview.css.ts` now render the pause/play toolbar button with paused styling, tooltip copy, `aria-pressed`, and live-region text updates.
+    - focused regression coverage was added in `RoomThreadOverview.test.ts`, `RoomView.test.ts`, `RoomTimeline.test.ts`, and `roomThreadOverviewModel.test.ts`; `RoomTimelineCollapsible.test.ts` was updated so its harness keeps natural-sort message rendering for non-overview timeline assertions.
+  - review-fix follow-up (2026-04-04):
+    - `RoomTimeline.tsx` now drives `threadFilteredEvents` from the active resolved overview ids, so room focus/scroll helpers follow the same compact-vs-expanded and frozen-vs-live ordering that the user sees.
+    - `getFilteredRoomOverviewEvents(...)` and `getRoomEventFocusTarget(...)` now accept compact-view context plus server thread-list roots, so compact-only roots participate in focus targeting even when they are not in the current `renderableEvents` slice.
+    - `CompactRoomView` props and compact-root edit backfill now read the same resolved `overviewThreadRootIds` used by the rest of the overview pipeline, and `compactOverviewOrdering` skips the extra compute path when compact view is not requested.
+    - `RoomTimeline.test.ts` now covers frozen compact scroll-index alignment and compact-only frozen focus targeting; the test harness `sortBy: 'natural'` override is documented inline.
+  - validation (2026-04-04):
+    - `npm test -- RoomThreadOverview RoomView RoomTimeline roomThreadOverviewModel` passes (`6/6` files, `263/263` tests).
+    - `npm run typecheck` passes.
+    - `npm test -- RoomTimeline` passes (`2/2` files, `115/115` tests).
+    - `npm test` still has the known unrelated baseline failure in `src/app/state/room/roomThreadFilterState.test.ts:110`.
+    - `npm run build` passes.
 - `CINNY-054` planning investigation (2026-03-31):
   - confirmed the markdown pipeline is Cinny's in-repo regex parser under `src/app/plugins/markdown/*`, wired into compose/search via `src/app/components/editor/output.ts` and `src/app/features/message-search/searchResultPreview.ts`; it is neither `unified/remark/rehype` nor `markdown-it`.
   - confirmed incoming formatted HTML is sanitized in `src/app/utils/sanitize.ts` and rendered through `src/app/plugins/react-custom-html-parser.tsx`.

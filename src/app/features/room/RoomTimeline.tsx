@@ -24,6 +24,7 @@ import {
   Room,
   RoomEvent,
   RoomEventHandlerMap,
+  Thread,
   ThreadEvent,
   THREAD_RELATION_TYPE,
   MsgType,
@@ -191,9 +192,12 @@ import {
 import type { ThreadFilterKey } from './RoomThreadOverview';
 import {
   type ThreadFilterState,
+  type ThreadSortFreezeState,
   type ThreadOverviewMetadata,
   type FilterPreset,
+  applyFrozenThreadOrder,
   buildThreadMetadataMap,
+  createThreadSortControlSignature,
   filterThreadRootEvents,
   filterThreadsBySearch,
   sortThreadRootEvents,
@@ -1045,8 +1049,11 @@ type RoomTimelineProps = {
   eventId?: string;
   threadId?: string;
   threadFilterState: ThreadFilterState;
+  threadSortFreezeState: ThreadSortFreezeState | null;
   onToggle: (key: ThreadFilterKey) => void;
   onSortDirectionChange: () => void;
+  onToggleThreadSortFreeze: () => void;
+  setThreadSortFreezeState: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
   onCycleTag: (tag: string) => void;
   onAddTag: (tag: string) => void;
   onRemoveTag: (tag: string) => void;
@@ -2169,6 +2176,77 @@ export const getActiveTimelineRange = (
   return getVisibleTimelineRange(range, count, paginationLimit);
 };
 
+const resolveOverviewThreadRootIds = ({
+  threadRootIds,
+  threadFilterState,
+  searchQuery,
+  metadataMap,
+  threadSortFreezeState,
+  threadSortControlSignature,
+}: {
+  threadRootIds: string[];
+  threadFilterState: ThreadFilterState;
+  searchQuery: string;
+  metadataMap: Map<string, ThreadOverviewMetadata>;
+  threadSortFreezeState: ThreadSortFreezeState | null;
+  threadSortControlSignature: string;
+}): {
+  filteredIds: string[];
+  liveOrderedIds: string[];
+  displayOrderedIds: string[];
+} => {
+  const filteredIds = filterThreadsBySearch(
+    filterThreadRootEvents(threadRootIds, threadFilterState, metadataMap),
+    searchQuery,
+    metadataMap
+  );
+  const liveOrderedIds = sortThreadRootEvents(
+    filteredIds,
+    threadFilterState.sortBy,
+    threadFilterState.sortDirection,
+    metadataMap
+  );
+  const displayOrderedIds =
+    threadSortFreezeState && threadSortFreezeState.controlSignature === threadSortControlSignature
+      ? applyFrozenThreadOrder(threadSortFreezeState.orderedRootIds, liveOrderedIds)
+      : liveOrderedIds;
+
+  return {
+    filteredIds,
+    liveOrderedIds,
+    displayOrderedIds,
+  };
+};
+
+const resolveOrderedRoomOverviewEvents = ({
+  orderedRootIds,
+  renderableEvents,
+  room,
+  roomThreads = [],
+}: {
+  orderedRootIds: string[];
+  renderableEvents: MatrixEvent[];
+  room: Pick<Room, 'findEventById'>;
+  roomThreads?: Pick<Thread, 'id' | 'rootEvent'>[];
+}): MatrixEvent[] => {
+  const eventMap = new Map<string, MatrixEvent>();
+  renderableEvents.forEach((event) => {
+    const eventId = event.getId();
+    if (eventId) eventMap.set(eventId, event);
+  });
+
+  const threadRootEventMap = new Map<string, MatrixEvent>();
+  roomThreads.forEach((thread) => {
+    if (thread.id && thread.rootEvent) {
+      threadRootEventMap.set(thread.id, thread.rootEvent);
+    }
+  });
+
+  return orderedRootIds
+    .map((rootId) => eventMap.get(rootId) ?? room.findEventById(rootId) ?? threadRootEventMap.get(rootId))
+    .filter((event): event is MatrixEvent => event !== undefined);
+};
+
 const getFilteredRoomOverviewEvents = (
   renderableEvents: MatrixEvent[],
   room: Room,
@@ -2180,21 +2258,25 @@ const getFilteredRoomOverviewEvents = (
   threadParticipantMap: Map<string, string[]>,
   summaryMap: Map<string, MindroomThreadSummaryInfo>,
   currentUserId: string,
-  readUpToTs: number | undefined
+  readUpToTs: number | undefined,
+  searchQuery: string,
+  threadSortFreezeState: ThreadSortFreezeState | null,
+  threadSortControlSignature: string,
+  viewMode: RoomViewMode = 'normal',
+  roomThreads: Thread[] = []
 ): MatrixEvent[] => {
-  if (!isRoomThreadOverviewActive(undefined, threadFilterState)) {
+  const compactViewRequested = viewMode === 'compact';
+  if (!isRoomThreadOverviewActive(undefined, threadFilterState) && !compactViewRequested) {
     return renderableEvents;
   }
 
   const visibleThreadRootIds: string[] = [];
   const absoluteIndexMap = new Map<string, number>();
-  const eventMap = new Map<string, MatrixEvent>();
   const bodyMap = new Map<string, string>();
 
   renderableEvents.forEach((event, index) => {
     const currentEventId = event.getId();
     if (!currentEventId) return;
-    eventMap.set(currentEventId, event);
     if (!isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)) {
       return;
     }
@@ -2205,9 +2287,22 @@ const getFilteredRoomOverviewEvents = (
     if (typeof body === 'string') bodyMap.set(currentEventId, body);
   });
 
+  const activeThreadRootData = compactViewRequested
+    ? buildCompactThreadRootData({
+        room,
+        visibleIds: visibleThreadRootIds,
+        visibleIndexMap: absoluteIndexMap,
+        visibleBodyMap: bodyMap,
+        threads: roomThreads,
+      })
+    : {
+        ids: visibleThreadRootIds,
+        indexMap: absoluteIndexMap,
+        bodyMap,
+      };
   const metadataMap = buildThreadMetadataMap(
     room,
-    visibleThreadRootIds,
+    activeThreadRootData.ids,
     threadResolutionMap,
     scheduledTaskCounts,
     threadReplyCountMapForMeta,
@@ -2215,20 +2310,25 @@ const getFilteredRoomOverviewEvents = (
     summaryMap,
     currentUserId,
     readUpToTs,
-    absoluteIndexMap,
-    bodyMap
+    activeThreadRootData.indexMap,
+    activeThreadRootData.bodyMap
   );
 
-  const statusFiltered = filterThreadRootEvents(visibleThreadRootIds, threadFilterState, metadataMap);
-  const searchFiltered = filterThreadsBySearch(statusFiltered, threadFilterState.searchQuery, metadataMap);
-  return sortThreadRootEvents(
-    searchFiltered,
-    threadFilterState.sortBy,
-    threadFilterState.sortDirection,
-    metadataMap
-  )
-    .map((currentEventId) => eventMap.get(currentEventId))
-    .filter((event): event is MatrixEvent => event !== undefined);
+  const orderedRootIds = resolveOverviewThreadRootIds({
+    threadRootIds: activeThreadRootData.ids,
+    threadFilterState,
+    searchQuery,
+    metadataMap,
+    threadSortFreezeState,
+    threadSortControlSignature,
+  }).displayOrderedIds;
+
+  return resolveOrderedRoomOverviewEvents({
+    orderedRootIds,
+    renderableEvents,
+    room,
+    roomThreads,
+  });
 };
 
 export const getRoomEventFocusTarget = ({
@@ -2245,6 +2345,12 @@ export const getRoomEventFocusTarget = ({
   summaryMap,
   currentUserId,
   readUpToTs,
+  searchQuery,
+  threadSortFreezeState,
+  threadSortControlSignature,
+  viewMode,
+  roomThreads,
+  orderedRoomOverviewEventIds,
 }: {
   eventId: string;
   renderableEvents: MatrixEvent[];
@@ -2259,11 +2365,28 @@ export const getRoomEventFocusTarget = ({
   summaryMap: Map<string, MindroomThreadSummaryInfo>;
   currentUserId: string;
   readUpToTs: number | undefined;
+  searchQuery?: string;
+  threadSortFreezeState?: ThreadSortFreezeState | null;
+  threadSortControlSignature?: string;
+  viewMode?: RoomViewMode;
+  roomThreads?: Thread[];
+  orderedRoomOverviewEventIds?: string[];
 }): {
   index: number;
   count: number;
   canFocus: boolean;
 } => {
+  if (!threadId && orderedRoomOverviewEventIds) {
+    const visibleIndex = orderedRoomOverviewEventIds.indexOf(eventId);
+    if (visibleIndex !== -1) {
+      return {
+        index: visibleIndex,
+        count: orderedRoomOverviewEventIds.length,
+        canFocus: true,
+      };
+    }
+  }
+
   const visibleEvents = threadId
     ? renderableEvents
     : getFilteredRoomOverviewEvents(
@@ -2277,7 +2400,17 @@ export const getRoomEventFocusTarget = ({
         threadParticipantMap,
         summaryMap,
         currentUserId,
-        readUpToTs
+        readUpToTs,
+        searchQuery ?? threadFilterState.searchQuery ?? '',
+        threadSortFreezeState ?? null,
+        threadSortControlSignature ??
+          createThreadSortControlSignature({
+            state: threadFilterState,
+            searchQuery: searchQuery ?? threadFilterState.searchQuery ?? '',
+            viewMode,
+          }),
+        viewMode,
+        roomThreads
       );
   const visibleIndex = visibleEvents.findIndex((event) => event.getId() === eventId);
   if (visibleIndex !== -1) {
@@ -2322,8 +2455,11 @@ export function RoomTimeline({
   eventId,
   threadId,
   threadFilterState,
+  threadSortFreezeState,
   onToggle,
   onSortDirectionChange,
+  onToggleThreadSortFreeze,
+  setThreadSortFreezeState,
   onCycleTag,
   onAddTag,
   onRemoveTag,
@@ -2838,55 +2974,101 @@ export function RoomTimeline({
     const timer = setTimeout(() => setDebouncedSearchQuery(threadFilterState.searchQuery ?? ''), 300);
     return () => clearTimeout(timer);
   }, [threadFilterState.searchQuery]);
+  const threadSortControlSignature = useMemo(
+    () =>
+      createThreadSortControlSignature({
+        state: threadFilterState,
+        searchQuery: debouncedSearchQuery,
+        viewMode,
+      }),
+    [threadFilterState, debouncedSearchQuery, viewMode]
+  );
 
   // ── Overview pipeline: filter → sort → Map-based entry construction ──
   const roomThreadFilterActive = isRoomThreadOverviewActive(threadId, threadFilterState);
 
-  // Filtered thread root IDs (status+tag filter → search → used for threadCount prop)
-  const filteredThreadRootIds = useMemo(() => {
-    if (threadId) return visibleThreadRootData.ids;
-    const statusFiltered = filterThreadRootEvents(visibleThreadRootData.ids, threadFilterState, threadMetadataMap);
-    return filterThreadsBySearch(statusFiltered, debouncedSearchQuery, threadMetadataMap);
-  }, [threadId, visibleThreadRootData.ids, threadFilterState, threadMetadataMap, debouncedSearchQuery]);
-  const compactFilteredThreadRootIds = useMemo(() => {
-    if (threadId) return compactThreadRootData.ids;
-    if (!compactViewRequested) return filteredThreadRootIds;
-    const statusFiltered = filterThreadRootEvents(
-      compactThreadRootData.ids,
-      threadFilterState,
-      compactThreadMetadataMap
-    );
-    return filterThreadsBySearch(statusFiltered, debouncedSearchQuery, compactThreadMetadataMap);
-  }, [
-    threadId,
-    compactViewRequested,
-    compactThreadRootData.ids,
-    filteredThreadRootIds,
-    threadFilterState,
-    compactThreadMetadataMap,
-    debouncedSearchQuery,
-  ]);
-  const compactThreadRootIds = useMemo(
+  const normalOverviewOrdering = useMemo(
     () =>
-      sortThreadRootEvents(
-        compactFilteredThreadRootIds,
-        threadFilterState.sortBy,
-        threadFilterState.sortDirection,
-        compactThreadMetadataMap
-      ),
+      resolveOverviewThreadRootIds({
+        threadRootIds: visibleThreadRootData.ids,
+        threadFilterState,
+        searchQuery: debouncedSearchQuery,
+        metadataMap: threadMetadataMap,
+        threadSortFreezeState,
+        threadSortControlSignature,
+      }),
     [
-      compactFilteredThreadRootIds,
-      threadFilterState.sortBy,
-      threadFilterState.sortDirection,
-      compactThreadMetadataMap,
+      visibleThreadRootData.ids,
+      threadFilterState,
+      debouncedSearchQuery,
+      threadMetadataMap,
+      threadSortFreezeState,
+      threadSortControlSignature,
     ]
   );
+  const compactOverviewOrdering = useMemo(
+    () => {
+      if (!compactViewRequested) return normalOverviewOrdering;
+
+      return resolveOverviewThreadRootIds({
+        threadRootIds: compactThreadRootData.ids,
+        threadFilterState,
+        searchQuery: debouncedSearchQuery,
+        metadataMap: compactThreadMetadataMap,
+        threadSortFreezeState,
+        threadSortControlSignature,
+      });
+    },
+    [
+      compactViewRequested,
+      normalOverviewOrdering,
+      compactThreadRootData.ids,
+      threadFilterState,
+      debouncedSearchQuery,
+      compactThreadMetadataMap,
+      threadSortFreezeState,
+      threadSortControlSignature,
+    ]
+  );
+  const filteredThreadRootIds = threadId
+    ? visibleThreadRootData.ids
+    : normalOverviewOrdering.filteredIds;
+  const compactFilteredThreadRootIds = threadId
+    ? compactThreadRootData.ids
+    : compactOverviewOrdering.filteredIds;
   const showCompactRoomView = compactViewRequested && compactThreadRootData.ids.length > 0;
+  const roomOverviewOrderActive = roomThreadFilterActive || showCompactRoomView;
+  const activeLiveOverviewThreadRootIds = showCompactRoomView
+    ? compactOverviewOrdering.liveOrderedIds
+    : normalOverviewOrdering.liveOrderedIds;
   const overviewThreadRootIds = showCompactRoomView
-    ? compactThreadRootIds
+    ? compactOverviewOrdering.displayOrderedIds
     : roomThreadFilterActive
-      ? filteredThreadRootIds
+      ? normalOverviewOrdering.displayOrderedIds
       : [];
+
+  useEffect(() => {
+    if (threadId || !threadSortFreezeState) return;
+    if (threadSortFreezeState.controlSignature === threadSortControlSignature) return;
+
+    setThreadSortFreezeState((currentState) => {
+      if (!currentState) return currentState;
+      if (currentState.controlSignature === threadSortControlSignature) {
+        return currentState;
+      }
+
+      return {
+        controlSignature: threadSortControlSignature,
+        orderedRootIds: activeLiveOverviewThreadRootIds,
+      };
+    });
+  }, [
+    threadId,
+    threadSortFreezeState,
+    threadSortControlSignature,
+    activeLiveOverviewThreadRootIds,
+    setThreadSortFreezeState,
+  ]);
 
   useEffect(() => {
     if (threadId || overviewThreadRootIds.length === 0) return;
@@ -3080,40 +3262,24 @@ export function RoomTimeline({
 
   const threadFilteredEvents = useMemo(() => {
     if (threadId) return renderableEvents;
-
-    // When overview mode is active (any filter or non-default sort), show only thread roots
-    if (roomThreadFilterActive) {
-      // Filter → Search → Sort
-      const statusFiltered = filterThreadRootEvents(
-        visibleThreadRootData.ids,
-        threadFilterState,
-        threadMetadataMap
-      );
-      const searchFiltered = filterThreadsBySearch(statusFiltered, debouncedSearchQuery, threadMetadataMap);
-      const sortedIds = sortThreadRootEvents(searchFiltered, threadFilterState.sortBy, threadFilterState.sortDirection, threadMetadataMap);
-
-      // Map IDs back to MatrixEvents
-      const eventMap = new Map<string, MatrixEvent>();
-      roomSurfaceEventEntries.forEach(({ event }) => {
-        const evtId = event.getId();
-        if (evtId) eventMap.set(evtId, event);
+    if (roomOverviewOrderActive) {
+      return resolveOrderedRoomOverviewEvents({
+        orderedRootIds: overviewThreadRootIds,
+        renderableEvents: roomSurfaceEventEntries.map(({ event }) => event),
+        room,
+        roomThreads: roomThreadListThreads,
       });
-
-      return sortedIds
-        .map((id) => eventMap.get(id))
-        .filter((evt): evt is MatrixEvent => evt !== undefined);
     }
 
     return renderableEvents;
   }, [
+    overviewThreadRootIds,
     renderableEvents,
+    room,
+    roomOverviewOrderActive,
     roomSurfaceEventEntries,
+    roomThreadListThreads,
     threadId,
-    roomThreadFilterActive,
-    visibleThreadRootData.ids,
-    threadFilterState,
-    threadMetadataMap,
-    debouncedSearchQuery,
   ]);
 
   const threadFilteredEventsRef = useRef(threadFilteredEvents);
@@ -3121,7 +3287,7 @@ export function RoomTimeline({
 
   // Map-based entry construction: preserve entry metadata while allowing new display order
   const threadFilteredEventEntries = useMemo(() => {
-    if (!roomThreadFilterActive) {
+    if (!roomOverviewOrderActive) {
       return renderableEventEntries;
     }
 
@@ -3137,7 +3303,7 @@ export function RoomTimeline({
         return eventId ? entryMap.get(eventId) : undefined;
       })
       .filter((entry): entry is TimelineEventEntry => entry !== undefined);
-  }, [roomSurfaceEventEntries, threadFilteredEvents, roomThreadFilterActive]);
+  }, [renderableEventEntries, roomOverviewOrderActive, roomSurfaceEventEntries, threadFilteredEvents]);
   const readUptoAbsoluteIndex = useMemo(() => {
     if (threadId) return undefined;
     const currentReadUptoEventId = unreadInfo?.readUptoEventId;
@@ -3881,21 +4047,21 @@ export function RoomTimeline({
     const compactRootEvents = getCompactRootEventsNeedingBackfill({
       room,
       roomSurfaceEventEntries,
-      threadRootIds: compactThreadRootIds,
+      threadRootIds: overviewThreadRootIds,
       roomThreadListThreads,
       attemptedEvents: compactRootEditFetchAttemptedRef.current,
     });
 
     if (compactRootEvents.length === 0) {
       logEditDebug('compactRootBackfill:noneMissing', {
-        compactRootCount: compactThreadRootIds.length,
+        compactRootCount: overviewThreadRootIds.length,
         roomId: room.roomId,
       });
       return;
     }
 
     logEditDebug('compactRootBackfill:start', {
-      compactRootCount: compactThreadRootIds.length,
+      compactRootCount: overviewThreadRootIds.length,
       missingRootCount: compactRootEvents.length,
       roomId: room.roomId,
     });
@@ -4017,8 +4183,8 @@ export function RoomTimeline({
       cancelled = true;
     };
   }, [
-    compactThreadRootIds,
     mx,
+    overviewThreadRootIds,
     persistRoomEventCache,
     room,
     room.roomId,
@@ -4756,6 +4922,12 @@ export function RoomTimeline({
               summaryMap: threadSummaryInfoMap,
               currentUserId: mx.getSafeUserId(),
               readUpToTs,
+              searchQuery: debouncedSearchQuery,
+              threadSortFreezeState,
+              threadSortControlSignature,
+              viewMode,
+              roomThreads: roomThreadListThreads,
+              orderedRoomOverviewEventIds: roomOverviewOrderActive ? overviewThreadRootIds : undefined,
             })
           : {
               index: 0,
@@ -4796,6 +4968,13 @@ export function RoomTimeline({
         threadParticipantMap,
         threadSummaryInfoMap,
         readUpToTs,
+        debouncedSearchQuery,
+        threadSortFreezeState,
+        threadSortControlSignature,
+        roomOverviewOrderActive,
+        overviewThreadRootIds,
+        roomThreadListThreads,
+        viewMode,
       ]
     ),
     useCallback(() => {
@@ -6136,7 +6315,7 @@ export function RoomTimeline({
         index: nextIndex,
       };
     });
-  }, [focusItem, threadFilterState, threadId]);
+  }, [focusItem, threadFilteredEvents, threadId]);
 
   // scroll to focused message
   useLayoutEffect(() => {
@@ -7850,8 +8029,10 @@ export function RoomTimeline({
           availableTags={availableRoomTags}
           viewMode={viewMode}
           onViewModeChange={onViewModeChange}
+          isThreadSortFrozen={threadSortFreezeState !== null}
           onToggle={onToggle}
           onSortDirectionChange={onSortDirectionChange}
+          onToggleThreadSortFreeze={onToggleThreadSortFreeze}
           onReset={onReset}
           onCycleTag={onCycleTag}
           onAddTag={onAddTag}
@@ -7864,7 +8045,7 @@ export function RoomTimeline({
         {showCompactRoomView ? (
           <CompactRoomView
             room={room}
-            threadRootIds={compactThreadRootIds}
+            threadRootIds={overviewThreadRootIds}
             metadataMap={compactThreadMetadataMap}
             summaryMap={preferredThreadSummaryMap}
             onThreadClick={handleOpenCompactThread}
