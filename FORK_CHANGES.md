@@ -137,12 +137,8 @@
   - `npm test` passes (`113/113` files, `950/950` tests)
   - `npm run typecheck` passes
   - `npm run build` passes
-- Current `CINNY-060` worktree full-suite baseline (2026-04-04):
-  - `npm test` reproduces the same 16 unrelated failures currently called out under the `CINNY-060` runbook entry:
-    - `src/app/features/room/RoomTimeline.test.ts`
-    - `src/app/features/room/RoomTimelineCollapsible.test.ts`
-    - `src/app/features/room/roomThreadOverviewModel.test.ts`
-    - `src/app/state/room/roomThreadFilterState.test.ts`
+- Current `CINNY-064` worktree baseline (2026-04-04):
+  - `npm test` passes (`119/119` files, `1008/1008` tests)
   - `npm run typecheck` passes
   - `npm run build` passes
 
@@ -325,3 +321,44 @@
   - `npm test` passes (`118/118` files, `996/996` tests)
   - `npm run build` passes
   - `npm run typecheck` is currently blocked by an unrelated existing error in `src/app/features/room/RoomTimeline.tsx(175,3)`: import declaration conflicts with local declaration of `isThreadOnlyRoomActivity`
+
+### CINNY-064: Thread header AI summary + scheduled countdown (2026-04-04)
+
+- Added shared `src/app/hooks/useThreadHeaderInfo.ts` to:
+  - resolve canonical thread roots from reply-event thread URLs,
+  - surface the latest AI summary text from thread summary events,
+  - count pending scheduled tasks for the thread,
+  - pick the next future scheduled task timestamp,
+  - and keep countdown text fresh via `useInterval(...)` plus adaptive refresh cadence from `getScheduledTimeUpdateInterval(...)`.
+- `src/app/utils/scheduledTaskContract.ts` now accepts both `execute_at` and `scheduled_at` timing fields (top-level and workflow JSON/object forms), while still normalizing them onto the existing `executeAt` output field.
+- `src/app/features/room/ThreadContextBanner.tsx` / `src/app/features/room/ThreadContextBanner.css.ts` now replace the static subtitle copy with a compact metadata row:
+  - AI summary text is single-line, truncated, and exposes the full text via `title`.
+  - scheduled tasks render a compact calendar/countdown indicator.
+  - when neither summary nor scheduled task metadata exists, the subtitle row is omitted entirely to save header space.
+- `src/app/components/message/mindroomThreadSummary.ts` now exports `getLatestThreadSummaryInfo(...)` so the banner and compact thread card share the same latest-summary selection logic.
+- `src/app/features/room/CompactThreadCard.tsx` now reuses the extracted summary/scheduled helpers so banner/card metadata stay aligned without changing the compact card’s cached-summary fallback path.
+- Tests:
+  - added `src/app/hooks/useThreadHeaderInfo.test.ts`
+  - expanded `src/app/features/room/ThreadContextBanner.test.ts`
+  - expanded `src/app/utils/scheduledTaskContract.test.ts`
+  - expanded `src/app/components/message/mindroomThreadSummary.test.ts`
+  - expanded `src/app/features/room/CompactThreadCard.test.ts`
+- Validation unblock during rebase:
+  - removed the duplicate imported `isThreadOnlyRoomActivity` symbol from `src/app/features/room/RoomTimeline.tsx`, leaving the existing local helper in place and restoring `npm run typecheck` after rebasing onto `local-dev-ref`.
+- Review:
+  - independent second self-review completed via focused `git diff` pass plus `git diff --check`.
+- Review-fix follow-up (2026-04-05):
+  - `src/app/hooks/useThreadHeaderInfo.ts` now listens for room-level `ThreadEvent.New` while `room.getThread(threadRootId)` is still missing, so the banner re-renders once delayed thread hydration creates the SDK thread model and then resumes the existing thread-scoped refresh path.
+  - the no-timestamp scheduled-task fallback copy now uses `N scheduled task(s)` consistently, including the banner aria-label.
+  - added a delayed-hydration regression in `src/app/hooks/useThreadHeaderInfo.test.ts` and a no-timestamp copy regression in `src/app/features/room/ThreadContextBanner.test.ts`.
+  - independent second self-review completed via final `git diff` pass plus `git diff --check`.
+- Validation (2026-04-04):
+  - `npm test -- src/app/hooks/useThreadHeaderInfo.test.ts src/app/features/room/ThreadContextBanner.test.ts src/app/utils/scheduledTaskContract.test.ts src/app/components/message/mindroomThreadSummary.test.ts src/app/features/room/CompactThreadCard.test.ts` passes
+  - `npm test` passes (`119/119` files, `1008/1008` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+- Validation follow-up (2026-04-05):
+  - `npm test -- src/app/hooks/useThreadHeaderInfo.test.ts src/app/features/room/ThreadContextBanner.test.ts` passes
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - focused `npx eslint ...` on the touched files is still blocked by the existing TypeScript parser `originalKeywordKind` deprecation crash; `FORK_CHANGES.md` itself also is not an ESLint target and fails parsing as Markdown.
