@@ -664,6 +664,84 @@ const getTimelineEventById = (
   return undefined;
 };
 
+const getRoomEventById = (
+  room: Room,
+  eventId: string,
+  linkedTimelines?: EventTimeline[]
+): MatrixEvent | undefined =>
+  room.findEventById(eventId) ?? (linkedTimelines ? getTimelineEventById(linkedTimelines, eventId) : undefined);
+
+const getThreadRootIdForEventTarget = ({
+  eventId,
+  event,
+  room,
+  roomThreads,
+}: {
+  eventId: string;
+  event: MatrixEvent | undefined;
+  room: Room;
+  roomThreads?: Array<Pick<Thread, 'id' | 'rootEvent'>>;
+}): string | undefined => {
+  const threadRootId = event?.threadRootId;
+  if (threadRootId && threadRootId !== eventId) {
+    return threadRootId;
+  }
+
+  if (event?.isThreadRoot || room.getThread(eventId)) {
+    return eventId;
+  }
+
+  return roomThreads?.some((thread) => thread.id === eventId) ? eventId : undefined;
+};
+
+export const getRoomEventThreadOpenTarget = ({
+  eventId,
+  room,
+  linkedTimelines,
+  roomThreads,
+}: {
+  eventId: string;
+  room: Room;
+  linkedTimelines?: EventTimeline[];
+  roomThreads?: Array<Pick<Thread, 'id' | 'rootEvent'>>;
+}):
+  | {
+      threadId: string;
+      eventId?: string;
+    }
+  | undefined => {
+  const targetEvent = getRoomEventById(room, eventId, linkedTimelines);
+  const directThreadRootId = getThreadRootIdForEventTarget({
+    eventId,
+    event: targetEvent,
+    room,
+    roomThreads,
+  });
+  if (directThreadRootId) {
+    return {
+      threadId: directThreadRootId,
+      eventId: directThreadRootId === eventId ? undefined : eventId,
+    };
+  }
+
+  const relatedEventId = targetEvent?.getAssociatedId() ?? targetEvent?.getRelation()?.event_id;
+  if (!relatedEventId) return undefined;
+
+  const relatedEvent = getRoomEventById(room, relatedEventId, linkedTimelines);
+  const relatedThreadRootId = getThreadRootIdForEventTarget({
+    eventId: relatedEventId,
+    event: relatedEvent,
+    room,
+    roomThreads,
+  });
+  if (!relatedThreadRootId) return undefined;
+
+  return {
+    threadId: relatedThreadRootId,
+    eventId: relatedThreadRootId === relatedEventId ? undefined : relatedEventId,
+  };
+};
+
 const getLinkedTimelinesEventAbsoluteIndex = (
   linkedTimelines: EventTimeline[],
   eventId: string
@@ -1048,8 +1126,9 @@ export const getEventIdAbsoluteIndex = (
 type RoomTimelineProps = {
   room: Room;
   eventId?: string;
+  focusEventInRoom?: boolean;
   threadId?: string;
-threadFilterState: ThreadFilterState;
+  threadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
   onToggle: (key: ThreadFilterKey) => void;
   onSortDirectionChange: () => void;
@@ -2472,8 +2551,9 @@ const getRoomUnreadInfo = (room: Room, scrollTo = false) => {
 export function RoomTimeline({
   room,
   eventId,
+  focusEventInRoom,
   threadId,
-threadFilterState,
+  threadFilterState,
   threadSortFreezeState,
   onToggle,
   onSortDirectionChange,
@@ -4897,6 +4977,24 @@ threadFilterState,
     useCallback(
       (evtId, lTimelines, evtAbsIndex) => {
         if (!alive()) return;
+        const deepLinkThreadTarget =
+          !focusEventInRoom && !threadId && roomOverviewOrderActive
+            ? getRoomEventThreadOpenTarget({
+                eventId: evtId,
+                room,
+                linkedTimelines: lTimelines,
+                roomThreads: roomThreadListThreads,
+              })
+            : undefined;
+        if (deepLinkThreadTarget) {
+          navigateRoomThread(
+            room.roomId,
+            deepLinkThreadTarget.threadId,
+            deepLinkThreadTarget.eventId,
+            { replace: true }
+          );
+          return;
+        }
         const renderableEntries = getRenderableEventEntries(
           lTimelines,
           room,
@@ -4994,6 +5092,7 @@ threadFilterState,
         roomOverviewOrderActive,
         overviewThreadRootIds,
         roomThreadListThreads,
+        navigateRoomThread,
         viewMode,
       ]
     ),
@@ -5740,9 +5839,34 @@ threadFilterState,
 
   useEffect(() => {
     if (eventId) {
+      const deepLinkThreadTarget =
+        !focusEventInRoom && !threadId && roomOverviewOrderActive
+          ? getRoomEventThreadOpenTarget({
+              eventId,
+              room,
+              roomThreads: roomThreadListThreads,
+            })
+          : undefined;
+      if (deepLinkThreadTarget) {
+        navigateRoomThread(
+          room.roomId,
+          deepLinkThreadTarget.threadId,
+          deepLinkThreadTarget.eventId,
+          { replace: true }
+        );
+        return;
+      }
       handleOpenEventRef.current(eventId);
     }
-  }, [eventId]);
+  }, [
+    eventId,
+    focusEventInRoom,
+    navigateRoomThread,
+    room,
+    roomOverviewOrderActive,
+    roomThreadListThreads,
+    threadId,
+  ]);
 
   useEffect(() => {
     compactRootEditFetchAttemptedRef.current = new WeakMap<MatrixEvent, number>();
