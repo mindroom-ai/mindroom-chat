@@ -212,6 +212,7 @@ import {
   computeStatusCounts,
   computeTagCounts,
 } from './roomThreadOverviewModel';
+import { getTimelineEventById, resolveRoomEventThreadRedirect } from './roomDeepLink';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
 import { useRoomThreadList } from './useRoomThreadList';
 import { useStateEvents } from '../../hooks/useStateEvents';
@@ -261,6 +262,8 @@ import {
 } from './threadEditBackfillUtils';
 import { useRoomThreadResolutionMap } from './useRoomThreadTags';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
+
+export { getRoomEventThreadOpenTarget } from './roomDeepLink';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -652,20 +655,6 @@ export const getThreadFilteredEvents = (
 const getEventEntryIndex = (entries: TimelineEventEntry[], eventId: string): number =>
   entries.findIndex(({ event }) => event.getId() === eventId);
 
-const getTimelineEventById = (
-  linkedTimelines: EventTimeline[],
-  eventId: string
-): MatrixEvent | undefined => {
-  for (const timeline of linkedTimelines) {
-    const event = timeline.getEvents().find((mEvent) => mEvent.getId() === eventId);
-    if (event) {
-      return event;
-    }
-  }
-
-  return undefined;
-};
-
 const getLinkedTimelinesEventAbsoluteIndex = (
   linkedTimelines: EventTimeline[],
   eventId: string
@@ -1050,8 +1039,9 @@ export const getEventIdAbsoluteIndex = (
 type RoomTimelineProps = {
   room: Room;
   eventId?: string;
+  focusEventInRoom?: boolean;
   threadId?: string;
-threadFilterState: ThreadFilterState;
+  threadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
   onToggle: (key: ThreadFilterKey) => void;
   onSortDirectionChange: () => void;
@@ -2461,8 +2451,9 @@ const getRoomUnreadInfo = (room: Room, scrollTo = false) => {
 export function RoomTimeline({
   room,
   eventId,
+  focusEventInRoom,
   threadId,
-threadFilterState,
+  threadFilterState,
   threadSortFreezeState,
   onToggle,
   onSortDirectionChange,
@@ -4880,12 +4871,45 @@ threadFilterState,
       shouldSuppressPagination: useCallback(() => suppressFocusPaginationRef.current, []),
     });
 
+  const redirectRoomEventDeepLink = useCallback(
+    (targetEventId: string, linkedTimelines?: EventTimeline[]): boolean => {
+      const threadTarget = resolveRoomEventThreadRedirect({
+        eventId: targetEventId,
+        room,
+        linkedTimelines,
+        roomThreads: roomThreadListThreads,
+        roomOverviewOrderActive,
+        threadId,
+        focusEventInRoom,
+      });
+      if (!threadTarget) {
+        return false;
+      }
+
+      navigateRoomThread(room.roomId, threadTarget.threadId, threadTarget.eventId, {
+        replace: true,
+      });
+      return true;
+    },
+    [
+      focusEventInRoom,
+      navigateRoomThread,
+      room,
+      roomOverviewOrderActive,
+      roomThreadListThreads,
+      threadId,
+    ]
+  );
+
   const loadEventTimeline = useEventTimelineLoader(
     mx,
     room,
     useCallback(
       (evtId, lTimelines, evtAbsIndex) => {
         if (!alive()) return;
+        if (redirectRoomEventDeepLink(evtId, lTimelines)) {
+          return;
+        }
         const renderableEntries = getRenderableEventEntries(
           lTimelines,
           room,
@@ -4983,6 +5007,7 @@ threadFilterState,
         roomOverviewOrderActive,
         overviewThreadRootIds,
         roomThreadListThreads,
+        redirectRoomEventDeepLink,
         viewMode,
       ]
     ),
@@ -5729,9 +5754,15 @@ threadFilterState,
 
   useEffect(() => {
     if (eventId) {
+      if (redirectRoomEventDeepLink(eventId)) {
+        return;
+      }
       handleOpenEventRef.current(eventId);
     }
-  }, [eventId]);
+  }, [
+    eventId,
+    redirectRoomEventDeepLink,
+  ]);
 
   useEffect(() => {
     compactRootEditFetchAttemptedRef.current = new WeakMap<MatrixEvent, number>();
