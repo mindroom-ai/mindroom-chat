@@ -33,10 +33,7 @@ export function SearchResultBody({
 }: SearchResultBodyProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
-
-  if (event.unsigned?.redacted_because) {
-    return <RedactedContent reason={event.unsigned?.redacted_because.content.reason} />;
-  }
+  const redactedBecause = event.unsigned?.redacted_because;
 
   const edited = isSearchResultEdited(event);
   const effectiveContent = getSearchResultEffectiveContent(event);
@@ -66,6 +63,10 @@ export function SearchResultBody({
       formatted_body: getSearchResultLightweightCustomBody(effectiveContent, nextPreviewText),
     };
   }, [effectiveContent, event, highlights, previewText, useLightweightBody]);
+
+  if (redactedBecause) {
+    return <RedactedContent reason={redactedBecause.content.reason} />;
+  }
 
   const renderSnippetBody = () => {
     if (!previewText) return null;
