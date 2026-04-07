@@ -362,3 +362,10 @@
   - `npm run typecheck` passes
   - `npm run build` passes
   - focused `npx eslint ...` on the touched files is still blocked by the existing TypeScript parser `originalKeywordKind` deprecation crash; `FORK_CHANGES.md` itself also is not an ESLint target and fails parsing as Markdown.
+- Validation/tooling follow-up (2026-04-06):
+  - upgraded the ESLint toolchain to `eslint@8.57.1` plus `@typescript-eslint/{parser,eslint-plugin}@6.21.0`, which removes the old `originalKeywordKind` parser crash against the current TypeScript toolchain.
+  - `check:eslint` now targets only JS/TS sources via `eslint "src/**/*.{js,jsx,ts,tsx}"`, so CSS files like `src/index.css` are no longer sent through the JS parser.
+  - `npm run lint` now gates on ESLint only and passes on the current branch; repo-wide Prettier drift remains available through `npm run check:prettier` but is not bundled into `npm run lint`.
+  - validation:
+    - `npm run lint` passes
+    - `npm test` passes (`119/119` files, `1012/1012` tests)

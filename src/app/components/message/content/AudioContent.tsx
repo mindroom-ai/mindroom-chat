@@ -66,6 +66,7 @@ export function AudioContent({
   useBlobUrlCleanup(srcState);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [autoPlayOnLoad, setAutoPlayOnLoad] = useState(false);
 
   const [currentTime, setCurrentTime] = useState(0);
   // duration in seconds. (NOTE: info.duration is in milliseconds)
@@ -88,9 +89,13 @@ export function AudioContent({
 
   const handlePlay = () => {
     if (srcState.status === AsyncStatus.Success) {
+      setAutoPlayOnLoad(false);
       setPlaying(!playing);
     } else if (srcState.status !== AsyncStatus.Loading) {
-      loadSrc();
+      setAutoPlayOnLoad(true);
+      void loadSrc().catch(() => {
+        setAutoPlayOnLoad(false);
+      });
     }
   };
 
@@ -204,7 +209,12 @@ export function AudioContent({
       </>
     ),
     children: (
-      <audio controls={false} autoPlay ref={audioRef}>
+      <audio
+        controls={false}
+        autoPlay={autoPlayOnLoad}
+        ref={audioRef}
+        onPlay={() => setAutoPlayOnLoad(false)}
+      >
         {srcState.status === AsyncStatus.Success && <source src={srcState.data} type={mimeType} />}
       </audio>
     ),
