@@ -146,7 +146,9 @@ describe('useRoomNavigate', () => {
       getSnapshot().navigateRoomThread(roomId, threadId, eventId);
     });
 
-    const threadRootRoomPath = getHomeRoomPath(roomId, threadId);
+    const threadRootRoomPath = withSearchParam(getHomeRoomPath(roomId, threadId), {
+      focusEvent: '1',
+    });
     const threadEventRoomPath = getHomeRoomPath(roomId, eventId);
 
     expect(mocks.replaceState).toHaveBeenCalledTimes(1);
@@ -192,7 +194,9 @@ describe('useRoomNavigate', () => {
       getSnapshot().navigateRoomThread(roomId, threadId, eventId);
     });
 
-    const threadRootRoomPath = getHomeRoomPath(roomId, threadId);
+    const threadRootRoomPath = withSearchParam(getHomeRoomPath(roomId, threadId), {
+      focusEvent: '1',
+    });
     expect(mocks.replaceState).toHaveBeenCalledWith(
       currentHistoryState,
       '',
@@ -252,7 +256,9 @@ describe('useRoomNavigate', () => {
       getSnapshot().navigateRoomThread(roomId, threadId, eventId);
     });
 
-    const threadRootRoomPath = getHomeRoomPath(roomId, threadId);
+    const threadRootRoomPath = withSearchParam(getHomeRoomPath(roomId, threadId), {
+      focusEvent: '1',
+    });
     expect(mocks.replaceState).toHaveBeenCalledWith(
       currentHistoryState,
       '',
@@ -274,11 +280,32 @@ describe('useRoomNavigate', () => {
       getSnapshot().navigateRoomThread(roomId, threadId, eventId);
     });
 
-    const threadRootRoomPath = getHomeRoomPath(roomId, threadId);
+    const threadRootRoomPath = withSearchParam(getHomeRoomPath(roomId, threadId), {
+      focusEvent: '1',
+    });
     expect(mocks.replaceState).toHaveBeenCalledWith(
       currentHistoryState,
       '',
       `#/app${threadRootRoomPath}`
+    );
+
+    renderer.unmount();
+  });
+
+  it('navigates to a focused room event without reopening the thread', () => {
+    const roomId = '!room:example.org';
+    const eventId = '$thread';
+    const opts: NavigateOptions = { replace: true };
+    const { getSnapshot, renderer } = renderHookHarness();
+
+    act(() => {
+      getSnapshot().navigateRoomFocusEvent(roomId, eventId, opts);
+    });
+
+    expect(mocks.replaceState).not.toHaveBeenCalled();
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      withSearchParam(getHomeRoomPath(roomId, eventId), { focusEvent: '1' }),
+      opts
     );
 
     renderer.unmount();

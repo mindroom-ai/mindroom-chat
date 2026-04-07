@@ -41,6 +41,8 @@ export type _RoomSearchParams = {
   viaServers?: string;
   /* thread root event id */
   threadId?: string;
+  /* keep synthetic history event permalinks in room view instead of reopening thread view */
+  focusEvent?: string;
 };
 export const _ROOM_PATH = ':roomIdOrAlias/:eventId?/';
 
