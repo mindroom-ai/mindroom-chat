@@ -8102,8 +8102,8 @@ threadDebugTraceId,
                 </Chip>
               </TimelineFloat>
             )}
-            <a
-              href="#"
+            <button
+              type="button"
               onClick={(e) => {
                 e.preventDefault();
                 if (allExpanded) {
@@ -8124,10 +8124,13 @@ threadDebugTraceId,
                 fontSize: '0.75rem',
                 fontFamily: 'monospace',
                 opacity: 0.7,
+                background: 'none',
+                border: 'none',
+                padding: 0,
               }}
             >
               {allExpanded ? '[-all]' : '[+all]'}
-            </a>
+            </button>
             <Scroll ref={scrollRef} visibility="Hover" style={{ overflowAnchor: 'auto' }}>
               <Box
                 direction="Column"

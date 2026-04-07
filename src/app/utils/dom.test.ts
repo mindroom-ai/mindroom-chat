@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import { isInScrollView, isIntersectingScrollView } from './dom';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { isInScrollView, isIntersectingScrollView, pauseAllMediaElements } from './dom';
 
 describe('dom', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('checks full containment using viewport-relative rectangles', () => {
     const scrollElement = {
       getBoundingClientRect: () => ({
@@ -51,5 +55,34 @@ describe('dom', () => {
     } as HTMLElement;
 
     expect(isIntersectingScrollView(scrollElement, childElement)).toBe(true);
+  });
+
+  it('pauses all audio and video elements on the page', () => {
+    const originalDocument = globalThis.document;
+    const pauseAudio = vi.fn();
+    const pauseVideo = vi.fn();
+
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: {
+        querySelectorAll: vi.fn(() => [{ pause: pauseAudio }, { pause: pauseVideo }]),
+      },
+    });
+
+    try {
+      pauseAllMediaElements();
+
+      expect(pauseAudio).toHaveBeenCalledOnce();
+      expect(pauseVideo).toHaveBeenCalledOnce();
+    } finally {
+      if (originalDocument === undefined) {
+        Reflect.deleteProperty(globalThis, 'document');
+      } else {
+        Object.defineProperty(globalThis, 'document', {
+          configurable: true,
+          value: originalDocument,
+        });
+      }
+    }
   });
 });
