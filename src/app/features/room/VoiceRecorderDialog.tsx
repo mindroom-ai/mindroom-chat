@@ -21,6 +21,7 @@ import {
   getAudioFileExtension,
   getSupportedRecorderMimeType,
 } from './voiceRecorderMime';
+import { pauseAllMediaElements } from '../../utils/dom';
 
 const formatElapsed = (ms: number): string => secondsToMinutesAndSeconds(Math.floor(ms / 1000));
 
@@ -189,6 +190,7 @@ export function VoiceRecorderComposer({
       return;
     }
 
+    pauseAllMediaElements();
     clearDraft();
     setElapsedMs(0);
     setPhase('requesting');
@@ -446,6 +448,8 @@ export function VoiceRecorderComposer({
                 <Text size="T200" priority="300">
                   Preview ({formatElapsed(draft.duration)})
                 </Text>
+                {/* Preview-only voice clips do not have captions. */}
+                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                 <audio controls src={draft.previewUrl} style={{ width: '100%' }} />
                 <Box alignItems="Center" gap="200" wrap="Wrap">
                   <Chip

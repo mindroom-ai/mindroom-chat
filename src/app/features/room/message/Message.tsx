@@ -99,6 +99,7 @@ import {
 import { assignElementRef } from '../../../utils/react';
 
 import { getMessageCopyTextBody, isCopyTextMessageContent } from './messageCopyText';
+
 export type ReactionHandler = (keyOrMxc: string, shortcode: string) => void;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
