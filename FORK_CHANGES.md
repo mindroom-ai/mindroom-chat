@@ -146,6 +146,77 @@
 
 - [justfile](/Users/basnijholt/Code/dev/mindroom-cinny/justfile) is intentionally kept for common local validation commands.
 - [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) is the persistent debugging reference for timeline/cache/search work.
+- `CINNY-065` planning note (2026-04-06):
+  - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
+  - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
+  - planned direction is: read both legacy and per-tag room state, write only per-tag events, and ship a one-off migration script that backfills per-tag records then tombstones legacy thread-level events.
+  - docs-only validation target for this planning step is `git diff --check`.
+- `CINNY-065` implementation status (2026-04-07):
+  - `src/app/features/room/threadTags.ts` now:
+    - uses ISO-8601 `set_at` strings internally,
+    - carries optional `note` / `data`,
+    - parses both legacy `{ tags: ... }` payloads and canonical per-tag payloads,
+    - validates canonical tag names and ISO-like timestamps more strictly,
+    - and exports per-tag state-key/content helpers plus `aggregateThreadTagEvents(...)`.
+  - `src/app/features/room/useRoomThreadTags.ts`, `src/app/features/room/useMutateThreadTags.ts`, and `src/app/features/room/useThreadTags.ts` now read merged room-state via aggregation and write only canonical per-tag state events with JSON-array state keys plus `{}` tombstones.
+  - `useToggleThreadResolution(...)` now delegates to `useMutateThreadTags(room).setResolved(...)`.
+  - test fixtures were updated to canonical ISO-string tag metadata, and focused regression coverage was added for:
+    - legacy/per-tag mixed reads,
+    - tombstones,
+    - per-tag writes,
+    - pending-state reconciliation,
+    - and migration helper behavior.
+  - added `scripts/migrate-thread-tags.mjs`:
+    - Node ESM,
+    - dry-run by default,
+    - idempotent,
+    - writes only missing canonical per-tag records,
+    - tombstones legacy thread-level events,
+    - and verifies the merged post-migration view matches the pre-migration view.
+  - review:
+    - independent explorer review completed.
+    - follow-up fixes landed for invalid-tag write/read mismatches, overly loose timestamp parsing, and the pending-clear test harness regression.
+    - review-fix follow-up (2026-04-07):
+      - `src/app/features/room/useMutateThreadTags.ts` now passes `validThreadRootId` into each `buildPlan(...)` callback so canonical per-tag state keys and pending-state reconciliation use the validated thread root id instead of the outer caller closure.
+      - `scripts/migrate-thread-tags.mjs` now tracks raw legacy state keys separately, plans legacy tombstones even when no valid tags survive parsing, and exports guarded helper entry points so the malformed-legacy cleanup path can be regression-tested without executing the CLI.
+      - added focused regressions in `src/app/features/room/useMutateThreadTags.test.ts` and `src/app/features/room/migrateThreadTagsScript.test.ts`.
+    - remaining noted risk: `useThreadResolution(...)` still subscribes per consumer, so large views can still pay repeated room-wide tag-read costs even though aggregation/build steps are now cached within a consumer update cycle.
+  - validation (2026-04-07):
+    - `npx tsc --noEmit` passes.
+    - focused Vitest passes for:
+      - `src/app/features/room/threadTags.test.ts`
+      - `src/app/features/room/useRoomThreadTags.test.ts`
+      - `src/app/features/room/useMutateThreadTags.test.ts`
+      - `src/app/features/room/useThreadTags.test.ts`
+      - `src/app/features/room/ThreadContextBanner.test.ts`
+      - `src/app/features/room/roomThreadOverviewModel.test.ts`
+    - `npm run build` passes.
+    - `npm test` does not complete cleanly in this environment:
+      - the default run hits Node/Vitest heap exhaustion late in the full suite,
+      - and larger-heap / single-fork retries still hit worker memory/runtime instability before a clean exit.
+    - `src/app/features/room/RoomTimeline.tsx` also needed a small missing-helper fix (`getTimelineEventById`) that `npx tsc --noEmit` surfaced while validating this branch.
+  - validation follow-up (2026-04-07, review fixes):
+    - `npx tsc --noEmit` passes.
+    - `npm run build` passes.
+    - the requested `npm test -- --testPathPattern='threadTags|useRoomThreadTags|useMutateThreadTags|useThreadTags' --maxWorkers=1` command fails in this repo because `--testPathPattern` is a Jest-only flag and Vitest rejects it.
+    - equivalent focused Vitest coverage passes with `--minWorkers=1 --maxWorkers=1` for:
+      - `src/app/features/room/threadTags.test.ts`
+      - `src/app/features/room/useRoomThreadTags.test.ts`
+      - `src/app/features/room/useMutateThreadTags.test.ts`
+      - `src/app/features/room/useThreadTags.test.ts`
+    - `src/app/features/room/migrateThreadTagsScript.test.ts` passes.
+  - RangeError follow-up (2026-04-07):
+    - guarded both `normalizeSetAt(...)` implementations against finite but invalid numeric timestamps whose `Date(...).toISOString()` previously threw `RangeError`.
+    - numeric normalization now also reuses the existing four-digit ISO-like timestamp gate, so extended-year values such as `-029719-04-05T22:13:20.000Z` are rejected instead of being accepted only through the numeric path.
+    - `src/app/features/room/threadTags.ts` now exports the helper so focused regression coverage can assert `1e20`, `-1e15`, `NaN`, and `Infinity` return `undefined` without throwing.
+    - `scripts/migrate-thread-tags.mjs` applies the same invalid-date guard and continues treating rejected values as malformed input.
+    - review:
+      - independent second self-review completed via a fresh `git diff` pass after the final guard change; the scope stayed limited to the two timestamp normalizers, focused regression coverage, and this runbook update.
+    - validation (2026-04-07):
+      - `npx tsc --noEmit` passes.
+      - `npx vitest run src/app/features/room/threadTags.test.ts --reporter verbose` passes.
+      - `npx vitest run src/app/features/room/migrateThreadTagsScript.test.ts --reporter verbose` passes.
+      - `npm run build` passes.
 - `CINNY-063` planning note (2026-04-04):
   - added repo-root `PLAN.md` for freeze/pause thread sorting.
   - recommended design is a room-scoped, session-only freeze state plus a pure frozen-order layer applied after the existing filter/search/sort pipeline.
