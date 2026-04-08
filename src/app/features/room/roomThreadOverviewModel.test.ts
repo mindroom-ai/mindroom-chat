@@ -1101,7 +1101,15 @@ describe('roomThreadOverviewModel', () => {
         getMember: () => null,
       };
       const tagsMap = new Map<string, { isResolved: boolean; tags: Record<string, unknown> | null }>([
-        ['$thread-2', { isResolved: true, tags: { resolved: { set_by: '@user:x', set_at: '2025-01-01' } } }],
+        [
+          '$thread-2',
+          {
+            isResolved: true,
+            tags: {
+              resolved: { set_by: '@user:x', set_at: '2025-01-01T00:00:00.000Z' },
+            },
+          },
+        ],
       ]);
       const scheduledCounts = new Map([['$thread-1', 3]]);
       const threadReplyCountMap = new Map<string, number>();

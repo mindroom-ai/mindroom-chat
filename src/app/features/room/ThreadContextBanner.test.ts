@@ -15,6 +15,10 @@ import {
 import { tagColor, TAG_TEXT_COLOR } from './threadTagColor';
 import { ThreadContextBanner } from './ThreadContextBanner';
 
+const ISO_1 = '2026-04-07T00:00:01.000Z';
+const ISO_2 = '2026-04-07T00:00:02.000Z';
+const ISO_3 = '2026-04-07T00:00:03.000Z';
+
 const bannerMocks = vi.hoisted(() => ({
   useThreadRootEvent: vi.fn(),
   useThreadTags: vi.fn(),
@@ -127,9 +131,9 @@ describe('ThreadContextBanner data flow', () => {
     it('renders pills for existing tags (excluding resolved)', () => {
       const content: ThreadTagsContent = {
         tags: {
-          bug: { set_by: '@a:b', set_at: 1 },
-          feature: { set_by: '@a:b', set_at: 2 },
-          [RESOLVED_TAG]: { set_by: '@a:b', set_at: 3 },
+          bug: { set_by: '@a:b', set_at: ISO_1 },
+          feature: { set_by: '@a:b', set_at: ISO_2 },
+          [RESOLVED_TAG]: { set_by: '@a:b', set_at: ISO_3 },
         },
       };
       const display = getDisplayTags(content);
@@ -139,7 +143,7 @@ describe('ThreadContextBanner data flow', () => {
 
     it('shows no pills when only resolved tag exists', () => {
       const content: ThreadTagsContent = {
-        tags: { [RESOLVED_TAG]: { set_by: '@a:b', set_at: 1 } },
+        tags: { [RESOLVED_TAG]: { set_by: '@a:b', set_at: ISO_1 } },
       };
       expect(getDisplayTags(content)).toEqual([]);
     });
@@ -171,7 +175,7 @@ describe('ThreadContextBanner data flow', () => {
     it('isResolved reflects resolved tag presence', () => {
       expect(
         isThreadResolved({
-          tags: { [RESOLVED_TAG]: { set_by: '@a:b', set_at: 1 } },
+          tags: { [RESOLVED_TAG]: { set_by: '@a:b', set_at: ISO_1 } },
         })
       ).toBe(true);
       expect(isThreadResolved({ tags: {} })).toBe(false);
@@ -220,12 +224,12 @@ describe('ThreadContextBanner data flow', () => {
       const allContents: ThreadTagsContent[] = [
         {
           tags: {
-            bug: { set_by: '@a:b', set_at: 1 },
-            feature: { set_by: '@a:b', set_at: 2 },
+            bug: { set_by: '@a:b', set_at: ISO_1 },
+            feature: { set_by: '@a:b', set_at: ISO_2 },
           },
         },
       ];
-      const currentTags = { bug: { set_by: '@a:b', set_at: 1 } };
+      const currentTags = { bug: { set_by: '@a:b', set_at: ISO_1 } };
       expect(collectAvailableTags(allContents, currentTags)).toEqual(['feature']);
     });
 
@@ -233,8 +237,8 @@ describe('ThreadContextBanner data flow', () => {
       const allContents: ThreadTagsContent[] = [
         {
           tags: {
-            [RESOLVED_TAG]: { set_by: '@a:b', set_at: 1 },
-            bug: { set_by: '@a:b', set_at: 2 },
+            [RESOLVED_TAG]: { set_by: '@a:b', set_at: ISO_1 },
+            bug: { set_by: '@a:b', set_at: ISO_2 },
           },
         },
       ];
