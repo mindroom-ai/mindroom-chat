@@ -683,20 +683,6 @@ const getVisibleAnchorCandidateIds = (mEvent: MatrixEvent): string[] => {
   return Array.from(candidateIds);
 };
 
-const getTimelineEventById = (
-  linkedTimelines: EventTimeline[],
-  eventId: string
-): MatrixEvent | undefined => {
-  for (const timeline of linkedTimelines) {
-    const event = timeline.getEvents().find((candidate) => candidate.getId() === eventId);
-    if (event) {
-      return event;
-    }
-  }
-
-  return undefined;
-};
-
 const getClosestRenderableEntryIndex = (
   entries: TimelineEventEntry[],
   absoluteIndex: number
