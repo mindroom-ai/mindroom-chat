@@ -1,0 +1,301 @@
+import type { Page } from '@playwright/test';
+
+export type MatrixSession = {
+  accessToken: string;
+  userId: string;
+};
+
+export type ThreadFixture = {
+  roomId: string;
+  rootId: string;
+  replyId: string;
+  rootBody: string;
+  replyBody: string;
+};
+
+type MatrixFetchOptions = RequestInit & {
+  accessToken?: string;
+};
+
+type CreateRoomOptions = {
+  name: string;
+  topic: string;
+  preset?: 'private_chat' | 'trusted_private_chat';
+  invite?: string[];
+  isDirect?: boolean;
+};
+
+type CreateThreadFixtureOptions = {
+  name: string;
+  topic: string;
+  rootBody: string;
+  replyBody: string;
+  fillerBody?: string;
+  preset?: 'private_chat' | 'trusted_private_chat';
+  invite?: string[];
+  isDirect?: boolean;
+  txnPrefix?: string;
+};
+
+type SerializedThreadFilterState = {
+  v: 1;
+  resolved: 'any' | 'include' | 'exclude';
+  streaming: 'any' | 'include' | 'exclude';
+  scheduled: 'any' | 'include' | 'exclude';
+  unread: 'any' | 'include' | 'exclude';
+  idle: 'any' | 'include' | 'exclude';
+  sortBy: 'natural' | 'lastReply';
+  sortDirection: 'asc' | 'desc';
+  tags: Record<string, 'include' | 'exclude'>;
+  searchQuery: string;
+  statusMode: 'and' | 'or';
+};
+
+type SeedRoomOverviewStateOptions = {
+  page: Page;
+  roomId: string;
+  userId: string;
+  viewMode?: 'normal' | 'compact';
+  filterState?: SerializedThreadFilterState;
+};
+
+export const matrixFetch = async <T>(
+  homeserver: string,
+  path: string,
+  options: MatrixFetchOptions = {}
+): Promise<T> => {
+  const { accessToken, headers, ...rest } = options;
+  const response = await fetch(`${homeserver}/_matrix/client/v3${path}`, {
+    ...rest,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...headers,
+    },
+  });
+
+  const body = (await response.json()) as Record<string, unknown>;
+
+  if (!response.ok) {
+    const error = [body.errcode, body.error].filter(Boolean).join(' ');
+    throw new Error(`Matrix API ${response.status} for ${path}: ${error || 'unknown error'}`);
+  }
+
+  return body as T;
+};
+
+export const loginToMatrix = async (
+  homeserver: string,
+  username: string,
+  password: string
+): Promise<MatrixSession> => {
+  const body = await matrixFetch<{ access_token: string; user_id: string }>(homeserver, '/login', {
+    method: 'POST',
+    body: JSON.stringify({
+      type: 'm.login.password',
+      identifier: { type: 'm.id.user', user: username },
+      password,
+    }),
+  });
+
+  return {
+    accessToken: body.access_token,
+    userId: body.user_id,
+  };
+};
+
+export const createPrivateRoom = async (
+  homeserver: string,
+  accessToken: string,
+  options: CreateRoomOptions
+): Promise<string> => {
+  const body = await matrixFetch<{ room_id: string }>(homeserver, '/createRoom', {
+    method: 'POST',
+    accessToken,
+    body: JSON.stringify({
+      name: options.name,
+      topic: options.topic,
+      preset: options.preset ?? 'private_chat',
+      invite: options.invite,
+      is_direct: options.isDirect,
+    }),
+  });
+
+  return body.room_id;
+};
+
+export const createThreadFixture = async (
+  homeserver: string,
+  accessToken: string,
+  options: CreateThreadFixtureOptions
+): Promise<ThreadFixture> => {
+  const roomId = await createPrivateRoom(homeserver, accessToken, {
+    name: options.name,
+    topic: options.topic,
+    preset: options.preset,
+    invite: options.invite,
+    isDirect: options.isDirect,
+  });
+  const txnPrefix = options.txnPrefix ?? 'cinny-e2e';
+
+  if (options.fillerBody) {
+    await sendRoomMessage(
+      homeserver,
+      accessToken,
+      roomId,
+      {
+        msgtype: 'm.text',
+        body: options.fillerBody,
+      },
+      txnPrefix
+    );
+  }
+
+  const rootId = await sendRoomMessage(
+    homeserver,
+    accessToken,
+    roomId,
+    {
+      msgtype: 'm.text',
+      body: options.rootBody,
+    },
+    txnPrefix
+  );
+
+  const replyId = await sendRoomMessage(
+    homeserver,
+    accessToken,
+    roomId,
+    {
+      msgtype: 'm.text',
+      body: options.replyBody,
+      'm.relates_to': {
+        rel_type: 'm.thread',
+        event_id: rootId,
+        is_falling_back: true,
+        'm.in_reply_to': { event_id: rootId },
+      },
+    },
+    txnPrefix
+  );
+
+  return {
+    roomId,
+    rootId,
+    replyId,
+    rootBody: options.rootBody,
+    replyBody: options.replyBody,
+  };
+};
+
+export const joinRoom = async (
+  homeserver: string,
+  accessToken: string,
+  roomIdOrAlias: string
+): Promise<string> => {
+  const body = await matrixFetch<{ room_id: string }>(
+    homeserver,
+    `/join/${encodeURIComponent(roomIdOrAlias)}`,
+    {
+      method: 'POST',
+      accessToken,
+      body: JSON.stringify({}),
+    }
+  );
+
+  return body.room_id;
+};
+
+export const sendRoomMessage = async (
+  homeserver: string,
+  accessToken: string,
+  roomId: string,
+  content: Record<string, unknown>,
+  txnPrefix = 'cinny-e2e'
+): Promise<string> => {
+  const txnId = `${txnPrefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const body = await matrixFetch<{ event_id: string }>(
+    homeserver,
+    `/rooms/${encodeURIComponent(roomId)}/send/m.room.message/${txnId}`,
+    {
+      method: 'PUT',
+      accessToken,
+      body: JSON.stringify(content),
+    }
+  );
+
+  return body.event_id;
+};
+
+export const setAccountData = async (
+  homeserver: string,
+  accessToken: string,
+  userId: string,
+  eventType: string,
+  content: Record<string, unknown>
+) => {
+  await matrixFetch<unknown>(
+    homeserver,
+    `/user/${encodeURIComponent(userId)}/account_data/${encodeURIComponent(eventType)}`,
+    {
+      method: 'PUT',
+      accessToken,
+      body: JSON.stringify(content),
+    }
+  );
+};
+
+export const setDirectAccountData = async (
+  homeserver: string,
+  accessToken: string,
+  userId: string,
+  otherUserId: string,
+  roomId: string
+) => {
+  await setAccountData(homeserver, accessToken, userId, 'm.direct', {
+    [otherUserId]: [roomId],
+  });
+};
+
+export const createDefaultThreadFilterState = (): SerializedThreadFilterState => ({
+  v: 1,
+  resolved: 'any',
+  streaming: 'any',
+  scheduled: 'any',
+  unread: 'any',
+  idle: 'any',
+  sortBy: 'lastReply',
+  sortDirection: 'desc',
+  tags: {},
+  searchQuery: '',
+  statusMode: 'and',
+});
+
+export const createHiddenOverviewFilterState = (): SerializedThreadFilterState => ({
+  ...createDefaultThreadFilterState(),
+  resolved: 'include',
+});
+
+export const seedRoomOverviewState = async ({
+  page,
+  roomId,
+  userId,
+  viewMode = 'normal',
+  filterState = createHiddenOverviewFilterState(),
+}: SeedRoomOverviewStateOptions) => {
+  await page.evaluate(
+    ({ nextRoomId, nextUserId, nextViewMode, nextFilterState }) => {
+      localStorage.setItem(`roomViewMode:${nextRoomId}`, JSON.stringify(nextViewMode));
+      localStorage.setItem(
+        `roomThreadFilter:${nextUserId}:${nextRoomId}`,
+        JSON.stringify(nextFilterState)
+      );
+    },
+    {
+      nextRoomId: roomId,
+      nextUserId: userId,
+      nextViewMode: viewMode,
+      nextFilterState: filterState,
+    }
+  );
+};
