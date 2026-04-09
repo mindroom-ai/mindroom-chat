@@ -17,6 +17,7 @@ const {
   roomIntroType,
   defaultPlaceholderType,
   compactPlaceholderType,
+  directRoomState,
   aliveFn,
   reactionOrEditEventMock,
   isMembershipChangedMock,
@@ -49,6 +50,7 @@ const {
   roomIntroType: 'room-intro',
   defaultPlaceholderType: 'default-placeholder',
   compactPlaceholderType: 'compact-placeholder',
+  directRoomState: { value: false },
   aliveFn: () => true,
   reactionOrEditEventMock: vi.fn(() => false),
   isMembershipChangedMock: vi.fn(() => false),
@@ -203,7 +205,7 @@ vi.mock('../../state/settings', () => ({
 }));
 
 vi.mock('../../hooks/useRoom', () => ({
-  useIsDirectRoom: () => false,
+  useIsDirectRoom: () => directRoomState.value,
 }));
 
 vi.mock('../../hooks/useIgnoredUsers', () => ({
@@ -817,6 +819,7 @@ beforeEach(() => {
   threadLastActivityTsMapMock.clear();
   threadResolutionMapMock.clear();
   roomThreadListThreadsMock.length = 0;
+  directRoomState.value = false;
   ignoredUsersMock.length = 0;
   roomUnreadState.value = false;
   scrollToItemMock.mockReturnValue(false);
@@ -953,6 +956,7 @@ const createControlledRoomTimelineHarness = (
     focusEventInRoom,
     threadId,
     initialThreadFilter,
+    initialThreadFilterState,
     initialViewMode = 'normal',
     initialThreadSortFrozen = false,
   }: {
@@ -961,12 +965,13 @@ const createControlledRoomTimelineHarness = (
     focusEventInRoom?: boolean;
     threadId?: string;
     initialThreadFilter?: 'all' | 'resolved' | 'unresolved' | 'unread';
+    initialThreadFilterState?: import('./roomThreadOverviewModel').ThreadFilterState;
     initialViewMode?: 'normal' | 'compact';
     initialThreadSortFrozen?: boolean;
   }) {
     const [threadFilterState, setThreadFilterState] =
       React.useState<import('./roomThreadOverviewModel').ThreadFilterState>(
-        threadFilterStateFromLegacy(initialThreadFilter)
+        initialThreadFilterState ?? threadFilterStateFromLegacy(initialThreadFilter)
       );
     const [viewMode, setViewMode] = React.useState<'normal' | 'compact'>(initialViewMode);
     const [threadSortFreezeState, setThreadSortFreezeState] = React.useState<
@@ -1826,6 +1831,33 @@ describe('RoomTimeline', () => {
       secondThread.getId(),
       firstThread.getId(),
     ]);
+  });
+
+  it('keeps direct rooms on the message timeline even with compact overview state', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const directMessage = makeEvent('$dm-message');
+    const room = makeRoom({
+      liveEvents: [directMessage],
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    directRoomState.value = true;
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          initialViewMode: 'compact',
+          initialThreadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+        })
+      );
+      await flushAsyncWork(2);
+    });
+
+    expect(getRenderedEventIds(renderer!)).toEqual([directMessage.getId()]);
+    expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(0);
+    expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
   });
 
   it('redirects frozen compact-order permalinks into thread view', async () => {
