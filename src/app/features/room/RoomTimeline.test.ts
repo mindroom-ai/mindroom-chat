@@ -601,8 +601,15 @@ vi.mock('./CompactRoomView', () => ({
 }));
 
 vi.mock('./useRoomThreadList', () => ({
-  useRoomThreadList: (_room: unknown, enabled = true) => ({
-    threads: enabled ? roomThreadListThreadsMock : [],
+  useRoomThreadList: (
+    room: { getThreads?: () => Array<{ id?: string; rootEvent?: unknown }> } | undefined,
+    enabled = true
+  ) => ({
+    threads: enabled
+      ? roomThreadListThreadsMock.length > 0
+        ? roomThreadListThreadsMock
+        : room?.getThreads?.() ?? []
+      : [],
   }),
 }));
 
@@ -955,12 +962,16 @@ const createControlledRoomTimelineHarness = (
 ) => {
   const roomInputRef = createRef<HTMLElement>();
   const editor = {} as Editor;
+  const defaultSummaryMap = new Map();
+  const defaultOnStoreThreadSummary = vi.fn();
 
   return function ControlledRoomTimelineHarness({
     room,
     eventId,
     focusEventInRoom,
     threadId,
+    summaryMap = defaultSummaryMap,
+    onStoreThreadSummary = defaultOnStoreThreadSummary,
     initialThreadFilter,
     initialThreadFilterState,
     initialViewMode = 'normal',
@@ -970,6 +981,8 @@ const createControlledRoomTimelineHarness = (
     eventId?: string;
     focusEventInRoom?: boolean;
     threadId?: string;
+    summaryMap?: Map<string, unknown>;
+    onStoreThreadSummary?: (threadRootId: string, info?: unknown) => void;
     initialThreadFilter?: 'all' | 'resolved' | 'unresolved' | 'unread';
     initialThreadFilterState?: import('./roomThreadOverviewModel').ThreadFilterState;
     initialViewMode?: 'normal' | 'compact';
@@ -1028,6 +1041,8 @@ const createControlledRoomTimelineHarness = (
       eventId,
       focusEventInRoom,
       threadId,
+      summaryMap,
+      onStoreThreadSummary,
       threadFilterState,
       threadSortFreezeState,
       onToggle,
@@ -1047,7 +1062,8 @@ const createControlledRoomTimelineHarness = (
 };
 
 describe('RoomTimeline', () => {
-  it('renders without thread render hook initialization errors', async () => {
+  describe('cache and overview', () => {
+    it('renders without thread render hook initialization errors', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
     const room = makeRoom();
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
@@ -1109,13 +1125,20 @@ describe('RoomTimeline', () => {
             room,
             roomInputRef,
             editor,
+            summaryMap: new Map(),
+            onStoreThreadSummary: vi.fn(),
             threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+            threadSortFreezeState: null,
             onToggle: vi.fn(),
             onSortDirectionChange: vi.fn(),
+            onToggleThreadSortFreeze: vi.fn(),
+            setThreadSortFreezeState: vi.fn(),
             onCycleTag: vi.fn(),
             onAddTag: vi.fn(),
             onRemoveTag: vi.fn(),
             onReset: vi.fn(),
+            onApplyPreset: vi.fn(),
+            onSearchQueryChange: vi.fn(),
             viewMode: 'default',
             onViewModeChange: vi.fn(),
           })
@@ -1180,13 +1203,20 @@ describe('RoomTimeline', () => {
             room,
             roomInputRef,
             editor,
+            summaryMap: new Map(),
+            onStoreThreadSummary: vi.fn(),
             threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+            threadSortFreezeState: null,
             onToggle: vi.fn(),
             onSortDirectionChange: vi.fn(),
+            onToggleThreadSortFreeze: vi.fn(),
+            setThreadSortFreezeState: vi.fn(),
             onCycleTag: vi.fn(),
             onAddTag: vi.fn(),
             onRemoveTag: vi.fn(),
             onReset: vi.fn(),
+            onApplyPreset: vi.fn(),
+            onSearchQueryChange: vi.fn(),
             viewMode: 'default',
             onViewModeChange: vi.fn(),
           })
@@ -4825,7 +4855,12 @@ describe('RoomTimeline', () => {
     });
   });
 
-  it('resets the room timeline to the latest live range when returning to all threads', async () => {
+  });
+
+  describe('navigation and focus', () => {
+    describe('navigation and hidden-event recovery', () => {
+      describe('filter navigation', () => {
+        it('resets the room timeline to the latest live range when returning to all threads', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const unresolvedThread = makeEvent('$thread-unresolved', { isThreadRoot: true });
@@ -5110,6 +5145,7 @@ describe('RoomTimeline', () => {
       room.getUnfilteredTimelineSet(),
       permalinkMessage.getId()
     );
+    expect(matrixClientMock.getEventTimeline).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the active thread filter when opening an unloaded eventId that still matches it', async () => {
@@ -5286,7 +5322,10 @@ describe('RoomTimeline', () => {
     ).toBe(false);
   });
 
-  it('does not retrigger room focus scroll on unrelated live room updates', async () => {
+      });
+
+      describe('room focus retry handling', () => {
+        it('does not retrigger room focus scroll on unrelated live room updates', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
     const unresolvedThread = makeEvent('$thread-root', { isThreadRoot: true });
     const unreadMessage = makeEvent('$unread-message');
@@ -5767,7 +5806,12 @@ describe('RoomTimeline', () => {
     ).toBe(false);
   });
 
-  it('computes room-event focus against the active thread-filtered room list', async () => {
+      });
+    });
+
+    describe('permalink focus and timeline refresh', () => {
+      describe('permalink targeting', () => {
+        it('computes room-event focus against the active thread-filtered room list', async () => {
     const { getRoomEventFocusTarget } = await import('./RoomTimeline');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const messageEvent = makeEvent('$message-1');
@@ -6117,7 +6161,10 @@ describe('RoomTimeline', () => {
     });
   });
 
-  it('switches room focus to end alignment near the loaded room end', async () => {
+      });
+
+      describe('refresh and jump-to-latest', () => {
+        it('switches room focus to end alignment near the loaded room end', async () => {
     const { getRoomFocusScrollOptions, getRoomFocusScrollToItemOptions } = await import(
       './RoomTimeline'
     );
@@ -6493,7 +6540,7 @@ describe('RoomTimeline', () => {
     }
   });
 
-  it('isAnchorVisibleInScroll returns true when anchor is within scroll bounds plus margin', async () => {
+    it('isAnchorVisibleInScroll returns true when anchor is within scroll bounds plus margin', async () => {
     const { isAnchorVisibleInScroll } = await import('./RoomTimeline');
 
     const anchor = { getBoundingClientRect: () => ({ top: 500 }) } as Element;
@@ -6501,12 +6548,15 @@ describe('RoomTimeline', () => {
     expect(isAnchorVisibleInScroll(anchor, scroll, 100)).toBe(true);
   });
 
-  it('isAnchorVisibleInScroll returns false when anchor is below scroll bounds plus margin', async () => {
+        it('isAnchorVisibleInScroll returns false when anchor is below scroll bounds plus margin', async () => {
     const { isAnchorVisibleInScroll } = await import('./RoomTimeline');
 
     const anchor = { getBoundingClientRect: () => ({ top: 600 }) } as Element;
     const scroll = { getBoundingClientRect: () => ({ bottom: 450 }) } as Element;
     expect(isAnchorVisibleInScroll(anchor, scroll, 100)).toBe(false);
+        });
+      });
+    });
   });
 });
 
@@ -6764,199 +6814,4 @@ describe('fetchAllThreadRelations', () => {
     });
   });
 
-  it('backfills visible room thread summaries from cached thread events', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const rootEvent = makeEvent('$root', {
-      content: { body: 'Root prompt', msgtype: 'm.text' },
-      isThreadRoot: true,
-      ts: 100,
-    });
-    const replyEvent = makeEvent('$reply', {
-      content: { body: 'Reply', msgtype: 'm.text' },
-      threadRootId: '$root',
-      ts: 200,
-    });
-    const room = makeRoom({ liveEvents: [rootEvent, replyEvent] });
-    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-    let renderer: ReturnType<typeof create> | undefined;
-
-    loadLatestCachedThreadSummaryInfoMock.mockResolvedValue({
-      summaryText: 'Cached summary text',
-      generatedTs: 123,
-      messageCount: 12,
-    });
-
-    try {
-      await act(async () => {
-        renderer = create(React.createElement(ControlledRoomTimeline, { room }));
-        await flushAsyncWork();
-      });
-
-      await act(async () => {
-        await flushAsyncWork(5);
-      });
-
-      expect(loadLatestCachedThreadSummaryInfoMock).toHaveBeenCalledWith(
-        expect.any(String),
-        '!room:example.org',
-        '$root'
-      );
-      expect(saveCachedThreadSummaryMock).toHaveBeenCalledWith(
-        expect.any(String),
-        '!room:example.org',
-        '$root',
-        expect.objectContaining({ summaryText: 'Cached summary text' })
-      );
-    } finally {
-      await act(async () => {
-        renderer?.unmount();
-        await flushAsyncWork(1);
-      });
-    }
-  });
-
-  it('backfills visible room thread summaries beyond the first 24 summaryless roots', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const liveEvents = Array.from({ length: 30 }, (_, index) => {
-      const rootId = `$root-${index}`;
-      return [
-        makeEvent(rootId, {
-          content: { body: `Root ${index}`, msgtype: 'm.text' },
-          isThreadRoot: true,
-          ts: index * 100,
-        }),
-        makeEvent(`$reply-${index}`, {
-          content: { body: `Reply ${index}`, msgtype: 'm.text' },
-          threadRootId: rootId,
-          ts: index * 100 + 50,
-        }),
-      ];
-    }).flat();
-    const room = makeRoom({ liveEvents });
-    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-    let renderer: ReturnType<typeof create> | undefined;
-
-    loadLatestCachedThreadSummaryInfoMock.mockImplementation(async (_sessionId, _roomId, threadId) =>
-      threadId === '$root-29'
-        ? {
-            summaryText: 'Later cached summary text',
-            generatedTs: 999,
-            messageCount: 30,
-          }
-        : undefined
-    );
-
-    try {
-      await act(async () => {
-        renderer = create(React.createElement(ControlledRoomTimeline, { room }));
-        await flushAsyncWork();
-      });
-
-      await act(async () => {
-        await flushAsyncWork(10);
-      });
-
-      expect(loadLatestCachedThreadSummaryInfoMock).toHaveBeenCalledWith(
-        expect.any(String),
-        '!room:example.org',
-        '$root-29'
-      );
-      expect(saveCachedThreadSummaryMock).toHaveBeenCalledWith(
-        expect.any(String),
-        '!room:example.org',
-        '$root-29',
-        expect.objectContaining({ summaryText: 'Later cached summary text' })
-      );
-    } finally {
-      await act(async () => {
-        renderer?.unmount();
-        await flushAsyncWork(1);
-      });
-    }
-  });
-
-  it('loads cached room thread summaries even when opening a thread directly', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-    const threadRootId = '$thread-root';
-    const threadRootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 100 });
-    const threadSummaryEvent = makeEvent('$thread-summary', {
-      content: {
-        msgtype: 'm.notice',
-        body: '## Summary\n\nLatest thread summary',
-        'io.mindroom.thread_summary': {
-          version: 1,
-          summary: '## Summary\n\nLatest thread summary',
-          generated_at: '2026-04-09T20:40:00.000Z',
-          message_count: 151,
-        },
-      },
-      threadRootId,
-      ts: Date.parse('2026-04-09T20:40:00.000Z'),
-    });
-    const threadLiveTimeline = makeTimeline([threadRootEvent, threadSummaryEvent]);
-    const threadTimelineSet = {
-      getLiveTimeline: () => threadLiveTimeline,
-      getTimelineForEvent: (eventId: string) =>
-        eventId === threadRootId || eventId === threadSummaryEvent.getId()
-          ? threadLiveTimeline
-          : undefined,
-    };
-    (
-      threadLiveTimeline as ReturnType<typeof makeTimeline> & {
-        getTimelineSet?: () => typeof threadTimelineSet;
-      }
-    ).getTimelineSet = () => threadTimelineSet;
-    const room = makeRoom({
-      liveEvents: [threadRootEvent],
-      threads: [
-        {
-          id: threadRootId,
-          rootEvent: threadRootEvent,
-          events: [],
-          timeline: [threadSummaryEvent],
-          getUnfilteredTimelineSet: () => threadTimelineSet,
-        },
-      ] as never,
-    });
-    const rendererThreadEvents = threadRenderStateMock.threadEvents;
-    let renderer: ReturnType<typeof create> | undefined;
-
-    threadRenderStateMock.threadEvents = [threadSummaryEvent] as never[];
-    loadCachedThreadSummariesMock.mockResolvedValue(
-      new Map([
-        [
-          threadRootId,
-          {
-            summaryText: 'One-line thread summary',
-            generatedTs: Date.parse('2026-04-09T19:40:00.000Z'),
-            messageCount: 144,
-          },
-        ],
-      ])
-    );
-
-    try {
-      await act(async () => {
-        renderer = create(
-          React.createElement(ControlledRoomTimeline, {
-            room,
-            threadId: threadRootId,
-          })
-        );
-        await flushAsyncWork(5);
-      });
-
-      expect(loadCachedThreadSummariesMock).toHaveBeenCalledWith(
-        expect.any(String),
-        '!room:example.org'
-      );
-    } finally {
-      threadRenderStateMock.threadEvents = rendererThreadEvents;
-      await act(async () => {
-        renderer?.unmount();
-        await flushAsyncWork(1);
-      });
-    }
-  });
 });
