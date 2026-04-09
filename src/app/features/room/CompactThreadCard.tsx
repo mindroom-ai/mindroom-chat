@@ -5,7 +5,7 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { StateEvent } from '../../../types/matrix/room';
 import {
-  getLatestThreadSummaryInfo,
+  getLatestThreadSummaryInfoFromEventSources,
   isMindroomThreadSummaryEvent,
   pickLatestThreadSummaryInfo,
   type MindroomThreadSummaryInfo,
@@ -221,7 +221,7 @@ export function CompactThreadCard({
   const resolvedThreadRootEvent =
     threadRootEvent ?? thread?.rootEvent ?? room.findEventById(threadRootId);
   const replyEvents = getPreferredThreadReplyEvents(thread);
-  const liveSummaryInfo = getLatestThreadSummaryInfo(replyEvents);
+  const liveSummaryInfo = getLatestThreadSummaryInfoFromEventSources(thread?.events, thread?.timeline);
   const effectiveSummaryInfo = pickLatestThreadSummaryInfo(summaryInfo, liveSummaryInfo);
   const eventRootPreviewText =
     getCompactThreadRootBodyPreviewText(resolvedThreadRootEvent, {
