@@ -1,5 +1,24 @@
+diff --git a/node_modules/matrix-js-sdk/lib/models/event.js b/node_modules/matrix-js-sdk/lib/models/event.js
+index e715534..dacd802 100644
+--- a/node_modules/matrix-js-sdk/lib/models/event.js
++++ b/node_modules/matrix-js-sdk/lib/models/event.js
+@@ -1487,14 +1487,8 @@ export class MatrixEvent extends TypedEventEmitter {
+     if (this.isState()) {
+       return;
+     }
+-    if (this.thread) {
+-      this.reEmitter.stopReEmitting(this.thread, [ThreadEvent.Update]);
+-    }
+     this.thread = thread;
+     this.setThreadId(thread === null || thread === void 0 ? void 0 : thread.id);
+-    if (thread) {
+-      this.reEmitter.reEmit(thread, [ThreadEvent.Update]);
+-    }
+   }
+ 
+   /**
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
-index 12f6d05..346e08a 100644
+index 12f6d05..570d939 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.js
 @@ -61,6 +61,7 @@ export class Relations extends TypedEventEmitter {
@@ -88,3 +107,22 @@ index 12f6d05..346e08a 100644
    maybeEmitCreated() {
      if (this.creationEmitted) {
        return;
+diff --git a/node_modules/matrix-js-sdk/src/models/event.ts b/node_modules/matrix-js-sdk/src/models/event.ts
+index 2bc1d0d..5ba3e7c 100644
+--- a/node_modules/matrix-js-sdk/src/models/event.ts
++++ b/node_modules/matrix-js-sdk/src/models/event.ts
+@@ -1698,14 +1698,8 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
+         if (this.isState()) {
+             return;
+         }
+-        if (this.thread) {
+-            this.reEmitter.stopReEmitting(this.thread, [ThreadEvent.Update]);
+-        }
+         this.thread = thread;
+         this.setThreadId(thread?.id);
+-        if (thread) {
+-            this.reEmitter.reEmit(thread, [ThreadEvent.Update]);
+-        }
+     }
+ 
+     /**
