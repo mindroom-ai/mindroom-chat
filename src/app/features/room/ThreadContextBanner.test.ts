@@ -287,11 +287,12 @@ describe('ThreadContextBanner rendering', () => {
     });
   });
 
-  const renderBanner = () =>
+  const renderBanner = (summaryText?: string) =>
     create(
       React.createElement(ThreadContextBanner, {
         room: {} as Room,
         threadId: '$root',
+        summaryText,
         onExitThread: vi.fn(),
       })
     );
@@ -314,13 +315,12 @@ describe('ThreadContextBanner rendering', () => {
 
   it('renders a truncated summary row when summary text is available', () => {
     bannerMocks.useThreadHeaderInfo.mockReturnValue({
-      summaryText: 'A concise thread summary',
       scheduledTaskCount: 0,
       nextScheduledTs: undefined,
       scheduledDisplayText: undefined,
     });
 
-    const renderer = renderBanner();
+    const renderer = renderBanner('A concise thread summary');
     const tree = JSON.stringify(renderer.toJSON());
 
     expect(tree).toContain('A concise thread summary');
@@ -361,13 +361,12 @@ describe('ThreadContextBanner rendering', () => {
 
   it('renders summary and scheduled countdown together when both exist', () => {
     bannerMocks.useThreadHeaderInfo.mockReturnValue({
-      summaryText: 'Summary text here',
       scheduledTaskCount: 1,
       nextScheduledTs: Date.parse('2026-04-04T18:03:00.000Z'),
       scheduledDisplayText: 'in 3m',
     });
 
-    const renderer = renderBanner();
+    const renderer = renderBanner('Summary text here');
     const tree = JSON.stringify(renderer.toJSON());
 
     expect(tree).toContain('Summary text here');

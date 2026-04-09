@@ -14,6 +14,7 @@ import * as css from './ThreadContextBanner.css';
 export interface ThreadContextBannerProps {
   room: Room;
   threadId: string;
+  summaryText?: string;
   onExitThread: () => void;
 }
 
@@ -60,11 +61,14 @@ function TagPills({
 export function ThreadContextBanner({
   room,
   threadId,
+  summaryText,
   onExitThread,
 }: ThreadContextBannerProps) {
   const rootEventId = useThreadRootEvent(room, threadId);
-  const { summaryText, scheduledTaskCount, nextScheduledTs, scheduledDisplayText } =
-    useThreadHeaderInfo(room, threadId);
+  const { scheduledTaskCount, nextScheduledTs, scheduledDisplayText } = useThreadHeaderInfo(
+    room,
+    threadId
+  );
   const { displayTags, isResolved, canEdit, availableTags } = useThreadTags(
     room,
     rootEventId
