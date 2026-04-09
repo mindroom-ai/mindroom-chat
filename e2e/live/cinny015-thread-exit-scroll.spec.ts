@@ -1,23 +1,17 @@
 import { expect, test, type Page } from '@playwright/test';
+import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
 } from '../helpers/browserDiagnostics';
 
-const DEFAULT_HOMESERVER = 'http://localhost:8008';
-const DEFAULT_USERNAME = 'e2e-test-bot';
-const DEFAULT_PASSWORD = 'e2e-test-pw-2026';
 const FILLER_MESSAGE_COUNT = 320;
 
 type MatrixFixture = {
   roomId: string;
   rootId: string;
 };
-
-const getHomeserver = () => process.env.E2E_HOMESERVER ?? DEFAULT_HOMESERVER;
-const getUsername = () => process.env.E2E_USERNAME ?? DEFAULT_USERNAME;
-const getPassword = () => process.env.E2E_PASSWORD ?? DEFAULT_PASSWORD;
 
 const matrixFetch = async (
   homeserver: string,
@@ -147,6 +141,8 @@ const clickThreadExitButton = async (page: Page) => {
 };
 
 test.describe('live cinny-015 thread exit scroll', () => {
+  test.skip(!hasPrimaryCredentials(), 'E2E_USERNAME / E2E_PASSWORD not set');
+
   test('exiting a deep-linked thread scrolls the thread root into the room viewport', async ({
     page,
   }) => {
@@ -154,8 +150,7 @@ test.describe('live cinny-015 thread exit scroll', () => {
 
     const diagnostics = attachBrowserDiagnostics(page);
     const homeserver = getHomeserver();
-    const username = getUsername();
-    const password = getPassword();
+    const { username, password } = getPrimaryCredentials();
     const { roomId, rootId } = await seedThreadExitFixture(homeserver, username, password);
 
     await loginWithPassword(page, { homeserver, username, password });
