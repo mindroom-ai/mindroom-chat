@@ -3,6 +3,7 @@ import {
   isMindroomThreadSummaryEvent,
   findLatestThreadSummaryEvent,
   getLatestThreadSummaryInfo,
+  getLatestThreadSummaryInfoFromEventSources,
   getThreadSummaryPreviewText,
   buildThreadSummaryMap,
   hasMindroomThreadSummary,
@@ -269,6 +270,37 @@ describe('getLatestThreadSummaryInfo', () => {
     expect(getLatestThreadSummaryInfo([makeEvent({ msgtype: 'm.text', body: 'Hello' })])).toBe(
       undefined
     );
+  });
+});
+
+describe('getLatestThreadSummaryInfoFromEventSources', () => {
+  it('prefers the newer summary when sources disagree', () => {
+    const olderSource = [
+      makeSummaryEvent('One-line thread summary', {
+        'io.mindroom.thread_summary': {
+          version: 1,
+          summary: 'One-line thread summary',
+          generated_at: '2026-04-09T19:40:00.000Z',
+          message_count: 144,
+        },
+      }),
+    ];
+    const newerSource = [
+      makeSummaryEvent('## Summary\n\nLong summary', {
+        'io.mindroom.thread_summary': {
+          version: 1,
+          summary: '## Summary\n\nLong summary',
+          generated_at: '2026-04-09T20:40:00.000Z',
+          message_count: 151,
+        },
+      }),
+    ];
+
+    expect(getLatestThreadSummaryInfoFromEventSources(olderSource, newerSource)).toEqual({
+      summaryText: '## Summary\n\nLong summary',
+      generatedTs: Date.parse('2026-04-09T20:40:00.000Z'),
+      messageCount: 151,
+    });
   });
 });
 

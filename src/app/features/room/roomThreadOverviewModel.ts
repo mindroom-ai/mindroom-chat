@@ -1,8 +1,7 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import {
-  findLatestThreadSummaryEvent,
-  getThreadSummaryEventInfo,
+  getLatestThreadSummaryInfoFromEventSources,
   type MindroomThreadSummaryInfo,
 } from '../../components/message/mindroomThreadSummary';
 import { getThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
@@ -425,14 +424,7 @@ const getSdkThreadSummaryInfo = (
   threadRootId: string
 ): MindroomThreadSummaryInfo | undefined => {
   const thread = room.getThread(threadRootId);
-  const threadEvents = thread?.events?.length ? thread.events : thread?.timeline ?? [];
-  if (threadEvents.length === 0) return undefined;
-
-  const summaryEvent = findLatestThreadSummaryEvent(threadEvents);
-  if (!summaryEvent) return undefined;
-
-  const info = getThreadSummaryEventInfo(summaryEvent);
-  return info?.summaryText ? info : undefined;
+  return getLatestThreadSummaryInfoFromEventSources(thread?.events, thread?.timeline);
 };
 
 export const buildVisibleThreadRootData = (
