@@ -235,6 +235,38 @@ export const getLatestThreadSummaryInfo = <T extends ThreadSummaryEventLike>(
   return info?.summaryText ? info : undefined;
 };
 
+export const getLatestThreadSummaryInfoFromEventSources = <T extends ThreadSummaryEventLike>(
+  ...eventSources: Array<T[] | undefined>
+): MindroomThreadSummaryInfo | undefined =>
+  pickLatestThreadSummaryInfo(
+    ...eventSources.map((events) => (events?.length ? getLatestThreadSummaryInfo(events) : undefined))
+  );
+
+export const findLatestThreadSummaryEventFromEventSources = <T extends ThreadSummaryEventLike>(
+  ...eventSources: Array<T[] | undefined>
+): T | undefined => {
+  let preferredEvent: T | undefined;
+  let preferredInfo: MindroomThreadSummaryInfo | undefined;
+
+  eventSources.forEach((events) => {
+    if (!events?.length) return;
+
+    const candidateEvent = findLatestThreadSummaryEvent(events);
+    if (!candidateEvent) return;
+
+    const candidateInfo = getThreadSummaryEventInfo(candidateEvent);
+    if (!candidateInfo?.summaryText) return;
+
+    const preferred = pickLatestThreadSummaryInfo(preferredInfo, candidateInfo);
+    if (preferred === candidateInfo) {
+      preferredEvent = candidateEvent;
+      preferredInfo = candidateInfo;
+    }
+  });
+
+  return preferredEvent;
+};
+
 export const buildThreadSummaryMap = (
   events: ThreadSummaryBuildEventLike[]
 ): Map<string, MindroomThreadSummaryInfo> => {
