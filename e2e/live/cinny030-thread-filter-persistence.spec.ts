@@ -1,23 +1,16 @@
 import { expect, test, type Page } from '@playwright/test';
+import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { expectLoggedInShellStable, loginWithPassword } from '../helpers/auth';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
 } from '../helpers/browserDiagnostics';
 
-const DEFAULT_HOMESERVER = 'http://localhost:8008';
-const DEFAULT_USERNAME = 'e2e-test-bot';
-const DEFAULT_PASSWORD = 'e2e-test-pw-2026';
-
 type ThreadFixture = {
   roomId: string;
   roomName: string;
   rootId: string;
 };
-
-const getHomeserver = () => process.env.E2E_HOMESERVER ?? DEFAULT_HOMESERVER;
-const getUsername = () => process.env.E2E_USERNAME ?? DEFAULT_USERNAME;
-const getPassword = () => process.env.E2E_PASSWORD ?? DEFAULT_PASSWORD;
 
 const matrixFetch = async (
   homeserver: string,
@@ -170,13 +163,14 @@ const switchAwayAndBack = async (page: Page) => {
 };
 
 test.describe('live cinny-030 thread filter persistence', () => {
+  test.skip(!hasPrimaryCredentials(), 'E2E_USERNAME / E2E_PASSWORD not set');
+
   test('thread overview toolbar state persists per room across navigation', async ({ page }) => {
     test.slow();
 
     const diagnostics = attachBrowserDiagnostics(page);
     const homeserver = getHomeserver();
-    const username = getUsername();
-    const password = getPassword();
+    const { username, password } = getPrimaryCredentials();
     const accessToken = await loginToMatrix(homeserver, username, password);
     const roomA = await seedThreadRoom(homeserver, accessToken, 'Room A');
     const roomB = await seedThreadRoom(homeserver, accessToken, 'Room B');
