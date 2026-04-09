@@ -42,7 +42,10 @@ import {
 } from './roomThreadOverviewModel';
 import { roomThreadFilterAtomFamily } from '../../state/room/roomThreadFilterState';
 import { roomViewModeAtomFamily, type RoomViewMode } from '../../state/room/roomViewMode';
+import { createSessionId } from '../../state/sessions';
 import { ThreadContextBanner } from './ThreadContextBanner';
+import { useRoomThreadSummaryState } from './useRoomThreadSummaryState';
+import { useThreadRootEvent } from './useThreadRootEvent';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -98,6 +101,7 @@ export function RoomView({
   const { roomId } = room;
   const mx = useMatrixClient();
   const userId = mx.getSafeUserId();
+  const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), userId), [mx, userId]);
   const editor = useEditor();
   const roomViewModeAtom = roomViewModeAtomFamily(roomId);
   const [viewMode, setViewMode] = useAtom(roomViewModeAtom);
@@ -116,6 +120,12 @@ export function RoomView({
   const permissions = useRoomPermissions(creators, powerLevels);
   const canMessage = permissions.event(EventType.RoomMessage, mx.getSafeUserId());
   const { navigateRoomFocusEvent } = useRoomNavigate();
+  const { summaryMap, storeThreadSummary } = useRoomThreadSummaryState({
+    roomId,
+    sessionId,
+  });
+  const threadRootId = useThreadRootEvent(room, threadId);
+  const threadSummaryText = threadRootId ? summaryMap.get(threadRootId)?.summaryText : undefined;
 
   const handleExitThread = useCallback(() => {
     if (!threadId) return;
@@ -233,6 +243,7 @@ export function RoomView({
         <ThreadContextBanner
           room={room}
           threadId={threadId}
+          summaryText={threadSummaryText}
           onExitThread={handleExitThread}
         />
       )}
@@ -258,6 +269,8 @@ export function RoomView({
           viewMode={viewMode}
           onViewModeChange={handleViewModeChange}
           onThreadLoadError={onThreadLoadError}
+          summaryMap={summaryMap}
+          onStoreThreadSummary={storeThreadSummary}
           roomInputRef={roomInputRef}
           editor={editor}
         />

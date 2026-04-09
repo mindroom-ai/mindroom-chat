@@ -26,3 +26,9 @@ Treat the Runbook section in `FORK_CHANGES.md` as a living document and keep it 
 - Require independent review after each logical step (separate agent/subagent when available; otherwise an independent second self-review).
 - Commit frequently with focused messages.
 - Add/update tests whenever behavior changes.
+
+## Testing notes
+
+- For room/thread behavior, prefer dedicated behavioral tests over growing `RoomTimeline.test.ts` further. Route, filter, compact/expanded, and cache interactions regress across surfaces and are easier to verify in focused unit files plus live Playwright specs.
+- When changing thread summaries, deep links, or room view mode behavior, verify both room overview and thread banner surfaces. They must share one resolution path and upgrade cleanly from cached state to newer live data.
+- Run `npm test` before finalizing changes. It is intentionally split so `RoomTimeline.test.ts` runs through `scripts/test-room-timeline.mjs` rather than one giant Vitest invocation.
