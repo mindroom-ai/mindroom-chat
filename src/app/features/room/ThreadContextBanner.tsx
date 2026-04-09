@@ -147,15 +147,17 @@ export function ThreadContextBanner({
           {(summaryText || bannerScheduledText) && (
             <div className={css.SubtitleRow}>
               {summaryText && (
-                <Text
-                  className={css.SummaryText}
-                  size="T200"
-                  priority="300"
-                  truncate
-                  title={summaryText}
-                >
-                  {summaryText}
-                </Text>
+                <span data-thread-context-summary="true">
+                  <Text
+                    className={css.SummaryText}
+                    size="T200"
+                    priority="300"
+                    truncate
+                    title={summaryText}
+                  >
+                    {summaryText}
+                  </Text>
+                </span>
               )}
               {bannerScheduledText && scheduledLabel && (
                 <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">

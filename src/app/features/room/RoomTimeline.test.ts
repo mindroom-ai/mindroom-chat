@@ -6874,4 +6874,89 @@ describe('fetchAllThreadRelations', () => {
       });
     }
   });
+
+  it('loads cached room thread summaries even when opening a thread directly', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const threadRootId = '$thread-root';
+    const threadRootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 100 });
+    const threadSummaryEvent = makeEvent('$thread-summary', {
+      content: {
+        msgtype: 'm.notice',
+        body: '## Summary\n\nLatest thread summary',
+        'io.mindroom.thread_summary': {
+          version: 1,
+          summary: '## Summary\n\nLatest thread summary',
+          generated_at: '2026-04-09T20:40:00.000Z',
+          message_count: 151,
+        },
+      },
+      threadRootId,
+      ts: Date.parse('2026-04-09T20:40:00.000Z'),
+    });
+    const threadLiveTimeline = makeTimeline([threadRootEvent, threadSummaryEvent]);
+    const threadTimelineSet = {
+      getLiveTimeline: () => threadLiveTimeline,
+      getTimelineForEvent: (eventId: string) =>
+        eventId === threadRootId || eventId === threadSummaryEvent.getId()
+          ? threadLiveTimeline
+          : undefined,
+    };
+    (
+      threadLiveTimeline as ReturnType<typeof makeTimeline> & {
+        getTimelineSet?: () => typeof threadTimelineSet;
+      }
+    ).getTimelineSet = () => threadTimelineSet;
+    const room = makeRoom({
+      liveEvents: [threadRootEvent],
+      threads: [
+        {
+          id: threadRootId,
+          rootEvent: threadRootEvent,
+          events: [],
+          timeline: [threadSummaryEvent],
+          getUnfilteredTimelineSet: () => threadTimelineSet,
+        },
+      ] as never,
+    });
+    const rendererThreadEvents = threadRenderStateMock.threadEvents;
+    let renderer: ReturnType<typeof create> | undefined;
+
+    threadRenderStateMock.threadEvents = [threadSummaryEvent] as never[];
+    loadCachedThreadSummariesMock.mockResolvedValue(
+      new Map([
+        [
+          threadRootId,
+          {
+            summaryText: 'One-line thread summary',
+            generatedTs: Date.parse('2026-04-09T19:40:00.000Z'),
+            messageCount: 144,
+          },
+        ],
+      ])
+    );
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            threadId: threadRootId,
+          })
+        );
+        await flushAsyncWork(5);
+      });
+
+      expect(loadCachedThreadSummariesMock).toHaveBeenCalledWith(
+        expect.any(String),
+        '!room:example.org'
+      );
+    } finally {
+      threadRenderStateMock.threadEvents = rendererThreadEvents;
+      await act(async () => {
+        renderer?.unmount();
+        await flushAsyncWork(1);
+      });
+    }
+  });
 });
