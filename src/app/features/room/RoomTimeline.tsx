@@ -187,10 +187,7 @@ import {
 } from './compactThreadRootData';
 import { CompactRoomView } from './CompactRoomView';
 import { RoomThreadOverview } from './RoomThreadOverview';
-import {
-  buildPreferredThreadSummaryMap,
-  shouldWriteThreadSummaryToCache,
-} from './threadSummarySelection';
+import { buildPreferredThreadSummaryMap } from './threadSummarySelection';
 import type { ThreadFilterKey } from './RoomThreadOverview';
 import {
   type ThreadFilterState,
@@ -237,10 +234,6 @@ import {
   normalizeCachedRoomEvents,
   saveRoomEventsToCache,
 } from './roomEventCache';
-import {
-  loadCachedThreadSummaries,
-  saveCachedThreadSummary,
-} from './threadSummaryCache';
 import {
   aggregateCachedRelationEvents,
   collectRedactedRelationTargetsFromLookup,
@@ -1051,6 +1044,11 @@ type RoomTimelineProps = {
   eventId?: string;
   focusEventInRoom?: boolean;
   threadId?: string;
+  summaryMap: Map<string, MindroomThreadSummaryInfo>;
+  onStoreThreadSummary: (
+    threadRootId: string,
+    info: MindroomThreadSummaryInfo | undefined
+  ) => void;
   threadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
   onToggle: (key: ThreadFilterKey) => void;
@@ -2476,6 +2474,8 @@ export function RoomTimeline({
   eventId,
   focusEventInRoom,
   threadId,
+  summaryMap,
+  onStoreThreadSummary,
   threadFilterState,
   threadSortFreezeState,
   onToggle,
@@ -5178,12 +5178,7 @@ export function RoomTimeline({
             if (rootId) {
               const info = getLatestThreadSummaryInfoFromEventSources([mEvt]);
               if (info?.summaryText) {
-                setCachedSummaryMap((prev) => {
-                  const next = new Map(prev);
-                  next.set(rootId, info);
-                  return next;
-                });
-                saveCachedThreadSummary(sessionId, room.roomId, rootId, info).catch(() => {});
+                onStoreThreadSummary(rootId, info);
               }
             }
           }
@@ -5273,6 +5268,7 @@ export function RoomTimeline({
         hideNickAvatarEvents,
         roomThreadFilterActive,
         effectiveThreadFilterState,
+        onStoreThreadSummary,
         threadResolutionMap,
         sessionId,
       ]
@@ -5587,6 +5583,7 @@ export function RoomTimeline({
     ]
   );
   const handleOpenEventRef = useRef(handleOpenEvent);
+  const handledRoomEventRouteRef = useRef<string>();
 
   useEffect(() => {
     handleOpenEventRef.current = handleOpenEvent;
@@ -5787,16 +5784,39 @@ export function RoomTimeline({
   );
 
   useEffect(() => {
-    if (eventId) {
-      if (redirectRoomEventDeepLink(eventId)) {
-        return;
-      }
-      handleOpenEventRef.current(eventId);
+    if (!eventId) {
+      handledRoomEventRouteRef.current = undefined;
+      return;
     }
+
+    const routeKey = [
+      room.roomId,
+      threadId ?? '',
+      eventId,
+      focusEventInRoom ? '1' : '0',
+      effectiveViewMode,
+      roomOverviewOrderActive ? '1' : '0',
+    ].join('|');
+
+    if (handledRoomEventRouteRef.current === routeKey) {
+      return;
+    }
+
+    handledRoomEventRouteRef.current = routeKey;
+
+    if (redirectRoomEventDeepLink(eventId)) {
+      return;
+    }
+
+    handleOpenEventRef.current(eventId);
   }, [
     eventId,
+    focusEventInRoom,
+    room.roomId,
+    threadId,
     redirectRoomEventDeepLink,
     effectiveViewMode,
+    roomOverviewOrderActive,
   ]);
 
   useEffect(() => {
@@ -6847,13 +6867,7 @@ threadDebugTraceId,
   );
   const { t } = useTranslation();
 
-  // Persistent cache for thread summaries (survives page reloads / room re-entry)
-  const [cachedSummaryMap, setCachedSummaryMap] = useState<Map<string, MindroomThreadSummaryInfo>>(
-    () => new Map()
-  );
   const pendingThreadSummaryBackfillIdsRef = useRef(new Set<string>());
-  const cachedSummaryMapRef = useRef(cachedSummaryMap);
-  cachedSummaryMapRef.current = cachedSummaryMap;
   const activeThreadSummaryInfo = useMemo(
     () =>
       threadId
@@ -6866,57 +6880,18 @@ threadDebugTraceId,
     [thread?.events, thread?.timeline, threadEvents, threadId]
   );
 
-  // Load cached summaries from IndexedDB on room entry
-  useEffect(() => {
-    let cancelled = false;
-    loadCachedThreadSummaries(sessionId, room.roomId).then((cached) => {
-      if (!cancelled && cached.size > 0) {
-        cachedSummaryMapRef.current = cached;
-        setCachedSummaryMap(cached);
-      }
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [sessionId, room.roomId]);
-
   // Write-through: persist newly discovered summaries to IndexedDB
   useEffect(() => {
     if (threadId) return;
     threadSummaryInfoMap.forEach((info, threadRootId) => {
-      const cached = cachedSummaryMap.get(threadRootId);
-      if (!shouldWriteThreadSummaryToCache(cached, info)) return;
-      setCachedSummaryMap((prev) => {
-        const next = new Map(prev);
-        next.set(threadRootId, info);
-        cachedSummaryMapRef.current = next;
-        return next;
-      });
-      saveCachedThreadSummary(sessionId, room.roomId, threadRootId, info).catch(() => {});
+      onStoreThreadSummary(threadRootId, info);
     });
-  }, [threadId, threadSummaryInfoMap, cachedSummaryMap, sessionId, room.roomId]);
+  }, [onStoreThreadSummary, threadId, threadSummaryInfoMap]);
 
   useEffect(() => {
     if (!threadId) return;
-    if (!shouldWriteThreadSummaryToCache(cachedSummaryMapRef.current.get(threadId), activeThreadSummaryInfo)) {
-      return;
-    }
-
-    let shouldPersist = false;
-    setCachedSummaryMap((prev) => {
-      if (!shouldWriteThreadSummaryToCache(prev.get(threadId), activeThreadSummaryInfo)) {
-        return prev;
-      }
-
-      const next = new Map(prev);
-      next.set(threadId, activeThreadSummaryInfo);
-      cachedSummaryMapRef.current = next;
-      shouldPersist = true;
-      return next;
-    });
-
-    if (shouldPersist) {
-      saveCachedThreadSummary(sessionId, room.roomId, threadId, activeThreadSummaryInfo).catch(() => {});
-    }
-  }, [activeThreadSummaryInfo, room.roomId, sessionId, threadId]);
+    onStoreThreadSummary(threadId, activeThreadSummaryInfo);
+  }, [activeThreadSummaryInfo, onStoreThreadSummary, threadId]);
 
   const visibleThreadSummaryRefreshIds = useMemo(() => {
     if (threadId) return [] as string[];
@@ -6951,21 +6926,7 @@ threadDebugTraceId,
         try {
           const info = await loadLatestCachedThreadSummaryInfo(sessionId, room.roomId, threadRootId);
           if (!info?.summaryText) continue;
-          if (!shouldWriteThreadSummaryToCache(cachedSummaryMapRef.current.get(threadRootId), info)) {
-            continue;
-          }
-          let shouldPersist = false;
-          setCachedSummaryMap((prev) => {
-            if (!shouldWriteThreadSummaryToCache(prev.get(threadRootId), info)) return prev;
-            const next = new Map(prev);
-            next.set(threadRootId, info);
-            cachedSummaryMapRef.current = next;
-            shouldPersist = true;
-            return next;
-          });
-          if (shouldPersist) {
-            saveCachedThreadSummary(sessionId, room.roomId, threadRootId, info).catch(() => {});
-          }
+          onStoreThreadSummary(threadRootId, info);
         } finally {
           pendingThreadSummaryBackfillIdsRef.current.delete(threadRootId);
         }
@@ -6975,6 +6936,7 @@ threadDebugTraceId,
     backfillVisibleThreadSummaries().catch(() => {});
     return undefined;
   }, [
+    onStoreThreadSummary,
     room.roomId,
     sessionId,
     threadId,
@@ -6982,8 +6944,8 @@ threadDebugTraceId,
   ]);
 
   const preferredThreadSummaryMap = useMemo(() => {
-    return buildPreferredThreadSummaryMap(cachedSummaryMap, threadSummaryInfoMap);
-  }, [cachedSummaryMap, threadSummaryInfoMap]);
+    return buildPreferredThreadSummaryMap(summaryMap, threadSummaryInfoMap);
+  }, [summaryMap, threadSummaryInfoMap]);
 
   const renderMatrixEvent = useMatrixEventRenderer<
     [string, MatrixEvent, number, EventTimelineSet, boolean]
@@ -7029,7 +6991,7 @@ threadDebugTraceId,
         const isThreadReply = isThreadReplyEvent(mEventId, threadRootId);
         const summaryInfo =
           !threadId && !isThreadReply && mEventId
-            ? getThreadSummaryInfo(room, mEvent, threadSummaryInfoMap.get(mEventId), cachedSummaryMap.get(mEventId))
+            ? getThreadSummaryInfo(room, mEvent, threadSummaryInfoMap.get(mEventId), summaryMap.get(mEventId))
             : undefined;
         const threadSummary =
           !threadId &&
@@ -7196,7 +7158,7 @@ threadDebugTraceId,
         const isThreadReply = isThreadReplyEvent(mEventId, threadRootId);
         const encSummaryInfo =
           !threadId && !isThreadReply && mEventId
-            ? getThreadSummaryInfo(room, mEvent, threadSummaryInfoMap.get(mEventId), cachedSummaryMap.get(mEventId))
+            ? getThreadSummaryInfo(room, mEvent, threadSummaryInfoMap.get(mEventId), summaryMap.get(mEventId))
             : undefined;
         const threadSummary =
           !threadId &&

@@ -4,7 +4,6 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { StateEvent } from '../../types/matrix/room';
 import { useThreadHeaderInfo, type ThreadHeaderInfo } from './useThreadHeaderInfo';
 import { useStateEvents } from './useStateEvents';
@@ -232,39 +231,33 @@ describe('useThreadHeaderInfo', () => {
     vi.useRealTimers();
   });
 
-  it('resolves a reply event id to the canonical thread root and surfaces the latest summary', () => {
+  it('resolves a reply event id to the canonical thread root for scheduled task state', () => {
     const room = createRoom({ replyEventId: '$reply-event' });
-    const { getSnapshot, renderer } = renderHookHarness(room, '$reply-event', () => []);
+    const { getSnapshot, renderer } = renderHookHarness(room, '$reply-event', () => [
+      makeScheduledTaskEvent(
+        {
+          threadId: '$root',
+          executeAt: '2026-04-04T18:15:00.000Z',
+        },
+        'task-1'
+      ),
+    ]);
 
     expect(getSnapshot()).toMatchObject({
-      summaryText: 'Latest summary',
-      scheduledTaskCount: 0,
-      nextScheduledTs: undefined,
-      scheduledDisplayText: undefined,
+      scheduledTaskCount: 1,
+      nextScheduledTs: Date.parse('2026-04-04T18:15:00.000Z'),
+      scheduledDisplayText: 'in 15m',
     });
-    expect(room.getThread).toHaveBeenCalledWith('$root');
+    expect(room.findEventById).toHaveBeenCalledWith('$reply-event');
 
     renderer.unmount();
   });
 
-  it('refreshes when the thread model hydrates after the hook has mounted', () => {
+  it('returns empty scheduled metadata when there are no pending tasks', () => {
     const room = createRoom({ threadInitiallyAvailable: false });
     const { getSnapshot, renderer } = renderHookHarness(room, '$root', () => []);
 
     expect(getSnapshot()).toMatchObject({
-      summaryText: undefined,
-      scheduledTaskCount: 0,
-      nextScheduledTs: undefined,
-      scheduledDisplayText: undefined,
-    });
-
-    act(() => {
-      room.setThread(room.thread);
-      room.emit(ThreadEvent.New, room.thread, false);
-    });
-
-    expect(getSnapshot()).toMatchObject({
-      summaryText: 'Latest summary',
       scheduledTaskCount: 0,
       nextScheduledTs: undefined,
       scheduledDisplayText: undefined,
