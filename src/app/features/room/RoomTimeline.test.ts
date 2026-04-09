@@ -5988,6 +5988,93 @@ describe('RoomTimeline', () => {
     expect(scrollToItemMock).toHaveBeenCalled();
   });
 
+  it('bypasses room overview filters for synthetic room-focus routes', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
+    const room = makeRoom({
+      liveEvents: [threadRoot],
+      threads: [{ id: threadRoot.getId(), rootEvent: threadRoot }] as never,
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          eventId: threadRoot.getId(),
+          focusEventInRoom: true,
+          initialViewMode: 'normal',
+          initialThreadFilterState: {
+            ...DEFAULT_THREAD_FILTER_STATE,
+            resolved: 'exclude',
+            scheduled: 'exclude',
+            tags: new Map(),
+          },
+        })
+      );
+      await flushAsyncWork(2);
+    });
+
+    expect(getRenderedEventIds(renderer!)).toEqual([threadRoot.getId()]);
+    expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(1);
+    expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+  });
+
+  it('lets synthetic room-focus routes switch between expanded and compact views', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
+    const room = makeRoom({
+      liveEvents: [threadRoot],
+      threads: [{ id: threadRoot.getId(), rootEvent: threadRoot }] as never,
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          eventId: threadRoot.getId(),
+          focusEventInRoom: true,
+          initialViewMode: 'normal',
+          initialThreadFilterState: {
+            ...DEFAULT_THREAD_FILTER_STATE,
+            resolved: 'exclude',
+            scheduled: 'exclude',
+            sortBy: 'lastReply',
+            tags: new Map(),
+          },
+        })
+      );
+      await flushAsyncWork(2);
+    });
+
+    expect(getRenderedEventIds(renderer!)).toEqual([threadRoot.getId()]);
+    expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+
+    await act(async () => {
+      renderer?.root.findByType(roomThreadOverviewType).props.onViewModeChange('compact');
+      await flushAsyncWork(2);
+    });
+
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.viewMode).toBe('compact');
+    expect(renderer?.root.findByType(compactPlaceholderType).props.threadRootIds).toEqual([
+      threadRoot.getId(),
+    ]);
+
+    await act(async () => {
+      renderer?.root.findByType(roomThreadOverviewType).props.onViewModeChange('normal');
+      await flushAsyncWork(2);
+    });
+
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.viewMode).toBe('normal');
+    expect(getRenderedEventIds(renderer!)).toEqual([threadRoot.getId()]);
+    expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+  });
+
   it('uses stopInView=false for the explicit room focus scroll', async () => {
     const { getRoomFocusScrollToItemOptions } = await import('./RoomTimeline');
 

@@ -2517,11 +2517,14 @@ export function RoomTimeline({
   const [messageSpacing] = useSetting(settingsAtom, 'messageSpacing');
   const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
   const direct = useIsDirectRoom();
-  const roomOverviewEnabled = !direct;
-  const effectiveThreadFilterState = roomOverviewEnabled
-    ? threadFilterState
-    : DIRECT_ROOM_TIMELINE_FILTER_STATE;
-  const effectiveViewMode: RoomViewMode = roomOverviewEnabled ? viewMode : 'normal';
+  const bypassRoomOverviewForFocusedTimeline =
+    !direct && !threadId && focusEventInRoom && viewMode !== 'compact';
+  const showRoomThreadOverviewControls = !threadId && !direct;
+  const effectiveThreadFilterState =
+    direct || bypassRoomOverviewForFocusedTimeline
+      ? DIRECT_ROOM_TIMELINE_FILTER_STATE
+      : threadFilterState;
+  const effectiveViewMode: RoomViewMode = direct ? 'normal' : viewMode;
   const [hideMembershipEvents] = useSetting(settingsAtom, 'hideMembershipEvents');
   const [hideNickAvatarEvents] = useSetting(settingsAtom, 'hideNickAvatarEvents');
   const [mediaAutoLoad] = useSetting(settingsAtom, 'mediaAutoLoad');
@@ -5808,6 +5811,7 @@ export function RoomTimeline({
   }, [
     eventId,
     redirectRoomEventDeepLink,
+    effectiveViewMode,
   ]);
 
   useEffect(() => {
@@ -8120,7 +8124,7 @@ threadDebugTraceId,
 
   return (
     <Box grow="Yes" direction="Column">
-      {!threadId && roomOverviewEnabled && (
+      {showRoomThreadOverviewControls && (
         <RoomThreadOverview
           threadCount={showCompactRoomView ? compactFilteredThreadRootIds.length : filteredThreadRootIds.length}
           totalThreadCount={showCompactRoomView ? compactThreadRootData.ids.length : visibleThreadRootData.ids.length}
