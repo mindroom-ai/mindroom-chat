@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { getHomeserver, getPrimaryCredentials } from './env';
+import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from './env';
 import { expectActiveStoredUsername } from './helpers/accounts';
 import { expectLoggedInShellStable, loginWithPassword } from './helpers/auth';
 import {
@@ -11,6 +11,8 @@ test('survives a homeserver outage without crashing and recovers after reconnect
   page,
   context,
 }) => {
+  test.skip(!hasPrimaryCredentials(), 'E2E_USERNAME / E2E_PASSWORD not set');
+
   const diagnostics = attachBrowserDiagnostics(page);
   const homeserver = getHomeserver();
   const primaryCredentials = getPrimaryCredentials();

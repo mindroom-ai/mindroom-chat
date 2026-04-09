@@ -1,9 +1,19 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 type Credentials = {
   username: string;
   password: string;
 };
 
-const getRequiredEnv = (name: string): string => {
+type ClientConfig = {
+  defaultHomeserver?: number;
+  homeserverList?: string[];
+};
+
+export const hasRequiredEnv = (name: string): boolean => !!process.env[name];
+
+export const getRequiredEnv = (name: string): string => {
   const value = process.env[name];
   if (!value) {
     throw new Error(`Missing required e2e environment variable: ${name}`);
@@ -12,8 +22,24 @@ const getRequiredEnv = (name: string): string => {
   return value;
 };
 
-export const getHomeserver = (): string =>
-  process.env.E2E_HOMESERVER ?? 'http://127.0.0.1:8808';
+const readDefaultHomeserverFromConfig = (): string | undefined => {
+  try {
+    const configPath = resolve(process.cwd(), 'config.json');
+    const rawConfig = readFileSync(configPath, 'utf8');
+    const parsedConfig = JSON.parse(rawConfig) as ClientConfig;
+    const defaultIndex = parsedConfig.defaultHomeserver ?? 0;
+    return parsedConfig.homeserverList?.[defaultIndex];
+  } catch {
+    return undefined;
+  }
+};
+
+const DEFAULT_HOMESERVER = readDefaultHomeserverFromConfig() ?? 'mindroom.chat';
+
+export const getHomeserver = (): string => process.env.E2E_HOMESERVER ?? DEFAULT_HOMESERVER;
+
+export const hasPrimaryCredentials = (): boolean =>
+  !!process.env.E2E_USERNAME && !!process.env.E2E_PASSWORD;
 
 export const getPrimaryCredentials = (): Credentials => ({
   username: getRequiredEnv('E2E_USERNAME'),
@@ -53,7 +79,7 @@ const buildAuthPath = (
   homeserver: string,
   addAccount = false
 ): string =>
-  `/${authRoute}/${encodeURIComponent(homeserver)}/${addAccount ? '?addAccount=1' : ''}`;
+  `/${authRoute}/${encodeURIComponent(homeserver)}${addAccount ? '?addAccount=1' : ''}`;
 
 export const buildLoginPath = (homeserver: string, addAccount = false): string =>
   buildAuthPath('login', homeserver, addAccount);
