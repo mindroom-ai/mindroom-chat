@@ -31,4 +31,4 @@ Treat the Runbook section in `FORK_CHANGES.md` as a living document and keep it 
 
 - For room/thread behavior, prefer dedicated behavioral tests over growing `RoomTimeline.test.ts` further. Route, filter, compact/expanded, and cache interactions regress across surfaces and are easier to verify in focused unit files plus live Playwright specs.
 - When changing thread summaries, deep links, or room view mode behavior, verify both room overview and thread banner surfaces. They must share one resolution path and upgrade cleanly from cached state to newer live data.
-- Run `npm test` before finalizing changes. It is intentionally split so `RoomTimeline.test.ts` runs through `scripts/test-room-timeline.mjs` rather than one giant Vitest invocation.
+- Run `npm test` before finalizing changes. Keep room timeline coverage in normal Vitest discovery; if a room test file becomes too large, split it by behavior instead of adding bespoke runners or name-pattern wrappers.
