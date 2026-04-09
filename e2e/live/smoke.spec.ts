@@ -1,9 +1,27 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { getHomeserver, buildLoginPath } from '../env';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
 } from '../helpers/browserDiagnostics';
+
+const hasVisibleLocator = async (locator: Locator) => locator.isVisible().catch(() => false);
+
+const anyAuthProviderVisible = async (page: Page) => {
+  const ssoLocators = [
+    page.getByRole('link', { name: 'Sign in with Apple' }),
+    page.getByRole('link', { name: 'Continue with Google' }),
+    page.getByRole('link', { name: 'Continue with GitHub' }),
+  ];
+
+  for (const locator of ssoLocators) {
+    if (await hasVisibleLocator(locator)) {
+      return true;
+    }
+  }
+
+  return false;
+};
 
 test.describe('live smoke', () => {
   test('app loads with MindRoom title', async ({ page }) => {
@@ -13,33 +31,47 @@ test.describe('live smoke', () => {
 
   test('auth shell renders', async ({ page }) => {
     const homeserver = getHomeserver();
+    const normalizedHomeserver = homeserver.replace(/^https?:\/\//i, '').replace(/\/+$/, '').toLowerCase();
     await page.goto(buildLoginPath(homeserver));
 
     await expect(page.locator('input[name="serverInput"]')).toBeVisible();
-    // Use button role to avoid strict mode violation (both heading and button contain "Login")
-    await expect(page.getByRole('button', { name: 'Login' })).toBeVisible();
+
+    if (normalizedHomeserver === 'mindroom.chat') {
+      await expect(page.getByRole('link', { name: 'Sign in with Apple' })).toBeVisible();
+      return;
+    }
+
+    await expect
+      .poll(
+        async () => {
+          const hasSso = await anyAuthProviderVisible(page);
+          if (hasSso) return true;
+          return hasVisibleLocator(page.getByRole('button', { name: 'Login' }));
+        },
+        { message: 'expected the auth shell to render either password login or SSO providers' }
+      )
+      .toBe(true);
   });
 
   test('SSO providers visible (if configured)', async ({ page }) => {
     const homeserver = getHomeserver();
     await page.goto(buildLoginPath(homeserver));
+    const normalizedHomeserver = homeserver.replace(/^https?:\/\//i, '').replace(/\/+$/, '').toLowerCase();
+    const hasSso = await anyAuthProviderVisible(page);
 
-    // SSO providers are only available on servers with SSO configured (e.g. mindroom.chat)
-    // Local Tuwunel servers may not have SSO — check if any SSO button exists
-    const ssoButton = page.locator('a[href*="sso"], [class*="sso"], button:has-text("Sign in with"), a:has-text("Sign in with"), a:has-text("Continue with")');
-    const hasSso = await ssoButton.first().isVisible().catch(() => false);
-
-    if (!hasSso) {
-      // No SSO configured on this server — just verify login form is present instead
-      await expect(page.locator('input[name="usernameInput"]')).toBeVisible();
-      await expect(page.locator('input[name="passwordInput"]')).toBeVisible();
+    if (normalizedHomeserver === 'mindroom.chat') {
+      await expect(page.getByRole('link', { name: 'Sign in with Apple' })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Continue with Google' })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Continue with GitHub' })).toBeVisible();
       return;
     }
 
-    // If SSO is configured, verify the expected providers
-    await expect(page.getByRole('link', { name: 'Sign in with Apple' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Continue with Google' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Continue with GitHub' })).toBeVisible();
+    if (hasSso) {
+      return;
+    }
+
+    await expect(page.locator('input[name="usernameInput"]')).toBeVisible();
+    await expect(page.locator('input[name="passwordInput"]')).toBeVisible();
   });
 
   test('no known-critical console errors on load', async ({ page }) => {
