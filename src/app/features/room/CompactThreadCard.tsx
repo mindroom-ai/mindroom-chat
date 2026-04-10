@@ -147,6 +147,8 @@ const getThreadParticipantIds = (
 };
 
 const getMessageCountLabel = (messageCount: number): string => {
+  if (messageCount === 0) return '0 replies';
+
   const formattedCount = numberFormatter.format(messageCount);
   return `${formattedCount} ${messageCount === 1 ? 'msg' : 'msgs'}`;
 };
