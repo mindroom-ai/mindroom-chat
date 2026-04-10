@@ -17,6 +17,10 @@ Read the Runbook section in `FORK_CHANGES.md` first.
 
 The Runbook section in `FORK_CHANGES.md` is the canonical, living implementation guide. All agents are expected to update it as work progresses (status, decisions, risks, validation, and next steps), including after context compaction.
 
+## Git safety — MANDATORY
+
+**NEVER run `git reset --hard`, `git checkout -- .`, `git clean -f`, or any command that discards uncommitted working-tree changes.** Not even to "clean up" after a failed operation. Uncommitted changes may be hours of unsaved work. If the working tree is dirty and you need a clean state, use `git stash` first and tell the user. Always ask before running any destructive git command.
+
 ## Required delivery process
 
 For each logical implementation step:
