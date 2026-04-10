@@ -121,6 +121,32 @@
       - `npm run typecheck` passes
       - `npm run build` passes
       - `npm test` is still red at the current branch baseline with the same 16 unrelated failures in `RoomTimeline.test.ts`, `RoomTimelineCollapsible.test.ts`, `roomThreadOverviewModel.test.ts`, and `roomThreadFilterState.test.ts`
+- `CINNY-067`
+  - Auto-threads composer attachment bursts in `RoomInput`:
+    - text + attachments in the main timeline now send the text first, capture the returned `event_id`, and send attachments as thread replies to that new root,
+    - attachment-only sends now use the first selected attachment as the room-level root and thread later attachments under it,
+    - single-attachment sends stay room-level,
+    - and explicit thread context (`threadId` or reply-in-thread) keeps the existing thread-targeting behavior without creating a nested auto-thread.
+  - The upload-board Send button and keyboard submit now share one send-session orchestration path instead of separate text/media flows.
+  - Attachment sends now follow selection order instead of upload completion order, while still allowing failed non-root uploads to be retried later without losing the resolved thread root.
+  - Added focused regression coverage in `src/app/features/room/roomInputSendSession.test.ts` for root selection, relation targeting, ordering, root-blocking failures, and non-root retry behavior.
+  - review:
+    - independent second self-review completed via a fresh `git diff` pass after the implementation and tests; scope stayed limited to the room-input send path, upload-board send trigger, helper extraction, tests, and runbook updates.
+  - validation (2026-04-09):
+    - `npm test` passes (`125/125` files, `1048/1048` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+  - review-fix follow-up (2026-04-09):
+    - `RoomInput` now keeps `selectedFilesRef` synchronized across append/replace/delete mutations so same-tick voice sends do not observe an empty active-file list before the atom update renders.
+    - reply-draft clearing is now one-shot and only clears the live draft when the current room/thread/reply context still matches the session snapshot captured when the send started.
+    - documented the intentional silent no-op for repeated Send clicks while a session is waiting on upload retries, the intentional relaxed ordering for non-root upload-error recovery, and the intentional upload-board Send-button behavior change that now shares the unified submit path with typed text.
+    - added focused regression coverage in `src/app/features/room/RoomInput.test.ts` for the voice-send wiring and deferred reply-draft clearing, plus additional context-matching assertions in `src/app/features/room/roomInputSendSession.test.ts`.
+  - review:
+    - independent second self-review completed via a fresh post-fix `git diff` pass; the follow-up scope stayed limited to the room-input send-session wiring, focused tests, and this runbook update.
+  - validation follow-up (2026-04-09):
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm test` passes (`126/126` files, `1051/1051` tests)
 
 ### Validation Standard
 
@@ -440,3 +466,19 @@
   - validation:
     - `npm run lint` passes
     - `npm test` passes (`119/119` files, `1012/1012` tests)
+
+### CINNY-067: Auto-thread attachments planning note (2026-04-09)
+
+- Added repo-root `PLAN.md` with the implementation plan for collapsing one composer send containing text plus attachments into a single top-level room event plus threaded attachment replies.
+- Investigation findings recorded in the plan:
+  - attachment uploads start per-card from `UploadCardRenderer` via `useBindUploadAtom(...)` / `mx.uploadContent(...)`,
+  - attachment Matrix events are sent from `RoomInput.handleSendUpload(...)`,
+  - text sends are a separate `RoomInput.submit()` path that currently does not await or capture the attachment/root send result,
+  - and reply-in-thread already works by storing a reply draft with `m.thread` relation in `RoomTimeline.handleReplyClick(...)` and reusing `getMessageRelation(...)` in `RoomInput`.
+- Planned direction:
+  - only auto-thread when attachments are present and there is no explicit existing thread target,
+  - send text first as room-level root when present,
+  - otherwise use the first attachment as the root candidate,
+  - capture the returned `event_id`,
+  - and send remaining attachments as `m.thread` replies to that new root in stable selection order.
+- Docs-only validation target for this planning step is `git diff --check`.
