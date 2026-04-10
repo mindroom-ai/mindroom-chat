@@ -1,9 +1,13 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
+  buildCompactZeroReplyRootData,
   buildCompactThreadRootData,
+  COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS,
   getCompactCachedThreadActivityTs,
   getCompactCachedThreadRootPreviewInfo,
+  isZeroReplyStandaloneThreadRootEvent,
+  mergeCompactThreadRootData,
   pickPreferredThreadRootPreviewText,
 } from './compactThreadRootData';
 
@@ -11,7 +15,13 @@ const makeEvent = (
   eventId: string,
   body: string,
   editedBody?: string,
-  relation?: { event_id: string; rel_type: string; ['m.in_reply_to']?: { event_id: string } }
+  relation?: { event_id: string; rel_type: string; ['m.in_reply_to']?: { event_id: string } },
+  options?: {
+    ts?: number;
+    type?: string;
+    isRedacted?: boolean;
+    threadRootId?: string;
+  }
 ) =>
   ({
     event: { event_id: eventId },
@@ -30,10 +40,12 @@ const makeEvent = (
           },
     getId: () => eventId,
     getRelation: () => relation,
-    getType: () => 'm.room.message',
+    getType: () => options?.type ?? 'm.room.message',
     getSender: () => '@bot:mindroom.chat',
-    getTs: () => 1,
+    getTs: () => options?.ts ?? 1,
     getUnsigned: () => undefined,
+    isRedacted: () => options?.isRedacted ?? false,
+    threadRootId: options?.threadRootId,
     replacingEvent: () =>
       editedBody
         ? ({
@@ -204,6 +216,121 @@ describe('buildCompactThreadRootData', () => {
         fallbackPreviewText: 'Recovered from cache',
       })
     ).toBe('Recovered from cache');
+  });
+
+  it('collects only recent standalone room messages as zero-reply compact roots', () => {
+    const now = COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS + 10_000;
+    const recentMessage = makeEvent('$recent', 'Recent standalone root', undefined, undefined, {
+      ts: now - 1_000,
+    });
+    const oldMessage = makeEvent('$old', 'Older standalone root', undefined, undefined, {
+      ts: now - COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS - 1_000,
+    });
+    const knownThreadRoot = makeEvent('$known-thread', 'Known thread root', undefined, undefined, {
+      ts: now - 1_000,
+    });
+    const editEvent = makeEvent(
+      '$edit',
+      '* edited',
+      undefined,
+      {
+        event_id: '$recent',
+        rel_type: 'm.replace',
+      },
+      { ts: now - 1_000 }
+    );
+    const nestedReply = makeEvent(
+      '$nested-reply',
+      'Nested reply',
+      undefined,
+      {
+        event_id: '$parent-root',
+        rel_type: 'm.thread',
+        'm.in_reply_to': { event_id: '$parent-reply' },
+      },
+      { ts: now - 1_000, threadRootId: '$parent-root' }
+    );
+    const redactedMessage = makeEvent('$redacted', 'Redacted root', undefined, undefined, {
+      ts: now - 1_000,
+      isRedacted: true,
+    });
+
+    const data = buildCompactZeroReplyRootData({
+      room: makeRoom(),
+      roomSurfaceEntries: [
+        { event: knownThreadRoot, absoluteIndex: 0 },
+        { event: recentMessage, absoluteIndex: 1 },
+        { event: oldMessage, absoluteIndex: 2 },
+        { event: editEvent, absoluteIndex: 3 },
+        { event: nestedReply, absoluteIndex: 4 },
+        { event: redactedMessage, absoluteIndex: 5 },
+      ],
+      knownThreadRootIds: ['$known-thread'],
+      now,
+    });
+
+    expect(data.ids).toEqual(['$recent']);
+    expect(data.indexMap.get('$recent')).toBe(1);
+    expect(data.bodyMap.get('$recent')).toBe('Recent standalone root');
+  });
+
+  it('recognizes recent standalone room messages as zero-reply thread roots', () => {
+    const now = COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS + 10_000;
+
+    expect(
+      isZeroReplyStandaloneThreadRootEvent(
+        makeEvent('$recent', 'Recent standalone root', undefined, undefined, {
+          ts: now - 1_000,
+        }),
+        now
+      )
+    ).toBe(true);
+    expect(
+      isZeroReplyStandaloneThreadRootEvent(
+        makeEvent('$old', 'Older standalone root', undefined, undefined, {
+          ts: now - COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS - 1_000,
+        }),
+        now
+      )
+    ).toBe(false);
+    expect(
+      isZeroReplyStandaloneThreadRootEvent(
+        makeEvent(
+          '$edit',
+          '* edited',
+          undefined,
+          {
+            event_id: '$recent',
+            rel_type: 'm.replace',
+          },
+          {
+            ts: now - 1_000,
+          }
+        ),
+        now
+      )
+    ).toBe(false);
+  });
+
+  it('merges zero-reply compact roots back into absolute timeline order', () => {
+    const merged = mergeCompactThreadRootData(
+      {
+        ids: ['$thread-root', '$sdk-thread'],
+        indexMap: new Map([
+          ['$thread-root', 4],
+          ['$sdk-thread', 12],
+        ]),
+        bodyMap: new Map([['$thread-root', 'Existing thread']]),
+      },
+      {
+        ids: ['$zero-reply'],
+        indexMap: new Map([['$zero-reply', 8]]),
+        bodyMap: new Map([['$zero-reply', 'New standalone message']]),
+      }
+    );
+
+    expect(merged.ids).toEqual(['$thread-root', '$zero-reply', '$sdk-thread']);
+    expect(merged.bodyMap.get('$zero-reply')).toBe('New standalone message');
   });
 
   it('hydrates edited compact root previews from cached thread pages', () => {
