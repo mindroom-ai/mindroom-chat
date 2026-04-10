@@ -8,10 +8,11 @@
  * Environment:
  *   E2E_USERNAME / E2E_PASSWORD  — Matrix credentials
  *   E2E_HOMESERVER               — defaults to https://mindroom.lab.mindroom.chat
+ *   E2E_FIXTURE_ROOM_ALIAS       — defaults to #cinny-e2e-fixture:mindroom.lab.mindroom.chat
  *
  * What it does:
  *   1. Logs in via Matrix CS API
- *   2. Creates or joins room with alias #cinny-e2e-fixture:mindroom.lab.mindroom.chat
+ *   2. Creates or joins room with the configured fixture alias
  *   3. Sends a thread root + 3 thread replies (if not already present)
  *   4. Sends an m.notice with io.mindroom.thread_summary content (if not already present)
  *
@@ -21,8 +22,12 @@
 const HOMESERVER = process.env.E2E_HOMESERVER || 'https://mindroom.lab.mindroom.chat';
 const USERNAME = process.env.E2E_USERNAME;
 const PASSWORD = process.env.E2E_PASSWORD;
-const ROOM_ALIAS = '#cinny-e2e-fixture:mindroom.lab.mindroom.chat';
-const ROOM_ALIAS_LOCAL = 'cinny-e2e-fixture';
+const ROOM_ALIAS =
+  process.env.E2E_FIXTURE_ROOM_ALIAS || '#cinny-e2e-fixture:mindroom.lab.mindroom.chat';
+const ROOM_ALIAS_LOCAL = (() => {
+  const match = /^#([^:]+):.+$/.exec(ROOM_ALIAS);
+  return match ? match[1] : 'cinny-e2e-fixture';
+})();
 const THREAD_ROOT_MARKER = '[cinny-e2e] Thread fixture root';
 const SUMMARY_MARKER = '[cinny-e2e] Thread summary fixture';
 

@@ -140,6 +140,46 @@ docker build -t mindroom-cinny:latest .
 docker run -p 8080:80 mindroom-cinny:latest
 ```
 
+## Dockerized Matrix E2E
+
+The Docker boundary for local e2e is the Matrix stack, not the Cinny app itself.
+Cinny and Playwright stay on the host. Docker only runs a disposable Tuwunel homeserver.
+
+Start or stop the local Matrix stack:
+
+```bash
+npm run e2e:matrix:up
+npm run e2e:matrix:down
+```
+
+Run the e2e suite against that Docker-backed homeserver:
+
+```bash
+npm run test:e2e:docker-matrix
+```
+
+Pass extra Playwright arguments after `--`:
+
+```bash
+npm run test:e2e:docker-matrix -- e2e/live/smoke.spec.ts
+npm run test:e2e:docker-matrix -- --grep "three stored accounts"
+```
+
+Notes:
+
+- The stack is defined in [`e2e/docker-compose.matrix.yaml`](./e2e/docker-compose.matrix.yaml).
+- The wrapper provisions three local e2e accounts, seeds the shared fixture room, and starts a
+  static built preview on `http://127.0.0.1:28090` for the deployed clear-cache spec.
+- The main app under test still runs from the host via Playwright's normal `webServer`
+  (`npm run start -- --host 127.0.0.1 --port 4173 --strictPort`) unless `E2E_NO_WEB_SERVER=1`.
+- Useful overrides:
+  `E2E_MATRIX_PORT`,
+  `E2E_MATRIX_SERVER_NAME`,
+  `E2E_MATRIX_AUTO_DOWN=1`,
+  `E2E_ENABLE_DEPLOYED_FIXTURE=0`,
+  `E2E_SERVER_COMMAND`,
+  `MINDROOM_TUWUNEL_IMAGE`.
+
 ## Releases
 
 - Every push to `dev` creates an automated GitHub release tag in the format

@@ -10,12 +10,15 @@ type LoginOptions = {
 
 export const accountRailButtonSelector = [
   'button[aria-label^="Open account switcher for "]',
+  'button[aria-label^="Open settings for "]',
   'button[aria-label^="Switch to account "]',
   'button[aria-label="Add account"]',
 ].join(', ');
 
 export const waitForLoggedInShell = async (page: Page) => {
-  await expect(page.getByRole('button', { name: /Open account switcher for / })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /Open (account switcher|settings) for / })
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Add account' })).toBeVisible();
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
 };
