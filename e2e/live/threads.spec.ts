@@ -7,7 +7,8 @@ import {
 } from '../helpers/browserDiagnostics';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
-const FIXTURE_ROOM_ALIAS = '#cinny-e2e-fixture:mindroom.lab.mindroom.chat';
+const FIXTURE_ROOM_ALIAS =
+  process.env.E2E_FIXTURE_ROOM_ALIAS ?? '#cinny-e2e-fixture:mindroom.lab.mindroom.chat';
 
 /**
  * Navigate to the fixture room by searching for it or finding it in the room list.
