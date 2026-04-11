@@ -24,7 +24,7 @@ import {
   getLastOpenThread,
   setLastOpenThread,
 } from '../../state/lastOpenThread';
-import { bumpRecentThread, removeRecentThread } from '../../state/recentThreads';
+import { removeRecentThread } from '../../state/recentThreads';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 
 export function Room() {
@@ -68,7 +68,6 @@ export function Room() {
   useEffect(() => {
     if (!threadId) return;
     setLastOpenThread(room.roomId, threadId);
-    bumpRecentThread(room.roomId, threadId);
   }, [room.roomId, threadId]);
 
   useEffect(() => {

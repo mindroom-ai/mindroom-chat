@@ -1,5 +1,5 @@
 import { expect, Page } from '@playwright/test';
-import { expectLoggedInShellStable } from './auth';
+import { activeAccountButtonNamePattern, expectLoggedInShellStable } from './auth';
 
 type BrowserSessionStore = {
   activeSessionId?: string;
@@ -52,16 +52,48 @@ export const expectActiveStoredUsername = async (page: Page, username: string) =
 };
 
 export const expectActiveAccountSwitcherForUsername = async (page: Page, username: string) => {
-  await expect(
-    page.getByRole('button', {
-      name: new RegExp(`Open account switcher for @${escapeRegex(username)}:`),
-    })
-  ).toBeVisible();
+  await expectLoggedInShellStable(page);
+  await expectActiveStoredUsername(page, username);
+  await expect(page.getByRole('button', { name: activeAccountButtonNamePattern })).toBeVisible();
 };
 
 export const openAccountSwitcher = async (page: Page) => {
-  await page.getByRole('button', { name: /Open account switcher for / }).click();
-  await expect(page.getByText('Switch accounts, add another account, or remove an inactive one.')).toBeVisible();
+  const manageAccountsButton = page.getByRole('button', { name: 'Manage accounts' });
+  const manageAccountsVisible = await manageAccountsButton
+    .waitFor({ state: 'visible', timeout: 5_000 })
+    .then(() => true)
+    .catch(() => false);
+
+  if (manageAccountsVisible) {
+    await manageAccountsButton.click();
+  } else {
+    await page.getByRole('button', { name: activeAccountButtonNamePattern }).click();
+  }
+  await expect(page.getByText('Accounts', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('Switch accounts, add another account, or remove an inactive one.')
+  ).toBeVisible();
+};
+
+export const openSettingsFromAccountRail = async (page: Page) => {
+  const manageAccountsButton = page.getByRole('button', { name: 'Manage accounts' });
+  const manageAccountsVisible = await manageAccountsButton
+    .waitFor({ state: 'visible', timeout: 5_000 })
+    .then(() => true)
+    .catch(() => false);
+
+  if (manageAccountsVisible) {
+    await manageAccountsButton.click();
+    await expect(page.getByText('Accounts', { exact: true })).toBeVisible();
+    await expect(
+      page.getByText('Switch accounts, add another account, or remove an inactive one.')
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Open Settings', exact: true }).click();
+  } else {
+    await page.getByRole('button', { name: activeAccountButtonNamePattern }).click();
+  }
+
+  await expect(page.getByRole('button', { name: 'General' })).toBeVisible();
 };
 
 export const switchToStoredUsername = async (page: Page, username: string) => {
@@ -82,8 +114,7 @@ export const removeInactiveStoredUsername = async (page: Page, username: string)
 };
 
 export const logoutActiveAccount = async (page: Page) => {
-  await openAccountSwitcher(page);
-  await page.getByRole('button', { name: 'Open Settings' }).click();
+  await openSettingsFromAccountRail(page);
 
   const settingsLogoutButton = page.getByRole('button', { name: 'Logout' }).first();
   await expect(settingsLogoutButton).toBeVisible();
@@ -100,8 +131,7 @@ export const deactivateActiveAccount = async (
     eraseData?: boolean;
   } = {}
 ) => {
-  await openAccountSwitcher(page);
-  await page.getByRole('button', { name: 'Open Settings' }).click();
+  await openSettingsFromAccountRail(page);
 
   await page.getByRole('button', { name: 'Account', exact: true }).click();
   await expect(page.getByText('Delete / Deactivate Account')).toBeVisible();

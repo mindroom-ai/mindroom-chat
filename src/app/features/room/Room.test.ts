@@ -197,6 +197,23 @@ describe('Room', () => {
     expect(navigateRoomThreadMock).not.toHaveBeenCalled();
   });
 
+  it('updates the saved thread when room navigation enters a thread', async () => {
+    const { Room } = await import('./Room');
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+
+    roomState.search = '?threadId=%24opened';
+
+    await act(async () => {
+      renderer!.update(React.createElement(Room));
+    });
+
+    expect(setLastOpenThreadMock).toHaveBeenCalledWith('!room:example.org', '$opened');
+  });
+
   it('clears the saved thread when the same room leaves thread mode', async () => {
     roomState.search = '?threadId=%24saved';
     const { Room } = await import('./Room');

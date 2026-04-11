@@ -1,82 +1,61 @@
 import { expect, test } from '@playwright/test';
+import { getHomeserver, getPrimaryCredentials } from '../env';
+import { loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
 } from '../helpers/browserDiagnostics';
+import {
+  createDefaultThreadFilterState,
+  joinRoom,
+  loginToMatrix,
+  seedRoomOverviewState,
+} from '../helpers/matrix';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
-const LOGIN_HOMESERVER =
-  process.env.E2E_HOMESERVER ?? 'https://mindroom.lab.mindroom.chat';
+const FIXTURE_ROOM_ALIAS =
+  process.env.E2E_FIXTURE_ROOM_ALIAS ?? '#cinny-e2e-fixture:mindroom.lab.mindroom.chat';
+const FIXTURE_ROOM_ID = process.env.E2E_FIXTURE_ROOM_ID;
+const FIXTURE_ROOM_REF = FIXTURE_ROOM_ID || FIXTURE_ROOM_ALIAS;
+const SUMMARY_TEXT = 'Test summary: thread rendering and navigation verified.';
+const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 test.describe('CINNY-029: thread Load Older Messages button', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
   test('short thread should NOT show Load Older Messages button', async ({ page }) => {
     const diagnostics = attachBrowserDiagnostics(page);
-    const username = process.env.E2E_USERNAME!;
-    const password = process.env.E2E_PASSWORD!;
-
-    // Login
-    await page.goto(`/login/${encodeURIComponent(LOGIN_HOMESERVER)}/`);
-    await page.waitForLoadState('networkidle');
-    const usernameInput = page.locator(
-      'input[name="usernameInput"], input[name="username"]'
+    const homeserver = getHomeserver();
+    const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    const fixtureRoomId = await joinRoom(
+      homeserver,
+      session.accessToken,
+      FIXTURE_ROOM_REF
     );
-    await expect(usernameInput.first()).toBeVisible({ timeout: 20_000 });
-    await usernameInput.first().fill(username);
-    await page.locator('input[name="passwordInput"], input[name="password"]').first().fill(password);
-    await page.getByRole('button', { name: /login/i }).click();
-    await page.waitForTimeout(10_000);
 
-    // Navigate to fixture room (use text selector since sidebar items may not be <a> tags)
-    const fixtureRoom = page.getByText('Cinny E2E Fixture Room');
-    await expect(fixtureRoom.first()).toBeVisible({ timeout: 30_000 });
-    await fixtureRoom.first().click();
-    await page.waitForTimeout(5_000);
-    await page.screenshot({ path: 'test-results/cinny029-01-fixture-room.png' });
+    await loginWithPassword(page, { homeserver, username, password });
+    await seedRoomOverviewState({
+      page,
+      roomId: fixtureRoomId,
+      userId: session.userId,
+      viewMode: 'compact',
+      filterState: createDefaultThreadFilterState(),
+    });
 
-    // Wait for thread indicators to appear — "Thread N replies" chip
-    // The text may be split across elements, so look for "replies" or the container
-    const threadEntry = page.locator('text=/\\d+ replies?/');
-    try {
-      await expect(threadEntry.first()).toBeVisible({ timeout: 15_000 });
-    } catch {
-      // Thread text not yet visible — wait more and screenshot
-    }
-    await page.screenshot({ path: 'test-results/cinny029-02-before-thread-check.png' });
-    const threadCount = await threadEntry.count();
+    await page.goto(`/home/${encodeURIComponent(fixtureRoomId)}`);
+    await waitForLoggedInShell(page);
 
-    if (threadCount === 0) {
-      await page.screenshot({ path: 'test-results/cinny029-02-no-threads.png' });
-      test.skip(true, 'No thread indicators found in fixture room');
-      return;
-    }
+    const threadEntry = page.getByRole('button', {
+      name: new RegExp(`${escapeRegex(SUMMARY_TEXT)}[\\s\\S]*4 msgs`, 'i'),
+    });
+    await expect(threadEntry).toBeVisible({ timeout: 30_000 });
+    await threadEntry.click();
+    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Thread reply 1')).toBeVisible({ timeout: 30_000 });
 
-    await threadEntry.first().click();
-    await page.waitForTimeout(5_000);
-    await page.screenshot({ path: 'test-results/cinny029-03-thread-opened.png' });
-
-    // Check for the "Load Older Messages" button
-    const loadOlderButton = page.getByText('Load Older Messages');
-    const loadOlderCount = await loadOlderButton.count();
-
-    if (loadOlderCount > 0) {
-      await page.screenshot({
-        path: 'test-results/cinny029-FAIL-spurious-button.png',
-        fullPage: true,
-      });
-    } else {
-      await page.screenshot({
-        path: 'test-results/cinny029-PASS-no-spurious-button.png',
-        fullPage: true,
-      });
-    }
-
-    // CINNY-029: short threads must NOT show "Load Older Messages" button
-    expect(
-      loadOlderCount,
-      'Short thread should NOT show "Load Older Messages" (CINNY-029)'
-    ).toBe(0);
+    const loadOlderButton = page.getByRole('button', { name: 'Load Older Messages' });
+    await expect(loadOlderButton).toHaveCount(0);
 
     await expect(page.getByText('Failed to load this thread')).toHaveCount(0);
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny029');

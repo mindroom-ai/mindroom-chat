@@ -67,12 +67,20 @@ test.describe('live cinny-033 message permalink open target', () => {
       viewMode: 'compact',
       filterState: createDefaultThreadFilterState(),
     });
+    await seedRoomOverviewState({
+      page,
+      roomId: sourceRoomId,
+      userId: session.userId,
+      viewMode: 'normal',
+      filterState: createDefaultThreadFilterState(),
+    });
 
     await page.goto(`/home/${encodeURIComponent(sourceRoomId)}`);
+    await expect(page.getByText(`Open this target thread: ${permalink}`)).toBeVisible({
+      timeout: 30_000,
+    });
 
-    const permalinkAnchor = page.locator(
-      `[data-mention-id="${targetFixture.roomId}"][data-mention-event-id="${targetFixture.rootId}"]`
-    );
+    const permalinkAnchor = page.locator(`a[href="${permalink}"]`).first();
     await expect(permalinkAnchor).toBeVisible({ timeout: 30_000 });
     await permalinkAnchor.click();
 

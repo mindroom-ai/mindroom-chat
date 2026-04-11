@@ -7,14 +7,24 @@ type MockThreadContextBannerProps = {
   summaryText?: string;
 };
 
-const { passthrough, roomTimelineType, navigateRoomFocusEventMock, threadContextBannerState } =
-  vi.hoisted(() => ({
+const {
+  bumpRecentThreadMock,
+  passthrough,
+  roomTimelineType,
+  navigateRoomFocusEventMock,
+  navigateRoomThreadMock,
+  threadContextBannerState,
+  useThreadRootEventMock,
+} = vi.hoisted(() => ({
+  bumpRecentThreadMock: vi.fn(),
   passthrough: 'div',
   roomTimelineType: 'room-timeline',
   navigateRoomFocusEventMock: vi.fn(),
+  navigateRoomThreadMock: vi.fn(),
   threadContextBannerState: {
     props: undefined as MockThreadContextBannerProps | undefined,
   },
+  useThreadRootEventMock: vi.fn(() => undefined),
 }));
 
 const storageState = new Map<string, string>();
@@ -189,6 +199,7 @@ vi.mock('../../hooks/useRoomCreators', () => ({
 vi.mock('../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
     navigateRoomFocusEvent: navigateRoomFocusEventMock,
+    navigateRoomThread: navigateRoomThreadMock,
   }),
 }));
 
@@ -207,7 +218,7 @@ vi.mock('./useRoomThreadTags', () => ({
 }));
 
 vi.mock('./useThreadRootEvent', () => ({
-  useThreadRootEvent: () => undefined,
+  useThreadRootEvent: useThreadRootEventMock,
 }));
 
 vi.mock('./useRoomThreadSummaryState', () => ({
@@ -215,6 +226,10 @@ vi.mock('./useRoomThreadSummaryState', () => ({
     summaryMap: new Map(),
     storeThreadSummary: vi.fn(),
   }),
+}));
+
+vi.mock('../../state/recentThreads', () => ({
+  bumpRecentThread: bumpRecentThreadMock,
 }));
 
 const makeRoom = (roomId: string) => ({ roomId });
@@ -225,6 +240,7 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
       onSortDirectionChange: () => void;
       onToggleThreadSortFreeze: () => void;
       onReset: () => void;
+      threadId?: string;
       threadFilterState: {
         resolved: string;
         streaming: string;
@@ -244,8 +260,12 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
 describe('RoomView', () => {
   beforeEach(() => {
     storageState.clear();
+    bumpRecentThreadMock.mockReset();
     navigateRoomFocusEventMock.mockReset();
+    navigateRoomThreadMock.mockReset();
     threadContextBannerState.props = undefined;
+    useThreadRootEventMock.mockReset();
+    useThreadRootEventMock.mockReturnValue(undefined);
     vi.resetModules();
   });
 
@@ -451,5 +471,48 @@ describe('RoomView', () => {
       '$thread',
       { replace: true }
     );
+  });
+
+  it('canonicalizes resolved thread ids and passes them through the thread view', async () => {
+    const { RoomView } = await import('./RoomView');
+    const room = makeRoom('!room-a:example.org');
+    useThreadRootEventMock.mockReturnValue('$confirmed-thread');
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(RoomView, {
+          room: room as never,
+          threadId: '~pending-thread',
+          eventId: '$focus',
+        })
+      );
+    });
+
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith(
+      '!room-a:example.org',
+      '$confirmed-thread',
+      '$focus',
+      { replace: true }
+    );
+    expect(getTimeline(renderer!).props.threadId).toBe('$confirmed-thread');
+  });
+
+  it('bumps the recent-thread list from the canonical open thread id', async () => {
+    const { RoomView } = await import('./RoomView');
+    const room = makeRoom('!room-a:example.org');
+    useThreadRootEventMock.mockReturnValue('$confirmed-thread');
+
+    await act(async () => {
+      create(
+        React.createElement(RoomView, {
+          room: room as never,
+          threadId: '~pending-thread',
+        })
+      );
+    });
+
+    expect(bumpRecentThreadMock).toHaveBeenCalledWith('!room-a:example.org', '$confirmed-thread');
   });
 });

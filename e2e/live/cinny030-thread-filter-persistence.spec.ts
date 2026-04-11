@@ -5,12 +5,17 @@ import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
 } from '../helpers/browserDiagnostics';
+import { createDefaultThreadFilterState, seedRoomOverviewState } from '../helpers/matrix';
 
 type ThreadFixture = {
   roomId: string;
   roomName: string;
   rootId: string;
+  rootBody: string;
 };
+
+type ThreadFilterKey = 'resolved' | 'scheduled';
+type ThreadFilterState = 'any' | 'include' | 'exclude';
 
 const matrixFetch = async (
   homeserver: string,
@@ -46,7 +51,10 @@ const loginToMatrix = async (homeserver: string, username: string, password: str
     }),
   });
 
-  return body.access_token as string;
+  return {
+    accessToken: body.access_token as string,
+    userId: body.user_id as string,
+  };
 };
 
 const sendRoomMessage = async (
@@ -75,6 +83,7 @@ const seedThreadRoom = async (
   roomLabel: string
 ): Promise<ThreadFixture> => {
   const roomName = `CINNY-030 ${roomLabel} ${Date.now()}`;
+  const rootBody = `${roomLabel} thread root`;
   const roomBody = await matrixFetch(homeserver, '/createRoom', {
     method: 'POST',
     accessToken,
@@ -93,7 +102,7 @@ const seedThreadRoom = async (
 
   const rootId = await sendRoomMessage(homeserver, accessToken, roomId, {
     msgtype: 'm.text',
-    body: `${roomLabel} thread root`,
+    body: rootBody,
   });
 
   await sendRoomMessage(homeserver, accessToken, roomId, {
@@ -107,7 +116,7 @@ const seedThreadRoom = async (
     },
   });
 
-  return { roomId, roomName, rootId };
+  return { roomId, roomName, rootId, rootBody };
 };
 
 const waitForThreadOverview = async (page: Page) => {
@@ -125,13 +134,28 @@ const navigateToRoom = async (page: Page, roomName: string) => {
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
 };
 
-const expectPressedState = async (page: Page, label: RegExp | string, pressed: boolean) => {
-  const button = page.getByRole('button', { name: label });
-  await expect(button).toHaveAttribute('aria-pressed', pressed ? 'true' : 'false');
+const getFilterButton = (page: Page, key: ThreadFilterKey) =>
+  page.locator(`[data-room-thread-overview="true"] [data-filter-key="${key}"]`);
+
+const expectFilterState = async (
+  page: Page,
+  key: ThreadFilterKey,
+  state: ThreadFilterState
+) => {
+  await expect(getFilterButton(page, key)).toHaveAttribute('data-filter-state', state);
 };
 
-const openThreadAndReturn = async (page: Page, rootId: string) => {
-  const threadButton = page.getByRole('button', { name: /Thread/ }).first();
+const getSortButton = (page: Page) =>
+  page.getByRole('button', {
+    name: /^(Threads in timeline order|Sort threads by last reply, newest first|Sort threads by last reply, oldest first)$/,
+  });
+
+const expectSortButtonName = async (page: Page, name: string | RegExp) => {
+  await expect(getSortButton(page)).toHaveAccessibleName(name);
+};
+
+const openThreadAndReturn = async (page: Page, rootId: string, rootBody: string) => {
+  const threadButton = page.locator(`button[aria-label*="${rootBody}"]`).first();
 
   await expect(threadButton).toBeVisible({ timeout: 30_000 });
   await threadButton.click();
@@ -148,15 +172,16 @@ const openThreadAndReturn = async (page: Page, rootId: string) => {
 
 const switchAwayAndBack = async (page: Page) => {
   const focusStealer = await page.context().newPage();
+  const resolvedFilterButton = getFilterButton(page, 'resolved');
 
-  await page.getByRole('button', { name: /Show unresolved threads/ }).focus();
+  await resolvedFilterButton.focus();
   await focusStealer.goto('data:text/html,<input aria-label="focus-stealer" autofocus />');
   await focusStealer.bringToFront();
   await focusStealer.getByLabel('focus-stealer').focus();
   await page.waitForTimeout(250);
 
   await page.bringToFront();
-  await page.getByRole('button', { name: /Show unresolved threads/ }).focus();
+  await resolvedFilterButton.focus();
   await page.waitForTimeout(250);
 
   await focusStealer.close();
@@ -171,50 +196,65 @@ test.describe('live cinny-030 thread filter persistence', () => {
     const diagnostics = attachBrowserDiagnostics(page);
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
-    const accessToken = await loginToMatrix(homeserver, username, password);
+    const { accessToken, userId } = await loginToMatrix(homeserver, username, password);
     const roomA = await seedThreadRoom(homeserver, accessToken, 'Room A');
     const roomB = await seedThreadRoom(homeserver, accessToken, 'Room B');
 
     await loginWithPassword(page, { homeserver, username, password });
     await expectLoggedInShellStable(page);
+    await seedRoomOverviewState({
+      page,
+      roomId: roomA.roomId,
+      userId,
+      viewMode: 'compact',
+      filterState: createDefaultThreadFilterState(),
+    });
+    await seedRoomOverviewState({
+      page,
+      roomId: roomB.roomId,
+      userId,
+      viewMode: 'compact',
+      filterState: createDefaultThreadFilterState(),
+    });
 
     await navigateToRoom(page, roomA.roomName);
-    await page.getByRole('button', { name: /Show unresolved threads/ }).click();
-    await expectPressedState(page, /Show unresolved threads/, true);
-    await expectPressedState(page, /Show all threads/, false);
+    await expectFilterState(page, 'resolved', 'any');
+    await expectFilterState(page, 'scheduled', 'any');
+    await expectSortButtonName(page, 'Sort threads by last reply, newest first');
+    await getFilterButton(page, 'resolved').click();
+    await getFilterButton(page, 'resolved').click();
+    await expectFilterState(page, 'resolved', 'exclude');
+    await expectFilterState(page, 'scheduled', 'any');
 
-    await openThreadAndReturn(page, roomA.rootId);
-    await expectPressedState(page, /Show unresolved threads/, true);
-    await expectPressedState(page, /Show all threads/, false);
+    await openThreadAndReturn(page, roomA.rootId, roomA.rootBody);
+    await expectFilterState(page, 'resolved', 'exclude');
+    await expectFilterState(page, 'scheduled', 'any');
 
     await switchAwayAndBack(page);
-    await expectPressedState(page, /Show unresolved threads/, true);
-    await expectPressedState(page, /Show all threads/, false);
+    await expectFilterState(page, 'resolved', 'exclude');
+    await expectFilterState(page, 'scheduled', 'any');
 
-    await page.getByRole('button', { name: 'Sort threads by streaming activity' }).click();
-    await expectPressedState(page, 'Sort threads by streaming activity', true);
+    await getSortButton(page).click();
+    await expectSortButtonName(page, 'Sort threads by last reply, oldest first');
 
     await navigateToRoom(page, roomB.roomName);
-    await expectPressedState(page, /Show all threads/, true);
-    await expectPressedState(page, /Show unresolved threads/, false);
-    await expectPressedState(page, 'Sort threads by streaming activity', false);
+    await expectFilterState(page, 'resolved', 'any');
+    await expectFilterState(page, 'scheduled', 'any');
+    await expectSortButtonName(page, 'Sort threads by last reply, newest first');
 
-    await page.getByRole('button', { name: /Show resolved threads/ }).click();
-    await page.getByRole('button', { name: 'Sort threads by scheduled tasks' }).click();
-    await expectPressedState(page, /Show resolved threads/, true);
-    await expectPressedState(page, 'Sort threads by scheduled tasks', true);
+    await getFilterButton(page, 'scheduled').click();
+    await expectFilterState(page, 'resolved', 'any');
+    await expectFilterState(page, 'scheduled', 'include');
 
     await navigateToRoom(page, roomA.roomName);
-    await expectPressedState(page, /Show unresolved threads/, true);
-    await expectPressedState(page, /Show resolved threads/, false);
-    await expectPressedState(page, 'Sort threads by streaming activity', true);
-    await expectPressedState(page, 'Sort threads by scheduled tasks', false);
+    await expectFilterState(page, 'resolved', 'exclude');
+    await expectFilterState(page, 'scheduled', 'any');
+    await expectSortButtonName(page, 'Sort threads by last reply, oldest first');
 
     await navigateToRoom(page, roomB.roomName);
-    await expectPressedState(page, /Show resolved threads/, true);
-    await expectPressedState(page, /Show all threads/, false);
-    await expectPressedState(page, 'Sort threads by scheduled tasks', true);
-    await expectPressedState(page, 'Sort threads by streaming activity', false);
+    await expectFilterState(page, 'resolved', 'any');
+    await expectFilterState(page, 'scheduled', 'include');
+    await expectSortButtonName(page, 'Sort threads by last reply, newest first');
 
     await page.screenshot({
       path: 'test-results/cinny030-thread-filter-persistence.png',
