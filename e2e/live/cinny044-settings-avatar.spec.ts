@@ -59,7 +59,7 @@ test.describe('live CINNY-044 settings avatar behavior', () => {
     await expect(page.getByRole('button', { name: 'Manage accounts' })).toBeVisible();
     await page.getByRole('button', { name: 'Manage accounts' }).click();
 
-    await expect(page.getByText('Accounts')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Accounts', { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(
       page.getByText('Switch accounts, add another account, or remove an inactive one.')
     ).toBeVisible();

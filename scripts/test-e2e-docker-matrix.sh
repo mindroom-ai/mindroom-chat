@@ -30,9 +30,11 @@ export E2E_FIXTURE_ROOM_ALIAS="${FIXTURE_ALIAS}"
 
 "${ROOT_DIR}/scripts/e2e-matrix-up.sh"
 
-eval "$("${ROOT_DIR}/scripts/ensure-e2e-account.sh" E2E cinnye2eprimary 'Pwcinnye2eprimary123!')"
-eval "$("${ROOT_DIR}/scripts/ensure-e2e-account.sh" E2E_SECOND cinnye2esecond 'Pwcinnye2esecond123!')"
-eval "$("${ROOT_DIR}/scripts/ensure-e2e-account.sh" E2E_THIRD cinnye2ethird 'Pwcinnye2ethird123!')"
+RUN_SUFFIX="$(date +%s)${RANDOM}"
+eval "$("${ROOT_DIR}/scripts/ensure-e2e-account.sh" E2E "cinnye2eprimary${RUN_SUFFIX}" 'Pwcinnye2eprimary123!')"
+eval "$("${ROOT_DIR}/scripts/ensure-e2e-account.sh" E2E_SECOND "cinnye2esecond${RUN_SUFFIX}" 'Pwcinnye2esecond123!')"
+eval "$("${ROOT_DIR}/scripts/ensure-e2e-account.sh" E2E_THIRD "cinnye2ethird${RUN_SUFFIX}" 'Pwcinnye2ethird123!')"
+eval "$("${ROOT_DIR}/scripts/ensure-e2e-account.sh" E2E_DEACTIVATE "cinnye2edeactivate${RUN_SUFFIX}" 'Pwcinnye2edeactivate123!')"
 
 cd "${ROOT_DIR}"
 node ./e2e/live/seed-fixture-room.mjs

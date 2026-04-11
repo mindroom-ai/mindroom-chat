@@ -77,17 +77,21 @@ test.describe('live CINNY-033 jump to latest', () => {
 
     await loginWithPassword(page, { homeserver, username, password });
     await expectLoggedInShellStable(page);
+    await page.evaluate((nextRoomId) => {
+      localStorage.setItem(`roomViewMode:${nextRoomId}`, JSON.stringify('normal'));
+    }, roomId);
 
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
 
-    await expect(page.getByText(latestBody)).toBeVisible({ timeout: 30_000 });
+    const latestMessage = page.locator('[data-message-id]').filter({ hasText: latestBody }).first();
+    await expect(latestMessage).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText('Jump to Latest')).toHaveCount(0);
 
     await scrollTimelineToTop(page, latestBody);
     await expect(page.getByText('Jump to Latest')).toBeVisible({ timeout: 10_000 });
 
     await page.getByText('Jump to Latest').click();
-    await expect(page.getByText(latestBody)).toBeVisible({ timeout: 10_000 });
+    await expect(latestMessage).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('Jump to Latest')).toHaveCount(0);
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-033-jump-to-latest');

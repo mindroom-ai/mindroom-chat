@@ -1,7 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from './env';
 import { expectActiveStoredUsername } from './helpers/accounts';
-import { expectLoggedInShellStable, loginWithPassword } from './helpers/auth';
+import {
+  activeAccountButtonNamePattern,
+  expectLoggedInShellStable,
+  loginWithPassword,
+} from './helpers/auth';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
@@ -38,7 +42,7 @@ test('survives a homeserver outage without crashing and recovers after reconnect
     if (bodyText.includes('Failed to connect to homeserver')) return 'connectivity-dialog';
     if (
       Array.from(document.querySelectorAll('button')).some((button) =>
-        button.getAttribute('aria-label')?.startsWith('Open account switcher for ')
+        /Open (account switcher|settings) for /.test(button.getAttribute('aria-label') ?? '')
       )
     ) {
       return 'shell';
@@ -48,6 +52,9 @@ test('survives a homeserver outage without crashing and recovers after reconnect
 
   const offlineState = await offlineStateHandle.jsonValue();
   expect(offlineState).toMatch(/^(auth|shell|connectivity-dialog)$/);
+  await expect(page.getByRole('button', { name: activeAccountButtonNamePattern })).toHaveCount(
+    offlineState === 'shell' ? 1 : 0
+  );
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
 
   await context.unroute(`${homeserver}/**`, abortHomeserverTraffic);

@@ -46,6 +46,7 @@ import { createSessionId } from '../../state/sessions';
 import { ThreadContextBanner } from './ThreadContextBanner';
 import { useRoomThreadSummaryState } from './useRoomThreadSummaryState';
 import { useThreadRootEvent } from './useThreadRootEvent';
+import { bumpRecentThread } from '../../state/recentThreads';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -119,18 +120,19 @@ export function RoomView({
 
   const permissions = useRoomPermissions(creators, powerLevels);
   const canMessage = permissions.event(EventType.RoomMessage, mx.getSafeUserId());
-  const { navigateRoomFocusEvent } = useRoomNavigate();
+  const { navigateRoomFocusEvent, navigateRoomThread } = useRoomNavigate();
   const { summaryMap, storeThreadSummary } = useRoomThreadSummaryState({
     roomId,
     sessionId,
   });
   const threadRootId = useThreadRootEvent(room, threadId);
+  const effectiveThreadId = threadRootId ?? threadId;
   const threadSummaryText = threadRootId ? summaryMap.get(threadRootId)?.summaryText : undefined;
 
   const handleExitThread = useCallback(() => {
-    if (!threadId) return;
-    navigateRoomFocusEvent(room.roomId, threadId, { replace: true });
-  }, [navigateRoomFocusEvent, room.roomId, threadId]);
+    if (!effectiveThreadId) return;
+    navigateRoomFocusEvent(room.roomId, effectiveThreadId, { replace: true });
+  }, [effectiveThreadId, navigateRoomFocusEvent, room.roomId]);
 
   const handleToggle = useCallback(
     (key: ThreadFilterKey) => {
@@ -214,6 +216,18 @@ export function RoomView({
     }
   }, [threadFilterState.sortBy]);
 
+  useEffect(() => {
+    if (!threadId || !effectiveThreadId || threadId === effectiveThreadId) return;
+
+    navigateRoomThread(room.roomId, effectiveThreadId, eventId, { replace: true });
+  }, [effectiveThreadId, eventId, navigateRoomThread, room.roomId, threadId]);
+
+  useEffect(() => {
+    if (!effectiveThreadId) return;
+
+    bumpRecentThread(room.roomId, effectiveThreadId);
+  }, [effectiveThreadId, room.roomId]);
+
   // Thread view has a more specific "back" action than the generic room-page back:
   // first swipe exits the thread, then the room header/back handler can navigate out.
   useEdgeSwipeBack(handleExitThread, !!threadId);
@@ -238,22 +252,22 @@ export function RoomView({
 
   return (
     <Page ref={roomViewRef}>
-      <RoomViewHeader threadId={threadId} />
-      {threadId && (
+      <RoomViewHeader threadId={effectiveThreadId} />
+      {effectiveThreadId && (
         <ThreadContextBanner
           room={room}
-          threadId={threadId}
+          threadId={effectiveThreadId}
           summaryText={threadSummaryText}
           onExitThread={handleExitThread}
         />
       )}
       <Box grow="Yes" direction="Column">
         <RoomTimeline
-          key={`${roomId}:${threadId ?? ''}`}
+          key={`${roomId}:${effectiveThreadId ?? ''}`}
           room={room}
           eventId={eventId}
           focusEventInRoom={focusEventInRoom}
-          threadId={threadId}
+          threadId={effectiveThreadId}
           threadFilterState={threadFilterState}
           threadSortFreezeState={threadSortFreezeState}
           onToggle={handleToggle}
@@ -291,7 +305,7 @@ export function RoomView({
                   room={room}
                   editor={editor}
                   roomId={roomId}
-                  threadId={threadId}
+                  threadId={effectiveThreadId}
                   fileDropContainerRef={roomViewRef}
                   ref={roomInputRef}
                 />

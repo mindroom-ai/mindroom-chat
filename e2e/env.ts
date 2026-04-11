@@ -74,6 +74,20 @@ export const getThirdCredentials = (): Credentials | undefined => {
   return { username, password };
 };
 
+export const getDeactivationCredentials = (): Credentials | undefined => {
+  const username = process.env.E2E_DEACTIVATE_USERNAME;
+  const password = process.env.E2E_DEACTIVATE_PASSWORD;
+
+  if (!username && !password) return undefined;
+  if (!username || !password) {
+    throw new Error(
+      'E2E_DEACTIVATE_USERNAME and E2E_DEACTIVATE_PASSWORD must both be set to run deactivation e2e tests.'
+    );
+  }
+
+  return { username, password };
+};
+
 const buildAuthPath = (
   authRoute: 'login' | 'register' | 'reset-password',
   homeserver: string,
