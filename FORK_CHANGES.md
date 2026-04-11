@@ -147,6 +147,61 @@
     - `npm run typecheck` passes
     - `npm run build` passes
     - `npm test` passes (`126/126` files, `1051/1051` tests)
+- `CINNY-070`
+  - Adds a recent-threads sidebar panel underneath the room-list `PageNav` content on Home, Direct Messages, and Space views.
+  - New user-scoped Jotai storage atoms:
+    - `recentThreadsAtom` stores most-recent-first `{ roomId, threadId, openedAt }` entries, de-duplicates by room/thread, and trims to 50 entries.
+    - `recentThreadsPanelHeightAtom` stores the panel height with a default of `200px`.
+  - `Room.tsx` now bumps the recent-thread list whenever thread view opens and removes stale entries when a thread open later fails.
+  - New `src/app/features/recent-threads/` UI:
+    - `RecentThreadsPageNav` wraps existing `PageNav` children without changing the shared `PageNav` API.
+    - `RecentThreadsResizer` uses pointer events, `80px` min, `60%` viewport max, and collapses the panel to a `32px` header when dragged below the minimum threshold.
+    - `RecentThreadsPanel` filters out left rooms at render time, hides itself on mobile, and renders a scrollable list with an empty state.
+    - `useRecentThreadSummary(...)` resolves per-entry text on demand in this order: live thread summary metadata, edited root-body preview, IndexedDB summary cache, then room/encryption fallback text.
+  - recent-thread entries also self-heal stored reply-event ids into canonical thread-root ids when live room data makes that mapping available.
+  - review:
+    - independent second self-review completed via a fresh `git diff` pass after implementation and validation; scope stayed limited to the new recent-thread state/UI files, the expected page-nav integrations, and the runbook update.
+    - remaining noted risk: this change currently relies on the full existing suite plus manual diff review; there is not yet dedicated focused automated coverage for the new recent-threads atoms/panel behavior.
+  - validation (2026-04-10):
+    - `npm test` passes (`126/126` files, `1059/1059` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+  - review-fix follow-up (2026-04-10):
+    - `RecentThreadsPageNav` now rebuilds visible entries from joined rooms only, so left rooms no longer remain visible just because `mx.getRoom(...)` still returns a `Room`.
+    - `recentThreadsAtom` now supports a dedicated `REKEY` action so reply-id self-heal upgrades entries to canonical root ids without downgrading `openedAt` or disturbing most-recent-first ordering.
+    - `useRecentThreadSummary(...)` now shares per-room IndexedDB summary loads through a small LRU promise cache and shares room-level thread listeners across entries instead of registering `N * 4` listeners for the same room.
+    - recent-thread summary truncation now respects the intended `120` character cap including the ellipsis, and the cheap thread-root resolution path no longer uses the old memo/version hack.
+    - `RecentThreadsResizer` now supports keyboard resizing with `tabIndex`, separator value ARIA attributes, and defensive pointerdown cleanup so repeated drags do not leak window listeners.
+    - `RecentThreadEntry` is now memoized, and the duplicated `isRecord(...)` helper for recent-thread local-storage parsing was moved to a shared util.
+    - added focused regression coverage in:
+      - `src/app/state/recentThreads.test.ts`
+      - `src/app/features/recent-threads/RecentThreadsPanel.test.ts`
+      - `src/app/features/recent-threads/useRecentThreadSummary.test.ts`
+      - `src/app/features/recent-threads/RecentThreadsResizer.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` pass after the review-fix patchset; scope stayed limited to the recent-thread state/UI/test files plus this runbook update.
+  - validation follow-up (2026-04-10):
+    - `npm test` passes (`130/130` files, `1066/1066` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` passes with the branch’s existing warning-only baseline (`78` warnings, `0` errors)
+  - round-2 review follow-up (2026-04-11):
+    - `RecentThreadEntry` now opens recent-thread sidebar targets through a direct thread-route navigation helper, so Home/Direct/Space launches no longer rewrite the origin history entry before opening the target thread.
+    - logout/cache-clear paths in `initMatrix.ts` now clear `recentThreads`, `recentThreadsPanelHeight`, and the shared recent-thread summary room caches alongside the existing thread/filter UI stores, preventing room/thread id leakage and stale `Room` references across sessions.
+    - `useRelativeTime(...)` now shares one interval per update cadence bucket instead of creating one timer per hook consumer, which removes the `N` independent recent-thread timers problem.
+    - `RecentThreadsPanel` now debounces viewport resize handling, memoizes visible-entry derivation across resize-only renders, and marks the panel body as an `aria-live="polite"` region.
+    - `recentThreads.css.ts` now gives the keyboard-focusable resizer a visible `:focus-visible` outline.
+    - added focused regression coverage in:
+      - `src/app/features/recent-threads/RecentThreadEntry.test.ts`
+      - `src/app/hooks/useRoomNavigate.test.ts`
+      - `src/app/hooks/useRelativeTime.test.ts`
+      - `src/client/initMatrix.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` pass after the round-2 fixes and targeted/full validation; scope stayed limited to recent-thread navigation/UI behavior, shared relative-time scheduling, logout cleanup wiring, focused tests, and this runbook update.
+  - validation round-2 (2026-04-11):
+    - `npm test` passes (`131/131` files, `1069/1069` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
 
 ### Validation Standard
 
@@ -481,4 +536,20 @@
   - otherwise use the first attachment as the root candidate,
   - capture the returned `event_id`,
   - and send remaining attachments as `m.thread` replies to that new root in stable selection order.
+- Docs-only validation target for this planning step is `git diff --check`.
+
+### CINNY-070: Recent Threads Panel planning note (2026-04-10)
+
+- Added repo-root `PLAN-A.md` for the left-sidebar recent-threads panel.
+- Investigation findings recorded in the plan:
+  - the requested panel belongs in the page-nav room list (`Home` / `Direct` / `Space`), not the icon-only `SidebarNav`,
+  - thread opens are currently represented canonically by room-route `threadId` search params and resolved root ids in `RoomView.tsx`,
+  - `useRoomNavigate.navigateRoomThread(...)` already provides the correct cross-home/direct/space navigation behavior for clicking a recent entry,
+  - and the existing thread-summary helpers/cache are based on timeline notice messages, not the requested `m.thread_summary` / `set_thread_summary` room-state events.
+- Planned direction:
+  - add a shared split-layout wrapper for the three page-nav room lists,
+  - persist recent-thread order plus panel height in a new localStorage atom,
+  - record opens from the canonical room-view thread route after `useThreadRootEvent(...)` resolution,
+  - resolve display text from room state first and stored fallback text second,
+  - and remove stale entries when room membership disappears or a thread-open attempt hits the existing load-error path.
 - Docs-only validation target for this planning step is `git diff --check`.
