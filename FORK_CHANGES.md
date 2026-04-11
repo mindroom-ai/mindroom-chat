@@ -202,6 +202,27 @@
     - `npm test` passes (`131/131` files, `1069/1069` tests)
     - `npm run typecheck` passes
     - `npm run build` passes
+  - bump-on-open fix follow-up (2026-04-12):
+    - investigated the shipped `Room.tsx` bump path and confirmed the `recentThreadsAtom` `BUMP` reducer itself behaves correctly: it removes any existing matching room/thread entry, appends the new `openedAt`, and preserves most-recent-first ordering after trimming.
+    - added focused regression coverage proving the `Room.tsx` search-param effect still fires in isolation for saved-thread updates when navigation enters thread mode.
+    - root cause for the production regression was that recent-thread bumping depended on `Room.tsx`'s raw URL `threadId`, while the actual thread-open source of truth lives in `RoomView` after canonical thread-root resolution (`effectiveThreadId`).
+    - `RoomView.tsx` now bumps recent threads from `effectiveThreadId`, so opening any thread immediately records the canonical open thread even when routing/canonicalization rewrites the URL under the hood.
+    - `Room.tsx` now keeps only the last-open-thread persistence responsibility; stale recent-thread removal on thread-load failure still stays there.
+    - added focused regressions in:
+      - `src/app/features/room/Room.test.ts`
+      - `src/app/features/room/RoomView.test.ts`
+      - `src/app/state/recentThreads.test.ts`
+  - review:
+    - independent second self-review completed via a fresh final `git diff` / `git diff --check` pass; scope stayed limited to the recent-thread bump path, focused tests, and this runbook update.
+  - validation bump-on-open follow-up (2026-04-12):
+    - focused Vitest passes for:
+      - `src/app/features/room/Room.test.ts`
+      - `src/app/features/room/RoomView.test.ts`
+      - `src/app/state/recentThreads.test.ts`
+    - `npm test` passes (`138/138` files, `1127/1127` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` passes with the branch baseline warning-only output (`79` warnings, `0` errors)
 
 ### Validation Standard
 

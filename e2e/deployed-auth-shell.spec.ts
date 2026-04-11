@@ -6,6 +6,11 @@ import {
   getHomeserver,
 } from './env';
 
+const isLocalHomeserver = (homeserver: string) =>
+  /(^https?:\/\/127\.0\.0\.1)|(^https?:\/\/localhost)|matrix\.localhost|127\.0\.0\.1|localhost/.test(
+    homeserver
+  );
+
 const expectAddAccountUrl = (pageUrl: string, expectedPathPrefix: string) => {
   const url = new URL(pageUrl);
   expect(url.pathname.replace(/\/$/, '')).toContain(expectedPathPrefix.replace(/\/$/, ''));
@@ -16,10 +21,11 @@ test('deployed login route renders the SSO-only auth shell with explicit server 
   page,
 }) => {
   const homeserver = getHomeserver();
+  test.skip(isLocalHomeserver(homeserver), 'Hosted SSO shell is not available on the local docker stack.');
 
   await page.goto(buildLoginPath(homeserver, true));
   await expect(page.locator('input[name="serverInput"]')).toHaveValue(homeserver);
-  await expect(page.getByText('Login')).toBeVisible();
+  await expect(page.getByRole('paragraph').filter({ hasText: 'Login' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Sign in with Apple' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Continue with Google' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Continue with GitHub' })).toBeVisible();
@@ -30,10 +36,11 @@ test('deployed register route renders the SSO sign-up shell and keeps add-accoun
   page,
 }) => {
   const homeserver = getHomeserver();
+  test.skip(isLocalHomeserver(homeserver), 'Hosted SSO shell is not available on the local docker stack.');
 
   await page.goto(buildRegisterPath(homeserver, true));
   await expect(page.locator('input[name="serverInput"]')).toHaveValue(homeserver);
-  await expect(page.getByText('Register')).toBeVisible();
+  await expect(page.getByRole('paragraph').filter({ hasText: 'Register' })).toBeVisible();
   await expect(
     page.getByText('This homeserver only allows sign up with Apple, Google, or GitHub.')
   ).toBeVisible();

@@ -5,23 +5,37 @@ import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
 } from '../helpers/browserDiagnostics';
+import {
+  createDefaultThreadFilterState,
+  joinRoom,
+  loginToMatrix,
+  seedRoomOverviewState,
+} from '../helpers/matrix';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
 const FIXTURE_ROOM_ALIAS =
   process.env.E2E_FIXTURE_ROOM_ALIAS ?? '#cinny-e2e-fixture:mindroom.lab.mindroom.chat';
 const FIXTURE_ROOM_ID = process.env.E2E_FIXTURE_ROOM_ID;
+const FIXTURE_ROOM_REF = FIXTURE_ROOM_ID || FIXTURE_ROOM_ALIAS;
 const HIDDEN_THREAD_RELATION_ROOT_MARKER = '[cinny-e2e] Hidden relation thread root';
+const SUMMARY_TEXT = 'Test summary: thread rendering and navigation verified.';
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * Navigate directly to the seeded fixture room.
  */
-async function navigateToFixtureRoom(page: import('@playwright/test').Page): Promise<boolean> {
-  await page.goto(`/home/${encodeURIComponent(FIXTURE_ROOM_ID ?? FIXTURE_ROOM_ALIAS)}`);
+async function navigateToFixtureRoom(
+  page: import('@playwright/test').Page,
+  roomIdOrAlias: string
+): Promise<boolean> {
+  await page.goto(`/home/${encodeURIComponent(roomIdOrAlias)}`);
   await waitForLoggedInShell(page);
   return true;
 }
+
+const getOverviewThreadButtons = (page: import('@playwright/test').Page) =>
+  page.locator('button[aria-label^="Open thread:"]');
 
 test.describe('live threads', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
@@ -30,10 +44,23 @@ test.describe('live threads', () => {
     const diagnostics = attachBrowserDiagnostics(page);
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    const fixtureRoomId = await joinRoom(
+      homeserver,
+      session.accessToken,
+      FIXTURE_ROOM_REF
+    );
 
     await loginWithPassword(page, { homeserver, username, password });
+    await seedRoomOverviewState({
+      page,
+      roomId: fixtureRoomId,
+      userId: session.userId,
+      viewMode: 'compact',
+      filterState: createDefaultThreadFilterState(),
+    });
 
-    const found = await navigateToFixtureRoom(page);
+    const found = await navigateToFixtureRoom(page, fixtureRoomId);
     test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
 
     // Look for thread overview panel or thread indicators in the room
@@ -53,29 +80,35 @@ test.describe('live threads', () => {
     const diagnostics = attachBrowserDiagnostics(page);
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
-
-    await loginWithPassword(page, { homeserver, username, password });
-
-    const found = await navigateToFixtureRoom(page);
-    test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
-
-    // Wait for thread counts to settle from "-" to numeric values
-    // Thread count indicators might be in thread overview or inline thread chips
-    const threadCounts = page.locator(
-      '[data-room-thread-overview="true"] [class*="count"], [class*="ThreadCount"], [class*="thread-count"]'
+    const session = await loginToMatrix(homeserver, username, password);
+    const fixtureRoomId = await joinRoom(
+      homeserver,
+      session.accessToken,
+      FIXTURE_ROOM_REF
     );
 
-    // Thread count elements must be present in the fixture room
-    await expect(threadCounts.first()).toBeVisible({
-      timeout: 30_000,
+    await loginWithPassword(page, { homeserver, username, password });
+    await seedRoomOverviewState({
+      page,
+      roomId: fixtureRoomId,
+      userId: session.userId,
+      viewMode: 'compact',
+      filterState: createDefaultThreadFilterState(),
     });
 
-    // Poll until at least one count is numeric (not "-")
+    const found = await navigateToFixtureRoom(page, fixtureRoomId);
+    test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
+
+    const threadButtons = getOverviewThreadButtons(page);
+    await expect(threadButtons.first()).toBeVisible({ timeout: 30_000 });
+
     await expect
       .poll(
         async () => {
-          const texts = await threadCounts.allTextContents();
-          return texts.some((t) => /^\d/.test(t.trim()));
+          const labels = await threadButtons.evaluateAll((elements) =>
+            elements.map((element) => element.getAttribute('aria-label') ?? '')
+          );
+          return labels.some((label) => /\b\d+\s(?:replies|msgs)\b/i.test(label));
         },
         { timeout: 30_000, message: 'Thread counts should settle to numeric values' }
       )
@@ -88,23 +121,30 @@ test.describe('live threads', () => {
     const diagnostics = attachBrowserDiagnostics(page);
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
-
-    await loginWithPassword(page, { homeserver, username, password });
-
-    const found = await navigateToFixtureRoom(page);
-    test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
-
-    // Find a clickable thread indicator (thread chip, "N replies" link, or thread overview item)
-    const threadEntry = page.locator(
-      '[class*="thread-indicator"], [class*="ThreadIndicator"], [data-room-thread-overview="true"] a, [class*="ThreadItem"]'
+    const session = await loginToMatrix(homeserver, username, password);
+    const fixtureRoomId = await joinRoom(
+      homeserver,
+      session.accessToken,
+      FIXTURE_ROOM_REF
     );
 
-    // Thread entries must be present in the fixture room
-    await expect(threadEntry.first()).toBeVisible({
-      timeout: 30_000,
+    await loginWithPassword(page, { homeserver, username, password });
+    await seedRoomOverviewState({
+      page,
+      roomId: fixtureRoomId,
+      userId: session.userId,
+      viewMode: 'compact',
+      filterState: createDefaultThreadFilterState(),
     });
 
-    await threadEntry.first().click();
+    const found = await navigateToFixtureRoom(page, fixtureRoomId);
+    test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
+
+    const threadEntry = page.getByRole('button', {
+      name: new RegExp(`${escapeRegex(SUMMARY_TEXT)}[\\s\\S]*4 msgs`, 'i'),
+    });
+    await expect(threadEntry).toBeVisible({ timeout: 30_000 });
+    await threadEntry.click();
 
     // After clicking, verify thread-specific content renders (not just room-level messages)
     const threadPanel = page.locator(
@@ -136,10 +176,23 @@ test.describe('live threads', () => {
     const diagnostics = attachBrowserDiagnostics(page);
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    const fixtureRoomId = await joinRoom(
+      homeserver,
+      session.accessToken,
+      FIXTURE_ROOM_REF
+    );
 
     await loginWithPassword(page, { homeserver, username, password });
+    await seedRoomOverviewState({
+      page,
+      roomId: fixtureRoomId,
+      userId: session.userId,
+      viewMode: 'compact',
+      filterState: createDefaultThreadFilterState(),
+    });
 
-    const found = await navigateToFixtureRoom(page);
+    const found = await navigateToFixtureRoom(page, fixtureRoomId);
     test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
 
     const hiddenRelationThreadButton = page.getByRole('button', {
@@ -160,28 +213,27 @@ test.describe('live threads', () => {
     const diagnostics = attachBrowserDiagnostics(page);
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    const fixtureRoomId = await joinRoom(
+      homeserver,
+      session.accessToken,
+      FIXTURE_ROOM_REF
+    );
 
     await loginWithPassword(page, { homeserver, username, password });
+    await seedRoomOverviewState({
+      page,
+      roomId: fixtureRoomId,
+      userId: session.userId,
+      viewMode: 'compact',
+      filterState: createDefaultThreadFilterState(),
+    });
 
-    const found = await navigateToFixtureRoom(page);
+    const found = await navigateToFixtureRoom(page, fixtureRoomId);
     test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
 
-    // Look for AI thread summary card
-    const summaryCard = page.locator('[aria-label="AI thread summary"]');
-
-    if ((await summaryCard.count()) === 0) {
-      // Summary card might be further down in the timeline — scroll to look for it
-      const timeline = page.locator('[class*="PageContent"], [class*="RoomTimeline"]');
-      if ((await timeline.count()) > 0) {
-        await timeline.first().evaluate((el) => {
-          el.scrollTop = el.scrollHeight;
-        });
-        await page.waitForTimeout(2_000);
-      }
-    }
-
-    // Summary card must be present in the fixture room (failure = rendering bug, not a skip)
-    await expect(summaryCard.first()).toBeVisible({ timeout: 10_000 });
+    const summaryCard = page.getByText(SUMMARY_TEXT).first();
+    await expect(summaryCard).toBeVisible({ timeout: 30_000 });
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'summary-card');
   });
