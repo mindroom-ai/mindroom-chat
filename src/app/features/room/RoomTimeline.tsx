@@ -159,8 +159,9 @@ import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import {
-  buildThreadParticipantMap,
   buildThreadReplyCountMap,
+  buildVisibleThreadParticipantMap,
+  buildVisibleThreadReplyCountMap,
   eventBelongsToThread,
   isThreadReplyEvent,
 } from './threadUtils';
@@ -477,7 +478,7 @@ export const getRoomPreloadCounts = (
     filterOpts.hideMembershipEvents,
     filterOpts.hideNickAvatarEvents
   );
-  const threadReplyCountMap = buildThreadReplyCountMap(loadedTimelineEvents);
+  const threadReplyCountMap = buildVisibleThreadReplyCountMap(loadedTimelineEvents);
   const surfaceEntries =
     filterOpts.threadId || threadReplyCountMap.size === 0
       ? renderableEventEntries
@@ -867,23 +868,35 @@ export const getThreadReplyCount = (
   fallbackReplyCount?: number,
   allowZeroReplyCount = false
 ): number | undefined => {
+  const eventId = mEvent.getId();
+  if (!eventId) return undefined;
+
+  const thread = room.getThread(eventId);
+  const loadedThreadEvents =
+    thread?.events && thread.events.length > 0
+      ? thread.events
+      : thread?.timeline && thread.timeline.length > 0
+        ? thread.timeline
+        : undefined;
+  if (loadedThreadEvents && loadedThreadEvents.length > 0) {
+    const visibleThreadReplyCount =
+      buildVisibleThreadReplyCountMap(loadedThreadEvents).get(eventId) ?? 0;
+    if (visibleThreadReplyCount > 0 || allowZeroReplyCount) {
+      return visibleThreadReplyCount;
+    }
+  }
+
   const threadMeta = mEvent.getUnsigned()?.['m.relations']?.['m.thread'] as
     | { count?: unknown; c?: unknown }
     | undefined;
   if (typeof threadMeta?.count === 'number') return threadMeta.count;
   if (typeof threadMeta?.c === 'number') return threadMeta.c;
 
-  // Prefer SDK thread model when available.
-  const eventId = mEvent.getId();
-  if (!eventId) return undefined;
-  const thread = room.getThread(eventId);
   const threadLength = thread?.length;
   if (typeof threadLength === 'number' && (threadLength > 0 || allowZeroReplyCount)) {
     return threadLength;
   }
 
-  // Runtime fallback for threadSupport-disabled mode:
-  // derive counts from loaded room timeline events.
   if (typeof fallbackReplyCount === 'number' && (fallbackReplyCount > 0 || allowZeroReplyCount)) {
     return fallbackReplyCount;
   }
@@ -902,14 +915,24 @@ const getKnownThreadReplyCount = (mEvent: MatrixEvent): number | undefined => {
 };
 
 export const shouldRenderZeroReplyThreadBadge = (room: Room, mEvent: MatrixEvent): boolean => {
-  const threadReplyCount = getKnownThreadReplyCount(mEvent);
-  if (threadReplyCount === 0) return true;
-
   const eventId = mEvent.getId();
   if (eventId) {
-    const threadLength = room.getThread(eventId)?.length;
-    if (threadLength === 0) return true;
+    const thread = room.getThread(eventId);
+    const loadedThreadEvents =
+      thread?.events && thread.events.length > 0
+        ? thread.events
+        : thread?.timeline && thread.timeline.length > 0
+          ? thread.timeline
+          : undefined;
+    if (loadedThreadEvents && loadedThreadEvents.length > 0) {
+      const visibleThreadReplyCount =
+        buildVisibleThreadReplyCountMap(loadedThreadEvents).get(eventId) ?? 0;
+      if (visibleThreadReplyCount === 0) return true;
+    }
   }
+
+  const threadReplyCount = getKnownThreadReplyCount(mEvent);
+  if (threadReplyCount === 0) return true;
 
   return isZeroReplyStandaloneThreadRootEvent(mEvent);
 };
@@ -1028,7 +1051,7 @@ const getThreadParticipantIds = (
     const thread = room.getThread(eventId);
     if (thread?.events?.length) {
       const participants =
-        buildThreadParticipantMap(thread.events, THREAD_PARTICIPANT_LIMIT).get(eventId) ?? [];
+        buildVisibleThreadParticipantMap(thread.events, THREAD_PARTICIPANT_LIMIT).get(eventId) ?? [];
       if (participants.length > 0) return participants;
     }
   }
@@ -2838,12 +2861,12 @@ export function RoomTimeline({
     return getLinkedTimelineEvents(timeline.linkedTimelines);
   }, [threadId, timeline]);
   const threadReplyCountMap = useMemo(
-    () => (threadId ? new Map<string, number>() : buildThreadReplyCountMap(loadedTimelineEvents)),
+    () => (threadId ? new Map<string, number>() : buildVisibleThreadReplyCountMap(loadedTimelineEvents)),
     [threadId, loadedTimelineEvents]
   );
   const threadParticipantMap = useMemo(
     () =>
-      threadId ? new Map<string, string[]>() : buildThreadParticipantMap(loadedTimelineEvents),
+      threadId ? new Map<string, string[]>() : buildVisibleThreadParticipantMap(loadedTimelineEvents),
     [threadId, loadedTimelineEvents]
   );
   const threadSummaryInfoMap = useMemo(
@@ -5054,7 +5077,7 @@ export function RoomTimeline({
           hideNickAvatarEvents
         );
         const loadedRenderableEvents = renderableEntries.map(({ event }) => event);
-        const loadedThreadReplyCountMap = buildThreadReplyCountMap(
+        const loadedThreadReplyCountMap = buildVisibleThreadReplyCountMap(
           lTimelines.flatMap((timeline) => timeline.getEvents())
         );
         const anchor =

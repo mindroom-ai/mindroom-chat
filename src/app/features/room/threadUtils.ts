@@ -1,6 +1,7 @@
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { MessageEvent, StateEvent } from '../../../types/matrix/room';
 
 type ThreadEventLike = {
   getId(): string | undefined;
@@ -8,6 +9,29 @@ type ThreadEventLike = {
   getSender?(): string | undefined;
   getRelation?(): { rel_type?: string } | null | undefined;
 };
+
+type VisibleThreadEventLike = ThreadEventLike & {
+  getType?(): string | undefined;
+  isRedacted?(): boolean;
+  isRedaction?(): boolean;
+};
+
+export type VisibleThreadEventCollectionLike = {
+  rootEvent?: MatrixEvent;
+  length?: number;
+  events?: MatrixEvent[];
+  timeline?: MatrixEvent[];
+};
+
+const VISIBLE_THREAD_REPLY_EVENT_TYPES = new Set<string>([
+  MessageEvent.RoomMessage,
+  MessageEvent.RoomMessageEncrypted,
+  MessageEvent.Sticker,
+  StateEvent.RoomMember,
+  StateEvent.RoomName,
+  StateEvent.RoomTopic,
+  StateEvent.RoomAvatar,
+]);
 
 const isThreadRelation = (event: ThreadEventLike): boolean => {
   const relationType = event.getRelation?.()?.rel_type;
@@ -19,6 +43,80 @@ export const eventBelongsToThread = (event: ThreadEventLike, threadId: string): 
 
 export const isThreadReplyEvent = (eventId: string, threadRootId?: string): boolean =>
   !!threadRootId && threadRootId !== eventId;
+
+export const isVisibleThreadReplyEventType = (eventType: string | undefined): boolean =>
+  !!eventType && VISIBLE_THREAD_REPLY_EVENT_TYPES.has(eventType);
+
+export const isVisibleThreadReplyEvent = (event: VisibleThreadEventLike): boolean => {
+  const eventId = event.getId();
+  const { threadRootId } = event;
+  if (!eventId || !threadRootId || eventId === threadRootId) return false;
+  if (!isThreadRelation(event)) return false;
+  if (event.isRedacted?.() || event.isRedaction?.()) return false;
+
+  return isVisibleThreadReplyEventType(event.getType?.());
+};
+
+export const getPreferredVisibleThreadReplyEvents = (
+  thread: VisibleThreadEventCollectionLike | null | undefined
+): MatrixEvent[] => {
+  const replyEvents = thread?.events?.length
+    ? thread.events
+    : thread?.timeline?.length
+      ? thread.timeline
+      : thread?.events ?? thread?.timeline ?? [];
+  return replyEvents.filter(isVisibleThreadReplyEvent);
+};
+
+export const hasLoadedThreadReplyEvents = (
+  thread:
+    | Pick<VisibleThreadEventCollectionLike, 'events' | 'timeline'>
+    | null
+    | undefined
+): boolean => {
+  if (thread?.events && thread.events.length > 0) return true;
+  return !!thread?.timeline && thread.timeline.length > 0;
+};
+
+export const getVisibleThreadMessageCount = (
+  thread: VisibleThreadEventCollectionLike | null | undefined,
+  fallbackMessageCount?: number
+): number => {
+  const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
+  if (replyEvents.length > 0) return replyEvents.length;
+  if (hasLoadedThreadReplyEvents(thread)) return 0;
+  if (typeof thread?.length === 'number' && thread.length > 0) return thread.length;
+  if (typeof fallbackMessageCount === 'number' && fallbackMessageCount > 0) {
+    return fallbackMessageCount;
+  }
+
+  return 0;
+};
+
+export const getVisibleThreadParticipantIds = (
+  thread: VisibleThreadEventCollectionLike | null | undefined,
+  threadRootEvent: MatrixEvent | undefined,
+  maxParticipants = 3
+): string[] => {
+  const participantIds: string[] = [];
+  const seenParticipantIds = new Set<string>();
+  const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
+
+  for (let i = replyEvents.length - 1; i >= 0 && participantIds.length < maxParticipants; i -= 1) {
+    const senderId = replyEvents[i].getSender?.();
+    if (!senderId || seenParticipantIds.has(senderId)) continue;
+
+    seenParticipantIds.add(senderId);
+    participantIds.push(senderId);
+  }
+
+  const rootSenderId = threadRootEvent?.getSender?.();
+  if (participantIds.length < maxParticipants && rootSenderId && !seenParticipantIds.has(rootSenderId)) {
+    participantIds.push(rootSenderId);
+  }
+
+  return participantIds;
+};
 
 export const buildThreadReplyCountMap = (events: ThreadEventLike[]): Map<string, number> => {
   const seenEventIds = new Set<string>();
@@ -33,6 +131,28 @@ export const buildThreadReplyCountMap = (events: ThreadEventLike[]): Map<string,
     seenEventIds.add(eventId);
 
     if (!isThreadRelation(event)) return;
+
+    counts.set(threadRootId, (counts.get(threadRootId) ?? 0) + 1);
+  });
+
+  return counts;
+};
+
+export const buildVisibleThreadReplyCountMap = (
+  events: VisibleThreadEventLike[]
+): Map<string, number> => {
+  const seenEventIds = new Set<string>();
+  const counts = new Map<string, number>();
+
+  events.forEach((event) => {
+    const eventId = event.getId();
+    const { threadRootId } = event;
+    if (!eventId || !threadRootId || eventId === threadRootId || seenEventIds.has(eventId)) {
+      return;
+    }
+    seenEventIds.add(eventId);
+
+    if (!isVisibleThreadReplyEvent(event)) return;
 
     counts.set(threadRootId, (counts.get(threadRootId) ?? 0) + 1);
   });
@@ -57,6 +177,41 @@ export const buildThreadParticipantMap = (
     seenEventIds.add(eventId);
 
     if (!isThreadRelation(event)) return;
+
+    const senderId = event.getSender?.();
+    if (!senderId) return;
+
+    const threadParticipants = participants.get(threadRootId) ?? [];
+    if (threadParticipants.length >= maxParticipants) return;
+
+    const threadParticipantSet = participantSets.get(threadRootId) ?? new Set<string>();
+    if (threadParticipantSet.has(senderId)) return;
+
+    threadParticipantSet.add(senderId);
+    participantSets.set(threadRootId, threadParticipantSet);
+    participants.set(threadRootId, [...threadParticipants, senderId]);
+  });
+
+  return participants;
+};
+
+export const buildVisibleThreadParticipantMap = (
+  events: VisibleThreadEventLike[],
+  maxParticipants = 3
+): Map<string, string[]> => {
+  const seenEventIds = new Set<string>();
+  const participants = new Map<string, string[]>();
+  const participantSets = new Map<string, Set<string>>();
+
+  [...events].reverse().forEach((event) => {
+    const eventId = event.getId();
+    const { threadRootId } = event;
+    if (!eventId || !threadRootId || eventId === threadRootId || seenEventIds.has(eventId)) {
+      return;
+    }
+    seenEventIds.add(eventId);
+
+    if (!isVisibleThreadReplyEvent(event)) return;
 
     const senderId = event.getSender?.();
     if (!senderId) return;
