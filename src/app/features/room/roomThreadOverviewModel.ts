@@ -15,6 +15,10 @@ import {
 } from './compactThreadRootData';
 import { parseScheduledTaskStateEvent } from '../../utils/scheduledTaskContract';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
+import {
+  getPreferredVisibleThreadReplyEvents,
+  getVisibleThreadMessageCount,
+} from './threadUtils';
 
 // ─── Tri-state types ─────────────────────────────────────────────────────────
 
@@ -483,42 +487,6 @@ export const getThreadRootPreviewText = (room: Room, threadRootId: string): stri
 
 // ─── Thread metadata helpers ─────────────────────────────────────────────────
 
-const getPreferredThreadReplyEvents = (
-  thread:
-    | {
-        events?: MatrixEvent[];
-        timeline?: MatrixEvent[];
-      }
-    | null
-    | undefined
-): MatrixEvent[] => {
-  if (thread?.events?.length) return thread.events;
-  if (thread?.timeline?.length) return thread.timeline;
-  return thread?.events ?? thread?.timeline ?? [];
-};
-
-const getThreadMessageCount = (
-  thread:
-    | {
-        length?: number;
-        events?: MatrixEvent[];
-        timeline?: MatrixEvent[];
-      }
-    | null
-    | undefined,
-  fallbackMessageCount?: number
-): number => {
-  if (typeof thread?.length === 'number' && thread.length > 0) return thread.length;
-
-  const replyEvents = getPreferredThreadReplyEvents(thread);
-  if (replyEvents.length > 0) return replyEvents.length;
-  if (typeof fallbackMessageCount === 'number' && fallbackMessageCount > 0) {
-    return fallbackMessageCount;
-  }
-
-  return 0;
-};
-
 const getParticipantDisplayNameFromIds = (
   room: Room,
   participantIds: string[] | undefined,
@@ -542,7 +510,7 @@ const getThreadNonUserParticipantDisplayName = (
     | undefined,
   currentUserId: string
 ): string | undefined => {
-  const candidateEvents = [thread?.rootEvent, ...getPreferredThreadReplyEvents(thread)];
+  const candidateEvents = [thread?.rootEvent, ...getPreferredVisibleThreadReplyEvents(thread)];
   const participantEvent = candidateEvents.find(
     (event) =>
       !!event &&
@@ -641,7 +609,7 @@ export const buildThreadMetadataMap = (
     const lastActivityTs = Math.max(liveLastActivityTs, cachedLastActivityTs, rootEventTs);
     const absoluteIndex = absoluteIndexMap.get(threadRootId) ?? 0;
     const unread = isThreadUnread(room, threadRootId, currentUserId, readUpToTs);
-    const replyEvents = getPreferredThreadReplyEvents(thread);
+    const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
     const fallbackParticipantIds = threadParticipantMap.get(threadRootId);
     const lastEvent = replyEvents[replyEvents.length - 1];
     const lastSenderId =
@@ -655,7 +623,7 @@ export const buildThreadMetadataMap = (
     const summaryInfo = summaryMap.get(threadRootId);
     const messageCount =
       summaryInfo?.messageCount ??
-      getThreadMessageCount(thread, threadReplyCountMap.get(threadRootId));
+      getVisibleThreadMessageCount(thread, threadReplyCountMap.get(threadRootId));
     const participantDisplayName =
       getThreadNonUserParticipantDisplayName(room, thread, currentUserId) ??
       getParticipantDisplayNameFromIds(room, fallbackParticipantIds, currentUserId);

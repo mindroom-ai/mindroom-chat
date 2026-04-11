@@ -82,6 +82,88 @@ describe('RoomTimeline', () => {
     ).toEqual([makeCachedRoomEvent('$new', 200)]);
   });
 
+  it('shows zero visible replies when a loaded thread only contains hidden threaded metadata relations', async () => {
+    const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } = await import('./RoomTimeline');
+    const rootEvent = makeEvent('$thread-root', {
+      isThreadRoot: true,
+      ts: 100,
+      unsigned: {
+        'm.relations': {
+          'm.thread': {
+            count: 3,
+            latest_event: {
+              type: 'com.mindroom.thread.tag',
+            },
+          },
+        },
+      },
+    });
+    const hiddenTagEvents = [
+      makeEvent('$thread-tag-1', {
+        threadRootId: '$thread-root',
+        relation: { event_id: '$thread-root', rel_type: 'm.thread' },
+        type: 'com.mindroom.thread.tag',
+        ts: 200,
+      }),
+      makeEvent('$thread-tag-2', {
+        threadRootId: '$thread-root',
+        relation: { event_id: '$thread-root', rel_type: 'm.thread' },
+        type: 'com.mindroom.thread.tag',
+        ts: 210,
+      }),
+      makeEvent('$thread-tag-3', {
+        threadRootId: '$thread-root',
+        relation: { event_id: '$thread-root', rel_type: 'm.thread' },
+        type: 'com.mindroom.thread.tag',
+        ts: 220,
+      }),
+    ];
+    const room = makeRoom({ liveEvents: [rootEvent] });
+    room.getThread = (eventId: string) =>
+      eventId === '$thread-root'
+        ? ({
+            events: hiddenTagEvents,
+            length: 3,
+            rootEvent,
+            timeline: hiddenTagEvents,
+          } as never)
+        : null;
+
+    expect(getThreadReplyCount(room as never, rootEvent as never, undefined, true)).toBe(0);
+    expect(shouldRenderZeroReplyThreadBadge(room as never, rootEvent as never)).toBe(true);
+  });
+
+  it('preserves bundled thread counts when a thread root is visible before replies are loaded', async () => {
+    const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } = await import('./RoomTimeline');
+    const rootEvent = makeEvent('$thread-root', {
+      isThreadRoot: true,
+      ts: 100,
+      unsigned: {
+        'm.relations': {
+          'm.thread': {
+            count: 3,
+            latest_event: {
+              type: 'm.room.message',
+            },
+          },
+        },
+      },
+    });
+    const room = makeRoom({ liveEvents: [rootEvent] });
+    room.getThread = (eventId: string) =>
+      eventId === '$thread-root'
+        ? ({
+            events: [],
+            length: 3,
+            rootEvent,
+            timeline: [],
+          } as never)
+        : null;
+
+    expect(getThreadReplyCount(room as never, rootEvent as never)).toBe(3);
+    expect(shouldRenderZeroReplyThreadBadge(room as never, rootEvent as never)).toBe(false);
+  });
+
   it('hydrates cached room events into the live timeline', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
     const { hydrateCachedEvents } = await import('./eventCacheEditUtils');

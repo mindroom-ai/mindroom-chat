@@ -1,9 +1,16 @@
 import { Direction } from 'matrix-js-sdk/lib/models/event-timeline';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
+import { isVisibleThreadReplyEvent } from './threadUtils';
+
+const getLatestVisibleReply = (thread: Thread) =>
+  [...(thread.events ?? [])].reverse().find(isVisibleThreadReplyEvent) ??
+  (thread.replyToEvent && isVisibleThreadReplyEvent(thread.replyToEvent)
+    ? thread.replyToEvent
+    : undefined);
 
 export const getThreadLastActivityTs = (thread: Thread): number =>
-  thread.replyToEvent?.getTs() ?? thread.rootEvent?.getTs() ?? 0;
+  getLatestVisibleReply(thread)?.getTs() ?? thread.rootEvent?.getTs() ?? 0;
 
 /**
  * Check if a single thread has unread messages.
@@ -15,10 +22,9 @@ export const getThreadUnread = (
   thread: Thread,
   userId: string
 ): boolean => {
-  const replyEvents = thread.events ?? [];
-  if (replyEvents.length === 0) return false;
+  const latestReply = getLatestVisibleReply(thread);
+  if (!latestReply) return false;
 
-  const latestReply = replyEvents[replyEvents.length - 1];
   if (latestReply.getSender() === userId) return false;
 
   const readUpToId = room.getEventReadUpTo(userId);

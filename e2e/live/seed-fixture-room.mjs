@@ -14,7 +14,8 @@
  *   1. Logs in via Matrix CS API
  *   2. Creates or joins room with the configured fixture alias
  *   3. Sends a thread root + 3 thread replies (if not already present)
- *   4. Sends an m.notice with io.mindroom.thread_summary content (if not already present)
+ *   4. Sends a thread root + 3 hidden threaded metadata relations (if not already present)
+ *   5. Sends an m.notice with io.mindroom.thread_summary content (if not already present)
  *
  * Idempotency: checks room state before sending. Safe to run multiple times.
  */
@@ -29,6 +30,7 @@ const ROOM_ALIAS_LOCAL = (() => {
   return match ? match[1] : 'cinny-e2e-fixture';
 })();
 const THREAD_ROOT_MARKER = '[cinny-e2e] Thread fixture root';
+const HIDDEN_THREAD_RELATION_ROOT_MARKER = '[cinny-e2e] Hidden relation thread root';
 const SUMMARY_MARKER = '[cinny-e2e] Thread summary fixture';
 
 if (!USERNAME || !PASSWORD) {
@@ -120,14 +122,18 @@ function findEventByBody(messages, marker) {
   );
 }
 
-async function sendMessage(token, roomId, content) {
+async function sendEvent(token, roomId, eventType, content) {
   const txnId = `cinny-e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const result = await matrixFetch(
-    `/rooms/${encodeURIComponent(roomId)}/send/m.room.message/${txnId}`,
+    `/rooms/${encodeURIComponent(roomId)}/send/${encodeURIComponent(eventType)}/${txnId}`,
     token,
     { method: 'PUT', body: JSON.stringify(content) }
   );
   return result.event_id;
+}
+
+async function sendMessage(token, roomId, content) {
+  return sendEvent(token, roomId, 'm.room.message', content);
 }
 
 async function seedThreadFixture(token, roomId, messages) {
@@ -166,6 +172,37 @@ async function seedThreadFixture(token, roomId, messages) {
       },
     });
     console.log(`  Thread reply ${i + 1}: ${replyId}`);
+  }
+
+  return rootId;
+}
+
+async function seedHiddenThreadRelationFixture(token, roomId, messages) {
+  const existingRoot = findEventByBody(messages, HIDDEN_THREAD_RELATION_ROOT_MARKER);
+  if (existingRoot) {
+    console.log(
+      `Hidden threaded metadata fixture already seeded (root: ${existingRoot.event_id}). Skipping.`
+    );
+    return existingRoot.event_id;
+  }
+
+  console.log('Sending hidden-threaded-metadata root...');
+  const rootId = await sendMessage(token, roomId, {
+    msgtype: 'm.text',
+    body: `${HIDDEN_THREAD_RELATION_ROOT_MARKER}\n\nThis root only has hidden threaded metadata relations and should still show 0 replies in the UI.`,
+  });
+  console.log(`  Hidden relation root: ${rootId}`);
+
+  for (const [index, tagName] of ['alpha', 'beta', 'gamma'].entries()) {
+    await new Promise((r) => setTimeout(r, 250));
+    const tagEventId = await sendEvent(token, roomId, 'com.mindroom.thread.tag', {
+      name: tagName,
+      'm.relates_to': {
+        rel_type: 'm.thread',
+        event_id: rootId,
+      },
+    });
+    console.log(`  Hidden relation ${index + 1}: ${tagEventId}`);
   }
 
   return rootId;
@@ -212,6 +249,7 @@ async function main() {
   const messages = await getMessages(token, roomId);
 
   const rootId = await seedThreadFixture(token, roomId, messages);
+  await seedHiddenThreadRelationFixture(token, roomId, messages);
   await seedSummaryFixture(token, roomId, messages, rootId);
 
   console.log('\nFixture seeding complete.');
