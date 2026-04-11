@@ -84,6 +84,14 @@ export const useRoomNavigate = () => {
     [navigate, getRoomPath]
   );
 
+  const navigateRoomThreadDirect = useCallback(
+    (roomId: string, threadId: string, eventId?: string, opts?: NavigateOptions) => {
+      const roomPath = getRoomPath(roomId, eventId);
+      navigate(withSearchParam<_RoomSearchParams>(roomPath, { threadId }), opts);
+    },
+    [navigate, getRoomPath]
+  );
+
   const navigateRoomThread = useCallback(
     (roomId: string, threadId: string, eventId?: string, opts?: NavigateOptions) => {
       if (!opts?.replace) {
@@ -106,16 +114,16 @@ export const useRoomNavigate = () => {
         }
       }
 
-      const roomPath = getRoomPath(roomId, eventId);
-      navigate(withSearchParam<_RoomSearchParams>(roomPath, { threadId }), opts);
+      navigateRoomThreadDirect(roomId, threadId, eventId, opts);
     },
-    [navigate, getRoomPath, hashRouter]
+    [navigateRoomThreadDirect, getRoomPath, hashRouter]
   );
 
   return {
     navigateSpace,
     navigateRoom,
     navigateRoomFocusEvent,
+    navigateRoomThreadDirect,
     navigateRoomThread,
   };
 };

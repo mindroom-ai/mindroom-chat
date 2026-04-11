@@ -11,6 +11,11 @@ import { makeOpenedSidebarFolderAtom } from '../../state/openedSidebarFolder';
 import { OpenedSidebarFolderProvider } from '../../state/hooks/openedSidebarFolder';
 import { makeCallPreferencesAtom } from '../../state/callPreferences';
 import { CallPreferencesProvider } from '../../state/hooks/callPreferences';
+import { makeRecentThreadsAtom, registerRecentThreadsAtom } from '../../state/recentThreads';
+import {
+  makeRecentThreadsPanelHeightAtom,
+  registerRecentThreadsPanelHeightAtom,
+} from '../../state/recentThreadsPanelHeight';
 
 type ClientInitStorageAtomProps = {
   children: ReactNode;
@@ -30,7 +35,27 @@ export function ClientInitStorageAtom({ children }: ClientInitStorageAtomProps) 
   const openedSidebarFolderAtom = useMemo(() => makeOpenedSidebarFolderAtom(userId), [userId]);
 
   const callPreferencesAtom = useMemo(() => makeCallPreferencesAtom(userId), [userId]);
-  useLayoutEffect(() => registerLastOpenThreadAtom(lastOpenThreadAtom), [lastOpenThreadAtom]);
+
+  const recentThreadsAtom = useMemo(() => makeRecentThreadsAtom(userId), [userId]);
+
+  const recentThreadsPanelHeightAtom = useMemo(
+    () => makeRecentThreadsPanelHeightAtom(userId),
+    [userId]
+  );
+
+  useLayoutEffect(() => {
+    const unregisterLastOpenThreadAtom = registerLastOpenThreadAtom(lastOpenThreadAtom);
+    const unregisterRecentThreadsAtom = registerRecentThreadsAtom(recentThreadsAtom);
+    const unregisterRecentThreadsPanelHeightAtom = registerRecentThreadsPanelHeightAtom(
+      recentThreadsPanelHeightAtom
+    );
+
+    return () => {
+      unregisterRecentThreadsPanelHeightAtom();
+      unregisterRecentThreadsAtom();
+      unregisterLastOpenThreadAtom();
+    };
+  }, [lastOpenThreadAtom, recentThreadsAtom, recentThreadsPanelHeightAtom]);
 
   return (
     <ClosedNavCategoriesProvider value={closedNavCategoriesAtom}>
