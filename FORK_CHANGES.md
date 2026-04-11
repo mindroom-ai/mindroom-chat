@@ -553,3 +553,97 @@
   - resolve display text from room state first and stored fallback text second,
   - and remove stale entries when room membership disappears or a thread-open attempt hits the existing load-error path.
 - Docs-only validation target for this planning step is `git diff --check`.
+
+### CINNY-071: In-thread approval card rendering (2026-04-10)
+
+- Added `src/app/components/message/mindroomToolApproval.ts`:
+  - exports the `io.mindroom.tool_approval` event constant,
+  - parses approval events into typed approval-card data,
+  - prefers `m.new_content` for edits,
+  - and falls back to original content fields when approval edits omit unchanged fields.
+- Added `src/app/components/message/MindroomToolApprovalCard.tsx` and `src/app/components/message/MindroomToolApprovalCard.css.ts`:
+  - renders pending approvals as inline approval cards with tool name, collapsible JSON arguments, agent/time metadata, and approve/deny actions,
+  - renders approved / denied / expired states with status-specific styling,
+  - supports deny-reason entry before confirmation,
+  - and calls the approvals API directly from the timeline card.
+- Added minimal approvals API client at `src/app/features/approvals/api.ts`:
+  - defaults to `VITE_MINDROOM_API_URL ?? http://localhost:8765`,
+  - exposes `approveRequest(id)` and `denyRequest(id, reason?)`,
+  - and surfaces server error payloads when the request fails.
+- Timeline/rendering integration:
+  - `src/app/components/RenderMessageContent.tsx` now accepts an optional `eventType` and routes `io.mindroom.tool_approval` events to the approval card before normal `msgtype` rendering.
+  - `src/app/features/room/RoomTimeline.tsx` now treats `io.mindroom.tool_approval` as a known renderable event type and renders it through the normal `Message` surface in thread timelines instead of hiding it behind the unknown-event fallback.
+  - the custom approval renderer preserves original event content plus edited `m.new_content`, so partial approval edits still resolve correctly.
+- Edit/backfill follow-up:
+  - `src/app/features/room/threadEditBackfillUtils.ts` now always allows approval events into the thread edit-backfill path once the thread tail is loaded, so cached thread opens can upgrade pending approvals to resolved edits.
+- Tests:
+  - added `src/app/components/message/mindroomToolApproval.test.ts`
+  - added `src/app/components/message/MindroomToolApprovalCard.test.ts`
+  - expanded `src/app/components/RenderMessageContent.test.ts`
+  - expanded `src/app/features/room/threadEditBackfillUtils.test.ts`
+  - expanded `src/app/features/room/RoomTimeline.cache.test.ts`
+- Review:
+  - independent second self-review completed via fresh `git diff`, targeted source reads, and `git diff --check`.
+  - review fix follow-up:
+    - switched approval rendering off the generic flattened edit-content helper after confirming that partial approval edits would otherwise lose original approval fields needed for parsing.
+    - removed the misleading future-relative expiry label from the pending card because the shared relative-time helper intentionally clamps future timestamps to `now`.
+- Validation (2026-04-10):
+  - `npm test` passes (`128/128` files, `1069/1069` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `npm run lint` passes with existing repo warnings (`0` errors, `78` warnings)
+- Review round-1 fix follow-up (2026-04-11):
+  - `src/app/features/approvals/api.ts` now sends `X-Matrix-Access-Token` from the authenticated Matrix client and mirrors the local-MindRoom browser/native transport split so approval actions also work on Capacitor/native platforms.
+  - `src/app/components/message/MindroomToolApprovalCard.tsx` now holds pending cards in a local submitted state after a successful approve/deny call, keeps action buttons unavailable until the Matrix edit lands, and shows explicit "Submitted" feedback instead of reverting to actionable pending UI.
+  - `src/app/features/room/RoomTimeline.tsx` now gives `io.mindroom.tool_approval` events the same thread-root indicator path as normal/encrypted messages, including zero-reply badges, reply counts, participant avatars, and thread summaries.
+  - added focused regressions in:
+    - `src/app/features/approvals/api.test.ts`
+    - `src/app/features/room/RoomTimeline.approval.test.ts`
+    - `src/app/components/message/MindroomToolApprovalCard.test.ts`
+    - updated shared room-timeline test harness coverage in `src/app/features/room/RoomTimeline.test.shared.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` pass plus targeted source reads after validation; scope stayed limited to approval submission/rendering behavior, focused tests, and this runbook update.
+  - validation (2026-04-11):
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npx vitest run --reporter=verbose` passes (`135/135` files, `1085/1085` tests)
+    - `npm run lint` passes with the branch’s existing warning-only baseline (`0` errors, `78` warnings)
+- Review round-2 fix follow-up (2026-04-11):
+  - `src/app/features/room/RoomTimeline.tsx` now re-checks the post-decryption event type inside the encrypted renderer branch and routes decrypted `io.mindroom.tool_approval` events back through the normal approval-content renderer instead of falling through to `MessageUnsupportedContent`.
+  - `src/app/components/message/MindroomToolApprovalCard.tsx` now clears stale local API error text when request state exits error and when the approval status resolves to `approved`, `denied`, or `expired`, so resolved cards no longer show stale failure text.
+  - the deny-reason `Input` in `src/app/components/message/MindroomToolApprovalCard.tsx` now exposes `aria-label="Deny reason (optional)"`.
+  - added focused regressions in:
+    - `src/app/features/room/RoomTimeline.approval.test.ts`
+    - `src/app/components/message/MindroomToolApprovalCard.test.ts`
+    - updated encrypted-event support in `src/app/features/room/RoomTimeline.test.shared.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after validation; scope stayed limited to approval timeline rendering, approval-card state/accessibility, focused tests, and this runbook update.
+  - validation (2026-04-11):
+    - `npm test` passes (`135/135` files, `1087/1087` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` passes with the branch’s existing warning-only baseline (`0` errors, `78` warnings)
+- Review round-3 fix follow-up (2026-04-11):
+  - `src/app/components/message/MindroomToolApprovalCard.tsx` now uses a synchronous `submittingRef` gate around approve/deny submission so rapid double-clicks or repeated Enter submits cannot dispatch duplicate approval API requests before `useAsyncCallback` flips into loading state.
+  - `src/app/features/room/room-pin-menu/RoomPinMenu.tsx` now treats `io.mindroom.tool_approval` as a first-class pinned renderable event and routes both direct and decrypted encrypted approval events back through `RenderMessageContent`, preserving approval-card rendering in the pin menu instead of falling back to the raw-event surface.
+  - added focused regressions in:
+    - `src/app/components/message/MindroomToolApprovalCard.test.ts`
+    - `src/app/features/room/room-pin-menu/RoomPinMenu.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after validation; scope stayed limited to approval submission guarding, pinned approval rendering, focused tests, and this runbook update.
+  - validation (2026-04-11):
+    - `npm test` passes (`136/136` files, `1090/1090` tests)
+    - `npx tsc --noEmit` passes
+    - `npm run build` passes
+- Review round-4 fix follow-up (2026-04-11):
+  - `src/app/features/room/room-pin-menu/RoomPinMenu.tsx` now resolves decrypted encrypted approval cards through `getEditedEvent(eventId, mEvent, evtTimeline.getTimelineSet())` before building approval render content, so relation-only approval edits upgrade pinned encrypted cards instead of leaving stale pending state/content behind.
+  - `src/app/components/message/MindroomToolApprovalCard.tsx` now moves focus into the deny form when it opens (input first, confirm button as fallback) and restores focus to the deny trigger when the form is cancelled, fixing the keyboard-focus loss caused by unmounting the previous action row.
+  - added focused regressions in:
+    - `src/app/components/message/MindroomToolApprovalCard.test.ts`
+    - `src/app/features/room/room-pin-menu/RoomPinMenu.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after validation; scope stayed limited to pinned approval edit resolution, approval-card focus management, focused tests, and this runbook update.
+  - validation (2026-04-11):
+    - `npm test` passes (`136/136` files, `1092/1092` tests)
+    - `npx tsc --noEmit` passes
+    - `npm run build` passes
