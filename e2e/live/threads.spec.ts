@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
-import { loginWithPassword } from '../helpers/auth';
+import { loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
@@ -9,33 +9,18 @@ import {
 const hasCredentials = !!process.env.E2E_USERNAME;
 const FIXTURE_ROOM_ALIAS =
   process.env.E2E_FIXTURE_ROOM_ALIAS ?? '#cinny-e2e-fixture:mindroom.lab.mindroom.chat';
+const FIXTURE_ROOM_ID = process.env.E2E_FIXTURE_ROOM_ID;
+const HIDDEN_THREAD_RELATION_ROOT_MARKER = '[cinny-e2e] Hidden relation thread root';
+
+const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * Navigate to the fixture room by searching for it or finding it in the room list.
- * Returns true if the room was found and navigated to, false otherwise.
+ * Navigate directly to the seeded fixture room.
  */
 async function navigateToFixtureRoom(page: import('@playwright/test').Page): Promise<boolean> {
-  // Wait for room list to load
-  const roomLinks = page.locator('nav a[aria-selected]');
-  try {
-    await expect(roomLinks.first()).toBeVisible({ timeout: 30_000 });
-  } catch {
-    return false;
-  }
-
-  // Look for the fixture room by name in the sidebar
-  const fixtureRoom = page.locator('nav a', { hasText: 'Cinny E2E Fixture Room' });
-  if ((await fixtureRoom.count()) > 0) {
-    await fixtureRoom.first().click();
-    // Wait for timeline to render
-    const timeline = page.locator('[class*="PageContent"], [class*="RoomTimeline"]');
-    await expect(timeline.first()).toBeVisible({ timeout: 30_000 });
-    return true;
-  }
-
-  // Fixture room not in sidebar — try joining via URL
-  // Navigate to the room alias directly if possible
-  return false;
+  await page.goto(`/home/${encodeURIComponent(FIXTURE_ROOM_ID ?? FIXTURE_ROOM_ALIAS)}`);
+  await waitForLoggedInShell(page);
+  return true;
 }
 
 test.describe('live threads', () => {
@@ -143,6 +128,32 @@ test.describe('live threads', () => {
     await expect(page.getByText('Failed to load this thread')).toHaveCount(0);
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'thread-navigation');
+  });
+
+  test('hidden threaded metadata relations do not inflate visible reply counts', async ({
+    page,
+  }) => {
+    const diagnostics = attachBrowserDiagnostics(page);
+    const homeserver = getHomeserver();
+    const { username, password } = getPrimaryCredentials();
+
+    await loginWithPassword(page, { homeserver, username, password });
+
+    const found = await navigateToFixtureRoom(page);
+    test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
+
+    const hiddenRelationThreadButton = page.getByRole('button', {
+      name: new RegExp(`${escapeRegex(HIDDEN_THREAD_RELATION_ROOT_MARKER)}[\\s\\S]*0 replies`, 'i'),
+    });
+    await expect(hiddenRelationThreadButton).toBeVisible({ timeout: 30_000 });
+
+    await hiddenRelationThreadButton.click();
+    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(HIDDEN_THREAD_RELATION_ROOT_MARKER)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('com.mindroom.thread.tag')).toHaveCount(0);
+    await expect(page.getByText('Thread reply 1')).toHaveCount(0);
+
+    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'hidden-threaded-metadata-count');
   });
 
   test('summary card renders with expected content', async ({ page }) => {

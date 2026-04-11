@@ -3,8 +3,16 @@ import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import {
   buildThreadParticipantMap,
   buildThreadReplyCountMap,
+  buildVisibleThreadParticipantMap,
+  buildVisibleThreadReplyCountMap,
   eventBelongsToThread,
+  getPreferredVisibleThreadReplyEvents,
   getValidThreadRootEvent,
+  getVisibleThreadMessageCount,
+  getVisibleThreadParticipantIds,
+  hasLoadedThreadReplyEvents,
+  isVisibleThreadReplyEvent,
+  isVisibleThreadReplyEventType,
   isThreadReplyEvent,
 } from './threadUtils';
 
@@ -13,13 +21,17 @@ const makeEvent = (
   threadRootId?: string,
   relationType?: string,
   senderId?: string,
-  isThreadRoot = false
+  isThreadRoot = false,
+  type = 'm.room.message'
 ) => ({
   getId: () => eventId,
   threadRootId,
   getRelation: () => (relationType ? { rel_type: relationType } : undefined),
   getSender: () => senderId,
+  getType: () => type,
   isThreadRoot,
+  isRedacted: () => false,
+  isRedaction: () => false,
 });
 
 describe('eventBelongsToThread', () => {
@@ -80,6 +92,136 @@ describe('buildThreadReplyCountMap', () => {
   });
 });
 
+describe('isVisibleThreadReplyEventType', () => {
+  it('accepts supported visible threaded event types', () => {
+    expect(isVisibleThreadReplyEventType('m.room.message')).toBe(true);
+    expect(isVisibleThreadReplyEventType('m.sticker')).toBe(true);
+    expect(isVisibleThreadReplyEventType('m.room.topic')).toBe(true);
+  });
+
+  it('rejects metadata-only threaded relation types', () => {
+    expect(isVisibleThreadReplyEventType('com.mindroom.thread.tag')).toBe(false);
+  });
+});
+
+describe('isVisibleThreadReplyEvent', () => {
+  it('accepts visible threaded replies', () => {
+    expect(
+      isVisibleThreadReplyEvent(makeEvent('$reply', '$root', RelationType.Thread, '@alice:example.org'))
+    ).toBe(true);
+  });
+
+  it('rejects threaded metadata events that do not render in the timeline', () => {
+    expect(
+      isVisibleThreadReplyEvent(
+        makeEvent(
+          '$thread-tag',
+          '$root',
+          RelationType.Thread,
+          '@alice:example.org',
+          false,
+          'com.mindroom.thread.tag'
+        )
+      )
+    ).toBe(false);
+  });
+});
+
+describe('buildVisibleThreadReplyCountMap', () => {
+  it('counts only visible threaded replies', () => {
+    const counts = buildVisibleThreadReplyCountMap([
+      makeEvent('$reply-1', '$root', RelationType.Thread),
+      makeEvent(
+        '$thread-tag-1',
+        '$root',
+        RelationType.Thread,
+        '@alice:example.org',
+        false,
+        'com.mindroom.thread.tag'
+      ),
+      makeEvent('$reply-2', '$root', RelationType.Thread),
+    ]);
+
+    expect(counts.get('$root')).toBe(2);
+  });
+});
+
+describe('getPreferredVisibleThreadReplyEvents', () => {
+  it('prefers loaded events over timeline fallback and filters hidden thread metadata', () => {
+    const visibleReply = makeEvent('$reply-1', '$root', RelationType.Thread);
+    const hiddenReply = makeEvent(
+      '$thread-tag',
+      '$root',
+      RelationType.Thread,
+      '@alice:example.org',
+      false,
+      'com.mindroom.thread.tag'
+    );
+    const timelineReply = makeEvent('$reply-2', '$root', RelationType.Thread);
+
+    const replyEvents = getPreferredVisibleThreadReplyEvents({
+      events: [visibleReply, hiddenReply],
+      timeline: [timelineReply],
+    });
+
+    expect(replyEvents).toEqual([visibleReply]);
+  });
+});
+
+describe('hasLoadedThreadReplyEvents', () => {
+  it('returns true when the thread has loaded events or timeline entries', () => {
+    expect(hasLoadedThreadReplyEvents({ events: [makeEvent('$reply', '$root')] })).toBe(true);
+    expect(hasLoadedThreadReplyEvents({ timeline: [makeEvent('$reply', '$root')] })).toBe(true);
+  });
+
+  it('returns false for empty or missing reply collections', () => {
+    expect(hasLoadedThreadReplyEvents({ events: [], timeline: [] })).toBe(false);
+    expect(hasLoadedThreadReplyEvents(undefined)).toBe(false);
+  });
+});
+
+describe('getVisibleThreadMessageCount', () => {
+  it('counts only visible loaded replies', () => {
+    expect(
+      getVisibleThreadMessageCount({
+        events: [
+          makeEvent('$reply-1', '$root', RelationType.Thread),
+          makeEvent(
+            '$thread-tag',
+            '$root',
+            RelationType.Thread,
+            '@alice:example.org',
+            false,
+            'com.mindroom.thread.tag'
+          ),
+        ],
+      })
+    ).toBe(1);
+  });
+
+  it('returns zero when a loaded thread only contains hidden metadata relations', () => {
+    expect(
+      getVisibleThreadMessageCount({
+        events: [
+          makeEvent(
+            '$thread-tag',
+            '$root',
+            RelationType.Thread,
+            '@alice:example.org',
+            false,
+            'com.mindroom.thread.tag'
+          ),
+        ],
+      })
+    ).toBe(0);
+  });
+
+  it('falls back to sdk or bundled counts when replies are not loaded yet', () => {
+    expect(getVisibleThreadMessageCount({ length: 3 })).toBe(3);
+    expect(getVisibleThreadMessageCount(undefined, 2)).toBe(2);
+  });
+});
+
 describe('buildThreadParticipantMap', () => {
   it('returns recent unique participants per thread root', () => {
     const participants = buildThreadParticipantMap([
@@ -117,6 +259,49 @@ describe('buildThreadParticipantMap', () => {
     );
 
     expect(participants.get('$root')).toEqual(['@carol:example.org', '@bob:example.org']);
+  });
+});
+
+describe('buildVisibleThreadParticipantMap', () => {
+  it('ignores non-renderable threaded metadata relations when collecting participants', () => {
+    const participants = buildVisibleThreadParticipantMap([
+      makeEvent(
+        '$thread-tag',
+        '$root',
+        RelationType.Thread,
+        '@tagger:example.org',
+        false,
+        'com.mindroom.thread.tag'
+      ),
+      makeEvent('$reply-1', '$root', RelationType.Thread, '@alice:example.org'),
+      makeEvent('$reply-2', '$root', RelationType.Thread, '@bob:example.org'),
+    ]);
+
+    expect(participants.get('$root')).toEqual(['@bob:example.org', '@alice:example.org']);
+  });
+});
+
+describe('getVisibleThreadParticipantIds', () => {
+  it('returns recent visible reply senders and falls back to the root sender', () => {
+    expect(
+      getVisibleThreadParticipantIds(
+        {
+          events: [
+            makeEvent('$reply-1', '$root', RelationType.Thread, '@alice:example.org'),
+            makeEvent(
+              '$thread-tag',
+              '$root',
+              RelationType.Thread,
+              '@tagger:example.org',
+              false,
+              'com.mindroom.thread.tag'
+            ),
+            makeEvent('$reply-2', '$root', RelationType.Thread, '@bob:example.org'),
+          ],
+        },
+        makeEvent('$root', undefined, undefined, '@carol:example.org')
+      )
+    ).toEqual(['@bob:example.org', '@alice:example.org', '@carol:example.org']);
   });
 });
 
