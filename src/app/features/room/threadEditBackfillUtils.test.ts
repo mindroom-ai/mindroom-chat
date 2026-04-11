@@ -85,6 +85,15 @@ describe('shouldFetchThreadEditBackfill', () => {
     ).toBe(false);
   });
 
+  it('always backfills tool approval edits once the thread tail is loaded', () => {
+    const attemptedEvents = new WeakMap<MatrixEvent, number>();
+    const approvalEvent = makeMessageEvent('$approval', 'io.mindroom.tool_approval');
+
+    expect(shouldFetchThreadEditBackfill(approvalEvent, attemptedEvents, false, true)).toBe(false);
+    expect(shouldFetchThreadEditBackfill(approvalEvent, attemptedEvents, true, true)).toBe(true);
+    expect(shouldFetchThreadEditBackfill(approvalEvent, attemptedEvents, true, false)).toBe(true);
+  });
+
   it('repairs streaming placeholders on untargeted opens but leaves ordinary messages alone', () => {
     const attemptedEvents = new WeakMap<MatrixEvent, number>();
     const placeholderEvent = new MatrixEvent({

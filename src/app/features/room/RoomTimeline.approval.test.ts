@@ -1,0 +1,204 @@
+import type { ReactElement, ReactNode } from 'react';
+import React from 'react';
+import { act } from 'react-test-renderer';
+import { describe, expect, it } from 'vitest';
+import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../components/message/mindroomToolApproval';
+import { MessageEvent } from '../../../types/matrix/room';
+import {
+  create,
+  createControlledRoomTimelineHarness,
+  flushAsyncWork,
+  makeEvent,
+  makeRoom,
+} from './RoomTimeline.test.shared';
+
+const findElementInNode = (
+  node: ReactNode,
+  predicate: (element: ReactElement) => boolean
+): ReactElement | undefined => {
+  if (!React.isValidElement(node)) return undefined;
+  if (predicate(node)) return node;
+
+  return React.Children.toArray(node.props.children)
+    .map((child) => findElementInNode(child, predicate))
+    .find((child): child is ReactElement => child !== undefined);
+};
+
+describe('RoomTimeline approval rendering', () => {
+  it('renders thread summary and thread metadata for approval events', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const approvalEvent = makeEvent('$approval', {
+      type: 'io.mindroom.tool_approval',
+      content: {
+        approval_id: 'approval-1',
+        tool_name: 'web_search',
+        arguments: { query: 'release date' },
+        agent_name: 'research',
+        status: 'pending',
+        created_at: '2026-04-10T12:00:00Z',
+        expires_at: '2026-04-17T12:00:00Z',
+      },
+      unsigned: {
+        'm.relations': {
+          'm.thread': {
+            count: 1,
+          },
+        },
+      },
+    });
+    const approvalReply = makeEvent('$approval-reply', {
+      sender: '@bob:example.org',
+      threadRootId: '$approval',
+      relation: { rel_type: 'm.thread', event_id: '$approval' },
+    });
+    const room = makeRoom({
+      liveEvents: [approvalEvent, approvalReply],
+      threads: [
+        {
+          id: '$approval',
+          rootEvent: approvalEvent,
+          events: [approvalReply],
+          timeline: [approvalReply],
+          length: 1,
+        },
+      ] as never[],
+    });
+    const summaryMap = new Map([
+      [
+        '$approval',
+        {
+          summaryText: 'Cached approval summary',
+          generatedTs: 10,
+          messageCount: 1,
+        },
+      ],
+    ]);
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          summaryMap,
+        })
+      );
+      await flushAsyncWork(1);
+    });
+
+    const approvalMessage = renderer?.root.findByProps({ 'data-message-id': '$approval' });
+    const reactions = approvalMessage?.props.reactions;
+    const summaryCard = findElementInNode(
+      reactions,
+      (element) => element.props.summaryInfo?.summaryText === 'Cached approval summary'
+    );
+    const threadIndicator = findElementInNode(
+      reactions,
+      (element) => element.props.threadRootId === '$approval'
+    );
+
+    expect(summaryCard).toBeDefined();
+    expect(threadIndicator).toBeDefined();
+    expect(threadIndicator?.props.threadReplyCount).toBe(1);
+    expect(threadIndicator?.props.threadParticipantIds).toEqual(['@bob:example.org']);
+  });
+
+  it('renders a zero-reply thread badge for approval roots with empty thread metadata', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const approvalEvent = makeEvent('$approval', {
+      type: 'io.mindroom.tool_approval',
+      content: {
+        approval_id: 'approval-1',
+        tool_name: 'web_search',
+        arguments: { query: 'release date' },
+        agent_name: 'research',
+        status: 'pending',
+        created_at: '2026-04-10T12:00:00Z',
+        expires_at: '2026-04-17T12:00:00Z',
+      },
+      unsigned: {
+        'm.relations': {
+          'm.thread': {
+            count: 0,
+          },
+        },
+      },
+    });
+    const room = makeRoom({
+      liveEvents: [approvalEvent],
+      threads: [
+        {
+          id: '$approval',
+          rootEvent: approvalEvent,
+          events: [],
+          timeline: [],
+          length: 0,
+        },
+      ] as never[],
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(1);
+    });
+
+    const approvalMessage = renderer?.root.findByProps({ 'data-message-id': '$approval' });
+    const threadIndicator = findElementInNode(
+      approvalMessage?.props.reactions,
+      (element) => element.props.threadRootId === '$approval'
+    );
+
+    expect(threadIndicator).toBeDefined();
+    expect(threadIndicator?.props.threadReplyCount).toBe(0);
+  });
+
+  it('routes decrypted encrypted approval events through the approval renderer', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const encryptedApprovalEvent = makeEvent('$encrypted-approval', {
+      type: MessageEvent.RoomMessageEncrypted,
+      renderInsideEncryptedContentAs: MINDROOM_TOOL_APPROVAL_EVENT,
+      content: {
+        approval_id: 'approval-1',
+        tool_name: 'web_search',
+        arguments: { query: 'release date' },
+        agent_name: 'research',
+        status: 'pending',
+        created_at: '2026-04-10T12:00:00Z',
+        expires_at: '2026-04-17T12:00:00Z',
+      },
+    });
+    const room = makeRoom({ liveEvents: [encryptedApprovalEvent] });
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(1);
+    });
+
+    const approvalMessage = renderer?.root.findByProps({ 'data-message-id': '$encrypted-approval' });
+    const renderedApprovalContent = approvalMessage?.findAll(
+      (node) => node.props.eventType === MINDROOM_TOOL_APPROVAL_EVENT
+    )[0];
+
+    expect(renderedApprovalContent).toBeDefined();
+    expect(renderedApprovalContent?.props.getContent()).toMatchObject({
+      approval_id: 'approval-1',
+      tool_name: 'web_search',
+      status: 'pending',
+    });
+  });
+});

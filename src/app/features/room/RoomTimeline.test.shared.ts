@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { createRef } from 'react';
 import { Direction, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import { Editor } from 'slate';
@@ -311,11 +312,22 @@ vi.mock('../../hooks/useVirtualPaginator', () => ({
 }));
 
 vi.mock('../../hooks/useMatrixEventRenderer', () => ({
-  useMatrixEventRenderer: () => (...args: unknown[]) =>
-    React.createElement('mock-event', {
-      eventId: args[2],
-      key: String(args[2]),
-    }),
+  useMatrixEventRenderer:
+    (
+      typeToRenderer: Record<string, (...args: unknown[]) => React.ReactNode>,
+      renderStateEvent?: (...args: unknown[]) => React.ReactNode,
+      renderEvent?: (...args: unknown[]) => React.ReactNode
+    ) =>
+    (eventType: string, isStateEvent: boolean, ...args: unknown[]) => {
+      const renderer = typeToRenderer[eventType];
+      if (renderer) return renderer(...args);
+      if (isStateEvent && renderStateEvent) return renderStateEvent(...args);
+      if (!isStateEvent && renderEvent) return renderEvent(...args);
+      return React.createElement('mock-event', {
+        eventId: args[0],
+        key: String(args[0]),
+      });
+    },
 }));
 
 vi.mock('../../hooks/useIntersectionObserver', () => ({
@@ -403,15 +415,54 @@ vi.mock('../../components/message', () => ({
   MessageNotDecryptedContent: passthrough,
   RedactedContent: passthrough,
   MSticker: passthrough,
+  MindroomThreadSummaryCard: passthrough,
   ImageContent: passthrough,
   EventContent: passthrough,
 }));
 
 vi.mock('./message', () => ({
   Reactions: passthrough,
-  Message: passthrough,
+  Message: ({
+    children,
+    ...props
+  }: {
+    children?: React.ReactNode;
+    [key: string]: unknown;
+  }) =>
+    React.createElement(
+      passthrough,
+      {
+        ...props,
+        eventId:
+          typeof props['data-message-id'] === 'string' ? props['data-message-id'] : props.eventId,
+      },
+      children
+    ),
   Event: passthrough,
-  EncryptedContent: passthrough,
+  EncryptedContent: ({
+    mEvent,
+    children,
+  }: {
+    mEvent: {
+      __renderInsideEncryptedContentAs?: string;
+      getType: () => string;
+    };
+    children: (() => React.ReactNode) | React.ReactNode;
+  }) => {
+    if (typeof children !== 'function') return React.createElement(React.Fragment, null, children);
+
+    const renderType = mEvent.__renderInsideEncryptedContentAs;
+    if (!renderType) return React.createElement(React.Fragment, null, children());
+
+    const getType = mEvent.getType;
+    mEvent.getType = () => renderType;
+
+    try {
+      return React.createElement(React.Fragment, null, children());
+    } finally {
+      mEvent.getType = getType;
+    }
+  },
 }));
 
 vi.mock('../../components/room-intro', () => ({
@@ -479,7 +530,45 @@ vi.mock('../../state/room/roomToUnread', () => ({
 }));
 
 vi.mock('./threadUtils', () => ({
-  buildThreadParticipantMap: () => new Map(),
+  buildThreadParticipantMap: (
+    events: Array<{
+      getId(): string | undefined;
+      threadRootId?: string;
+      getSender?(): string | undefined;
+      getRelation?(): { rel_type?: string } | null | undefined;
+    }>,
+    maxParticipants = 3
+  ) => {
+    const participants = new Map<string, string[]>();
+    const seenEventIds = new Set<string>();
+    const participantSets = new Map<string, Set<string>>();
+
+    [...events].reverse().forEach((event) => {
+      const eventId = event.getId();
+      const { threadRootId } = event;
+      if (!eventId || !threadRootId || eventId === threadRootId || seenEventIds.has(eventId)) {
+        return;
+      }
+
+      if (event.getRelation?.()?.rel_type === 'm.replace') return;
+
+      seenEventIds.add(eventId);
+      const senderId = event.getSender?.();
+      if (!senderId) return;
+
+      const threadParticipants = participants.get(threadRootId) ?? [];
+      if (threadParticipants.length >= maxParticipants) return;
+
+      const threadParticipantSet = participantSets.get(threadRootId) ?? new Set<string>();
+      if (threadParticipantSet.has(senderId)) return;
+
+      threadParticipantSet.add(senderId);
+      participantSets.set(threadRootId, threadParticipantSet);
+      participants.set(threadRootId, [...threadParticipants, senderId]);
+    });
+
+    return participants;
+  },
   buildThreadReplyCountMap: (events: Array<{ getId(): string | undefined; threadRootId?: string }>) => {
     const counts = new Map<string, number>();
     events.forEach((event) => {
@@ -665,6 +754,7 @@ const makeEvent = (
     isThreadRoot?: boolean;
     threadRootId?: string;
     relation?: { rel_type?: string; event_id?: string };
+    renderInsideEncryptedContentAs?: string;
     associatedId?: string;
     stateKey?: string;
     unsigned?: Record<string, unknown>;
@@ -672,6 +762,7 @@ const makeEvent = (
     isRedaction?: boolean;
   } = {}
 ) => ({
+  __renderInsideEncryptedContentAs: opts.renderInsideEncryptedContentAs,
   event: { event_id: eventId, origin_server_ts: opts.ts ?? 0 },
   isThreadRoot: opts.isThreadRoot ?? false,
   threadRootId: opts.threadRootId,
@@ -783,6 +874,7 @@ const makeRoom = ({
     findEventById: findEventById ?? ((eventId: string) => getEventFromTimelines(eventId)),
     getEventReadUpTo: () => undefined,
     getLiveTimeline: () => roomLiveTimeline,
+    getMember: (userId: string) => ({ name: userId }),
     getThread: (threadId: string) => threads.find((thread) => thread.id === threadId) ?? null,
     getThreads: () => threads,
     getUnfilteredTimelineSet: () => timelineSet,
@@ -925,7 +1017,20 @@ const getClickableByText = (renderer: ReturnType<typeof create>, text: string) =
 };
 
 const getRenderedEventIds = (renderer: ReturnType<typeof create>): string[] =>
-  renderer.root.findAllByType('mock-event' as never).map((node) => node.props.eventId);
+  Array.from(
+    new Set(
+      renderer.root
+        .findAll(
+          (node) =>
+            node.type === ('mock-event' as never) || typeof node.props['data-message-id'] === 'string'
+        )
+        .map((node) =>
+          typeof node.props['data-message-id'] === 'string'
+            ? node.props['data-message-id']
+            : node.props.eventId
+        )
+    )
+  );
 
 const DEFAULT_THREAD_FILTER_STATE = createDefaultThreadFilterState();
 const TEST_DEFAULT_THREAD_FILTER_STATE = {

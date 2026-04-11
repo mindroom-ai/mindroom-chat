@@ -5,6 +5,7 @@ import { Opts } from 'linkifyjs';
 import { config } from 'folds';
 import {
   AudioContent,
+  BrokenContent,
   DownloadFile,
   FileContent,
   ImageContent,
@@ -35,11 +36,17 @@ import { IImageContent } from '../../types/matrix/common';
 import { getMindroomLongTextSource } from './message/mindroomLongText';
 import { MindroomLongTextKind, MindroomLongTextText } from './message/MindroomLongTextText';
 import { getMindroomThreadSummaryInfo } from './message/mindroomThreadSummary';
+import { MindroomToolApprovalCard } from './message/MindroomToolApprovalCard';
+import {
+  MINDROOM_TOOL_APPROVAL_EVENT,
+  parseToolApprovalContent,
+} from './message/mindroomToolApproval';
 import { withMindroomToolTraceMarkerParserOptions } from '../plugins/react-custom-html-parser';
 import { isMindroomAiRunStreaming } from './message/mindroomAiRun';
 
 type RenderMessageContentProps = {
   displayName: string;
+  eventType?: string;
   msgType: string;
   ts: number;
   edited?: boolean;
@@ -53,6 +60,7 @@ type RenderMessageContentProps = {
 };
 export function RenderMessageContent({
   displayName,
+  eventType,
   msgType,
   ts,
   edited,
@@ -157,6 +165,11 @@ export function RenderMessageContent({
         )}
       />
     );
+  }
+
+  if (eventType === MINDROOM_TOOL_APPROVAL_EVENT) {
+    const approval = parseToolApprovalContent(eventType, content);
+    return approval ? <MindroomToolApprovalCard approval={approval} /> : <BrokenContent />;
   }
 
   if (msgType === MsgType.Text) {
