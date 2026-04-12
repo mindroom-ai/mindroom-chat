@@ -232,7 +232,11 @@ vi.mock('../../state/recentThreads', () => ({
   bumpRecentThread: bumpRecentThreadMock,
 }));
 
-const makeRoom = (roomId: string) => ({ roomId });
+const makeRoom = (roomId: string) => ({
+  roomId,
+  getThread: () => undefined,
+  findEventById: () => undefined,
+});
 const getTimeline = (renderer: ReturnType<typeof create>) =>
   (renderer.root.findByType(roomTimelineType as never) as unknown) as {
     props: {
@@ -513,6 +517,11 @@ describe('RoomView', () => {
       );
     });
 
-    expect(bumpRecentThreadMock).toHaveBeenCalledWith('!room-a:example.org', '$confirmed-thread');
+    expect(bumpRecentThreadMock).toHaveBeenCalledWith(
+      '!room-a:example.org',
+      '$confirmed-thread',
+      undefined,
+      undefined
+    );
   });
 });

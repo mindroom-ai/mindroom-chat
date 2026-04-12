@@ -92,8 +92,8 @@ test.describe('live cinny-033 message permalink open target', () => {
       .toBe(targetFixture.rootId);
 
     await expect(page.getByText('Thread View')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(targetFixture.rootBody)).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(targetFixture.replyBody)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(targetFixture.rootBody).last()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(targetFixture.replyBody).last()).toBeVisible({ timeout: 10_000 });
 
     await expectNoUnexpectedBrowserDiagnostics(
       diagnostics,

@@ -40,6 +40,94 @@ const getOverviewThreadButtons = (page: import('@playwright/test').Page) =>
 test.describe('live threads', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
+  test('opening a thread adds it to Recent Threads immediately with its summary', async ({
+    page,
+  }) => {
+    const diagnostics = attachBrowserDiagnostics(page);
+    const homeserver = getHomeserver();
+    const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    const fixtureRoomId = await joinRoom(homeserver, session.accessToken, FIXTURE_ROOM_REF);
+
+    await loginWithPassword(page, { homeserver, username, password });
+    await seedRoomOverviewState({
+      page,
+      roomId: fixtureRoomId,
+      userId: session.userId,
+      viewMode: 'compact',
+      filterState: createDefaultThreadFilterState(),
+    });
+
+    const found = await navigateToFixtureRoom(page, fixtureRoomId);
+    test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
+
+    await expect(page.getByText('No recent threads')).toBeVisible({ timeout: 30_000 });
+
+    const threadEntry = page.getByRole('button', {
+      name: new RegExp(`${escapeRegex(SUMMARY_TEXT)}[\\s\\S]*4 msgs`, 'i'),
+    });
+    await expect(threadEntry).toBeVisible({ timeout: 30_000 });
+    await threadEntry.click();
+
+    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+
+    const recentThreadEntry = page.getByRole('button', {
+      name: new RegExp(`Cinny E2E Fixture Room[\\s\\S]*${escapeRegex(SUMMARY_TEXT)}`, 'i'),
+    });
+    await expect(recentThreadEntry).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('No recent threads')).toHaveCount(0);
+
+    await page.reload();
+    await waitForLoggedInShell(page);
+    await expect(recentThreadEntry).toBeVisible({ timeout: 30_000 });
+
+    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'recent-thread-summary');
+  });
+
+  test('Recent Threads falls back to the root preview when no AI summary exists', async ({
+    page,
+  }) => {
+    const diagnostics = attachBrowserDiagnostics(page);
+    const homeserver = getHomeserver();
+    const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    const fixtureRoomId = await joinRoom(homeserver, session.accessToken, FIXTURE_ROOM_REF);
+
+    await loginWithPassword(page, { homeserver, username, password });
+    await seedRoomOverviewState({
+      page,
+      roomId: fixtureRoomId,
+      userId: session.userId,
+      viewMode: 'compact',
+      filterState: createDefaultThreadFilterState(),
+    });
+
+    const found = await navigateToFixtureRoom(page, fixtureRoomId);
+    test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
+
+    const hiddenRelationThreadButton = page.getByRole('button', {
+      name: new RegExp(`${escapeRegex(HIDDEN_THREAD_RELATION_ROOT_MARKER)}[\\s\\S]*0 replies`, 'i'),
+    });
+    await expect(hiddenRelationThreadButton).toBeVisible({ timeout: 30_000 });
+    await hiddenRelationThreadButton.click();
+
+    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+
+    const recentThreadEntry = page.getByRole('button', {
+      name: new RegExp(
+        `Cinny E2E Fixture Room[\\s\\S]*${escapeRegex(HIDDEN_THREAD_RELATION_ROOT_MARKER)}`,
+        'i'
+      ),
+    });
+    await expect(recentThreadEntry).toBeVisible({ timeout: 30_000 });
+
+    await page.reload();
+    await waitForLoggedInShell(page);
+    await expect(recentThreadEntry).toBeVisible({ timeout: 30_000 });
+
+    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'recent-thread-root-preview');
+  });
+
   test('thread overview panel visible in fixture room', async ({ page }) => {
     const diagnostics = attachBrowserDiagnostics(page);
     const homeserver = getHomeserver();
@@ -202,7 +290,9 @@ test.describe('live threads', () => {
 
     await hiddenRelationThreadButton.click();
     await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(HIDDEN_THREAD_RELATION_ROOT_MARKER)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(HIDDEN_THREAD_RELATION_ROOT_MARKER).last()).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(page.getByText('com.mindroom.thread.tag')).toHaveCount(0);
     await expect(page.getByText('Thread reply 1')).toHaveCount(0);
 

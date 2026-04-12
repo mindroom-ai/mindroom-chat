@@ -44,30 +44,35 @@ vi.mock('react-router-dom', async (importOriginal) => {
   };
 });
 
-vi.mock('jotai', () => ({
-  useAtomValue: vi.fn((atom: unknown) => {
-    if (atom === navToActivePathAtom) {
-      return new Map([
-        [
-          'home',
-          {
-            pathname: '/home/%23room%3Amindroom.chat',
-            search: '?threadId=%24thread',
-            hash: '',
-          },
-        ],
-      ]);
-    }
-    if (atom === mDirectAtomToken) {
-      return new Set();
-    }
-    if (atom === roomToParentsAtomToken) {
-      return new Map();
-    }
+vi.mock('jotai', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('jotai')>();
 
-    return undefined;
-  }),
-}));
+  return {
+    ...actual,
+    useAtomValue: vi.fn((atom: unknown) => {
+      if (atom === navToActivePathAtom) {
+        return new Map([
+          [
+            'home',
+            {
+              pathname: '/home/%23room%3Amindroom.chat',
+              search: '?threadId=%24thread',
+              hash: '',
+            },
+          ],
+        ]);
+      }
+      if (atom === mDirectAtomToken) {
+        return new Set();
+      }
+      if (atom === roomToParentsAtomToken) {
+        return new Map();
+      }
+
+      return undefined;
+    }),
+  };
+});
 
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) =>

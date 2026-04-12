@@ -72,6 +72,7 @@ export function RecentThreadsPanel({ entries, height }: RecentThreadsPanelProps)
                     room={entry.room}
                     threadId={entry.threadId}
                     openedAt={entry.openedAt}
+                    summaryText={entry.summaryText}
                   />
                 ))}
               </div>
