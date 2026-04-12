@@ -3,10 +3,12 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const {
+  bumpRecentThreadMock,
   navigateRoomThreadMock,
   navigateRoomThreadDirectMock,
   rekeyRecentThreadMock,
 } = vi.hoisted(() => ({
+  bumpRecentThreadMock: vi.fn(),
   navigateRoomThreadMock: vi.fn(),
   navigateRoomThreadDirectMock: vi.fn(),
   rekeyRecentThreadMock: vi.fn(),
@@ -32,6 +34,7 @@ vi.mock('../../hooks/useRoomMeta', () => ({
 }));
 
 vi.mock('../../state/recentThreads', () => ({
+  bumpRecentThread: bumpRecentThreadMock,
   rekeyRecentThread: rekeyRecentThreadMock,
 }));
 
@@ -69,7 +72,7 @@ describe('RecentThreadEntry', () => {
     act(() => {
       renderer = create(
         React.createElement(RecentThreadEntry, {
-          room: { roomId: '!room:example.org' } as never,
+          room: { roomId: '!room:example.org', hasEncryptionStateEvent: () => false } as never,
           threadId: '$thread',
           openedAt: Date.now(),
         })
@@ -84,5 +87,24 @@ describe('RecentThreadEntry', () => {
 
     expect(navigateRoomThreadDirectMock).toHaveBeenCalledWith('!room:example.org', '$resolved');
     expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+  });
+
+  it('persists a resolved summary snapshot without waiting for room view state', () => {
+    act(() => {
+      renderer = create(
+        React.createElement(RecentThreadEntry, {
+          room: { roomId: '!room:example.org', hasEncryptionStateEvent: () => false } as never,
+          threadId: '$thread',
+          openedAt: Date.now(),
+        })
+      );
+    });
+
+    expect(bumpRecentThreadMock).toHaveBeenCalledWith(
+      '!room:example.org',
+      '$thread',
+      expect.any(Number),
+      'Thread summary'
+    );
   });
 });

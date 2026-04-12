@@ -1,4 +1,4 @@
-import { WritableAtom, atom, getDefaultStore } from 'jotai';
+import { WritableAtom, atom } from 'jotai';
 import {
   atomWithLocalStorage,
   getLocalStorageItem,
@@ -6,6 +6,7 @@ import {
 } from './utils/atomWithLocalStorage';
 import { getActiveSession } from './sessions';
 import { isRecord } from '../utils/isRecord';
+import { getImperativeJotaiStore } from './jotaiStore';
 
 const RECENT_THREADS = 'recentThreads';
 const RECENT_THREADS_STORE_VERSION = 1;
@@ -15,6 +16,7 @@ export type RecentThreadItem = {
   roomId: string;
   threadId: string;
   openedAt: number;
+  summaryText?: string;
 };
 
 type RecentThreadsStore = {
@@ -28,6 +30,7 @@ type RecentThreadsAction =
       roomId: string;
       threadId: string;
       openedAt?: number;
+      summaryText?: string;
     }
   | {
       type: 'REMOVE';
@@ -51,7 +54,14 @@ const isRecentThreadItem = (value: unknown): value is RecentThreadItem =>
   value.threadId.length > 0 &&
   typeof value.openedAt === 'number' &&
   Number.isFinite(value.openedAt) &&
-  value.openedAt > 0;
+  value.openedAt > 0 &&
+  (value.summaryText === undefined || typeof value.summaryText === 'string');
+
+const normalizeRecentThreadSummaryText = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
 
 const sortRecentThreads = (entries: RecentThreadItem[]): RecentThreadItem[] =>
   [...entries].sort((left, right) => right.openedAt - left.openedAt);
@@ -135,6 +145,9 @@ export const makeRecentThreadsAtom = (userId: string): RecentThreadsAtom => {
           roomId: action.roomId,
           threadId: action.nextThreadId,
           openedAt,
+          summaryText:
+            normalizeRecentThreadSummaryText(existingEntry.summaryText) ??
+            normalizeRecentThreadSummaryText(canonicalEntry?.summaryText),
         });
 
         set(baseRecentThreadsAtom, trimRecentThreads(next));
@@ -147,6 +160,9 @@ export const makeRecentThreadsAtom = (userId: string): RecentThreadsAtom => {
         typeof action.openedAt === 'number' && Number.isFinite(action.openedAt) && action.openedAt > 0
           ? action.openedAt
           : Date.now();
+      const existingEntry = current.find(
+        (entry) => entry.roomId === action.roomId && entry.threadId === action.threadId
+      );
       const next = current.filter(
         (entry) => entry.roomId !== action.roomId || entry.threadId !== action.threadId
       );
@@ -155,6 +171,9 @@ export const makeRecentThreadsAtom = (userId: string): RecentThreadsAtom => {
         roomId: action.roomId,
         threadId: action.threadId,
         openedAt,
+        summaryText:
+          normalizeRecentThreadSummaryText(action.summaryText) ??
+          normalizeRecentThreadSummaryText(existingEntry?.summaryText),
       });
 
       set(baseRecentThreadsAtom, trimRecentThreads(next));
@@ -182,15 +201,21 @@ const getResolvedRecentThreadsAtom = (): RecentThreadsAtom | undefined => {
   return userId ? makeRecentThreadsAtom(userId) : undefined;
 };
 
-export const bumpRecentThread = (roomId: string, threadId: string, openedAt?: number) => {
+export const bumpRecentThread = (
+  roomId: string,
+  threadId: string,
+  openedAt?: number,
+  summaryText?: string
+) => {
   const recentThreadsAtom = getResolvedRecentThreadsAtom();
   if (!recentThreadsAtom) return;
 
-  getDefaultStore().set(recentThreadsAtom, {
+  getImperativeJotaiStore().set(recentThreadsAtom, {
     type: 'BUMP',
     roomId,
     threadId,
     openedAt,
+    summaryText,
   });
 };
 
@@ -198,7 +223,7 @@ export const removeRecentThread = (roomId: string, threadId: string) => {
   const recentThreadsAtom = getResolvedRecentThreadsAtom();
   if (!recentThreadsAtom) return;
 
-  getDefaultStore().set(recentThreadsAtom, {
+  getImperativeJotaiStore().set(recentThreadsAtom, {
     type: 'REMOVE',
     roomId,
     threadId,
@@ -209,7 +234,7 @@ export const rekeyRecentThread = (roomId: string, threadId: string, nextThreadId
   const recentThreadsAtom = getResolvedRecentThreadsAtom();
   if (!recentThreadsAtom) return;
 
-  getDefaultStore().set(recentThreadsAtom, {
+  getImperativeJotaiStore().set(recentThreadsAtom, {
     type: 'REKEY',
     roomId,
     threadId,

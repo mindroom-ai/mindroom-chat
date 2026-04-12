@@ -48,10 +48,10 @@ test.describe('thread send stability', () => {
     await expect(page.getByText(fixture.replyBody)).toBeVisible({ timeout: 30_000 });
 
     await page.evaluate(() => {
-      const samples: Array<string | null> = [];
+      const samples: Array<string | null> = [new URL(window.location.href).searchParams.get('threadId')];
       const timer = window.setInterval(() => {
         samples.push(new URL(window.location.href).searchParams.get('threadId'));
-      }, 50);
+      }, 20);
 
       (window as typeof window & {
         __cinny067ThreadRouteProbe?: { samples: Array<string | null>; timer: number };

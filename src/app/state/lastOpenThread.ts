@@ -1,4 +1,4 @@
-import { WritableAtom, atom, getDefaultStore } from 'jotai';
+import { WritableAtom, atom } from 'jotai';
 import produce from 'immer';
 import {
   atomWithLocalStorage,
@@ -6,6 +6,7 @@ import {
   setLocalStorageItem,
 } from './utils/atomWithLocalStorage';
 import { getActiveSession } from './sessions';
+import { getImperativeJotaiStore } from './jotaiStore';
 
 const LAST_OPEN_THREAD = 'lastOpenThread';
 
@@ -89,21 +90,21 @@ const getResolvedLastOpenThreadAtom = (): LastOpenThreadAtom | undefined => {
 
 export const getLastOpenThread = (roomId: string): string | undefined => {
   const lastOpenThreadAtom = getResolvedLastOpenThreadAtom();
-  return lastOpenThreadAtom ? getDefaultStore().get(lastOpenThreadAtom).get(roomId) : undefined;
+  return lastOpenThreadAtom ? getImperativeJotaiStore().get(lastOpenThreadAtom).get(roomId) : undefined;
 };
 
 export const setLastOpenThread = (roomId: string, threadId: string) => {
   const lastOpenThreadAtom = getResolvedLastOpenThreadAtom();
   if (!lastOpenThreadAtom) return;
 
-  getDefaultStore().set(lastOpenThreadAtom, { type: 'PUT', roomId, threadId });
+  getImperativeJotaiStore().set(lastOpenThreadAtom, { type: 'PUT', roomId, threadId });
 };
 
 export const clearLastOpenThread = (roomId: string) => {
   const lastOpenThreadAtom = getResolvedLastOpenThreadAtom();
   if (!lastOpenThreadAtom) return;
 
-  getDefaultStore().set(lastOpenThreadAtom, { type: 'DELETE', roomId });
+  getImperativeJotaiStore().set(lastOpenThreadAtom, { type: 'DELETE', roomId });
 };
 
 export const clearLastOpenThreadStore = (userId: string) => {

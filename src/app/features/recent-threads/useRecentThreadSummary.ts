@@ -1,21 +1,21 @@
 import { MatrixEventEvent } from 'matrix-js-sdk';
-import type { MatrixEvent, Room } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk';
 import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { useEffect, useState } from 'react';
-import { getLatestThreadSummaryInfoFromEventSources } from '../../components/message/mindroomThreadSummary';
+import {
+  getLatestThreadSummaryInfoFromEventSources,
+  pickLatestThreadSummaryInfo,
+} from '../../components/message/mindroomThreadSummary';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { useRoomName } from '../../hooks/useRoomMeta';
-import { getCompactThreadRootBodyPreviewText } from '../room/compactThreadRootData';
-import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
-import { loadCachedThreadSummaries } from '../room/threadSummaryCache';
-
-const RECENT_THREAD_SUMMARY_LIMIT = 120;
-const ROOM_SUMMARY_CACHE_LIMIT = 32;
-
-const truncateText = (value: string): string =>
-  value.length <= RECENT_THREAD_SUMMARY_LIMIT
-    ? value
-    : `${value.slice(0, RECENT_THREAD_SUMMARY_LIMIT - 3).trimEnd()}...`;
+import {
+  clearThreadSummarySharedState,
+  useThreadSummaryStateMap,
+} from '../room/threadSummaryState';
+import {
+  getResolvedRecentThreadRootId,
+  resolveRecentThreadSummaryText,
+} from './recentThreadSummaryUtils';
 
 type RoomSummaryListener = () => void;
 
@@ -24,75 +24,7 @@ type RoomSummarySubscription = {
   dispose: () => void;
 };
 
-const roomSummaryCache = new Map<string, Promise<Map<string, MindroomThreadSummaryInfo>>>();
 const roomSummarySubscriptions = new Map<Room, RoomSummarySubscription>();
-
-const getResolvedThreadRootId = (room: Room, threadId: string): string => {
-  if (room.getThread(threadId)) return threadId;
-
-  const event = room.findEventById(threadId);
-  const rootId = event?.threadRootId;
-  if (rootId && rootId !== threadId) return rootId;
-
-  return threadId;
-};
-
-const getFallbackSummary = (room: Room, roomName: string): string => {
-  if (room.hasEncryptionStateEvent()) return 'Encrypted thread';
-  if (roomName.trim().length > 0) return `Thread in ${roomName}`;
-  return 'Thread';
-};
-
-const getRootPreviewText = (
-  room: Room,
-  threadRootId: string,
-  rootEvent: MatrixEvent | undefined
-): string | undefined => {
-  const previewText = getCompactThreadRootBodyPreviewText(rootEvent, {
-    eventId: threadRootId,
-    room,
-  });
-
-  return previewText ? truncateText(previewText) : undefined;
-};
-
-const getRoomSummaryCacheKey = (sessionId: string, roomId: string) => `${sessionId}|${roomId}`;
-
-const touchRoomSummaryCache = (
-  cacheKey: string,
-  promise: Promise<Map<string, MindroomThreadSummaryInfo>>
-) => {
-  if (roomSummaryCache.has(cacheKey)) {
-    roomSummaryCache.delete(cacheKey);
-  }
-
-  roomSummaryCache.set(cacheKey, promise);
-
-  while (roomSummaryCache.size > ROOM_SUMMARY_CACHE_LIMIT) {
-    const oldestKey = roomSummaryCache.keys().next().value;
-    if (!oldestKey) return;
-    roomSummaryCache.delete(oldestKey);
-  }
-};
-
-const loadSharedCachedThreadSummaries = (
-  sessionId: string,
-  roomId: string
-): Promise<Map<string, MindroomThreadSummaryInfo>> => {
-  const cacheKey = getRoomSummaryCacheKey(sessionId, roomId);
-  const cachedPromise = roomSummaryCache.get(cacheKey);
-  if (cachedPromise) {
-    touchRoomSummaryCache(cacheKey, cachedPromise);
-    return cachedPromise;
-  }
-
-  const promise = loadCachedThreadSummaries(sessionId, roomId).catch((error) => {
-    roomSummaryCache.delete(cacheKey);
-    throw error;
-  });
-  touchRoomSummaryCache(cacheKey, promise);
-  return promise;
-};
 
 const subscribeToRoomThreadSummaryEvents = (room: Room, listener: RoomSummaryListener) => {
   const currentSubscription = roomSummarySubscriptions.get(room);
@@ -139,20 +71,27 @@ const subscribeToRoomThreadSummaryEvents = (room: Room, listener: RoomSummaryLis
 };
 
 export const clearRecentThreadSummarySharedState = () => {
-  roomSummaryCache.clear();
+  clearThreadSummarySharedState();
   roomSummarySubscriptions.forEach((subscription) => {
     subscription.dispose();
   });
   roomSummarySubscriptions.clear();
 };
 
-export const useRecentThreadSummary = (room: Room, threadId: string) => {
+export const useRecentThreadSummary = (
+  room: Room,
+  threadId: string,
+  fallbackSummaryText?: string
+) => {
   const activeSession = useActiveSession();
   const roomName = useRoomName(room);
-  const [cachedSummary, setCachedSummary] = useState<string>();
   const [, setRefreshVersion] = useState(0);
+  const sharedSummaryMap = useThreadSummaryStateMap({
+    roomId: room.roomId,
+    sessionId: activeSession?.sessionId,
+  });
 
-  const resolvedThreadId = getResolvedThreadRootId(room, threadId);
+  const resolvedThreadId = getResolvedRecentThreadRootId(room, threadId);
   const thread = room.getThread(resolvedThreadId);
   const rootEvent = thread?.rootEvent ?? room.findEventById(resolvedThreadId);
 
@@ -176,42 +115,18 @@ export const useRecentThreadSummary = (room: Room, threadId: string) => {
     };
   }, [room, rootEvent]);
 
-  useEffect(() => {
-    const sessionId = activeSession?.sessionId;
-    setCachedSummary(undefined);
-    if (!sessionId) {
-      return;
-    }
-
-    let cancelled = false;
-
-    loadSharedCachedThreadSummaries(sessionId, room.roomId)
-      .then((summaryMap) => {
-        if (cancelled) return;
-
-        const summaryText = summaryMap.get(resolvedThreadId)?.summaryText;
-        setCachedSummary(summaryText ? truncateText(summaryText) : undefined);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCachedSummary(undefined);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeSession?.sessionId, resolvedThreadId, room.roomId]);
-
-  const liveSummaryText = getLatestThreadSummaryInfoFromEventSources(
-    thread?.events,
-    thread?.timeline
-  )?.summaryText;
-  const summary =
-    (liveSummaryText && truncateText(liveSummaryText)) ||
-    getRootPreviewText(room, resolvedThreadId, rootEvent) ||
-    cachedSummary ||
-    getFallbackSummary(room, roomName);
+  const summaryInfo = pickLatestThreadSummaryInfo(
+    sharedSummaryMap.get(resolvedThreadId),
+    getLatestThreadSummaryInfoFromEventSources(thread?.events, thread?.timeline)
+  );
+  const summary = resolveRecentThreadSummaryText({
+    room,
+    threadRootId: resolvedThreadId,
+    rootEvent,
+    summaryInfo,
+    fallbackSummaryText,
+    roomName,
+  });
 
   return {
     summary,
