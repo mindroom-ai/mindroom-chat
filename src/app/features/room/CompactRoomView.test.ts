@@ -19,6 +19,7 @@ const makeMetadata = (overrides: Partial<ThreadOverviewMetadata> = {}): ThreadOv
   absoluteIndex: 0,
   lastSenderId: undefined,
   lastSenderDisplayName: undefined,
+  latestReplyPreviewText: undefined,
   participantDisplayName: undefined,
   summaryText: undefined,
   rootPreviewText: undefined,
@@ -41,14 +42,14 @@ vi.mock('./CompactThreadCard', () => ({
   CompactThreadCard: ({
     threadRootId,
     threadRootEvent,
-    rootPreviewText,
+    metadata,
     summaryInfo,
     onClick,
     room,
   }: {
     threadRootId: string;
     threadRootEvent?: { getId?: () => string | undefined };
-    rootPreviewText?: string;
+    metadata?: ThreadOverviewMetadata;
     summaryInfo?: MindroomThreadSummaryInfo;
     onClick: (threadRootId: string, summaryText?: string) => void;
     room: unknown;
@@ -57,7 +58,7 @@ vi.mock('./CompactThreadCard', () => ({
       room,
       threadRootId,
       threadRootEventId: threadRootEvent?.getId?.(),
-      rootPreviewText,
+      metadata,
       summaryInfo,
     });
 
@@ -66,7 +67,7 @@ vi.mock('./CompactThreadCard', () => ({
       {
         type: 'button',
         'data-thread-root-id': threadRootId,
-        onClick: () => onClick(threadRootId, summaryInfo?.summaryText ?? rootPreviewText),
+        onClick: () => onClick(threadRootId, summaryInfo?.summaryText ?? metadata?.rootPreviewText),
       },
       summaryInfo?.summaryText ?? 'thread'
     );
@@ -148,7 +149,7 @@ describe('CompactRoomView', () => {
       room,
       threadRootId: '$thread-1',
       threadRootEventId: '$root',
-      rootPreviewText: undefined,
+      metadata: makeMetadata({ summaryText: 'metadata summary' }),
       summaryInfo,
     });
   });
@@ -178,7 +179,10 @@ describe('CompactRoomView', () => {
       room,
       threadRootId: '$thread-2',
       threadRootEventId: '$fallback-root',
-      rootPreviewText: undefined,
+      metadata: makeMetadata({
+        summaryText: 'Fallback summary',
+        messageCount: 7,
+      }),
       summaryInfo: {
         summaryText: 'Fallback summary',
         messageCount: 7,
@@ -209,7 +213,9 @@ describe('CompactRoomView', () => {
       room,
       threadRootId: '$thread-4',
       threadRootEventId: '$fallback-root',
-      rootPreviewText: 'Edited root preview',
+      metadata: makeMetadata({
+        rootPreviewText: 'Edited root preview',
+      }),
       summaryInfo: undefined,
     });
   });
@@ -233,7 +239,7 @@ describe('CompactRoomView', () => {
       room,
       threadRootId: '$thread-5',
       threadRootEventId: '$fresh-room-root',
-      rootPreviewText: undefined,
+      metadata: makeMetadata(),
       summaryInfo: undefined,
     });
   });

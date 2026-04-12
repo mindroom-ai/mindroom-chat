@@ -2,16 +2,13 @@ import { MatrixEventEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk';
 import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { useEffect, useState } from 'react';
-import {
-  getLatestThreadSummaryInfoFromEventSources,
-  pickLatestThreadSummaryInfo,
-} from '../../components/message/mindroomThreadSummary';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { useRoomName } from '../../hooks/useRoomMeta';
 import {
   clearThreadSummarySharedState,
   useThreadSummaryStateMap,
 } from '../room/threadSummaryState';
+import { resolveThreadSummaryInfo } from '../room/threadPresentation';
 import {
   getResolvedRecentThreadRootId,
   resolveRecentThreadSummaryText,
@@ -115,10 +112,10 @@ export const useRecentThreadSummary = (
     };
   }, [room, rootEvent]);
 
-  const summaryInfo = pickLatestThreadSummaryInfo(
-    sharedSummaryMap.get(resolvedThreadId),
-    getLatestThreadSummaryInfoFromEventSources(thread?.events, thread?.timeline)
-  );
+  const summaryInfo = resolveThreadSummaryInfo({
+    preferredSummaryInfo: sharedSummaryMap.get(resolvedThreadId),
+    thread,
+  });
   const summary = resolveRecentThreadSummaryText({
     room,
     threadRootId: resolvedThreadId,

@@ -1,6 +1,6 @@
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
-import { getCompactThreadRootBodyPreviewText } from '../room/compactThreadRootData';
+import { resolveThreadRootPreviewText } from '../room/threadPresentation';
 
 export const RECENT_THREAD_SUMMARY_LIMIT = 120;
 
@@ -42,9 +42,10 @@ export const getRecentThreadRootPreviewText = (
   threadRootId: string,
   rootEvent: MatrixEvent | undefined
 ): string | undefined => {
-  const previewText = getCompactThreadRootBodyPreviewText(rootEvent, {
-    eventId: threadRootId,
+  const previewText = resolveThreadRootPreviewText({
     room,
+    threadRootId,
+    rootEvent,
   });
 
   return previewText ? truncateRecentThreadSummaryText(previewText) : undefined;
