@@ -165,6 +165,7 @@ import {
   buildVisibleThreadParticipantMap,
   buildVisibleThreadReplyCountMap,
   eventBelongsToThread,
+  isVisibleThreadTextMessageEventType,
   isThreadReplyEvent,
 } from './threadUtils';
 import {
@@ -1496,8 +1497,7 @@ export const getLoadedThreadModelSeedEvents = (room: Room, threadId: string): Ma
 };
 
 const isCollapsibleTextMessageEvent = (mEvent: MatrixEvent): boolean =>
-  mEvent.getType() === MessageEvent.RoomMessage ||
-  mEvent.getType() === MessageEvent.RoomMessageEncrypted;
+  isVisibleThreadTextMessageEventType(mEvent.getType());
 
 type ShouldTrackLiveCollapsibleMessage = {
   mEvent: MatrixEvent;
@@ -6162,6 +6162,26 @@ export function RoomTimeline({
           setTimeline((ct) => ({ ...ct }));
           setThreadTimelineTick((val) => val + 1);
           logTimelineDebug(threadDebugTraceId, 'thread-open-pending-local-echo-root', {
+            threadId,
+          });
+          if (shouldScrollToLatestOnOpen) {
+            scrollToBottomRef.current.count += 1;
+            scrollToBottomRef.current.smooth = false;
+            setAtBottom(true);
+          }
+          return;
+        }
+
+        const zeroReplyStandaloneRootEvent = room.findEventById(threadId);
+        if (
+          !room.getThread(threadId) &&
+          zeroReplyStandaloneRootEvent &&
+          isZeroReplyStandaloneThreadRootEvent(zeroReplyStandaloneRootEvent)
+        ) {
+          setThreadTailLoaded(true);
+          setTimeline((ct) => ({ ...ct }));
+          setThreadTimelineTick((val) => val + 1);
+          logTimelineDebug(threadDebugTraceId, 'thread-open-zero-reply-root-without-thread-model', {
             threadId,
           });
           if (shouldScrollToLatestOnOpen) {
