@@ -34,6 +34,8 @@ import {
 import { formatScheduledTime } from './compactThreadCardUtils';
 import {
   getPreferredVisibleThreadReplyEvents,
+  getLatestRenderableVisibleThreadReplyEvent,
+  getVisibleThreadEventBodyPreviewText,
   getVisibleThreadMessageCount,
   getVisibleThreadParticipantIds,
   type VisibleThreadEventCollectionLike,
@@ -62,44 +64,6 @@ const tagColor = (tagName: string): string => {
 
 const truncateText = (value: string, limit: number): string =>
   value.length <= limit ? value : `${value.slice(0, limit - 1).trimEnd()}...`;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
-
-const getEventBodyPreviewText = (event: MatrixEvent | undefined): string | undefined => {
-  const content =
-    event && typeof event.getContent === 'function'
-      ? (event.getContent() as Record<string, unknown> | null | undefined)
-      : undefined;
-  if (!content || !isRecord(content)) return undefined;
-
-  const newContent = isRecord(content['m.new_content'])
-    ? (content['m.new_content'] as Record<string, unknown>)
-    : undefined;
-  const body = typeof newContent?.body === 'string' ? newContent.body : content.body;
-  if (typeof body !== 'string') return undefined;
-
-  const normalized = trimReplyFromBody(body).replace(/\s+/g, ' ').trim();
-  return normalized.length > 0 ? normalized : undefined;
-};
-
-const getLatestRenderableReplyEvent = (replyEvents: MatrixEvent[]): MatrixEvent | undefined => {
-  let summaryFallback: MatrixEvent | undefined;
-
-  for (let i = replyEvents.length - 1; i >= 0; i -= 1) {
-    const event = replyEvents[i];
-    if (!getEventBodyPreviewText(event)) continue;
-
-    if (isMindroomThreadSummaryEvent(event)) {
-      summaryFallback ??= event;
-      continue;
-    }
-
-    return event;
-  }
-
-  return summaryFallback;
-};
 
 const getMessageCountLabel = (messageCount: number): string => {
   if (messageCount === 0) return '0 replies';
@@ -149,6 +113,8 @@ export type CompactThreadCardProps = {
   rootPreviewText?: string;
   summaryInfo?: MindroomThreadSummaryInfo;
   lastActivityTs?: number;
+  fallbackReplyPreviewText?: string;
+  fallbackLastSenderName?: string;
   onClick: (threadRootId: string, summaryText?: string) => void;
 };
 
@@ -159,6 +125,8 @@ export function CompactThreadCard({
   rootPreviewText,
   summaryInfo,
   lastActivityTs: fallbackLastActivityTs,
+  fallbackReplyPreviewText,
+  fallbackLastSenderName,
   onClick,
 }: CompactThreadCardProps) {
   const mx = useMatrixClient();
@@ -184,16 +152,17 @@ export function CompactThreadCard({
     getCompactThreadRootBodyPreviewText(resolvedThreadRootEvent, {
       eventId: threadRootId,
       room,
-    }) ?? getEventBodyPreviewText(resolvedThreadRootEvent);
+    }) ?? getVisibleThreadEventBodyPreviewText(resolvedThreadRootEvent);
   const resolvedRootPreviewText = pickPreferredThreadRootPreviewText({
     preferredPreviewText: rootPreviewText,
     fallbackPreviewText: eventRootPreviewText,
   });
   const titleText =
     effectiveSummaryInfo?.summaryText ?? resolvedRootPreviewText ?? TITLE_FALLBACK;
-  const latestPreviewEvent = getLatestRenderableReplyEvent(replyEvents);
+  const latestPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents);
   const lastMessagePreview = truncateText(
-    getEventBodyPreviewText(latestPreviewEvent) ??
+    getVisibleThreadEventBodyPreviewText(latestPreviewEvent) ??
+      fallbackReplyPreviewText ??
       resolvedRootPreviewText ??
       (replyEvents.length > 0 ? titleText : LAST_MESSAGE_FALLBACK),
     PREVIEW_TEXT_LIMIT
@@ -201,7 +170,7 @@ export function CompactThreadCard({
   const lastSenderId = latestPreviewEvent?.getSender() ?? replyEvents[replyEvents.length - 1]?.getSender();
   const lastSenderName = lastSenderId
     ? getMemberDisplayName(room, lastSenderId) ?? getMxIdLocalPart(lastSenderId) ?? lastSenderId
-    : undefined;
+    : fallbackLastSenderName;
   const messageCount = effectiveSummaryInfo?.messageCount ?? getVisibleThreadMessageCount(thread);
   const messageCountLabel = getMessageCountLabel(messageCount);
   const currentUserId = mx.getUserId() ?? undefined;
