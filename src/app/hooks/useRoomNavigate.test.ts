@@ -38,13 +38,18 @@ vi.mock('react-router-dom', async (importOriginal) => {
   };
 });
 
-vi.mock('jotai', () => ({
-  useAtomValue: (atom: unknown) => {
-    if (atom === mocks.roomToParentsAtom) return mocks.roomToParents;
-    if (atom === mocks.mDirectAtom) return mocks.mDirects;
-    throw new Error('Unexpected atom');
-  },
-}));
+vi.mock('jotai', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('jotai')>();
+
+  return {
+    ...actual,
+    useAtomValue: (atom: unknown) => {
+      if (atom === mocks.roomToParentsAtom) return mocks.roomToParents;
+      if (atom === mocks.mDirectAtom) return mocks.mDirects;
+      throw new Error('Unexpected atom');
+    },
+  };
+});
 
 vi.mock('./useMatrixClient', () => ({
   useMatrixClient: () => mocks.mx,

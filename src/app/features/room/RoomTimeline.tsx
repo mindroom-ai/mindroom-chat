@@ -152,6 +152,7 @@ import { useImagePackRooms } from '../../hooks/useImagePackRooms';
 import { useIsDirectRoom } from '../../hooks/useRoom';
 import { useOpenUserRoomProfile } from '../../state/hooks/userRoomProfile';
 import { createSessionId } from '../../state/sessions';
+import { bumpRecentThread } from '../../state/recentThreads';
 import { useSpaceOptionally } from '../../hooks/useSpace';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
@@ -196,6 +197,7 @@ import {
 import { CompactRoomView } from './CompactRoomView';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import { buildPreferredThreadSummaryMap } from './threadSummarySelection';
+import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 import type { ThreadFilterKey } from './RoomThreadOverview';
 import {
   type ThreadFilterState,
@@ -6851,7 +6853,10 @@ threadDebugTraceId,
   const handleOpenReply: MouseEventHandler = useCallback(
     async (evt) => {
       const threadRootId = evt.currentTarget.getAttribute('data-thread-root-id');
+      const recentThreadSummaryText =
+        evt.currentTarget.getAttribute('data-thread-summary')?.trim() || undefined;
       if (threadRootId) {
+        bumpRecentThread(room.roomId, threadRootId, undefined, recentThreadSummaryText);
         navigateRoomThread(room.roomId, threadRootId);
         return;
       }
@@ -6862,7 +6867,8 @@ threadDebugTraceId,
     [handleOpenEvent, navigateRoomThread, room.roomId]
   );
   const handleOpenCompactThread = useCallback(
-    (threadRootId: string) => {
+    (threadRootId: string, recentThreadSummaryText?: string) => {
+      bumpRecentThread(room.roomId, threadRootId, undefined, recentThreadSummaryText);
       navigateRoomThread(room.roomId, threadRootId);
     },
     [navigateRoomThread, room.roomId]
@@ -7110,6 +7116,15 @@ threadDebugTraceId,
           !threadId && !isThreadReply && mEventId
             ? getThreadSummaryInfo(room, mEvent, threadSummaryInfoMap.get(mEventId), summaryMap.get(mEventId))
             : undefined;
+        const recentThreadSummaryText =
+          !threadId && !isThreadReply && mEventId
+            ? resolveRecentThreadSummaryText({
+                room,
+                threadRootId: mEventId,
+                rootEvent: mEvent,
+                summaryInfo,
+              })
+            : undefined;
         const threadSummary =
           !threadId &&
           !isThreadReply &&
@@ -7126,11 +7141,12 @@ threadDebugTraceId,
                   />
                 </Box>
               )}
-              <ThreadIndicator
+                <ThreadIndicator
                 as="button"
                 style={{ marginTop: summaryInfo ? config.space.S100 : config.space.S200 }}
                 data-thread-root-id={mEventId}
                 data-event-id={mEventId}
+                data-thread-summary={recentThreadSummaryText}
                 threadReplyCount={threadReplyCount}
                 threadParticipantIds={threadParticipantIds}
                 isResolved={threadResolved}

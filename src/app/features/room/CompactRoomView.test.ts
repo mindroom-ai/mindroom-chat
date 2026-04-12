@@ -50,7 +50,7 @@ vi.mock('./CompactThreadCard', () => ({
     threadRootEvent?: { getId?: () => string | undefined };
     rootPreviewText?: string;
     summaryInfo?: MindroomThreadSummaryInfo;
-    onClick: (threadRootId: string) => void;
+    onClick: (threadRootId: string, summaryText?: string) => void;
     room: unknown;
   }) => {
     renderedCardProps({
@@ -66,7 +66,7 @@ vi.mock('./CompactThreadCard', () => ({
       {
         type: 'button',
         'data-thread-root-id': threadRootId,
-        onClick: () => onClick(threadRootId),
+        onClick: () => onClick(threadRootId, summaryInfo?.summaryText ?? rootPreviewText),
       },
       summaryInfo?.summaryText ?? 'thread'
     );
@@ -81,6 +81,13 @@ vi.mock('./CompactRoomView.css', () => ({
 const makeEvent = (eventId: string) =>
   ({
     getId: () => eventId,
+    replacingEvent: () => undefined,
+    getUnsigned: () => undefined,
+    getContent: () => ({}),
+    getType: () => 'm.room.message',
+    getSender: () => undefined,
+    getRelation: () => undefined,
+    getTs: () => 0,
   } as never);
 
 const makeRoom = ({
@@ -93,6 +100,11 @@ const makeRoom = ({
   ({
     getThread: vi.fn(() => (rootEvent ? { rootEvent } : undefined)),
     findEventById: vi.fn(() => fallbackEvent),
+    getUnfilteredTimelineSet: vi.fn(() => ({
+      relations: {
+        getChildEventsForEvent: () => undefined,
+      },
+    })),
   } as never);
 
 describe('CompactRoomView', () => {
@@ -232,7 +244,9 @@ describe('CompactRoomView', () => {
       React.createElement(CompactRoomView, {
         room: makeRoom({ rootEvent: makeEvent('$root') }),
         threadRootIds: ['$thread-3'],
-        metadataMap: new Map([['$thread-3', makeMetadata()]]),
+        metadataMap: new Map([
+          ['$thread-3', makeMetadata({ summaryText: 'Compact stored summary' })],
+        ]),
         onThreadClick,
       })
     );
@@ -243,6 +257,6 @@ describe('CompactRoomView', () => {
       button.props.onClick();
     });
 
-    expect(onThreadClick).toHaveBeenCalledWith('$thread-3');
+    expect(onThreadClick).toHaveBeenCalledWith('$thread-3', 'Compact stored summary');
   });
 });
