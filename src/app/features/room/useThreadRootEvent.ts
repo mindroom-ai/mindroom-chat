@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 import { Room, RoomEvent, RoomEventHandlerMap, ThreadEvent } from 'matrix-js-sdk';
 import { resolveCanonicalThreadRootId } from './threadRouteUtils';
 
@@ -16,20 +16,20 @@ export const useThreadRootEvent = (
   room: Room,
   threadId: string | undefined
 ): string | undefined => {
-  const [rootId, setRootId] = useState<string | undefined>(() =>
-    resolveCanonicalThreadRootId(room, threadId)
-  );
-
-  useEffect(() => {
-    setRootId(resolveCanonicalThreadRootId(room, threadId));
-  }, [room, threadId]);
+  const [, bumpRootIdVersion] = useReducer((version: number) => version + 1, 0);
+  const rootId = resolveCanonicalThreadRootId(room, threadId);
+  const rootIdRef = useRef(rootId);
+  rootIdRef.current = rootId;
 
   useEffect(() => {
     if (!threadId) return undefined;
 
     const refreshRootId = () => {
       const nextRootId = resolveCanonicalThreadRootId(room, threadId);
-      setRootId((currentRootId) => (currentRootId === nextRootId ? currentRootId : nextRootId));
+      if (rootIdRef.current === nextRootId) return;
+
+      rootIdRef.current = nextRootId;
+      bumpRootIdVersion();
     };
 
     const handleTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (
@@ -59,7 +59,10 @@ export const useThreadRootEvent = (
         resolveCanonicalThreadRootId(room, oldEventId) ??
         canonicalEventId ??
         threadId;
-      setRootId((currentRootId) => (currentRootId === nextRootId ? currentRootId : nextRootId));
+      if (rootIdRef.current === nextRootId) return;
+
+      rootIdRef.current = nextRootId;
+      bumpRootIdVersion();
     };
 
     room.on(RoomEvent.Timeline, handleTimeline);
