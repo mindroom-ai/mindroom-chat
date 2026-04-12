@@ -47,11 +47,16 @@ export const useThreadRootEvent = (
       oldEventId
     ) => {
       if (eventRoom?.roomId !== room.roomId) return;
-      if (oldEventId && oldEventId !== threadId) return;
+      // This hook only canonicalizes the currently open thread route.
+      // RoomEvent.LocalEchoUpdated fires for every local echo in the room; if we
+      // react to unrelated reply sends, we can retarget the open thread URL from
+      // the real root to a reply event and blank the thread view.
+      if (!oldEventId || oldEventId !== threadId) return;
 
       const canonicalEventId = event.getId();
       const nextRootId =
         resolveCanonicalThreadRootId(room, canonicalEventId ?? undefined) ??
+        resolveCanonicalThreadRootId(room, oldEventId) ??
         canonicalEventId ??
         threadId;
       setRootId((currentRootId) => (currentRootId === nextRootId ? currentRootId : nextRootId));
