@@ -158,6 +158,48 @@ describe('useThreadRootEvent', () => {
     });
   });
 
+  it('does not emit the previous thread root for a new thread route while props are updating', async () => {
+    const replyA = makeEvent('$reply-a', {
+      threadRootId: '$root-a',
+    });
+    const replyB = makeEvent('$reply-b', {
+      threadRootId: '$root-b',
+    });
+    const room = makeRoom({
+      events: [replyA, replyB],
+    });
+    const observedRenders: Array<{ threadId: string | undefined; rootId: string | undefined }> = [];
+
+    const HookProbe = ({ threadId }: { threadId?: string }) => {
+      const rootId = useThreadRootEvent(room, threadId);
+      observedRenders.push({ threadId, rootId });
+      return null;
+    };
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(React.createElement(HookProbe, { threadId: '$reply-a' }));
+    });
+
+    await act(async () => {
+      renderer?.update(React.createElement(HookProbe, { threadId: '$reply-b' }));
+    });
+
+    expect(observedRenders).not.toContainEqual({
+      threadId: '$reply-b',
+      rootId: '$root-a',
+    });
+    expect(observedRenders.at(-1)).toEqual({
+      threadId: '$reply-b',
+      rootId: '$root-b',
+    });
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+  });
+
   it('ignores unrelated LocalEchoUpdated events while a confirmed thread root is already open', async () => {
     const rootEvent = makeEvent('$root');
     const room = makeRoom({
