@@ -166,10 +166,7 @@ import {
   buildVisibleThreadParticipantMap,
   buildVisibleThreadReplyCountMap,
   eventBelongsToThread,
-  getLatestRenderableVisibleThreadReplyEvent,
-  getVisibleThreadEventBodyPreviewText,
   isVisibleThreadTextMessageEventType,
-  isVisibleThreadReplyEvent,
   isThreadReplyEvent,
 } from './threadUtils';
 import {
@@ -202,6 +199,10 @@ import {
 import { CompactRoomView } from './CompactRoomView';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import { buildPreferredThreadSummaryMap } from './threadSummarySelection';
+import {
+  resolveThreadPresentationSnapshot,
+  resolveThreadSummaryInfo,
+} from './threadPresentation';
 import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 import type { ThreadFilterKey } from './RoomThreadOverview';
 import { loadRoomThreads } from './roomThreadList';
@@ -1071,17 +1072,14 @@ const getThreadSummaryInfo = (
   fallbackInfo?: MindroomThreadSummaryInfo,
   cachedInfo?: MindroomThreadSummaryInfo
 ): MindroomThreadSummaryInfo | undefined => {
+  const preferredSummaryInfo = pickLatestThreadSummaryInfo(cachedInfo, fallbackInfo);
   const eventId = mEvent.getId();
-  if (eventId) {
-    const thread = room.getThread(eventId);
-    const info = getLatestThreadSummaryInfoFromEventSources(thread?.events, thread?.timeline);
-    if (info?.summaryText) {
-      const preferred = pickLatestThreadSummaryInfo(cachedInfo, fallbackInfo, info);
-      if (preferred?.summaryText) return preferred;
-    }
-  }
+  if (!eventId) return preferredSummaryInfo;
 
-  return pickLatestThreadSummaryInfo(cachedInfo, fallbackInfo);
+  return resolveThreadSummaryInfo({
+    preferredSummaryInfo,
+    thread: room.getThread(eventId),
+  });
 };
 
 export const getTimelineAndBaseIndex = (
@@ -3296,6 +3294,10 @@ export function RoomTimeline({
           const cachedPage = await loadLatestCachedThreadEvents(sessionId, room.roomId, rootId, 32);
           const currentMetadata =
             (showCompactRoomView ? compactThreadMetadataMap : threadMetadataMap).get(rootId);
+          const currentRootEvent =
+            room.findEventById(rootId) ??
+            room.getThread(rootId)?.rootEvent ??
+            roomThreadListThreads.find((thread) => thread.id === rootId)?.rootEvent;
           const cachedActivityTs = getCompactCachedThreadActivityTs({
             threadId: rootId,
             cachedPage,
@@ -3305,36 +3307,35 @@ export function RoomTimeline({
           const nextActivityTs =
             cachedActivityTs && cachedActivityTs > liveActivityTs ? cachedActivityTs : undefined;
           const cachedEvents = cachedPage.events.map((rawEvent) => mapper(rawEvent as IEvent));
-          const cachedReplyEvents = cachedEvents.filter(isVisibleThreadReplyEvent);
-          const latestCachedReplyEvent =
-            getLatestRenderableVisibleThreadReplyEvent(cachedReplyEvents);
-          const cachedReplyPreviewText =
-            getVisibleThreadEventBodyPreviewText(latestCachedReplyEvent);
-          const cachedLastSenderId =
-            latestCachedReplyEvent?.getSender() ??
-            cachedReplyEvents[cachedReplyEvents.length - 1]?.getSender();
-          const cachedMessageCount = cachedReplyEvents.length;
+          const cachedPresentation = resolveThreadPresentationSnapshot({
+            room,
+            threadRootId: rootId,
+            thread: { events: cachedEvents, timeline: cachedEvents },
+            rootEvent: cachedEvents.find((event) => event.getId() === rootId) ?? currentRootEvent,
+          });
           const shouldUseCachedReplyMetadata =
             (cachedActivityTs !== undefined && cachedActivityTs >= liveActivityTs) ||
             !currentMetadata?.latestReplyPreviewText;
           const nextReplyPreviewText =
             shouldUseCachedReplyMetadata &&
-            cachedReplyPreviewText &&
-            cachedReplyPreviewText !== currentMetadata?.latestReplyPreviewText
-              ? cachedReplyPreviewText
+            cachedPresentation.latestReplyPreviewText &&
+            cachedPresentation.latestReplyPreviewText !== currentMetadata?.latestReplyPreviewText
+              ? cachedPresentation.latestReplyPreviewText
               : undefined;
           const nextLastSenderId =
             shouldUseCachedReplyMetadata &&
-            cachedLastSenderId &&
-            cachedLastSenderId !== currentMetadata?.lastSenderId
-              ? cachedLastSenderId
+            cachedPresentation.lastSenderId &&
+            cachedPresentation.lastSenderId !== currentMetadata?.lastSenderId
+              ? cachedPresentation.lastSenderId
               : undefined;
           const nextMessageCount =
-            cachedMessageCount > 0 && cachedMessageCount > (currentMetadata?.messageCount ?? 0)
-              ? cachedMessageCount
+            cachedPresentation.messageCount > 0 &&
+            cachedPresentation.messageCount > (currentMetadata?.messageCount ?? 0)
+              ? cachedPresentation.messageCount
               : undefined;
-          const cachedSummaryInfo = getLatestThreadSummaryInfoFromEventSources(cachedEvents);
-          const nextSummaryInfo = cachedSummaryInfo?.summaryText ? cachedSummaryInfo : undefined;
+          const nextSummaryInfo = cachedPresentation.summaryInfo?.summaryText
+            ? cachedPresentation.summaryInfo
+            : undefined;
 
           let nextPreview: string | undefined;
           if (showCompactRoomView && !compactCachedThreadRootBodyMap.has(rootId)) {
@@ -3345,10 +3346,6 @@ export function RoomTimeline({
             });
             if (cachedPreview) {
               const currentPreview = compactThreadRootData.bodyMap.get(rootId);
-              const currentRootEvent =
-                room.findEventById(rootId) ??
-                room.getThread(rootId)?.rootEvent ??
-                roomThreadListThreads.find((thread) => thread.id === rootId)?.rootEvent;
               const currentSourceTs =
                 currentRootEvent?.replacingEvent()?.getTs() ?? currentRootEvent?.getTs() ?? 0;
               if (

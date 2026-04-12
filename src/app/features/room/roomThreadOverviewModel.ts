@@ -1,27 +1,28 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import {
-  getLatestThreadSummaryInfoFromEventSources,
+  pickLatestThreadSummaryInfo,
   type MindroomThreadSummaryInfo,
 } from '../../components/message/mindroomThreadSummary';
 import { getThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
 import { getThreadStreamingState } from '../../hooks/useThreadStreamingState';
-import { trimReplyFromBody } from '../../utils/room';
 import {
   getCompactThreadRootBodyPreviewText,
   isNestedThreadReplyEvent,
   isZeroReplyStandaloneThreadRootEvent,
-  pickPreferredThreadRootPreviewText,
 } from './compactThreadRootData';
 import { parseScheduledTaskStateEvent } from '../../utils/scheduledTaskContract';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
 import {
-  getLatestRenderableVisibleThreadReplyEvent,
   getPreferredVisibleThreadReplyEvents,
-  getVisibleThreadEventBodyPreviewText,
-  getVisibleThreadMessageCount,
 } from './threadUtils';
 import { getEffectiveThreadRootActivityTs } from './threadRouteUtils';
+import {
+  getThreadPrimarySummaryText,
+  resolveThreadPresentationSnapshot,
+  resolveThreadRootPreviewText,
+  resolveThreadSummaryInfo,
+} from './threadPresentation';
 
 // ─── Tri-state types ─────────────────────────────────────────────────────────
 
@@ -387,26 +388,6 @@ export const collectAvailableRoomTags = (
 const getThreadRootEvent = (room: Room, threadRootId: string): MatrixEvent | undefined =>
   room.findEventById(threadRootId) ?? room.getThread(threadRootId)?.rootEvent;
 
-const getEventBodyPreviewText = (event: MatrixEvent | undefined): string | undefined => {
-  const content =
-    event && typeof event.getContent === 'function'
-      ? (event.getContent() as Record<string, unknown> | null | undefined)
-      : undefined;
-  if (!content || typeof content !== 'object' || Array.isArray(content)) return undefined;
-
-  const newContent = content['m.new_content'];
-  const editedBody =
-    newContent && typeof newContent === 'object' && !Array.isArray(newContent)
-      ? (newContent as Record<string, unknown>).body
-      : undefined;
-  const body = editedBody ?? content.body;
-
-  if (typeof body !== 'string') return undefined;
-
-  const normalized = trimReplyFromBody(body).replace(/\s+/g, ' ').trim();
-  return normalized.length > 0 ? normalized : undefined;
-};
-
 const isVisibleThreadRootEvent = (
   event: MatrixEvent,
   room: Room,
@@ -428,14 +409,6 @@ const isVisibleThreadRootEvent = (
 };
 
 // ─── Summary helpers ─────────────────────────────────────────────────────────
-
-const getSdkThreadSummaryInfo = (
-  room: Room,
-  threadRootId: string
-): MindroomThreadSummaryInfo | undefined => {
-  const thread = room.getThread(threadRootId);
-  return getLatestThreadSummaryInfoFromEventSources(thread?.events, thread?.timeline);
-};
 
 export const buildVisibleThreadRootData = (
   renderableEventEntries: Array<{ event: MatrixEvent; absoluteIndex: number }>,
@@ -470,10 +443,13 @@ export const buildThreadOverviewSummaryMap = (
   const summaryMap = new Map<string, MindroomThreadSummaryInfo>();
 
   threadRootIds.forEach((threadRootId) => {
-    const summaryInfo =
-      getSdkThreadSummaryInfo(room, threadRootId) ??
-      loadedSummaryMap.get(threadRootId) ??
-      cachedSummaryMap.get(threadRootId);
+    const summaryInfo = resolveThreadSummaryInfo({
+      preferredSummaryInfo: pickLatestThreadSummaryInfo(
+        loadedSummaryMap.get(threadRootId),
+        cachedSummaryMap.get(threadRootId)
+      ),
+      thread: room.getThread(threadRootId),
+    });
 
     if (summaryInfo?.summaryText) {
       summaryMap.set(threadRootId, summaryInfo);
@@ -484,10 +460,11 @@ export const buildThreadOverviewSummaryMap = (
 };
 
 export const getThreadRootPreviewText = (room: Room, threadRootId: string): string | undefined =>
-  getCompactThreadRootBodyPreviewText(getThreadRootEvent(room, threadRootId), {
-    eventId: threadRootId,
+  resolveThreadRootPreviewText({
     room,
-  }) ?? getEventBodyPreviewText(getThreadRootEvent(room, threadRootId));
+    threadRootId,
+    rootEvent: getThreadRootEvent(room, threadRootId),
+  });
 
 // ─── Thread metadata helpers ─────────────────────────────────────────────────
 
@@ -531,7 +508,7 @@ const getThreadNonUserParticipantDisplayName = (
 
 export const getThreadOverviewSummaryText = (
   metadata: ThreadOverviewMetadata
-): string | undefined => metadata.summaryText ?? metadata.rootPreviewText;
+): string | undefined => getThreadPrimarySummaryText(metadata);
 
 // ─── Batch scheduled task helper ────────────────────────────────────────────
 
@@ -616,24 +593,20 @@ export const buildThreadMetadataMap = (
     const lastActivityTs = Math.max(liveLastActivityTs, cachedLastActivityTs, rootEventTs);
     const absoluteIndex = absoluteIndexMap.get(threadRootId) ?? 0;
     const unread = isThreadUnread(room, threadRootId, currentUserId, readUpToTs);
-    const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
     const fallbackParticipantIds = threadParticipantMap.get(threadRootId);
-    const latestPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents);
-    const lastEvent = latestPreviewEvent ?? replyEvents[replyEvents.length - 1];
-    const lastSenderId =
-      lastEvent?.getSender() ??
-      cachedLastSenderIdMap?.get(threadRootId) ??
-      (fallbackParticipantIds && fallbackParticipantIds.length > 0
-        ? fallbackParticipantIds[0]
-        : undefined);
-    const lastSenderDisplayName = lastSenderId
-      ? room.getMember(lastSenderId)?.name ?? lastSenderId
-      : undefined;
-    const summaryInfo = summaryMap.get(threadRootId);
-    const messageCount =
-      summaryInfo?.messageCount ??
-      cachedMessageCountMap?.get(threadRootId) ??
-      getVisibleThreadMessageCount(thread, threadReplyCountMap.get(threadRootId));
+    const presentation = resolveThreadPresentationSnapshot({
+      room,
+      threadRootId,
+      thread,
+      rootEvent,
+      preferredSummaryInfo: summaryMap.get(threadRootId),
+      preferredRootPreviewText: eventBodyFallbackMap?.get(threadRootId),
+      fallbackLatestReplyPreviewText: cachedLatestReplyPreviewMap?.get(threadRootId),
+      fallbackLastSenderId: cachedLastSenderIdMap?.get(threadRootId),
+      fallbackMessageCount:
+        cachedMessageCountMap?.get(threadRootId) ?? threadReplyCountMap.get(threadRootId),
+      fallbackParticipantIds,
+    });
     const participantDisplayName =
       getThreadNonUserParticipantDisplayName(room, thread, currentUserId) ??
       getParticipantDisplayNameFromIds(room, fallbackParticipantIds, currentUserId);
@@ -645,21 +618,13 @@ export const buildThreadMetadataMap = (
       scheduledTaskCount,
       lastActivityTs,
       absoluteIndex,
-      lastSenderId,
-      lastSenderDisplayName,
-      latestReplyPreviewText:
-        getVisibleThreadEventBodyPreviewText(latestPreviewEvent) ??
-        cachedLatestReplyPreviewMap?.get(threadRootId),
+      lastSenderId: presentation.lastSenderId,
+      lastSenderDisplayName: presentation.lastSenderDisplayName,
+      latestReplyPreviewText: presentation.latestReplyPreviewText,
       participantDisplayName,
-      summaryText: summaryInfo?.summaryText,
-      rootPreviewText: pickPreferredThreadRootPreviewText({
-        preferredPreviewText: eventBodyFallbackMap?.get(threadRootId),
-        fallbackPreviewText: getCompactThreadRootBodyPreviewText(rootEvent, {
-          eventId: threadRootId,
-          room,
-        }) ?? getEventBodyPreviewText(rootEvent),
-      }),
-      messageCount,
+      summaryText: presentation.summaryText,
+      rootPreviewText: presentation.rootPreviewText,
+      messageCount: presentation.messageCount,
       tags,
     });
   });
