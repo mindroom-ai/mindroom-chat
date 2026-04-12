@@ -510,6 +510,8 @@ vi.mock('./threadUtils', () => ({
   ) => !!threadId && mEvent.threadRootId === threadId && mEvent.getId() !== threadId,
   getPreferredVisibleThreadReplyEvents: () => [],
   getVisibleThreadMessageCount: () => 0,
+  isVisibleThreadTextMessageEventType: (eventType?: string) =>
+    eventType === 'm.room.message' || eventType === 'm.room.encrypted',
   isThreadReplyEvent: (eventId?: string, threadRootId?: string) =>
     !!eventId && !!threadRootId && eventId !== threadRootId,
 }));
