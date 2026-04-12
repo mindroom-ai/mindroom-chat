@@ -1076,7 +1076,6 @@ const makeRoom = ({
     },
     findEventById: findEventById ?? ((eventId: string) => getEventFromTimelines(eventId)),
     getEventReadUpTo: () => undefined,
-    getMember: () => null,
     getLiveTimeline: () => roomLiveTimeline,
     getMember: (userId: string) => ({ name: userId }),
     getThread: (threadId: string) => threads.find((thread) => thread.id === threadId) ?? null,

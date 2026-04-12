@@ -157,4 +157,40 @@ describe('useThreadRootEvent', () => {
       renderer?.unmount();
     });
   });
+
+  it('ignores unrelated LocalEchoUpdated events while a confirmed thread root is already open', async () => {
+    const rootEvent = makeEvent('$root');
+    const room = makeRoom({
+      events: [rootEvent],
+    });
+    const observedRootIds: Array<string | undefined> = [];
+
+    const HookProbe = ({ threadId }: { threadId?: string }) => {
+      const rootId = useThreadRootEvent(room, threadId);
+      observedRootIds.push(rootId);
+      return null;
+    };
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(React.createElement(HookProbe, { threadId: '$root' }));
+    });
+
+    await act(async () => {
+      room.__listeners.get(RoomEvent.LocalEchoUpdated)?.(makeEvent('$reply'), room, undefined);
+    });
+
+    await act(async () => {
+      room.__listeners
+        .get(RoomEvent.LocalEchoUpdated)
+        ?.(makeEvent('$reply-2'), room, '~!room:example.org:m123');
+    });
+
+    expect(observedRootIds.at(-1)).toBe('$root');
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+  });
 });
