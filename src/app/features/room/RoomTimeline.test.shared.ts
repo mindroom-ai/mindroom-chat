@@ -685,6 +685,20 @@ vi.mock('./threadUtils', () => ({
         event.getType?.() !== 'com.mindroom.thread.tag'
     );
   },
+  getLatestRenderableVisibleThreadReplyEvent: (
+    replyEvents: Array<{
+      getContent?: () => Record<string, unknown> | undefined;
+      getType?(): string | undefined;
+    }>
+  ) => {
+    for (let i = replyEvents.length - 1; i >= 0; i -= 1) {
+      const body = replyEvents[i].getContent?.()?.body;
+      if (typeof body === 'string' && body.trim().length > 0) {
+        return replyEvents[i];
+      }
+    }
+    return undefined;
+  },
   hasLoadedThreadReplyEvents: (
     thread:
       | {
@@ -735,6 +749,16 @@ vi.mock('./threadUtils', () => ({
       return fallbackMessageCount;
     }
     return 0;
+  },
+  getVisibleThreadEventBodyPreviewText: (
+    event:
+      | {
+          getContent?: () => Record<string, unknown> | undefined;
+        }
+      | undefined
+  ) => {
+    const body = event?.getContent?.()?.body;
+    return typeof body === 'string' && body.trim().length > 0 ? body.trim() : undefined;
   },
   getVisibleThreadParticipantIds: (
     thread:

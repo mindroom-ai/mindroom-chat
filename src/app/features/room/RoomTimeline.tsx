@@ -128,6 +128,7 @@ import { GetContentCallback, MessageEvent, StateEvent } from '../../../types/mat
 import { ErrorCode } from '../../cs-errorcode';
 import { useKeyDown } from '../../hooks/useKeyDown';
 import { useDocumentFocusChange } from '../../hooks/useDocumentFocusChange';
+import { usePageResume } from '../../hooks/usePageResume';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
 import {
   CollapsibleMessage,
@@ -165,7 +166,10 @@ import {
   buildVisibleThreadParticipantMap,
   buildVisibleThreadReplyCountMap,
   eventBelongsToThread,
+  getLatestRenderableVisibleThreadReplyEvent,
+  getVisibleThreadEventBodyPreviewText,
   isVisibleThreadTextMessageEventType,
+  isVisibleThreadReplyEvent,
   isThreadReplyEvent,
 } from './threadUtils';
 import {
@@ -200,6 +204,7 @@ import { RoomThreadOverview } from './RoomThreadOverview';
 import { buildPreferredThreadSummaryMap } from './threadSummarySelection';
 import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 import type { ThreadFilterKey } from './RoomThreadOverview';
+import { loadRoomThreads } from './roomThreadList';
 import {
   type ThreadFilterState,
   type ThreadSortFreezeState,
@@ -682,6 +687,7 @@ export const getThreadFilteredEvents = (
         absoluteIndex: 0,
         lastSenderId: undefined,
         lastSenderDisplayName: undefined,
+        latestReplyPreviewText: undefined,
         participantDisplayName: undefined,
         summaryText: undefined,
         rootPreviewText: undefined,
@@ -1691,6 +1697,7 @@ export const filterLatestRoomCacheHydrationEvents = (
 
 export const MAX_THREAD_FETCH_EVENTS = 5000;
 export const MAX_THREAD_FETCH_ITERATIONS = 50;
+const OVERVIEW_THREAD_METADATA_CACHE_LIMIT = 64;
 const VISIBLE_THREAD_CACHE_PREWARM_LIMIT = 8;
 const VISIBLE_THREAD_CACHE_PREWARM_MIN_REPLY_COUNT = 20;
 const VISIBLE_THREAD_CACHE_PREWARM_OVERSCAN = 8;
@@ -2949,7 +2956,10 @@ export function RoomTimeline({
     return { ids, indexMap, bodyMap };
   }, [roomSurfaceEventEntries, room, threadResolutionMap, threadReplyCountMap]);
   const compactViewRequested = !threadId && effectiveViewMode === 'compact';
-  const { threads: roomThreadListThreads } = useRoomThreadList(room, compactViewRequested);
+  const { threads: roomThreadListThreads, retry: refreshRoomThreadList } = useRoomThreadList(
+    room,
+    compactViewRequested
+  );
   const compactThreadRootData = useMemo(
     () => {
       if (threadId || !compactViewRequested) {
@@ -2986,12 +2996,24 @@ export function RoomTimeline({
   const [cachedThreadLastActivityTsMap, setCachedThreadLastActivityTsMap] = useState(
     () => new Map<string, number>()
   );
+  const [cachedThreadLatestReplyPreviewMap, setCachedThreadLatestReplyPreviewMap] = useState(
+    () => new Map<string, string>()
+  );
+  const [cachedThreadLastSenderIdMap, setCachedThreadLastSenderIdMap] = useState(
+    () => new Map<string, string>()
+  );
+  const [cachedThreadMessageCountMap, setCachedThreadMessageCountMap] = useState(
+    () => new Map<string, number>()
+  );
   const compactCachedRootPreviewAttemptCountsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     compactCachedRootPreviewAttemptCountsRef.current = new Map();
     setCompactCachedThreadRootBodyMap(new Map());
     setCachedThreadLastActivityTsMap(new Map());
+    setCachedThreadLatestReplyPreviewMap(new Map());
+    setCachedThreadLastSenderIdMap(new Map());
+    setCachedThreadMessageCountMap(new Map());
   }, [room.roomId]);
 
   const compactThreadRootBodyMap = useMemo(() => {
@@ -3028,7 +3050,10 @@ export function RoomTimeline({
         readUpToTs,
         visibleThreadRootData.indexMap,
         visibleThreadRootData.bodyMap,
-        cachedThreadLastActivityTsMap
+        cachedThreadLastActivityTsMap,
+        cachedThreadLatestReplyPreviewMap,
+        cachedThreadLastSenderIdMap,
+        cachedThreadMessageCountMap
       );
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3045,6 +3070,9 @@ export function RoomTimeline({
       readUpToTs,
       overviewRefreshCounter,
       cachedThreadLastActivityTsMap,
+      cachedThreadLatestReplyPreviewMap,
+      cachedThreadLastSenderIdMap,
+      cachedThreadMessageCountMap,
     ]
   );
   const compactThreadMetadataMap = useMemo(
@@ -3063,7 +3091,10 @@ export function RoomTimeline({
         readUpToTs,
         compactThreadRootData.indexMap,
         compactThreadRootBodyMap,
-        cachedThreadLastActivityTsMap
+        cachedThreadLastActivityTsMap,
+        cachedThreadLatestReplyPreviewMap,
+        cachedThreadLastSenderIdMap,
+        cachedThreadMessageCountMap
       );
     },
     [
@@ -3081,6 +3112,9 @@ export function RoomTimeline({
       readUpToTs,
       overviewRefreshCounter,
       cachedThreadLastActivityTsMap,
+      cachedThreadLatestReplyPreviewMap,
+      cachedThreadLastSenderIdMap,
+      cachedThreadMessageCountMap,
       threadMetadataMap,
     ]
   );
@@ -3216,7 +3250,7 @@ export function RoomTimeline({
     if (threadId || overviewThreadRootIds.length === 0) return;
 
     const threadRootIdsToLoad = overviewThreadRootIds
-      .slice(0, 64)
+      .slice(0, OVERVIEW_THREAD_METADATA_CACHE_LIMIT)
       .filter((rootId) => {
         const needsActivityTs = !cachedThreadLastActivityTsMap.has(rootId);
 
@@ -3251,21 +3285,56 @@ export function RoomTimeline({
         rootId: string;
         nextActivityTs?: number;
         nextPreview?: string;
+        nextReplyPreviewText?: string;
+        nextLastSenderId?: string;
+        nextMessageCount?: number;
+        nextSummaryInfo?: MindroomThreadSummaryInfo;
       };
 
       const updates = await Promise.all(
         threadRootIdsToLoad.map(async (rootId) => {
           const cachedPage = await loadLatestCachedThreadEvents(sessionId, room.roomId, rootId, 32);
+          const currentMetadata =
+            (showCompactRoomView ? compactThreadMetadataMap : threadMetadataMap).get(rootId);
           const cachedActivityTs = getCompactCachedThreadActivityTs({
             threadId: rootId,
             cachedPage,
             mapper,
           });
-          const liveActivityTs =
-            (showCompactRoomView ? compactThreadMetadataMap : threadMetadataMap).get(rootId)
-              ?.lastActivityTs ?? 0;
+          const liveActivityTs = currentMetadata?.lastActivityTs ?? 0;
           const nextActivityTs =
             cachedActivityTs && cachedActivityTs > liveActivityTs ? cachedActivityTs : undefined;
+          const cachedEvents = cachedPage.events.map((rawEvent) => mapper(rawEvent as IEvent));
+          const cachedReplyEvents = cachedEvents.filter(isVisibleThreadReplyEvent);
+          const latestCachedReplyEvent =
+            getLatestRenderableVisibleThreadReplyEvent(cachedReplyEvents);
+          const cachedReplyPreviewText =
+            getVisibleThreadEventBodyPreviewText(latestCachedReplyEvent);
+          const cachedLastSenderId =
+            latestCachedReplyEvent?.getSender() ??
+            cachedReplyEvents[cachedReplyEvents.length - 1]?.getSender();
+          const cachedMessageCount = cachedReplyEvents.length;
+          const shouldUseCachedReplyMetadata =
+            (cachedActivityTs !== undefined && cachedActivityTs >= liveActivityTs) ||
+            !currentMetadata?.latestReplyPreviewText;
+          const nextReplyPreviewText =
+            shouldUseCachedReplyMetadata &&
+            cachedReplyPreviewText &&
+            cachedReplyPreviewText !== currentMetadata?.latestReplyPreviewText
+              ? cachedReplyPreviewText
+              : undefined;
+          const nextLastSenderId =
+            shouldUseCachedReplyMetadata &&
+            cachedLastSenderId &&
+            cachedLastSenderId !== currentMetadata?.lastSenderId
+              ? cachedLastSenderId
+              : undefined;
+          const nextMessageCount =
+            cachedMessageCount > 0 && cachedMessageCount > (currentMetadata?.messageCount ?? 0)
+              ? cachedMessageCount
+              : undefined;
+          const cachedSummaryInfo = getLatestThreadSummaryInfoFromEventSources(cachedEvents);
+          const nextSummaryInfo = cachedSummaryInfo?.summaryText ? cachedSummaryInfo : undefined;
 
           let nextPreview: string | undefined;
           if (showCompactRoomView && !compactCachedThreadRootBodyMap.has(rootId)) {
@@ -3291,12 +3360,25 @@ export function RoomTimeline({
             }
           }
 
-          if (nextActivityTs === undefined && nextPreview === undefined) return null;
+          if (
+            nextActivityTs === undefined &&
+            nextPreview === undefined &&
+            nextReplyPreviewText === undefined &&
+            nextLastSenderId === undefined &&
+            nextMessageCount === undefined &&
+            nextSummaryInfo === undefined
+          ) {
+            return null;
+          }
 
           return {
             rootId,
             nextActivityTs,
             nextPreview,
+            nextReplyPreviewText,
+            nextLastSenderId,
+            nextMessageCount,
+            nextSummaryInfo,
           };
         })
       );
@@ -3334,6 +3416,47 @@ export function RoomTimeline({
           });
         }
       }
+
+      const replyPreviewUpdates = nextUpdates.filter((entry) => entry.nextReplyPreviewText !== undefined);
+      if (replyPreviewUpdates.length > 0) {
+        setCachedThreadLatestReplyPreviewMap((prev) => {
+          const next = new Map(prev);
+          replyPreviewUpdates.forEach(({ rootId, nextReplyPreviewText }) => {
+            if (nextReplyPreviewText === undefined) return;
+            next.set(rootId, nextReplyPreviewText);
+          });
+          return next;
+        });
+      }
+
+      const lastSenderUpdates = nextUpdates.filter((entry) => entry.nextLastSenderId !== undefined);
+      if (lastSenderUpdates.length > 0) {
+        setCachedThreadLastSenderIdMap((prev) => {
+          const next = new Map(prev);
+          lastSenderUpdates.forEach(({ rootId, nextLastSenderId }) => {
+            if (nextLastSenderId === undefined) return;
+            next.set(rootId, nextLastSenderId);
+          });
+          return next;
+        });
+      }
+
+      const messageCountUpdates = nextUpdates.filter((entry) => entry.nextMessageCount !== undefined);
+      if (messageCountUpdates.length > 0) {
+        setCachedThreadMessageCountMap((prev) => {
+          const next = new Map(prev);
+          messageCountUpdates.forEach(({ rootId, nextMessageCount }) => {
+            if (nextMessageCount === undefined) return;
+            next.set(rootId, nextMessageCount);
+          });
+          return next;
+        });
+      }
+
+      nextUpdates.forEach(({ rootId, nextSummaryInfo }) => {
+        if (!nextSummaryInfo?.summaryText) return;
+        onStoreThreadSummary(rootId, nextSummaryInfo);
+      });
     };
 
     loadCachedThreadOverviewMetadata();
@@ -3343,9 +3466,13 @@ export function RoomTimeline({
     };
   }, [
     cachedThreadLastActivityTsMap,
+    cachedThreadLastSenderIdMap,
+    cachedThreadLatestReplyPreviewMap,
+    cachedThreadMessageCountMap,
     compactCachedThreadRootBodyMap,
     compactThreadMetadataMap,
     compactThreadRootData.bodyMap,
+    onStoreThreadSummary,
     overviewThreadRootIds,
     roomThreadFilterActive,
     showCompactRoomView,
@@ -4712,9 +4839,29 @@ export function RoomTimeline({
   }, [ensureThreadSeedPrewarm, priorityThreadSeedPrewarmRoots, roomDebugTraceId, threadId]);
 
   const refreshLatestThreadSlice = useCallback(
-    async (expectedThreadId: string): Promise<boolean> => {
-      const currentThread = room.getThread(expectedThreadId);
+    async (
+      expectedThreadId: string,
+      opts?: {
+        allowWhenThreadClosed?: boolean;
+      }
+    ): Promise<boolean> => {
+      const allowWhenThreadClosed = opts?.allowWhenThreadClosed === true;
+      let currentThread = room.getThread(expectedThreadId);
+      if (!currentThread && allowWhenThreadClosed) {
+        const [threadErr] = await to(
+          mx.getThreadTimeline(room.getUnfilteredTimelineSet(), expectedThreadId)
+        );
+        if (threadErr) return false;
+        currentThread = room.getThread(expectedThreadId);
+      }
       if (!currentThread) return false;
+      const shouldAbortRefresh = () => {
+        if (!alive() || roomIdRef.current !== room.roomId) return true;
+        if (allowWhenThreadClosed) {
+          return !!threadIdRef.current && threadIdRef.current !== expectedThreadId;
+        }
+        return threadIdRef.current !== expectedThreadId;
+      };
 
       // Use the SDK's paginateEventTimeline in a loop — the same mechanism used
       // by the working room preload loop and handleThreadPaginateBack.
@@ -4722,7 +4869,7 @@ export function RoomTimeline({
       // timelineSet.addEventsToTimeline() + thread.processEvent() path.
       const threadTimelineSet = currentThread.getUnfilteredTimelineSet();
       for (let iteration = 0; iteration < MAX_THREAD_FETCH_ITERATIONS; iteration++) {
-        if (threadIdRef.current !== expectedThreadId) return false;
+        if (shouldAbortRefresh()) return false;
 
         const linkedTimelines = getLinkedTimelines(threadTimelineSet.getLiveTimeline());
         const firstTimeline = linkedTimelines[0];
@@ -4737,7 +4884,7 @@ export function RoomTimeline({
         if (err || didPaginate === false) break;
       }
 
-      if (threadIdRef.current !== expectedThreadId) return false;
+      if (shouldAbortRefresh()) return false;
 
       const allEvents = currentThread.events;
       const rootEvent = currentThread.rootEvent ?? room.findEventById(expectedThreadId);
@@ -7083,6 +7230,177 @@ threadDebugTraceId,
     threadId,
     visibleThreadSummaryRefreshIds,
   ]);
+
+  const overviewResumeRefreshIds = useMemo(() => {
+    if (threadId) return [] as string[];
+
+    const nextIds = new Set<string>();
+    visibleThreadSummaryRefreshIds.forEach((rootId) => {
+      nextIds.add(rootId);
+    });
+    (showCompactRoomView ? compactFilteredThreadRootIds : filteredThreadRootIds)
+      .slice(0, OVERVIEW_THREAD_METADATA_CACHE_LIMIT)
+      .forEach((rootId) => {
+        nextIds.add(rootId);
+      });
+
+    return [...nextIds].slice(0, OVERVIEW_THREAD_METADATA_CACHE_LIMIT);
+  }, [
+    compactFilteredThreadRootIds,
+    filteredThreadRootIds,
+    showCompactRoomView,
+    threadId,
+    visibleThreadSummaryRefreshIds,
+  ]);
+
+  const overviewResumeRefreshInFlightRef = useRef(false);
+  const pendingOverviewResumeRefreshRef = useRef(false);
+  const lastOverviewResumeRefreshTsRef = useRef(0);
+
+  useEffect(() => {
+    overviewResumeRefreshInFlightRef.current = false;
+    pendingOverviewResumeRefreshRef.current = false;
+    lastOverviewResumeRefreshTsRef.current = 0;
+  }, [room.roomId]);
+
+  const refreshOverviewThreadCacheFromRelations = useCallback(
+    async (expectedThreadId: string): Promise<void> => {
+      const rootEvent =
+        room.getThread(expectedThreadId)?.rootEvent ?? room.findEventById(expectedThreadId);
+      if (!rootEvent) return;
+
+      const relationPageResult = await fetchAllThreadRelations(
+        mx,
+        room.roomId,
+        expectedThreadId,
+        THREAD_BATCH_SIZE,
+        () => !alive() || (!!threadIdRef.current && threadIdRef.current !== expectedThreadId)
+      );
+      if (!relationPageResult || !alive() || (!!threadIdRef.current && threadIdRef.current !== expectedThreadId)) {
+        return;
+      }
+
+      const relationEvents = relationPageResult.events;
+      const relationSnapshotComplete = typeof relationPageResult.nextBatchToken !== 'string';
+      const expectedReplyCount = getKnownThreadReplyCount(rootEvent);
+      const snapshotComplete = isCompleteCachedThreadSnapshot({
+        room,
+        threadId: expectedThreadId,
+        rootEvent,
+        cachedRootEvent: rootEvent,
+        cachedEvents: rootEvent ? [rootEvent, ...relationEvents] : relationEvents,
+        beforeToken: relationPageResult.nextBatchToken ?? null,
+        hasMoreBefore: typeof relationPageResult.nextBatchToken === 'string',
+        expectedReplyCount,
+        snapshotComplete: relationSnapshotComplete,
+        tailLoaded: true,
+      });
+
+      if (relationEvents.length > 0) {
+        setSupplementalThreadEvents(expectedThreadId, relationEvents);
+        saveThreadOpenSeedSnapshot(room, expectedThreadId, relationEvents);
+      }
+
+      persistThreadEventCache(
+        expectedThreadId,
+        relationEvents,
+        rootEvent,
+        relationPageResult.nextBatchToken ?? null,
+        true,
+        snapshotComplete,
+        expectedReplyCount,
+        relationSnapshotComplete
+      );
+
+      const summaryInfo = getLatestThreadSummaryInfoFromEventSources(relationEvents);
+      if (summaryInfo?.summaryText) {
+        onStoreThreadSummary(expectedThreadId, summaryInfo);
+      }
+    },
+    [alive, mx, onStoreThreadSummary, persistThreadEventCache, room, setSupplementalThreadEvents]
+  );
+
+  const refreshOverviewThreadsOnResume = useCallback(
+    (reason: 'focus' | 'online' | 'pageshow' | 'visibility') => {
+      if (threadId) return;
+      if (!compactViewRequested && overviewResumeRefreshIds.length === 0) return;
+
+      const now = Date.now();
+      if (
+        !overviewResumeRefreshInFlightRef.current &&
+        now - lastOverviewResumeRefreshTsRef.current < 1_000
+      ) {
+        return;
+      }
+      lastOverviewResumeRefreshTsRef.current = now;
+
+      if (overviewResumeRefreshInFlightRef.current) {
+        pendingOverviewResumeRefreshRef.current = true;
+        return;
+      }
+
+      const runRefresh = async () => {
+        overviewResumeRefreshInFlightRef.current = true;
+        pendingOverviewResumeRefreshRef.current = false;
+        logTimelineDebug(roomDebugTraceId, 'overview-thread-resume-refresh-start', {
+          compactViewRequested,
+          reason,
+          targetCount: overviewResumeRefreshIds.length,
+        });
+
+        try {
+          if (compactViewRequested) {
+            await refreshRoomThreadList();
+          } else {
+            await loadRoomThreads(room);
+          }
+
+          if (!alive() || threadIdRef.current) return;
+
+          for (const expectedThreadId of overviewResumeRefreshIds) {
+            if (!alive() || threadIdRef.current) return;
+            await refreshOverviewThreadCacheFromRelations(expectedThreadId);
+          }
+
+          setOverviewRefreshCounter((value) => value + 1);
+          logTimelineDebug(roomDebugTraceId, 'overview-thread-resume-refresh-complete', {
+            compactViewRequested,
+            reason,
+            targetCount: overviewResumeRefreshIds.length,
+          });
+        } catch (error) {
+          logTimelineDebug(roomDebugTraceId, 'overview-thread-resume-refresh-error', {
+            compactViewRequested,
+            error: error instanceof Error ? error.message : String(error),
+            reason,
+            targetCount: overviewResumeRefreshIds.length,
+          });
+        } finally {
+          overviewResumeRefreshInFlightRef.current = false;
+
+          if (pendingOverviewResumeRefreshRef.current && !threadIdRef.current) {
+            queueMicrotask(() => {
+              refreshOverviewThreadsOnResume(reason);
+            });
+          }
+        }
+      };
+
+      void runRefresh();
+    },
+    [
+      alive,
+      compactViewRequested,
+      overviewResumeRefreshIds,
+      refreshOverviewThreadCacheFromRelations,
+      refreshRoomThreadList,
+      room,
+      roomDebugTraceId,
+      threadId,
+    ]
+  );
+
+  usePageResume(refreshOverviewThreadsOnResume);
 
   const preferredThreadSummaryMap = useMemo(() => {
     return buildPreferredThreadSummaryMap(summaryMap, threadSummaryInfoMap);

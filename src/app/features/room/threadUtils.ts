@@ -2,6 +2,8 @@ import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { MessageEvent, StateEvent } from '../../../types/matrix/room';
+import { trimReplyFromBody } from '../../utils/room';
+import { isMindroomThreadSummaryEvent } from '../../components/message/mindroomThreadSummary';
 
 type ThreadEventLike = {
   getId(): string | undefined;
@@ -62,6 +64,48 @@ export const isVisibleThreadReplyEvent = (event: VisibleThreadEventLike): boolea
   if (event.isRedacted?.() || event.isRedaction?.()) return false;
 
   return isVisibleThreadReplyEventType(event.getType?.());
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
+
+export const getVisibleThreadEventBodyPreviewText = (
+  event: MatrixEvent | undefined
+): string | undefined => {
+  const content =
+    event && typeof event.getContent === 'function'
+      ? (event.getContent() as Record<string, unknown> | null | undefined)
+      : undefined;
+  if (!content || !isRecord(content)) return undefined;
+
+  const newContent = isRecord(content['m.new_content'])
+    ? (content['m.new_content'] as Record<string, unknown>)
+    : undefined;
+  const body = typeof newContent?.body === 'string' ? newContent.body : content.body;
+  if (typeof body !== 'string') return undefined;
+
+  const normalized = trimReplyFromBody(body).replace(/\s+/g, ' ').trim();
+  return normalized.length > 0 ? normalized : undefined;
+};
+
+export const getLatestRenderableVisibleThreadReplyEvent = (
+  replyEvents: MatrixEvent[]
+): MatrixEvent | undefined => {
+  let summaryFallback: MatrixEvent | undefined;
+
+  for (let i = replyEvents.length - 1; i >= 0; i -= 1) {
+    const event = replyEvents[i];
+    if (!getVisibleThreadEventBodyPreviewText(event)) continue;
+
+    if (isMindroomThreadSummaryEvent(event)) {
+      summaryFallback ??= event;
+      continue;
+    }
+
+    return event;
+  }
+
+  return summaryFallback;
 };
 
 export const getPreferredVisibleThreadReplyEvents = (
