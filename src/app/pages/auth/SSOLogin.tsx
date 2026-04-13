@@ -1,8 +1,6 @@
 import { Avatar, AvatarImage, Box, Button, Text } from 'folds';
 import { IIdentityProvider, SSOAction } from 'matrix-js-sdk';
 import React, { useMemo, useRef } from 'react';
-import { Capacitor } from '@capacitor/core';
-import { Browser } from '@capacitor/browser';
 import { createMatrixClient } from '../../../client/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import {
@@ -17,6 +15,7 @@ import AppleLogo from '../../../../public/res/svg/sso-apple-white.svg';
 import GoogleLogo from '../../../../public/res/svg/sso-google.svg';
 import GitHubLogo from '../../../../public/res/svg/sso-github.svg';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
+import { isNativeIOS, openNativeSsoBrowser } from '../../utils/nativeSso';
 
 type SSOLoginProps = {
   providers?: IIdentityProvider[];
@@ -30,16 +29,8 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
   const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
   const orderedProviders = sortIdentityProviders(providers);
   const appleProviderAvailable = hasAppleIdentityProvider(orderedProviders);
-  const nativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+  const nativeIOS = isNativeIOS();
   const openingNativeSSORef = useRef(false);
-
-  const openNativeSSOBrowser = async (url: string): Promise<void> => {
-    try {
-      await Browser.open({ url, presentationStyle: 'fullscreen' });
-    } catch {
-      window.location.assign(url);
-    }
-  };
 
   const handleSSONavigate =
     (url: string) =>
@@ -50,7 +41,9 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
       if (openingNativeSSORef.current) return;
       openingNativeSSORef.current = true;
       try {
-        await openNativeSSOBrowser(url);
+        await openNativeSsoBrowser(url);
+      } catch (error) {
+        console.error('[SSO] Failed to open native iOS in-app browser', error);
       } finally {
         // Avoid multiple rapid taps creating overlapping SSO sessions/states.
         window.setTimeout(() => {
@@ -85,18 +78,19 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
       {providers ? (
         orderedProviders.map((provider) => {
           const { id, name } = provider;
+          const ssoUrl = getSSOIdUrl(id);
           const iconUrl = getProviderIconUrl(provider);
           const appleProvider = isAppleIdentityProvider(provider);
           const buttonTitle = getSSOProviderButtonTitle(provider, action);
+          const navigationProps = nativeIOS ? {} : { as: 'a' as const, href: ssoUrl };
 
           if (renderAsIcons) {
             return (
               <Avatar
                 style={{ cursor: 'pointer' }}
                 key={id}
-                as="a"
-                href={getSSOIdUrl(id)}
-                onClick={handleSSONavigate(getSSOIdUrl(id))}
+                {...navigationProps}
+                onClick={handleSSONavigate(ssoUrl)}
                 aria-label={buttonTitle}
                 size="300"
                 radii="300"
@@ -114,9 +108,8 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
                   : { width: '100%' }
               }
               key={id}
-              as="a"
-              href={getSSOIdUrl(id)}
-              onClick={handleSSONavigate(getSSOIdUrl(id))}
+              {...navigationProps}
+              onClick={handleSSONavigate(ssoUrl)}
               size="500"
               variant={appleProvider ? 'Primary' : 'Secondary'}
               fill={appleProvider ? 'Solid' : 'Soft'}
@@ -141,8 +134,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
       ) : (
         <Button
           style={{ width: '100%' }}
-          as="a"
-          href={getSSOIdUrl()}
+          {...(nativeIOS ? {} : { as: 'a' as const, href: getSSOIdUrl() })}
           onClick={handleSSONavigate(getSSOIdUrl())}
           size="500"
           variant="Secondary"
