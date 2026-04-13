@@ -1,3 +1,6 @@
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
+
 const NATIVE_SSO_SCHEME = 'mindroom';
 const NATIVE_SSO_HOST = 'auth';
 
@@ -18,6 +21,13 @@ const getPathFromHostlessNativeUrl = (pathname: string): string | undefined => {
   }
 
   return undefined;
+};
+
+export const isNativeIOS = (): boolean =>
+  Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+
+export const openNativeSsoBrowser = async (url: string): Promise<void> => {
+  await Browser.open({ url, presentationStyle: 'fullscreen' });
 };
 
 export const getAppPathFromNativeSsoUrl = (incomingUrl: string): string | undefined => {

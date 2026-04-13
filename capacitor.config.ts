@@ -12,7 +12,9 @@ const config: CapacitorConfig = {
     iosScheme: 'https',
   },
   ios: {
-    contentInset: 'automatic',
+    // Let the web app own safe-area rendering instead of leaving native gutters
+    // around the WKWebView that can drift from the active app theme.
+    contentInset: 'never',
     preferredContentMode: 'mobile',
     // Allow arbitrary loads for local network homeservers
     allowsLinkPreview: true,
