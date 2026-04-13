@@ -22,6 +22,10 @@ function updateThemeMeta(themeId: string, kind: ThemeKind): void {
   const bgColor = THEME_BG_COLORS[themeId] ?? '#1A1A1A';
   const colorScheme = kind === ThemeKind.Dark ? 'dark' : 'light';
 
+  document.documentElement.style.setProperty('--app-bg-color', bgColor);
+  document.documentElement.style.backgroundColor = bgColor;
+  document.body.style.backgroundColor = bgColor;
+
   let metaThemeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   if (metaThemeColor) {
     metaThemeColor.content = bgColor;
