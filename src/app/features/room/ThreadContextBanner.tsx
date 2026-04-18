@@ -125,7 +125,7 @@ export function ThreadContextBanner({
         <IconButton size="300" radii="300" onClick={onExitThread}>
           <Icon src={Icons.ArrowLeft} />
         </IconButton>
-        <Box direction="Column" grow="Yes" gap="0">
+        <div className={css.TitleColumn}>
           <Box direction="Row" alignItems="Center" gap="200">
             <Text size="B400">Thread View</Text>
             {/* Desktop: tags inline on title row */}
@@ -151,17 +151,17 @@ export function ThreadContextBanner({
           {(summaryText || bannerScheduledText) && (
             <div className={css.SubtitleRow}>
               {summaryText && (
-                <span data-thread-context-summary="true">
-                  <Text
-                    className={css.SummaryText}
-                    size="T200"
-                    priority="300"
-                    truncate
-                    title={summaryText}
-                  >
-                    {summaryText}
-                  </Text>
-                </span>
+                <Text
+                  as="span"
+                  data-thread-context-summary="true"
+                  className={css.SummaryText}
+                  size="T200"
+                  priority="300"
+                  truncate
+                  title={summaryText}
+                >
+                  {summaryText}
+                </Text>
               )}
               {bannerScheduledText && scheduledLabel && (
                 <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
@@ -218,7 +218,7 @@ export function ThreadContextBanner({
               )}
             </div>
           )}
-        </Box>
+        </div>
         <div className={css.ResolveChip}>
           <Button
             size="300"
