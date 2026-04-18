@@ -109,6 +109,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   SubtitleRow: 'SubtitleRow',
   SummaryText: 'SummaryText',
   TagsRow: 'TagsRow',
+  TitleColumn: 'TitleColumn',
   TitleRow: 'TitleRow',
 }));
 
@@ -325,7 +326,28 @@ describe('ThreadContextBanner rendering', () => {
 
     expect(tree).toContain('A concise thread summary');
     expect(renderer.root.findByProps({ title: 'A concise thread summary' })).toBeTruthy();
+    expect(
+      renderer.root.findByProps({ 'data-thread-context-summary': 'true' })
+    ).toBeTruthy();
     expect(tree).not.toContain('Next task');
+  });
+
+  it('does not render the summary node when summary text is empty or undefined', () => {
+    bannerMocks.useThreadHeaderInfo.mockReturnValue({
+      scheduledTaskCount: 0,
+      nextScheduledTs: undefined,
+      scheduledDisplayText: undefined,
+    });
+
+    const emptyRenderer = renderBanner('');
+    const undefinedRenderer = renderBanner();
+
+    expect(
+      emptyRenderer.root.findAllByProps({ 'data-thread-context-summary': 'true' })
+    ).toHaveLength(0);
+    expect(
+      undefinedRenderer.root.findAllByProps({ 'data-thread-context-summary': 'true' })
+    ).toHaveLength(0);
   });
 
   it('renders the scheduled countdown row when only scheduled task info exists', () => {
