@@ -668,3 +668,25 @@
     - `npm test` passes (`136/136` files, `1092/1092` tests)
     - `npx tsc --noEmit` passes
     - `npm run build` passes
+
+### CINNY-072: Thread banner summary overlap (2026-04-18)
+
+- `src/app/features/room/ThreadContextBanner.css.ts` now exports `TitleColumn` with `min-width: 0` so the middle banner column can shrink instead of forcing the `Resolve` chip offscreen.
+- `src/app/features/room/ThreadContextBanner.tsx` now:
+  - replaces the middle `Box direction="Column" grow="Yes"` wrapper with a real `div` carrying `TitleColumn`,
+  - renders the summary as `Text as="span"` with `data-thread-context-summary="true"` on the actual flex item,
+  - and keeps the existing summary guard so no empty summary node is mounted.
+- `SummaryText` now uses block formatting plus `flex: 1 1 0` and explicit ellipsis styles so the banner summary truncation contract stays attached to the real flex item.
+- `src/app/features/room/ThreadContextBanner.test.ts` now asserts:
+  - the `data-thread-context-summary="true"` selector renders when summary text is present,
+  - and no summary node renders when `summaryText` is empty or `undefined`.
+- Lint-gate unblock:
+  - `src/app/features/room/CompactThreadCard.tsx` now computes the live unread fallback in an unconditional `useMemo(...)` before applying the existing `metadata?.isUnread ?? ...` override, preserving behavior while fixing the branch's `react-hooks/rules-of-hooks` lint error.
+- Review:
+  - independent second self-review completed via fresh `git diff`, targeted source reads, and `git diff --check`.
+- Validation (2026-04-18):
+  - `npm run lint` passes with the branch baseline warning-only output (`0` errors, `78` warnings)
+  - `npx tsc --noEmit` passes
+  - `npx vitest run src/app/features/room/ThreadContextBanner.test.ts` passes (`1/1` files, `24/24` tests)
+  - `npx vitest run` passes (`139/139` files, `1139/1139` tests)
+  - `npm run build` passes

@@ -14,6 +14,14 @@ export const TitleRow = style({
   minHeight: '1.5rem',
 });
 
+export const TitleColumn = style({
+  display: 'flex',
+  flexDirection: 'column',
+  flexGrow: 1,
+  minWidth: 0,
+  gap: 0,
+});
+
 export const TagsRow = style({
   display: 'inline-flex',
   alignItems: 'center',
@@ -76,8 +84,12 @@ export const MobileOnlyTags = style({
 });
 
 export const SummaryText = style({
+  display: 'block',
   minWidth: 0,
-  flex: '1 1 14rem',
+  flex: '1 1 0',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 });
 
 export const ScheduledWrap = style({
