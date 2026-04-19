@@ -223,6 +223,44 @@
     - `npm run typecheck` passes
     - `npm run build` passes
     - `npm run lint` passes with the branch baseline warning-only output (`79` warnings, `0` errors)
+- `CINNY-073`
+  - commit 1 hook extraction (2026-04-18):
+    - extracted `useDebouncedViewportHeight` and `useResolvedRecentThreadsLayout` from `RecentThreadsPanel.tsx`.
+    - preserved the existing desktop-only behavior path while isolating the mobile/desktop layout math behind the new resolver for the later unified-shell steps.
+    - added table-driven resolver coverage in `src/app/features/recent-threads/useResolvedRecentThreadsLayout.test.ts`.
+    - folded in the branch-baseline `CompactThreadCard.tsx` hook-order lint fix so the required zero-error lint gate is reachable again without changing card behavior.
+  - commit 2 storage wiring (2026-04-18):
+    - added the new per-user `recentThreadsPanelMobileExpanded:${userId}` atom with the same registration / imperative-set / clear-store shape as the desktop height atom.
+    - registered the new atom in `ClientInitStorageAtom` and cleared it from `initMatrix.ts` alongside the existing recent-thread stores.
+    - extended `src/client/initMatrix.test.ts` with the four mobile-clear assertions parallel to the existing desktop-height cleanup coverage.
+  - commit 3 divider rename (2026-04-18):
+    - renamed `RecentThreadsResizer` to `RecentThreadsDivider`.
+    - kept the existing drag-resize path intact under `mode="resize"` and added the new `mode="toggle"` button path plus focused divider tests for click and keyboard toggle behavior.
+    - renamed the recent-thread divider CSS classes (`Divider`, `DividerActive`, `DividerHandle`) and added the new toggle/header-button styles needed for the upcoming unified shell wiring.
+  - commit 4 unified shell (2026-04-18):
+    - deleted the mobile early return in `RecentThreadsPanel.tsx` so the page-nav wrapper now renders one recent-thread shell at every viewport.
+    - wired the panel to read both persistence atoms unconditionally and resolve them through the shared layout hook: desktop/tablet keep the pixel resizer path, mobile uses the boolean toggle path.
+    - made the recent-thread panel header a button on mobile/toggle mode with `aria-expanded`, and added focused coverage in `RecentThreadsPanel.test.ts`.
+  - commit 5 live-spec coverage (2026-04-18):
+    - added `e2e/live/cinny073-recent-threads-mobile.spec.ts` to cover the shared recent-thread shell across desktop, tablet, and the two mobile viewports Bas called out.
+    - the spec seeds recent-thread localStorage directly, returns to `/home/` before sidebar assertions, covers mobile expand/reload/thread-open behavior, covers desktop resize persistence, and includes the 480x800 -> 800x480 rotation clamp check.
+  - review-fix follow-up (2026-04-18):
+    - mobile recent threads now use the `RecentThreadsDivider` toggle button as the only header/toggle control; the old clickable panel header path was removed so the collapsed mobile shell no longer stacks two `aria-expanded` buttons.
+    - the mobile toggle button now carries the `Recent Threads` label, chevron state, and a `role="heading"` / `aria-level={2}` span inside the native `<button>`, which fixes the invalid heading-in-button markup without changing the desktop static `h2` header.
+    - the shared layout resolver now gives collapsed mobile state a `0px` panel height, and `RecentThreadsPanel` returns `null` for the collapsed headerless mobile shell so the old extra `32px` panel footprint is gone.
+    - `RecentThreadsDivider.test.ts`, `RecentThreadsPanel.test.ts`, `useResolvedRecentThreadsLayout.test.ts`, and `e2e/live/cinny073-recent-threads-mobile.spec.ts` were updated to lock the new single-control mobile contract and the native-button keyboard behavior.
+  - validation review-fix follow-up (2026-04-18):
+    - independent second self-review completed via a fresh `git diff --stat` plus targeted `git diff` pass after the validation gates; scope stayed limited to the recent-thread mobile shell, focused tests, live spec, and this runbook update.
+    - `git diff --check` passes.
+    - focused Vitest passes for:
+      - `src/app/features/recent-threads/RecentThreadsDivider.test.ts`
+      - `src/app/features/recent-threads/RecentThreadsPanel.test.ts`
+      - `src/app/features/recent-threads/useResolvedRecentThreadsLayout.test.ts`
+    - `npm run typecheck` passes.
+    - `npm run lint` passes with the branch baseline warning-only output (`78` warnings, `0` errors).
+    - `npm run build` passes.
+    - `npm test` passes (`140/140` files, `1262/1262` tests).
+    - `npx playwright test e2e/live/cinny073-recent-threads-mobile.spec.ts --list` passes and enumerates the four expected viewport cases.
 
 ### Validation Standard
 

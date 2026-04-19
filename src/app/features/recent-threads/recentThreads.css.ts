@@ -103,7 +103,7 @@ export const EntrySummary = style({
   wordBreak: 'break-word',
 });
 
-export const Resizer = style([
+export const Divider = style([
   DefaultReset,
   {
     display: 'flex',
@@ -122,14 +122,65 @@ export const Resizer = style([
   },
 ]);
 
-export const ResizerActive = style({
+export const DividerActive = style({
   backgroundColor: color.Background.ContainerHover,
 });
 
-export const ResizerLine = style({
+export const DividerHandle = style({
   width: '100%',
   maxWidth: '40px',
   height: '2px',
   borderRadius: '999px',
   backgroundColor: color.SurfaceVariant.ContainerLine,
 });
+
+export const DividerToggle = style([
+  DefaultReset,
+  {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexShrink: 0,
+    gap: config.space.S200,
+    width: '100%',
+    height: '44px',
+    padding: `0 ${config.space.S300}`,
+    cursor: 'pointer',
+    touchAction: 'manipulation',
+    backgroundColor: color.Background.Container,
+    color: color.SurfaceVariant.OnContainer,
+    ':hover': {
+      backgroundColor: color.Background.ContainerHover,
+    },
+    ':focus-visible': {
+      outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
+      outlineOffset: '1px',
+    },
+  },
+]);
+
+export const DividerToggleHandle = style({
+  width: '24px',
+  flexShrink: 0,
+});
+
+export const PanelHeaderButton = style([
+  DefaultReset,
+  {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    minHeight: '32px',
+    padding: `0 ${config.space.S300}`,
+    color: color.SurfaceVariant.OnContainer,
+    cursor: 'pointer',
+    ':hover': {
+      backgroundColor: color.SurfaceVariant.ContainerHover,
+    },
+    ':focus-visible': {
+      outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
+      outlineOffset: '1px',
+    },
+  },
+]);
