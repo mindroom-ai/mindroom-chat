@@ -748,6 +748,21 @@
   - `npx vitest run` passes (`139/139` files, `1139/1139` tests)
   - `npm run build` passes
 
+### CINNY-074: Drop unresolved compact-card badge (merge refresh) (2026-04-18)
+
+- Merged local `dev` (`5782e262`) into `cinny-074-drop-unresolved-badge` to clear the squash-merge conflict in `src/app/features/room/CompactThreadCard.tsx`.
+- Conflict resolution preserved both sides:
+  - kept the `dev` compact resolved-card layout and metadata-row structure from `CINNY-071`,
+  - kept the `CINNY-074` removal of the resolved/unresolved `<Chip>`,
+  - and kept the `hasMetadata` gate so empty metadata rows do not render.
+- `src/app/features/room/CompactThreadCard.tsx` still computes metadata visibility from every mounted metadata child on the merged branch (`threadParticipants`, `displayTags`, `isStreaming`, `isUnread`).
+- Review:
+  - independent second self-review completed via a fresh conflict-marker scan plus merged-file diff review before validation.
+- Validation (2026-04-18):
+  - `npm run typecheck` passes
+  - `npm run lint` passes
+  - `npm run build` passes
+
 ### CINNY-071 v2: Matrix-event approvals + compact resolved cards (2026-04-13)
 
 - Review round-5 fix follow-up (2026-04-13):
