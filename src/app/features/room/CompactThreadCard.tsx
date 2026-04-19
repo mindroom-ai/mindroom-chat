@@ -174,7 +174,7 @@ export function CompactThreadCard({
   const messageCount = presentation.messageCount;
   const messageCountLabel = getMessageCountLabel(messageCount);
   const currentUserId = mx.getUserId() ?? undefined;
-  const liveIsUnread = useMemo(() => {
+  const fallbackIsUnread = useMemo(() => {
     if (!threadRootId) return false;
     const currentThread = room.getThread(threadRootId);
     if (!currentThread) return false;
@@ -182,7 +182,7 @@ export function CompactThreadCard({
     if (!userId) return false;
     return getThreadUnread(room, currentThread, userId);
   }, [room, threadRootId, mx]);
-  const isUnread = metadata?.isUnread ?? liveIsUnread;
+  const isUnread = metadata?.isUnread ?? fallbackIsUnread;
   const attentionState = getAttentionState({
     isResolved,
     isStreaming,
@@ -246,6 +246,8 @@ export function CompactThreadCard({
   ]
     .filter(Boolean)
     .join('. ');
+  const hasMetadata =
+    threadParticipants.length > 0 || displayTags.length > 0 || isStreaming || isUnread;
 
   return (
     <button
@@ -314,93 +316,80 @@ export function CompactThreadCard({
         </Box>
       </Box>
 
-      <Box className={css.MetadataRow}>
-        {threadParticipants.length > 0 && (
-          <Box className={css.Participants} alignItems="Center">
-            {threadParticipants.map((participant, index) => (
-              <Avatar
-                key={participant.userId}
-                className={`${css.ParticipantAvatar} ${replyCss.ThreadParticipant}`}
-                size="200"
-                radii="400"
-                title={participant.displayName}
-                style={
-                  index === 0
-                    ? { zIndex: threadParticipants.length - index }
-                    : {
-                        marginInlineStart: '-0.375rem',
-                        zIndex: threadParticipants.length - index,
-                      }
-                }
-              >
-                <UserAvatar
-                  userId={participant.userId}
-                  src={participant.avatarUrl}
-                  alt={participant.displayName}
-                  renderFallback={() => <Icon size="100" src={Icons.User} filled />}
-                />
-              </Avatar>
-            ))}
-          </Box>
-        )}
-        {displayTags.map((tagName) => (
-          <Box
-            key={tagName}
-            as="span"
-            style={{
-              backgroundColor: tagColor(tagName),
-              color: '#1a1a1a',
-              fontSize: '0.65rem',
-              fontWeight: 500,
-              padding: '0.1rem 0.4rem',
-              borderRadius: '0.5rem',
-              whiteSpace: 'nowrap',
-              display: 'inline-flex',
-              alignItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            {tagName}
-          </Box>
-        ))}
-        <Chip
-          as="span"
-          className={css.StatusChip}
-          variant={isResolved ? 'Success' : 'SurfaceVariant'}
-          fill={isResolved ? 'Soft' : undefined}
-          radii="Pill"
-          outlined={!isResolved}
-        >
-          <Box as="span" alignItems="Center" gap="100">
-            {isResolved && <Icon size="50" src={Icons.CheckTwice} />}
-            <Text as="span" size="T200">
-              {isResolved ? 'resolved' : 'unresolved'}
-            </Text>
-          </Box>
-        </Chip>
-        {isStreaming && (
-          <Chip as="span" className={css.StatusChip} variant="Primary" fill="Soft" radii="Pill">
-            <Box as="span" alignItems="Center" gap="100">
-              <span className={replyCss.ThreadStreamingDot} aria-hidden="true" />
-              <Text as="span" size="T200">
-                streaming
+      {hasMetadata && (
+        <Box className={css.MetadataRow}>
+          {threadParticipants.length > 0 && (
+            <Box className={css.Participants} alignItems="Center">
+              {threadParticipants.map((participant, index) => (
+                <Avatar
+                  key={participant.userId}
+                  className={`${css.ParticipantAvatar} ${replyCss.ThreadParticipant}`}
+                  size="200"
+                  radii="400"
+                  title={participant.displayName}
+                  style={
+                    index === 0
+                      ? { zIndex: threadParticipants.length - index }
+                      : {
+                          marginInlineStart: '-0.375rem',
+                          zIndex: threadParticipants.length - index,
+                        }
+                  }
+                >
+                  <UserAvatar
+                    userId={participant.userId}
+                    src={participant.avatarUrl}
+                    alt={participant.displayName}
+                    renderFallback={() => <Icon size="100" src={Icons.User} filled />}
+                  />
+                </Avatar>
+              ))}
+            </Box>
+          )}
+          {displayTags.map((tagName) => (
+            <Box
+              key={tagName}
+              as="span"
+              style={{
+                backgroundColor: tagColor(tagName),
+                color: '#1a1a1a',
+                fontSize: '0.65rem',
+                fontWeight: 500,
+                padding: '0.1rem 0.4rem',
+                borderRadius: '0.5rem',
+                whiteSpace: 'nowrap',
+                display: 'inline-flex',
+                alignItems: 'center',
+                flexShrink: 0,
+              }}
+            >
+              {tagName}
+            </Box>
+          ))}
+          {isStreaming && (
+            <Chip as="span" className={css.StatusChip} variant="Primary" fill="Soft" radii="Pill">
+              <Box as="span" alignItems="Center" gap="100">
+                <span className={replyCss.ThreadStreamingDot} aria-hidden="true" />
+                <Text as="span" size="T200">
+                  streaming
+                </Text>
+              </Box>
+            </Chip>
+          )}
+          {isUnread && (
+            <Box as="span" className={css.UnreadWrap} alignItems="Center" gap="100">
+              <span
+                className={`${replyCss.ThreadUnreadDot} ${css.UnreadDot}`}
+                role="img"
+                aria-label="Unread messages"
+              />
+              <Text as="span" size="T200" priority="300">
+                unread
               </Text>
             </Box>
-          </Chip>
-        )}
-        {isUnread && (
-          <Box as="span" className={css.UnreadWrap} alignItems="Center" gap="100">
-            <span
-              className={`${replyCss.ThreadUnreadDot} ${css.UnreadDot}`}
-              role="img"
-              aria-label="Unread messages"
-            />
-            <Text as="span" size="T200" priority="300">
-              unread
-            </Text>
-          </Box>
-        )}
-      </Box>
+          )}
+        </Box>
+      )}
     </button>
   );
 }
