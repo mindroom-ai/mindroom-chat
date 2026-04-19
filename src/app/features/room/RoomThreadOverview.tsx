@@ -23,7 +23,7 @@ import type {
   StatusCounts,
   FilterPreset,
 } from './roomThreadOverviewModel';
-import { hasActiveThreadFilters, FILTER_PRESETS } from './roomThreadOverviewModel';
+import { hasActiveThreadFilters, FILTER_PRESETS, isOrModeStatusChip } from './roomThreadOverviewModel';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
 
 export type { ThreadFilterState, ThreadFilterKey };
@@ -81,11 +81,13 @@ const getTagTooltipText = (tag: string, state: TriState): string => {
 function TriStateIconToggle({
   filterKey,
   state,
+  isOrMode,
   onToggle,
   children,
 }: {
   filterKey: ThreadFilterKey;
   state: TriState;
+  isOrMode: boolean;
   onToggle: (key: ThreadFilterKey) => void;
   children: React.ReactNode;
 }) {
@@ -107,7 +109,7 @@ function TriStateIconToggle({
           type="button"
           className={classNames(
             css.ToggleButton,
-            state === 'include' && css.ToggleInclude,
+            state === 'include' && (isOrMode ? css.ToggleIncludeOr : css.ToggleInclude),
             state === 'exclude' && css.ToggleExclude
           )}
           onClick={() => onToggle(filterKey)}
@@ -748,6 +750,7 @@ export function RoomThreadOverview({
           <TriStateIconToggle
             filterKey="resolved"
             state={state.resolved}
+            isOrMode={isOrModeStatusChip(state, 'resolved')}
             onToggle={handleToggleWithPresetClear}
           >
             <Icon size="50" src={Icons.CheckTwice} />
@@ -756,6 +759,7 @@ export function RoomThreadOverview({
           <TriStateIconToggle
             filterKey="streaming"
             state={state.streaming}
+            isOrMode={isOrModeStatusChip(state, 'streaming')}
             onToggle={handleToggleWithPresetClear}
           >
             <span className={replyCss.ThreadStreamingDot} aria-hidden="true" />
@@ -764,6 +768,7 @@ export function RoomThreadOverview({
           <TriStateIconToggle
             filterKey="scheduled"
             state={state.scheduled}
+            isOrMode={isOrModeStatusChip(state, 'scheduled')}
             onToggle={handleToggleWithPresetClear}
           >
             <IconCalendarEvent
@@ -777,6 +782,7 @@ export function RoomThreadOverview({
           <TriStateIconToggle
             filterKey="unread"
             state={state.unread}
+            isOrMode={isOrModeStatusChip(state, 'unread')}
             onToggle={handleToggleWithPresetClear}
           >
             <Icon size="50" src={Icons.MessageUnread} />
@@ -785,6 +791,7 @@ export function RoomThreadOverview({
           <TriStateIconToggle
             filterKey="idle"
             state={state.idle}
+            isOrMode={isOrModeStatusChip(state, 'idle')}
             onToggle={handleToggleWithPresetClear}
           >
             <IconZzz size={14} stroke={1.8} aria-hidden="true" />

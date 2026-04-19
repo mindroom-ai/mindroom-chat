@@ -915,6 +915,8 @@ describe('RoomTimeline', () => {
   });
 
   it('resnapshots on control changes without disabling freeze', async () => {
+    vi.useFakeTimers();
+    try {
     const { RoomTimeline } = await import('./RoomTimeline');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
@@ -955,6 +957,11 @@ describe('RoomTimeline', () => {
       await flushAsyncWork(2);
     });
 
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+      await flushAsyncWork(2);
+    });
+
     expect(renderer?.root.findByType(roomThreadOverviewType).props.isThreadSortFrozen).toBe(true);
     expect(getRenderedEventIds(renderer!)).toEqual([secondThread.getId(), firstThread.getId()]);
 
@@ -966,6 +973,9 @@ describe('RoomTimeline', () => {
     });
 
     expect(getRenderedEventIds(renderer!)).toEqual([secondThread.getId(), firstThread.getId()]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('uses the frozen ordering for compact view thread ids', async () => {
