@@ -1,21 +1,41 @@
-import { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent, RelationType } from 'matrix-js-sdk';
 
 export const MINDROOM_TOOL_APPROVAL_EVENT = 'io.mindroom.tool_approval';
+export const MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT = 'io.mindroom.tool_approval_response';
 
 export type ToolApprovalStatus = 'pending' | 'approved' | 'denied' | 'expired';
 
 export interface ToolApprovalData {
   approvalId: string;
   toolName: string;
+  toolCallId: string | null;
   arguments: Record<string, unknown>;
   agentName: string;
+  requesterId: string | null;
   status: ToolApprovalStatus;
-  createdAt: string;
+  requestedAt: string;
   expiresAt: string;
+  threadId: string | null;
   resolvedAt: string | null;
   resolvedBy: string | null;
   resolutionReason: string | null;
 }
+
+type ToolApprovalResponseStatus = 'approved' | 'denied';
+
+type ToolApprovalResponseContent = {
+  approval_id: string;
+  status: ToolApprovalResponseStatus;
+  reason?: string | null;
+  'm.relates_to': {
+    rel_type: RelationType.Thread;
+    event_id: string;
+    is_falling_back: true;
+    'm.in_reply_to': {
+      event_id: string;
+    };
+  };
+};
 
 const TOOL_APPROVAL_STATUSES = new Set<ToolApprovalStatus>([
   'pending',
@@ -77,11 +97,16 @@ export const parseToolApprovalContent = (
 
   const approvalId = asString(pickCandidateValue(content, 'approval_id'));
   const toolName = asString(pickCandidateValue(content, 'tool_name'));
+  const toolCallId = asNullableString(pickCandidateValue(content, 'tool_call_id'));
   const toolArguments = asArguments(pickCandidateValue(content, 'arguments'));
   const agentName = asString(pickCandidateValue(content, 'agent_name'));
+  const requesterId = asNullableString(pickCandidateValue(content, 'requester_id'));
   const status = asStatus(pickCandidateValue(content, 'status'));
-  const createdAt = asString(pickCandidateValue(content, 'created_at'));
+  const requestedAt =
+    asString(pickCandidateValue(content, 'requested_at')) ??
+    asString(pickCandidateValue(content, 'created_at'));
   const expiresAt = asString(pickCandidateValue(content, 'expires_at'));
+  const threadId = asNullableString(pickCandidateValue(content, 'thread_id'));
   const resolvedAt = asNullableString(pickCandidateValue(content, 'resolved_at'));
   const resolvedBy = asNullableString(pickCandidateValue(content, 'resolved_by'));
   const resolutionReason = asNullableString(pickCandidateValue(content, 'resolution_reason'));
@@ -92,7 +117,7 @@ export const parseToolApprovalContent = (
     !toolArguments ||
     !agentName ||
     !status ||
-    !createdAt ||
+    !requestedAt ||
     !expiresAt
   ) {
     return null;
@@ -101,11 +126,14 @@ export const parseToolApprovalContent = (
   return {
     approvalId,
     toolName,
+    toolCallId: toolCallId ?? null,
     arguments: toolArguments,
     agentName,
+    requesterId: requesterId ?? null,
     status,
-    createdAt,
+    requestedAt,
     expiresAt,
+    threadId: threadId ?? null,
     resolvedAt: resolvedAt ?? null,
     resolvedBy: resolvedBy ?? null,
     resolutionReason: resolutionReason ?? null,
@@ -127,6 +155,26 @@ export const getToolApprovalRenderContent = (
     'm.new_content': newContent,
   };
 };
+
+export const buildToolApprovalResponseContent = (
+  approvalId: string,
+  status: ToolApprovalResponseStatus,
+  threadId: string,
+  eventId: string,
+  reason?: string
+): ToolApprovalResponseContent => ({
+  approval_id: approvalId,
+  status,
+  ...(status === 'denied' ? { reason: reason?.trim() ? reason.trim() : null } : {}),
+  'm.relates_to': {
+    rel_type: RelationType.Thread,
+    event_id: threadId,
+    is_falling_back: true,
+    'm.in_reply_to': {
+      event_id: eventId,
+    },
+  },
+});
 
 export function parseToolApproval(event: MatrixEvent): ToolApprovalData | null {
   const content = event.getContent();
