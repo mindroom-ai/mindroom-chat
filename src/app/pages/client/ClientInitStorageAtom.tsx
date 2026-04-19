@@ -16,6 +16,10 @@ import {
   makeRecentThreadsPanelHeightAtom,
   registerRecentThreadsPanelHeightAtom,
 } from '../../state/recentThreadsPanelHeight';
+import {
+  makeRecentThreadsPanelMobileExpandedAtom,
+  registerRecentThreadsPanelMobileExpandedAtom,
+} from '../../state/recentThreadsPanelMobileExpanded';
 
 type ClientInitStorageAtomProps = {
   children: ReactNode;
@@ -42,6 +46,10 @@ export function ClientInitStorageAtom({ children }: ClientInitStorageAtomProps) 
     () => makeRecentThreadsPanelHeightAtom(userId),
     [userId]
   );
+  const recentThreadsPanelMobileExpandedAtom = useMemo(
+    () => makeRecentThreadsPanelMobileExpandedAtom(userId),
+    [userId]
+  );
 
   useLayoutEffect(() => {
     const unregisterLastOpenThreadAtom = registerLastOpenThreadAtom(lastOpenThreadAtom);
@@ -49,13 +57,21 @@ export function ClientInitStorageAtom({ children }: ClientInitStorageAtomProps) 
     const unregisterRecentThreadsPanelHeightAtom = registerRecentThreadsPanelHeightAtom(
       recentThreadsPanelHeightAtom
     );
+    const unregisterRecentThreadsPanelMobileExpandedAtom =
+      registerRecentThreadsPanelMobileExpandedAtom(recentThreadsPanelMobileExpandedAtom);
 
     return () => {
+      unregisterRecentThreadsPanelMobileExpandedAtom();
       unregisterRecentThreadsPanelHeightAtom();
       unregisterRecentThreadsAtom();
       unregisterLastOpenThreadAtom();
     };
-  }, [lastOpenThreadAtom, recentThreadsAtom, recentThreadsPanelHeightAtom]);
+  }, [
+    lastOpenThreadAtom,
+    recentThreadsAtom,
+    recentThreadsPanelHeightAtom,
+    recentThreadsPanelMobileExpandedAtom,
+  ]);
 
   return (
     <ClosedNavCategoriesProvider value={closedNavCategoriesAtom}>
