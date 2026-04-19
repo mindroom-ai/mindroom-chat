@@ -4,7 +4,17 @@ import { Direction, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import { Editor } from 'slate';
 import { act, create as baseCreate } from 'react-test-renderer';
 import { afterEach, beforeEach, vi } from 'vitest';
-import { createDefaultThreadFilterState, cycleSortMode } from './roomThreadOverviewModel';
+import {
+  createDefaultThreadFilterState,
+  cycleSortMode,
+  resetThreadFilterState,
+  updateThreadFilterKey,
+} from './roomThreadOverviewModel';
+import {
+  applyParsedThreadFilterQuery,
+  parseThreadFilterQuery,
+  serializeThreadFilterQuery,
+} from './threadFilterDsl';
 import {
   clearThreadOpenSeedSnapshotsForTests,
   getThreadOpenSeedSnapshot,
@@ -28,6 +38,7 @@ const {
   threadRenderStateMock,
   threadLastActivityTsMapMock,
   threadResolutionMapMock,
+  stateEventsByTypeMock,
   roomThreadListThreadsMock,
   ignoredUsersMock,
   roomUnreadState,
@@ -79,6 +90,7 @@ const {
   },
   threadLastActivityTsMapMock: new Map<string, number>(),
   threadResolutionMapMock: new Map<string, { isResolved: boolean; tags: Record<string, unknown> | null }>(),
+  stateEventsByTypeMock: new Map<string, unknown[]>(),
   roomThreadListThreadsMock: [] as Array<{ id?: string; rootEvent?: unknown }>,
   ignoredUsersMock: [] as string[],
   roomUnreadState: { value: false },
@@ -354,7 +366,7 @@ vi.mock('../../hooks/useDocumentFocusChange', () => ({
 }));
 
 vi.mock('../../hooks/useStateEvents', () => ({
-  useStateEvents: () => [],
+  useStateEvents: (_room: unknown, eventType: string) => stateEventsByTypeMock.get(eventType) ?? [],
 }));
 
 vi.mock('../../hooks/useKeyDown', () => ({
@@ -1150,6 +1162,7 @@ beforeEach(() => {
   threadRenderStateMock.threadInitialRenderMode = 'live';
   threadLastActivityTsMapMock.clear();
   threadResolutionMapMock.clear();
+  stateEventsByTypeMock.clear();
   roomThreadListThreadsMock.length = 0;
   directRoomState.value = false;
   ignoredUsersMock.length = 0;
@@ -1275,18 +1288,53 @@ const TEST_DEFAULT_THREAD_FILTER_STATE = {
   tags: new Map(),
 };
 
+const canonicalizeThreadFilterState = (
+  state: import('./roomThreadOverviewModel').ThreadFilterState
+): import('./roomThreadOverviewModel').ThreadFilterState => {
+  const searchQuery = serializeThreadFilterQuery(state);
+  return searchQuery === state.searchQuery ? state : { ...state, searchQuery };
+};
+
+const syncQueryState = (
+  state: import('./roomThreadOverviewModel').ThreadFilterState,
+  updater: (
+    nextState: import('./roomThreadOverviewModel').ThreadFilterState
+  ) => import('./roomThreadOverviewModel').ThreadFilterState
+): import('./roomThreadOverviewModel').ThreadFilterState => {
+  const next = updater(
+    applyParsedThreadFilterQuery(state, parseThreadFilterQuery(state.searchQuery ?? ''))
+  );
+  const searchQuery = serializeThreadFilterQuery(next);
+  return searchQuery === state.searchQuery ? next : { ...next, searchQuery };
+};
+
 const threadFilterStateFromLegacy = (
   filter?: 'all' | 'resolved' | 'unresolved' | 'unread'
 ): import('./roomThreadOverviewModel').ThreadFilterState => {
   switch (filter) {
     case 'resolved':
-      return { ...TEST_DEFAULT_THREAD_FILTER_STATE, resolved: 'include' as const, tags: new Map() };
+      return canonicalizeThreadFilterState({
+        ...TEST_DEFAULT_THREAD_FILTER_STATE,
+        resolved: 'include' as const,
+        tags: new Map(),
+      });
     case 'unresolved':
-      return { ...TEST_DEFAULT_THREAD_FILTER_STATE, resolved: 'exclude' as const, tags: new Map() };
+      return canonicalizeThreadFilterState({
+        ...TEST_DEFAULT_THREAD_FILTER_STATE,
+        resolved: 'exclude' as const,
+        tags: new Map(),
+      });
     case 'unread':
-      return { ...TEST_DEFAULT_THREAD_FILTER_STATE, unread: 'include' as const, tags: new Map() };
+      return canonicalizeThreadFilterState({
+        ...TEST_DEFAULT_THREAD_FILTER_STATE,
+        unread: 'include' as const,
+        tags: new Map(),
+      });
     default:
-      return { ...TEST_DEFAULT_THREAD_FILTER_STATE, tags: new Map() };
+      return canonicalizeThreadFilterState({
+        ...TEST_DEFAULT_THREAD_FILTER_STATE,
+        tags: new Map(),
+      });
   }
 };
 
@@ -1323,7 +1371,9 @@ const createControlledRoomTimelineHarness = (
   }) {
     const [threadFilterState, setThreadFilterState] =
       React.useState<import('./roomThreadOverviewModel').ThreadFilterState>(
-        initialThreadFilterState ?? threadFilterStateFromLegacy(initialThreadFilter)
+        canonicalizeThreadFilterState(
+          initialThreadFilterState ?? threadFilterStateFromLegacy(initialThreadFilter)
+        )
       );
     const [viewMode, setViewMode] = React.useState<'normal' | 'compact'>(initialViewMode);
     const [threadSortFreezeState, setThreadSortFreezeState] = React.useState<
@@ -1339,11 +1389,7 @@ const createControlledRoomTimelineHarness = (
 
     const onToggle = React.useCallback(
       (key: 'resolved' | 'streaming' | 'scheduled' | 'unread' | 'idle') => {
-        setThreadFilterState((prev) => {
-          const current = prev[key];
-          const next = current === 'any' ? 'include' : current === 'include' ? 'exclude' : 'any';
-          return { ...prev, [key]: next };
-        });
+        setThreadFilterState((prev) => syncQueryState(prev, (state) => updateThreadFilterKey(state, key)));
       },
       []
     );
@@ -1355,7 +1401,7 @@ const createControlledRoomTimelineHarness = (
     }, []);
 
     const onReset = React.useCallback(() => {
-      setThreadFilterState({ ...TEST_DEFAULT_THREAD_FILTER_STATE, tags: new Map() });
+      setThreadFilterState(resetThreadFilterState());
     }, []);
 
     const onToggleThreadSortFreeze = React.useCallback(() => {
@@ -1440,6 +1486,7 @@ export {
   scrollType,
   setThreadAwareTimelineRefreshHook,
   settingsState,
+  stateEventsByTypeMock,
   TEST_DEFAULT_THREAD_FILTER_STATE,
   threadLastActivityTsMapMock,
   threadRenderStateMock,
