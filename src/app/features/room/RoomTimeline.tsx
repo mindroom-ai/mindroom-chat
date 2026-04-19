@@ -7526,6 +7526,9 @@ threadDebugTraceId,
               <RenderMessageContent
                 displayName={senderDisplayName}
                 eventType={mEvent.getType()}
+                roomId={room.roomId}
+                eventId={mEventId}
+                threadId={mEvent.threadRootId ?? threadId}
                 msgType={typeof approvalContent.msgtype === 'string' ? approvalContent.msgtype : ''}
                 ts={mEvent.getTs()}
                 edited={!!editedEvent}
@@ -7700,6 +7703,9 @@ threadDebugTraceId,
                     <RenderMessageContent
                       displayName={senderDisplayName}
                       eventType={mEvent.getType()}
+                      roomId={room.roomId}
+                      eventId={mEventId}
+                      threadId={mEvent.threadRootId ?? threadId}
                       msgType={typeof approvalContent.msgtype === 'string' ? approvalContent.msgtype : ''}
                       ts={mEvent.getTs()}
                       edited={!!editedEvent}

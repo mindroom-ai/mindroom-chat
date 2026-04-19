@@ -358,6 +358,9 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
             <RenderMessageContent
               displayName={displayName}
               eventType={event.getType()}
+              roomId={room.roomId}
+              eventId={event.getId() ?? undefined}
+              threadId={event.threadRootId}
               msgType={typeof approvalContent.msgtype === 'string' ? approvalContent.msgtype : ''}
               ts={event.getTs()}
               edited={!!event.replacingEvent()}
@@ -417,6 +420,9 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
                     <RenderMessageContent
                       displayName={displayName}
                       eventType={mEvent.getType()}
+                      roomId={room.roomId}
+                      eventId={eventId}
+                      threadId={mEvent.threadRootId}
                       msgType={typeof approvalContent.msgtype === 'string' ? approvalContent.msgtype : ''}
                       ts={mEvent.getTs()}
                       edited={!!editedEvent || !!mEvent.replacingEvent()}
