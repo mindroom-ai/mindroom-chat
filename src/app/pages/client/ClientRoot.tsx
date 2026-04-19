@@ -59,6 +59,21 @@ type ClientMatrixClient = Awaited<ReturnType<typeof initClient>> & {
   ) => unknown;
 };
 
+type ClientMatrixClientWithCacheState = ClientMatrixClient & {
+  store?: {
+    getSyncToken?: () => string | null;
+  };
+};
+
+export const hasCachedClientShell = (mx: ClientMatrixClient): boolean => {
+  if (mx.getRooms().length > 0) {
+    return true;
+  }
+
+  const syncToken = (mx as ClientMatrixClientWithCacheState).store?.getSyncToken?.();
+  return typeof syncToken === 'string' && syncToken.length > 0;
+};
+
 function ClientRootLoading() {
   return (
     <SplashScreen>
@@ -278,6 +293,7 @@ export function ClientRoot({ children }: ClientRootProps) {
 
   useLogoutListener(mx, activeSession);
 
+  const [hasCachedShell, setHasCachedShell] = useState(false);
   useEffect(() => {
     let disposed = false;
     let nextClient: ClientMatrixClient | undefined;
@@ -291,6 +307,7 @@ export function ClientRoot({ children }: ClientRootProps) {
       status: 'loading',
       session: clientBootstrapSession,
     });
+    setHasCachedShell(false);
 
     const loadClient = async () => {
       try {
@@ -339,6 +356,8 @@ export function ClientRoot({ children }: ClientRootProps) {
         await startClient(nextClient);
         if (disposed) return;
 
+        setHasCachedShell(hasCachedClientShell(nextClient));
+
         setClientState((currentState) => {
           if (
             currentState.status !== 'starting' ||
@@ -377,6 +396,8 @@ export function ClientRoot({ children }: ClientRootProps) {
     return <Navigate to={getLoginPath()} replace />;
   }
 
+  const canRenderReadyContent = Boolean(mx) && (hasSyncedOnce || hasCachedShell);
+
   const readyContent = mx ? (
     <MatrixClientProvider value={mx as never}>
       <ServerConfigsLoader mx={mx}>
@@ -395,12 +416,7 @@ export function ClientRoot({ children }: ClientRootProps) {
 
   return (
     <SpecVersions baseUrl={activeSession.baseUrl}>
-      {clientState.status !== 'error' &&
-        ((clientState.status === 'starting' || !hasSyncedOnce) && mx ? (
-          <ClientRootSyncingStatus />
-        ) : (
-          mx && <SyncStatus mx={mx} />
-        ))}
+      {clientState.status !== 'error' && mx && (!hasSyncedOnce ? <ClientRootSyncingStatus /> : <SyncStatus mx={mx} />)}
       {clientState.status !== 'error' && !mx && (
         <ClientRootOptions mx={mx} activeSession={activeSession} />
       )}
@@ -433,7 +449,7 @@ export function ClientRoot({ children }: ClientRootProps) {
           </Box>
         </SplashScreen>
       )}
-      {clientState.status !== 'error' && (!mx || !hasSyncedOnce) ? <ClientRootLoading /> : readyContent}
+      {clientState.status !== 'error' && !canRenderReadyContent ? <ClientRootLoading /> : readyContent}
     </SpecVersions>
   );
 }

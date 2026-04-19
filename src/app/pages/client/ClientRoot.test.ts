@@ -3,7 +3,7 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ClientEvent } from 'matrix-js-sdk';
-import { ClientRoot } from './ClientRoot';
+import { ClientRoot, hasCachedClientShell } from './ClientRoot';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { StoredSession } from '../../state/sessions';
 import {
@@ -127,11 +127,17 @@ type MockClient = {
   on: ReturnType<typeof vi.fn>;
   once: ReturnType<typeof vi.fn>;
   removeListener: ReturnType<typeof vi.fn>;
+  getRooms: ReturnType<typeof vi.fn>;
+  store: {
+    getSyncToken: ReturnType<typeof vi.fn>;
+  };
   emitSync: () => void;
 };
 
-const createMockClient = (): MockClient => {
+const createMockClient = (options: { cachedRooms?: number; syncToken?: string | null } = {}): MockClient => {
   let syncHandler: (() => void) | undefined;
+  const cachedRooms = options.cachedRooms ?? 0;
+  const syncToken = options.syncToken ?? null;
 
   return {
     stopClient: vi.fn(),
@@ -144,6 +150,10 @@ const createMockClient = (): MockClient => {
         syncHandler = undefined;
       }
     }),
+    getRooms: vi.fn(() => Array.from({ length: cachedRooms }, (_, index) => ({ roomId: `!room${index}` }))),
+    store: {
+      getSyncToken: vi.fn(() => syncToken),
+    },
     emitSync: () => {
       syncHandler?.();
     },
@@ -429,6 +439,38 @@ describe('ClientRoot', () => {
 
     expect(hasRenderedText(renderer, 'child')).toBe(false);
     expect(hasRenderedText(renderer, 'Catching up...')).toBe(true);
+  });
+
+  it('renders cached UI immediately after startup when cached rooms are restored from the store', async () => {
+    const client = createMockClient({ cachedRooms: 1 });
+
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+    };
+
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(initClient).mockResolvedValue(client as never);
+    vi.mocked(startClient).mockResolvedValue(undefined);
+
+    await act(async () => {
+      renderer = create(renderClientRoot());
+      await flushEffects();
+    });
+
+    expect(hasRenderedText(renderer, 'child')).toBe(true);
+    expect(hasRenderedText(renderer, 'Catching up...')).toBe(true);
+    expect(hasRenderedText(renderer, 'Heating up')).toBe(false);
+  });
+
+  it('treats a saved sync token as resumable cached state even without loaded rooms', () => {
+    const client = createMockClient({ syncToken: 's123' });
+
+    expect(hasCachedClientShell(client as never)).toBe(true);
   });
 
   it('renders cached UI after the first sync event arrives', async () => {
