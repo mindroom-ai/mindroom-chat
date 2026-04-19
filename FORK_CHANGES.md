@@ -785,3 +785,58 @@
     - `npm test` passes (`138/138` files, `1138/1138` tests)
     - `npm run typecheck` passes
     - `npm run build` passes
+
+### CINNY-077: "Working" thread filter DSL wiring (2026-04-19)
+
+- Added `src/app/features/room/threadFilterDsl.ts` plus focused parser/serializer tests so the search bar now understands `is:*`, `-is:*`, `tag:*`, `-tag:*`, and status-only `OR` runs while preserving unsupported text as raw tail.
+- Renamed the preset id from `active-work` to `working`; the preset now materializes as `is:streaming OR is:scheduled` in the bar and keeps existing preset behavior of resetting manual chip toggles back to `statusMode: 'and'`.
+- `RoomThreadOverview` now renders included OR-mode status chips with the orange warning treatment, while `RoomTimeline` parses the raw bar text synchronously for chip state and keeps the existing 300ms debounce only on predicate evaluation.
+- `RoomView` chip/tag clicks now re-canonicalize from the current effective parsed state instead of stale stored chip fields, and skip the bar write when serialization is byte-identical to the current input.
+- Step 6 consumer audit:
+  - raw `searchQuery` remains authoritative only in UI/input surfaces (`RoomThreadOverview` expansion/value, `RoomView` write handlers, persisted state, `hasActiveThreadFilters`)
+  - substring matching sites now consume parsed free text (`resolveOverviewThreadRootIds`, room-overview focus recovery, frozen-order signatures)
+  - unsupported runs like `tag:a OR tag:b` intentionally stay raw in the bar and do not silently degrade into active chips
+- Review:
+  - independent second self-review completed via fresh `git diff`, `git diff --check`, and `grep -n "searchQuery" src/app/features/room/*.ts src/app/features/room/*.tsx` before the final audit fix.
+- Validation (2026-04-19):
+  - `npm run build` passes
+  - `npx vitest run --no-coverage` passes
+- review-fix round 1, bug 1 (2026-04-19):
+  - `applyParsedThreadFilterQuery(...)` now treats the bar as authoritative for parsed status/tag state: absent `is:` tokens reset status keys to `'any'`, absent `tag:` tokens clear tag chips, and parsed `statusMode` always wins instead of reviving deleted stored chip state.
+  - added the new `RoomTimeline.filter-query.test.ts` regression that types `is:streaming OR is:scheduled tag:bug`, clears the bar, and verifies both status chips and tag chips reset immediately while the debounced predicate returns to all threads.
+  - aligned the controlled `RoomTimeline` test harness with the real `RoomView` container by canonicalizing `searchQuery` on chip toggles / legacy initial state, which prevents stale harness-only state shapes from bypassing the bar-authoritative merge path.
+  - updated the affected cache/navigation expectations to the real current contract:
+    - debounced chip-query writes now need an explicit debounce settle in the few tests that assert rendered ordering after a chip click,
+    - and reset returns to the default overview sort (`lastReply`) rather than a plain message-timeline range.
+  - tightened `applyPreset(...)` with an explicit `ThreadFilterState` annotation so TypeScript keeps the tri-state literals narrow during validation.
+  - review:
+    - independent second self-review completed via fresh diff review of the blocker patch plus the harness/test expectation adjustments needed to keep the suite aligned with the bar-authoritative invariant.
+  - validation:
+    - `npx vitest run --no-coverage` passes (`141/141` files, `1304/1304` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+- review-fix round 1, bug 2 (2026-04-19):
+  - `RoomView` now applies presets against the effective parsed bar state via `updateFromEffectiveQueryState(...)` instead of the raw stored `threadFilterState`, so typed DSL tokens that have not yet been merged into stored status/tag fields still survive preset clicks.
+  - `applyPreset(...)` now treats the `all` preset as a full clear by explicitly resetting both `searchQuery` and parsed tag state, which keeps the canonicalized bar empty instead of resurrecting stale free text or tags during re-serialization.
+  - added regressions for both user-facing failures:
+    - `RoomTimeline.filter-query.test.ts` verifies `tag:bug` survives when the `working` preset is clicked from the bar,
+    - `roomThreadOverviewModel.test.ts` verifies `applyPreset(state_with_searchQuery, all).searchQuery === ''`.
+  - hardened the range-reset navigation test by switching its debounce waits to fake timers; the behavior is unchanged, but full-suite validation no longer depends on wall-clock timing under heavy Vitest load.
+  - review:
+    - independent second self-review completed via fresh diff review plus `git diff --check` on the preset-path changes and the timer-driven navigation test adjustment.
+  - validation:
+    - `npx vitest run --no-coverage` passes (`141/141` files, `1306/1306` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+- review-fix round 1, bug 3 (2026-04-19):
+  - tightened the parser fallback so only tokens that actually look like DSL syntax (`is:*`, `-is:*`, `tag:*`, `-tag:*`, or stray `OR`) land in `unsupportedTail`; colon-bearing free text like Matrix ids, URLs, and similar search text now remains in `freeText` and reaches substring matching.
+  - added the required regression in `threadFilterDsl.test.ts` to verify `parseThreadFilterQuery('!room:server hello world').freeText === '!room:server hello world'`.
+  - kept the existing invalid-DSL behavior intact for unsupported runs like `tag:a OR tag:b` and `is:streaming OR tag:bug`; this patch only narrows the over-eager colon fallback.
+  - review:
+    - independent second self-review completed via fresh diff review of `threadFilterDsl.ts` / `threadFilterDsl.test.ts` after focused parser-test validation.
+  - validation:
+    - `npx vitest run --no-coverage` passes (`141/141` files, `1307/1307` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+- docs follow-up (2026-04-19):
+  - corrected the CINNY-077 live-test recipe in both `PLAN.md` acceptance criterion 4 and `IMPLEMENTATION-NOTES.md` step 4: a single click on the `resolved` chip while in the Working preset produces `is:resolved is:streaming is:scheduled`, because the chip cycles from `any` to `include` before AND-mode normalization removes the orange OR styling.

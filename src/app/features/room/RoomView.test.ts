@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type MockThreadContextBannerProps = {
   onExitThread?: () => void;
@@ -237,6 +237,9 @@ const makeRoom = (roomId: string) => ({
   getThread: () => undefined,
   findEventById: () => undefined,
 });
+let roomIdSeed = 0;
+const nextRoomId = (label: string) => `!${label}-${roomIdSeed++}:example.org`;
+
 const getTimeline = (renderer: ReturnType<typeof create>) =>
   (renderer.root.findByType(roomTimelineType as never) as unknown) as {
     props: {
@@ -263,6 +266,7 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
 
 describe('RoomView', () => {
   beforeEach(() => {
+    vi.useRealTimers();
     storageState.clear();
     bumpRecentThreadMock.mockReset();
     navigateRoomFocusEventMock.mockReset();
@@ -273,9 +277,13 @@ describe('RoomView', () => {
     vi.resetModules();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('persists the thread filter state across thread enter/exit', async () => {
     const { RoomView } = await import('./RoomView');
-    const room = makeRoom('!room-a:example.org');
+    const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
 
     await act(async () => {
@@ -306,8 +314,8 @@ describe('RoomView', () => {
 
   it('keeps thread filter state isolated per room when switching rooms', async () => {
     const { RoomView } = await import('./RoomView');
-    const roomA = makeRoom('!room-a:example.org');
-    const roomB = makeRoom('!room-b:example.org');
+    const roomA = makeRoom(nextRoomId('room-a'));
+    const roomB = makeRoom(nextRoomId('room-b'));
     let renderer: ReturnType<typeof create> | undefined;
 
     await act(async () => {
@@ -355,7 +363,7 @@ describe('RoomView', () => {
 
   it('persists the freeze state across thread enter/exit in the same room', async () => {
     const { RoomView } = await import('./RoomView');
-    const room = makeRoom('!room-a:example.org');
+    const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
 
     await act(async () => {
@@ -383,8 +391,8 @@ describe('RoomView', () => {
 
   it('resets the freeze state when switching rooms', async () => {
     const { RoomView } = await import('./RoomView');
-    const roomA = makeRoom('!room-a:example.org');
-    const roomB = makeRoom('!room-b:example.org');
+    const roomA = makeRoom(nextRoomId('room-a'));
+    const roomB = makeRoom(nextRoomId('room-b'));
     let renderer: ReturnType<typeof create> | undefined;
 
     await act(async () => {
@@ -406,7 +414,7 @@ describe('RoomView', () => {
 
   it('clears the freeze state when sort cycles back to natural', async () => {
     const { RoomView } = await import('./RoomView');
-    const room = makeRoom('!room-a:example.org');
+    const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
 
     await act(async () => {
@@ -434,7 +442,7 @@ describe('RoomView', () => {
 
   it('resets all filters on onReset', async () => {
     const { RoomView } = await import('./RoomView');
-    const room = makeRoom('!room-a:example.org');
+    const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
 
     await act(async () => {
@@ -458,7 +466,7 @@ describe('RoomView', () => {
 
   it('exits a thread into the focused room event route', async () => {
     const { RoomView } = await import('./RoomView');
-    const room = makeRoom('!room-a:example.org');
+    const room = makeRoom(nextRoomId('room-a'));
 
     await act(async () => {
       create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
@@ -471,7 +479,7 @@ describe('RoomView', () => {
     });
 
     expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(
-      '!room-a:example.org',
+      room.roomId,
       '$thread',
       { replace: true }
     );
@@ -479,7 +487,7 @@ describe('RoomView', () => {
 
   it('canonicalizes resolved thread ids and passes them through the thread view', async () => {
     const { RoomView } = await import('./RoomView');
-    const room = makeRoom('!room-a:example.org');
+    const room = makeRoom(nextRoomId('room-a'));
     useThreadRootEventMock.mockReturnValue('$confirmed-thread');
 
     let renderer: ReturnType<typeof create> | undefined;
@@ -495,7 +503,7 @@ describe('RoomView', () => {
     });
 
     expect(navigateRoomThreadMock).toHaveBeenCalledWith(
-      '!room-a:example.org',
+      room.roomId,
       '$confirmed-thread',
       '$focus',
       { replace: true }
@@ -505,7 +513,7 @@ describe('RoomView', () => {
 
   it('bumps the recent-thread list from the canonical open thread id', async () => {
     const { RoomView } = await import('./RoomView');
-    const room = makeRoom('!room-a:example.org');
+    const room = makeRoom(nextRoomId('room-a'));
     useThreadRootEventMock.mockReturnValue('$confirmed-thread');
 
     await act(async () => {
@@ -518,7 +526,7 @@ describe('RoomView', () => {
     });
 
     expect(bumpRecentThreadMock).toHaveBeenCalledWith(
-      '!room-a:example.org',
+      room.roomId,
       '$confirmed-thread',
       undefined,
       undefined

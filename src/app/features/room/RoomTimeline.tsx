@@ -222,6 +222,7 @@ import {
   computeStatusCounts,
   computeTagCounts,
 } from './roomThreadOverviewModel';
+import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
 import {
   getRoomEventThreadOpenTarget,
   getTimelineEventById,
@@ -2552,6 +2553,8 @@ export const getRoomEventFocusTarget = ({
       };
     }
   }
+  const effectiveSearchQuery =
+    searchQuery ?? parseThreadFilterQuery(threadFilterState.searchQuery ?? '').freeText;
 
   const visibleEvents = threadId
     ? renderableEvents
@@ -2567,12 +2570,12 @@ export const getRoomEventFocusTarget = ({
         summaryMap,
         currentUserId,
         readUpToTs,
-        searchQuery ?? threadFilterState.searchQuery ?? '',
+        effectiveSearchQuery,
         threadSortFreezeState ?? null,
         threadSortControlSignature ??
           createThreadSortControlSignature({
             state: threadFilterState,
-            searchQuery: searchQuery ?? threadFilterState.searchQuery ?? '',
+            searchQuery: effectiveSearchQuery,
             viewMode,
           }),
         viewMode,
@@ -2654,6 +2657,14 @@ export function RoomTimeline({
     !direct && !threadId && focusEventInRoom && viewMode !== 'compact' && eventId
   );
   const requestedThreadFilterState = direct ? DIRECT_ROOM_TIMELINE_FILTER_STATE : threadFilterState;
+  const liveParsedQuery = useMemo(
+    () => parseThreadFilterQuery(requestedThreadFilterState.searchQuery ?? ''),
+    [requestedThreadFilterState.searchQuery]
+  );
+  const liveThreadFilterState = useMemo(
+    () => applyParsedThreadFilterQuery(requestedThreadFilterState, liveParsedQuery),
+    [requestedThreadFilterState, liveParsedQuery]
+  );
   const effectiveViewMode: RoomViewMode = direct ? 'normal' : viewMode;
   const [hideMembershipEvents] = useSetting(settingsAtom, 'hideMembershipEvents');
   const [hideNickAvatarEvents] = useSetting(settingsAtom, 'hideNickAvatarEvents');
@@ -3204,14 +3215,22 @@ export function RoomTimeline({
     );
     return () => clearTimeout(timer);
   }, [requestedThreadFilterState.searchQuery]);
+  const debouncedParsedQuery = useMemo(
+    () => parseThreadFilterQuery(debouncedSearchQuery),
+    [debouncedSearchQuery]
+  );
+  const debouncedThreadFilterState = useMemo(
+    () => applyParsedThreadFilterQuery(requestedThreadFilterState, debouncedParsedQuery),
+    [requestedThreadFilterState, debouncedParsedQuery]
+  );
   const threadSortControlSignature = useMemo(
     () =>
       createThreadSortControlSignature({
-        state: requestedThreadFilterState,
-        searchQuery: debouncedSearchQuery,
+        state: debouncedThreadFilterState,
+        searchQuery: debouncedParsedQuery.freeText,
         viewMode: effectiveViewMode,
       }),
-    [requestedThreadFilterState, debouncedSearchQuery, effectiveViewMode]
+    [debouncedThreadFilterState, debouncedParsedQuery.freeText, effectiveViewMode]
   );
 
   // ── Overview pipeline: filter → sort → Map-based entry construction ──
@@ -3219,16 +3238,16 @@ export function RoomTimeline({
     () =>
       resolveOverviewThreadRootIds({
         threadRootIds: visibleThreadRootData.ids,
-        threadFilterState: requestedThreadFilterState,
-        searchQuery: debouncedSearchQuery,
+        threadFilterState: debouncedThreadFilterState,
+        searchQuery: debouncedParsedQuery.freeText,
         metadataMap: threadMetadataMap,
         threadSortFreezeState,
         threadSortControlSignature,
       }),
     [
       visibleThreadRootData.ids,
-      requestedThreadFilterState,
-      debouncedSearchQuery,
+      debouncedThreadFilterState,
+      debouncedParsedQuery.freeText,
       threadMetadataMap,
       threadSortFreezeState,
       threadSortControlSignature,
@@ -3250,10 +3269,10 @@ export function RoomTimeline({
       !normalOverviewOrdering.filteredIds.includes(focusedRoomOverviewRootId));
   const effectiveThreadFilterState = focusedRoomOverviewBypass
     ? DIRECT_ROOM_TIMELINE_FILTER_STATE
-    : requestedThreadFilterState;
+    : debouncedThreadFilterState;
   threadFilterStateRef.current = effectiveThreadFilterState;
   const roomThreadFilterRequested =
-    isRoomThreadOverviewActive(threadId, requestedThreadFilterState) ||
+    isRoomThreadOverviewActive(threadId, liveThreadFilterState) ||
     focusedRoomOverviewRequested;
   const roomThreadFilterActive = roomThreadFilterRequested && !focusedRoomOverviewBypass;
   const compactOverviewOrdering = useMemo(
@@ -3262,8 +3281,8 @@ export function RoomTimeline({
 
       return resolveOverviewThreadRootIds({
         threadRootIds: compactThreadRootData.ids,
-        threadFilterState: requestedThreadFilterState,
-        searchQuery: debouncedSearchQuery,
+        threadFilterState: debouncedThreadFilterState,
+        searchQuery: debouncedParsedQuery.freeText,
         metadataMap: compactThreadMetadataMap,
         threadSortFreezeState,
         threadSortControlSignature,
@@ -3273,8 +3292,8 @@ export function RoomTimeline({
       compactViewRequested,
       normalOverviewOrdering,
       compactThreadRootData.ids,
-      requestedThreadFilterState,
-      debouncedSearchQuery,
+      debouncedThreadFilterState,
+      debouncedParsedQuery.freeText,
       compactThreadMetadataMap,
       threadSortFreezeState,
       threadSortControlSignature,
@@ -5099,7 +5118,7 @@ export function RoomTimeline({
               summaryMap: threadSummaryInfoMap,
               currentUserId: mx.getSafeUserId(),
               readUpToTs,
-              searchQuery: debouncedSearchQuery,
+              searchQuery: debouncedParsedQuery.freeText,
               threadSortFreezeState,
               threadSortControlSignature,
               viewMode: effectiveViewMode,
@@ -5145,7 +5164,7 @@ export function RoomTimeline({
         threadParticipantMap,
         threadSummaryInfoMap,
         readUpToTs,
-        debouncedSearchQuery,
+        debouncedParsedQuery.freeText,
         threadSortFreezeState,
         threadSortControlSignature,
         roomOverviewOrderActive,
@@ -8712,7 +8731,7 @@ threadDebugTraceId,
           totalThreadCount={showCompactRoomView ? compactThreadRootData.ids.length : visibleThreadRootData.ids.length}
           statusCounts={statusCounts}
           tagCounts={tagCounts}
-          state={threadFilterState}
+          state={liveThreadFilterState}
           availableTags={availableRoomTags}
           viewMode={viewMode}
           onViewModeChange={onViewModeChange}

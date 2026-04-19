@@ -37,9 +37,14 @@ vi.mock('is-hotkey', () => ({
   isKeyHotkey: () => false,
 }));
 
-vi.mock('jotai', () => ({
-  useAtomValue: () => false,
-}));
+vi.mock('jotai', async () => {
+  const actual = await vi.importActual<typeof import('jotai')>('jotai');
+
+  return {
+    ...actual,
+    useAtomValue: () => false,
+  };
+});
 
 vi.mock('react-router-dom', () => ({
   useParams: () => ({ eventId: roomState.eventId }),

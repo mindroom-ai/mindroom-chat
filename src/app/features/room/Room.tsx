@@ -144,7 +144,7 @@ export function Room() {
             {screenSize === ScreenSize.Desktop && (
               <Line variant="Background" direction="Vertical" size="300" />
             )}
-            <CallChatView />
+            <CallChatView room={room} />
           </>
         )}
         {!callView && screenSize === ScreenSize.Desktop && isDrawer && (

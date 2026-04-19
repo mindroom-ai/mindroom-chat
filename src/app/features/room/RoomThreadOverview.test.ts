@@ -29,6 +29,7 @@ vi.mock('./RoomThreadOverview.css', () => ({
   ToggleGroup: 'ToggleGroup',
   ToggleButton: 'ToggleButton',
   ToggleInclude: 'ToggleInclude',
+  ToggleIncludeOr: 'ToggleIncludeOr',
   ToggleExclude: 'ToggleExclude',
   SectionSeparator: 'SectionSeparator',
   CompactCount: 'CompactCount',
@@ -159,6 +160,49 @@ describe('RoomThreadOverview', () => {
     );
     expect(streamingBtn.props['data-filter-state']).toBe('exclude');
     expect(streamingBtn.props.className).toContain('ToggleExclude');
+
+    renderer.unmount();
+  });
+
+  it('uses the OR warning class for included chips in OR mode', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        state: makeDefaultState({
+          streaming: 'include',
+          scheduled: 'include',
+          statusMode: 'or',
+        }),
+      })
+    );
+
+    const streamingBtn = renderer.root.find(
+      (node) => node.props['data-filter-key'] === 'streaming'
+    );
+    const scheduledBtn = renderer.root.find(
+      (node) => node.props['data-filter-key'] === 'scheduled'
+    );
+
+    expect(streamingBtn.props.className).toContain('ToggleIncludeOr');
+    expect(scheduledBtn.props.className).toContain('ToggleIncludeOr');
+
+    renderer.unmount();
+  });
+
+  it('keeps the default include class outside OR mode', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        state: makeDefaultState({ streaming: 'include', statusMode: 'and' }),
+      })
+    );
+
+    const streamingBtn = renderer.root.find(
+      (node) => node.props['data-filter-key'] === 'streaming'
+    );
+
+    expect(streamingBtn.props.className).toContain('ToggleInclude');
+    expect(streamingBtn.props.className).not.toContain('ToggleIncludeOr');
 
     renderer.unmount();
   });
