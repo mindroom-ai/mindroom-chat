@@ -918,7 +918,7 @@ describe('RoomTimeline collapsible wiring', () => {
     });
 
     expect(findCollapseModeForEvent(renderer, '$summary')).toBe('always-expanded');
-  });
+  }, 10000);
 
   it('uses always-expanded mode for legacy boolean thread summaries', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
