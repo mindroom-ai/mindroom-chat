@@ -281,6 +281,215 @@
     - `npm test` passes (`138/138` files, `1141/1141` tests)
     - `npm run typecheck` passes
     - `npm run build` passes
+- `CINNY-076`
+  - step 1/6 settings-modal extraction (2026-04-19):
+    - added `settingsModalAtom` in `src/app/state/settingsModal.ts`
+    - added `SettingsModalRenderer` in `src/app/features/settings/SettingsModalRenderer.tsx`
+    - mounted the shared settings renderer in `Router.tsx`
+    - updated `SettingsTab.tsx` to open shared settings state instead of owning a local `Settings` modal
+    - added focused regression coverage in:
+      - `src/app/features/settings/SettingsModalRenderer.test.ts`
+      - `src/app/pages/client/sidebar/SettingsTab.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after implementation and validation; scope stayed limited to shared settings-modal wiring, router mount, sidebar trigger behavior, tests, and this runbook update.
+  - validation step 1 (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/settings/SettingsModalRenderer.test.ts`
+      - `src/app/pages/client/sidebar/SettingsTab.test.ts`
+    - `npm test` passes (`140/140` files, `1139/1139` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` fails at the current branch baseline because of an unrelated existing hooks-rule error in `src/app/features/room/CompactThreadCard.tsx:179`, plus the branch’s existing warning set (`79` problems total: `1` error, `78` warnings)
+  - step 2/6 command-palette state and pure helpers (2026-04-19):
+    - added `fuse.js` as the only new runtime dependency in `package.json` / `package-lock.json`
+    - added `commandPaletteOpenAtom` in `src/app/state/commandPalette.ts`
+    - added the new `src/app/features/command-palette/` pure layer:
+      - `commandPaletteTypes.ts`
+      - `commandPaletteQuery.ts`
+      - `commandPaletteSearch.ts`
+      - `index.ts`
+    - parser/query helpers now cover:
+      - `>` actions
+      - `#` rooms
+      - `@` users
+      - `t:` threads
+      - `*` spaces alias
+      - unified section ordering rules, including message rows only for non-empty unified search
+    - Fuse search helper now covers:
+      - per-section keys/thresholds/caps
+      - empty-query bypass
+      - small boost pass after Fuse scoring
+    - added focused regression coverage in:
+      - `src/app/features/command-palette/commandPaletteQuery.test.ts`
+      - `src/app/features/command-palette/commandPaletteSearch.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the helper implementation and validation; scope stayed limited to the new command-palette state/helpers/tests, `fuse.js` dependency wiring, and this runbook update.
+  - validation step 2 (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/command-palette/commandPaletteQuery.test.ts`
+      - `src/app/features/command-palette/commandPaletteSearch.test.ts`
+    - `npm test` passes (`142/142` files, `1151/1151` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` fails at the same current branch baseline because of the unrelated existing hooks-rule error in `src/app/features/room/CompactThreadCard.tsx:179`, plus the branch’s existing warning set (`79` problems total: `1` error, `78` warnings)
+  - step 3/6 command-palette shell with fixtures (2026-04-19):
+    - added the fixture-backed shell in:
+      - `src/app/features/command-palette/CommandPaletteRenderer.tsx`
+      - `src/app/features/command-palette/CommandPalette.tsx`
+      - `src/app/features/command-palette/CommandPaletteList.tsx`
+    - the new shell now covers:
+      - react-aria dialog/focus/scroll-prevention wiring via `FocusScope`, `useOverlay`, `useDialog`, and `usePreventScroll`
+      - local query state and selected-row state
+      - grouped section rendering
+      - keyboard handling for `ArrowUp`, `ArrowDown`, `Enter`, and `Escape`
+      - polite live-region result count updates
+      - fixture-backed prefix scoping and message-row visibility
+    - updated `src/app/features/command-palette/index.ts` exports for the new shell files
+    - added focused regression coverage in:
+      - `src/app/features/command-palette/CommandPalette.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the shell implementation and validation; scope stayed limited to the command-palette shell/test files, export updates, and this runbook update.
+  - validation step 3 (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/command-palette/CommandPalette.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+    - `npm test` passes (`144/144` files, `1159/1159` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` fails at the same current branch baseline because of the unrelated existing hooks-rule error in `src/app/features/room/CompactThreadCard.tsx:179`, plus the branch’s existing warning set (`79` problems total: `1` error, `78` warnings)
+  - step 4/6 live item sources and navigation wiring (2026-04-19):
+    - added the live command-palette data/action layer in:
+      - `src/app/features/command-palette/commandPaletteActions.ts`
+      - `src/app/features/command-palette/commandPaletteItems.ts`
+    - updated the palette shell/renderer/types in:
+      - `src/app/features/command-palette/CommandPalette.tsx`
+      - `src/app/features/command-palette/CommandPaletteRenderer.tsx`
+      - `src/app/features/command-palette/commandPaletteTypes.ts`
+      - `src/app/features/command-palette/index.ts`
+    - live palette sourcing now covers:
+      - rooms/spaces from the existing room-list atoms/hooks with activity sorting, unread boosts, parent-name metadata, and room/space navigation callbacks
+      - users from joined-room member snapshots plus known DM partners, deduped by MXID with existing-DM vs direct-create routing
+      - threads from `recentThreadsAtom` plus already-loaded SDK thread models, with canonical root resolution, summary fallback text, participant names, and resolve-state metadata
+      - synthetic message-search bridge rows that route into existing Home/Space message-search pages with the correct `term` / `rooms` / `global` search params
+      - lean quick actions for settings/navigation/create-room/create-space/current-room actions/theme/logout placeholder wiring
+    - the palette renderer now passes a live source into `CommandPalette`; tests keep the fixture fallback by default and mock the live source where needed
+    - added focused regression coverage in:
+      - `src/app/features/command-palette/commandPaletteActions.test.ts`
+      - updated `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after validation; scope stayed limited to the new command-palette live data/action wiring, renderer/source integration, focused tests, and this runbook update.
+  - validation step 4 (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/command-palette/commandPaletteActions.test.ts`
+      - `src/app/features/command-palette/CommandPalette.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+    - `npm test` passes (`145/145` files, `1167/1167` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` fails at the same current branch baseline because of the unrelated existing hooks-rule error in `src/app/features/room/CompactThreadCard.tsx:179`, plus the branch’s existing warning set (`79` problems total: `1` error, `78` warnings)
+  - step 5/6 ownership swap from Search modal to Command palette (2026-04-19):
+    - added `src/app/features/command-palette/useCommandPaletteHotkey.ts`
+    - added focused swap coverage in:
+      - `src/app/features/command-palette/useCommandPaletteHotkey.test.ts`
+      - `src/app/pages/client/sidebar/SearchTab.test.ts`
+      - updated `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+    - repointed runtime ownership:
+      - `Router.tsx` now mounts `CommandPaletteRenderer`
+      - `SearchTab.tsx` now reads/writes `commandPaletteOpenAtom`
+      - `CommandPaletteRenderer.tsx` now owns the single `mod+k` matcher through the new hook
+    - removed the old search-modal implementation:
+      - deleted `src/app/features/search/Search.tsx`
+      - deleted `src/app/features/search/index.ts`
+      - deleted `src/app/state/searchModal.ts`
+    - verification snapshot after the swap:
+      - `rg -n "mod\\+k|isKeyHotkey\\('mod\\+k'" src/app -g '!dist'` returns exactly one match in `src/app/features/command-palette/CommandPaletteRenderer.tsx`
+      - `rg -n "searchModalAtom|SearchModalRenderer|features/search" src/app -g '!dist'` returns no matches
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the swap validation; scope stayed limited to hotkey ownership, router/sidebar wiring, deleted search-modal files, focused swap tests, and this runbook update.
+  - validation step 5 (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/command-palette/useCommandPaletteHotkey.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+      - `src/app/pages/client/sidebar/SearchTab.test.ts`
+    - `npm test` passes (`147/147` files, `1172/1172` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` fails at the same current branch baseline because of the unrelated existing hooks-rule error in `src/app/features/room/CompactThreadCard.tsx:179`, plus the branch’s existing warning set (`79` problems total: `1` error, `78` warnings)
+  - step 6/6 polish, footer hints, quick-jump, and logout confirm (2026-04-19):
+    - updated `src/app/features/command-palette/CommandPalette.tsx` to:
+      - document all five supported prefixes in the footer (`>` actions, `#` rooms, `@` users, `t:` threads, `*` spaces),
+      - document the `mod+k` open shortcut and the new `mod+1..9` quick-jump shortcut,
+      - and execute visible-item quick jumps directly from the palette input with `Ctrl/Cmd+1..9`
+    - updated `src/app/features/command-palette/commandPaletteItems.ts` so the logout quick action now routes through renderer-owned confirmation state instead of a placeholder no-op path
+    - updated `src/app/features/command-palette/CommandPaletteRenderer.tsx` to:
+      - open the existing shared `LogoutDialog` after selecting the logout action,
+      - keep the command palette renderer as the single `mod+k` owner,
+      - and reuse the app’s existing `FocusTrap` / overlay modal pattern for the confirmation dialog
+    - expanded focused regression coverage in:
+      - `src/app/features/command-palette/CommandPalette.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the polish validation; scope stayed limited to command-palette footer/shortcut behavior, logout confirmation wiring, focused tests, and this runbook update.
+  - validation step 6 (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/command-palette/CommandPalette.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm test` passes (`147/147` files, `1175/1175` tests)
+    - `npm run lint` fails at the same current branch baseline because of the unrelated existing hooks-rule error in `src/app/features/room/CompactThreadCard.tsx:179`, plus the branch’s existing warning set (`79` problems total: `1` error, `78` warnings)
+    - final ownership verification:
+      - `grep -rn "isKeyHotkey.*mod+k\\|mod\\+k" src/` returns exactly one match in `src/app/features/command-palette/CommandPaletteRenderer.tsx`
+      - `grep -rn "searchModalAtom\\|SearchModalRenderer" src/` returns no matches
+  - 3b follow-up fix A dialog height cap (2026-04-19):
+    - `CommandPaletteRenderer.tsx` now uses a capped `Modal` (`flexHeight` plus `maxHeight: calc(100vh - 32px)`) so the palette cannot grow past the viewport on large accounts.
+    - `CommandPalette.tsx` now keeps the search input and footer outside the scrolling results region, and the results `Scroll` owns the internal `flex: 1 1 auto`, `min-height: 0`, and `overflow-y: auto` layout.
+    - expanded focused regression coverage in:
+      - `src/app/features/command-palette/CommandPalette.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the follow-up patch and validation; scope stayed limited to the command-palette shell/layout, its focused tests, and this runbook update.
+  - validation 3b fix A (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/command-palette/CommandPalette.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+    - `npm run typecheck` passes
+    - `npm run build` passes
+  - 3b follow-up fix B mobile full-screen palette (2026-04-19):
+    - `CommandPaletteRenderer.tsx` now uses the existing `useScreenSizeContext()` / `ScreenSize.Mobile` breakpoint instead of a new media-query path.
+    - on the existing mobile breakpoint, the command palette modal now renders full-bleed with `width: 100vw`, `height: 100vh`, `maxWidth: 100vw`, `maxHeight: 100vh`, and no rounded-corner card framing.
+    - expanded focused regression coverage in:
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the mobile follow-up patch and validation; scope stayed limited to the command-palette renderer/responsive layout, its focused test, and this runbook update.
+  - validation 3b fix B (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+    - `npm run typecheck` passes
+    - `npm run build` passes
+  - 3b follow-up fix C room header palette entry point (2026-04-19):
+    - `RoomViewHeader.tsx` now imports `commandPaletteOpenAtom` and opens it from a new top-bar `IconButton` using `Icons.Terminal`.
+    - the new command-palette button sits immediately before the existing Search button, uses the same icon-button sizing/styling, and stays visible on all viewports instead of depending on the sidebar tab.
+    - added focused regression coverage in:
+      - `src/app/features/room/RoomViewHeader.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the room-header follow-up patch and validation; scope stayed limited to `RoomViewHeader`, its focused test, and this runbook update.
+  - validation 3b fix C (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/room/RoomViewHeader.test.ts`
+    - `npm run typecheck` passes
+    - `npm run build` passes
+  - 3b follow-up bonus sidebar icon consistency (2026-04-19):
+    - `SearchTab.tsx` now uses `Icons.Terminal` and the explicit "Open command palette" tooltip copy so the sidebar entry matches the room-header button semantics.
+    - updated focused regression coverage in:
+      - `src/app/pages/client/sidebar/SearchTab.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the sidebar consistency patch and validation; scope stayed limited to `SearchTab`, its focused test, and this runbook update.
+  - validation 3b bonus (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/pages/client/sidebar/SearchTab.test.ts`
+    - `npm run typecheck` passes
 
 ### Validation Standard
 
@@ -840,3 +1049,124 @@
     - `npm run build` passes
 - docs follow-up (2026-04-19):
   - corrected the CINNY-077 live-test recipe in both `PLAN.md` acceptance criterion 4 and `IMPLEMENTATION-NOTES.md` step 4: a single click on the `resolved` chip while in the Working preset produces `is:resolved is:streaming is:scheduled`, because the chip cycles from `any` to `include` before AND-mode normalization removes the orange OR styling.
+
+### CINNY-076c: command palette mobile fixes (2026-04-19)
+
+- commit 1 mobile bottom-sheet layout + viewport-unit fix (2026-04-19):
+  - `src/app/features/command-palette/CommandPaletteRenderer.tsx` now renders the mobile palette as a bottom sheet anchored to the viewport bottom instead of a full-screen centered modal.
+  - mobile sizing now uses `min(85svh, 700px)` for the sheet height and `100dvh` / `100svh` for the overlay container; `100vh` is no longer used anywhere in the renderer.
+  - desktop layout stays on the existing centered modal path, with the prior `calc(100vh - 32px)` cap updated to `calc(100dvh - 32px)` only.
+  - `src/app/features/command-palette/CommandPaletteRenderer.test.ts` now locks the mobile bottom-sheet style and asserts the renderer no longer emits `100vh`.
+- commit 2 mobile close button (2026-04-19):
+  - `src/app/features/command-palette/CommandPalette.tsx` now renders a mobile-only `IconButton` with `Icons.Cross` beside the search input and routes it through the existing `requestClose()` callback.
+  - `src/app/features/command-palette/CommandPaletteRenderer.tsx` now passes the mobile-sheet flag into `CommandPalette` so desktop stays unchanged.
+  - `src/app/features/command-palette/CommandPaletteRenderer.test.ts` now asserts the mobile renderer includes the explicit close button and that clicking it closes the palette.
+- commit 3 safe-area bottom padding (2026-04-19):
+  - `src/app/features/command-palette/CommandPalette.tsx` now adds `padding-bottom: env(safe-area-inset-bottom, 0px)` to the mobile sheet’s inner content container so the iOS home-indicator zone is painted by the dialog and content clears the indicator.
+- review:
+  - independent second self-review completed via fresh `git diff` / `git diff --check` passes before each logical-step commit and a final post-validation diff audit; scope stayed limited to the command-palette renderer/component/tests plus this runbook.
+- validation (2026-04-19):
+  - focused Vitest passes for:
+    - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+    - `src/app/features/command-palette/CommandPalette.test.ts`
+  - `npm run typecheck` passes
+  - `npm test -- --run` passes (`152/152` files, `1357/1357` tests)
+  - `npm run build` passes
+
+### CINNY-080: Command palette row restyle (2026-04-20)
+
+- `src/app/features/command-palette/CommandPaletteList.tsx` now applies the row-only visual refresh for known item kinds:
+  - a 4px left accent bar per row via `border-left`,
+  - a category icon between the accent bar and title,
+  - slightly roomier row padding,
+  - and stable `data-kind` / `data-category` attributes for focused regression coverage.
+- the accent mapping stays on existing Folds semantic families so the row colors remain theme-safe across Cinny's light/dark/butter/silver themes without hardcoded hex values:
+  - actions -> `color.Warning.Main`
+  - threads -> `color.Primary.Main`
+  - rooms/spaces -> `color.Success.Main`
+  - users -> `color.Secondary.Main`
+  - messages -> `color.SurfaceVariant.OnContainer`
+- icon mapping uses existing Folds glyphs only:
+  - action -> `Icons.Terminal`
+  - room -> `Icons.Hash`
+  - space -> `Icons.Space`
+  - user -> `Icons.User`
+  - thread -> `Icons.Message`
+  - message -> `Icons.Search`
+- added focused row-restyle coverage in `src/app/features/command-palette/CommandPaletteList.test.ts` for:
+  - room category metadata/accent rendering,
+  - selected-row background preservation,
+  - and unknown-kind fallback without icon/bar crashes.
+- updated `CommandPalette.test.ts` and `CommandPaletteRenderer.test.ts` folds mocks for the new icon/color imports used by the shared list renderer.
+- added `CINNY-080-DESIGN.md` at the worktree root with the final color/icon mapping table, section-count snapshot, file list, and implementation tradeoffs.
+- review:
+  - independent second self-review completed via fresh `git diff`, `git diff --check`, and targeted source reads after the full validation pass; scope stayed limited to command-palette row styling, focused tests, and docs/runbook updates.
+- validation (2026-04-20):
+  - `npm run typecheck` passes
+  - focused Vitest passes for:
+    - `src/app/features/command-palette/CommandPaletteList.test.ts`
+    - `src/app/features/command-palette/CommandPalette.test.ts`
+    - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - `npm test -- --run` passes (`153/153` files, `1360/1360` tests)
+  - clean rebuild via `rm -rf dist && npm run build` passes
+  - fresh main bundle verified:
+    - `dist/index.html` timestamp `2026-04-20 08:29:21 -0700`
+    - `dist/assets/index-B7kENa8j.js` timestamp `2026-04-20 08:29:21 -0700`
+    - `dist/assets/index-B7kENa8j.js` size `4,355,187` bytes
+- gutter follow-up for Bas iPhone feedback (2026-04-20):
+  - `src/app/features/command-palette/CommandPalette.tsx` now applies `paddingInline: config.space.S400` on the shared inner wrapper so the search input, live result count, results list, and footer all sit inside the same 16px gutter instead of rendering flush against the dialog edge.
+  - the same gutter now applies on the mobile bottom-sheet path as well; the existing safe-area bottom padding remains intact.
+  - kept unchanged:
+    - desktop dialog width (`800px` via the existing modal size path)
+    - row-level accent bar/icon styling
+    - per-row padding behavior
+    - Cmd-K and prefix-tab logic
+  - expanded `src/app/features/command-palette/CommandPalette.test.ts` with focused assertions for:
+    - desktop inner gutter presence
+    - mobile-sheet gutter preservation alongside safe-area bottom padding
+- review follow-up:
+  - independent second self-review completed via fresh `git diff`, `git diff --check`, and targeted source reads after the gutter patch and requested validation; scope stayed limited to the command-palette inner wrapper/test updates plus this runbook.
+- validation follow-up (2026-04-20):
+  - focused Vitest passes for:
+    - `src/app/features/command-palette/CommandPaletteList.test.ts`
+    - `src/app/features/command-palette/CommandPalette.test.ts`
+    - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - `npm run typecheck` passes
+  - `npm test -- --run` passes (`153/153` files, `1362/1362` tests)
+  - clean rebuild via `rm -rf dist && npm run build` passes
+  - fresh main bundle verified:
+    - `dist/index.html` timestamp `2026-04-20 09:26:02 -0700`
+    - `dist/assets/index-DsIKbFzR.js` timestamp `2026-04-20 09:26:02 -0700`
+    - `dist/assets/index-DsIKbFzR.js` size `4,355,215` bytes
+- selected-row + header-removal follow-up for Bas iPhone feedback (2026-04-20):
+  - `src/app/features/command-palette/CommandPaletteList.tsx` now renders `data-selected="true"` rows with `color.SurfaceVariant.ContainerHover` instead of `var(--bg-surface-hover)`, so keyboard selection stays visibly distinct against the `Background` modal while preserving the existing 4px left accent bar and per-row icon treatment.
+  - removed both redundant section-title text surfaces from the list renderer:
+    - the large section header above each grouped result set,
+    - and the right-aligned per-row section badge text.
+  - kept unchanged:
+    - the row accent-bar styling,
+    - the row icons,
+    - the shared 16px inner gutter,
+    - the existing per-item `Line` separators and grouped spacing,
+    - and the Cmd-K / prefix-tab / mobile-sheet behavior.
+  - updated focused coverage:
+    - `src/app/features/command-palette/CommandPaletteList.test.ts` now asserts the Folds `SurfaceVariant.ContainerHover` selected background token and verifies the redundant section title text no longer renders.
+    - `src/app/features/command-palette/CommandPalette.test.ts` now asserts visible item content instead of removed section-title strings.
+    - `src/app/features/command-palette/CommandPaletteRenderer.test.ts` folds mock now includes the shared `SurfaceVariant.ContainerHover` token used by the list renderer.
+- review follow-up:
+  - independent second self-review completed via fresh `git diff --stat`, targeted `git diff`, and `git diff --check` passes after the requested validation; scope stayed limited to the command-palette row renderer/tests plus this runbook update.
+- validation follow-up 2 (2026-04-20):
+  - focused Vitest passes for:
+    - `src/app/features/command-palette/CommandPaletteList.test.ts`
+    - `src/app/features/command-palette/CommandPalette.test.ts`
+    - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - `npm run typecheck` passes
+  - `npm test -- --run` passes (`153/153` files, `1363/1363` tests)
+  - clean rebuild via `rm -rf dist && npm run build` passes
+  - fresh main bundle verified:
+    - `dist/index.html` timestamp `2026-04-20 10:00:18 -0700`
+    - `dist/assets/index-B1nAFOIe.js` timestamp `2026-04-20 10:00:18 -0700`
+    - `dist/assets/index-B1nAFOIe.js` size `4,355,063` bytes
+  - `npm run lint` still fails at the current branch baseline with unrelated pre-existing issues:
+    - `src/app/features/room/threadFilterDsl.ts` reports 2 `no-return-assign` errors,
+    - and the branch still has 80 existing warnings elsewhere.
