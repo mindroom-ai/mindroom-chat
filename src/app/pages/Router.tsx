@@ -62,7 +62,8 @@ import { CreateRoomModalRenderer } from '../features/create-room';
 import { HomeCreateRoom } from './client/home/CreateRoom';
 import { Create } from './client/create';
 import { CreateSpaceModalRenderer } from '../features/create-space';
-import { SearchModalRenderer } from '../features/search';
+import { CommandPaletteRenderer } from '../features/command-palette';
+import { SettingsModalRenderer } from '../features/settings';
 import { getAppBasePath } from '../utils/basePath';
 import {
   resolveAuthRouteRedirect,
@@ -135,7 +136,8 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
                       >
                         <Outlet />
                       </ClientLayout>
-                      <SearchModalRenderer />
+                      <CommandPaletteRenderer />
+                      <SettingsModalRenderer />
                       <UserRoomProfileRenderer />
                       <CreateRoomModalRenderer />
                       <CreateSpaceModalRenderer />
