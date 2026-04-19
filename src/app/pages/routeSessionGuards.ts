@@ -22,9 +22,10 @@ export const resolveRootRouteRedirect = (
 ): RouteRedirectDecision => {
   if (activeSession) {
     const savedHomePath = getStoredNavToActivePath(activeSession.userId).get('home');
+    const sessionRestorePath = activeSession.lastKnownPath;
     return {
       redirectTo: resolveSessionRestorePath(
-        savedHomePath ? joinPathComponent(savedHomePath) : undefined
+        sessionRestorePath ?? (savedHomePath ? joinPathComponent(savedHomePath) : undefined)
       ),
     };
   }
