@@ -261,6 +261,26 @@
     - `npm run build` passes.
     - `npm test` passes (`140/140` files, `1262/1262` tests).
     - `npx playwright test e2e/live/cinny073-recent-threads-mobile.spec.ts --list` passes and enumerates the four expected viewport cases.
+- `CINNY-071`
+  - Aligns the tool-approval frontend parser with the MindRoom backend payload:
+    - `parseToolApprovalContent(...)` now reads canonical `requested_at` into `requestedAt`,
+    - approval data now preserves backend `tool_call_id`, `requester_id`, and `thread_id`,
+    - and the approval card uses parsed `thread_id` as a response-thread fallback when the render surface does not provide a separate thread root.
+  - Updated approval-related fixtures/integration tests to use `requested_at`.
+  - Added a regression test with the exact live backend Matrix payload captured from `/_matrix/client/v3/rooms/.../event/...`.
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after focused and full validation; scope stayed limited to the tool-approval parser/card path, approval-related tests, and this runbook update.
+  - validation (2026-04-18):
+    - focused Vitest passes for:
+      - `src/app/components/message/mindroomToolApproval.test.ts`
+      - `src/app/components/message/MindroomToolApprovalCard.test.ts`
+      - `src/app/components/RenderMessageContent.test.ts`
+      - `src/app/features/room/RoomTimeline.approval.test.ts`
+      - `src/app/features/room/RoomTimeline.cache.test.ts`
+      - `src/app/features/room/room-pin-menu/RoomPinMenu.test.ts`
+    - `npm test` passes (`138/138` files, `1141/1141` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
 
 ### Validation Standard
 
@@ -706,7 +726,6 @@
     - `npm test` passes (`136/136` files, `1092/1092` tests)
     - `npx tsc --noEmit` passes
     - `npm run build` passes
-
 ### CINNY-072: Thread banner summary overlap (2026-04-18)
 
 - `src/app/features/room/ThreadContextBanner.css.ts` now exports `TitleColumn` with `min-width: 0` so the middle banner column can shrink instead of forcing the `Resolve` chip offscreen.
@@ -728,3 +747,26 @@
   - `npx vitest run src/app/features/room/ThreadContextBanner.test.ts` passes (`1/1` files, `24/24` tests)
   - `npx vitest run` passes (`139/139` files, `1139/1139` tests)
   - `npm run build` passes
+
+### CINNY-071 v2: Matrix-event approvals + compact resolved cards (2026-04-13)
+
+- Review round-5 fix follow-up (2026-04-13):
+  - approval actions no longer call the local approvals REST API; `src/app/components/message/MindroomToolApprovalCard.tsx` now sends `io.mindroom.tool_approval_response` via `mx.sendEvent(...)` with thread reply metadata pointing at the thread root and the original approval event.
+  - `src/app/components/message/mindroomToolApproval.ts` now exports the approval-response event constant plus a shared builder for the response content payload so approve/deny actions stay aligned with the Matrix event schema.
+  - resolved approval cards are now compact inline summaries with status-colored icons/text, tool name, resolver + relative time, and optional deny reason in a tooltip; pending cards keep the larger actionable layout.
+  - `src/app/components/RenderMessageContent.tsx`, `src/app/features/room/RoomTimeline.tsx`, and `src/app/features/room/room-pin-menu/RoomPinMenu.tsx` now thread `roomId` / `eventId` / `threadId` through to the approval card so Matrix approval responses have the source-event context they need.
+  - removed the no-longer-used REST approvals client and its tests:
+    - `src/app/features/approvals/api.ts`
+    - `src/app/features/approvals/api.test.ts`
+  - added/updated focused regressions in:
+    - `src/app/components/message/mindroomToolApproval.test.ts`
+    - `src/app/components/message/MindroomToolApprovalCard.test.ts`
+    - `src/app/components/RenderMessageContent.test.ts`
+    - `src/app/features/room/RoomTimeline.approval.test.ts`
+    - `src/app/features/room/room-pin-menu/RoomPinMenu.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff`, targeted source reads, and `git diff --check`; scope stayed limited to approval-card submission/rendering, approval payload helpers, render-path prop wiring, focused tests, and this runbook update.
+  - validation (2026-04-13):
+    - `npm test` passes (`138/138` files, `1138/1138` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes

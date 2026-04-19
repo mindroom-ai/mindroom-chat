@@ -47,6 +47,9 @@ import { isMindroomAiRunStreaming } from './message/mindroomAiRun';
 type RenderMessageContentProps = {
   displayName: string;
   eventType?: string;
+  roomId?: string;
+  eventId?: string;
+  threadId?: string;
   msgType: string;
   ts: number;
   edited?: boolean;
@@ -61,6 +64,9 @@ type RenderMessageContentProps = {
 export function RenderMessageContent({
   displayName,
   eventType,
+  roomId,
+  eventId,
+  threadId,
   msgType,
   ts,
   edited,
@@ -169,7 +175,16 @@ export function RenderMessageContent({
 
   if (eventType === MINDROOM_TOOL_APPROVAL_EVENT) {
     const approval = parseToolApprovalContent(eventType, content);
-    return approval ? <MindroomToolApprovalCard approval={approval} /> : <BrokenContent />;
+    return approval ? (
+      <MindroomToolApprovalCard
+        approval={approval}
+        roomId={roomId}
+        eventId={eventId}
+        threadId={threadId}
+      />
+    ) : (
+      <BrokenContent />
+    );
   }
 
   if (msgType === MsgType.Text) {

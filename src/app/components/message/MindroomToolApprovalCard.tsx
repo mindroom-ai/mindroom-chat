@@ -4,12 +4,18 @@ import React, { FormEventHandler, useEffect, useMemo, useRef, useState } from 'r
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
-import { approveRequest, denyRequest } from '../../features/approvals/api';
-import { ToolApprovalData } from './mindroomToolApproval';
+import {
+  buildToolApprovalResponseContent,
+  MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
+  ToolApprovalData,
+} from './mindroomToolApproval';
 import * as css from './MindroomToolApprovalCard.css';
 
 type MindroomToolApprovalCardProps = {
   approval: ToolApprovalData;
+  roomId?: string;
+  eventId?: string;
+  threadId?: string;
 };
 
 const getTimestamp = (value: string | null): number | undefined => {
@@ -19,7 +25,9 @@ const getTimestamp = (value: string | null): number | undefined => {
 };
 
 const getActionErrorMessage = (error: unknown): string =>
-  error instanceof Error && error.message ? error.message : 'Request failed. Please try again.';
+  error instanceof Error && error.message
+    ? error.message
+    : 'Unable to send response. Please try again.';
 
 const isResolvedApprovalStatus = (status: ToolApprovalData['status']): boolean =>
   status === 'approved' || status === 'denied' || status === 'expired';
@@ -56,7 +64,12 @@ const getStatusIcon = (status: ToolApprovalData['status'] | 'submitted') => {
   }
 };
 
-export function MindroomToolApprovalCard({ approval }: MindroomToolApprovalCardProps) {
+export function MindroomToolApprovalCard({
+  approval,
+  roomId,
+  eventId,
+  threadId,
+}: MindroomToolApprovalCardProps) {
   const mx = useMatrixClient();
   const [showDenyForm, setShowDenyForm] = useState(false);
   const [denyReason, setDenyReason] = useState('');
@@ -66,11 +79,12 @@ export function MindroomToolApprovalCard({ approval }: MindroomToolApprovalCardP
   const denyReasonInputRef = useRef<HTMLInputElement>(null);
   const confirmDenyButtonRef = useRef<HTMLButtonElement>(null);
   const restoreDenyTriggerFocusRef = useRef(false);
-  const createdTs = getTimestamp(approval.createdAt);
+  const requestedTs = getTimestamp(approval.requestedAt);
   const resolvedTs = getTimestamp(approval.resolvedAt);
-  const createdRelative = useRelativeTime(createdTs);
+  const requestedRelative = useRelativeTime(requestedTs);
   const resolvedRelative = useRelativeTime(resolvedTs);
-  const accessToken = mx.getAccessToken() ?? undefined;
+  const responseThreadId = threadId ?? approval.threadId ?? eventId;
+  const canSendResponse = !!roomId && !!eventId && !!responseThreadId;
   const argumentsText = useMemo(
     () => JSON.stringify(approval.arguments, null, 2) ?? '{}',
     [approval.arguments]
@@ -78,18 +92,27 @@ export function MindroomToolApprovalCard({ approval }: MindroomToolApprovalCardP
 
   const [requestState, submitAction] = useAsyncCallback<void, Error, ['approve' | 'deny', string?]>(
     async (action, reason) => {
-      if (action === 'approve') {
-        await approveRequest(approval.approvalId, accessToken);
-        return;
+      if (!roomId || !eventId || !responseThreadId) {
+        throw new Error('Approval responses are unavailable here.');
       }
 
-      await denyRequest(approval.approvalId, reason, accessToken);
+      await mx.sendEvent(
+        roomId,
+        MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT as any,
+        buildToolApprovalResponseContent(
+          approval.approvalId,
+          action === 'approve' ? 'approved' : 'denied',
+          responseThreadId,
+          eventId,
+          reason
+        )
+      );
     }
   );
 
   const submitting = requestState.status === AsyncStatus.Loading;
   const submitted = requestState.status === AsyncStatus.Success;
-  const disableActions = submitting || submitted;
+  const disableActions = submitting || submitted || !canSendResponse;
   const displayStatus = approval.status === 'pending' && submitted ? 'submitted' : approval.status;
 
   useEffect(() => {
@@ -175,6 +198,46 @@ export function MindroomToolApprovalCard({ approval }: MindroomToolApprovalCardP
           ? 'Approval expired'
           : undefined;
 
+  if (isResolvedApprovalStatus(approval.status)) {
+    const resolvedClassName = classNames(css.ResolvedInline, {
+      [css.ResolvedInlineApproved]: approval.status === 'approved',
+      [css.ResolvedInlineDenied]: approval.status === 'denied',
+      [css.ResolvedInlineExpired]: approval.status === 'expired',
+    });
+    const resolvedTooltip =
+      approval.status === 'denied' && approval.resolutionReason
+        ? `Reason: ${approval.resolutionReason}`
+        : undefined;
+
+    return (
+      <Box
+        as="span"
+        className={resolvedClassName}
+        aria-label="Resolved tool approval request"
+        title={resolvedTooltip}
+      >
+        <Icon size="50" src={getStatusIcon(approval.status)} />
+        <Text size="T200" className={css.ResolvedToolName}>
+          {approval.toolName}
+        </Text>
+        {resolvedMeta && (
+          <>
+            <Text className={css.MetaDot}>-</Text>
+            <Text size="T200">{resolvedMeta}</Text>
+          </>
+        )}
+        {resolvedRelative && <Text className={css.MetaDot}>•</Text>}
+        {resolvedRelative && <Text size="T200">{resolvedRelative}</Text>}
+        {!resolvedRelative && approval.resolvedAt && (
+          <>
+            <Text className={css.MetaDot}>•</Text>
+            <Text size="T200">{approval.resolvedAt}</Text>
+          </>
+        )}
+      </Box>
+    );
+  }
+
   return (
     <Box className={cardClassName} direction="Column" gap="200" aria-label="Tool approval request">
       <Box className={css.Header}>
@@ -187,27 +250,17 @@ export function MindroomToolApprovalCard({ approval }: MindroomToolApprovalCardP
         </Box>
       </Box>
 
-      {approval.status === 'pending' ? (
-        <Box className={css.Meta}>
-          <Text size="T200">{approval.agentName}</Text>
-          {createdRelative && <Text className={css.MetaDot}>•</Text>}
-          {createdRelative && <Text size="T200">{createdRelative}</Text>}
-          {!createdRelative && approval.createdAt && (
-            <>
-              <Text className={css.MetaDot}>•</Text>
-              <Text size="T200">{approval.createdAt}</Text>
-            </>
-          )}
-        </Box>
-      ) : (
-        resolvedMeta && (
-          <Box className={css.Meta}>
-            <Text size="T200">{resolvedMeta}</Text>
-            {resolvedRelative && <Text className={css.MetaDot}>•</Text>}
-            {resolvedRelative && <Text size="T200">{resolvedRelative}</Text>}
-          </Box>
-        )
-      )}
+      <Box className={css.Meta}>
+        <Text size="T200">{approval.agentName}</Text>
+        {requestedRelative && <Text className={css.MetaDot}>•</Text>}
+        {requestedRelative && <Text size="T200">{requestedRelative}</Text>}
+        {!requestedRelative && approval.requestedAt && (
+          <>
+            <Text className={css.MetaDot}>•</Text>
+            <Text size="T200">{approval.requestedAt}</Text>
+          </>
+        )}
+      </Box>
 
       <details className={css.Details}>
         <summary className={css.DetailsSummary}>
@@ -218,17 +271,6 @@ export function MindroomToolApprovalCard({ approval }: MindroomToolApprovalCardP
         </summary>
         <pre className={css.JsonBlock}>{argumentsText}</pre>
       </details>
-
-      {approval.status === 'denied' && approval.resolutionReason && (
-        <Box direction="Column" gap="100">
-          <Text size="T200">
-            <b>Reason</b>
-          </Text>
-          <Text size="T200" className={css.ReasonText}>
-            {approval.resolutionReason}
-          </Text>
-        </Box>
-      )}
 
       {approval.status === 'pending' && submitted && (
         <Text size="T200">Submitted. Waiting for room update.</Text>
