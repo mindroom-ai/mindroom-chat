@@ -23,6 +23,7 @@ type CreateRoomOptions = {
   preset?: 'private_chat' | 'trusted_private_chat';
   invite?: string[];
   isDirect?: boolean;
+  creationContent?: Record<string, unknown>;
 };
 
 type CreateThreadFixtureOptions = {
@@ -118,11 +119,24 @@ export const createPrivateRoom = async (
       preset: options.preset ?? 'private_chat',
       invite: options.invite,
       is_direct: options.isDirect,
+      creation_content: options.creationContent,
     }),
   });
 
   return body.room_id;
 };
+
+export const createPrivateSpace = async (
+  homeserver: string,
+  accessToken: string,
+  options: Omit<CreateRoomOptions, 'creationContent'>
+): Promise<string> =>
+  createPrivateRoom(homeserver, accessToken, {
+    ...options,
+    creationContent: {
+      type: 'm.space',
+    },
+  });
 
 export const createThreadFixture = async (
   homeserver: string,
@@ -225,6 +239,40 @@ export const sendRoomMessage = async (
   );
 
   return body.event_id;
+};
+
+export const sendStateEvent = async (
+  homeserver: string,
+  accessToken: string,
+  roomId: string,
+  eventType: string,
+  stateKey: string,
+  content: Record<string, unknown>
+) => {
+  await matrixFetch<unknown>(
+    homeserver,
+    `/rooms/${encodeURIComponent(roomId)}/state/${encodeURIComponent(eventType)}/${encodeURIComponent(
+      stateKey
+    )}`,
+    {
+      method: 'PUT',
+      accessToken,
+      body: JSON.stringify(content),
+    }
+  );
+};
+
+export const addRoomToSpace = async (
+  homeserver: string,
+  accessToken: string,
+  spaceId: string,
+  roomId: string
+) => {
+  const via = new URL(homeserver).host;
+  const content = { via: [via] };
+
+  await sendStateEvent(homeserver, accessToken, spaceId, 'm.space.child', roomId, content);
+  await sendStateEvent(homeserver, accessToken, roomId, 'm.space.parent', spaceId, content);
 };
 
 export const setAccountData = async (
