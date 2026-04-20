@@ -4,6 +4,7 @@ import { Box, Text, config } from 'folds';
 import { EventType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { isKeyHotkey } from 'is-hotkey';
+import { getRoomThreadExitTargetFromHistoryState } from '../../hooks/roomNavigateState';
 import { useStateEvent } from '../../hooks/useStateEvent';
 import { StateEvent } from '../../../types/matrix/room';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
@@ -124,7 +125,7 @@ export function RoomView({
 
   const permissions = useRoomPermissions(creators, powerLevels);
   const canMessage = permissions.event(EventType.RoomMessage, mx.getSafeUserId());
-  const { navigateRoomFocusEvent, navigateRoomThread } = useRoomNavigate();
+  const { navigatePath, navigateRoomFocusEvent, navigateRoomThread } = useRoomNavigate();
   const { summaryMap, storeThreadSummary } = useRoomThreadSummaryState({
     roomId,
     sessionId,
@@ -150,8 +151,22 @@ export function RoomView({
 
   const handleExitThread = useCallback(() => {
     if (!effectiveThreadId) return;
+    const historyExitTarget = getRoomThreadExitTargetFromHistoryState(window.history.state);
+    if (
+      historyExitTarget?.roomId === room.roomId &&
+      historyExitTarget.threadId === effectiveThreadId
+    ) {
+      if (!historyExitTarget.useHistoryBack && historyExitTarget.exitPath) {
+        navigatePath(historyExitTarget.exitPath, { replace: true });
+        return;
+      }
+      if (historyExitTarget.useHistoryBack) {
+        window.history.back();
+        return;
+      }
+    }
     navigateRoomFocusEvent(room.roomId, effectiveThreadId, { replace: true });
-  }, [effectiveThreadId, navigateRoomFocusEvent, room.roomId]);
+  }, [effectiveThreadId, navigatePath, navigateRoomFocusEvent, room.roomId]);
 
   const updateFromEffectiveQueryState = useCallback(
     (updater: (state: typeof threadFilterState) => typeof threadFilterState) => {
