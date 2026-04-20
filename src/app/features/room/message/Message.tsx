@@ -28,6 +28,7 @@ import React, {
   MouseEventHandler,
   ReactNode,
   useCallback,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -87,7 +88,10 @@ import {
   MindroomLongTextSource,
   getMindroomLongTextSource,
 } from '../../../components/message/mindroomLongText';
-import { downloadMindroomLongTextSidecarBlob } from '../../../components/message/MindroomLongTextText';
+import {
+  downloadMindroomLongTextSidecarBlob,
+  useMindroomLongTextResolvedContent,
+} from '../../../components/message/MindroomLongTextText';
 import { MindroomAiRunInfo, getMindroomAiRunInfo } from '../../../components/message/mindroomAiRun';
 import {
   formatMindroomAiRunNumber,
@@ -580,14 +584,21 @@ export const MessageMindroomDownloadOriginalItem = as<
 
 export const MessageCopyTextItem = as<
   'button',
-  { room: Room; mEvent: MatrixEvent; onClose: () => void }
->(({ room, mEvent, onClose, ...props }, ref) => {
+  {
+    room: Room;
+    mEvent: MatrixEvent;
+    onClose: () => void;
+    resolvedLongTextContent?: Record<string, unknown>;
+    loading?: boolean;
+  }
+>(({ room, mEvent, onClose, resolvedLongTextContent, loading, ...props }, ref) => {
   const handleCopy = () => {
     const content = getMenuMessageContent(room, mEvent);
     const originalContent = mEvent.getContent();
     const body = getMessageCopyTextBody(
       content as Record<string, unknown>,
-      originalContent as Record<string, unknown>
+      originalContent as Record<string, unknown>,
+      resolvedLongTextContent
     );
     if (body) {
       copyToClipboard(body);
@@ -600,12 +611,14 @@ export const MessageCopyTextItem = as<
       size="300"
       after={<Icon size="100" src={Icons.Text} />}
       radii="300"
+      aria-disabled={loading}
+      disabled={loading}
       onClick={handleCopy}
       {...props}
       ref={ref}
     >
       <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-        Copy Text
+        {loading ? 'Copy Text (loading…)' : 'Copy Text'}
       </Text>
     </MenuItem>
   );
@@ -1032,11 +1045,18 @@ export const Message = as<'div', MessageProps>(
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const [emojiBoardAnchor, setEmojiBoardAnchor] = useState<RectCords>();
     const menuMessageContent = resolvedMessageContent ?? getMenuMessageContent(room, mEvent);
-    const menuMessageOriginalContent = mEvent.getContent();
-    const isTextMessage = isCopyTextMessageContent(
-      menuMessageOriginalContent as Record<string, unknown>
+    const showCopyText = isCopyTextMessageContent(
+      menuMessageContent as Record<string, unknown>
     );
-    const longTextSource = getMindroomLongTextSource(menuMessageContent);
+    const longTextSource = useMemo(
+      () => getMindroomLongTextSource(menuMessageContent),
+      [menuMessageContent]
+    );
+    const resolvedLongTextContent = useMindroomLongTextResolvedContent(
+      longTextSource,
+      menuAnchor !== undefined
+    );
+    const longTextLoading = longTextSource !== undefined && resolvedLongTextContent === undefined;
     const mindroomAiRunInfo = getMindroomAiRunInfo(menuMessageContent);
 
     const senderDisplayName =
@@ -1419,11 +1439,13 @@ export const Message = as<'div', MessageProps>(
                                 onClose={closeMenu}
                               />
                             )}
-                            {!mEvent.isRedacted() && isTextMessage && (
+                            {!mEvent.isRedacted() && (showCopyText || longTextSource !== undefined) && (
                               <MessageCopyTextItem
                                 room={room}
                                 mEvent={mEvent}
                                 onClose={closeMenu}
+                                resolvedLongTextContent={resolvedLongTextContent}
+                                loading={longTextLoading}
                               />
                             )}
                             <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
