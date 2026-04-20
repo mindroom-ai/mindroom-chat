@@ -1,6 +1,10 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  ROOM_THREAD_EXIT_TARGET_STATE_KEY,
+  setRoomThreadExitTargetForHistoryState,
+} from '../../hooks/roomNavigateState';
 
 type MockThreadContextBannerProps = {
   onExitThread?: () => void;
@@ -9,6 +13,9 @@ type MockThreadContextBannerProps = {
 
 const {
   bumpRecentThreadMock,
+  historyBackMock,
+  isNativeIOSMock,
+  navigatePathMock,
   passthrough,
   roomTimelineType,
   navigateRoomFocusEventMock,
@@ -17,6 +24,9 @@ const {
   useThreadRootEventMock,
 } = vi.hoisted(() => ({
   bumpRecentThreadMock: vi.fn(),
+  historyBackMock: vi.fn(),
+  isNativeIOSMock: vi.fn(() => false),
+  navigatePathMock: vi.fn(),
   passthrough: 'div',
   roomTimelineType: 'room-timeline',
   navigateRoomFocusEventMock: vi.fn(),
@@ -45,9 +55,31 @@ vi.stubGlobal('localStorage', {
     storageState.delete(key);
   },
 });
+vi.stubGlobal('sessionStorage', {
+  get length() {
+    return storageState.size;
+  },
+  clear: () => {
+    storageState.clear();
+  },
+  getItem: (key: string) => storageState.get(key) ?? null,
+  key: (index: number) => Array.from(storageState.keys())[index] ?? null,
+  setItem: (key: string, value: string) => {
+    storageState.set(key, value);
+  },
+  removeItem: (key: string) => {
+    storageState.delete(key);
+  },
+});
 vi.stubGlobal('window', {
   addEventListener: () => undefined,
+  history: {
+    back: historyBackMock,
+    state: null,
+  },
+  localStorage,
   removeEventListener: () => undefined,
+  sessionStorage,
   navigator: {
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
   },
@@ -198,9 +230,14 @@ vi.mock('../../hooks/useRoomCreators', () => ({
 
 vi.mock('../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
+    navigatePath: navigatePathMock,
     navigateRoomFocusEvent: navigateRoomFocusEventMock,
     navigateRoomThread: navigateRoomThreadMock,
   }),
+}));
+
+vi.mock('../../utils/nativeSso', () => ({
+  isNativeIOS: isNativeIOSMock,
 }));
 
 vi.mock('../../hooks/useEdgeSwipeBack', () => ({
@@ -265,11 +302,16 @@ describe('RoomView', () => {
   beforeEach(() => {
     storageState.clear();
     bumpRecentThreadMock.mockReset();
+    historyBackMock.mockReset();
+    isNativeIOSMock.mockReset();
+    isNativeIOSMock.mockReturnValue(false);
+    navigatePathMock.mockReset();
     navigateRoomFocusEventMock.mockReset();
     navigateRoomThreadMock.mockReset();
     threadContextBannerState.props = undefined;
     useThreadRootEventMock.mockReset();
     useThreadRootEventMock.mockReturnValue(undefined);
+    window.history.state = null;
     vi.resetModules();
   });
 
@@ -456,7 +498,16 @@ describe('RoomView', () => {
     expect(state.sortDirection).toBe('desc');
   });
 
-  it('exits a thread into the focused room event route', async () => {
+  it('exits a thread with history back when it was opened from the room timeline', async () => {
+    window.history.state = {
+      usr: {
+        [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+          roomId: '!room-a:example.org',
+          threadId: '$thread',
+        },
+      },
+    };
+
     const { RoomView } = await import('./RoomView');
     const room = makeRoom('!room-a:example.org');
 
@@ -470,6 +521,83 @@ describe('RoomView', () => {
       threadContextBannerState.props?.onExitThread?.();
     });
 
+    expect(historyBackMock).toHaveBeenCalledOnce();
+    expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+  });
+
+  it('exits a thread with history back when the exit target is stored by history entry key', async () => {
+    window.history.state = {
+      key: 'thread-entry-key',
+    };
+    setRoomThreadExitTargetForHistoryState(window.history.state, {
+      roomId: '!room-a:example.org',
+      threadId: '$thread',
+    });
+
+    const { RoomView } = await import('./RoomView');
+    const room = makeRoom('!room-a:example.org');
+
+    await act(async () => {
+      create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+
+    expect(threadContextBannerState.props?.onExitThread).toBeTypeOf('function');
+
+    await act(async () => {
+      threadContextBannerState.props?.onExitThread?.();
+    });
+
+    expect(historyBackMock).toHaveBeenCalledOnce();
+    expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+  });
+
+  it('exits a thread by navigating to the stored exit path on native iOS', async () => {
+    isNativeIOSMock.mockReturnValue(true);
+    window.history.state = {
+      key: 'thread-entry-key',
+    };
+    setRoomThreadExitTargetForHistoryState(window.history.state, {
+      exitPath: '/home/!room-a%3Aexample.org',
+      roomId: '!room-a:example.org',
+      threadId: '$thread',
+      useHistoryBack: false,
+    });
+
+    const { RoomView } = await import('./RoomView');
+    const room = makeRoom('!room-a:example.org');
+
+    await act(async () => {
+      create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+
+    expect(threadContextBannerState.props?.onExitThread).toBeTypeOf('function');
+
+    await act(async () => {
+      threadContextBannerState.props?.onExitThread?.();
+    });
+
+    expect(historyBackMock).not.toHaveBeenCalled();
+    expect(navigatePathMock).toHaveBeenCalledWith('/home/!room-a%3Aexample.org', {
+      replace: true,
+    });
+    expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the focused room event route for deep-linked threads', async () => {
+    const { RoomView } = await import('./RoomView');
+    const room = makeRoom('!room-a:example.org');
+
+    await act(async () => {
+      create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+
+    expect(threadContextBannerState.props?.onExitThread).toBeTypeOf('function');
+
+    await act(async () => {
+      threadContextBannerState.props?.onExitThread?.();
+    });
+
+    expect(historyBackMock).not.toHaveBeenCalled();
     expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(
       '!room-a:example.org',
       '$thread',

@@ -140,6 +140,33 @@ const clickThreadExitButton = async (page: Page) => {
   });
 };
 
+const installHistoryBackProbe = async (page: Page) => {
+  await page.evaluate(() => {
+    const historyWithProbe = window.history as History & {
+      __cinnyOriginalBack?: History['back'];
+      __cinnyBackCount?: number;
+    };
+    if (!historyWithProbe.__cinnyOriginalBack) {
+      historyWithProbe.__cinnyOriginalBack = historyWithProbe.back.bind(historyWithProbe);
+      historyWithProbe.__cinnyBackCount = 0;
+      historyWithProbe.back = (() => {
+        historyWithProbe.__cinnyBackCount = (historyWithProbe.__cinnyBackCount ?? 0) + 1;
+        return historyWithProbe.__cinnyOriginalBack?.();
+      }) as History['back'];
+    } else {
+      historyWithProbe.__cinnyBackCount = 0;
+    }
+  });
+};
+
+const readHistoryBackProbe = async (page: Page) =>
+  page.evaluate(() => {
+    const historyWithProbe = window.history as History & {
+      __cinnyBackCount?: number;
+    };
+    return historyWithProbe.__cinnyBackCount ?? 0;
+  });
+
 test.describe('live cinny-015 thread exit scroll', () => {
   test.skip(!hasPrimaryCredentials(), 'E2E_USERNAME / E2E_PASSWORD not set');
 
@@ -189,5 +216,61 @@ test.describe('live cinny-015 thread exit scroll', () => {
 
     await page.screenshot({ path: 'test-results/cinny015-thread-exit-scroll.png', fullPage: true });
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-015-thread-exit-scroll');
+  });
+
+  test('exiting an in-room thread uses history back instead of rebuilding the route', async ({
+    page,
+  }) => {
+    const diagnostics = attachBrowserDiagnostics(page);
+    const homeserver = getHomeserver();
+    const { username, password } = getPrimaryCredentials();
+    const { roomId, rootId } = await seedThreadExitFixture(homeserver, username, password);
+
+    await loginWithPassword(page, { homeserver, username, password });
+    await page.evaluate((nextRoomId) => {
+      localStorage.setItem(`roomViewMode:${nextRoomId}`, JSON.stringify('normal'));
+    }, roomId);
+    await page.goto(`/home/${encodeURIComponent(roomId)}`);
+
+    const openThreadButton = page.getByRole('button', { name: /Thread 2 replies/i }).last();
+    await expect(openThreadButton).toBeVisible({ timeout: 10_000 });
+    await installHistoryBackProbe(page);
+    await openThreadButton.click();
+
+    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 10_000 });
+    await clickThreadExitButton(page);
+
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get('threadId'), {
+        timeout: 10_000,
+        message: 'Thread route should close after clicking the thread exit button',
+      })
+      .toBeNull();
+
+    await expect
+      .poll(() => readHistoryBackProbe(page), {
+        timeout: 5_000,
+        message: 'Thread exit should use window.history.back() when returning to an in-room thread root',
+      })
+      .toBe(1);
+
+    await expect
+      .poll(() => {
+        const url = new URL(page.url());
+        return {
+          pathname: url.pathname,
+          focusEvent: url.searchParams.get('focusEvent'),
+          threadId: url.searchParams.get('threadId'),
+        };
+      })
+      .toEqual({
+        pathname: `/home/${encodeURIComponent(roomId)}`,
+        focusEvent: null,
+        threadId: null,
+      });
+
+    const rootMessage = page.locator(`[data-message-id="${rootId}"]`);
+    await expect(rootMessage).toBeVisible({ timeout: 10_000 });
+    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-015-thread-exit-history-back');
   });
 });
