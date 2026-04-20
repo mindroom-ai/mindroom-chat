@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { ClientEvent } from 'matrix-js-sdk';
+import { ClientEvent, SyncState } from 'matrix-js-sdk';
 import { ClientRoot, hasCachedClientShell } from './ClientRoot';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { StoredSession } from '../../state/sessions';
@@ -128,34 +128,38 @@ type MockClient = {
   once: ReturnType<typeof vi.fn>;
   removeListener: ReturnType<typeof vi.fn>;
   getRooms: ReturnType<typeof vi.fn>;
+  getSyncState: ReturnType<typeof vi.fn>;
   store: {
     getSyncToken: ReturnType<typeof vi.fn>;
   };
-  emitSync: () => void;
+  emitSync: (current?: SyncState | null, previous?: SyncState | null | undefined) => void;
 };
 
 const createMockClient = (options: { cachedRooms?: number; syncToken?: string | null } = {}): MockClient => {
-  let syncHandler: (() => void) | undefined;
+  let syncHandler: ((current?: SyncState | null, previous?: SyncState | null | undefined) => void) | undefined;
   const cachedRooms = options.cachedRooms ?? 0;
   const syncToken = options.syncToken ?? null;
+  let syncState: SyncState | null = null;
 
   return {
     stopClient: vi.fn(),
-    on: vi.fn(),
-    once: vi.fn((event: string, handler: () => void) => {
+    on: vi.fn((event: string, handler: (current?: SyncState | null, previous?: SyncState | null | undefined) => void) => {
       if (event === ClientEvent.Sync) syncHandler = handler;
     }),
+    once: vi.fn(),
     removeListener: vi.fn((event: string, handler: () => void) => {
       if (event === ClientEvent.Sync && syncHandler === handler) {
         syncHandler = undefined;
       }
     }),
     getRooms: vi.fn(() => Array.from({ length: cachedRooms }, (_, index) => ({ roomId: `!room${index}` }))),
+    getSyncState: vi.fn(() => syncState),
     store: {
       getSyncToken: vi.fn(() => syncToken),
     },
-    emitSync: () => {
-      syncHandler?.();
+    emitSync: (current = SyncState.Syncing, previous = SyncState.Prepared) => {
+      syncState = current;
+      syncHandler?.(current, previous);
     },
   };
 };
