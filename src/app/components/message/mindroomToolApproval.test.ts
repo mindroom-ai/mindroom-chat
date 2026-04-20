@@ -200,14 +200,12 @@ describe('parseToolApproval', () => {
   it('builds Matrix approval response content with thread reply metadata', () => {
     expect(
       buildToolApprovalResponseContent(
-        'approval-1',
         'denied',
         '$thread-root',
         '$approval',
         'Needs human review'
       )
     ).toEqual({
-      approval_id: 'approval-1',
       status: 'denied',
       reason: 'Needs human review',
       'm.relates_to': {
