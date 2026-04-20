@@ -1188,3 +1188,13 @@
   - fresh main bundle verified:
     - `dist/index.html` size `3,169` bytes
     - `dist/assets/index-rs53twZf.js` size `4,355,258` bytes
+
+## CINNY-081 — Copy Text resolves long-text overflow body (2026-04-20)
+
+- Right-click "Copy Text" on `io.mindroom.long_text` overflow messages now copies the resolved sidecar content instead of the short envelope placeholder body.
+- Added `getCachedMindroomLongTextContent(...)` (sync cache lookup) in `src/app/components/message/mindroomLongText.ts` and `useMindroomLongTextResolvedContent(source, enabled)` hook in `src/app/components/message/MindroomLongTextText.tsx` — reuses the renderer's existing `hydrateMindroomLongTextSource` + `downloadMindroomLongTextSidecarText` plumbing.
+- Hook state stored as `{ mxcUri, content }` and only returns content when the tagged `mxcUri` matches the current `source.mxcUri`, so streaming `m.replace` rotations cannot leak the previous sidecar's body into the click handler.
+- `getMessageCopyTextBody(...)` extended with optional `resolvedLongTextContent`; falls back to envelope body when resolution unavailable.
+- `Message.tsx` widens the Copy Text visibility gate at the call site (`isCopyTextMessageContent || longTextSource !== undefined`); helper-level gate untouched. Menu item disables with `Copy Text (loading…)` label while sidecar hydrates.
+- Click handler stays synchronous so iOS Safari's user-gesture clipboard requirement is preserved.
+- Tests: 4 helper precedence cases, 5 hook cases (warm/cold/disabled/unmount-cancel/source-change-isolation captured via `renderHook` + `result.current` to fail on the broken pre-fix hook), 1 `Message.test.ts` integration test for the overflow context-menu flow.
