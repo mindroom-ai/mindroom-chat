@@ -22,7 +22,7 @@ import React, {
   useState,
 } from 'react';
 import { Navigate } from 'react-router-dom';
-import { ClientEvent } from 'matrix-js-sdk';
+import { SyncState } from 'matrix-js-sdk';
 import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import type { HttpApiEventHandlerMap } from 'matrix-js-sdk/lib/http-api/interface';
 import {
@@ -47,6 +47,8 @@ import { AuthMetadataProvider } from '../../hooks/useAuthMetadata';
 import { StoredSession } from '../../state/sessions';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { getLoginPath } from '../pathUtils';
+import { ClientStartupProvider } from './ClientStartupContext';
+import { useSyncState } from '../../hooks/useSyncState';
 
 type ClientMatrixClient = Awaited<ReturnType<typeof initClient>> & {
   on: (
@@ -73,6 +75,21 @@ export const hasCachedClientShell = (mx: ClientMatrixClient): boolean => {
   const syncToken = (mx as ClientMatrixClientWithCacheState).store?.getSyncToken?.();
   return typeof syncToken === 'string' && syncToken.length > 0;
 };
+
+type ClientSyncStateData = {
+  current: SyncState | null;
+  previous: SyncState | null | undefined;
+};
+
+const isInitialClientCatchupInProgress = ({
+  current,
+  previous,
+}: ClientSyncStateData): boolean =>
+  current === null ||
+  ((current === SyncState.Prepared ||
+    current === SyncState.Syncing ||
+    current === SyncState.Catchup) &&
+    previous !== SyncState.Syncing);
 
 function ClientRootLoading() {
   return (
@@ -252,17 +269,6 @@ export function ClientRoot({ children }: ClientRootProps) {
   const [clientState, setClientState] = useState<ClientState>({ status: 'idle' });
   const mx = 'mx' in clientState ? clientState.mx : undefined;
   const activeSessionId = activeSession?.sessionId;
-  // Gate UI rendering on first sync to prevent flash of intermediate screens
-  const [hasSyncedOnce, setHasSyncedOnce] = useState(false);
-  useEffect(() => {
-    if (!mx) {
-      setHasSyncedOnce(false);
-      return;
-    }
-    const onSync = () => { setHasSyncedOnce(true); };
-    mx.once(ClientEvent.Sync, onSync);
-    return () => { mx.removeListener(ClientEvent.Sync, onSync); };
-  }, [mx]);
   const activeSessionBaseUrl = activeSession?.baseUrl;
   const activeSessionUserId = activeSession?.userId;
   const activeSessionDeviceId = activeSession?.deviceId;
@@ -294,6 +300,32 @@ export function ClientRoot({ children }: ClientRootProps) {
   useLogoutListener(mx, activeSession);
 
   const [hasCachedShell, setHasCachedShell] = useState(false);
+  const [syncStateData, setSyncStateData] = useState<ClientSyncStateData>({
+    current: null,
+    previous: undefined,
+  });
+
+  useEffect(() => {
+    setSyncStateData({
+      current: mx?.getSyncState?.() ?? null,
+      previous: undefined,
+    });
+  }, [mx]);
+
+  useSyncState(
+    mx,
+    useMemo(
+      () => (current, previous) => {
+        setSyncStateData((existing) => {
+          if (existing.current === current && existing.previous === previous) {
+            return existing;
+          }
+          return { current, previous };
+        });
+      },
+      []
+    )
+  );
   useEffect(() => {
     let disposed = false;
     let nextClient: ClientMatrixClient | undefined;
@@ -396,27 +428,31 @@ export function ClientRoot({ children }: ClientRootProps) {
     return <Navigate to={getLoginPath()} replace />;
   }
 
-  const canRenderReadyContent = Boolean(mx) && (hasSyncedOnce || hasCachedShell);
+  const hasSeenSyncActivity = syncStateData.current !== null;
+  const hasCompletedInitialCatchup = !isInitialClientCatchupInProgress(syncStateData);
+  const canRenderReadyContent = Boolean(mx) && (hasSeenSyncActivity || hasCachedShell);
 
   const readyContent = mx ? (
-    <MatrixClientProvider value={mx as never}>
-      <ServerConfigsLoader mx={mx}>
-        {(serverConfigs) => (
-          <CapabilitiesProvider value={serverConfigs.capabilities ?? {}}>
-            <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>
-              <AuthMetadataProvider value={serverConfigs.authMetadata}>
-                {children}
-              </AuthMetadataProvider>
-            </MediaConfigProvider>
-          </CapabilitiesProvider>
-        )}
-      </ServerConfigsLoader>
-    </MatrixClientProvider>
+    <ClientStartupProvider hasCompletedInitialSync={hasCompletedInitialCatchup}>
+      <MatrixClientProvider value={mx as never}>
+        <ServerConfigsLoader mx={mx}>
+          {(serverConfigs) => (
+            <CapabilitiesProvider value={serverConfigs.capabilities ?? {}}>
+              <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>
+                <AuthMetadataProvider value={serverConfigs.authMetadata}>
+                  {children}
+                </AuthMetadataProvider>
+              </MediaConfigProvider>
+            </CapabilitiesProvider>
+          )}
+        </ServerConfigsLoader>
+      </MatrixClientProvider>
+    </ClientStartupProvider>
   ) : null;
 
   return (
     <SpecVersions baseUrl={activeSession.baseUrl}>
-      {clientState.status !== 'error' && mx && (!hasSyncedOnce ? <ClientRootSyncingStatus /> : <SyncStatus mx={mx} />)}
+      {clientState.status !== 'error' && mx && (!hasSeenSyncActivity ? <ClientRootSyncingStatus /> : <SyncStatus mx={mx} />)}
       {clientState.status !== 'error' && !mx && (
         <ClientRootOptions mx={mx} activeSession={activeSession} />
       )}
