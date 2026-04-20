@@ -261,6 +261,20 @@
     - `npm run build` passes.
     - `npm test` passes (`140/140` files, `1262/1262` tests).
     - `npx playwright test e2e/live/cinny073-recent-threads-mobile.spec.ts --list` passes and enumerates the four expected viewport cases.
+- `Thread Filter Search Placeholder`
+  - fix follow-up (2026-04-20):
+    - the thread filter bar search input placeholder in `RoomThreadOverview.tsx` no longer uses the raw JSX text `Search threads\u2026`, which rendered the escape literally in the browser.
+    - the placeholder now uses plain visible text `Search threads...` to keep the file ASCII-only and avoid JSX escape handling pitfalls.
+    - added focused regression coverage in `src/app/features/room/RoomThreadOverview.test.ts` to assert the rendered placeholder never contains the raw `\\u2026` sequence.
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the implementation and final validation; scope stayed limited to the thread filter search input copy, its focused test coverage, and this runbook update.
+  - validation (2026-04-20):
+    - `npm test -- src/app/features/room/RoomThreadOverview.test.ts` passes (`1/1` file, `40/40` tests).
+    - `npx eslint src/app/features/room/RoomThreadOverview.tsx src/app/features/room/RoomThreadOverview.test.ts` passes.
+    - `npm run typecheck` passes.
+    - `npm run build` passes.
+    - `npm test` passes (`154/154` files, `1375/1375` tests).
+    - `npm run lint` still fails at the current branch baseline with unrelated existing errors in `RoomView.tsx`, `threadFilterDsl.ts`, `useResolvedRoomIdOrAlias.ts`, and `ClientStartupContext.tsx` (`5` errors, `80` warnings total).
 - `CINNY-071`
   - Aligns the tool-approval frontend parser with the MindRoom backend payload:
     - `parseToolApprovalContent(...)` now reads canonical `requested_at` into `requestedAt`,

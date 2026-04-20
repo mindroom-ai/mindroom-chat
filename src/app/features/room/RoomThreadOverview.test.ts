@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { RoomThreadOverview } from './RoomThreadOverview';
-import type { ThreadFilterState, ThreadFilterKey } from './RoomThreadOverview';
+import type { ThreadFilterState } from './RoomThreadOverview';
 
 const { passthrough } = vi.hoisted(() => ({
   passthrough: 'div',
@@ -723,6 +723,30 @@ describe('RoomThreadOverview', () => {
     });
 
     expect(onSearchQueryChange).toHaveBeenCalledWith('test query');
+
+    renderer.unmount();
+  });
+
+  it('renders the search placeholder as visible text instead of a raw unicode escape', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        state: makeDefaultState({ searchQuery: '' }),
+      })
+    );
+
+    const searchBtn = renderer.root.find(
+      (node) => node.props['data-search-toggle'] === 'true'
+    );
+    act(() => {
+      searchBtn.props.onClick();
+    });
+
+    const input = renderer.root.find(
+      (node) => node.props['data-search-input'] === 'true'
+    );
+    expect(input.props.placeholder).toBe('Search threads...');
+    expect(input.props.placeholder).not.toContain('\\u2026');
 
     renderer.unmount();
   });
