@@ -50,4 +50,5 @@ export const AuthCardContent = style({
 
 export const AuthFooter = style({
   padding: config.space.S200,
+  paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
 });
