@@ -9,4 +9,5 @@ export const SplashScreen = style({
 
 export const SplashScreenFooter = style({
   padding: config.space.S400,
+  paddingBottom: `calc(${config.space.S400} + env(safe-area-inset-bottom, 0px))`,
 });

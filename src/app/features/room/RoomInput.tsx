@@ -866,6 +866,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         )}
         <CustomEditor
           editableName="RoomInput"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
           editor={editor}
           placeholder="Send a message..."
           onKeyDown={handleKeyDown}
