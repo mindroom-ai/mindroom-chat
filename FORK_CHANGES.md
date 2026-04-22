@@ -1259,3 +1259,17 @@
 - Problem: iOS Safari URL-bar/keyboard visual-viewport transitions could leave a gray body-background bar exposed at the room header/composer edge because the room layer stayed taller than the visible viewport.
 - Fix: `src/app/features/room/RoomView.tsx` now pins the top-level `<Page>` wrapper height to `var(--app-height, 100%)`, so the room shrinks with the visual viewport instead of letting the body background show through.
 - Relationship to `CINNY-079`: this stays on the same iOS keyboard layout system, but binds the room layer instead of rebinding `#root` to `--app-height`.
+
+## CINNY-084 — Truncate compact thread card title fallback (2026-04-21)
+
+- Problem: compact thread cards rendered `titleText` directly, so threads without an AI summary could dump the full uncapped root-body preview into the title row and inflate card height.
+- Fix: `src/app/features/room/CompactThreadCard.tsx` now derives `displayTitleText = truncateText(titleText, TITLE_TEXT_LIMIT)` for rendering while preserving the full `titleText` for accessibility/click payloads, and adds `title={titleText}` so the full string remains available on hover.
+- round-1 review fix:
+  - corrected the local `truncateText(value, limit)` helper from `slice(limit - 1) + '...'` to `slice(limit - 3) + '...'`, so compact thread titles and previews now honor their advertised exact caps including the ellipsis.
+  - this aligns the helper with `src/app/features/recent-threads/recentThreadSummaryUtils.ts`.
+- review:
+  - independent second self-review completed via fresh `git diff`, `git diff --check`, and targeted `eslint` on `src/app/features/room/CompactThreadCard.tsx`; scope stayed limited to the requested compact-card title truncation plus this runbook update.
+- validation:
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `npm run lint` fails at the current branch baseline with 2 unrelated pre-existing repo errors in `src/app/hooks/router/useResolvedRoomIdOrAlias.ts` (`camelcase` on `room_id`) and `src/app/pages/client/ClientStartupContext.tsx` (`react/jsx-no-constructed-context-values`); no lint findings in `src/app/features/room/CompactThreadCard.tsx`
