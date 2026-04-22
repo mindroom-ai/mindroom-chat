@@ -1225,3 +1225,31 @@
 - `Message.tsx` widens the Copy Text visibility gate at the call site (`isCopyTextMessageContent || longTextSource !== undefined`); helper-level gate untouched. Menu item disables with `Copy Text (loading…)` label while sidecar hydrates.
 - Click handler stays synchronous so iOS Safari's user-gesture clipboard requirement is preserved.
 - Tests: 4 helper precedence cases, 5 hook cases (warm/cold/disabled/unmount-cancel/source-change-isolation captured via `renderHook` + `result.current` to fail on the broken pre-fix hook), 1 `Message.test.ts` integration test for the overflow context-menu flow.
+
+## CINNY-082 — Attach file input to DOM for iOS WKWebView uploads (2026-04-21)
+
+- Replaced `src/app/utils/dom.ts` `selectFile()` with the attached off-screen input shape from `FINAL-PLAN.md`:
+  - mounts the transient `<input type="file">` on `document.body`,
+  - keeps it inert via off-screen positioning plus `aria-hidden="true"` / `tabIndex=-1`,
+  - resolves successful selections through `change`,
+  - uses the native file-input `cancel` event for dismissal instead of inferring cancel from `window.focus`,
+  - and removes the input/listeners through a single guarded `finalize()` cleanup path.
+- Included the inline iOS WKWebView comment so future cleanups do not remove the DOM attach as a "leak fix".
+- This fix also bumps the supported iOS minimum from `15.0` to `16.4` so the native file-input `cancel` event is available on every supported iOS WKWebView, eliminating any need for `selectFile()` focus- or timeout-based cancel fallbacks.
+- Restored the public empty-selection contract for `selectFile(true)`: if `change` fires with an empty `FileList`, the promise now resolves `[]` instead of `undefined`.
+- Extended `src/app/utils/dom.test.ts` with 8 focused regression cases covering:
+  - attached-before-click cleanup,
+  - single + multi-file resolution,
+  - empty single-select and empty multi-select behavior,
+  - native `cancel` cleanup,
+  - a valid selection arriving 600 ms after window focus,
+  - concurrent calls,
+  - and no leftover file inputs after repeated flows.
+- review:
+  - independent second self-review completed via fresh `git diff`, `git diff --check`, and targeted source/test reads after the review-fix patch; scope stayed limited to `src/app/utils/dom.ts`, `src/app/utils/dom.test.ts`, and this runbook update.
+- validation:
+  - `npx vitest run src/app/utils/dom.test.ts` passes (`12/12` tests)
+  - `npx tsc --noEmit` passes
+  - `npm run build` passes
+  - full-suite baseline remains `1388/1396` pass with 8 pre-existing unrelated failures in `RoomTimeline*`, `RoomView`, and `roomThreadOverviewModel.test.ts`; those failures are baseline on `dev` and out of scope for `CINNY-082`
+  - `npm run lint` still fails at the current branch baseline with unrelated pre-existing issues (`5` errors, `80` warnings); no lint findings in `src/app/utils/dom.ts` or `src/app/utils/dom.test.ts`
