@@ -54,7 +54,7 @@ vi.mock('react-router-dom', () => ({
 vi.mock('./RoomView', () => ({
   RoomView: (props: MockRoomViewProps) => {
     roomState.roomViewProps = props;
-    return React.createElement('div');
+    return React.createElement('mock-room-view');
   },
 }));
 
@@ -132,7 +132,7 @@ vi.mock('../call/CallView', () => ({
 }));
 
 vi.mock('./RoomViewHeader', () => ({
-  RoomViewHeader: () => React.createElement('div'),
+  RoomViewHeader: () => React.createElement('mock-room-view-header'),
 }));
 
 vi.mock('./CallChatView', () => ({
@@ -276,5 +276,17 @@ describe('Room', () => {
 
     expect(clearLastOpenThreadMock).toHaveBeenCalledWith('!room:example.org');
     expect(navigateRoomMock).not.toHaveBeenCalled();
+  });
+
+  it('does not render a duplicate room header around RoomView in non-call rooms', async () => {
+    const { Room } = await import('./Room');
+    let renderer: ReturnType<typeof create>;
+
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+
+    expect(renderer!.root.findAllByType('mock-room-view')).toHaveLength(1);
+    expect(renderer!.root.findAllByType('mock-room-view-header')).toHaveLength(0);
   });
 });

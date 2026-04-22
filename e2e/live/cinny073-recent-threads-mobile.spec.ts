@@ -91,6 +91,30 @@ const seedRecentThreadsState = async ({
   );
 };
 
+const clearLastOpenThreadState = async ({
+  page,
+  userId,
+  roomId,
+}: {
+  page: Page;
+  userId: string;
+  roomId: string;
+}) => {
+  await page.evaluate(
+    ({ nextUserId, nextRoomId }) => {
+      const storeKey = `lastOpenThread${nextUserId}`;
+      const current = JSON.parse(localStorage.getItem(storeKey) ?? '{}') as Record<string, string>;
+      if (!(nextRoomId in current)) return;
+      delete current[nextRoomId];
+      localStorage.setItem(storeKey, JSON.stringify(current));
+    },
+    {
+      nextUserId: userId,
+      nextRoomId: roomId,
+    }
+  );
+};
+
 const waitForRecentThreadEntries = async (page: Page, fixtures: ThreadFixture[]) => {
   await Promise.all(
     fixtures.map((fixture) =>
@@ -217,8 +241,16 @@ test.describe('live cinny073 recent threads mobile shell', () => {
         await expectThreadRoute(page, fixtures[0]);
 
         if (viewport.width === 480) {
+          // Bare `/home/` now intentionally restores the last open thread on startup,
+          // so clear that single-room restore entry before validating the landscape
+          // page-nav layout.
+          await clearLastOpenThreadState({
+            page,
+            userId: session.userId,
+            roomId: fixtures[0].roomId,
+          });
           await page.goto('/home/');
-          await waitForLoggedInShell(page);
+          await expect(getRecentThreadsToggle(page)).toBeVisible({ timeout: 30_000 });
           await page.setViewportSize({ width: 800, height: 480 });
 
           const separator = getRecentThreadsSeparator(page);
