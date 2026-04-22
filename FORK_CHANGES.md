@@ -858,6 +858,19 @@
 
 ### CINNY-071: In-thread approval card rendering (2026-04-10)
 
+### Rebase validation follow-up (2026-04-21)
+
+- Live browser validation on the `v4.11.1` rebase branch uncovered and fixed two regressions introduced by the integration:
+  - non-call room routes rendered a duplicate `RoomViewHeader` because both `Room.tsx` and `RoomView.tsx` owned the header after upstream churn
+  - recent-thread sidebar entries lost their explicit accessible name, which broke the existing Playwright selector contract and made the entry buttons less descriptive for assistive tech
+- Fixes:
+  - `src/app/features/room/Room.tsx` now leaves non-call header rendering entirely to `RoomView.tsx`
+  - `src/app/features/recent-threads/RecentThreadEntry.tsx` now restores a stable `aria-label` in the form `Open thread: …`
+  - added focused regressions in `src/app/features/room/Room.test.ts` and `src/app/features/recent-threads/RecentThreadEntry.test.ts`
+- Live E2E harness follow-up:
+  - `e2e/live/cinny073-recent-threads-mobile.spec.ts` now clears the targeted room's bare-home thread-restore entry before the `480px` landscape rotation check, because the rebased client intentionally restores the last open thread from bare `/home/`
+  - `e2e/live/threads.spec.ts` now matches recent-thread buttons by `Open thread:` plus both room name and summary/root preview, without assuming a fixed accessible-name field order
+
 - Added `src/app/components/message/mindroomToolApproval.ts`:
   - exports the `io.mindroom.tool_approval` event constant,
   - parses approval events into typed approval-card data,

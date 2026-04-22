@@ -26,6 +26,13 @@ export const RecentThreadEntry = memo(({
   const relativeTime = useRelativeTime(openedAt);
   const { navigateRoomThreadDirect } = useRoomNavigate();
   const { summary, resolvedThreadId } = useRecentThreadSummary(room, threadId, summaryText);
+  const ariaLabel = [
+    `Open thread: ${summary}`,
+    roomName,
+    relativeTime ? `Opened ${relativeTime}` : undefined,
+  ]
+    .filter(Boolean)
+    .join('. ');
 
   useEffect(() => {
     if (resolvedThreadId === threadId) return;
@@ -46,6 +53,7 @@ export const RecentThreadEntry = memo(({
       type="button"
       onClick={() => navigateRoomThreadDirect(room.roomId, resolvedThreadId)}
       title={`${roomName}: ${summary}`}
+      aria-label={ariaLabel}
     >
       <div className={css.EntryTopRow}>
         <Text className={css.EntryRoomName} size="T200" priority="300" truncate>

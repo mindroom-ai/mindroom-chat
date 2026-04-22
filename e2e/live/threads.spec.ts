@@ -20,8 +20,22 @@ const FIXTURE_ROOM_ID = process.env.E2E_FIXTURE_ROOM_ID;
 const FIXTURE_ROOM_REF = FIXTURE_ROOM_ID || FIXTURE_ROOM_ALIAS;
 const HIDDEN_THREAD_RELATION_ROOT_MARKER = '[cinny-e2e] Hidden relation thread root';
 const SUMMARY_TEXT = 'Test summary: thread rendering and navigation verified.';
+const FIXTURE_ROOM_NAME = 'Cinny E2E Fixture Room';
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const getRecentThreadButton = (
+  page: import('@playwright/test').Page,
+  summaryOrPreviewText: string
+) =>
+  page.getByRole('button', {
+    name: new RegExp(
+      `^Open thread:(?=[\\s\\S]*${escapeRegex(FIXTURE_ROOM_NAME)})(?=[\\s\\S]*${escapeRegex(
+        summaryOrPreviewText
+      )})`,
+      'i'
+    ),
+  });
 
 /**
  * Navigate directly to the seeded fixture room.
@@ -75,9 +89,7 @@ test.describe('live threads', () => {
 
     await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
 
-    const recentThreadEntry = page.getByRole('button', {
-      name: new RegExp(`Cinny E2E Fixture Room[\\s\\S]*${escapeRegex(SUMMARY_TEXT)}`, 'i'),
-    });
+    const recentThreadEntry = getRecentThreadButton(page, SUMMARY_TEXT);
     await expect(recentThreadEntry).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText('No recent threads')).toHaveCount(0);
 
@@ -117,12 +129,7 @@ test.describe('live threads', () => {
 
     await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
 
-    const recentThreadEntry = page.getByRole('button', {
-      name: new RegExp(
-        `Cinny E2E Fixture Room[\\s\\S]*${escapeRegex(HIDDEN_THREAD_RELATION_ROOT_MARKER)}`,
-        'i'
-      ),
-    });
+    const recentThreadEntry = getRecentThreadButton(page, HIDDEN_THREAD_RELATION_ROOT_MARKER);
     await expect(recentThreadEntry).toBeVisible({ timeout: 30_000 });
 
     await page.reload();

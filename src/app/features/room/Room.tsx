@@ -126,7 +126,6 @@ export function Room() {
         )}
         {!callView && (
           <Box grow="Yes" direction="Column">
-            <RoomViewHeader />
             <Box grow="Yes">
               <RoomView
                 room={room}
