@@ -1253,3 +1253,9 @@
   - `npm run build` passes
   - full-suite baseline remains `1388/1396` pass with 8 pre-existing unrelated failures in `RoomTimeline*`, `RoomView`, and `roomThreadOverviewModel.test.ts`; those failures are baseline on `dev` and out of scope for `CINNY-082`
   - `npm run lint` still fails at the current branch baseline with unrelated pre-existing issues (`5` errors, `80` warnings); no lint findings in `src/app/utils/dom.ts` or `src/app/utils/dom.test.ts`
+
+## CINNY-083 — Pin RoomView to `--app-height` on iOS Safari transitions (2026-04-21)
+
+- Problem: iOS Safari URL-bar/keyboard visual-viewport transitions could leave a gray body-background bar exposed at the room header/composer edge because the room layer stayed taller than the visible viewport.
+- Fix: `src/app/features/room/RoomView.tsx` now pins the top-level `<Page>` wrapper height to `var(--app-height, 100%)`, so the room shrinks with the visual viewport instead of letting the body background show through.
+- Relationship to `CINNY-079`: this stays on the same iOS keyboard layout system, but binds the room layer instead of rebinding `#root` to `--app-height`.

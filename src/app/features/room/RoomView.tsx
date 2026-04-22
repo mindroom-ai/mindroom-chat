@@ -301,7 +301,7 @@ export function RoomView({
   );
 
   return (
-    <Page ref={roomViewRef}>
+    <Page ref={roomViewRef} style={{ height: 'var(--app-height, 100%)' }}>
       <RoomViewHeader threadId={effectiveThreadId} />
       {effectiveThreadId && (
         <ThreadContextBanner
