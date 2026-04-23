@@ -10,6 +10,9 @@
 
 ### Current Feature Set On `dev`
 
+- `CINNY-074`
+  - The lab Caddy deployment now runs the Vite dev server instead of serving a prebuilt `dist/` directory, so `chat.lab.mindroom.chat` surfaces full React development errors and source-mapped stacks during fork debugging.
+  - `mindroom-cinny` now starts `npm start -- --host 127.0.0.1 --port 8090 --strictPort`, and the default Vite allowed-host list now includes the lab/prod chat domains plus loopback hosts for the reverse-proxied setup.
 - `CINNY-037`
   - Revokes blob URLs across media/file previews and cleans up `usePan` document listeners on unmount to stop client-side leaks during room and media navigation.
 - `CINNY-038`
