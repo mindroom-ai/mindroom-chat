@@ -45,6 +45,19 @@ const getLatestEvent = (events: MatrixEvent[]): MatrixEvent | undefined =>
     return latest;
   }, undefined);
 
+const isSameEventInstanceOrId = (
+  left: MatrixEvent | null | undefined,
+  right: MatrixEvent | null | undefined
+): boolean => {
+  if (!left || !right) return left === right;
+  if (left === right) return true;
+
+  const leftId = left.getId();
+  const rightId = right.getId();
+
+  return !!leftId && leftId === rightId;
+};
+
 const getRedactedRelationTarget = (mEvent: MatrixEvent): RedactedRelationTarget | undefined => {
   const eventId = mEvent.getId();
   const eventType = mEvent.getType();
@@ -165,7 +178,7 @@ export const applyCachedReplaceRelations = (events: MatrixEvent[]): void => {
     const candidateEvents = replacingEvent ? [replacingEvent, ...editEvents] : editEvents;
     const latestEdit = getLatestEdit(targetEvent, candidateEvents);
 
-    if (!latestEdit || latestEdit === replacingEvent) return;
+    if (!latestEdit || isSameEventInstanceOrId(latestEdit, replacingEvent)) return;
     targetEvent.makeReplaced(latestEdit);
   });
 };
@@ -186,7 +199,7 @@ export const applySerializedCachedReplaceRelations = (events: MatrixEvent[]): vo
       )
     );
 
-    if (!latestEdit || latestEdit === existingReplacement) return;
+    if (!latestEdit || isSameEventInstanceOrId(latestEdit, existingReplacement)) return;
     targetEvent.makeReplaced(latestEdit);
   });
 };

@@ -1,4 +1,4 @@
-import { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent, MatrixEventEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import {
   aggregateCachedRelationEvents,
@@ -104,6 +104,21 @@ describe('applyCachedReplaceRelations', () => {
 
     expect(targetEvent.replacingEvent()?.getId()).toBe('$sdk');
   });
+
+  it('does not re-emit replacement events when the cached edit has the same event id', () => {
+    const targetEvent = makeMessageEvent('$target', 1000);
+    const sdkReplacement = makeEditEvent('$edit-1', 4000, '$target');
+    const cachedEditWithSameId = makeEditEvent('$edit-1', 4000, '$target');
+    const onReplaced = vi.fn();
+
+    targetEvent.makeReplaced(sdkReplacement);
+    targetEvent.on(MatrixEventEvent.Replaced, onReplaced);
+
+    applyCachedReplaceRelations([targetEvent, cachedEditWithSameId]);
+
+    expect(onReplaced).not.toHaveBeenCalled();
+    expect(targetEvent.replacingEvent()).toBe(sdkReplacement);
+  });
 });
 
 describe('serializeEventsForCache', () => {
@@ -206,6 +221,62 @@ describe('hydrateCachedEvents', () => {
     });
 
     expect(targetEvent.replacingEvent()?.getId()).toBe('$edit-1');
+  });
+
+  it('does not re-emit replacement events when rehydrating the same serialized edit twice', () => {
+    const targetEvent = new MatrixEvent({
+      content: {
+        body: 'Thinking...  ⋯',
+        msgtype: 'm.text',
+      },
+      event_id: '$target',
+      origin_server_ts: 1000,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      unsigned: {
+        'm.relations': {
+          'm.replace': {
+            content: {
+              body: '* Final answer',
+              'm.new_content': {
+                body: 'Final answer',
+                msgtype: 'm.text',
+              },
+              'm.relates_to': {
+                event_id: '$target',
+                rel_type: 'm.replace',
+              },
+              msgtype: 'm.text',
+            },
+            event_id: '$edit-1',
+            origin_server_ts: 2000,
+            room_id: '!room:example.org',
+            sender: '@alice:example.org',
+            type: 'm.room.message',
+          },
+        },
+      },
+    });
+    const onReplaced = vi.fn();
+
+    targetEvent.on(MatrixEventEvent.Replaced, onReplaced);
+
+    hydrateCachedEvents({
+      room,
+      events: [targetEvent],
+    });
+
+    const firstReplacement = targetEvent.replacingEvent();
+
+    hydrateCachedEvents({
+      room,
+      events: [targetEvent],
+    });
+
+    expect(onReplaced).toHaveBeenCalledTimes(1);
+    expect(targetEvent.replacingEvent()).toBe(firstReplacement);
+    expect(firstReplacement?.getId()).toBe('$edit-1');
   });
 
   it('ignores serialized replacements that are missing origin_server_ts', () => {

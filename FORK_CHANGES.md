@@ -507,6 +507,29 @@
     - focused Vitest passes for:
       - `src/app/pages/client/sidebar/SearchTab.test.ts`
     - `npm run typecheck` passes
+- `CINNY-069`
+  - Thread render invalidation follow-up (2026-04-12):
+    - fixes the stale in-thread placeholder regression where a cached thread could stay stuck on the old `Thinking...` body after the app resumed later (for example reopening the browser on mobile) until the user left the thread and entered it again.
+    - `src/app/features/room/useThreadRenderState.ts` now wires the existing `useThreadEventRefresh(...)` helper into thread render state and invalidates the merged thread-event memo on live `MatrixEventEvent.Replaced` / `ThreadEvent.Update` activity.
+    - tracked refresh listeners are limited to the live SDK thread root/event objects so cached fallback copies can be replaced by richer live objects without creating a serialized-replacement refresh loop.
+    - added focused regression coverage in `src/app/features/room/useThreadRenderState.test.ts` for:
+      - a stale cached fallback copy being swapped out after the live SDK event emits `MatrixEventEvent.Replaced`,
+      - and thread render state recomputing after `ThreadEvent.Update` with in-place `thread.events` mutation.
+  - Render-loop hardening follow-up (2026-04-23):
+    - `src/app/features/room/eventCacheEditUtils.ts` now treats cached replacements with the same event id as already-applied, instead of comparing only object identity.
+    - root cause: serialized cached `m.replace` relations are rehydrated as fresh `MatrixEvent` objects on every render; once `useThreadRenderState` started invalidating on `MatrixEventEvent.Replaced`, that rehydration path could call `makeReplaced()` for the same edit id on every render and synchronously trigger a React `Too many re-renders` loop in `RoomTimeline`.
+    - added focused regression coverage in `src/app/features/room/eventCacheEditUtils.test.ts` for:
+      - cached edit hydration not re-emitting `MatrixEventEvent.Replaced` when the edit id is unchanged,
+      - and serialized replacement hydration staying idempotent across repeated passes.
+  - review:
+    - independent second self-review completed via fresh `git diff` / `git diff --check` passes after the hook, cached-hydration guard, and focused test changes; scope stayed limited to `useThreadRenderState`, `eventCacheEditUtils`, their focused tests, and this runbook entry.
+  - validation (2026-04-23):
+    - `npx vitest run src/app/features/room/useThreadRenderState.test.ts --reporter verbose` passes (`11/11` tests)
+    - `npx vitest run src/app/features/room/eventCacheEditUtils.test.ts src/app/features/room/useThreadRenderState.test.ts --reporter verbose` passes (`24/24` tests)
+    - `npm test` passes (`155/155` files, `1403/1403` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - local MCP sanity check on the previously crashing thread route now reloads into thread view and recent-thread navigation across two thread entries no longer falls into the React Router default error boundary
 
 ### Validation Standard
 
