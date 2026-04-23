@@ -226,6 +226,28 @@
     - `npm run typecheck` passes
     - `npm run build` passes
     - `npm run lint` passes with the branch baseline warning-only output (`79` warnings, `0` errors)
+  - thread virtualization/preload follow-up (2026-04-23):
+    - restored full thread media preloading after thread timeline virtualization by scanning the complete `threadEvents` list in the background, with bounded concurrency, encrypted-media blob URL cleanup, and mounted message reuse of preloaded image/video-thumbnail sources.
+    - kept audio and generic file attachments on their previous non-autoload path; full preloading here means the media types that were already auto-preloaded before virtualization.
+    - fixed large-thread prepend anchoring by capturing the first actually visible non-root thread message, waiting for the event count to grow before restoring, and retrying until the virtualizer reports the anchor at the captured position.
+    - fixed the async thread-open race where a user scrolling away from the latest slice before hydration completed could still be pinned back to the tail/root window.
+    - added focused coverage in:
+      - `src/app/features/room/threadMediaPreloadUtils.test.ts`
+      - `src/app/features/room/RoomTimeline.permalink-refresh.test.ts`
+      - `e2e/live/cinny070-thread-prepend-scroll.spec.ts`
+    - review:
+      - independent second self-review completed via a fresh diff/stat pass after focused, unit, build, lint, and full E2E validation; scope stayed limited to thread virtualized rendering/preload restoration, prepend anchoring, focused tests, live spec, and this runbook update.
+    - validation:
+      - focused Vitest passes for `threadMediaPreloadUtils.test.ts` and `RoomTimeline.permalink-refresh.test.ts`
+      - focused live E2E passes for `e2e/live/cinny070-thread-prepend-scroll.spec.ts`
+      - `npm test` passes (`156/156` files, `1410/1410` tests)
+      - `npm run typecheck` passes
+      - `npm run build` passes
+      - `npm run lint` still fails at branch baseline with `2` unrelated errors:
+        `src/app/hooks/router/useResolvedRoomIdOrAlias.ts:50` (`camelcase`) and `src/app/pages/client/ClientStartupContext.tsx:15` (`react/jsx-no-constructed-context-values`)
+      - full `npm run test:e2e:docker-matrix` completed with `61` passed, `2` skipped, and the same `2` baseline failures:
+        `e2e/account-switching.spec.ts:14` and `e2e/live/cinny031-focused-room-view.spec.ts:94`; the new `cinny070` prepend-scroll spec passed in the full run.
+      - `git diff --check` passes
 - `CINNY-073`
   - commit 1 hook extraction (2026-04-18):
     - extracted `useDebouncedViewportHeight` and `useResolvedRecentThreadsLayout` from `RecentThreadsPanel.tsx`.

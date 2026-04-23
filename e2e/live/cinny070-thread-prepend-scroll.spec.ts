@@ -35,13 +35,7 @@ const scrollThreadTimelineToTop = async (
   page: import('@playwright/test').Page
 ): Promise<boolean> =>
   page.evaluate(() => {
-    const firstMessage = document.querySelector<HTMLElement>('[data-message-id]');
-    if (!firstMessage) return false;
-
-    let scrollContainer: HTMLElement | null = firstMessage.parentElement;
-    while (scrollContainer && scrollContainer.scrollHeight <= scrollContainer.clientHeight) {
-      scrollContainer = scrollContainer.parentElement;
-    }
+    const scrollContainer = document.querySelector<HTMLElement>('[data-thread-scroll-container]');
     if (!scrollContainer) return false;
 
     scrollContainer.scrollTop = 0;
@@ -49,23 +43,32 @@ const scrollThreadTimelineToTop = async (
   });
 
 const getVisibleThreadAnchor = async (
-  page: import('@playwright/test').Page
+  page: import('@playwright/test').Page,
+  rootEventId: string
 ): Promise<VisibleAnchor | null> =>
-  page.evaluate(() => {
-    const firstMessage = document.querySelector<HTMLElement>('[data-message-id]');
-    if (!firstMessage) return null;
-
-    let scrollContainer: HTMLElement | null = firstMessage.parentElement;
-    while (scrollContainer && scrollContainer.scrollHeight <= scrollContainer.clientHeight) {
-      scrollContainer = scrollContainer.parentElement;
-    }
+  page.evaluate((threadRootEventId) => {
+    const scrollContainer = document.querySelector<HTMLElement>('[data-thread-scroll-container]');
     if (!scrollContainer) return null;
 
     const scrollRect = scrollContainer.getBoundingClientRect();
     const messageItems = Array.from(
       scrollContainer.querySelectorAll<HTMLElement>('[data-message-id]')
     );
-    const anchor = messageItems.find((item) => item.getBoundingClientRect().bottom > scrollRect.top);
+    const visibleItems = messageItems.filter((item) => {
+      const rect = item.getBoundingClientRect();
+      return rect.bottom > scrollRect.top && rect.top < scrollRect.bottom;
+    });
+    const fullyVisibleItems = visibleItems.filter((item) => {
+      const rect = item.getBoundingClientRect();
+      return rect.top >= scrollRect.top + 8;
+    });
+    const anchor =
+      fullyVisibleItems.find(
+        (item) => item.getAttribute('data-message-id') !== threadRootEventId
+      ) ??
+      visibleItems.find((item) => item.getAttribute('data-message-id') !== threadRootEventId) ??
+      fullyVisibleItems[0] ??
+      visibleItems[0];
     const eventId = anchor?.getAttribute('data-message-id');
     if (!anchor || !eventId) return null;
 
@@ -74,7 +77,7 @@ const getVisibleThreadAnchor = async (
       top: anchor.getBoundingClientRect().top,
       text: anchor.textContent ?? '',
     };
-  });
+  }, rootEventId);
 
 const getAnchorDisplacement = async (
   page: import('@playwright/test').Page,
@@ -170,11 +173,16 @@ test.describe('CINNY-070: thread prepend pagination preserves scroll anchor', ()
     expect(await scrollThreadTimelineToTop(page)).toBe(true);
     await expect(loadOlderButton).toBeVisible({ timeout: 30_000 });
 
-    const anchor = await getVisibleThreadAnchor(page);
+    const anchor = await getVisibleThreadAnchor(page, rootId);
     expect(anchor).not.toBeNull();
     if (!anchor) return;
 
-    await loadOlderButton.evaluate((button: HTMLButtonElement) => button.click());
+    await page.evaluate(() => {
+      const button = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
+        (candidate) => candidate.textContent?.includes('Load Older Messages')
+      );
+      window.setTimeout(() => button?.click(), 0);
+    });
 
     await expect(loadOlderButton).toHaveCount(0, { timeout: 30_000 });
 

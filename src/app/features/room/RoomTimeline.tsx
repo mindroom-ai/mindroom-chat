@@ -172,6 +172,11 @@ import {
   isThreadReplyEvent,
 } from './threadUtils';
 import {
+  clearThreadMediaPreloadCache,
+  getThreadMediaPreloadDescriptor,
+  preloadThreadMediaDescriptor,
+} from './threadMediaPreloadUtils';
+import {
   buildThreadSummaryMap,
   getLatestThreadSummaryInfoFromEventSources,
   hasMindroomThreadSummary,
@@ -1151,6 +1156,8 @@ const ROOM_FOCUS_SCROLL_RETRY_MAX_ATTEMPTS = 10;
 const ROOM_FOCUS_OBSERVER_IDLE_MS = 200;
 const ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS = 2000;
 const THREAD_VIRTUAL_OVERSCAN = 12;
+const THREAD_MEDIA_PRELOAD_CONCURRENCY = 4;
+const THREAD_PREPEND_SCROLL_RESTORE_MAX_ATTEMPTS = 12;
 const ROOM_FOCUS_NEAR_START_THRESHOLD = 5;
 const ROOM_FOCUS_NEAR_END_THRESHOLD = 5;
 const ROOM_FOCUS_START_MARGIN_PX = 32;
@@ -1325,36 +1332,18 @@ export type ThreadPrependScrollAnchor = {
   top: number;
 };
 
-const resolveThreadScrollContainer = (
-  scrollRoot: HTMLElement,
-  seedElement?: HTMLElement | null
-): HTMLElement => {
-  let current: HTMLElement | null =
-    seedElement ??
-    scrollRoot.querySelector<HTMLElement>('[data-message-id]')?.parentElement ??
-    null;
-
-  while (current && current !== scrollRoot) {
-    if (current.scrollHeight > current.clientHeight) {
-      return current;
-    }
-    current = current.parentElement;
-  }
-
-  return scrollRoot;
-};
-
 export const captureThreadPrependScrollAnchor = (
-  scrollRoot: HTMLElement | null | undefined
+  scrollRoot: HTMLElement | null | undefined,
+  opts: { excludeEventId?: string } = {}
 ): ThreadPrependScrollAnchor | undefined => {
   if (!scrollRoot) return undefined;
 
-  const scrollContainer = resolveThreadScrollContainer(scrollRoot);
-  const scrollRect = scrollContainer.getBoundingClientRect();
+  const scrollRect = scrollRoot.getBoundingClientRect();
   const messageItems = scrollRoot.querySelectorAll<HTMLElement>('[data-message-id]');
   for (const item of messageItems) {
     const eventId = item.getAttribute('data-message-id');
     if (!eventId) continue;
+    if (eventId === opts.excludeEventId) continue;
 
     const itemRect = item.getBoundingClientRect();
     if (itemRect.bottom <= scrollRect.top || itemRect.top >= scrollRect.bottom) {
@@ -1379,26 +1368,16 @@ export const restoreThreadPrependScrollAnchor = (
   const target = getEventElementById(scrollRoot, anchor.eventId);
   if (!target) return false;
 
-  const scrollContainer = resolveThreadScrollContainer(scrollRoot, target);
   const delta = target.getBoundingClientRect().top - anchor.top;
   if (Math.abs(delta) <= 1) return true;
 
-  scrollContainer.scrollBy({
+  scrollRoot.scrollBy({
     top: delta,
     behavior: 'instant',
   });
 
-  return true;
+  return false;
 };
-
-const getEarliestLoadedThreadReply = (
-  events: MatrixEvent[],
-  threadId: string
-): MatrixEvent | undefined =>
-  events.find((mEvent) => {
-    const eventId = mEvent.getId();
-    return !!eventId && eventId !== threadId && eventBelongsToThread(mEvent, threadId);
-  });
 
 const getThreadCacheTargetId = (room: Room, mEvent: MatrixEvent): string | undefined => {
   const eventId = mEvent.getId();
@@ -2798,6 +2777,7 @@ export function RoomTimeline({
   const pendingThreadBackPaginationAnchorRef = useRef<
     | (ThreadPrependScrollAnchor & {
         threadId: string;
+        waitForEventCountGreaterThan?: number;
       })
     | undefined
   >();
@@ -5045,8 +5025,13 @@ export function RoomTimeline({
     overscan: THREAD_VIRTUAL_OVERSCAN,
   });
 
+  const threadUseVirtualization = Boolean(threadId);
   const threadVirtualItems = threadId ? threadVirtualizer.getVirtualItems() : [];
   const threadVirtualTotalSize = threadId ? threadVirtualizer.getTotalSize() : 0;
+  const threadMediaPreloadCacheRef = useRef(new Map<string, string>());
+  const threadMediaPreloadInFlightRef = useRef(new Map<string, Promise<void>>());
+  const threadMediaPreloadFailuresRef = useRef(new Set<string>());
+  const threadMediaPreloadGenerationRef = useRef(0);
 
   const redirectRoomEventDeepLink = useCallback(
     (targetEventId: string, linkedTimelines?: EventTimeline[]): boolean => {
@@ -6819,6 +6804,55 @@ threadDebugTraceId,
     }
   }, [scrollToBottomCount]);
 
+  const scheduleThreadPrependRestore = useCallback(
+    (
+      expectedThreadId: string,
+      anchor: ThreadPrependScrollAnchor,
+      opts: { waitForEventCountGreaterThan?: number } = {}
+    ) => {
+      pendingThreadBackPaginationAnchorRef.current = {
+        ...anchor,
+        threadId: expectedThreadId,
+        waitForEventCountGreaterThan: opts.waitForEventCountGreaterThan,
+      };
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!threadId || !threadLatestOpenPending) return undefined;
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return undefined;
+
+    const handleThreadOpenScroll = () => {
+      if (suppressThreadOpenBottomPinRef.current) return;
+      const isNearBottom = isScrollNearBottom({
+        scrollHeight: scrollEl.scrollHeight,
+        scrollTop: scrollEl.scrollTop,
+        clientHeight: scrollEl.clientHeight,
+        thresholdPx: 100,
+      });
+      if (isNearBottom) return;
+
+      const capturedAnchor =
+        captureThreadPrependScrollAnchor(scrollEl, {
+          excludeEventId: threadId,
+        }) ?? captureThreadPrependScrollAnchor(scrollEl);
+      if (capturedAnchor) {
+        scheduleThreadPrependRestore(threadId, capturedAnchor, {
+          waitForEventCountGreaterThan: threadEvents.length,
+        });
+      }
+      suppressThreadOpenBottomPinRef.current = true;
+      setThreadLatestOpenPending(false);
+    };
+
+    scrollEl.addEventListener('scroll', handleThreadOpenScroll, { passive: true });
+    return () => {
+      scrollEl.removeEventListener('scroll', handleThreadOpenScroll);
+    };
+  }, [scheduleThreadPrependRestore, threadEvents.length, threadId, threadLatestOpenPending]);
+
   useLayoutEffect(() => {
     if (!threadId) {
       pendingThreadBackPaginationAnchorRef.current = undefined;
@@ -6827,6 +6861,12 @@ threadDebugTraceId,
 
     const pendingAnchor = pendingThreadBackPaginationAnchorRef.current;
     if (!pendingAnchor || pendingAnchor.threadId !== threadId) return;
+    if (
+      typeof pendingAnchor.waitForEventCountGreaterThan === 'number' &&
+      threadEvents.length <= pendingAnchor.waitForEventCountGreaterThan
+    ) {
+      return;
+    }
     const anchorIndex = threadEventIndexMapRef.current.get(pendingAnchor.eventId);
     if (typeof anchorIndex === 'number') {
       threadVirtualizer.scrollToIndex(anchorIndex, { align: 'start' });
@@ -6841,14 +6881,14 @@ threadDebugTraceId,
         pendingThreadBackPaginationAnchorRef.current = undefined;
         return;
       }
-      if (attempt >= 2) {
+      if (attempt >= THREAD_PREPEND_SCROLL_RESTORE_MAX_ATTEMPTS) {
         pendingThreadBackPaginationAnchorRef.current = undefined;
         return;
       }
       requestAnimationFrame(() => attemptRestore(attempt + 1));
     };
 
-    attemptRestore(0);
+    requestAnimationFrame(() => attemptRestore(0));
 
     return () => {
       cancelled = true;
@@ -7360,6 +7400,10 @@ threadDebugTraceId,
 
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
         const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
+        const threadMediaPreloadProps = getThreadMediaPreloadedSrc(
+          mEvent.getType(),
+          resolvedContent as Record<string, unknown>
+        );
         const getContent = (() => resolvedContent) as GetContentCallback;
         const collapseMode = getCollapsibleMessageMode(
           mEventId,
@@ -7513,17 +7557,21 @@ threadDebugTraceId,
                   <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />
                 );
               }
-              const msgType = mEvent.getContent().msgtype;
+              const msgType =
+                typeof (resolvedContent as Record<string, unknown>).msgtype === 'string'
+                  ? ((resolvedContent as Record<string, unknown>).msgtype as string)
+                  : '';
               const isVisualMedia = msgType === MsgType.Image || msgType === MsgType.Video;
               const content = (
                 <RenderMessageContent
                   displayName={senderDisplayName}
                   eventType={mEvent.getType()}
-                  msgType={msgType ?? ''}
+                  msgType={msgType}
                   ts={mEvent.getTs()}
                   edited={!!editedEvent}
                   getContent={getContent}
                   mediaAutoLoad={mediaAutoLoad}
+                  {...threadMediaPreloadProps}
                   urlPreview={showUrlPreview}
                   htmlReactParserOptions={htmlReactParserOptions}
                   linkifyOpts={linkifyOpts}
@@ -7696,6 +7744,10 @@ threadDebugTraceId,
                 edited={!!editedEvent}
                 getContent={getContent}
                 mediaAutoLoad={mediaAutoLoad}
+                {...getThreadMediaPreloadedSrc(
+                  mEvent.getType(),
+                  approvalContent as Record<string, unknown>
+                )}
                 urlPreview={showUrlPreview}
                 htmlReactParserOptions={htmlReactParserOptions}
                 linkifyOpts={linkifyOpts}
@@ -7844,6 +7896,12 @@ threadDebugTraceId,
                         <ImageContent
                           {...props}
                           autoPlay={mediaAutoLoad}
+                          preloadedSrc={
+                            getThreadMediaPreloadedSrc(
+                              MessageEvent.Sticker,
+                              mEvent.getContent() as Record<string, unknown>
+                            ).preloadedImageSrc
+                          }
                           renderImage={(p) => <Image {...p} loading="lazy" />}
                           renderViewer={(p) => <ImageViewer {...p} />}
                         />
@@ -7873,6 +7931,10 @@ threadDebugTraceId,
                       edited={!!editedEvent}
                       getContent={getContent}
                       mediaAutoLoad={mediaAutoLoad}
+                      {...getThreadMediaPreloadedSrc(
+                        mEvent.getType(),
+                        approvalContent as Record<string, unknown>
+                      )}
                       urlPreview={showUrlPreview}
                       htmlReactParserOptions={htmlReactParserOptions}
                       linkifyOpts={linkifyOpts}
@@ -7902,15 +7964,24 @@ threadDebugTraceId,
                   const senderId = mEvent.getSender() ?? '';
                   const senderDisplayName =
                     getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
+                  const threadMediaPreloadProps = getThreadMediaPreloadedSrc(
+                    mEvent.getType(),
+                    resolvedContent as Record<string, unknown>
+                  );
                   const messageContent = (
                     <RenderMessageContent
                       displayName={senderDisplayName}
                       eventType={mEvent.getType()}
-                      msgType={mEvent.getContent().msgtype ?? ''}
+                      msgType={
+                        typeof (resolvedContent as Record<string, unknown>).msgtype === 'string'
+                          ? ((resolvedContent as Record<string, unknown>).msgtype as string)
+                          : ''
+                      }
                       ts={mEvent.getTs()}
                       edited={!!editedEvent}
                       getContent={getContent}
                       mediaAutoLoad={mediaAutoLoad}
+                      {...threadMediaPreloadProps}
                       urlPreview={showUrlPreview}
                       htmlReactParserOptions={htmlReactParserOptions}
                       linkifyOpts={linkifyOpts}
@@ -8002,6 +8073,12 @@ threadDebugTraceId,
                   <ImageContent
                     {...props}
                     autoPlay={mediaAutoLoad}
+                    preloadedSrc={
+                      getThreadMediaPreloadedSrc(
+                        MessageEvent.Sticker,
+                        mEvent.getContent() as Record<string, unknown>
+                      ).preloadedImageSrc
+                    }
                     renderImage={(p) => <Image {...p} loading="lazy" />}
                     renderViewer={(p) => <ImageViewer {...p} />}
                   />
@@ -8520,18 +8597,18 @@ threadDebugTraceId,
     const expectedThreadId = threadId;
     suppressThreadOpenBottomPinRef.current = true;
     setThreadLatestOpenPending(false);
-    const capturedAnchor = captureThreadPrependScrollAnchor(scrollRef.current);
-    pendingThreadBackPaginationAnchorRef.current = capturedAnchor
-      ? {
-          ...capturedAnchor,
-          threadId: expectedThreadId,
-        }
-      : undefined;
+    const earliestThreadReply = findEarliestLoadedThreadReplyByCacheOrder(
+      threadEvents,
+      expectedThreadId
+    );
+    const capturedAnchor =
+      captureThreadPrependScrollAnchor(scrollRef.current, {
+        excludeEventId: expectedThreadId,
+      }) ?? captureThreadPrependScrollAnchor(scrollRef.current);
     let didPaginateBack = false;
     setThreadPaginatingBack(true);
     threadPaginatingBackRef.current = true;
     try {
-      const earliestThreadReply = findEarliestLoadedThreadReplyByCacheOrder(threadEvents, expectedThreadId);
       const cachedPage = await loadCachedThreadEventsBefore(
         sessionId,
         room.roomId,
@@ -8560,18 +8637,64 @@ threadDebugTraceId,
         setThreadHasMoreCachedBack(
           cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string'
         );
+        if (capturedAnchor) {
+          scheduleThreadPrependRestore(expectedThreadId, capturedAnchor, {
+            waitForEventCountGreaterThan: threadEvents.length,
+          });
+        }
         setTimeline((ct) => ({ ...ct }));
         setThreadTimelineTick((val) => val + 1);
         didPaginateBack = true;
         return;
       }
 
-      setThreadHasMoreCachedBack(false);
       if (!thread) return;
 
       const currentThreadTimelineSet = thread.getUnfilteredTimelineSet();
-      const firstThreadTimeline = getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0];
-      if (!firstThreadTimeline?.getPaginationToken(Direction.Backward)) return;
+      let firstThreadTimeline = getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0];
+      if (!firstThreadTimeline?.getPaginationToken(Direction.Backward)) {
+        const [timelineErr] = await to(
+          mx.getThreadTimeline(currentThreadTimelineSet, expectedThreadId)
+        );
+        if (timelineErr || threadIdRef.current !== expectedThreadId) return;
+        firstThreadTimeline = getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0];
+      }
+      if (!firstThreadTimeline?.getPaginationToken(Direction.Backward)) {
+        const relationPage = await fetchAllThreadRelations(
+          mx,
+          room.roomId,
+          expectedThreadId,
+          THREAD_BATCH_SIZE,
+          () => threadIdRef.current !== expectedThreadId
+        );
+        if (threadIdRef.current !== expectedThreadId) return;
+        if (relationPage && relationPage.events.length > 0) {
+          const relationRootEvent = thread.rootEvent ?? room.findEventById(expectedThreadId);
+          setSupplementalThreadEvents(expectedThreadId, relationPage.events);
+          persistThreadEventCache(
+            expectedThreadId,
+            relationPage.events,
+            relationRootEvent,
+            relationPage.nextBatchToken ?? null
+          );
+          reconcileThreadBackwardPagination(
+            undefined,
+            relationPage.nextBatchToken ?? null,
+            setThreadHasMoreCachedBack
+          );
+          if (capturedAnchor) {
+            scheduleThreadPrependRestore(expectedThreadId, capturedAnchor, {
+              waitForEventCountGreaterThan: threadEvents.length,
+            });
+          }
+          setTimeline((ct) => ({ ...ct }));
+          setThreadTimelineTick((val) => val + 1);
+          didPaginateBack = true;
+          return;
+        }
+        setThreadHasMoreCachedBack(false);
+        return;
+      }
 
       const [err] = await to(
         mx.paginateEventTimeline(firstThreadTimeline, {
@@ -8592,6 +8715,11 @@ threadDebugTraceId,
           firstThreadTimeline.getPaginationToken(Direction.Backward),
           setThreadHasMoreCachedBack
         );
+        if (capturedAnchor) {
+          scheduleThreadPrependRestore(expectedThreadId, capturedAnchor, {
+            waitForEventCountGreaterThan: threadEvents.length,
+          });
+        }
         setTimeline((ct) => ({ ...ct }));
         setThreadTimelineTick((val) => val + 1);
         didPaginateBack = true;
@@ -8609,6 +8737,7 @@ threadDebugTraceId,
     room.roomId,
     sessionId,
     setSupplementalThreadEvents,
+    scheduleThreadPrependRestore,
     thread,
     threadEvents,
     threadId,
@@ -8668,6 +8797,132 @@ threadDebugTraceId,
       );
     },
     [roomTimelineSet, threadTimelineSet]
+  );
+  const resetThreadMediaPreloadState = useCallback(() => {
+    threadMediaPreloadGenerationRef.current += 1;
+    clearThreadMediaPreloadCache(threadMediaPreloadCacheRef.current);
+    threadMediaPreloadInFlightRef.current.clear();
+    threadMediaPreloadFailuresRef.current.clear();
+  }, []);
+
+  useEffect(
+    () => () => {
+      resetThreadMediaPreloadState();
+    },
+    [resetThreadMediaPreloadState, room.roomId, threadId]
+  );
+
+  useEffect(() => {
+    if (mediaAutoLoad) return;
+    resetThreadMediaPreloadState();
+  }, [mediaAutoLoad, resetThreadMediaPreloadState]);
+
+  const getThreadEventMediaPreloadDescriptor = useCallback(
+    (mEvent: MatrixEvent) => {
+      if (!threadId || mEvent.isRedacted()) return undefined;
+
+      const eventType = mEvent.getType();
+      if (eventType === MessageEvent.Sticker) {
+        return getThreadMediaPreloadDescriptor(eventType, mEvent.getContent() as Record<string, unknown>);
+      }
+
+      if (eventType !== MessageEvent.RoomMessage && eventType !== MessageEvent.RoomMessageEncrypted) {
+        return undefined;
+      }
+
+      const eventId = mEvent.getId();
+      if (!eventId) return undefined;
+
+      const timelineSet = getThreadEventTimelineSet(eventId);
+      const editedEvent = getEditedEvent(eventId, mEvent, timelineSet);
+      const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
+
+      return getThreadMediaPreloadDescriptor(eventType, resolvedContent as Record<string, unknown>);
+    },
+    [getThreadEventTimelineSet, threadId]
+  );
+
+  useEffect(() => {
+    if (!threadId || !mediaAutoLoad || threadEvents.length === 0) return;
+
+    const queuedTargets = new Map<string, ReturnType<typeof getThreadEventMediaPreloadDescriptor>>();
+    threadEvents.forEach((mEvent) => {
+      const descriptor = getThreadEventMediaPreloadDescriptor(mEvent);
+      if (
+        !descriptor ||
+        queuedTargets.has(descriptor.key) ||
+        threadMediaPreloadCacheRef.current.has(descriptor.key) ||
+        threadMediaPreloadInFlightRef.current.has(descriptor.key) ||
+        threadMediaPreloadFailuresRef.current.has(descriptor.key)
+      ) {
+        return;
+      }
+      queuedTargets.set(descriptor.key, descriptor);
+    });
+
+    const targets = [...queuedTargets.values()];
+    if (targets.length === 0) return;
+
+    let nextIndex = 0;
+    const preloadGeneration = threadMediaPreloadGenerationRef.current;
+
+    const runWorker = async () => {
+      while (threadMediaPreloadGenerationRef.current === preloadGeneration) {
+        const descriptor = targets[nextIndex];
+        nextIndex += 1;
+        if (!descriptor) return;
+
+        const preloadPromise = preloadThreadMediaDescriptor(mx, useAuthentication, descriptor)
+          .then((src) => {
+            if (threadMediaPreloadGenerationRef.current !== preloadGeneration) {
+              if (src.startsWith('blob:')) URL.revokeObjectURL(src);
+              return;
+            }
+            threadMediaPreloadCacheRef.current.set(descriptor.key, src);
+          })
+          .catch(() => {
+            if (threadMediaPreloadGenerationRef.current === preloadGeneration) {
+              threadMediaPreloadFailuresRef.current.add(descriptor.key);
+            }
+          })
+          .finally(() => {
+            if (threadMediaPreloadGenerationRef.current === preloadGeneration) {
+              threadMediaPreloadInFlightRef.current.delete(descriptor.key);
+            }
+          });
+
+        threadMediaPreloadInFlightRef.current.set(descriptor.key, preloadPromise);
+        await preloadPromise;
+      }
+    };
+
+    const workerCount = Math.min(THREAD_MEDIA_PRELOAD_CONCURRENCY, targets.length);
+    const workers = Array.from({ length: workerCount }, () => runWorker());
+    void Promise.all(workers);
+  }, [
+    getThreadEventMediaPreloadDescriptor,
+    mediaAutoLoad,
+    mx,
+    threadEvents,
+    threadId,
+    useAuthentication,
+  ]);
+
+  const getThreadMediaPreloadedSrc = useCallback(
+    (eventType: string, content: Record<string, unknown>) => {
+      if (!threadId) return {};
+
+      const descriptor = getThreadMediaPreloadDescriptor(eventType, content);
+      if (!descriptor) return {};
+
+      const src = threadMediaPreloadCacheRef.current.get(descriptor.key);
+      if (!src) return {};
+
+      return descriptor.kind === 'image'
+        ? { preloadedImageSrc: src }
+        : { preloadedThumbnailSrc: src };
+    },
+    [threadId]
   );
   const renderResolvedEvent = (
     mEvent: MatrixEvent,
@@ -8786,8 +9041,8 @@ threadDebugTraceId,
     return renderResolvedEvent(mEvent, item, timelineSet, eventEntry.absoluteIndex);
   };
 
-  const firstThreadVirtualIndex = threadId ? threadVirtualItems[0]?.index : undefined;
-  if (threadId && typeof firstThreadVirtualIndex === 'number' && firstThreadVirtualIndex > 0) {
+  const firstThreadVirtualIndex = threadUseVirtualization ? threadVirtualItems[0]?.index : undefined;
+  if (threadUseVirtualization && typeof firstThreadVirtualIndex === 'number' && firstThreadVirtualIndex > 0) {
     prevEvent = threadEvents[firstThreadVirtualIndex - 1];
     if (prevEvent) {
       const prevEventId = prevEvent.getId();
@@ -8897,7 +9152,12 @@ threadDebugTraceId,
             >
               {allExpanded ? '[-all]' : '[+all]'}
             </button>
-            <Scroll ref={scrollRef} visibility="Hover" style={{ overflowAnchor: 'auto' }}>
+            <Scroll
+              ref={scrollRef}
+              data-thread-scroll-container={threadId ? 'true' : undefined}
+              visibility="Hover"
+              style={{ overflowAnchor: 'auto' }}
+            >
               <Box
                 direction="Column"
                 justifyContent="End"
@@ -9023,6 +9283,7 @@ threadDebugTraceId,
                   ))}
 
                 {threadId ? (
+                  threadUseVirtualization ? (
                   <div
                     style={{
                       position: 'relative',
@@ -9050,6 +9311,18 @@ threadDebugTraceId,
                       );
                     })}
                   </div>
+                  ) : (
+                    threadEvents.map((mEvent, index) => {
+                      const eventId = mEvent?.getId();
+                      if (!mEvent || !eventId) return null;
+
+                      return renderResolvedEvent(
+                        mEvent,
+                        index,
+                        getThreadEventTimelineSet(eventId)
+                      );
+                    })
+                  )
                 ) : (
                   timelineItems.map(eventRenderer)
                 )}

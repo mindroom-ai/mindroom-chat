@@ -55,6 +55,8 @@ type RenderMessageContentProps = {
   edited?: boolean;
   getContent: <T>() => T;
   mediaAutoLoad?: boolean;
+  preloadedImageSrc?: string;
+  preloadedThumbnailSrc?: string;
   urlPreview?: boolean;
   highlightRegex?: RegExp;
   htmlReactParserOptions: HTMLReactParserOptions;
@@ -72,6 +74,8 @@ export function RenderMessageContent({
   edited,
   getContent,
   mediaAutoLoad,
+  preloadedImageSrc,
+  preloadedThumbnailSrc,
   urlPreview,
   highlightRegex,
   htmlReactParserOptions,
@@ -327,6 +331,7 @@ export function RenderMessageContent({
             <ImageContent
               {...props}
               autoPlay={mediaAutoLoad}
+              preloadedSrc={preloadedImageSrc}
               renderImage={(p) => <Image {...p} loading="lazy" />}
               renderViewer={(p) => <ImageViewer {...p} />}
             />
@@ -354,6 +359,7 @@ export function RenderMessageContent({
                   ? () => (
                       <ThumbnailContent
                         info={info}
+                        preloadedSrc={preloadedThumbnailSrc}
                         renderImage={(src) => (
                           <Image alt={body} title={body} src={src} loading="lazy" />
                         )}

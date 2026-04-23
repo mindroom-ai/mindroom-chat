@@ -881,7 +881,38 @@ describe('RoomTimeline', () => {
     });
   });
 
-  it('restores the captured thread prepend anchor position after older messages are prepended', async () => {
+  it('skips the excluded thread root when capturing a prepend scroll anchor', async () => {
+    const { captureThreadPrependScrollAnchor } = await import('./RoomTimeline');
+
+    const root = {
+      getAttribute: vi.fn().mockReturnValue('$root'),
+      getBoundingClientRect: vi.fn().mockReturnValue({
+        top: 120,
+        bottom: 160,
+      }),
+    };
+    const reply = {
+      getAttribute: vi.fn().mockReturnValue('$reply'),
+      getBoundingClientRect: vi.fn().mockReturnValue({
+        top: 170,
+        bottom: 220,
+      }),
+    };
+    const scroll = {
+      getBoundingClientRect: vi.fn().mockReturnValue({
+        top: 100,
+        bottom: 500,
+      }),
+      querySelectorAll: vi.fn().mockReturnValue([root, reply]),
+    } as unknown as HTMLElement;
+
+    expect(captureThreadPrependScrollAnchor(scroll, { excludeEventId: '$root' })).toEqual({
+      eventId: '$reply',
+      top: 170,
+    });
+  });
+
+  it('adjusts toward the captured thread prepend anchor after older messages are prepended', async () => {
     const { restoreThreadPrependScrollAnchor } = await import('./RoomTimeline');
 
     const scrollBy = vi.fn();
@@ -902,12 +933,37 @@ describe('RoomTimeline', () => {
         eventId: '$anchor',
         top: 140,
       })
-    ).toBe(true);
+    ).toBe(false);
     expect(scrollBy).toHaveBeenCalledWith({
       top: 280,
       behavior: 'instant',
     });
   });
-      });
-    });
+
+  it('reports the captured thread prepend anchor as restored only after it is stable', async () => {
+    const { restoreThreadPrependScrollAnchor } = await import('./RoomTimeline');
+
+    const scrollBy = vi.fn();
+    const anchor = {
+      getAttribute: vi.fn().mockReturnValue('$anchor'),
+      getBoundingClientRect: vi.fn().mockReturnValue({
+        top: 140,
+        bottom: 180,
+      }),
+    };
+    const scroll = {
+      querySelectorAll: vi.fn().mockReturnValue([anchor]),
+      scrollBy,
+    } as unknown as HTMLElement;
+
+    expect(
+      restoreThreadPrependScrollAnchor(scroll, {
+        eventId: '$anchor',
+        top: 140,
+      })
+    ).toBe(true);
+    expect(scrollBy).not.toHaveBeenCalled();
+  });
+});
+});
 });

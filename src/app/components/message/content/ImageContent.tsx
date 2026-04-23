@@ -57,6 +57,7 @@ export type ImageContentProps = {
   url: string;
   info?: IImageInfo;
   encInfo?: EncryptedAttachmentInfo;
+  preloadedSrc?: string;
   autoPlay?: boolean;
   markedAsSpoiler?: boolean;
   spoilerReason?: string;
@@ -72,6 +73,7 @@ export const ImageContent = as<'div', ImageContentProps>(
       url,
       info,
       encInfo,
+      preloadedSrc,
       autoPlay,
       markedAsSpoiler,
       spoilerReason,
@@ -106,6 +108,8 @@ export const ImageContent = as<'div', ImageContentProps>(
     );
     useBlobUrlCleanup(srcState);
 
+    const resolvedSrc = preloadedSrc ?? (srcState.status === AsyncStatus.Success ? srcState.data : undefined);
+
     const handleLoad = () => {
       setLoad(true);
     };
@@ -120,8 +124,9 @@ export const ImageContent = as<'div', ImageContentProps>(
     };
 
     useEffect(() => {
+      if (preloadedSrc) return;
       if (autoPlay) loadSrc();
-    }, [autoPlay, loadSrc]);
+    }, [autoPlay, loadSrc, preloadedSrc]);
 
     useEffect(() => {
       if (!viewer) return undefined;
@@ -166,7 +171,7 @@ export const ImageContent = as<'div', ImageContentProps>(
 
     return (
       <Box className={classNames(css.RelativeBase, className)} {...props} ref={ref}>
-        {srcState.status === AsyncStatus.Success && (
+        {resolvedSrc && (
           <Overlay open={viewer} backdrop={<OverlayBackdrop />}>
             <OverlayCenter>
               <FocusTrap
@@ -183,7 +188,7 @@ export const ImageContent = as<'div', ImageContentProps>(
                   onContextMenu={(evt: any) => evt.stopPropagation()}
                 >
                   {renderViewer({
-                    src: srcState.data,
+                    src: resolvedSrc,
                     alt: body,
                     requestClose: () => setViewer(false),
                   })}
@@ -215,12 +220,12 @@ export const ImageContent = as<'div', ImageContentProps>(
             </Button>
           </Box>
         )}
-        {srcState.status === AsyncStatus.Success && (
+        {resolvedSrc && (
           <Box className={classNames(css.AbsoluteContainer, blurred && css.Blur)}>
             {renderImage({
               alt: body,
               title: body,
-              src: srcState.data,
+              src: resolvedSrc,
               onLoad: handleLoad,
               onError: handleError,
               onClick: () => setViewer(true),
@@ -261,7 +266,7 @@ export const ImageContent = as<'div', ImageContentProps>(
             </TooltipProvider>
           </Box>
         )}
-        {(srcState.status === AsyncStatus.Loading || srcState.status === AsyncStatus.Success) &&
+        {(srcState.status === AsyncStatus.Loading || !!resolvedSrc) &&
           !load &&
           !blurred && (
             <Box className={css.AbsoluteContainer} alignItems="Center" justifyContent="Center">

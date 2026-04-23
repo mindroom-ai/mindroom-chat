@@ -9,9 +9,10 @@ import { FALLBACK_MIMETYPE } from '../../../utils/mimeTypes';
 
 export type ThumbnailContentProps = {
   info: IThumbnailContent;
+  preloadedSrc?: string;
   renderImage: (src: string) => ReactNode;
 };
-export function ThumbnailContent({ info, renderImage }: ThumbnailContentProps) {
+export function ThumbnailContent({ info, preloadedSrc, renderImage }: ThumbnailContentProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
 
@@ -39,8 +40,12 @@ export function ThumbnailContent({ info, renderImage }: ThumbnailContentProps) {
   useBlobUrlCleanup(thumbSrcState);
 
   useEffect(() => {
+    if (preloadedSrc) return;
     loadThumbSrc();
-  }, [loadThumbSrc]);
+  }, [loadThumbSrc, preloadedSrc]);
 
-  return thumbSrcState.status === AsyncStatus.Success ? renderImage(thumbSrcState.data) : null;
+  const resolvedSrc =
+    preloadedSrc ?? (thumbSrcState.status === AsyncStatus.Success ? thumbSrcState.data : undefined);
+
+  return resolvedSrc ? renderImage(resolvedSrc) : null;
 }
