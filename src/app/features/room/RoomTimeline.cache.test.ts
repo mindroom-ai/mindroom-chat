@@ -37,6 +37,7 @@ import {
   threadLastActivityTsMapMock,
   threadRenderStateMock,
   threadResolutionMapMock,
+  virtualizerState,
   virtualPaginatorState,
   waitForCondition,
 } from './RoomTimeline.test.shared';
@@ -55,6 +56,48 @@ describe('RoomTimeline', () => {
         })
       )
     ).not.toThrow();
+  });
+
+  it('renders only the virtualized thread slice while keeping the full thread count', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const threadRoot = makeEvent('$thread-root', { isThreadRoot: true, ts: 1 });
+    const threadReply1 = makeEvent('$thread-reply-1', {
+      threadRootId: threadRoot.getId(),
+      ts: 2,
+    });
+    const threadReply2 = makeEvent('$thread-reply-2', {
+      threadRootId: threadRoot.getId(),
+      ts: 3,
+    });
+    const threadReply3 = makeEvent('$thread-reply-3', {
+      threadRootId: threadRoot.getId(),
+      ts: 4,
+    });
+    const threadEvents = [threadRoot, threadReply1, threadReply2, threadReply3];
+    const room = makeRoom({
+      liveEvents: threadEvents,
+      findEventById: (eventId) => threadEvents.find((event) => event.getId() === eventId),
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    threadRenderStateMock.threadEvents = threadEvents;
+    threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+      threadEvents.map((event, index) => [event.getId(), index])
+    );
+    virtualizerState.renderIndexes = [1, 2];
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          threadId: threadRoot.getId(),
+        })
+      );
+      await flushAsyncWork();
+    });
+
+    expect(virtualizerState.lastOptions?.count).toBe(threadEvents.length);
+    expect(getRenderedEventIds(renderer!)).toEqual([threadReply1.getId(), threadReply2.getId()]);
   });
 
   it('only hydrates the latest room cache slice when it is newer than the loaded room tail', async () => {

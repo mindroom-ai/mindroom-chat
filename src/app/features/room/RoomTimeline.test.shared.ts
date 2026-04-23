@@ -55,6 +55,7 @@ const {
   isTimelineAtLiveEndMock,
   virtualPaginatorState,
   settingsState,
+  virtualizerState,
 } = vi.hoisted(() => ({
   passthrough: 'div',
   scrollType: 'room-timeline-scroll',
@@ -108,6 +109,16 @@ const {
   settingsState: {
     paginationLimit: 300,
   },
+  virtualizerState: {
+    lastOptions: undefined as
+      | {
+          count: number;
+          overscan?: number;
+        }
+      | undefined,
+    scrollToIndexMock: vi.fn(),
+    renderIndexes: undefined as number[] | undefined,
+  },
   virtualPaginatorState: {
     lastOptions: undefined as
       | {
@@ -120,6 +131,56 @@ const {
     callCount: 0,
     renderItems: true,
   },
+}));
+
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: (options: {
+    count: number;
+    overscan?: number;
+  }) => {
+    virtualizerState.lastOptions = options;
+    const indexes =
+      virtualizerState.renderIndexes ??
+      Array.from({ length: options.count }, (_, index) => index);
+    return {
+      getVirtualItems: () =>
+        indexes
+          .filter((index) => index >= 0 && index < options.count)
+          .map((index) => ({
+            index,
+            key: index,
+            start: index * 40,
+            end: (index + 1) * 40,
+            size: 40,
+            lane: 0,
+          })),
+      getTotalSize: () => options.count * 40,
+      measureElement: vi.fn(),
+      scrollToIndex: virtualizerState.scrollToIndexMock,
+    };
+  },
+}));
+
+vi.mock('../../components/virtualizer', () => ({
+  VirtualTile: React.forwardRef<
+    HTMLDivElement,
+    React.HTMLAttributes<HTMLDivElement> & { virtualItem: { index: number; start: number } }
+  >(({ children, style, virtualItem, ...props }, ref) =>
+    React.createElement(
+      'div',
+      {
+        ...props,
+        ref,
+        'data-index': virtualItem.index,
+        style: {
+          position: 'absolute',
+          top: virtualItem.start,
+          ...style,
+        },
+      },
+      children
+    )
+  ),
 }));
 
 const mountedRenderers = new Set<ReturnType<typeof baseCreate>>();
@@ -1195,6 +1256,9 @@ beforeEach(() => {
   saveRoomEventsToCacheMock.mockResolvedValue(undefined);
   saveCachedThreadSummaryMock.mockResolvedValue(undefined);
   settingsState.paginationLimit = 300;
+  virtualizerState.lastOptions = undefined;
+  virtualizerState.renderIndexes = undefined;
+  virtualizerState.scrollToIndexMock.mockReset();
   virtualPaginatorState.lastOptions = undefined;
   virtualPaginatorState.callCount = 0;
   virtualPaginatorState.renderItems = true;
@@ -1492,6 +1556,7 @@ export {
   threadRenderStateMock,
   threadResolutionMapMock,
   TimelineRefreshHarness,
+  virtualizerState,
   virtualPaginatorState,
   waitForCondition,
   isTimelineAtLiveEndMock,

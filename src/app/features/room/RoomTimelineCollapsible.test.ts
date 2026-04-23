@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { createRef } from 'react';
 import { Editor } from 'slate';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
@@ -239,6 +240,45 @@ vi.mock('../../hooks/useVirtualPaginator', () => ({
     observeBackAnchor: vi.fn(),
     observeFrontAnchor: vi.fn(),
   }),
+}));
+
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: (options: { count: number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: options.count }, (_, index) => ({
+        index,
+        key: index,
+        start: index * 40,
+        end: (index + 1) * 40,
+        size: 40,
+        lane: 0,
+      })),
+    getTotalSize: () => options.count * 40,
+    measureElement: vi.fn(),
+    scrollToIndex: vi.fn(),
+  }),
+}));
+
+vi.mock('../../components/virtualizer', () => ({
+  VirtualTile: React.forwardRef<
+    HTMLDivElement,
+    React.HTMLAttributes<HTMLDivElement> & { virtualItem: { index: number; start: number } }
+  >(({ children, style, virtualItem, ...props }, ref) =>
+    React.createElement(
+      'div',
+      {
+        ...props,
+        ref,
+        'data-index': virtualItem.index,
+        style: {
+          position: 'absolute',
+          top: virtualItem.start,
+          ...style,
+        },
+      },
+      children
+    )
+  ),
 }));
 
 vi.mock('../../hooks/useMatrixEventRenderer', () => ({

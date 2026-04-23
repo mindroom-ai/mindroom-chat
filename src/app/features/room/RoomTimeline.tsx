@@ -33,6 +33,7 @@ import {
 import { type Relations } from 'matrix-js-sdk/lib/models/relations';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import classNames from 'classnames';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { ReactEditor } from 'slate-react';
 import { Editor } from 'slate';
 import { SessionMembershipData } from 'matrix-js-sdk/lib/matrixrtc/CallMembership';
@@ -65,6 +66,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useVirtualPaginator, ItemRange } from '../../hooks/useVirtualPaginator';
 import { useAlive } from '../../hooks/useAlive';
 import { editableActiveElement, scrollToBottom } from '../../utils/dom';
+import { VirtualTile } from '../../components/virtualizer';
 import {
   DefaultPlaceholder,
   CompactPlaceholder,
@@ -1148,6 +1150,7 @@ type RoomTimelineProps = {
 const ROOM_FOCUS_SCROLL_RETRY_MAX_ATTEMPTS = 10;
 const ROOM_FOCUS_OBSERVER_IDLE_MS = 200;
 const ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS = 2000;
+const THREAD_VIRTUAL_OVERSCAN = 12;
 const ROOM_FOCUS_NEAR_START_THRESHOLD = 5;
 const ROOM_FOCUS_NEAR_END_THRESHOLD = 5;
 const ROOM_FOCUS_START_MARGIN_PX = 32;
@@ -5034,6 +5037,17 @@ export function RoomTimeline({
       shouldSuppressPagination: useCallback(() => suppressFocusPaginationRef.current, []),
     });
 
+  const threadVirtualizer = useVirtualizer({
+    count: threadId ? threadEvents.length : 0,
+    getScrollElement,
+    estimateSize: () => (messageLayout === MessageLayout.Compact ? 120 : 180),
+    getItemKey: (index) => threadEvents[index]?.getId() ?? `thread-item-${index}`,
+    overscan: THREAD_VIRTUAL_OVERSCAN,
+  });
+
+  const threadVirtualItems = threadId ? threadVirtualizer.getVirtualItems() : [];
+  const threadVirtualTotalSize = threadId ? threadVirtualizer.getTotalSize() : 0;
+
   const redirectRoomEventDeepLink = useCallback(
     (targetEventId: string, linkedTimelines?: EventTimeline[]): boolean => {
       const threadTarget = resolveRoomEventThreadRedirect({
@@ -6752,6 +6766,7 @@ threadDebugTraceId,
 
     const nextItemIndex = threadEventIndexMapRef.current.get(pendingOpen.eventId);
     if (typeof nextItemIndex === 'number') {
+      threadVirtualizer.scrollToIndex(nextItemIndex, { align: 'center' });
       setFocusItem({
         eventId: pendingOpen.eventId,
         index: nextItemIndex,
@@ -6785,7 +6800,14 @@ threadDebugTraceId,
       if (!pendingThreadOpenRef.current) return;
       setPendingThreadOpenTick((val) => val + 1);
     });
-  }, [threadId, threadTimelineTick, pendingThreadOpenTick, scrollToElement]);
+  }, [
+    pendingThreadOpenTick,
+    scrollToElement,
+    threadEventIndexMapRef,
+    threadId,
+    threadTimelineTick,
+    threadVirtualizer,
+  ]);
 
   // scroll to bottom of timeline
   const scrollToBottomCount = scrollToBottomRef.current.count;
@@ -6805,10 +6827,33 @@ threadDebugTraceId,
 
     const pendingAnchor = pendingThreadBackPaginationAnchorRef.current;
     if (!pendingAnchor || pendingAnchor.threadId !== threadId) return;
+    const anchorIndex = threadEventIndexMapRef.current.get(pendingAnchor.eventId);
+    if (typeof anchorIndex === 'number') {
+      threadVirtualizer.scrollToIndex(anchorIndex, { align: 'start' });
+    }
 
-    restoreThreadPrependScrollAnchor(scrollRef.current, pendingAnchor);
-    pendingThreadBackPaginationAnchorRef.current = undefined;
-  }, [threadEvents.length, threadId, threadTimelineTick]);
+    let cancelled = false;
+    const attemptRestore = (attempt: number) => {
+      if (cancelled) return;
+      const currentAnchor = pendingThreadBackPaginationAnchorRef.current;
+      if (!currentAnchor || currentAnchor.threadId !== threadId) return;
+      if (restoreThreadPrependScrollAnchor(scrollRef.current, currentAnchor)) {
+        pendingThreadBackPaginationAnchorRef.current = undefined;
+        return;
+      }
+      if (attempt >= 2) {
+        pendingThreadBackPaginationAnchorRef.current = undefined;
+        return;
+      }
+      requestAnimationFrame(() => attemptRestore(attempt + 1));
+    };
+
+    attemptRestore(0);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [threadEventIndexMapRef, threadEvents.length, threadId, threadTimelineTick, threadVirtualizer]);
 
   // Remove unreadInfo on mark as read
   useEffect(() => {
@@ -6820,6 +6865,10 @@ threadDebugTraceId,
   // scroll out of view msg editor in view.
   useEffect(() => {
     if (editId) {
+      const editItemIndex = threadEventIndexMapRef.current.get(editId);
+      if (threadId && typeof editItemIndex === 'number') {
+        threadVirtualizer.scrollToIndex(editItemIndex, { align: 'center' });
+      }
       const editMsgElement = getEventElementById(scrollRef.current, editId) ?? undefined;
       if (editMsgElement) {
         scrollToElement(editMsgElement, {
@@ -6829,7 +6878,7 @@ threadDebugTraceId,
         });
       }
     }
-  }, [scrollToElement, editId]);
+  }, [editId, scrollToElement, threadId, threadVirtualizer, threadEventIndexMapRef]);
 
   useEffect(() => {
     if (!timelineAtLiveEnd) {
@@ -8606,6 +8655,20 @@ threadDebugTraceId,
   let isPrevRendered = false;
   let newDivider = false;
   let dayDivider = false;
+  const getThreadEventTimelineSet = useCallback(
+    (eventId: string): EventTimelineSet => {
+      const threadTimeline = threadTimelineSet?.getTimelineForEvent(eventId);
+      const roomTimeline = roomTimelineSet.getTimelineForEvent(eventId);
+
+      return (
+        threadTimeline?.getTimelineSet() ??
+        roomTimeline?.getTimelineSet() ??
+        threadTimelineSet ??
+        roomTimelineSet
+      );
+    },
+    [roomTimelineSet, threadTimelineSet]
+  );
   const renderResolvedEvent = (
     mEvent: MatrixEvent,
     item: number,
@@ -8722,6 +8785,30 @@ threadDebugTraceId,
 
     return renderResolvedEvent(mEvent, item, timelineSet, eventEntry.absoluteIndex);
   };
+
+  const firstThreadVirtualIndex = threadId ? threadVirtualItems[0]?.index : undefined;
+  if (threadId && typeof firstThreadVirtualIndex === 'number' && firstThreadVirtualIndex > 0) {
+    prevEvent = threadEvents[firstThreadVirtualIndex - 1];
+    if (prevEvent) {
+      const prevEventId = prevEvent.getId();
+      if (
+        prevEventId &&
+        !(prevEvent.getSender() && ignoredUsersSet.has(prevEvent.getSender() ?? '')) &&
+        (!prevEvent.isRedacted() || showHiddenEvents) &&
+        !reactionOrEditEvent(prevEvent)
+      ) {
+        isPrevRendered = !!renderMatrixEvent(
+          prevEvent.getType(),
+          typeof prevEvent.getStateKey() === 'string',
+          prevEventId,
+          prevEvent,
+          firstThreadVirtualIndex - 1,
+          getThreadEventTimelineSet(prevEventId),
+          false
+        );
+      }
+    }
+  }
 
   return (
     <Box grow="Yes" direction="Column">
@@ -8935,20 +9022,37 @@ threadDebugTraceId,
                     </>
                   ))}
 
-                {threadId
-                  ? threadEvents.map((mEvent, index) => {
-                      const eventId = mEvent.getId();
-                      if (!eventId) return null;
-                      const threadTimeline = threadTimelineSet?.getTimelineForEvent(eventId);
-                      const roomTimeline = roomTimelineSet.getTimelineForEvent(eventId);
-                      const timelineSet =
-                        threadTimeline?.getTimelineSet() ??
-                        roomTimeline?.getTimelineSet() ??
-                        threadTimelineSet ??
-                        roomTimelineSet;
-                      return renderResolvedEvent(mEvent, index, timelineSet);
-                    })
-                  : timelineItems.map(eventRenderer)}
+                {threadId ? (
+                  <div
+                    style={{
+                      position: 'relative',
+                      height: threadVirtualTotalSize,
+                    }}
+                  >
+                    {threadVirtualItems.map((virtualItem) => {
+                      const mEvent = threadEvents[virtualItem.index];
+                      const eventId = mEvent?.getId();
+                      if (!mEvent || !eventId) return null;
+
+                      return (
+                        <VirtualTile
+                          key={virtualItem.key}
+                          virtualItem={virtualItem}
+                          ref={threadVirtualizer.measureElement}
+                          style={{ width: '100%' }}
+                        >
+                          {renderResolvedEvent(
+                            mEvent,
+                            virtualItem.index,
+                            getThreadEventTimelineSet(eventId)
+                          )}
+                        </VirtualTile>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  timelineItems.map(eventRenderer)
+                )}
                 {threadId && canPaginateThreadFront && (
                   <MessageBase space={messageSpacing}>
                     <TimelineDivider variant="Surface">

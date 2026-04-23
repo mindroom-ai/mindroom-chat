@@ -1299,3 +1299,21 @@
   - `npm run typecheck` passes
   - `npm run build` passes
   - `npm run lint` fails at the current branch baseline with 2 unrelated pre-existing repo errors in `src/app/hooks/router/useResolvedRoomIdOrAlias.ts` (`camelcase` on `room_id`) and `src/app/pages/client/ClientStartupContext.tsx` (`react/jsx-no-constructed-context-values`); no lint findings in `src/app/features/room/CompactThreadCard.tsx`
+
+## CINNY-085 — Virtualize thread timeline rendering (2026-04-23)
+
+- Problem: thread view still mounted every loaded message with `threadEvents.map(...)` in `src/app/features/room/RoomTimeline.tsx`, which made large threads expensive to open and scroll because React/layout work scaled with the full loaded thread instead of the visible viewport.
+- Fix:
+  - `src/app/features/room/RoomTimeline.tsx` now virtualizes the `threadId` render path with `@tanstack/react-virtual` and `VirtualTile`, so thread view keeps the full data set loaded but only mounts the visible window plus overscan.
+  - the thread path now seeds the render-state chain from the first visible virtual item so grouping/day-divider/collapsible rendering still matches the full-thread behavior at slice boundaries.
+  - pending-thread focus, edit jumps, and prepend-anchor restoration now scroll the virtualizer to the target index before resolving the DOM node, preserving the existing thread-open/navigation behavior.
+- Tests:
+  - added `src/app/features/room/RoomTimeline.cache.test.ts` coverage proving thread view keeps the full virtualizer item count while only rendering the requested virtual slice.
+  - updated the shared `RoomTimeline` test harness plus `RoomTimelineCollapsible.test.ts` to mock `useVirtualizer` / `VirtualTile` so the existing room/timeline suites still exercise the thread path deterministically.
+- review:
+  - independent second self-review completed via fresh `git diff` / `git diff --check` after implementation and validation; scope stayed limited to `RoomTimeline.tsx`, the focused thread virtualization test updates, and this runbook entry.
+- validation:
+  - `npm test` passes (`155` files, `1404` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `npm run lint` still fails at the current repo baseline with unrelated pre-existing errors in `src/app/hooks/router/useResolvedRoomIdOrAlias.ts` and `src/app/pages/client/ClientStartupContext.tsx`; no new lint errors came from the thread virtualization patch
