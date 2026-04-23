@@ -1,5 +1,7 @@
 import React from 'react';
+import { EventEmitter } from 'events';
 import { EventTimelineSet, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
+import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { useThreadRenderState } from './useThreadRenderState';
@@ -115,7 +117,7 @@ const makeRoom = (
   } as unknown as Room);
 
 const makeThread = (rootEvent: MatrixEvent, events: MatrixEvent[]): Thread =>
-  ({
+  Object.assign(new EventEmitter(), {
     rootEvent,
     events,
   } as unknown as Thread);
@@ -130,7 +132,10 @@ const renderHookHarness = (props: Omit<HarnessProps, 'onRender'>): {
     latestSnapshot = snapshot;
   };
 
-  const renderer = create(React.createElement(Harness, { ...props, onRender }));
+  let renderer: ReactTestRenderer | undefined;
+  act(() => {
+    renderer = create(React.createElement(Harness, { ...props, onRender }));
+  });
 
   return {
     getSnapshot: () => {
@@ -141,10 +146,10 @@ const renderHookHarness = (props: Omit<HarnessProps, 'onRender'>): {
     },
     update: (nextProps) => {
       act(() => {
-        renderer.update(React.createElement(Harness, { ...nextProps, onRender }));
+        renderer?.update(React.createElement(Harness, { ...nextProps, onRender }));
       });
     },
-    renderer,
+    renderer: renderer as ReactTestRenderer,
   };
 };
 
@@ -258,6 +263,76 @@ describe('useThreadRenderState', () => {
     ]);
     expect(getSnapshot().threadEvents[1]).toBe(refetchedFallbackReply);
     expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$edit-13');
+
+    renderer.unmount();
+  });
+
+  it('recomputes thread render state when a live thread event is replaced after a stale fallback copy won the merge', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+    const liveReply = makeMessageEvent('$reply', 2);
+    const staleFallbackReply = makeMessageEvent('$reply', 2);
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+    const thread = makeThread(rootEvent, [liveReply]);
+
+    const { getSnapshot, update, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: false,
+    });
+
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [staleFallbackReply]);
+    });
+
+    update({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: true,
+    });
+
+    expect(getSnapshot().threadEvents[1]).toBe(staleFallbackReply);
+
+    act(() => {
+      liveReply.makeReplaced(makeEditEvent('$edit-3', 3, '$reply'));
+    });
+
+    expect(getSnapshot().threadEvents[1]).toBe(liveReply);
+    expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$edit-3');
+
+    renderer.unmount();
+  });
+
+  it('recomputes thread render state when the thread emits an update after live events mutate', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+    const liveReply = makeMessageEvent('$reply', 2);
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+    const thread = makeThread(rootEvent, []);
+
+    const { getSnapshot, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: true,
+    });
+
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root']);
+
+    act(() => {
+      thread.events.push(liveReply);
+      (thread as unknown as EventEmitter).emit(ThreadEvent.Update, thread);
+    });
+
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
 
     renderer.unmount();
   });

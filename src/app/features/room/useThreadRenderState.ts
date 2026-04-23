@@ -1,5 +1,6 @@
 import { MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EventTimelineSet, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
+import { useThreadEventRefresh } from '../../hooks/useThreadEventRefresh';
 import { aggregateCachedRelationEvents, hydrateCachedEvents } from './eventCacheEditUtils';
 import {
   buildResolveConfirmedEventId,
@@ -31,6 +32,7 @@ type ThreadFallbackState = {
 };
 
 const EMPTY_THREAD_EVENTS: MatrixEvent[] = [];
+const EMPTY_TRACKED_EVENTS: MatrixEvent[] = [];
 
 const buildThreadEvents = ({
   room,
@@ -123,6 +125,7 @@ export const useThreadRenderState = ({
     threadId: undefined,
     events: [],
   });
+  const [threadEventRefreshTick, setThreadEventRefreshTick] = useState(0);
 
   const setSupplementalThreadEvents = useCallback(
     (expectedThreadId: string, events: MatrixEvent[]) => {
@@ -179,7 +182,33 @@ export const useThreadRenderState = ({
     return fallbackThreadEventsState.events;
   }, [fallbackThreadEventsState.events, fallbackThreadEventsState.threadId, threadId]);
 
+  const trackedThreadEvents = useMemo(() => {
+    if (!threadId) return EMPTY_TRACKED_EVENTS;
+
+    const trackedEvents: MatrixEvent[] = [];
+    const seenEvents = new Set<MatrixEvent>();
+    const addTrackedEvent = (mEvent?: MatrixEvent | null) => {
+      if (!mEvent || seenEvents.has(mEvent)) return;
+      seenEvents.add(mEvent);
+      trackedEvents.push(mEvent);
+    };
+
+    addTrackedEvent(thread?.rootEvent ?? room.findEventById(threadId));
+    thread?.events.forEach((mEvent) => addTrackedEvent(mEvent));
+    return trackedEvents;
+  }, [room, thread, threadId]);
+
+  const refreshThreadRenderState = useCallback(() => {
+    if (!threadId) return;
+    setThreadEventRefreshTick((tick) => tick + 1);
+  }, [threadId]);
+
+  useThreadEventRefresh(thread ?? undefined, trackedThreadEvents, refreshThreadRenderState);
+
   const threadEvents = useMemo(() => {
+    // Recompute when live SDK thread objects emit updates without changing array identity.
+    void threadEventRefreshTick;
+
     if (!threadId) {
       threadEventIndexMapRef.current = new Map();
       return [];
@@ -194,7 +223,7 @@ export const useThreadRenderState = ({
     });
     threadEventIndexMapRef.current = nextState.indexMap;
     return nextState.events;
-  }, [fallbackEvents, room, thread, threadId, threadInitialCacheHydrated]);
+  }, [fallbackEvents, room, thread, threadEventRefreshTick, threadId, threadInitialCacheHydrated]);
 
   const threadInitialRenderMode = getThreadInitialRenderMode({
     threadId,

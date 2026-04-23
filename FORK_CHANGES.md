@@ -504,6 +504,26 @@
     - focused Vitest passes for:
       - `src/app/pages/client/sidebar/SearchTab.test.ts`
     - `npm run typecheck` passes
+- `CINNY-069`
+  - Thread render invalidation follow-up (2026-04-12):
+    - `src/app/features/room/useThreadRenderState.ts` now wires the existing `useThreadEventRefresh(...)` helper into thread render state and invalidates the merged thread-event memo on live `MatrixEventEvent.Replaced` / `ThreadEvent.Update` activity.
+    - tracked refresh listeners are limited to the live SDK thread root/event objects so cached fallback copies can be replaced by richer live objects without creating a serialized-replacement refresh loop.
+    - added focused regression coverage in `src/app/features/room/useThreadRenderState.test.ts` for:
+      - a stale cached fallback copy being swapped out after the live SDK event emits `MatrixEventEvent.Replaced`,
+      - and thread render state recomputing after `ThreadEvent.Update` with in-place `thread.events` mutation.
+  - review:
+    - independent second self-review completed via fresh `git diff` / `git diff --check` passes after the hook and test changes; scope stayed limited to `useThreadRenderState` plus its focused test file.
+  - validation (2026-04-12):
+    - `npx vitest run src/app/features/room/useThreadRenderState.test.ts --reporter verbose` passes (`11/11` tests)
+    - `npm test` passes (`126/126` files, `1061/1061` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` passes with the existing repo-wide warning baseline (`78` warnings, `0` errors); the new hook change no longer adds a lint warning.
+    - `npm run test:e2e:docker-matrix` does not complete cleanly in this environment:
+      - `e2e/account-deactivation.spec.ts` times out after `2.1m`
+      - `e2e/account-logout.spec.ts` times out after `2.1m`
+      - both failures stop on the Home empty-state shell with the secondary account still active, which looks unrelated to the thread-render invalidation change
+      - the run was terminated after the second failure to avoid burning through the remaining suite once the unrelated account-flow pattern was clear
 
 ### Validation Standard
 
