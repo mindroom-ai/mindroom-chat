@@ -89,19 +89,17 @@ describe('RoomTimeline approval rendering', () => {
 
     const approvalMessage = renderer?.root.findByProps({ 'data-message-id': '$approval' });
     const reactions = approvalMessage?.props.reactions;
-    const summaryCard = findElementInNode(
+    const { ThreadBadgeRenderer } = await import('../../mindroom/threads/ThreadBadgeRenderer');
+    const threadBadge = findElementInNode(
       reactions,
-      (element) => element.props.summaryInfo?.summaryText === 'Cached approval summary'
-    );
-    const threadIndicator = findElementInNode(
-      reactions,
-      (element) => element.props.threadRootId === '$approval'
+      (element) => element.type === ThreadBadgeRenderer
     );
 
-    expect(summaryCard).toBeDefined();
-    expect(threadIndicator).toBeDefined();
-    expect(threadIndicator?.props.threadReplyCount).toBe(1);
-    expect(threadIndicator?.props.threadParticipantIds).toEqual(['@bob:example.org']);
+    expect(threadBadge).toBeDefined();
+    expect(threadBadge?.props.model.summaryInfo?.summaryText).toBe('Cached approval summary');
+    expect(threadBadge?.props.model.id.threadRootId).toBe('$approval');
+    expect(threadBadge?.props.model.replyCount).toBe(1);
+    expect(threadBadge?.props.model.participantIds).toEqual(['@bob:example.org']);
   });
 
   it('renders a zero-reply thread badge for approval roots with empty thread metadata', async () => {
@@ -151,13 +149,15 @@ describe('RoomTimeline approval rendering', () => {
     });
 
     const approvalMessage = renderer?.root.findByProps({ 'data-message-id': '$approval' });
-    const threadIndicator = findElementInNode(
+    const { ThreadBadgeRenderer } = await import('../../mindroom/threads/ThreadBadgeRenderer');
+    const threadBadge = findElementInNode(
       approvalMessage?.props.reactions,
-      (element) => element.props.threadRootId === '$approval'
+      (element) => element.type === ThreadBadgeRenderer
     );
 
-    expect(threadIndicator).toBeDefined();
-    expect(threadIndicator?.props.threadReplyCount).toBe(0);
+    expect(threadBadge).toBeDefined();
+    expect(threadBadge?.props.model.id.threadRootId).toBe('$approval');
+    expect(threadBadge?.props.model.replyCount).toBe(0);
   });
 
   it('routes decrypted encrypted approval events through the approval renderer', async () => {

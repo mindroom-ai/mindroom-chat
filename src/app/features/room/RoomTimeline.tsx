@@ -69,7 +69,6 @@ import {
   DefaultPlaceholder,
   CompactPlaceholder,
   Reply,
-  ThreadIndicator,
   MessageBase,
   MessageUnsupportedContent,
   Time,
@@ -78,7 +77,6 @@ import {
   MSticker,
   ImageContent,
   EventContent,
-  MindroomThreadSummaryCard,
 } from '../../components/message';
 import {
   factoryRenderLinkifyWithMention,
@@ -199,6 +197,7 @@ import {
   buildThreadBadgeViewModelFromRecord,
   getKnownThreadReplyCount,
 } from '../../mindroom/threads/threadBadgeViewModel';
+import { ThreadBadgeRenderer } from '../../mindroom/threads/ThreadBadgeRenderer';
 import { buildThreadRecordMap } from '../../mindroom/threads/threadRecord';
 import {
   computeThreadRecordStatusCounts,
@@ -938,49 +937,6 @@ const mergeThreadBackfillEvents = (
     if (tsDiff !== 0) return tsDiff;
     return (left.getId() ?? '').localeCompare(right.getId() ?? '');
   });
-};
-
-const renderThreadBadge = ({
-  model,
-  room,
-  onClick,
-  includeRecentSummaryData = false,
-}: {
-  model: ThreadBadgeViewModel | undefined;
-  room: Room;
-  onClick: MouseEventHandler;
-  includeRecentSummaryData?: boolean;
-}): React.ReactNode => {
-  if (!model) return null;
-
-  const { threadRootId } = model.id;
-
-  return (
-    <>
-      {model.summaryInfo && (
-        <Box style={{ marginTop: config.space.S200 }}>
-          <MindroomThreadSummaryCard
-            compact
-            summaryInfo={model.summaryInfo}
-            renderBody={({ body }) => <>{body}</>}
-          />
-        </Box>
-      )}
-      <ThreadIndicator
-        as="button"
-        style={{ marginTop: model.summaryInfo ? config.space.S100 : config.space.S200 }}
-        data-thread-root-id={threadRootId}
-        data-event-id={threadRootId}
-        data-thread-summary={includeRecentSummaryData ? model.recentThreadSummaryText : undefined}
-        threadReplyCount={model.replyCount}
-        threadParticipantIds={model.participantIds}
-        isResolved={model.isResolved}
-        threadRootId={threadRootId}
-        room={room}
-        onClick={onClick}
-      />
-    </>
-  );
 };
 
 export const getTimelineAndBaseIndex = (
@@ -7220,12 +7176,15 @@ threadDebugTraceId,
         const senderId = mEvent.getSender() ?? '';
         const senderDisplayName =
           getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-        const threadSummary = renderThreadBadge({
-          model: getTimelineThreadBadgeModel(mEventId, mEvent),
-          room,
-          onClick: handleOpenReply,
-          includeRecentSummaryData: true,
-        });
+        const threadBadgeModel = getTimelineThreadBadgeModel(mEventId, mEvent);
+        const threadSummary = threadBadgeModel ? (
+          <ThreadBadgeRenderer
+            model={threadBadgeModel}
+            room={room}
+            onClick={handleOpenReply}
+            includeRecentSummaryData
+          />
+        ) : null;
 
         return (
           <Message
@@ -7353,11 +7312,10 @@ threadDebugTraceId,
         const senderId = mEvent.getSender() ?? '';
         const senderDisplayName =
           getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-        const threadSummary = renderThreadBadge({
-          model: getTimelineThreadBadgeModel(mEventId, mEvent),
-          room,
-          onClick: handleOpenReply,
-        });
+        const threadBadgeModel = getTimelineThreadBadgeModel(mEventId, mEvent);
+        const threadSummary = threadBadgeModel ? (
+          <ThreadBadgeRenderer model={threadBadgeModel} room={room} onClick={handleOpenReply} />
+        ) : null;
 
         return (
           <Message
@@ -7456,11 +7414,10 @@ threadDebugTraceId,
         const highlighted = focusItem?.index === item && focusItem.highlight;
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
         const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
-        const threadSummary = renderThreadBadge({
-          model: getTimelineThreadBadgeModel(mEventId, mEvent),
-          room,
-          onClick: handleOpenReply,
-        });
+        const threadBadgeModel = getTimelineThreadBadgeModel(mEventId, mEvent);
+        const threadSummary = threadBadgeModel ? (
+          <ThreadBadgeRenderer model={threadBadgeModel} room={room} onClick={handleOpenReply} />
+        ) : null;
 
         return (
           <Message

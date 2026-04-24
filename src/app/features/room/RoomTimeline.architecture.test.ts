@@ -1,0 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+
+describe('RoomTimeline architecture', () => {
+  it('delegates thread badge JSX rendering to the MindRoom badge renderer', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).not.toContain('const renderThreadBadge');
+    expect(source).toContain('ThreadBadgeRenderer');
+  });
+});
