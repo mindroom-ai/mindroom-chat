@@ -107,9 +107,18 @@ export const getSettings = () => {
 
   const settings = localStorage.getItem(STORAGE_KEY);
   if (settings === null) return defaultSettings;
+  let parsed: Partial<Settings> = {};
+  try {
+    const value = JSON.parse(settings);
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      parsed = value as Partial<Settings>;
+    }
+  } catch {
+    parsed = {};
+  }
   const merged = {
     ...defaultSettings,
-    ...(JSON.parse(settings) as Settings),
+    ...parsed,
   };
   merged.pageZoom = sanitizeStoredPageZoom(merged.pageZoom);
   merged.paginationLimit = sanitizePaginationLimit(merged.paginationLimit);

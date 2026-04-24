@@ -23,6 +23,26 @@
   --font-secondary: 'InterVariable', var(--font-emoji), sans-serif;
 }
 
+html.light-theme {
+  --app-bg-color: #F2F2F2;
+  color-scheme: light;
+}
+
+html.silver-theme {
+  --app-bg-color: #DEDEDE;
+  color-scheme: light;
+}
+
+html.dark-theme {
+  --app-bg-color: #1A1A1A;
+  color-scheme: dark;
+}
+
+html.butter-theme {
+  --app-bg-color: #1A1916;
+  color-scheme: dark;
+}
+
 .dark-theme,
 .butter-theme {
   --tc-link: hsl(213deg 100% 80%);

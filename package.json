@@ -104,8 +104,8 @@
     "ua-parser-js": "1.0.35"
   },
   "devDependencies": {
-    "@element-hq/element-call-embedded": "0.16.3",
     "@capacitor/cli": "8.1.0",
+    "@element-hq/element-call-embedded": "0.16.3",
     "@esbuild-plugins/node-globals-polyfill": "0.2.3",
     "@playwright/test": "1.58.2",
     "@rollup/plugin-inject": "5.0.3",
@@ -132,6 +132,7 @@
     "eslint-plugin-jsx-a11y": "6.6.1",
     "eslint-plugin-react": "7.31.11",
     "eslint-plugin-react-hooks": "4.6.0",
+    "jsdom": "22.1.0",
     "patch-package": "8.0.1",
     "prettier": "2.8.1",
     "react-test-renderer": "18.2.0",
