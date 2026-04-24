@@ -8,4 +8,12 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('const renderThreadBadge');
     expect(source).toContain('ThreadBadgeRenderer');
   });
+
+  it('keeps renderability and preload counting outside RoomTimeline', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).not.toContain('export const isRenderableEvent =');
+    expect(source).not.toContain('export const getRoomPreloadCounts =');
+    expect(source).toContain("from './roomTimelineEvents'");
+  });
 });
