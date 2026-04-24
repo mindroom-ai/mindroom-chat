@@ -2303,6 +2303,125 @@
   - `npm run build` passes
   - `npm run lint` fails at the current branch baseline with 2 unrelated pre-existing repo errors in `src/app/hooks/router/useResolvedRoomIdOrAlias.ts` (`camelcase` on `room_id`) and `src/app/pages/client/ClientStartupContext.tsx` (`react/jsx-no-constructed-context-values`); no lint findings in `src/app/features/room/CompactThreadCard.tsx`
 
+## CINNY-087 — Theme bootstrap before runtime config / first React paint (2026-04-22)
+
+- Problem:
+  - iOS cold launches could flash the UA/default background between the native splash dismissal and `ThemeManager.tsx`'s first `useEffect`, and the first React commit could still paint the wrong Folds tokens before the full theme class stack landed on `<body>`.
+- Fix:
+  - `index.html` now inserts the `CINNY-087` inline `<style>` + `<script>` block before `/runtime-config.js`.
+  - moved the authored `<meta name="theme-color">` and `<meta name="color-scheme">` tags above that bootstrap block so the inline script can update them during head parsing; this preserves the requirement that the bootstrap itself stays ahead of `/runtime-config.js`.
+  - inline bootstrap script now:
+    - mirrors `useActiveTheme()` resolution parity for stored theme ids,
+    - validates stored ids against the stable theme ids (`light-theme`, `silver-theme`, `dark-theme`, `butter-theme`),
+    - falls back to `light-theme` when `useSystemTheme === false` and `themeId` is missing/invalid,
+    - updates `theme-color` only when the resolved background differs from the authored dark default,
+    - updates `color-scheme` only for light-mode themes,
+    - and stashes the resolved id on `window.__INITIAL_THEME__`.
+  - `src/index.css` now mirrors the active theme on `<html>` via `html.<theme>` selectors so steady-state CSS keeps `--app-bg-color` and `color-scheme` aligned with the bootstrap class.
+  - added `src/app/theme/themeBootstrap.ts`:
+    - `resolveInitialTheme(pathname)` now resolves unauth routes to plain system `light-theme` / `dark-theme` first, then reads `window.__INITIAL_THEME__`, then falls back to `localStorage['settings']`, and returns the resolved theme metadata.
+    - `applyThemeToDom()` now owns the shared DOM mutation path: full body class stack, `<html>` stable theme id sync, `--app-bg-color` / background sync, and meta-tag updates.
+  - `src/index.tsx` now calls `applyThemeToDom(resolveInitialTheme(window.location.pathname))` before `root.render(<App />)` so the first `SplashScreen` commit resolves against the correct Folds theme classes.
+  - `src/app/pages/ThemeManager.tsx` now reuses `applyThemeToDom()` for both unauth and auth flows; the existing `useEffect` wiring and monochrome filter behavior stay intact.
+  - added focused coverage in `src/app/theme/themeBootstrap.test.ts`:
+    - 6 plan cases for `resolveInitialTheme()`,
+    - 1 extra fast-path case for `window.__INITIAL_THEME__`,
+    - and 1 JSDOM DOM-integration case for `applyThemeToDom()`.
+  - added `jsdom` as a dev dependency so Vitest can run the required file-level JSDOM integration test.
+- review:
+  - independent second self-review completed via fresh `git diff --stat`, targeted `git diff`, `git diff --check`, and targeted `eslint` on the touched TypeScript files after the meta-tag ordering fix; scope stayed limited to the theme bootstrap files, `index.html`, and this runbook update.
+- validation:
+  - `npx vitest run src/app/theme/themeBootstrap.test.ts` passes (`8/8` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - targeted `npx eslint src/app/theme/themeBootstrap.ts src/app/theme/themeBootstrap.test.ts src/app/pages/ThemeManager.tsx src/index.tsx` reports only the existing `src/index.tsx` `no-console` warnings; no new lint errors
+  - manual desktop smoke against `npm run preview` build:
+    - used Playwright with the system `chromium` binary because the Chrome MCP is unavailable in this environment.
+    - prepaint bootstrap verified across these built-page cases with the app bundle neutralized so only the inline head bootstrap ran:
+      - system dark default,
+      - system light default,
+      - explicit dark,
+      - explicit light,
+      - explicit butter,
+      - explicit invalid id falling back to light.
+    - full built app verified on the unauth login route with remote auth requests stubbed to remove unrelated preview-origin CORS noise:
+      - no console errors,
+      - light-theme load produced the expected light meta/class state,
+      - switching emulated OS appearance light -> dark updated `<html>`, `<body>`, and the meta tags through the shared `ThemeManager` / `applyThemeToDom()` runtime path.
+    - limitation:
+      - this environment did not expose an authenticated local session on the preview origin, so the Settings UI itself was not reachable for a literal in-app theme-toggle click path; runtime DOM theme flipping was validated on the loaded unauth route instead.
+- round-1 review follow-up (2026-04-23):
+  - `src/app/theme/themeBootstrap.ts` now validates resolved theme ids with an own-property check, so prototype keys like `toString` / `constructor` no longer pass storage validation and crash the bootstrap path.
+  - `resolveInitialTheme(pathname)` and the inline `index.html` bootstrap now share the same unauth-route rule as `UnAuthRouteThemeManager`: `/login`, `/register`, and `/reset-password` cold launches always resolve to plain system `light-theme` / `dark-theme`, ignoring stored custom theme ids.
+  - `index.html` moves `<meta charset="UTF-8">` back to the top of `<head>` so the charset declaration stays within the first 1024 bytes again.
+  - `applyThemeToDom()` now restores the pre-refactor runtime contract for `meta[name="color-scheme"]` by writing the single active scheme (`light` or `dark`) instead of the multi-value bootstrap string.
+  - `src/app/theme/themeBootstrap.test.ts` now covers the missing stored-theme cases, prototype-key regressions, and unauth-route cold-launch parity, bringing the focused file to `14` passing tests.
+- review:
+  - independent second self-review completed via fresh `git diff --stat`, targeted `git diff`, `git diff --check`, and targeted `eslint` on `src/app/theme/themeBootstrap.ts`, `src/app/theme/themeBootstrap.test.ts`, and `src/index.tsx`; scope stayed limited to the round-1 review fixes, `index.html`, and this runbook update.
+- validation round-1 follow-up:
+  - `npx vitest run src/app/theme/themeBootstrap.test.ts` passes (`14/14` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - targeted `npx eslint src/app/theme/themeBootstrap.ts src/app/theme/themeBootstrap.test.ts src/index.tsx` reports only the existing `src/index.tsx` `no-console` warnings; no new lint errors
+- round-2 review follow-up (2026-04-23):
+  - the inline `index.html` bootstrap and `src/app/theme/themeBootstrap.ts` now share the same pathname-or-hash unauth-route rule, so hash-router cold launches like `/#/login`, `/#/<basename>/register`, and `/#/reset-password` resolve to plain system `light-theme` / `dark-theme` before any stored explicit theme can flash.
+  - `readStoredThemeSettings()` now normalizes parsed non-object JSON values (including literal `null`) back to empty settings, so malformed-but-valid payloads no longer crash `resolveInitialTheme()`.
+  - the inline bootstrap narrows its `try/catch` to just the `localStorage` read / `JSON.parse` path, which preserves the unauth-route fallback and system-theme resolution even when `localStorage['settings']` is corrupt.
+  - removed the dead runtime theme bootstrap code called out in review:
+    - `applyThemeToDom()` now writes `resolvedTheme.bgColor` directly to `meta[name="theme-color"]`,
+    - and `src/index.tsx` no longer pre-adds Folds classes that `applyThemeToDom()` immediately clears and reapplies.
+  - `src/app/theme/themeBootstrap.test.ts` now covers the `settings = 'null'` regression plus the hash-router unauth-route cases, bringing the focused file to `18` passing tests.
+- review:
+  - independent second self-review completed via fresh `git diff --stat`, targeted `git diff`, and `git diff --check`; scope stayed limited to the round-2 theme bootstrap fixes, the inline bootstrap parity update, the dead-code cleanup, focused tests, and this runbook update.
+- validation round-2 follow-up:
+  - `npx vitest run src/app/theme/themeBootstrap.test.ts` passes (`18/18` tests)
+  - `npm test` passes (`156/156` files, `1419/1419` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+- round-3 review follow-up (2026-04-23):
+  - the inline `index.html` bootstrap and `src/app/theme/themeBootstrap.ts` now normalize candidate auth paths before matching by stripping a leading hash marker and any `?search` suffix, so query-bearing auth cold launches like `/#/login?addAccount=1`, `/#/login?loginToken=...`, `/#/register?email=...`, `/#/reset-password?email=...`, and `/login?return_to=...` all stay on the plain system `light-theme` / `dark-theme` unauth fallback path instead of flashing a stored custom theme first.
+  - added a `CINNY-087` sync comment beside the normalization helper in both the inline bootstrap and `src/app/theme/themeBootstrap.ts` because the prepaint-before-bundle constraint still requires those two copies to stay aligned manually.
+  - `src/app/theme/themeBootstrap.test.ts` now covers the six query-bearing unauth-route regressions called out in round 3, lifting the focused file from `18` to `24` passing tests.
+  - intentionally deferred, no code change: the pre-existing malformed-JSON boot failure in `src/app/state/settings.ts` remains out of scope for `CINNY-087` and will be tracked separately; only the theme bootstrap path stays defensively parsed here.
+- review:
+  - independent second self-review completed after validation via fresh `git diff --stat`, targeted `git diff`, and `git diff --check`; scope stayed limited to the round-3 theme bootstrap matcher fix, the inline bootstrap sync update, focused tests, and this runbook update.
+- validation round-3 follow-up:
+  - `npx vitest run src/app/theme/themeBootstrap.test.ts` passes (`24/24` tests)
+  - `npm run build` passes
+  - `npm run typecheck` passes
+- round-4 review follow-up (2026-04-23):
+  - `src/app/theme/themeBootstrap.ts` and the inline `index.html` bootstrap now use the same falsey `!useSystemTheme` explicit-theme branch as `useActiveTheme()`, so stored values like `null`, `0`, `''`, and omitted/`undefined` no longer diverge between the prepaint bootstrap and the first React render.
+  - added `hasActiveStoredSession()` in `src/app/theme/themeBootstrap.ts` and the mirrored inline `hasActiveSession` read in `index.html`; both now treat “no active stored session” the same as an auth-route cold launch and force the plain system `light-theme` / `dark-theme` unauth fallback before any stored explicit theme can flash.
+  - the session gate intentionally requires `activeSessionId` to match an entry in `sessions[]`, matching `routeSessionGuards.ts`; empty stores, missing `activeSessionId`, mismatched ids, absent storage, and malformed session-store JSON all stay on the unauth fallback path.
+  - `src/app/theme/themeBootstrap.test.ts` now covers the four falsey `useSystemTheme` parity cases plus six session-store cold-launch cases, lifting the focused file from `24` to `34` passing tests.
+- review:
+  - independent second self-review completed after validation via fresh `git diff --stat`, targeted `git diff`, and `git diff --check`; scope stayed limited to the round-4 theme bootstrap/session-gate fixes, the inline bootstrap parity update, focused tests, and this runbook update.
+- validation round-4 follow-up:
+  - `npx vitest run src/app/theme/themeBootstrap.test.ts` passes (`34/34` tests)
+  - `npm run build` passes
+  - `npm run typecheck` passes
+- round-6 review follow-up (2026-04-23):
+  - fixed the root architectural drift instead of adding another point-fix:
+    - `src/app/state/settings.ts` `getSettings()` now guards `JSON.parse`, ignores non-object payloads, and merges defaults before sanitizing, so malformed or legacy `localStorage['settings']` values fall back safely instead of crashing bootstrap/runtime.
+    - `src/app/theme/themeBootstrap.ts` no longer hand-parses or normalizes stored theme settings; the authenticated bootstrap path now calls `getSettings()` directly, so it shares the same default-merged settings contract as `useActiveTheme()`.
+    - the inline `index.html` bootstrap now mirrors `defaultSettings.useSystemTheme = true` explicitly for the prepaint path, with a sync comment pointing back to `src/app/state/settings.ts`.
+  - this fixes the convergent missing-key parity bug from review rounds 5/6 without touching the unrelated `src/app/features/room/useThreadRenderState.ts` CINNY-069 code.
+  - `src/app/theme/themeBootstrap.test.ts` now covers:
+    - authenticated malformed-JSON and `'null'` settings payloads through the `getSettings()` bootstrap path,
+    - the missing-key `{ themeId: 'silver-theme' }` regression,
+    - and the legacy partial `{}` system-theme fallback.
+  - `src/app/state/settings.test.ts` now locks the malformed-JSON tolerance directly on `getSettings()`.
+- review:
+  - independent second self-review completed via fresh `git diff --stat`, targeted `git diff`, `git diff --check`, focused test review, and a final pass over the bootstrap/settings parity path; scope stayed limited to the round-6 structural bootstrap fix, focused tests, `index.html`, and this runbook update.
+- validation round-6 follow-up:
+  - `npx vitest run src/app/theme/themeBootstrap.test.ts` passes (`35/35` tests)
+  - `npx vitest run src/app/state/settings.test.ts` passes (`10/10` tests)
+  - `npm test` passes (`156/156` files, `1437/1437` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `git diff --check` passes
+  - targeted `npx eslint src/app/state/settings.ts src/app/state/settings.test.ts src/app/theme/themeBootstrap.ts src/app/theme/themeBootstrap.test.ts` passes with no output
+
 ## CINNY-085 — Move MindRoom message primitives to fork namespace (2026-04-25)
 
 - Moved thread-summary parsing, tool-approval parsing, the approval card, and the summary card into `src/app/mindroom/messages`.
