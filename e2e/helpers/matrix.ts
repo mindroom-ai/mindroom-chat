@@ -295,6 +295,34 @@ export const sendRoomMessage = async (
   return body.event_id;
 };
 
+export const sendReaction = async (
+  homeserver: string,
+  accessToken: string,
+  roomId: string,
+  eventId: string,
+  key: string,
+  txnPrefix = 'cinny-e2e-reaction'
+): Promise<string> => {
+  const txnId = `${txnPrefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const body = await matrixFetch<{ event_id: string }>(
+    homeserver,
+    `/rooms/${encodeURIComponent(roomId)}/send/m.reaction/${txnId}`,
+    {
+      method: 'PUT',
+      accessToken,
+      body: JSON.stringify({
+        'm.relates_to': {
+          rel_type: 'm.annotation',
+          event_id: eventId,
+          key,
+        },
+      }),
+    }
+  );
+
+  return body.event_id;
+};
+
 export const sendStateEvent = async (
   homeserver: string,
   accessToken: string,
