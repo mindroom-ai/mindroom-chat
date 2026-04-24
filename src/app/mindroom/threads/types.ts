@@ -92,3 +92,17 @@ export type ThreadBadgeViewModel = {
   participantIds?: string[];
   isResolved: boolean;
 };
+
+export type ThreadHeaderViewModel = {
+  summaryText?: string;
+  displayTags: string[];
+  isResolved: boolean;
+  canEdit: boolean;
+  availableTags: string[];
+  pickerDisabled: boolean;
+  scheduledTaskCount: number;
+  nextScheduledTs?: number;
+  scheduledDisplayText?: string;
+  scheduledLabel?: string;
+  bannerScheduledText?: string;
+};

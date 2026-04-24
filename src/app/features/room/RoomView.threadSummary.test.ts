@@ -5,7 +5,7 @@ import { clearThreadSummarySharedState } from './threadSummaryState';
 
 type MockThreadContextBannerProps = {
   onExitThread?: () => void;
-  summaryText?: string;
+  summaryInfo?: { summaryText?: string; generatedTs?: number; messageCount?: number };
 };
 
 type MockRoomTimelineProps = {
@@ -245,7 +245,7 @@ describe('RoomView thread summary sharing', () => {
       'https%3A%2F%2Fmindroom.chat::%40alice%3Aexample.org',
       '!room:example.org'
     );
-    expect(threadContextBannerState.props?.summaryText).toBe('Cached summary');
+    expect(threadContextBannerState.props?.summaryInfo?.summaryText).toBe('Cached summary');
     expect(roomTimelineState.props?.summaryMap.get('$thread-root')?.summaryText).toBe(
       'Cached summary'
     );
@@ -259,7 +259,7 @@ describe('RoomView thread summary sharing', () => {
       await flushAsyncWork();
     });
 
-    expect(threadContextBannerState.props?.summaryText).toBe('Live summary');
+    expect(threadContextBannerState.props?.summaryInfo?.summaryText).toBe('Live summary');
     expect(roomTimelineState.props?.summaryMap.get('$thread-root')?.summaryText).toBe(
       'Live summary'
     );

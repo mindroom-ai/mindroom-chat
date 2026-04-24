@@ -2,8 +2,11 @@ import React, { useCallback, useEffect } from 'react';
 import { Box, Icon, IconButton, Icons, Text, Button } from 'folds';
 import { IconCalendarEvent } from '@tabler/icons-react';
 import { Room } from 'matrix-js-sdk';
+import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
 import * as replyCss from '../../components/message/Reply.css';
 import { useThreadHeaderInfo } from '../../hooks/useThreadHeaderInfo';
+import { buildThreadHeaderViewModelFromRecord } from '../../mindroom/threads/threadHeaderViewModel';
+import { buildThreadRecord } from '../../mindroom/threads/threadRecord';
 import { useThreadRootEvent } from './useThreadRootEvent';
 import { useThreadTags } from './useThreadTags';
 import { useMutateThreadTags } from './useMutateThreadTags';
@@ -14,7 +17,7 @@ import * as css from './ThreadContextBanner.css';
 export interface ThreadContextBannerProps {
   room: Room;
   threadId: string;
-  summaryText?: string;
+  summaryInfo?: MindroomThreadSummaryInfo;
   onExitThread: () => void;
 }
 
@@ -61,7 +64,7 @@ function TagPills({
 export function ThreadContextBanner({
   room,
   threadId,
-  summaryText,
+  summaryInfo,
   onExitThread,
 }: ThreadContextBannerProps) {
   const rootEventId = useThreadRootEvent(room, threadId);
@@ -69,11 +72,31 @@ export function ThreadContextBanner({
     room,
     threadId
   );
-  const { displayTags, isResolved, canEdit, availableTags } = useThreadTags(
-    room,
-    rootEventId
-  );
+  const { tags, isResolved, canEdit, availableTags } = useThreadTags(room, rootEventId);
   const { addTag, removeTag, setResolved, updating, error } = useMutateThreadTags(room);
+  const threadRootId = rootEventId ?? threadId;
+  const threadRootEvent =
+    room.getThread(threadRootId)?.rootEvent ?? room.findEventById(threadRootId);
+  const headerRecord = buildThreadRecord({
+    room,
+    threadRootId,
+    threadRootEvent,
+    summaryInfo,
+    threadResolution: {
+      isResolved,
+      tags,
+    },
+    scheduledTaskCount,
+    nextScheduledTs,
+  });
+  const pickerDisabled = !rootEventId || updating;
+  const headerModel = buildThreadHeaderViewModelFromRecord({
+    record: headerRecord,
+    scheduledDisplayText,
+    canEdit,
+    availableTags,
+    pickerDisabled,
+  });
 
   useEffect(() => {
     if (error) {
@@ -99,28 +122,13 @@ export function ThreadContextBanner({
 
   const handleToggleResolve = useCallback(() => {
     if (!rootEventId) return;
-    setResolved(rootEventId, !isResolved);
-  }, [rootEventId, isResolved, setResolved]);
+    setResolved(rootEventId, !headerModel.isResolved);
+  }, [rootEventId, headerModel.isResolved, setResolved]);
 
-  const pickerDisabled = !rootEventId || updating;
-  const hasTags = displayTags.length > 0;
-  const scheduledLabel =
-    scheduledTaskCount > 0
-      ? nextScheduledTs === undefined
-        ? scheduledDisplayText
-        : `${scheduledTaskCount} pending scheduled ${
-            scheduledTaskCount === 1 ? 'task' : 'tasks'
-          }${scheduledDisplayText ? `, ${scheduledDisplayText}` : ''}`
-      : undefined;
-  const bannerScheduledText =
-    scheduledDisplayText && !summaryText && nextScheduledTs !== undefined
-      ? `Next task ${scheduledDisplayText}`
-      : scheduledDisplayText && !summaryText && scheduledTaskCount > 0
-        ? `${scheduledTaskCount} scheduled ${scheduledTaskCount === 1 ? 'task' : 'tasks'}`
-        : scheduledDisplayText;
+  const hasTags = headerModel.displayTags.length > 0;
 
   return (
-    <div className={isResolved ? css.BannerResolved : css.Banner}>
+    <div className={headerModel.isResolved ? css.BannerResolved : css.Banner}>
       <div className={css.TitleRow}>
         <IconButton size="300" radii="300" onClick={onExitThread}>
           <Icon src={Icons.ArrowLeft} />
@@ -129,28 +137,28 @@ export function ThreadContextBanner({
           <Box direction="Row" alignItems="Center" gap="200">
             <Text size="B400">Thread View</Text>
             {/* Desktop: tags inline on title row */}
-            {(hasTags || canEdit) && (
+            {(hasTags || headerModel.canEdit) && (
               <div className={`${css.TagsRow} ${css.DesktopOnlyTags}`}>
                 <TagPills
-                  tags={displayTags}
+                  tags={headerModel.displayTags}
                   maxPills={DESKTOP_MAX_PILLS}
-                  allTags={displayTags}
-                  canEdit={canEdit}
+                  allTags={headerModel.displayTags}
+                  canEdit={headerModel.canEdit}
                   onRemove={handleRemoveTag}
                 />
-                {canEdit && (
+                {headerModel.canEdit && (
                   <ThreadTagPicker
-                    availableTags={availableTags}
+                    availableTags={headerModel.availableTags}
                     onAddTag={handleAddTag}
-                    disabled={pickerDisabled}
+                    disabled={headerModel.pickerDisabled}
                   />
                 )}
               </div>
             )}
           </Box>
-          {(summaryText || bannerScheduledText) && (
+          {(headerModel.summaryText || headerModel.bannerScheduledText) && (
             <div className={css.SubtitleRow}>
-              {summaryText && (
+              {headerModel.summaryText && (
                 <Text
                   as="span"
                   data-thread-context-summary="true"
@@ -158,14 +166,14 @@ export function ThreadContextBanner({
                   size="T200"
                   priority="300"
                   truncate
-                  title={summaryText}
+                  title={headerModel.summaryText}
                 >
-                  {summaryText}
+                  {headerModel.summaryText}
                 </Text>
               )}
-              {bannerScheduledText && scheduledLabel && (
+              {headerModel.bannerScheduledText && headerModel.scheduledLabel && (
                 <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
-                  {summaryText && (
+                  {headerModel.summaryText && (
                     <Text
                       as="span"
                       className={css.MetadataDot}
@@ -182,8 +190,8 @@ export function ThreadContextBanner({
                     alignItems="Center"
                     gap="100"
                     role="img"
-                    aria-label={scheduledLabel}
-                    title={scheduledLabel}
+                    aria-label={headerModel.scheduledLabel}
+                    title={headerModel.scheduledLabel}
                   >
                     <IconCalendarEvent
                       size={12}
@@ -192,7 +200,7 @@ export function ThreadContextBanner({
                       aria-hidden="true"
                     />
                     <Text as="span" size="T200" priority="300" truncate>
-                      {bannerScheduledText}
+                      {headerModel.bannerScheduledText}
                     </Text>
                   </Box>
                 </Box>
@@ -200,20 +208,20 @@ export function ThreadContextBanner({
             </div>
           )}
           {/* Mobile: tags in a dedicated row below subtitle */}
-          {(hasTags || canEdit) && (
+          {(hasTags || headerModel.canEdit) && (
             <div className={css.MobileOnlyTags}>
               <TagPills
-                tags={displayTags}
+                tags={headerModel.displayTags}
                 maxPills={MOBILE_MAX_PILLS}
-                allTags={displayTags}
-                canEdit={canEdit}
+                allTags={headerModel.displayTags}
+                canEdit={headerModel.canEdit}
                 onRemove={handleRemoveTag}
               />
-              {canEdit && (
+              {headerModel.canEdit && (
                 <ThreadTagPicker
-                  availableTags={availableTags}
+                  availableTags={headerModel.availableTags}
                   onAddTag={handleAddTag}
-                  disabled={pickerDisabled}
+                  disabled={headerModel.pickerDisabled}
                 />
               )}
             </div>
@@ -222,14 +230,14 @@ export function ThreadContextBanner({
         <div className={css.ResolveChip}>
           <Button
             size="300"
-            variant={isResolved ? 'Success' : 'Secondary'}
-            fill={isResolved ? 'Solid' : 'Soft'}
-            outlined={!isResolved}
+            variant={headerModel.isResolved ? 'Success' : 'Secondary'}
+            fill={headerModel.isResolved ? 'Solid' : 'Soft'}
+            outlined={!headerModel.isResolved}
             radii="300"
             onClick={handleToggleResolve}
-            disabled={!canEdit || pickerDisabled}
+            disabled={!headerModel.canEdit || headerModel.pickerDisabled}
           >
-            <Text size="T200">{isResolved ? 'Resolved' : 'Resolve'}</Text>
+            <Text size="T200">{headerModel.isResolved ? 'Resolved' : 'Resolve'}</Text>
           </Button>
         </div>
       </div>
