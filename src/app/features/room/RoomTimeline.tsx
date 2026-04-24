@@ -203,6 +203,7 @@ import { buildThreadRecordMap } from '../../mindroom/threads/threadRecord';
 import {
   computeThreadRecordStatusCounts,
   computeThreadRecordTagCounts,
+  matchesThreadRecordFilterState,
   resolveThreadRecordOverviewRootIds,
 } from '../../mindroom/threads/threadRecordOverview';
 import type { ThreadBadgeViewModel, ThreadRecord } from '../../mindroom/threads/types';
@@ -211,12 +212,10 @@ import { loadRoomThreads } from './roomThreadList';
 import {
   type ThreadFilterState,
   type ThreadSortFreezeState,
-  type ThreadOverviewMetadata,
   type FilterPreset,
   createThreadSortControlSignature,
   getRoomScheduledTaskCounts,
   isRoomThreadOverviewActive,
-  matchesThreadFilterState,
   hasActiveThreadFilters,
   collectAvailableRoomTags,
 } from './roomThreadOverviewModel';
@@ -658,7 +657,7 @@ export const getThreadFilteredEvents = (
   threadId: string | undefined,
   threadFilterState: ThreadFilterState,
   threadReplyCountMap?: Map<string, number>,
-  threadMetadataMap?: Map<string, ThreadOverviewMetadata>
+  threadRecordMap?: ReadonlyMap<string, ThreadRecord>
 ): MatrixEvent[] => {
   if (threadId || !hasActiveThreadFilters(threadFilterState)) return renderableEvents;
 
@@ -669,31 +668,9 @@ export const getThreadFilteredEvents = (
       return false;
     }
 
-    const meta = threadMetadataMap?.get(eventId);
-    if (!meta) {
-      // Fallback: derive minimal metadata from the resolution map when no
-      // prebuilt metadata map is available (e.g. during initial render before
-      // the full metadata map is constructed).
-      const resolution = threadResolutionMap.get(eventId);
-      const fallback: ThreadOverviewMetadata = {
-        isResolved: resolution?.isResolved ?? false,
-        isUnread: false,
-        isStreaming: false,
-        scheduledTaskCount: 0,
-        lastActivityTs: 0,
-        absoluteIndex: 0,
-        lastSenderId: undefined,
-        lastSenderDisplayName: undefined,
-        latestReplyPreviewText: undefined,
-        participantDisplayName: undefined,
-        summaryText: undefined,
-        rootPreviewText: undefined,
-        messageCount: 0,
-        tags: [],
-      };
-      return matchesThreadFilterState(fallback, threadFilterState);
-    }
-    return matchesThreadFilterState(meta, threadFilterState);
+    const record = threadRecordMap?.get(eventId);
+    if (!record) return false;
+    return matchesThreadRecordFilterState(record, threadFilterState);
   });
 };
 
@@ -1501,6 +1478,7 @@ type ShouldTrackLiveCollapsibleMessage = {
   threadId: string | undefined;
   threadFilterState: ThreadFilterState;
   threadResolutionMap: Map<string, { isResolved: boolean }>;
+  threadRecordMap?: ReadonlyMap<string, ThreadRecord>;
   ignoredUsersSet: Set<string>;
   showHiddenEvents: boolean;
   hideMembershipEvents: boolean;
@@ -1513,6 +1491,7 @@ export const shouldTrackLiveCollapsibleMessage = ({
   threadId,
   threadFilterState,
   threadResolutionMap,
+  threadRecordMap,
   ignoredUsersSet,
   showHiddenEvents,
   hideMembershipEvents,
@@ -1544,7 +1523,15 @@ export const shouldTrackLiveCollapsibleMessage = ({
   }
 
   return (
-    getThreadFilteredEvents([mEvent], room, threadResolutionMap, threadId, threadFilterState).length > 0
+    getThreadFilteredEvents(
+      [mEvent],
+      room,
+      threadResolutionMap,
+      threadId,
+      threadFilterState,
+      undefined,
+      threadRecordMap
+    ).length > 0
   );
 };
 
@@ -5136,6 +5123,7 @@ export function RoomTimeline({
           threadId,
           threadFilterState: effectiveThreadFilterState,
           threadResolutionMap,
+          threadRecordMap: normalThreadRecordMap,
           ignoredUsersSet,
           showHiddenEvents,
           hideMembershipEvents,
@@ -5323,6 +5311,7 @@ export function RoomTimeline({
         effectiveThreadFilterState,
         onStoreThreadSummary,
         threadResolutionMap,
+        normalThreadRecordMap,
         sessionId,
       ]
     )

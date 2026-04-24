@@ -2,6 +2,7 @@ import React, { createRef } from 'react';
 import { Direction, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
+import type { ThreadRecord } from '../../mindroom/threads/types';
 import {
   getThreadOpenSeedSnapshot,
   saveThreadOpenSeedSnapshot,
@@ -41,6 +42,43 @@ import {
   virtualPaginatorState,
   waitForCondition,
 } from './RoomTimeline.test.shared';
+
+const makeThreadFilterRecord = (
+  threadRootId: string,
+  overrides: {
+    status?: Partial<ThreadRecord['status']>;
+    presentation?: Partial<ThreadRecord['presentation']>;
+  } = {}
+): ThreadRecord => ({
+  roomId: '!room:test',
+  threadRootId,
+  rootEventId: threadRootId,
+  absoluteIndex: 0,
+  presentation: {
+    summaryInfo: undefined,
+    summaryText: undefined,
+    rootPreviewText: undefined,
+    latestReplyPreviewText: undefined,
+    lastSenderId: undefined,
+    lastSenderDisplayName: undefined,
+    messageCount: 0,
+    participantIds: [],
+    replyParticipantIds: [],
+    primarySummaryText: undefined,
+    recentThreadSummaryText: undefined,
+    ...overrides.presentation,
+  },
+  status: {
+    isKnownThreadRoot: true,
+    replyCount: 0,
+    isResolved: false,
+    isUnread: false,
+    isStreaming: false,
+    scheduledTaskCount: 0,
+    tags: [],
+    ...overrides.status,
+  },
+});
 
 describe('RoomTimeline', () => {
   describe('cache and overview', () => {
@@ -3895,9 +3933,12 @@ describe('RoomTimeline', () => {
     const messageEvent = makeEvent('$message');
     const renderableEvents = [messageEvent, unresolvedEvent, resolvedEvent];
     const resolutionMap = new Map([['$thread-resolved', { isResolved: true }]]);
-    const threadMetadataMap = new Map<string, import('./roomThreadOverviewModel').ThreadOverviewMetadata>([
-      ['$thread-unresolved', { isResolved: false, isUnread: false, isStreaming: false, scheduledTaskCount: 0, lastActivityTs: 0, absoluteIndex: 0, lastSenderId: undefined, lastSenderDisplayName: undefined, participantDisplayName: undefined, summaryText: undefined, rootPreviewText: undefined, messageCount: 0, tags: [] }],
-      ['$thread-resolved', { isResolved: true, isUnread: false, isStreaming: false, scheduledTaskCount: 0, lastActivityTs: 0, absoluteIndex: 0, lastSenderId: undefined, lastSenderDisplayName: undefined, participantDisplayName: undefined, summaryText: undefined, rootPreviewText: undefined, messageCount: 0, tags: [] }],
+    const threadRecordMap = new Map<string, ThreadRecord>([
+      ['$thread-unresolved', makeThreadFilterRecord('$thread-unresolved')],
+      [
+        '$thread-resolved',
+        makeThreadFilterRecord('$thread-resolved', { status: { isResolved: true } }),
+      ],
     ]);
 
     expect(
@@ -3908,7 +3949,7 @@ describe('RoomTimeline', () => {
         undefined,
         { ...DEFAULT_THREAD_FILTER_STATE, resolved: 'exclude' as const, tags: new Map() },
         undefined,
-        threadMetadataMap
+        threadRecordMap
       ).map((event) => event.getId())
     ).toEqual(['$thread-unresolved']);
     expect(
@@ -3919,7 +3960,7 @@ describe('RoomTimeline', () => {
         undefined,
         { ...DEFAULT_THREAD_FILTER_STATE, resolved: 'include' as const, tags: new Map() },
         undefined,
-        threadMetadataMap
+        threadRecordMap
       ).map((event) => event.getId())
     ).toEqual(['$thread-resolved']);
   });
@@ -3931,9 +3972,6 @@ describe('RoomTimeline', () => {
     const messageEvent = makeEvent('$message');
     const fallbackCounts = new Map([[fallbackRoot.getId(), 2]]);
     const resolutionMap = new Map<string, { isResolved: boolean }>();
-    const makeMeta = (isResolved: boolean): import('./roomThreadOverviewModel').ThreadOverviewMetadata => ({
-      isResolved, isUnread: false, isStreaming: false, scheduledTaskCount: 0, lastActivityTs: 0, absoluteIndex: 0, lastSenderId: undefined, lastSenderDisplayName: undefined, participantDisplayName: undefined, summaryText: undefined, rootPreviewText: undefined, messageCount: 0, tags: [],
-    });
 
     expect(
       getThreadFilteredEvents(
@@ -3943,7 +3981,7 @@ describe('RoomTimeline', () => {
         undefined,
         { ...DEFAULT_THREAD_FILTER_STATE, resolved: 'exclude' as const, tags: new Map() },
         fallbackCounts,
-        new Map([['$thread-root', makeMeta(false)]])
+        new Map([['$thread-root', makeThreadFilterRecord('$thread-root')]])
       ).map((event) => event.getId())
     ).toEqual(['$thread-root']);
 
@@ -3956,7 +3994,9 @@ describe('RoomTimeline', () => {
         undefined,
         { ...DEFAULT_THREAD_FILTER_STATE, resolved: 'include' as const, tags: new Map() },
         fallbackCounts,
-        new Map([['$thread-root', makeMeta(true)]])
+        new Map([
+          ['$thread-root', makeThreadFilterRecord('$thread-root', { status: { isResolved: true } })],
+        ])
       ).map((event) => event.getId())
     ).toEqual(['$thread-root']);
   });
@@ -3976,21 +4016,6 @@ describe('RoomTimeline', () => {
       ['$reply-event', { isResolved: false, tags: null }],
       ['$actual-root', { isResolved: false, tags: null }],
     ]);
-    const makeMeta = (): import('./roomThreadOverviewModel').ThreadOverviewMetadata => ({
-      isResolved: false,
-      isUnread: false,
-      isStreaming: false,
-      scheduledTaskCount: 0,
-      lastActivityTs: 0,
-      absoluteIndex: 0,
-      lastSenderId: undefined,
-      lastSenderDisplayName: undefined,
-      participantDisplayName: undefined,
-      summaryText: undefined,
-      rootPreviewText: undefined,
-      messageCount: 0,
-      tags: [],
-    });
 
     expect(
       getThreadFilteredEvents(
@@ -4001,8 +4026,8 @@ describe('RoomTimeline', () => {
         { ...DEFAULT_THREAD_FILTER_STATE, resolved: 'exclude' as const, tags: new Map() },
         fallbackCounts,
         new Map([
-          ['$reply-event', makeMeta()],
-          ['$actual-root', makeMeta()],
+          ['$reply-event', makeThreadFilterRecord('$reply-event')],
+          ['$actual-root', makeThreadFilterRecord('$actual-root')],
         ])
       ).map((event) => event.getId())
     ).toEqual(['$actual-root']);
