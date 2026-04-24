@@ -202,11 +202,6 @@ import {
   isVisibleThreadRootEvent,
   type TimelineEventEntry,
 } from './roomTimelineEvents';
-export {
-  getRenderableEventEntries,
-  getRoomPreloadCounts,
-  isRenderableEvent,
-} from './roomTimelineEvents';
 import {
   buildThreadBadgeViewModelFromRecord,
   getKnownThreadReplyCount,

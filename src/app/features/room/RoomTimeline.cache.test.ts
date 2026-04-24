@@ -793,7 +793,7 @@ describe('RoomTimeline', () => {
   });
 
   it('counts reply-backed thread roots in preload surface counts even when the root is not renderable in the room timeline', async () => {
-    const { getRoomPreloadCounts } = await import('./RoomTimeline');
+    const { getRoomPreloadCounts } = await import('./roomTimelineEvents');
     const fallbackRoot = makeEvent('$thread-root');
     const fallbackReply = makeEvent('$thread-reply', {
       threadRootId: fallbackRoot.getId(),
@@ -4054,7 +4054,7 @@ describe('RoomTimeline', () => {
   });
 
   it('filters hidden relations, thread replies, and ignored senders in isRenderableEvent', async () => {
-    const { isRenderableEvent } = await import('./RoomTimeline');
+    const { isRenderableEvent } = await import('./roomTimelineEvents');
     const baseArgs = [
       makeRoom() as never,
       undefined,
@@ -4092,7 +4092,7 @@ describe('RoomTimeline', () => {
   });
 
   it('applies membership and hidden-event toggles in isRenderableEvent', async () => {
-    const { isRenderableEvent } = await import('./RoomTimeline');
+    const { isRenderableEvent } = await import('./roomTimelineEvents');
     const room = makeRoom();
     const membershipEvent = makeEvent('$member', { type: 'm.room.member' });
     isMembershipChangedMock.mockReturnValue(true);

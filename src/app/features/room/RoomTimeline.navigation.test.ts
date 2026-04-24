@@ -132,7 +132,8 @@ describe('RoomTimeline', () => {
   });
 
   it('maps hidden event targets to a visible neighbor instead of filtered index zero', async () => {
-    const { getRenderableEventEntries, getTimelineTargetAnchor } = await import('./RoomTimeline');
+    const { getTimelineTargetAnchor } = await import('./RoomTimeline');
+    const { getRenderableEventEntries } = await import('./roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const threadRoot = makeEvent('$thread-root', { ts: 2 });
     const hiddenReply = makeEvent('$thread-reply', {
@@ -169,7 +170,8 @@ describe('RoomTimeline', () => {
   });
 
   it('falls back to the closest renderable entry when all target candidates are hidden', async () => {
-    const { getRenderableEventEntries, getTimelineTargetAnchor } = await import('./RoomTimeline');
+    const { getTimelineTargetAnchor } = await import('./RoomTimeline');
+    const { getRenderableEventEntries } = await import('./roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const hiddenReply = makeEvent('$thread-reply', {
       threadRootId: '$thread-root',
@@ -211,7 +213,8 @@ describe('RoomTimeline', () => {
   });
 
   it('falls back to the last renderable entry when read-up-to is beyond all visible events', async () => {
-    const { getRenderableEventEntries, getUnreadTargetAnchor } = await import('./RoomTimeline');
+    const { getUnreadTargetAnchor } = await import('./RoomTimeline');
+    const { getRenderableEventEntries } = await import('./roomTimelineEvents');
     const firstVisible = makeEvent('$first', { ts: 1 });
     const lastVisible = makeEvent('$last', { ts: 2 });
     const hiddenReply = makeEvent('$hidden-reply', {
@@ -617,7 +620,8 @@ describe('RoomTimeline', () => {
   });
 
   it('maps hidden event targets to a visible neighbor instead of filtered index zero', async () => {
-    const { getRenderableEventEntries, getTimelineTargetAnchor } = await import('./RoomTimeline');
+    const { getTimelineTargetAnchor } = await import('./RoomTimeline');
+    const { getRenderableEventEntries } = await import('./roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const threadRoot = makeEvent('$thread-root', { ts: 2 });
     const hiddenReply = makeEvent('$thread-reply', {
@@ -654,7 +658,8 @@ describe('RoomTimeline', () => {
   });
 
   it('falls back to the closest renderable entry when all target candidates are hidden', async () => {
-    const { getRenderableEventEntries, getTimelineTargetAnchor } = await import('./RoomTimeline');
+    const { getTimelineTargetAnchor } = await import('./RoomTimeline');
+    const { getRenderableEventEntries } = await import('./roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const hiddenReply = makeEvent('$thread-reply', {
       threadRootId: '$thread-root',
@@ -696,7 +701,8 @@ describe('RoomTimeline', () => {
   });
 
   it('falls back to the last renderable entry when read-up-to is beyond all visible events', async () => {
-    const { getRenderableEventEntries, getUnreadTargetAnchor } = await import('./RoomTimeline');
+    const { getUnreadTargetAnchor } = await import('./RoomTimeline');
+    const { getRenderableEventEntries } = await import('./roomTimelineEvents');
     const firstVisible = makeEvent('$first', { ts: 1 });
     const lastVisible = makeEvent('$last', { ts: 2 });
     const hiddenReply = makeEvent('$hidden-reply', {
