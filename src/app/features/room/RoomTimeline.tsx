@@ -198,11 +198,20 @@ import {
   getLinkedTimelineEvents,
   getRenderableEventEntries,
   getRenderableEvents,
-  getRoomPreloadCounts,
   isRenderableEvent,
   isVisibleThreadRootEvent,
   type TimelineEventEntry,
 } from './roomTimelineEvents';
+import {
+  getFirstLinkedTimeline,
+  getLinkedTimelines,
+  getLiveTimeline,
+  getTimelinesEventsCount,
+  recalibrateTimelinePagination,
+  timelineToEventsCount,
+  type RecalibrateFilterOpts,
+  type Timeline,
+} from './timelinePagination';
 import {
   buildThreadBadgeViewModelFromRecord,
   getKnownThreadReplyCount,
@@ -280,6 +289,7 @@ import { useRoomThreadResolutionMap } from './useRoomThreadTags';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { isPendingLocalEchoThreadRoot } from './threadRouteUtils';
 import { useThreadOverviewCacheHydration } from './useThreadOverviewCacheHydration';
+import { useRoomEagerPreload } from '../../mindroom/threads/preloadController';
 
 export { getRoomEventThreadOpenTarget } from './roomDeepLink';
 
@@ -306,35 +316,9 @@ const TimelineDivider = as<'div', { variant?: ContainerColor | 'Inherit' }>(
   )
 );
 
-export const getLiveTimeline = (room: Room): EventTimeline =>
-  room.getUnfilteredTimelineSet().getLiveTimeline();
-
 export const getEventTimeline = (room: Room, eventId: string): EventTimeline | undefined => {
   const timelineSet = room.getUnfilteredTimelineSet();
   return timelineSet.getTimelineForEvent(eventId) ?? undefined;
-};
-
-export const getFirstLinkedTimeline = (
-  timeline: EventTimeline,
-  direction: Direction
-): EventTimeline => {
-  const linkedTm = timeline.getNeighbouringTimeline(direction);
-  if (!linkedTm) return timeline;
-  return getFirstLinkedTimeline(linkedTm, direction);
-};
-
-export const getLinkedTimelines = (timeline: EventTimeline): EventTimeline[] => {
-  const firstTimeline = getFirstLinkedTimeline(timeline, Direction.Backward);
-  const timelines: EventTimeline[] = [];
-
-  for (
-    let nextTimeline: EventTimeline | null = firstTimeline;
-    nextTimeline;
-    nextTimeline = nextTimeline.getNeighbouringTimeline(Direction.Forward)
-  ) {
-    timelines.push(nextTimeline);
-  }
-  return timelines;
 };
 
 const withStateTargetEvents = (room: Room, events: MatrixEvent[]): MatrixEvent[] => {
@@ -573,13 +557,6 @@ export const shouldRenderUnreadDividerAt = ({
   eventAbsoluteIndex > readUptoAbsoluteIndex &&
   (prevRenderedEventAbsoluteIndex === undefined ||
     prevRenderedEventAbsoluteIndex <= readUptoAbsoluteIndex);
-
-export const timelineToEventsCount = (t: EventTimeline) => t.getEvents().length;
-export const getTimelinesEventsCount = (timelines: EventTimeline[]): number => {
-  const timelineEventCountReducer = (count: number, tm: EventTimeline) =>
-    count + timelineToEventsCount(tm);
-  return timelines.reduce(timelineEventCountReducer, 0);
-};
 
 const getRoomDerivedThreadSnapshotState = ({
   room,
@@ -1559,74 +1536,6 @@ export const getCompactRootEventsNeedingBackfill = ({
     }))
     .filter(({ events }) => events.length > 0);
 
-const recalibrateTimelinePagination = (
-  setTimeline: Dispatch<
-    SetStateAction<{
-      linkedTimelines: EventTimeline[];
-      range: ItemRange;
-    }>
-  >,
-  linkedTimelines: EventTimeline[],
-  timelinesEventsCount: number[],
-  backwards: boolean,
-  filterOpts?: {
-    room: Room;
-    threadId: string | undefined;
-    ignoredUsersSet: Set<string>;
-    showHiddenEvents: boolean;
-    hideMembershipEvents: boolean;
-    hideNickAvatarEvents: boolean;
-  },
-  timelinesRenderableCounts?: number[]
-) => {
-  const topTimeline = linkedTimelines[0];
-  const timelineMatch = (mt: EventTimeline) => (t: EventTimeline) => t === mt;
-
-  const newLTimelines = getLinkedTimelines(topTimeline);
-  const topTmIndex = newLTimelines.findIndex(timelineMatch(topTimeline));
-  const topAddedTm = topTmIndex === -1 ? [] : newLTimelines.slice(0, topTmIndex);
-
-  let offsetRange: number;
-  if (filterOpts) {
-    const countRenderable = (tms: EventTimeline[]) =>
-      getRenderableEvents(
-        tms,
-        filterOpts.room,
-        filterOpts.threadId,
-        filterOpts.ignoredUsersSet,
-        filterOpts.showHiddenEvents,
-        filterOpts.hideMembershipEvents,
-        filterOpts.hideNickAvatarEvents
-      ).length;
-    const oldTopRenderableCount =
-      timelinesRenderableCounts?.[0] ?? countRenderable([linkedTimelines[0]]);
-    const newTopRenderableCount = countRenderable([newLTimelines[topTmIndex]]);
-    const topTmAddedRenderable = newTopRenderableCount - oldTopRenderableCount;
-    const addedTmRenderable = countRenderable(topAddedTm);
-    offsetRange = addedTmRenderable + (backwards ? topTmAddedRenderable : 0);
-  } else {
-    const topTmAddedEvt =
-      timelineToEventsCount(newLTimelines[topTmIndex]) - timelinesEventsCount[0];
-    offsetRange = getTimelinesEventsCount(topAddedTm) + (backwards ? topTmAddedEvt : 0);
-  }
-
-  setTimeline((currentTimeline) => ({
-    linkedTimelines: newLTimelines,
-    range:
-      offsetRange > 0
-        ? {
-            start: currentTimeline.range.start + offsetRange,
-            end: currentTimeline.range.end + offsetRange,
-          }
-        : { ...currentTimeline.range },
-  }));
-};
-
-type Timeline = {
-  linkedTimelines: EventTimeline[];
-  range: ItemRange;
-};
-
 const useEventTimelineLoader = (
   mx: MatrixClient,
   room: Room,
@@ -1657,15 +1566,6 @@ const useEventTimelineLoader = (
   );
 
   return loadEventTimeline;
-};
-
-type RecalibrateFilterOpts = {
-  room: Room;
-  threadId: string | undefined;
-  ignoredUsersSet: Set<string>;
-  showHiddenEvents: boolean;
-  hideMembershipEvents: boolean;
-  hideNickAvatarEvents: boolean;
 };
 
 const useTimelinePagination = (
@@ -3416,260 +3316,23 @@ export function RoomTimeline({
     [alive, handleTimelinePagination, mx, room, sessionId, threadId, timeline.linkedTimelines]
   );
 
-  // Eager backward preload: on room entry, paginate until paginationLimit is reached
-  useEffect(() => {
-    if (threadId || eventId) return undefined;
-    if (eagerPreloadDoneForRoomRef.current === room.roomId) {
-      // Don't clear eagerPreloading here — the cache-hydration effect still needs
-      // to reset timeline.range first. It will clear eagerPreloading after setTimeline.
-      return undefined;
-    }
-
-    let cancelled = false;
-    const BATCH_SIZE = 200;
-    const MAX_STALLED_BATCHES = 3;
-
-    // Capture the initial backward pagination token before any cache effects can clear it
-    const initialLiveTimeline = getLiveTimeline(room);
-    const savedPaginationToken = initialLiveTimeline.getPaginationToken(Direction.Backward);
-
-    const preload = async () => {
-      setEagerPreloading(true);
-      // Let cache hydration effects settle first
-      await new Promise<void>((r) => {
-        setTimeout(r, 100);
-      });
-      if (cancelled || !alive()) {
-        console.log('[eager-preload] cancelled or unmounted before starting loop');
-        logTimelineDebug(roomDebugTraceId, 'eager-preload-cancelled-before-start');
-        setEagerPreloading(false);
-        return;
-      }
-
-      console.log(
-        `[eager-preload] starting for room ${room.roomId}, limit=${safePaginationLimitRef.current}, savedToken=${savedPaginationToken ? 'yes' : 'no'}`
-      );
-      logTimelineDebug(roomDebugTraceId, 'eager-preload-start', {
-        limit: safePaginationLimitRef.current,
-        savedTokenPresent: !!savedPaginationToken,
-      });
-
-      let iterations = 0;
-      let stalledBatches = 0;
-      let preloadSucceeded = false;
-      while (true) {
-        if (cancelled || !alive()) {
-          console.log(`[eager-preload] cancelled or unmounted at iteration ${iterations}`);
-          logTimelineDebug(roomDebugTraceId, 'eager-preload-cancelled', {
-            iterations,
-          });
-          break;
-        }
-        if (roomIdRef.current !== room.roomId || threadIdRef.current) {
-          console.log(`[eager-preload] room/thread changed at iteration ${iterations}`);
-          logTimelineDebug(roomDebugTraceId, 'eager-preload-abort-room-change', {
-            iterations,
-            currentThreadId: threadIdRef.current,
-          });
-          break;
-        }
-
-        // Wait for any ongoing pagination to complete
-        if (roomPaginatingBackRef.current) {
-          await new Promise<void>((r) => {
-            setTimeout(r, 50);
-          });
-          continue;
-        }
-
-        // Get fresh timeline state from SDK
-        const linkedTimelines = getLinkedTimelines(getLiveTimeline(room));
-        const filterOpts = recalibrateFilterOptsRef.current;
-        if (!filterOpts) {
-          console.log('[eager-preload] missing filter opts, breaking');
-          break;
-        }
-
-        const counts = getRoomPreloadCounts(linkedTimelines, filterOpts.room, filterOpts);
-
-        const surfacedCount = useSurfacePreloadTarget
-          ? counts.surfaceCount
-          : counts.renderableCount;
-
-        if (surfacedCount >= safePaginationLimitRef.current) {
-          console.log(
-            `[eager-preload] done: surfaceCount=${surfacedCount} >= limit=${safePaginationLimitRef.current}`
-          );
-          logTimelineDebug(roomDebugTraceId, 'eager-preload-target-reached', {
-            cacheCount: counts.cacheCount,
-            iterations,
-            renderableCount: counts.renderableCount,
-            surfaceCount: counts.surfaceCount,
-            target: safePaginationLimitRef.current,
-          });
-          preloadSucceeded = true;
-          break;
-        }
-
-        const firstTimeline = linkedTimelines[0];
-        if (!firstTimeline) {
-          console.log('[eager-preload] no first timeline, breaking');
-          preloadSucceeded = true;
-          break;
-        }
-
-        let backwardToken = firstTimeline.getPaginationToken(Direction.Backward);
-        if (!backwardToken && savedPaginationToken && iterations === 0) {
-          console.log('[eager-preload] pagination token was cleared, restoring saved token');
-          firstTimeline.setPaginationToken(savedPaginationToken, Direction.Backward);
-          backwardToken = savedPaginationToken;
-        }
-        if (!backwardToken) {
-          console.log('[eager-preload] no backward pagination token, breaking');
-          logTimelineDebug(roomDebugTraceId, 'eager-preload-no-backward-token', {
-            cacheCount: counts.cacheCount,
-            iterations,
-            renderableCount: counts.renderableCount,
-          });
-          preloadSucceeded = true;
-          break;
-        }
-
-        const timelinesEventsCount = linkedTimelines.map(timelineToEventsCount);
-        const timelinesRenderableCounts = linkedTimelines.map(
-          (tl) =>
-            getRenderableEvents(
-              [tl],
-              filterOpts.room,
-              filterOpts.threadId,
-              filterOpts.ignoredUsersSet,
-              filterOpts.showHiddenEvents,
-              filterOpts.hideMembershipEvents,
-              filterOpts.hideNickAvatarEvents
-            ).length
-        );
-
-        roomPaginatingBackRef.current = true;
-        try {
-          const [err, didPaginate] = await to(
-            mx.paginateEventTimeline(firstTimeline, {
-              backwards: true,
-              limit: BATCH_SIZE,
-            })
-          );
-          if (err) {
-            console.log(`[eager-preload] pagination error at iteration ${iterations}:`, err);
-            break;
-          }
-          if (didPaginate === false) {
-            console.log(
-              `[eager-preload] paginateEventTimeline returned false at iteration ${iterations}`
-            );
-            preloadSucceeded = true;
-            break;
-          }
-
-          const fetchedTimeline =
-            firstTimeline.getNeighbouringTimeline(Direction.Backward) ?? firstTimeline;
-          if (room.hasEncryptionStateEvent()) {
-            await to(decryptAllTimelineEvent(mx, fetchedTimeline));
-          }
-
-          if (!cancelled && alive() && roomIdRef.current === room.roomId && !threadIdRef.current) {
-            recalibrateTimelinePagination(
-              setTimeline,
-              linkedTimelines,
-              timelinesEventsCount,
-              true,
-              filterOpts,
-              timelinesRenderableCounts
-            );
-          }
-
-          const refreshedLinkedTimelines = getLinkedTimelines(getLiveTimeline(room));
-          const refreshedCounts = getRoomPreloadCounts(
-            refreshedLinkedTimelines,
-            filterOpts.room,
-            filterOpts
-          );
-          const refreshedBackwardToken =
-            refreshedLinkedTimelines[0]?.getPaginationToken(Direction.Backward) ?? null;
-
-          const progressed =
-            refreshedCounts.cacheCount > counts.cacheCount ||
-            refreshedCounts.renderableCount > counts.renderableCount ||
-            refreshedCounts.surfaceCount > counts.surfaceCount ||
-            refreshedBackwardToken !== backwardToken;
-
-          if (!progressed) {
-            stalledBatches += 1;
-            console.log(
-              `[eager-preload] batch ${iterations + 1}: no progress (cached=${refreshedCounts.cacheCount}, renderable=${refreshedCounts.renderableCount}, surface=${refreshedCounts.surfaceCount}, stalled=${stalledBatches}/${MAX_STALLED_BATCHES})`
-            );
-            if (stalledBatches >= MAX_STALLED_BATCHES) {
-              console.log('[eager-preload] pagination stalled, breaking');
-              break;
-            }
-          } else {
-            stalledBatches = 0;
-          }
-
-          iterations++;
-          console.log(
-            `[eager-preload] batch ${iterations}: cached ${refreshedCounts.cacheCount} room events, renderable ${refreshedCounts.renderableCount}, surface ${refreshedCounts.surfaceCount} / ${safePaginationLimitRef.current}`
-          );
-          logTimelineDebug(roomDebugTraceId, 'eager-preload-batch', {
-            backwardTokenChanged: refreshedBackwardToken !== backwardToken,
-            cacheCount: refreshedCounts.cacheCount,
-            iterations,
-            renderableCount: refreshedCounts.renderableCount,
-            surfaceCount: refreshedCounts.surfaceCount,
-            stalledBatches,
-            target: safePaginationLimitRef.current,
-          });
-        } finally {
-          roomPaginatingBackRef.current = false;
-        }
-      }
-
-      if (!cancelled) {
-        setEagerPreloading(false);
-        if (preloadSucceeded) {
-          eagerPreloadDoneForRoomRef.current = room.roomId;
-        }
-        const finalLinkedTimelines = getLinkedTimelines(getLiveTimeline(room));
-        setTimeline((current) => ({
-          ...current,
-          linkedTimelines: finalLinkedTimelines,
-        }));
-        const finalFilterOpts = recalibrateFilterOptsRef.current;
-        const finalCounts = finalFilterOpts
-          ? getRoomPreloadCounts(finalLinkedTimelines, finalFilterOpts.room, finalFilterOpts)
-          : {
-              cacheCount: getTimelinesEventsCount(finalLinkedTimelines),
-              renderableCount: getTimelinesEventsCount(finalLinkedTimelines),
-              surfaceCount: getTimelinesEventsCount(finalLinkedTimelines),
-            };
-        console.log(
-          `[eager-preload] complete for room ${room.roomId}: ${iterations} batches, ${finalCounts.cacheCount} cached room events, ${finalCounts.renderableCount} renderable events, ${finalCounts.surfaceCount} surface entries`
-        );
-        logTimelineDebug(roomDebugTraceId, 'eager-preload-complete', {
-          cacheCount: finalCounts.cacheCount,
-          iterations,
-          preloadSucceeded,
-          renderableCount: finalCounts.renderableCount,
-          surfaceCount: finalCounts.surfaceCount,
-        });
-      }
-    };
-
-    preload();
-
-    return () => {
-      cancelled = true;
-      setEagerPreloading(false);
-    };
-  }, [alive, eventId, mx, room, roomDebugTraceId, threadId, useSurfacePreloadTarget]);
+  useRoomEagerPreload({
+    alive,
+    eventId,
+    eagerPreloadDoneForRoomRef,
+    mx,
+    recalibrateFilterOptsRef,
+    room,
+    roomDebugTraceId,
+    roomIdRef,
+    roomPaginatingBackRef,
+    safePaginationLimitRef,
+    setEagerPreloading,
+    setTimeline,
+    threadId,
+    threadIdRef,
+    useSurfacePreloadTarget,
+  });
 
   const persistThreadEventCache = useCallback(
     (
