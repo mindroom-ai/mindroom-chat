@@ -195,12 +195,16 @@ import {
 } from './compactThreadRootData';
 import { CompactRoomView } from './CompactRoomView';
 import { RoomThreadOverview } from './RoomThreadOverview';
-import { buildPreferredThreadSummaryMap } from './threadSummarySelection';
 import {
   buildThreadBadgeViewModelFromRecord,
   getKnownThreadReplyCount,
 } from '../../mindroom/threads/threadBadgeViewModel';
 import { buildThreadRecordMap } from '../../mindroom/threads/threadRecord';
+import {
+  computeThreadRecordStatusCounts,
+  computeThreadRecordTagCounts,
+  resolveThreadRecordOverviewRootIds,
+} from '../../mindroom/threads/threadRecordOverview';
 import type { ThreadBadgeViewModel, ThreadRecord } from '../../mindroom/threads/types';
 import type { ThreadFilterKey } from './RoomThreadOverview';
 import { loadRoomThreads } from './roomThreadList';
@@ -209,19 +213,13 @@ import {
   type ThreadSortFreezeState,
   type ThreadOverviewMetadata,
   type FilterPreset,
-  applyFrozenThreadOrder,
   buildThreadMetadataMap,
   createThreadSortControlSignature,
-  filterThreadRootEvents,
-  filterThreadsBySearch,
-  sortThreadRootEvents,
   getRoomScheduledTaskCounts,
   isRoomThreadOverviewActive,
   matchesThreadFilterState,
   hasActiveThreadFilters,
   collectAvailableRoomTags,
-  computeStatusCounts,
-  computeTagCounts,
 } from './roomThreadOverviewModel';
 import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
 import {
@@ -2272,46 +2270,18 @@ export const getActiveTimelineRange = (
   return getVisibleTimelineRange(range, count, paginationLimit);
 };
 
-const resolveOverviewThreadRootIds = ({
-  threadRootIds,
-  threadFilterState,
-  searchQuery,
-  metadataMap,
-  threadSortFreezeState,
-  threadSortControlSignature,
-}: {
-  threadRootIds: string[];
-  threadFilterState: ThreadFilterState;
-  searchQuery: string;
-  metadataMap: Map<string, ThreadOverviewMetadata>;
-  threadSortFreezeState: ThreadSortFreezeState | null;
-  threadSortControlSignature: string;
-}): {
-  filteredIds: string[];
-  liveOrderedIds: string[];
-  displayOrderedIds: string[];
-} => {
-  const filteredIds = filterThreadsBySearch(
-    filterThreadRootEvents(threadRootIds, threadFilterState, metadataMap),
-    searchQuery,
-    metadataMap
-  );
-  const liveOrderedIds = sortThreadRootEvents(
-    filteredIds,
-    threadFilterState.sortBy,
-    threadFilterState.sortDirection,
-    metadataMap
-  );
-  const displayOrderedIds =
-    threadSortFreezeState && threadSortFreezeState.controlSignature === threadSortControlSignature
-      ? applyFrozenThreadOrder(threadSortFreezeState.orderedRootIds, liveOrderedIds)
-      : liveOrderedIds;
-
-  return {
-    filteredIds,
-    liveOrderedIds,
-    displayOrderedIds,
-  };
+const buildThreadRootEventMap = (
+  roomSurfaceEventEntries: TimelineEventEntry[],
+  indexMap: Map<string, number>
+): Map<string, MatrixEvent> => {
+  const eventMap = new Map<string, MatrixEvent>();
+  roomSurfaceEventEntries.forEach(({ event }) => {
+    const eventId = event.getId();
+    if (eventId && indexMap.has(eventId)) {
+      eventMap.set(eventId, event);
+    }
+  });
+  return eventMap;
 };
 
 const resolveOrderedRoomOverviewEvents = ({
@@ -2409,12 +2379,38 @@ const getFilteredRoomOverviewEvents = (
     activeThreadRootData.indexMap,
     activeThreadRootData.bodyMap
   );
+  const activeThreadRootEventMap = new Map<string, MatrixEvent>();
+  renderableEvents.forEach((event) => {
+    const eventId = event.getId();
+    if (eventId && activeThreadRootData.indexMap.has(eventId)) {
+      activeThreadRootEventMap.set(eventId, event);
+    }
+  });
+  roomThreads.forEach((thread) => {
+    if (thread.id && thread.rootEvent && activeThreadRootData.indexMap.has(thread.id)) {
+      activeThreadRootEventMap.set(thread.id, thread.rootEvent);
+    }
+  });
+  const recordMap = buildThreadRecordMap({
+    room,
+    threadRootIds: activeThreadRootData.ids,
+    threadRootEventMap: activeThreadRootEventMap,
+    metadataMap,
+    summaryMap,
+    fallbackSummaryMap: summaryMap,
+    fallbackReplyCountMap: threadReplyCountMapForMeta,
+    fallbackParticipantMap: threadParticipantMap,
+    threadResolutionMap,
+    currentUserId,
+    scheduledTaskCounts,
+    absoluteIndexMap: activeThreadRootData.indexMap,
+  });
 
-  const orderedRootIds = resolveOverviewThreadRootIds({
+  const orderedRootIds = resolveThreadRecordOverviewRootIds({
     threadRootIds: activeThreadRootData.ids,
     threadFilterState,
     searchQuery,
-    metadataMap,
+    recordMap,
     threadSortFreezeState,
     threadSortControlSignature,
   }).displayOrderedIds;
@@ -3132,6 +3128,89 @@ export function RoomTimeline({
       threadMetadataMap,
     ]
   );
+  const showCompactRoomView = compactViewRequested && compactThreadRootData.ids.length > 0;
+  const visibleThreadRootEventMap = useMemo(
+    () => buildThreadRootEventMap(roomSurfaceEventEntries, visibleThreadRootData.indexMap),
+    [roomSurfaceEventEntries, visibleThreadRootData.indexMap]
+  );
+  const compactThreadRootEventMap = useMemo(
+    () => buildThreadRootEventMap(roomSurfaceEventEntries, compactThreadRootData.indexMap),
+    [roomSurfaceEventEntries, compactThreadRootData.indexMap]
+  );
+  const normalThreadRecordMap = useMemo(() => {
+    if (threadId) return new Map<string, ThreadRecord>();
+
+    return buildThreadRecordMap({
+      room,
+      threadRootIds: visibleThreadRootData.ids,
+      threadRootEventMap: visibleThreadRootEventMap,
+      metadataMap: threadMetadataMap,
+      summaryMap,
+      fallbackSummaryMap: threadSummaryInfoMap,
+      fallbackReplyCountMap: threadReplyCountMap,
+      fallbackParticipantMap: threadParticipantMap,
+      threadResolutionMap,
+      currentUserId: mx.getSafeUserId(),
+      scheduledTaskEvents,
+      scheduledTaskCounts,
+      absoluteIndexMap: visibleThreadRootData.indexMap,
+    });
+  }, [
+    threadId,
+    room,
+    visibleThreadRootData.ids,
+    visibleThreadRootData.indexMap,
+    visibleThreadRootEventMap,
+    threadMetadataMap,
+    summaryMap,
+    threadSummaryInfoMap,
+    threadReplyCountMap,
+    threadParticipantMap,
+    threadResolutionMap,
+    mx,
+    scheduledTaskEvents,
+    scheduledTaskCounts,
+    overviewRefreshCounter,
+  ]);
+  const compactThreadRecordMap = useMemo(() => {
+    if (threadId) return new Map<string, ThreadRecord>();
+    if (!compactViewRequested) return normalThreadRecordMap;
+
+    return buildThreadRecordMap({
+      room,
+      threadRootIds: compactThreadRootData.ids,
+      threadRootEventMap: compactThreadRootEventMap,
+      metadataMap: compactThreadMetadataMap,
+      summaryMap,
+      fallbackSummaryMap: threadSummaryInfoMap,
+      fallbackReplyCountMap: threadReplyCountMap,
+      fallbackParticipantMap: threadParticipantMap,
+      threadResolutionMap,
+      currentUserId: mx.getSafeUserId(),
+      scheduledTaskEvents,
+      scheduledTaskCounts,
+      absoluteIndexMap: compactThreadRootData.indexMap,
+    });
+  }, [
+    threadId,
+    compactViewRequested,
+    normalThreadRecordMap,
+    room,
+    compactThreadRootData.ids,
+    compactThreadRootData.indexMap,
+    compactThreadRootEventMap,
+    compactThreadMetadataMap,
+    summaryMap,
+    threadSummaryInfoMap,
+    threadReplyCountMap,
+    threadParticipantMap,
+    threadResolutionMap,
+    mx,
+    scheduledTaskEvents,
+    scheduledTaskCounts,
+    overviewRefreshCounter,
+  ]);
+  const threadRecordMap = showCompactRoomView ? compactThreadRecordMap : normalThreadRecordMap;
 
   // ── Debounced search query (300ms) ──
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(
@@ -3165,11 +3244,11 @@ export function RoomTimeline({
   // ── Overview pipeline: filter → sort → Map-based entry construction ──
   const normalOverviewOrdering = useMemo(
     () =>
-      resolveOverviewThreadRootIds({
+      resolveThreadRecordOverviewRootIds({
         threadRootIds: visibleThreadRootData.ids,
         threadFilterState: debouncedThreadFilterState,
         searchQuery: debouncedParsedQuery.freeText,
-        metadataMap: threadMetadataMap,
+        recordMap: normalThreadRecordMap,
         threadSortFreezeState,
         threadSortControlSignature,
       }),
@@ -3177,7 +3256,7 @@ export function RoomTimeline({
       visibleThreadRootData.ids,
       debouncedThreadFilterState,
       debouncedParsedQuery.freeText,
-      threadMetadataMap,
+      normalThreadRecordMap,
       threadSortFreezeState,
       threadSortControlSignature,
     ]
@@ -3208,11 +3287,11 @@ export function RoomTimeline({
     () => {
       if (!compactViewRequested) return normalOverviewOrdering;
 
-      return resolveOverviewThreadRootIds({
+      return resolveThreadRecordOverviewRootIds({
         threadRootIds: compactThreadRootData.ids,
         threadFilterState: debouncedThreadFilterState,
         searchQuery: debouncedParsedQuery.freeText,
-        metadataMap: compactThreadMetadataMap,
+        recordMap: compactThreadRecordMap,
         threadSortFreezeState,
         threadSortControlSignature,
       });
@@ -3223,7 +3302,7 @@ export function RoomTimeline({
       compactThreadRootData.ids,
       debouncedThreadFilterState,
       debouncedParsedQuery.freeText,
-      compactThreadMetadataMap,
+      compactThreadRecordMap,
       threadSortFreezeState,
       threadSortControlSignature,
     ]
@@ -3234,7 +3313,6 @@ export function RoomTimeline({
   const compactFilteredThreadRootIds = threadId
     ? compactThreadRootData.ids
     : compactOverviewOrdering.filteredIds;
-  const showCompactRoomView = compactViewRequested && compactThreadRootData.ids.length > 0;
   const roomOverviewOrderActive = roomThreadFilterActive || showCompactRoomView;
   const activeLiveOverviewThreadRootIds = showCompactRoomView
     ? compactOverviewOrdering.liveOrderedIds
@@ -3300,15 +3378,14 @@ export function RoomTimeline({
   // Per-status counts over ALL threads (unfiltered)
   const statusCounts = useMemo(
     () =>
-      computeStatusCounts(
+      computeThreadRecordStatusCounts(
         showCompactRoomView ? compactThreadRootData.ids : visibleThreadRootData.ids,
-        showCompactRoomView ? compactThreadMetadataMap : threadMetadataMap
+        threadRecordMap
       ),
     [
-      compactThreadMetadataMap,
       compactThreadRootData.ids,
       showCompactRoomView,
-      threadMetadataMap,
+      threadRecordMap,
       visibleThreadRootData.ids,
     ]
   );
@@ -3316,15 +3393,14 @@ export function RoomTimeline({
   // Tag distribution over ALL threads (unfiltered)
   const tagCounts = useMemo(
     () =>
-      computeTagCounts(
+      computeThreadRecordTagCounts(
         showCompactRoomView ? compactThreadRootData.ids : visibleThreadRootData.ids,
-        showCompactRoomView ? compactThreadMetadataMap : threadMetadataMap
+        threadRecordMap
       ),
     [
-      compactThreadMetadataMap,
       compactThreadRootData.ids,
       showCompactRoomView,
-      threadMetadataMap,
+      threadRecordMap,
       visibleThreadRootData.ids,
     ]
   );
@@ -7224,57 +7300,6 @@ threadDebugTraceId,
 
   usePageResume(refreshOverviewThreadsOnResume);
 
-  const preferredThreadSummaryMap = useMemo(() => {
-    return buildPreferredThreadSummaryMap(summaryMap, threadSummaryInfoMap);
-  }, [summaryMap, threadSummaryInfoMap]);
-
-  const threadRootEventMap = useMemo(() => {
-    const eventMap = new Map<string, MatrixEvent>();
-    roomSurfaceEventEntries.forEach(({ event }) => {
-      const eventId = event.getId();
-      if (eventId && visibleThreadRootData.indexMap.has(eventId)) {
-        eventMap.set(eventId, event);
-      }
-    });
-    return eventMap;
-  }, [roomSurfaceEventEntries, visibleThreadRootData.indexMap]);
-
-  const threadRecordMap = useMemo(() => {
-    if (threadId) return new Map<string, ThreadRecord>();
-
-    return buildThreadRecordMap({
-      room,
-      threadRootIds: visibleThreadRootData.ids,
-      threadRootEventMap,
-      metadataMap: threadMetadataMap,
-      summaryMap,
-      fallbackSummaryMap: threadSummaryInfoMap,
-      fallbackReplyCountMap: threadReplyCountMap,
-      fallbackParticipantMap: threadParticipantMap,
-      threadResolutionMap,
-      currentUserId: mx.getSafeUserId(),
-      scheduledTaskEvents,
-      scheduledTaskCounts,
-      absoluteIndexMap: visibleThreadRootData.indexMap,
-    });
-  }, [
-    threadId,
-    room,
-    visibleThreadRootData.ids,
-    visibleThreadRootData.indexMap,
-    threadRootEventMap,
-    threadMetadataMap,
-    summaryMap,
-    threadSummaryInfoMap,
-    threadReplyCountMap,
-    threadParticipantMap,
-    threadResolutionMap,
-    mx,
-    scheduledTaskEvents,
-    scheduledTaskCounts,
-    overviewRefreshCounter,
-  ]);
-
   const getTimelineThreadBadgeModel = (
     mEventId: string,
     mEvent: MatrixEvent
@@ -8596,8 +8621,7 @@ threadDebugTraceId,
           <CompactRoomView
             room={room}
             threadRootIds={overviewThreadRootIds}
-            metadataMap={compactThreadMetadataMap}
-            summaryMap={preferredThreadSummaryMap}
+            threadRecordMap={threadRecordMap}
             onThreadClick={handleOpenCompactThread}
           />
         ) : (

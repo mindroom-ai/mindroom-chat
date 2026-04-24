@@ -1,33 +1,14 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CompactThreadCardViewModel } from '../../mindroom/threads/types';
+import type { CompactThreadCardViewModel, ThreadRecord } from '../../mindroom/threads/types';
 import { CompactRoomView } from './CompactRoomView';
-import type { ThreadOverviewMetadata } from './roomThreadOverviewModel';
 
 const { passthrough, renderedCardProps, useCompactThreadCardViewModelsMock } = vi.hoisted(() => ({
   passthrough: 'div',
   renderedCardProps: vi.fn(),
   useCompactThreadCardViewModelsMock: vi.fn(),
 }));
-
-const makeMetadata = (overrides: Partial<ThreadOverviewMetadata> = {}): ThreadOverviewMetadata => ({
-  isResolved: false,
-  isUnread: false,
-  isStreaming: false,
-  scheduledTaskCount: 0,
-  lastActivityTs: 1000,
-  absoluteIndex: 0,
-  lastSenderId: undefined,
-  lastSenderDisplayName: undefined,
-  latestReplyPreviewText: undefined,
-  participantDisplayName: undefined,
-  summaryText: undefined,
-  rootPreviewText: undefined,
-  messageCount: 0,
-  tags: [],
-  ...overrides,
-});
 
 const makeViewModel = (
   threadRootId: string,
@@ -51,6 +32,30 @@ const makeViewModel = (
   isResolved: false,
   isUnread: false,
   isStreaming: false,
+  ...overrides,
+});
+
+const makeThreadRecord = (
+  threadRootId: string,
+  overrides: Partial<ThreadRecord> = {}
+): ThreadRecord => ({
+  roomId: '!room:server',
+  threadRootId,
+  rootEventId: threadRootId,
+  presentation: {
+    messageCount: 0,
+    participantIds: [],
+  },
+  status: {
+    isKnownThreadRoot: true,
+    replyCount: 0,
+    isResolved: false,
+    isUnread: false,
+    isStreaming: false,
+    scheduledTaskCount: 0,
+    tags: [],
+  },
+  absoluteIndex: 0,
   ...overrides,
 });
 
@@ -112,7 +117,7 @@ describe('CompactRoomView', () => {
       React.createElement(CompactRoomView, {
         room,
         threadRootIds: [],
-        metadataMap: new Map(),
+        threadRecordMap: new Map(),
         onThreadClick: vi.fn(),
       })
     );
@@ -120,8 +125,7 @@ describe('CompactRoomView', () => {
     expect(useCompactThreadCardViewModelsMock).toHaveBeenCalledWith({
       room,
       threadRootIds: [],
-      metadataMap: new Map(),
-      summaryMap: undefined,
+      threadRecordMap: new Map(),
     });
     expect(renderer.root.findAll((node) => node.children.includes('No threads'))).toHaveLength(1);
     expect(renderedCardProps).not.toHaveBeenCalled();
@@ -129,8 +133,7 @@ describe('CompactRoomView', () => {
 
   it('builds compact card view models through the shared MindRoom selector', () => {
     const room = makeRoom();
-    const metadataMap = new Map([['$thread-1', makeMetadata({ summaryText: 'metadata summary' })]]);
-    const summaryMap = new Map([['$thread-1', { summaryText: 'AI summary', messageCount: 42 }]]);
+    const threadRecordMap = new Map([['$thread-1', makeThreadRecord('$thread-1')]]);
     const viewModel = makeViewModel('$thread-1', { titleText: 'AI summary' });
     useCompactThreadCardViewModelsMock.mockReturnValue([viewModel]);
 
@@ -138,8 +141,7 @@ describe('CompactRoomView', () => {
       React.createElement(CompactRoomView, {
         room,
         threadRootIds: ['$thread-1'],
-        metadataMap,
-        summaryMap,
+        threadRecordMap,
         onThreadClick: vi.fn(),
       })
     );
@@ -147,8 +149,7 @@ describe('CompactRoomView', () => {
     expect(useCompactThreadCardViewModelsMock).toHaveBeenCalledWith({
       room,
       threadRootIds: ['$thread-1'],
-      metadataMap,
-      summaryMap,
+      threadRecordMap,
     });
     expect(renderedCardProps).toHaveBeenCalledWith({ viewModel });
   });
@@ -164,7 +165,7 @@ describe('CompactRoomView', () => {
       React.createElement(CompactRoomView, {
         room: makeRoom(),
         threadRootIds: ['$thread-3'],
-        metadataMap: new Map([['$thread-3', makeMetadata({ summaryText: 'Stored summary' })]]),
+        threadRecordMap: new Map([['$thread-3', makeThreadRecord('$thread-3')]]),
         onThreadClick,
       })
     );

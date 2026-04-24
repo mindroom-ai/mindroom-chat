@@ -2,7 +2,8 @@ import type { MatrixClient, MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { describe, expect, it, vi } from 'vitest';
 import type { ThreadOverviewMetadata } from '../../features/room/roomThreadOverviewModel';
-import { buildCompactThreadCardViewModel } from './compactThreadCardViewModel';
+import { buildCompactThreadCardViewModelFromRecord } from './compactThreadCardViewModel';
+import { buildThreadRecord } from './threadRecord';
 
 const makeMetadata = (overrides: Partial<ThreadOverviewMetadata> = {}): ThreadOverviewMetadata => ({
   isResolved: false,
@@ -87,20 +88,25 @@ const makeMx = (): MatrixClient =>
 
 const buildModel = (
   room: Room,
-  overrides: Partial<Parameters<typeof buildCompactThreadCardViewModel>[0]> = {}
-) =>
-  buildCompactThreadCardViewModel({
+  overrides: Partial<Parameters<typeof buildThreadRecord>[0]> = {}
+) => {
+  const record = buildThreadRecord({
     room,
     threadRootId: '$root',
-    mx: makeMx(),
-    useAuthentication: false,
-    scheduledTaskEvents: [],
-    scheduledTaskCounts: new Map(),
-    threadResolutionMap: new Map(),
+    currentUserId: '@me:server',
     ...overrides,
   });
 
-describe('buildCompactThreadCardViewModel', () => {
+  return buildCompactThreadCardViewModelFromRecord({
+    record,
+    room,
+    currentUserId: '@me:server',
+    mx: makeMx(),
+    useAuthentication: false,
+  });
+};
+
+describe('buildCompactThreadCardViewModelFromRecord', () => {
   it('builds one compact model from summary, metadata, tags, and visible replies', () => {
     const rootEvent = makeEvent({
       eventId: '$root',
@@ -207,19 +213,13 @@ describe('buildCompactThreadCardViewModel', () => {
 
     const model = buildModel(room, {
       threadRootEvent: rootEvent,
-      threadResolutionMap: new Map([
-        [
-          '$root',
-          {
-            tags: {
-              resolved: { set_by: '@me:server', set_at: '2026-04-24T00:00:00.000Z' },
-              triage: { set_by: '@me:server', set_at: '2026-04-24T00:00:00.000Z' },
-            },
-            isResolved: true,
-            isPending: false,
-          },
-        ],
-      ]),
+      threadResolution: {
+        tags: {
+          resolved: { set_by: '@me:server', set_at: '2026-04-24T00:00:00.000Z' },
+          triage: { set_by: '@me:server', set_at: '2026-04-24T00:00:00.000Z' },
+        },
+        isResolved: true,
+      },
     });
 
     expect(model.isResolved).toBe(true);
