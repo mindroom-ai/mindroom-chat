@@ -532,6 +532,40 @@
 
 - [justfile](/Users/basnijholt/Code/dev/mindroom-cinny/justfile) is intentionally kept for common local validation commands.
 - [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) is the persistent debugging reference for timeline/cache/search work.
+- [docs/mindroom-thread-architecture-plan.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/mindroom-thread-architecture-plan.md) is the refactor plan for making MindRoom thread/cache behavior single-owner, cache-first, and rebase-friendly.
+- `CINNY-075` planning note (2026-04-24):
+  - recorded the target architecture for consolidating summaries, tags, counts, previews, activity, cache hydration, preloading, and thread UI view models behind fork-owned modules.
+  - planned direction is: Matrix events remain the truth, IndexedDB stores raw event snapshots plus coverage metadata, one per-room thread index derives canonical `ThreadRecord` values, and UI surfaces render read-only view models.
+  - rebase constraint: upstream Cinny files should contain narrow integration seams only; MindRoom logic should move toward `src/app/mindroom/threads/**` or equivalent fork-owned modules.
+  - docs-only validation target for this planning step is `git diff --check`.
+- `CINNY-075` implementation step 1 (2026-04-24):
+  - added the first fork-owned thread model seam under `src/app/mindroom/threads/`:
+    - canonical thread/view-model types,
+    - `buildCompactThreadCardViewModel(...)`,
+    - and `useCompactThreadCardViewModels(...)`.
+  - `CompactThreadCard` now renders a `CompactThreadCardViewModel` instead of owning Matrix/cache/status derivation itself.
+  - `CompactRoomView` now uses the shared MindRoom compact-card selector and keeps only the narrow render/click integration seam.
+  - validation:
+    - focused Vitest passes for `CompactRoomView.test.ts`, `CompactThreadCard.test.ts`, and `compactThreadCardViewModel.test.ts`
+    - `npm test` passes (`156/156` files, `1399/1399` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - focused ESLint on touched TS/TSX files passes
+    - repo-wide `npm run lint` remains blocked by existing unrelated baseline errors in `useResolvedRoomIdOrAlias.ts` and `ClientStartupContext.tsx`
+- `CINNY-075` adoption/reaction follow-up (2026-04-24):
+  - updated the thread architecture plan with a concrete adoption snapshot so it is explicit that compact room cards are only the first converted surface.
+  - confirmed remaining loose ends still exist in normal room badges, thread context banner, recent threads sidebar, command palette, summary ownership, cache/preload orchestration, and scroll/pagination.
+  - added live reaction regression coverage proving fresh Matrix `m.reaction` annotations render in:
+    - normal room timeline messages,
+    - and thread-view replies.
+  - validation:
+    - `npm test -- src/app/features/room/message/Reactions.test.ts src/app/hooks/useRelations.test.ts src/app/features/room/eventCacheEditUtils.test.ts src/app/hooks/useThreadStreamingState.test.ts` passes
+    - `npm run test:e2e:docker-matrix -- e2e/live/cinny075-reactions.spec.ts` passes (`2/2`)
+    - `npx prettier --check e2e/helpers/matrix.ts e2e/live/cinny075-reactions.spec.ts docs/mindroom-thread-architecture-plan.md src/app/mindroom/threads/types.ts src/app/mindroom/threads/compactThreadCardViewModel.ts src/app/mindroom/threads/compactThreadCardViewModel.test.ts` passes
+    - `git diff --check` passes
+    - `npm test` passes (`156/156` files, `1400/1400` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
@@ -871,6 +905,7 @@
   - `src/app/features/recent-threads/RecentThreadEntry.tsx` now restores a stable `aria-label` in the form `Open thread: …`
   - added focused regressions in `src/app/features/room/Room.test.ts` and `src/app/features/recent-threads/RecentThreadEntry.test.ts`
 - Live E2E harness follow-up:
+
   - `e2e/live/cinny073-recent-threads-mobile.spec.ts` now clears the targeted room's bare-home thread-restore entry before the `480px` landscape rotation check, because the rebased client intentionally restores the last open thread from bare `/home/`
   - `e2e/live/threads.spec.ts` now matches recent-thread buttons by `Open thread:` plus both room name and summary/root preview, without assuming a fixed accessible-name field order
 
@@ -965,6 +1000,7 @@
     - `npm test` passes (`136/136` files, `1092/1092` tests)
     - `npx tsc --noEmit` passes
     - `npm run build` passes
+
 ### CINNY-072: Thread banner summary overlap (2026-04-18)
 
 - `src/app/features/room/ThreadContextBanner.css.ts` now exports `TitleColumn` with `min-width: 0` so the middle banner column can shrink instead of forcing the `Resolve` chip offscreen.
