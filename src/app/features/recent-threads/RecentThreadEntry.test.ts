@@ -38,10 +38,18 @@ vi.mock('../../state/recentThreads', () => ({
   rekeyRecentThread: rekeyRecentThreadMock,
 }));
 
-vi.mock('./useRecentThreadSummary', () => ({
-  useRecentThreadSummary: () => ({
-    summary: 'Thread summary',
-    resolvedThreadId: '$resolved',
+vi.mock('../../mindroom/threads/recentThreadViewModel', () => ({
+  useRecentThreadViewModel: () => ({
+    id: {
+      roomId: '!room:example.org',
+      threadRootId: '$resolved',
+    },
+    storedThreadId: '$thread',
+    openedAt: 123,
+    roomName: 'Room Name',
+    summaryText: 'Thread summary',
+    persistableSummaryText: 'Thread summary',
+    shouldRekey: true,
   }),
 }));
 
@@ -102,7 +110,7 @@ describe('RecentThreadEntry', () => {
 
     expect(bumpRecentThreadMock).toHaveBeenCalledWith(
       '!room:example.org',
-      '$thread',
+      '$resolved',
       expect.any(Number),
       'Thread summary'
     );

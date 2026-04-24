@@ -2,17 +2,66 @@ import { MatrixEventEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk';
 import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { useEffect, useState } from 'react';
-import { useActiveSession } from '../../hooks/useSessionStore';
-import { useRoomName } from '../../hooks/useRoomMeta';
+import {
+  getRecentThreadFallbackSummary,
+  getResolvedRecentThreadRootId,
+  shouldPersistRecentThreadSummaryText,
+  truncateRecentThreadSummaryText,
+} from '../../features/recent-threads/recentThreadSummaryUtils';
 import {
   clearThreadSummarySharedState,
   useThreadSummaryStateMap,
-} from '../room/threadSummaryState';
-import { resolveThreadSummaryInfo } from '../room/threadPresentation';
-import {
-  getResolvedRecentThreadRootId,
-  resolveRecentThreadSummaryText,
-} from './recentThreadSummaryUtils';
+} from '../../features/room/threadSummaryState';
+import { useRoomName } from '../../hooks/useRoomMeta';
+import { useActiveSession } from '../../hooks/useSessionStore';
+import { buildThreadRecord } from './threadRecord';
+import type { RecentThreadViewModel, ThreadRecord } from './types';
+
+type BuildRecentThreadViewModelFromRecordOptions = {
+  record: ThreadRecord;
+  room: Room;
+  roomName: string;
+  storedThreadId: string;
+  openedAt: number;
+  fallbackSummaryText?: string;
+};
+
+const getRecordRecentSummaryText = (record: ThreadRecord): string | undefined =>
+  record.presentation.recentThreadSummaryText ??
+  record.presentation.summaryText ??
+  record.presentation.primarySummaryText ??
+  record.presentation.rootPreviewText;
+
+export const buildRecentThreadViewModelFromRecord = ({
+  record,
+  room,
+  roomName,
+  storedThreadId,
+  openedAt,
+  fallbackSummaryText,
+}: BuildRecentThreadViewModelFromRecordOptions): RecentThreadViewModel => {
+  const rawSummaryText =
+    getRecordRecentSummaryText(record) ??
+    fallbackSummaryText ??
+    getRecentThreadFallbackSummary(room, roomName);
+  const summaryText = truncateRecentThreadSummaryText(rawSummaryText);
+  const persistableSummaryText = shouldPersistRecentThreadSummaryText(room, roomName, summaryText)
+    ? summaryText
+    : undefined;
+
+  return {
+    id: {
+      roomId: record.roomId,
+      threadRootId: record.threadRootId,
+    },
+    storedThreadId,
+    openedAt,
+    roomName,
+    summaryText,
+    persistableSummaryText,
+    shouldRekey: storedThreadId !== record.threadRootId,
+  };
+};
 
 type RoomSummaryListener = () => void;
 
@@ -67,7 +116,7 @@ const subscribeToRoomThreadSummaryEvents = (room: Room, listener: RoomSummaryLis
   };
 };
 
-export const clearRecentThreadSummarySharedState = () => {
+export const clearRecentThreadViewModelSharedState = () => {
   clearThreadSummarySharedState();
   roomSummarySubscriptions.forEach((subscription) => {
     subscription.dispose();
@@ -75,11 +124,12 @@ export const clearRecentThreadSummarySharedState = () => {
   roomSummarySubscriptions.clear();
 };
 
-export const useRecentThreadSummary = (
+export const useRecentThreadViewModel = (
   room: Room,
   threadId: string,
+  openedAt: number,
   fallbackSummaryText?: string
-) => {
+): RecentThreadViewModel => {
   const activeSession = useActiveSession();
   const roomName = useRoomName(room);
   const [, setRefreshVersion] = useState(0);
@@ -110,23 +160,21 @@ export const useRecentThreadSummary = (
     return () => {
       rootEvent?.removeListener(MatrixEventEvent.Replaced, refresh);
     };
-  }, [room, rootEvent]);
+  }, [rootEvent]);
 
-  const summaryInfo = resolveThreadSummaryInfo({
-    preferredSummaryInfo: sharedSummaryMap.get(resolvedThreadId),
-    thread,
-  });
-  const summary = resolveRecentThreadSummaryText({
+  const record = buildThreadRecord({
     room,
     threadRootId: resolvedThreadId,
-    rootEvent,
-    summaryInfo,
-    fallbackSummaryText,
-    roomName,
+    threadRootEvent: rootEvent,
+    summaryInfo: sharedSummaryMap.get(resolvedThreadId),
   });
 
-  return {
-    summary,
-    resolvedThreadId,
-  };
+  return buildRecentThreadViewModelFromRecord({
+    record,
+    room,
+    roomName,
+    storedThreadId: threadId,
+    openedAt,
+    fallbackSummaryText,
+  });
 };
