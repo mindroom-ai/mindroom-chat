@@ -247,26 +247,24 @@ import type { RoomViewMode } from '../../state/room/roomViewMode';
 import { useRoomThreadList } from './useRoomThreadList';
 import { useStateEvents } from '../../hooks/useStateEvents';
 import {
+  getRoomCursorAnchor,
   getThreadCursorAnchor,
+  loadCachedRoomEventsBefore,
+  loadCachedRoomPaginationToken,
   loadCachedThreadEventsBefore,
+  loadLatestCachedRoomEvents,
   loadLatestCachedThreadEvents,
+  normalizeCachedRoomEvents,
   normalizeCachedThreadEvents,
+  saveRoomEventsToCache,
   saveThreadEventsToCache,
-} from './threadEventCache';
+} from '../../mindroom/threads/eventRepository';
 import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
 import {
   computeReconciliationToken,
   findEarliestLoadedThreadReplyByCacheOrder,
   reconcileThreadBackwardPagination,
 } from './threadPaginationUtils';
-import {
-  getRoomCursorAnchor,
-  loadCachedRoomEventsBefore,
-  loadCachedRoomPaginationToken,
-  loadLatestCachedRoomEvents,
-  normalizeCachedRoomEvents,
-  saveRoomEventsToCache,
-} from './roomEventCache';
 import {
   aggregateCachedRelationEvents,
   collectRedactedRelationTargetsFromLookup,
