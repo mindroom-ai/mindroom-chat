@@ -39,7 +39,7 @@ import { clearIOSPushState } from '../app/utils/iosPush';
 import { clearRecentThreadsStore } from '../app/state/recentThreads';
 import { clearRecentThreadsPanelHeightStore } from '../app/state/recentThreadsPanelHeight';
 import { clearRecentThreadsPanelMobileExpandedStore } from '../app/state/recentThreadsPanelMobileExpanded';
-import { clearRecentThreadSummarySharedState } from '../app/features/recent-threads/useRecentThreadSummary';
+import { clearRecentThreadViewModelSharedState } from '../app/mindroom/threads/recentThreadViewModel';
 
 vi.mock('matrix-js-sdk/lib/store/indexeddb', () => ({
   IndexedDBStore: vi.fn(),
@@ -78,8 +78,8 @@ vi.mock('../app/state/recentThreadsPanelMobileExpanded', () => ({
   clearRecentThreadsPanelMobileExpandedStore: vi.fn(),
 }));
 
-vi.mock('../app/features/recent-threads/useRecentThreadSummary', () => ({
-  clearRecentThreadSummarySharedState: vi.fn(),
+vi.mock('../app/mindroom/threads/recentThreadViewModel', () => ({
+  clearRecentThreadViewModelSharedState: vi.fn(),
 }));
 
 vi.mock('../app/features/room/threadEventCache', () => ({
@@ -966,7 +966,7 @@ describe('clearCacheAndReload', () => {
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(
       session.userId
     );
-    expect(vi.mocked(clearRecentThreadSummarySharedState)).toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadViewModelSharedState)).toHaveBeenCalled();
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
@@ -1146,7 +1146,7 @@ describe('logoutClient', () => {
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(userId);
     expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(userId);
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(userId);
-    expect(vi.mocked(clearRecentThreadSummarySharedState)).toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadViewModelSharedState)).toHaveBeenCalled();
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(sessionId);
     LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
       expect(localStorageMock.removeItem).toHaveBeenCalledWith(key);
@@ -1297,7 +1297,7 @@ describe('clearLoginData', () => {
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(
       session.userId
     );
-    expect(vi.mocked(clearRecentThreadSummarySharedState)).toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadViewModelSharedState)).toHaveBeenCalled();
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(session.sessionId);
     LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
       expect(localStorageMock.removeItem).toHaveBeenCalledWith(key);
@@ -1618,7 +1618,7 @@ describe('removeStoredSession', () => {
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(
       inactiveSession.userId
     );
-    expect(vi.mocked(clearRecentThreadSummarySharedState)).toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadViewModelSharedState)).toHaveBeenCalled();
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(inactiveSession.sessionId);
     expect(getSessionStore().sessions.map((session) => session.sessionId)).toEqual([
       activeSession.sessionId,

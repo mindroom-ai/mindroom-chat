@@ -280,16 +280,16 @@ tell whether the new architecture is actually being used everywhere.
 | Thread context banner         | Converted at the header seam. The banner builds a `ThreadRecord` and renders summary, tags, resolved state, and scheduled state through `ThreadHeaderViewModel`.            | Keep mutation permissions/actions outside the record; do not reintroduce local summary logic. |
 | Recent threads sidebar        | Converted at the entry seam. `RecentThreadEntry` renders a MindRoom-owned `RecentThreadViewModel` built from `ThreadRecord`; the old `useRecentThreadSummary` path is gone. | Replace the remaining stored-entry plumbing with a room index subscription when available.    |
 | Command palette               | Converted at the thread-item seam. Thread items now build `ThreadRecord` objects and render a MindRoom-owned `CommandPaletteThreadViewModel`.                              | Keep remaining action/user/room logic separate; do not reintroduce thread-specific derivation. |
-| Summary ownership             | Not converted. Cache/live summary reads still happen from several render and helper paths.                                                                                 | Introduce one summary owner before removing `loadLatestCachedThreadSummaryInfo` render usage. |
+| Summary ownership             | Mostly converted. Room view owns shared summary state, and `RoomTimeline` no longer performs per-visible `loadLatestCachedThreadSummaryInfo` render-path reads.            | Merge remaining summary cache/index helpers behind a fork-owned summary owner.                |
 | Room/thread cache and preload | Not converted. Much of the orchestration still lives in `RoomTimeline`.                                                                                                    | Extract `eventRepository` and `preloadController` only after summary/status selectors settle. |
 | Scroll and pagination         | Not converted. Keep separate from the data-model work.                                                                                                                     | Address after cache coverage metadata exists.                                                 |
 | Reaction rendering            | Not part of the thread model refactor. Fresh normal-message and thread-reply reactions pass e2e.                                                                           | If regressions remain, debug as cache/relation coverage or room-specific data, not UI model.  |
 
 The immediate next code slice is still Phase 3/4 cleanup, not Phase 5 preload or Phase 6 scroll.
 Compact cards, normal room badges, overview filter/sort/count logic, the thread banner, recent
-thread entries, and command palette thread items now share the `ThreadRecord` seam. The next useful
-cleanup is reducing legacy metadata-map construction and direct summary-cache reads that remain in
-`RoomTimeline` and cache hydration compatibility paths.
+thread entries, and command palette thread items now share the `ThreadRecord` seam. `RoomTimeline`
+no longer does per-visible cached-summary reads. The next useful cleanup is reducing legacy
+metadata-map construction in `RoomTimeline` and cache hydration compatibility paths.
 
 ## Refactor Phases
 
