@@ -13,6 +13,7 @@ import {
   createControlledRoomTimelineHarness,
   DEFAULT_THREAD_FILTER_STATE,
   directRoomState,
+  emitClientSync,
   flushAsyncWork,
   getClickableByText,
   getRenderedEventIds,
@@ -608,7 +609,8 @@ describe('RoomTimeline', () => {
 
   it('renders the room thread overview outside thread view', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
-    const room = makeRoom();
+    const root = makeEvent('$thread-root', { isThreadRoot: true });
+    const room = makeRoom({ liveEvents: [root] });
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
     const renderer = create(
@@ -624,8 +626,138 @@ describe('RoomTimeline', () => {
       0
     );
     expect(overview.props.state).toEqual({ ...TEST_DEFAULT_THREAD_FILTER_STATE, tags: new Map() });
-    expect(overview.props.threadCount).toBe(0);
+    expect(overview.props.threadCount).toBe(1);
     expect(overview.props.onToggle).toBeTypeOf('function');
+  });
+
+  it('does not show a false zero-thread overview while initial room cache hydrate is pending', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    loadLatestCachedRoomEventsMock.mockImplementation(
+      () => new Promise(() => undefined)
+    );
+    const room = makeRoom();
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          initialViewMode: 'compact',
+        })
+      );
+      await flushAsyncWork(2);
+    });
+
+    expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(0);
+    expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+  });
+
+  it('keeps the zero-thread overview hidden until the initial room cache hydrate settles', async () => {
+    vi.useFakeTimers();
+    try {
+      const { RoomTimeline } = await import('./RoomTimeline');
+      loadLatestCachedRoomEventsMock.mockImplementation(
+        () => new Promise(() => undefined)
+      );
+      const room = makeRoom();
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+      let renderer: ReturnType<typeof create> | undefined;
+
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            initialViewMode: 'compact',
+          })
+        );
+        await flushAsyncWork(2);
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(150);
+        await flushAsyncWork(5);
+      });
+
+      expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(0);
+      expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps the zero-thread overview hidden during initial client catchup after cache hydrate settles', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const room = makeRoom();
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          initialViewMode: 'compact',
+        })
+      );
+      await flushAsyncWork(5);
+    });
+
+    expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(0);
+    expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+  });
+
+  it('does not treat non-root notices as room-overview readiness during initial catchup', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const notice = makeEvent('$notice', {
+      content: { body: 'Bridge notice', msgtype: 'm.notice' },
+    });
+    const room = makeRoom({ liveEvents: [notice] });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          initialViewMode: 'compact',
+        })
+      );
+      await flushAsyncWork(5);
+    });
+
+    expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(0);
+    expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+  });
+
+  it('shows a real zero-thread overview after initial client sync settles', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const room = makeRoom();
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          initialViewMode: 'compact',
+        })
+      );
+      await flushAsyncWork(5);
+    });
+
+    await act(async () => {
+      emitClientSync();
+      await flushAsyncWork(2);
+    });
+
+    const overview = renderer?.root.findByType(roomThreadOverviewType);
+    expect(overview?.props.threadCount).toBe(0);
+    expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
   });
 
   it('passes visible room thread counts to the overview', async () => {
@@ -704,13 +836,23 @@ describe('RoomTimeline', () => {
     });
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
-    const renderer = create(
-      React.createElement(ControlledRoomTimeline, {
-        room,
-      })
-    );
+    let renderer: ReturnType<typeof create> | undefined;
 
-    expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(0);
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(2);
+    });
+
+    await act(async () => {
+      emitClientSync();
+      await flushAsyncWork(1);
+    });
+
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.threadCount).toBe(0);
   });
 
   it('shows pending encrypted local-echo zero-reply roots immediately in compact view', async () => {

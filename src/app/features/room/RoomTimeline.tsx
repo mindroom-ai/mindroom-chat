@@ -147,6 +147,7 @@ import { useSpoilerClickHandler } from '../../hooks/useSpoilerClickHandler';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useIgnoredUsers } from '../../hooks/useIgnoredUsers';
+import { useInitialClientCatchup } from '../../hooks/useInitialClientCatchup';
 import { useImagePackRooms } from '../../hooks/useImagePackRooms';
 import { useIsDirectRoom } from '../../hooks/useRoom';
 import { useOpenUserRoomProfile } from '../../state/hooks/userRoomProfile';
@@ -2239,6 +2240,7 @@ export function RoomTimeline({
   editor,
 }: RoomTimelineProps) {
   const mx = useMatrixClient();
+  const initialClientCatchupInProgress = useInitialClientCatchup(mx);
   const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()), [mx]);
   const useAuthentication = useMediaAuthentication();
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
@@ -2343,6 +2345,9 @@ export function RoomTimeline({
   const [threadLoadError, setThreadLoadError] = useState(false);
   const [roomHasMoreCachedBack, setRoomHasMoreCachedBack] = useState(false);
   const [eagerPreloading, setEagerPreloading] = useState(!threadId && !eventId);
+  const [roomInitialCacheHydratedKey, setRoomInitialCacheHydratedKey] = useState<
+    string | undefined
+  >();
   const [threadHasMoreCachedBack, setThreadHasMoreCachedBack] = useState(false);
   const [threadTailLoaded, setThreadTailLoaded] = useState(false);
   const [threadPaginatingBack, setThreadPaginatingBack] = useState(false);
@@ -2702,6 +2707,17 @@ export function RoomTimeline({
     });
     return bodyMap;
   }, [compactThreadRootData.bodyMap, compactCachedThreadRootBodyMap]);
+  const roomInitialCacheHydrationKey = !threadId && !eventId ? room.roomId : undefined;
+  const roomInitialCacheHydrated =
+    !roomInitialCacheHydrationKey ||
+    roomInitialCacheHydratedKey === roomInitialCacheHydrationKey;
+  const deferEmptyRoomOverview =
+    !threadId &&
+    (!roomInitialCacheHydrated || initialClientCatchupInProgress) &&
+    visibleThreadRootData.ids.length === 0 &&
+    compactThreadRootData.ids.length === 0;
+  const shouldShowRoomThreadOverviewControls =
+    showRoomThreadOverviewControls && !deferEmptyRoomOverview;
 
   // ── Read-up-to timestamp for unread heuristic ──
   const readUpToTs = useMemo(() => {
@@ -5166,6 +5182,9 @@ export function RoomTimeline({
     hydrateRoomFromCache().catch((error) => {
       console.error('Failed to hydrate latest room cache for', room.roomId, error);
     }).finally(() => {
+      if (!cancelled && alive() && roomIdRef.current === room.roomId && !threadIdRef.current) {
+        setRoomInitialCacheHydratedKey(room.roomId);
+      }
       // On re-entry (preload already done for this room), clear eagerPreloading
       // regardless of whether cache hydration ran. On initial mount the preload
       // effect handles clearing it, so only clear when preload is already done.
@@ -8172,7 +8191,7 @@ threadDebugTraceId,
 
   return (
     <Box grow="Yes" direction="Column">
-      {showRoomThreadOverviewControls && (
+      {shouldShowRoomThreadOverviewControls && (
         <RoomThreadOverview
           threadCount={showCompactRoomView ? compactFilteredThreadRootIds.length : filteredThreadRootIds.length}
           totalThreadCount={showCompactRoomView ? compactThreadRootData.ids.length : visibleThreadRootData.ids.length}

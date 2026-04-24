@@ -74,10 +74,13 @@ const {
     getHomeserverUrl: vi.fn(() => 'https://example.org'),
     getRoom: vi.fn(() => null),
     getSafeUserId: vi.fn(() => '@alice:example.org'),
+    getSyncState: vi.fn(() => 'SYNCING'),
     getThreadTimeline: vi.fn(),
     getUserId: vi.fn(() => '@alice:example.org'),
+    on: vi.fn(),
     paginateEventTimeline: vi.fn(),
     processAggregatedTimelineEvents: vi.fn(),
+    removeListener: vi.fn(),
     relations: vi.fn(),
   },
   navigateRoomMock: vi.fn(),
@@ -1157,6 +1160,13 @@ const waitForCondition = async (condition: () => boolean, cycles = 500) => {
   throw new Error('Condition not reached in time');
 };
 
+const emitClientSync = (current = 'SYNCING', previous = 'SYNCING') => {
+  const syncHandler = matrixClientMock.on.mock.calls.find(([event]) => event === 'sync')?.[1] as
+    | ((currentState: string, previousState: string) => void)
+    | undefined;
+  syncHandler?.(current, previous);
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   clearThreadOpenSeedSnapshotsForTests();
@@ -1212,8 +1222,11 @@ beforeEach(() => {
   navigateRoomMock.mockReset();
   navigateRoomThreadMock.mockReset();
   matrixClientMock.getEventTimeline.mockResolvedValue(undefined);
+  matrixClientMock.getSyncState.mockReturnValue('SYNCING');
   matrixClientMock.getThreadTimeline.mockResolvedValue(undefined);
+  matrixClientMock.on.mockReset();
   matrixClientMock.paginateEventTimeline.mockResolvedValue(false);
+  matrixClientMock.removeListener.mockReset();
 });
 
 afterEach(() => {
@@ -1461,6 +1474,7 @@ export {
   createControlledRoomTimelineHarness,
   DEFAULT_THREAD_FILTER_STATE,
   directRoomState,
+  emitClientSync,
   flushAsyncWork,
   getClickableByText,
   getRenderedEventIds,
