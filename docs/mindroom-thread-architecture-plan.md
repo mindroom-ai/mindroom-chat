@@ -281,7 +281,7 @@ tell whether the new architecture is actually being used everywhere.
 | Recent threads sidebar        | Converted at the entry seam. `RecentThreadEntry` renders a MindRoom-owned `RecentThreadViewModel` built from `ThreadRecord`; the old `useRecentThreadSummary` path is gone. | Replace the remaining stored-entry plumbing with a room index subscription when available.    |
 | Command palette               | Converted at the thread-item seam. Thread items now build `ThreadRecord` objects and render a MindRoom-owned `CommandPaletteThreadViewModel`.                              | Keep remaining action/user/room logic separate; do not reintroduce thread-specific derivation. |
 | Summary ownership             | Mostly converted. Room view owns shared summary state, and `RoomTimeline` no longer performs per-visible `loadLatestCachedThreadSummaryInfo` render-path reads.            | Merge remaining summary cache/index helpers behind a fork-owned summary owner.                |
-| Room/thread cache and preload | Started. Timeline renderability, room-surface entry derivation, preload counts, and eager current-room preload now live outside `RoomTimeline`; room/thread cache hydrate and persist orchestration still lives there. | Extract `eventRepository` and the remaining cache hydrate/persist commands in small behavior-preserving slices. |
+| Room/thread cache and preload | Started. Timeline renderability, room-surface entry derivation, preload counts, eager current-room preload, and raw event cache access now have seams outside `RoomTimeline`; room/thread cache hydrate and persist orchestration still lives there. | Extract the remaining cache hydrate/persist commands in small behavior-preserving slices. |
 | Scroll and pagination         | Not converted. Keep separate from the data-model work.                                                                                                                     | Address after cache coverage metadata exists.                                                 |
 | Reaction rendering            | Not part of the thread model refactor. Fresh normal-message and thread-reply reactions pass e2e.                                                                           | If regressions remain, debug as cache/relation coverage or room-specific data, not UI model.  |
 
@@ -292,9 +292,9 @@ thread entries, command palette thread items, and overview cache hydration now s
 builds `ThreadOverviewMetadata` maps as an intermediate source for records, and no longer has a
 metadata-map fallback in `getThreadFilteredEvents`. `threadRecord` no longer accepts legacy metadata
 objects or maps. Normal badge rendering is now behind a fork-owned view-model seam, and
-renderability/preload counting plus eager current-room preload have been moved out of
-`RoomTimeline`. The next useful cleanup is extracting the remaining async cache hydrate/persist
-orchestration behind repository/controller seams.
+renderability/preload counting, eager current-room preload, and raw event cache access have been
+moved out of `RoomTimeline`. The next useful cleanup is extracting the remaining async cache
+hydrate/persist orchestration behind controller seams.
 
 ## Refactor Phases
 

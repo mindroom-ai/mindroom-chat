@@ -5,8 +5,10 @@ import { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { useQuery } from '@tanstack/react-query';
 import { useMatrixClient } from './useMatrixClient';
 import { useActiveSession } from './useSessionStore';
-import { loadCachedRoomEvent } from '../features/room/roomEventCache';
-import { loadCachedThreadEvent } from '../features/room/threadEventCache';
+import {
+  loadCachedRoomEvent,
+  loadCachedThreadEvent,
+} from '../mindroom/threads/eventRepository';
 
 type UseRoomEventOptions = {
   threadId?: string;

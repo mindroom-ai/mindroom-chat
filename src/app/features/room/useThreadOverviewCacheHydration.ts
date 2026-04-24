@@ -19,7 +19,7 @@ import {
 import {
   type CachedThreadEventPage,
   loadLatestCachedThreadEvents,
-} from './threadEventCache';
+} from '../../mindroom/threads/eventRepository';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfillUtils';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
 

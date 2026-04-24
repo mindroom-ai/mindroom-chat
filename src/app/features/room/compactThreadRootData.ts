@@ -5,8 +5,8 @@ import {
   getLatestMessageContent,
   trimReplyFromBody,
 } from '../../utils/room';
+import type { CachedThreadEventPage } from '../../mindroom/threads/eventRepository';
 import { applySerializedCachedReplaceRelations } from './eventCacheEditUtils';
-import type { CachedThreadEventPage } from './threadEventCache';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfillUtils';
 import {
   getEffectiveThreadRootActivityTs,

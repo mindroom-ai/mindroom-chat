@@ -23,4 +23,12 @@ describe('RoomTimeline architecture', () => {
     expect(source).toContain('useRoomEagerPreload');
     expect(source).not.toContain('[eager-preload]');
   });
+
+  it('does not import raw event cache stores directly', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).not.toContain("from './roomEventCache'");
+    expect(source).not.toContain("from './threadEventCache'");
+    expect(source).toContain("from '../../mindroom/threads/eventRepository'");
+  });
 });
