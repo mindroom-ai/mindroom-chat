@@ -28,11 +28,7 @@ test.describe('CINNY-029: thread Load Older Messages button', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    const fixtureRoomId = await joinRoom(
-      homeserver,
-      session.accessToken,
-      FIXTURE_ROOM_REF
-    );
+    const fixtureRoomId = await joinRoom(homeserver, session.accessToken, FIXTURE_ROOM_REF);
 
     await loginWithPassword(page, { homeserver, username, password });
     await seedRoomOverviewState({
@@ -46,9 +42,11 @@ test.describe('CINNY-029: thread Load Older Messages button', () => {
     await page.goto(`/home/${encodeURIComponent(fixtureRoomId)}`);
     await waitForLoggedInShell(page);
 
-    const threadEntry = page.getByRole('button', {
-      name: new RegExp(`${escapeRegex(SUMMARY_TEXT)}[\\s\\S]*4 msgs`, 'i'),
-    });
+    const threadEntry = page
+      .getByRole('button', {
+        name: new RegExp(`${escapeRegex(SUMMARY_TEXT)}[\\s\\S]*4 msgs`, 'i'),
+      })
+      .first();
     await expect(threadEntry).toBeVisible({ timeout: 30_000 });
     await threadEntry.click();
     await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
