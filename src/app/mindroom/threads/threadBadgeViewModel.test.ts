@@ -1,91 +1,67 @@
-import type { MatrixEvent } from 'matrix-js-sdk';
-import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
 import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
-import {
-  buildThreadBadgeViewModel,
-  buildTimelineThreadBadgeViewModel,
-} from './threadBadgeViewModel';
+import type { ThreadRecord } from './types';
+import { buildThreadBadgeViewModelFromRecord } from './threadBadgeViewModel';
 
-const makeEvent = ({
-  eventId,
-  threadRootId,
-  sender = '@sender:server',
-  body,
-  type = 'm.room.message',
-  ts = 1000,
-  unsigned,
-}: {
-  eventId: string;
-  threadRootId?: string;
-  sender?: string;
-  body?: string;
-  type?: string;
-  ts?: number;
-  unsigned?: Record<string, unknown>;
-}): MatrixEvent =>
-  ({
-    getId: () => eventId,
-    threadRootId,
-    getSender: () => sender,
-    getContent: () => (body ? { body, msgtype: 'm.text' } : {}),
-    getType: () => type,
-    getTs: () => ts,
-    getRelation: () => (threadRootId ? { rel_type: 'm.thread' } : undefined),
-    isRelation: (relType: string) => !!threadRootId && relType === 'm.thread',
-    replacingEvent: () => undefined,
-    getUnsigned: () => unsigned,
-    isRedacted: () => false,
-    isRedaction: () => false,
-  } as unknown as MatrixEvent);
-
-const makeRoom = ({ thread }: { thread?: ReturnType<Room['getThread']> } = {}): Room =>
-  ({
-    roomId: '!room:server',
-    getThread: vi.fn(() => thread),
-    findEventById: vi.fn(() => undefined),
-    getUnfilteredTimelineSet: vi.fn(() => ({
-      relations: {
-        getChildEventsForEvent: () => undefined,
-      },
-    })),
-    getMember: vi.fn(() => undefined),
-    hasEncryptionStateEvent: vi.fn(() => false),
-  } as unknown as Room);
-
-const buildModel = (overrides: Partial<Parameters<typeof buildThreadBadgeViewModel>[0]> = {}) => {
-  const threadRootEvent = makeEvent({
-    eventId: '$root',
-    body: 'Root body',
-  });
-
-  return buildThreadBadgeViewModel({
-    room: makeRoom(),
-    threadRootEvent,
-    threadRootId: '$root',
+const makeRecord = (overrides: Partial<ThreadRecord> = {}): ThreadRecord => ({
+  roomId: '!room:server',
+  threadRootId: '$root',
+  rootEventId: '$root',
+  absoluteIndex: 0,
+  presentation: {
+    summaryInfo: undefined,
+    summaryText: undefined,
+    rootPreviewText: 'Root body',
+    latestReplyPreviewText: undefined,
+    lastSenderId: undefined,
+    lastSenderDisplayName: undefined,
+    messageCount: 3,
+    participantIds: [],
+    replyParticipantIds: [],
+    primarySummaryText: undefined,
+    recentThreadSummaryText: 'Root body',
+  },
+  status: {
+    isKnownThreadRoot: true,
     replyCount: 3,
-    ...overrides,
-  });
-};
+    isResolved: false,
+    isUnread: false,
+    isStreaming: false,
+    scheduledTaskCount: 0,
+    tags: [],
+  },
+  ...overrides,
+});
 
-describe('buildThreadBadgeViewModel', () => {
-  it('merges cached and fallback summary info into the badge model', () => {
-    const olderFallback: MindroomThreadSummaryInfo = {
-      summaryText: 'Older fallback summary',
-      messageCount: 2,
-      generatedTs: 1000,
-    };
-    const newerCached: MindroomThreadSummaryInfo = {
+describe('buildThreadBadgeViewModelFromRecord', () => {
+  it('does not build thread records inside badge view-model helpers', () => {
+    const source = readFileSync(new URL('./threadBadgeViewModel.ts', import.meta.url), 'utf8');
+    const recordBuilderName = ['build', 'Thread', 'Record'].join('');
+
+    expect(source).not.toContain(recordBuilderName);
+  });
+
+  it('maps canonical record presentation and status into the badge model', () => {
+    const summaryInfo: MindroomThreadSummaryInfo = {
       summaryText: 'Newer cached summary',
       messageCount: 4,
       generatedTs: 2000,
     };
 
-    const model = buildModel({
-      cachedSummaryInfo: newerCached,
-      fallbackSummaryInfo: olderFallback,
-      participantIds: ['@agent:server'],
-      isResolved: true,
+    const model = buildThreadBadgeViewModelFromRecord({
+      record: makeRecord({
+        presentation: {
+          ...makeRecord().presentation,
+          summaryInfo,
+          recentThreadSummaryText: 'Newer cached summary',
+          replyParticipantIds: ['@agent:server'],
+        },
+        status: {
+          ...makeRecord().status,
+          isResolved: true,
+        },
+      }),
     });
 
     expect(model).toEqual({
@@ -93,7 +69,7 @@ describe('buildThreadBadgeViewModel', () => {
         roomId: '!room:server',
         threadRootId: '$root',
       },
-      summaryInfo: newerCached,
+      summaryInfo,
       recentThreadSummaryText: 'Newer cached summary',
       replyCount: 3,
       participantIds: ['@agent:server'],
@@ -101,12 +77,17 @@ describe('buildThreadBadgeViewModel', () => {
     });
   });
 
-  it('keeps zero-reply roots renderable when the caller has allowed them', () => {
-    const model = buildModel({
-      replyCount: 0,
-      threadRootEvent: makeEvent({
-        eventId: '$root',
-        body: 'Standalone root body',
+  it('keeps canonical zero-reply roots renderable', () => {
+    const model = buildThreadBadgeViewModelFromRecord({
+      record: makeRecord({
+        status: {
+          ...makeRecord().status,
+          replyCount: 0,
+        },
+        presentation: {
+          ...makeRecord().presentation,
+          recentThreadSummaryText: 'Standalone root body',
+        },
       }),
     });
 
@@ -114,76 +95,34 @@ describe('buildThreadBadgeViewModel', () => {
     expect(model?.recentThreadSummaryText).toBe('Standalone root body');
   });
 
-  it('does not build a badge while already rendering a thread view', () => {
-    expect(buildModel({ activeThreadId: '$root' })).toBeUndefined();
-  });
-
-  it('does not build a badge for events that are already thread replies', () => {
+  it('does not build a badge for unknown thread roots', () => {
     expect(
-      buildModel({
-        threadRootId: '$reply',
-        eventThreadRootId: '$root',
-        threadRootEvent: makeEvent({
-          eventId: '$reply',
-          threadRootId: '$root',
-          body: 'Reply body',
+      buildThreadBadgeViewModelFromRecord({
+        record: makeRecord({
+          status: {
+            ...makeRecord().status,
+            isKnownThreadRoot: false,
+          },
         }),
       })
     ).toBeUndefined();
   });
 
-  it('derives a timeline badge from loaded visible replies before fallback maps', () => {
-    const rootEvent = makeEvent({
-      eventId: '$root',
-      body: 'Root body',
-    });
-    const firstReply = makeEvent({
-      eventId: '$reply-a',
-      threadRootId: '$root',
-      sender: '@agent-a:server',
-      body: 'First reply',
-    });
-    const hiddenThreadMetadata = makeEvent({
-      eventId: '$thread-tag',
-      threadRootId: '$root',
-      sender: '@agent-hidden:server',
-      type: 'com.mindroom.thread.tag',
-    });
-    const latestReply = makeEvent({
-      eventId: '$reply-b',
-      threadRootId: '$root',
-      sender: '@agent-b:server',
-      body: 'Latest reply',
-    });
-    const room = makeRoom({
-      thread: {
-        events: [firstReply, hiddenThreadMetadata, latestReply],
-        timeline: [firstReply, hiddenThreadMetadata, latestReply],
-        length: 99,
-        rootEvent,
-        lastReply: () => latestReply,
-        getUnfilteredTimelineSet: () => ({
-          getLiveTimeline: () => ({
-            getEvents: () => [rootEvent, firstReply, hiddenThreadMetadata, latestReply],
-            getNeighbouringTimeline: () => undefined,
-          }),
-          relations: {
-            getChildEventsForEvent: () => undefined,
-          },
-        }),
-      } as unknown as ReturnType<Room['getThread']>,
-    });
+  it('does not build a badge while already rendering a thread view', () => {
+    expect(
+      buildThreadBadgeViewModelFromRecord({
+        record: makeRecord(),
+        activeThreadId: '$root',
+      })
+    ).toBeUndefined();
+  });
 
-    const model = buildTimelineThreadBadgeViewModel({
-      room,
-      threadRootEvent: rootEvent,
-      fallbackReplyCount: 1,
-      fallbackParticipantIds: ['@fallback:server'],
-      isResolved: true,
-    });
-
-    expect(model?.replyCount).toBe(2);
-    expect(model?.participantIds).toEqual(['@agent-b:server', '@agent-a:server']);
-    expect(model?.isResolved).toBe(true);
+  it('does not build a badge for events that are already thread replies', () => {
+    expect(
+      buildThreadBadgeViewModelFromRecord({
+        record: makeRecord({ threadRootId: '$reply' }),
+        eventThreadRootId: '$root',
+      })
+    ).toBeUndefined();
   });
 });
