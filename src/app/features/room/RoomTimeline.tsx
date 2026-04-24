@@ -233,7 +233,6 @@ import { useStateEvents } from '../../hooks/useStateEvents';
 import {
   getThreadCursorAnchor,
   loadCachedThreadEventsBefore,
-  loadLatestCachedThreadSummaryInfo,
   loadLatestCachedThreadEvents,
   normalizeCachedThreadEvents,
   saveThreadEventsToCache,
@@ -7050,7 +7049,6 @@ threadDebugTraceId,
   );
   const { t } = useTranslation();
 
-  const pendingThreadSummaryBackfillIdsRef = useRef(new Set<string>());
   const activeThreadSummaryInfo = useMemo(
     () =>
       threadId
@@ -7095,35 +7093,6 @@ threadDebugTraceId,
     threadFilteredEventEntries,
     threadReplyCountMap,
     threadResolutionMap,
-  ]);
-
-  useEffect(() => {
-    if (threadId || visibleThreadSummaryRefreshIds.length === 0) return undefined;
-    const refreshIds = visibleThreadSummaryRefreshIds;
-
-    const backfillVisibleThreadSummaries = async () => {
-      for (const threadRootId of refreshIds) {
-        if (pendingThreadSummaryBackfillIdsRef.current.has(threadRootId)) continue;
-
-        pendingThreadSummaryBackfillIdsRef.current.add(threadRootId);
-        try {
-          const info = await loadLatestCachedThreadSummaryInfo(sessionId, room.roomId, threadRootId);
-          if (!info?.summaryText) continue;
-          onStoreThreadSummary(threadRootId, info);
-        } finally {
-          pendingThreadSummaryBackfillIdsRef.current.delete(threadRootId);
-        }
-      }
-    };
-
-    backfillVisibleThreadSummaries().catch(() => {});
-    return undefined;
-  }, [
-    onStoreThreadSummary,
-    room.roomId,
-    sessionId,
-    threadId,
-    visibleThreadSummaryRefreshIds,
   ]);
 
   const overviewResumeRefreshIds = useMemo(() => {

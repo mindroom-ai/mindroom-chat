@@ -18,6 +18,7 @@ import {
   isMembershipChangedMock,
   loadCachedRoomEventsBeforeMock,
   loadCachedRoomPaginationTokenMock,
+  loadLatestCachedThreadSummaryInfoMock,
   loadLatestCachedRoomEventsMock,
   makeCachedRoomEvent,
   makeEvent,
@@ -1200,6 +1201,33 @@ describe('RoomTimeline', () => {
     expect(
       vi.mocked(loadLatestCachedThreadEvents).mock.calls.map((call) => call[2])
     ).toEqual([thirdThread.getId(), secondThread.getId(), firstThread.getId()]);
+  });
+
+  it('does not issue per-visible-thread summary cache reads from the render path', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
+    const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
+    const room = makeRoom({
+      liveEvents: [firstThread, secondThread],
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(3);
+    });
+
+    expect(loadLatestCachedThreadSummaryInfoMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer?.unmount();
+      await flushAsyncWork(1);
+    });
   });
 
   it('collects room-loaded thread events in chronological order without surfacing relation rows', async () => {
