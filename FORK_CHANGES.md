@@ -566,6 +566,18 @@
     - `npm test` passes (`156/156` files, `1400/1400` tests)
     - `npm run typecheck` passes
     - `npm run build` passes
+- `CINNY-075` implementation step 2 (2026-04-24):
+  - added `ThreadBadgeViewModel`, `buildThreadBadgeViewModel(...)`, and `buildTimelineThreadBadgeViewModel(...)` under `src/app/mindroom/threads/`.
+  - normal room badges in `RoomTimeline` now use the shared badge model for summary precedence, recent-thread preview text, reply count, zero-reply eligibility, participants, and resolved status props.
+  - moved the badge reply-count helpers and zero-reply badge logic out of `RoomTimeline`; existing focused cache tests now import those helpers from the fork-owned badge module.
+  - kept the remaining local `RoomTimeline` code limited to the current narrow integration seam: passing existing source maps and rendering the existing `MindroomThreadSummaryCard` / `ThreadIndicator` components.
+  - validation:
+    - focused Vitest passes for `src/app/mindroom/threads/threadBadgeViewModel.test.ts` and `src/app/features/room/RoomTimeline.cache.test.ts`
+    - focused live Matrix e2e passes for `e2e/live/cinny060-thread-summary-consistency.spec.ts` and `e2e/live/cinny068-fresh-zero-reply-open.spec.ts` (`3/3`)
+    - `npm test` passes (`157/157` files, `1405/1405` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
