@@ -276,7 +276,7 @@ tell whether the new architecture is actually being used everywhere.
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | Compact room cards            | Converted at the render seam. `CompactRoomView` receives the per-room `ThreadRecord` map, and `useCompactThreadCardViewModels` only adapts records into card models.       | Keep card rendering passive; do not reintroduce state/cache lookups here.                     |
 | Normal room thread badge      | Mostly converted. `RoomTimeline` now builds a per-room `ThreadRecord` map and badge rendering adapts from records instead of ad-hoc reply/participant/summary/status maps. | Make the badge renderer a fork-owned component.                                               |
-| Filtering, sorting, counts    | Mostly converted. Overview filter/search/sort, status counts, and tag counts now consume `ThreadRecord` maps instead of `ThreadOverviewMetadata` maps.                     | Remove legacy metadata-map construction after cache hydration no longer needs it.             |
+| Filtering, sorting, counts    | Mostly converted. Overview filter/search/sort, status counts, tag counts, and cache hydration now consume `ThreadRecord` maps instead of `ThreadOverviewMetadata` maps.     | Remove remaining legacy metadata-map construction in `RoomTimeline`.                          |
 | Thread context banner         | Converted at the header seam. The banner builds a `ThreadRecord` and renders summary, tags, resolved state, and scheduled state through `ThreadHeaderViewModel`.            | Keep mutation permissions/actions outside the record; do not reintroduce local summary logic. |
 | Recent threads sidebar        | Converted at the entry seam. `RecentThreadEntry` renders a MindRoom-owned `RecentThreadViewModel` built from `ThreadRecord`; the old `useRecentThreadSummary` path is gone. | Replace the remaining stored-entry plumbing with a room index subscription when available.    |
 | Command palette               | Converted at the thread-item seam. Thread items now build `ThreadRecord` objects and render a MindRoom-owned `CommandPaletteThreadViewModel`.                              | Keep remaining action/user/room logic separate; do not reintroduce thread-specific derivation. |
@@ -287,9 +287,9 @@ tell whether the new architecture is actually being used everywhere.
 
 The immediate next code slice is still Phase 3/4 cleanup, not Phase 5 preload or Phase 6 scroll.
 Compact cards, normal room badges, overview filter/sort/count logic, the thread banner, recent
-thread entries, and command palette thread items now share the `ThreadRecord` seam. `RoomTimeline`
-no longer does per-visible cached-summary reads. The next useful cleanup is reducing legacy
-metadata-map construction in `RoomTimeline` and cache hydration compatibility paths.
+thread entries, command palette thread items, and overview cache hydration now share the
+`ThreadRecord` seam. `RoomTimeline` no longer does per-visible cached-summary reads. The next
+useful cleanup is reducing the remaining legacy metadata-map construction in `RoomTimeline`.
 
 ## Refactor Phases
 
