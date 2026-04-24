@@ -1,46 +1,11 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Avatar, Badge, Box, Chip, Icon, Icons, Text } from 'folds';
 import { IconCalendarEvent } from '@tabler/icons-react';
-import type { MatrixEvent } from 'matrix-js-sdk';
-import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { StateEvent } from '../../../types/matrix/room';
-import {
-  type MindroomThreadSummaryInfo,
-} from '../../components/message/mindroomThreadSummary';
 import * as replyCss from '../../components/message/Reply.css';
 import { UserAvatar } from '../../components/user-avatar';
-import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
-import { useStateEvents } from '../../hooks/useStateEvents';
-import {
-  getNextThreadScheduledTs,
-  getThreadHeaderScheduledDisplayText,
-} from '../../hooks/useThreadHeaderInfo';
-import { useThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
-import { useThreadScheduledTasks } from '../../hooks/useThreadScheduledTasks';
-import { useThreadStreamingState } from '../../hooks/useThreadStreamingState';
-import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
-import { getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
-import { getThreadUnread } from './roomThreadList';
-import { formatScheduledTime } from './compactThreadCardUtils';
-import {
-  getVisibleThreadParticipantIds,
-} from './threadUtils';
-import type { ThreadOverviewMetadata } from './roomThreadOverviewModel';
-import {
-  getThreadPrimarySummaryText,
-  resolveThreadPresentationSnapshot,
-} from './threadPresentation';
-import { useThreadResolution } from './useRoomThreadTags';
+import type { CompactThreadCardViewModel } from '../../mindroom/threads/types';
 import * as css from './CompactRoomView.css';
-
-const numberFormatter = new Intl.NumberFormat();
-const TITLE_FALLBACK = 'Thread started';
-const LAST_MESSAGE_FALLBACK = 'No replies yet';
-const TITLE_TEXT_LIMIT = 160;
-const PREVIEW_TEXT_LIMIT = 96;
-type AttentionState = 'needs-attention' | 'waiting' | 'streaming' | 'resolved' | 'idle';
 
 const tagColor = (tagName: string): string => {
   let hash = 0;
@@ -52,188 +17,32 @@ const tagColor = (tagName: string): string => {
   return `hsl(${hue}, 65%, 82%)`;
 };
 
-const truncateText = (value: string, limit: number): string =>
-  value.length <= limit ? value : `${value.slice(0, limit - 3).trimEnd()}...`;
-
-const getMessageCountLabel = (messageCount: number): string => {
-  if (messageCount === 0) return '0 replies';
-
-  const formattedCount = numberFormatter.format(messageCount);
-  return `${formattedCount} ${messageCount === 1 ? 'msg' : 'msgs'}`;
-};
-
-const getAttentionState = ({
-  isResolved,
-  isStreaming,
-  lastSenderId,
-  currentUserId,
-}: {
-  isResolved: boolean;
-  isStreaming: boolean;
-  lastSenderId: string | undefined;
-  currentUserId: string | undefined;
-}): AttentionState => {
-  if (isStreaming) return 'streaming';
-  if (isResolved) return 'resolved';
-  if (!lastSenderId) return 'idle';
-  if (currentUserId && lastSenderId === currentUserId) return 'waiting';
-  return 'needs-attention';
-};
-
-const getAttentionStatusText = (attentionState: AttentionState): string => {
-  switch (attentionState) {
-    case 'needs-attention':
-      return 'Needs attention';
-    case 'waiting':
-      return 'Waiting on response';
-    case 'streaming':
-      return 'Agent streaming';
-    case 'resolved':
-      return 'Resolved';
-    case 'idle':
-    default:
-      return 'Idle';
-  }
-};
-
 export type CompactThreadCardProps = {
-  room: Room;
-  threadRootId: string;
-  threadRootEvent?: MatrixEvent;
-  metadata?: ThreadOverviewMetadata;
-  summaryInfo?: MindroomThreadSummaryInfo;
+  viewModel: CompactThreadCardViewModel;
   onClick: (threadRootId: string, summaryText?: string) => void;
 };
 
-export function CompactThreadCard({
-  room,
-  threadRootId,
-  threadRootEvent,
-  metadata,
-  summaryInfo,
-  onClick,
-}: CompactThreadCardProps) {
-  const mx = useMatrixClient();
-  const useAuthentication = useMediaAuthentication();
-  const { isResolved: liveIsResolved, tags } = useThreadResolution(room, threadRootId);
-  const isResolved = metadata?.isResolved ?? liveIsResolved;
-  const displayTags =
-    metadata?.tags?.filter((t) => t !== 'resolved') ??
-    (tags ? Object.keys(tags).filter((t) => t !== 'resolved') : []);
-  const liveLastActivityTs = useThreadLastActivityTs(room, threadRootId);
-  const lastActivityTs =
-    Math.max(liveLastActivityTs ?? 0, metadata?.lastActivityTs ?? 0) || undefined;
-  const relativeTime = useRelativeTime(lastActivityTs);
-  const liveIsStreaming = useThreadStreamingState(room, threadRootId);
-  const isStreaming = metadata?.isStreaming ?? liveIsStreaming;
-  const liveScheduledTaskCount = useThreadScheduledTasks(room, threadRootId);
-  const scheduledTaskCount = Math.max(liveScheduledTaskCount, metadata?.scheduledTaskCount ?? 0);
-  const scheduledTaskEvents = useStateEvents(room, StateEvent.MindRoomScheduledTask);
-
-  const thread = room.getThread(threadRootId);
-  const resolvedThreadRootEvent =
-    threadRootEvent ?? thread?.rootEvent ?? room.findEventById(threadRootId);
-  const presentation = useMemo(
-    () =>
-      resolveThreadPresentationSnapshot({
-        room,
-        threadRootId,
-        thread,
-        rootEvent: resolvedThreadRootEvent,
-        preferredSummaryInfo: summaryInfo,
-        preferredRootPreviewText: metadata?.rootPreviewText,
-        fallbackLatestReplyPreviewText: metadata?.latestReplyPreviewText,
-        fallbackLastSenderId: metadata?.lastSenderId,
-        fallbackLastSenderDisplayName: metadata?.lastSenderDisplayName,
-        fallbackMessageCount: metadata?.messageCount,
-      }),
-    [
-      metadata?.lastSenderDisplayName,
-      metadata?.lastSenderId,
-      metadata?.latestReplyPreviewText,
-      metadata?.messageCount,
-      metadata?.rootPreviewText,
-      resolvedThreadRootEvent,
-      room,
-      summaryInfo,
-      thread,
-      threadRootId,
-    ]
-  );
-  const titleText = getThreadPrimarySummaryText(presentation) ?? TITLE_FALLBACK;
-  const displayTitleText = truncateText(titleText, TITLE_TEXT_LIMIT);
-  const lastMessagePreview = truncateText(
-    presentation.latestReplyPreviewText ??
-      presentation.rootPreviewText ??
-      (presentation.messageCount > 0 ? titleText : LAST_MESSAGE_FALLBACK),
-    PREVIEW_TEXT_LIMIT
-  );
-  const lastSenderId = presentation.lastSenderId;
-  const lastSenderName =
-    presentation.lastSenderDisplayName ??
-    (lastSenderId ? getMxIdLocalPart(lastSenderId) ?? lastSenderId : undefined);
-  const messageCount = presentation.messageCount;
-  const messageCountLabel = getMessageCountLabel(messageCount);
-  const currentUserId = mx.getUserId() ?? undefined;
-  const fallbackIsUnread = useMemo(() => {
-    if (!threadRootId) return false;
-    const currentThread = room.getThread(threadRootId);
-    if (!currentThread) return false;
-    const userId = mx.getUserId();
-    if (!userId) return false;
-    return getThreadUnread(room, currentThread, userId);
-  }, [room, threadRootId, mx]);
-  const isUnread = metadata?.isUnread ?? fallbackIsUnread;
-  const attentionState = getAttentionState({
+export function CompactThreadCard({ viewModel, onClick }: CompactThreadCardProps) {
+  const {
+    id,
+    titleText,
+    displayTitleText,
+    previewText,
+    messageCountLabel,
+    attentionState,
+    attentionStatusText,
+    participants,
+    tags,
     isResolved,
+    isUnread,
     isStreaming,
-    lastSenderId,
-    currentUserId,
-  });
-  const attentionStatusText = getAttentionStatusText(attentionState);
-  const lastActivityTitle =
-    lastActivityTs !== undefined ? new Date(lastActivityTs).toLocaleString() : undefined;
-
-  const threadParticipants = useMemo(() => {
-    const participantIds = getVisibleThreadParticipantIds(thread, resolvedThreadRootEvent);
-
-    return participantIds.map((userId) => {
-      const displayName =
-        getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId;
-      const avatarMxc = getMemberAvatarMxc(room, userId);
-
-      return {
-        userId,
-        displayName,
-        avatarUrl: avatarMxc
-          ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 32, 32, 'crop') ?? undefined
-          : undefined,
-      };
-    });
-  }, [mx, room, thread, resolvedThreadRootEvent, useAuthentication]);
-
-  const nextScheduledTs = useMemo(() => {
-    if (scheduledTaskCount <= 0) return undefined;
-    return getNextThreadScheduledTs(scheduledTaskEvents, threadRootId);
-  }, [scheduledTaskCount, scheduledTaskEvents, threadRootId]);
-
-  const scheduledTaskLabel = useMemo(() => {
-    if (scheduledTaskCount <= 0) return undefined;
-
-    const taskLabel = `${scheduledTaskCount} pending scheduled ${
-      scheduledTaskCount === 1 ? 'task' : 'tasks'
-    }`;
-    if (nextScheduledTs === undefined) return taskLabel;
-
-    return `${taskLabel}, ${formatScheduledTime(nextScheduledTs)}`;
-  }, [scheduledTaskCount, nextScheduledTs]);
-
-  const scheduledDisplayText = getThreadHeaderScheduledDisplayText(
-    scheduledTaskCount,
-    nextScheduledTs
-  );
-
-  const previewText = lastSenderName ? `${lastSenderName}: ${lastMessagePreview}` : lastMessagePreview;
+    scheduledDisplayText,
+    scheduledTaskLabel,
+    lastActivityTs,
+    lastActivityTitle,
+    primarySummaryText,
+  } = viewModel;
+  const relativeTime = useRelativeTime(lastActivityTs);
   const ariaLabel = [
     `Open thread: ${titleText}`,
     attentionStatusText,
@@ -247,15 +56,14 @@ export function CompactThreadCard({
   ]
     .filter(Boolean)
     .join('. ');
-  const hasMetadata =
-    threadParticipants.length > 0 || displayTags.length > 0 || isStreaming || isUnread;
+  const hasMetadata = participants.length > 0 || tags.length > 0 || isStreaming || isUnread;
 
   return (
     <button
       className={isResolved ? `${css.Card} ${css.CardResolved}` : css.Card}
       type="button"
-      onClick={() => onClick(threadRootId, getThreadPrimarySummaryText(presentation))}
-      data-thread-root-id={threadRootId}
+      onClick={() => onClick(id.threadRootId, primarySummaryText)}
+      data-thread-root-id={id.threadRootId}
       aria-label={ariaLabel}
     >
       <Box className={css.TitleRow}>
@@ -319,9 +127,9 @@ export function CompactThreadCard({
 
       {hasMetadata && (
         <Box className={css.MetadataRow}>
-          {threadParticipants.length > 0 && (
+          {participants.length > 0 && (
             <Box className={css.Participants} alignItems="Center">
-              {threadParticipants.map((participant, index) => (
+              {participants.map((participant, index) => (
                 <Avatar
                   key={participant.userId}
                   className={`${css.ParticipantAvatar} ${replyCss.ThreadParticipant}`}
@@ -330,10 +138,10 @@ export function CompactThreadCard({
                   title={participant.displayName}
                   style={
                     index === 0
-                      ? { zIndex: threadParticipants.length - index }
+                      ? { zIndex: participants.length - index }
                       : {
                           marginInlineStart: '-0.375rem',
-                          zIndex: threadParticipants.length - index,
+                          zIndex: participants.length - index,
                         }
                   }
                 >
@@ -347,7 +155,7 @@ export function CompactThreadCard({
               ))}
             </Box>
           )}
-          {displayTags.map((tagName) => (
+          {tags.map((tagName) => (
             <Box
               key={tagName}
               as="span"
