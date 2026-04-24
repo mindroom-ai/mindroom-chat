@@ -106,10 +106,26 @@ async function resolveOrCreateRoom(token) {
   return created.room_id;
 }
 
-async function getMessages(token, roomId, limit = 100) {
-  const params = new URLSearchParams({ dir: 'b', limit: String(limit) });
-  const result = await matrixFetch(`/rooms/${encodeURIComponent(roomId)}/messages?${params}`, token);
-  return result.chunk || [];
+async function getMessages(token, roomId, limit = 100, maxPages = 20) {
+  const messages = [];
+  let from;
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const params = new URLSearchParams({ dir: 'b', limit: String(limit) });
+    if (from) params.set('from', from);
+
+    const result = await matrixFetch(
+      `/rooms/${encodeURIComponent(roomId)}/messages?${params}`,
+      token
+    );
+    messages.push(...(result.chunk || []));
+    if (!result.end || result.end === from || result.chunk?.length === 0) {
+      break;
+    }
+    from = result.end;
+  }
+
+  return messages;
 }
 
 function findEventByBody(messages, marker) {

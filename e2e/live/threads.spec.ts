@@ -52,6 +52,9 @@ async function navigateToFixtureRoom(
 const getOverviewThreadButtons = (page: import('@playwright/test').Page) =>
   page.locator('button[aria-label^="Open thread:"]');
 
+const getNewestMatchingThreadButton = (page: import('@playwright/test').Page, name: RegExp) =>
+  page.getByRole('button', { name }).first();
+
 const getMessageComposer = (page: import('@playwright/test').Page) =>
   page.getByRole('textbox').first();
 
@@ -81,9 +84,10 @@ test.describe('live threads', () => {
 
     await expect(page.getByText('No recent threads')).toBeVisible({ timeout: 30_000 });
 
-    const threadEntry = page.getByRole('button', {
-      name: new RegExp(`${escapeRegex(SUMMARY_TEXT)}[\\s\\S]*4 msgs`, 'i'),
-    });
+    const threadEntry = getNewestMatchingThreadButton(
+      page,
+      new RegExp(`${escapeRegex(SUMMARY_TEXT)}[\\s\\S]*4 msgs`, 'i')
+    );
     await expect(threadEntry).toBeVisible({ timeout: 30_000 });
     await threadEntry.click();
 
@@ -121,9 +125,10 @@ test.describe('live threads', () => {
     const found = await navigateToFixtureRoom(page, fixtureRoomId);
     test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
 
-    const hiddenRelationThreadButton = page.getByRole('button', {
-      name: new RegExp(`${escapeRegex(HIDDEN_THREAD_RELATION_ROOT_MARKER)}[\\s\\S]*0 replies`, 'i'),
-    });
+    const hiddenRelationThreadButton = getNewestMatchingThreadButton(
+      page,
+      new RegExp(`${escapeRegex(HIDDEN_THREAD_RELATION_ROOT_MARKER)}[\\s\\S]*0 replies`, 'i')
+    );
     await expect(hiddenRelationThreadButton).toBeVisible({ timeout: 30_000 });
     await hiddenRelationThreadButton.click();
 
@@ -144,11 +149,7 @@ test.describe('live threads', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    const fixtureRoomId = await joinRoom(
-      homeserver,
-      session.accessToken,
-      FIXTURE_ROOM_REF
-    );
+    const fixtureRoomId = await joinRoom(homeserver, session.accessToken, FIXTURE_ROOM_REF);
 
     await loginWithPassword(page, { homeserver, username, password });
     await seedRoomOverviewState({
@@ -167,8 +168,7 @@ test.describe('live threads', () => {
     const threadIndicators = page.locator('[class*="thread"], [class*="Thread"]');
 
     // Either the overview panel or thread indicators should be visible
-    const hasThreadUI =
-      (await threadOverview.count()) > 0 || (await threadIndicators.count()) > 0;
+    const hasThreadUI = (await threadOverview.count()) > 0 || (await threadIndicators.count()) > 0;
 
     expect(hasThreadUI).toBe(true);
 
@@ -180,11 +180,7 @@ test.describe('live threads', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    const fixtureRoomId = await joinRoom(
-      homeserver,
-      session.accessToken,
-      FIXTURE_ROOM_REF
-    );
+    const fixtureRoomId = await joinRoom(homeserver, session.accessToken, FIXTURE_ROOM_REF);
 
     await loginWithPassword(page, { homeserver, username, password });
     await seedRoomOverviewState({
@@ -221,11 +217,7 @@ test.describe('live threads', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    const fixtureRoomId = await joinRoom(
-      homeserver,
-      session.accessToken,
-      FIXTURE_ROOM_REF
-    );
+    const fixtureRoomId = await joinRoom(homeserver, session.accessToken, FIXTURE_ROOM_REF);
 
     await loginWithPassword(page, { homeserver, username, password });
     await seedRoomOverviewState({
@@ -239,9 +231,10 @@ test.describe('live threads', () => {
     const found = await navigateToFixtureRoom(page, fixtureRoomId);
     test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
 
-    const threadEntry = page.getByRole('button', {
-      name: new RegExp(`${escapeRegex(SUMMARY_TEXT)}[\\s\\S]*4 msgs`, 'i'),
-    });
+    const threadEntry = getNewestMatchingThreadButton(
+      page,
+      new RegExp(`${escapeRegex(SUMMARY_TEXT)}[\\s\\S]*4 msgs`, 'i')
+    );
     await expect(threadEntry).toBeVisible({ timeout: 30_000 });
     await threadEntry.click();
 
@@ -259,7 +252,10 @@ test.describe('live threads', () => {
           const replyVisible = (await threadReplyContent.count()) > 0;
           return panelVisible || replyVisible;
         },
-        { timeout: 30_000, message: 'Thread-specific content should render after clicking thread entry' }
+        {
+          timeout: 30_000,
+          message: 'Thread-specific content should render after clicking thread entry',
+        }
       )
       .toBe(true);
 
@@ -320,11 +316,7 @@ test.describe('live threads', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    const fixtureRoomId = await joinRoom(
-      homeserver,
-      session.accessToken,
-      FIXTURE_ROOM_REF
-    );
+    const fixtureRoomId = await joinRoom(homeserver, session.accessToken, FIXTURE_ROOM_REF);
 
     await loginWithPassword(page, { homeserver, username, password });
     await seedRoomOverviewState({
@@ -338,9 +330,10 @@ test.describe('live threads', () => {
     const found = await navigateToFixtureRoom(page, fixtureRoomId);
     test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
 
-    const hiddenRelationThreadButton = page.getByRole('button', {
-      name: new RegExp(`${escapeRegex(HIDDEN_THREAD_RELATION_ROOT_MARKER)}[\\s\\S]*0 replies`, 'i'),
-    });
+    const hiddenRelationThreadButton = getNewestMatchingThreadButton(
+      page,
+      new RegExp(`${escapeRegex(HIDDEN_THREAD_RELATION_ROOT_MARKER)}[\\s\\S]*0 replies`, 'i')
+    );
     await expect(hiddenRelationThreadButton).toBeVisible({ timeout: 30_000 });
 
     await hiddenRelationThreadButton.click();
@@ -359,11 +352,7 @@ test.describe('live threads', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    const fixtureRoomId = await joinRoom(
-      homeserver,
-      session.accessToken,
-      FIXTURE_ROOM_REF
-    );
+    const fixtureRoomId = await joinRoom(homeserver, session.accessToken, FIXTURE_ROOM_REF);
 
     await loginWithPassword(page, { homeserver, username, password });
     await seedRoomOverviewState({
