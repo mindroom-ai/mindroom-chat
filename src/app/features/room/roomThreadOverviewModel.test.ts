@@ -1484,23 +1484,36 @@ describe('roomThreadOverviewModel', () => {
     expect(result.ids).toEqual(['$actual-root']);
   });
 
-  it('buildVisibleThreadRootData includes recent standalone zero-reply roots', async () => {
+  it('buildVisibleThreadRootData includes old standalone zero-reply message roots', async () => {
     const { buildVisibleThreadRootData } = await import('./roomThreadOverviewModel');
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
-    const recentStandaloneRoot = {
-      getId: () => '$recent-root',
-      getContent: () => ({ body: 'Recent standalone root' }),
+    const oldStandaloneRoot = {
+      getId: () => '$old-root',
+      getContent: () => ({ body: 'Older standalone root', msgtype: 'm.text' }),
       getRelation: () => undefined,
-      getTs: () => 999_000,
+      getTs: () => 1_000,
       getType: () => 'm.room.message',
       isRedacted: () => false,
-      threadRootId: '$recent-root',
+      threadRootId: '$old-root',
+      isThreadRoot: false,
+    };
+    const noticeRoot = {
+      getId: () => '$notice-root',
+      getContent: () => ({ body: 'Notice root', msgtype: 'm.notice' }),
+      getRelation: () => undefined,
+      getTs: () => 1_000,
+      getType: () => 'm.room.message',
+      isRedacted: () => false,
+      threadRootId: '$notice-root',
       isThreadRoot: false,
     };
 
     try {
       const result = buildVisibleThreadRootData(
-        [{ event: recentStandaloneRoot as never, absoluteIndex: 0 }],
+        [
+          { event: oldStandaloneRoot as never, absoluteIndex: 0 },
+          { event: noticeRoot as never, absoluteIndex: 1 },
+        ],
         {
           getThread: () => undefined,
         } as never,
@@ -1508,8 +1521,8 @@ describe('roomThreadOverviewModel', () => {
         new Map()
       );
 
-      expect(result.ids).toEqual(['$recent-root']);
-      expect(result.indexMap.get('$recent-root')).toBe(0);
+      expect(result.ids).toEqual(['$old-root']);
+      expect(result.indexMap.get('$old-root')).toBe(0);
     } finally {
       nowSpy.mockRestore();
     }
