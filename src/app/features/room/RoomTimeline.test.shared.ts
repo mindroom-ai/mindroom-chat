@@ -37,6 +37,7 @@ const {
   navigateRoomThreadMock,
   threadRenderStateMock,
   threadLastActivityTsMapMock,
+  threadStreamingStateMock,
   threadResolutionMapMock,
   stateEventsByTypeMock,
   roomThreadListThreadsMock,
@@ -89,6 +90,7 @@ const {
     resetThreadRenderState: vi.fn(),
   },
   threadLastActivityTsMapMock: new Map<string, number>(),
+  threadStreamingStateMock: new Map<string, boolean>(),
   threadResolutionMapMock: new Map<string, { isResolved: boolean; tags: Record<string, unknown> | null }>(),
   stateEventsByTypeMock: new Map<string, unknown[]>(),
   roomThreadListThreadsMock: [] as Array<{ id?: string; rootEvent?: unknown }>,
@@ -945,7 +947,8 @@ vi.mock('../../hooks/useThreadLastActivityTs', () => ({
 }));
 
 vi.mock('../../hooks/useThreadStreamingState', () => ({
-  getThreadStreamingState: () => false,
+  getThreadStreamingState: (_room: unknown, threadRootId: string) =>
+    threadStreamingStateMock.get(threadRootId) ?? false,
   useThreadStreamingState: () => false,
 }));
 
@@ -1161,6 +1164,7 @@ beforeEach(() => {
   threadRenderStateMock.threadEvents = [];
   threadRenderStateMock.threadInitialRenderMode = 'live';
   threadLastActivityTsMapMock.clear();
+  threadStreamingStateMock.clear();
   threadResolutionMapMock.clear();
   stateEventsByTypeMock.clear();
   roomThreadListThreadsMock.length = 0;
@@ -1489,6 +1493,7 @@ export {
   stateEventsByTypeMock,
   TEST_DEFAULT_THREAD_FILTER_STATE,
   threadLastActivityTsMapMock,
+  threadStreamingStateMock,
   threadRenderStateMock,
   threadResolutionMapMock,
   TimelineRefreshHarness,
