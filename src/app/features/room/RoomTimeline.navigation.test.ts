@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   create,
   createControlledRoomTimelineHarness,
+  emitClientSync,
   flushAsyncWork,
   getClickableByText,
   makeEvent,
@@ -107,6 +108,11 @@ describe('RoomTimeline', () => {
           room,
         })
       );
+      await flushAsyncWork(1);
+    });
+
+    await act(async () => {
+      emitClientSync();
       await flushAsyncWork(1);
     });
 
@@ -321,6 +327,11 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
+    await act(async () => {
+      emitClientSync();
+      await flushAsyncWork(1);
+    });
+
     expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('include');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
@@ -370,6 +381,11 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
+    await act(async () => {
+      emitClientSync();
+      await flushAsyncWork(1);
+    });
+
     expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('include');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
@@ -414,6 +430,11 @@ describe('RoomTimeline', () => {
         })
       );
       await flushAsyncWork();
+    });
+
+    await act(async () => {
+      emitClientSync();
+      await flushAsyncWork(1);
     });
 
     expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('exclude');
@@ -466,6 +487,11 @@ describe('RoomTimeline', () => {
         })
       );
       await flushAsyncWork();
+    });
+
+    await act(async () => {
+      emitClientSync();
+      await flushAsyncWork(1);
     });
 
     expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('exclude');
@@ -809,6 +835,11 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
+    await act(async () => {
+      emitClientSync();
+      await flushAsyncWork(1);
+    });
+
     expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('include');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
@@ -857,6 +888,11 @@ describe('RoomTimeline', () => {
       await flushAsyncWork();
     });
 
+    await act(async () => {
+      emitClientSync();
+      await flushAsyncWork(1);
+    });
+
     expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('include');
     expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
       room.getUnfilteredTimelineSet(),
@@ -901,6 +937,11 @@ describe('RoomTimeline', () => {
         })
       );
       await flushAsyncWork();
+    });
+
+    await act(async () => {
+      emitClientSync();
+      await flushAsyncWork(1);
     });
 
     expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('exclude');
@@ -953,6 +994,11 @@ describe('RoomTimeline', () => {
         })
       );
       await flushAsyncWork();
+    });
+
+    await act(async () => {
+      emitClientSync();
+      await flushAsyncWork(1);
     });
 
     expect(renderer?.root.findByType(roomThreadOverviewType).props.state.resolved).toBe('exclude');
