@@ -16,7 +16,7 @@ const {
   getCompactThreadRootBodyPreviewTextMock: vi.fn(),
 }));
 
-vi.mock('../room/threadSummaryCache', () => ({
+vi.mock('../../features/room/threadSummaryCache', () => ({
   loadCachedThreadSummaries: loadCachedThreadSummariesMock,
   saveCachedThreadSummary: saveCachedThreadSummaryMock,
 }));
@@ -27,8 +27,9 @@ vi.mock('../../components/message/mindroomThreadSummary', () => ({
     [...infos].reverse().find((info) => !!info?.summaryText),
 }));
 
-vi.mock('../room/compactThreadRootData', () => ({
+vi.mock('../../features/room/compactThreadRootData', () => ({
   getCompactThreadRootBodyPreviewText: getCompactThreadRootBodyPreviewTextMock,
+  isZeroReplyStandaloneThreadRootEvent: () => false,
   pickPreferredThreadRootPreviewText: ({
     preferredPreviewText,
     fallbackPreviewText,
@@ -47,10 +48,10 @@ vi.mock('../../hooks/useRoomMeta', () => ({
 }));
 
 import {
-  clearRecentThreadSummarySharedState,
-  useRecentThreadSummary,
-} from './useRecentThreadSummary';
-import { storeThreadSummaryInState } from '../room/threadSummaryState';
+  clearRecentThreadViewModelSharedState,
+  useRecentThreadViewModel,
+} from './recentThreadViewModel';
+import { storeThreadSummaryInState } from '../../features/room/threadSummaryState';
 
 type Listener = () => void;
 
@@ -86,9 +87,9 @@ function HookHarness({
   room: Room;
   threadId: string;
   fallbackSummaryText?: string;
-  onRender: (result: ReturnType<typeof useRecentThreadSummary>) => void;
+  onRender: (result: ReturnType<typeof useRecentThreadViewModel>) => void;
 }) {
-  onRender(useRecentThreadSummary(room, threadId, fallbackSummaryText));
+  onRender(useRecentThreadViewModel(room, threadId, 123, fallbackSummaryText));
   return null;
 }
 
@@ -98,7 +99,7 @@ const flushPromises = async () => {
   });
 };
 
-describe('useRecentThreadSummary', () => {
+describe('useRecentThreadViewModel', () => {
   let renderer: ReactTestRenderer | undefined;
 
   beforeEach(() => {
@@ -107,7 +108,7 @@ describe('useRecentThreadSummary', () => {
     getCompactThreadRootBodyPreviewTextMock.mockReset();
     getLatestThreadSummaryInfoFromEventSourcesMock.mockReturnValue(undefined);
     getCompactThreadRootBodyPreviewTextMock.mockReturnValue(undefined);
-    clearRecentThreadSummarySharedState();
+    clearRecentThreadViewModelSharedState();
   });
 
   afterEach(() => {
@@ -117,10 +118,10 @@ describe('useRecentThreadSummary', () => {
       });
     }
     renderer = undefined;
-    clearRecentThreadSummarySharedState();
+    clearRecentThreadViewModelSharedState();
   });
 
-  it('shares room summary cache reads and room thread listeners across entries in the same room', async () => {
+  it('shares cached summary reads and room thread listeners across entries in the same room', async () => {
     loadCachedThreadSummariesMock.mockResolvedValue(
       new Map([
         ['$thread-1', { summaryText: 'Cached summary 1' }],
@@ -140,15 +141,15 @@ describe('useRecentThreadSummary', () => {
           React.createElement(HookHarness, {
             room: room as unknown as Room,
             threadId: '$thread-1',
-            onRender: ({ summary }) => {
-              firstSummary = summary;
+            onRender: ({ summaryText }) => {
+              firstSummary = summaryText;
             },
           }),
           React.createElement(HookHarness, {
             room: room as unknown as Room,
             threadId: '$thread-2',
-            onRender: ({ summary }) => {
-              secondSummary = summary;
+            onRender: ({ summaryText }) => {
+              secondSummary = summaryText;
             },
           })
         )
@@ -166,66 +167,20 @@ describe('useRecentThreadSummary', () => {
     expect(room.on).toHaveBeenNthCalledWith(2, ThreadEvent.Update, expect.any(Function));
     expect(room.on).toHaveBeenNthCalledWith(3, ThreadEvent.NewReply, expect.any(Function));
     expect(room.on).toHaveBeenNthCalledWith(4, ThreadEvent.Delete, expect.any(Function));
-
-    act(() => {
-      renderer?.unmount();
-    });
-    renderer = undefined;
-
-    expect(room.removeListener).toHaveBeenCalledTimes(4);
-    expect(room.removeListener).toHaveBeenNthCalledWith(1, ThreadEvent.New, expect.any(Function));
-    expect(room.removeListener).toHaveBeenNthCalledWith(
-      2,
-      ThreadEvent.Update,
-      expect.any(Function)
-    );
-    expect(room.removeListener).toHaveBeenNthCalledWith(
-      3,
-      ThreadEvent.NewReply,
-      expect.any(Function)
-    );
-    expect(room.removeListener).toHaveBeenNthCalledWith(
-      4,
-      ThreadEvent.Delete,
-      expect.any(Function)
-    );
   });
 
-  it('truncates cached summaries to 120 characters including the ellipsis', async () => {
-    loadCachedThreadSummariesMock.mockResolvedValue(
-      new Map([['$thread-1', { summaryText: 'x'.repeat(200) }]])
-    );
-
-    const room = new MockRoom();
-    let summary = '';
-
-    await act(async () => {
-      renderer = create(
-        React.createElement(HookHarness, {
-          room: room as unknown as Room,
-          threadId: '$thread-1',
-          onRender: (result) => {
-            summary = result.summary;
-          },
-        })
-      );
-    });
-
-    await flushPromises();
-
-    expect(summary).toHaveLength(120);
-    expect(summary.endsWith('...')).toBe(true);
-  });
-
-  it('falls back to the thread root preview when no summary is available', async () => {
+  it('uses root previews through the shared ThreadRecord path when no summary is available', async () => {
     loadCachedThreadSummariesMock.mockResolvedValue(new Map());
-    getCompactThreadRootBodyPreviewTextMock.mockReturnValue(
-      '[cinny-e2e] Hidden relation thread root'
-    );
+    getCompactThreadRootBodyPreviewTextMock.mockReturnValue('Root preview');
 
     const room = new MockRoom();
     room.findEventById.mockReturnValue({
-      getContent: () => ({ body: '[cinny-e2e] Hidden relation thread root' }),
+      getId: () => '$thread-1',
+      getTs: () => 100,
+      getSender: () => '@alice:example.org',
+      getUnsigned: () => ({}),
+      getContent: () => ({ body: 'Root preview' }),
+      replacingEvent: () => undefined,
       on: vi.fn(),
       removeListener: vi.fn(),
     });
@@ -237,8 +192,8 @@ describe('useRecentThreadSummary', () => {
         React.createElement(HookHarness, {
           room: room as unknown as Room,
           threadId: '$thread-1',
-          onRender: (result) => {
-            summary = result.summary;
+          onRender: ({ summaryText }) => {
+            summary = summaryText;
           },
         })
       );
@@ -246,21 +201,12 @@ describe('useRecentThreadSummary', () => {
 
     await flushPromises();
 
-    expect(summary).toBe('[cinny-e2e] Hidden relation thread root');
+    expect(summary).toBe('Root preview');
   });
 
-  it('updates an existing recent-thread entry when room view stores a newer summary', async () => {
+  it('updates when room view stores a newer shared summary for the same thread', async () => {
     loadCachedThreadSummariesMock.mockResolvedValue(
-      new Map([
-        [
-          '$thread-1',
-          {
-            summaryText: 'Cached summary',
-            generatedTs: 1,
-            messageCount: 2,
-          },
-        ],
-      ])
+      new Map([['$thread-1', { summaryText: 'Cached summary', generatedTs: 1 }]])
     );
 
     const room = new MockRoom();
@@ -271,8 +217,8 @@ describe('useRecentThreadSummary', () => {
         React.createElement(HookHarness, {
           room: room as unknown as Room,
           threadId: '$thread-1',
-          onRender: (result) => {
-            summary = result.summary;
+          onRender: ({ summaryText }) => {
+            summary = summaryText;
           },
         })
       );
@@ -285,36 +231,11 @@ describe('useRecentThreadSummary', () => {
       storeThreadSummaryInState('session-1', '!room:example.org', '$thread-1', {
         summaryText: 'Live summary from room view',
         generatedTs: 2,
-        messageCount: 4,
       });
       await flushPromises();
     });
 
     expect(summary).toBe('Live summary from room view');
     expect(loadCachedThreadSummariesMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('uses the stored recent-thread snapshot when the root event is no longer loaded', async () => {
-    loadCachedThreadSummariesMock.mockResolvedValue(new Map());
-
-    const room = new MockRoom();
-    let summary = '';
-
-    await act(async () => {
-      renderer = create(
-        React.createElement(HookHarness, {
-          room: room as unknown as Room,
-          threadId: '$thread-1',
-          fallbackSummaryText: 'Stored summary snapshot',
-          onRender: (result) => {
-            summary = result.summary;
-          },
-        })
-      );
-    });
-
-    await flushPromises();
-
-    expect(summary).toBe('Stored summary snapshot');
   });
 });

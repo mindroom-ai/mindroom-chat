@@ -3,10 +3,8 @@ import { Text } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
-import { useRoomName } from '../../hooks/useRoomMeta';
 import { bumpRecentThread, rekeyRecentThread } from '../../state/recentThreads';
-import { useRecentThreadSummary } from './useRecentThreadSummary';
-import { shouldPersistRecentThreadSummaryText } from './recentThreadSummaryUtils';
+import { useRecentThreadViewModel } from '../../mindroom/threads/recentThreadViewModel';
 import * as css from './recentThreads.css';
 
 type RecentThreadEntryProps = {
@@ -22,42 +20,52 @@ export const RecentThreadEntry = memo(({
   openedAt,
   summaryText,
 }: RecentThreadEntryProps) => {
-  const roomName = useRoomName(room);
+  const viewModel = useRecentThreadViewModel(room, threadId, openedAt, summaryText);
   const relativeTime = useRelativeTime(openedAt);
   const { navigateRoomThreadDirect } = useRoomNavigate();
-  const { summary, resolvedThreadId } = useRecentThreadSummary(room, threadId, summaryText);
   const ariaLabel = [
-    `Open thread: ${summary}`,
-    roomName,
+    `Open thread: ${viewModel.summaryText}`,
+    viewModel.roomName,
     relativeTime ? `Opened ${relativeTime}` : undefined,
   ]
     .filter(Boolean)
     .join('. ');
 
   useEffect(() => {
-    if (resolvedThreadId === threadId) return;
+    if (!viewModel.shouldRekey) return;
 
-    rekeyRecentThread(room.roomId, threadId, resolvedThreadId);
-  }, [resolvedThreadId, room.roomId, threadId]);
+    rekeyRecentThread(room.roomId, viewModel.storedThreadId, viewModel.id.threadRootId);
+  }, [room.roomId, viewModel.id.threadRootId, viewModel.shouldRekey, viewModel.storedThreadId]);
 
   useEffect(() => {
-    if (!shouldPersistRecentThreadSummaryText(room, roomName, summary)) return;
-    if (summary === summaryText) return;
+    if (!viewModel.persistableSummaryText) return;
+    if (viewModel.persistableSummaryText === summaryText) return;
 
-    bumpRecentThread(room.roomId, threadId, openedAt, summary);
-  }, [openedAt, room, room.roomId, roomName, summary, summaryText, threadId]);
+    bumpRecentThread(
+      room.roomId,
+      viewModel.id.threadRootId,
+      openedAt,
+      viewModel.persistableSummaryText
+    );
+  }, [
+    openedAt,
+    room.roomId,
+    summaryText,
+    viewModel.id.threadRootId,
+    viewModel.persistableSummaryText,
+  ]);
 
   return (
     <button
       className={css.EntryButton}
       type="button"
-      onClick={() => navigateRoomThreadDirect(room.roomId, resolvedThreadId)}
-      title={`${roomName}: ${summary}`}
+      onClick={() => navigateRoomThreadDirect(room.roomId, viewModel.id.threadRootId)}
+      title={`${viewModel.roomName}: ${viewModel.summaryText}`}
       aria-label={ariaLabel}
     >
       <div className={css.EntryTopRow}>
         <Text className={css.EntryRoomName} size="T200" priority="300" truncate>
-          {roomName}
+          {viewModel.roomName}
         </Text>
         {relativeTime && (
           <Text className={css.EntryTime} size="T200" priority="400">
@@ -66,7 +74,7 @@ export const RecentThreadEntry = memo(({
         )}
       </div>
       <Text className={css.EntrySummary} size="T300">
-        {summary}
+        {viewModel.summaryText}
       </Text>
     </button>
   );

@@ -106,3 +106,25 @@ export type ThreadHeaderViewModel = {
   scheduledLabel?: string;
   bannerScheduledText?: string;
 };
+
+export type RecentThreadViewModel = {
+  id: ThreadId;
+  storedThreadId: string;
+  openedAt: number;
+  roomName: string;
+  summaryText: string;
+  persistableSummaryText?: string;
+  shouldRekey: boolean;
+};
+
+export type CommandPaletteThreadViewModel = {
+  id: ThreadId;
+  summaryText: string;
+  roomName: string;
+  participantNames?: string[];
+  tags?: string[];
+  isResolved?: boolean;
+  messageCount?: number;
+  sortRank?: number;
+  boost?: number;
+};

@@ -15,7 +15,7 @@ import { clearRoomThreadFiltersStore } from '../app/state/room/roomThreadFilterS
 import { createMatrixClient } from './matrixClientFactory';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
 import { clearMindroomLongTextHydrationCache } from '../app/components/message/mindroomLongText';
-import { clearRecentThreadSummarySharedState } from '../app/features/recent-threads/useRecentThreadSummary';
+import { clearRecentThreadViewModelSharedState } from '../app/mindroom/threads/recentThreadViewModel';
 import {
   deleteThreadEventCache,
   getThreadEventCacheDbName,
@@ -418,7 +418,7 @@ const clearSessionScopedUiState = (userId: string): void => {
   clearRecentThreadsStore(userId);
   clearRecentThreadsPanelHeightStore(userId);
   clearRecentThreadsPanelMobileExpandedStore(userId);
-  clearRecentThreadSummarySharedState();
+  clearRecentThreadViewModelSharedState();
 };
 
 const clearMatrixClientStores = async (
