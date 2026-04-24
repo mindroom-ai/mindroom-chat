@@ -1307,10 +1307,7 @@ export const restoreThreadPrependScrollAnchor = (
   const delta = target.getBoundingClientRect().top - anchor.top;
   if (Math.abs(delta) <= 1) return true;
 
-  scrollContainer.scrollBy({
-    top: delta,
-    behavior: 'instant',
-  });
+  scrollContainer.scrollTop += delta;
 
   return true;
 };

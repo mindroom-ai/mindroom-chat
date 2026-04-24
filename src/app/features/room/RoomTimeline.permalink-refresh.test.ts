@@ -884,7 +884,6 @@ describe('RoomTimeline', () => {
   it('restores the captured thread prepend anchor position after older messages are prepended', async () => {
     const { restoreThreadPrependScrollAnchor } = await import('./RoomTimeline');
 
-    const scrollBy = vi.fn();
     const anchor = {
       getAttribute: vi.fn().mockReturnValue('$anchor'),
       getBoundingClientRect: vi.fn().mockReturnValue({
@@ -894,7 +893,7 @@ describe('RoomTimeline', () => {
     };
     const scroll = {
       querySelectorAll: vi.fn().mockReturnValue([anchor]),
-      scrollBy,
+      scrollTop: 40,
     } as unknown as HTMLElement;
 
     expect(
@@ -903,10 +902,7 @@ describe('RoomTimeline', () => {
         top: 140,
       })
     ).toBe(true);
-    expect(scrollBy).toHaveBeenCalledWith({
-      top: 280,
-      behavior: 'instant',
-    });
+    expect(scroll.scrollTop).toBe(320);
   });
       });
     });
