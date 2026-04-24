@@ -6,19 +6,22 @@ export type ThreadId = {
 };
 
 export type ThreadPresentationSnapshot = {
-  summaryInfo?: MindroomThreadSummaryInfo;
-  summaryText?: string;
-  rootPreviewText?: string;
-  latestReplyPreviewText?: string;
-  titleText: string;
-  subtitleText?: string;
-  lastSenderId?: string;
-  lastSenderDisplayName?: string;
+  summaryInfo: MindroomThreadSummaryInfo | undefined;
+  summaryText: string | undefined;
+  rootPreviewText: string | undefined;
+  latestReplyPreviewText: string | undefined;
+  lastSenderId: string | undefined;
+  lastSenderDisplayName: string | undefined;
   messageCount: number;
   participantIds: string[];
+  replyParticipantIds: string[];
+  primarySummaryText: string | undefined;
+  recentThreadSummaryText: string | undefined;
 };
 
 export type ThreadStatusSnapshot = {
+  isKnownThreadRoot: boolean;
+  replyCount: number;
   isResolved: boolean;
   isUnread: boolean;
   isStreaming: boolean;

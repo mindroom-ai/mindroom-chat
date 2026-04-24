@@ -512,6 +512,7 @@ vi.mock('./threadUtils', () => ({
   getPreferredVisibleThreadReplyEvents: () => [],
   getVisibleThreadEventBodyPreviewText: () => undefined,
   getVisibleThreadMessageCount: () => 0,
+  getVisibleThreadParticipantIds: () => [],
   isVisibleThreadTextMessageEventType: (eventType?: string) =>
     eventType === 'm.room.message' || eventType === 'm.room.encrypted',
   isThreadReplyEvent: (eventId?: string, threadRootId?: string) =>

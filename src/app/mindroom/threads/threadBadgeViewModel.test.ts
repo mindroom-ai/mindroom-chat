@@ -49,6 +49,7 @@ const makeRoom = ({ thread }: { thread?: ReturnType<Room['getThread']> } = {}): 
         getChildEventsForEvent: () => undefined,
       },
     })),
+    getMember: vi.fn(() => undefined),
     hasEncryptionStateEvent: vi.fn(() => false),
   } as unknown as Room);
 
@@ -160,6 +161,16 @@ describe('buildThreadBadgeViewModel', () => {
         timeline: [firstReply, hiddenThreadMetadata, latestReply],
         length: 99,
         rootEvent,
+        lastReply: () => latestReply,
+        getUnfilteredTimelineSet: () => ({
+          getLiveTimeline: () => ({
+            getEvents: () => [rootEvent, firstReply, hiddenThreadMetadata, latestReply],
+            getNeighbouringTimeline: () => undefined,
+          }),
+          relations: {
+            getChildEventsForEvent: () => undefined,
+          },
+        }),
       } as unknown as ReturnType<Room['getThread']>,
     });
 

@@ -1,18 +1,16 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
+import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
+import { isThreadReplyEvent } from '../../features/room/threadUtils';
 import {
-  pickLatestThreadSummaryInfo,
-  type MindroomThreadSummaryInfo,
-} from '../../components/message/mindroomThreadSummary';
-import { resolveRecentThreadSummaryText } from '../../features/recent-threads/recentThreadSummaryUtils';
-import { isZeroReplyStandaloneThreadRootEvent } from '../../features/room/compactThreadRootData';
-import { resolveThreadSummaryInfo } from '../../features/room/threadPresentation';
-import {
-  buildVisibleThreadParticipantMap,
-  buildVisibleThreadReplyCountMap,
-  isThreadReplyEvent,
-} from '../../features/room/threadUtils';
-import type { ThreadBadgeViewModel } from './types';
+  buildThreadRecord,
+  getKnownThreadReplyCount,
+  getThreadReplyCount,
+  shouldRenderZeroReplyThreadBadge,
+} from './threadRecord';
+import type { ThreadBadgeViewModel, ThreadRecord } from './types';
+
+export { getKnownThreadReplyCount, getThreadReplyCount, shouldRenderZeroReplyThreadBadge };
 
 type BuildThreadBadgeViewModelOptions = {
   room: Room;
@@ -38,105 +36,35 @@ type BuildTimelineThreadBadgeViewModelOptions = {
   cachedSummaryInfo?: MindroomThreadSummaryInfo;
 };
 
-const THREAD_BADGE_PARTICIPANT_LIMIT = 3;
-
-export const getThreadReplyCount = (
-  room: Room,
-  mEvent: MatrixEvent,
-  fallbackReplyCount?: number,
-  allowZeroReplyCount = false
-): number | undefined => {
-  const eventId = mEvent.getId();
-  if (!eventId) return undefined;
-
-  const thread = room.getThread(eventId);
-  const loadedThreadEvents =
-    thread?.events && thread.events.length > 0
-      ? thread.events
-      : thread?.timeline && thread.timeline.length > 0
-      ? thread.timeline
-      : undefined;
-  if (loadedThreadEvents && loadedThreadEvents.length > 0) {
-    const visibleThreadReplyCount =
-      buildVisibleThreadReplyCountMap(loadedThreadEvents).get(eventId) ?? 0;
-    if (visibleThreadReplyCount > 0 || allowZeroReplyCount) {
-      return visibleThreadReplyCount;
-    }
-  }
-
-  const threadMeta = mEvent.getUnsigned()?.['m.relations']?.['m.thread'] as
-    | { count?: unknown; c?: unknown }
-    | undefined;
-  if (typeof threadMeta?.count === 'number') return threadMeta.count;
-  if (typeof threadMeta?.c === 'number') return threadMeta.c;
-
-  const threadLength = thread?.length;
-  if (typeof threadLength === 'number' && (threadLength > 0 || allowZeroReplyCount)) {
-    return threadLength;
-  }
-
-  if (typeof fallbackReplyCount === 'number' && (fallbackReplyCount > 0 || allowZeroReplyCount)) {
-    return fallbackReplyCount;
-  }
-
-  return allowZeroReplyCount ? 0 : undefined;
+type BuildThreadBadgeViewModelFromRecordOptions = {
+  record: ThreadRecord;
+  activeThreadId?: string;
+  eventThreadRootId?: string;
 };
 
-export const getKnownThreadReplyCount = (mEvent: MatrixEvent): number | undefined => {
-  const threadMeta = mEvent.getUnsigned()?.['m.relations']?.['m.thread'] as
-    | { count?: unknown; c?: unknown }
-    | undefined;
-  if (typeof threadMeta?.count === 'number') return threadMeta.count;
-  if (typeof threadMeta?.c === 'number') return threadMeta.c;
+export const buildThreadBadgeViewModelFromRecord = ({
+  record,
+  activeThreadId,
+  eventThreadRootId,
+}: BuildThreadBadgeViewModelFromRecordOptions): ThreadBadgeViewModel | undefined => {
+  if (activeThreadId) return undefined;
+  if (isThreadReplyEvent(record.threadRootId, eventThreadRootId)) return undefined;
+  if (!record.status.isKnownThreadRoot) return undefined;
 
-  return undefined;
-};
-
-export const shouldRenderZeroReplyThreadBadge = (room: Room, mEvent: MatrixEvent): boolean => {
-  const eventId = mEvent.getId();
-  if (eventId) {
-    const thread = room.getThread(eventId);
-    const loadedThreadEvents =
-      thread?.events && thread.events.length > 0
-        ? thread.events
-        : thread?.timeline && thread.timeline.length > 0
-        ? thread.timeline
-        : undefined;
-    if (loadedThreadEvents && loadedThreadEvents.length > 0) {
-      const visibleThreadReplyCount =
-        buildVisibleThreadReplyCountMap(loadedThreadEvents).get(eventId) ?? 0;
-      if (visibleThreadReplyCount === 0) return true;
-    }
-  }
-
-  const threadReplyCount = getKnownThreadReplyCount(mEvent);
-  if (threadReplyCount === 0) return true;
-
-  return isZeroReplyStandaloneThreadRootEvent(mEvent);
-};
-
-export const getThreadParticipantIds = (
-  room: Room,
-  mEvent: MatrixEvent,
-  fallbackParticipantIds?: string[]
-): string[] | undefined => {
-  const eventId = mEvent.getId();
-  if (eventId) {
-    const thread = room.getThread(eventId);
-    if (thread?.events?.length) {
-      const participants =
-        buildVisibleThreadParticipantMap(thread.events, THREAD_BADGE_PARTICIPANT_LIMIT).get(
-          eventId
-        ) ?? [];
-      if (participants.length > 0) return participants;
-    }
-  }
-
-  if (fallbackParticipantIds && fallbackParticipantIds.length > 0) {
-    return fallbackParticipantIds.slice(0, THREAD_BADGE_PARTICIPANT_LIMIT);
-  }
-
-  return undefined;
+  return {
+    id: {
+      roomId: record.roomId,
+      threadRootId: record.threadRootId,
+    },
+    summaryInfo: record.presentation.summaryInfo,
+    recentThreadSummaryText: record.presentation.recentThreadSummaryText,
+    replyCount: record.status.replyCount,
+    participantIds:
+      record.presentation.replyParticipantIds.length > 0
+        ? record.presentation.replyParticipantIds
+        : undefined,
+    isResolved: record.status.isResolved,
+  };
 };
 
 export const buildThreadBadgeViewModel = ({
@@ -151,32 +79,24 @@ export const buildThreadBadgeViewModel = ({
   fallbackSummaryInfo,
   cachedSummaryInfo,
 }: BuildThreadBadgeViewModelOptions): ThreadBadgeViewModel | undefined => {
-  if (activeThreadId) return undefined;
-  if (isThreadReplyEvent(threadRootId, eventThreadRootId)) return undefined;
   if (typeof replyCount !== 'number') return undefined;
 
-  const preferredSummaryInfo = pickLatestThreadSummaryInfo(cachedSummaryInfo, fallbackSummaryInfo);
-  const summaryInfo = resolveThreadSummaryInfo({
-    preferredSummaryInfo,
-    thread: room.getThread(threadRootId),
+  const record = buildThreadRecord({
+    room,
+    threadRootId,
+    threadRootEvent,
+    summaryInfo: cachedSummaryInfo,
+    fallbackSummaryInfo,
+    fallbackReplyCount: replyCount,
+    fallbackParticipantIds: participantIds,
+    threadResolution: { isResolved },
   });
 
-  return {
-    id: {
-      roomId: room.roomId,
-      threadRootId,
-    },
-    summaryInfo,
-    recentThreadSummaryText: resolveRecentThreadSummaryText({
-      room,
-      threadRootId,
-      rootEvent: threadRootEvent,
-      summaryInfo,
-    }),
-    replyCount,
-    participantIds,
-    isResolved: isResolved ?? false,
-  };
+  return buildThreadBadgeViewModelFromRecord({
+    record,
+    activeThreadId,
+    eventThreadRootId,
+  });
 };
 
 export const buildTimelineThreadBadgeViewModel = ({
@@ -191,30 +111,21 @@ export const buildTimelineThreadBadgeViewModel = ({
 }: BuildTimelineThreadBadgeViewModelOptions): ThreadBadgeViewModel | undefined => {
   const threadRootId = threadRootEvent.getId();
   if (!threadRootId) return undefined;
-  if (activeThreadId) return undefined;
-  if (isThreadReplyEvent(threadRootId, threadRootEvent.threadRootId)) return undefined;
 
-  const zeroReplyThreadBadge = shouldRenderZeroReplyThreadBadge(room, threadRootEvent);
-  const replyCount = getThreadReplyCount(
+  const record = buildThreadRecord({
     room,
-    threadRootEvent,
-    fallbackReplyCount,
-    zeroReplyThreadBadge
-  );
-  if (typeof replyCount !== 'number' || (replyCount === 0 && !zeroReplyThreadBadge)) {
-    return undefined;
-  }
-
-  return buildThreadBadgeViewModel({
-    room,
-    threadRootEvent,
     threadRootId,
+    threadRootEvent,
+    summaryInfo: cachedSummaryInfo,
+    fallbackSummaryInfo,
+    fallbackReplyCount,
+    fallbackParticipantIds,
+    threadResolution: { isResolved },
+  });
+
+  return buildThreadBadgeViewModelFromRecord({
+    record,
     activeThreadId,
     eventThreadRootId: threadRootEvent.threadRootId,
-    replyCount,
-    participantIds: getThreadParticipantIds(room, threadRootEvent, fallbackParticipantIds),
-    isResolved,
-    fallbackSummaryInfo,
-    cachedSummaryInfo,
   });
 };
