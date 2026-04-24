@@ -46,6 +46,22 @@ type BuildThreadRecordOptions = {
   absoluteIndex?: number;
 };
 
+type BuildThreadRecordMapOptions = {
+  room: Room;
+  threadRootIds: string[];
+  threadRootEventMap?: ReadonlyMap<string, MatrixEvent>;
+  metadataMap?: ReadonlyMap<string, ThreadOverviewMetadata>;
+  summaryMap?: ReadonlyMap<string, MindroomThreadSummaryInfo>;
+  fallbackSummaryMap?: ReadonlyMap<string, MindroomThreadSummaryInfo>;
+  fallbackReplyCountMap?: ReadonlyMap<string, number>;
+  fallbackParticipantMap?: ReadonlyMap<string, string[]>;
+  threadResolutionMap?: ReadonlyMap<string, ThreadResolutionLike>;
+  currentUserId?: string;
+  scheduledTaskEvents?: MatrixEvent[];
+  scheduledTaskCounts?: ReadonlyMap<string, number>;
+  absoluteIndexMap?: ReadonlyMap<string, number>;
+};
+
 const getLoadedThreadEvents = (thread: ReturnType<Room['getThread']>): MatrixEvent[] | undefined =>
   thread?.events && thread.events.length > 0
     ? thread.events
@@ -279,4 +295,45 @@ export const buildThreadRecord = ({
     },
     absoluteIndex: absoluteIndex ?? metadata?.absoluteIndex ?? 0,
   };
+};
+
+export const buildThreadRecordMap = ({
+  room,
+  threadRootIds,
+  threadRootEventMap,
+  metadataMap,
+  summaryMap,
+  fallbackSummaryMap,
+  fallbackReplyCountMap,
+  fallbackParticipantMap,
+  threadResolutionMap,
+  currentUserId,
+  scheduledTaskEvents,
+  scheduledTaskCounts,
+  absoluteIndexMap,
+}: BuildThreadRecordMapOptions): Map<string, ThreadRecord> => {
+  const records = new Map<string, ThreadRecord>();
+
+  threadRootIds.forEach((threadRootId) => {
+    records.set(
+      threadRootId,
+      buildThreadRecord({
+        room,
+        threadRootId,
+        threadRootEvent: threadRootEventMap?.get(threadRootId),
+        metadata: metadataMap?.get(threadRootId),
+        summaryInfo: summaryMap?.get(threadRootId),
+        fallbackSummaryInfo: fallbackSummaryMap?.get(threadRootId),
+        fallbackReplyCount: fallbackReplyCountMap?.get(threadRootId),
+        fallbackParticipantIds: fallbackParticipantMap?.get(threadRootId),
+        threadResolution: threadResolutionMap?.get(threadRootId),
+        currentUserId,
+        scheduledTaskEvents,
+        scheduledTaskCount: scheduledTaskCounts?.get(threadRootId),
+        absoluteIndex: absoluteIndexMap?.get(threadRootId),
+      })
+    );
+  });
+
+  return records;
 };

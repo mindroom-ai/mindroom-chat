@@ -2,7 +2,7 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { describe, expect, it, vi } from 'vitest';
 import type { ThreadOverviewMetadata } from '../../features/room/roomThreadOverviewModel';
-import { buildThreadRecord } from './threadRecord';
+import { buildThreadRecord, buildThreadRecordMap } from './threadRecord';
 
 const makeEvent = ({
   eventId,
@@ -160,6 +160,97 @@ describe('buildThreadRecord', () => {
         isStreaming: true,
         scheduledTaskCount: 2,
         tags: ['followup'],
+      },
+    });
+  });
+
+  it('builds a per-room record map from legacy source maps', () => {
+    const rootEvent = makeEvent({
+      eventId: '$root',
+      sender: '@me:server',
+      body: 'Root body',
+      ts: 1000,
+    });
+    const reply = makeEvent({
+      eventId: '$reply',
+      threadRootId: '$root',
+      sender: '@agent:server',
+      body: 'Reply body',
+      ts: 2000,
+    });
+    const room = makeRoom({
+      rootEvent,
+      thread: {
+        id: '$root',
+        rootEvent,
+        events: [reply],
+        timeline: [reply],
+        length: 1,
+        lastReply: () => reply,
+        getUnfilteredTimelineSet: () => ({
+          getLiveTimeline: () => ({
+            getEvents: () => [rootEvent, reply],
+            getNeighbouringTimeline: () => undefined,
+          }),
+          relations: {
+            getChildEventsForEvent: () => undefined,
+          },
+        }),
+      } as unknown as ReturnType<Room['getThread']>,
+    });
+
+    const records = buildThreadRecordMap({
+      room,
+      threadRootIds: ['$root'],
+      metadataMap: new Map([
+        [
+          '$root',
+          makeMetadata({
+            messageCount: 1,
+            rootPreviewText: 'Metadata root',
+            tags: ['resolved', 'map-tag'],
+          }),
+        ],
+      ]),
+      summaryMap: new Map([
+        [
+          '$root',
+          {
+            summaryText: 'Cached summary',
+            messageCount: 2,
+            generatedTs: 2000,
+          },
+        ],
+      ]),
+      fallbackReplyCountMap: new Map([['$root', 1]]),
+      fallbackParticipantMap: new Map([['$root', ['@fallback:server']]]),
+      threadResolutionMap: new Map([
+        [
+          '$root',
+          {
+            isResolved: true,
+            tags: {
+              resolved: {},
+              canonical: {},
+            },
+          },
+        ],
+      ]),
+      absoluteIndexMap: new Map([['$root', 42]]),
+    });
+
+    expect(records.get('$root')).toMatchObject({
+      threadRootId: '$root',
+      absoluteIndex: 42,
+      presentation: {
+        summaryText: 'Cached summary',
+        latestReplyPreviewText: 'Reply body',
+        replyParticipantIds: ['@agent:server'],
+      },
+      status: {
+        replyCount: 1,
+        isResolved: true,
+        tags: ['canonical'],
       },
     });
   });

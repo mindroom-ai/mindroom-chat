@@ -197,10 +197,11 @@ import { CompactRoomView } from './CompactRoomView';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import { buildPreferredThreadSummaryMap } from './threadSummarySelection';
 import {
-  buildTimelineThreadBadgeViewModel,
+  buildThreadBadgeViewModelFromRecord,
   getKnownThreadReplyCount,
 } from '../../mindroom/threads/threadBadgeViewModel';
-import type { ThreadBadgeViewModel } from '../../mindroom/threads/types';
+import { buildThreadRecordMap } from '../../mindroom/threads/threadRecord';
+import type { ThreadBadgeViewModel, ThreadRecord } from '../../mindroom/threads/types';
 import type { ThreadFilterKey } from './RoomThreadOverview';
 import { loadRoomThreads } from './roomThreadList';
 import {
@@ -7227,20 +7228,66 @@ threadDebugTraceId,
     return buildPreferredThreadSummaryMap(summaryMap, threadSummaryInfoMap);
   }, [summaryMap, threadSummaryInfoMap]);
 
+  const threadRootEventMap = useMemo(() => {
+    const eventMap = new Map<string, MatrixEvent>();
+    roomSurfaceEventEntries.forEach(({ event }) => {
+      const eventId = event.getId();
+      if (eventId && visibleThreadRootData.indexMap.has(eventId)) {
+        eventMap.set(eventId, event);
+      }
+    });
+    return eventMap;
+  }, [roomSurfaceEventEntries, visibleThreadRootData.indexMap]);
+
+  const threadRecordMap = useMemo(() => {
+    if (threadId) return new Map<string, ThreadRecord>();
+
+    return buildThreadRecordMap({
+      room,
+      threadRootIds: visibleThreadRootData.ids,
+      threadRootEventMap,
+      metadataMap: threadMetadataMap,
+      summaryMap,
+      fallbackSummaryMap: threadSummaryInfoMap,
+      fallbackReplyCountMap: threadReplyCountMap,
+      fallbackParticipantMap: threadParticipantMap,
+      threadResolutionMap,
+      currentUserId: mx.getSafeUserId(),
+      scheduledTaskEvents,
+      scheduledTaskCounts,
+      absoluteIndexMap: visibleThreadRootData.indexMap,
+    });
+  }, [
+    threadId,
+    room,
+    visibleThreadRootData.ids,
+    visibleThreadRootData.indexMap,
+    threadRootEventMap,
+    threadMetadataMap,
+    summaryMap,
+    threadSummaryInfoMap,
+    threadReplyCountMap,
+    threadParticipantMap,
+    threadResolutionMap,
+    mx,
+    scheduledTaskEvents,
+    scheduledTaskCounts,
+    overviewRefreshCounter,
+  ]);
+
   const getTimelineThreadBadgeModel = (
     mEventId: string,
     mEvent: MatrixEvent
-  ): ThreadBadgeViewModel | undefined =>
-    buildTimelineThreadBadgeViewModel({
-      room,
-      threadRootEvent: mEvent,
+  ): ThreadBadgeViewModel | undefined => {
+    const record = threadRecordMap.get(mEventId);
+    if (!record) return undefined;
+
+    return buildThreadBadgeViewModelFromRecord({
+      record,
       activeThreadId: threadId,
-      fallbackReplyCount: threadReplyCountMap.get(mEventId),
-      fallbackParticipantIds: threadParticipantMap.get(mEventId),
-      isResolved: threadResolutionMap.get(mEventId)?.isResolved,
-      fallbackSummaryInfo: threadSummaryInfoMap.get(mEventId),
-      cachedSummaryInfo: summaryMap.get(mEventId),
+      eventThreadRootId: mEvent.threadRootId,
     });
+  };
 
   const renderMatrixEvent = useMatrixEventRenderer<
     [string, MatrixEvent, number, EventTimelineSet, boolean]

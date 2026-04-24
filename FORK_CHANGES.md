@@ -589,6 +589,17 @@
     - `npm run typecheck` passes
     - `npm run build` passes
     - focused live Matrix e2e passes for `e2e/live/cinny060-thread-summary-consistency.spec.ts` and `e2e/live/cinny068-fresh-zero-reply-open.spec.ts` (`3/3`)
+- `CINNY-075` implementation step 4 (2026-04-24):
+  - added `buildThreadRecordMap(...)` so legacy per-room source maps can be collapsed into a single `Map<threadRootId, ThreadRecord>`.
+  - `RoomTimeline` now builds `threadRecordMap` for visible room thread roots and the normal badge path reads from that map before adapting to `ThreadBadgeViewModel`.
+  - this removes the direct badge dependency on separate reply-count, participant, summary, cached-summary, and resolution maps; those maps still exist for filtering/sorting/cache paths until later slices replace them.
+  - validation:
+    - focused Vitest passes for `threadRecord.test.ts`, `threadBadgeViewModel.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimelineCollapsible.test.ts`
+    - focused live Matrix e2e passes for `e2e/live/cinny060-thread-summary-consistency.spec.ts` and `e2e/live/cinny068-fresh-zero-reply-open.spec.ts` (`3/3`)
+    - `npm test` passes (`158/158` files, `1407/1407` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
