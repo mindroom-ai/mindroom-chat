@@ -85,6 +85,7 @@ vi.mock('./useMutateThreadTags', () => ({
 }));
 
 vi.mock('../../hooks/useThreadHeaderInfo', () => ({
+  getNextThreadScheduledTs: () => undefined,
   useThreadHeaderInfo: bannerMocks.useThreadHeaderInfo,
 }));
 
@@ -291,9 +292,14 @@ describe('ThreadContextBanner rendering', () => {
   const renderBanner = (summaryText?: string) =>
     create(
       React.createElement(ThreadContextBanner, {
-        room: {} as Room,
+        room: {
+          roomId: '!room:example.org',
+          getThread: () => undefined,
+          findEventById: () => undefined,
+          hasEncryptionStateEvent: () => false,
+        } as unknown as Room,
         threadId: '$root',
-        summaryText,
+        summaryInfo: summaryText ? { summaryText } : undefined,
         onExitThread: vi.fn(),
       })
     );
@@ -326,9 +332,7 @@ describe('ThreadContextBanner rendering', () => {
 
     expect(tree).toContain('A concise thread summary');
     expect(renderer.root.findByProps({ title: 'A concise thread summary' })).toBeTruthy();
-    expect(
-      renderer.root.findByProps({ 'data-thread-context-summary': 'true' })
-    ).toBeTruthy();
+    expect(renderer.root.findByProps({ 'data-thread-context-summary': 'true' })).toBeTruthy();
     expect(tree).not.toContain('Next task');
   });
 

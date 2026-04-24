@@ -135,7 +135,7 @@ export function RoomView({
   const resolvedThreadRootEvent = effectiveThreadId
     ? room.getThread(effectiveThreadId)?.rootEvent ?? room.findEventById(effectiveThreadId)
     : undefined;
-  const threadSummaryText = effectiveThreadId ? summaryMap.get(effectiveThreadId)?.summaryText : undefined;
+  const threadSummaryInfo = effectiveThreadId ? summaryMap.get(effectiveThreadId) : undefined;
   const recentThreadSummaryText = useMemo(
     () =>
       effectiveThreadId
@@ -143,10 +143,10 @@ export function RoomView({
             room,
             threadRootId: effectiveThreadId,
             rootEvent: resolvedThreadRootEvent,
-            summaryInfo: summaryMap.get(effectiveThreadId),
+            summaryInfo: threadSummaryInfo,
           })
         : undefined,
-    [effectiveThreadId, resolvedThreadRootEvent, room, summaryMap]
+    [effectiveThreadId, resolvedThreadRootEvent, room, threadSummaryInfo]
   );
 
   const handleExitThread = useCallback(() => {
@@ -307,7 +307,7 @@ export function RoomView({
         <ThreadContextBanner
           room={room}
           threadId={effectiveThreadId}
-          summaryText={threadSummaryText}
+          summaryInfo={threadSummaryInfo}
           onExitThread={handleExitThread}
         />
       )}

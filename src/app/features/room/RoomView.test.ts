@@ -8,7 +8,7 @@ import {
 
 type MockThreadContextBannerProps = {
   onExitThread?: () => void;
-  summaryText?: string;
+  summaryInfo?: { summaryText?: string; generatedTs?: number; messageCount?: number };
 };
 
 type MockPageProps = React.ComponentProps<'div'>;
