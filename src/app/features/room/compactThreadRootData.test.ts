@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   buildCompactZeroReplyRootData,
   buildCompactThreadRootData,
-  COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS,
   getCompactCachedThreadActivityTs,
   getCompactCachedThreadRootPreviewInfo,
   isZeroReplyStandaloneThreadRootEvent,
@@ -19,6 +18,7 @@ const makeEvent = (
   options?: {
     ts?: number;
     type?: string;
+    msgtype?: string;
     isRedacted?: boolean;
     threadRootId?: string;
     isSending?: boolean;
@@ -37,6 +37,7 @@ const makeEvent = (
           }
         : {
             body,
+            ...(options?.msgtype ? { msgtype: options.msgtype } : {}),
             ...(relation ? { 'm.relates_to': relation } : {}),
           },
     getId: () => eventId,
@@ -220,13 +221,17 @@ describe('buildCompactThreadRootData', () => {
     ).toBe('Recovered from cache');
   });
 
-  it('collects only recent standalone room messages as zero-reply compact roots', () => {
-    const now = COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS + 10_000;
+  it('collects standalone room messages as zero-reply compact roots regardless of age', () => {
+    const now = 10_000_000;
     const recentMessage = makeEvent('$recent', 'Recent standalone root', undefined, undefined, {
       ts: now - 1_000,
     });
     const oldMessage = makeEvent('$old', 'Older standalone root', undefined, undefined, {
-      ts: now - COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS - 1_000,
+      ts: 1_000,
+    });
+    const noticeMessage = makeEvent('$notice', 'Notice root', undefined, undefined, {
+      ts: now - 1_000,
+      msgtype: 'm.notice',
     });
     const knownThreadRoot = makeEvent('$known-thread', 'Known thread root', undefined, undefined, {
       ts: now - 1_000,
@@ -263,21 +268,24 @@ describe('buildCompactThreadRootData', () => {
         { event: knownThreadRoot, absoluteIndex: 0 },
         { event: recentMessage, absoluteIndex: 1 },
         { event: oldMessage, absoluteIndex: 2 },
-        { event: editEvent, absoluteIndex: 3 },
-        { event: nestedReply, absoluteIndex: 4 },
-        { event: redactedMessage, absoluteIndex: 5 },
+        { event: noticeMessage, absoluteIndex: 3 },
+        { event: editEvent, absoluteIndex: 4 },
+        { event: nestedReply, absoluteIndex: 5 },
+        { event: redactedMessage, absoluteIndex: 6 },
       ],
       knownThreadRootIds: ['$known-thread'],
       now,
     });
 
-    expect(data.ids).toEqual(['$recent']);
+    expect(data.ids).toEqual(['$recent', '$old']);
     expect(data.indexMap.get('$recent')).toBe(1);
+    expect(data.indexMap.get('$old')).toBe(2);
     expect(data.bodyMap.get('$recent')).toBe('Recent standalone root');
+    expect(data.bodyMap.get('$old')).toBe('Older standalone root');
   });
 
-  it('recognizes recent standalone room messages as zero-reply thread roots', () => {
-    const now = COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS + 10_000;
+  it('recognizes standalone room messages as zero-reply thread roots regardless of age', () => {
+    const now = 10_000_000;
 
     expect(
       isZeroReplyStandaloneThreadRootEvent(
@@ -290,7 +298,16 @@ describe('buildCompactThreadRootData', () => {
     expect(
       isZeroReplyStandaloneThreadRootEvent(
         makeEvent('$old', 'Older standalone root', undefined, undefined, {
-          ts: now - COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS - 1_000,
+          ts: 1_000,
+        }),
+        now
+      )
+    ).toBe(true);
+    expect(
+      isZeroReplyStandaloneThreadRootEvent(
+        makeEvent('$notice', 'Notice root', undefined, undefined, {
+          ts: now - 1_000,
+          msgtype: 'm.notice',
         }),
         now
       )

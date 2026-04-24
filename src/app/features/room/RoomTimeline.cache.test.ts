@@ -668,12 +668,12 @@ describe('RoomTimeline', () => {
     expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(1);
   });
 
-  it('counts recent standalone zero-reply roots in the room thread overview', async () => {
+  it('counts old standalone zero-reply message roots in the room thread overview', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
     const standaloneRoot = makeEvent('$thread-root', {
-      ts: 999_000,
-      content: { body: 'Recent standalone root' },
+      ts: 1_000,
+      content: { body: 'Older standalone root', msgtype: 'm.text' },
     });
     const room = makeRoom({
       liveEvents: [standaloneRoot],
@@ -691,6 +691,26 @@ describe('RoomTimeline', () => {
     } finally {
       nowSpy.mockRestore();
     }
+  });
+
+  it('does not count standalone m.notice messages as zero-reply roots', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const noticeRoot = makeEvent('$notice-root', {
+      ts: 1_000,
+      content: { body: 'Notice root', msgtype: 'm.notice' },
+    });
+    const room = makeRoom({
+      liveEvents: [noticeRoot],
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+    const renderer = create(
+      React.createElement(ControlledRoomTimeline, {
+        room,
+      })
+    );
+
+    expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(0);
   });
 
   it('shows pending encrypted local-echo zero-reply roots immediately in compact view', async () => {

@@ -136,12 +136,15 @@ export const shouldRenderZeroReplyThreadBadge = (room: Room, mEvent: MatrixEvent
     if (loadedThreadEvents && loadedThreadEvents.length > 0) {
       const visibleThreadReplyCount =
         buildVisibleThreadReplyCountMap(loadedThreadEvents).get(eventId) ?? 0;
-      if (visibleThreadReplyCount === 0) return true;
+      return visibleThreadReplyCount === 0;
     }
+
+    const threadLength = room.getThread(eventId)?.length;
+    if (typeof threadLength === 'number') return threadLength === 0;
   }
 
   const threadReplyCount = getKnownThreadReplyCount(mEvent);
-  if (threadReplyCount === 0) return true;
+  if (typeof threadReplyCount === 'number') return threadReplyCount === 0;
 
   return isZeroReplyStandaloneThreadRootEvent(mEvent);
 };

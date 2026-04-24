@@ -30,8 +30,6 @@ export type CompactThreadRootEntry = {
   absoluteIndex: number;
 };
 
-export const COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS = 30 * 60 * 1000;
-
 const getEventActivityTs = (event: MatrixEvent): number => {
   const replacingEvent = event.replacingEvent();
   const replacingTs =
@@ -72,6 +70,8 @@ export const isNestedThreadReplyEvent = (event: MatrixEvent | undefined): boolea
 const isEditRelationEvent = (event: MatrixEvent | undefined): boolean =>
   event?.getRelation?.()?.rel_type === 'm.replace';
 
+const isNoticeMessage = (event: MatrixEvent): boolean => event.getContent()?.msgtype === 'm.notice';
+
 export const isZeroReplyStandaloneThreadRootEvent = (
   event: MatrixEvent | undefined,
   now = Date.now()
@@ -79,12 +79,12 @@ export const isZeroReplyStandaloneThreadRootEvent = (
   const eventId = event?.getId();
   if (!event || !eventId) return false;
   if (!isVisibleThreadTextMessageEventType(event.getType())) return false;
+  if (isNoticeMessage(event)) return false;
   if (typeof event.isRedacted === 'function' && event.isRedacted()) return false;
   if (event.threadRootId && event.threadRootId !== eventId) return false;
   if (isNestedThreadReplyEvent(event) || isEditRelationEvent(event)) return false;
   const activityTs = getEffectiveThreadRootActivityTs(event, now);
   if (!isPendingLocalEchoThreadRootEvent(event) && activityTs <= 0) return false;
-  if (now - activityTs > COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS) return false;
   return true;
 };
 
