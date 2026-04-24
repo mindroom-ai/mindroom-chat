@@ -4,6 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import {
   buildNativeSsoRedirectUrl,
   getAppPathFromNativeSsoUrl,
+  isIOSStandaloneWebApp,
   isNativeIOS,
   openNativeSsoBrowser,
 } from './nativeSso';
@@ -22,12 +23,42 @@ vi.mock('@capacitor/browser', () => ({
 }));
 
 describe('nativeSso', () => {
+  const originalWindow = globalThis.window;
+
+  const setWindow = (navigatorOverrides: Record<string, unknown>, standalone = false) => {
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        matchMedia: vi.fn(() => ({ matches: standalone })),
+        navigator: {
+          maxTouchPoints: 0,
+          platform: 'MacIntel',
+          standalone: false,
+          userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4)',
+          ...navigatorOverrides,
+        },
+      },
+    });
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(Capacitor.isNativePlatform).mockReset();
+    vi.mocked(Capacitor.getPlatform).mockReset();
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: originalWindow,
+    });
   });
 
   afterEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: originalWindow,
+    });
   });
 
   it('builds native redirect url from web redirect url', () => {
@@ -79,6 +110,44 @@ describe('nativeSso', () => {
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
 
     expect(isNativeIOS()).toBe(true);
+  });
+
+  it('detects iOS standalone web apps from display mode and navigator.standalone', () => {
+    setWindow(
+      {
+        maxTouchPoints: 5,
+        platform: 'iPhone',
+        userAgent:
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+      },
+      true
+    );
+    expect(isIOSStandaloneWebApp()).toBe(true);
+
+    setWindow({
+      maxTouchPoints: 5,
+      platform: 'iPhone',
+      standalone: true,
+      userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+    });
+    expect(isIOSStandaloneWebApp()).toBe(true);
+  });
+
+  it('ignores desktop standalone mode and native iOS wrappers', () => {
+    setWindow({}, true);
+    expect(isIOSStandaloneWebApp()).toBe(false);
+
+    setWindow({
+      maxTouchPoints: 5,
+      platform: 'iPhone',
+      standalone: true,
+      userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+    });
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    expect(isIOSStandaloneWebApp()).toBe(false);
   });
 
   it('opens the native SSO browser in fullscreen mode', async () => {

@@ -2422,6 +2422,20 @@
   - `git diff --check` passes
   - targeted `npx eslint src/app/state/settings.ts src/app/state/settings.test.ts src/app/theme/themeBootstrap.ts src/app/theme/themeBootstrap.test.ts` passes with no output
 
+## CINNY-086 — Disable edge swipe back in iOS standalone PWA (2026-04-22)
+
+- Root cause: the custom global left-edge gesture in `useEdgeSwipeBack` overlapped the iOS standalone WKWebView bezel-back gesture, so a thread-exit swipe could trip both the SPA handler and the shell-native navigation path. The banner arrow stayed correct because it never touched the bezel gesture surface.
+- Fix: added `isIOSStandaloneWebApp()` to `src/app/mindroom/native/nativeSso.ts` and made `useEdgeSwipeBack` skip registering touch listeners when the gesture is enabled on native iOS or an iOS standalone web app. This leaves button/back-route behavior unchanged.
+- Rebase-on-refactor note: the implementation and tests now live under `src/app/mindroom/native`, with `src/app/utils/nativeSso.ts` and `src/app/hooks/useEdgeSwipeBack.ts` kept as compatibility exports.
+- Added focused coverage in `src/app/mindroom/native/useEdgeSwipeBack.test.tsx` for standalone iOS PWA no-op behavior, regular iOS Safari-tab behavior, and the existing image-viewer suppression guard. Added the standalone-detector matrix (`display-mode`, legacy `navigator.standalone`, desktop false, native iOS false) in `src/app/mindroom/native/nativeSso.test.ts`.
+- review:
+  - independent second self-review completed via fresh `git diff`, `git diff --check`, and targeted source/test reads after implementation and validation; scope stayed limited to `src/app/mindroom/native/nativeSso.ts`, `src/app/mindroom/native/nativeSso.test.ts`, `src/app/mindroom/native/useEdgeSwipeBack.ts`, `src/app/mindroom/native/useEdgeSwipeBack.test.tsx`, compatibility exports, and this runbook update.
+- validation:
+  - `npx vitest run src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/nativeSso.test.ts` passes (`15/15` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `npm run lint` still fails at the current branch baseline with unrelated pre-existing errors in `src/app/hooks/router/useResolvedRoomIdOrAlias.ts` and `src/app/pages/client/ClientStartupContext.tsx`; no lint findings in the touched `CINNY-086` files
+
 ## CINNY-085 — Move MindRoom message primitives to fork namespace (2026-04-25)
 
 - Moved thread-summary parsing, tool-approval parsing, the approval card, and the summary card into `src/app/mindroom/messages`.

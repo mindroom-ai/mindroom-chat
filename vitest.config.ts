@@ -6,7 +6,7 @@ export default defineConfig({
     include: [
       'src/**/*.test.ts',
       'src/app/components/message/content/ImageContent.test.tsx',
-      'src/app/hooks/useEdgeSwipeBack.test.tsx',
+      'src/app/mindroom/native/useEdgeSwipeBack.test.tsx',
     ],
   },
 });
