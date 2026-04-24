@@ -16,4 +16,11 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('export const getRoomPreloadCounts =');
     expect(source).toContain("from './roomTimelineEvents'");
   });
+
+  it('delegates eager room preload orchestration outside RoomTimeline', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('useRoomEagerPreload');
+    expect(source).not.toContain('[eager-preload]');
+  });
 });
