@@ -1,27 +1,8 @@
 import type { MatrixClient, MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { describe, expect, it, vi } from 'vitest';
-import type { ThreadOverviewMetadata } from '../../features/room/roomThreadOverviewModel';
 import { buildCompactThreadCardViewModelFromRecord } from './compactThreadCardViewModel';
 import { buildThreadRecord } from './threadRecord';
-
-const makeMetadata = (overrides: Partial<ThreadOverviewMetadata> = {}): ThreadOverviewMetadata => ({
-  isResolved: false,
-  isUnread: false,
-  isStreaming: false,
-  scheduledTaskCount: 0,
-  lastActivityTs: 1000,
-  absoluteIndex: 0,
-  lastSenderId: undefined,
-  lastSenderDisplayName: undefined,
-  latestReplyPreviewText: undefined,
-  participantDisplayName: undefined,
-  summaryText: undefined,
-  rootPreviewText: undefined,
-  messageCount: 0,
-  tags: [],
-  ...overrides,
-});
 
 const makeEvent = ({
   eventId,
@@ -107,7 +88,7 @@ const buildModel = (
 };
 
 describe('buildCompactThreadCardViewModelFromRecord', () => {
-  it('builds one compact model from summary, metadata, tags, and visible replies', () => {
+  it('builds one compact model from summary, tags, scheduled state, and visible replies', () => {
     const rootEvent = makeEvent({
       eventId: '$root',
       sender: '@me:server',
@@ -133,6 +114,9 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
           getEvents: () => [rootEvent, reply],
           getNeighbouringTimeline: () => undefined,
         }),
+        relations: {
+          getChildEventsForEvent: () => undefined,
+        },
       }),
     } as unknown as ReturnType<Room['getThread']>;
     const room = makeRoom({
@@ -145,15 +129,18 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
 
     const model = buildModel(room, {
       threadRootEvent: rootEvent,
-      metadata: makeMetadata({
-        isResolved: true,
-        isUnread: true,
-        scheduledTaskCount: 2,
-        tags: ['resolved', 'agent'],
-      }),
       summaryInfo: {
         summaryText: 'Live AI summary',
         messageCount: 9,
+      },
+      readUpToTs: null,
+      scheduledTaskCount: 2,
+      threadResolution: {
+        isResolved: true,
+        tags: {
+          resolved: {},
+          agent: {},
+        },
       },
     });
 
@@ -180,7 +167,7 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
     ]);
   });
 
-  it('uses metadata root preview as the zero-reply title and recent-thread summary', () => {
+  it('uses cached root preview as the zero-reply title and recent-thread summary', () => {
     const rootEvent = makeEvent({
       eventId: '$root',
       sender: '@me:server',
@@ -190,10 +177,8 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
 
     const model = buildModel(room, {
       threadRootEvent: rootEvent,
-      metadata: makeMetadata({
-        rootPreviewText: 'Edited root preview',
-        messageCount: 0,
-      }),
+      rootPreviewText: 'Edited root preview',
+      fallbackMessageCount: 0,
     });
 
     expect(model.titleText).toBe('Edited root preview');

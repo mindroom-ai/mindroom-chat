@@ -1,7 +1,7 @@
+import { readFileSync } from 'node:fs';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { describe, expect, it, vi } from 'vitest';
-import type { ThreadOverviewMetadata } from '../../features/room/roomThreadOverviewModel';
 import { buildThreadRecord, buildThreadRecordMap } from './threadRecord';
 
 const makeEvent = ({
@@ -51,25 +51,18 @@ const makeRoom = ({
     getMember: vi.fn(() => undefined),
   } as unknown as Room);
 
-const makeMetadata = (overrides: Partial<ThreadOverviewMetadata> = {}): ThreadOverviewMetadata => ({
-  isResolved: false,
-  isUnread: false,
-  isStreaming: false,
-  scheduledTaskCount: 0,
-  lastActivityTs: 1000,
-  absoluteIndex: 7,
-  lastSenderId: undefined,
-  lastSenderDisplayName: undefined,
-  latestReplyPreviewText: undefined,
-  participantDisplayName: undefined,
-  summaryText: undefined,
-  rootPreviewText: undefined,
-  messageCount: 0,
-  tags: [],
-  ...overrides,
-});
-
 describe('buildThreadRecord', () => {
+  it('does not depend on legacy overview metadata compatibility inputs', () => {
+    const source = readFileSync(new URL('./threadRecord.ts', import.meta.url), 'utf8');
+    const legacyTypeName = ['Thread', 'Overview', 'Metadata'].join('');
+    const legacyMapName = ['metadata', 'Map'].join('');
+    const legacyOptionName = ['metadata', '?:'].join('');
+
+    expect(source).not.toContain(legacyTypeName);
+    expect(source).not.toContain(legacyMapName);
+    expect(source).not.toContain(legacyOptionName);
+  });
+
   it('merges canonical presentation and status data before surfaces render it', () => {
     const rootEvent = makeEvent({
       eventId: '$root',
@@ -115,21 +108,17 @@ describe('buildThreadRecord', () => {
     const record = buildThreadRecord({
       room,
       threadRootId: '$root',
-      metadata: makeMetadata({
-        isUnread: true,
-        isStreaming: true,
-        scheduledTaskCount: 2,
-        latestReplyPreviewText: 'stale cached reply',
-        messageCount: 4,
-        rootPreviewText: 'Cached root preview',
-        summaryText: 'Metadata summary',
-        tags: ['resolved', 'triage'],
-      }),
       summaryInfo: {
         summaryText: 'Live AI summary',
         messageCount: 8,
         generatedTs: 2000,
       },
+      rootPreviewText: 'Cached root preview',
+      fallbackLatestReplyPreviewText: 'stale cached reply',
+      fallbackMessageCount: 4,
+      scheduledTaskCount: 2,
+      currentUserId: '@me:server',
+      readUpToTs: null,
       threadResolution: {
         isResolved: true,
         tags: {
@@ -157,14 +146,13 @@ describe('buildThreadRecord', () => {
       status: {
         isResolved: true,
         isUnread: true,
-        isStreaming: true,
         scheduledTaskCount: 2,
         tags: ['followup'],
       },
     });
   });
 
-  it('builds a per-room record map from legacy source maps', () => {
+  it('builds a per-room record map from direct source maps', () => {
     const rootEvent = makeEvent({
       eventId: '$root',
       sender: '@me:server',
@@ -202,16 +190,6 @@ describe('buildThreadRecord', () => {
     const records = buildThreadRecordMap({
       room,
       threadRootIds: ['$root'],
-      metadataMap: new Map([
-        [
-          '$root',
-          makeMetadata({
-            messageCount: 1,
-            rootPreviewText: 'Metadata root',
-            tags: ['resolved', 'map-tag'],
-          }),
-        ],
-      ]),
       summaryMap: new Map([
         [
           '$root',
@@ -223,6 +201,8 @@ describe('buildThreadRecord', () => {
         ],
       ]),
       fallbackReplyCountMap: new Map([['$root', 1]]),
+      rootPreviewTextMap: new Map([['$root', 'Cached root']]),
+      fallbackMessageCountMap: new Map([['$root', 1]]),
       fallbackParticipantMap: new Map([['$root', ['@fallback:server']]]),
       threadResolutionMap: new Map([
         [

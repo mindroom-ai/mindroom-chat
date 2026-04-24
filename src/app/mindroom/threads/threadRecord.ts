@@ -11,7 +11,6 @@ import { resolveRecentThreadSummaryText } from '../../features/recent-threads/re
 import { isZeroReplyStandaloneThreadRootEvent } from '../../features/room/compactThreadRootData';
 import { getThreadUnread } from '../../features/room/roomThreadList';
 import { getEffectiveThreadRootActivityTs } from '../../features/room/threadRouteUtils';
-import type { ThreadOverviewMetadata } from '../../features/room/roomThreadOverviewModel';
 import {
   getThreadPrimarySummaryText,
   resolveThreadPresentationSnapshot,
@@ -35,7 +34,6 @@ type BuildThreadRecordOptions = {
   room: Room;
   threadRootId: string;
   threadRootEvent?: MatrixEvent;
-  metadata?: ThreadOverviewMetadata;
   summaryInfo?: MindroomThreadSummaryInfo;
   fallbackSummaryInfo?: MindroomThreadSummaryInfo;
   fallbackReplyCount?: number;
@@ -59,7 +57,6 @@ type BuildThreadRecordMapOptions = {
   room: Room;
   threadRootIds: string[];
   threadRootEventMap?: ReadonlyMap<string, MatrixEvent>;
-  metadataMap?: ReadonlyMap<string, ThreadOverviewMetadata>;
   summaryMap?: ReadonlyMap<string, MindroomThreadSummaryInfo>;
   fallbackSummaryMap?: ReadonlyMap<string, MindroomThreadSummaryInfo>;
   fallbackReplyCountMap?: ReadonlyMap<string, number>;
@@ -169,29 +166,8 @@ export const getThreadReplyParticipantIds = (
   return fallbackParticipantIds?.slice(0, THREAD_PARTICIPANT_LIMIT) ?? [];
 };
 
-const getMetadataSummaryInfo = (
-  metadata: ThreadOverviewMetadata | undefined
-): MindroomThreadSummaryInfo | undefined =>
-  metadata?.summaryText || metadata?.messageCount
-    ? {
-        summaryText: metadata?.summaryText,
-        messageCount:
-          typeof metadata?.messageCount === 'number' && metadata.messageCount > 0
-            ? metadata.messageCount
-            : undefined,
-      }
-    : undefined;
-
-const getThreadStatusTags = (
-  metadata: ThreadOverviewMetadata | undefined,
-  threadResolution: ThreadResolutionLike | undefined
-): string[] => {
-  const tagNames = threadResolution?.tags
-    ? Object.keys(threadResolution.tags)
-    : metadata?.tags ?? [];
-
-  return tagNames.filter((tagName) => tagName !== 'resolved');
-};
+const getThreadStatusTags = (threadResolution: ThreadResolutionLike | undefined): string[] =>
+  Object.keys(threadResolution?.tags ?? {}).filter((tagName) => tagName !== 'resolved');
 
 const getThreadUnreadFromReadUpToTs = (
   thread: ReturnType<Room['getThread']>,
@@ -212,7 +188,6 @@ export const buildThreadRecord = ({
   room,
   threadRootId,
   threadRootEvent,
-  metadata,
   summaryInfo,
   fallbackSummaryInfo,
   fallbackReplyCount,
@@ -237,8 +212,7 @@ export const buildThreadRecord = ({
   const zeroReplyThreadRoot = resolvedThreadRootEvent
     ? shouldRenderZeroReplyThreadBadge(room, resolvedThreadRootEvent)
     : false;
-  const resolvedFallbackReplyCount =
-    fallbackReplyCount ?? fallbackMessageCount ?? metadata?.messageCount;
+  const resolvedFallbackReplyCount = fallbackReplyCount ?? fallbackMessageCount;
   const recordReplyCount =
     (resolvedThreadRootEvent
       ? getThreadReplyCount(
@@ -249,18 +223,12 @@ export const buildThreadRecord = ({
         )
       : undefined) ??
     fallbackReplyCount ??
-    fallbackMessageCount ??
-    metadata?.messageCount;
+    fallbackMessageCount;
   const isKnownThreadRoot =
-    metadata !== undefined ||
     (typeof recordReplyCount === 'number' && (recordReplyCount > 0 || zeroReplyThreadRoot)) ||
     typeof fallbackReplyCount === 'number' ||
     typeof fallbackMessageCount === 'number';
-  const preferredSummaryInfo = pickLatestThreadSummaryInfo(
-    summaryInfo,
-    fallbackSummaryInfo,
-    getMetadataSummaryInfo(metadata)
-  );
+  const preferredSummaryInfo = pickLatestThreadSummaryInfo(summaryInfo, fallbackSummaryInfo);
   const replyParticipantIds = getThreadReplyParticipantIds(
     room,
     resolvedThreadRootEvent,
@@ -277,16 +245,14 @@ export const buildThreadRecord = ({
     thread,
     rootEvent: resolvedThreadRootEvent,
     preferredSummaryInfo,
-    preferredRootPreviewText: metadata?.rootPreviewText ?? rootPreviewText,
-    fallbackLatestReplyPreviewText:
-      metadata?.latestReplyPreviewText ?? fallbackLatestReplyPreviewText,
-    fallbackLastSenderId: metadata?.lastSenderId ?? fallbackLastSenderId,
-    fallbackLastSenderDisplayName:
-      metadata?.lastSenderDisplayName ?? fallbackLastSenderDisplayName,
-    fallbackMessageCount: metadata?.messageCount ?? fallbackMessageCount ?? recordReplyCount,
+    preferredRootPreviewText: rootPreviewText,
+    fallbackLatestReplyPreviewText,
+    fallbackLastSenderId,
+    fallbackLastSenderDisplayName,
+    fallbackMessageCount: fallbackMessageCount ?? recordReplyCount,
     fallbackParticipantIds,
   });
-  const resolvedScheduledTaskCount = scheduledTaskCount ?? metadata?.scheduledTaskCount ?? 0;
+  const resolvedScheduledTaskCount = scheduledTaskCount ?? 0;
   const resolvedNextScheduledTs =
     resolvedScheduledTaskCount > 0
       ? nextScheduledTs ?? getNextThreadScheduledTs(scheduledTaskEvents, threadRootId)
@@ -295,16 +261,14 @@ export const buildThreadRecord = ({
   const lastActivityTs =
     Math.max(
       liveLastActivityTs,
-      metadata?.lastActivityTs ?? 0,
       fallbackLastActivityTs ?? 0,
       getEffectiveThreadRootActivityTs(resolvedThreadRootEvent)
     ) || undefined;
   const isUnread =
-    metadata?.isUnread ??
     getThreadUnreadFromReadUpToTs(thread, currentUserId, readUpToTs) ??
     (thread && currentUserId ? getThreadUnread(room, thread, currentUserId) : false);
-  const isResolved = threadResolution?.isResolved ?? metadata?.isResolved ?? false;
-  const isStreaming = metadata?.isStreaming ?? getThreadStreamingState(room, threadRootId);
+  const isResolved = threadResolution?.isResolved ?? false;
+  const isStreaming = getThreadStreamingState(room, threadRootId);
 
   return {
     roomId: room.roomId,
@@ -315,7 +279,6 @@ export const buildThreadRecord = ({
       primarySummaryText: getThreadPrimarySummaryText(presentation),
       recentThreadSummaryText:
         presentation.summaryText ??
-        metadata?.rootPreviewText ??
         rootPreviewText ??
         resolveRecentThreadSummaryText({
           room,
@@ -338,9 +301,9 @@ export const buildThreadRecord = ({
       scheduledTaskCount: resolvedScheduledTaskCount,
       nextScheduledTs: resolvedNextScheduledTs,
       lastActivityTs,
-      tags: getThreadStatusTags(metadata, threadResolution),
+      tags: getThreadStatusTags(threadResolution),
     },
-    absoluteIndex: absoluteIndex ?? metadata?.absoluteIndex ?? 0,
+    absoluteIndex: absoluteIndex ?? 0,
   };
 };
 
@@ -348,7 +311,6 @@ export const buildThreadRecordMap = ({
   room,
   threadRootIds,
   threadRootEventMap,
-  metadataMap,
   summaryMap,
   fallbackSummaryMap,
   fallbackReplyCountMap,
@@ -375,7 +337,6 @@ export const buildThreadRecordMap = ({
         room,
         threadRootId,
         threadRootEvent: threadRootEventMap?.get(threadRootId),
-        metadata: metadataMap?.get(threadRootId),
         summaryInfo: summaryMap?.get(threadRootId),
         fallbackSummaryInfo: fallbackSummaryMap?.get(threadRootId),
         fallbackReplyCount: fallbackReplyCountMap?.get(threadRootId),
