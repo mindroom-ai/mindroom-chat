@@ -3,7 +3,13 @@ import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { imageViewerOpenAtom } from '../../state/imageViewer';
+import { isIOSStandaloneWebApp, isNativeIOS } from './nativeSso';
 import { useEdgeSwipeBack } from './useEdgeSwipeBack';
+
+vi.mock('./nativeSso', () => ({
+  isIOSStandaloneWebApp: vi.fn(() => false),
+  isNativeIOS: vi.fn(() => false),
+}));
 
 type Listener = (event: Event) => void;
 
@@ -80,6 +86,8 @@ describe('useEdgeSwipeBack', () => {
       configurable: true,
       value: mockWindow,
     });
+    vi.mocked(isIOSStandaloneWebApp).mockReturnValue(false);
+    vi.mocked(isNativeIOS).mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -121,7 +129,31 @@ describe('useEdgeSwipeBack', () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
-  it('preserves the original edge-swipe back behavior when the viewer atom is false', () => {
+  it('does not call onBack for standalone iOS web apps', () => {
+    vi.mocked(isIOSStandaloneWebApp).mockReturnValue(true);
+
+    const onBack = vi.fn();
+    const store = createStore();
+
+    act(() => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(HookHarness, {
+            onBack,
+          })
+        )
+      );
+    });
+
+    const preventDefault = swipeFromLeftEdge();
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it('preserves edge-swipe back in regular iOS Safari tabs', () => {
     const onBack = vi.fn();
     const store = createStore();
 
