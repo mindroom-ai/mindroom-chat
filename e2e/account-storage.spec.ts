@@ -1,5 +1,10 @@
 import { expect, test } from '@playwright/test';
-import { getHomeserver, getPrimaryCredentials, getSecondaryCredentials } from './env';
+import {
+  buildLoginPath,
+  getHomeserver,
+  getPrimaryCredentials,
+  getSecondaryCredentials,
+} from './env';
 import {
   getStoredSessionByUsername,
   logoutActiveAccount,
@@ -76,7 +81,9 @@ test('cleans up session-scoped browser storage after account removal and final l
 
   await logoutActiveAccount(page);
   await expect(page.locator('input[name="serverInput"]')).toBeVisible();
-  await expect(page.getByText('Login')).toBeVisible();
+  await page.goto(buildLoginPath(homeserver));
+  await expect(page.locator('input[name="serverInput"]')).toHaveValue(homeserver);
+  await expect(page.getByRole('button', { name: 'Login' })).toBeVisible();
 
   const finalSessionStore = await readSessionStore(page);
   expect(finalSessionStore.sessions).toHaveLength(0);
