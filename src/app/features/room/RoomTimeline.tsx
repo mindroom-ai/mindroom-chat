@@ -175,7 +175,6 @@ import {
   hasMindroomThreadSummary,
   isMindroomThreadSummaryEvent,
   MindroomThreadSummaryInfo,
-  pickLatestThreadSummaryInfo,
 } from '../../components/message/mindroomThreadSummary';
 import {
   buildResolveConfirmedEventId,
@@ -198,9 +197,10 @@ import { CompactRoomView } from './CompactRoomView';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import { buildPreferredThreadSummaryMap } from './threadSummarySelection';
 import {
-  resolveThreadSummaryInfo,
-} from './threadPresentation';
-import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
+  buildTimelineThreadBadgeViewModel,
+  getKnownThreadReplyCount,
+} from '../../mindroom/threads/threadBadgeViewModel';
+import type { ThreadBadgeViewModel } from '../../mindroom/threads/types';
 import type { ThreadFilterKey } from './RoomThreadOverview';
 import { loadRoomThreads } from './roomThreadList';
 import {
@@ -864,81 +864,6 @@ export const getTimelinesEventsCount = (timelines: EventTimeline[]): number => {
   return timelines.reduce(timelineEventCountReducer, 0);
 };
 
-export const getThreadReplyCount = (
-  room: Room,
-  mEvent: MatrixEvent,
-  fallbackReplyCount?: number,
-  allowZeroReplyCount = false
-): number | undefined => {
-  const eventId = mEvent.getId();
-  if (!eventId) return undefined;
-
-  const thread = room.getThread(eventId);
-  const loadedThreadEvents =
-    thread?.events && thread.events.length > 0
-      ? thread.events
-      : thread?.timeline && thread.timeline.length > 0
-        ? thread.timeline
-        : undefined;
-  if (loadedThreadEvents && loadedThreadEvents.length > 0) {
-    const visibleThreadReplyCount =
-      buildVisibleThreadReplyCountMap(loadedThreadEvents).get(eventId) ?? 0;
-    if (visibleThreadReplyCount > 0 || allowZeroReplyCount) {
-      return visibleThreadReplyCount;
-    }
-  }
-
-  const threadMeta = mEvent.getUnsigned()?.['m.relations']?.['m.thread'] as
-    | { count?: unknown; c?: unknown }
-    | undefined;
-  if (typeof threadMeta?.count === 'number') return threadMeta.count;
-  if (typeof threadMeta?.c === 'number') return threadMeta.c;
-
-  const threadLength = thread?.length;
-  if (typeof threadLength === 'number' && (threadLength > 0 || allowZeroReplyCount)) {
-    return threadLength;
-  }
-
-  if (typeof fallbackReplyCount === 'number' && (fallbackReplyCount > 0 || allowZeroReplyCount)) {
-    return fallbackReplyCount;
-  }
-
-  return allowZeroReplyCount ? 0 : undefined;
-};
-
-const getKnownThreadReplyCount = (mEvent: MatrixEvent): number | undefined => {
-  const threadMeta = mEvent.getUnsigned()?.['m.relations']?.['m.thread'] as
-    | { count?: unknown; c?: unknown }
-    | undefined;
-  if (typeof threadMeta?.count === 'number') return threadMeta.count;
-  if (typeof threadMeta?.c === 'number') return threadMeta.c;
-
-  return undefined;
-};
-
-export const shouldRenderZeroReplyThreadBadge = (room: Room, mEvent: MatrixEvent): boolean => {
-  const eventId = mEvent.getId();
-  if (eventId) {
-    const thread = room.getThread(eventId);
-    const loadedThreadEvents =
-      thread?.events && thread.events.length > 0
-        ? thread.events
-        : thread?.timeline && thread.timeline.length > 0
-          ? thread.timeline
-          : undefined;
-    if (loadedThreadEvents && loadedThreadEvents.length > 0) {
-      const visibleThreadReplyCount =
-        buildVisibleThreadReplyCountMap(loadedThreadEvents).get(eventId) ?? 0;
-      if (visibleThreadReplyCount === 0) return true;
-    }
-  }
-
-  const threadReplyCount = getKnownThreadReplyCount(mEvent);
-  if (threadReplyCount === 0) return true;
-
-  return isZeroReplyStandaloneThreadRootEvent(mEvent);
-};
-
 const getRoomDerivedThreadSnapshotState = ({
   room,
   threadId,
@@ -1041,44 +966,47 @@ const mergeThreadBackfillEvents = (
   });
 };
 
-const THREAD_PARTICIPANT_LIMIT = 3;
+const renderThreadBadge = ({
+  model,
+  room,
+  onClick,
+  includeRecentSummaryData = false,
+}: {
+  model: ThreadBadgeViewModel | undefined;
+  room: Room;
+  onClick: MouseEventHandler;
+  includeRecentSummaryData?: boolean;
+}): React.ReactNode => {
+  if (!model) return null;
 
-const getThreadParticipantIds = (
-  room: Room,
-  mEvent: MatrixEvent,
-  fallbackParticipantIds?: string[]
-): string[] | undefined => {
-  const eventId = mEvent.getId();
-  if (eventId) {
-    const thread = room.getThread(eventId);
-    if (thread?.events?.length) {
-      const participants =
-        buildVisibleThreadParticipantMap(thread.events, THREAD_PARTICIPANT_LIMIT).get(eventId) ?? [];
-      if (participants.length > 0) return participants;
-    }
-  }
+  const { threadRootId } = model.id;
 
-  if (fallbackParticipantIds && fallbackParticipantIds.length > 0) {
-    return fallbackParticipantIds.slice(0, THREAD_PARTICIPANT_LIMIT);
-  }
-
-  return undefined;
-};
-
-const getThreadSummaryInfo = (
-  room: Room,
-  mEvent: MatrixEvent,
-  fallbackInfo?: MindroomThreadSummaryInfo,
-  cachedInfo?: MindroomThreadSummaryInfo
-): MindroomThreadSummaryInfo | undefined => {
-  const preferredSummaryInfo = pickLatestThreadSummaryInfo(cachedInfo, fallbackInfo);
-  const eventId = mEvent.getId();
-  if (!eventId) return preferredSummaryInfo;
-
-  return resolveThreadSummaryInfo({
-    preferredSummaryInfo,
-    thread: room.getThread(eventId),
-  });
+  return (
+    <>
+      {model.summaryInfo && (
+        <Box style={{ marginTop: config.space.S200 }}>
+          <MindroomThreadSummaryCard
+            compact
+            summaryInfo={model.summaryInfo}
+            renderBody={({ body }) => <>{body}</>}
+          />
+        </Box>
+      )}
+      <ThreadIndicator
+        as="button"
+        style={{ marginTop: model.summaryInfo ? config.space.S100 : config.space.S200 }}
+        data-thread-root-id={threadRootId}
+        data-event-id={threadRootId}
+        data-thread-summary={includeRecentSummaryData ? model.recentThreadSummaryText : undefined}
+        threadReplyCount={model.replyCount}
+        threadParticipantIds={model.participantIds}
+        isResolved={model.isResolved}
+        threadRootId={threadRootId}
+        room={room}
+        onClick={onClick}
+      />
+    </>
+  );
 };
 
 export const getTimelineAndBaseIndex = (
@@ -7299,6 +7227,21 @@ threadDebugTraceId,
     return buildPreferredThreadSummaryMap(summaryMap, threadSummaryInfoMap);
   }, [summaryMap, threadSummaryInfoMap]);
 
+  const getTimelineThreadBadgeModel = (
+    mEventId: string,
+    mEvent: MatrixEvent
+  ): ThreadBadgeViewModel | undefined =>
+    buildTimelineThreadBadgeViewModel({
+      room,
+      threadRootEvent: mEvent,
+      activeThreadId: threadId,
+      fallbackReplyCount: threadReplyCountMap.get(mEventId),
+      fallbackParticipantIds: threadParticipantMap.get(mEventId),
+      isResolved: threadResolutionMap.get(mEventId)?.isResolved,
+      fallbackSummaryInfo: threadSummaryInfoMap.get(mEventId),
+      cachedSummaryInfo: summaryMap.get(mEventId),
+    });
+
   const renderMatrixEvent = useMatrixEventRenderer<
     [string, MatrixEvent, number, EventTimelineSet, boolean]
   >(
@@ -7327,67 +7270,12 @@ threadDebugTraceId,
         const senderId = mEvent.getSender() ?? '';
         const senderDisplayName =
           getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-        const zeroReplyThreadBadge = shouldRenderZeroReplyThreadBadge(room, mEvent);
-        const threadReplyCount = getThreadReplyCount(
+        const threadSummary = renderThreadBadge({
+          model: getTimelineThreadBadgeModel(mEventId, mEvent),
           room,
-          mEvent,
-          threadReplyCountMap.get(mEventId),
-          zeroReplyThreadBadge
-        );
-        const threadParticipantIds = getThreadParticipantIds(
-          room,
-          mEvent,
-          threadParticipantMap.get(mEventId)
-        );
-        const threadResolved = mEventId
-          ? threadResolutionMap.get(mEventId)?.isResolved ?? false
-          : false;
-        const isThreadReply = isThreadReplyEvent(mEventId, threadRootId);
-        const summaryInfo =
-          !threadId && !isThreadReply && mEventId
-            ? getThreadSummaryInfo(room, mEvent, threadSummaryInfoMap.get(mEventId), summaryMap.get(mEventId))
-            : undefined;
-        const recentThreadSummaryText =
-          !threadId && !isThreadReply && mEventId
-            ? resolveRecentThreadSummaryText({
-                room,
-                threadRootId: mEventId,
-                rootEvent: mEvent,
-                summaryInfo,
-              })
-            : undefined;
-        const threadSummary =
-          !threadId &&
-          !isThreadReply &&
-          mEventId &&
-          typeof threadReplyCount === 'number' &&
-          (threadReplyCount > 0 || zeroReplyThreadBadge) ? (
-            <>
-              {summaryInfo && (
-                <Box style={{ marginTop: config.space.S200 }}>
-                  <MindroomThreadSummaryCard
-                    compact
-                    summaryInfo={summaryInfo}
-                    renderBody={({ body }) => <>{body}</>}
-                  />
-                </Box>
-              )}
-                <ThreadIndicator
-                as="button"
-                style={{ marginTop: summaryInfo ? config.space.S100 : config.space.S200 }}
-                data-thread-root-id={mEventId}
-                data-event-id={mEventId}
-                data-thread-summary={recentThreadSummaryText}
-                threadReplyCount={threadReplyCount}
-                threadParticipantIds={threadParticipantIds}
-                isResolved={threadResolved}
-                          threadRootId={mEventId}
-                room={room}
-                onClick={handleOpenReply}
-              />
-            </>
-
-          ) : null;
+          onClick: handleOpenReply,
+          includeRecentSummaryData: true,
+        });
 
         return (
           <Message
@@ -7515,56 +7403,11 @@ threadDebugTraceId,
         const senderId = mEvent.getSender() ?? '';
         const senderDisplayName =
           getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-        const zeroReplyThreadBadge = shouldRenderZeroReplyThreadBadge(room, mEvent);
-        const threadReplyCount = getThreadReplyCount(
+        const threadSummary = renderThreadBadge({
+          model: getTimelineThreadBadgeModel(mEventId, mEvent),
           room,
-          mEvent,
-          threadReplyCountMap.get(mEventId),
-          zeroReplyThreadBadge
-        );
-        const threadParticipantIds = getThreadParticipantIds(
-          room,
-          mEvent,
-          threadParticipantMap.get(mEventId)
-        );
-        const threadResolved = mEventId
-          ? threadResolutionMap.get(mEventId)?.isResolved ?? false
-          : false;
-        const isThreadReply = isThreadReplyEvent(mEventId, threadRootId);
-        const summaryInfo =
-          !threadId && !isThreadReply && mEventId
-            ? getThreadSummaryInfo(room, mEvent, threadSummaryInfoMap.get(mEventId), summaryMap.get(mEventId))
-            : undefined;
-        const threadSummary =
-          !threadId &&
-          !isThreadReply &&
-          mEventId &&
-          typeof threadReplyCount === 'number' &&
-          (threadReplyCount > 0 || zeroReplyThreadBadge) ? (
-            <>
-              {summaryInfo && (
-                <Box style={{ marginTop: config.space.S200 }}>
-                  <MindroomThreadSummaryCard
-                    compact
-                    summaryInfo={summaryInfo}
-                    renderBody={({ body }) => <>{body}</>}
-                  />
-                </Box>
-              )}
-              <ThreadIndicator
-                as="button"
-                style={{ marginTop: summaryInfo ? config.space.S100 : config.space.S200 }}
-                data-thread-root-id={mEventId}
-                data-event-id={mEventId}
-                threadReplyCount={threadReplyCount}
-                threadParticipantIds={threadParticipantIds}
-                isResolved={threadResolved}
-                threadRootId={mEventId}
-                room={room}
-                onClick={handleOpenReply}
-              />
-            </>
-          ) : null;
+          onClick: handleOpenReply,
+        });
 
         return (
           <Message
@@ -7663,57 +7506,11 @@ threadDebugTraceId,
         const highlighted = focusItem?.index === item && focusItem.highlight;
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
         const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
-        const zeroReplyThreadBadge = shouldRenderZeroReplyThreadBadge(room, mEvent);
-        const threadReplyCount = getThreadReplyCount(
+        const threadSummary = renderThreadBadge({
+          model: getTimelineThreadBadgeModel(mEventId, mEvent),
           room,
-          mEvent,
-          threadReplyCountMap.get(mEventId),
-          zeroReplyThreadBadge
-        );
-        const threadParticipantIds = getThreadParticipantIds(
-          room,
-          mEvent,
-          threadParticipantMap.get(mEventId)
-        );
-        const threadResolved = mEventId
-          ? threadResolutionMap.get(mEventId)?.isResolved ?? false
-          : false;
-        const isThreadReply = isThreadReplyEvent(mEventId, threadRootId);
-        const encSummaryInfo =
-          !threadId && !isThreadReply && mEventId
-            ? getThreadSummaryInfo(room, mEvent, threadSummaryInfoMap.get(mEventId), summaryMap.get(mEventId))
-            : undefined;
-        const threadSummary =
-          !threadId &&
-          !isThreadReply &&
-          mEventId &&
-          typeof threadReplyCount === 'number' &&
-          (threadReplyCount > 0 || zeroReplyThreadBadge) ? (
-            <>
-              {encSummaryInfo && (
-                <Box style={{ marginTop: config.space.S200 }}>
-                  <MindroomThreadSummaryCard
-                    compact
-                    summaryInfo={encSummaryInfo}
-                    renderBody={({ body }) => <>{body}</>}
-                  />
-                </Box>
-              )}
-              <ThreadIndicator
-                as="button"
-                style={{ marginTop: encSummaryInfo ? config.space.S100 : config.space.S200 }}
-                data-thread-root-id={mEventId}
-                data-event-id={mEventId}
-                threadReplyCount={threadReplyCount}
-                threadParticipantIds={threadParticipantIds}
-                isResolved={threadResolved}
-                          threadRootId={mEventId}
-                room={room}
-                onClick={handleOpenReply}
-              />
-            </>
-
-          ) : null;
+          onClick: handleOpenReply,
+        });
 
         return (
           <Message

@@ -80,3 +80,12 @@ export type CompactThreadCardViewModel = {
   lastActivityTs?: number;
   lastActivityTitle?: string;
 };
+
+export type ThreadBadgeViewModel = {
+  id: ThreadId;
+  summaryInfo?: MindroomThreadSummaryInfo;
+  recentThreadSummaryText?: string;
+  replyCount: number;
+  participantIds?: string[];
+  isResolved: boolean;
+};
