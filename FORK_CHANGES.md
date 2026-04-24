@@ -578,6 +578,17 @@
     - `npm run typecheck` passes
     - `npm run build` passes
     - `git diff --check` passes
+- `CINNY-075` implementation step 3 (2026-04-24):
+  - added the shared `buildThreadRecord(...)` selector under `src/app/mindroom/threads/threadRecord.ts`.
+  - moved badge reply-count, zero-reply, reply-participant, summary precedence, activity, streaming, scheduled-task, unread, and tag/status derivation behind `ThreadRecord`.
+  - `ThreadBadgeViewModel` and `CompactThreadCardViewModel` now adapt from `ThreadRecord` instead of each deriving their own presentation/status snapshot.
+  - remaining seam: `RoomTimeline` still computes and passes legacy maps; the next slice should build a per-room `ThreadRecord` map first and pass records into compact cards, badges, and later header/sidebar/palette models.
+  - validation:
+    - focused Vitest passes for `threadRecord.test.ts`, `threadBadgeViewModel.test.ts`, `compactThreadCardViewModel.test.ts`, `RoomTimeline.cache.test.ts`, and `CompactRoomView.test.ts`
+    - `npm test` passes (`158/158` files, `1406/1406` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - focused live Matrix e2e passes for `e2e/live/cinny060-thread-summary-consistency.spec.ts` and `e2e/live/cinny068-fresh-zero-reply-open.spec.ts` (`3/3`)
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
