@@ -9,19 +9,14 @@ import {
   updateThreadFilterKey,
 } from './roomThreadOverviewModel';
 import { applyParsedThreadFilterQuery, parseThreadFilterQuery, serializeThreadFilterQuery } from './threadFilterDsl';
-import { create, flushAsyncWork, getRenderedEventIds, makeEvent, makeRoom, roomThreadOverviewType, stateEventsByTypeMock } from './RoomTimeline.test.shared';
+import { create, flushAsyncWork, getRenderedEventIds, makeEvent, makeRoom, roomThreadOverviewType, stateEventsByTypeMock, threadStreamingStateMock } from './RoomTimeline.test.shared';
 
-const { scheduledEventsByType, streamingStates } = vi.hoisted(() => ({
+const { scheduledEventsByType } = vi.hoisted(() => ({
   scheduledEventsByType: new Map<string, unknown[]>(),
-  streamingStates: new Map<string, boolean>(),
 }));
 
 vi.mock('../../hooks/useStateEvents', () => ({
   useStateEvents: (_room: unknown, eventType: string) => scheduledEventsByType.get(eventType) ?? [],
-}));
-vi.mock('../../hooks/useThreadStreamingState', () => ({
-  getThreadStreamingState: (_room: unknown, threadRootId: string) => streamingStates.get(threadRootId) ?? false,
-  useThreadStreamingState: () => false,
 }));
 vi.mock('../../hooks/useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: () => 0,
@@ -38,7 +33,7 @@ const makeThreadRoom = () => {
   const streaming = makeEvent('$streaming-root', { isThreadRoot: true, ts: 1 });
   const scheduled = makeEvent('$scheduled-root', { isThreadRoot: true, ts: 2 });
   const plain = makeEvent('$plain-root', { isThreadRoot: true, ts: 3 });
-  streamingStates.set(streaming.getId(), true);
+  threadStreamingStateMock.set(streaming.getId(), true);
   scheduledEventsByType.set(StateEvent.MindRoomScheduledTask, [
     makeEvent('$scheduled-task', { type: StateEvent.MindRoomScheduledTask, stateKey: 'task-1', content: { status: 'pending', thread_id: scheduled.getId(), new_thread: false, execute_at: '2999-01-01T00:00:00Z' } }),
   ]);
@@ -101,7 +96,7 @@ const setup = async () => {
 };
 
 describe('RoomTimeline filter query wiring', () => {
-  beforeEach(() => { vi.useFakeTimers(); scheduledEventsByType.clear(); streamingStates.clear(); stateEventsByTypeMock.clear(); });
+  beforeEach(() => { vi.useFakeTimers(); scheduledEventsByType.clear(); threadStreamingStateMock.clear(); stateEventsByTypeMock.clear(); });
   afterEach(() => { vi.useRealTimers(); });
 
   it('lights working chips immediately and applies the OR union after debounce', async () => {

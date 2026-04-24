@@ -254,4 +254,57 @@ describe('buildThreadRecord', () => {
       },
     });
   });
+
+  it('builds a per-room record map directly from overview fallback maps', () => {
+    const rootEvent = makeEvent({
+      eventId: '$root',
+      sender: '@me:server',
+      body: 'Root body',
+      ts: 1000,
+    });
+    const room = makeRoom({ rootEvent });
+
+    const records = buildThreadRecordMap({
+      room,
+      threadRootIds: ['$root'],
+      threadRootEventMap: new Map([['$root', rootEvent]]),
+      rootPreviewTextMap: new Map([['$root', 'Cached root preview']]),
+      fallbackLatestReplyPreviewMap: new Map([['$root', 'Cached latest reply']]),
+      fallbackLastSenderIdMap: new Map([['$root', '@cached:server']]),
+      fallbackMessageCountMap: new Map([['$root', 3]]),
+      fallbackLastActivityTsMap: new Map([['$root', 9000]]),
+      threadResolutionMap: new Map([
+        [
+          '$root',
+          {
+            isResolved: true,
+            tags: {
+              resolved: {},
+              direct: {},
+            },
+          },
+        ],
+      ]),
+      scheduledTaskCounts: new Map([['$root', 2]]),
+      absoluteIndexMap: new Map([['$root', 5]]),
+    });
+
+    expect(records.get('$root')).toMatchObject({
+      threadRootId: '$root',
+      absoluteIndex: 5,
+      presentation: {
+        rootPreviewText: 'Cached root preview',
+        latestReplyPreviewText: 'Cached latest reply',
+        lastSenderId: '@cached:server',
+        messageCount: 3,
+      },
+      status: {
+        replyCount: 3,
+        isResolved: true,
+        scheduledTaskCount: 2,
+        lastActivityTs: 9000,
+        tags: ['direct'],
+      },
+    });
+  });
 });

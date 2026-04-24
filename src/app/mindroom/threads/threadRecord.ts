@@ -10,6 +10,7 @@ import { getThreadStreamingState } from '../../hooks/useThreadStreamingState';
 import { resolveRecentThreadSummaryText } from '../../features/recent-threads/recentThreadSummaryUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from '../../features/room/compactThreadRootData';
 import { getThreadUnread } from '../../features/room/roomThreadList';
+import { getEffectiveThreadRootActivityTs } from '../../features/room/threadRouteUtils';
 import type { ThreadOverviewMetadata } from '../../features/room/roomThreadOverviewModel';
 import {
   getThreadPrimarySummaryText,
@@ -18,6 +19,7 @@ import {
 import {
   buildVisibleThreadParticipantMap,
   buildVisibleThreadReplyCountMap,
+  getPreferredVisibleThreadReplyEvents,
   getVisibleThreadParticipantIds,
 } from '../../features/room/threadUtils';
 import type { ThreadRecord } from './types';
@@ -37,9 +39,16 @@ type BuildThreadRecordOptions = {
   summaryInfo?: MindroomThreadSummaryInfo;
   fallbackSummaryInfo?: MindroomThreadSummaryInfo;
   fallbackReplyCount?: number;
+  rootPreviewText?: string;
+  fallbackLatestReplyPreviewText?: string;
+  fallbackLastSenderId?: string;
+  fallbackLastSenderDisplayName?: string;
+  fallbackMessageCount?: number;
+  fallbackLastActivityTs?: number;
   fallbackParticipantIds?: string[];
   threadResolution?: ThreadResolutionLike;
   currentUserId?: string;
+  readUpToTs?: number | null;
   scheduledTaskEvents?: MatrixEvent[];
   scheduledTaskCount?: number;
   nextScheduledTs?: number;
@@ -54,9 +63,16 @@ type BuildThreadRecordMapOptions = {
   summaryMap?: ReadonlyMap<string, MindroomThreadSummaryInfo>;
   fallbackSummaryMap?: ReadonlyMap<string, MindroomThreadSummaryInfo>;
   fallbackReplyCountMap?: ReadonlyMap<string, number>;
+  rootPreviewTextMap?: ReadonlyMap<string, string>;
+  fallbackLatestReplyPreviewMap?: ReadonlyMap<string, string>;
+  fallbackLastSenderIdMap?: ReadonlyMap<string, string>;
+  fallbackLastSenderDisplayNameMap?: ReadonlyMap<string, string>;
+  fallbackMessageCountMap?: ReadonlyMap<string, number>;
+  fallbackLastActivityTsMap?: ReadonlyMap<string, number>;
   fallbackParticipantMap?: ReadonlyMap<string, string[]>;
   threadResolutionMap?: ReadonlyMap<string, ThreadResolutionLike>;
   currentUserId?: string;
+  readUpToTs?: number | null;
   scheduledTaskEvents?: MatrixEvent[];
   scheduledTaskCounts?: ReadonlyMap<string, number>;
   absoluteIndexMap?: ReadonlyMap<string, number>;
@@ -177,6 +193,21 @@ const getThreadStatusTags = (
   return tagNames.filter((tagName) => tagName !== 'resolved');
 };
 
+const getThreadUnreadFromReadUpToTs = (
+  thread: ReturnType<Room['getThread']>,
+  currentUserId: string | undefined,
+  readUpToTs: number | null | undefined
+): boolean | undefined => {
+  if (readUpToTs === undefined || !thread || !currentUserId) return undefined;
+
+  const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
+  const latestReply = replyEvents[replyEvents.length - 1];
+  if (!latestReply) return false;
+  if (latestReply.getSender() === currentUserId) return false;
+  if (readUpToTs === null) return true;
+  return latestReply.getTs() > readUpToTs;
+};
+
 export const buildThreadRecord = ({
   room,
   threadRootId,
@@ -185,9 +216,16 @@ export const buildThreadRecord = ({
   summaryInfo,
   fallbackSummaryInfo,
   fallbackReplyCount,
+  rootPreviewText,
+  fallbackLatestReplyPreviewText,
+  fallbackLastSenderId,
+  fallbackLastSenderDisplayName,
+  fallbackMessageCount,
+  fallbackLastActivityTs,
   fallbackParticipantIds,
   threadResolution,
   currentUserId,
+  readUpToTs,
   scheduledTaskEvents = [],
   scheduledTaskCount,
   nextScheduledTs,
@@ -199,21 +237,25 @@ export const buildThreadRecord = ({
   const zeroReplyThreadRoot = resolvedThreadRootEvent
     ? shouldRenderZeroReplyThreadBadge(room, resolvedThreadRootEvent)
     : false;
+  const resolvedFallbackReplyCount =
+    fallbackReplyCount ?? fallbackMessageCount ?? metadata?.messageCount;
   const recordReplyCount =
     (resolvedThreadRootEvent
       ? getThreadReplyCount(
           room,
           resolvedThreadRootEvent,
-          fallbackReplyCount ?? metadata?.messageCount,
+          resolvedFallbackReplyCount,
           zeroReplyThreadRoot
         )
       : undefined) ??
     fallbackReplyCount ??
+    fallbackMessageCount ??
     metadata?.messageCount;
   const isKnownThreadRoot =
     metadata !== undefined ||
     (typeof recordReplyCount === 'number' && (recordReplyCount > 0 || zeroReplyThreadRoot)) ||
-    typeof fallbackReplyCount === 'number';
+    typeof fallbackReplyCount === 'number' ||
+    typeof fallbackMessageCount === 'number';
   const preferredSummaryInfo = pickLatestThreadSummaryInfo(
     summaryInfo,
     fallbackSummaryInfo,
@@ -235,11 +277,13 @@ export const buildThreadRecord = ({
     thread,
     rootEvent: resolvedThreadRootEvent,
     preferredSummaryInfo,
-    preferredRootPreviewText: metadata?.rootPreviewText,
-    fallbackLatestReplyPreviewText: metadata?.latestReplyPreviewText,
-    fallbackLastSenderId: metadata?.lastSenderId,
-    fallbackLastSenderDisplayName: metadata?.lastSenderDisplayName,
-    fallbackMessageCount: metadata?.messageCount ?? recordReplyCount,
+    preferredRootPreviewText: metadata?.rootPreviewText ?? rootPreviewText,
+    fallbackLatestReplyPreviewText:
+      metadata?.latestReplyPreviewText ?? fallbackLatestReplyPreviewText,
+    fallbackLastSenderId: metadata?.lastSenderId ?? fallbackLastSenderId,
+    fallbackLastSenderDisplayName:
+      metadata?.lastSenderDisplayName ?? fallbackLastSenderDisplayName,
+    fallbackMessageCount: metadata?.messageCount ?? fallbackMessageCount ?? recordReplyCount,
     fallbackParticipantIds,
   });
   const resolvedScheduledTaskCount = scheduledTaskCount ?? metadata?.scheduledTaskCount ?? 0;
@@ -252,10 +296,12 @@ export const buildThreadRecord = ({
     Math.max(
       liveLastActivityTs,
       metadata?.lastActivityTs ?? 0,
-      resolvedThreadRootEvent?.getTs() ?? 0
+      fallbackLastActivityTs ?? 0,
+      getEffectiveThreadRootActivityTs(resolvedThreadRootEvent)
     ) || undefined;
   const isUnread =
     metadata?.isUnread ??
+    getThreadUnreadFromReadUpToTs(thread, currentUserId, readUpToTs) ??
     (thread && currentUserId ? getThreadUnread(room, thread, currentUserId) : false);
   const isResolved = threadResolution?.isResolved ?? metadata?.isResolved ?? false;
   const isStreaming = metadata?.isStreaming ?? getThreadStreamingState(room, threadRootId);
@@ -270,6 +316,7 @@ export const buildThreadRecord = ({
       recentThreadSummaryText:
         presentation.summaryText ??
         metadata?.rootPreviewText ??
+        rootPreviewText ??
         resolveRecentThreadSummaryText({
           room,
           threadRootId,
@@ -305,9 +352,16 @@ export const buildThreadRecordMap = ({
   summaryMap,
   fallbackSummaryMap,
   fallbackReplyCountMap,
+  rootPreviewTextMap,
+  fallbackLatestReplyPreviewMap,
+  fallbackLastSenderIdMap,
+  fallbackLastSenderDisplayNameMap,
+  fallbackMessageCountMap,
+  fallbackLastActivityTsMap,
   fallbackParticipantMap,
   threadResolutionMap,
   currentUserId,
+  readUpToTs,
   scheduledTaskEvents,
   scheduledTaskCounts,
   absoluteIndexMap,
@@ -325,9 +379,16 @@ export const buildThreadRecordMap = ({
         summaryInfo: summaryMap?.get(threadRootId),
         fallbackSummaryInfo: fallbackSummaryMap?.get(threadRootId),
         fallbackReplyCount: fallbackReplyCountMap?.get(threadRootId),
+        rootPreviewText: rootPreviewTextMap?.get(threadRootId),
+        fallbackLatestReplyPreviewText: fallbackLatestReplyPreviewMap?.get(threadRootId),
+        fallbackLastSenderId: fallbackLastSenderIdMap?.get(threadRootId),
+        fallbackLastSenderDisplayName: fallbackLastSenderDisplayNameMap?.get(threadRootId),
+        fallbackMessageCount: fallbackMessageCountMap?.get(threadRootId),
+        fallbackLastActivityTs: fallbackLastActivityTsMap?.get(threadRootId),
         fallbackParticipantIds: fallbackParticipantMap?.get(threadRootId),
         threadResolution: threadResolutionMap?.get(threadRootId),
         currentUserId,
+        readUpToTs,
         scheduledTaskEvents,
         scheduledTaskCount: scheduledTaskCounts?.get(threadRootId),
         absoluteIndex: absoluteIndexMap?.get(threadRootId),
