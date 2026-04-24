@@ -1,32 +1,28 @@
 import React from 'react';
 import { Box, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
 import { useCompactThreadCardViewModels } from '../../mindroom/threads/compactThreadCardViewModel';
-import type { ThreadOverviewMetadata } from './roomThreadOverviewModel';
+import type { ThreadRecord } from '../../mindroom/threads/types';
 import { CompactThreadCard } from './CompactThreadCard';
 import * as css from './CompactRoomView.css';
 
 export type CompactRoomViewProps = {
   room: Room;
   threadRootIds: string[];
-  metadataMap: Map<string, ThreadOverviewMetadata>;
-  summaryMap?: Map<string, MindroomThreadSummaryInfo>;
+  threadRecordMap: ReadonlyMap<string, ThreadRecord>;
   onThreadClick: (threadRootId: string, summaryText?: string) => void;
 };
 
 export function CompactRoomView({
   room,
   threadRootIds,
-  metadataMap,
-  summaryMap,
+  threadRecordMap,
   onThreadClick,
 }: CompactRoomViewProps) {
   const cardViewModels = useCompactThreadCardViewModels({
     room,
     threadRootIds,
-    metadataMap,
-    summaryMap,
+    threadRecordMap,
   });
 
   if (threadRootIds.length === 0) {

@@ -600,6 +600,21 @@
     - `npm run typecheck` passes
     - `npm run build` passes
     - `git diff --check` passes
+- `CINNY-075` implementation step 5 (2026-04-24):
+  - `RoomTimeline` now builds the active per-room `threadRecordMap` for either normal overview roots or compact-view roots, depending on the active room view.
+  - `CompactRoomView` now receives that `threadRecordMap` and passes it into the shared compact-card selector instead of passing metadata and summary source maps.
+  - `useCompactThreadCardViewModels(...)` now only adapts existing `ThreadRecord` values into `CompactThreadCardViewModel` values; it no longer subscribes to scheduled-task or resolution state and no longer rebuilds records itself.
+  - remaining legacy metadata maps still exist for filtering, sorting, status/tag counts, and cache hydration; those are the next targets if we keep removing duplication.
+- `CINNY-075` implementation step 6 (2026-04-24):
+  - added the fork-owned `threadRecordOverview` selector for overview filter/search/sort, status counts, and tag counts from `ThreadRecord`.
+  - `RoomTimeline` now uses separate normal and compact `ThreadRecord` maps for overview ordering/counts and no longer imports the old metadata-based overview filter/sort/count helpers.
+  - legacy `ThreadOverviewMetadata` maps still exist for cache hydration and compatibility helpers; this step changes consumers first before deleting those producers.
+  - validation:
+    - focused Vitest passes for `threadRecordOverview.test.ts`, `roomThreadOverviewModel.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.filter-query.test.ts`, `CompactRoomView.test.ts`, `compactThreadCardViewModel.test.ts`, and `threadRecord.test.ts`
+    - `npm test` passes (`159/159` files, `1409/1409` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - focused live Matrix e2e passes for `e2e/live/cinny060-thread-summary-consistency.spec.ts` and `e2e/live/cinny068-fresh-zero-reply-open.spec.ts` (`3/3`)
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
