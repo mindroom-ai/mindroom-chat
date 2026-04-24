@@ -11,12 +11,15 @@ import type {
   Room,
 } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
+import type { ThreadRecord } from '../../mindroom/threads/types';
 import {
   getCompactCachedThreadActivityTs,
   getCompactCachedThreadRootPreviewInfo,
 } from './compactThreadRootData';
-import { type ThreadOverviewMetadata } from './roomThreadOverviewModel';
-import { loadLatestCachedThreadEvents } from './threadEventCache';
+import {
+  type CachedThreadEventPage,
+  loadLatestCachedThreadEvents,
+} from './threadEventCache';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfillUtils';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
 
@@ -39,8 +42,8 @@ type UseThreadOverviewCacheHydrationOptions = {
   compactThreadRootBodyMap: Map<string, string>;
   compactCachedThreadRootBodyMap: Map<string, string>;
   cachedThreadLastActivityTsMap: Map<string, number>;
-  compactThreadMetadataMap: Map<string, ThreadOverviewMetadata>;
-  threadMetadataMap: Map<string, ThreadOverviewMetadata>;
+  compactThreadRecordMap: ReadonlyMap<string, ThreadRecord>;
+  threadRecordMap: ReadonlyMap<string, ThreadRecord>;
   compactCachedRootPreviewAttemptCountsRef: MutableRefObject<Map<string, number>>;
   setCompactCachedThreadRootBodyMap: MapSetter<string, string>;
   setCachedThreadLastActivityTsMap: MapSetter<string, number>;
@@ -60,6 +63,18 @@ type CachedOverviewUpdate = {
   nextSummaryInfo?: MindroomThreadSummaryInfo;
 };
 
+type ResolveCachedOverviewUpdateOptions = {
+  rootId: string;
+  room: Room;
+  mapper: (rawEvent: IEvent) => MatrixEvent;
+  cachedPage: CachedThreadEventPage;
+  currentRecord?: ThreadRecord;
+  currentRootEvent?: MatrixEvent;
+  showCompactRoomView: boolean;
+  compactCachedThreadRootBodyMap: ReadonlyMap<string, string>;
+  compactThreadRootBodyMap: ReadonlyMap<string, string>;
+};
+
 const applyMapUpdates = <K, V>(
   entries: Array<{ key: K; value: V | undefined }>,
   setMap: MapSetter<K, V>
@@ -76,6 +91,100 @@ const applyMapUpdates = <K, V>(
   });
 };
 
+export const resolveCachedOverviewUpdate = ({
+  rootId,
+  room,
+  mapper,
+  cachedPage,
+  currentRecord,
+  currentRootEvent,
+  showCompactRoomView,
+  compactCachedThreadRootBodyMap,
+  compactThreadRootBodyMap,
+}: ResolveCachedOverviewUpdateOptions): CachedOverviewUpdate | null => {
+  const cachedActivityTs = getCompactCachedThreadActivityTs({
+    threadId: rootId,
+    cachedPage,
+    mapper,
+  });
+  const liveActivityTs = currentRecord?.status.lastActivityTs ?? 0;
+  const nextActivityTs =
+    cachedActivityTs && cachedActivityTs > liveActivityTs ? cachedActivityTs : undefined;
+  const cachedEvents = cachedPage.events.map((rawEvent) => mapper(rawEvent as IEvent));
+  const cachedPresentation = resolveThreadPresentationSnapshot({
+    room,
+    threadRootId: rootId,
+    thread: { events: cachedEvents, timeline: cachedEvents },
+    rootEvent: cachedEvents.find((event) => event.getId() === rootId) ?? currentRootEvent,
+  });
+  const currentPresentation = currentRecord?.presentation;
+  const shouldUseCachedReplyMetadata =
+    (cachedActivityTs !== undefined && cachedActivityTs >= liveActivityTs) ||
+    !currentPresentation?.latestReplyPreviewText;
+  const nextReplyPreviewText =
+    shouldUseCachedReplyMetadata &&
+    cachedPresentation.latestReplyPreviewText &&
+    cachedPresentation.latestReplyPreviewText !== currentPresentation?.latestReplyPreviewText
+      ? cachedPresentation.latestReplyPreviewText
+      : undefined;
+  const nextLastSenderId =
+    shouldUseCachedReplyMetadata &&
+    cachedPresentation.lastSenderId &&
+    cachedPresentation.lastSenderId !== currentPresentation?.lastSenderId
+      ? cachedPresentation.lastSenderId
+      : undefined;
+  const currentMessageCount =
+    currentPresentation?.messageCount ?? currentRecord?.status.replyCount ?? 0;
+  const nextMessageCount =
+    cachedPresentation.messageCount > 0 && cachedPresentation.messageCount > currentMessageCount
+      ? cachedPresentation.messageCount
+      : undefined;
+  const nextSummaryInfo = cachedPresentation.summaryInfo?.summaryText
+    ? cachedPresentation.summaryInfo
+    : undefined;
+
+  let nextPreview: string | undefined;
+  if (showCompactRoomView && !compactCachedThreadRootBodyMap.has(rootId)) {
+    const cachedPreview = getCompactCachedThreadRootPreviewInfo({
+      threadId: rootId,
+      cachedPage,
+      mapper,
+    });
+    if (cachedPreview) {
+      const currentPreview = compactThreadRootBodyMap.get(rootId);
+      const currentSourceTs =
+        currentRootEvent?.replacingEvent()?.getTs() ?? currentRootEvent?.getTs() ?? 0;
+      if (
+        cachedPreview.previewText !== currentPreview &&
+        (!currentPreview || cachedPreview.sourceTs > currentSourceTs)
+      ) {
+        nextPreview = cachedPreview.previewText;
+      }
+    }
+  }
+
+  if (
+    nextActivityTs === undefined &&
+    nextPreview === undefined &&
+    nextReplyPreviewText === undefined &&
+    nextLastSenderId === undefined &&
+    nextMessageCount === undefined &&
+    nextSummaryInfo === undefined
+  ) {
+    return null;
+  }
+
+  return {
+    rootId,
+    nextActivityTs,
+    nextPreview,
+    nextReplyPreviewText,
+    nextLastSenderId,
+    nextMessageCount,
+    nextSummaryInfo,
+  };
+};
+
 export const useThreadOverviewCacheHydration = ({
   threadId,
   overviewThreadRootIds,
@@ -88,8 +197,8 @@ export const useThreadOverviewCacheHydration = ({
   compactThreadRootBodyMap,
   compactCachedThreadRootBodyMap,
   cachedThreadLastActivityTsMap,
-  compactThreadMetadataMap,
-  threadMetadataMap,
+  compactThreadRecordMap,
+  threadRecordMap,
   compactCachedRootPreviewAttemptCountsRef,
   setCompactCachedThreadRootBodyMap,
   setCachedThreadLastActivityTsMap,
@@ -132,95 +241,28 @@ export const useThreadOverviewCacheHydration = ({
     let cancelled = false;
     const mapper = mx.getEventMapper();
 
-    const loadCachedThreadOverviewMetadata = async () => {
+    const loadCachedThreadOverviewRecords = async () => {
       const updates = await Promise.all(
         threadRootIdsToLoad.map(async (rootId) => {
           const cachedPage = await loadLatestCachedThreadEvents(sessionId, room.roomId, rootId, 32);
-          const currentMetadata =
-            (showCompactRoomView ? compactThreadMetadataMap : threadMetadataMap).get(rootId);
+          const currentRecord =
+            (showCompactRoomView ? compactThreadRecordMap : threadRecordMap).get(rootId);
           const currentRootEvent =
             room.findEventById(rootId) ??
             room.getThread(rootId)?.rootEvent ??
             roomThreadListThreads.find((thread) => thread.id === rootId)?.rootEvent;
-          const cachedActivityTs = getCompactCachedThreadActivityTs({
-            threadId: rootId,
-            cachedPage,
-            mapper,
-          });
-          const liveActivityTs = currentMetadata?.lastActivityTs ?? 0;
-          const nextActivityTs =
-            cachedActivityTs && cachedActivityTs > liveActivityTs ? cachedActivityTs : undefined;
-          const cachedEvents = cachedPage.events.map((rawEvent) => mapper(rawEvent as IEvent));
-          const cachedPresentation = resolveThreadPresentationSnapshot({
-            room,
-            threadRootId: rootId,
-            thread: { events: cachedEvents, timeline: cachedEvents },
-            rootEvent: cachedEvents.find((event) => event.getId() === rootId) ?? currentRootEvent,
-          });
-          const shouldUseCachedReplyMetadata =
-            (cachedActivityTs !== undefined && cachedActivityTs >= liveActivityTs) ||
-            !currentMetadata?.latestReplyPreviewText;
-          const nextReplyPreviewText =
-            shouldUseCachedReplyMetadata &&
-            cachedPresentation.latestReplyPreviewText &&
-            cachedPresentation.latestReplyPreviewText !== currentMetadata?.latestReplyPreviewText
-              ? cachedPresentation.latestReplyPreviewText
-              : undefined;
-          const nextLastSenderId =
-            shouldUseCachedReplyMetadata &&
-            cachedPresentation.lastSenderId &&
-            cachedPresentation.lastSenderId !== currentMetadata?.lastSenderId
-              ? cachedPresentation.lastSenderId
-              : undefined;
-          const nextMessageCount =
-            cachedPresentation.messageCount > 0 &&
-            cachedPresentation.messageCount > (currentMetadata?.messageCount ?? 0)
-              ? cachedPresentation.messageCount
-              : undefined;
-          const nextSummaryInfo = cachedPresentation.summaryInfo?.summaryText
-            ? cachedPresentation.summaryInfo
-            : undefined;
 
-          let nextPreview: string | undefined;
-          if (showCompactRoomView && !compactCachedThreadRootBodyMap.has(rootId)) {
-            const cachedPreview = getCompactCachedThreadRootPreviewInfo({
-              threadId: rootId,
-              cachedPage,
-              mapper,
-            });
-            if (cachedPreview) {
-              const currentPreview = compactThreadRootBodyMap.get(rootId);
-              const currentSourceTs =
-                currentRootEvent?.replacingEvent()?.getTs() ?? currentRootEvent?.getTs() ?? 0;
-              if (
-                cachedPreview.previewText !== currentPreview &&
-                (!currentPreview || cachedPreview.sourceTs > currentSourceTs)
-              ) {
-                nextPreview = cachedPreview.previewText;
-              }
-            }
-          }
-
-          if (
-            nextActivityTs === undefined &&
-            nextPreview === undefined &&
-            nextReplyPreviewText === undefined &&
-            nextLastSenderId === undefined &&
-            nextMessageCount === undefined &&
-            nextSummaryInfo === undefined
-          ) {
-            return null;
-          }
-
-          return {
+          return resolveCachedOverviewUpdate({
             rootId,
-            nextActivityTs,
-            nextPreview,
-            nextReplyPreviewText,
-            nextLastSenderId,
-            nextMessageCount,
-            nextSummaryInfo,
-          } satisfies CachedOverviewUpdate;
+            room,
+            mapper,
+            cachedPage,
+            currentRecord,
+            currentRootEvent,
+            showCompactRoomView,
+            compactCachedThreadRootBodyMap,
+            compactThreadRootBodyMap,
+          });
         })
       );
 
@@ -274,7 +316,7 @@ export const useThreadOverviewCacheHydration = ({
       });
     };
 
-    loadCachedThreadOverviewMetadata();
+    loadCachedThreadOverviewRecords();
 
     return () => {
       cancelled = true;
@@ -283,7 +325,7 @@ export const useThreadOverviewCacheHydration = ({
     cachedThreadLastActivityTsMap,
     compactCachedRootPreviewAttemptCountsRef,
     compactCachedThreadRootBodyMap,
-    compactThreadMetadataMap,
+    compactThreadRecordMap,
     compactThreadRootBodyMap,
     mx,
     onStoreThreadSummary,
@@ -300,6 +342,6 @@ export const useThreadOverviewCacheHydration = ({
     setCompactCachedThreadRootBodyMap,
     showCompactRoomView,
     threadId,
-    threadMetadataMap,
+    threadRecordMap,
   ]);
 };
