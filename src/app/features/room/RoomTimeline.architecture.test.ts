@@ -1009,6 +1009,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/messages/longText.ts', import.meta.url),
       'utf8'
     );
+    const searchResultPolicySource = readFileSync(
+      new URL('../../mindroom/messages/searchResultPolicy.ts', import.meta.url),
+      'utf8'
+    );
     const longTextDownloadSource = readFileSync(
       new URL('../../mindroom/messages/longTextDownload.ts', import.meta.url),
       'utf8'
@@ -1076,7 +1080,10 @@ describe('RoomTimeline architecture', () => {
     expect(parserSource).not.toContain("from '../mindroom/messages/toolTrace'");
     expect(parserSource).not.toContain('MINDROOM_BLOCK_META');
     expect(parserSource).not.toContain('MindroomCollapsibleBlock');
-    expect(searchResultPreviewSource).toContain("from '../../mindroom/messages/longText'");
+    expect(searchResultPreviewSource).toContain(
+      "from '../../mindroom/messages/searchResultPolicy'"
+    );
+    expect(searchResultPreviewSource).not.toContain("from '../../mindroom/messages/longText'");
     expect(searchResultPreviewSource).not.toContain("content?.['io.mindroom.long_text']");
     expect(roomUtilsSource).toContain("from '../mindroom/messages/metadata'");
     expect(roomUtilsSource).not.toContain("key.startsWith('io.mindroom.')");
@@ -1124,6 +1131,7 @@ describe('RoomTimeline architecture', () => {
     expect(aiRunSource).toContain('AI_RUN_METADATA_KEY');
     expect(blocksSource).toContain('MINDROOM_TOOL_REF_HTML_REG_G');
     expect(longTextSource).toContain('LONG_TEXT_TAG');
+    expect(searchResultPolicySource).toContain('hasMindroomLongTextMetadata');
     expect(longTextDownloadSource).toContain('getMindroomLongTextDownloadName');
     expect(toolTraceSource).toContain('getMindroomToolTraceEvents');
     expect(htmlBlocksSource).toContain('renderMindroomHtmlBlock');
