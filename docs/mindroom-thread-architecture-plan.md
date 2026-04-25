@@ -122,6 +122,10 @@ Completed in the 2026-04-25 cleanup pass:
   `src/app/features/room/RoomTimeline.tsx` is now a narrow compatibility re-export, so future
   timeline ownership work happens in the MindRoom namespace instead of the upstream room feature
   folder.
+- Room message rendering implementation lives under
+  `src/app/mindroom/messages/MindroomMessage.tsx`. The old generic
+  `src/app/features/room/message/Message.tsx` path is now only a compatibility re-export, so
+  message menu/header extension work stays in the MindRoom message namespace.
 
 Remaining queue:
 
