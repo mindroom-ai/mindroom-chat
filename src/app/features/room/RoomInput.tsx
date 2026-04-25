@@ -103,7 +103,7 @@ import { getMessageRelation } from '../../mindroom/threads/composeMessageRelatio
 import { getMemberDisplayName, getMentionContent, trimReplyFromBody } from '../../utils/room';
 import { CommandAutocomplete } from './CommandAutocomplete';
 import { Command, SHRUG, TABLEFLIP, UNFLIP, useCommands } from '../../hooks/useCommands';
-import { MindroomCommandAutocomplete } from './MindroomCommandAutocomplete';
+import { MindroomCommandAutocomplete } from '../../mindroom/commands/MindroomCommandAutocomplete';
 import { mobileOrTablet } from '../../utils/user-agent';
 import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { ReplyLayout, ThreadIndicator } from '../../components/message';
@@ -119,7 +119,10 @@ import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { useComposingCheck } from '../../hooks/useComposingCheck';
-import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from './mindroomCommandQuery';
+import {
+  getMindroomCommandQuery,
+  MINDROOM_COMMAND_PREFIX,
+} from '../../mindroom/commands/mindroomCommandQuery';
 import { VoiceRecorderComposer } from './VoiceRecorderDialog';
 import { isSignalBridgeRoom } from './bridgeDetection';
 import {
