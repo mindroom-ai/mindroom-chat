@@ -207,6 +207,9 @@
 - `CINNY-171`
   - Room-timeline reply/start-thread draft derivation now lives in `src/app/mindroom/threads/roomTimelineReplyDraft.ts`.
   - Generic `RoomTimeline` no longer builds the MindRoom `m.thread` reply relation inline when starting a thread from a normal message.
+- `CINNY-172`
+  - MindRoom message copy-text policy is now exported through `src/app/mindroom/messages/messageExtensions.tsx`.
+  - Generic room message rendering keeps a single MindRoom message extension import instead of separately importing the copy-text owner.
 
 ### Current Feature Set On `dev`
 
