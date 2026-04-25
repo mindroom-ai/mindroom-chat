@@ -5,7 +5,7 @@ import { THREAD_BATCH_SIZE } from '../../state/settings';
 import {
   computeReconciliationToken,
   reconcileThreadBackwardPagination,
-} from '../../features/room/threadPaginationUtils';
+} from './threadPaginationUtils';
 import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from '../../features/room/timelineDebug';
 

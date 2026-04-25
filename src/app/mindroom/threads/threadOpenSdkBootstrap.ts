@@ -14,7 +14,7 @@ import { isPendingLocalEchoThreadRoot } from './threadRouteUtils';
 import {
   findEarliestLoadedThreadReplyByCacheOrder,
   reconcileThreadBackwardPagination,
-} from '../../features/room/threadPaginationUtils';
+} from './threadPaginationUtils';
 import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from '../../features/room/timelineDebug';
 import { getThreadCursorAnchor } from './eventRepository';

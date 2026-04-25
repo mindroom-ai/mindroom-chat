@@ -627,6 +627,22 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('threadPaginatingFrontRef');
   });
 
+  it('keeps thread pagination reconciliation helpers in MindRoom threads', () => {
+    const compatibilitySource = readFileSync(
+      new URL('./threadPaginationUtils.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/threadPaginationUtils.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/threadPaginationUtils'");
+    expect(implementationSource).toContain('computeReconciliationToken');
+    expect(implementationSource).toContain('reconcileThreadBackwardPagination');
+    expect(compatibilitySource).not.toContain('Direction.Backward');
+  });
+
   it('keeps timeline pagination helpers in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const compatibilitySource = readFileSync(
