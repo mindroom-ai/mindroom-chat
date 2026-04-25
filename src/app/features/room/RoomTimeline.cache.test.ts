@@ -301,7 +301,11 @@ describe('RoomTimeline', () => {
     });
     const roomInputRef = createRef<HTMLElement>();
     const editor = {} as Editor;
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const originalLocalStorage = globalThis.localStorage;
+    const debugStorage = {
+      getItem: vi.fn((key: string) => (key === 'mindroom.debug.timeline' ? '1' : null)),
+    };
     let renderer: ReturnType<typeof create> | undefined;
 
     loadLatestCachedRoomEventsMock.mockResolvedValue({
@@ -310,6 +314,10 @@ describe('RoomTimeline', () => {
       hasMoreBefore: false,
     });
     room.addLiveEvents.mockRejectedValueOnce(hydrationError);
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: debugStorage,
+    });
 
     try {
       await act(async () => {
@@ -339,13 +347,19 @@ describe('RoomTimeline', () => {
         await flushAsyncWork();
       });
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Failed to hydrate latest room cache for',
-        room.roomId,
-        hydrationError
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('room-cache-hydrate-error'),
+        expect.objectContaining({
+          error: hydrationError,
+          roomId: room.roomId,
+        })
       );
     } finally {
-      consoleErrorSpy.mockRestore();
+      Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: originalLocalStorage,
+      });
+      consoleLogSpy.mockRestore();
       await act(async () => {
         renderer?.unmount();
         await flushAsyncWork(1);

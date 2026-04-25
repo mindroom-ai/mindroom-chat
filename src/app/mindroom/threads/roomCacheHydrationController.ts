@@ -139,7 +139,10 @@ export const useRoomCacheHydrationController = ({
 
     hydrateRoomFromCache()
       .catch((error) => {
-        console.error('Failed to hydrate latest room cache for', room.roomId, error);
+        logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-error', {
+          error,
+          roomId: room.roomId,
+        });
       })
       .finally(() => {
         if (!cancelled && alive() && roomIdRef.current === room.roomId && !threadIdRef.current) {

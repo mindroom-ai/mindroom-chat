@@ -164,7 +164,6 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
   }
 
   if (!threadModel) {
-    console.warn('Could not create thread object for', threadId);
     logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-missing-thread-model', {
       threadId,
     });
@@ -175,8 +174,8 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
   const [err] = await to(mx.getThreadTimeline(loadedThreadTimelineSet, threadId));
   if (!isMounted()) return false;
   if (err) {
-    console.warn('getThreadTimeline failed, using fallback:', err);
     logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-get-thread-timeline-error', {
+      error: err,
       threadId,
     });
   }

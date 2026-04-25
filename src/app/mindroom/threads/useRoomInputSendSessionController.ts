@@ -163,9 +163,8 @@ export const useRoomInputSendSessionController = ({
 
     processingSendSessionRef.current = true;
     try {
-      while (true) {
+      while (sendSessionRef.current) {
         const session = sendSessionRef.current;
-        if (!session) return;
 
         const step = resolveRoomInputSendStep(
           session,
