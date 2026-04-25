@@ -7,6 +7,8 @@ import {
 } from 'matrix-js-sdk';
 import {
   getRoomCursorAnchor,
+  loadCachedRoomEventsBefore as loadCachedRoomEventsBeforeFromCache,
+  loadCachedRoomPaginationToken as loadCachedRoomPaginationTokenFromCache,
   loadLatestCachedRoomEvents as loadLatestCachedRoomEventsFromCache,
   normalizeCachedRoomEvents,
   saveRoomEventsToCache as saveRoomEventsToCacheToStorage,
@@ -53,6 +55,8 @@ type ThreadCursorAnchor = ReturnType<typeof getCachedThreadCursorAnchor>;
 
 type SaveThreadEventsToCache = typeof saveThreadEventsToCacheToStorage;
 type SaveRoomEventsToCache = typeof saveRoomEventsToCacheToStorage;
+type LoadCachedRoomEventsBefore = typeof loadCachedRoomEventsBeforeFromCache;
+type LoadCachedRoomPaginationToken = typeof loadCachedRoomPaginationTokenFromCache;
 
 type LoadCachedThreadSnapshotOptions = {
   sessionId: string;
@@ -319,6 +323,42 @@ export const loadLatestRoomCacheHydrationSnapshot = async ({
     events,
     loadedRoomCount: loadedEvents.length,
     status: events.length > 0 ? 'hydrate' : 'empty-after-filter',
+  };
+};
+
+export type RoomCachedBackStateSnapshot = {
+  cachedPage: CachedRoomEventPage;
+  cachedBeforeToken: string | null | undefined;
+  hasCachedBack: boolean;
+};
+
+export const loadRoomCachedBackStateSnapshot = async ({
+  sessionId,
+  roomId,
+  earliestLoadedEvent,
+  loadBefore = loadCachedRoomEventsBeforeFromCache,
+  loadPaginationToken = loadCachedRoomPaginationTokenFromCache,
+}: {
+  sessionId: string;
+  roomId: string;
+  earliestLoadedEvent?: MatrixEvent;
+  loadBefore?: LoadCachedRoomEventsBefore;
+  loadPaginationToken?: LoadCachedRoomPaginationToken;
+}): Promise<RoomCachedBackStateSnapshot> => {
+  const [cachedPage, cachedBeforeToken] = await Promise.all([
+    loadBefore(
+      sessionId,
+      roomId,
+      getRoomCursorAnchor(earliestLoadedEvent?.event as Partial<IEvent> | undefined),
+      1
+    ),
+    loadPaginationToken(sessionId, roomId, earliestLoadedEvent?.getId()),
+  ]);
+
+  return {
+    cachedPage,
+    cachedBeforeToken,
+    hasCachedBack: cachedPage.events.length > 0,
   };
 };
 

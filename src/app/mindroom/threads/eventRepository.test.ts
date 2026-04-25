@@ -2,6 +2,7 @@ import { RelationType } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   collectStateTargetEvents,
+  loadRoomCachedBackStateSnapshot,
   loadLatestRoomCacheHydrationSnapshot,
   loadCachedThreadSnapshot,
   persistRoomEventCacheSnapshot,
@@ -243,5 +244,31 @@ describe('eventRepository latest room cache hydration snapshots', () => {
     expect(snapshot.events.map((event) => event.getId())).toEqual(['$cached-new']);
     expect(snapshot.cachedPage.events).toHaveLength(2);
     expect(snapshot.loadedRoomCount).toBe(1);
+  });
+});
+
+describe('eventRepository room cached-back state snapshots', () => {
+  it('loads cached room back state from the earliest loaded room event anchor', async () => {
+    const earliestLoadedEvent = makeEvent('$loaded', { ts: 300 });
+    let requestedAnchor: unknown;
+
+    const snapshot = await loadRoomCachedBackStateSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      earliestLoadedEvent: earliestLoadedEvent as never,
+      loadBefore: async (_sessionId, _roomId, anchor, limit) => {
+        requestedAnchor = anchor;
+        expect(limit).toBe(1);
+        return {
+          events: [{ event_id: '$cached-before', origin_server_ts: 200 }],
+          hasMoreBefore: false,
+        };
+      },
+      loadPaginationToken: async () => null,
+    });
+
+    expect(requestedAnchor).toEqual({ eventId: '$loaded', ts: 300 });
+    expect(snapshot.hasCachedBack).toBe(true);
+    expect(snapshot.cachedBeforeToken).toBeNull();
   });
 });
