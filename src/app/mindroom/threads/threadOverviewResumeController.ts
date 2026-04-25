@@ -10,7 +10,7 @@ import { type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { THREAD_BATCH_SIZE } from '../../state/settings';
 import { usePageResume } from '../../hooks/usePageResume';
 import { loadRoomThreads } from '../../features/room/roomThreadList';
-import { logTimelineDebug } from '../../features/room/timelineDebug';
+import { logTimelineDebug } from './timelineDebug';
 import {
   getLatestThreadSummaryInfoFromEventSources,
   type MindroomThreadSummaryInfo,
