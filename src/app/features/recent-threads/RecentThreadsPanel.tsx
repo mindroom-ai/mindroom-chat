@@ -3,6 +3,7 @@ import { useAtom, useAtomValue } from 'jotai';
 import { Box, Scroll, Text } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useScreenSizeContext } from '../../hooks/useScreenSize';
+import { allRoomsAtom } from '../../state/room-list/roomList';
 import { makeRecentThreadsAtom } from '../../state/recentThreads';
 import {
   RECENT_THREADS_PANEL_COLLAPSED_HEIGHT,
@@ -108,6 +109,7 @@ export function RecentThreadsPageNav({ children }: RecentThreadsPageNavProps) {
   );
 
   const recentThreads = useAtomValue(recentThreadsAtom);
+  const allRoomIds = useAtomValue(allRoomsAtom);
   const [storedPanelHeight, setStoredPanelHeight] = useAtom(recentThreadsPanelHeightAtom);
   const [mobileExpanded, setMobileExpanded] = useAtom(recentThreadsPanelMobileExpandedAtom);
   const viewportHeight = useDebouncedViewportHeight();
@@ -128,7 +130,7 @@ export function RecentThreadsPageNav({ children }: RecentThreadsPageNavProps) {
 
   const visibleEntries = useMemo(
     () => buildVisibleRecentThreadEntries((roomId) => mx.getRoom(roomId), recentThreads),
-    [mx, recentThreads]
+    [allRoomIds, mx, recentThreads]
   );
 
   return (
