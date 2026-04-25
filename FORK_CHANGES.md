@@ -225,6 +225,9 @@
 - `CINNY-177`
   - Inbox notification room headers now use `src/app/mindroom/notifications/MindroomMarkRoomReadChip.tsx` for thread-aware mark-read behavior.
   - The generic notifications page no longer imports the MindRoom read-receipt mutation directly.
+- `CINNY-178`
+  - Room-header and sidebar command-palette opener widgets now live in `src/app/mindroom/command-palette`.
+  - Generic header/sidebar files no longer import the command-palette atom directly; the sidebar search tab is a thin compatibility export.
 
 ### Current Feature Set On `dev`
 
