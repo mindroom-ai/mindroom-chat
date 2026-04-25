@@ -1016,6 +1016,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/messages/MindroomMessageControls.tsx', import.meta.url),
       'utf8'
     );
+    const streamingIndicatorSource = readFileSync(
+      new URL('../../mindroom/messages/StreamingIndicator.tsx', import.meta.url),
+      'utf8'
+    );
     const messageExtensionsSource = readFileSync(
       new URL('../../mindroom/messages/messageExtensions.tsx', import.meta.url),
       'utf8'
@@ -1114,6 +1118,7 @@ describe('RoomTimeline architecture', () => {
     expect(messageControlsSource).toContain('MindroomAiRunControls');
     expect(messageControlsSource).toContain('MindroomDownloadOriginalMenuItem');
     expect(messageControlsSource).toContain('downloadMindroomLongTextSidecarBlob');
+    expect(streamingIndicatorSource).toContain('AI is responding');
     expect(messageExtensionsSource).toContain("from './MindroomMessageControls'");
     expect(messageExtensionsSource).toContain('MindroomMessageExtensionShell');
     expect(messageExtensionsSource).toContain('MindroomMessageMenuExtensions');
