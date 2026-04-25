@@ -276,7 +276,7 @@ tell whether the new architecture is actually being used everywhere.
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | Compact room cards            | Converted at the render seam. `CompactRoomView` receives the per-room `ThreadRecord` map, and `useCompactThreadCardViewModels` only adapts records into card models.       | Keep card rendering passive; do not reintroduce state/cache lookups here.                     |
 | Normal room thread badge      | Converted at the render seam. `RoomTimeline` builds a per-room `ThreadRecord` map, badge view models are record-only, and badge JSX lives in a fork-owned renderer.       | Keep badge rendering passive; do not reintroduce direct reply/summary/status derivation here. |
-| Filtering, sorting, counts    | Converted at the room helper seam. Overview filter/search/sort, status counts, tag counts, cache hydration, and `getThreadFilteredEvents` consume `ThreadRecord` maps. | Keep legacy `ThreadOverviewMetadata` helpers isolated in `roomThreadOverviewModel` until they can be deleted or split. |
+| Filtering, sorting, counts    | Partially converted. Overview filter/search/sort, status counts, tag counts, cache hydration, and `getThreadFilteredEvents` consume `ThreadRecord` maps, but `RoomTimeline` still assembles the normal/compact record maps and overview root-id state. | Finish Phase 4b by moving the per-room thread index boundary into `useMindroomThreadIndex`. |
 | Thread context banner         | Converted at the header seam. The banner builds a `ThreadRecord` and renders summary, tags, resolved state, and scheduled state through `ThreadHeaderViewModel`.            | Keep mutation permissions/actions outside the record; do not reintroduce local summary logic. |
 | Recent threads sidebar        | Converted at the entry seam. `RecentThreadEntry` renders a MindRoom-owned `RecentThreadViewModel` built from `ThreadRecord`; the old `useRecentThreadSummary` path is gone. | Replace the remaining stored-entry plumbing with a room index subscription when available.    |
 | Command palette               | Converted at the thread-item seam. Thread items now build `ThreadRecord` objects and render a MindRoom-owned `CommandPaletteThreadViewModel`.                              | Keep remaining action/user/room logic separate; do not reintroduce thread-specific derivation. |
@@ -285,19 +285,22 @@ tell whether the new architecture is actually being used everywhere.
 | Scroll and pagination         | Started. Thread prepend anchor capture/restore lives in scroll utilities, and thread back-pagination mutable state lives in `useThreadBackPaginationController`; the data-fetch branch still stays in `RoomTimeline` as a narrow command handler. | If pagination grows again, move the cache/network data-fetch branch behind a controller command without changing scroll behavior. |
 | Reaction rendering            | Not part of the thread model refactor. Fresh normal-message and thread-reply reactions pass e2e.                                                                           | If regressions remain, debug as cache/relation coverage or room-specific data, not UI model.  |
 
-The main architecture pass is now at the guardrail/verification stage. Compact cards, normal room
-badges, overview filter/sort/count logic, the thread banner, recent thread entries, command palette
-thread items, and overview cache hydration share the `ThreadRecord` seam. `RoomTimeline` no longer
-does per-visible cached-summary reads, no longer builds `ThreadOverviewMetadata` maps as an
-intermediate source for records, no longer has a metadata-map fallback in `getThreadFilteredEvents`,
-and no longer imports raw room/thread cache stores, cached room/thread pagination readers,
-cached event normalizers, thread-open seed cache from `features/room`, or back-pagination anchor
-refs. `threadRecord` no longer accepts legacy metadata objects or maps. Normal badge rendering is
-behind a fork-owned view-model seam, and renderability/preload counting, eager current-room preload,
-overview cache hydration, raw event cache access, cached room/thread pagination, cached thread page
-stitching/mapping, cache-order/hydration helper derivation, thread cache coverage helpers, cache
-payload serialization, room cache persistence state, room-derived thread-cache persistence, and
-thread back-pagination state have been moved out of `RoomTimeline`.
+The main architecture pass is not done until the per-room thread index is a fork-owned boundary.
+Compact cards, normal room badges, overview filter/sort/count logic, the thread banner, recent
+thread entries, command palette thread items, and overview cache hydration share the `ThreadRecord`
+seam. `RoomTimeline` no longer does per-visible cached-summary reads, no longer builds
+`ThreadOverviewMetadata` maps as an intermediate source for records, no longer has a metadata-map
+fallback in `getThreadFilteredEvents`, and no longer imports raw room/thread cache stores, cached
+room/thread pagination readers, cached event normalizers, thread-open seed cache from
+`features/room`, or back-pagination anchor refs. `threadRecord` no longer accepts legacy metadata
+objects or maps. Normal badge rendering is behind a fork-owned view-model seam, and
+renderability/preload counting, eager current-room preload, overview cache hydration, raw event cache
+access, cached room/thread pagination, cached thread page stitching/mapping,
+cache-order/hydration helper derivation, thread cache coverage helpers, cache payload serialization,
+room cache persistence state, room-derived thread-cache persistence, and thread back-pagination
+state have been moved out of `RoomTimeline`. The remaining Phase 4 ownership gap is that
+`RoomTimeline` still assembles normal/compact `ThreadRecord` maps and overview ids from many source
+maps; Phase 4b closes that gap before more cache/preload extraction.
 
 ## Refactor Phases
 
@@ -366,6 +369,31 @@ Acceptance:
 - Thread filtering, sorting, status counts, tag counts, search, compact view, and normal badges consume `ThreadRecord`.
 - No separate component-local maps remain for cached activity, latest preview, last sender, message count, and summary.
 
+### Phase 4b: Introduce `useMindroomThreadIndex`
+
+- Add a fork-owned room index hook that receives the current room, view mode, filters, live root
+  data, cached fallback maps, and summary/tag/status source maps.
+- The hook returns a snapshot containing:
+  - normal and compact `ThreadRecord` maps,
+  - active `ThreadRecord` map,
+  - normal/compact root ids,
+  - overview ordered ids,
+  - focused-route bypass state,
+  - effective filter state,
+  - status and tag counts.
+- `RoomTimeline` consumes the snapshot instead of assembling this state directly.
+- Cache fallback maps may still be produced outside the hook during the first slice, but they should
+  become inputs, not parallel UI sources.
+
+Acceptance:
+
+- `RoomTimeline` no longer owns `normalThreadRecordMap`, `compactThreadRecordMap`, overview ordering,
+  status counts, or tag counts assembly.
+- Focused route, compact view, and normal overview behavior are covered by behavior/API tests for the
+  index snapshot.
+- Source-string architecture tests are kept to narrow import-boundary checks only; behavior contracts
+  should live in unit/e2e tests.
+
 ### Phase 5: Move Cache And Preload Orchestration Out Of `RoomTimeline`
 
 - Move room event cache, thread event cache, index cache, and preload policy behind `eventRepository` and `preloadController`.
@@ -380,6 +408,8 @@ Acceptance:
 - Current-room preload reaches the configured limit where server history allows.
 - Non-visible current-room threads are included in preload policy.
 - Thread opens use cached snapshots immediately when available.
+- `ThreadRecord.cache` coverage is populated for cached/live/mixed states and is meaningful enough
+  to drive "load older messages", tail-loaded, relation-complete, and no-more-history decisions.
 
 ### Phase 6: Isolate Scroll And Pagination
 
@@ -426,12 +456,23 @@ Required test layers:
 | Controller tests  | Preload policy stops at limit, includes non-visible current-room threads, resumes from cache. |
 | Browser/MCP tests | Compact room, normal room, thread open, thread back navigation, long-thread load-more anchor. |
 
+Architecture guardrails should prefer behavior/API tests over broad source-string assertions. Keep
+only narrow import-boundary tests when a direct behavior assertion would be weaker or much more
+expensive.
+
 Every behavior-changing step should run:
 
 ```bash
 npm test
 npm run typecheck
 npm run build
+```
+
+Before continuing past a refactor slice, branch health should be explicit:
+
+```bash
+npm run lint
+git diff --check
 ```
 
 Docs-only or plan-only steps should run:

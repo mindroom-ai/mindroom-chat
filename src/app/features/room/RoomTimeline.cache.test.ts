@@ -637,7 +637,10 @@ describe('RoomTimeline', () => {
   it('does not show a false zero-thread overview while initial room cache hydrate is pending', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
     loadLatestCachedRoomEventsMock.mockImplementation(
-      () => new Promise(() => undefined)
+      () =>
+        new Promise(() => {
+          // Intentionally unresolved while asserting the loading state.
+        })
     );
     const room = makeRoom();
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
@@ -663,7 +666,10 @@ describe('RoomTimeline', () => {
     try {
       const { RoomTimeline } = await import('./RoomTimeline');
       loadLatestCachedRoomEventsMock.mockImplementation(
-        () => new Promise(() => undefined)
+        () =>
+          new Promise(() => {
+            // Intentionally unresolved while asserting the loading state.
+          })
       );
       const room = makeRoom();
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);

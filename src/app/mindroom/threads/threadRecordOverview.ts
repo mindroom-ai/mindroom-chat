@@ -27,6 +27,8 @@ const getThreadRecordDimension = (record: ThreadRecord, key: ThreadFilterKey): b
         record.status.scheduledTaskCount === 0 &&
         record.status.isResolved
       );
+    default:
+      return false;
   }
 };
 

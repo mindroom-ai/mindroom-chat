@@ -47,9 +47,9 @@ export const useResolvedRoomIdOrAlias = (roomIdOrAlias: string | undefined) => {
     setIsResolvingAlias(true);
 
     mx.getRoomIdForAlias(roomIdOrAlias)
-      .then(({ room_id }) => {
+      .then((aliasResponse) => {
         if (disposed) return;
-        setResolvedRoomId(room_id);
+        setResolvedRoomId(aliasResponse.room_id);
       })
       .catch(() => {
         if (disposed) return;
