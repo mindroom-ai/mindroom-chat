@@ -221,6 +221,16 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('threadPaginatingFrontRef');
   });
 
+  it('delegates room cache pagination commands to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('useRoomPaginationCommandController');
+    expect(source).toContain("from '../../mindroom/threads/roomPaginationCommandController'");
+    expect(source).not.toContain('loadRoomCachedPaginationSnapshot');
+    expect(source).not.toContain('resolveHydratedRoomBeforeToken');
+    expect(source).not.toContain('THREAD_RELATION_TYPE');
+  });
+
   it('keeps thread-open seed cache in the MindRoom thread namespace', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
@@ -239,8 +249,13 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates cached room pagination reads to the event repository', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const paginationControllerSource = readFileSync(
+      new URL('../../mindroom/threads/roomPaginationCommandController.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain('loadRoomCachedPaginationSnapshot');
+    expect(source).not.toContain('loadRoomCachedPaginationSnapshot');
+    expect(paginationControllerSource).toContain('loadRoomCachedPaginationSnapshot');
     expect(source).not.toContain('loadCachedRoomEventsBefore');
     expect(source).not.toContain('loadCachedRoomPaginationToken');
     expect(source).not.toContain('resolvePersistedRoomBeforeToken');

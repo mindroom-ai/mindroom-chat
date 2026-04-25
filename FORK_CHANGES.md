@@ -714,6 +714,13 @@
   - validation:
     - focused Vitest passes for `RoomTimeline.cache.test.ts`, `RoomTimeline.architecture.test.ts`, and `threadEditBackfillUtils.test.ts`
     - `npm run typecheck` passes
+- `CINNY-075` implementation step 18 / Phase 5 room pagination controller (2026-04-24):
+  - added `src/app/mindroom/threads/roomPaginationCommandController.ts` as the fork-owned owner for cache-first room back-pagination.
+  - `RoomTimeline` no longer imports `loadRoomCachedPaginationSnapshot`, `resolveHydratedRoomBeforeToken`, or thread-root aggregation constants for the room pagination path; it wires the returned handler into the existing virtual paginator.
+  - the controller preserves the existing behavior shape: use cached pages first, hydrate relation/edit aggregation, decrypt fetched timelines for encrypted rooms, recalibrate render ranges, and fall back to SDK pagination when cache misses.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
