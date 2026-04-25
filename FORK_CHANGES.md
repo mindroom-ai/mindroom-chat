@@ -1996,3 +1996,10 @@
 - Left thin compatibility re-exports under `src/app/components/message/*` for legacy import paths.
 - Updated `RenderMessageContent`, room message rendering, the streaming-state hook, and the custom HTML parser to import these helpers from the MindRoom namespace directly.
 - Moved the associated unit tests into `src/app/mindroom/messages` and extended the architecture guard to cover the remaining message boundary.
+
+## CINNY-087 — Move MindRoom message menu controls to fork namespace (2026-04-25)
+
+- Moved the AI-run metadata dialog/button/menu item, long-text original download item, and long-text context-menu hydration state into `src/app/mindroom/messages/MindroomMessageControls.tsx`.
+- Moved the AI-run info-button style out of the generic room message stylesheet and into `src/app/mindroom/messages/MindroomMessageControls.css.ts`.
+- Reduced `src/app/features/room/message/Message.tsx` to a MindRoom integration seam: it imports the fork-owned controls but no longer owns AI-run display formatting, long-text sidecar download naming, or sidecar download execution.
+- Added focused filename tests for long-text original downloads and extended the architecture guard so future edits do not put those controls back into the upstream-owned message component.

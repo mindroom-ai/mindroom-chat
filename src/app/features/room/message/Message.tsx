@@ -28,8 +28,6 @@ import React, {
   MouseEventHandler,
   ReactNode,
   useCallback,
-  useMemo,
-  useRef,
   useState,
 } from 'react';
 import FocusTrap from 'focus-trap-react';
@@ -37,7 +35,6 @@ import { useHover, useFocusWithin } from 'react-aria';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Relations } from 'matrix-js-sdk/lib/models/relations';
 import classNames from 'classnames';
-import FileSaver from 'file-saver';
 import { RoomPinnedEventsEventContent } from 'matrix-js-sdk/lib/types';
 import {
   AvatarBase,
@@ -85,22 +82,13 @@ import { PowerIcon } from '../../../components/power';
 import colorMXID from '../../../../util/colorMXID';
 import { getPowerTagIconSrc } from '../../../hooks/useMemberPowerTag';
 import {
-  MindroomLongTextSource,
-  getMindroomLongTextSource,
-} from '../../../mindroom/messages/longText';
-import {
-  downloadMindroomLongTextSidecarBlob,
-  useMindroomLongTextResolvedContent,
-} from '../../../mindroom/messages/MindroomLongTextText';
-import { MindroomAiRunInfo, getMindroomAiRunInfo } from '../../../mindroom/messages/aiRun';
-import {
-  formatMindroomAiRunNumber,
-  formatMindroomAiRunTimeToFirstToken,
-  getMindroomAiRunContextLabel,
-  getMindroomAiRunModelLabel,
-  getMindroomAiRunUsageLabel,
-} from '../../../mindroom/messages/aiRunDisplay';
-import { assignElementRef } from '../../../utils/react';
+  MindroomAiRunControls,
+  MindroomAiRunInfoButton,
+  MindroomAiRunMenuItem,
+  MindroomDownloadOriginalMenuItem,
+  MindroomAiRunControlsRenderProps,
+  useMindroomMessageControls,
+} from '../../../mindroom/messages/MindroomMessageControls';
 
 import { getMessageCopyTextBody, isCopyTextMessageContent } from './messageCopyText';
 
@@ -108,10 +96,6 @@ export type ReactionHandler = (keyOrMxc: string, shortcode: string) => void;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
-
-const FILENAME_INVALID_CHARS = /[<>:"/\\|?*]/g;
-const FILENAME_EXT_REG = /\.[A-Za-z0-9]{1,8}$/;
-const MXC_URI_MEDIA_ID_REG = /^mxc:\/\/[^/]+\/(.+)$/;
 
 const getMenuMessageContent = (room: Room, mEvent: MatrixEvent): Record<string, unknown> => {
   const eventId = mEvent.getId();
@@ -125,179 +109,6 @@ const getMenuMessageContent = (room: Room, mEvent: MatrixEvent): Record<string, 
     : undefined;
   return getLatestMessageContent(mEvent, editedEvent);
 };
-
-const sanitizeFilename = (value: string): string =>
-  value.replace(FILENAME_INVALID_CHARS, '_').replace(/\s+/g, ' ').trim().slice(0, 120);
-
-const getMxcMediaId = (mxcUri: string): string | undefined => {
-  const mediaId = mxcUri.match(MXC_URI_MEDIA_ID_REG)?.[1];
-  if (!mediaId) return undefined;
-  return sanitizeFilename(mediaId);
-};
-
-const getLongTextDownloadName = (source: MindroomLongTextSource): string => {
-  const info = isRecord(source.previewContent.info) ? source.previewContent.info : undefined;
-  const infoName = typeof info?.name === 'string' ? sanitizeFilename(info.name) : undefined;
-  const fallbackId = getMxcMediaId(source.mxcUri);
-  const baseName =
-    infoName || (fallbackId ? `mindroom-long-text-${fallbackId}` : 'mindroom-long-text');
-  const ext = source.isV2ContentJson ? '.json' : '.txt';
-  if (FILENAME_EXT_REG.test(baseName)) return baseName;
-  return `${baseName}${ext}`;
-};
-
-function MindroomAiRunDetail({ label, value }: { label: string; value?: string }) {
-  if (!value) return null;
-  return (
-    <Text size="T200">
-      {label}: {value}
-    </Text>
-  );
-}
-
-function MindroomAiRunInfoDialog({
-  info,
-  open,
-  onClose,
-  returnFocusRef,
-}: {
-  info: MindroomAiRunInfo;
-  open: boolean;
-  onClose: () => void;
-  returnFocusRef: React.RefObject<HTMLElement | null>;
-}) {
-  const modelLabel = getMindroomAiRunModelLabel(info);
-  const usageLabel = getMindroomAiRunUsageLabel(info);
-  const contextLabel = getMindroomAiRunContextLabel(info);
-  const toolsLabel = formatMindroomAiRunNumber(info.toolCount);
-  const ttftLabel = formatMindroomAiRunTimeToFirstToken(info.timeToFirstToken);
-
-  return (
-    <Overlay open={open} backdrop={<OverlayBackdrop />}>
-      <OverlayCenter>
-        <FocusTrap
-          focusTrapOptions={{
-            initialFocus: false,
-            setReturnFocus: () => returnFocusRef.current ?? false,
-            onDeactivate: onClose,
-            clickOutsideDeactivates: true,
-            escapeDeactivates: stopPropagation,
-          }}
-        >
-          <Dialog variant="Surface">
-            <Header
-              style={{
-                padding: `0 ${config.space.S200} 0 ${config.space.S400}`,
-                borderBottomWidth: config.borderWidth.B300,
-              }}
-              variant="Surface"
-              size="500"
-            >
-              <Box grow="Yes">
-                <Text size="H4">AI Run Metadata</Text>
-              </Box>
-              <IconButton size="300" onClick={onClose} radii="300" aria-label="Close">
-                <Icon src={Icons.Cross} />
-              </IconButton>
-            </Header>
-            <Box
-              style={{ padding: config.space.S400, maxWidth: '24rem' }}
-              direction="Column"
-              gap="100"
-            >
-              <MindroomAiRunDetail label="Status" value={info.status} />
-              <MindroomAiRunDetail label="Model" value={modelLabel} />
-              <MindroomAiRunDetail label="Tokens" value={usageLabel} />
-              <MindroomAiRunDetail label="Request Context" value={contextLabel} />
-              <MindroomAiRunDetail label="Tools" value={toolsLabel} />
-              <MindroomAiRunDetail label="TTFT" value={ttftLabel} />
-              <MindroomAiRunDetail label="Run" value={info.runId} />
-              <MindroomAiRunDetail label="Session" value={info.sessionId} />
-            </Box>
-          </Dialog>
-        </FocusTrap>
-      </OverlayCenter>
-    </Overlay>
-  );
-}
-
-function MindroomAiRunInfoButton({ open, onOpen }: { open: boolean; onOpen: () => void }) {
-  return (
-    <button
-      type="button"
-      className={css.MessageAiRunInfoButton}
-      aria-label="Open AI run metadata"
-      aria-haspopup="dialog"
-      aria-pressed={open}
-      onClick={onOpen}
-    >
-      <Icon size="50" src={Icons.Info} />
-    </button>
-  );
-}
-
-export const MessageMindroomAiRunItem = as<
-  'button',
-  {
-    onOpen: () => void;
-  }
->(({ onOpen, ...props }, ref) => (
-  <MenuItem
-    size="300"
-    after={<Icon size="100" src={Icons.Info} />}
-    radii="300"
-    onClick={onOpen}
-    aria-haspopup="dialog"
-    {...props}
-    ref={ref}
-  >
-    <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-      Token usage
-    </Text>
-  </MenuItem>
-));
-
-type MessageMindroomAiRunControlsRenderProps = {
-  dialog: ReactNode;
-  messageBaseRef: React.Ref<HTMLDivElement>;
-  onOpen: () => void;
-  open: boolean;
-};
-
-function MessageMindroomAiRunControls({
-  info,
-  forwardedRef,
-  children,
-}: {
-  info: MindroomAiRunInfo;
-  forwardedRef: React.Ref<HTMLDivElement> | undefined;
-  children: (props: MessageMindroomAiRunControlsRenderProps) => ReactNode;
-}) {
-  const messageBaseRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
-
-  const handleMessageBaseRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      messageBaseRef.current = node;
-      assignElementRef(forwardedRef, node);
-    },
-    [forwardedRef]
-  );
-
-  return children({
-    dialog: (
-      <MindroomAiRunInfoDialog
-        info={info}
-        open={open}
-        onClose={() => setOpen(false)}
-        returnFocusRef={messageBaseRef}
-      />
-    ),
-    messageBaseRef: handleMessageBaseRef,
-    onOpen: () => setOpen(true),
-    open,
-  });
-}
 
 type MessageQuickReactionsProps = {
   onReaction: ReactionHandler;
@@ -536,49 +347,6 @@ export const MessageSourceCodeItem = as<
         </Text>
       </MenuItem>
     </>
-  );
-});
-
-export const MessageMindroomDownloadOriginalItem = as<
-  'button',
-  {
-    source: MindroomLongTextSource;
-    onClose?: () => void;
-  }
->(({ source, onClose, ...props }, ref) => {
-  const mx = useMatrixClient();
-  const useAuthentication = useMediaAuthentication();
-
-  const [downloadState, download] = useAsyncCallback(
-    useCallback(async () => {
-      const blob = await downloadMindroomLongTextSidecarBlob(mx, source, useAuthentication);
-      FileSaver.saveAs(blob, getLongTextDownloadName(source));
-      onClose?.();
-    }, [mx, source, useAuthentication, onClose])
-  );
-
-  return (
-    <MenuItem
-      size="300"
-      after={
-        downloadState.status === AsyncStatus.Loading ? (
-          <Spinner fill="Soft" size="100" />
-        ) : (
-          <Icon size="100" src={Icons.Download} />
-        )
-      }
-      radii="300"
-      onClick={download}
-      aria-disabled={downloadState.status === AsyncStatus.Loading}
-      {...props}
-      ref={ref}
-    >
-      <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-        {downloadState.status === AsyncStatus.Loading
-          ? 'Downloading Original...'
-          : 'Download Original'}
-      </Text>
-    </MenuItem>
   );
 });
 
@@ -1046,16 +814,12 @@ export const Message = as<'div', MessageProps>(
     const showCopyText = isCopyTextMessageContent(
       menuMessageContent as Record<string, unknown>
     );
-    const longTextSource = useMemo(
-      () => getMindroomLongTextSource(menuMessageContent),
-      [menuMessageContent]
-    );
-    const resolvedLongTextContent = useMindroomLongTextResolvedContent(
+    const {
+      aiRunInfo: mindroomAiRunInfo,
+      longTextLoading,
       longTextSource,
-      menuAnchor !== undefined
-    );
-    const longTextLoading = longTextSource !== undefined && resolvedLongTextContent === undefined;
-    const mindroomAiRunInfo = getMindroomAiRunInfo(menuMessageContent);
+      resolvedLongTextContent,
+    } = useMindroomMessageControls(menuMessageContent, menuAnchor !== undefined);
 
     const senderDisplayName =
       getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
@@ -1156,7 +920,7 @@ export const Message = as<'div', MessageProps>(
 
     const isThreadedMessage = mEvent.threadRootId !== undefined;
 
-    const renderMessageBase = (mindroomAiRunControls?: MessageMindroomAiRunControlsRenderProps) => {
+    const renderMessageBase = (mindroomAiRunControls?: MindroomAiRunControlsRenderProps) => {
       const handleOpenMindroomAiRun = () => {
         closeMenu();
         mindroomAiRunControls?.onOpen();
@@ -1422,10 +1186,10 @@ export const Message = as<'div', MessageProps>(
                               />
                             )}
                             {mindroomAiRunControls && (
-                              <MessageMindroomAiRunItem onOpen={handleOpenMindroomAiRun} />
+                              <MindroomAiRunMenuItem onOpen={handleOpenMindroomAiRun} />
                             )}
                             {longTextSource && (
-                              <MessageMindroomDownloadOriginalItem
+                              <MindroomDownloadOriginalMenuItem
                                 source={longTextSource}
                                 onClose={closeMenu}
                               />
@@ -1513,9 +1277,9 @@ export const Message = as<'div', MessageProps>(
 
     if (mindroomAiRunInfo) {
       return (
-        <MessageMindroomAiRunControls info={mindroomAiRunInfo} forwardedRef={ref}>
+        <MindroomAiRunControls info={mindroomAiRunInfo} forwardedRef={ref}>
           {renderMessageBase}
-        </MessageMindroomAiRunControls>
+        </MindroomAiRunControls>
       );
     }
 

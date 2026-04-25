@@ -682,6 +682,8 @@ Acceptance:
   namespace, with old `components/message/*` paths reduced to thin compatibility wrappers.
 - Long-text sidecar hydration, AI-run metadata/display helpers, tool-trace parsing, and
   MindRoom block parsing also live in the MindRoom namespace with compatibility wrappers only.
+- AI-run message controls, long-text original download controls, and their styles live in
+  `src/app/mindroom/messages`; generic room message rendering only wires them in.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy
