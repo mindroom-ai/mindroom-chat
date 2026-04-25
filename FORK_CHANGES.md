@@ -867,6 +867,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 36 / Phase 5 thread banner UI ownership (2026-04-24):
+  - moved the thread context banner, tag picker, tag pill, tag colors, CSS, and tests to `src/app/mindroom/threads/ThreadContextBanner.tsx`, `ThreadTagPicker.tsx`, `ThreadTagPill.tsx`, `threadTagColor.ts`, and `ThreadContextBanner.css.ts`.
+  - the old `src/app/features/room/ThreadContextBanner*`, `ThreadTagPicker.tsx`, `ThreadTagPill.tsx`, and `threadTagColor.ts` paths are compatibility re-exports; `RoomView` imports the MindRoom banner directly.
+  - this keeps the thread header/tag UI beside the canonical thread record/header view-model and tag state hooks.
+  - validation:
+    - focused Vitest passes for `ThreadContextBanner.test.ts`, `ThreadTagPicker.test.ts`, `RoomView.test.ts`, `RoomView.threadSummary.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

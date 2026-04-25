@@ -421,6 +421,34 @@ describe('RoomTimeline architecture', () => {
     expect(hookCompatibilitySource).not.toContain('useRoomThreadResolutionMap');
   });
 
+  it('keeps thread banner and tag UI in MindRoom threads', () => {
+    const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
+    const bannerCompatibilitySource = readFileSync(
+      new URL('./ThreadContextBanner.tsx', import.meta.url),
+      'utf8'
+    );
+    const pickerCompatibilitySource = readFileSync(
+      new URL('./ThreadTagPicker.tsx', import.meta.url),
+      'utf8'
+    );
+    const bannerSource = readFileSync(
+      new URL('../../mindroom/threads/ThreadContextBanner.tsx', import.meta.url),
+      'utf8'
+    );
+    const pickerSource = readFileSync(
+      new URL('../../mindroom/threads/ThreadTagPicker.tsx', import.meta.url),
+      'utf8'
+    );
+
+    expect(roomViewSource).toContain("from '../../mindroom/threads/ThreadContextBanner'");
+    expect(bannerCompatibilitySource).toContain("from '../../mindroom/threads/ThreadContextBanner'");
+    expect(pickerCompatibilitySource).toContain("from '../../mindroom/threads/ThreadTagPicker'");
+    expect(bannerSource).toContain('buildThreadHeaderViewModelFromRecord');
+    expect(pickerSource).toContain('normalizeTagName');
+    expect(bannerCompatibilitySource).not.toContain('buildThreadHeaderViewModelFromRecord');
+    expect(pickerCompatibilitySource).not.toContain('normalizeTagName');
+  });
+
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
