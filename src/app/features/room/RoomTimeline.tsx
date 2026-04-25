@@ -131,7 +131,7 @@ import { useAccessiblePowerTagColors, useGetMemberPowerTag } from '../../hooks/u
 import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
-import { MindroomThreadSummaryInfo } from '../../mindroom/messages/threadSummary';
+import type { MindroomThreadSummaryInfo } from '../../mindroom/threads/threadSummaryStore';
 import {
   consumeLiveExpandOnceId,
   getCollapsibleMessageMeasurementKey,

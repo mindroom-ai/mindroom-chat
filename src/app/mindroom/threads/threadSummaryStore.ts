@@ -1,3 +1,4 @@
+export type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 export {
   deleteThreadSummaryCache,
   getThreadSummaryCacheDbName,
