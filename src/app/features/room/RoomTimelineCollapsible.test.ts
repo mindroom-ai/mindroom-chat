@@ -554,7 +554,7 @@ vi.mock('../../mindroom/threads/useThreadRenderState', async () => {
   };
 });
 
-vi.mock('./threadEventCache', () => ({
+vi.mock('../../mindroom/threads/threadEventCache', () => ({
   getThreadCursorAnchor: () => undefined,
   loadCachedThreadEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
   loadLatestCachedThreadEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
@@ -566,7 +566,7 @@ vi.mock('../../mindroom/threads/eventCacheTokenUtils', () => ({
   compareCachedPaginationAnchors: () => 0,
 }));
 
-vi.mock('./roomEventCache', () => ({
+vi.mock('../../mindroom/threads/roomEventCache', () => ({
   getRoomCursorAnchor: () => undefined,
   loadCachedRoomEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
   loadLatestCachedRoomEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),

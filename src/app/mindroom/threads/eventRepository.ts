@@ -13,7 +13,7 @@ import {
   normalizeCachedRoomEvents,
   saveRoomEventsToCache as saveRoomEventsToCacheToStorage,
   type CachedRoomEventPage,
-} from '../../features/room/roomEventCache';
+} from './roomEventCache';
 import {
   getThreadCursorAnchor as getCachedThreadCursorAnchor,
   loadCachedThreadEventsBefore as loadCachedThreadEventsBeforeFromCache,
@@ -22,7 +22,7 @@ import {
   saveThreadEventsToCache as saveThreadEventsToCacheToStorage,
   type CachedThreadEvent,
   type CachedThreadEventPage,
-} from '../../features/room/threadEventCache';
+} from './threadEventCache';
 import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
 import { serializeEventsForCache } from './eventCacheEditUtils';
 import { isThreadOnlyRoomActivity } from './threadRenderUtils';
@@ -47,7 +47,7 @@ export {
   saveRoomEventsToCache,
   type CachedRoomEvent,
   type CachedRoomEventPage,
-} from '../../features/room/roomEventCache';
+} from './roomEventCache';
 
 export {
   getThreadCursorAnchor,
@@ -58,7 +58,7 @@ export {
   saveThreadEventsToCache,
   type CachedThreadEvent,
   type CachedThreadEventPage,
-} from '../../features/room/threadEventCache';
+} from './threadEventCache';
 
 type ThreadCursorAnchor = ReturnType<typeof getCachedThreadCursorAnchor>;
 
