@@ -21,9 +21,13 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain("from '../../mindroom/threads/threadBadgeViewModel'");
     expect(source).not.toContain('getToolApprovalRenderContent');
     expect(source).not.toContain('buildThreadBadgeViewModelFromRecord');
+    expect(source).not.toContain('MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT');
+    expect(source).toContain('getMindroomRoomTimelineMessageRenderers');
+    expect(source).toContain('getMindroomRoomTimelineApprovalContentIfSupported');
     expect(timelineMessageSource).toContain("from '../messages/toolApproval'");
     expect(timelineMessageSource).toContain("from './threadBadgeViewModel'");
-    expect(timelineMessageSource).toContain('getMindroomRoomTimelineApprovalContent');
+    expect(timelineMessageSource).toContain('getMindroomRoomTimelineMessageRenderers');
+    expect(timelineMessageSource).toContain('getMindroomRoomTimelineApprovalContentIfSupported');
     expect(timelineMessageSource).toContain('getMindroomRoomTimelineThreadBadgeModel');
   });
 
@@ -530,9 +534,7 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(source).toContain(
-      "from '../../mindroom/threads/useThreadAwareTimelineRefresh'"
-    );
+    expect(source).toContain("from '../../mindroom/threads/useThreadAwareTimelineRefresh'");
     expect(refreshHookSource).toContain('RoomEvent.TimelineRefresh');
     expect(source).not.toContain('const useLiveTimelineRefresh');
     expect(source).not.toContain('threadRefreshInFlightRef');
@@ -705,9 +707,7 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(paletteSource).toContain(
-      "from '../../mindroom/threads/commandPaletteThreadItems'"
-    );
+    expect(paletteSource).toContain("from '../../mindroom/threads/commandPaletteThreadItems'");
     expect(paletteSource).not.toContain('MINDROOM_THREAD_TAGS_EVENT');
     expect(paletteSource).not.toContain('aggregateThreadTagEvents');
     expect(paletteSource).not.toContain('buildThreadRecord');
@@ -908,7 +908,9 @@ describe('RoomTimeline architecture', () => {
     expect(roomViewSource).toContain("from '../../mindroom/threads/useRoomViewThreadState'");
     expect(roomViewSource).not.toContain("from '../../mindroom/threads/useRoomThreadSummaryState'");
     expect(roomViewThreadStateSource).toContain("from './threadSummaryStore'");
-    expect(timelineSource).toContain("from '../../mindroom/threads/threadSummaryPublishController'");
+    expect(timelineSource).toContain(
+      "from '../../mindroom/threads/threadSummaryPublishController'"
+    );
     expect(timelineSource).not.toContain('threadSummaryInfoMap.forEach');
     expect(storeSource).toContain("from './threadSummaryCache'");
     expect(storeSource).toContain("from './threadSummaryState'");
@@ -1046,13 +1048,13 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(renderContentSource).toContain("../mindroom/messages/renderMindroomMessageContent");
-    expect(renderContentSource).not.toContain("../mindroom/messages/threadSummary");
-    expect(renderContentSource).not.toContain("../mindroom/messages/toolApproval");
-    expect(renderContentSource).not.toContain("../mindroom/messages/MindroomToolApprovalCard");
-    expect(renderContentSource).not.toContain("../mindroom/messages/longText");
-    expect(renderContentSource).not.toContain("../mindroom/messages/MindroomLongTextText");
-    expect(renderContentSource).not.toContain("../mindroom/messages/aiRun");
+    expect(renderContentSource).toContain('../mindroom/messages/renderMindroomMessageContent');
+    expect(renderContentSource).not.toContain('../mindroom/messages/threadSummary');
+    expect(renderContentSource).not.toContain('../mindroom/messages/toolApproval');
+    expect(renderContentSource).not.toContain('../mindroom/messages/MindroomToolApprovalCard');
+    expect(renderContentSource).not.toContain('../mindroom/messages/longText');
+    expect(renderContentSource).not.toContain('../mindroom/messages/MindroomLongTextText');
+    expect(renderContentSource).not.toContain('../mindroom/messages/aiRun');
     expect(renderContentSource).not.toContain('./message/mindroomThreadSummary');
     expect(renderContentSource).not.toContain('./message/mindroomToolApproval');
     expect(renderContentSource).not.toContain('./message/MindroomToolApprovalCard');
@@ -1071,7 +1073,9 @@ describe('RoomTimeline architecture', () => {
       "from '../../../mindroom/messages/MindroomMessageControls'"
     );
     expect(roomMessageSource).not.toContain("from '../../../mindroom/messages/longText'");
-    expect(roomMessageSource).not.toContain("from '../../../mindroom/messages/MindroomLongTextText'");
+    expect(roomMessageSource).not.toContain(
+      "from '../../../mindroom/messages/MindroomLongTextText'"
+    );
     expect(roomMessageSource).not.toContain("from '../../../mindroom/messages/aiRun'");
     expect(roomMessageSource).not.toContain("from '../../../mindroom/messages/aiRunDisplay'");
     expect(roomMessageSource).not.toContain('getLongTextDownloadName');
@@ -1178,16 +1182,10 @@ describe('RoomTimeline architecture', () => {
     removedLocalMindroomCompatibilityPaths.forEach((path) => {
       expect(existsSync(new URL(path, import.meta.url))).toBe(false);
     });
-    expect(settingsSource).toContain(
-      "from '../../mindroom/local-mindroom/settingsRenderer'"
-    );
-    expect(settingsSource).not.toContain(
-      "from '../../mindroom/local-mindroom/LocalMindroom'"
-    );
+    expect(settingsSource).toContain("from '../../mindroom/local-mindroom/settingsRenderer'");
+    expect(settingsSource).not.toContain("from '../../mindroom/local-mindroom/LocalMindroom'");
     expect(settingsSource).not.toContain("from './local-mindroom'");
-    expect(settingsMenuSource).toContain(
-      "from '../../mindroom/local-mindroom/settingsMenu'"
-    );
+    expect(settingsMenuSource).toContain("from '../../mindroom/local-mindroom/settingsMenu'");
     expect(settingsMenuSource).not.toContain("from '../../mindroom/branding/branding'");
     expect(pageSource).toContain('Connect Local MindRoom');
     expect(pageSource).toContain('resolveMindroomProvisioningRequest');
@@ -1331,9 +1329,7 @@ describe('RoomTimeline architecture', () => {
     expect(systemNotificationSource).not.toContain('MINDROOM_NOTIFICATION_BRAND');
     expect(systemNotificationExtensionsSource).toContain('MINDROOM_NOTIFICATION_BRAND');
     expect(systemNotificationExtensionsSource).toContain('IOSPushNotification');
-    expect(clientNonUiSource).toContain(
-      "from '../../mindroom/client/MindroomClientNonUIFeatures'"
-    );
+    expect(clientNonUiSource).toContain("from '../../mindroom/client/MindroomClientNonUIFeatures'");
     expect(clientNonUiSource).not.toContain("from '../../mindroom/native/iosPush'");
     expect(clientNonUiSource).not.toContain("from '../../mindroom/native/useIOSPushEnabled'");
     expect(clientNonUiSource).not.toContain('MINDROOM_FAVICON_SRC');
@@ -1360,12 +1356,8 @@ describe('RoomTimeline architecture', () => {
     );
 
     expect(existsSync(compatibilityPath)).toBe(false);
-    expect(initMatrixSource).toContain(
-      "from '../app/mindroom/matrix/matrixClientFactory'"
-    );
-    expect(authFlowsLoaderSource).toContain(
-      "from '../mindroom/matrix/matrixClientFactory'"
-    );
+    expect(initMatrixSource).toContain("from '../app/mindroom/matrix/matrixClientFactory'");
+    expect(authFlowsLoaderSource).toContain("from '../mindroom/matrix/matrixClientFactory'");
     expect(implementationSource).toContain('createMatrixFetchFn');
     expect(implementationSource).toContain("credentials: 'include'");
   });

@@ -173,6 +173,9 @@
 - `CINNY-160`
   - Pinned-message MindRoom approval event dispatch now lives behind `src/app/mindroom/messages/pinnedMessageExtensions.ts`.
   - Generic `RoomPinMenu` asks the MindRoom owner for pinned-message renderers and encrypted-event render results instead of switching on MindRoom approval event constants directly.
+- `CINNY-161`
+  - Room-timeline MindRoom approval event dispatch now lives behind `src/app/mindroom/threads/roomTimelineMessageExtensions.tsx`.
+  - Generic `RoomTimeline` asks the MindRoom timeline seam for approval renderers and approval content resolution instead of importing the raw MindRoom approval event constant directly.
 
 ### Current Feature Set On `dev`
 
