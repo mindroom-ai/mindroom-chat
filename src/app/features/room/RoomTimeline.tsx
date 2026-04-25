@@ -19,9 +19,6 @@ import {
   MatrixEvent,
   RelationType,
   Room,
-  RoomEvent,
-  RoomEventHandlerMap,
-  ThreadEvent,
   MsgType,
 } from 'matrix-js-sdk';
 import { type Relations } from 'matrix-js-sdk/lib/models/relations';
@@ -208,6 +205,7 @@ import {
   type TimelineArriveMeta,
 } from '../../mindroom/threads/roomLiveEventArrive';
 import { useThreadSummaryPublishController } from '../../mindroom/threads/threadSummaryPublishController';
+import { useThreadOverviewRefreshCounter } from '../../mindroom/threads/threadOverviewRefreshCounter';
 import { buildThreadBadgeViewModelFromRecord } from '../../mindroom/threads/threadBadgeViewModel';
 import { ThreadBadgeRenderer } from '../../mindroom/threads/ThreadBadgeRenderer';
 import {
@@ -663,41 +661,10 @@ export function RoomTimeline({
     [renderableEventEntries]
   );
 
-  // ── Batch metadata reactivity ──
-  // Bump a refresh counter on room-level events that affect overview metadata
-  const [overviewRefreshCounter, setOverviewRefreshCounter] = useState(0);
-  useEffect(() => {
-    if (threadId) return undefined;
-    const bumpRefresh = () => setOverviewRefreshCounter((c) => c + 1);
-    const handleTimelineRefresh: RoomEventHandlerMap[RoomEvent.Timeline] = (
-      mEvent,
-      eventRoom,
-      _toStartOfTimeline,
-      removed
-    ) => {
-      if (eventRoom?.roomId !== room.roomId || removed) return;
-      if (!shouldRefreshOverviewForTimelineEvent(room, mEvent)) return;
-      bumpRefresh();
-    };
-    const handleReceiptRefresh: RoomEventHandlerMap[RoomEvent.Receipt] = (_receipt, eventRoom) => {
-      if (eventRoom?.roomId !== room.roomId) return;
-      bumpRefresh();
-    };
-    room.on(RoomEvent.Timeline, handleTimelineRefresh);
-    room.on(RoomEvent.Receipt, handleReceiptRefresh);
-    room.on(ThreadEvent.New, bumpRefresh);
-    room.on(ThreadEvent.Update, bumpRefresh);
-    room.on(ThreadEvent.NewReply, bumpRefresh);
-    room.on(ThreadEvent.Delete, bumpRefresh);
-    return () => {
-      room.removeListener(RoomEvent.Timeline, handleTimelineRefresh);
-      room.removeListener(RoomEvent.Receipt, handleReceiptRefresh);
-      room.removeListener(ThreadEvent.New, bumpRefresh);
-      room.removeListener(ThreadEvent.Update, bumpRefresh);
-      room.removeListener(ThreadEvent.NewReply, bumpRefresh);
-      room.removeListener(ThreadEvent.Delete, bumpRefresh);
-    };
-  }, [room, threadId]);
+  const { overviewRefreshCounter, setOverviewRefreshCounter } = useThreadOverviewRefreshCounter(
+    room,
+    threadId
+  );
 
   const compactViewRequested = !threadId && effectiveViewMode === 'compact';
 

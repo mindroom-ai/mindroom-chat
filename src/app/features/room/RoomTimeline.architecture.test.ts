@@ -617,13 +617,21 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/threadOverviewRefreshTargets.ts', import.meta.url),
       'utf8'
     );
+    const counterSource = readFileSync(
+      new URL('../../mindroom/threads/threadOverviewRefreshCounter.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).toContain('useThreadOverviewResumeController');
     expect(source).toContain("from '../../mindroom/threads/threadOverviewResumeController'");
     expect(source).toContain("from '../../mindroom/threads/threadOverviewRefreshTargets'");
+    expect(source).toContain("from '../../mindroom/threads/threadOverviewRefreshCounter'");
     expect(source).not.toContain('isVisibleThreadRootEvent');
+    expect(source).not.toContain('ThreadEvent.NewReply');
     expect(targetSource).toContain('resolveThreadOverviewRefreshTargets');
     expect(targetSource).toContain('isVisibleThreadRootEvent');
+    expect(counterSource).toContain('useThreadOverviewRefreshCounter');
+    expect(counterSource).toContain('ThreadEvent.NewReply');
     expect(source).not.toContain('overviewResumeRefreshInFlightRef');
     expect(source).not.toContain('pendingOverviewResumeRefreshRef');
     expect(source).not.toContain('refreshOverviewThreadCacheFromRelations');
