@@ -391,6 +391,9 @@ compatibility re-export.
 Server-side room thread-list loading, thread unread/activity helpers, and the `useRoomThreadList`
 hook now live in `src/app/mindroom/threads/roomThreadList.ts` and `useRoomThreadList.ts`; the old
 `features/room` paths are only compatibility re-exports.
+Thread-aware compose relation helpers and automatic room-input send-session sequencing now live in
+`src/app/mindroom/threads/composeMessageRelation.ts` and `roomInputSendSession.ts`; the old
+`features/room` paths are only compatibility re-exports.
 Thread summary cache/state/selection now lives in `src/app/mindroom/threads/threadSummaryCache.ts`,
 `threadSummaryState.ts`, `threadSummarySelection.ts`, and `useRoomThreadSummaryState.ts`; the old
 `features/room` paths are only compatibility re-exports.
