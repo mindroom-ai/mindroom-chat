@@ -72,6 +72,9 @@
 - `CINNY-125`
   - Command-palette current-thread canonicalization now lives in `src/app/mindroom/threads/commandPaletteThreadItems.ts`.
   - Generic command-palette item assembly now passes the route thread id to the MindRoom thread source instead of importing thread-route canonicalization directly.
+- `CINNY-126`
+  - The generic reply renderer now consumes compatibility seams for thread indicators and cache-aware event loading.
+  - MindRoom-specific thread indicator behavior remains owned by `src/app/mindroom/threads/ThreadIndicator.tsx`.
 
 ### Current Feature Set On `dev`
 

@@ -581,6 +581,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../components/message/Reply.tsx', import.meta.url),
       'utf8'
     );
+    const threadIndicatorCompatibilitySource = readFileSync(
+      new URL('../../components/message/ThreadIndicator.ts', import.meta.url),
+      'utf8'
+    );
     const replyStyleSource = readFileSync(
       new URL('../../components/message/Reply.css.ts', import.meta.url),
       'utf8'
@@ -602,12 +606,16 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(replySource).toContain("from '../../mindroom/threads/ThreadIndicator'");
+    expect(replySource).toContain("from './ThreadIndicator'");
+    expect(replySource).toContain("from '../../hooks/useRoomEvent'");
+    expect(replySource).not.toContain("from '../../mindroom/threads/ThreadIndicator'");
+    expect(replySource).not.toContain("from '../../mindroom/threads/useRoomEvent'");
     expect(replySource).not.toContain('useThreadResolution');
     expect(replySource).not.toContain('useThreadScheduledTasks');
     expect(replySource).not.toContain('getThreadUnread');
     expect(replyStyleSource).not.toContain('ThreadStreamingPulse');
-    expect(indexSource).toContain("from '../../mindroom/threads/ThreadIndicator'");
+    expect(indexSource).toContain("from './ThreadIndicator'");
+    expect(threadIndicatorCompatibilitySource).toContain("from '../../mindroom/threads/ThreadIndicator'");
     expect(threadIndicatorSource).toContain("from './threadIndicatorViewModel'");
     expect(threadIndicatorViewModelSource).toContain('getThreadRootReplyCount');
     expect(threadIndicatorSource).toContain("from './useRoomThreadTags'");
@@ -663,7 +671,8 @@ describe('RoomTimeline architecture', () => {
     expect(hookCompatibilitySource).toContain("from '../mindroom/threads/useRoomEvent'");
     expect(hookImplementationSource).toContain('loadCachedThreadEvent');
     expect(hookImplementationSource).toContain("from './eventRepository'");
-    expect(replySource).toContain("from '../../mindroom/threads/useRoomEvent'");
+    expect(replySource).toContain("from '../../hooks/useRoomEvent'");
+    expect(replySource).not.toContain("from '../../mindroom/threads/useRoomEvent'");
     expect(pinMenuSource).toContain("from '../../../mindroom/threads/useRoomEvent'");
     expect(hookCompatibilitySource).not.toContain('loadCachedThreadEvent');
   });

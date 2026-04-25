@@ -11,10 +11,10 @@ import { randomNumberBetween } from '../../utils/common';
 import * as css from './Reply.css';
 import { MessageBadEncryptedContent, MessageDeletedContent, MessageFailedContent } from './content';
 import { scaleSystemEmoji } from '../../plugins/react-custom-html-parser';
-import { useRoomEvent } from '../../mindroom/threads/useRoomEvent';
+import { useRoomEvent } from '../../hooks/useRoomEvent';
 import colorMXID from '../../../util/colorMXID';
 import { GetMemberPowerTag } from '../../hooks/useMemberPowerTag';
-import { ThreadIndicator } from '../../mindroom/threads/ThreadIndicator';
+import { ThreadIndicator } from './ThreadIndicator';
 
 type ReplyLayoutProps = {
   userColor?: string;
