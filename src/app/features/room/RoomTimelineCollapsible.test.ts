@@ -519,7 +519,7 @@ vi.mock('../../mindroom/threads/threadUtils', () => ({
     !!eventId && !!threadRootId && eventId !== threadRootId,
 }));
 
-vi.mock('./useThreadRenderState', async () => {
+vi.mock('../../mindroom/threads/useThreadRenderState', async () => {
   return {
     useThreadRenderState: () => {
       const threadEvents = threadRenderStateControl.initialThreadEvents as Array<{

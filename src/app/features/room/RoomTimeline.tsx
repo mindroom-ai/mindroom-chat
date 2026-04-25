@@ -175,7 +175,7 @@ import {
   isThreadOnlyRoomActivity,
   shouldPinThreadToBottomOnOpen,
 } from '../../mindroom/threads/threadRenderUtils';
-import { useThreadRenderState } from './useThreadRenderState';
+import { useThreadRenderState } from '../../mindroom/threads/useThreadRenderState';
 import { createTimelineDebugTrace, logTimelineDebug } from './timelineDebug';
 import { shouldUseSurfacePreloadTarget } from './roomPreloadTarget';
 import {
