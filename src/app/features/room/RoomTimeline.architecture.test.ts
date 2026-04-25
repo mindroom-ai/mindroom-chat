@@ -104,6 +104,8 @@ describe('RoomTimeline architecture', () => {
 
     expect(source).toContain('loadRoomCachedPaginationSnapshot');
     expect(source).not.toContain('loadCachedRoomEventsBefore');
+    expect(source).not.toContain('loadCachedRoomPaginationToken');
+    expect(source).not.toContain('resolvePersistedRoomBeforeToken');
     expect(source).not.toContain('normalizeCachedRoomEvents');
   });
 });

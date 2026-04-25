@@ -254,10 +254,9 @@ import {
   findEarliestLoadedRoomEventByCacheOrder,
   getEarliestLoadedRoomEvent,
   resolveHydratedRoomBeforeToken,
-  resolvePersistedRoomBeforeToken,
+  loadRoomCachePersistenceState,
   loadThreadCachedPaginationSnapshot,
   loadThreadCachedSnapshot,
-  loadCachedRoomPaginationToken,
   loadLatestRoomCacheHydrationSnapshot,
   loadRoomCachedBackStateSnapshot,
   loadRoomCachedPaginationSnapshot,
@@ -4380,36 +4379,28 @@ export function RoomTimeline({
       const earliestLoadedEvent = findEarliestLoadedRoomEventByCacheOrder(cacheEvents);
       const firstTimeline = currentLinkedTimelines[0];
       const lastTimeline = currentLinkedTimelines[currentLinkedTimelines.length - 1];
-      const cachedBeforeToken = await loadCachedRoomPaginationToken(
+      const currentBeforeToken = firstTimeline?.getPaginationToken(Direction.Backward);
+      const roomCachePersistenceState = await loadRoomCachePersistenceState({
         sessionId,
-        room.roomId,
-        earliestLoadedEvent?.getId()
-      );
+        roomId: room.roomId,
+        earliestLoadedEventId: earliestLoadedEvent?.getId(),
+        currentBeforeToken,
+      });
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
 
-      if (firstTimeline && cachedBeforeToken === null) {
-        const currentBeforeToken = firstTimeline.getPaginationToken(Direction.Backward);
-        if (currentBeforeToken !== null) {
-          firstTimeline.setPaginationToken(null, Direction.Backward);
-          setTimeline((currentTimeline) =>
-            currentTimeline.linkedTimelines === currentLinkedTimelines
-              ? { ...currentTimeline }
-              : currentTimeline
-          );
-        }
+      if (firstTimeline && roomCachePersistenceState.shouldClearBackwardToken) {
+        firstTimeline.setPaginationToken(null, Direction.Backward);
+        setTimeline((currentTimeline) =>
+          currentTimeline.linkedTimelines === currentLinkedTimelines
+            ? { ...currentTimeline }
+            : currentTimeline
+        );
       }
 
-      persistRoomEventCache(
-        cacheEvents,
-        resolvePersistedRoomBeforeToken(
-          firstTimeline?.getPaginationToken(Direction.Backward),
-          cachedBeforeToken
-        )
-      );
+      persistRoomEventCache(cacheEvents, roomCachePersistenceState.beforeTokenForEarliest);
       persistThreadCacheFromRoomEvents(threadCacheEvents, {
-        roomStartKnown:
-          firstTimeline?.getPaginationToken(Direction.Backward) === null || cachedBeforeToken === null,
+        roomStartKnown: roomCachePersistenceState.roomStartKnown,
         roomTailLoaded: !lastTimeline?.getPaginationToken(Direction.Forward),
       });
     };

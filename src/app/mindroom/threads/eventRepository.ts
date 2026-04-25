@@ -336,6 +336,39 @@ export const resolvePersistedRoomBeforeToken = (
   return cachedBeforeToken;
 };
 
+export type RoomCachePersistenceState = {
+  cachedBeforeToken: string | null | undefined;
+  beforeTokenForEarliest: string | null | undefined;
+  roomStartKnown: boolean;
+  shouldClearBackwardToken: boolean;
+};
+
+export const loadRoomCachePersistenceState = async ({
+  sessionId,
+  roomId,
+  earliestLoadedEventId,
+  currentBeforeToken,
+  loadPaginationToken = loadCachedRoomPaginationTokenFromCache,
+}: {
+  sessionId: string;
+  roomId: string;
+  earliestLoadedEventId?: string;
+  currentBeforeToken: string | null | undefined;
+  loadPaginationToken?: LoadCachedRoomPaginationToken;
+}): Promise<RoomCachePersistenceState> => {
+  const cachedBeforeToken = await loadPaginationToken(sessionId, roomId, earliestLoadedEventId);
+
+  return {
+    cachedBeforeToken,
+    beforeTokenForEarliest: resolvePersistedRoomBeforeToken(
+      currentBeforeToken,
+      cachedBeforeToken
+    ),
+    roomStartKnown: currentBeforeToken === null || cachedBeforeToken === null,
+    shouldClearBackwardToken: cachedBeforeToken === null && currentBeforeToken !== null,
+  };
+};
+
 export const getLatestLoadedRoomEvent = (
   room: Room,
   linkedTimelines: EventTimeline[]
