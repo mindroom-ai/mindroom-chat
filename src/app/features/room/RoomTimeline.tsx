@@ -260,6 +260,7 @@ import {
   loadCachedThreadEventsBefore,
   loadCachedThreadSnapshot,
   loadLatestRoomCacheHydrationSnapshot,
+  loadRoomCachedBackStateSnapshot,
   normalizeCachedRoomEvents,
   normalizeCachedThreadEvents,
   persistRoomEventCacheSnapshot,
@@ -4551,19 +4552,15 @@ export function RoomTimeline({
     const refreshRoomCachedBackState = async () => {
       const currentLinkedTimelines = timeline.linkedTimelines;
       const earliestLoadedEvent = getEarliestLoadedRoomEvent(room, currentLinkedTimelines);
-      const [cachedPage, cachedBeforeToken] = await Promise.all([
-        loadCachedRoomEventsBefore(
-          sessionId,
-          room.roomId,
-          getRoomCursorAnchor(earliestLoadedEvent?.event as Partial<IEvent> | undefined),
-          1
-        ),
-        loadCachedRoomPaginationToken(sessionId, room.roomId, earliestLoadedEvent?.getId()),
-      ]);
+      const cachedBackState = await loadRoomCachedBackStateSnapshot({
+        sessionId,
+        roomId: room.roomId,
+        earliestLoadedEvent,
+      });
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
 
       const firstTimeline = currentLinkedTimelines[0];
-      if (firstTimeline && cachedBeforeToken === null) {
+      if (firstTimeline && cachedBackState.cachedBeforeToken === null) {
         const currentBeforeToken = firstTimeline.getPaginationToken(Direction.Backward);
         if (currentBeforeToken !== null) {
           firstTimeline.setPaginationToken(null, Direction.Backward);
@@ -4575,7 +4572,7 @@ export function RoomTimeline({
         }
       }
 
-      setRoomHasMoreCachedBack(cachedPage.events.length > 0);
+      setRoomHasMoreCachedBack(cachedBackState.hasCachedBack);
     };
 
     refreshRoomCachedBackState();
