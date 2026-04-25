@@ -26,7 +26,6 @@ import {
   PopOut,
   Scroll,
   Text,
-  config,
   toRem,
 } from 'folds';
 
@@ -121,7 +120,7 @@ import {
   getMindroomRoomInputMessageRelation,
   isMindroomRoomInputAutocompleteQuery,
   MindroomRoomInputAutocomplete,
-  MindroomRoomInputThreadIndicator,
+  MindroomRoomInputReplyContext,
   MindroomVoiceRecorderComposer,
   useRoomInputSendSessionController,
   type MindroomRoomInputAutocompletePrefix,
@@ -694,51 +693,42 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             (replyDraft || threadId || voiceRecorderOpen) && (
               <div>
                 {(replyDraft || threadId) && (
-                  <Box
-                    alignItems="Center"
-                    gap="300"
-                    style={{ padding: `${config.space.S200} ${config.space.S300} 0` }}
+                  <MindroomRoomInputReplyContext
+                    room={room}
+                    relation={replyDraft?.relation}
+                    threadId={threadId}
+                    leading={
+                      replyDraft && (
+                        <IconButton
+                          onClick={() => setReplyDraft(undefined)}
+                          variant="SurfaceVariant"
+                          size="300"
+                          radii="300"
+                        >
+                          <Icon src={Icons.Cross} size="50" />
+                        </IconButton>
+                      )
+                    }
                   >
                     {replyDraft && (
-                      <IconButton
-                        onClick={() => setReplyDraft(undefined)}
-                        variant="SurfaceVariant"
-                        size="300"
-                        radii="300"
-                      >
-                        <Icon src={Icons.Cross} size="50" />
-                      </IconButton>
-                    )}
-                    <Box direction="Row" gap="200" alignItems="Center">
-                      {/* Only show thread badge for reply-in-thread from main timeline. */}
-                      <MindroomRoomInputThreadIndicator
-                        room={room}
-                        relation={replyDraft?.relation}
-                      />
-                      {replyDraft ? (
-                        <ReplyLayout
-                          userColor={replyUsernameColor}
-                          username={
-                            <Text size="T300" truncate>
-                              <b>
-                                {getMemberDisplayName(room, replyDraft.userId) ??
-                                  getMxIdLocalPart(replyDraft.userId) ??
-                                  replyDraft.userId}
-                              </b>
-                            </Text>
-                          }
-                        >
+                      <ReplyLayout
+                        userColor={replyUsernameColor}
+                        username={
                           <Text size="T300" truncate>
-                            {trimReplyFromBody(replyDraft.body)}
+                            <b>
+                              {getMemberDisplayName(room, replyDraft.userId) ??
+                                getMxIdLocalPart(replyDraft.userId) ??
+                                replyDraft.userId}
+                            </b>
                           </Text>
-                        </ReplyLayout>
-                      ) : (
-                        <Text size="T300" priority="300">
-                          Sending to this thread
+                        }
+                      >
+                        <Text size="T300" truncate>
+                          {trimReplyFromBody(replyDraft.body)}
                         </Text>
-                      )}
-                    </Box>
-                  </Box>
+                      </ReplyLayout>
+                    )}
+                  </MindroomRoomInputReplyContext>
                 )}
                 <MindroomVoiceRecorderComposer
                   active={voiceRecorderOpen}

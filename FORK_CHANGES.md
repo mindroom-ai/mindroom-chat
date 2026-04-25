@@ -201,6 +201,9 @@
 - `CINNY-169`
   - Thread-view edge-swipe exit mounting now lives in `src/app/mindroom/threads/useRoomViewThreadState.ts` beside the thread-exit routing decision.
   - Generic `RoomView` no longer imports the native MindRoom edge-swipe hook directly.
+- `CINNY-170`
+  - Room-input reply/thread context rendering now goes through `MindroomRoomInputReplyContext`.
+  - Generic `RoomInput` no longer renders the MindRoom thread-send fallback label or imports the thread-indicator component seam directly.
 
 ### Current Feature Set On `dev`
 

@@ -310,6 +310,8 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain("from '../../mindroom/commands/");
     expect(source).not.toContain("from '../../mindroom/voice/");
     expect(source).not.toContain("from '../../mindroom/threads/composeMessageRelation'");
+    expect(source).not.toContain('MindroomRoomInputThreadIndicator');
+    expect(source).not.toContain('Sending to this thread');
     expect(source).not.toContain('createRoomInputSendSessionState');
     expect(source).not.toContain('resolveRoomInputSendStep');
     expect(source).not.toContain('hasRoomInputSendFailures');
@@ -318,6 +320,8 @@ describe('RoomTimeline architecture', () => {
     expect(roomInputExtensionsSource).toContain("from '../commands/mindroomCommandQuery'");
     expect(roomInputExtensionsSource).toContain("from '../commands/MindroomCommandAutocomplete'");
     expect(roomInputExtensionsSource).toContain("from '../voice/VoiceRecorderDialog'");
+    expect(roomInputExtensionsSource).toContain('MindroomRoomInputReplyContext');
+    expect(roomInputExtensionsSource).toContain('Sending to this thread');
     expect(roomInputExtensionsSource).toContain(
       "from '../threads/useRoomInputSendSessionController'"
     );
