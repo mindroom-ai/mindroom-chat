@@ -586,12 +586,17 @@ vi.mock('../../mindroom/threads/eventCacheEditUtils', () => ({
   serializeEventsForCache: () => [],
 }));
 
-vi.mock('../../mindroom/threads/timelineScrollUtils', () => ({
-  isScrollNearBottom: () => true,
-  isTimelineAtLiveEnd: () => true,
-  shouldAutoScrollRoomOnLiveEvent: shouldAutoScrollRoomOnLiveEventMock,
-  shouldAutoScrollThreadOnLiveEvent: () => false,
-}));
+vi.mock('../../mindroom/threads/timelineScrollUtils', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../mindroom/threads/timelineScrollUtils')>();
+  return {
+    ...actual,
+    isScrollNearBottom: () => true,
+    isTimelineAtLiveEnd: () => true,
+    shouldAutoScrollRoomOnLiveEvent: shouldAutoScrollRoomOnLiveEventMock,
+    shouldAutoScrollThreadOnLiveEvent: () => false,
+  };
+});
 
 vi.mock('../../mindroom/threads/threadEditBackfill', () => ({
   hasLikelyIncompleteStreamingBody: () => false,
@@ -1110,7 +1115,7 @@ describe('RoomTimeline collapsible wiring', () => {
 
   it('marks visible live thread replies for initially-expanded mode', async () => {
     const { getCollapsibleMessageMode, shouldTrackLiveCollapsibleMessage } = await import(
-      './RoomTimeline'
+      '../../mindroom/threads/threadCollapsibleMessages'
     );
     const threadRootEvent = makeEvent('$thread-root', {
       content: {
@@ -1158,7 +1163,9 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it('keeps cached-mode thread replies in default collapse mode on first paint', async () => {
-    const { getCollapsibleMessageMode } = await import('./RoomTimeline');
+    const { getCollapsibleMessageMode } = await import(
+      '../../mindroom/threads/threadCollapsibleMessages'
+    );
     const threadRootEvent = makeEvent('$thread-root', {
       content: {
         body: 'Thread root',

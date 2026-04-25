@@ -658,6 +658,20 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('threadBackfill:start');
   });
 
+  it('keeps live collapsible-message policy in MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/threadCollapsibleMessages.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/threadCollapsibleMessages'");
+    expect(implementationSource).toContain('shouldTrackLiveCollapsibleMessage');
+    expect(implementationSource).toContain('getLiveCollapsibleMessageExpandId');
+    expect(source).not.toContain('export const shouldTrackLiveCollapsibleMessage');
+    expect(source).not.toContain('export const getCollapsibleMessageMode');
+  });
+
   it('delegates thread prepend scroll primitives to scroll utilities', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const compatibilitySource = readFileSync(
