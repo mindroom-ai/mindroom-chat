@@ -16,7 +16,6 @@ import {
   EventTimeline,
   EventTimelineSet,
   EventTimelineSetHandlerMap,
-  IEvent,
   IContent,
   MatrixClient,
   MatrixEvent,
@@ -184,7 +183,6 @@ import {
   buildCompactZeroReplyRootData,
   buildCompactThreadRootData,
   getCompactThreadRootBodyPreviewText,
-  isZeroReplyStandaloneThreadRootEvent,
   mergeCompactThreadRootData,
 } from './compactThreadRootData';
 import { CompactRoomView } from './CompactRoomView';
@@ -234,14 +232,11 @@ import type { RoomViewMode } from '../../state/room/roomViewMode';
 import { useRoomThreadList } from './useRoomThreadList';
 import { useStateEvents } from '../../hooks/useStateEvents';
 import {
-  getThreadCursorAnchor,
   getThreadCacheTargetId,
   mapCachedThreadPageEvents,
 } from '../../mindroom/threads/eventRepository';
-import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
 import {
   computeReconciliationToken,
-  findEarliestLoadedThreadReplyByCacheOrder,
   reconcileThreadBackwardPagination,
 } from './threadPaginationUtils';
 import {
@@ -252,7 +247,6 @@ import {
   shouldAutoScrollThreadOnLiveEvent,
 } from './timelineScrollUtils';
 import { useRoomThreadResolutionMap } from './useRoomThreadTags';
-import { isPendingLocalEchoThreadRoot } from './threadRouteUtils';
 import { useRoomEagerPreload } from '../../mindroom/threads/preloadController';
 import { useThreadBackPaginationController } from '../../mindroom/threads/threadBackPaginationController';
 import {
@@ -267,11 +261,11 @@ import {
   fetchAllThreadRelations,
   getLoadedRoomThreadEvents,
   getLoadedRoomThreadSeedEvents,
-  isThreadNotFoundError,
   MAX_THREAD_FETCH_EVENTS,
   shouldRefreshOverviewForTimelineEvent,
 } from '../../mindroom/threads/threadBootstrap';
 import { createThreadOpenSeedSession } from '../../mindroom/threads/threadOpenSeedController';
+import { runThreadOpenSdkBootstrap } from '../../mindroom/threads/threadOpenSdkBootstrap';
 import { useThreadSeedPrewarmController } from '../../mindroom/threads/threadSeedPrewarmController';
 import { useThreadOpenCacheController } from '../../mindroom/threads/threadOpenCacheController';
 import { useThreadOverviewResumeController } from '../../mindroom/threads/threadOverviewResumeController';
@@ -3044,207 +3038,25 @@ export function RoomTimeline({
           }
         }
 
-        if (isPendingLocalEchoThreadRoot(room, threadId)) {
-          setThreadTailLoaded(true);
-          setTimeline((ct) => ({ ...ct }));
-          setThreadTimelineTick((val) => val + 1);
-          logTimelineDebug(threadDebugTraceId, 'thread-open-pending-local-echo-root', {
-            threadId,
-          });
-          if (shouldScrollToLatestOnOpen) {
-            pinThreadToBottomOnOpen();
-          }
-          return;
-        }
-
-        const zeroReplyStandaloneRootEvent = room.findEventById(threadId);
-        if (
-          !room.getThread(threadId) &&
-          zeroReplyStandaloneRootEvent &&
-          isZeroReplyStandaloneThreadRootEvent(zeroReplyStandaloneRootEvent)
-        ) {
-          setThreadTailLoaded(true);
-          setTimeline((ct) => ({ ...ct }));
-          setThreadTimelineTick((val) => val + 1);
-          logTimelineDebug(threadDebugTraceId, 'thread-open-zero-reply-root-without-thread-model', {
-            threadId,
-          });
-          if (shouldScrollToLatestOnOpen) {
-            pinThreadToBottomOnOpen();
-          }
-          return;
-        }
-
-        // First, ensure the thread exists in the SDK.
-        // room.getThread() may return null if the SDK hasn't seen the thread yet.
-        // We need to fetch the root event and let the SDK create the Thread object.
-        let threadModel = room.getThread(threadId);
-        if (!threadModel) {
-          // Fetch the thread root event to make the SDK aware of this thread
-          const [ctxErr] = await to(mx.getEventTimeline(room.getUnfilteredTimelineSet(), threadId));
-          if (!mounted) return;
-          if (ctxErr) {
-            logTimelineDebug(threadDebugTraceId, 'thread-sdk-bootstrap-context-error', {
-              threadId,
-            });
-            setThreadLoadError(true);
-            if (isThreadNotFoundError(ctxErr)) {
-              onThreadLoadError?.(threadId);
-            }
-            return;
-          }
-          threadModel = room.getThread(threadId);
-        }
-
-        if (!threadModel) {
-          // If the SDK still hasn't created a Thread object, try fetching
-          // thread relations directly to populate it
-          const [relErr, relData] = await to(
-            mx.fetchRelations(room.roomId, threadId, 'm.thread' as any, null, {
-              dir: Direction.Backward,
-              limit: 50,
-            })
-          );
-          if (!mounted) return;
-          if (relErr) {
-            logTimelineDebug(threadDebugTraceId, 'thread-sdk-bootstrap-relations-error', {
-              threadId,
-            });
-            setThreadLoadError(true);
-            if (isThreadNotFoundError(relErr)) {
-              onThreadLoadError?.(threadId);
-            }
-            return;
-          }
-          // Check if SDK created a Thread from the fetched relations
-          threadModel = room.getThread(threadId);
-          if (!threadModel && relData?.chunk?.length) {
-            // We need to render something even without a Thread model, so store
-            // mapped relation events for thread view fallback rendering.
-            const mapper = mx.getEventMapper();
-            const mappedEvents = relData.chunk
-              .slice()
-              .reverse()
-              .map((evt) => mapper(evt));
-            setSupplementalThreadEvents(threadId, mappedEvents);
-            persistThreadEventCache(
-              threadId,
-              mappedEvents,
-              room.findEventById(threadId),
-              relData.next_batch
-            );
-            // Reconcile backward pagination even without a Thread model so
-            // stale cached threadHasMoreCachedBack doesn't show a bogus button.
-            reconcileThreadBackwardPagination(
-              undefined,
-              relData.next_batch ?? null,
-              setThreadHasMoreCachedBack
-            );
-            logTimelineDebug(threadDebugTraceId, 'thread-sdk-bootstrap-relations-fallback', {
-              mappedCount: mappedEvents.length,
-              nextBatchPresent: typeof relData.next_batch === 'string',
-              threadId,
-            });
-          }
-        }
-
-        if (threadModel) {
-          // Use the thread's own timeline set for getThreadTimeline
-          const loadedThreadTimelineSet = threadModel.getUnfilteredTimelineSet();
-          const [err] = await to(mx.getThreadTimeline(loadedThreadTimelineSet, threadId));
-          if (!mounted) return;
-          if (err) {
-            // Fallback: even if getThreadTimeline fails, the thread events
-            // may already be populated from the relations fetch above
-            console.warn('getThreadTimeline failed, using fallback:', err);
-            logTimelineDebug(threadDebugTraceId, 'thread-sdk-bootstrap-get-thread-timeline-error', {
-              threadId,
-            });
-          }
-          const firstThreadTimeline = getLinkedTimelines(
-            loadedThreadTimelineSet.getLiveTimeline()
-          )[0];
-          const cachedEarliestAnchor = getThreadCursorAnchor(hydratedCachedPage?.events[0]);
-          const earliestThreadReply = findEarliestLoadedThreadReplyByCacheOrder(
-            threadModel.events,
-            threadId
-          );
-          const threadTimelineAnchor = getThreadCursorAnchor(
-            earliestThreadReply?.event as Partial<IEvent> | undefined
-          );
-          if (
-            firstThreadTimeline &&
-            hydratedCachedPage?.beforeToken !== undefined &&
-            cachedEarliestAnchor &&
-            (!threadTimelineAnchor ||
-              compareCachedPaginationAnchors(threadTimelineAnchor, cachedEarliestAnchor) >= 0)
-          ) {
-            firstThreadTimeline.setPaginationToken(
-              hydratedCachedPage.beforeToken ?? null,
-              Direction.Backward
-            );
-          }
-          if (threadModel.events.length === 0) {
-            // Some servers return empty thread timelines even though relations exist.
-            // Fetch relations and feed them into the thread so replies render.
-            const [relErr, relData] = await to(
-              mx.fetchRelations(room.roomId, threadId, 'm.thread' as any, null, {
-                dir: Direction.Backward,
-                limit: 50,
-              })
-            );
-            if (!mounted) return;
-            if (!relErr && relData?.chunk?.length) {
-              const mapper = mx.getEventMapper();
-              const mappedEvents = relData.chunk
-                .slice()
-                .reverse()
-                .map((evt) => mapper(evt));
-              threadModel.addEvents(mappedEvents, true);
-              firstThreadTimeline?.setPaginationToken(
-                relData.next_batch ?? null,
-                Direction.Backward
-              );
-              logTimelineDebug(
-                threadDebugTraceId,
-                'thread-sdk-bootstrap-empty-thread-relations-fill',
-                {
-                  mappedCount: mappedEvents.length,
-                  nextBatchPresent: typeof relData.next_batch === 'string',
-                  threadId,
-                }
-              );
-            }
-          }
-          logTimelineDebug(threadDebugTraceId, 'thread-sdk-bootstrap-ready', {
-            rootPresent: !!threadModel.rootEvent,
-            sdkEventCount: threadModel.events.length,
-            threadId,
-          });
-          persistThreadEventCache(
-            threadId,
-            threadModel.events,
-            threadModel.rootEvent,
-            firstThreadTimeline?.getPaginationToken(Direction.Backward)
-          );
-
-          // Reconcile backward pagination using the SDK token directly,
-          // avoiding the async race from persist→read-back through IndexedDB.
-          if (firstThreadTimeline) {
-            const sdkBackwardToken =
-              firstThreadTimeline.getPaginationToken(Direction.Backward) ?? null;
-            reconcileThreadBackwardPagination(
-              firstThreadTimeline,
-              sdkBackwardToken,
-              setThreadHasMoreCachedBack
-            );
-          }
-        } else {
-          console.warn('Could not create thread object for', threadId);
-          logTimelineDebug(threadDebugTraceId, 'thread-sdk-bootstrap-missing-thread-model', {
-            threadId,
-          });
-        }
+        const shouldContinueAfterSdkBootstrap = await runThreadOpenSdkBootstrap({
+          debugTraceId: threadDebugTraceId,
+          hydratedCachedPage,
+          isMounted: () => mounted,
+          mx,
+          onThreadLoadError,
+          persistThreadEventCache,
+          pinThreadToBottomOnOpen,
+          room,
+          setSupplementalThreadEvents,
+          setThreadHasMoreCachedBack,
+          setThreadLoadError,
+          setThreadTailLoaded,
+          setThreadTimelineTick,
+          setTimeline,
+          shouldScrollToLatestOnOpen,
+          threadId,
+        });
+        if (!shouldContinueAfterSdkBootstrap) return;
 
         if (shouldScrollToLatestOnOpen) {
           await refreshLatestThreadSlice(threadId);

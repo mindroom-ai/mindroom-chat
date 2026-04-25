@@ -310,6 +310,9 @@ The cached thread snapshot read used to prewarm thread-open seeds also lives in 
 so `RoomTimeline` no longer directly imports the cached thread snapshot reader for seed prewarm.
 Thread-open seed scanning, room/model/cache seed merging, initial seed application, and the
 prewarm wait timeout now live in `src/app/mindroom/threads/threadOpenSeedController.ts`.
+Thread-open SDK bootstrap, zero-reply/pending-root early completion, relation fallback hydration,
+and SDK backward-token reconciliation now live in
+`src/app/mindroom/threads/threadOpenSdkBootstrap.ts`.
 Thread-open cache hydration, latest-slice refresh, relation backfill, and cached relation-tail
 refresh now live in `src/app/mindroom/threads/threadOpenCacheController.ts`; `RoomTimeline` decides
 when to dispatch these commands but no longer owns their cache/network policy.

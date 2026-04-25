@@ -175,6 +175,20 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('const hydrateThreadFromCache = useCallback');
   });
 
+  it('delegates thread-open SDK bootstrap to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const bootstrapSource = readFileSync(
+      new URL('../../mindroom/threads/threadOpenSdkBootstrap.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain('runThreadOpenSdkBootstrap');
+    expect(bootstrapSource).toContain('thread-sdk-bootstrap-ready');
+    expect(source).not.toContain('thread-sdk-bootstrap-context-error');
+    expect(source).not.toContain('isPendingLocalEchoThreadRoot');
+    expect(source).not.toContain('isZeroReplyStandaloneThreadRootEvent');
+  });
+
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 

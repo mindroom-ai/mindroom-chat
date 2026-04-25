@@ -752,6 +752,15 @@
     - focused Vitest passes for `threadOpenSeedController.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.architecture.test.ts`, `RoomTimeline.navigation.test.ts`, and `RoomTimeline.permalink-refresh.test.ts`
     - `npm run typecheck` passes
     - `git diff --check` passes
+- `CINNY-075` implementation step 23 / Phase 5 thread-open SDK bootstrap (2026-04-24):
+  - added `src/app/mindroom/threads/threadOpenSdkBootstrap.ts` as the fork-owned owner for SDK thread bootstrap during thread open.
+  - `RoomTimeline` no longer owns pending local echo root completion, zero-reply standalone root completion, SDK thread creation, relation fallback hydration, empty-thread relation filling, thread-cache write-through after SDK bootstrap, or SDK backward-token reconciliation.
+  - kept targeted permalink/search refresh and final scroll/focus route handling local because those still coordinate route-specific UI state.
+  - validation:
+    - focused Vitest passes for `threadOpenSdkBootstrap.test.ts`, `threadOpenSeedController.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.architecture.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`75` warnings, `0` errors)
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
