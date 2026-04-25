@@ -6,7 +6,7 @@ import {
   type ThreadFilterKey,
   type ThreadFilterState,
   type ThreadSortFreezeState,
-} from '../../features/room/roomThreadOverviewModel';
+} from './roomThreadOverviewModel';
 import type { ThreadRecord } from './types';
 
 const filterKeys: ThreadFilterKey[] = ['resolved', 'streaming', 'scheduled', 'unread', 'idle'];

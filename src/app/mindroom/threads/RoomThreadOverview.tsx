@@ -22,12 +22,12 @@ import type {
   TriState,
   StatusCounts,
   FilterPreset,
-} from '../../features/room/roomThreadOverviewModel';
+} from './roomThreadOverviewModel';
 import {
   hasActiveThreadFilters,
   FILTER_PRESETS,
   isOrModeStatusChip,
-} from '../../features/room/roomThreadOverviewModel';
+} from './roomThreadOverviewModel';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
 
 export type { ThreadFilterState, ThreadFilterKey };

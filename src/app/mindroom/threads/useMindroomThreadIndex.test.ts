@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createDefaultThreadFilterState,
   type ThreadFilterState,
-} from '../../features/room/roomThreadOverviewModel';
+} from './roomThreadOverviewModel';
 import type { ThreadRecord } from './types';
 import { resolveMindroomThreadIndexSnapshot } from './useMindroomThreadIndex';
 

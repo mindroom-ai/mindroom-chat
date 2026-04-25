@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type {
   ThreadFilterState,
   ThreadSortFreezeState,
-} from '../../features/room/roomThreadOverviewModel';
+} from './roomThreadOverviewModel';
 import type { ThreadRecord } from './types';
 import {
   computeThreadRecordStatusCounts,
