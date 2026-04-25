@@ -11,7 +11,7 @@ import {
   ThreadInitialRenderMode,
 } from './threadRenderUtils';
 import { eventBelongsToThread } from './threadUtils';
-import { logTimelineDebug } from '../../features/room/timelineDebug';
+import { logTimelineDebug } from './timelineDebug';
 
 type UseThreadRenderStateOpts = {
   room: Room;

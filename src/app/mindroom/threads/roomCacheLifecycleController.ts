@@ -6,7 +6,7 @@ import {
   type SetStateAction,
 } from 'react';
 import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
-import { logTimelineDebug } from '../../features/room/timelineDebug';
+import { logTimelineDebug } from './timelineDebug';
 import { type Timeline } from './timelinePagination';
 import {
   findEarliestLoadedRoomEventByCacheOrder,

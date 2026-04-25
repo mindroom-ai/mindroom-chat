@@ -1,7 +1,7 @@
 import type { EventTimelineSet, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { MutableRefObject } from 'react';
 import { hydrateCachedEvents } from '../../features/room/eventCacheEditUtils';
-import { logTimelineDebug } from '../../features/room/timelineDebug';
+import { logTimelineDebug } from './timelineDebug';
 import { reactionOrEditEvent } from '../../utils/room';
 import {
   getLoadedRoomThreadEvents,

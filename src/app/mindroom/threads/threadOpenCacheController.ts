@@ -9,7 +9,7 @@ import {
 } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import { THREAD_BATCH_SIZE } from '../../state/settings';
-import { logTimelineDebug } from '../../features/room/timelineDebug';
+import { logTimelineDebug } from './timelineDebug';
 import { getLinkedTimelines } from './timelinePagination';
 import {
   collectRedactedRelationTargetsFromLookup,

@@ -6,7 +6,7 @@ import {
   getRoomPreloadCounts,
   getRenderableEvents,
 } from './roomTimelineEvents';
-import { logTimelineDebug } from '../../features/room/timelineDebug';
+import { logTimelineDebug } from './timelineDebug';
 import {
   getLinkedTimelines,
   getLiveTimeline,

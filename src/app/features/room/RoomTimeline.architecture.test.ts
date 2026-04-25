@@ -627,6 +627,24 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('threadPaginatingFrontRef');
   });
 
+  it('keeps timeline debug helpers in MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const compatibilitySource = readFileSync(
+      new URL('./timelineDebug.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/timelineDebug.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/timelineDebug'");
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/timelineDebug'");
+    expect(implementationSource).toContain('createTimelineDebugTrace');
+    expect(implementationSource).toContain('mindroom.debug.timeline');
+    expect(compatibilitySource).not.toContain('console.log');
+  });
+
   it('keeps thread pagination reconciliation helpers in MindRoom threads', () => {
     const compatibilitySource = readFileSync(
       new URL('./threadPaginationUtils.ts', import.meta.url),

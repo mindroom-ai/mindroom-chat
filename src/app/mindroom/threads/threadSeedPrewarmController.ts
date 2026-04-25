@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
-import { logTimelineDebug } from '../../features/room/timelineDebug';
+import { logTimelineDebug } from './timelineDebug';
 import { loadThreadCachedSnapshot } from './eventRepository';
 import { mergeThreadBackfillEvents } from './threadCacheSnapshot';
 import {
