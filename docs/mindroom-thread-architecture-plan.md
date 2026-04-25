@@ -718,8 +718,9 @@ Acceptance:
   namespace, with old `components/message/*` paths reduced to thin compatibility wrappers.
 - Long-text sidecar hydration, AI-run metadata/display helpers, tool-trace parsing, and
   MindRoom block parsing also live in the MindRoom namespace with compatibility wrappers only.
-- AI-run message controls, long-text original download controls, and their styles live in
-  `src/app/mindroom/messages`; generic room message rendering only wires them in.
+- AI-run message controls, long-text original download controls, copy-text long-text state, and
+  their styles live in `src/app/mindroom/messages`; generic room message rendering only wires the
+  `messageExtensions.tsx` seam.
 - Pinned-message cache-aware event lookup and tool approval rendering live behind
   `src/app/mindroom/messages/pinnedMessageExtensions.ts`; the generic pinned-message menu only
   mounts the pinned-message seam.
