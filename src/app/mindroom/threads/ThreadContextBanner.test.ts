@@ -114,7 +114,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   TitleRow: 'TitleRow',
 }));
 
-vi.mock('../../components/message/Reply.css', () => ({
+vi.mock('./ThreadIndicator.css', () => ({
   ThreadScheduledIndicator: 'ThreadScheduledIndicator',
   ThreadScheduledIcon: 'ThreadScheduledIcon',
 }));

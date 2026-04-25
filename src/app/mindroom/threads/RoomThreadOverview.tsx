@@ -15,7 +15,7 @@ import {
 } from '@tabler/icons-react';
 import classNames from 'classnames';
 import * as css from './RoomThreadOverview.css';
-import * as replyCss from '../../components/message/Reply.css';
+import * as threadIndicatorCss from './ThreadIndicator.css';
 import type {
   ThreadFilterState,
   ThreadFilterKey,
@@ -766,7 +766,7 @@ export function RoomThreadOverview({
             isOrMode={isOrModeStatusChip(state, 'streaming')}
             onToggle={handleToggleWithPresetClear}
           >
-            <span className={replyCss.ThreadStreamingDot} aria-hidden="true" />
+            <span className={threadIndicatorCss.ThreadStreamingDot} aria-hidden="true" />
           </TriStateIconToggle>
 
           <TriStateIconToggle
@@ -778,7 +778,7 @@ export function RoomThreadOverview({
             <IconCalendarEvent
               size={14}
               stroke={1.8}
-              className={replyCss.ThreadScheduledIcon}
+              className={threadIndicatorCss.ThreadScheduledIcon}
               aria-hidden="true"
             />
           </TriStateIconToggle>

@@ -364,6 +364,10 @@ vi.mock('../../components/message', () => ({
   MindroomThreadSummaryCard: passthrough,
 }));
 
+vi.mock('../../mindroom/threads/ThreadIndicator', () => ({
+  ThreadIndicator: passthrough,
+}));
+
 vi.mock('../../mindroom/messages/MindroomThreadSummaryCard', () => ({
   MindroomThreadSummaryCard: passthrough,
 }));

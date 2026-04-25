@@ -30,6 +30,9 @@
 - `CINNY-113`
   - Thread-open navigation seeding now lives in `src/app/mindroom/threads/threadNavigation.ts`.
   - Generic room navigation remains responsible for room path construction, while the MindRoom owner handles thread-exit state, iOS history-back policy, and post-navigation persistence.
+- `CINNY-114`
+  - Thread indicator rendering now lives in `src/app/mindroom/threads/ThreadIndicator.tsx` with its MindRoom-specific styles.
+  - Generic reply rendering delegates the thread badge to that owner instead of importing activity, resolution, scheduled-task, unread, and participant derivation hooks directly.
 
 ### Current Feature Set On `dev`
 

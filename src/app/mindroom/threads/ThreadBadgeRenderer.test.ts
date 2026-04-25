@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ThreadBadgeRenderer } from './ThreadBadgeRenderer';
 import type { ThreadBadgeViewModel } from './types';
 
-vi.mock('../../components/message', () => ({
+vi.mock('./ThreadIndicator', () => ({
   ThreadIndicator: 'thread-indicator',
 }));
 

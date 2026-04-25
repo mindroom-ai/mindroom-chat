@@ -505,8 +505,8 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/useThreadLastActivityTs.ts', import.meta.url),
       'utf8'
     );
-    const replySource = readFileSync(
-      new URL('../../components/message/Reply.tsx', import.meta.url),
+    const threadIndicatorSource = readFileSync(
+      new URL('../../mindroom/threads/ThreadIndicator.tsx', import.meta.url),
       'utf8'
     );
 
@@ -515,8 +515,47 @@ describe('RoomTimeline architecture', () => {
     );
     expect(hookImplementationSource).toContain('getThreadLastActivityTs');
     expect(hookImplementationSource).toContain("from './threadUtils'");
-    expect(replySource).toContain("from '../../mindroom/threads/useThreadLastActivityTs'");
+    expect(threadIndicatorSource).toContain("from './useThreadLastActivityTs'");
     expect(hookCompatibilitySource).not.toContain('isVisibleThreadReplyEvent');
+  });
+
+  it('keeps thread indicator rendering in MindRoom threads', () => {
+    const replySource = readFileSync(
+      new URL('../../components/message/Reply.tsx', import.meta.url),
+      'utf8'
+    );
+    const replyStyleSource = readFileSync(
+      new URL('../../components/message/Reply.css.ts', import.meta.url),
+      'utf8'
+    );
+    const indexSource = readFileSync(
+      new URL('../../components/message/index.ts', import.meta.url),
+      'utf8'
+    );
+    const threadIndicatorSource = readFileSync(
+      new URL('../../mindroom/threads/ThreadIndicator.tsx', import.meta.url),
+      'utf8'
+    );
+    const threadIndicatorViewModelSource = readFileSync(
+      new URL('../../mindroom/threads/threadIndicatorViewModel.ts', import.meta.url),
+      'utf8'
+    );
+    const threadIndicatorStyleSource = readFileSync(
+      new URL('../../mindroom/threads/ThreadIndicator.css.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(replySource).toContain("from '../../mindroom/threads/ThreadIndicator'");
+    expect(replySource).not.toContain('useThreadResolution');
+    expect(replySource).not.toContain('useThreadScheduledTasks');
+    expect(replySource).not.toContain('getThreadUnread');
+    expect(replyStyleSource).not.toContain('ThreadStreamingPulse');
+    expect(indexSource).toContain("from '../../mindroom/threads/ThreadIndicator'");
+    expect(threadIndicatorSource).toContain("from './threadIndicatorViewModel'");
+    expect(threadIndicatorViewModelSource).toContain('getThreadRootReplyCount');
+    expect(threadIndicatorSource).toContain("from './useRoomThreadTags'");
+    expect(threadIndicatorSource).toContain("from './useThreadScheduledTasks'");
+    expect(threadIndicatorStyleSource).toContain('ThreadStreamingPulse');
   });
 
   it('keeps cache-aware room event loading in MindRoom threads', () => {

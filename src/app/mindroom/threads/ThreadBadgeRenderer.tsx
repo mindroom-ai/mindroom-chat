@@ -1,7 +1,7 @@
 import React, { type MouseEventHandler } from 'react';
 import { Room } from 'matrix-js-sdk';
 import { Box, config } from 'folds';
-import { ThreadIndicator } from '../../components/message';
+import { ThreadIndicator } from './ThreadIndicator';
 import { MindroomThreadSummaryCard } from '../messages/MindroomThreadSummaryCard';
 import type { ThreadBadgeViewModel } from './types';
 
