@@ -728,6 +728,9 @@ Acceptance:
 - MindRoom startup route-restore and alias-canonicalization policy lives in
   `src/app/mindroom/routing/clientRouteRestore.ts`; `ClientLayout` should remain a narrow React
   integration point for those effects.
+- Last-open-thread persistence lives in `src/app/mindroom/threads/lastOpenThread.ts`;
+  `src/app/state/lastOpenThread.ts` is compatibility-only and session cleanup reaches it through
+  the MindRoom cleanup boundary.
 - Scheduled-thread state parsing, counts, header labels, and hooks live in `src/app/mindroom/threads`;
   legacy hook/util paths are compatibility exports only.
 - Thread activity timestamp derivation lives in `src/app/mindroom/threads/useThreadLastActivityTs.ts`;

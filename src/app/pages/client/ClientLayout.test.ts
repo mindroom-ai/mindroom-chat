@@ -5,7 +5,7 @@ import { ClientLayout } from './ClientLayout';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useActiveSession } from '../../hooks/useSessionStore';
-import { getLastOpenThread } from '../../state/lastOpenThread';
+import { getLastOpenThread } from '../../mindroom/threads/lastOpenThread';
 import { updateSessionLastPath } from '../../state/sessions';
 
 vi.mock('folds', async () => {
@@ -36,7 +36,7 @@ vi.mock('../../hooks/useSessionStore', () => ({
   useActiveSession: vi.fn(),
 }));
 
-vi.mock('../../state/lastOpenThread', () => ({
+vi.mock('../../mindroom/threads/lastOpenThread', () => ({
   getLastOpenThread: vi.fn(),
 }));
 

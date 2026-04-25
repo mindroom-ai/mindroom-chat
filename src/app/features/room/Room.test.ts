@@ -121,7 +121,7 @@ vi.mock('../../hooks/useRoomNavigate', () => ({
   }),
 }));
 
-vi.mock('../../state/lastOpenThread', () => ({
+vi.mock('../../mindroom/threads/lastOpenThread', () => ({
   clearLastOpenThread: clearLastOpenThreadMock,
   getLastOpenThread: getLastOpenThreadMock,
   setLastOpenThread: setLastOpenThreadMock,

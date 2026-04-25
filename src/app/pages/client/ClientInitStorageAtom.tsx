@@ -4,7 +4,10 @@ import { makeClosedNavCategoriesAtom } from '../../state/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../state/hooks/closedNavCategories';
 import { makeClosedLobbyCategoriesAtom } from '../../state/closedLobbyCategories';
 import { ClosedLobbyCategoriesProvider } from '../../state/hooks/closedLobbyCategories';
-import { makeLastOpenThreadAtom, registerLastOpenThreadAtom } from '../../state/lastOpenThread';
+import {
+  makeLastOpenThreadAtom,
+  registerLastOpenThreadAtom,
+} from '../../mindroom/threads/lastOpenThread';
 import { makeNavToActivePathAtom } from '../../state/navToActivePath';
 import { NavToActivePathProvider } from '../../state/hooks/navToActivePath';
 import { makeOpenedSidebarFolderAtom } from '../../state/openedSidebarFolder';
