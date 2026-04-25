@@ -692,6 +692,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../plugins/react-custom-html-parser.tsx', import.meta.url),
       'utf8'
     );
+    const customHtmlStyleSource = readFileSync(
+      new URL('../../styles/CustomHtml.css.ts', import.meta.url),
+      'utf8'
+    );
     const streamingHookSource = readFileSync(
       new URL('../../hooks/useThreadStreamingState.ts', import.meta.url),
       'utf8'
@@ -722,6 +726,14 @@ describe('RoomTimeline architecture', () => {
     );
     const toolTraceSource = readFileSync(
       new URL('../../mindroom/messages/toolTrace.ts', import.meta.url),
+      'utf8'
+    );
+    const htmlBlocksSource = readFileSync(
+      new URL('../../mindroom/messages/MindroomHtmlBlocks.tsx', import.meta.url),
+      'utf8'
+    );
+    const htmlBlocksStyleSource = readFileSync(
+      new URL('../../mindroom/messages/MindroomHtmlBlocks.css.ts', import.meta.url),
       'utf8'
     );
     const threadSummaryCardSource = readFileSync(
@@ -758,8 +770,13 @@ describe('RoomTimeline architecture', () => {
     expect(roomMessageSource).not.toContain('downloadMindroomLongTextSidecarBlob');
     expect(roomMessageSource).not.toContain('getMindroomAiRunModelLabel');
     expect(roomMessageStyleSource).not.toContain('MessageAiRunInfoButton');
-    expect(parserSource).toContain("from '../mindroom/messages/blocks'");
-    expect(parserSource).toContain("from '../mindroom/messages/toolTrace'");
+    expect(parserSource).toContain("from '../mindroom/messages/MindroomHtmlBlocks'");
+    expect(parserSource).not.toContain("from '../mindroom/messages/blocks'");
+    expect(parserSource).not.toContain("from '../mindroom/messages/toolTrace'");
+    expect(parserSource).not.toContain('MINDROOM_BLOCK_META');
+    expect(parserSource).not.toContain('MindroomCollapsibleBlock');
+    expect(customHtmlStyleSource).not.toContain('MindroomBlock');
+    expect(customHtmlStyleSource).not.toContain('MindroomToolGroup');
     expect(streamingHookSource).toContain("from '../mindroom/messages/aiRun'");
     expect(messageIndexSource).toContain(
       "from '../../mindroom/messages/MindroomThreadSummaryCard'"
@@ -799,6 +816,11 @@ describe('RoomTimeline architecture', () => {
     expect(longTextSource).toContain('LONG_TEXT_TAG');
     expect(longTextDownloadSource).toContain('getMindroomLongTextDownloadName');
     expect(toolTraceSource).toContain('getMindroomToolTraceEvents');
+    expect(htmlBlocksSource).toContain('renderMindroomHtmlBlock');
+    expect(htmlBlocksSource).toContain('withMindroomToolTraceMarkerParserOptions');
+    expect(htmlBlocksSource).toContain('parseMindroomToolRefHtml');
+    expect(htmlBlocksSource).toContain('getMindroomToolTraceEvents');
+    expect(htmlBlocksStyleSource).toContain('ToolGroupItem');
     expect(threadSummaryCardSource).toContain('MindroomThreadSummaryCard');
     expect(messageControlsSource).toContain('useMindroomMessageControls');
     expect(messageControlsSource).toContain('MindroomAiRunControls');
