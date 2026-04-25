@@ -9,7 +9,7 @@ import {
 import { getActiveAnnotationsByKey } from '../../utils/reactionAnnotations';
 import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../../utils/room';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../utils/thread';
-import { useThreadEventRefresh } from '../../hooks/useThreadEventRefresh';
+import { useThreadEventRefresh } from './useThreadEventRefresh';
 
 const STREAM_STATUS_KEY = 'io.mindroom.stream_status';
 const ACTIVE_STREAM_STATES = new Set(['active', 'running', 'streaming']);
