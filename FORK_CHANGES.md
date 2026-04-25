@@ -75,6 +75,9 @@
 - `CINNY-126`
   - The generic reply renderer now consumes compatibility seams for thread indicators and cache-aware event loading.
   - MindRoom-specific thread indicator behavior remains owned by `src/app/mindroom/threads/ThreadIndicator.tsx`.
+- `CINNY-127`
+  - The pinned-message menu now uses compatibility seams for cache-aware event loading and MindRoom tool-approval rendering.
+  - Deep MindRoom hook/message imports stay behind the existing hook and message compatibility modules.
 
 ### Current Feature Set On `dev`
 
