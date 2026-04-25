@@ -152,6 +152,9 @@
 - `CINNY-154`
   - Removed `RoomTimeline` compatibility re-exports for thread bootstrap, route-focus, deep-link, and timeline-refresh helpers.
   - Focused tests now import those helpers from their MindRoom-owned modules directly, leaving `RoomTimeline` as a component export only.
+- `CINNY-155`
+  - Removed the generic message barrel export for `MindroomThreadSummaryCard`; MindRoom message surfaces import the card from `src/app/mindroom/messages` directly.
+  - Removed the sidebar barrel export for `MindroomTab`; `SidebarNav` imports the MindRoom-owned tab directly at the integration point.
 
 ### Current Feature Set On `dev`
 
