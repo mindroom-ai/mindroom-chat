@@ -7,6 +7,7 @@ import type { ThreadRecord } from './types';
 import {
   computeThreadRecordStatusCounts,
   computeThreadRecordTagCounts,
+  matchesThreadRecordFilterState,
   resolveThreadRecordOverviewRootIds,
 } from './threadRecordOverview';
 
@@ -198,5 +199,75 @@ describe('threadRecordOverview selectors', () => {
       priority: 2,
       blocked: 1,
     });
+  });
+
+  it('applies OR status filters, hard exclusions, and tag filters from ThreadRecord', () => {
+    expect(
+      matchesThreadRecordFilterState(
+        makeRecord('$streaming-priority', {
+          status: {
+            isKnownThreadRoot: true,
+            replyCount: 1,
+            isResolved: false,
+            isUnread: false,
+            isStreaming: true,
+            scheduledTaskCount: 0,
+            tags: ['priority'],
+          },
+        }),
+        makeDefaultState({
+          streaming: 'include',
+          scheduled: 'include',
+          resolved: 'exclude',
+          tags: new Map([['priority', 'include']]),
+          statusMode: 'or',
+        })
+      )
+    ).toBe(true);
+
+    expect(
+      matchesThreadRecordFilterState(
+        makeRecord('$resolved-streaming-priority', {
+          status: {
+            isKnownThreadRoot: true,
+            replyCount: 1,
+            isResolved: true,
+            isUnread: false,
+            isStreaming: true,
+            scheduledTaskCount: 0,
+            tags: ['priority'],
+          },
+        }),
+        makeDefaultState({
+          streaming: 'include',
+          scheduled: 'include',
+          resolved: 'exclude',
+          tags: new Map([['priority', 'include']]),
+          statusMode: 'or',
+        })
+      )
+    ).toBe(false);
+
+    expect(
+      matchesThreadRecordFilterState(
+        makeRecord('$streaming-no-tag', {
+          status: {
+            isKnownThreadRoot: true,
+            replyCount: 1,
+            isResolved: false,
+            isUnread: false,
+            isStreaming: true,
+            scheduledTaskCount: 0,
+            tags: [],
+          },
+        }),
+        makeDefaultState({
+          streaming: 'include',
+          scheduled: 'include',
+          tags: new Map([['priority', 'include']]),
+          statusMode: 'or',
+        })
+      )
+    ).toBe(false);
   });
 });

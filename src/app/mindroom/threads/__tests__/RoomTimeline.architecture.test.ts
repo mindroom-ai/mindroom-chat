@@ -876,7 +876,8 @@ describe('RoomTimeline architecture', () => {
 
     expect(source).toContain("from '../../mindroom/threads/roomThreadOverviewModel'");
     expect(implementationSource).toContain('createDefaultThreadFilterState');
-    expect(implementationSource).toContain('buildThreadMetadataMap');
+    expect(implementationSource).not.toContain('buildThreadMetadataMap');
+    expect(implementationSource).not.toContain('buildVisibleThreadRootData');
   });
 
   it('keeps thread relation and route utilities in MindRoom threads', () => {
