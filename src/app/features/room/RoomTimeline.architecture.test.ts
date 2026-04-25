@@ -61,10 +61,13 @@ describe('RoomTimeline architecture', () => {
 
     expect(source).toContain('persistRoomEventCacheSnapshot');
     expect(source).toContain('persistThreadEventCacheSnapshot');
+    expect(source).toContain('persistThreadCacheFromRoomEventsSnapshot');
     expect(source).not.toContain('saveRoomEventsToCache(');
     expect(source).not.toContain('saveThreadEventsToCache(');
     expect(source).not.toContain('serializeRoomCacheEvents(room');
     expect(source).not.toContain('serializeThreadCacheEvents(room');
+    expect(source).not.toContain('groupThreadCacheEvents');
+    expect(source).not.toContain('getRoomDerivedThreadSnapshotState');
   });
 
   it('delegates overview cache hydration to the MindRoom thread namespace', () => {
