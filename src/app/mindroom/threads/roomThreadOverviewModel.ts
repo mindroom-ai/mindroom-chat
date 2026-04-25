@@ -10,7 +10,6 @@ import {
   isNestedThreadReplyEvent,
   isZeroReplyStandaloneThreadRootEvent,
 } from './compactThreadRootData';
-import { parseScheduledTaskStateEvent } from './scheduledTaskContract';
 import type { RoomViewMode } from './roomViewMode';
 import {
   getPreferredVisibleThreadReplyEvents,
@@ -514,32 +513,6 @@ const getThreadNonUserParticipantDisplayName = (
 export const getThreadOverviewSummaryText = (
   metadata: ThreadOverviewMetadata
 ): string | undefined => getThreadPrimarySummaryText(metadata);
-
-// ─── Batch scheduled task helper ────────────────────────────────────────────
-
-export const getRoomScheduledTaskCounts = (
-  scheduledTaskEvents: MatrixEvent[]
-): Map<string, number> => {
-  const counts = new Map<string, number>();
-  const now = new Date();
-
-  scheduledTaskEvents.forEach((event) => {
-    const parsedTask = parseScheduledTaskStateEvent(event);
-    if (!parsedTask) return;
-    if (parsedTask.status !== 'pending') return;
-    if (parsedTask.newThread) return;
-    if (!parsedTask.threadId) return;
-
-    if (parsedTask.executeAt) {
-      const executeAtDate = new Date(parsedTask.executeAt);
-      if (executeAtDate <= now) return;
-    }
-
-    counts.set(parsedTask.threadId, (counts.get(parsedTask.threadId) ?? 0) + 1);
-  });
-
-  return counts;
-};
 
 // ─── Unread heuristic ───────────────────────────────────────────────────────
 

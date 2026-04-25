@@ -86,8 +86,10 @@ export function ThreadContextBanner({
       isResolved,
       tags,
     },
-    scheduledTaskCount,
-    nextScheduledTs,
+    scheduledStatus: {
+      scheduledTaskCount,
+      nextScheduledTs,
+    },
   });
   const pickerDisabled = !rootEventId || updating;
   const headerModel = buildThreadHeaderViewModelFromRecord({

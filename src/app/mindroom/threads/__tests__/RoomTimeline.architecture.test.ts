@@ -687,6 +687,7 @@ describe('RoomTimeline architecture', () => {
     expect(existsSync(hookCompatibilityPath)).toBe(false);
     expect(hookImplementationSource).toContain("from './compactThreadCardUtils'");
     expect(hookImplementationSource).toContain("from './scheduledTaskContract'");
+    expect(hookImplementationSource).toContain("from './threadScheduledStatus'");
     expect(viewModelSource).toContain("from './compactThreadCardUtils'");
     expect(existsSync(scheduledTaskCompatibilityPath)).toBe(false);
     expect(scheduledTaskImplementationSource).toContain('parseScheduledTaskStateEvent');
