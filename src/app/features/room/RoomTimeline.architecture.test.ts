@@ -1863,6 +1863,22 @@ describe('RoomTimeline architecture', () => {
     expect(menuItemSource).toContain("from './readReceipts'");
   });
 
+  it('delegates notification-list room mark-read ownership to MindRoom notifications', () => {
+    const notificationsSource = readFileSync(
+      new URL('../../pages/client/inbox/Notifications.tsx', import.meta.url),
+      'utf8'
+    );
+    const chipSource = readFileSync(
+      new URL('../../mindroom/notifications/MindroomMarkRoomReadChip.tsx', import.meta.url),
+      'utf8'
+    );
+
+    expect(notificationsSource).toContain('MindroomMarkRoomReadChip');
+    expect(notificationsSource).not.toContain('markRoomAndThreadsAsRead');
+    expect(chipSource).toContain('markRoomAndThreadsAsRead');
+    expect(chipSource).toContain("from './readReceipts'");
+  });
+
   it('delegates route focus and thread-open scroll effects to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const controllerSource = readFileSync(
