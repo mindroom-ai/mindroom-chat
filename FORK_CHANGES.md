@@ -744,6 +744,14 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline (`75` warnings, `0` errors)
     - `git diff --check` passes
+- `CINNY-075` implementation step 22 / Phase 5 thread-open seed controller (2026-04-24):
+  - added `src/app/mindroom/threads/threadOpenSeedController.ts` as the fork-owned owner for thread-open seed scanning and application.
+  - `RoomTimeline` no longer owns the room/model/cache seed merge, the initial room-seed apply path, or the prewarm wait timeout; it creates a seed session and uses its commands during thread open.
+  - relation backfill still receives the same room-seed baseline through the seed session, preserving the existing cache repair behavior while removing local seed maps from `RoomTimeline`.
+  - validation:
+    - focused Vitest passes for `threadOpenSeedController.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.architecture.test.ts`, `RoomTimeline.navigation.test.ts`, and `RoomTimeline.permalink-refresh.test.ts`
+    - `npm run typecheck` passes
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

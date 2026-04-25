@@ -246,8 +246,10 @@ describe('RoomTimeline architecture', () => {
   it('keeps thread-open seed cache in the MindRoom thread namespace', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
-    expect(source).toContain("from '../../mindroom/threads/threadOpenSeedCache'");
+    expect(source).toContain("from '../../mindroom/threads/threadOpenSeedController'");
     expect(source).not.toContain("from './threadOpenSeedCache'");
+    expect(source).not.toContain('thread-open-seed-scan');
+    expect(source).not.toContain('THREAD_OPEN_PREWARM_WAIT_MS');
   });
 
   it('delegates latest room cache hydration decisions to the event repository', () => {
