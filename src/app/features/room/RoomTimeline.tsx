@@ -297,6 +297,15 @@ import {
   mergeThreadBackfillEvents,
 } from '../../mindroom/threads/threadCacheSnapshot';
 import {
+  buildThreadCacheCoverage,
+  hasThreadCacheBackwardGap,
+  hasThreadCacheKnownBackwardStart,
+  hasUsableThreadCacheSnapshot,
+  isCompleteThreadCacheCoverage,
+  shouldBackfillThreadRelationsFromCoverage,
+  shouldShowThreadLoadOlderFromCoverage,
+} from '../../mindroom/threads/threadCacheCoverage';
+import {
   collectPriorityThreadSeedPrewarmRoots,
   fetchAllThreadRelations,
   getCompactRootEventsNeedingBackfill,
@@ -1893,10 +1902,36 @@ export function RoomTimeline({
     });
     return eventMap;
   }, [threadEvents]);
-  const canPaginateThreadBack =
-    typeof threadLinkedTimelines[0]?.getPaginationToken(Direction.Backward) === 'string';
+  const threadBackwardPaginationToken =
+    threadLinkedTimelines[0]?.getPaginationToken(Direction.Backward) ?? null;
+  const canPaginateThreadBack = typeof threadBackwardPaginationToken === 'string';
   const canPaginateThreadFront =
     typeof lastThreadTimeline?.getPaginationToken(Direction.Forward) === 'string';
+  const threadPaginationCoverage = useMemo(
+    () =>
+      buildThreadCacheCoverage({
+        eventCount: threadEvents.length,
+        backwardToken: canPaginateThreadBack
+          ? threadBackwardPaginationToken
+          : threadHasMoreCachedBack
+          ? undefined
+          : null,
+        hasMoreBackward: threadHasMoreCachedBack || canPaginateThreadBack,
+        relationSnapshotComplete: false,
+        tailLoaded: threadTailLoaded,
+      }),
+    [
+      canPaginateThreadBack,
+      threadBackwardPaginationToken,
+      threadEvents.length,
+      threadHasMoreCachedBack,
+      threadTailLoaded,
+    ]
+  );
+  const showThreadLoadOlderMessages = shouldShowThreadLoadOlderFromCoverage({
+    coverage: threadPaginationCoverage,
+    sdkHasBackwardToken: canPaginateThreadBack,
+  });
 
   useEffect(() => {
     if (threadId) return;
@@ -2504,14 +2539,21 @@ export function RoomTimeline({
         snapshotComplete: cachedSnapshotComplete,
         tailLoaded,
       });
+      const cacheCoverage = buildThreadCacheCoverage({
+        eventCount: cachedEvents.length + (cachedRootMatrixEvent ? 1 : 0),
+        backwardToken: cachedPage.beforeToken,
+        hasMoreBackward: cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string',
+        expectedReplyCount: authoritativeExpectedReplyCount,
+        relationSnapshotComplete: cachedRelationSnapshotComplete,
+        snapshotComplete,
+        tailLoaded,
+      });
       const currentThreadTimelineSet = room.getThread(expectedThreadId)?.getUnfilteredTimelineSet();
       const currentFirstThreadTimeline = currentThreadTimelineSet
         ? getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0]
         : undefined;
       const cacheProvesNoBackwardGap =
-        snapshotComplete === true &&
-        cachedPage.hasMoreBefore === false &&
-        cachedPage.beforeToken == null;
+        snapshotComplete === true && hasThreadCacheKnownBackwardStart(cacheCoverage);
       const hadStaleSdkBackwardToken =
         currentFirstThreadTimeline?.getPaginationToken(Direction.Backward) != null;
       if (cacheProvesNoBackwardGap && currentFirstThreadTimeline && hadStaleSdkBackwardToken) {
@@ -2520,9 +2562,7 @@ export function RoomTimeline({
           threadId: expectedThreadId,
         });
       }
-      setThreadHasMoreCachedBack(
-        cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string'
-      );
+      setThreadHasMoreCachedBack(hasThreadCacheBackwardGap(cacheCoverage));
       if (cachedEvents.length === 0) {
         logTimelineDebug(threadDebugTraceId, 'thread-cache-hydrate-empty', {
           tailLoaded,
@@ -2530,6 +2570,7 @@ export function RoomTimeline({
         });
         return {
           ...cachedPage,
+          cacheCoverage,
           expectedReplyCount: authoritativeExpectedReplyCount,
           relationSnapshotComplete: cachedRelationSnapshotComplete,
           snapshotComplete,
@@ -2552,6 +2593,7 @@ export function RoomTimeline({
       });
       return {
         ...cachedPage,
+        cacheCoverage,
         expectedReplyCount: authoritativeExpectedReplyCount,
         relationSnapshotComplete: cachedRelationSnapshotComplete,
         snapshotComplete,
@@ -2872,6 +2914,15 @@ export function RoomTimeline({
         snapshotComplete: relationSnapshotComplete,
         tailLoaded: true,
       });
+      const relationCoverage = buildThreadCacheCoverage({
+        eventCount: mergedEvents.length + (rootEvent ? 1 : 0),
+        backwardToken: relationPageResult.nextBatchToken ?? null,
+        hasMoreBackward: typeof relationPageResult.nextBatchToken === 'string',
+        expectedReplyCount,
+        relationSnapshotComplete,
+        snapshotComplete,
+        tailLoaded: true,
+      });
       const currentThreadTimelineSet = room.getThread(expectedThreadId)?.getUnfilteredTimelineSet();
       const firstThreadTimeline = currentThreadTimelineSet
         ? getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0]
@@ -2896,7 +2947,7 @@ export function RoomTimeline({
         expectedReplyCount,
         relationSnapshotComplete
       );
-      setThreadHasMoreCachedBack(typeof relationPageResult.nextBatchToken === 'string');
+      setThreadHasMoreCachedBack(hasThreadCacheBackwardGap(relationCoverage));
       setThreadTailLoaded(true);
       setTimeline((ct) => ({ ...ct }));
       setThreadTimelineTick((val) => val + 1);
@@ -4123,7 +4174,10 @@ export function RoomTimeline({
         if (!mounted || threadIdRef.current !== threadId) return;
         const cachedThreadHasLocalSnapshot =
           !!hydratedCachedPage &&
-          (hydratedCachedPage.events.length > 0 || !!hydratedCachedPage.rootEvent);
+          hasUsableThreadCacheSnapshot({
+            eventCount: hydratedCachedPage.events.length,
+            rootPresent: !!hydratedCachedPage.rootEvent,
+          });
         if (shouldScrollToLatestOnOpen && !cachedThreadHasLocalSnapshot) {
           applyInitialUntargetedThreadSeed(initialThreadMemorySeedEvents, 'initial');
         }
@@ -4131,11 +4185,10 @@ export function RoomTimeline({
         const hasCompleteCachedThreadSnapshot =
           shouldScrollToLatestOnOpen &&
           !!hydratedCachedPage &&
-          hydratedCachedPage.snapshotComplete === true &&
-          hydratedCachedPage.relationSnapshotComplete === true &&
-          hydratedCachedPage.beforeToken == null &&
-          hydratedCachedPage.hasMoreBefore === false &&
-          (hydratedCachedPage.events.length > 0 || !!hydratedCachedPage.rootEvent);
+          isCompleteThreadCacheCoverage({
+            coverage: hydratedCachedPage.cacheCoverage,
+            hasLocalSnapshot: cachedThreadHasLocalSnapshot,
+          });
 
         if (hasCompleteCachedThreadSnapshot && hydratedCachedPage) {
           const firstThreadLiveTimeline = room
@@ -4169,9 +4222,10 @@ export function RoomTimeline({
         const canBackfillThreadRelations =
           shouldScrollToLatestOnOpen &&
           !!hydratedCachedPage &&
-          (hydratedCachedPage.snapshotComplete !== true ||
-            hydratedCachedPage.relationSnapshotComplete !== true) &&
-          (hydratedCachedPage.events.length > 0 || !!hydratedCachedPage.rootEvent);
+          shouldBackfillThreadRelationsFromCoverage({
+            coverage: hydratedCachedPage.cacheCoverage,
+            hasLocalSnapshot: cachedThreadHasLocalSnapshot,
+          });
         if (canBackfillThreadRelations && hydratedCachedPage) {
           const mapper = mx.getEventMapper();
           const cachedSnapshotEvents = mapCachedThreadPageEvents({
@@ -6700,7 +6754,7 @@ export function RoomTimeline({
                     </TimelineDivider>
                   </MessageBase>
                 )}
-                {threadId && (threadHasMoreCachedBack || canPaginateThreadBack) && (
+                {threadId && showThreadLoadOlderMessages && (
                   <MessageBase space={messageSpacing}>
                     <TimelineDivider variant="Surface">
                       <Chip

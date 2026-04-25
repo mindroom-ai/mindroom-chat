@@ -651,6 +651,14 @@
     - focused Vitest passes for `RoomTimeline.fetchAllThreadRelations.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.architecture.test.ts`
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline (`80` warnings, `0` errors)
+- `CINNY-075` implementation step 10 / Phase 5 coverage decisions (2026-04-24):
+  - added `src/app/mindroom/threads/threadCacheCoverage.ts` as the fork-owned decision layer for thread cache coverage.
+  - extended `ThreadRecord.cache` with optional `hasMoreBackward` and `snapshotComplete` facts so coverage can represent load-older, complete cached opens, relation-complete, tail-loaded, and no-more-history decisions.
+  - `RoomTimeline` now uses the coverage helpers for the thread "Load Older Messages" affordance, complete cached thread opens, relation-backfill decisions, and cached backward-gap reconciliation.
+  - validation:
+    - focused Vitest passes for `threadCacheCoverage.test.ts`, `threadRecord.test.ts`, and `RoomTimeline.cache.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`80` warnings, `0` errors)
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

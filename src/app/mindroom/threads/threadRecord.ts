@@ -206,6 +206,8 @@ const buildDefaultThreadCacheCoverage = (
     oldestTs,
     newestTs,
     backwardToken: zeroReplyComplete ? null : undefined,
+    hasMoreBackward: zeroReplyComplete ? false : undefined,
+    snapshotComplete: zeroReplyComplete ? true : undefined,
     relationSnapshotComplete: zeroReplyComplete,
     tailLoaded: zeroReplyComplete,
     expectedReplyCount,
