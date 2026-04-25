@@ -1102,6 +1102,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 63 / Phase 6 timeline range helper ownership (2026-04-25):
+  - moved initial/empty timeline range construction, active visible-range selection, focused-event index lookup, and room unread lookup into `src/app/mindroom/threads/timelinePagination.ts`.
+  - `RoomTimeline` now imports those helpers from the fork-owned pagination module instead of owning local copies.
+  - validation:
+    - focused Vitest passes for `timelinePagination.test.ts` and `RoomTimeline.architecture.test.ts`
+    - focused Vitest passes for `RoomTimeline.navigation.test.ts` and `RoomTimeline.cache.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

@@ -857,8 +857,12 @@ describe('RoomTimeline architecture', () => {
     expect(implementationSource).toContain('recalibrateTimelinePagination');
     expect(implementationSource).toContain('getEventIdAbsoluteIndex');
     expect(implementationSource).toContain('getLinkedTimelines');
+    expect(implementationSource).toContain('getActiveTimelineRange');
+    expect(implementationSource).toContain('getRoomUnreadInfo');
     expect(source).not.toContain('export const getEventIdAbsoluteIndex');
     expect(source).not.toContain('export const getTimelineAndBaseIndex');
+    expect(source).not.toContain('const getInitialTimeline');
+    expect(source).not.toContain('export const getActiveTimelineRange');
     expect(compatibilitySource).not.toContain('getRenderableEvents');
   });
 
