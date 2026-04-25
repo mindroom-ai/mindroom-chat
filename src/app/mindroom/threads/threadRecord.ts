@@ -21,7 +21,7 @@ import {
   getPreferredVisibleThreadReplyEvents,
   getVisibleThreadParticipantIds,
 } from '../../features/room/threadUtils';
-import type { ThreadRecord } from './types';
+import type { ThreadCacheCoverage, ThreadRecord } from './types';
 
 const THREAD_PARTICIPANT_LIMIT = 3;
 
@@ -50,6 +50,7 @@ type BuildThreadRecordOptions = {
   scheduledTaskEvents?: MatrixEvent[];
   scheduledTaskCount?: number;
   nextScheduledTs?: number;
+  cacheCoverage?: ThreadCacheCoverage;
   absoluteIndex?: number;
 };
 
@@ -72,6 +73,7 @@ type BuildThreadRecordMapOptions = {
   readUpToTs?: number | null;
   scheduledTaskEvents?: MatrixEvent[];
   scheduledTaskCounts?: ReadonlyMap<string, number>;
+  cacheCoverageMap?: ReadonlyMap<string, ThreadCacheCoverage>;
   absoluteIndexMap?: ReadonlyMap<string, number>;
 };
 
@@ -187,6 +189,29 @@ const getThreadUnreadFromReadUpToTs = (
   return latestReply.getTs() > readUpToTs;
 };
 
+const buildDefaultThreadCacheCoverage = (
+  thread: ReturnType<Room['getThread']>,
+  expectedReplyCount: number | undefined
+): ThreadCacheCoverage => {
+  const loadedThreadEvents = getLoadedThreadEvents(thread) ?? [];
+  const timestamps = loadedThreadEvents
+    .map((event) => event.getTs())
+    .filter((ts): ts is number => typeof ts === 'number');
+  const oldestTs = timestamps.length > 0 ? Math.min(...timestamps) : undefined;
+  const newestTs = timestamps.length > 0 ? Math.max(...timestamps) : undefined;
+  const zeroReplyComplete = expectedReplyCount === 0;
+
+  return {
+    eventCount: loadedThreadEvents.length,
+    oldestTs,
+    newestTs,
+    backwardToken: zeroReplyComplete ? null : undefined,
+    relationSnapshotComplete: zeroReplyComplete,
+    tailLoaded: zeroReplyComplete,
+    expectedReplyCount,
+  };
+};
+
 export const buildThreadRecord = ({
   room,
   threadRootId,
@@ -207,6 +232,7 @@ export const buildThreadRecord = ({
   scheduledTaskEvents = [],
   scheduledTaskCount,
   nextScheduledTs,
+  cacheCoverage,
   absoluteIndex,
 }: BuildThreadRecordOptions): ThreadRecord => {
   const thread = room.getThread(threadRootId);
@@ -306,6 +332,7 @@ export const buildThreadRecord = ({
       lastActivityTs,
       tags: getThreadStatusTags(threadResolution),
     },
+    cache: cacheCoverage ?? buildDefaultThreadCacheCoverage(thread, recordReplyCount),
     absoluteIndex: absoluteIndex ?? 0,
   };
 };
@@ -329,6 +356,7 @@ export const buildThreadRecordMap = ({
   readUpToTs,
   scheduledTaskEvents,
   scheduledTaskCounts,
+  cacheCoverageMap,
   absoluteIndexMap,
 }: BuildThreadRecordMapOptions): Map<string, ThreadRecord> => {
   const records = new Map<string, ThreadRecord>();
@@ -355,6 +383,7 @@ export const buildThreadRecordMap = ({
         readUpToTs,
         scheduledTaskEvents,
         scheduledTaskCount: scheduledTaskCounts?.get(threadRootId),
+        cacheCoverage: cacheCoverageMap?.get(threadRootId),
         absoluteIndex: absoluteIndexMap?.get(threadRootId),
       })
     );

@@ -55,6 +55,11 @@ const makeThreadRecord = (
     scheduledTaskCount: 0,
     tags: [],
   },
+  cache: {
+    eventCount: 0,
+    relationSnapshotComplete: false,
+    tailLoaded: false,
+  },
   absoluteIndex: 0,
   ...overrides,
 });

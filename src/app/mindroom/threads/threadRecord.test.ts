@@ -149,6 +149,14 @@ describe('buildThreadRecord', () => {
         scheduledTaskCount: 2,
         tags: ['followup'],
       },
+      cache: {
+        eventCount: 2,
+        oldestTs: 2000,
+        newestTs: 3000,
+        relationSnapshotComplete: false,
+        tailLoaded: false,
+        expectedReplyCount: 2,
+      },
     });
   });
 
@@ -232,6 +240,14 @@ describe('buildThreadRecord', () => {
         isResolved: true,
         tags: ['canonical'],
       },
+      cache: {
+        eventCount: 1,
+        oldestTs: 2000,
+        newestTs: 2000,
+        relationSnapshotComplete: false,
+        tailLoaded: false,
+        expectedReplyCount: 1,
+      },
     });
   });
 
@@ -253,6 +269,20 @@ describe('buildThreadRecord', () => {
       fallbackLastSenderIdMap: new Map([['$root', '@cached:server']]),
       fallbackMessageCountMap: new Map([['$root', 3]]),
       fallbackLastActivityTsMap: new Map([['$root', 9000]]),
+      cacheCoverageMap: new Map([
+        [
+          '$root',
+          {
+            eventCount: 3,
+            oldestTs: 1000,
+            newestTs: 9000,
+            backwardToken: null,
+            relationSnapshotComplete: true,
+            tailLoaded: true,
+            expectedReplyCount: 3,
+          },
+        ],
+      ]),
       threadResolutionMap: new Map([
         [
           '$root',
@@ -284,6 +314,15 @@ describe('buildThreadRecord', () => {
         scheduledTaskCount: 2,
         lastActivityTs: 9000,
         tags: ['direct'],
+      },
+      cache: {
+        eventCount: 3,
+        oldestTs: 1000,
+        newestTs: 9000,
+        backwardToken: null,
+        relationSnapshotComplete: true,
+        tailLoaded: true,
+        expectedReplyCount: 3,
       },
     });
   });

@@ -622,6 +622,19 @@
   - fixed the current lint errors in unresolved-promise tests, alias-response destructuring, context provider value identity, and the `threadRecordOverview` exhaustive switch fallback.
   - validation:
     - `npm run lint` passes with the branch warning-only baseline (`86` warnings, `0` errors)
+- `CINNY-075` implementation step 7 / Phase 4b (2026-04-24):
+  - added `useMindroomThreadIndex` under `src/app/mindroom/threads/` as the fork-owned room index boundary.
+  - `RoomTimeline` now consumes the index snapshot for normal/compact `ThreadRecord` maps, active record map, overview ids, focused-route bypass, effective filter state, status counts, tag counts, search text, and sort signature.
+  - moved overview cache hydration and its cached activity/latest-preview/last-sender/message-count/root-preview fallback maps into `useMindroomThreadIndex`, so those are no longer component-local sources in `RoomTimeline`.
+  - made `ThreadRecord.cache` populated for every record; direct live records get conservative coverage from loaded SDK thread events, and callers can pass authoritative coverage through `cacheCoverageMap`.
+  - added focused behavior/API coverage for compact-vs-normal index selection, focused route filter bypass, record cache coverage defaults, cache coverage overrides, and the narrower RoomTimeline architecture seam.
+  - validation:
+    - focused Vitest passes for `threadRecord.test.ts`, `useMindroomThreadIndex.test.ts`, `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, and `threadOverviewCacheHydration.test.ts`
+    - `npm test` passes (`169/169` files, `1476/1476` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` passes with the branch warning-only baseline (`82` warnings, `0` errors)
+    - `npm run test:e2e` passes (`9` passed, `58` skipped)
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

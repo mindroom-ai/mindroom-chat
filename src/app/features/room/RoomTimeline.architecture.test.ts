@@ -74,7 +74,18 @@ describe('RoomTimeline architecture', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).not.toContain("from './useThreadOverviewCacheHydration'");
-    expect(source).toContain("from '../../mindroom/threads/threadOverviewCacheHydration'");
+    expect(source).not.toContain('useThreadOverviewCacheHydration');
+    expect(source).toContain('useMindroomThreadIndex');
+  });
+
+  it('delegates per-room thread index assembly to the MindRoom thread namespace', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('useMindroomThreadIndex');
+    expect(source).not.toContain('const normalThreadRecordMap = useMemo');
+    expect(source).not.toContain('const compactThreadRecordMap = useMemo');
+    expect(source).not.toContain('computeThreadRecordStatusCounts');
+    expect(source).not.toContain('computeThreadRecordTagCounts');
   });
 
   it('delegates cached thread page stitching to the event repository', () => {
