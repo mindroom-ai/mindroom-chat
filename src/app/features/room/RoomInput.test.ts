@@ -274,6 +274,9 @@ vi.mock('../../mindroom/room-input/RoomInputMindroomExtensions', async () => {
 vi.mock('../../components/message', () => ({
   ReplyLayout: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('div', null, children),
+}));
+
+vi.mock('../../mindroom/threads/ThreadIndicator', () => ({
   ThreadIndicator: () => React.createElement('div'),
 }));
 

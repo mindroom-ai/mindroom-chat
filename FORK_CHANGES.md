@@ -139,6 +139,8 @@
   - Moved remaining MindRoom thread helper tests from `features/room` to `mindroom/threads`.
 - `CINNY-149`
   - Removed unused top-level hook/state/native wrappers after all active callers used MindRoom-owned modules directly.
+- `CINNY-150`
+  - Removed active edge-swipe, room-event, and thread-indicator adapters by retargeting callers to MindRoom-owned modules directly.
 
 ### Current Feature Set On `dev`
 
