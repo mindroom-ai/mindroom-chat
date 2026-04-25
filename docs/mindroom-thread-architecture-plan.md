@@ -452,6 +452,9 @@ returned handlers into the load-older/load-newer buttons.
 Virtual timeline pagination and permalink event-timeline loading now live in
 `src/app/mindroom/threads/timelinePaginationController.ts`; `RoomTimeline` only wires the returned
 commands into the paginator and route-focus flows.
+Live room timeline/redaction event subscription now lives in
+`src/app/mindroom/threads/roomLiveEventArrive.ts`; `RoomTimeline` keeps the room/thread policy
+callback.
 Room cache-first back-pagination now lives in
 `src/app/mindroom/threads/roomPaginationCommandController.ts`; `RoomTimeline` wires the returned
 handler into the virtual paginator and no longer imports cached room pagination readers directly.

@@ -15,7 +15,6 @@ import {
   Direction,
   EventTimeline,
   EventTimelineSet,
-  EventTimelineSetHandlerMap,
   IContent,
   MatrixEvent,
   RelationType,
@@ -204,6 +203,10 @@ import {
   useEventTimelineLoader,
   useTimelinePagination,
 } from '../../mindroom/threads/timelinePaginationController';
+import {
+  useLiveEventArrive,
+  type TimelineArriveMeta,
+} from '../../mindroom/threads/roomLiveEventArrive';
 import { buildThreadBadgeViewModelFromRecord } from '../../mindroom/threads/threadBadgeViewModel';
 import { ThreadBadgeRenderer } from '../../mindroom/threads/ThreadBadgeRenderer';
 import {
@@ -361,46 +364,6 @@ const DIRECT_ROOM_TIMELINE_FILTER_STATE: ThreadFilterState = {
 };
 
 const OVERVIEW_THREAD_METADATA_CACHE_LIMIT = 64;
-
-type TimelineArriveMeta = {
-  liveEvent: boolean;
-  toStartOfTimeline: boolean;
-};
-
-const useLiveEventArrive = (
-  room: Room,
-  onArrive: (mEvent: MatrixEvent, meta: TimelineArriveMeta) => void
-) => {
-  useEffect(() => {
-    const handleTimelineEvent: EventTimelineSetHandlerMap[RoomEvent.Timeline] = (
-      mEvent,
-      eventRoom,
-      toStartOfTimeline,
-      removed,
-      data
-    ) => {
-      if (eventRoom?.roomId !== room.roomId || removed) return;
-      onArrive(mEvent, {
-        liveEvent: data?.liveEvent === true,
-        toStartOfTimeline: toStartOfTimeline === true,
-      });
-    };
-    const handleRedaction: RoomEventHandlerMap[RoomEvent.Redaction] = (mEvent, eventRoom) => {
-      if (eventRoom?.roomId !== room.roomId) return;
-      onArrive(mEvent, {
-        liveEvent: true,
-        toStartOfTimeline: false,
-      });
-    };
-
-    room.on(RoomEvent.Timeline, handleTimelineEvent);
-    room.on(RoomEvent.Redaction, handleRedaction);
-    return () => {
-      room.removeListener(RoomEvent.Timeline, handleTimelineEvent);
-      room.removeListener(RoomEvent.Redaction, handleRedaction);
-    };
-  }, [room, onArrive]);
-};
 
 export function RoomTimeline({
   room,
