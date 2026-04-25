@@ -522,7 +522,7 @@ vi.mock('../../components/image-viewer', () => ({
   ImageViewer: passthrough,
 }));
 
-vi.mock('../../utils/notifications', () => ({
+vi.mock('../../mindroom/notifications/readReceipts', () => ({
   markMainTimelineAsRead: vi.fn(),
   markRoomAndThreadsAsRead: vi.fn(),
   markThreadAsRead: vi.fn(),

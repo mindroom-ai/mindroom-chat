@@ -11,7 +11,7 @@ import { settingsAtom } from '../../state/settings';
 import { PowerLevelsContextProvider, usePowerLevels } from '../../hooks/usePowerLevels';
 import { useRoom } from '../../hooks/useRoom';
 import { useKeyDown } from '../../hooks/useKeyDown';
-import { markRoomAndThreadsAsRead, markThreadAsRead } from '../../utils/notifications';
+import { markRoomAndThreadsAsRead, markThreadAsRead } from '../../mindroom/notifications/readReceipts';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { CallView } from '../call/CallView';

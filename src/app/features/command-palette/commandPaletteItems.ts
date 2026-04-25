@@ -19,7 +19,7 @@ import {
   guessDmRoomUserId,
   isRoomAlias,
 } from '../../utils/matrix';
-import { markRoomAndThreadsAsRead } from '../../utils/notifications';
+import { markRoomAndThreadsAsRead } from '../../mindroom/notifications/readReceipts';
 import { getMatrixToRoom } from '../../plugins/matrix-to';
 import { getViaServers } from '../../plugins/via-servers';
 import { factoryRoomIdByActivity } from '../../utils/sort';
