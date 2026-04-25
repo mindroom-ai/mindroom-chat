@@ -438,6 +438,24 @@ describe('RoomTimeline architecture', () => {
     expect(compatibilitySource).not.toContain('getEffectiveReplacementEvent');
   });
 
+  it('keeps thread render state merging in MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const compatibilitySource = readFileSync(
+      new URL('./useThreadRenderState.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/useThreadRenderState.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/useThreadRenderState'");
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/useThreadRenderState'");
+    expect(implementationSource).toContain('setSupplementalThreadEvents');
+    expect(implementationSource).toContain('mergeThreadRenderEvents');
+    expect(compatibilitySource).not.toContain('fallbackThreadEventsRef');
+  });
+
   it('keeps thread tag state and hooks in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const tagsCompatibilitySource = readFileSync(

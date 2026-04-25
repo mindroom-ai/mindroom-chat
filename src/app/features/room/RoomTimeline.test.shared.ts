@@ -845,7 +845,7 @@ vi.mock('../../components/message/mindroomThreadSummary', async (importOriginal)
   };
 });
 
-vi.mock('./useThreadRenderState', () => ({
+vi.mock('../../mindroom/threads/useThreadRenderState', () => ({
   useThreadRenderState: () => threadRenderStateMock,
 }));
 

@@ -349,6 +349,9 @@ compatibility re-exports.
 Thread render-mode, local-echo dedupe, replacement preference, and thread-only activity helpers now
 live in `src/app/mindroom/threads/threadRenderUtils.ts`; the old `features/room` path is only a
 compatibility re-export.
+Thread render state merging for live SDK events plus cached/supplemental fallback events now lives
+in `src/app/mindroom/threads/useThreadRenderState.ts`; the old `features/room` path is only a
+compatibility re-export.
 Thread tag parsing, optimistic pending state, and read/write hooks now live in
 `src/app/mindroom/threads/threadTags.ts`, `threadTagPending.ts`, `useThreadTags.ts`,
 `useRoomThreadTags.ts`, and `useMutateThreadTags.ts`; the old `features/room` paths are only
