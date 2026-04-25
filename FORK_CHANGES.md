@@ -2040,3 +2040,9 @@
 - Moved native SSO helpers, iOS push registration/state helpers, the iOS push-enabled hook, edge-swipe-back hook, and their tests to `src/app/mindroom/native`.
 - Left thin compatibility exports in `src/app/utils/nativeSso.ts`, `src/app/utils/iosPush.ts`, `src/app/hooks/useIOSPushEnabled.ts`, and `src/app/hooks/useEdgeSwipeBack.ts`.
 - Updated auth, settings, room navigation, back-route handling, and client non-UI feature wiring to import native helpers from the MindRoom namespace directly.
+
+## CINNY-094 — Move thread streaming state to fork namespace (2026-04-25)
+
+- Moved the thread streaming-state selector/hook and tests to `src/app/mindroom/threads/useThreadStreamingState.ts`.
+- Left `src/app/hooks/useThreadStreamingState.ts` as a thin compatibility export for legacy import paths.
+- Updated thread records, thread overview models, reply badges, and test mocks to use the fork-owned streaming-state owner directly.

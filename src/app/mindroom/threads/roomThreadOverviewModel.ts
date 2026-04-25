@@ -5,7 +5,7 @@ import {
   type MindroomThreadSummaryInfo,
 } from '../messages/threadSummary';
 import { getThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
-import { getThreadStreamingState } from '../../hooks/useThreadStreamingState';
+import { getThreadStreamingState } from './useThreadStreamingState';
 import {
   getCompactThreadRootBodyPreviewText,
   isNestedThreadReplyEvent,

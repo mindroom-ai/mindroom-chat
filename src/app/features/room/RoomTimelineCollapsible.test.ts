@@ -280,7 +280,7 @@ vi.mock('../../hooks/useThreadLastActivityTs', () => ({
   useThreadLastActivityTs: () => 0,
 }));
 
-vi.mock('../../hooks/useThreadStreamingState', () => ({
+vi.mock('../../mindroom/threads/useThreadStreamingState', () => ({
   getThreadStreamingState: () => false,
   useThreadStreamingState: () => false,
 }));

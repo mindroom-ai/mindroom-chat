@@ -696,6 +696,8 @@ Acceptance:
   only keeps compatibility exports.
 - Native app helpers for iOS push, native SSO, and edge-swipe-back live in `src/app/mindroom/native`;
   legacy `utils`/`hooks` paths only keep compatibility exports.
+- Thread streaming-state derivation from `io.mindroom.ai_run`, `io.mindroom.stream_status`, and stop
+  reactions lives in `src/app/mindroom/threads`; the old generic hook path is compatibility-only.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy
