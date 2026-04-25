@@ -98,7 +98,9 @@ describe('RoomTimeline', () => {
   });
 
   it('only hydrates the latest room cache slice when it is newer than the loaded room tail', async () => {
-    const { shouldHydrateLatestRoomCache } = await import('./RoomTimeline');
+    const { shouldHydrateLatestRoomCache } = await import(
+      '../../mindroom/threads/eventRepository'
+    );
 
     expect(
       shouldHydrateLatestRoomCache(makeCachedRoomEvent('$loaded', 100), makeCachedRoomEvent('$cached', 200))
@@ -112,7 +114,9 @@ describe('RoomTimeline', () => {
   });
 
   it('deduplicates cached room hydration events against already loaded SDK events', async () => {
-    const { filterLatestRoomCacheHydrationEvents } = await import('./RoomTimeline');
+    const { filterLatestRoomCacheHydrationEvents } = await import(
+      '../../mindroom/threads/eventRepository'
+    );
 
     expect(
       filterLatestRoomCacheHydrationEvents(
