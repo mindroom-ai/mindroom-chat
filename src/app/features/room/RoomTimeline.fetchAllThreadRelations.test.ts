@@ -1,7 +1,7 @@
 import React from 'react';
 import { RoomEvent } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   create,
   createControlledRoomTimelineHarness,
@@ -10,6 +10,21 @@ import {
   makeRoom,
   matrixClientMock,
 } from './RoomTimeline.test.shared';
+
+let fetchAllThreadRelations: typeof import(
+  '../../mindroom/threads/threadBootstrap'
+).fetchAllThreadRelations;
+let shouldRefreshOverviewForTimelineEvent: typeof import(
+  '../../mindroom/threads/threadBootstrap'
+).shouldRefreshOverviewForTimelineEvent;
+let MAX_THREAD_FETCH_EVENTS = 0;
+
+beforeAll(async () => {
+  const threadBootstrap = await import('../../mindroom/threads/threadBootstrap');
+  fetchAllThreadRelations = threadBootstrap.fetchAllThreadRelations;
+  shouldRefreshOverviewForTimelineEvent = threadBootstrap.shouldRefreshOverviewForTimelineEvent;
+  MAX_THREAD_FETCH_EVENTS = threadBootstrap.MAX_THREAD_FETCH_EVENTS;
+});
 
 describe('fetchAllThreadRelations', () => {
   const makeRawEvent = (eventId: string, ts: number) => ({
@@ -29,7 +44,6 @@ describe('fetchAllThreadRelations', () => {
   };
 
   it('returns null when the first page fails', async () => {
-    const { fetchAllThreadRelations } = await import('./RoomTimeline');
     const mx = makeFetchMx();
     mx.fetchRelations.mockRejectedValue(new Error('network'));
 
@@ -40,7 +54,6 @@ describe('fetchAllThreadRelations', () => {
   });
 
   it('returns partial data when a later page fails', async () => {
-    const { fetchAllThreadRelations } = await import('./RoomTimeline');
     const mx = makeFetchMx();
     mx.fetchRelations
       .mockResolvedValueOnce({
@@ -58,7 +71,6 @@ describe('fetchAllThreadRelations', () => {
   });
 
   it('follows next_batch tokens across multiple pages', async () => {
-    const { fetchAllThreadRelations } = await import('./RoomTimeline');
     const mx = makeFetchMx();
     mx.fetchRelations
       .mockResolvedValueOnce({
@@ -82,7 +94,6 @@ describe('fetchAllThreadRelations', () => {
   });
 
   it('returns events in chronological order across batches', async () => {
-    const { fetchAllThreadRelations } = await import('./RoomTimeline');
     const mx = makeFetchMx();
     mx.fetchRelations
       .mockResolvedValueOnce({
@@ -106,7 +117,6 @@ describe('fetchAllThreadRelations', () => {
   });
 
   it('stops when there is no next_batch token', async () => {
-    const { fetchAllThreadRelations } = await import('./RoomTimeline');
     const mx = makeFetchMx();
     mx.fetchRelations.mockResolvedValueOnce({
       chunk: [makeRawEvent('$e1', 100)],
@@ -122,7 +132,6 @@ describe('fetchAllThreadRelations', () => {
   });
 
   it('returns empty events for a thread with no replies', async () => {
-    const { fetchAllThreadRelations } = await import('./RoomTimeline');
     const mx = makeFetchMx();
     mx.fetchRelations.mockResolvedValueOnce({
       chunk: [],
@@ -136,7 +145,6 @@ describe('fetchAllThreadRelations', () => {
   });
 
   it('returns null when isAborted returns true mid-loop', async () => {
-    const { fetchAllThreadRelations } = await import('./RoomTimeline');
     const mx = makeFetchMx();
     let aborted = false;
     mx.fetchRelations.mockImplementation(async () => {
@@ -153,7 +161,6 @@ describe('fetchAllThreadRelations', () => {
   });
 
   it('preserves the final next_batch token from the last successful page', async () => {
-    const { fetchAllThreadRelations, MAX_THREAD_FETCH_EVENTS } = await import('./RoomTimeline');
     const mx = makeFetchMx();
     const largeBatch = Array.from({ length: MAX_THREAD_FETCH_EVENTS }, (_, i) =>
       makeRawEvent(`$e${i}`, i)
@@ -171,7 +178,6 @@ describe('fetchAllThreadRelations', () => {
   });
 
   it('passes the correct limit parameter to fetchRelations', async () => {
-    const { fetchAllThreadRelations } = await import('./RoomTimeline');
     const mx = makeFetchMx();
     mx.fetchRelations.mockResolvedValueOnce({
       chunk: [],
@@ -190,7 +196,6 @@ describe('fetchAllThreadRelations', () => {
   });
 
   it('refreshes overview metadata only for thread-targeted timeline events', async () => {
-    const { shouldRefreshOverviewForTimelineEvent } = await import('./RoomTimeline');
     const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
     const threadReply = makeEvent('$thread-reply', {
       threadRootId: threadRoot.getId(),

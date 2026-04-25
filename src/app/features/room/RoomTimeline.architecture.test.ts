@@ -145,11 +145,23 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates room overview focus and filter helpers to the MindRoom thread namespace', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const windowControllerSource = readFileSync(
+      new URL('../../mindroom/threads/roomTimelineWindowController.ts', import.meta.url),
+      'utf8'
+    );
+    const eventOpenControllerSource = readFileSync(
+      new URL('../../mindroom/threads/roomEventOpenController.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain("from '../../mindroom/threads/threadRoomFocus'");
+    expect(source).not.toContain("from '../../mindroom/threads/threadRoomFocus'");
+    expect(windowControllerSource).toContain("from './threadRoomFocus'");
+    expect(eventOpenControllerSource).toContain("from './threadRoomFocus'");
     expect(source).not.toContain('const getFilteredRoomOverviewEvents');
     expect(source).not.toContain('export const getRoomEventFocusTarget =');
+    expect(source).not.toContain('export { getRoomEventFocusTarget');
     expect(source).not.toContain('export const getThreadFilteredEvents =');
+    expect(source).not.toContain('export { getThreadFilteredEvents');
     expect(source).not.toContain('buildThreadRecordMap({');
   });
 
@@ -164,11 +176,12 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(source).toContain("from '../../mindroom/threads/roomDeepLink'");
+    expect(source).not.toContain("from '../../mindroom/threads/roomDeepLink'");
     expect(implementationSource).toContain('resolveRoomEventThreadRedirect');
     expect(implementationSource).toContain('getRoomEventThreadOpenTarget');
     expect(indexSource).toContain("from './roomDeepLink'");
     expect(indexSource).not.toContain('../../features/room/roomDeepLink');
+    expect(source).not.toContain('export { getRoomEventThreadOpenTarget');
   });
 
   it('keeps last-open-thread state in MindRoom threads', () => {

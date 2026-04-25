@@ -1446,7 +1446,7 @@ describe('RoomTimeline', () => {
   });
 
   it('collects room-loaded thread events in chronological order without surfacing relation rows', async () => {
-    const { getLoadedRoomThreadEvents, getLoadedRoomThreadSeedEvents } = await import('./RoomTimeline');
+    const { getLoadedRoomThreadEvents, getLoadedRoomThreadSeedEvents } = await import('../../mindroom/threads/threadBootstrap');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1 });
     const newerReply = makeEvent('$thread-reply-2', {
@@ -1663,7 +1663,7 @@ describe('RoomTimeline', () => {
   });
 
   it('prioritizes large thread seeds from the room thread list even when they are outside the viewport', async () => {
-    const { collectPriorityThreadSeedPrewarmRoots } = await import('./RoomTimeline');
+    const { collectPriorityThreadSeedPrewarmRoots } = await import('../../mindroom/threads/threadBootstrap');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -1722,7 +1722,7 @@ describe('RoomTimeline', () => {
   });
 
   it('prioritizes threads from the active overview range over larger off-screen room threads', async () => {
-    const { collectPriorityThreadSeedPrewarmRoots } = await import('./RoomTimeline');
+    const { collectPriorityThreadSeedPrewarmRoots } = await import('../../mindroom/threads/threadBootstrap');
     const visibleRoots = Array.from({ length: 12 }, (_, index) =>
       makeEvent(`$thread-root-${index + 1}`, {
         isThreadRoot: true,
@@ -1786,7 +1786,7 @@ describe('RoomTimeline', () => {
   });
 
   it('ignores room thread-list entries without a root event or known reply count', async () => {
-    const { collectPriorityThreadSeedPrewarmRoots } = await import('./RoomTimeline');
+    const { collectPriorityThreadSeedPrewarmRoots } = await import('../../mindroom/threads/threadBootstrap');
     const visibleRoot = makeEvent('$visible-thread-root', {
       isThreadRoot: true,
       ts: 1,
@@ -4093,7 +4093,7 @@ describe('RoomTimeline', () => {
   });
 
   it('filters room events by thread resolution state', async () => {
-    const { getThreadFilteredEvents } = await import('./RoomTimeline');
+    const { getThreadFilteredEvents } = await import('../../mindroom/threads/threadRoomFocus');
     const room = makeRoom();
     const unresolvedEvent = makeEvent('$thread-unresolved', { isThreadRoot: true });
     const resolvedEvent = makeEvent('$thread-resolved', { isThreadRoot: true });
@@ -4133,7 +4133,7 @@ describe('RoomTimeline', () => {
   });
 
   it('treats fallback reply counts as visible thread roots for filtering', async () => {
-    const { getThreadFilteredEvents } = await import('./RoomTimeline');
+    const { getThreadFilteredEvents } = await import('../../mindroom/threads/threadRoomFocus');
     const room = makeRoom();
     const fallbackRoot = makeEvent('$thread-root');
     const messageEvent = makeEvent('$message');
@@ -4169,7 +4169,7 @@ describe('RoomTimeline', () => {
   });
 
   it('does not treat thread replies as visible thread roots for filtering', async () => {
-    const { getThreadFilteredEvents } = await import('./RoomTimeline');
+    const { getThreadFilteredEvents } = await import('../../mindroom/threads/threadRoomFocus');
     const room = makeRoom();
     const fakeReply = makeEvent('$reply-event', {
       threadRootId: '$actual-root',

@@ -28,7 +28,7 @@ describe('RoomTimeline', () => {
     describe('permalink focus and timeline refresh', () => {
       describe('permalink targeting', () => {
   it('computes room-event focus against the active thread-filtered room list', async () => {
-    const { getRoomEventFocusTarget } = await import('./RoomTimeline');
+    const { getRoomEventFocusTarget } = await import('../../mindroom/threads/threadRoomFocus');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const messageEvent = makeEvent('$message-1');
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
@@ -61,7 +61,7 @@ describe('RoomTimeline', () => {
   }, 10000);
 
   it('derives free-text search from the DSL query when no searchQuery override is passed', async () => {
-    const { getRoomEventFocusTarget } = await import('./RoomTimeline');
+    const { getRoomEventFocusTarget } = await import('../../mindroom/threads/threadRoomFocus');
     const matchingThread = makeEvent('$thread-1', {
       isThreadRoot: true,
       content: { body: 'hello world' },
@@ -98,7 +98,7 @@ describe('RoomTimeline', () => {
   });
 
   it('computes room-event focus against the frozen overview order', async () => {
-    const { getRoomEventFocusTarget } = await import('./RoomTimeline');
+    const { getRoomEventFocusTarget } = await import('../../mindroom/threads/threadRoomFocus');
     const { createThreadSortControlSignature } = await import('../../mindroom/threads/roomThreadOverviewModel');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
@@ -143,7 +143,7 @@ describe('RoomTimeline', () => {
   });
 
   it('computes room-event focus against compact-only roots in the frozen compact order', async () => {
-    const { getRoomEventFocusTarget } = await import('./RoomTimeline');
+    const { getRoomEventFocusTarget } = await import('../../mindroom/threads/threadRoomFocus');
     const { createThreadSortControlSignature } = await import('../../mindroom/threads/roomThreadOverviewModel');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
@@ -207,7 +207,7 @@ describe('RoomTimeline', () => {
   });
 
   it('derives a thread redirect target for room-overview thread permalinks', async () => {
-    const { getRoomEventThreadOpenTarget } = await import('./RoomTimeline');
+    const { getRoomEventThreadOpenTarget } = await import('../../mindroom/threads/roomDeepLink');
     const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
     const threadReply = makeEvent('$thread-reply', {
       threadRootId: threadRoot.getId(),
@@ -576,7 +576,7 @@ describe('RoomTimeline', () => {
   });
 
   it('does not focus room events hidden by the active filter', async () => {
-    const { getRoomEventFocusTarget } = await import('./RoomTimeline');
+    const { getRoomEventFocusTarget } = await import('../../mindroom/threads/threadRoomFocus');
     const unresolvedThread = makeEvent('$thread-unresolved', { isThreadRoot: true });
     const resolvedThread = makeEvent('$thread-resolved', { isThreadRoot: true });
     const room = makeRoom();
@@ -609,8 +609,8 @@ describe('RoomTimeline', () => {
   });
 
   it('coalesces queued refreshes and reruns after in-flight settles', async () => {
-    const roomTimelineModule = await import('./RoomTimeline');
-    setThreadAwareTimelineRefreshHook(roomTimelineModule.useThreadAwareTimelineRefresh);
+    const { useThreadAwareTimelineRefresh } = await import('../../mindroom/threads/useThreadAwareTimelineRefresh');
+    setThreadAwareTimelineRefreshHook(useThreadAwareTimelineRefresh);
     const threadId = '$thread';
     const room = makeRoom();
     const onRoomRefresh = vi.fn();
@@ -675,8 +675,8 @@ describe('RoomTimeline', () => {
   });
 
   it('cancels a queued refresh when the thread closes mid-flight', async () => {
-    const roomTimelineModule = await import('./RoomTimeline');
-    setThreadAwareTimelineRefreshHook(roomTimelineModule.useThreadAwareTimelineRefresh);
+    const { useThreadAwareTimelineRefresh } = await import('../../mindroom/threads/useThreadAwareTimelineRefresh');
+    setThreadAwareTimelineRefreshHook(useThreadAwareTimelineRefresh);
     const threadId = '$thread';
     const room = makeRoom();
     const onRoomRefresh = vi.fn();
