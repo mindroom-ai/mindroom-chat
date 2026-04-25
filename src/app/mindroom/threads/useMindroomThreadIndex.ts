@@ -9,7 +9,7 @@ import { getRoomEventThreadOpenTarget } from '../../features/room/roomDeepLink';
 import {
   isVisibleThreadRootEvent,
   type TimelineEventEntry,
-} from '../../features/room/roomTimelineEvents';
+} from './roomTimelineEvents';
 import {
   createThreadSortControlSignature,
   isRoomThreadOverviewActive,

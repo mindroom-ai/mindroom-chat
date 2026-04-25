@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { Direction, type EventTimeline, type Room } from 'matrix-js-sdk';
 import type { ItemRange } from '../../hooks/useVirtualPaginator';
-import { getRenderableEvents } from './roomTimelineEvents';
+import { getRenderableEvents } from '../../mindroom/threads/roomTimelineEvents';
 
 export type Timeline = {
   linkedTimelines: EventTimeline[];

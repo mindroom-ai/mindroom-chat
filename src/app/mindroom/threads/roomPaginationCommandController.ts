@@ -15,7 +15,7 @@ import {
 } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import { decryptAllTimelineEvent } from '../../utils/room';
-import { getRenderableEvents } from '../../features/room/roomTimelineEvents';
+import { getRenderableEvents } from './roomTimelineEvents';
 import {
   recalibrateTimelinePagination,
   timelineToEventsCount,

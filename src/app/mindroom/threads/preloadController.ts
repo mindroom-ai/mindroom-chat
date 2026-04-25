@@ -5,7 +5,7 @@ import { decryptAllTimelineEvent } from '../../utils/room';
 import {
   getRoomPreloadCounts,
   getRenderableEvents,
-} from '../../features/room/roomTimelineEvents';
+} from './roomTimelineEvents';
 import { logTimelineDebug } from '../../features/room/timelineDebug';
 import {
   getLinkedTimelines,
