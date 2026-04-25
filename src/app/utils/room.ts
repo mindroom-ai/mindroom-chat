@@ -34,6 +34,7 @@ import {
   isSameSenderEditEvent,
 } from './editEvent';
 import { mxcUrlToHttp } from './mediaUrl';
+import { isMindroomMessageMetadataKey } from '../mindroom/messages/metadata';
 
 const EDIT_DEBUG_FLAG_STORAGE_KEY = 'mindroom.debug.edits';
 
@@ -485,11 +486,7 @@ const copyResolvedMessageMetadata = (
 
     Object.entries(source).forEach(([key, value]) => {
       if (resolvedContent[key] !== undefined) return;
-      if (
-        key === 'm.mentions' ||
-        key.startsWith('io.mindroom.') ||
-        key.startsWith('com.mindroom.')
-      ) {
+      if (key === 'm.mentions' || isMindroomMessageMetadataKey(key)) {
         resolvedContent[key] = value;
       }
     });

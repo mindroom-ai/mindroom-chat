@@ -703,6 +703,9 @@ Acceptance:
   product strings and server checks.
 - Search-result rendering delegates MindRoom long-text metadata detection to `src/app/mindroom/messages`
   instead of checking raw `io.mindroom.*` keys inside the generic message-search module.
+- Generic edit resolution delegates MindRoom message metadata-key ownership to
+  `src/app/mindroom/messages/metadata.ts`; upstream-owned utilities should not grow new raw
+  `io.mindroom.*` / `com.mindroom.*` prefix checks.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy
