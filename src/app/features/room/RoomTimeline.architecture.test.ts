@@ -1110,12 +1110,20 @@ describe('RoomTimeline architecture', () => {
       new URL('../../hooks/useIOSPushEnabled.ts', import.meta.url),
       'utf8'
     );
+    const systemNotificationSource = readFileSync(
+      new URL('../settings/notifications/SystemNotification.tsx', import.meta.url),
+      'utf8'
+    );
     const nativeSsoSource = readFileSync(
       new URL('../../mindroom/native/nativeSso.ts', import.meta.url),
       'utf8'
     );
     const iosPushSource = readFileSync(
       new URL('../../mindroom/native/iosPush.ts', import.meta.url),
+      'utf8'
+    );
+    const iosPushNotificationSource = readFileSync(
+      new URL('../../mindroom/native/IOSPushNotification.tsx', import.meta.url),
       'utf8'
     );
 
@@ -1131,6 +1139,13 @@ describe('RoomTimeline architecture', () => {
     );
     expect(nativeSsoSource).toContain('buildNativeSsoRedirectUrl');
     expect(iosPushSource).toContain('resolveIOSPushConfig');
+    expect(systemNotificationSource).toContain(
+      "from '../../../mindroom/native/IOSPushNotification'"
+    );
+    expect(systemNotificationSource).not.toContain("from '../../../mindroom/native/iosPush'");
+    expect(systemNotificationSource).not.toContain('MINDROOM_APP_NAME');
+    expect(iosPushNotificationSource).toContain('resolveIOSPushConfig');
+    expect(iosPushNotificationSource).toContain('MINDROOM_APP_NAME');
   });
 
   it('keeps MindRoom branding and hosted-auth policy in the MindRoom namespace', () => {

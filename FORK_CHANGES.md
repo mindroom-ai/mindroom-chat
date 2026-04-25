@@ -21,6 +21,9 @@
 - `CINNY-110`
   - The Local MindRoom settings menu item is now built in `src/app/mindroom/local-mindroom/settingsMenu.ts`.
   - Generic settings menu code only consumes the entry and applies visibility/initial-page rules.
+- `CINNY-111`
+  - Native iOS push notification settings UI now lives in `src/app/mindroom/native/IOSPushNotification.tsx`.
+  - Generic notification settings now mounts the MindRoom native component instead of owning iOS push logic and app-name copy.
 
 ### Current Feature Set On `dev`
 
