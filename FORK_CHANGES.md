@@ -735,6 +735,15 @@
   - validation:
     - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
     - `npm run typecheck` passes
+- `CINNY-075` implementation step 21 / Phase 5 seed prewarm boundary (2026-04-24):
+  - moved the cached thread snapshot read for thread-open seed prewarm into `src/app/mindroom/threads/threadSeedPrewarmController.ts`.
+  - `RoomTimeline` now passes only the room/client/session/pagination seam into the prewarm controller and no longer imports `loadThreadCachedSnapshot` directly.
+  - kept an injectable prewarm snapshot loader on the controller for focused tests without reintroducing cache reads at the render seam.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts`, `RoomTimeline.permalink-refresh.test.ts`, `RoomTimeline.navigation.test.ts`, `RoomTimeline.architecture.test.ts`, `RoomTimeline.fetchAllThreadRelations.test.ts`, `useMindroomThreadIndex.test.ts`, and `eventRepository.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`75` warnings, `0` errors)
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

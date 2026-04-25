@@ -306,6 +306,8 @@ prewarm prioritization, relation-page fetching, compact root backfill detection,
 classification, and overview refresh targeting now live in `src/app/mindroom/threads/threadBootstrap.ts`.
 The room-visible seed-prewarm queue, generation guard, and in-flight promise tracking now live in
 `src/app/mindroom/threads/threadSeedPrewarmController.ts`.
+The cached thread snapshot read used to prewarm thread-open seeds also lives in that controller now,
+so `RoomTimeline` no longer directly imports the cached thread snapshot reader for seed prewarm.
 Thread-open cache hydration, latest-slice refresh, relation backfill, and cached relation-tail
 refresh now live in `src/app/mindroom/threads/threadOpenCacheController.ts`; `RoomTimeline` decides
 when to dispatch these commands but no longer owns their cache/network policy.

@@ -236,7 +236,6 @@ import { useStateEvents } from '../../hooks/useStateEvents';
 import {
   getThreadCursorAnchor,
   getThreadCacheTargetId,
-  loadThreadCachedSnapshot,
   mapCachedThreadPageEvents,
 } from '../../mindroom/threads/eventRepository';
 import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
@@ -274,7 +273,6 @@ import {
   getLoadedThreadModelSeedEvents,
   isThreadNotFoundError,
   MAX_THREAD_FETCH_EVENTS,
-  MAX_THREAD_FETCH_ITERATIONS,
   shouldRefreshOverviewForTimelineEvent,
   THREAD_OPEN_PREWARM_WAIT_MS,
 } from '../../mindroom/threads/threadBootstrap';
@@ -2091,22 +2089,6 @@ export function RoomTimeline({
     setOverviewRefreshCounter,
   });
 
-  const loadThreadOpenSeedSnapshotFromCache = useCallback(
-    async (expectedThreadId: string): Promise<MatrixEvent[]> => {
-      const mapper = mx.getEventMapper();
-      const cachedSnapshot = await loadThreadCachedSnapshot({
-        sessionId,
-        roomId: room.roomId,
-        threadId: expectedThreadId,
-        limit: safePaginationLimitRef.current,
-        maxPages: MAX_THREAD_FETCH_ITERATIONS,
-        mapEvent: (rawEvent) => mapper(rawEvent),
-      });
-      return cachedSnapshot?.events ?? [];
-    },
-    [mx, room.roomId, sessionId]
-  );
-
   const {
     ensureThreadSeedPrewarm,
     prewarmedThreadSeedIdsRef,
@@ -2115,9 +2097,11 @@ export function RoomTimeline({
     prewarmingThreadSeedPromisesRef,
   } = useThreadSeedPrewarmController({
     room,
+    mx,
+    sessionId,
+    safePaginationLimitRef,
     activeThreadId: threadId,
     priorityTargets: priorityThreadSeedPrewarmRoots,
-    loadThreadOpenSeedSnapshotFromCache,
     debugTraceId: roomDebugTraceId,
   });
 
