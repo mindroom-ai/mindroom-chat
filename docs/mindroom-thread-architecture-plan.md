@@ -321,6 +321,8 @@ relation-backfill dispatch, and initial untargeted seed fallback, now lives in
 `src/app/mindroom/threads/threadOpenCacheFirst.ts`.
 Thread-open targeted event-context loading and pending scroll queue setup now live in
 `src/app/mindroom/threads/threadOpenTargetEvent.ts`.
+Thread-aware timeline refresh coalescing now lives in
+`src/app/mindroom/threads/useThreadAwareTimelineRefresh.ts`.
 Thread-open cache hydration, latest-slice refresh, relation backfill, and cached relation-tail
 refresh now live in `src/app/mindroom/threads/threadOpenCacheController.ts`; `RoomTimeline` decides
 when to open a thread route but no longer owns their cache/network policy.
