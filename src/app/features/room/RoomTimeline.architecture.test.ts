@@ -88,6 +88,16 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('computeThreadRecordTagCounts');
   });
 
+  it('delegates room overview focus and filter helpers to the MindRoom thread namespace', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain("from '../../mindroom/threads/threadRoomFocus'");
+    expect(source).not.toContain('const getFilteredRoomOverviewEvents');
+    expect(source).not.toContain('export const getRoomEventFocusTarget =');
+    expect(source).not.toContain('export const getThreadFilteredEvents =');
+    expect(source).not.toContain('buildThreadRecordMap({');
+  });
+
   it('delegates cached thread page stitching to the event repository', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 

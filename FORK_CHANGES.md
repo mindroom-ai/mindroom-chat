@@ -635,6 +635,14 @@
     - `npm run build` passes
     - `npm run lint` passes with the branch warning-only baseline (`82` warnings, `0` errors)
     - `npm run test:e2e` passes (`9` passed, `58` skipped)
+- `CINNY-075` implementation step 8 / Phase 4b (2026-04-24):
+  - moved room-overview focus/filter helpers from `RoomTimeline.tsx` into `src/app/mindroom/threads/threadRoomFocus.ts`.
+  - `RoomTimeline` no longer owns `getThreadFilteredEvents`, `getRoomEventFocusTarget`, ordered room-overview event resolution, or the ad-hoc `buildThreadRecordMap` call used by focus recovery.
+  - kept compatibility re-exports from `RoomTimeline.tsx` so existing focused regression tests continue to exercise the same API while implementation lives in the fork-owned namespace.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.permalink-refresh.test.ts`, and `RoomTimeline.cache.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`81` warnings, `0` errors)
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
