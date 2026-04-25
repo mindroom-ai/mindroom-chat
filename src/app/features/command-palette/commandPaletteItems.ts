@@ -1,4 +1,4 @@
-import { EventTimeline, type Room } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -23,7 +23,7 @@ import { markRoomAndThreadsAsRead } from '../../utils/notifications';
 import { getMatrixToRoom } from '../../plugins/matrix-to';
 import { getViaServers } from '../../plugins/via-servers';
 import { factoryRoomIdByActivity } from '../../utils/sort';
-import { getAllParents, getMemberDisplayName, getStateEvent } from '../../utils/room';
+import { getAllParents, getStateEvent } from '../../utils/room';
 import { createRoomModalAtom } from '../../state/createRoomModal';
 import { createSpaceModalAtom } from '../../state/createSpaceModal';
 import { mDirectAtom } from '../../state/mDirectList';
@@ -35,21 +35,8 @@ import { settingsModalAtom } from '../../state/settingsModal';
 import { useSetting } from '../../state/hooks/settings';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
 import { useDirects, useRooms, useSpaces } from '../../state/hooks/roomList';
-import { makeRecentThreadsAtom } from '../../mindroom/recent-threads/recentThreads';
-import { buildCommandPaletteThreadViewModelFromRecord } from '../../mindroom/threads/commandPaletteThreadViewModel';
-import { buildThreadRecord } from '../../mindroom/threads/threadRecord';
-import { getResolvedRecentThreadRootId } from '../../mindroom/recent-threads/recentThreadSummaryUtils';
+import { useMindroomCommandPaletteThreadItems } from '../../mindroom/threads/commandPaletteThreadItems';
 import { resolveCanonicalThreadRootId } from '../../mindroom/threads/threadRouteUtils';
-import { getValidThreadRootEvent } from '../../mindroom/threads/threadUtils';
-import {
-  aggregateThreadTagEvents,
-  buildPerTagEventContent,
-  buildPerTagStateKey,
-  getDisplayTags,
-  isThreadResolved,
-  MINDROOM_THREAD_TAGS_EVENT,
-  RESOLVED_TAG,
-} from '../../mindroom/threads/threadTags';
 import {
   commandPaletteStaticActionPaths,
   getCommandPaletteMessageTargets,
@@ -82,97 +69,14 @@ type UseCommandPaletteSourceOptions = {
   onLogout?: () => void;
 };
 
-type ThreadTagSnapshot = {
-  isResolved: boolean;
-  tags: string[];
-};
-
 const getRoomTopic = (room: Room): string | undefined => {
   const content = getStateEvent(room, StateEvent.RoomTopic)?.getContent();
   return typeof content?.topic === 'string' ? content.topic : undefined;
 };
 
-const mapUserDisplayName = (room: Room, userId: string): string =>
-  getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId;
-
 const fireAndForget = <T,>(promise: Promise<T>) => {
   promise.catch(() => undefined);
 };
-
-const getThreadTagSnapshots = (room: Room): Map<string, ThreadTagSnapshot> => {
-  const stateEvents =
-    room
-      .getLiveTimeline()
-      .getState(EventTimeline.FORWARDS)
-      ?.getStateEvents(MINDROOM_THREAD_TAGS_EVENT) ?? [];
-
-  if (!Array.isArray(stateEvents) || stateEvents.length === 0) {
-    return new Map();
-  }
-
-  const snapshots = new Map<string, ThreadTagSnapshot>();
-  aggregateThreadTagEvents(stateEvents).forEach((content, threadRootId) => {
-    snapshots.set(threadRootId, {
-      isResolved: isThreadResolved(content),
-      tags: getDisplayTags(content),
-    });
-  });
-
-  return snapshots;
-};
-
-const buildThreadResolutionFromTagSnapshot = (
-  tagSnapshot: ThreadTagSnapshot | undefined
-): { isResolved: boolean; tags: Record<string, unknown> | null } | undefined => {
-  if (!tagSnapshot) return undefined;
-
-  return {
-    isResolved: tagSnapshot.isResolved,
-    tags: Object.fromEntries(tagSnapshot.tags.map((tagName) => [tagName, true])),
-  };
-};
-
-const toCommandPaletteThreadItem = (
-  viewModel: ReturnType<typeof buildCommandPaletteThreadViewModelFromRecord>,
-  onSelect: () => void
-): CommandPaletteThreadItem & { onSelect: () => void } => ({
-  id: `${viewModel.id.roomId}|${viewModel.id.threadRootId}`,
-  kind: 'thread',
-  roomId: viewModel.id.roomId,
-  threadId: viewModel.id.threadRootId,
-  summaryText: viewModel.summaryText,
-  roomName: viewModel.roomName,
-  participantNames: viewModel.participantNames,
-  tags: viewModel.tags,
-  isResolved: viewModel.isResolved,
-  messageCount: viewModel.messageCount,
-  sortRank: viewModel.sortRank,
-  boost: viewModel.boost,
-  onSelect,
-});
-
-const mergeThreadItems = (
-  left: CommandPaletteThreadItem,
-  right: CommandPaletteThreadItem
-): CommandPaletteThreadItem => ({
-  ...left,
-  ...right,
-  summaryText:
-    left.summaryText === 'Thread'
-      ? right.summaryText
-      : right.summaryText === 'Thread'
-        ? left.summaryText
-        : right.summaryText,
-  participantNames:
-    right.participantNames && right.participantNames.length > 0
-      ? right.participantNames
-      : left.participantNames,
-  tags: right.tags && right.tags.length > 0 ? right.tags : left.tags,
-  isResolved: right.isResolved ?? left.isResolved,
-  messageCount: right.messageCount ?? left.messageCount,
-  sortRank: Math.max(left.sortRank ?? 0, right.sortRank ?? 0),
-  boost: Math.max(left.boost ?? 0, right.boost ?? 0),
-});
 
 export const useCommandPaletteSource = (
   options: UseCommandPaletteSourceOptions = {}
@@ -209,8 +113,6 @@ export const useCommandPaletteSource = (
   const rooms = useRooms(mx, allRoomsAtom, mDirects);
   const spaces = useSpaces(mx, allRoomsAtom);
   const directs = useDirects(mx, allRoomsAtom, mDirects);
-  const recentThreadsAtom = useMemo(() => makeRecentThreadsAtom(myUserId), [myUserId]);
-  const recentThreads = useAtomValue(recentThreadsAtom);
 
   const selectedRoom = selectedRoomId ? getRoom(selectedRoomId) : undefined;
   const selectedSpace = selectedSpaceId ? getRoom(selectedSpaceId) : undefined;
@@ -417,126 +319,17 @@ export const useCommandPaletteSource = (
     roomActivityRank,
   ]);
 
-  const threadTagSnapshots = useMemo(() => {
-    const snapshots = new Map<string, Map<string, ThreadTagSnapshot>>();
-
-    allJoinedRoomIds.forEach((roomId) => {
-      const room = getRoom(roomId);
-      if (!room) return;
-      snapshots.set(room.roomId, getThreadTagSnapshots(room));
+  const { currentThreadResolved, setCurrentThreadResolved, threadItems } =
+    useMindroomCommandPaletteThreadItems({
+      mx,
+      myUserId,
+      allJoinedRoomIds,
+      getRoom,
+      selectedRoom,
+      selectedRoomId,
+      canonicalSelectedThreadId,
+      navigateRoomThread,
     });
-
-    return snapshots;
-  }, [allJoinedRoomIds, getRoom]);
-
-  const currentThreadResolved = useMemo(() => {
-    if (!selectedRoom || !canonicalSelectedThreadId) return false;
-
-    return threadTagSnapshots.get(selectedRoom.roomId)?.get(canonicalSelectedThreadId)?.isResolved ?? false;
-  }, [canonicalSelectedThreadId, selectedRoom, threadTagSnapshots]);
-
-  const setCurrentThreadResolved = useCallback(
-    (resolved: boolean) => {
-      if (!selectedRoom || !canonicalSelectedThreadId) return;
-
-      const rootEvent = getValidThreadRootEvent(selectedRoom, canonicalSelectedThreadId);
-      const threadRootId = rootEvent?.getId();
-      if (!threadRootId) return;
-
-      fireAndForget(
-        mx.sendStateEvent(
-          selectedRoom.roomId,
-          MINDROOM_THREAD_TAGS_EVENT as any,
-          resolved ? buildPerTagEventContent(myUserId) : {},
-          buildPerTagStateKey(threadRootId, RESOLVED_TAG)
-        )
-      );
-    },
-    [canonicalSelectedThreadId, mx, myUserId, selectedRoom]
-  );
-
-  const threadItems = useMemo(() => {
-    const items = new Map<string, CommandPaletteThreadItem & { onSelect: () => void }>();
-
-    const upsert = (item: CommandPaletteThreadItem & { onSelect: () => void }) => {
-      const existing = items.get(item.id);
-      if (!existing) {
-        items.set(item.id, item);
-        return;
-      }
-
-      items.set(item.id, {
-        ...mergeThreadItems(existing, item),
-        onSelect: item.onSelect,
-      });
-    };
-
-    recentThreads.forEach((entry) => {
-      const room = getRoom(entry.roomId);
-      if (!room) return;
-
-      const threadRootId = getResolvedRecentThreadRootId(room, entry.threadId);
-      const rootEvent = room.findEventById(threadRootId) ?? room.getThread(threadRootId)?.rootEvent;
-      const tagSnapshot = threadTagSnapshots.get(room.roomId)?.get(threadRootId);
-      const record = buildThreadRecord({
-        room,
-        threadRootId,
-        threadRootEvent: rootEvent,
-        threadResolution: buildThreadResolutionFromTagSnapshot(tagSnapshot),
-      });
-      const viewModel = buildCommandPaletteThreadViewModelFromRecord({
-        record,
-        roomName: room.name,
-        getParticipantName: (userId) => mapUserDisplayName(room, userId),
-        fallbackSummaryText: entry.summaryText,
-        sortRank: entry.openedAt,
-        boost:
-          (room.roomId === selectedRoomId ? 10 : 0) +
-          (threadRootId === canonicalSelectedThreadId ? 30 : 0) +
-          (tagSnapshot && !tagSnapshot.isResolved ? 10 : 0),
-      });
-
-      upsert(toCommandPaletteThreadItem(viewModel, () => navigateRoomThread(room.roomId, threadRootId)));
-    });
-
-    allJoinedRoomIds.forEach((roomId) => {
-      const room = getRoom(roomId);
-      if (!room || typeof room.getThreads !== 'function') return;
-
-      room.getThreads().forEach((thread) => {
-        const threadRootId = resolveCanonicalThreadRootId(room, thread.id) ?? thread.id;
-        const rootEvent = thread.rootEvent ?? room.findEventById(threadRootId);
-        const tagSnapshot = threadTagSnapshots.get(room.roomId)?.get(threadRootId);
-        const record = buildThreadRecord({
-          room,
-          threadRootId,
-          threadRootEvent: rootEvent,
-          threadResolution: buildThreadResolutionFromTagSnapshot(tagSnapshot),
-        });
-        const viewModel = buildCommandPaletteThreadViewModelFromRecord({
-          record,
-          roomName: room.name,
-          getParticipantName: (userId) => mapUserDisplayName(room, userId),
-          boost:
-            (room.roomId === selectedRoomId ? 10 : 0) +
-            (threadRootId === canonicalSelectedThreadId ? 30 : 0) +
-            (tagSnapshot && !tagSnapshot.isResolved ? 10 : 0),
-        });
-
-        upsert(toCommandPaletteThreadItem(viewModel, () => navigateRoomThread(room.roomId, threadRootId)));
-      });
-    });
-
-    return Array.from(items.values());
-  }, [
-    allJoinedRoomIds,
-    canonicalSelectedThreadId,
-    getRoom,
-    navigateRoomThread,
-    recentThreads,
-    selectedRoomId,
-    threadTagSnapshots,
-  ]);
 
   const actionCallbacks = useMemo<Record<CommandPaletteQuickActionId, () => void>>(
     () => ({

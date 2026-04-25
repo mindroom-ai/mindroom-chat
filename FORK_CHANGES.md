@@ -33,6 +33,10 @@
 - `CINNY-114`
   - Thread indicator rendering now lives in `src/app/mindroom/threads/ThreadIndicator.tsx` with its MindRoom-specific styles.
   - Generic reply rendering delegates the thread badge to that owner instead of importing activity, resolution, scheduled-task, unread, and participant derivation hooks directly.
+- `CINNY-115`
+  - Command-palette thread sourcing now lives in `src/app/mindroom/threads/commandPaletteThreadItems.ts`.
+  - Generic command-palette item assembly keeps room/user/action/message sourcing, while thread tags, recent-thread entries, SDK thread records, resolved-state mutation, and duplicate thread item merging are owned by the MindRoom thread namespace.
+  - Architecture guards now prevent raw thread tag/recent-thread/thread-record derivation from moving back into `src/app/features/command-palette/commandPaletteItems.ts`.
 
 ### Current Feature Set On `dev`
 
