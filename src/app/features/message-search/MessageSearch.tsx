@@ -39,6 +39,7 @@ import {
   MESSAGE_SEARCH_FALLBACK_ROW_LIMIT,
 } from './messageSearchRows';
 import { useSyncState } from '../../hooks/useSyncState';
+import { renderMindroomSearchResultBody } from '../../mindroom/message-search/searchResultBodyRenderer';
 
 const useSearchPathSearchParams = (searchParams: URLSearchParams): _SearchPathSearchParams =>
   useMemo(
@@ -432,6 +433,7 @@ export function MessageSearch({
                   legacyUsernameColor={legacyUsernameColor || mDirects.has(groupRoom.roomId)}
                   hour24Clock={hour24Clock}
                   dateFormatString={dateFormatString}
+                  renderBody={renderMindroomSearchResultBody}
                 />
               );
             })}
@@ -480,6 +482,7 @@ export function MessageSearch({
                       legacyUsernameColor={legacyUsernameColor || mDirects.has(groupRoom.roomId)}
                       hour24Clock={hour24Clock}
                       dateFormatString={dateFormatString}
+                      renderBody={renderMindroomSearchResultBody}
                     />
                   )}
                 </VirtualTile>
