@@ -135,10 +135,15 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/threadPaginationCommandController.ts', import.meta.url),
       'utf8'
     );
+    const cacheFirstSource = readFileSync(
+      new URL('../../mindroom/threads/threadOpenCacheFirst.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).not.toContain('loadThreadCachedPaginationSnapshot');
     expect(paginationControllerSource).toContain('loadThreadCachedPaginationSnapshot');
-    expect(source).toContain('mapCachedThreadPageEvents');
+    expect(cacheFirstSource).toContain('mapCachedThreadPageEvents');
+    expect(source).not.toContain('mapCachedThreadPageEvents');
     expect(source).not.toContain('loadCachedThreadEventsBefore');
     expect(source).not.toContain('normalizeCachedThreadEvents');
   });
@@ -187,6 +192,20 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('thread-sdk-bootstrap-context-error');
     expect(source).not.toContain('isPendingLocalEchoThreadRoot');
     expect(source).not.toContain('isZeroReplyStandaloneThreadRootEvent');
+  });
+
+  it('delegates thread-open cache-first decisions to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const cacheFirstSource = readFileSync(
+      new URL('../../mindroom/threads/threadOpenCacheFirst.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain('runThreadOpenCacheFirst');
+    expect(cacheFirstSource).toContain('thread-open-complete-cache-hit');
+    expect(source).not.toContain('thread-open-complete-cache-hit');
+    expect(source).not.toContain('shouldBackfillThreadRelationsFromCoverage');
+    expect(source).not.toContain('hasUsableThreadCacheSnapshot');
   });
 
   it('delegates thread-open post-bootstrap refresh to MindRoom threads', () => {

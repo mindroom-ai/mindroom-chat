@@ -770,6 +770,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline (`75` warnings, `0` errors)
     - `git diff --check` passes
+- `CINNY-075` implementation step 25 / Phase 5 thread-open cache-first flow (2026-04-24):
+  - added `src/app/mindroom/threads/threadOpenCacheFirst.ts` as the fork-owned owner for the cache-first part of thread open.
+  - `RoomTimeline` no longer owns cache hydrate fallback handling, complete cached-thread short-circuit decisions, relation-backfill dispatch, cached relation-tail refresh dispatch, or the initial untargeted seed fallback decision.
+  - route-specific target-event context loading and pending scroll target setup remain local because they still coordinate URL focus behavior.
+  - validation:
+    - focused Vitest passes for `threadOpenCacheFirst.test.ts`, `threadOpenPostBootstrapRefresh.test.ts`, `threadOpenSdkBootstrap.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.architecture.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

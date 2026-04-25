@@ -232,7 +232,6 @@ import { useRoomThreadList } from './useRoomThreadList';
 import { useStateEvents } from '../../hooks/useStateEvents';
 import {
   getThreadCacheTargetId,
-  mapCachedThreadPageEvents,
 } from '../../mindroom/threads/eventRepository';
 import {
   getEventElementById,
@@ -246,9 +245,6 @@ import { useRoomEagerPreload } from '../../mindroom/threads/preloadController';
 import { useThreadBackPaginationController } from '../../mindroom/threads/threadBackPaginationController';
 import {
   buildThreadCacheCoverage,
-  hasUsableThreadCacheSnapshot,
-  isCompleteThreadCacheCoverage,
-  shouldBackfillThreadRelationsFromCoverage,
   shouldShowThreadLoadOlderFromCoverage,
 } from '../../mindroom/threads/threadCacheCoverage';
 import {
@@ -260,6 +256,7 @@ import {
   shouldRefreshOverviewForTimelineEvent,
 } from '../../mindroom/threads/threadBootstrap';
 import { createThreadOpenSeedSession } from '../../mindroom/threads/threadOpenSeedController';
+import { runThreadOpenCacheFirst } from '../../mindroom/threads/threadOpenCacheFirst';
 import { runThreadOpenSdkBootstrap } from '../../mindroom/threads/threadOpenSdkBootstrap';
 import { runThreadOpenPostBootstrapRefresh } from '../../mindroom/threads/threadOpenPostBootstrapRefresh';
 import { useThreadSeedPrewarmController } from '../../mindroom/threads/threadSeedPrewarmController';
@@ -2944,99 +2941,29 @@ export function RoomTimeline({
       };
 
       try {
-        let hydratedCachedPage;
-        try {
-          hydratedCachedPage = await hydrateThreadFromCache(threadId);
-        } catch {
-          if (!mounted || threadIdRef.current !== threadId) return;
-          hydratedCachedPage = undefined;
-        }
-        if (!mounted || threadIdRef.current !== threadId) return;
-        const cachedThreadHasLocalSnapshot =
-          !!hydratedCachedPage &&
-          hasUsableThreadCacheSnapshot({
-            eventCount: hydratedCachedPage.events.length,
-            rootPresent: !!hydratedCachedPage.rootEvent,
-          });
-        if (shouldScrollToLatestOnOpen && !cachedThreadHasLocalSnapshot) {
-          threadOpenSeedSession.applyInitialUntargetedThreadSeed();
-        }
-        setThreadInitialCacheHydrated(true);
-        const hasCompleteCachedThreadSnapshot =
-          shouldScrollToLatestOnOpen &&
-          !!hydratedCachedPage &&
-          isCompleteThreadCacheCoverage({
-            coverage: hydratedCachedPage.cacheCoverage,
-            hasLocalSnapshot: cachedThreadHasLocalSnapshot,
-          });
-
-        if (hasCompleteCachedThreadSnapshot && hydratedCachedPage) {
-          const firstThreadLiveTimeline = room
-            .getThread(threadId)
-            ?.getUnfilteredTimelineSet()
-            .getLiveTimeline();
-          const firstThreadTimeline = firstThreadLiveTimeline
-            ? getLinkedTimelines(firstThreadLiveTimeline)[0]
-            : undefined;
-          firstThreadTimeline?.setPaginationToken(null, Direction.Backward);
-          setThreadHasMoreCachedBack(false);
-          setThreadTailLoaded(true);
-          setTimeline((ct) => ({ ...ct }));
-          setThreadTimelineTick((val) => val + 1);
-          logTimelineDebug(threadDebugTraceId, 'thread-open-complete-cache-hit', {
-            cachedCount: hydratedCachedPage.events.length,
-            threadId,
-          });
-          logTimelineDebug(threadDebugTraceId, 'thread-open-complete', {
-            shouldScrollToLatestOnOpen,
-            skipNetworkBootstrap: true,
-            threadId,
-          });
-          void refreshLatestThreadRelationsTail(threadId, hydratedCachedPage).catch(
-            () => undefined
-          );
-          pinThreadToBottomOnOpen();
-          return;
-        }
-
-        const canBackfillThreadRelations =
-          shouldScrollToLatestOnOpen &&
-          !!hydratedCachedPage &&
-          shouldBackfillThreadRelationsFromCoverage({
-            coverage: hydratedCachedPage.cacheCoverage,
-            hasLocalSnapshot: cachedThreadHasLocalSnapshot,
-          });
-        if (canBackfillThreadRelations && hydratedCachedPage) {
-          const mapper = mx.getEventMapper();
-          const cachedSnapshotEvents = mapCachedThreadPageEvents({
-            events: hydratedCachedPage.events,
-            rootEvent: hydratedCachedPage.rootEvent,
-            mapEvent: (rawEvent) => mapper(rawEvent),
-          });
-          const baselineBackfillEvents =
-            threadOpenSeedSession.mergeWithInitialRoomThreadSeedEvents(cachedSnapshotEvents);
-          const relationBackfill = await backfillThreadRelationsIntoCache(
-            threadId,
-            hydratedCachedPage.rootEvent,
-            baselineBackfillEvents,
-            hydratedCachedPage.expectedReplyCount
-          );
-          if (!mounted || threadIdRef.current !== threadId) return;
-          if (relationBackfill?.completed) {
-            logTimelineDebug(threadDebugTraceId, 'thread-open-complete', {
-              completedBy: 'relations-backfill',
-              shouldScrollToLatestOnOpen,
-              skipNetworkBootstrap: true,
-              threadId,
-            });
-            pinThreadToBottomOnOpen();
-            return;
-          }
-        }
+        const cacheFirstResult = await runThreadOpenCacheFirst({
+          backfillThreadRelationsIntoCache,
+          debugTraceId: threadDebugTraceId,
+          forceTimelineUpdate,
+          hydrateThreadFromCache,
+          isCurrentThreadOpen: () => mounted && threadIdRef.current === threadId,
+          mx,
+          pinThreadToBottomOnOpen,
+          refreshLatestThreadRelationsTail,
+          room,
+          setThreadHasMoreCachedBack,
+          setThreadInitialCacheHydrated,
+          setThreadTailLoaded,
+          setThreadTimelineTick,
+          shouldScrollToLatestOnOpen,
+          threadId,
+          threadOpenSeedSession,
+        });
+        if (!cacheFirstResult.shouldContinue) return;
 
         const shouldContinueAfterSdkBootstrap = await runThreadOpenSdkBootstrap({
           debugTraceId: threadDebugTraceId,
-          hydratedCachedPage,
+          hydratedCachedPage: cacheFirstResult.hydratedCachedPage,
           isMounted: () => mounted,
           mx,
           onThreadLoadError,
@@ -3116,6 +3043,7 @@ export function RoomTimeline({
   }, [
     ensureThreadSeedPrewarm,
     eventId,
+    forceTimelineUpdate,
     hydrateThreadFromCache,
     mx,
     backfillThreadRelationsIntoCache,
