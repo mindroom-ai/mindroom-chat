@@ -688,6 +688,8 @@ Acceptance:
   generic custom HTML parser only delegates to that renderer.
 - Local MindRoom settings/provisioning implementation lives in `src/app/mindroom/local-mindroom`;
   generic settings modules only expose route/menu seams.
+- The Local MindRoom sidebar shortcut lives in `src/app/mindroom/sidebar`; generic sidebar modules only
+  expose the existing navigation seam.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy

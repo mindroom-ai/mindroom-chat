@@ -2016,3 +2016,9 @@
 - Moved the Local MindRoom settings page, provisioning API client, helper utilities, and tests from `src/app/features/settings/local-mindroom` to `src/app/mindroom/local-mindroom`.
 - Left thin compatibility re-exports in `src/app/features/settings/local-mindroom` so the generic settings modal and page registry keep stable import paths.
 - Updated relative imports after the move and added an architecture guard so future Local MindRoom implementation work stays in the fork-owned namespace.
+
+## CINNY-090 — Move Local MindRoom sidebar shortcut to fork namespace (2026-04-25)
+
+- Moved the Local MindRoom sidebar shortcut implementation, styling, and test from `src/app/pages/client/sidebar` to `src/app/mindroom/sidebar`.
+- Left `src/app/pages/client/sidebar/MindroomTab.tsx` as a thin compatibility re-export so the generic sidebar registry can keep its existing index export.
+- Added an architecture guard to keep future Local MindRoom sidebar behavior out of upstream-owned sidebar files.

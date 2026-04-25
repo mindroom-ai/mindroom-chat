@@ -876,6 +876,23 @@ describe('RoomTimeline architecture', () => {
     expect(helperSource).toContain('getMindroomPairingCommand');
   });
 
+  it('keeps the Local MindRoom sidebar shortcut in the MindRoom namespace', () => {
+    const compatibilitySource = readFileSync(
+      new URL('../../pages/client/sidebar/MindroomTab.tsx', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/sidebar/MindroomTab.tsx', import.meta.url),
+      'utf8'
+    );
+
+    expect(compatibilitySource.trim()).toBe(
+      "export { MindroomTab } from '../../../mindroom/sidebar/MindroomTab';"
+    );
+    expect(implementationSource).toContain('Local MindRoom');
+    expect(implementationSource).toContain('SettingsPages.LocalMindroomPage');
+  });
+
   it('keeps thread root route canonicalization in MindRoom threads', () => {
     const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
     const compatibilitySource = readFileSync(
