@@ -245,7 +245,6 @@ import {
   getEarliestLoadedRoomEvent,
   resolveHydratedRoomBeforeToken,
   loadRoomCachePersistenceState,
-  loadThreadCachedPaginationSnapshot,
   loadThreadCachedSnapshot,
   loadLatestRoomCacheHydrationSnapshot,
   loadRoomCachedBackStateSnapshot,
@@ -305,6 +304,7 @@ import { useThreadOpenCacheController } from '../../mindroom/threads/threadOpenC
 import { useThreadOverviewResumeController } from '../../mindroom/threads/threadOverviewResumeController';
 import { useThreadCachePersistenceController } from '../../mindroom/threads/threadCachePersistenceController';
 import { useCompactRootEditBackfillController } from '../../mindroom/threads/compactRootEditBackfillController';
+import { useThreadPaginationCommandController } from '../../mindroom/threads/threadPaginationCommandController';
 
 export { getRoomEventThreadOpenTarget } from './roomDeepLink';
 export { getRoomEventFocusTarget, getThreadFilteredEvents };
@@ -1346,7 +1346,6 @@ export function RoomTimeline({
   const roomIdRef = useRef(room.roomId);
   const roomPaginatingBackRef = useRef(false);
   const eagerPreloadDoneForRoomRef = useRef<string | null>(null);
-  const threadPaginatingFrontRef = useRef(false);
   const threadIdRef = useRef(threadId);
   const threadFilterStateRef = useRef(requestedThreadFilterState);
   const roomDebugTraceRef = useRef({
@@ -1377,7 +1376,6 @@ export function RoomTimeline({
   const suppressFocusPaginationRef = useRef(false);
   const alive = useAlive();
   roomIdRef.current = room.roomId;
-  threadPaginatingFrontRef.current = threadPaginatingFront;
   threadIdRef.current = threadId;
   threadFilterStateRef.current = requestedThreadFilterState;
   if (roomDebugTraceRef.current.roomId !== room.roomId) {
@@ -5437,134 +5435,27 @@ export function RoomTimeline({
     threadTailLoaded,
   ]);
 
-  const handleThreadPaginateBack = useCallback(async () => {
-    if (!threadId || !beginThreadBackPagination(threadId, scrollRef.current)) return;
-    const expectedThreadId = threadId;
-
-    setThreadLatestOpenPending(false);
-    let didPaginateBack = false;
-    try {
-      const earliestThreadReply = findEarliestLoadedThreadReplyByCacheOrder(
-        threadEvents,
-        expectedThreadId
-      );
-      const mapper = mx.getEventMapper();
-      const cachedPaginationSnapshot = await loadThreadCachedPaginationSnapshot({
-        sessionId,
-        roomId: room.roomId,
-        threadId: expectedThreadId,
-        earliestLoadedReply: earliestThreadReply,
-        limit: THREAD_BATCH_SIZE,
-        mapEvent: (rawEvent) => mapper(rawEvent),
-      });
-      if (threadIdRef.current !== expectedThreadId) return;
-
-      if (cachedPaginationSnapshot.status === 'cache-hit') {
-        const cachedPage = cachedPaginationSnapshot.cachedPage;
-        const cachedEvents = cachedPaginationSnapshot.events;
-        const currentThreadTimelineSet = thread?.getUnfilteredTimelineSet();
-        const currentFirstThreadTimeline = currentThreadTimelineSet
-          ? getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0]
-          : undefined;
-        if (currentFirstThreadTimeline && cachedPage.beforeToken !== undefined) {
-          currentFirstThreadTimeline.setPaginationToken(
-            cachedPage.beforeToken ?? null,
-            Direction.Backward
-          );
-        }
-        setSupplementalThreadEvents(expectedThreadId, cachedEvents);
-        setThreadHasMoreCachedBack(cachedPaginationSnapshot.hasMoreCachedBack);
-        setTimeline((ct) => ({ ...ct }));
-        setThreadTimelineTick((val) => val + 1);
-        didPaginateBack = true;
-        return;
-      }
-
-      setThreadHasMoreCachedBack(false);
-      if (!thread) return;
-
-      const currentThreadTimelineSet = thread.getUnfilteredTimelineSet();
-      const firstThreadTimeline = getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0];
-      if (!firstThreadTimeline?.getPaginationToken(Direction.Backward)) return;
-
-      const [err] = await to(
-        mx.paginateEventTimeline(firstThreadTimeline, {
-          backwards: true,
-          limit: THREAD_BATCH_SIZE,
-        })
-      );
-      if (!err && threadIdRef.current === expectedThreadId) {
-        persistThreadEventCache(
-          expectedThreadId,
-          thread.events,
-          thread.rootEvent,
-          firstThreadTimeline.getPaginationToken(Direction.Backward)
-        );
-        // Reconcile backward pagination after SDK pagination
-        reconcileThreadBackwardPagination(
-          firstThreadTimeline,
-          firstThreadTimeline.getPaginationToken(Direction.Backward),
-          setThreadHasMoreCachedBack
-        );
-        setTimeline((ct) => ({ ...ct }));
-        setThreadTimelineTick((val) => val + 1);
-        didPaginateBack = true;
-      }
-    } finally {
-      finishThreadBackPagination({
-        didPaginateBack,
-        threadId: expectedThreadId,
-        currentThreadId: threadIdRef.current,
-      });
-    }
-  }, [
-    beginThreadBackPagination,
-    finishThreadBackPagination,
-    mx,
-    persistThreadEventCache,
-    room.roomId,
-    sessionId,
-    setSupplementalThreadEvents,
-    thread,
-    threadEvents,
-    threadId,
-  ]);
-  const handleThreadPaginateFront = useCallback(async () => {
-    if (!threadId || !thread || threadPaginatingFrontRef.current) return;
-    const currentThreadTimelineSet = thread.getUnfilteredTimelineSet();
-    const currentThreadLinkedTimelines = getLinkedTimelines(
-      currentThreadTimelineSet.getLiveTimeline()
-    );
-    const currentLastThreadTimeline =
-      currentThreadLinkedTimelines[currentThreadLinkedTimelines.length - 1];
-    if (!currentLastThreadTimeline) return;
-    if (!currentLastThreadTimeline.getPaginationToken(Direction.Forward)) return;
-
-    const expectedThreadId = threadId;
-    setThreadPaginatingFront(true);
-    threadPaginatingFrontRef.current = true;
-    const [err] = await to(
-      mx.paginateEventTimeline(currentLastThreadTimeline, {
-        backwards: false,
-        limit: THREAD_BATCH_SIZE,
-      })
-    );
-    setThreadPaginatingFront(false);
-    threadPaginatingFrontRef.current = false;
-    if (!err && threadIdRef.current === expectedThreadId) {
-      const tailLoaded = !currentLastThreadTimeline.getPaginationToken(Direction.Forward);
-      persistThreadEventCache(
-        expectedThreadId,
-        thread.events,
-        thread.rootEvent,
-        undefined,
-        tailLoaded
-      );
-      setThreadTailLoaded(tailLoaded);
-      setTimeline((ct) => ({ ...ct }));
-      setThreadTimelineTick((val) => val + 1);
-    }
-  }, [mx, persistThreadEventCache, thread, threadId]);
+  const { handleThreadPaginateBack, handleThreadPaginateFront } =
+    useThreadPaginationCommandController({
+      beginThreadBackPagination,
+      finishThreadBackPagination,
+      forceTimelineUpdate,
+      mx,
+      persistThreadEventCache,
+      room,
+      scrollRef,
+      sessionId,
+      setSupplementalThreadEvents,
+      setThreadHasMoreCachedBack,
+      setThreadLatestOpenPending,
+      setThreadPaginatingFront,
+      setThreadTailLoaded,
+      setThreadTimelineTick,
+      thread,
+      threadEvents,
+      threadId,
+      threadIdRef,
+    });
 
   let prevEvent: MatrixEvent | undefined;
   let prevRenderedEventAbsoluteIndex: number | undefined;

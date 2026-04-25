@@ -119,8 +119,13 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates cached thread event mapping and pagination reads to the event repository', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const paginationControllerSource = readFileSync(
+      new URL('../../mindroom/threads/threadPaginationCommandController.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain('loadThreadCachedPaginationSnapshot');
+    expect(source).not.toContain('loadThreadCachedPaginationSnapshot');
+    expect(paginationControllerSource).toContain('loadThreadCachedPaginationSnapshot');
     expect(source).toContain('mapCachedThreadPageEvents');
     expect(source).not.toContain('loadCachedThreadEventsBefore');
     expect(source).not.toContain('normalizeCachedThreadEvents');
@@ -193,6 +198,16 @@ describe('RoomTimeline architecture', () => {
     expect(source).toContain('useThreadBackPaginationController');
     expect(source).not.toContain('pendingThreadBackPaginationAnchorRef');
     expect(source).not.toContain('setThreadPaginatingBack');
+  });
+
+  it('delegates thread pagination commands to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('useThreadPaginationCommandController');
+    expect(source).toContain("from '../../mindroom/threads/threadPaginationCommandController'");
+    expect(source).not.toContain('const handleThreadPaginateBack = useCallback');
+    expect(source).not.toContain('const handleThreadPaginateFront = useCallback');
+    expect(source).not.toContain('threadPaginatingFrontRef');
   });
 
   it('keeps thread-open seed cache in the MindRoom thread namespace', () => {

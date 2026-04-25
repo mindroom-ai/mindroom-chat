@@ -282,7 +282,7 @@ tell whether the new architecture is actually being used everywhere.
 | Command palette               | Converted at the thread-item seam. Thread items now build `ThreadRecord` objects and render a MindRoom-owned `CommandPaletteThreadViewModel`.                                                                                                                                                                                                                                                                                                                                                                                 | Keep remaining action/user/room logic separate; do not reintroduce thread-specific derivation.                                           |
 | Summary ownership             | Mostly converted. Room view owns shared summary state, and `RoomTimeline` no longer performs per-visible `loadLatestCachedThreadSummaryInfo` render-path reads.                                                                                                                                                                                                                                                                                                                                                               | Merge remaining summary cache/index helpers behind a fork-owned summary owner.                                                           |
 | Room/thread cache and preload | Mostly converted at the repository/controller/index seam. Timeline renderability, room-surface entry derivation, preload counts, eager current-room preload, overview cache hydration and its cached activity/preview/message-count maps, raw cache access, cached room/thread pagination reads, cached thread page stitching/mapping, cache-order/hydration helper derivation, thread cache coverage helpers/decisions, cache payload serialization, room cache persistence state, thread cache persistence/queueing, thread-open seed cache ownership, thread bootstrap/seed-prewarm/relation-fetch helpers, room-visible seed-prewarm queue orchestration, thread-open cache/network commands, overview resume refresh orchestration, compact root edit backfill, and room-derived thread-cache persistence now live outside `RoomTimeline`. `ThreadRecord.cache` is now populated for every record with conservative live/cache coverage. | Keep the remaining local thread-open effect as a command coordinator; do not move render/scroll state into cache policy modules. |
-| Scroll and pagination         | Started. Thread prepend anchor capture/restore lives in scroll utilities, and thread back-pagination mutable state lives in `useThreadBackPaginationController`; the data-fetch branch still stays in `RoomTimeline` as a narrow command handler.                                                                                                                                                                                                                                                                             | If pagination grows again, move the cache/network data-fetch branch behind a controller command without changing scroll behavior.        |
+| Scroll and pagination         | Mostly converted. Thread prepend anchor capture/restore lives in scroll utilities, thread back-pagination mutable state lives in `useThreadBackPaginationController`, and thread back/front pagination commands live in `useThreadPaginationCommandController`.                                                                                                                                                                                                                                                               | Keep route-specific focus/scroll effects local until they can be isolated without changing scroll behavior.                              |
 | Reaction rendering            | Not part of the thread model refactor. Fresh normal-message and thread-reply reactions pass e2e.                                                                                                                                                                                                                                                                                                                                                                                                                              | If regressions remain, debug as cache/relation coverage or room-specific data, not UI model.                                             |
 
 The main architecture pass has crossed the per-room index boundary: `RoomTimeline` now consumes
@@ -323,6 +323,9 @@ facts, and `RoomTimeline` consumes fork-owned coverage decisions for "Load Older
 complete cached opens, and relation backfill. The remaining ownership gap is that the thread-open
 effect still coordinates route-specific render/scroll state in `RoomTimeline`, even though the cache
 and network commands have moved behind fork-owned helpers.
+Thread back/front pagination commands now live in
+`src/app/mindroom/threads/threadPaginationCommandController.ts`; `RoomTimeline` only wires the
+returned handlers into the load-older/load-newer buttons.
 
 ## Refactor Phases
 
@@ -444,6 +447,8 @@ Acceptance:
 - Compact root edit backfill lives behind a fork-owned controller.
 - `ThreadRecord.cache` coverage is populated for cached/live/mixed states and is meaningful enough
   to drive "load older messages", tail-loaded, relation-complete, and no-more-history decisions.
+- Thread back/front pagination command bodies live behind a fork-owned controller; `RoomTimeline`
+  keeps only button wiring and route-specific focus/scroll effects.
 
 ### Phase 6: Isolate Scroll And Pagination
 
@@ -456,6 +461,7 @@ Acceptance:
 - Loading older thread messages preserves visual anchor.
 - Returning from a thread to room overview does not rebuild enough UI to cause visible delay.
 - Scroll tests cover cached hydration, live pagination, and mixed cached/live pagination.
+- Thread back/front pagination command bodies live behind a fork-owned controller.
 
 ### Phase 7: Shrink Upstream Diffs And Rewrite History
 
