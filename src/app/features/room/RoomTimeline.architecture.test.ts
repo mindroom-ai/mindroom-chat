@@ -992,6 +992,22 @@ describe('RoomTimeline architecture', () => {
     expect(controllerSource).toContain('restorePendingThreadBackPaginationAnchor');
   });
 
+  it('delegates room jump and thread-card navigation handlers to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const controllerSource = readFileSync(
+      new URL('../../mindroom/threads/roomTimelineNavigationController.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain('useRoomTimelineNavigationController');
+    expect(source).not.toContain("from '../../state/recentThreads'");
+    expect(source).not.toContain('bumpRecentThread');
+    expect(source).not.toContain('refreshLatestThreadSlice(threadId)');
+    expect(controllerSource).toContain('bumpRecentThread');
+    expect(controllerSource).toContain('handleJumpToLatest');
+    expect(controllerSource).toContain('handleOpenCompactThread');
+  });
+
   it('delegates live event arrival policy to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const subscriptionSource = readFileSync(

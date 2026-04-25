@@ -282,7 +282,7 @@ tell whether the new architecture is actually being used everywhere.
 | Command palette               | Converted at the thread-item seam. Thread items now build `ThreadRecord` objects and render a MindRoom-owned `CommandPaletteThreadViewModel`.                                                                                                                                                                                                                                                                                                                                                                                 | Keep remaining action/user/room logic separate; do not reintroduce thread-specific derivation.                                           |
 | Summary ownership             | Mostly converted. Room view owns shared summary state, `useMindroomThreadIndex` owns the timeline-derived summary fallback map for room records, and `RoomTimeline` no longer performs per-visible `loadLatestCachedThreadSummaryInfo` render-path reads.                                                                                                                                                                                                                                                                           | Merge remaining summary cache/index helpers behind a fork-owned summary owner.                                                           |
 | Room/thread cache and preload | Mostly converted at the repository/controller/index seam. Timeline renderability, room-surface entry derivation, room overview display-window derivation, preload target selection, unread anchor derivation, preload counts, eager current-room preload, overview cache hydration and its cached activity/preview/message-count maps, raw cache access, cached room/thread pagination reads, cached thread page stitching/mapping, cache-order/hydration helper derivation, thread cache coverage helpers/decisions, cache payload serialization, room cache persistence/back-state refresh, initial room cache hydration, thread cache persistence/queueing, thread-open seed cache ownership, thread bootstrap/seed-prewarm/relation-fetch helpers, room-visible seed-prewarm queue orchestration, room cache-first back-pagination command, thread-open lifecycle/cache/network commands, live event cache/summary/auto-follow policy, overview resume refresh orchestration, compact root edit backfill, thread-message edit backfill, and room-derived thread-cache persistence now live outside `RoomTimeline`. `ThreadRecord.cache` is now populated for every record with conservative live/cache coverage. | Keep cache/preload orchestration behind repository/controller/index seams; do not reintroduce render-path cache reads. |
-| Scroll and pagination         | Mostly converted. Thread prepend anchor capture/restore lives in scroll utilities, thread back-pagination mutable state lives in `useThreadBackPaginationController`, thread back/front pagination commands live in `useThreadPaginationCommandController`, route debug trace/range instrumentation lives in `useTimelineDebugTraceIds` / `useTimelineDebugRangeController`, bottom-anchor/read-receipt ownership lives in `useTimelineReadReceiptController`, event deep-link/open routing lives in `useRoomEventOpenController` / `useRoomEventRouteOpenController`, and route focus/pending-open/edit/bottom-pin scroll effects live in `useRoomFocusScrollController`. | Extract remaining jump/reply navigation handlers only if it reduces ownership without hiding paginator behavior. |
+| Scroll and pagination         | Mostly converted. Thread prepend anchor capture/restore lives in scroll utilities, thread back-pagination mutable state lives in `useThreadBackPaginationController`, thread back/front pagination commands live in `useThreadPaginationCommandController`, route debug trace/range instrumentation lives in `useTimelineDebugTraceIds` / `useTimelineDebugRangeController`, bottom-anchor/read-receipt ownership lives in `useTimelineReadReceiptController`, event deep-link/open routing lives in `useRoomEventOpenController` / `useRoomEventRouteOpenController`, route focus/pending-open/edit/bottom-pin scroll effects live in `useRoomFocusScrollController`, and jump-to-latest/unread plus thread-card open navigation live in `useRoomTimelineNavigationController`. | Keep remaining generic message actions local unless a clearer fork-owned seam appears. |
 | Reaction rendering            | Not part of the thread model refactor. Fresh normal-message and thread-reply reactions pass e2e.                                                                                                                                                                                                                                                                                                                                                                                                                              | If regressions remain, debug as cache/relation coverage or room-specific data, not UI model.                                             |
 
 The main architecture pass has crossed the per-room index boundary: `RoomTimeline` now consumes
@@ -321,6 +321,8 @@ inline.
 Route focus scrolling, unread anchor scrolling, pending thread-open scroll retries, edit-message
 scrolling, thread-open bottom pinning, back-pagination anchor restore, and live-end bottom recovery
 now live in `src/app/mindroom/threads/roomFocusScrollController.ts`.
+Jump-to-latest, jump-to-unread, thread badge opens, compact-card opens, and recent-thread bumping now
+live in `src/app/mindroom/threads/roomTimelineNavigationController.ts`.
 The room-visible seed-prewarm queue, generation guard, and in-flight promise tracking now live in
 `src/app/mindroom/threads/threadSeedPrewarmController.ts`.
 The cached thread snapshot read used to prewarm thread-open seeds also lives in that controller now,
@@ -471,7 +473,8 @@ Thread cache coverage now includes backward-gap, snapshot-complete, relation-com
 facts, and `RoomTimeline` consumes fork-owned coverage decisions for "Load Older Messages",
 complete cached opens, and relation backfill. Route-specific scroll execution against rendered DOM
 nodes now lives behind `useRoomFocusScrollController`; `RoomTimeline` still owns the user-facing
-jump/reply button wiring that calls those lower-level route/paginator commands.
+jump/reply button rendering and generic message actions, while the route/paginator navigation
+handlers live behind `useRoomTimelineNavigationController`.
 Thread back/front pagination commands now live in
 `src/app/mindroom/threads/threadPaginationCommandController.ts`; `RoomTimeline` only wires the
 returned handlers into the load-older/load-newer buttons.
@@ -651,6 +654,8 @@ Acceptance:
 - Thread back/front pagination command bodies live behind a fork-owned controller.
 - Route focus, pending thread-open, edit-message, unread-anchor, and bottom-pin scroll effects live
   behind a fork-owned controller.
+- Jump-to-latest/unread and thread-card open handlers live behind a fork-owned navigation
+  controller.
 
 ### Phase 7: Shrink Upstream Diffs And Rewrite History
 

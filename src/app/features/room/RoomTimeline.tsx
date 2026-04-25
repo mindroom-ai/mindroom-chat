@@ -128,7 +128,6 @@ import { useImagePackRooms } from '../../hooks/useImagePackRooms';
 import { useIsDirectRoom } from '../../hooks/useRoom';
 import { useOpenUserRoomProfile } from '../../state/hooks/userRoomProfile';
 import { createSessionId } from '../../state/sessions';
-import { bumpRecentThread } from '../../state/recentThreads';
 import { useSpaceOptionally } from '../../hooks/useSpace';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
@@ -225,6 +224,7 @@ import {
   useRoomFocusScrollController,
   type RoomTimelineFocusItem,
 } from '../../mindroom/threads/roomFocusScrollController';
+import { useRoomTimelineNavigationController } from '../../mindroom/threads/roomTimelineNavigationController';
 
 export { getRoomEventThreadOpenTarget } from '../../mindroom/threads/roomDeepLink';
 export { getRoomEventFocusTarget, getThreadFilteredEvents } from '../../mindroom/threads/threadRoomFocus';
@@ -1231,86 +1231,31 @@ export function RoomTimeline({
     }
   }, [unread]);
 
-  const handleJumpToLatest = useCallback(async () => {
-    if (threadId) {
-      if (eventId) {
-        navigateRoomThread(room.roomId, threadId, undefined, { replace: true });
-      }
-
-      const didPaginateToLatest = await refreshLatestThreadSlice(threadId);
-      if (threadIdRef.current !== threadId) return;
-      if (didPaginateToLatest) {
-        scrollToBottomRef.current.count += 1;
-        scrollToBottomRef.current.smooth = false;
-        setAtBottom(true);
-        return;
-      }
-
-      const scrollEl = scrollRef.current;
-      if (scrollEl) {
-        scrollToBottom(scrollEl, 'instant');
-        setAtBottom(true);
-      }
-      return;
-    }
-
-    if (eventId) {
-      navigateRoom(room.roomId, undefined, { replace: true });
-    }
-    setTimeline(
-      getInitialTimeline(room, safePaginationLimit, {
-        threadId,
-        ignoredUsersSet,
-        showHiddenEvents,
-        hideMembershipEvents,
-        hideNickAvatarEvents,
-      })
-    );
-    scrollToBottomRef.current.count += 1;
-    scrollToBottomRef.current.smooth = false;
-  }, [
+  const {
+    handleJumpToLatest,
+    handleJumpToUnread,
+    handleOpenCompactThread,
+    handleOpenReply,
+  } = useRoomTimelineNavigationController({
     eventId,
+    handleOpenEvent,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+    ignoredUsersSet,
     navigateRoom,
     navigateRoomThread,
     refreshLatestThreadSlice,
     room,
-    threadId,
-    ignoredUsersSet,
-    showHiddenEvents,
-    hideMembershipEvents,
-    hideNickAvatarEvents,
     safePaginationLimit,
-  ]);
-
-  const handleJumpToUnread = () => {
-    if (unreadInfo?.readUptoEventId) {
-      void handleOpenEvent(unreadInfo.readUptoEventId, false);
-    }
-  };
-
-  const handleOpenReply: MouseEventHandler = useCallback(
-    async (evt) => {
-      const threadRootId = evt.currentTarget.getAttribute('data-thread-root-id');
-      const recentThreadSummaryText =
-        evt.currentTarget.getAttribute('data-thread-summary')?.trim() || undefined;
-      if (threadRootId) {
-        bumpRecentThread(room.roomId, threadRootId, undefined, recentThreadSummaryText);
-        navigateRoomThread(room.roomId, threadRootId);
-        return;
-      }
-      const targetId = evt.currentTarget.getAttribute('data-event-id');
-      if (!targetId) return;
-      handleOpenEvent(targetId);
-    },
-    [handleOpenEvent, navigateRoomThread, room.roomId]
-  );
-  const handleOpenCompactThread = useCallback(
-    (threadRootId: string, recentThreadSummaryText?: string) => {
-      bumpRecentThread(room.roomId, threadRootId, undefined, recentThreadSummaryText);
-      navigateRoomThread(room.roomId, threadRootId);
-    },
-    [navigateRoomThread, room.roomId]
-  );
+    scrollRef,
+    scrollToBottomRef,
+    setAtBottom,
+    setTimeline,
+    showHiddenEvents,
+    threadId,
+    threadIdRef,
+    unreadInfo,
+  });
 
   const handleUserClick: MouseEventHandler<HTMLButtonElement> = useCallback(
     (evt) => {
