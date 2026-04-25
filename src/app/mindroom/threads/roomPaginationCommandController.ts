@@ -21,7 +21,7 @@ import {
   timelineToEventsCount,
   type RecalibrateFilterOpts,
   type Timeline,
-} from '../../features/room/timelinePagination';
+} from './timelinePagination';
 import {
   getEarliestLoadedRoomEvent,
   loadRoomCachedPaginationSnapshot,

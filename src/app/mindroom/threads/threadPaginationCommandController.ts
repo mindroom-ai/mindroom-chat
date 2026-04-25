@@ -10,7 +10,7 @@ import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matri
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import to from 'await-to-js';
 import { THREAD_BATCH_SIZE } from '../../state/settings';
-import { getLinkedTimelines } from '../../features/room/timelinePagination';
+import { getLinkedTimelines } from './timelinePagination';
 import {
   findEarliestLoadedThreadReplyByCacheOrder,
   reconcileThreadBackwardPagination,
