@@ -5,7 +5,7 @@ export * from './attachment';
 export * from './Reply';
 export * from './content';
 export * from './Time';
-export { ThreadIndicator } from '../../mindroom/threads/ThreadIndicator';
+export { ThreadIndicator } from './ThreadIndicator';
 export * from '../../mindroom/messages/MindroomThreadSummaryCard';
 export * from './MsgTypeRenderers';
 export * from './FileHeader';
