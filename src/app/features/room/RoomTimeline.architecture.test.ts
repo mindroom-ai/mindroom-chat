@@ -164,6 +164,23 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('computeThreadRecordTagCounts');
   });
 
+  it('delegates thread timeline render state to the MindRoom thread namespace', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/useThreadTimelineState.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/useThreadTimelineState'");
+    expect(source).toContain('useThreadTimelineState');
+    expect(source).not.toContain("from '../../mindroom/threads/useThreadRenderState'");
+    expect(source).not.toContain('const threadLinkedTimelines =');
+    expect(source).not.toContain('const threadEventMap = useMemo');
+    expect(implementationSource).toContain("from './useThreadRenderState'");
+    expect(implementationSource).toContain('threadBackwardPaginationToken');
+    expect(implementationSource).toContain('canPaginateThreadFront');
+  });
+
   it('delegates room overview focus and filter helpers to the MindRoom thread namespace', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const windowControllerSource = readFileSync(
@@ -897,12 +914,18 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps thread render state merging in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const timelineStateSource = readFileSync(
+      new URL('../../mindroom/threads/useThreadTimelineState.ts', import.meta.url),
+      'utf8'
+    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/useThreadRenderState.ts', import.meta.url),
       'utf8'
     );
 
-    expect(source).toContain("from '../../mindroom/threads/useThreadRenderState'");
+    expect(source).toContain("from '../../mindroom/threads/useThreadTimelineState'");
+    expect(source).not.toContain("from '../../mindroom/threads/useThreadRenderState'");
+    expect(timelineStateSource).toContain("from './useThreadRenderState'");
     expect(implementationSource).toContain('setSupplementalThreadEvents');
     expect(implementationSource).toContain('mergeThreadRenderEvents');
   });
