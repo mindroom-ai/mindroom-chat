@@ -207,6 +207,7 @@ import {
   useLiveEventArrive,
   type TimelineArriveMeta,
 } from '../../mindroom/threads/roomLiveEventArrive';
+import { useThreadSummaryPublishController } from '../../mindroom/threads/threadSummaryPublishController';
 import { buildThreadBadgeViewModelFromRecord } from '../../mindroom/threads/threadBadgeViewModel';
 import { ThreadBadgeRenderer } from '../../mindroom/threads/ThreadBadgeRenderer';
 import {
@@ -2648,26 +2649,13 @@ export function RoomTimeline({
   );
   const { t } = useTranslation();
 
-  const activeThreadSummaryInfo = useMemo(
-    () =>
-      threadId
-        ? getLatestThreadSummaryInfoFromEventSources(threadEvents, thread?.events, thread?.timeline)
-        : undefined,
-    [thread?.events, thread?.timeline, threadEvents, threadId]
-  );
-
-  // Write-through: persist newly discovered summaries to IndexedDB
-  useEffect(() => {
-    if (threadId) return;
-    threadSummaryInfoMap.forEach((info, threadRootId) => {
-      onStoreThreadSummary(threadRootId, info);
-    });
-  }, [onStoreThreadSummary, threadId, threadSummaryInfoMap]);
-
-  useEffect(() => {
-    if (!threadId) return;
-    onStoreThreadSummary(threadId, activeThreadSummaryInfo);
-  }, [activeThreadSummaryInfo, onStoreThreadSummary, threadId]);
+  useThreadSummaryPublishController({
+    onStoreThreadSummary,
+    thread,
+    threadEvents,
+    threadId,
+    threadSummaryInfoMap,
+  });
 
   const { overviewResumeRefreshIds } = useMemo(
     () =>

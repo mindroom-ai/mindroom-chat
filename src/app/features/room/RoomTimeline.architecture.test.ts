@@ -575,12 +575,20 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/threadSummaryState.ts', import.meta.url),
       'utf8'
     );
+    const publishControllerSource = readFileSync(
+      new URL('../../mindroom/threads/threadSummaryPublishController.ts', import.meta.url),
+      'utf8'
+    );
+    const timelineSource = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(roomViewSource).toContain("from '../../mindroom/threads/useRoomThreadSummaryState'");
+    expect(timelineSource).toContain("from '../../mindroom/threads/threadSummaryPublishController'");
+    expect(timelineSource).not.toContain('threadSummaryInfoMap.forEach');
     expect(cacheCompatibilitySource).toContain("from '../../mindroom/threads/threadSummaryCache'");
     expect(stateCompatibilitySource).toContain("from '../../mindroom/threads/threadSummaryState'");
     expect(cacheSource).toContain('loadCachedThreadSummaries');
     expect(stateSource).toContain('storeThreadSummaryInState');
+    expect(publishControllerSource).toContain('useThreadSummaryPublishController');
     expect(cacheCompatibilitySource).not.toContain('indexedDB');
     expect(stateCompatibilitySource).not.toContain('useSyncExternalStore');
   });
