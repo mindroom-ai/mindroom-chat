@@ -837,6 +837,7 @@
 - `CINNY-075` implementation step 13 / Phase 5 overview resume controller (2026-04-24):
   - added `src/app/mindroom/threads/threadOverviewResumeController.ts` as the fork-owned owner for overview resume refresh orchestration.
   - `RoomTimeline` no longer owns the overview resume in-flight/pending/throttle refs, `usePageResume` hookup, or per-thread relation-cache refresh command; it only computes the target overview thread ids and supplies the existing cache/summary write-through commands.
+  - moved `usePageResume` into `src/app/mindroom/threads`, beside the only controller that consumes it.
   - compact-view resume still refreshes the server-side thread list before relation-cache refresh; expanded overview still loads room threads first.
   - validation:
     - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`

@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { THREAD_BATCH_SIZE } from '../../state/settings';
-import { usePageResume } from '../../hooks/usePageResume';
+import { usePageResume } from './usePageResume';
 import { loadRoomThreads } from './roomThreadList';
 import { logTimelineDebug } from './timelineDebug';
 import {
