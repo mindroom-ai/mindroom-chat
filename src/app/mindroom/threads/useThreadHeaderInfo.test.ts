@@ -12,7 +12,7 @@ vi.mock('../../hooks/useStateEvents', () => ({
   useStateEvents: vi.fn(),
 }));
 
-vi.mock('../../hooks/useThreadEventRefresh', () => ({
+vi.mock('./useThreadEventRefresh', () => ({
   useThreadEventRefresh: () => undefined,
 }));
 

@@ -1073,6 +1073,7 @@
     - `git diff --check` passes
 - `CINNY-075` implementation step 41 / Phase 5 thread render state ownership (2026-04-24):
   - moved live/cached thread render-state merging to `src/app/mindroom/threads/useThreadRenderState.ts` with its regression tests.
+  - moved `useThreadEventRefresh` into `src/app/mindroom/threads`, since it is only used by MindRoom thread-state selectors.
   - the old `src/app/features/room/useThreadRenderState.ts` path is now a compatibility re-export; `RoomTimeline` imports the MindRoom hook directly and existing RoomTimeline tests mock that direct import path.
   - this keeps supplemental cached-thread event merging, local-echo reconciliation, and fallback render-mode selection beside the thread render/cache namespace.
   - validation:

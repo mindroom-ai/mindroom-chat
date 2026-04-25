@@ -724,6 +724,8 @@ Acceptance:
   `messageExtensions.tsx` seam.
 - Live-message collapse policy and the `CollapsibleMessage` UI wrapper live in
   `src/app/mindroom/threads`; the generic room timeline only mounts the fork-owned wrapper.
+- Thread event refresh subscriptions live in `src/app/mindroom/threads` with the selectors that
+  consume them.
 - Pinned-message cache-aware event lookup and tool approval rendering live behind
   `src/app/mindroom/messages/pinnedMessageExtensions.ts`; the generic pinned-message menu only
   mounts the pinned-message seam.

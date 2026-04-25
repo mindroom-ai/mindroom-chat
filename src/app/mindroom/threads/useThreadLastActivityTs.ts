@@ -5,7 +5,7 @@ import {
   isVisibleThreadReplyEvent,
   isVisibleThreadReplyEventType,
 } from './threadUtils';
-import { useThreadEventRefresh } from '../../hooks/useThreadEventRefresh';
+import { useThreadEventRefresh } from './useThreadEventRefresh';
 
 type BundledThreadLatestEvent = {
   origin_server_ts?: unknown;
