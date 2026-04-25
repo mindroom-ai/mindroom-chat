@@ -261,7 +261,7 @@ vi.mock('../../mindroom/commands/mindroomCommandQuery', () => ({
   getMindroomCommandQuery: () => undefined,
 }));
 
-vi.mock('./VoiceRecorderDialog', () => ({
+vi.mock('../../mindroom/voice/VoiceRecorderDialog', () => ({
   VoiceRecorderComposer: (props: {
     onSendRecording: (file: File, duration: number) => Promise<void>;
   }) => {

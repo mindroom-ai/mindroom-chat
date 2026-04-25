@@ -398,6 +398,8 @@ MindRoom slash-bang command definitions, query parsing, and autocomplete UI now 
 `src/app/mindroom/commands/`; the old `features/room` paths are only compatibility re-exports.
 MindRoom bridge detection helpers now live in `src/app/mindroom/bridges/`; the old `features/room`
 path is only a compatibility re-export.
+MindRoom voice recorder UI and MIME policy now live in `src/app/mindroom/voice/`; the old
+`features/room` paths are only compatibility re-exports.
 Thread summary cache/state/selection now lives in `src/app/mindroom/threads/threadSummaryCache.ts`,
 `threadSummaryState.ts`, `threadSummarySelection.ts`, and `useRoomThreadSummaryState.ts`; the old
 `features/room` paths are only compatibility re-exports.
