@@ -14,7 +14,7 @@ enableMapSet();
 import './index.css';
 
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
-import { getAppPathFromNativeSsoUrl, isNativeIOS } from './app/utils/nativeSso';
+import { getAppPathFromNativeSsoUrl, isNativeIOS } from './app/mindroom/native/nativeSso';
 import { isServiceWorkerEnabled } from './app/utils/runtimeConfig';
 import { pushSessionToSW, waitForServiceWorkerControl } from './sw-session';
 import { getActiveSession, subscribeToSessionStore } from './app/state/sessions';
