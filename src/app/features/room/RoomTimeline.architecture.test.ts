@@ -1310,6 +1310,13 @@ describe('RoomTimeline architecture', () => {
       new URL('../settings/notifications/SystemNotification.tsx', import.meta.url),
       'utf8'
     );
+    const systemNotificationExtensionsSource = readFileSync(
+      new URL(
+        '../../mindroom/notifications/SystemNotificationMindroomExtensions.tsx',
+        import.meta.url
+      ),
+      'utf8'
+    );
     const nativeSsoSource = readFileSync(
       new URL('../../mindroom/native/nativeSso.ts', import.meta.url),
       'utf8'
@@ -1348,10 +1355,17 @@ describe('RoomTimeline architecture', () => {
     expect(nativeSsoSource).toContain('buildNativeSsoRedirectUrl');
     expect(iosPushSource).toContain('resolveIOSPushConfig');
     expect(systemNotificationSource).toContain(
+      "from '../../../mindroom/notifications/SystemNotificationMindroomExtensions'"
+    );
+    expect(systemNotificationSource).not.toContain(
       "from '../../../mindroom/native/IOSPushNotification'"
     );
+    expect(systemNotificationSource).not.toContain("from '../../../mindroom/branding/branding'");
     expect(systemNotificationSource).not.toContain("from '../../../mindroom/native/iosPush'");
     expect(systemNotificationSource).not.toContain('MINDROOM_APP_NAME');
+    expect(systemNotificationSource).not.toContain('MINDROOM_NOTIFICATION_BRAND');
+    expect(systemNotificationExtensionsSource).toContain('MINDROOM_NOTIFICATION_BRAND');
+    expect(systemNotificationExtensionsSource).toContain('IOSPushNotification');
     expect(clientNonUiSource).toContain(
       "from '../../mindroom/client/MindroomClientNonUIFeatures'"
     );

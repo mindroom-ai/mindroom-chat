@@ -10,8 +10,10 @@ import { getNotificationState, usePermissionState } from '../../../hooks/usePerm
 import { useEmailNotifications } from '../../../hooks/useEmailNotifications';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
-import { MINDROOM_NOTIFICATION_BRAND } from '../../../mindroom/branding/branding';
-import { IOSPushNotification } from '../../../mindroom/native/IOSPushNotification';
+import {
+  getMindroomEmailNotificationPusherData,
+  MindroomNativeNotificationSettings,
+} from '../../../mindroom/notifications/SystemNotificationMindroomExtensions';
 
 function EmailNotification() {
   const mx = useMatrixClient();
@@ -28,9 +30,7 @@ function EmailNotification() {
             app_display_name: 'Email Notifications',
             device_display_name: email,
             lang: 'en',
-            data: {
-              brand: MINDROOM_NOTIFICATION_BRAND,
-            },
+            data: getMindroomEmailNotificationPusherData(),
             append: true,
           });
           return;
@@ -137,7 +137,7 @@ export function SystemNotification() {
           }
         />
       </SequenceCard>
-      <IOSPushNotification />
+      <MindroomNativeNotificationSettings />
       <SequenceCard
         className={SequenceCardStyle}
         variant="SurfaceVariant"
