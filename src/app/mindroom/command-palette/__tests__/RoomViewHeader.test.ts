@@ -105,8 +105,8 @@ vi.mock('../../../components/room-topic-viewer', () => ({
   RoomTopicViewer: () => React.createElement('div'),
 }));
 
-vi.mock('../../../components/BackRouteHandler', () => ({
-  BackRouteHandler: ({ children }: { children: (onBack: () => void) => React.ReactNode }) =>
+vi.mock('../../native/MindroomBackRouteHandler', () => ({
+  MindroomBackRouteHandler: ({ children }: { children: (onBack: () => void) => React.ReactNode }) =>
     React.createElement(React.Fragment, null, children(vi.fn())),
 }));
 

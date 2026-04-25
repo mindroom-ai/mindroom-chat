@@ -4,7 +4,7 @@ import { Page, PageContent, PageContentCenter, PageHeader } from '../../../compo
 import { MindroomMessageSearch } from '../../../mindroom/message-search/MindroomMessageSearch';
 import { useHomeSearchRooms } from './useHomeRooms';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
-import { BackRouteHandler } from '../../../components/BackRouteHandler';
+import { MindroomBackRouteHandler as BackRouteHandler } from '../../../mindroom/native/MindroomBackRouteHandler';
 
 export function HomeSearch() {
   const scrollRef = useRef<HTMLDivElement>(null);
