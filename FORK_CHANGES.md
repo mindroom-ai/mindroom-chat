@@ -204,6 +204,9 @@
 - `CINNY-170`
   - Room-input reply/thread context rendering now goes through `MindroomRoomInputReplyContext`.
   - Generic `RoomInput` no longer renders the MindRoom thread-send fallback label or imports the thread-indicator component seam directly.
+- `CINNY-171`
+  - Room-timeline reply/start-thread draft derivation now lives in `src/app/mindroom/threads/roomTimelineReplyDraft.ts`.
+  - Generic `RoomTimeline` no longer builds the MindRoom `m.thread` reply relation inline when starting a thread from a normal message.
 
 ### Current Feature Set On `dev`
 

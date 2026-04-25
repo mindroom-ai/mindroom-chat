@@ -11,7 +11,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Direction, EventTimelineSet, IContent, MatrixEvent, Room, MsgType } from 'matrix-js-sdk';
+import { Direction, EventTimelineSet, MatrixEvent, Room, MsgType } from 'matrix-js-sdk';
 import { type Relations } from 'matrix-js-sdk/lib/models/relations';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import classNames from 'classnames';
@@ -201,6 +201,7 @@ import {
   type RoomTimelineFocusItem,
 } from '../../mindroom/threads/roomFocusScrollController';
 import { useRoomTimelineNavigationController } from '../../mindroom/threads/roomTimelineNavigationController';
+import { buildMindroomRoomTimelineReplyDraft } from '../../mindroom/threads/roomTimelineReplyDraft';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -1244,26 +1245,11 @@ export function RoomTimeline({
         console.warn('Button should have "data-event-id" attribute!');
         return;
       }
-      const replyEvt = room.findEventById(replyId);
-      if (!replyEvt) return;
-      const threadRootId = replyEvt.threadRootId ?? replyId;
-      const editedReply = getEditedEvent(replyId, replyEvt, room.getUnfilteredTimelineSet());
-      const content: IContent = editedReply?.getContent()['m.new_content'] ?? replyEvt.getContent();
-      const { body, formatted_body: formattedBody } = content;
-      const { 'm.relates_to': relation } = startThread
-        ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadRootId } }
-        : replyEvt.getWireContent();
-      const senderId = replyEvt.getSender();
-      if (senderId && typeof body === 'string') {
-        setReplyDraft({
-          userId: senderId,
-          eventId: replyId,
-          body,
-          formattedBody,
-          relation,
-        });
+      const replyDraft = buildMindroomRoomTimelineReplyDraft(room, replyId, startThread);
+      if (replyDraft) {
+        setReplyDraft(replyDraft.draft);
         if (startThread) {
-          navigateRoomThread(room.roomId, threadRootId);
+          navigateRoomThread(room.roomId, replyDraft.threadRootId);
         }
         setTimeout(() => ReactEditor.focus(editor), 100);
       }

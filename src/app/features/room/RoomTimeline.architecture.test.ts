@@ -34,6 +34,20 @@ describe('RoomTimeline architecture', () => {
     expect(timelineMessageSource).toContain('renderMindroomRoomTimelineThreadBadge');
   });
 
+  it('keeps reply/start-thread draft policy in MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/roomTimelineReplyDraft.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/roomTimelineReplyDraft'");
+    expect(source).not.toContain("rel_type: 'm.thread'");
+    expect(source).not.toContain("'m.relates_to': relation");
+    expect(implementationSource).toContain("rel_type: 'm.thread'");
+    expect(implementationSource).toContain('getEditedEvent');
+  });
+
   it('keeps renderability and preload counting outside RoomTimeline', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const implementationSource = readFileSync(
