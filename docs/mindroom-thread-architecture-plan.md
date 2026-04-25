@@ -100,6 +100,10 @@ Completed in the 2026-04-25 cleanup pass:
   `src/app/components/BackRouteHandler.tsx` owns only route-back calculation, while
   `src/app/mindroom/native/MindroomBackRouteHandler.tsx` mounts the native swipe gesture for
   MindRoom page/header integration points.
+- Generic settings integration no longer imports concrete Local MindRoom settings modules or the
+  message preload-limit tile directly. `src/app/mindroom/settings/settingsMenuExtensions.ts` owns
+  pure menu/initial-page policy, while `src/app/mindroom/settings/settingsExtensions.tsx` owns
+  fork-specific settings UI rendering seams.
 
 Remaining queue:
 
@@ -902,6 +906,9 @@ Acceptance:
 - MindRoom preload limit constants, sanitization, and the settings tile live in
   `src/app/mindroom/threads/preloadSettings.ts` and `src/app/mindroom/settings`; generic settings
   state only persists the value and generic settings UI only mounts the fork-owned tile.
+- MindRoom settings integration lives in `src/app/mindroom/settings/settingsMenuExtensions.ts` and
+  `src/app/mindroom/settings/settingsExtensions.tsx`; generic settings menu/page/general sections
+  should mount those seams rather than importing concrete Local MindRoom or preload setting modules.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy

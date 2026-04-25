@@ -1,8 +1,10 @@
 import { Icons, IconSrc } from 'folds';
 import { ScreenSize } from '../../hooks/useScreenSize';
-import { SettingsPage, SettingsPages } from './settingsPages';
-import { getLocalMindroomSettingsMenuItems } from '../../mindroom/local-mindroom/settingsMenu';
-import { resolveLocalMindroomInitialSettingsPage } from '../../mindroom/local-mindroom/settingsPage';
+import { type SettingsPage, SettingsPages } from './settingsPages';
+import {
+  getMindroomSettingsMenuItems,
+  resolveMindroomSettingsInitialPage,
+} from '../../mindroom/settings/settingsMenuExtensions';
 
 export type SettingsMenuItem = {
   page: SettingsPage;
@@ -36,7 +38,7 @@ const getBaseSettingsMenuItems = (showLocalMindRoom: boolean): SettingsMenuItem[
     name: 'Emojis & Stickers',
     icon: Icons.Smile,
   },
-  ...getLocalMindroomSettingsMenuItems(showLocalMindRoom),
+  ...getMindroomSettingsMenuItems(showLocalMindRoom),
   {
     page: SettingsPages.DeveloperToolsPage,
     name: 'Developer Tools',
@@ -56,12 +58,5 @@ export const resolveSettingsInitialPage = (
   initialPage: SettingsPage | undefined,
   screenSize: ScreenSize,
   showLocalMindRoom: boolean
-): SettingsPage | undefined => {
-  const resolvedInitialPage = resolveLocalMindroomInitialSettingsPage(
-    initialPage,
-    showLocalMindRoom
-  );
-  if (resolvedInitialPage !== undefined) return resolvedInitialPage;
-
-  return screenSize === ScreenSize.Mobile ? undefined : SettingsPages.GeneralPage;
-};
+): SettingsPage | undefined =>
+  resolveMindroomSettingsInitialPage(initialPage, screenSize, showLocalMindRoom);

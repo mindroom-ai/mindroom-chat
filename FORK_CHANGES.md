@@ -245,6 +245,10 @@
   - Route-level edge-swipe back handling now lives in `src/app/mindroom/native/MindroomBackRouteHandler.tsx`.
   - Generic `BackRouteHandler` owns only route-back calculation; it no longer imports MindRoom native edge-swipe behavior or accepts native-only props.
   - Page/header integration points consume the MindRoom wrapper where native swipe behavior is needed.
+- `CINNY-183`
+  - Settings integration now goes through `src/app/mindroom/settings/settingsMenuExtensions.ts` and `src/app/mindroom/settings/settingsExtensions.tsx`.
+  - Generic settings menu/page/general-message sections no longer import concrete Local MindRoom page/menu/rendering modules or the preload-limit tile directly.
+  - Local MindRoom settings and the message preload setting remain owned by the MindRoom namespace behind one settings extension seam.
 
 ### Current Feature Set On `dev`
 
