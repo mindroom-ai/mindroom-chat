@@ -791,8 +791,32 @@ describe('RoomTimeline architecture', () => {
     expect(pickerCompatibilitySource).not.toContain('normalizeTagName');
   });
 
+  it('keeps room-view thread state orchestration in MindRoom threads', () => {
+    const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/useRoomViewThreadState.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(roomViewSource).toContain("from '../../mindroom/threads/useRoomViewThreadState'");
+    expect(roomViewSource).not.toContain('roomThreadFilterAtomFamily');
+    expect(roomViewSource).not.toContain('roomViewModeAtomFamily');
+    expect(roomViewSource).not.toContain('bumpRecentThread');
+    expect(roomViewSource).not.toContain('resolveRecentThreadSummaryText');
+    expect(roomViewSource).not.toContain('getRoomThreadExitTargetFromHistoryState');
+    expect(implementationSource).toContain('roomThreadFilterAtomFamily');
+    expect(implementationSource).toContain('roomViewModeAtomFamily');
+    expect(implementationSource).toContain('bumpRecentThread');
+    expect(implementationSource).toContain('resolveRecentThreadSummaryText');
+    expect(implementationSource).toContain('getRoomThreadExitTargetFromHistoryState');
+  });
+
   it('keeps thread summary cache and state in MindRoom threads', () => {
     const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
+    const roomViewThreadStateSource = readFileSync(
+      new URL('../../mindroom/threads/useRoomViewThreadState.ts', import.meta.url),
+      'utf8'
+    );
     const cacheCompatibilitySource = readFileSync(
       new URL('./threadSummaryCache.ts', import.meta.url),
       'utf8'
@@ -815,7 +839,9 @@ describe('RoomTimeline architecture', () => {
     );
     const timelineSource = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
-    expect(roomViewSource).toContain("from '../../mindroom/threads/useRoomThreadSummaryState'");
+    expect(roomViewSource).toContain("from '../../mindroom/threads/useRoomViewThreadState'");
+    expect(roomViewSource).not.toContain("from '../../mindroom/threads/useRoomThreadSummaryState'");
+    expect(roomViewThreadStateSource).toContain("from './useRoomThreadSummaryState'");
     expect(timelineSource).toContain("from '../../mindroom/threads/threadSummaryPublishController'");
     expect(timelineSource).not.toContain('threadSummaryInfoMap.forEach');
     expect(cacheCompatibilitySource).toContain("from '../../mindroom/threads/threadSummaryCache'");
@@ -1296,6 +1322,10 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps thread root route canonicalization in MindRoom threads', () => {
     const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
+    const roomViewThreadStateSource = readFileSync(
+      new URL('../../mindroom/threads/useRoomViewThreadState.ts', import.meta.url),
+      'utf8'
+    );
     const compatibilitySource = readFileSync(
       new URL('./useThreadRootEvent.ts', import.meta.url),
       'utf8'
@@ -1305,7 +1335,9 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(roomViewSource).toContain("from '../../mindroom/threads/useThreadRootEvent'");
+    expect(roomViewSource).toContain("from '../../mindroom/threads/useRoomViewThreadState'");
+    expect(roomViewSource).not.toContain("from '../../mindroom/threads/useThreadRootEvent'");
+    expect(roomViewThreadStateSource).toContain("from './useThreadRootEvent'");
     expect(compatibilitySource).toContain("from '../../mindroom/threads/useThreadRootEvent'");
     expect(implementationSource).toContain('resolveCanonicalThreadRootId');
     expect(implementationSource).toContain('RoomEvent.LocalEchoUpdated');
