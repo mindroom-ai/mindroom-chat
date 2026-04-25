@@ -2,8 +2,8 @@ import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { commandPaletteOpenAtom } from '../../../mindroom/command-palette/commandPaletteState';
-import { SearchTab } from './SearchTab';
+import { commandPaletteOpenAtom } from './commandPaletteState';
+import { MindroomCommandPaletteSidebarTab } from './MindroomCommandPaletteSidebarTab';
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');
@@ -15,7 +15,7 @@ vi.mock('folds', async () => {
   };
 });
 
-vi.mock('../../../components/sidebar', () => ({
+vi.mock('../../components/sidebar', () => ({
   SidebarItem: ({
     active,
     children,
@@ -55,14 +55,14 @@ const renderSearchTab = (open = false) => {
     React.createElement(
       Provider,
       { store },
-      React.createElement(SearchTab)
+      React.createElement(MindroomCommandPaletteSidebarTab)
     )
   );
 
   return { renderer, store };
 };
 
-describe('SearchTab', () => {
+describe('MindroomCommandPaletteSidebarTab', () => {
   it('opens the shared command palette atom from the sidebar trigger', async () => {
     const { renderer, store } = renderSearchTab(false);
     const button = renderer.root.findByType('button');

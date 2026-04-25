@@ -771,6 +771,35 @@ describe('RoomTimeline architecture', () => {
     expect(implementationSource).toContain('mergeCommandPaletteThreadItems');
   });
 
+  it('keeps command-palette opener widgets in MindRoom command-palette', () => {
+    const roomHeaderSource = readFileSync(new URL('./RoomViewHeader.tsx', import.meta.url), 'utf8');
+    const sidebarSearchTabSource = readFileSync(
+      new URL('../../pages/client/sidebar/SearchTab.tsx', import.meta.url),
+      'utf8'
+    );
+    const headerButtonSource = readFileSync(
+      new URL(
+        '../../mindroom/command-palette/MindroomCommandPaletteHeaderButton.tsx',
+        import.meta.url
+      ),
+      'utf8'
+    );
+    const sidebarTabSource = readFileSync(
+      new URL(
+        '../../mindroom/command-palette/MindroomCommandPaletteSidebarTab.tsx',
+        import.meta.url
+      ),
+      'utf8'
+    );
+
+    expect(roomHeaderSource).toContain('MindroomCommandPaletteHeaderButton');
+    expect(roomHeaderSource).not.toContain('commandPaletteOpenAtom');
+    expect(sidebarSearchTabSource).toContain('MindroomCommandPaletteSidebarTab as SearchTab');
+    expect(sidebarSearchTabSource).not.toContain('commandPaletteOpenAtom');
+    expect(headerButtonSource).toContain('commandPaletteOpenAtom');
+    expect(sidebarTabSource).toContain('commandPaletteOpenAtom');
+  });
+
   it('keeps cache-aware room event loading in MindRoom threads', () => {
     const hookImplementationSource = readFileSync(
       new URL('../../mindroom/threads/useRoomEvent.ts', import.meta.url),
