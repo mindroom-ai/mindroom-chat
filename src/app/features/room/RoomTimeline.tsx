@@ -13,7 +13,6 @@ import React, {
 } from 'react';
 import {
   Direction,
-  EventTimeline,
   EventTimelineSet,
   IContent,
   MatrixEvent,
@@ -26,7 +25,6 @@ import classNames from 'classnames';
 import { ReactEditor } from 'slate-react';
 import { Editor } from 'slate';
 import { SessionMembershipData } from 'matrix-js-sdk/lib/matrixrtc/CallMembership';
-import to from 'await-to-js';
 import { useAtomValue, useSetAtom } from 'jotai';
 import {
   Badge,
@@ -138,10 +136,6 @@ import { useAccessiblePowerTagColors, useGetMemberPowerTag } from '../../hooks/u
 import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
-import {
-  buildVisibleThreadReplyCountMap,
-  eventBelongsToThread,
-} from '../../mindroom/threads/threadUtils';
 import { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
 import {
   consumeLiveExpandOnceId,
@@ -173,7 +167,6 @@ import {
   type Timeline,
 } from '../../mindroom/threads/timelinePagination';
 import {
-  useEventTimelineLoader,
   useTimelinePagination,
 } from '../../mindroom/threads/timelinePaginationController';
 import { useThreadSummaryPublishController } from '../../mindroom/threads/threadSummaryPublishController';
@@ -181,9 +174,6 @@ import { useThreadOverviewRefreshCounter } from '../../mindroom/threads/threadOv
 import { useThreadSortFreezeController } from '../../mindroom/threads/threadSortFreezeController';
 import { buildThreadBadgeViewModelFromRecord } from '../../mindroom/threads/threadBadgeViewModel';
 import { ThreadBadgeRenderer } from '../../mindroom/threads/ThreadBadgeRenderer';
-import {
-  getRoomEventFocusTarget,
-} from '../../mindroom/threads/threadRoomFocus';
 import { useMindroomThreadIndex } from '../../mindroom/threads/useMindroomThreadIndex';
 import type { ThreadBadgeViewModel } from '../../mindroom/threads/types';
 import type { ThreadFilterKey } from '../../mindroom/threads/RoomThreadOverview';
@@ -196,14 +186,11 @@ import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,
 } from '../../mindroom/threads/threadFilterDsl';
-import { resolveRoomEventThreadRedirect } from '../../mindroom/threads/roomDeepLink';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
 import {
   getEventElementById,
   getRoomFocusScrollOptions,
   getRoomFocusScrollToItemOptions,
-  getTimelineTargetAnchor,
-  getUnreadTargetAnchor,
   isAnchorVisibleInScroll,
   isTimelineAtLiveEnd,
   ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS,
@@ -239,6 +226,10 @@ import { useRoomLiveEventController } from '../../mindroom/threads/roomLiveEvent
 import { useThreadOpenLifecycleController } from '../../mindroom/threads/threadOpenLifecycleController';
 import { useRoomTimelineWindowController } from '../../mindroom/threads/roomTimelineWindowController';
 import { useTimelineReadReceiptController } from '../../mindroom/threads/timelineReadReceiptController';
+import {
+  useRoomEventOpenController,
+  useRoomEventRouteOpenController,
+} from '../../mindroom/threads/roomEventOpenController';
 
 export { getRoomEventThreadOpenTarget } from '../../mindroom/threads/roomDeepLink';
 export { getRoomEventFocusTarget, getThreadFilteredEvents } from '../../mindroom/threads/threadRoomFocus';
@@ -967,172 +958,47 @@ export function RoomTimeline({
     shouldSuppressPagination: useCallback(() => suppressFocusPaginationRef.current, []),
   });
 
-  const redirectRoomEventDeepLink = useCallback(
-    (targetEventId: string, linkedTimelines?: EventTimeline[]): boolean => {
-      const threadTarget = resolveRoomEventThreadRedirect({
-        eventId: targetEventId,
-        room,
-        linkedTimelines,
-        roomThreads: roomThreadListThreads,
-        roomOverviewOrderActive,
-        threadId,
-        focusEventInRoom,
-      });
-      if (!threadTarget) {
-        return false;
-      }
-
-      navigateRoomThread(room.roomId, threadTarget.threadId, threadTarget.eventId, {
-        replace: true,
-      });
-      return true;
-    },
-    [
-      focusEventInRoom,
-      navigateRoomThread,
-      room,
-      roomOverviewOrderActive,
-      roomThreadListThreads,
-      threadId,
-    ]
-  );
-
-  const loadEventTimeline = useEventTimelineLoader(
+  const { handleOpenEvent, redirectRoomEventDeepLink } = useRoomEventOpenController({
+    alive,
+    effectiveViewMode,
+    focusEventInRoom,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+    ignoredUsersSet,
     mx,
     room,
-    useCallback(
-      (evtId, lTimelines, evtAbsIndex) => {
-        if (!alive()) return;
-        if (redirectRoomEventDeepLink(evtId, lTimelines)) {
-          return;
-        }
-        const renderableEntries = getRenderableEventEntries(
-          lTimelines,
-          room,
-          threadId,
-          ignoredUsersSet,
-          showHiddenEvents,
-          hideMembershipEvents,
-          hideNickAvatarEvents
-        );
-        const loadedRenderableEvents = renderableEntries.map(({ event }) => event);
-        const loadedThreadReplyCountMap = buildVisibleThreadReplyCountMap(
-          lTimelines.flatMap((timeline) => timeline.getEvents())
-        );
-        const anchor =
-          evtId === readUptoEventIdRef.current
-            ? getUnreadTargetAnchor({
-                renderableEntries,
-                eventId: evtId,
-                absoluteIndex: evtAbsIndex,
-              })
-            : getTimelineTargetAnchor({
-                linkedTimelines: lTimelines,
-                renderableEntries,
-                eventId: evtId,
-                absoluteIndex: evtAbsIndex,
-              });
-        const {
-          index: idx,
-          count,
-          canFocus,
-        } = anchor
-          ? getRoomEventFocusTarget({
-              eventId: anchor.eventId,
-              renderableEvents: loadedRenderableEvents,
-              room,
-              threadResolutionMap,
-              threadId,
-              threadFilterState: threadFilterStateRef.current,
-              threadReplyCountMap: loadedThreadReplyCountMap,
-              scheduledTaskCounts,
-              threadReplyCountMapForMeta: threadReplyCountMap,
-              threadParticipantMap,
-              summaryMap: threadSummaryInfoMap,
-              currentUserId: mx.getSafeUserId(),
-              readUpToTs,
-              searchQuery: threadIndexSearchQuery,
-              threadSortFreezeState,
-              threadSortControlSignature,
-              viewMode: effectiveViewMode,
-              roomThreads: roomThreadListThreads,
-              orderedRoomOverviewEventIds: roomOverviewOrderActive
-                ? overviewThreadRootIds
-                : undefined,
-            })
-          : {
-              index: 0,
-              count: loadedRenderableEvents.length,
-              canFocus: false,
-            };
-
-        setFocusItem(
-          anchor && canFocus
-            ? {
-                eventId: anchor.eventId,
-                index: idx,
-                scrollTo: !threadId,
-                highlight: evtId !== readUptoEventIdRef.current,
-              }
-            : undefined
-        );
-        setTimeline({
-          linkedTimelines: lTimelines,
-          range: {
-            start: Math.max(idx - safePaginationLimitRef.current, 0),
-            end: Math.min(idx + safePaginationLimitRef.current, count),
-          },
-        });
-      },
-      [
-        alive,
-        mx,
-        threadId,
-        threadResolutionMap,
-        room,
-        ignoredUsersSet,
-        showHiddenEvents,
-        hideMembershipEvents,
-        hideNickAvatarEvents,
-        scheduledTaskCounts,
-        threadReplyCountMap,
-        threadParticipantMap,
-        threadSummaryInfoMap,
-        readUpToTs,
-        threadIndexSearchQuery,
-        threadSortFreezeState,
-        threadSortControlSignature,
-        roomOverviewOrderActive,
-        overviewThreadRootIds,
-        roomThreadListThreads,
-        redirectRoomEventDeepLink,
-        effectiveViewMode,
-      ]
-    ),
-    useCallback(() => {
-      if (!alive()) return;
-      setTimeline(
-        getInitialTimeline(room, safePaginationLimit, {
-          threadId,
-          ignoredUsersSet,
-          showHiddenEvents,
-          hideMembershipEvents,
-          hideNickAvatarEvents,
-        })
-      );
-      scrollToBottomRef.current.count += 1;
-      scrollToBottomRef.current.smooth = false;
-    }, [
-      alive,
-      room,
-      threadId,
-      ignoredUsersSet,
-      showHiddenEvents,
-      hideMembershipEvents,
-      hideNickAvatarEvents,
-      safePaginationLimit,
-    ])
-  );
+    navigateRoomThread,
+    overviewThreadRootIds,
+    pendingThreadOpenRef,
+    readUpToTs,
+    readUptoEventIdRef,
+    recalibrateFilterOptsRef,
+    roomOverviewOrderActive,
+    roomThreadListThreads,
+    safePaginationLimit,
+    safePaginationLimitRef,
+    scheduledTaskCounts,
+    scrollRef,
+    scrollToBottomRef,
+    scrollToElement,
+    scrollToItem,
+    searchQuery: threadIndexSearchQuery,
+    setFocusItem,
+    setPendingThreadOpenTick,
+    setThreadTimelineTick,
+    setTimeline,
+    showHiddenEvents,
+    threadEventIndexMapRef,
+    threadFilteredEvents,
+    threadFilterStateRef,
+    threadId,
+    threadParticipantMap,
+    threadReplyCountMap,
+    threadResolutionMap,
+    threadSortControlSignature,
+    threadSortFreezeState,
+    threadSummaryInfoMap,
+  });
 
   useRoomLiveEventController({
     atBottomRef,
@@ -1199,115 +1065,6 @@ export function RoomTimeline({
     threadId,
     threadIdRef,
   });
-
-  const handleOpenEvent = useCallback(
-    async (
-      evtId: string,
-      highlight = true,
-      onScroll: ((scrolled: boolean) => void) | undefined = undefined
-    ) => {
-      if (threadId && evtId !== threadId) {
-        const targetEvent = room.findEventById(evtId);
-        if (!targetEvent || !eventBelongsToThread(targetEvent, threadId)) {
-          return;
-        }
-      }
-
-      if (threadId) {
-        const threadItemIndex = threadEventIndexMapRef.current.get(evtId);
-        if (typeof threadItemIndex === 'number') {
-          const target = getEventElementById(scrollRef.current, evtId);
-          setFocusItem({
-            eventId: evtId,
-            index: threadItemIndex,
-            scrollTo: false,
-            highlight,
-          });
-          if (target) {
-            scrollToElement(target, {
-              behavior: 'smooth',
-              align: 'center',
-              stopInView: true,
-            });
-            if (onScroll) onScroll(true);
-            return;
-          }
-          if (onScroll) onScroll(false);
-          return;
-        }
-      }
-
-      const filteredIndex = threadFilteredEvents.findIndex((e) => e.getId() === evtId);
-
-      if (filteredIndex !== -1) {
-        const scrolled = scrollToItem(filteredIndex, {
-          behavior: 'smooth',
-          align: 'center',
-          stopInView: true,
-        });
-        if (onScroll) onScroll(scrolled);
-        setFocusItem({
-          eventId: evtId,
-          index: filteredIndex,
-          scrollTo: false,
-          highlight,
-        });
-      } else {
-        if (threadId) {
-          let currentThreadTimelineSet = room.getThread(threadId)?.getUnfilteredTimelineSet();
-          const expectedThreadId = threadId;
-          if (!currentThreadTimelineSet) {
-            const [threadErr] = await to(
-              mx.getThreadTimeline(room.getUnfilteredTimelineSet(), threadId)
-            );
-            if (threadErr) {
-              if (onScroll) onScroll(false);
-              return;
-            }
-            currentThreadTimelineSet =
-              room.getThread(threadId)?.getUnfilteredTimelineSet() ??
-              room.getUnfilteredTimelineSet();
-          }
-          const [err, threadEventTimeline] = await to(
-            mx.getEventTimeline(currentThreadTimelineSet, evtId)
-          );
-          if (err || !threadEventTimeline) {
-            if (onScroll) onScroll(false);
-            return;
-          }
-          pendingThreadOpenRef.current = {
-            threadId: expectedThreadId,
-            eventId: evtId,
-            highlight,
-            onScroll,
-            attempts: 0,
-          };
-          setTimeline((ct) => ({ ...ct }));
-          setThreadTimelineTick((val) => val + 1);
-          setPendingThreadOpenTick((val) => val + 1);
-          return;
-        }
-        setTimeline(getEmptyTimeline());
-        await loadEventTimeline(evtId);
-      }
-    },
-    [
-      alive,
-      mx,
-      room,
-      threadReplyCountMap,
-      scrollToItem,
-      scrollToElement,
-      loadEventTimeline,
-      threadId,
-    ]
-  );
-  const handleOpenEventRef = useRef(handleOpenEvent);
-  const handledRoomEventRouteRef = useRef<string>();
-
-  useEffect(() => {
-    handleOpenEventRef.current = handleOpenEvent;
-  }, [handleOpenEvent]);
 
   useThreadAwareTimelineRefresh({
     room,
@@ -1402,41 +1159,16 @@ export function RoomTimeline({
     )
   );
 
-  useEffect(() => {
-    if (!eventId) {
-      handledRoomEventRouteRef.current = undefined;
-      return;
-    }
-
-    const routeKey = [
-      room.roomId,
-      threadId ?? '',
-      eventId,
-      focusEventInRoom ? '1' : '0',
-      effectiveViewMode,
-      roomOverviewOrderActive ? '1' : '0',
-    ].join('|');
-
-    if (handledRoomEventRouteRef.current === routeKey) {
-      return;
-    }
-
-    handledRoomEventRouteRef.current = routeKey;
-
-    if (redirectRoomEventDeepLink(eventId)) {
-      return;
-    }
-
-    handleOpenEventRef.current(eventId);
-  }, [
+  useRoomEventRouteOpenController({
+    effectiveViewMode,
     eventId,
     focusEventInRoom,
-    room.roomId,
-    threadId,
+    handleOpenEvent,
     redirectRoomEventDeepLink,
-    effectiveViewMode,
+    roomId: room.roomId,
     roomOverviewOrderActive,
-  ]);
+    threadId,
+  });
 
   useThreadOpenLifecycleController({
     backfillThreadRelationsIntoCache,

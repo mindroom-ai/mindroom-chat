@@ -487,8 +487,13 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/threadRouteUtils.ts', import.meta.url),
       'utf8'
     );
+    const eventOpenSource = readFileSync(
+      new URL('../../mindroom/threads/roomEventOpenController.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain("from '../../mindroom/threads/threadUtils'");
+    expect(source).toContain('useRoomEventOpenController');
+    expect(eventOpenSource).toContain("from './threadUtils'");
     expect(utilityCompatibilitySource).toContain("from '../../mindroom/threads/threadUtils'");
     expect(routeCompatibilitySource).toContain("from '../../mindroom/threads/threadRouteUtils'");
     expect(utilitySource).toContain('getPreferredVisibleThreadReplyEvents');
