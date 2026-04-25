@@ -2470,6 +2470,28 @@
   - `git diff --check` passes
   - live Matrix-room verification was not performed in this implementation worktree; DevAgent review/live-test/merge remains the handoff path.
 
+## CINNY-089 — Hide React Query Devtools launcher by default (2026-04-24)
+
+- Replaced the static `@tanstack/react-query-devtools` import and always-mounted launcher in `src/app/pages/App.tsx` with `ReactQueryDevtoolsToggle` inside the existing `QueryClientProvider`.
+- Added `src/app/components/ReactQueryDevtoolsToggle.tsx`:
+  - returns `null` by default, so the TanStack / React Query Devtools floating launcher is not mounted for normal deployed users,
+  - lazy-loads `@tanstack/react-query-devtools` only after the gate is explicitly enabled,
+  - preserves the existing devtools behavior when enabled with `initialIsOpen={false}`,
+  - enables via `VITE_ENABLE_REACT_QUERY_DEVTOOLS=true`, `?reactQueryDevtools=1/true`, or `localStorage['mindroom.reactQueryDevtools'] === 'true'`,
+  - disables and clears the stored flag via `?reactQueryDevtools=0/false`,
+  - and checks both normal search params and hash-router query params.
+- Added focused coverage in `src/app/components/ReactQueryDevtoolsToggle.test.ts` for default-disabled behavior, env/storage/query/hash opt-in, query opt-out precedence and persistence clearing, and lazy component rendering when explicitly enabled.
+- review:
+  - independent second self-review completed via fresh source/test reads, scoped `git diff`, `git diff --check`, and targeted eslint; scope stayed limited to the devtools visibility gate, focused test, `App.tsx` mount swap, and this runbook update.
+- validation:
+  - resume pass confirmed the uncommitted implementation against `FINAL-PLAN.md`; no additional implementation fixes were needed.
+  - `git diff --check` passes
+  - `npx vitest run src/app/components/ReactQueryDevtoolsToggle.test.ts` passes (`9/9` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - targeted `npx eslint src/app/components/ReactQueryDevtoolsToggle.tsx src/app/components/ReactQueryDevtoolsToggle.test.ts src/app/pages/App.tsx` passes with no output
+  - `npm test` passes (`176/176` files, `1550/1550` tests)
+
 ## CINNY-085 — Move MindRoom message primitives to fork namespace (2026-04-25)
 
 - Moved thread-summary parsing, tool-approval parsing, the approval card, and the summary card into `src/app/mindroom/messages`.
