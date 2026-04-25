@@ -285,9 +285,11 @@ describe('RoomTimeline architecture', () => {
   it('does not keep stale low-level thread compatibility wrappers', () => {
     const removedThreadCompatibilityPaths = [
       './cacheDbMigrationUtils.ts',
+      './roomEventCache.ts',
       './roomDeepLink.ts',
       './roomPreloadTarget.ts',
       './roomThreadList.ts',
+      './threadEventCache.ts',
       './threadSummaryCache.ts',
       './threadSummarySelection.ts',
       './threadSummaryState.ts',
@@ -1720,14 +1722,6 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps raw event cache stores in MindRoom threads', () => {
-    const roomCompatibilitySource = readFileSync(
-      new URL('./roomEventCache.ts', import.meta.url),
-      'utf8'
-    );
-    const threadCompatibilitySource = readFileSync(
-      new URL('./threadEventCache.ts', import.meta.url),
-      'utf8'
-    );
     const roomStoreSource = readFileSync(
       new URL('../../mindroom/threads/roomEventCache.ts', import.meta.url),
       'utf8'
@@ -1741,8 +1735,6 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(roomCompatibilitySource).toContain("from '../../mindroom/threads/roomEventCache'");
-    expect(threadCompatibilitySource).toContain("from '../../mindroom/threads/threadEventCache'");
     expect(roomStoreSource).toContain('mindroom-room-event-cache');
     expect(threadStoreSource).toContain('mindroom-thread-event-cache');
     expect(repositorySource).toContain("from './roomEventCache'");

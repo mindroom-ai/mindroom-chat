@@ -126,6 +126,8 @@
 - `CINNY-143`
   - Removed architecture-test-only wrappers for room preload target selection, thread deep links, thread render state, summary cache/state, thread-list loading, thread-root lookup, and cache DB migration helpers.
   - These callers now rely on the MindRoom-owned modules directly or through the higher-level controller seams.
+- `CINNY-144`
+  - Removed the generic raw room/thread event cache wrappers and retargeted cache tests to the MindRoom-owned stores directly.
 
 ### Current Feature Set On `dev`
 
