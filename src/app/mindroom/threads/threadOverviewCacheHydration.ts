@@ -21,7 +21,7 @@ import {
   loadLatestCachedThreadEvents,
 } from './eventRepository';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
-import { resolveThreadPresentationSnapshot } from '../../features/room/threadPresentation';
+import { resolveThreadPresentationSnapshot } from './threadPresentation';
 
 type MapSetter<K, V> = Dispatch<SetStateAction<Map<K, V>>>;
 
