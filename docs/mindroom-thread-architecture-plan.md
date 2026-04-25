@@ -705,7 +705,7 @@ Acceptance:
   legacy `utils`/`hooks` paths only keep compatibility exports.
 - Thread streaming-state derivation from `io.mindroom.ai_run`, `io.mindroom.stream_status`, and stop
   reactions lives in `src/app/mindroom/threads`; the old generic hook path is compatibility-only.
-- Product branding constants and hosted `mindroom.chat` auth policy live in `src/app/mindroom/branding`
+- Product branding constants, image assets, and hosted `mindroom.chat` auth policy live in `src/app/mindroom/branding`
   and `src/app/mindroom/auth`; auth/settings/page shells consume those owners rather than duplicating
   product strings and server checks.
 - Search-result rendering delegates MindRoom long-text metadata detection to `src/app/mindroom/messages`

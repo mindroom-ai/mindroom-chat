@@ -2101,3 +2101,8 @@
 - Added `src/app/mindroom/messages/editDebug.ts` as the owner for MindRoom edit-debug flags and scoped logging.
 - Kept `logEditDebug` exported from `src/app/utils/room.ts` as a compatibility alias while moving thread backfill controllers to the fork-owned logger directly.
 - Updated app cache cleanup to reference the fork-owned `mindroom.debug.edits` storage key constant.
+
+## CINNY-104 — Keep favicon branding in MindRoom namespace (2026-04-25)
+
+- Added `MINDROOM_FAVICON_SRC` to `src/app/mindroom/branding/branding.ts`.
+- Updated `ClientNonUIFeatures` to consume the fork-owned favicon constant instead of importing the MindRoom asset from a generic client page.

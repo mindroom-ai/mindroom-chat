@@ -5,6 +5,7 @@ import {
   MINDROOM_DEFAULT_POWERED_BY,
   MINDROOM_DEVICE_DISPLAY_NAME,
   MINDROOM_DOCS_URL,
+  MINDROOM_FAVICON_SRC,
   MINDROOM_NOTIFICATION_BRAND,
   MINDROOM_SOURCE_URL,
 } from './branding';
@@ -25,5 +26,8 @@ describe('MindRoom branding', () => {
       url: MINDROOM_SOURCE_URL,
     });
   });
-});
 
+  it('exports MindRoom-owned image assets from the branding boundary', () => {
+    expect(MINDROOM_FAVICON_SRC).toContain('mindroom-favicon');
+  });
+});

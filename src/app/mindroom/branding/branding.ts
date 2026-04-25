@@ -1,4 +1,5 @@
 import MindRoomLogo from '../../../../public/res/branding/mindroom-logo.png';
+import MindRoomFavicon from '../../../../public/res/branding/mindroom-favicon.png';
 
 export const MINDROOM_APP_NAME = 'MindRoom';
 export const MINDROOM_DEVICE_DISPLAY_NAME = 'MindRoom Web';
@@ -10,6 +11,7 @@ export const MINDROOM_DOCS_URL = 'https://docs.mindroom.chat/';
 
 export const MINDROOM_LOGO_SRC = MindRoomLogo;
 export const MINDROOM_LOGO_ALT = 'MindRoom Logo';
+export const MINDROOM_FAVICON_SRC = MindRoomFavicon;
 
 export type MindroomPoweredByLink = {
   label: string;
@@ -22,4 +24,3 @@ export const MINDROOM_DEFAULT_POWERED_BY: MindroomPoweredByLink[] = [
   { label: 'Cinny', url: 'https://github.com/cinnyapp/cinny' },
   { label: 'MindRoom Cinny Fork', url: MINDROOM_CINNY_SOURCE_URL },
 ];
-
