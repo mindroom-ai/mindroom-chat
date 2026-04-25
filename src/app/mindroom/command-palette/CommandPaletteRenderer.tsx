@@ -6,9 +6,9 @@ import React, { useCallback, useRef, useState } from 'react';
 import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
 import { LogoutDialog } from '../../components/LogoutDialog';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
-import { commandPaletteOpenAtom } from '../../state/commandPalette';
 import { stopPropagation } from '../../utils/keyboard';
 import { CommandPalette } from './CommandPalette';
+import { commandPaletteOpenAtom } from './commandPaletteState';
 import { useCommandPaletteSource } from './commandPaletteItems';
 import { useCommandPaletteHotkey } from './useCommandPaletteHotkey';
 

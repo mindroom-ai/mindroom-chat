@@ -2,8 +2,8 @@ import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { commandPaletteOpenAtom } from '../../state/commandPalette';
 import { CommandPaletteRenderer } from './CommandPaletteRenderer';
+import { commandPaletteOpenAtom } from './commandPaletteState';
 
 const { screenSizeState, sourceState, useCommandPaletteSourceMock } = vi.hoisted(() => {
   const state = {

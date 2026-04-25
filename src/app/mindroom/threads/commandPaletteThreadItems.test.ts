@@ -4,7 +4,7 @@ import {
   mergeCommandPaletteThreadItems,
   resolveCommandPaletteCurrentThreadRootId,
 } from './commandPaletteThreadItems';
-import type { CommandPaletteThreadItem } from '../../features/command-palette/commandPaletteTypes';
+import type { CommandPaletteThreadItem } from '../command-palette/commandPaletteTypes';
 
 const makeItem = (overrides: Partial<CommandPaletteThreadItem>): CommandPaletteThreadItem => ({
   id: 'room|thread',

@@ -1,7 +1,7 @@
 import { EventTimeline, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { useAtomValue } from 'jotai';
 import { useCallback, useMemo } from 'react';
-import type { CommandPaletteThreadItem } from '../../features/command-palette/commandPaletteTypes';
+import type { CommandPaletteThreadItem } from '../command-palette/commandPaletteTypes';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { getMemberDisplayName } from '../../utils/room';
 import {

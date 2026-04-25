@@ -35,8 +35,8 @@
   - Generic reply rendering delegates the thread badge to that owner instead of importing activity, resolution, scheduled-task, unread, and participant derivation hooks directly.
 - `CINNY-115`
   - Command-palette thread sourcing now lives in `src/app/mindroom/threads/commandPaletteThreadItems.ts`.
-  - Generic command-palette item assembly keeps room/user/action/message sourcing, while thread tags, recent-thread entries, SDK thread records, resolved-state mutation, and duplicate thread item merging are owned by the MindRoom thread namespace.
-  - Architecture guards now prevent raw thread tag/recent-thread/thread-record derivation from moving back into `src/app/features/command-palette/commandPaletteItems.ts`.
+  - Command-palette item assembly keeps room/user/action/message sourcing separate, while thread tags, recent-thread entries, SDK thread records, resolved-state mutation, and duplicate thread item merging are owned by the MindRoom thread namespace.
+  - Architecture guards now prevent raw thread tag/recent-thread/thread-record derivation from moving back into `src/app/mindroom/command-palette/commandPaletteItems.ts`.
 - `CINNY-116`
   - MindRoom client UI storage registration now lives in `src/app/mindroom/cache/clientStorageAtoms.ts`.
   - Generic client storage initialization now calls one MindRoom hook instead of directly registering last-open-thread, recent-thread list, recent-thread height, and recent-thread mobile-expanded atoms.
@@ -71,7 +71,7 @@
   - Generic `RoomInput` still owns editor and upload UI, but no longer imports the low-level MindRoom message-relation builder directly.
 - `CINNY-125`
   - Command-palette current-thread canonicalization now lives in `src/app/mindroom/threads/commandPaletteThreadItems.ts`.
-  - Generic command-palette item assembly now passes the route thread id to the MindRoom thread source instead of importing thread-route canonicalization directly.
+  - Command-palette item assembly now passes the route thread id to the MindRoom thread source instead of importing thread-route canonicalization directly.
 - `CINNY-126`
   - The generic reply renderer now consumes compatibility seams for thread indicators and cache-aware event loading.
   - MindRoom-specific thread indicator behavior remains owned by `src/app/mindroom/threads/ThreadIndicator.tsx`.
@@ -216,6 +216,9 @@
 - `CINNY-174`
   - Room header and room-nav mark-read menu rendering now lives in `src/app/mindroom/notifications/MindroomMarkRoomReadMenuItem.tsx`.
   - Generic room menu components no longer import MindRoom room/thread read-receipt commands directly.
+- `CINNY-175`
+  - Command-palette UI, item assembly, search helpers, hotkey handling, tests, and open-state atom now live in `src/app/mindroom/command-palette`.
+  - Generic router/sidebar/header integration points import the MindRoom palette seam instead of owning a fork-only feature folder under `src/app/features`.
 
 ### Current Feature Set On `dev`
 

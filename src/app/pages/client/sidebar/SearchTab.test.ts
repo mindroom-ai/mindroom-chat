@@ -2,7 +2,7 @@ import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { commandPaletteOpenAtom } from '../../../state/commandPalette';
+import { commandPaletteOpenAtom } from '../../../mindroom/command-palette/commandPaletteState';
 import { SearchTab } from './SearchTab';
 
 vi.mock('folds', async () => {

@@ -19,7 +19,6 @@ import {
   guessDmRoomUserId,
   isRoomAlias,
 } from '../../utils/matrix';
-import { markRoomAndThreadsAsRead } from '../../mindroom/notifications/readReceipts';
 import { getMatrixToRoom } from '../../plugins/matrix-to';
 import { getViaServers } from '../../plugins/via-servers';
 import { factoryRoomIdByActivity } from '../../utils/sort';
@@ -35,7 +34,8 @@ import { settingsModalAtom } from '../../state/settingsModal';
 import { useSetting } from '../../state/hooks/settings';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
 import { useDirects, useRooms, useSpaces } from '../../state/hooks/roomList';
-import { useMindroomCommandPaletteThreadItems } from '../../mindroom/threads/commandPaletteThreadItems';
+import { markRoomAndThreadsAsRead } from '../notifications/readReceipts';
+import { useMindroomCommandPaletteThreadItems } from '../threads/commandPaletteThreadItems';
 import {
   commandPaletteStaticActionPaths,
   getCommandPaletteMessageTargets,
