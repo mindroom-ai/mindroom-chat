@@ -310,7 +310,7 @@ vi.mock('../../../hooks/useRoomPinnedEvents', () => ({
   useRoomPinnedEvents: () => new Set(['$approval']),
 }));
 
-vi.mock('../../../hooks/useRoomEvent', () => ({
+vi.mock('../../../mindroom/threads/useRoomEvent', () => ({
   useRoomEvent: () => pinnedEventMock,
 }));
 

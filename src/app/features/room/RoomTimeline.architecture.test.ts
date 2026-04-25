@@ -470,6 +470,32 @@ describe('RoomTimeline architecture', () => {
     expect(hookCompatibilitySource).not.toContain('isVisibleThreadReplyEvent');
   });
 
+  it('keeps cache-aware room event loading in MindRoom threads', () => {
+    const hookCompatibilitySource = readFileSync(
+      new URL('../../hooks/useRoomEvent.ts', import.meta.url),
+      'utf8'
+    );
+    const hookImplementationSource = readFileSync(
+      new URL('../../mindroom/threads/useRoomEvent.ts', import.meta.url),
+      'utf8'
+    );
+    const replySource = readFileSync(
+      new URL('../../components/message/Reply.tsx', import.meta.url),
+      'utf8'
+    );
+    const pinMenuSource = readFileSync(
+      new URL('./room-pin-menu/RoomPinMenu.tsx', import.meta.url),
+      'utf8'
+    );
+
+    expect(hookCompatibilitySource).toContain("from '../mindroom/threads/useRoomEvent'");
+    expect(hookImplementationSource).toContain('loadCachedThreadEvent');
+    expect(hookImplementationSource).toContain("from './eventRepository'");
+    expect(replySource).toContain("from '../../mindroom/threads/useRoomEvent'");
+    expect(pinMenuSource).toContain("from '../../../mindroom/threads/useRoomEvent'");
+    expect(hookCompatibilitySource).not.toContain('loadCachedThreadEvent');
+  });
+
   it('keeps room thread overview controls in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const compatibilitySource = readFileSync(

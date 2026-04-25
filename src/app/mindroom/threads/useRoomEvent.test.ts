@@ -10,18 +10,18 @@ const loadCachedRoomEventMock = vi.fn();
 const loadCachedThreadEventMock = vi.fn();
 const useActiveSessionMock = vi.fn();
 
-vi.mock('./useMatrixClient', () => ({
+vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     fetchRoomEvent: fetchRoomEventMock,
     getCrypto: () => undefined,
   }),
 }));
 
-vi.mock('./useSessionStore', () => ({
+vi.mock('../../hooks/useSessionStore', () => ({
   useActiveSession: () => useActiveSessionMock(),
 }));
 
-vi.mock('../mindroom/threads/eventRepository', () => ({
+vi.mock('./eventRepository', () => ({
   loadCachedRoomEvent: (...args: unknown[]) => loadCachedRoomEventMock(...args),
   loadCachedThreadEvent: (...args: unknown[]) => loadCachedThreadEventMock(...args),
 }));

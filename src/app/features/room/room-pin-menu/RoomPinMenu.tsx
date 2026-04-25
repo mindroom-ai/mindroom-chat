@@ -24,7 +24,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useRoomPinnedEvents } from '../../../hooks/useRoomPinnedEvents';
 import * as css from './RoomPinMenu.css';
 import { SequenceCard } from '../../../components/sequence-card';
-import { useRoomEvent } from '../../../hooks/useRoomEvent';
+import { useRoomEvent } from '../../../mindroom/threads/useRoomEvent';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import {
   AvatarBase,
