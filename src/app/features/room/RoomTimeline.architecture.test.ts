@@ -178,6 +178,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../pages/client/ClientInitStorageAtom.tsx', import.meta.url),
       'utf8'
     );
+    const clientStorageImplementationSource = readFileSync(
+      new URL('../../mindroom/cache/clientStorageAtoms.ts', import.meta.url),
+      'utf8'
+    );
     const roomSource = readFileSync(new URL('./Room.tsx', import.meta.url), 'utf8');
     const clientLayoutSource = readFileSync(
       new URL('../../pages/client/ClientLayout.tsx', import.meta.url),
@@ -193,7 +197,11 @@ describe('RoomTimeline architecture', () => {
     );
 
     expect(compatibilitySource.trim()).toBe("export * from '../mindroom/threads/lastOpenThread';");
-    expect(clientStorageSource).toContain("from '../../mindroom/threads/lastOpenThread'");
+    expect(clientStorageSource).toContain("from '../../mindroom/cache/clientStorageAtoms'");
+    expect(clientStorageSource).not.toContain("from '../../mindroom/threads/lastOpenThread'");
+    expect(clientStorageSource).not.toContain("from '../../mindroom/recent-threads/recentThreads'");
+    expect(clientStorageImplementationSource).toContain('registerLastOpenThreadAtom');
+    expect(clientStorageImplementationSource).toContain('registerRecentThreadsAtom');
     expect(roomSource).toContain("from '../../mindroom/threads/lastOpenThread'");
     expect(clientLayoutSource).toContain("from '../../mindroom/threads/lastOpenThread'");
     expect(sessionCleanupSource).toContain("from '../threads/lastOpenThread'");
