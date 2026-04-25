@@ -2,7 +2,7 @@ import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { imageViewerOpenAtom } from '../state/imageViewer';
+import { imageViewerOpenAtom } from '../../state/imageViewer';
 import { useEdgeSwipeBack } from './useEdgeSwipeBack';
 
 type Listener = (event: Event) => void;

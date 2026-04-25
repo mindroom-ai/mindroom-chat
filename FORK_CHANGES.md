@@ -2034,3 +2034,9 @@
 - Moved Recent Threads persistence atoms, panel-height state, mobile-expanded state, and their unit tests from `src/app/state` to `src/app/mindroom/recent-threads`.
 - Left `src/app/state/recentThreads*.ts` as thin compatibility exports for legacy import paths.
 - Updated Recent Threads UI, room navigation, command palette, room view, and storage initialization seams to import the state owner from `src/app/mindroom/recent-threads`.
+
+## CINNY-093 — Move native app helpers to fork namespace (2026-04-25)
+
+- Moved native SSO helpers, iOS push registration/state helpers, the iOS push-enabled hook, edge-swipe-back hook, and their tests to `src/app/mindroom/native`.
+- Left thin compatibility exports in `src/app/utils/nativeSso.ts`, `src/app/utils/iosPush.ts`, `src/app/hooks/useIOSPushEnabled.ts`, and `src/app/hooks/useEdgeSwipeBack.ts`.
+- Updated auth, settings, room navigation, back-route handling, and client non-UI feature wiring to import native helpers from the MindRoom namespace directly.

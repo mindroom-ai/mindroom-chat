@@ -17,7 +17,7 @@ import { useSelectedSpace } from './router/useSelectedSpace';
 import { settingsAtom } from '../state/settings';
 import { useSetting } from '../state/hooks/settings';
 import { _RoomSearchParams } from '../pages/paths';
-import { isNativeIOS } from '../utils/nativeSso';
+import { isNativeIOS } from '../mindroom/native/nativeSso';
 import {
   setRoomThreadExitTargetForHistoryState,
   withRoomThreadExitTargetState,

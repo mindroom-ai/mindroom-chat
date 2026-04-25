@@ -82,7 +82,7 @@ vi.mock('../utils/room', () => ({
   guessPerfectParent: () => undefined,
 }));
 
-vi.mock('../utils/nativeSso', () => ({
+vi.mock('../mindroom/native/nativeSso', () => ({
   isNativeIOS: mocks.isNativeIOS,
 }));
 

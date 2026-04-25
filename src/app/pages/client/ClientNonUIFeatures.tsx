@@ -28,7 +28,7 @@ import { useSelectedRoom } from '../../hooks/router/useSelectedRoom';
 import { useInboxNotificationsSelected } from '../../hooks/router/useInbox';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useClientConfig } from '../../hooks/useClientConfig';
-import { useIOSPushEnabled } from '../../hooks/useIOSPushEnabled';
+import { useIOSPushEnabled } from '../../mindroom/native/useIOSPushEnabled';
 import { usePinchToZoom } from '../../hooks/usePinchToZoom';
 import {
   checkIOSPushPermission,
@@ -39,7 +39,7 @@ import {
   setIOSPushEnabled,
   unregisterIOSPush,
   upsertIOSPushPusher,
-} from '../../utils/iosPush';
+} from '../../mindroom/native/iosPush';
 
 const LogoUnreadSVG = LogoFaviconPNG;
 const LogoHighlightSVG = LogoFaviconPNG;

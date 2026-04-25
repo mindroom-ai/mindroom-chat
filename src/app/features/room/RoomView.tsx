@@ -25,7 +25,7 @@ import { useSetting } from '../../state/hooks/settings';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
-import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
+import { useEdgeSwipeBack } from '../../mindroom/native/useEdgeSwipeBack';
 import { useIOSKeyboardFix } from '../../hooks/useIOSKeyboardFix';
 import type {
   ThreadFilterKey,

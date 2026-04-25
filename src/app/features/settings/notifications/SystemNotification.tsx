@@ -10,7 +10,7 @@ import { useActiveSession } from '../../../hooks/useSessionStore';
 import { getNotificationState, usePermissionState } from '../../../hooks/usePermission';
 import { useEmailNotifications } from '../../../hooks/useEmailNotifications';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
-import { useIOSPushEnabled } from '../../../hooks/useIOSPushEnabled';
+import { useIOSPushEnabled } from '../../../mindroom/native/useIOSPushEnabled';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useClientConfig } from '../../../hooks/useClientConfig';
 import {
@@ -22,7 +22,7 @@ import {
   resolveIOSPushConfig,
   setIOSPushEnabled,
   unregisterIOSPush,
-} from '../../../utils/iosPush';
+} from '../../../mindroom/native/iosPush';
 
 function EmailNotification() {
   const mx = useMatrixClient();
