@@ -2,7 +2,8 @@ import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
-const toolApprovalCardMock = vi.fn();
+const toolApprovalCardMock = vi.hoisted(() => vi.fn());
+const renderMindroomMessageContentMock = vi.hoisted(() => vi.fn());
 
 vi.mock('folds', () => ({
   config: {
@@ -64,6 +65,10 @@ vi.mock('../plugins/matrix-to', () => ({
   testMatrixTo: () => false,
 }));
 
+vi.mock('../mindroom/messages/renderMindroomMessageContent', () => ({
+  renderMindroomMessageContent: renderMindroomMessageContentMock,
+}));
+
 vi.mock('../mindroom/messages/longText', () => ({
   getMindroomLongTextSource: () => undefined,
 }));
@@ -99,8 +104,58 @@ vi.mock('../plugins/react-custom-html-parser', () => ({
 }));
 
 describe('RenderMessageContent', () => {
+  it('delegates MindRoom-specific message content to the MindRoom renderer seam', async () => {
+    const { RenderMessageContent } = await import('./RenderMessageContent');
+    renderMindroomMessageContentMock.mockReset();
+    renderMindroomMessageContentMock.mockReturnValue(
+      React.createElement('div', { 'data-renderer': 'mindroom-message' }, 'delegated')
+    );
+
+    const renderer = create(
+      React.createElement(RenderMessageContent, {
+        displayName: 'MindRoom',
+        eventType: 'io.mindroom.tool_approval',
+        roomId: '!room:example.org',
+        eventId: '$approval',
+        threadId: '$thread-root',
+        msgType: 'm.notice',
+        ts: 0,
+        getContent: (() => ({
+          msgtype: 'm.notice',
+          body: 'Summary body',
+        })) as <T>() => T,
+        htmlReactParserOptions: {} as never,
+        linkifyOpts: {} as never,
+      })
+    );
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('mindroom-message');
+    expect(rendered).toContain('delegated');
+    expect(renderMindroomMessageContentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        displayName: 'MindRoom',
+        eventType: 'io.mindroom.tool_approval',
+        roomId: '!room:example.org',
+        eventId: '$approval',
+        threadId: '$thread-root',
+        msgType: 'm.notice',
+        content: expect.objectContaining({
+          body: 'Summary body',
+        }),
+      })
+    );
+
+    renderer.unmount();
+  });
+
   it('renders the summary card when thread summary metadata is present on a legacy msgtype', async () => {
     const { RenderMessageContent } = await import('./RenderMessageContent');
+    renderMindroomMessageContentMock.mockReset();
+    renderMindroomMessageContentMock.mockReturnValue(
+      React.createElement('div', { 'data-renderer': 'summary-card' }, 'Rendered summary text')
+    );
 
     const renderer = create(
       React.createElement(RenderMessageContent, {
@@ -131,6 +186,10 @@ describe('RenderMessageContent', () => {
 
   it('keeps rendering edited summaries as summary cards when m.new_content omits metadata', async () => {
     const { RenderMessageContent } = await import('./RenderMessageContent');
+    renderMindroomMessageContentMock.mockReset();
+    renderMindroomMessageContentMock.mockReturnValue(
+      React.createElement('div', { 'data-renderer': 'summary-card' }, 'Edited summary body')
+    );
 
     const renderer = create(
       React.createElement(RenderMessageContent, {
@@ -166,6 +225,10 @@ describe('RenderMessageContent', () => {
 
   it('renders the tool approval card for io.mindroom.tool_approval events', async () => {
     const { RenderMessageContent } = await import('./RenderMessageContent');
+    renderMindroomMessageContentMock.mockReset();
+    renderMindroomMessageContentMock.mockReturnValue(
+      React.createElement('div', { 'data-renderer': 'tool-approval' }, 'web_search')
+    );
     toolApprovalCardMock.mockReset();
 
     const renderer = create(
@@ -199,14 +262,17 @@ describe('RenderMessageContent', () => {
     expect(rendered).toContain('tool-approval');
     expect(rendered).toContain('web_search');
     expect(rendered).not.toContain('unsupported');
-    expect(toolApprovalCardMock).toHaveBeenCalledWith({
-      approval: expect.objectContaining({
-        toolName: 'web_search',
-      }),
-      roomId: '!room:example.org',
-      eventId: '$approval',
-      threadId: '$thread-root',
-    });
+    expect(renderMindroomMessageContentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'io.mindroom.tool_approval',
+        roomId: '!room:example.org',
+        eventId: '$approval',
+        threadId: '$thread-root',
+        content: expect.objectContaining({
+          tool_name: 'web_search',
+        }),
+      })
+    );
 
     renderer.unmount();
   });

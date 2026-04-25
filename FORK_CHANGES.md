@@ -8,6 +8,13 @@
 - Old recovery/debugging branches were intentionally squashed out of mainline history.
 - Use [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) for future room/thread/search investigations instead of rebuilding long transient notes here.
 
+### Refactor Slices
+
+- `CINNY-108`
+  - `RenderMessageContent` now delegates textual MindRoom rendering policy through `src/app/mindroom/messages/renderMindroomMessageContent.tsx`.
+  - Summary cards, tool approval cards, long-text rendering, AI-run streaming flags, and tool-trace parser options are owned by the MindRoom message namespace instead of the generic message renderer.
+  - Generic message rendering keeps the upstream-style media/attachment fallback path and only imports the MindRoom render seam.
+
 ### Current Feature Set On `dev`
 
 - `CINNY-074`
