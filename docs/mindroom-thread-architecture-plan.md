@@ -702,6 +702,8 @@ Acceptance:
   generic custom HTML parser only delegates to that renderer.
 - Local MindRoom settings/provisioning implementation lives in `src/app/mindroom/local-mindroom`;
   generic settings modules only expose route/menu seams.
+- The Local MindRoom settings menu item lives in `src/app/mindroom/local-mindroom/settingsMenu.ts`;
+  generic settings code only filters and places it.
 - The Local MindRoom sidebar shortcut lives in `src/app/mindroom/sidebar`; generic sidebar modules only
   expose the existing navigation seam.
 - The Recent Threads UI and summary helper implementation lives in `src/app/mindroom/recent-threads`;

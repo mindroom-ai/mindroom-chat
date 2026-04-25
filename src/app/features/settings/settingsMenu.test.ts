@@ -13,7 +13,9 @@ describe('getSettingsMenuItems', () => {
   it('keeps the Local MindRoom entry when enabled', () => {
     const items = getSettingsMenuItems(true);
 
-    expect(items.some((item) => item.page === SettingsPages.LocalMindroomPage)).toBe(true);
+    expect(items.find((item) => item.page === SettingsPages.LocalMindroomPage)).toMatchObject({
+      name: 'Local MindRoom',
+    });
   });
 });
 
