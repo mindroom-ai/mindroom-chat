@@ -353,7 +353,14 @@ describe('RoomTimeline architecture', () => {
       './roomInputSendSession.ts',
       './voiceRecorderMime.ts',
     ];
-    const source = readFileSync(new URL('../../../features/room/RoomInput.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(
+      new URL('../../../features/room/RoomInput.tsx', import.meta.url),
+      'utf8'
+    );
+    const mindroomRoomInputSource = readFileSync(
+      new URL('../../room-input/MindroomRoomInput.tsx', import.meta.url),
+      'utf8'
+    );
     const roomInputExtensionsSource = readFileSync(
       new URL('../../room-input/RoomInputMindroomExtensions.tsx', import.meta.url),
       'utf8'
@@ -370,18 +377,25 @@ describe('RoomTimeline architecture', () => {
     removedRoomInputCompatibilityPaths.forEach((path) => {
       expect(existsSync(new URL(path, import.meta.url))).toBe(false);
     });
-    expect(source).toContain('useRoomInputSendSessionController');
-    expect(source).toContain("from '../../mindroom/room-input/RoomInputMindroomExtensions'");
-    expect(source).not.toContain("from '../../mindroom/threads/useRoomInputSendSessionController'");
-    expect(source).not.toContain("from '../../mindroom/commands/");
-    expect(source).not.toContain("from '../../mindroom/voice/");
-    expect(source).not.toContain("from '../../mindroom/threads/composeMessageRelation'");
-    expect(source).not.toContain('MindroomRoomInputThreadIndicator');
-    expect(source).not.toContain('Sending to this thread');
-    expect(source).not.toContain('createRoomInputSendSessionState');
-    expect(source).not.toContain('resolveRoomInputSendStep');
-    expect(source).not.toContain('hasRoomInputSendFailures');
-    expect(source).not.toContain('isSignalBridgeRoom');
+    expect(source).toContain("from '../../mindroom/room-input/MindroomRoomInput'");
+    expect(source).not.toContain('useRoomInputSendSessionController');
+    expect(source.trim().split('\n').length).toBeLessThan(10);
+    expect(mindroomRoomInputSource).toContain('useRoomInputSendSessionController');
+    expect(mindroomRoomInputSource).toContain("from './RoomInputMindroomExtensions'");
+    expect(mindroomRoomInputSource).not.toContain(
+      "from '../../mindroom/threads/useRoomInputSendSessionController'"
+    );
+    expect(mindroomRoomInputSource).not.toContain("from '../../mindroom/commands/");
+    expect(mindroomRoomInputSource).not.toContain("from '../../mindroom/voice/");
+    expect(mindroomRoomInputSource).not.toContain(
+      "from '../../mindroom/threads/composeMessageRelation'"
+    );
+    expect(mindroomRoomInputSource).not.toContain('MindroomRoomInputThreadIndicator');
+    expect(mindroomRoomInputSource).not.toContain('Sending to this thread');
+    expect(mindroomRoomInputSource).not.toContain('createRoomInputSendSessionState');
+    expect(mindroomRoomInputSource).not.toContain('resolveRoomInputSendStep');
+    expect(mindroomRoomInputSource).not.toContain('hasRoomInputSendFailures');
+    expect(mindroomRoomInputSource).not.toContain('isSignalBridgeRoom');
     expect(roomInputExtensionsSource).toContain("from '../threads/composeMessageRelation'");
     expect(roomInputExtensionsSource).toContain("from '../commands/mindroomCommandQuery'");
     expect(roomInputExtensionsSource).toContain("from '../commands/MindroomCommandAutocomplete'");

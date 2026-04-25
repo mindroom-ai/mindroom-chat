@@ -271,6 +271,10 @@
   - Room message rendering now lives in `src/app/mindroom/messages/MindroomMessage.tsx`.
   - `src/app/features/room/message/Message.tsx` is a narrow compatibility seam that re-exports the MindRoom message implementation.
   - Message extension state, AI-run controls, long-text copy/download policy, and MindRoom menu/header slots stay under the MindRoom message namespace instead of the upstream room-message feature path.
+- `CINNY-190`
+  - Room composer implementation now lives in `src/app/mindroom/room-input/MindroomRoomInput.tsx`.
+  - `src/app/features/room/RoomInput.tsx` is a narrow compatibility seam that re-exports the MindRoom composer implementation.
+  - MindRoom command autocomplete, thread reply context, voice recording, and auto-thread send-session orchestration now stay in the fork-owned room-input namespace.
 
 ### Current Feature Set On `dev`
 
