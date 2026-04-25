@@ -3,11 +3,11 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { StateEvent } from '../../types/matrix/room';
+import { StateEvent } from '../../../types/matrix/room';
 import { useThreadScheduledTasks } from './useThreadScheduledTasks';
-import { useStateEvents } from './useStateEvents';
+import { useStateEvents } from '../../hooks/useStateEvents';
 
-vi.mock('./useStateEvents', () => ({
+vi.mock('../../hooks/useStateEvents', () => ({
   useStateEvents: vi.fn(),
 }));
 

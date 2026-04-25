@@ -285,7 +285,7 @@ vi.mock('../../mindroom/threads/useThreadStreamingState', () => ({
   useThreadStreamingState: () => false,
 }));
 
-vi.mock('../../utils/scheduledTaskContract', () => ({
+vi.mock('../../mindroom/threads/scheduledTaskContract', () => ({
   parseScheduledTaskStateEvent: () => null,
 }));
 

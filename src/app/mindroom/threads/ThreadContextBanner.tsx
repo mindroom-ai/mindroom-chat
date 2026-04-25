@@ -4,7 +4,7 @@ import { IconCalendarEvent } from '@tabler/icons-react';
 import { Room } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import * as replyCss from '../../components/message/Reply.css';
-import { useThreadHeaderInfo } from '../../hooks/useThreadHeaderInfo';
+import { useThreadHeaderInfo } from './useThreadHeaderInfo';
 import { buildThreadHeaderViewModelFromRecord } from './threadHeaderViewModel';
 import { buildThreadRecord } from './threadRecord';
 import { useThreadRootEvent } from './useThreadRootEvent';

@@ -4,19 +4,19 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { StateEvent } from '../../types/matrix/room';
+import { StateEvent } from '../../../types/matrix/room';
 import { useThreadHeaderInfo, type ThreadHeaderInfo } from './useThreadHeaderInfo';
-import { useStateEvents } from './useStateEvents';
+import { useStateEvents } from '../../hooks/useStateEvents';
 
-vi.mock('./useStateEvents', () => ({
+vi.mock('../../hooks/useStateEvents', () => ({
   useStateEvents: vi.fn(),
 }));
 
-vi.mock('./useThreadEventRefresh', () => ({
+vi.mock('../../hooks/useThreadEventRefresh', () => ({
   useThreadEventRefresh: () => undefined,
 }));
 
-vi.mock('./useInterval', async () => {
+vi.mock('../../hooks/useInterval', async () => {
   const React = await import('react');
 
   return {

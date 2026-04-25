@@ -11,7 +11,7 @@ import {
   isNestedThreadReplyEvent,
   isZeroReplyStandaloneThreadRootEvent,
 } from './compactThreadRootData';
-import { parseScheduledTaskStateEvent } from '../../utils/scheduledTaskContract';
+import { parseScheduledTaskStateEvent } from './scheduledTaskContract';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
 import {
   getPreferredVisibleThreadReplyEvents,

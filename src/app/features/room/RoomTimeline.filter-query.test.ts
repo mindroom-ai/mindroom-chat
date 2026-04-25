@@ -22,7 +22,7 @@ vi.mock('../../hooks/useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: () => 0,
   useThreadLastActivityTs: () => 0,
 }));
-vi.mock('../../utils/scheduledTaskContract', () => ({
+vi.mock('../../mindroom/threads/scheduledTaskContract', () => ({
   parseScheduledTaskStateEvent: (event: { getStateKey: () => string; getContent: () => Record<string, unknown> }) => {
     const content = event.getContent();
     return { taskId: event.getStateKey(), status: content.status as string, threadId: content.thread_id as string | null, newThread: content.new_thread as boolean, executeAt: content.execute_at as string | null };

@@ -3,7 +3,7 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import { getThreadHeaderScheduledDisplayText } from '../../hooks/useThreadHeaderInfo';
+import { getThreadHeaderScheduledDisplayText } from './useThreadHeaderInfo';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
 import { formatScheduledTime } from './compactThreadCardUtils';

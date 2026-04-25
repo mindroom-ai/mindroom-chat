@@ -84,7 +84,7 @@ vi.mock('./useMutateThreadTags', () => ({
   useMutateThreadTags: bannerMocks.useMutateThreadTags,
 }));
 
-vi.mock('../../hooks/useThreadHeaderInfo', () => ({
+vi.mock('./useThreadHeaderInfo', () => ({
   getNextThreadScheduledTs: () => undefined,
   useThreadHeaderInfo: bannerMocks.useThreadHeaderInfo,
 }));
