@@ -667,6 +667,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../useThreadHeaderInfo.ts', import.meta.url),
       'utf8'
     );
+    const scheduledStatusHookSource = readFileSync(
+      new URL('../useThreadScheduledStatus.ts', import.meta.url),
+      'utf8'
+    );
     const viewModelSource = readFileSync(
       new URL('../compactThreadCardViewModel.ts', import.meta.url),
       'utf8'
@@ -686,8 +690,11 @@ describe('RoomTimeline architecture', () => {
 
     expect(existsSync(hookCompatibilityPath)).toBe(false);
     expect(hookImplementationSource).toContain("from './compactThreadCardUtils'");
-    expect(hookImplementationSource).toContain("from './scheduledTaskContract'");
-    expect(hookImplementationSource).toContain("from './threadScheduledStatus'");
+    expect(hookImplementationSource).toContain("from './useThreadScheduledStatus'");
+    expect(hookImplementationSource).not.toContain("from './scheduledTaskContract'");
+    expect(hookImplementationSource).not.toContain("from './threadScheduledStatus'");
+    expect(scheduledStatusHookSource).toContain("from './scheduledTaskContract'");
+    expect(scheduledStatusHookSource).toContain("from './threadScheduledStatus'");
     expect(viewModelSource).toContain("from './compactThreadCardUtils'");
     expect(existsSync(scheduledTaskCompatibilityPath)).toBe(false);
     expect(scheduledTaskImplementationSource).toContain('parseScheduledTaskStateEvent');

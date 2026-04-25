@@ -252,6 +252,9 @@
 - `CINNY-184`
   - Thread tag display/resolved snapshots now live in `src/app/mindroom/threads/threadTagSnapshots.ts`.
   - Command palette thread items, room-level tag resolution, and single-thread tag hooks share the same snapshot derivation instead of aggregating tag state independently.
+- `CINNY-185`
+  - Time-aware scheduled-thread status now lives behind `src/app/mindroom/threads/useThreadScheduledStatus.ts`.
+  - Thread headers and thread indicators consume the shared scheduled-status hook instead of rebuilding scheduled-task maps separately.
 
 ### Current Feature Set On `dev`
 

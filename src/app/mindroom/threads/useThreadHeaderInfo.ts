@@ -1,19 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import {
-  formatScheduledTime,
-  getScheduledTimeUpdateInterval,
-} from './compactThreadCardUtils';
+import { formatScheduledTime } from './compactThreadCardUtils';
 import { useThreadRootEvent } from './useThreadRootEvent';
-import { MINDROOM_SCHEDULED_TASK_EVENT } from './scheduledTaskContract';
-import { useInterval } from '../../hooks/useInterval';
-import { useStateEvents } from './useStateEvents';
-import {
-  buildRoomThreadScheduledStatusMap,
-  getThreadScheduledStatus,
-} from './threadScheduledStatus';
-
-export { getNextThreadScheduledTs } from './threadScheduledStatus';
+import { useThreadScheduledStatus } from './useThreadScheduledStatus';
 
 export type ThreadHeaderInfo = {
   scheduledTaskCount: number;
@@ -35,24 +23,12 @@ export const useThreadHeaderInfo = (
   threadId: string | undefined
 ): ThreadHeaderInfo => {
   const threadRootId = useThreadRootEvent(room, threadId);
-  const scheduledTaskEvents = useStateEvents(room, MINDROOM_SCHEDULED_TASK_EVENT);
-  const [, setRefreshVersion] = useState(0);
-  const refresh = useCallback(() => {
-    setRefreshVersion((version) => version + 1);
-  }, []);
-  const scheduledStatus = useMemo(
-    () =>
-      getThreadScheduledStatus(
-        buildRoomThreadScheduledStatusMap(scheduledTaskEvents),
-        threadRootId
-      ),
-    [scheduledTaskEvents, threadRootId]
-  );
+  const scheduledStatus = useThreadScheduledStatus(room, threadRootId);
   const { scheduledTaskCount, nextScheduledTs } = scheduledStatus;
-  const scheduledDisplayText = getThreadHeaderScheduledDisplayText(scheduledTaskCount, nextScheduledTs);
-  const intervalMs =
-    nextScheduledTs === undefined ? -1 : getScheduledTimeUpdateInterval(nextScheduledTs);
-  useInterval(refresh, intervalMs);
+  const scheduledDisplayText = getThreadHeaderScheduledDisplayText(
+    scheduledTaskCount,
+    nextScheduledTs
+  );
 
   return {
     scheduledTaskCount,

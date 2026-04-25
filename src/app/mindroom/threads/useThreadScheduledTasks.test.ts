@@ -11,6 +11,10 @@ vi.mock('./useStateEvents', () => ({
   useStateEvents: vi.fn(),
 }));
 
+vi.mock('../../hooks/useInterval', () => ({
+  useInterval: vi.fn(),
+}));
+
 const mockedUseStateEvents = vi.mocked(useStateEvents);
 
 const makeScheduledTaskEvent = (
