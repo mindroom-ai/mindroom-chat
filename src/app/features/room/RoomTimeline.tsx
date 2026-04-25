@@ -249,6 +249,14 @@ import { useStateEvents } from '../../hooks/useStateEvents';
 import {
   getRoomCursorAnchor,
   getThreadCursorAnchor,
+  getThreadCacheTargetId,
+  groupThreadCacheEvents,
+  getMainTimelineCacheEvents,
+  findEarliestLoadedRoomEventByCacheOrder,
+  getEarliestLoadedRoomEvent,
+  resolveHydratedRoomBeforeToken,
+  resolvePersistedRoomBeforeToken,
+  getLatestLoadedRoomEvent,
   loadCachedRoomEventsBefore,
   loadCachedRoomPaginationToken,
   loadCachedThreadEventsBefore,
@@ -258,6 +266,8 @@ import {
   normalizeCachedThreadEvents,
   saveRoomEventsToCache,
   saveThreadEventsToCache,
+  shouldHydrateLatestRoomCache,
+  filterLatestRoomCacheHydrationEvents,
 } from '../../mindroom/threads/eventRepository';
 import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
 import {
@@ -971,32 +981,6 @@ const getEarliestLoadedThreadReply = (
     return !!eventId && eventId !== threadId && eventBelongsToThread(mEvent, threadId);
   });
 
-const getThreadCacheTargetId = (room: Room, mEvent: MatrixEvent): string | undefined => {
-  const eventId = mEvent.getId();
-  if (!eventId) return undefined;
-
-  const threadRootId = mEvent.threadRootId;
-  if (threadRootId && threadRootId !== eventId) {
-    return threadRootId;
-  }
-
-  const relationTargetId = mEvent.getAssociatedId() ?? mEvent.getRelation()?.event_id;
-  if (!relationTargetId) return undefined;
-
-  const relatedEvent = room.findEventById(relationTargetId);
-  if (!relatedEvent) return undefined;
-  const relatedEventId = relatedEvent.getId();
-  if (!relatedEventId) return undefined;
-
-  if (relatedEvent.threadRootId && relatedEvent.threadRootId !== relatedEventId) {
-    return relatedEvent.threadRootId;
-  }
-
-  return relatedEvent.isThreadRoot || room.getThread(relatedEventId)?.rootEvent?.getId() === relatedEventId
-    ? relatedEventId
-    : undefined;
-};
-
 const isThreadNotFoundError = (error: unknown): error is MatrixError =>
   error instanceof MatrixError &&
   (error.httpStatus === 404 || error.errcode === ErrorCode.M_NOT_FOUND);
@@ -1011,26 +995,6 @@ export const shouldRefreshOverviewForTimelineEvent = (
   }
 
   return getThreadCacheTargetId(room, mEvent) !== undefined;
-};
-
-const groupThreadCacheEvents = (
-  room: Room,
-  events: MatrixEvent[]
-): Map<string, MatrixEvent[]> => {
-  const grouped = new Map<string, MatrixEvent[]>();
-
-  events.forEach((mEvent) => {
-    const threadCacheTargetId = getThreadCacheTargetId(room, mEvent);
-    if (!threadCacheTargetId) return;
-    const cachedThreadEvents = grouped.get(threadCacheTargetId);
-    if (cachedThreadEvents) {
-      cachedThreadEvents.push(mEvent);
-      return;
-    }
-    grouped.set(threadCacheTargetId, [mEvent]);
-  });
-
-  return grouped;
 };
 
 export const getLoadedRoomThreadEvents = (room: Room, threadId: string): MatrixEvent[] => {
@@ -1267,51 +1231,6 @@ export const consumeLiveExpandOnceId = (liveExpandOnceIds: Set<string>, mEventId
   liveExpandOnceIds.delete(mEventId);
 };
 
-const getMainTimelineCacheEvents = (room: Room, linkedTimelines: EventTimeline[]): MatrixEvent[] =>
-  linkedTimelines.flatMap((timeline) =>
-    timeline.getEvents().filter((mEvent) => !isThreadOnlyRoomActivity(room, mEvent))
-  );
-
-const findEarliestLoadedRoomEventByCacheOrder = (
-  cacheEvents: MatrixEvent[]
-): MatrixEvent | undefined => {
-  const earliestEventId = normalizeCachedRoomEvents(
-    cacheEvents.map((mEvent) => mEvent.event as Partial<IEvent>)
-  )[0]?.event_id;
-
-  return earliestEventId
-    ? cacheEvents.find((mEvent) => mEvent.getId() === earliestEventId)
-    : undefined;
-};
-
-const getEarliestLoadedRoomEvent = (
-  room: Room,
-  linkedTimelines: EventTimeline[]
-): MatrixEvent | undefined =>
-  findEarliestLoadedRoomEventByCacheOrder(getMainTimelineCacheEvents(room, linkedTimelines));
-
-const resolveHydratedRoomBeforeToken = (
-  cachedBeforeToken: string | null | undefined,
-  paginationToken: string | null
-): string | null => (cachedBeforeToken !== undefined ? cachedBeforeToken : paginationToken);
-
-const resolvePersistedRoomBeforeToken = (
-  paginationToken: string | null | undefined,
-  cachedBeforeToken: string | null | undefined
-): string | null | undefined => {
-  if (paginationToken === null || cachedBeforeToken === null) return null;
-  if (typeof paginationToken === 'string') return paginationToken;
-  return cachedBeforeToken;
-};
-
-const getLatestLoadedRoomEvent = (
-  room: Room,
-  linkedTimelines: EventTimeline[]
-): MatrixEvent | undefined => {
-  const loadedEvents = getMainTimelineCacheEvents(room, linkedTimelines);
-  return loadedEvents[loadedEvents.length - 1];
-};
-
 export const isAnchorVisibleInScroll = (
   anchor: Element,
   scroll: Element,
@@ -1320,31 +1239,6 @@ export const isAnchorVisibleInScroll = (
   const anchorRect = anchor.getBoundingClientRect();
   const scrollRect = scroll.getBoundingClientRect();
   return anchorRect.top <= scrollRect.bottom + marginPx;
-};
-
-export const shouldHydrateLatestRoomCache = (
-  loadedLatestEvent: Partial<IEvent> | undefined,
-  cachedLatestEvent: Partial<IEvent> | undefined
-): boolean =>
-  compareCachedPaginationAnchors(
-    getRoomCursorAnchor(cachedLatestEvent),
-    getRoomCursorAnchor(loadedLatestEvent)
-  ) > 0;
-
-export const filterLatestRoomCacheHydrationEvents = (
-  rawCachedEvents: Partial<IEvent>[],
-  loadedEvents: MatrixEvent[]
-): Partial<IEvent>[] => {
-  const loadedEventIds = new Set(
-    loadedEvents
-      .map((mEvent) => mEvent.getId())
-      .filter((eventId): eventId is string => !!eventId)
-  );
-
-  return rawCachedEvents.filter(
-    (rawEvent) =>
-      typeof rawEvent.event_id === 'string' && !loadedEventIds.has(rawEvent.event_id)
-  );
 };
 
 export const MAX_THREAD_FETCH_EVENTS = 5000;

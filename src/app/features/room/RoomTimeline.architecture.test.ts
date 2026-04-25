@@ -31,4 +31,12 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain("from './threadEventCache'");
     expect(source).toContain("from '../../mindroom/threads/eventRepository'");
   });
+
+  it('delegates room cache helper derivation to the event repository', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).not.toContain('const getMainTimelineCacheEvents');
+    expect(source).not.toContain('export const shouldHydrateLatestRoomCache');
+    expect(source).not.toContain('export const filterLatestRoomCacheHydrationEvents');
+  });
 });
