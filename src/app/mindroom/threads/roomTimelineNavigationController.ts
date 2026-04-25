@@ -7,7 +7,7 @@ import {
 } from 'react';
 import type { NavigateOptions } from 'react-router-dom';
 import type { Room } from 'matrix-js-sdk';
-import { bumpRecentThread } from '../../state/recentThreads';
+import { bumpRecentThread } from '../recent-threads/recentThreads';
 import { scrollToBottom } from '../../utils/dom';
 import type { OpenRoomEventHandler } from './roomEventOpenController';
 import type { ScrollToBottomState } from './roomFocusScrollController';

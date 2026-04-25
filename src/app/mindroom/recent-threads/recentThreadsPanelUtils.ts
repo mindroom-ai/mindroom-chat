@@ -1,5 +1,5 @@
 import type { Room } from 'matrix-js-sdk';
-import { type RecentThreadItem } from '../../state/recentThreads';
+import { type RecentThreadItem } from './recentThreads';
 
 export type VisibleRecentThreadItem = RecentThreadItem & {
   room: Room;

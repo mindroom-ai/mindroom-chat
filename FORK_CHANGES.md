@@ -2028,3 +2028,9 @@
 - Moved the Recent Threads panel, entries, divider, layout helpers, summary helpers, styling, and tests from `src/app/features/recent-threads` to `src/app/mindroom/recent-threads`.
 - Left thin compatibility exports in `src/app/features/recent-threads` for page seams and older imports.
 - Updated MindRoom thread/index consumers to import recent-thread summary helpers from the fork-owned namespace directly.
+
+## CINNY-092 — Move Recent Threads state to fork namespace (2026-04-25)
+
+- Moved Recent Threads persistence atoms, panel-height state, mobile-expanded state, and their unit tests from `src/app/state` to `src/app/mindroom/recent-threads`.
+- Left `src/app/state/recentThreads*.ts` as thin compatibility exports for legacy import paths.
+- Updated Recent Threads UI, room navigation, command palette, room view, and storage initialization seams to import the state owner from `src/app/mindroom/recent-threads`.

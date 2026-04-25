@@ -52,7 +52,7 @@ import { createSessionId } from '../../state/sessions';
 import { ThreadContextBanner } from '../../mindroom/threads/ThreadContextBanner';
 import { useRoomThreadSummaryState } from '../../mindroom/threads/useRoomThreadSummaryState';
 import { useThreadRootEvent } from '../../mindroom/threads/useThreadRootEvent';
-import { bumpRecentThread } from '../../state/recentThreads';
+import { bumpRecentThread } from '../../mindroom/recent-threads/recentThreads';
 import { resolveRecentThreadSummaryText } from '../../mindroom/recent-threads/recentThreadSummaryUtils';
 
 const FN_KEYS_REGEX = /^F\d+$/;

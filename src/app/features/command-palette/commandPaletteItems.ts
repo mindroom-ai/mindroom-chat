@@ -35,7 +35,7 @@ import { settingsModalAtom } from '../../state/settingsModal';
 import { useSetting } from '../../state/hooks/settings';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
 import { useDirects, useRooms, useSpaces } from '../../state/hooks/roomList';
-import { makeRecentThreadsAtom } from '../../state/recentThreads';
+import { makeRecentThreadsAtom } from '../../mindroom/recent-threads/recentThreads';
 import { buildCommandPaletteThreadViewModelFromRecord } from '../../mindroom/threads/commandPaletteThreadViewModel';
 import { buildThreadRecord } from '../../mindroom/threads/threadRecord';
 import { getResolvedRecentThreadRootId } from '../../mindroom/recent-threads/recentThreadSummaryUtils';

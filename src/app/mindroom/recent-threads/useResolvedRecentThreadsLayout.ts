@@ -3,7 +3,7 @@ import { ScreenSize } from '../../hooks/useScreenSize';
 import {
   RECENT_THREADS_PANEL_COLLAPSED_HEIGHT,
   RECENT_THREADS_PANEL_MIN_HEIGHT,
-} from '../../state/recentThreadsPanelHeight';
+} from './recentThreadsPanelHeight';
 
 export type RecentThreadsDividerMode = 'resize' | 'toggle';
 

@@ -33,7 +33,7 @@ vi.mock('../../hooks/useRoomMeta', () => ({
   useRoomName: () => 'Room Name',
 }));
 
-vi.mock('../../state/recentThreads', () => ({
+vi.mock('./recentThreads', () => ({
   bumpRecentThread: bumpRecentThreadMock,
   rekeyRecentThread: rekeyRecentThreadMock,
 }));
