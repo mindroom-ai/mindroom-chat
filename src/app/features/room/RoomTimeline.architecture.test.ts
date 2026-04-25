@@ -1148,6 +1148,23 @@ describe('RoomTimeline architecture', () => {
     expect(iosPushNotificationSource).toContain('MINDROOM_APP_NAME');
   });
 
+  it('keeps MindRoom Matrix client fetch policy in the MindRoom namespace', () => {
+    const compatibilitySource = readFileSync(
+      new URL('../../../client/matrixClientFactory.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/matrix/matrixClientFactory.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(compatibilitySource.trim()).toBe(
+      "export * from '../app/mindroom/matrix/matrixClientFactory';"
+    );
+    expect(implementationSource).toContain('createMatrixFetchFn');
+    expect(implementationSource).toContain("credentials: 'include'");
+  });
+
   it('keeps MindRoom branding and hosted-auth policy in the MindRoom namespace', () => {
     const brandingSource = readFileSync(
       new URL('../../mindroom/branding/branding.ts', import.meta.url),
