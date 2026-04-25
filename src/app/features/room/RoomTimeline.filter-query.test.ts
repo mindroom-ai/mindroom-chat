@@ -18,7 +18,7 @@ const { scheduledEventsByType } = vi.hoisted(() => ({
 vi.mock('../../hooks/useStateEvents', () => ({
   useStateEvents: (_room: unknown, eventType: string) => scheduledEventsByType.get(eventType) ?? [],
 }));
-vi.mock('../../hooks/useThreadLastActivityTs', () => ({
+vi.mock('../../mindroom/threads/useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: () => 0,
   useThreadLastActivityTs: () => 0,
 }));

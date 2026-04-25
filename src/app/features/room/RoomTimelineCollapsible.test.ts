@@ -275,7 +275,7 @@ vi.mock('../../hooks/useStateEvents', () => ({
   useStateEvents: () => [],
 }));
 
-vi.mock('../../hooks/useThreadLastActivityTs', () => ({
+vi.mock('../../mindroom/threads/useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: () => 0,
   useThreadLastActivityTs: () => 0,
 }));

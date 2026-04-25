@@ -708,6 +708,8 @@ Acceptance:
   `io.mindroom.*` / `com.mindroom.*` prefix checks.
 - Scheduled-thread state parsing, counts, header labels, and hooks live in `src/app/mindroom/threads`;
   legacy hook/util paths are compatibility exports only.
+- Thread activity timestamp derivation lives in `src/app/mindroom/threads/useThreadLastActivityTs.ts`;
+  legacy hook paths are compatibility exports only.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy

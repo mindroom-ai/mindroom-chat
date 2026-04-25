@@ -4,7 +4,7 @@ import {
   pickLatestThreadSummaryInfo,
   type MindroomThreadSummaryInfo,
 } from '../messages/threadSummary';
-import { getThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
+import { getThreadLastActivityTs } from './useThreadLastActivityTs';
 import { getThreadStreamingState } from './useThreadStreamingState';
 import {
   getCompactThreadRootBodyPreviewText,

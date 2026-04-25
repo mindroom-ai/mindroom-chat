@@ -20,7 +20,7 @@ import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { UserAvatar } from '../user-avatar';
 import { useThreadResolution } from '../../mindroom/threads/useRoomThreadTags';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
-import { useThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
+import { useThreadLastActivityTs } from '../../mindroom/threads/useThreadLastActivityTs';
 import { useThreadScheduledTasks } from '../../mindroom/threads/useThreadScheduledTasks';
 import { useThreadStreamingState } from '../../mindroom/threads/useThreadStreamingState';
 import { getThreadUnread } from '../../mindroom/threads/roomThreadList';
