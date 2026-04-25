@@ -234,7 +234,6 @@ import type { RoomViewMode } from '../../state/room/roomViewMode';
 import { useRoomThreadList } from './useRoomThreadList';
 import { useStateEvents } from '../../hooks/useStateEvents';
 import {
-  getRoomCursorAnchor,
   getThreadCursorAnchor,
   getThreadCacheTargetId,
   loadThreadCachedSnapshot,
@@ -246,10 +245,7 @@ import {
   findEarliestLoadedThreadReplyByCacheOrder,
   reconcileThreadBackwardPagination,
 } from './threadPaginationUtils';
-import {
-  aggregateCachedRelationEvents,
-  hydrateCachedEvents,
-} from './eventCacheEditUtils';
+import { hydrateCachedEvents } from './eventCacheEditUtils';
 import {
   getEventElementById,
   isScrollNearBottom,
