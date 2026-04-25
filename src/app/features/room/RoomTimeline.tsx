@@ -185,7 +185,7 @@ import {
   mergeCompactThreadRootData,
 } from '../../mindroom/threads/compactThreadRootData';
 import { CompactRoomView } from '../../mindroom/threads/CompactRoomView';
-import { RoomThreadOverview } from './RoomThreadOverview';
+import { RoomThreadOverview } from '../../mindroom/threads/RoomThreadOverview';
 import {
   buildRoomSurfaceEventEntries,
   getLinkedTimelineEvents,
@@ -214,7 +214,7 @@ import {
 } from '../../mindroom/threads/threadRoomFocus';
 import { useMindroomThreadIndex } from '../../mindroom/threads/useMindroomThreadIndex';
 import type { ThreadBadgeViewModel, ThreadRecord } from '../../mindroom/threads/types';
-import type { ThreadFilterKey } from './RoomThreadOverview';
+import type { ThreadFilterKey } from '../../mindroom/threads/RoomThreadOverview';
 import {
   type ThreadFilterState,
   type ThreadSortFreezeState,

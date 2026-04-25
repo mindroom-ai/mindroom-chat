@@ -933,7 +933,7 @@ vi.mock('./threadEditBackfillUtils', () => ({
   shouldFetchThreadEditBackfill: () => false,
 }));
 
-vi.mock('./RoomThreadOverview', () => ({
+vi.mock('../../mindroom/threads/RoomThreadOverview', () => ({
   RoomThreadOverview: roomThreadOverviewType,
 }));
 
