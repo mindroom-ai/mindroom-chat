@@ -710,6 +710,8 @@ Acceptance:
   legacy hook/util paths are compatibility exports only.
 - Thread activity timestamp derivation lives in `src/app/mindroom/threads/useThreadLastActivityTs.ts`;
   legacy hook paths are compatibility exports only.
+- Cache-aware room/thread event lookup lives in `src/app/mindroom/threads/useRoomEvent.ts`, next to the
+  event repository it uses; the generic hook path is compatibility-only.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy

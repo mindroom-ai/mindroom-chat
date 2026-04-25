@@ -2076,3 +2076,9 @@
 - Moved `useThreadLastActivityTs` and its activity timestamp helper into `src/app/mindroom/threads`.
 - Left `src/app/hooks/useThreadLastActivityTs.ts` as a thin compatibility export for legacy import paths.
 - Updated thread records, overview models, reply badges, and test mocks to consume the fork-owned activity derivation directly.
+
+## CINNY-100 — Move cache-aware room event loading to fork namespace (2026-04-25)
+
+- Moved `useRoomEvent` into `src/app/mindroom/threads` so cache-first room/thread event lookup is owned beside the MindRoom event repository.
+- Left `src/app/hooks/useRoomEvent.ts` as a thin compatibility export for legacy import paths.
+- Updated reply rendering, pinned-event rendering, and tests to import the fork-owned cache-aware event hook directly.
