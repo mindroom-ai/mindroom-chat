@@ -1,9 +1,16 @@
-import type { EventTimeline, IEvent, MatrixEvent, Room } from 'matrix-js-sdk';
+import {
+  RelationType,
+  type EventTimeline,
+  type IEvent,
+  type MatrixEvent,
+  type Room,
+} from 'matrix-js-sdk';
 import {
   getRoomCursorAnchor,
   normalizeCachedRoomEvents,
 } from '../../features/room/roomEventCache';
 import { compareCachedPaginationAnchors } from '../../features/room/eventCacheTokenUtils';
+import { serializeEventsForCache } from '../../features/room/eventCacheEditUtils';
 import { isThreadOnlyRoomActivity } from '../../features/room/threadRenderUtils';
 
 export {
@@ -147,3 +154,48 @@ export const filterLatestRoomCacheHydrationEvents = (
       typeof rawEvent.event_id === 'string' && !loadedEventIds.has(rawEvent.event_id)
   );
 };
+
+export const collectStateTargetEvents = (room: Room, events: MatrixEvent[]): MatrixEvent[] => {
+  const eventsById = new Map<string, MatrixEvent>();
+
+  events.forEach((mEvent) => {
+    const eventId = mEvent.getId();
+    if (eventId) {
+      eventsById.set(eventId, mEvent);
+    }
+
+    const targetEventId =
+      mEvent.getRelation()?.rel_type === RelationType.Replace || mEvent.isRedaction()
+        ? mEvent.getAssociatedId()
+        : undefined;
+    if (!targetEventId || eventsById.has(targetEventId)) return;
+
+    const targetEvent = room.findEventById(targetEventId);
+    if (targetEvent?.getId()) {
+      eventsById.set(targetEventId, targetEvent);
+    }
+  });
+
+  return Array.from(eventsById.values());
+};
+
+export const serializeThreadCacheEvents = (
+  room: Room,
+  events: MatrixEvent[],
+  rootEvent?: MatrixEvent
+): Partial<IEvent>[] =>
+  serializeEventsForCache(
+    room,
+    collectStateTargetEvents(room, rootEvent ? [rootEvent, ...events] : events)
+  );
+
+export const serializeRoomCacheEvents = (
+  room: Room,
+  events: MatrixEvent[]
+): Partial<IEvent>[] =>
+  serializeEventsForCache(
+    room,
+    collectStateTargetEvents(room, events).filter(
+      (mEvent) => !isThreadOnlyRoomActivity(room, mEvent)
+    )
+  );

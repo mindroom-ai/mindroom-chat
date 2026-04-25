@@ -48,4 +48,11 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('const getAuthoritativeCachedThreadReplyCount');
     expect(source).not.toContain('const mergeThreadBackfillEvents');
   });
+
+  it('delegates cache payload serialization prep to the event repository', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).not.toContain('const withStateTargetEvents');
+    expect(source).not.toContain('serializeEventsForCache(');
+  });
 });

@@ -266,6 +266,8 @@ import {
   normalizeCachedThreadEvents,
   saveRoomEventsToCache,
   saveThreadEventsToCache,
+  serializeRoomCacheEvents,
+  serializeThreadCacheEvents,
   shouldHydrateLatestRoomCache,
   filterLatestRoomCacheHydrationEvents,
 } from '../../mindroom/threads/eventRepository';
@@ -280,7 +282,6 @@ import {
   collectRedactedRelationTargetsFromLookup,
   hydrateCachedEvents,
   reconcileRelationEventsWithAggregation,
-  serializeEventsForCache,
 } from './eventCacheEditUtils';
 import {
   isScrollNearBottom,
@@ -333,30 +334,6 @@ const TimelineDivider = as<'div', { variant?: ContainerColor | 'Inherit' }>(
 export const getEventTimeline = (room: Room, eventId: string): EventTimeline | undefined => {
   const timelineSet = room.getUnfilteredTimelineSet();
   return timelineSet.getTimelineForEvent(eventId) ?? undefined;
-};
-
-const withStateTargetEvents = (room: Room, events: MatrixEvent[]): MatrixEvent[] => {
-  const eventsById = new Map<string, MatrixEvent>();
-
-  events.forEach((mEvent) => {
-    const eventId = mEvent.getId();
-    if (eventId) {
-      eventsById.set(eventId, mEvent);
-    }
-
-    const targetEventId =
-      mEvent.getRelation()?.rel_type === RelationType.Replace || mEvent.isRedaction()
-        ? mEvent.getAssociatedId()
-        : undefined;
-    if (!targetEventId || eventsById.has(targetEventId)) return;
-
-    const targetEvent = room.findEventById(targetEventId);
-    if (targetEvent?.getId()) {
-      eventsById.set(targetEventId, targetEvent);
-    }
-  });
-
-  return Array.from(eventsById.values());
 };
 
 const resolveFocusedRoomOverviewRootId = ({
@@ -3148,14 +3125,13 @@ export function RoomTimeline({
         ((snapshotComplete === true || (beforeTokenForEarliest === null && tailLoaded === true))
           ? loadedReplyCount
           : undefined);
-      const cacheEvents = withStateTargetEvents(room, rootEvent ? [rootEvent, ...events] : events);
-      const rawEvents = serializeEventsForCache(room, cacheEvents);
+      const rawEvents = serializeThreadCacheEvents(room, events, rootEvent ?? undefined);
       const rawRootEvent = rootEvent
         ? rawEvents.find((rawEvent) => rawEvent.event_id === rootEvent.getId())
         : undefined;
       logTimelineDebug(threadDebugTraceId, 'thread-cache-persist', {
         beforeTokenForEarliest: beforeTokenForEarliest ?? null,
-        cacheEventCount: cacheEvents.length,
+        cacheEventCount: rawEvents.length,
         expectedReplyCount: persistedExpectedReplyCount ?? null,
         loadedReplyCount,
         rawEventCount: rawEvents.length,
@@ -3251,12 +3227,7 @@ export function RoomTimeline({
 
   const persistRoomEventCache = useCallback(
     (events: MatrixEvent[], beforeTokenForEarliest?: string | null) => {
-      const rawEvents = serializeEventsForCache(
-        room,
-        withStateTargetEvents(room, events).filter(
-          (mEvent) => !isThreadOnlyRoomActivity(room, mEvent)
-        )
-      );
+      const rawEvents = serializeRoomCacheEvents(room, events);
       logTimelineDebug(roomDebugTraceId, 'room-cache-persist', {
         beforeTokenForEarliest: beforeTokenForEarliest ?? null,
         rawEventCount: rawEvents.length,
