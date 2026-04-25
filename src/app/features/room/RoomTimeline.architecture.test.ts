@@ -168,6 +168,16 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('refreshOverviewThreadCacheFromRelations');
   });
 
+  it('delegates compact root edit backfill orchestration to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('useCompactRootEditBackfillController');
+    expect(source).toContain("from '../../mindroom/threads/compactRootEditBackfillController'");
+    expect(source).not.toContain('compactRootEditFetchAttemptedRef');
+    expect(source).not.toContain('getCompactRootEventsNeedingBackfill');
+    expect(source).not.toContain('compactRootBackfill:start');
+  });
+
   it('delegates thread prepend scroll primitives to scroll utilities', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
