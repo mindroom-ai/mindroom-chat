@@ -169,19 +169,13 @@ import {
   useTimelineDebugRangeController,
   useTimelineDebugTraceIds,
 } from '../../mindroom/threads/timelineDebugController';
-import { shouldUseSurfacePreloadTarget } from '../../mindroom/threads/roomPreloadTarget';
 import { CompactRoomView } from '../../mindroom/threads/CompactRoomView';
 import { RoomThreadOverview } from '../../mindroom/threads/RoomThreadOverview';
-import {
-  getRenderableEventEntries,
-  type TimelineEventEntry,
-} from '../../mindroom/threads/roomTimelineEvents';
+import { getRenderableEventEntries } from '../../mindroom/threads/roomTimelineEvents';
 import {
   getEventTimeline,
   getFirstLinkedTimeline,
   getLinkedTimelines,
-  getLinkedTimelinesEventAbsoluteIndex,
-  getActiveTimelineRange,
   getEmptyTimeline,
   getFocusedRoomEventIndex,
   getInitialTimeline,
@@ -202,8 +196,6 @@ import { buildThreadBadgeViewModelFromRecord } from '../../mindroom/threads/thre
 import { ThreadBadgeRenderer } from '../../mindroom/threads/ThreadBadgeRenderer';
 import {
   getRoomEventFocusTarget,
-  getThreadFilteredEvents,
-  resolveOrderedRoomOverviewEvents,
 } from '../../mindroom/threads/threadRoomFocus';
 import { useMindroomThreadIndex } from '../../mindroom/threads/useMindroomThreadIndex';
 import type { ThreadBadgeViewModel } from '../../mindroom/threads/types';
@@ -221,10 +213,8 @@ import { resolveRoomEventThreadRedirect } from '../../mindroom/threads/roomDeepL
 import type { RoomViewMode } from '../../state/room/roomViewMode';
 import {
   getEventElementById,
-  getEventEntryIndex,
   getRoomFocusScrollOptions,
   getRoomFocusScrollToItemOptions,
-  getNextRenderableEntryIndex,
   getTimelineTargetAnchor,
   getUnreadTargetAnchor,
   isAnchorVisibleInScroll,
@@ -237,10 +227,6 @@ import {
 import { useRoomThreadResolutionMap } from '../../mindroom/threads/useRoomThreadTags';
 import { useRoomEagerPreload } from '../../mindroom/threads/preloadController';
 import { useThreadBackPaginationController } from '../../mindroom/threads/threadBackPaginationController';
-import {
-  buildThreadCacheCoverage,
-  shouldShowThreadLoadOlderFromCoverage,
-} from '../../mindroom/threads/threadCacheCoverage';
 import {
   collectPriorityThreadSeedPrewarmRoots,
   fetchAllThreadRelations,
@@ -264,9 +250,10 @@ import { useRoomCacheHydrationController } from '../../mindroom/threads/roomCach
 import { resolveThreadOverviewRefreshTargets } from '../../mindroom/threads/threadOverviewRefreshTargets';
 import { useRoomLiveEventController } from '../../mindroom/threads/roomLiveEventController';
 import { useThreadOpenLifecycleController } from '../../mindroom/threads/threadOpenLifecycleController';
+import { useRoomTimelineWindowController } from '../../mindroom/threads/roomTimelineWindowController';
 
 export { getRoomEventThreadOpenTarget } from '../../mindroom/threads/roomDeepLink';
-export { getRoomEventFocusTarget, getThreadFilteredEvents };
+export { getRoomEventFocusTarget, getThreadFilteredEvents } from '../../mindroom/threads/threadRoomFocus';
 export { useThreadAwareTimelineRefresh } from '../../mindroom/threads/useThreadAwareTimelineRefresh';
 export {
   collectPriorityThreadSeedPrewarmRoots,
@@ -682,119 +669,12 @@ export function RoomTimeline({
     threadSortControlSignature,
   });
 
-  const useSurfacePreloadTarget = shouldUseSurfacePreloadTarget({
-    threadId,
-    roomThreadFilterActive,
-    viewMode: effectiveViewMode,
-  });
-
-  const threadFilteredEvents = useMemo(() => {
-    if (threadId) return renderableEvents;
-    if (roomOverviewOrderActive) {
-      return resolveOrderedRoomOverviewEvents({
-        orderedRootIds: overviewThreadRootIds,
-        renderableEvents: roomSurfaceEventEntries.map(({ event }) => event),
-        room,
-        roomThreads: roomThreadListThreads,
-      });
-    }
-
-    return renderableEvents;
-  }, [
-    overviewThreadRootIds,
-    renderableEvents,
-    room,
-    roomOverviewOrderActive,
-    roomSurfaceEventEntries,
-    roomThreadListThreads,
-    threadId,
-  ]);
-
-  const threadFilteredEventsRef = useRef(threadFilteredEvents);
-  threadFilteredEventsRef.current = threadFilteredEvents;
-
-  // Map-based entry construction: preserve entry metadata while allowing new display order
-  const threadFilteredEventEntries = useMemo(() => {
-    if (!roomOverviewOrderActive) {
-      return renderableEventEntries;
-    }
-
-    const entryMap = new Map<string, TimelineEventEntry>();
-    roomSurfaceEventEntries.forEach((entry) => {
-      const entryEventId = entry.event.getId();
-      if (entryEventId) entryMap.set(entryEventId, entry);
-    });
-
-    return threadFilteredEvents
-      .map((event) => {
-        const eventId = event.getId();
-        return eventId ? entryMap.get(eventId) : undefined;
-      })
-      .filter((entry): entry is TimelineEventEntry => entry !== undefined);
-  }, [
-    renderableEventEntries,
-    roomOverviewOrderActive,
-    roomSurfaceEventEntries,
-    threadFilteredEvents,
-  ]);
-  const readUptoAbsoluteIndex = useMemo(() => {
-    if (threadId) return undefined;
-    const currentReadUptoEventId = unreadInfo?.readUptoEventId;
-    if (!currentReadUptoEventId) return undefined;
-
-    return getLinkedTimelinesEventAbsoluteIndex(timeline.linkedTimelines, currentReadUptoEventId);
-  }, [threadId, timeline.linkedTimelines, unreadInfo?.readUptoEventId]);
-  const unreadScrollAnchorIndex = useMemo(() => {
-    const currentReadUptoEventId = unreadInfo?.readUptoEventId;
-    if (threadId || !currentReadUptoEventId) return undefined;
-
-    const visibleIndex = getEventEntryIndex(threadFilteredEventEntries, currentReadUptoEventId);
-    if (visibleIndex !== -1) {
-      return visibleIndex;
-    }
-
-    if (readUptoAbsoluteIndex === undefined) return undefined;
-    return getNextRenderableEntryIndex(threadFilteredEventEntries, readUptoAbsoluteIndex);
-  }, [threadFilteredEventEntries, threadId, unreadInfo?.readUptoEventId, readUptoAbsoluteIndex]);
-  const filteredLength = threadFilteredEvents.length;
-  const activeTimelineRange = useMemo(
-    () =>
-      getActiveTimelineRange(
-        threadId,
-        roomThreadFilterActive,
-        timeline.range,
-        filteredLength,
-        safePaginationLimit
-      ),
-    [threadId, roomThreadFilterActive, timeline.range, filteredLength, safePaginationLimit]
-  );
-  const priorityThreadSeedPrewarmRoots = useMemo(() => {
-    return collectPriorityThreadSeedPrewarmRoots({
-      room,
-      threadFilteredEventEntries,
-      threadId,
-      threadReplyCountMap,
-      threadResolutionMap,
-      rangeEnd: activeTimelineRange.end,
-      rangeStart: activeTimelineRange.start,
-    });
-  }, [
-    activeTimelineRange.end,
-    activeTimelineRange.start,
-    overviewRefreshCounter,
-    room,
-    threadFilteredEventEntries,
-    threadId,
-    threadReplyCountMap,
-    threadResolutionMap,
-  ]);
+  const threadFilteredEventsRef = useRef<MatrixEvent[]>([]);
   const prevRoomThreadFilterActiveRef = useRef(roomThreadFilterActive);
   const liveTimelineLinked =
     timeline.linkedTimelines[timeline.linkedTimelines.length - 1] === getLiveTimeline(room);
   const canPaginateBack =
     typeof timeline.linkedTimelines[0]?.getPaginationToken(Direction.Backward) === 'string';
-  const rangeAtStart = activeTimelineRange.start === 0;
-  const rangeAtEnd = activeTimelineRange.end === filteredLength;
   const thread = threadId ? room.getThread(threadId) : null;
   const roomTimelineSet = room.getUnfilteredTimelineSet();
   const threadTimelineSet = thread?.getUnfilteredTimelineSet();
@@ -830,31 +710,42 @@ export function RoomTimeline({
   const canPaginateThreadBack = typeof threadBackwardPaginationToken === 'string';
   const canPaginateThreadFront =
     typeof lastThreadTimeline?.getPaginationToken(Direction.Forward) === 'string';
-  const threadPaginationCoverage = useMemo(
-    () =>
-      buildThreadCacheCoverage({
-        eventCount: threadEvents.length,
-        backwardToken: canPaginateThreadBack
-          ? threadBackwardPaginationToken
-          : threadHasMoreCachedBack
-          ? undefined
-          : null,
-        hasMoreBackward: threadHasMoreCachedBack || canPaginateThreadBack,
-        relationSnapshotComplete: false,
-        tailLoaded: threadTailLoaded,
-      }),
-    [
-      canPaginateThreadBack,
-      threadBackwardPaginationToken,
-      threadEvents.length,
-      threadHasMoreCachedBack,
-      threadTailLoaded,
-    ]
-  );
-  const showThreadLoadOlderMessages = shouldShowThreadLoadOlderFromCoverage({
-    coverage: threadPaginationCoverage,
-    sdkHasBackwardToken: canPaginateThreadBack,
+  const {
+    activeTimelineRange,
+    filteredLength,
+    priorityThreadSeedPrewarmRoots,
+    readUptoAbsoluteIndex,
+    showThreadLoadOlderMessages,
+    threadFilteredEventEntries,
+    threadFilteredEvents,
+    unreadScrollAnchorIndex,
+    useSurfacePreloadTarget,
+  } = useRoomTimelineWindowController({
+    canPaginateThreadBack,
+    effectiveViewMode,
+    filteredRoomOverviewOrderActive: roomOverviewOrderActive,
+    filteredRoomThreadActive: roomThreadFilterActive,
+    lastThreadBackwardPaginationToken: threadBackwardPaginationToken,
+    overviewRefreshCounter,
+    overviewThreadRootIds,
+    renderableEventEntries,
+    renderableEvents,
+    room,
+    roomSurfaceEventEntries,
+    roomThreadListThreads,
+    safePaginationLimit,
+    threadEventsLength: threadEvents.length,
+    threadHasMoreCachedBack,
+    threadId,
+    threadReplyCountMap,
+    threadResolutionMap,
+    threadTailLoaded,
+    timeline,
+    unreadInfo,
   });
+  threadFilteredEventsRef.current = threadFilteredEvents;
+  const rangeAtStart = activeTimelineRange.start === 0;
+  const rangeAtEnd = activeTimelineRange.end === filteredLength;
 
   useTimelineDebugRangeController({
     activeTimelineRange,

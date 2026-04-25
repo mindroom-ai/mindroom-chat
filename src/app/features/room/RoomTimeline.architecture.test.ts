@@ -34,9 +34,15 @@ describe('RoomTimeline architecture', () => {
       new URL('./roomPreloadTarget.ts', import.meta.url),
       'utf8'
     );
+    const windowControllerSource = readFileSync(
+      new URL('../../mindroom/threads/roomTimelineWindowController.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).toContain('useRoomEagerPreload');
-    expect(source).toContain("from '../../mindroom/threads/roomPreloadTarget'");
+    expect(source).toContain('useRoomTimelineWindowController');
+    expect(source).not.toContain("from '../../mindroom/threads/roomPreloadTarget'");
+    expect(windowControllerSource).toContain("from './roomPreloadTarget'");
     expect(targetCompatibilitySource).toContain("from '../../mindroom/threads/roomPreloadTarget'");
     expect(source).not.toContain('[eager-preload]');
   });
@@ -68,8 +74,14 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates thread cache coverage decisions to a fork-owned module', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const windowControllerSource = readFileSync(
+      new URL('../../mindroom/threads/roomTimelineWindowController.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain("from '../../mindroom/threads/threadCacheCoverage'");
+    expect(source).toContain('useRoomTimelineWindowController');
+    expect(source).not.toContain("from '../../mindroom/threads/threadCacheCoverage'");
+    expect(windowControllerSource).toContain("from './threadCacheCoverage'");
     expect(source).not.toContain('hydratedCachedPage.snapshotComplete === true &&');
     expect(source).not.toContain('hydratedCachedPage.relationSnapshotComplete === true &&');
     expect(source).toContain('showThreadLoadOlderMessages');
