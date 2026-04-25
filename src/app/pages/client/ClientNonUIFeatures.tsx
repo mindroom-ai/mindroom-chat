@@ -5,7 +5,6 @@ import { RoomEvent, RoomEventHandlerMap } from 'matrix-js-sdk';
 import { PluginListenerHandle } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { roomToUnreadAtom, unreadEqual, unreadInfoToUnread } from '../../state/room/roomToUnread';
-import LogoFaviconPNG from '../../../../public/res/branding/mindroom-favicon.png';
 import NotificationSound from '../../../../public/sound/notification.ogg';
 import InviteSound from '../../../../public/sound/invite.ogg';
 import { notificationPermission, setFavicon } from '../../utils/dom';
@@ -40,9 +39,10 @@ import {
   unregisterIOSPush,
   upsertIOSPushPusher,
 } from '../../mindroom/native/iosPush';
+import { MINDROOM_FAVICON_SRC } from '../../mindroom/branding/branding';
 
-const LogoUnreadSVG = LogoFaviconPNG;
-const LogoHighlightSVG = LogoFaviconPNG;
+const LogoUnreadSVG = MINDROOM_FAVICON_SRC;
+const LogoHighlightSVG = MINDROOM_FAVICON_SRC;
 
 function SystemEmojiFeature() {
   const [twitterEmoji] = useSetting(settingsAtom, 'twitterEmoji');
@@ -94,7 +94,7 @@ function FaviconUpdater() {
     if (notification) {
       setFavicon(highlight ? LogoHighlightSVG : LogoUnreadSVG);
     } else {
-      setFavicon(LogoFaviconPNG);
+      setFavicon(MINDROOM_FAVICON_SRC);
     }
   }, [roomToUnread]);
 
@@ -114,8 +114,8 @@ function InviteNotifications() {
   const notify = useCallback(
     (count: number) => {
       const noti = new window.Notification('Invitation', {
-        icon: LogoFaviconPNG,
-        badge: LogoFaviconPNG,
+        icon: MINDROOM_FAVICON_SRC,
+        badge: MINDROOM_FAVICON_SRC,
         body: `You have ${count} new invitation request.`,
         silent: true,
       });
