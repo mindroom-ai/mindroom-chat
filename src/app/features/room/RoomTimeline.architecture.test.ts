@@ -48,10 +48,6 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates eager room preload orchestration outside RoomTimeline', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const targetCompatibilitySource = readFileSync(
-      new URL('./roomPreloadTarget.ts', import.meta.url),
-      'utf8'
-    );
     const windowControllerSource = readFileSync(
       new URL('../../mindroom/threads/roomTimelineWindowController.ts', import.meta.url),
       'utf8'
@@ -61,7 +57,6 @@ describe('RoomTimeline architecture', () => {
     expect(source).toContain('useRoomTimelineWindowController');
     expect(source).not.toContain("from '../../mindroom/threads/roomPreloadTarget'");
     expect(windowControllerSource).toContain("from './roomPreloadTarget'");
-    expect(targetCompatibilitySource).toContain("from '../../mindroom/threads/roomPreloadTarget'");
     expect(source).not.toContain('[eager-preload]');
   });
 
@@ -166,10 +161,6 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps thread route deep-link resolution in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const compatibilitySource = readFileSync(
-      new URL('./roomDeepLink.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/roomDeepLink.ts', import.meta.url),
       'utf8'
@@ -180,7 +171,6 @@ describe('RoomTimeline architecture', () => {
     );
 
     expect(source).toContain("from '../../mindroom/threads/roomDeepLink'");
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/roomDeepLink'");
     expect(implementationSource).toContain('resolveRoomEventThreadRedirect');
     expect(implementationSource).toContain('getRoomEventThreadOpenTarget');
     expect(indexSource).toContain("from './roomDeepLink'");
@@ -294,11 +284,20 @@ describe('RoomTimeline architecture', () => {
 
   it('does not keep stale low-level thread compatibility wrappers', () => {
     const removedThreadCompatibilityPaths = [
+      './cacheDbMigrationUtils.ts',
+      './roomDeepLink.ts',
+      './roomPreloadTarget.ts',
+      './roomThreadList.ts',
+      './threadSummaryCache.ts',
       './threadSummarySelection.ts',
+      './threadSummaryState.ts',
       './threadTagColor.ts',
       './threadTagPending.ts',
       './useMutateThreadTags.ts',
+      './useRoomThreadList.ts',
       './useRoomThreadSummaryState.ts',
+      './useThreadRenderState.ts',
+      './useThreadRootEvent.ts',
       './useThreadTags.ts',
     ];
 
@@ -823,20 +822,14 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps thread render state merging in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const compatibilitySource = readFileSync(
-      new URL('./useThreadRenderState.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/useThreadRenderState.ts', import.meta.url),
       'utf8'
     );
 
     expect(source).toContain("from '../../mindroom/threads/useThreadRenderState'");
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/useThreadRenderState'");
     expect(implementationSource).toContain('setSupplementalThreadEvents');
     expect(implementationSource).toContain('mergeThreadRenderEvents');
-    expect(compatibilitySource).not.toContain('fallbackThreadEventsRef');
   });
 
   it('keeps thread tag state and hooks in MindRoom threads', () => {
@@ -921,14 +914,6 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/useRoomViewThreadState.ts', import.meta.url),
       'utf8'
     );
-    const cacheCompatibilitySource = readFileSync(
-      new URL('./threadSummaryCache.ts', import.meta.url),
-      'utf8'
-    );
-    const stateCompatibilitySource = readFileSync(
-      new URL('./threadSummaryState.ts', import.meta.url),
-      'utf8'
-    );
     const cacheSource = readFileSync(
       new URL('../../mindroom/threads/threadSummaryCache.ts', import.meta.url),
       'utf8'
@@ -952,16 +937,12 @@ describe('RoomTimeline architecture', () => {
     expect(roomViewThreadStateSource).toContain("from './threadSummaryStore'");
     expect(timelineSource).toContain("from '../../mindroom/threads/threadSummaryPublishController'");
     expect(timelineSource).not.toContain('threadSummaryInfoMap.forEach');
-    expect(cacheCompatibilitySource).toContain("from '../../mindroom/threads/threadSummaryCache'");
-    expect(stateCompatibilitySource).toContain("from '../../mindroom/threads/threadSummaryState'");
     expect(storeSource).toContain("from './threadSummaryCache'");
     expect(storeSource).toContain("from './threadSummaryState'");
     expect(storeSource).toContain("from './useRoomThreadSummaryState'");
     expect(cacheSource).toContain('loadCachedThreadSummaries');
     expect(stateSource).toContain('storeThreadSummaryInState');
     expect(publishControllerSource).toContain('useThreadSummaryPublishController');
-    expect(cacheCompatibilitySource).not.toContain('indexedDB');
-    expect(stateCompatibilitySource).not.toContain('useSyncExternalStore');
   });
 
   it('keeps MindRoom message primitives in the MindRoom namespace', () => {
@@ -1517,10 +1498,6 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/useRoomViewThreadState.ts', import.meta.url),
       'utf8'
     );
-    const compatibilitySource = readFileSync(
-      new URL('./useThreadRootEvent.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/useThreadRootEvent.ts', import.meta.url),
       'utf8'
@@ -1529,10 +1506,8 @@ describe('RoomTimeline architecture', () => {
     expect(roomViewSource).toContain("from '../../mindroom/threads/useRoomViewThreadState'");
     expect(roomViewSource).not.toContain("from '../../mindroom/threads/useThreadRootEvent'");
     expect(roomViewThreadStateSource).toContain("from './useThreadRootEvent'");
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/useThreadRootEvent'");
     expect(implementationSource).toContain('resolveCanonicalThreadRootId');
     expect(implementationSource).toContain('RoomEvent.LocalEchoUpdated');
-    expect(compatibilitySource).not.toContain('RoomEvent.LocalEchoUpdated');
   });
 
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
@@ -1581,14 +1556,6 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps room thread-list loading in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const listCompatibilitySource = readFileSync(
-      new URL('./roomThreadList.ts', import.meta.url),
-      'utf8'
-    );
-    const hookCompatibilitySource = readFileSync(
-      new URL('./useRoomThreadList.ts', import.meta.url),
-      'utf8'
-    );
     const listSource = readFileSync(
       new URL('../../mindroom/threads/roomThreadList.ts', import.meta.url),
       'utf8'
@@ -1603,14 +1570,10 @@ describe('RoomTimeline architecture', () => {
     );
 
     expect(source).not.toContain("from '../../mindroom/threads/useRoomThreadList'");
-    expect(listCompatibilitySource).toContain("from '../../mindroom/threads/roomThreadList'");
-    expect(hookCompatibilitySource).toContain("from '../../mindroom/threads/useRoomThreadList'");
     expect(listSource).toContain('loadRoomThreads');
     expect(listSource).toContain('getThreadUnread');
     expect(hookSource).toContain('useRoomThreadList');
     expect(indexSource).toContain("from './useRoomThreadList'");
-    expect(listCompatibilitySource).not.toContain('fetchRoomThreads');
-    expect(hookCompatibilitySource).not.toContain('ThreadEvent.NewReply');
   });
 
   it('delegates compact root edit backfill orchestration to MindRoom threads', () => {
@@ -1765,10 +1728,6 @@ describe('RoomTimeline architecture', () => {
       new URL('./threadEventCache.ts', import.meta.url),
       'utf8'
     );
-    const migrationCompatibilitySource = readFileSync(
-      new URL('./cacheDbMigrationUtils.ts', import.meta.url),
-      'utf8'
-    );
     const roomStoreSource = readFileSync(
       new URL('../../mindroom/threads/roomEventCache.ts', import.meta.url),
       'utf8'
@@ -1784,9 +1743,6 @@ describe('RoomTimeline architecture', () => {
 
     expect(roomCompatibilitySource).toContain("from '../../mindroom/threads/roomEventCache'");
     expect(threadCompatibilitySource).toContain("from '../../mindroom/threads/threadEventCache'");
-    expect(migrationCompatibilitySource).toContain(
-      "from '../../mindroom/threads/cacheDbMigrationUtils'"
-    );
     expect(roomStoreSource).toContain('mindroom-room-event-cache');
     expect(threadStoreSource).toContain('mindroom-thread-event-cache');
     expect(repositorySource).toContain("from './roomEventCache'");
