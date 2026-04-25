@@ -1,7 +1,7 @@
 import { MutableRefObject, useCallback, useRef } from 'react';
 import { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import { Editor } from 'slate';
-import { resetEditor, resetEditorHistory } from '../../components/editor';
+import { resetEditor, resetEditorHistory } from '../../components/editor/utils';
 import { IReplyDraft, TUploadItem } from '../../state/room/roomInputDrafts';
 import { Upload } from '../../state/upload';
 import { TUploadContent } from '../../utils/matrix';

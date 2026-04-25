@@ -1,5 +1,5 @@
 import { BaseRange, Editor, Range, Transforms } from 'slate';
-import { AutocompleteQuery } from '../../components/editor';
+import type { AutocompleteQuery } from '../../components/editor/autocomplete/autocompleteQuery';
 
 export const MINDROOM_COMMAND_PREFIX = '!' as const;
 

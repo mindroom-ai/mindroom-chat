@@ -252,17 +252,24 @@ vi.mock('../../hooks/useCommands', () => ({
   useCommands: () => ({}),
 }));
 
-vi.mock('../../mindroom/room-input/RoomInputMindroomExtensions', () => ({
-  getMindroomRoomInputAutocompleteQuery: () => undefined,
-  isMindroomRoomInputAutocompleteQuery: (query?: { prefix?: string }) => query?.prefix === '!',
-  MindroomRoomInputAutocomplete: () => null,
-  MindroomVoiceRecorderComposer: (props: {
-    onSendRecording: (file: File, duration: number) => Promise<void>;
-  }) => {
-    voiceRecorderState.props = props;
-    return React.createElement('div');
-  },
-}));
+vi.mock('../../mindroom/room-input/RoomInputMindroomExtensions', async () => {
+  const { useRoomInputSendSessionController } = await vi.importActual<
+    typeof import('../../mindroom/threads/useRoomInputSendSessionController')
+  >('../../mindroom/threads/useRoomInputSendSessionController');
+
+  return {
+    getMindroomRoomInputAutocompleteQuery: () => undefined,
+    isMindroomRoomInputAutocompleteQuery: (query?: { prefix?: string }) => query?.prefix === '!',
+    MindroomRoomInputAutocomplete: () => null,
+    MindroomVoiceRecorderComposer: (props: {
+      onSendRecording: (file: File, duration: number) => Promise<void>;
+    }) => {
+      voiceRecorderState.props = props;
+      return React.createElement('div');
+    },
+    useRoomInputSendSessionController,
+  };
+});
 
 vi.mock('../../components/message', () => ({
   ReplyLayout: ({ children }: { children?: React.ReactNode }) =>
