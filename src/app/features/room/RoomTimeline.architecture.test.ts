@@ -39,4 +39,13 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('export const shouldHydrateLatestRoomCache');
     expect(source).not.toContain('export const filterLatestRoomCacheHydrationEvents');
   });
+
+  it('delegates thread cache coverage derivation to a fork-owned module', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).not.toContain('const getRoomDerivedThreadSnapshotState');
+    expect(source).not.toContain('const isCompleteCachedThreadSnapshot');
+    expect(source).not.toContain('const getAuthoritativeCachedThreadReplyCount');
+    expect(source).not.toContain('const mergeThreadBackfillEvents');
+  });
 });

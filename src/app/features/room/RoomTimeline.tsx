@@ -298,6 +298,12 @@ import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadO
 import { isPendingLocalEchoThreadRoot } from './threadRouteUtils';
 import { useThreadOverviewCacheHydration } from './useThreadOverviewCacheHydration';
 import { useRoomEagerPreload } from '../../mindroom/threads/preloadController';
+import {
+  getAuthoritativeCachedThreadReplyCount,
+  getRoomDerivedThreadSnapshotState,
+  isCompleteCachedThreadSnapshot,
+  mergeThreadBackfillEvents,
+} from '../../mindroom/threads/threadCacheSnapshot';
 
 export { getRoomEventThreadOpenTarget } from './roomDeepLink';
 
@@ -565,108 +571,6 @@ export const shouldRenderUnreadDividerAt = ({
   eventAbsoluteIndex > readUptoAbsoluteIndex &&
   (prevRenderedEventAbsoluteIndex === undefined ||
     prevRenderedEventAbsoluteIndex <= readUptoAbsoluteIndex);
-
-const getRoomDerivedThreadSnapshotState = ({
-  room,
-  threadId,
-  rootEvent,
-  threadEvents,
-  roomStartKnown,
-  roomTailLoaded,
-}: {
-  room: Room;
-  threadId: string;
-  rootEvent: MatrixEvent | undefined;
-  threadEvents: MatrixEvent[];
-  roomStartKnown: boolean;
-  roomTailLoaded: boolean;
-}) => {
-  const loadedReplyCount = buildThreadReplyCountMap(threadEvents).get(threadId) ?? 0;
-  const expectedReplyCount = rootEvent ? getKnownThreadReplyCount(rootEvent) : undefined;
-  const snapshotComplete =
-    roomStartKnown && roomTailLoaded && typeof expectedReplyCount === 'number'
-      ? loadedReplyCount >= expectedReplyCount
-      : undefined;
-
-  return {
-    beforeTokenForEarliest: snapshotComplete === true ? null : undefined,
-    expectedReplyCount,
-    loadedReplyCount,
-    snapshotComplete,
-    tailLoaded: roomTailLoaded ? true : undefined,
-  };
-};
-
-const isCompleteCachedThreadSnapshot = ({
-  room,
-  threadId,
-  rootEvent,
-  cachedRootEvent,
-  cachedEvents,
-  beforeToken,
-  hasMoreBefore,
-  expectedReplyCount,
-  snapshotComplete,
-  tailLoaded,
-}: {
-  room: Room;
-  threadId: string;
-  rootEvent?: MatrixEvent;
-  cachedRootEvent?: MatrixEvent;
-  cachedEvents: MatrixEvent[];
-  beforeToken: string | null | undefined;
-  hasMoreBefore: boolean;
-  expectedReplyCount?: number;
-  snapshotComplete: boolean;
-  tailLoaded: boolean;
-}): boolean => {
-  if (beforeToken != null || hasMoreBefore || !tailLoaded) {
-    return false;
-  }
-
-  const authoritativeExpectedReplyCount =
-    (rootEvent ? getKnownThreadReplyCount(rootEvent) : undefined) ??
-    (cachedRootEvent ? getKnownThreadReplyCount(cachedRootEvent) : undefined) ??
-    expectedReplyCount;
-  if (typeof authoritativeExpectedReplyCount !== 'number') {
-    return snapshotComplete;
-  }
-
-  const loadedReplyCount = buildThreadReplyCountMap(cachedEvents).get(threadId) ?? 0;
-  return loadedReplyCount >= authoritativeExpectedReplyCount;
-};
-
-const getAuthoritativeCachedThreadReplyCount = ({
-  rootEvent,
-  cachedRootEvent,
-  expectedReplyCount,
-}: {
-  rootEvent?: MatrixEvent;
-  cachedRootEvent?: MatrixEvent;
-  expectedReplyCount?: number;
-}): number | undefined =>
-  (rootEvent ? getKnownThreadReplyCount(rootEvent) : undefined) ??
-  (cachedRootEvent ? getKnownThreadReplyCount(cachedRootEvent) : undefined) ??
-  expectedReplyCount;
-
-const mergeThreadBackfillEvents = (
-  existingEvents: MatrixEvent[],
-  incomingEvents: MatrixEvent[]
-): MatrixEvent[] => {
-  const eventsById = new Map<string, MatrixEvent>();
-
-  [...existingEvents, ...incomingEvents].forEach((mEvent) => {
-    const eventId = mEvent.getId();
-    if (!eventId) return;
-    eventsById.set(eventId, mEvent);
-  });
-
-  return Array.from(eventsById.values()).sort((left, right) => {
-    const tsDiff = left.getTs() - right.getTs();
-    if (tsDiff !== 0) return tsDiff;
-    return (left.getId() ?? '').localeCompare(right.getId() ?? '');
-  });
-};
 
 export const getTimelineAndBaseIndex = (
   timelines: EventTimeline[],
