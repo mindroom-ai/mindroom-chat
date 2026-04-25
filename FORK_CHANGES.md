@@ -894,6 +894,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 39 / Phase 5 scheduled thread display ownership (2026-04-24):
+  - moved scheduled thread display formatting to `src/app/mindroom/threads/compactThreadCardUtils.ts` and moved its regression test beside the MindRoom thread card/view-model code.
+  - the old `src/app/features/room/compactThreadCardUtils.ts` path is now a compatibility re-export; `useThreadHeaderInfo` and compact-card view-model derivation import the MindRoom implementation directly.
+  - this keeps scheduled-label derivation with the thread view-model namespace instead of the upstream room feature folder.
+  - validation:
+    - focused Vitest passes for `compactThreadCardUtils.test.ts`, `useThreadHeaderInfo.test.ts`, `compactThreadCardViewModel.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

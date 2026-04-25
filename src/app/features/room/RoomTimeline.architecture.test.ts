@@ -324,6 +324,32 @@ describe('RoomTimeline architecture', () => {
     expect(compatibilitySource).not.toContain('useCompactThreadCardViewModels');
   });
 
+  it('keeps compact thread scheduled-label utilities in MindRoom threads', () => {
+    const hookSource = readFileSync(
+      new URL('../../hooks/useThreadHeaderInfo.ts', import.meta.url),
+      'utf8'
+    );
+    const viewModelSource = readFileSync(
+      new URL('../../mindroom/threads/compactThreadCardViewModel.ts', import.meta.url),
+      'utf8'
+    );
+    const compatibilitySource = readFileSync(
+      new URL('./compactThreadCardUtils.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/compactThreadCardUtils.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(hookSource).toContain("from '../mindroom/threads/compactThreadCardUtils'");
+    expect(viewModelSource).toContain("from './compactThreadCardUtils'");
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/compactThreadCardUtils'");
+    expect(implementationSource).toContain('formatScheduledTime');
+    expect(implementationSource).toContain('getScheduledTimeUpdateInterval');
+    expect(compatibilitySource).not.toContain('SIX_HOURS_MS');
+  });
+
   it('keeps room thread overview controls in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const compatibilitySource = readFileSync(

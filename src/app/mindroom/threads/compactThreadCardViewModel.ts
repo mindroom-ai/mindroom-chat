@@ -6,7 +6,7 @@ import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { getThreadHeaderScheduledDisplayText } from '../../hooks/useThreadHeaderInfo';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
-import { formatScheduledTime } from '../../features/room/compactThreadCardUtils';
+import { formatScheduledTime } from './compactThreadCardUtils';
 import { getThreadPrimarySummaryText } from './threadPresentation';
 import type {
   CompactThreadAttentionState,
