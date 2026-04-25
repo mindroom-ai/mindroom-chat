@@ -1029,6 +1029,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 54 / MindRoom command ownership (2026-04-24):
+  - moved MindRoom command definitions, beginning-of-message command-query parsing, insertion helper, and autocomplete UI to `src/app/mindroom/commands/` with their regression tests.
+  - the old `src/app/features/room/{MindroomCommandAutocomplete,mindroomCommandQuery,mindroomCommands}` paths are now compatibility re-exports; `RoomInput` imports the MindRoom command implementations directly.
+  - this keeps product-specific command behavior outside the upstream-facing room composer.
+  - validation:
+    - focused Vitest passes for `mindroomCommandQuery.test.ts`, `mindroomCommands.test.ts`, and `RoomInput.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

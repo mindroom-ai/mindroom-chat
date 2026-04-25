@@ -238,7 +238,7 @@ vi.mock('./CommandAutocomplete', () => ({
   CommandAutocomplete: () => null,
 }));
 
-vi.mock('./MindroomCommandAutocomplete', () => ({
+vi.mock('../../mindroom/commands/MindroomCommandAutocomplete', () => ({
   MindroomCommandAutocomplete: () => null,
 }));
 
@@ -256,7 +256,7 @@ vi.mock('../../hooks/useCommands', () => ({
   useCommands: () => ({}),
 }));
 
-vi.mock('./mindroomCommandQuery', () => ({
+vi.mock('../../mindroom/commands/mindroomCommandQuery', () => ({
   MINDROOM_COMMAND_PREFIX: '!',
   getMindroomCommandQuery: () => undefined,
 }));
