@@ -134,6 +134,16 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('export const getCompactRootEventsNeedingBackfill =');
   });
 
+  it('delegates thread seed prewarm queue orchestration to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('useThreadSeedPrewarmController');
+    expect(source).toContain("from '../../mindroom/threads/threadSeedPrewarmController'");
+    expect(source).not.toContain('visibleThreadSeedPrewarmQueueRef');
+    expect(source).not.toContain('visibleThreadSeedPrewarmRunningRef');
+    expect(source).not.toContain('visibleThreadSeedPrewarmGenerationRef');
+  });
+
   it('delegates thread prepend scroll primitives to scroll utilities', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 

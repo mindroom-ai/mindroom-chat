@@ -318,6 +318,7 @@ import {
   shouldRefreshOverviewForTimelineEvent,
   THREAD_OPEN_PREWARM_WAIT_MS,
 } from '../../mindroom/threads/threadBootstrap';
+import { useThreadSeedPrewarmController } from '../../mindroom/threads/threadSeedPrewarmController';
 
 export { getRoomEventThreadOpenTarget } from './roomDeepLink';
 export { getRoomEventFocusTarget, getThreadFilteredEvents };
@@ -2619,155 +2620,19 @@ export function RoomTimeline({
     [mx, room.roomId, sessionId]
   );
 
-  const prewarmedVisibleThreadSeedIdsRef = useRef<Set<string>>(new Set());
-  const prewarmingVisibleThreadSeedIdsRef = useRef<Set<string>>(new Set());
-  const prewarmingVisibleThreadSeedPromisesRef = useRef<Map<string, Promise<void>>>(new Map());
-  const queuedVisibleThreadSeedIdsRef = useRef<Set<string>>(new Set());
-  const visibleThreadSeedPrewarmQueueRef = useRef<string[]>([]);
-  const visibleThreadSeedPrewarmRunningRef = useRef(false);
-  const visibleThreadSeedPrewarmGenerationRef = useRef(0);
-  useEffect(() => {
-    visibleThreadSeedPrewarmGenerationRef.current += 1;
-    prewarmedVisibleThreadSeedIdsRef.current.clear();
-    prewarmingVisibleThreadSeedIdsRef.current.clear();
-    prewarmingVisibleThreadSeedPromisesRef.current.clear();
-    queuedVisibleThreadSeedIdsRef.current.clear();
-    visibleThreadSeedPrewarmQueueRef.current = [];
-    visibleThreadSeedPrewarmRunningRef.current = false;
-  }, [room.roomId]);
-
-  const ensureThreadSeedPrewarm = useCallback(
-    (
-      expectedThreadId: string,
-      opts?: {
-        allowWhileThreadOpen?: boolean;
-        generation?: number;
-        logPrefix?: string;
-        traceId?: string;
-      }
-    ): Promise<void> => {
-      const existingPromise = prewarmingVisibleThreadSeedPromisesRef.current.get(expectedThreadId);
-      if (existingPromise) return existingPromise;
-      if (prewarmedVisibleThreadSeedIdsRef.current.has(expectedThreadId)) {
-        return Promise.resolve();
-      }
-
-      const generation = opts?.generation ?? visibleThreadSeedPrewarmGenerationRef.current;
-      const traceId = opts?.traceId ?? roomDebugTraceId;
-      const logPrefix = opts?.logPrefix ?? 'room-thread-seed-prewarm';
-      prewarmingVisibleThreadSeedIdsRef.current.add(expectedThreadId);
-      logTimelineDebug(traceId, `${logPrefix}-start`, {
-        threadId: expectedThreadId,
-      });
-
-      const prewarmPromise = (async () => {
-        try {
-          const cachedSeedEvents = await loadThreadOpenSeedSnapshotFromCache(expectedThreadId);
-          if (generation !== visibleThreadSeedPrewarmGenerationRef.current) return;
-          if (!opts?.allowWhileThreadOpen && threadIdRef.current) return;
-
-          if (cachedSeedEvents.length > 0) {
-            const nextSeedEvents = mergeThreadBackfillEvents(
-              getThreadOpenSeedSnapshot(room, expectedThreadId),
-              cachedSeedEvents
-            );
-            saveThreadOpenSeedSnapshot(room, expectedThreadId, nextSeedEvents);
-            logTimelineDebug(traceId, `${logPrefix}-complete`, {
-              cachedCount: cachedSeedEvents.length,
-              seedCount: nextSeedEvents.length,
-              threadId: expectedThreadId,
-            });
-          } else {
-            logTimelineDebug(traceId, `${logPrefix}-empty`, {
-              threadId: expectedThreadId,
-            });
-          }
-
-          prewarmedVisibleThreadSeedIdsRef.current.add(expectedThreadId);
-        } catch (error) {
-          logTimelineDebug(traceId, `${logPrefix}-error`, {
-            error: error instanceof Error ? error.message : String(error),
-            threadId: expectedThreadId,
-          });
-        } finally {
-          prewarmingVisibleThreadSeedIdsRef.current.delete(expectedThreadId);
-        }
-      })();
-
-      prewarmingVisibleThreadSeedPromisesRef.current.set(expectedThreadId, prewarmPromise);
-      void prewarmPromise.finally(() => {
-        if (
-          prewarmingVisibleThreadSeedPromisesRef.current.get(expectedThreadId) === prewarmPromise
-        ) {
-          prewarmingVisibleThreadSeedPromisesRef.current.delete(expectedThreadId);
-        }
-      });
-
-      return prewarmPromise;
-    },
-    [loadThreadOpenSeedSnapshotFromCache, room, roomDebugTraceId]
-  );
-
-  useEffect(() => {
-    if (threadId || priorityThreadSeedPrewarmRoots.length === 0) return undefined;
-
-    priorityThreadSeedPrewarmRoots.forEach(({ threadId: expectedThreadId }) => {
-      if (prewarmedVisibleThreadSeedIdsRef.current.has(expectedThreadId)) return;
-      if (prewarmingVisibleThreadSeedIdsRef.current.has(expectedThreadId)) return;
-      if (queuedVisibleThreadSeedIdsRef.current.has(expectedThreadId)) return;
-      queuedVisibleThreadSeedIdsRef.current.add(expectedThreadId);
-      visibleThreadSeedPrewarmQueueRef.current.push(expectedThreadId);
-    });
-
-    if (visibleThreadSeedPrewarmRunningRef.current) return undefined;
-    visibleThreadSeedPrewarmRunningRef.current = true;
-    const generation = visibleThreadSeedPrewarmGenerationRef.current;
-
-    const prewarmVisibleThreadSeeds = async () => {
-      try {
-        while (visibleThreadSeedPrewarmQueueRef.current.length > 0) {
-          if (generation !== visibleThreadSeedPrewarmGenerationRef.current) return;
-          if (threadIdRef.current) return;
-
-          const expectedThreadId = visibleThreadSeedPrewarmQueueRef.current.shift();
-          if (!expectedThreadId) continue;
-          queuedVisibleThreadSeedIdsRef.current.delete(expectedThreadId);
-          if (prewarmedVisibleThreadSeedIdsRef.current.has(expectedThreadId)) continue;
-          if (prewarmingVisibleThreadSeedIdsRef.current.has(expectedThreadId)) continue;
-
-          const prewarmPromise = ensureThreadSeedPrewarm(expectedThreadId, {
-            generation,
-            logPrefix: 'room-thread-seed-prewarm',
-            traceId: roomDebugTraceId,
-          });
-
-          try {
-            await prewarmPromise;
-          } finally {
-          }
-        }
-      } finally {
-        if (generation === visibleThreadSeedPrewarmGenerationRef.current) {
-          visibleThreadSeedPrewarmRunningRef.current = false;
-        }
-        if (
-          generation === visibleThreadSeedPrewarmGenerationRef.current &&
-          !threadIdRef.current &&
-          visibleThreadSeedPrewarmQueueRef.current.length > 0
-        ) {
-          queueMicrotask(() => {
-            if (visibleThreadSeedPrewarmRunningRef.current) return;
-            visibleThreadSeedPrewarmRunningRef.current = true;
-            void prewarmVisibleThreadSeeds();
-          });
-        }
-      }
-    };
-
-    void prewarmVisibleThreadSeeds();
-
-    return undefined;
-  }, [ensureThreadSeedPrewarm, priorityThreadSeedPrewarmRoots, roomDebugTraceId, threadId]);
+  const {
+    ensureThreadSeedPrewarm,
+    prewarmedThreadSeedIdsRef,
+    prewarmingThreadSeedIdsRef,
+    queuedThreadSeedIdsRef,
+    prewarmingThreadSeedPromisesRef,
+  } = useThreadSeedPrewarmController({
+    room,
+    activeThreadId: threadId,
+    priorityTargets: priorityThreadSeedPrewarmRoots,
+    loadThreadOpenSeedSnapshotFromCache,
+    debugTraceId: roomDebugTraceId,
+  });
 
   const refreshLatestThreadSlice = useCallback(
     async (
@@ -4058,11 +3923,11 @@ export function RoomTimeline({
     let untargetedThreadSeedFallbackTimeout: ReturnType<typeof setTimeout> | undefined;
     const shouldAwaitRoomPrewarm =
       shouldScrollToLatestOnOpen &&
-      (prewarmedVisibleThreadSeedIdsRef.current.has(threadId) ||
-        prewarmingVisibleThreadSeedIdsRef.current.has(threadId) ||
-        queuedVisibleThreadSeedIdsRef.current.has(threadId));
+      (prewarmedThreadSeedIdsRef.current.has(threadId) ||
+        prewarmingThreadSeedIdsRef.current.has(threadId) ||
+        queuedThreadSeedIdsRef.current.has(threadId));
     const threadSeedPrewarmPromise = shouldAwaitRoomPrewarm
-      ? prewarmingVisibleThreadSeedPromisesRef.current.get(threadId) ??
+      ? prewarmingThreadSeedPromisesRef.current.get(threadId) ??
         ensureThreadSeedPrewarm(threadId, {
           allowWhileThreadOpen: true,
           logPrefix: 'thread-open-room-prewarm',

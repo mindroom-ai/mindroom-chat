@@ -659,6 +659,14 @@
     - focused Vitest passes for `threadCacheCoverage.test.ts`, `threadRecord.test.ts`, and `RoomTimeline.cache.test.ts`
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline (`80` warnings, `0` errors)
+- `CINNY-075` implementation step 11 / Phase 5 controller extraction (2026-04-24):
+  - added `src/app/mindroom/threads/threadSeedPrewarmController.ts` as the fork-owned owner for room-visible thread seed prewarm queue state.
+  - `RoomTimeline` no longer owns the visible seed-prewarm queue, generation guard, queued/prewarming/prewarmed sets, or in-flight promise map; it only consumes the controller's `ensureThreadSeedPrewarm(...)` command and refs needed for thread-open coordination.
+  - kept the previous behavior shape: room overview prewarms stop while a thread is active, stale room generations are ignored, cached seed snapshots merge into the same thread-open seed cache, and thread opens may await an already queued/in-flight room prewarm.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`80` warnings, `0` errors)
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
