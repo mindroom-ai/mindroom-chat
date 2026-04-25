@@ -73,7 +73,6 @@ import * as customHtmlCss from '../../../styles/CustomHtml.css';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { useRoomUnread } from '../../../state/hooks/unread';
 import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
-import { markRoomAndThreadsAsRead } from '../../../mindroom/notifications/readReceipts';
 import { ContainerColor } from '../../../styles/ContainerColor.css';
 import { VirtualTile } from '../../../components/virtualizer';
 import { UserAvatar } from '../../../components/user-avatar';
@@ -97,6 +96,7 @@ import {
 } from '../../../hooks/useMemberPowerTag';
 import { useRoomCreatorsTag } from '../../../hooks/useRoomCreatorsTag';
 import { useRoomCreators } from '../../../hooks/useRoomCreators';
+import { MindroomMarkRoomReadChip } from '../../../mindroom/notifications/MindroomMarkRoomReadChip';
 
 type RoomNotificationsGroup = {
   roomId: string;
@@ -205,7 +205,6 @@ type RoomNotificationsGroupProps = {
   notifications: INotification[];
   mediaAutoLoad?: boolean;
   urlPreview?: boolean;
-  hideActivity: boolean;
   onOpen: (roomId: string, eventId: string) => void;
   legacyUsernameColor?: boolean;
   hour24Clock: boolean;
@@ -216,7 +215,6 @@ function RoomNotificationsGroupComp({
   notifications,
   mediaAutoLoad,
   urlPreview,
-  hideActivity,
   onOpen,
   legacyUsernameColor,
   hour24Clock,
@@ -403,9 +401,6 @@ function RoomNotificationsGroupComp({
     if (!eventId) return;
     onOpen(room.roomId, eventId);
   };
-  const handleMarkAsRead = () => {
-    markRoomAndThreadsAsRead(mx, room.roomId, hideActivity);
-  };
 
   return (
     <Box direction="Column" gap="200">
@@ -431,16 +426,7 @@ function RoomNotificationsGroupComp({
           </Text>
         </Box>
         <Box shrink="No">
-          {unread && (
-            <Chip
-              variant="Primary"
-              radii="Pill"
-              onClick={handleMarkAsRead}
-              before={<Icon size="100" src={Icons.CheckTwice} />}
-            >
-              <Text size="T200">Mark as Read</Text>
-            </Chip>
-          )}
+          {unread && <MindroomMarkRoomReadChip roomId={room.roomId} />}
         </Box>
       </Header>
       <Box direction="Column" gap="100">
@@ -563,7 +549,6 @@ const DEFAULT_REFRESH_MS = 7000;
 
 export function Notifications() {
   const mx = useMatrixClient();
-  const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
   const [mediaAutoLoad] = useSetting(settingsAtom, 'mediaAutoLoad');
   const [urlPreview] = useSetting(settingsAtom, 'urlPreview');
   const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
@@ -728,7 +713,6 @@ export function Notifications() {
                           notifications={group.notifications}
                           mediaAutoLoad={mediaAutoLoad}
                           urlPreview={urlPreview}
-                          hideActivity={hideActivity}
                           onOpen={navigateRoom}
                           legacyUsernameColor={
                             legacyUsernameColor || mDirects.has(groupRoom.roomId)

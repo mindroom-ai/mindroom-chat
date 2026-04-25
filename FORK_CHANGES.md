@@ -222,6 +222,9 @@
 - `CINNY-176`
   - Home/direct/space page and sidebar mark-read menu items now use `src/app/mindroom/notifications/MindroomMarkRoomsReadMenuItem.tsx`.
   - Generic page/sidebar navigation code still owns room-list selection, but no longer duplicates thread-aware read-receipt mutation logic.
+- `CINNY-177`
+  - Inbox notification room headers now use `src/app/mindroom/notifications/MindroomMarkRoomReadChip.tsx` for thread-aware mark-read behavior.
+  - The generic notifications page no longer imports the MindRoom read-receipt mutation directly.
 
 ### Current Feature Set On `dev`
 
