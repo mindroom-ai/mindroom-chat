@@ -1080,6 +1080,8 @@ describe('RoomTimeline architecture', () => {
     expect(mindroomRenderContentSource).toContain('./longText');
     expect(mindroomRenderContentSource).toContain('./MindroomLongTextText');
     expect(mindroomRenderContentSource).toContain('./aiRun');
+    expect(mindroomRenderContentSource).toContain('./StreamingIndicator');
+    expect(mindroomRenderContentSource).toContain('renderMindroomStreamingIndicator');
     expect(mindroomRenderContentSource).toContain('withMindroomToolTraceMarkerParserOptions');
     expect(roomMessageSource).toContain("from '../../../mindroom/messages/messageExtensions'");
     expect(roomMessageSource).not.toContain(
@@ -1119,6 +1121,8 @@ describe('RoomTimeline architecture', () => {
       "from '../../mindroom/messages/MindroomThreadSummaryCard'"
     );
     expect(msgTypeRenderersSource).not.toContain('function MindroomThreadSummaryCard');
+    expect(msgTypeRenderersSource).not.toContain('StreamingIndicator');
+    expect(msgTypeRenderersSource).not.toContain('isStreaming');
     removedMessageCompatibilityPaths.forEach((path) => {
       expect(existsSync(new URL(path, import.meta.url))).toBe(false);
     });
@@ -1141,6 +1145,7 @@ describe('RoomTimeline architecture', () => {
     expect(messageControlsSource).toContain('MindroomDownloadOriginalMenuItem');
     expect(messageControlsSource).toContain('downloadMindroomLongTextSidecarBlob');
     expect(streamingIndicatorSource).toContain('AI is responding');
+    expect(streamingIndicatorSource).toContain('renderMindroomStreamingIndicator');
     expect(messageExtensionsSource).toContain("from './MindroomMessageControls'");
     expect(messageExtensionsSource).toContain('MindroomMessageExtensionShell');
     expect(messageExtensionsSource).toContain('MindroomMessageMenuExtensions');

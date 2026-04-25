@@ -11,7 +11,6 @@ import {
   MessageEditedContent,
   MessageUnsupportedContent,
 } from './content';
-import { StreamingIndicator } from '../../mindroom/messages/StreamingIndicator';
 import {
   IAudioContent,
   IAudioInfo,
@@ -71,15 +70,29 @@ type RenderBodyProps = {
   body: string;
   customBody?: string;
 };
+type RenderMessageStateProps = {
+  edited?: boolean;
+  renderStateSuffix?: () => ReactNode;
+};
+const renderMessageStateSuffix = ({ edited, renderStateSuffix }: RenderMessageStateProps) =>
+  renderStateSuffix ? renderStateSuffix() : edited && <MessageEditedContent />;
+
 type MTextProps = {
   edited?: boolean;
-  isStreaming?: boolean;
+  renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   renderBody: (props: RenderBodyProps) => ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
   style?: CSSProperties;
 };
-export function MText({ edited, isStreaming, content, renderBody, renderUrlsPreview, style }: MTextProps) {
+export function MText({
+  edited,
+  renderStateSuffix,
+  content,
+  renderBody,
+  renderUrlsPreview,
+  style,
+}: MTextProps) {
   const { body, formatted_body: customBody } = content;
 
   if (typeof body !== 'string') return <BrokenContent />;
@@ -98,7 +111,7 @@ export function MText({ edited, isStreaming, content, renderBody, renderUrlsPrev
           body: trimmedBody,
           customBody: typeof customBody === 'string' ? customBody : undefined,
         })}
-        {isStreaming ? <StreamingIndicator /> : edited && <MessageEditedContent />}
+        {renderMessageStateSuffix({ edited, renderStateSuffix })}
       </MessageTextBody>
       {renderUrlsPreview && urls && urls.length > 0 && renderUrlsPreview(urls)}
     </>
@@ -108,7 +121,7 @@ export function MText({ edited, isStreaming, content, renderBody, renderUrlsPrev
 type MEmoteProps = {
   displayName: string;
   edited?: boolean;
-  isStreaming?: boolean;
+  renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   renderBody: (props: RenderBodyProps) => ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
@@ -116,7 +129,7 @@ type MEmoteProps = {
 export function MEmote({
   displayName,
   edited,
-  isStreaming,
+  renderStateSuffix,
   content,
   renderBody,
   renderUrlsPreview,
@@ -140,7 +153,7 @@ export function MEmote({
           body: trimmedBody,
           customBody: typeof customBody === 'string' ? customBody : undefined,
         })}
-        {isStreaming ? <StreamingIndicator /> : edited && <MessageEditedContent />}
+        {renderMessageStateSuffix({ edited, renderStateSuffix })}
       </MessageTextBody>
       {renderUrlsPreview && urls && urls.length > 0 && renderUrlsPreview(urls)}
     </>
@@ -149,12 +162,18 @@ export function MEmote({
 
 type MNoticeProps = {
   edited?: boolean;
-  isStreaming?: boolean;
+  renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   renderBody: (props: RenderBodyProps) => ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
 };
-export function MNotice({ edited, isStreaming, content, renderBody, renderUrlsPreview }: MNoticeProps) {
+export function MNotice({
+  edited,
+  renderStateSuffix,
+  content,
+  renderBody,
+  renderUrlsPreview,
+}: MNoticeProps) {
   const { body, formatted_body: customBody } = content;
 
   if (typeof body !== 'string') return <BrokenContent />;
@@ -173,7 +192,7 @@ export function MNotice({ edited, isStreaming, content, renderBody, renderUrlsPr
           body: trimmedBody,
           customBody: typeof customBody === 'string' ? customBody : undefined,
         })}
-        {isStreaming ? <StreamingIndicator /> : edited && <MessageEditedContent />}
+        {renderMessageStateSuffix({ edited, renderStateSuffix })}
       </MessageTextBody>
       {renderUrlsPreview && urls && urls.length > 0 && renderUrlsPreview(urls)}
     </>

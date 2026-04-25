@@ -9,6 +9,7 @@ import { getMindroomLongTextSource } from './longText';
 import { MindroomLongTextKind, MindroomLongTextText } from './MindroomLongTextText';
 import { MindroomThreadSummaryCard } from './MindroomThreadSummaryCard';
 import { MindroomToolApprovalCard } from './MindroomToolApprovalCard';
+import { renderMindroomStreamingIndicator } from './StreamingIndicator';
 import { MINDROOM_TOOL_APPROVAL_EVENT, parseToolApprovalContent } from './toolApproval';
 import { getMindroomThreadSummaryInfo } from './threadSummary';
 
@@ -89,7 +90,7 @@ export const renderMindroomMessageContent = ({
         <MindroomLongTextText
           kind={MindroomLongTextKind.Text}
           edited={edited}
-          isStreaming={isStreaming}
+          renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
           renderBody={(resolvedContent, props) => (
@@ -109,7 +110,7 @@ export const renderMindroomMessageContent = ({
       return (
         <MText
           edited={edited}
-          isStreaming={isStreaming}
+          renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
           content={content}
           renderBody={renderBody(content)}
           renderUrlsPreview={renderUrlsPreview}
@@ -127,7 +128,7 @@ export const renderMindroomMessageContent = ({
           kind={MindroomLongTextKind.Emote}
           displayName={displayName}
           edited={edited}
-          isStreaming={isStreaming}
+          renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
           renderBody={(resolvedContent, props) => (
@@ -147,7 +148,7 @@ export const renderMindroomMessageContent = ({
       <MEmote
         displayName={displayName}
         edited={edited}
-        isStreaming={isStreaming}
+        renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
         content={content}
         renderBody={renderBody(content)}
         renderUrlsPreview={renderUrlsPreview}
@@ -163,7 +164,7 @@ export const renderMindroomMessageContent = ({
         <MindroomLongTextText
           kind={MindroomLongTextKind.Notice}
           edited={edited}
-          isStreaming={isStreaming}
+          renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
           renderBody={(resolvedContent, props) => (
@@ -182,7 +183,7 @@ export const renderMindroomMessageContent = ({
     return (
       <MNotice
         edited={edited}
-        isStreaming={isStreaming}
+        renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
         content={content}
         renderBody={renderBody(content)}
         renderUrlsPreview={renderUrlsPreview}
