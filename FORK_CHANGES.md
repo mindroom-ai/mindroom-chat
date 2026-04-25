@@ -100,6 +100,9 @@
   - Room-input auto-thread send-session orchestration now routes through `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`.
   - Generic `RoomInput` consumes one MindRoom room-input seam instead of importing the low-level thread controller directly.
   - MindRoom room-input helpers use narrow editor utility/type imports so tests do not load the full editor/autocomplete UI barrel unnecessarily.
+- `CINNY-135`
+  - Timeline-specific MindRoom message policy now lives behind `src/app/mindroom/threads/roomTimelineMessageExtensions.tsx`.
+  - Generic `RoomTimeline` no longer imports low-level tool-approval render helpers or thread-badge record builders directly.
 
 ### Current Feature Set On `dev`
 

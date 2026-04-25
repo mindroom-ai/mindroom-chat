@@ -111,10 +111,6 @@ import {
 } from '../../components/CollapsibleMessage';
 import { Image } from '../../components/media';
 import { ImageViewer } from '../../components/image-viewer';
-import {
-  getToolApprovalRenderContent,
-  MINDROOM_TOOL_APPROVAL_EVENT,
-} from '../../mindroom/messages/toolApproval';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
 import { useRoomUnread } from '../../state/hooks/unread';
 import { roomToUnreadAtom } from '../../state/room/roomToUnread';
@@ -169,10 +165,13 @@ import {
 import { useThreadSummaryPublishController } from '../../mindroom/threads/threadSummaryPublishController';
 import { useThreadOverviewRefreshCounter } from '../../mindroom/threads/threadOverviewRefreshCounter';
 import { useThreadSortFreezeController } from '../../mindroom/threads/threadSortFreezeController';
-import { buildThreadBadgeViewModelFromRecord } from '../../mindroom/threads/threadBadgeViewModel';
-import { ThreadBadgeRenderer } from '../../mindroom/threads/ThreadBadgeRenderer';
 import { useMindroomThreadIndex } from '../../mindroom/threads/useMindroomThreadIndex';
-import type { ThreadBadgeViewModel } from '../../mindroom/threads/types';
+import {
+  getMindroomRoomTimelineApprovalContent,
+  getMindroomRoomTimelineThreadBadgeModel,
+  MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT,
+  MindroomRoomTimelineThreadBadgeRenderer,
+} from '../../mindroom/threads/roomTimelineMessageExtensions';
 import type { ThreadFilterKey } from '../../mindroom/threads/RoomThreadOverview';
 import {
   type ThreadFilterState,
@@ -1399,16 +1398,13 @@ export function RoomTimeline({
   const getTimelineThreadBadgeModel = (
     mEventId: string,
     mEvent: MatrixEvent
-  ): ThreadBadgeViewModel | undefined => {
-    const record = threadRecordMap.get(mEventId);
-    if (!record) return undefined;
-
-    return buildThreadBadgeViewModelFromRecord({
-      record,
+  ) =>
+    getMindroomRoomTimelineThreadBadgeModel({
+      eventId: mEventId,
+      event: mEvent,
+      threadRecordMap,
       activeThreadId: threadId,
-      eventThreadRootId: mEvent.threadRootId,
     });
-  };
 
   const renderMatrixEvent = useMatrixEventRenderer<
     [string, MatrixEvent, number, EventTimelineSet, boolean]
@@ -1440,7 +1436,7 @@ export function RoomTimeline({
           getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
         const threadBadgeModel = getTimelineThreadBadgeModel(mEventId, mEvent);
         const threadSummary = threadBadgeModel ? (
-          <ThreadBadgeRenderer
+          <MindroomRoomTimelineThreadBadgeRenderer
             model={threadBadgeModel}
             room={room}
             onClick={handleOpenReply}
@@ -1559,24 +1555,30 @@ export function RoomTimeline({
           </Message>
         );
       },
-      [MINDROOM_TOOL_APPROVAL_EVENT]: (mEventId, mEvent, item, timelineSet, collapse) => {
+      [MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT]: (
+        mEventId,
+        mEvent,
+        item,
+        timelineSet,
+        collapse
+      ) => {
         const reactionRelations = getEventReactions(timelineSet, mEventId);
         const hasReactions = getActiveAnnotationsByKey(reactionRelations).length > 0;
         const { replyEventId, threadRootId } = mEvent;
         const highlighted = focusItem?.index === item && focusItem.highlight;
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
-        const originalContent = mEvent.getContent() as Record<string, unknown>;
-        const approvalContent = getToolApprovalRenderContent(
-          originalContent,
-          editedEvent?.getContent() as Record<string, unknown> | undefined
-        );
+        const approvalContent = getMindroomRoomTimelineApprovalContent(mEvent, editedEvent);
         const getContent = (() => approvalContent) as GetContentCallback;
         const senderId = mEvent.getSender() ?? '';
         const senderDisplayName =
           getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
         const threadBadgeModel = getTimelineThreadBadgeModel(mEventId, mEvent);
         const threadSummary = threadBadgeModel ? (
-          <ThreadBadgeRenderer model={threadBadgeModel} room={room} onClick={handleOpenReply} />
+          <MindroomRoomTimelineThreadBadgeRenderer
+            model={threadBadgeModel}
+            room={room}
+            onClick={handleOpenReply}
+          />
         ) : null;
 
         return (
@@ -1678,7 +1680,11 @@ export function RoomTimeline({
         const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
         const threadBadgeModel = getTimelineThreadBadgeModel(mEventId, mEvent);
         const threadSummary = threadBadgeModel ? (
-          <ThreadBadgeRenderer model={threadBadgeModel} room={room} onClick={handleOpenReply} />
+          <MindroomRoomTimelineThreadBadgeRenderer
+            model={threadBadgeModel}
+            room={room}
+            onClick={handleOpenReply}
+          />
         ) : null;
 
         return (
@@ -1767,11 +1773,10 @@ export function RoomTimeline({
                       )}
                     />
                   );
-                if (mEvent.getType() === MINDROOM_TOOL_APPROVAL_EVENT) {
-                  const originalContent = mEvent.getContent() as Record<string, unknown>;
-                  const approvalContent = getToolApprovalRenderContent(
-                    originalContent,
-                    editedEvent?.getContent() as Record<string, unknown> | undefined
+                if (mEvent.getType() === MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT) {
+                  const approvalContent = getMindroomRoomTimelineApprovalContent(
+                    mEvent,
+                    editedEvent
                   );
                   const getContent = (() => approvalContent) as GetContentCallback;
                   const senderId = mEvent.getSender() ?? '';
