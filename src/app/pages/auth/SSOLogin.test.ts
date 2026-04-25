@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SSOAction } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
-import { createMatrixClient } from '../../../client/matrixClientFactory';
+import { createMatrixClient } from '../../mindroom/matrix/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import { SSOLogin } from './SSOLogin';
 
@@ -57,7 +57,7 @@ vi.mock('@capacitor/browser', () => ({
   },
 }));
 
-vi.mock('../../../client/matrixClientFactory', () => ({
+vi.mock('../../mindroom/matrix/matrixClientFactory', () => ({
   createMatrixClient: vi.fn(),
 }));
 

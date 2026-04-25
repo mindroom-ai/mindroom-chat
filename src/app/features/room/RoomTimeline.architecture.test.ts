@@ -573,10 +573,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps compact thread scheduled-label utilities in MindRoom threads', () => {
-    const hookCompatibilitySource = readFileSync(
-      new URL('../../hooks/useThreadHeaderInfo.ts', import.meta.url),
-      'utf8'
-    );
+    const hookCompatibilityPath = new URL('../../hooks/useThreadHeaderInfo.ts', import.meta.url);
     const hookImplementationSource = readFileSync(
       new URL('../../mindroom/threads/useThreadHeaderInfo.ts', import.meta.url),
       'utf8'
@@ -585,9 +582,9 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/compactThreadCardViewModel.ts', import.meta.url),
       'utf8'
     );
-    const scheduledTaskCompatibilitySource = readFileSync(
-      new URL('../../utils/scheduledTaskContract.ts', import.meta.url),
-      'utf8'
+    const scheduledTaskCompatibilityPath = new URL(
+      '../../utils/scheduledTaskContract.ts',
+      import.meta.url
     );
     const scheduledTaskImplementationSource = readFileSync(
       new URL('../../mindroom/threads/scheduledTaskContract.ts', import.meta.url),
@@ -598,23 +595,21 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(hookCompatibilitySource).toContain("from '../mindroom/threads/useThreadHeaderInfo'");
+    expect(existsSync(hookCompatibilityPath)).toBe(false);
     expect(hookImplementationSource).toContain("from './compactThreadCardUtils'");
     expect(hookImplementationSource).toContain("from './scheduledTaskContract'");
     expect(viewModelSource).toContain("from './compactThreadCardUtils'");
-    expect(scheduledTaskCompatibilitySource).toContain(
-      "from '../mindroom/threads/scheduledTaskContract'"
-    );
+    expect(existsSync(scheduledTaskCompatibilityPath)).toBe(false);
     expect(scheduledTaskImplementationSource).toContain('parseScheduledTaskStateEvent');
     expect(implementationSource).toContain('formatScheduledTime');
     expect(implementationSource).toContain('getScheduledTimeUpdateInterval');
-    expect(hookCompatibilitySource).not.toContain('StateEvent.MindRoomScheduledTask');
+    expect(scheduledTaskImplementationSource).not.toContain('StateEvent.MindRoomScheduledTask');
   });
 
   it('keeps thread activity timestamp derivation in MindRoom threads', () => {
-    const hookCompatibilitySource = readFileSync(
-      new URL('../../hooks/useThreadLastActivityTs.ts', import.meta.url),
-      'utf8'
+    const hookCompatibilityPath = new URL(
+      '../../hooks/useThreadLastActivityTs.ts',
+      import.meta.url
     );
     const hookImplementationSource = readFileSync(
       new URL('../../mindroom/threads/useThreadLastActivityTs.ts', import.meta.url),
@@ -625,13 +620,11 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(hookCompatibilitySource).toContain(
-      "from '../mindroom/threads/useThreadLastActivityTs'"
-    );
+    expect(existsSync(hookCompatibilityPath)).toBe(false);
     expect(hookImplementationSource).toContain('getThreadLastActivityTs');
     expect(hookImplementationSource).toContain("from './threadUtils'");
     expect(threadIndicatorSource).toContain("from './useThreadLastActivityTs'");
-    expect(hookCompatibilitySource).not.toContain('isVisibleThreadReplyEvent');
+    expect(hookImplementationSource).not.toContain("from '../mindroom/threads");
   });
 
   it('keeps thread indicator rendering in MindRoom threads', () => {
@@ -1134,8 +1127,12 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps the Local MindRoom sidebar shortcut in the MindRoom namespace', () => {
-    const compatibilitySource = readFileSync(
-      new URL('../../pages/client/sidebar/MindroomTab.tsx', import.meta.url),
+    const compatibilityPath = new URL(
+      '../../pages/client/sidebar/MindroomTab.tsx',
+      import.meta.url
+    );
+    const sidebarIndexSource = readFileSync(
+      new URL('../../pages/client/sidebar/index.ts', import.meta.url),
       'utf8'
     );
     const implementationSource = readFileSync(
@@ -1143,8 +1140,9 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(compatibilitySource.trim()).toBe(
-      "export { MindroomTab } from '../../../mindroom/sidebar/MindroomTab';"
+    expect(existsSync(compatibilityPath)).toBe(false);
+    expect(sidebarIndexSource).toContain(
+      "from '../../../mindroom/sidebar/MindroomTab'"
     );
     expect(implementationSource).toContain('Local MindRoom');
     expect(implementationSource).toContain('SettingsPages.LocalMindroomPage');
@@ -1270,8 +1268,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps MindRoom Matrix client fetch policy in the MindRoom namespace', () => {
-    const compatibilitySource = readFileSync(
-      new URL('../../../client/matrixClientFactory.ts', import.meta.url),
+    const compatibilityPath = new URL('../../../client/matrixClientFactory.ts', import.meta.url);
+    const initMatrixSource = readFileSync(
+      new URL('../../../client/initMatrix.ts', import.meta.url),
+      'utf8'
+    );
+    const authFlowsLoaderSource = readFileSync(
+      new URL('../../components/AuthFlowsLoader.tsx', import.meta.url),
       'utf8'
     );
     const implementationSource = readFileSync(
@@ -1279,8 +1282,12 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(compatibilitySource.trim()).toBe(
-      "export * from '../app/mindroom/matrix/matrixClientFactory';"
+    expect(existsSync(compatibilityPath)).toBe(false);
+    expect(initMatrixSource).toContain(
+      "from '../app/mindroom/matrix/matrixClientFactory'"
+    );
+    expect(authFlowsLoaderSource).toContain(
+      "from '../mindroom/matrix/matrixClientFactory'"
     );
     expect(implementationSource).toContain('createMatrixFetchFn');
     expect(implementationSource).toContain("credentials: 'include'");

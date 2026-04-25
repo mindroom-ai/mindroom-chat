@@ -4,9 +4,9 @@ import { act, create } from 'react-test-renderer';
 import { Text } from 'folds';
 import { AuthFlowsLoader } from './AuthFlowsLoader';
 import { AutoDiscoveryInfoProvider } from '../hooks/useAutoDiscoveryInfo';
-import { createMatrixClient } from '../../client/matrixClientFactory';
+import { createMatrixClient } from '../mindroom/matrix/matrixClientFactory';
 
-vi.mock('../../client/matrixClientFactory', () => ({
+vi.mock('../mindroom/matrix/matrixClientFactory', () => ({
   createMatrixClient: vi.fn(),
 }));
 

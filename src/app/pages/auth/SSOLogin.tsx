@@ -1,7 +1,7 @@
 import { Avatar, AvatarImage, Box, Button, Text } from 'folds';
 import { IIdentityProvider, SSOAction } from 'matrix-js-sdk';
 import React, { useMemo, useRef } from 'react';
-import { createMatrixClient } from '../../../client/matrixClientFactory';
+import { createMatrixClient } from '../../mindroom/matrix/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import {
   getSSOProviderButtonTitle,

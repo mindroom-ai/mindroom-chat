@@ -146,6 +146,9 @@
 - `CINNY-152`
   - Overview cache hydration now writes cached thread coverage into `ThreadRecord.cache` through `useMindroomThreadIndex`.
   - Cached preview/activity/message-count fallbacks and cache coverage now flow through the same per-room record seam instead of leaving coverage as an implicit side effect of thread-open pagination.
+- `CINNY-153`
+  - Removed the remaining unused hook/state/client/sidebar compatibility wrappers after callers moved to MindRoom-owned modules.
+  - Auth/client code now imports the MindRoom Matrix client factory directly, and the sidebar index exports the MindRoom Local MindRoom tab without a wrapper file.
 
 ### Current Feature Set On `dev`
 
