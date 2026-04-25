@@ -25,7 +25,7 @@ import {
   type ThreadSortFreezeState,
   type VisibleThreadRootData,
 } from './roomThreadOverviewModel';
-import type { RoomViewMode } from '../../state/room/roomViewMode';
+import type { RoomViewMode } from './roomViewMode';
 import { buildThreadRecordMap } from './threadRecord';
 import {
   computeThreadRecordStatusCounts,

@@ -421,6 +421,10 @@ Thread banner/tag UI now lives in `src/app/mindroom/threads/ThreadContextBanner.
 Thread scheduled-time display formatting now lives in
 `src/app/mindroom/threads/compactThreadCardUtils.ts`; the old `features/room` path is only a
 compatibility re-export.
+Room-scoped thread filter state and compact/normal view-mode persistence now live in
+`src/app/mindroom/threads/roomThreadFilterState.ts` and
+`src/app/mindroom/threads/roomViewMode.ts`; the old `state/room` paths are only compatibility
+re-exports.
 Server-side room thread-list loading, thread unread/activity helpers, and the `useRoomThreadList`
 hook now live in `src/app/mindroom/threads/roomThreadList.ts` and `useRoomThreadList.ts`; the old
 `features/room` paths are only compatibility re-exports.

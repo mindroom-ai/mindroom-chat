@@ -1,4 +1,4 @@
-import type { RoomViewMode } from '../../state/room/roomViewMode';
+import type { RoomViewMode } from './roomViewMode';
 
 export const shouldUseSurfacePreloadTarget = ({
   threadId,

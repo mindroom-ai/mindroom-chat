@@ -57,7 +57,7 @@ describe('roomThreadFilterState', () => {
 
   it('stores state under a user-and-room-scoped key', async () => {
     const { createDefaultThreadFilterState, serializeThreadFilterState } = await import(
-      '../../mindroom/threads/roomThreadOverviewModel'
+      './roomThreadOverviewModel'
     );
     const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
       './roomThreadFilterState'
@@ -89,7 +89,7 @@ describe('roomThreadFilterState', () => {
 
   it('removes the localStorage key when the filter resets to default', async () => {
     const { createDefaultThreadFilterState } = await import(
-      '../../mindroom/threads/roomThreadOverviewModel'
+      './roomThreadOverviewModel'
     );
     const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
       './roomThreadFilterState'
@@ -136,7 +136,7 @@ describe('roomThreadFilterState', () => {
 
   it('evicts cached atom-family entries so a removed account re-added in the same tab loads defaults', async () => {
     const { createDefaultThreadFilterState } = await import(
-      '../../mindroom/threads/roomThreadOverviewModel'
+      './roomThreadOverviewModel'
     );
     const { clearRoomThreadFiltersStore, getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } =
       await import('./roomThreadFilterState');
@@ -175,7 +175,7 @@ describe('roomThreadFilterState', () => {
 
   it('isolates the same roomId across different users', async () => {
     const { createDefaultThreadFilterState } = await import(
-      '../../mindroom/threads/roomThreadOverviewModel'
+      './roomThreadOverviewModel'
     );
     const { roomThreadFilterAtomFamily } = await import('./roomThreadFilterState');
 
@@ -205,7 +205,7 @@ describe('roomThreadFilterState', () => {
 
   it('updates mounted consumers when a storage event changes the same key', async () => {
     const { createDefaultThreadFilterState } = await import(
-      '../../mindroom/threads/roomThreadOverviewModel'
+      './roomThreadOverviewModel'
     );
     const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
       './roomThreadFilterState'
@@ -237,7 +237,7 @@ describe('roomThreadFilterState', () => {
 
   it('loads a localStorage update that happens after atom creation but before mount', async () => {
     const { createDefaultThreadFilterState, serializeThreadFilterState } = await import(
-      '../../mindroom/threads/roomThreadOverviewModel'
+      './roomThreadOverviewModel'
     );
     const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
       './roomThreadFilterState'
@@ -268,7 +268,7 @@ describe('roomThreadFilterState', () => {
 
   it('migrates older stored payloads by defaulting missing searchQuery and statusMode', async () => {
     const { createDefaultThreadFilterState } = await import(
-      '../../mindroom/threads/roomThreadOverviewModel'
+      './roomThreadOverviewModel'
     );
     const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
       './roomThreadFilterState'

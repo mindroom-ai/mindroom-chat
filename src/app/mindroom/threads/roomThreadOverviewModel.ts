@@ -12,7 +12,7 @@ import {
   isZeroReplyStandaloneThreadRootEvent,
 } from './compactThreadRootData';
 import { parseScheduledTaskStateEvent } from './scheduledTaskContract';
-import type { RoomViewMode } from '../../state/room/roomViewMode';
+import type { RoomViewMode } from './roomViewMode';
 import {
   getPreferredVisibleThreadReplyEvents,
 } from './threadUtils';
