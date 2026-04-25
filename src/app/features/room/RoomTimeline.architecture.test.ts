@@ -1405,25 +1405,68 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/auth/authPolicy.ts', import.meta.url),
       'utf8'
     );
+    const authUiSource = readFileSync(
+      new URL('../../mindroom/auth/authUi.ts', import.meta.url),
+      'utf8'
+    );
+    const authFooterSource = readFileSync(
+      new URL('../../pages/auth/AuthFooter.tsx', import.meta.url),
+      'utf8'
+    );
     const authLayoutSource = readFileSync(
       new URL('../../pages/auth/AuthLayout.tsx', import.meta.url),
+      'utf8'
+    );
+    const ssoLoginSource = readFileSync(
+      new URL('../../pages/auth/SSOLogin.tsx', import.meta.url),
       'utf8'
     );
     const loginSource = readFileSync(
       new URL('../../pages/auth/login/Login.tsx', import.meta.url),
       'utf8'
     );
+    const passwordLoginSource = readFileSync(
+      new URL('../../pages/auth/login/PasswordLoginForm.tsx', import.meta.url),
+      'utf8'
+    );
+    const tokenLoginSource = readFileSync(
+      new URL('../../pages/auth/login/TokenLogin.tsx', import.meta.url),
+      'utf8'
+    );
     const registerSource = readFileSync(
       new URL('../../pages/auth/register/Register.tsx', import.meta.url),
+      'utf8'
+    );
+    const passwordRegisterSource = readFileSync(
+      new URL('../../pages/auth/register/PasswordRegisterForm.tsx', import.meta.url),
       'utf8'
     );
 
     expect(brandingSource).toContain('MINDROOM_DEVICE_DISPLAY_NAME');
     expect(brandingSource).toContain('MINDROOM_CINNY_SOURCE_URL');
     expect(authPolicySource).toContain('MINDROOM_HOMESERVER');
-    expect(authLayoutSource).toContain("from '../../mindroom/branding/branding'");
-    expect(loginSource).toContain("from '../../../mindroom/auth/authPolicy'");
-    expect(registerSource).toContain("from '../../../mindroom/auth/authPolicy'");
+    expect(authUiSource).toContain('MINDROOM_AUTH_BRANDING');
+    expect(authUiSource).toContain('getMindroomAuthSsoRedirectUrl');
+    expect(authUiSource).toContain('shouldDisablePasswordLogin');
+    expect(authUiSource).toContain('shouldUseSsoOnlyRegistration');
+    expect(authFooterSource).toContain("from '../../mindroom/auth/authUi'");
+    expect(authLayoutSource).toContain("from '../../mindroom/auth/authUi'");
+    expect(ssoLoginSource).toContain("from '../../mindroom/auth/authUi'");
+    expect(loginSource).toContain("from '../../../mindroom/auth/authUi'");
+    expect(passwordLoginSource).toContain("from '../../../mindroom/auth/authUi'");
+    expect(tokenLoginSource).toContain("from '../../../mindroom/auth/authUi'");
+    expect(registerSource).toContain("from '../../../mindroom/auth/authUi'");
+    expect(passwordRegisterSource).toContain("from '../../../mindroom/auth/authUi'");
+    expect(authFooterSource).not.toContain("from '../../mindroom/branding/branding'");
+    expect(authLayoutSource).not.toContain("from '../../mindroom/branding/branding'");
+    expect(ssoLoginSource).not.toContain("from '../../mindroom/native/nativeSso'");
+    expect(loginSource).not.toContain("from '../../../mindroom/native/nativeSso'");
+    expect(loginSource).not.toContain("from '../../../mindroom/auth/authPolicy'");
+    expect(registerSource).not.toContain("from '../../../mindroom/native/nativeSso'");
+    expect(registerSource).not.toContain("from '../../../mindroom/auth/authPolicy'");
+    expect(passwordLoginSource).not.toContain("from '../../../mindroom/branding/branding'");
+    expect(tokenLoginSource).not.toContain("from '../../../mindroom/branding/branding'");
+    expect(passwordRegisterSource).not.toContain("from '../../../mindroom/branding/branding'");
     expect(loginSource).not.toContain("=== 'mindroom.chat'");
     expect(registerSource).not.toContain("=== 'mindroom.chat'");
   });

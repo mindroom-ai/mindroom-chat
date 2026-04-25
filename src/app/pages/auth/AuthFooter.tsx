@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Text } from 'folds';
 import * as css from './styles.css';
 import { useClientConfig } from '../../hooks/useClientConfig';
-import { MINDROOM_APP_NAME, MINDROOM_CINNY_SOURCE_URL } from '../../mindroom/branding/branding';
+import { MINDROOM_AUTH_BRANDING } from '../../mindroom/auth/authUi';
 
 export function AuthFooter() {
   const { auth } = useClientConfig();
@@ -17,8 +17,8 @@ export function AuthFooter() {
     <Box className={css.AuthFooter} justifyContent="Center" gap="400" wrap="Wrap">
       <Text size="T300">
         Powered by{' '}
-        <a href={MINDROOM_CINNY_SOURCE_URL} target="_blank" rel="noreferrer">
-          {MINDROOM_APP_NAME}
+        <a href={MINDROOM_AUTH_BRANDING.cinnySourceUrl} target="_blank" rel="noreferrer">
+          {MINDROOM_AUTH_BRANDING.appName}
         </a>
         ,{' '}
         <a href="https://matrix.org" target="_blank" rel="noreferrer">

@@ -14,9 +14,11 @@ import { usePathWithOrigin } from '../../../hooks/usePathWithOrigin';
 import { RegisterPathSearchParams } from '../../paths';
 import { useClientConfig } from '../../../hooks/useClientConfig';
 import { hasAppleIdentityProvider } from '../ssoProviders';
-import { buildNativeSsoRedirectUrl, isNativeIOS } from '../../../mindroom/native/nativeSso';
 import { isAddAccountSearch, withAddAccountSearch } from '../addAccount';
-import { shouldUseSsoOnlyRegistration } from '../../../mindroom/auth/authPolicy';
+import {
+  getMindroomAuthSsoRedirectUrl,
+  shouldUseSsoOnlyRegistration,
+} from '../../../mindroom/auth/authUi';
 
 const useRegisterSearchParams = (searchParams: URLSearchParams): RegisterPathSearchParams =>
   useMemo(
@@ -47,11 +49,7 @@ export function Register() {
   const webSsoRedirectUrl = usePathWithOrigin(getLoginPath(server));
   const ssoRedirectUrl = useMemo(() => {
     const redirectPath = addAccount ? withAddAccountSearch(webSsoRedirectUrl) : webSsoRedirectUrl;
-    if (isNativeIOS()) {
-      return buildNativeSsoRedirectUrl(redirectPath);
-    }
-
-    return redirectPath;
+    return getMindroomAuthSsoRedirectUrl(redirectPath);
   }, [addAccount, webSsoRedirectUrl]);
 
   if (!registrationAllowed) {

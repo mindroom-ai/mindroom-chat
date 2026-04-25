@@ -90,6 +90,9 @@
 - `CINNY-131`
   - System-notification settings now consume `src/app/mindroom/notifications/SystemNotificationMindroomExtensions.tsx` for MindRoom email-pusher branding and native iOS push settings.
   - Generic notification settings no longer imports MindRoom branding or native push UI directly.
+- `CINNY-132`
+  - Auth screen branding, device display name, hosted-login policy, and native SSO redirect policy now route through `src/app/mindroom/auth/authUi.ts`.
+  - Generic auth pages no longer import MindRoom branding, native SSO, or hosted-auth policy modules directly.
 
 ### Current Feature Set On `dev`
 

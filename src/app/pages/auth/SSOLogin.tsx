@@ -15,7 +15,7 @@ import AppleLogo from '../../../../public/res/svg/sso-apple-white.svg';
 import GoogleLogo from '../../../../public/res/svg/sso-google.svg';
 import GitHubLogo from '../../../../public/res/svg/sso-github.svg';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
-import { isNativeIOS, openNativeSsoBrowser } from '../../mindroom/native/nativeSso';
+import { isNativeIOS, openNativeSsoBrowser } from '../../mindroom/auth/authUi';
 
 type SSOLoginProps = {
   providers?: IIdentityProvider[];

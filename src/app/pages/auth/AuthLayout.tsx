@@ -24,11 +24,7 @@ import { useActiveSession } from '../../hooks/useSessionStore';
 import { tryDecodeURIComponent } from '../../utils/dom';
 import { buildAuthRoutePath } from './authRouteUtils';
 import { resolveAddAccountReturnPath } from './addAccount';
-import {
-  MINDROOM_APP_NAME,
-  MINDROOM_LOGO_ALT,
-  MINDROOM_LOGO_SRC,
-} from '../../mindroom/branding/branding';
+import { MINDROOM_AUTH_BRANDING } from '../../mindroom/auth/authUi';
 
 function AuthLayoutLoading({ message }: { message: string }) {
   return (
@@ -139,8 +135,12 @@ export function AuthLayout() {
         <Box direction="Column" className={css.AuthCard}>
           <Header className={css.AuthHeader} size="600" variant="Surface">
             <Box grow="Yes" direction="Row" gap="300" alignItems="Center">
-              <img className={css.AuthLogo} src={MINDROOM_LOGO_SRC} alt={MINDROOM_LOGO_ALT} />
-              <Text size="H3">{MINDROOM_APP_NAME}</Text>
+              <img
+                className={css.AuthLogo}
+                src={MINDROOM_AUTH_BRANDING.logoSrc}
+                alt={MINDROOM_AUTH_BRANDING.logoAlt}
+              />
+              <Text size="H3">{MINDROOM_AUTH_BRANDING.appName}</Text>
             </Box>
           </Header>
           <Box className={css.AuthCardContent} direction="Column">
