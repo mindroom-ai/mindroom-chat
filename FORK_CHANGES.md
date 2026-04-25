@@ -189,6 +189,9 @@
 - `CINNY-165`
   - Generic message text renderers now expose a neutral state-suffix seam instead of importing the MindRoom AI streaming indicator directly.
   - MindRoom message rendering owns `renderMindroomStreamingIndicator`, keeping streaming UI and protocol policy under `src/app/mindroom/messages`.
+- `CINNY-166`
+  - Room-timeline thread badge rendering now goes through `renderMindroomRoomTimelineThreadBadge`.
+  - `RoomTimeline` no longer builds badge view models itself; the MindRoom timeline seam owns model derivation and null rendering for non-thread events.
 
 ### Current Feature Set On `dev`
 
