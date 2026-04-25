@@ -15,7 +15,7 @@ import {
   collectRedactedRelationTargetsFromLookup,
   reconcileRelationEventsWithAggregation,
 } from '../../features/room/eventCacheEditUtils';
-import { reconcileThreadBackwardPagination } from '../../features/room/threadPaginationUtils';
+import { reconcileThreadBackwardPagination } from './threadPaginationUtils';
 import { loadThreadCachedSnapshot, mapCachedThreadPageEvents } from './eventRepository';
 import { fetchAllThreadRelations, MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
 import {

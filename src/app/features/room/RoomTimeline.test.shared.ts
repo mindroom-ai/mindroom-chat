@@ -865,7 +865,7 @@ vi.mock('./threadEventCache', () => ({
   saveThreadEventsToCache: vi.fn(async () => undefined),
 }));
 
-vi.mock('./threadPaginationUtils', () => ({
+vi.mock('../../mindroom/threads/threadPaginationUtils', () => ({
   computeReconciliationToken: () => undefined,
   findEarliestLoadedThreadReplyByCacheOrder: () => undefined,
   reconcileThreadBackwardPagination: vi.fn(),

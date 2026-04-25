@@ -14,7 +14,7 @@ import { getLinkedTimelines } from './timelinePagination';
 import {
   findEarliestLoadedThreadReplyByCacheOrder,
   reconcileThreadBackwardPagination,
-} from '../../features/room/threadPaginationUtils';
+} from './threadPaginationUtils';
 import { loadThreadCachedPaginationSnapshot } from './eventRepository';
 import type { PersistThreadEventCache } from './threadCachePersistenceController';
 
