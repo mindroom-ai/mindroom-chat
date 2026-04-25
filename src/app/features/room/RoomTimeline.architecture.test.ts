@@ -393,6 +393,34 @@ describe('RoomTimeline architecture', () => {
     expect(routeCompatibilitySource).not.toContain('resolveCanonicalThreadRootId');
   });
 
+  it('keeps thread tag state and hooks in MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const tagsCompatibilitySource = readFileSync(
+      new URL('./threadTags.ts', import.meta.url),
+      'utf8'
+    );
+    const hookCompatibilitySource = readFileSync(
+      new URL('./useRoomThreadTags.ts', import.meta.url),
+      'utf8'
+    );
+    const tagsSource = readFileSync(
+      new URL('../../mindroom/threads/threadTags.ts', import.meta.url),
+      'utf8'
+    );
+    const hookSource = readFileSync(
+      new URL('../../mindroom/threads/useRoomThreadTags.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/useRoomThreadTags'");
+    expect(tagsCompatibilitySource).toContain("from '../../mindroom/threads/threadTags'");
+    expect(hookCompatibilitySource).toContain("from '../../mindroom/threads/useRoomThreadTags'");
+    expect(tagsSource).toContain('aggregateThreadTagEvents');
+    expect(hookSource).toContain('useRoomThreadResolutionMap');
+    expect(tagsCompatibilitySource).not.toContain('aggregateThreadTagEvents');
+    expect(hookCompatibilitySource).not.toContain('useRoomThreadResolutionMap');
+  });
+
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 

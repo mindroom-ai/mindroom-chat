@@ -18,7 +18,7 @@ import { GetMemberPowerTag } from '../../hooks/useMemberPowerTag';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { UserAvatar } from '../user-avatar';
-import { useThreadResolution } from '../../features/room/useRoomThreadTags';
+import { useThreadResolution } from '../../mindroom/threads/useRoomThreadTags';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { useThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
 import { useThreadScheduledTasks } from '../../hooks/useThreadScheduledTasks';

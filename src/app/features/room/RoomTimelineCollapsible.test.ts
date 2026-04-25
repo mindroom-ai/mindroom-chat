@@ -613,7 +613,7 @@ vi.mock('../../mindroom/threads/CompactRoomView', () => ({
   CompactRoomView: passthrough,
 }));
 
-vi.mock('./useRoomThreadTags', () => ({
+vi.mock('../../mindroom/threads/useRoomThreadTags', () => ({
   useRoomThreadResolutionMap: () => threadResolutionMapMock,
 }));
 
