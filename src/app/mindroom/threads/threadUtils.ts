@@ -3,7 +3,7 @@ import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { MessageEvent, StateEvent } from '../../../types/matrix/room';
 import { trimReplyFromBody } from '../../utils/room';
-import { isMindroomThreadSummaryEvent } from '../../components/message/mindroomThreadSummary';
+import { isMindroomThreadSummaryEvent } from '../messages/threadSummary';
 
 type ThreadEventLike = {
   getId(): string | undefined;

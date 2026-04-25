@@ -1,5 +1,5 @@
 import { type IContent, type MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
-import { hasMindroomThreadSummary } from '../../components/message/mindroomThreadSummary';
+import { hasMindroomThreadSummary } from '../messages/threadSummary';
 import type { ThreadFilterState } from './roomThreadOverviewModel';
 import { isRenderableEvent } from './roomTimelineEvents';
 import { getThreadFilteredEvents } from './threadRoomFocus';

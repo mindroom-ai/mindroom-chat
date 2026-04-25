@@ -1981,3 +1981,11 @@
   - `npm run typecheck` passes
   - `npm run build` passes
   - `npm run lint` fails at the current branch baseline with 2 unrelated pre-existing repo errors in `src/app/hooks/router/useResolvedRoomIdOrAlias.ts` (`camelcase` on `room_id`) and `src/app/pages/client/ClientStartupContext.tsx` (`react/jsx-no-constructed-context-values`); no lint findings in `src/app/features/room/CompactThreadCard.tsx`
+
+## CINNY-085 — Move MindRoom message primitives to fork namespace (2026-04-25)
+
+- Moved thread-summary parsing, tool-approval parsing, the approval card, and the summary card into `src/app/mindroom/messages`.
+- Left thin compatibility re-exports in `src/app/components/message/*` for old import paths while keeping the real implementation out of generic message modules.
+- Removed the MindRoom summary card implementation from `MsgTypeRenderers.tsx`; generic message exports now re-export the fork-owned summary card.
+- Updated MindRoom thread modules, room rendering, recent-thread helpers, and pin-menu approval rendering to import these primitives from the MindRoom namespace directly.
+- Added an architecture guard that asserts the generic paths are wrappers and `RenderMessageContent`/thread badges consume the fork-owned modules.

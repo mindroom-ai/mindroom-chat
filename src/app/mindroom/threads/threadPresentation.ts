@@ -4,7 +4,7 @@ import {
   getLatestThreadSummaryInfoFromEventSources,
   pickLatestThreadSummaryInfo,
   type MindroomThreadSummaryInfo,
-} from '../../components/message/mindroomThreadSummary';
+} from '../messages/threadSummary';
 import { getMemberDisplayName } from '../../utils/room';
 import {
   getCompactThreadRootBodyPreviewText,

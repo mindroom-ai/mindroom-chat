@@ -21,7 +21,7 @@ vi.mock('./threadSummaryCache', () => ({
   saveCachedThreadSummary: saveCachedThreadSummaryMock,
 }));
 
-vi.mock('../../components/message/mindroomThreadSummary', () => ({
+vi.mock('../messages/threadSummary', () => ({
   getLatestThreadSummaryInfoFromEventSources: getLatestThreadSummaryInfoFromEventSourcesMock,
   pickLatestThreadSummaryInfo: (...infos: Array<{ summaryText?: string } | undefined>) =>
     [...infos].reverse().find((info) => !!info?.summaryText),

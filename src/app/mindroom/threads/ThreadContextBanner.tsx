@@ -2,7 +2,7 @@ import React, { useCallback, useEffect } from 'react';
 import { Box, Icon, IconButton, Icons, Text, Button } from 'folds';
 import { IconCalendarEvent } from '@tabler/icons-react';
 import { Room } from 'matrix-js-sdk';
-import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
+import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import * as replyCss from '../../components/message/Reply.css';
 import { useThreadHeaderInfo } from '../../hooks/useThreadHeaderInfo';
 import { buildThreadHeaderViewModelFromRecord } from './threadHeaderViewModel';

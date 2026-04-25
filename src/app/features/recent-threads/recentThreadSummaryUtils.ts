@@ -1,5 +1,5 @@
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
-import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
+import type { MindroomThreadSummaryInfo } from '../../mindroom/messages/threadSummary';
 import { resolveThreadRootPreviewText } from '../room/threadPresentation';
 
 export const RECENT_THREAD_SUMMARY_LIMIT = 120;

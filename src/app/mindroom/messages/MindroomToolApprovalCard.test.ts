@@ -6,7 +6,7 @@ import { MindroomToolApprovalCard } from './MindroomToolApprovalCard';
 import {
   MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
   ToolApprovalData,
-} from './mindroomToolApproval';
+} from './toolApproval';
 
 const sendEventMock = vi.fn();
 

@@ -363,6 +363,10 @@ vi.mock('../../components/message', () => ({
   MindroomThreadSummaryCard: passthrough,
 }));
 
+vi.mock('../../mindroom/messages/MindroomThreadSummaryCard', () => ({
+  MindroomThreadSummaryCard: passthrough,
+}));
+
 vi.mock('./message', async () => {
   const ReactImport = await import('react');
 

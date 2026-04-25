@@ -10,7 +10,7 @@ import {
   getLatestThreadSummaryInfoFromEventSources,
   isMindroomThreadSummaryEvent,
   type MindroomThreadSummaryInfo,
-} from '../../components/message/mindroomThreadSummary';
+} from '../messages/threadSummary';
 import { markMainTimelineAsRead } from '../../utils/notifications';
 import { getLiveCollapsibleMessageExpandId } from './threadCollapsibleMessages';
 import { getThreadCacheTargetId } from './eventRepository';

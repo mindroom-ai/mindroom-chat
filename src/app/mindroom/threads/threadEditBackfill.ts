@@ -1,6 +1,6 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import { MessageEvent } from '../../../types/matrix/room';
-import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../components/message/mindroomToolApproval';
+import { MINDROOM_TOOL_APPROVAL_EVENT } from '../messages/toolApproval';
 
 const getThreadEditBackfillPhase = (threadTailLoaded: boolean): number =>
   threadTailLoaded ? 1 : 0;

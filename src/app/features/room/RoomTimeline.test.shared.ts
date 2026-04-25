@@ -442,6 +442,10 @@ vi.mock('../../components/message', () => ({
   EventContent: passthrough,
 }));
 
+vi.mock('../../mindroom/messages/MindroomThreadSummaryCard', () => ({
+  MindroomThreadSummaryCard: passthrough,
+}));
+
 vi.mock('./message', () => ({
   Reactions: passthrough,
   Message: ({
@@ -834,9 +838,9 @@ vi.mock('../../mindroom/threads/threadUtils', () => ({
     !!threadRootId && threadRootId !== eventId,
 }));
 
-vi.mock('../../components/message/mindroomThreadSummary', async (importOriginal) => {
+vi.mock('../../mindroom/messages/threadSummary', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('../../components/message/mindroomThreadSummary')>();
+    await importOriginal<typeof import('../../mindroom/messages/threadSummary')>();
   return {
     ...actual,
     buildThreadSummaryMap: () => new Map(),

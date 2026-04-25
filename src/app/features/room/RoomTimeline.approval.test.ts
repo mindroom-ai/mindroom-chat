@@ -2,7 +2,7 @@ import type { ReactElement, ReactNode } from 'react';
 import React from 'react';
 import { act } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
-import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../components/message/mindroomToolApproval';
+import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../mindroom/messages/toolApproval';
 import { MessageEvent } from '../../../types/matrix/room';
 import {
   create,

@@ -15,7 +15,7 @@ import { logTimelineDebug } from './timelineDebug';
 import {
   getLatestThreadSummaryInfoFromEventSources,
   type MindroomThreadSummaryInfo,
-} from '../../components/message/mindroomThreadSummary';
+} from '../messages/threadSummary';
 import { fetchAllThreadRelations } from './threadBootstrap';
 import { isCompleteCachedThreadSnapshot } from './threadCacheSnapshot';
 import { saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';

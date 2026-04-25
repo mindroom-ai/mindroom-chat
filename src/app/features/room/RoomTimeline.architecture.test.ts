@@ -631,6 +631,74 @@ describe('RoomTimeline architecture', () => {
     expect(stateCompatibilitySource).not.toContain('useSyncExternalStore');
   });
 
+  it('keeps MindRoom message primitives in the MindRoom namespace', () => {
+    const renderContentSource = readFileSync(
+      new URL('../../components/RenderMessageContent.tsx', import.meta.url),
+      'utf8'
+    );
+    const messageIndexSource = readFileSync(
+      new URL('../../components/message/index.ts', import.meta.url),
+      'utf8'
+    );
+    const msgTypeRenderersSource = readFileSync(
+      new URL('../../components/message/MsgTypeRenderers.tsx', import.meta.url),
+      'utf8'
+    );
+    const threadSummaryCompatibilitySource = readFileSync(
+      new URL('../../components/message/mindroomThreadSummary.ts', import.meta.url),
+      'utf8'
+    );
+    const toolApprovalCompatibilitySource = readFileSync(
+      new URL('../../components/message/mindroomToolApproval.ts', import.meta.url),
+      'utf8'
+    );
+    const toolApprovalCardCompatibilitySource = readFileSync(
+      new URL('../../components/message/MindroomToolApprovalCard.tsx', import.meta.url),
+      'utf8'
+    );
+    const threadSummarySource = readFileSync(
+      new URL('../../mindroom/messages/threadSummary.ts', import.meta.url),
+      'utf8'
+    );
+    const toolApprovalSource = readFileSync(
+      new URL('../../mindroom/messages/toolApproval.ts', import.meta.url),
+      'utf8'
+    );
+    const threadSummaryCardSource = readFileSync(
+      new URL('../../mindroom/messages/MindroomThreadSummaryCard.tsx', import.meta.url),
+      'utf8'
+    );
+    const threadBadgeSource = readFileSync(
+      new URL('../../mindroom/threads/ThreadBadgeRenderer.tsx', import.meta.url),
+      'utf8'
+    );
+
+    expect(renderContentSource).toContain("../mindroom/messages/threadSummary");
+    expect(renderContentSource).toContain("../mindroom/messages/toolApproval");
+    expect(renderContentSource).toContain("../mindroom/messages/MindroomToolApprovalCard");
+    expect(renderContentSource).not.toContain('./message/mindroomThreadSummary');
+    expect(renderContentSource).not.toContain('./message/mindroomToolApproval');
+    expect(renderContentSource).not.toContain('./message/MindroomToolApprovalCard');
+    expect(messageIndexSource).toContain(
+      "from '../../mindroom/messages/MindroomThreadSummaryCard'"
+    );
+    expect(msgTypeRenderersSource).not.toContain('function MindroomThreadSummaryCard');
+    expect(threadSummaryCompatibilitySource.trim()).toBe(
+      "export * from '../../mindroom/messages/threadSummary';"
+    );
+    expect(toolApprovalCompatibilitySource.trim()).toBe(
+      "export * from '../../mindroom/messages/toolApproval';"
+    );
+    expect(toolApprovalCardCompatibilitySource.trim()).toBe(
+      "export { MindroomToolApprovalCard } from '../../mindroom/messages/MindroomToolApprovalCard';"
+    );
+    expect(threadSummarySource).toContain('THREAD_SUMMARY_METADATA_KEY');
+    expect(toolApprovalSource).toContain('MINDROOM_TOOL_APPROVAL_EVENT');
+    expect(threadSummaryCardSource).toContain('MindroomThreadSummaryCard');
+    expect(threadBadgeSource).toContain("from '../messages/MindroomThreadSummaryCard'");
+    expect(threadBadgeSource).not.toContain('MindroomThreadSummaryCard, ThreadIndicator');
+  });
+
   it('keeps thread root route canonicalization in MindRoom threads', () => {
     const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
     const compatibilitySource = readFileSync(

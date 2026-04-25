@@ -8,7 +8,7 @@ import {
   buildThreadSummaryMap,
   hasMindroomThreadSummary,
   pickLatestThreadSummaryInfo,
-} from './mindroomThreadSummary';
+} from './threadSummary';
 
 const makeEvent = (content: Record<string, unknown>) => ({
   getContent: () => content,

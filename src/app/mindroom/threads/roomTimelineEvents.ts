@@ -1,7 +1,7 @@
 import { EventTimeline, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MessageEvent, StateEvent } from '../../../types/matrix/room';
 import { isMembershipChanged, reactionOrEditEvent } from '../../utils/room';
-import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../components/message/mindroomToolApproval';
+import { MINDROOM_TOOL_APPROVAL_EVENT } from '../messages/toolApproval';
 import {
   buildVisibleThreadReplyCountMap,
   isThreadReplyEvent,

@@ -6,8 +6,11 @@ import { ThreadBadgeRenderer } from './ThreadBadgeRenderer';
 import type { ThreadBadgeViewModel } from './types';
 
 vi.mock('../../components/message', () => ({
-  MindroomThreadSummaryCard: 'mindroom-thread-summary-card',
   ThreadIndicator: 'thread-indicator',
+}));
+
+vi.mock('../messages/MindroomThreadSummaryCard', () => ({
+  MindroomThreadSummaryCard: 'mindroom-thread-summary-card',
 }));
 
 const findElementInNode = (

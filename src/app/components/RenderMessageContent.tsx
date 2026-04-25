@@ -35,12 +35,12 @@ import { testMatrixTo } from '../plugins/matrix-to';
 import { IImageContent } from '../../types/matrix/common';
 import { getMindroomLongTextSource } from './message/mindroomLongText';
 import { MindroomLongTextKind, MindroomLongTextText } from './message/MindroomLongTextText';
-import { getMindroomThreadSummaryInfo } from './message/mindroomThreadSummary';
-import { MindroomToolApprovalCard } from './message/MindroomToolApprovalCard';
+import { getMindroomThreadSummaryInfo } from '../mindroom/messages/threadSummary';
+import { MindroomToolApprovalCard } from '../mindroom/messages/MindroomToolApprovalCard';
 import {
   MINDROOM_TOOL_APPROVAL_EVENT,
   parseToolApprovalContent,
-} from './message/mindroomToolApproval';
+} from '../mindroom/messages/toolApproval';
 import { withMindroomToolTraceMarkerParserOptions } from '../plugins/react-custom-html-parser';
 import { isMindroomAiRunStreaming } from './message/mindroomAiRun';
 
