@@ -196,8 +196,11 @@ import {
   type TimelineEventEntry,
 } from '../../mindroom/threads/roomTimelineEvents';
 import {
+  getEventIdAbsoluteIndex,
+  getEventTimeline,
   getFirstLinkedTimeline,
   getLinkedTimelines,
+  getLinkedTimelinesEventAbsoluteIndex,
   getLiveTimeline,
   getTimelinesEventsCount,
   recalibrateTimelinePagination,
@@ -320,64 +323,6 @@ const TimelineDivider = as<'div', { variant?: ContainerColor | 'Inherit' }>(
     </Box>
   )
 );
-
-export const getEventTimeline = (room: Room, eventId: string): EventTimeline | undefined => {
-  const timelineSet = room.getUnfilteredTimelineSet();
-  return timelineSet.getTimelineForEvent(eventId) ?? undefined;
-};
-
-const getLinkedTimelinesEventAbsoluteIndex = (
-  linkedTimelines: EventTimeline[],
-  eventId: string
-): number | undefined => {
-  let absoluteIndex = 0;
-
-  for (const timeline of linkedTimelines) {
-    const relativeIndex = timeline.getEvents().findIndex((mEvent) => mEvent.getId() === eventId);
-    if (relativeIndex !== -1) {
-      return absoluteIndex + relativeIndex;
-    }
-
-    absoluteIndex += timeline.getEvents().length;
-  }
-
-  return undefined;
-};
-
-export const getTimelineAndBaseIndex = (
-  timelines: EventTimeline[],
-  index: number
-): [EventTimeline | undefined, number] => {
-  let uptoTimelineLen = 0;
-  const timeline = timelines.find((t) => {
-    uptoTimelineLen += t.getEvents().length;
-    if (index < uptoTimelineLen) return true;
-    return false;
-  });
-  if (!timeline) return [undefined, 0];
-  return [timeline, uptoTimelineLen - timeline.getEvents().length];
-};
-
-export const getTimelineRelativeIndex = (absoluteIndex: number, timelineBaseIndex: number) =>
-  absoluteIndex - timelineBaseIndex;
-
-export const getTimelineEvent = (timeline: EventTimeline, index: number): MatrixEvent | undefined =>
-  timeline.getEvents()[index];
-
-export const getEventIdAbsoluteIndex = (
-  timelines: EventTimeline[],
-  eventTimeline: EventTimeline,
-  eventId: string
-): number | undefined => {
-  const timelineIndex = timelines.findIndex((t) => t === eventTimeline);
-  if (timelineIndex === -1) return undefined;
-  const eventIndex = eventTimeline.getEvents().findIndex((evt) => evt.getId() === eventId);
-  if (eventIndex === -1) return undefined;
-  const baseIndex = timelines
-    .slice(0, timelineIndex)
-    .reduce((accValue, timeline) => timeline.getEvents().length + accValue, 0);
-  return baseIndex + eventIndex;
-};
 
 type RoomTimelineProps = {
   room: Room;

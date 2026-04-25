@@ -823,7 +823,10 @@ describe('RoomTimeline architecture', () => {
     expect(source).toContain("from '../../mindroom/threads/timelinePagination'");
     expect(compatibilitySource).toContain("from '../../mindroom/threads/timelinePagination'");
     expect(implementationSource).toContain('recalibrateTimelinePagination');
+    expect(implementationSource).toContain('getEventIdAbsoluteIndex');
     expect(implementationSource).toContain('getLinkedTimelines');
+    expect(source).not.toContain('export const getEventIdAbsoluteIndex');
+    expect(source).not.toContain('export const getTimelineAndBaseIndex');
     expect(compatibilitySource).not.toContain('getRenderableEvents');
   });
 

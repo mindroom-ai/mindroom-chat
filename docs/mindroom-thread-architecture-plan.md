@@ -355,7 +355,7 @@ compatibility re-export.
 Room timeline event renderability, surface entry, visible thread-root, and preload-count helpers now
 live in `src/app/mindroom/threads/roomTimelineEvents.ts`; the old `features/room` path is only a
 compatibility re-export.
-Timeline linking/count/recalibration helpers now live in
+Timeline linking/count/recalibration, event timeline lookup, and absolute-index helpers now live in
 `src/app/mindroom/threads/timelinePagination.ts`; the old `features/room` path is only a
 compatibility re-export.
 Thread backward-pagination reconciliation helpers now live in

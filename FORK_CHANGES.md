@@ -1070,6 +1070,14 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 59 / Phase 6 timeline index helper ownership (2026-04-24):
+  - moved event timeline lookup, linked-timeline absolute index lookup, timeline/base-index lookup, relative-index conversion, and timeline event accessors into `src/app/mindroom/threads/timelinePagination.ts`.
+  - `RoomTimeline` now imports these helpers from the existing MindRoom timeline pagination module instead of exporting them itself.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.permalink-refresh.test.ts`, `RoomTimeline.navigation.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
