@@ -206,6 +206,7 @@ import {
 } from '../../mindroom/threads/roomLiveEventArrive';
 import { useThreadSummaryPublishController } from '../../mindroom/threads/threadSummaryPublishController';
 import { useThreadOverviewRefreshCounter } from '../../mindroom/threads/threadOverviewRefreshCounter';
+import { useThreadSortFreezeController } from '../../mindroom/threads/threadSortFreezeController';
 import { buildThreadBadgeViewModelFromRecord } from '../../mindroom/threads/threadBadgeViewModel';
 import { ThreadBadgeRenderer } from '../../mindroom/threads/ThreadBadgeRenderer';
 import {
@@ -732,28 +733,13 @@ export function RoomTimeline({
   const shouldShowRoomThreadOverviewControls =
     showRoomThreadOverviewControls && !deferEmptyRoomOverview;
 
-  useEffect(() => {
-    if (threadId || !threadSortFreezeState) return;
-    if (threadSortFreezeState.controlSignature === threadSortControlSignature) return;
-
-    setThreadSortFreezeState((currentState) => {
-      if (!currentState) return currentState;
-      if (currentState.controlSignature === threadSortControlSignature) {
-        return currentState;
-      }
-
-      return {
-        controlSignature: threadSortControlSignature,
-        orderedRootIds: activeLiveOverviewThreadRootIds,
-      };
-    });
-  }, [
+  useThreadSortFreezeController({
+    activeLiveOverviewThreadRootIds,
+    setThreadSortFreezeState,
     threadId,
     threadSortFreezeState,
     threadSortControlSignature,
-    activeLiveOverviewThreadRootIds,
-    setThreadSortFreezeState,
-  ]);
+  });
 
   const useSurfacePreloadTarget = shouldUseSurfacePreloadTarget({
     threadId,

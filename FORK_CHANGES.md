@@ -1143,6 +1143,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 68 / Phase 4b sort-freeze controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/threadSortFreezeController.ts` as the fork-owned owner for resnapshotting frozen overview order when filter/sort controls change.
+  - `RoomTimeline` now delegates that policy to the hook instead of mutating frozen ordered root ids inline.
+  - validation:
+    - focused Vitest passes for `threadSortFreezeController.test.ts` and `RoomTimeline.architecture.test.ts`
+    - focused Vitest passes for `RoomTimeline.cache.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

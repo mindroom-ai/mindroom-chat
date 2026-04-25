@@ -637,6 +637,19 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('refreshOverviewThreadCacheFromRelations');
   });
 
+  it('delegates thread sort-freeze resnapshot policy to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const controllerSource = readFileSync(
+      new URL('../../mindroom/threads/threadSortFreezeController.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/threadSortFreezeController'");
+    expect(source).not.toContain('orderedRootIds: activeLiveOverviewThreadRootIds');
+    expect(controllerSource).toContain('useThreadSortFreezeController');
+    expect(controllerSource).toContain('resolveThreadSortFreezeUpdate');
+  });
+
   it('keeps room thread-list loading in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const listCompatibilitySource = readFileSync(
