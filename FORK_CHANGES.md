@@ -210,6 +210,9 @@
 - `CINNY-172`
   - MindRoom message copy-text policy is now exported through `src/app/mindroom/messages/messageExtensions.tsx`.
   - Generic room message rendering keeps a single MindRoom message extension import instead of separately importing the copy-text owner.
+- `CINNY-173`
+  - Escape-key room/thread read-receipt handling now lives in `src/app/mindroom/threads/useRoomEscapeReadReceipts.ts`.
+  - Generic `Room` no longer imports MindRoom read-receipt commands directly.
 
 ### Current Feature Set On `dev`
 

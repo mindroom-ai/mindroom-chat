@@ -1,7 +1,6 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Box, Line } from 'folds';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { isKeyHotkey } from 'is-hotkey';
 import { useAtomValue } from 'jotai';
 import { RoomView } from './RoomView';
 import { MembersDrawer } from './MembersDrawer';
@@ -10,8 +9,6 @@ import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
 import { PowerLevelsContextProvider, usePowerLevels } from '../../hooks/usePowerLevels';
 import { useRoom } from '../../hooks/useRoom';
-import { useKeyDown } from '../../hooks/useKeyDown';
-import { markRoomAndThreadsAsRead, markThreadAsRead } from '../../mindroom/notifications/readReceipts';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { CallView } from '../call/CallView';
@@ -20,6 +17,7 @@ import { callChatAtom } from '../../state/callEmbed';
 import { CallChatView } from './CallChatView';
 import { getRoomSearchParams } from '../../pages/pathSearchParam';
 import { useRoomThreadRouteRestore } from '../../mindroom/threads/useRoomThreadRouteRestore';
+import { useRoomEscapeReadReceipts } from '../../mindroom/threads/useRoomEscapeReadReceipts';
 
 export function Room() {
   const { eventId } = useParams();
@@ -40,22 +38,7 @@ export function Room() {
     roomId: room.roomId,
     threadId,
   });
-
-  useKeyDown(
-    window,
-    useCallback(
-      (evt) => {
-        if (isKeyHotkey('escape', evt)) {
-          if (threadId) {
-            markThreadAsRead(mx, room.roomId, threadId, hideActivity);
-            return;
-          }
-          markRoomAndThreadsAsRead(mx, room.roomId, hideActivity);
-        }
-      },
-      [hideActivity, mx, room.roomId, threadId]
-    )
-  );
+  useRoomEscapeReadReceipts({ hideActivity, roomId: room.roomId, threadId });
 
   const callView = room.isCallRoom();
 
