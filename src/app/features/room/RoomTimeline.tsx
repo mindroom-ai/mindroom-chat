@@ -156,8 +156,7 @@ import { useMindroomThreadIndex } from '../../mindroom/threads/useMindroomThread
 import {
   getMindroomRoomTimelineApprovalContentIfSupported,
   getMindroomRoomTimelineMessageRenderers,
-  getMindroomRoomTimelineThreadBadgeModel,
-  MindroomRoomTimelineThreadBadgeRenderer,
+  renderMindroomRoomTimelineThreadBadge,
 } from '../../mindroom/threads/roomTimelineMessageExtensions';
 import type { ThreadFilterKey } from '../../mindroom/threads/RoomThreadOverview';
 import {
@@ -1356,14 +1355,6 @@ export function RoomTimeline({
     threadResolutionMap,
   });
 
-  const getTimelineThreadBadgeModel = (mEventId: string, mEvent: MatrixEvent) =>
-    getMindroomRoomTimelineThreadBadgeModel({
-      eventId: mEventId,
-      event: mEvent,
-      threadRecordMap,
-      activeThreadId: threadId,
-    });
-
   const renderMatrixEvent = useMatrixEventRenderer<
     [string, MatrixEvent, number, EventTimelineSet, boolean]
   >(
@@ -1392,15 +1383,15 @@ export function RoomTimeline({
         const senderId = mEvent.getSender() ?? '';
         const senderDisplayName =
           getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-        const threadBadgeModel = getTimelineThreadBadgeModel(mEventId, mEvent);
-        const threadSummary = threadBadgeModel ? (
-          <MindroomRoomTimelineThreadBadgeRenderer
-            model={threadBadgeModel}
-            room={room}
-            onClick={handleOpenReply}
-            includeRecentSummaryData
-          />
-        ) : null;
+        const threadSummary = renderMindroomRoomTimelineThreadBadge({
+          eventId: mEventId,
+          event: mEvent,
+          threadRecordMap,
+          activeThreadId: threadId,
+          room,
+          onClick: handleOpenReply,
+          includeRecentSummaryData: true,
+        });
 
         return (
           <Message
@@ -1527,14 +1518,14 @@ export function RoomTimeline({
           const senderId = mEvent.getSender() ?? '';
           const senderDisplayName =
             getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-          const threadBadgeModel = getTimelineThreadBadgeModel(mEventId, mEvent);
-          const threadSummary = threadBadgeModel ? (
-            <MindroomRoomTimelineThreadBadgeRenderer
-              model={threadBadgeModel}
-              room={room}
-              onClick={handleOpenReply}
-            />
-          ) : null;
+          const threadSummary = renderMindroomRoomTimelineThreadBadge({
+            eventId: mEventId,
+            event: mEvent,
+            threadRecordMap,
+            activeThreadId: threadId,
+            room,
+            onClick: handleOpenReply,
+          });
 
           return (
             <Message
@@ -1636,14 +1627,14 @@ export function RoomTimeline({
         const highlighted = focusItem?.index === item && focusItem.highlight;
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
         const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
-        const threadBadgeModel = getTimelineThreadBadgeModel(mEventId, mEvent);
-        const threadSummary = threadBadgeModel ? (
-          <MindroomRoomTimelineThreadBadgeRenderer
-            model={threadBadgeModel}
-            room={room}
-            onClick={handleOpenReply}
-          />
-        ) : null;
+        const threadSummary = renderMindroomRoomTimelineThreadBadge({
+          eventId: mEventId,
+          event: mEvent,
+          threadRecordMap,
+          activeThreadId: threadId,
+          room,
+          onClick: handleOpenReply,
+        });
 
         return (
           <Message

@@ -1,9 +1,11 @@
+import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../messages/toolApproval';
 import {
   getMindroomRoomTimelineApprovalContent,
   getMindroomRoomTimelineThreadBadgeModel,
   MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT,
+  renderMindroomRoomTimelineThreadBadge,
 } from './roomTimelineMessageExtensions';
 import type { ThreadRecord } from './types';
 
@@ -96,5 +98,39 @@ describe('roomTimelineMessageExtensions', () => {
         activeThreadId: '$root',
       })
     ).toBeUndefined();
+  });
+
+  it('renders the timeline thread badge seam with the derived model', () => {
+    const badge = renderMindroomRoomTimelineThreadBadge({
+      eventId: '$root',
+      event: makeEvent({}, undefined),
+      threadRecordMap: new Map([['$root', makeRecord()]]),
+      room: {} as never,
+      onClick: vi.fn(),
+      includeRecentSummaryData: true,
+    });
+
+    expect(React.isValidElement(badge)).toBe(true);
+    expect((badge as React.ReactElement).props.model).toEqual({
+      id: { roomId: '!room:example.org', threadRootId: '$root' },
+      summaryInfo: undefined,
+      recentThreadSummaryText: 'Root body',
+      replyCount: 2,
+      participantIds: ['@alice:example.org'],
+      isResolved: false,
+    });
+    expect((badge as React.ReactElement).props.includeRecentSummaryData).toBe(true);
+  });
+
+  it('does not render a timeline thread badge without a record', () => {
+    expect(
+      renderMindroomRoomTimelineThreadBadge({
+        eventId: '$missing',
+        event: makeEvent({}, undefined),
+        threadRecordMap: new Map([['$root', makeRecord()]]),
+        room: {} as never,
+        onClick: vi.fn(),
+      })
+    ).toBeNull();
   });
 });

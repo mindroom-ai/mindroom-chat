@@ -2,11 +2,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 describe('RoomTimeline architecture', () => {
-  it('delegates thread badge JSX rendering to the MindRoom badge renderer', () => {
+  it('delegates thread badge JSX rendering to the MindRoom badge seam', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).not.toContain('const renderThreadBadge');
-    expect(source).toContain('MindroomRoomTimelineThreadBadgeRenderer');
+    expect(source).not.toContain('getMindroomRoomTimelineThreadBadgeModel');
+    expect(source).toContain('renderMindroomRoomTimelineThreadBadge');
   });
 
   it('delegates MindRoom timeline message policy to a fork-owned seam', () => {
@@ -24,11 +25,13 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT');
     expect(source).toContain('getMindroomRoomTimelineMessageRenderers');
     expect(source).toContain('getMindroomRoomTimelineApprovalContentIfSupported');
+    expect(source).toContain('renderMindroomRoomTimelineThreadBadge');
     expect(timelineMessageSource).toContain("from '../messages/toolApproval'");
     expect(timelineMessageSource).toContain("from './threadBadgeViewModel'");
     expect(timelineMessageSource).toContain('getMindroomRoomTimelineMessageRenderers');
     expect(timelineMessageSource).toContain('getMindroomRoomTimelineApprovalContentIfSupported');
     expect(timelineMessageSource).toContain('getMindroomRoomTimelineThreadBadgeModel');
+    expect(timelineMessageSource).toContain('renderMindroomRoomTimelineThreadBadge');
   });
 
   it('keeps renderability and preload counting outside RoomTimeline', () => {

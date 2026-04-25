@@ -1,4 +1,5 @@
-import type { EventTimelineSet, MatrixEvent } from 'matrix-js-sdk';
+import React, { type MouseEventHandler } from 'react';
+import type { EventTimelineSet, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { EventRenderer, EventRendererOpts } from '../../hooks/useMatrixEventRenderer';
 import {
   getToolApprovalRenderContent,
@@ -9,8 +10,6 @@ import { buildThreadBadgeViewModelFromRecord } from './threadBadgeViewModel';
 import type { ThreadBadgeViewModel, ThreadRecord } from './types';
 
 export const MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT = MINDROOM_TOOL_APPROVAL_EVENT;
-
-export { ThreadBadgeRenderer as MindroomRoomTimelineThreadBadgeRenderer };
 
 type RoomTimelineEventRendererArgs = [string, MatrixEvent, number, EventTimelineSet, boolean];
 
@@ -57,4 +56,41 @@ export const getMindroomRoomTimelineThreadBadgeModel = ({
     activeThreadId,
     eventThreadRootId: event.threadRootId,
   });
+};
+
+export type RenderMindroomRoomTimelineThreadBadgeOptions = {
+  eventId: string;
+  event: Pick<MatrixEvent, 'threadRootId'>;
+  threadRecordMap: ReadonlyMap<string, ThreadRecord>;
+  activeThreadId?: string;
+  room: Room;
+  onClick: MouseEventHandler;
+  includeRecentSummaryData?: boolean;
+};
+
+export const renderMindroomRoomTimelineThreadBadge = ({
+  eventId,
+  event,
+  threadRecordMap,
+  activeThreadId,
+  room,
+  onClick,
+  includeRecentSummaryData,
+}: RenderMindroomRoomTimelineThreadBadgeOptions) => {
+  const model = getMindroomRoomTimelineThreadBadgeModel({
+    eventId,
+    event,
+    threadRecordMap,
+    activeThreadId,
+  });
+  if (!model) return null;
+
+  return (
+    <ThreadBadgeRenderer
+      model={model}
+      room={room}
+      onClick={onClick}
+      includeRecentSummaryData={includeRecentSummaryData}
+    />
+  );
 };
