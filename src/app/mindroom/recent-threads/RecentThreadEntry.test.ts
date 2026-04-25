@@ -38,7 +38,7 @@ vi.mock('../../state/recentThreads', () => ({
   rekeyRecentThread: rekeyRecentThreadMock,
 }));
 
-vi.mock('../../mindroom/threads/recentThreadViewModel', () => ({
+vi.mock('../threads/recentThreadViewModel', () => ({
   useRecentThreadViewModel: () => ({
     id: {
       roomId: '!room:example.org',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
-import { RECENT_THREAD_SUMMARY_LIMIT } from '../../features/recent-threads/recentThreadSummaryUtils';
+import { RECENT_THREAD_SUMMARY_LIMIT } from '../recent-threads/recentThreadSummaryUtils';
 import { buildRecentThreadViewModelFromRecord } from './recentThreadViewModel';
 import type { ThreadRecord } from './types';
 

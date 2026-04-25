@@ -893,6 +893,46 @@ describe('RoomTimeline architecture', () => {
     expect(implementationSource).toContain('SettingsPages.LocalMindroomPage');
   });
 
+  it('keeps the Recent Threads feature in the MindRoom namespace', () => {
+    const panelCompatibilitySource = readFileSync(
+      new URL('../recent-threads/RecentThreadsPanel.tsx', import.meta.url),
+      'utf8'
+    );
+    const entryCompatibilitySource = readFileSync(
+      new URL('../recent-threads/RecentThreadEntry.tsx', import.meta.url),
+      'utf8'
+    );
+    const summaryCompatibilitySource = readFileSync(
+      new URL('../recent-threads/recentThreadSummaryUtils.ts', import.meta.url),
+      'utf8'
+    );
+    const panelSource = readFileSync(
+      new URL('../../mindroom/recent-threads/RecentThreadsPanel.tsx', import.meta.url),
+      'utf8'
+    );
+    const summarySource = readFileSync(
+      new URL('../../mindroom/recent-threads/recentThreadSummaryUtils.ts', import.meta.url),
+      'utf8'
+    );
+    const threadRecordSource = readFileSync(
+      new URL('../../mindroom/threads/threadRecord.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(panelCompatibilitySource.trim()).toBe(
+      "export { RecentThreadsPageNav, RecentThreadsPanel } from '../../mindroom/recent-threads/RecentThreadsPanel';"
+    );
+    expect(entryCompatibilitySource.trim()).toBe(
+      "export { RecentThreadEntry } from '../../mindroom/recent-threads/RecentThreadEntry';"
+    );
+    expect(summaryCompatibilitySource.trim()).toBe(
+      "export * from '../../mindroom/recent-threads/recentThreadSummaryUtils';"
+    );
+    expect(panelSource).toContain('Recent Threads');
+    expect(summarySource).toContain('resolveRecentThreadSummaryText');
+    expect(threadRecordSource).toContain("from '../recent-threads/recentThreadSummaryUtils'");
+  });
+
   it('keeps thread root route canonicalization in MindRoom threads', () => {
     const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
     const compatibilitySource = readFileSync(

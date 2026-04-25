@@ -690,6 +690,8 @@ Acceptance:
   generic settings modules only expose route/menu seams.
 - The Local MindRoom sidebar shortcut lives in `src/app/mindroom/sidebar`; generic sidebar modules only
   expose the existing navigation seam.
+- The Recent Threads UI and summary helper implementation lives in `src/app/mindroom/recent-threads`;
+  generic page modules only keep compatibility imports for the page navigation seam.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy
