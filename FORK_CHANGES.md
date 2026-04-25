@@ -183,6 +183,9 @@
   - Overview resume relation refreshes now apply fetched relation metadata directly through `useMindroomThreadIndex`.
   - Compact cards no longer depend on an async cache write/read round trip to show latest reply previews, message counts, activity, and cache coverage after page resume.
   - The resume controller persists fetched relation pages for later thread opens, but the per-room `ThreadRecord` index remains the immediate UI source of truth.
+- `CINNY-164`
+  - Moved the MindRoom thread-bootstrap relation-fetch test and thread-tag migration-script test out of `src/app/features/room`.
+  - Those tests now live beside their MindRoom owners in `src/app/mindroom/threads`, leaving `features/room` focused on generic room component tests.
 
 ### Current Feature Set On `dev`
 

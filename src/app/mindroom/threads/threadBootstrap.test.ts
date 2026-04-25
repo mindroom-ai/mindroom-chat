@@ -9,18 +9,14 @@ import {
   makeEvent,
   makeRoom,
   matrixClientMock,
-} from './RoomTimeline.test.shared';
+} from '../../features/room/RoomTimeline.test.shared';
 
-let fetchAllThreadRelations: typeof import(
-  '../../mindroom/threads/threadBootstrap'
-).fetchAllThreadRelations;
-let shouldRefreshOverviewForTimelineEvent: typeof import(
-  '../../mindroom/threads/threadBootstrap'
-).shouldRefreshOverviewForTimelineEvent;
+let fetchAllThreadRelations: typeof import('./threadBootstrap').fetchAllThreadRelations;
+let shouldRefreshOverviewForTimelineEvent: typeof import('./threadBootstrap').shouldRefreshOverviewForTimelineEvent;
 let MAX_THREAD_FETCH_EVENTS = 0;
 
 beforeAll(async () => {
-  const threadBootstrap = await import('../../mindroom/threads/threadBootstrap');
+  const threadBootstrap = await import('./threadBootstrap');
   fetchAllThreadRelations = threadBootstrap.fetchAllThreadRelations;
   shouldRefreshOverviewForTimelineEvent = threadBootstrap.shouldRefreshOverviewForTimelineEvent;
   MAX_THREAD_FETCH_EVENTS = threadBootstrap.MAX_THREAD_FETCH_EVENTS;
@@ -47,7 +43,13 @@ describe('fetchAllThreadRelations', () => {
     const mx = makeFetchMx();
     mx.fetchRelations.mockRejectedValue(new Error('network'));
 
-    const result = await fetchAllThreadRelations(mx as never, '!room:x', '$thread', 200, () => false);
+    const result = await fetchAllThreadRelations(
+      mx as never,
+      '!room:x',
+      '$thread',
+      200,
+      () => false
+    );
 
     expect(result).toBeNull();
     expect(mx.fetchRelations).toHaveBeenCalledTimes(1);
@@ -62,7 +64,13 @@ describe('fetchAllThreadRelations', () => {
       })
       .mockRejectedValueOnce(new Error('network'));
 
-    const result = await fetchAllThreadRelations(mx as never, '!room:x', '$thread', 200, () => false);
+    const result = await fetchAllThreadRelations(
+      mx as never,
+      '!room:x',
+      '$thread',
+      200,
+      () => false
+    );
 
     expect(result).not.toBeNull();
     expect(result!.events.map((e) => e.getId())).toEqual(['$e1', '$e2']);
@@ -88,9 +96,7 @@ describe('fetchAllThreadRelations', () => {
     expect(result!.events.map((e) => e.getId())).toEqual(['$e1', '$e2', '$e3']);
     expect(result!.nextBatchToken).toBeUndefined();
     expect(mx.fetchRelations).toHaveBeenCalledTimes(2);
-    expect(mx.fetchRelations.mock.calls[1][4]).toEqual(
-      expect.objectContaining({ from: 'tok1' })
-    );
+    expect(mx.fetchRelations.mock.calls[1][4]).toEqual(expect.objectContaining({ from: 'tok1' }));
   });
 
   it('returns events in chronological order across batches', async () => {
@@ -111,9 +117,7 @@ describe('fetchAllThreadRelations', () => {
 
     const result = await fetchAllThreadRelations(mx as never, '!room:x', '$thread', 2, () => false);
 
-    expect(result!.events.map((e) => e.getId())).toEqual([
-      '$e1', '$e2', '$e3', '$e4', '$e5',
-    ]);
+    expect(result!.events.map((e) => e.getId())).toEqual(['$e1', '$e2', '$e3', '$e4', '$e5']);
   });
 
   it('stops when there is no next_batch token', async () => {
@@ -123,7 +127,13 @@ describe('fetchAllThreadRelations', () => {
       next_batch: null,
     });
 
-    const result = await fetchAllThreadRelations(mx as never, '!room:x', '$thread', 200, () => false);
+    const result = await fetchAllThreadRelations(
+      mx as never,
+      '!room:x',
+      '$thread',
+      200,
+      () => false
+    );
 
     expect(result).not.toBeNull();
     expect(result!.events).toHaveLength(1);
@@ -138,7 +148,13 @@ describe('fetchAllThreadRelations', () => {
       next_batch: null,
     });
 
-    const result = await fetchAllThreadRelations(mx as never, '!room:x', '$thread', 200, () => false);
+    const result = await fetchAllThreadRelations(
+      mx as never,
+      '!room:x',
+      '$thread',
+      200,
+      () => false
+    );
 
     expect(result).not.toBeNull();
     expect(result!.events).toHaveLength(0);
@@ -153,7 +169,11 @@ describe('fetchAllThreadRelations', () => {
     });
 
     const result = await fetchAllThreadRelations(
-      mx as never, '!room:x', '$thread', 200, () => aborted
+      mx as never,
+      '!room:x',
+      '$thread',
+      200,
+      () => aborted
     );
 
     expect(result).toBeNull();
@@ -170,7 +190,13 @@ describe('fetchAllThreadRelations', () => {
       next_batch: 'should-be-preserved',
     });
 
-    const result = await fetchAllThreadRelations(mx as never, '!room:x', '$thread', MAX_THREAD_FETCH_EVENTS + 1, () => false);
+    const result = await fetchAllThreadRelations(
+      mx as never,
+      '!room:x',
+      '$thread',
+      MAX_THREAD_FETCH_EVENTS + 1,
+      () => false
+    );
 
     expect(result).not.toBeNull();
     expect(result!.nextBatchToken).toBe('should-be-preserved');
@@ -238,7 +264,7 @@ describe('fetchAllThreadRelations', () => {
   });
 
   it('recomputes overview read-up-to metadata on receipts', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
     const room = makeRoom({
@@ -269,5 +295,4 @@ describe('fetchAllThreadRelations', () => {
       await flushAsyncWork(1);
     });
   });
-
 });

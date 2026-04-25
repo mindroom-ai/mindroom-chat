@@ -4,7 +4,7 @@ import {
   collectRoomState,
   predictMergedStateAfterMigration,
 } from '../../../../scripts/migrate-thread-tags.mjs';
-import { MINDROOM_THREAD_TAGS_EVENT } from '../../mindroom/threads/threadTags';
+import { MINDROOM_THREAD_TAGS_EVENT } from './threadTags';
 
 describe('migrate-thread-tags script helpers', () => {
   it('tombstones malformed legacy state keys even when no valid tags survive parsing', () => {
