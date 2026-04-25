@@ -11,7 +11,7 @@ import {
   MessageEditedContent,
   MessageUnsupportedContent,
 } from './content';
-import { StreamingIndicator } from '../streaming-indicator/StreamingIndicator';
+import { StreamingIndicator } from '../../mindroom/messages/StreamingIndicator';
 import {
   IAudioContent,
   IAudioInfo,

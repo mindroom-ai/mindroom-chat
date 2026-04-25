@@ -718,6 +718,7 @@ Acceptance:
   namespace, with old `components/message/*` paths reduced to thin compatibility wrappers.
 - Long-text sidecar hydration, AI-run metadata/display helpers, tool-trace parsing, and
   MindRoom block parsing also live in the MindRoom namespace with compatibility wrappers only.
+- The AI streaming indicator component and styles live in `src/app/mindroom/messages`.
 - AI-run message controls, long-text original download controls, copy-text long-text state, and
   their styles live in `src/app/mindroom/messages`; generic room message rendering only wires the
   `messageExtensions.tsx` seam.
