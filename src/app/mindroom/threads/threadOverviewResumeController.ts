@@ -23,6 +23,7 @@ import { getKnownThreadReplyCount } from './threadRecord';
 import { resolveThreadOverviewRefreshTargets } from './threadOverviewRefreshTargets';
 import type { TimelineEventEntry } from './roomTimelineEvents';
 import type { Timeline } from './timelinePagination';
+import type { FetchedRelationOverviewUpdateOptions } from './threadOverviewCacheHydration';
 
 type PersistThreadEventCache = (
   expectedThreadId: string,
@@ -45,11 +46,11 @@ export const useThreadOverviewResumeController = ({
   limit,
   mx,
   onStoreThreadSummary,
+  onApplyThreadRelations,
   persistThreadEventCache,
   refreshCompactThreadList,
   room,
   setOverviewRefreshCounter,
-  setSupplementalThreadEvents,
   showCompactRoomView,
   threadFilteredEventEntries,
   threadId,
@@ -65,15 +66,12 @@ export const useThreadOverviewResumeController = ({
   filteredThreadRootIds: string[];
   limit: number;
   mx: MatrixClient;
-  onStoreThreadSummary: (
-    threadRootId: string,
-    info: MindroomThreadSummaryInfo | undefined
-  ) => void;
+  onStoreThreadSummary: (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => void;
+  onApplyThreadRelations: (options: FetchedRelationOverviewUpdateOptions) => void;
   persistThreadEventCache: PersistThreadEventCache;
   refreshCompactThreadList: () => Promise<void>;
   room: Room;
   setOverviewRefreshCounter: Dispatch<SetStateAction<number>>;
-  setSupplementalThreadEvents: (threadId: string, events: MatrixEvent[]) => void;
   showCompactRoomView: boolean;
   threadFilteredEventEntries: TimelineEventEntry[];
   threadId: string | undefined;
@@ -156,9 +154,20 @@ export const useThreadOverviewResumeController = ({
       });
 
       if (relationEvents.length > 0) {
-        setSupplementalThreadEvents(expectedThreadId, relationEvents);
         saveThreadOpenSeedSnapshot(room, expectedThreadId, relationEvents);
       }
+
+      onApplyThreadRelations({
+        rootId: expectedThreadId,
+        room,
+        events: relationEvents,
+        rootEvent,
+        beforeToken: relationPageResult.nextBatchToken ?? null,
+        tailLoaded: true,
+        snapshotComplete,
+        expectedReplyCount,
+        relationSnapshotComplete,
+      });
 
       persistThreadEventCache(
         expectedThreadId,
@@ -176,7 +185,15 @@ export const useThreadOverviewResumeController = ({
         onStoreThreadSummary(expectedThreadId, summaryInfo);
       }
     },
-    [alive, mx, onStoreThreadSummary, persistThreadEventCache, room, setSupplementalThreadEvents, threadIdRef]
+    [
+      alive,
+      mx,
+      onApplyThreadRelations,
+      onStoreThreadSummary,
+      persistThreadEventCache,
+      room,
+      threadIdRef,
+    ]
   );
 
   const refreshOverviewThreadsOnResume = useCallback(
