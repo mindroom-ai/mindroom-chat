@@ -90,6 +90,15 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('normalizeCachedThreadEvents');
   });
 
+  it('delegates thread prepend scroll primitives to scroll utilities', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain("from './timelineScrollUtils'");
+    expect(source).not.toContain('export const captureThreadPrependScrollAnchor');
+    expect(source).not.toContain('export const restoreThreadPrependScrollAnchor');
+    expect(source).not.toContain('const resolveThreadScrollContainer');
+  });
+
   it('delegates latest room cache hydration decisions to the event repository', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 

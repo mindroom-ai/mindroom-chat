@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  captureThreadPrependScrollAnchor,
+  getEventElementById,
   isScrollNearBottom,
   isTimelineAtLiveEnd,
+  restoreThreadPrependScrollAnchor,
   shouldAutoScrollRoomOnLiveEvent,
   shouldAutoScrollThreadOnLiveEvent,
 } from './timelineScrollUtils';
@@ -164,5 +167,82 @@ describe('shouldAutoScrollRoomOnLiveEvent', () => {
         thresholdPx: 60,
       })
     ).toBe(true);
+  });
+});
+
+describe('thread prepend scroll anchors', () => {
+  it('finds message elements by Matrix event id', () => {
+    const target = {
+      getAttribute: (name: string) => (name === 'data-message-id' ? '$target' : null),
+    };
+    const other = {
+      getAttribute: (name: string) => (name === 'data-message-id' ? '$other' : null),
+    };
+    const container = {
+      querySelectorAll: () => [other, target],
+    } as unknown as ParentNode;
+
+    expect(getEventElementById(container, '$target')).toBe(target);
+    expect(getEventElementById(container, '$missing')).toBeNull();
+  });
+
+  it('captures the first visible thread message as the prepend scroll anchor', () => {
+    const aboveViewport = {
+      getAttribute: () => '$above',
+      getBoundingClientRect: () => ({
+        top: 40,
+        bottom: 90,
+      }),
+    };
+    const anchor = {
+      getAttribute: () => '$anchor',
+      getBoundingClientRect: () => ({
+        top: 140,
+        bottom: 180,
+      }),
+    };
+    const scroll = {
+      getBoundingClientRect: () => ({
+        top: 100,
+        bottom: 500,
+      }),
+      querySelector: () => aboveViewport,
+      querySelectorAll: () => [aboveViewport, anchor],
+    } as unknown as HTMLElement;
+
+    expect(captureThreadPrependScrollAnchor(scroll)).toEqual({
+      eventId: '$anchor',
+      top: 140,
+    });
+  });
+
+  it('restores the captured thread prepend anchor position after older messages are prepended', () => {
+    const anchor = {
+      getAttribute: () => '$anchor',
+      getBoundingClientRect: () => ({
+        top: 420,
+        bottom: 460,
+      }),
+      parentElement: null,
+    };
+    const scroll = {
+      getBoundingClientRect: () => ({
+        top: 100,
+        bottom: 500,
+      }),
+      querySelector: () => anchor,
+      querySelectorAll: () => [anchor],
+      scrollHeight: 1000,
+      clientHeight: 400,
+      scrollTop: 40,
+    } as unknown as HTMLElement;
+
+    expect(
+      restoreThreadPrependScrollAnchor(scroll, {
+        eventId: '$anchor',
+        top: 140,
+      })
+    ).toBe(true);
+    expect(scroll.scrollTop).toBe(320);
   });
 });
