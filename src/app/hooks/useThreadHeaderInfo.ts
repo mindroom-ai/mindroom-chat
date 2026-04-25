@@ -5,7 +5,7 @@ import { StateEvent } from '../../types/matrix/room';
 import {
   formatScheduledTime,
   getScheduledTimeUpdateInterval,
-} from '../features/room/compactThreadCardUtils';
+} from '../mindroom/threads/compactThreadCardUtils';
 import { useThreadRootEvent } from '../mindroom/threads/useThreadRootEvent';
 import { parseScheduledTaskStateEvent } from '../utils/scheduledTaskContract';
 import { useInterval } from './useInterval';

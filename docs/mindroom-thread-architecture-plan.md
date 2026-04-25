@@ -353,6 +353,9 @@ compatibility re-exports.
 Thread banner/tag UI now lives in `src/app/mindroom/threads/ThreadContextBanner.tsx`,
 `ThreadTagPicker.tsx`, `ThreadTagPill.tsx`, `ThreadContextBanner.css.ts`, and
 `threadTagColor.ts`; the old `features/room` paths are only compatibility re-exports.
+Thread scheduled-time display formatting now lives in
+`src/app/mindroom/threads/compactThreadCardUtils.ts`; the old `features/room` path is only a
+compatibility re-export.
 Thread summary cache/state/selection now lives in `src/app/mindroom/threads/threadSummaryCache.ts`,
 `threadSummaryState.ts`, `threadSummarySelection.ts`, and `useRoomThreadSummaryState.ts`; the old
 `features/room` paths are only compatibility re-exports.
