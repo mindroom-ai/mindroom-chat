@@ -715,6 +715,9 @@ Acceptance:
   `io.mindroom.*` / `com.mindroom.*` prefix checks.
 - MindRoom edit-debug flag ownership lives in `src/app/mindroom/messages/editDebug.ts`;
   upstream-owned utilities should not own raw `mindroom.debug.edits` checks.
+- MindRoom session cleanup ownership lives in `src/app/mindroom/cache/sessionCleanup.ts`;
+  client startup/logout code should call that boundary instead of importing individual fork caches,
+  recent-thread stores, iOS push state, or raw `mindroom-*-event-cache` names.
 - Scheduled-thread state parsing, counts, header labels, and hooks live in `src/app/mindroom/threads`;
   legacy hook/util paths are compatibility exports only.
 - Thread activity timestamp derivation lives in `src/app/mindroom/threads/useThreadLastActivityTs.ts`;

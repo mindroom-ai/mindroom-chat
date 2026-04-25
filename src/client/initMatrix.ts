@@ -8,22 +8,18 @@ import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import { clearSecretStorageKeys, cryptoCallbacks } from './secretStorageKeys';
 import { clearLastOpenThreadStore } from '../app/state/lastOpenThread';
 import { clearNavToActivePathStore } from '../app/state/navToActivePath';
-import { clearRecentThreadsStore } from '../app/state/recentThreads';
-import { clearRecentThreadsPanelHeightStore } from '../app/state/recentThreadsPanelHeight';
-import { clearRecentThreadsPanelMobileExpandedStore } from '../app/state/recentThreadsPanelMobileExpanded';
-import { clearRoomThreadFiltersStore } from '../app/mindroom/threads/roomThreadFilterState';
 import { createMatrixClient } from './matrixClientFactory';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
-import { clearMindroomLongTextHydrationCache } from '../app/components/message/mindroomLongText';
-import { MINDROOM_EDIT_DEBUG_STORAGE_KEY } from '../app/mindroom/messages/editDebug';
-import { clearRecentThreadViewModelSharedState } from '../app/mindroom/threads/recentThreadViewModel';
 import {
-  deleteThreadEventCache,
-  getThreadEventCacheDbName,
-} from '../app/mindroom/threads/threadEventCache';
-import { deleteRoomEventCache, getRoomEventCacheDbName } from '../app/mindroom/threads/roomEventCache';
-import { deleteThreadSummaryCache } from '../app/mindroom/threads/threadSummaryCache';
-import { clearIOSPushState } from '../app/utils/iosPush';
+  MINDROOM_OWNED_LOCAL_STORAGE_KEYS,
+  MINDROOM_OWNED_LOCAL_STORAGE_PREFIXES,
+  MINDROOM_SINGLETON_INDEXED_DB_NAMES,
+  clearMindroomInMemoryCaches,
+  clearMindroomSessionNativeState,
+  clearMindroomSessionUiState,
+  deleteMindroomSessionCaches,
+  getMindroomSessionIndexedDbNames,
+} from '../app/mindroom/cache/sessionCleanup';
 import {
   LEGACY_SESSION_STORAGE_KEYS,
   SESSION_STORE_KEY,
@@ -167,18 +163,18 @@ const LEGACY_APP_SINGLETON_INDEXED_DB_NAMES = [
   'matrix-js-sdk::matrix-sdk-crypto',
   'matrix-js-sdk::matrix-sdk-crypto-meta',
 ];
-const APP_SINGLETON_INDEXED_DB_NAMES = ['mindroom-room-event-cache', 'mindroom-thread-event-cache'];
+const APP_SINGLETON_INDEXED_DB_NAMES: readonly string[] = [...MINDROOM_SINGLETON_INDEXED_DB_NAMES];
 const APP_OWNED_LOCAL_STORAGE_KEYS = [
   'settings',
   'after_login_redirect_url',
-  MINDROOM_EDIT_DEBUG_STORAGE_KEY,
+  ...MINDROOM_OWNED_LOCAL_STORAGE_KEYS,
   'i18nextLng',
   'kb-color-mode',
 ] as const;
 const APP_OWNED_LOCAL_STORAGE_PREFIXES = [
   'cinny_',
   'navToActivePath',
-  'mindroom_ios_push_',
+  ...MINDROOM_OWNED_LOCAL_STORAGE_PREFIXES,
   'mx_pending_events_',
   'mxjssdk_memory_filter_',
   'crypto.',
@@ -213,8 +209,7 @@ const getSessionOwnedIndexedDbNames = (session: SessionCleanupContext): string[]
     indexedDbStoreNames.crypto,
     ...getSessionRustCryptoStoreNames(session),
     ...getLegacySessionRustCryptoStoreNames(session),
-    getThreadEventCacheDbName(session.sessionId),
-    getRoomEventCacheDbName(session.sessionId),
+    ...getMindroomSessionIndexedDbNames(session.sessionId),
   ];
 };
 
@@ -415,11 +410,7 @@ const getMatrixClientSessionCleanupContext = (
 const clearSessionScopedUiState = (userId: string): void => {
   clearLastOpenThreadStore(userId);
   clearNavToActivePathStore(userId);
-  clearRoomThreadFiltersStore(userId);
-  clearRecentThreadsStore(userId);
-  clearRecentThreadsPanelHeightStore(userId);
-  clearRecentThreadsPanelMobileExpandedStore(userId);
-  clearRecentThreadViewModelSharedState();
+  clearMindroomSessionUiState(userId);
 };
 
 const clearMatrixClientStores = async (
@@ -458,11 +449,9 @@ export const deleteSessionLocalData = async (
     mx ? clearMatrixClientStores(mx, session) : deleteNamedDatabase(indexedDbStoreNames.sync),
     mx ? Promise.resolve() : deleteNamedDatabase(indexedDbStoreNames.crypto),
     mx ? Promise.resolve() : deleteNamedDatabases(rustCryptoStoreNames),
-    deleteThreadEventCache(session.sessionId),
-    deleteRoomEventCache(session.sessionId),
-    deleteThreadSummaryCache(session.sessionId),
+    deleteMindroomSessionCaches(session.sessionId),
   ]);
-  clearIOSPushState(session.sessionId);
+  clearMindroomSessionNativeState(session.sessionId);
 };
 
 export const removeSessionAndReload = async (
@@ -513,9 +502,7 @@ export const clearCacheAndReload = async (mx: MatrixClient) => {
   const activeSession = getActiveSession() ?? getMatrixClientSessionCleanupContext(mx);
   await Promise.all([
     clearMatrixClientStores(mx, activeSession),
-    activeSession ? deleteThreadEventCache(activeSession.sessionId) : Promise.resolve(),
-    activeSession ? deleteRoomEventCache(activeSession.sessionId) : Promise.resolve(),
-    activeSession ? deleteThreadSummaryCache(activeSession.sessionId) : Promise.resolve(),
+    activeSession ? deleteMindroomSessionCaches(activeSession.sessionId) : Promise.resolve(),
   ]);
   window.location.reload();
 };
@@ -555,9 +542,9 @@ export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> =
   }
 
   try {
-    clearMindroomLongTextHydrationCache();
+    clearMindroomInMemoryCaches();
   } catch {
-    // ignore long-text hydration cache cleanup errors
+    // ignore MindRoom in-memory cleanup errors
   }
 
   try {
@@ -623,17 +610,11 @@ export const clearLoginData = async () => {
   await deleteNamedDatabases(appOwnedDbNames);
 
   await Promise.all(
-    sessions.map((session) =>
-      Promise.all([
-        deleteThreadEventCache(session.sessionId),
-        deleteRoomEventCache(session.sessionId),
-        deleteThreadSummaryCache(session.sessionId),
-      ]).catch(() => undefined)
-    )
+    sessions.map((session) => deleteMindroomSessionCaches(session.sessionId).catch(() => undefined))
   );
   sessions.forEach((session) => {
     clearSessionScopedUiState(session.userId);
-    clearIOSPushState(session.sessionId);
+    clearMindroomSessionNativeState(session.sessionId);
   });
 
   clearLegacySessionStorage();

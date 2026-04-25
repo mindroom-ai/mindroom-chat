@@ -11,7 +11,8 @@ import {
   openExistingDatabase,
 } from './cacheDbMigrationUtils';
 
-const DB_NAME = 'mindroom-room-event-cache';
+export const MINDROOM_ROOM_EVENT_CACHE_DB_NAME = 'mindroom-room-event-cache';
+const DB_NAME = MINDROOM_ROOM_EVENT_CACHE_DB_NAME;
 const DB_VERSION = 2;
 const EVENT_STORE = 'room_events';
 const META_STORE = 'room_meta';

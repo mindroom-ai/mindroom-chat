@@ -2106,3 +2106,9 @@
 
 - Added `MINDROOM_FAVICON_SRC` to `src/app/mindroom/branding/branding.ts`.
 - Updated `ClientNonUIFeatures` to consume the fork-owned favicon constant instead of importing the MindRoom asset from a generic client page.
+
+## CINNY-105 — Extract MindRoom session cleanup boundary (2026-04-25)
+
+- Added `src/app/mindroom/cache/sessionCleanup.ts` as the owner for MindRoom cache store names, localStorage keys/prefixes, session cache deletion, UI-state cleanup, native-state cleanup, and in-memory cache cleanup.
+- Updated `src/client/initMatrix.ts` to call that boundary instead of importing individual MindRoom cache, recent-thread, iOS push, and edit-debug owners directly.
+- Exported fork-owned cache DB name constants from the room/thread event cache stores so generic client cleanup no longer owns raw `mindroom-*-event-cache` names.
