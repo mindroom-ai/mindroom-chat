@@ -186,6 +186,9 @@
 - `CINNY-164`
   - Moved the MindRoom thread-bootstrap relation-fetch test and thread-tag migration-script test out of `src/app/features/room`.
   - Those tests now live beside their MindRoom owners in `src/app/mindroom/threads`, leaving `features/room` focused on generic room component tests.
+- `CINNY-165`
+  - Generic message text renderers now expose a neutral state-suffix seam instead of importing the MindRoom AI streaming indicator directly.
+  - MindRoom message rendering owns `renderMindroomStreamingIndicator`, keeping streaming UI and protocol policy under `src/app/mindroom/messages`.
 
 ### Current Feature Set On `dev`
 

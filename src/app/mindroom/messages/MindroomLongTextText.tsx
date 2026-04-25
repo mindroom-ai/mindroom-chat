@@ -33,7 +33,7 @@ type MindroomLongTextTextProps = {
   kind: MindroomLongTextKind;
   displayName?: string;
   edited?: boolean;
-  isStreaming?: boolean;
+  renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   longTextSource: MindroomLongTextSource;
   renderBody: (content: Record<string, unknown>, props: RenderBodyProps) => ReactNode;
@@ -193,7 +193,7 @@ export function MindroomLongTextText({
   kind,
   displayName,
   edited,
-  isStreaming,
+  renderStateSuffix,
   content,
   longTextSource,
   renderBody,
@@ -261,7 +261,7 @@ export function MindroomLongTextText({
       <MEmote
         displayName={displayName ?? ''}
         edited={edited}
-        isStreaming={isStreaming}
+        renderStateSuffix={renderStateSuffix}
         content={resolvedContent}
         renderBody={(props) => renderBody(resolvedContent, props)}
         renderUrlsPreview={renderUrlsPreview}
@@ -271,7 +271,7 @@ export function MindroomLongTextText({
     textContent = (
       <MNotice
         edited={edited}
-        isStreaming={isStreaming}
+        renderStateSuffix={renderStateSuffix}
         content={resolvedContent}
         renderBody={(props) => renderBody(resolvedContent, props)}
         renderUrlsPreview={renderUrlsPreview}
@@ -281,7 +281,7 @@ export function MindroomLongTextText({
     textContent = (
       <MText
         edited={edited}
-        isStreaming={isStreaming}
+        renderStateSuffix={renderStateSuffix}
         content={resolvedContent}
         renderBody={(props) => renderBody(resolvedContent, props)}
         renderUrlsPreview={renderUrlsPreview}
