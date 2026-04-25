@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   collectStateTargetEvents,
   loadCachedThreadSnapshot,
+  persistRoomEventCacheSnapshot,
+  persistThreadEventCacheSnapshot,
   serializeRoomCacheEvents,
   serializeThreadCacheEvents,
 } from './eventRepository';
@@ -61,6 +63,89 @@ describe('eventRepository cache serialization helpers', () => {
         (event) => event.event_id
       )
     ).toEqual(['$root', '$reply']);
+  });
+});
+
+describe('eventRepository cache persistence snapshots', () => {
+  it('persists thread cache snapshots with a derived complete reply count', () => {
+    const rootEvent = makeEvent('$root', {
+      ts: 100,
+      isThreadRoot: true,
+      content: { body: 'root' },
+    });
+    const replyEvent = makeEvent('$reply', {
+      threadRootId: '$root',
+      ts: 200,
+      content: { body: 'reply' },
+    });
+    const room = makeRoom({ liveEvents: [rootEvent, replyEvent] });
+    const writes: unknown[][] = [];
+
+    const snapshot = persistThreadEventCacheSnapshot({
+      sessionId: 'session',
+      room: room as never,
+      threadId: '$root',
+      events: [replyEvent] as never,
+      rootEvent: rootEvent as never,
+      beforeTokenForEarliest: null,
+      tailLoaded: true,
+      snapshotComplete: true,
+      save: (...args) => {
+        writes.push(args);
+        return Promise.resolve();
+      },
+    });
+
+    expect(snapshot.loadedReplyCount).toBe(1);
+    expect(snapshot.expectedReplyCount).toBe(1);
+    expect(snapshot.rawEvents.map((event) => event.event_id)).toEqual(['$root', '$reply']);
+    expect(snapshot.rawRootEvent?.event_id).toBe('$root');
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject([
+      'session',
+      room.roomId,
+      '$root',
+      [{ event_id: '$root' }, { event_id: '$reply' }],
+      { event_id: '$root' },
+      null,
+      true,
+      true,
+      1,
+      undefined,
+    ]);
+  });
+
+  it('persists room cache snapshots without thread-only replies', () => {
+    const rootEvent = makeEvent('$root', { ts: 100, content: { body: 'root' } });
+    const replyEvent = makeEvent('$reply', {
+      threadRootId: '$root',
+      ts: 200,
+      content: { body: 'reply' },
+    });
+    const roomEvent = makeEvent('$room', { ts: 300, content: { body: 'room' } });
+    const room = makeRoom({ liveEvents: [rootEvent, replyEvent, roomEvent] });
+    const writes: unknown[][] = [];
+
+    const snapshot = persistRoomEventCacheSnapshot({
+      sessionId: 'session',
+      room: room as never,
+      events: [rootEvent, replyEvent, roomEvent] as never,
+      beforeTokenForEarliest: 'before-root',
+      save: (...args) => {
+        writes.push(args);
+        return Promise.resolve();
+      },
+    });
+
+    expect(snapshot.rawEvents.map((event) => event.event_id)).toEqual(['$root', '$room']);
+    expect(snapshot.sourceEventCount).toBe(3);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject([
+      'session',
+      room.roomId,
+      [{ event_id: '$root' }, { event_id: '$room' }],
+      'before-root',
+    ]);
   });
 });
 
