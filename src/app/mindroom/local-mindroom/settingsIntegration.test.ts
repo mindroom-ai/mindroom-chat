@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ScreenSize } from '../../hooks/useScreenSize';
-import { SettingsPages } from './settingsPages';
-import { getSettingsMenuItems, resolveSettingsInitialPage } from './settingsMenu';
-import { LOCAL_MINDROOM_SETTINGS_PAGE } from '../../mindroom/local-mindroom/settingsPage';
+import { SettingsPages } from '../../features/settings/settingsPages';
+import { getSettingsMenuItems, resolveSettingsInitialPage } from '../../features/settings/settingsMenu';
+import { LOCAL_MINDROOM_SETTINGS_PAGE } from './settingsPage';
 
 describe('getSettingsMenuItems', () => {
   it('omits the Local MindRoom entry when disabled', () => {

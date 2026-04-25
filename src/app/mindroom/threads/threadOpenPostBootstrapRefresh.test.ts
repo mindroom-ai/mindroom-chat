@@ -3,7 +3,7 @@ import {
   makeEvent,
   makeRoom,
   makeTimeline,
-} from '../../features/room/RoomTimeline.test.shared';
+} from './test-utils/RoomTimeline.test.shared';
 import { runThreadOpenPostBootstrapRefresh } from './threadOpenPostBootstrapRefresh';
 
 describe('runThreadOpenPostBootstrapRefresh', () => {

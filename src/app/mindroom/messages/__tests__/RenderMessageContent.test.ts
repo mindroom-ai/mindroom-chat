@@ -13,7 +13,7 @@ vi.mock('folds', () => ({
   },
 }));
 
-vi.mock('./message', () => ({
+vi.mock('../../../components/message', () => ({
   AudioContent: () => null,
   DownloadFile: () => null,
   FileContent: () => null,
@@ -37,43 +37,43 @@ vi.mock('./message', () => ({
   VideoContent: () => null,
 }));
 
-vi.mock('./url-preview', () => ({
+vi.mock('../../../components/url-preview', () => ({
   UrlPreviewCard: () => null,
   UrlPreviewHolder: ({ children }: { children?: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('./media', () => ({
+vi.mock('../../../components/media', () => ({
   Image: () => null,
   MediaControl: () => null,
   Video: () => null,
 }));
 
-vi.mock('./image-viewer', () => ({
+vi.mock('../../../components/image-viewer', () => ({
   ImageViewer: () => null,
 }));
 
-vi.mock('./Pdf-viewer', () => ({
+vi.mock('../../../components/Pdf-viewer', () => ({
   PdfViewer: () => null,
 }));
 
-vi.mock('./text-viewer', () => ({
+vi.mock('../../../components/text-viewer', () => ({
   TextViewer: () => null,
 }));
 
-vi.mock('../plugins/matrix-to', () => ({
+vi.mock('../../../plugins/matrix-to', () => ({
   testMatrixTo: () => false,
 }));
 
-vi.mock('../mindroom/messages/renderMindroomMessageContent', () => ({
+vi.mock('../renderMindroomMessageContent', () => ({
   renderMindroomMessageContent: renderMindroomMessageContentMock,
 }));
 
-vi.mock('../mindroom/messages/longText', () => ({
+vi.mock('../longText', () => ({
   getMindroomLongTextSource: () => undefined,
 }));
 
-vi.mock('../mindroom/messages/MindroomLongTextText', () => ({
+vi.mock('../MindroomLongTextText', () => ({
   MindroomLongTextKind: {
     Text: 'text',
     Emote: 'emote',
@@ -82,7 +82,7 @@ vi.mock('../mindroom/messages/MindroomLongTextText', () => ({
   MindroomLongTextText: () => null,
 }));
 
-vi.mock('../mindroom/messages/MindroomToolApprovalCard', () => ({
+vi.mock('../MindroomToolApprovalCard', () => ({
   MindroomToolApprovalCard: ({
     approval,
     eventId,
@@ -99,13 +99,13 @@ vi.mock('../mindroom/messages/MindroomToolApprovalCard', () => ({
   },
 }));
 
-vi.mock('../plugins/react-custom-html-parser', () => ({
+vi.mock('../../../plugins/react-custom-html-parser', () => ({
   withMindroomToolTraceMarkerParserOptions: (options: unknown) => options,
 }));
 
 describe('RenderMessageContent', () => {
   it('delegates MindRoom-specific message content to the MindRoom renderer seam', async () => {
-    const { RenderMessageContent } = await import('./RenderMessageContent');
+    const { RenderMessageContent } = await import('../../../components/RenderMessageContent');
     renderMindroomMessageContentMock.mockReset();
     renderMindroomMessageContentMock.mockReturnValue(
       React.createElement('div', { 'data-renderer': 'mindroom-message' }, 'delegated')
@@ -151,7 +151,7 @@ describe('RenderMessageContent', () => {
   });
 
   it('renders the summary card when thread summary metadata is present on a legacy msgtype', async () => {
-    const { RenderMessageContent } = await import('./RenderMessageContent');
+    const { RenderMessageContent } = await import('../../../components/RenderMessageContent');
     renderMindroomMessageContentMock.mockReset();
     renderMindroomMessageContentMock.mockReturnValue(
       React.createElement('div', { 'data-renderer': 'summary-card' }, 'Rendered summary text')
@@ -185,7 +185,7 @@ describe('RenderMessageContent', () => {
   });
 
   it('keeps rendering edited summaries as summary cards when m.new_content omits metadata', async () => {
-    const { RenderMessageContent } = await import('./RenderMessageContent');
+    const { RenderMessageContent } = await import('../../../components/RenderMessageContent');
     renderMindroomMessageContentMock.mockReset();
     renderMindroomMessageContentMock.mockReturnValue(
       React.createElement('div', { 'data-renderer': 'summary-card' }, 'Edited summary body')
@@ -224,7 +224,7 @@ describe('RenderMessageContent', () => {
   });
 
   it('renders the tool approval card for io.mindroom.tool_approval events', async () => {
-    const { RenderMessageContent } = await import('./RenderMessageContent');
+    const { RenderMessageContent } = await import('../../../components/RenderMessageContent');
     renderMindroomMessageContentMock.mockReset();
     renderMindroomMessageContentMock.mockReturnValue(
       React.createElement('div', { 'data-renderer': 'tool-approval' }, 'web_search')

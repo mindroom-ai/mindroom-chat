@@ -9,18 +9,18 @@ import {
   cycleSortMode,
   resetThreadFilterState,
   updateThreadFilterKey,
-} from '../../mindroom/threads/roomThreadOverviewModel';
+} from '../roomThreadOverviewModel';
 import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,
   serializeThreadFilterQuery,
-} from '../../mindroom/threads/threadFilterDsl';
+} from '../threadFilterDsl';
 import {
   clearThreadOpenSeedSnapshotsForTests,
   getThreadOpenSeedSnapshot,
   saveThreadOpenSeedSnapshot,
-} from '../../mindroom/threads/threadOpenSeedCache';
-import type { useThreadAwareTimelineRefresh } from '../../mindroom/threads/useThreadAwareTimelineRefresh';
+} from '../threadOpenSeedCache';
+import type { useThreadAwareTimelineRefresh } from '../useThreadAwareTimelineRefresh';
 
 const {
   passthrough,
@@ -182,19 +182,19 @@ vi.mock('folds', async (importOriginal) => {
   };
 });
 
-vi.mock('../../hooks/useMatrixClient', () => ({
+vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => matrixClientMock,
 }));
 
-vi.mock('../../hooks/useAlive', () => ({
+vi.mock('../../../hooks/useAlive', () => ({
   useAlive: () => aliveFn,
 }));
 
-vi.mock('../../hooks/useMediaAuthentication', () => ({
+vi.mock('../../../hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
 
-vi.mock('../../state/hooks/settings', () => ({
+vi.mock('../../../state/hooks/settings', () => ({
   useSetting: (_atom: unknown, key: string) => {
     switch (key) {
       case 'messageLayout':
@@ -211,7 +211,7 @@ vi.mock('../../state/hooks/settings', () => ({
   },
 }));
 
-vi.mock('../../state/settings', () => ({
+vi.mock('../../../state/settings', () => ({
   MessageLayout: {
     Compact: 'Compact',
     Bubble: 'Bubble',
@@ -223,11 +223,11 @@ vi.mock('../../state/settings', () => ({
   THREAD_BATCH_SIZE: 200,
 }));
 
-vi.mock('../../hooks/useRoom', () => ({
+vi.mock('../../../hooks/useRoom', () => ({
   useIsDirectRoom: () => directRoomState.value,
 }));
 
-vi.mock('../../hooks/useIgnoredUsers', () => ({
+vi.mock('../../../hooks/useIgnoredUsers', () => ({
   useIgnoredUsers: () => ignoredUsersMock,
 }));
 
@@ -241,32 +241,32 @@ vi.mock('jotai', async (importOriginal) => {
   };
 });
 
-vi.mock('../../hooks/usePowerLevels', () => ({
+vi.mock('../../../hooks/usePowerLevels', () => ({
   usePowerLevelsContext: () => ({}),
 }));
 
-vi.mock('../../hooks/useRoomCreators', () => ({
+vi.mock('../../../hooks/useRoomCreators', () => ({
   useRoomCreators: () => [],
 }));
 
-vi.mock('../../hooks/useRoomCreatorsTag', () => ({
+vi.mock('../../../hooks/useRoomCreatorsTag', () => ({
   useRoomCreatorsTag: () => [],
 }));
 
-vi.mock('../../hooks/usePowerLevelTags', () => ({
+vi.mock('../../../hooks/usePowerLevelTags', () => ({
   usePowerLevelTags: () => [],
 }));
 
-vi.mock('../../hooks/useMemberPowerTag', () => ({
+vi.mock('../../../hooks/useMemberPowerTag', () => ({
   useAccessiblePowerTagColors: () => ({}),
   useGetMemberPowerTag: () => () => undefined,
 }));
 
-vi.mock('../../hooks/useTheme', () => ({
+vi.mock('../../../hooks/useTheme', () => ({
   useTheme: () => ({ kind: 'light' }),
 }));
 
-vi.mock('../../hooks/useRoomPermissions', () => ({
+vi.mock('../../../hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({
     action: () => true,
     event: () => true,
@@ -274,42 +274,42 @@ vi.mock('../../hooks/useRoomPermissions', () => ({
   }),
 }));
 
-vi.mock('../../state/hooks/unread', () => ({
+vi.mock('../../../state/hooks/unread', () => ({
   useRoomUnread: () => roomUnreadState.value,
 }));
 
-vi.mock('../../hooks/useRoomNavigate', () => ({
+vi.mock('../../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
     navigateRoom: navigateRoomMock,
     navigateRoomThread: navigateRoomThreadMock,
   }),
 }));
 
-vi.mock('../../hooks/useMentionClickHandler', () => ({
+vi.mock('../../../hooks/useMentionClickHandler', () => ({
   useMentionClickHandler: () => vi.fn(),
 }));
 
-vi.mock('../../hooks/useSpoilerClickHandler', () => ({
+vi.mock('../../../hooks/useSpoilerClickHandler', () => ({
   useSpoilerClickHandler: () => vi.fn(),
 }));
 
-vi.mock('../../state/hooks/userRoomProfile', () => ({
+vi.mock('../../../state/hooks/userRoomProfile', () => ({
   useOpenUserRoomProfile: () => vi.fn(),
 }));
 
-vi.mock('../../hooks/useSpace', () => ({
+vi.mock('../../../hooks/useSpace', () => ({
   useSpaceOptionally: () => undefined,
 }));
 
-vi.mock('../../hooks/useImagePackRooms', () => ({
+vi.mock('../../../hooks/useImagePackRooms', () => ({
   useImagePackRooms: () => [],
 }));
 
-vi.mock('../../hooks/useMemberEventParser', () => ({
+vi.mock('../../../hooks/useMemberEventParser', () => ({
   useMemberEventParser: () => () => undefined,
 }));
 
-vi.mock('../../hooks/useVirtualPaginator', () => ({
+vi.mock('../../../hooks/useVirtualPaginator', () => ({
   useVirtualPaginator: (options: {
     count: number;
     range: { start: number; end: number };
@@ -334,7 +334,7 @@ vi.mock('../../hooks/useVirtualPaginator', () => ({
   },
 }));
 
-vi.mock('../../hooks/useMatrixEventRenderer', () => ({
+vi.mock('../../../hooks/useMatrixEventRenderer', () => ({
   useMatrixEventRenderer:
     (
       typeToRenderer: Record<string, (...args: unknown[]) => React.ReactNode>,
@@ -353,29 +353,29 @@ vi.mock('../../hooks/useMatrixEventRenderer', () => ({
     },
 }));
 
-vi.mock('../../hooks/useIntersectionObserver', () => ({
+vi.mock('../../../hooks/useIntersectionObserver', () => ({
   getIntersectionObserverEntry: () => undefined,
   useIntersectionObserver: vi.fn(),
 }));
 
-vi.mock('../../hooks/useDebounce', () => ({
+vi.mock('../../../hooks/useDebounce', () => ({
   useDebounce: (fn: (...args: unknown[]) => unknown) => fn,
 }));
 
-vi.mock('../../hooks/useResizeObserver', () => ({
+vi.mock('../../../hooks/useResizeObserver', () => ({
   getResizeObserverEntry: () => undefined,
   useResizeObserver: vi.fn(),
 }));
 
-vi.mock('../../hooks/useDocumentFocusChange', () => ({
+vi.mock('../../../hooks/useDocumentFocusChange', () => ({
   useDocumentFocusChange: vi.fn(),
 }));
 
-vi.mock('../../mindroom/threads/useStateEvents', () => ({
+vi.mock('../useStateEvents', () => ({
   useStateEvents: (_room: unknown, eventType: string) => stateEventsByTypeMock.get(eventType) ?? [],
 }));
 
-vi.mock('../../hooks/useKeyDown', () => ({
+vi.mock('../../../hooks/useKeyDown', () => ({
   useKeyDown: vi.fn(),
 }));
 
@@ -385,7 +385,7 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('../../plugins/react-custom-html-parser', () => ({
+vi.mock('../../../plugins/react-custom-html-parser', () => ({
   LINKIFY_OPTS: {},
   factoryRenderLinkifyWithMention: () => vi.fn(),
   getReactCustomHtmlParser: () => ({}),
@@ -393,21 +393,21 @@ vi.mock('../../plugins/react-custom-html-parser', () => ({
   renderMatrixMention: () => null,
 }));
 
-vi.mock('../../styles/CustomHtml.css', () => ({
+vi.mock('../../../styles/CustomHtml.css', () => ({
   Code: 'Code',
 }));
 
-vi.mock('./RoomTimeline.css', () => ({
+vi.mock('../../../features/room/RoomTimeline.css', () => ({
   TimelineFloat: () => 'TimelineFloat',
 }));
 
-vi.mock('../../utils/matrix', () => ({
+vi.mock('../../../utils/matrix', () => ({
   eventWithShortcode: (_packs: unknown, body: string) => body,
   factoryEventSentBy: () => false,
   getMxIdLocalPart: (userId: string) => userId,
 }));
 
-vi.mock('../../utils/room', () => ({
+vi.mock('../../../utils/room', () => ({
   canEditEvent: () => false,
   decryptAllTimelineEvent: vi.fn(),
   getEditedEvent: () => undefined,
@@ -427,7 +427,7 @@ vi.mock('../../utils/room', () => ({
   trimReplyFromBody: (body: string) => body,
 }));
 
-vi.mock('../../components/message', () => ({
+vi.mock('../../../components/message', () => ({
   DefaultPlaceholder: defaultPlaceholderType,
   CompactPlaceholder: compactPlaceholderType,
   Reply: passthrough,
@@ -443,15 +443,15 @@ vi.mock('../../components/message', () => ({
   EventContent: passthrough,
 }));
 
-vi.mock('../../mindroom/threads/ThreadIndicator', () => ({
+vi.mock('../ThreadIndicator', () => ({
   ThreadIndicator: passthrough,
 }));
 
-vi.mock('../../mindroom/messages/MindroomThreadSummaryCard', () => ({
+vi.mock('../../messages/MindroomThreadSummaryCard', () => ({
   MindroomThreadSummaryCard: passthrough,
 }));
 
-vi.mock('./message', () => ({
+vi.mock('../../../features/room/message', () => ({
   Reactions: passthrough,
   Message: ({
     children,
@@ -496,15 +496,15 @@ vi.mock('./message', () => ({
   },
 }));
 
-vi.mock('../../components/room-intro', () => ({
+vi.mock('../../../components/room-intro', () => ({
   RoomIntro: roomIntroType,
 }));
 
-vi.mock('../../components/RenderMessageContent', () => ({
+vi.mock('../../../components/RenderMessageContent', () => ({
   RenderMessageContent: passthrough,
 }));
 
-vi.mock('../../mindroom/threads/CollapsibleMessage', async () => {
+vi.mock('../CollapsibleMessage', async () => {
   const ReactImport = await import('react');
 
   return {
@@ -515,26 +515,26 @@ vi.mock('../../mindroom/threads/CollapsibleMessage', async () => {
   };
 });
 
-vi.mock('../../components/media', () => ({
+vi.mock('../../../components/media', () => ({
   Image: passthrough,
 }));
 
-vi.mock('../../components/image-viewer', () => ({
+vi.mock('../../../components/image-viewer', () => ({
   ImageViewer: passthrough,
 }));
 
-vi.mock('../../mindroom/notifications/readReceipts', () => ({
+vi.mock('../../notifications/readReceipts', () => ({
   markMainTimelineAsRead: vi.fn(),
   markRoomAndThreadsAsRead: vi.fn(),
   markThreadAsRead: vi.fn(),
 }));
 
-vi.mock('../../utils/dom', () => ({
+vi.mock('../../../utils/dom', () => ({
   editableActiveElement: () => null,
   scrollToBottom: vi.fn(),
 }));
 
-vi.mock('../../utils/time', () => ({
+vi.mock('../../../utils/time', () => ({
   inSameDay: () => true,
   minuteDifference: () => 0,
   timeDayMonthYear: () => 'time',
@@ -542,25 +542,25 @@ vi.mock('../../utils/time', () => ({
   yesterday: 'yesterday',
 }));
 
-vi.mock('../../components/editor', () => ({
+vi.mock('../../../components/editor', () => ({
   createMentionElement: () => ({}),
   isEmptyEditor: () => true,
   moveCursor: vi.fn(),
 }));
 
-vi.mock('../../state/room/roomInputDrafts', () => ({
+vi.mock('../../../state/room/roomInputDrafts', () => ({
   roomIdToReplyDraftAtomFamily: () => ({}),
 }));
 
-vi.mock('../../state/room/roomToParents', () => ({
+vi.mock('../../../state/room/roomToParents', () => ({
   roomToParentsAtom: {},
 }));
 
-vi.mock('../../state/room/roomToUnread', () => ({
+vi.mock('../../../state/room/roomToUnread', () => ({
   roomToUnreadAtom: {},
 }));
 
-vi.mock('../../mindroom/threads/threadUtils', () => ({
+vi.mock('../threadUtils', () => ({
   buildThreadParticipantMap: (
     events: Array<{
       getId(): string | undefined;
@@ -843,9 +843,9 @@ vi.mock('../../mindroom/threads/threadUtils', () => ({
     !!threadRootId && threadRootId !== eventId,
 }));
 
-vi.mock('../../mindroom/messages/threadSummary', async (importOriginal) => {
+vi.mock('../../messages/threadSummary', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('../../mindroom/messages/threadSummary')>();
+    await importOriginal<typeof import('../../messages/threadSummary')>();
   return {
     ...actual,
     buildThreadSummaryMap: () => new Map(),
@@ -854,11 +854,11 @@ vi.mock('../../mindroom/messages/threadSummary', async (importOriginal) => {
   };
 });
 
-vi.mock('../../mindroom/threads/useThreadRenderState', () => ({
+vi.mock('../useThreadRenderState', () => ({
   useThreadRenderState: () => threadRenderStateMock,
 }));
 
-vi.mock('../../mindroom/threads/threadEventCache', () => ({
+vi.mock('../threadEventCache', () => ({
   getThreadCursorAnchor: vi.fn((rawEvent?: { event_id?: string; origin_server_ts?: number }) =>
     rawEvent?.event_id
       ? {
@@ -874,26 +874,26 @@ vi.mock('../../mindroom/threads/threadEventCache', () => ({
   saveThreadEventsToCache: vi.fn(async () => undefined),
 }));
 
-vi.mock('../../mindroom/threads/threadPaginationUtils', () => ({
+vi.mock('../threadPaginationUtils', () => ({
   computeReconciliationToken: () => undefined,
   findEarliestLoadedThreadReplyByCacheOrder: () => undefined,
   reconcileThreadBackwardPagination: vi.fn(),
 }));
 
-vi.mock('../../mindroom/threads/eventCacheTokenUtils', async (importOriginal) => {
+vi.mock('../eventCacheTokenUtils', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('../../mindroom/threads/eventCacheTokenUtils')>();
+    await importOriginal<typeof import('../eventCacheTokenUtils')>();
   return actual;
 });
 
-vi.mock('./threadSummaryCache', () => ({
+vi.mock('../threadSummaryCache', () => ({
   loadCachedThreadSummaries: loadCachedThreadSummariesMock,
   saveCachedThreadSummary: saveCachedThreadSummaryMock,
 }));
 
 
-vi.mock('../../mindroom/threads/roomEventCache', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../mindroom/threads/roomEventCache')>();
+vi.mock('../roomEventCache', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../roomEventCache')>();
   return {
     ...actual,
     loadCachedRoomEventsBefore: loadCachedRoomEventsBeforeMock,
@@ -903,7 +903,7 @@ vi.mock('../../mindroom/threads/roomEventCache', async (importOriginal) => {
   };
 });
 
-vi.mock('../../mindroom/threads/eventCacheEditUtils', () => ({
+vi.mock('../eventCacheEditUtils', () => ({
   aggregateCachedRelationEvents: vi.fn(),
   collectRedactedRelationTargetsFromLookup: vi.fn(() => []),
   hydrateCachedEvents: vi.fn(() => []),
@@ -918,9 +918,9 @@ vi.mock('../../mindroom/threads/eventCacheEditUtils', () => ({
     ),
 }));
 
-vi.mock('../../mindroom/threads/timelineScrollUtils', async (importOriginal) => {
+vi.mock('../timelineScrollUtils', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('../../mindroom/threads/timelineScrollUtils')>();
+    await importOriginal<typeof import('../timelineScrollUtils')>();
   return {
     ...actual,
     isScrollNearBottom: () => true,
@@ -930,29 +930,29 @@ vi.mock('../../mindroom/threads/timelineScrollUtils', async (importOriginal) => 
   };
 });
 
-vi.mock('../../mindroom/threads/threadEditBackfill', () => ({
+vi.mock('../threadEditBackfill', () => ({
   hasLikelyIncompleteStreamingBody: (value: unknown) =>
     typeof value === 'string' && /^thinking(?:\.{3}|…)(?:\s*⋯)?$/i.test(value.trim()),
   markThreadEditBackfillAttempted: vi.fn(),
   shouldFetchThreadEditBackfill: () => false,
 }));
 
-vi.mock('../../mindroom/threads/threadEditBackfill', () => ({
+vi.mock('../threadEditBackfill', () => ({
   hasLikelyIncompleteStreamingBody: (value: unknown) =>
     typeof value === 'string' && /^thinking(?:\.{3}|…)(?:\s*⋯)?$/i.test(value.trim()),
   markThreadEditBackfillAttempted: vi.fn(),
   shouldFetchThreadEditBackfill: () => false,
 }));
 
-vi.mock('../../mindroom/threads/RoomThreadOverview', () => ({
+vi.mock('../RoomThreadOverview', () => ({
   RoomThreadOverview: roomThreadOverviewType,
 }));
 
-vi.mock('../../mindroom/threads/CompactRoomView', () => ({
+vi.mock('../CompactRoomView', () => ({
   CompactRoomView: compactPlaceholderType,
 }));
 
-vi.mock('../../mindroom/threads/useRoomThreadList', () => ({
+vi.mock('../useRoomThreadList', () => ({
   useRoomThreadList: (
     room: { getThreads?: () => Array<{ id?: string; rootEvent?: unknown }> } | undefined,
     enabled = true
@@ -965,24 +965,24 @@ vi.mock('../../mindroom/threads/useRoomThreadList', () => ({
   }),
 }));
 
-vi.mock('../../mindroom/threads/useThreadLastActivityTs', () => ({
+vi.mock('../useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: (_room: unknown, threadRootId: string) =>
     threadLastActivityTsMapMock.get(threadRootId) ?? 0,
   useThreadLastActivityTs: () => 0,
 }));
 
-vi.mock('../../mindroom/threads/useThreadStreamingState', () => ({
+vi.mock('../useThreadStreamingState', () => ({
   getThreadStreamingState: (_room: unknown, threadRootId: string) =>
     threadStreamingStateMock.get(threadRootId) ?? false,
   useThreadStreamingState: () => false,
 }));
 
-vi.mock('../../mindroom/threads/scheduledTaskContract', () => ({
+vi.mock('../scheduledTaskContract', () => ({
   MINDROOM_SCHEDULED_TASK_EVENT: 'com.mindroom.scheduled.task',
   parseScheduledTaskStateEvent: () => null,
 }));
 
-vi.mock('../../mindroom/threads/useRoomThreadTags', () => ({
+vi.mock('../useRoomThreadTags', () => ({
   useRoomThreadResolutionMap: () => threadResolutionMapMock,
 }));
 
@@ -1329,18 +1329,18 @@ const TEST_DEFAULT_THREAD_FILTER_STATE = {
 };
 
 const canonicalizeThreadFilterState = (
-  state: import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState
-): import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState => {
+  state: import('../roomThreadOverviewModel').ThreadFilterState
+): import('../roomThreadOverviewModel').ThreadFilterState => {
   const searchQuery = serializeThreadFilterQuery(state);
   return searchQuery === state.searchQuery ? state : { ...state, searchQuery };
 };
 
 const syncQueryState = (
-  state: import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState,
+  state: import('../roomThreadOverviewModel').ThreadFilterState,
   updater: (
-    nextState: import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState
-  ) => import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState
-): import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState => {
+    nextState: import('../roomThreadOverviewModel').ThreadFilterState
+  ) => import('../roomThreadOverviewModel').ThreadFilterState
+): import('../roomThreadOverviewModel').ThreadFilterState => {
   const next = updater(
     applyParsedThreadFilterQuery(state, parseThreadFilterQuery(state.searchQuery ?? ''))
   );
@@ -1350,7 +1350,7 @@ const syncQueryState = (
 
 const threadFilterStateFromLegacy = (
   filter?: 'all' | 'resolved' | 'unresolved' | 'unread'
-): import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState => {
+): import('../roomThreadOverviewModel').ThreadFilterState => {
   switch (filter) {
     case 'resolved':
       return canonicalizeThreadFilterState({
@@ -1405,19 +1405,19 @@ const createControlledRoomTimelineHarness = (
     summaryMap?: Map<string, unknown>;
     onStoreThreadSummary?: (threadRootId: string, info?: unknown) => void;
     initialThreadFilter?: 'all' | 'resolved' | 'unresolved' | 'unread';
-    initialThreadFilterState?: import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState;
+    initialThreadFilterState?: import('../roomThreadOverviewModel').ThreadFilterState;
     initialViewMode?: 'normal' | 'compact';
     initialThreadSortFrozen?: boolean;
   }) {
     const [threadFilterState, setThreadFilterState] =
-      React.useState<import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState>(
+      React.useState<import('../roomThreadOverviewModel').ThreadFilterState>(
         canonicalizeThreadFilterState(
           initialThreadFilterState ?? threadFilterStateFromLegacy(initialThreadFilter)
         )
       );
     const [viewMode, setViewMode] = React.useState<'normal' | 'compact'>(initialViewMode);
     const [threadSortFreezeState, setThreadSortFreezeState] = React.useState<
-      import('../../mindroom/threads/roomThreadOverviewModel').ThreadSortFreezeState | null
+      import('../roomThreadOverviewModel').ThreadSortFreezeState | null
     >(
       initialThreadSortFrozen
         ? {

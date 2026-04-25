@@ -5,7 +5,7 @@ import {
   isCompleteCachedThreadSnapshot,
   mergeThreadBackfillEvents,
 } from './threadCacheSnapshot';
-import { makeEvent, makeRoom } from '../../features/room/RoomTimeline.test.shared';
+import { makeEvent, makeRoom } from './test-utils/RoomTimeline.test.shared';
 
 describe('threadCacheSnapshot', () => {
   it('marks room-derived snapshots complete only when the room covers start, tail, and known replies', () => {

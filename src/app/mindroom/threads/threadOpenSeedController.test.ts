@@ -3,7 +3,7 @@ import { RelationType } from 'matrix-js-sdk';
 import {
   makeEvent,
   makeRoom,
-} from '../../features/room/RoomTimeline.test.shared';
+} from './test-utils/RoomTimeline.test.shared';
 import { createThreadOpenSeedSession } from './threadOpenSeedController';
 import { saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 

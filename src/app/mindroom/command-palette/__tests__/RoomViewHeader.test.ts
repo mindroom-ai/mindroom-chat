@@ -2,7 +2,7 @@ import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { commandPaletteOpenAtom } from '../../mindroom/command-palette/commandPaletteState';
+import { commandPaletteOpenAtom } from '../commandPaletteState';
 
 const { encryptionState, screenSizeState } = vi.hoisted(() => ({
   encryptionState: {
@@ -80,20 +80,20 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
 }));
 
-vi.mock('../../components/page', () => ({
+vi.mock('../../../components/page', () => ({
   PageHeader: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
 }));
 
-vi.mock('../../styles/ContainerColor.css', () => ({
+vi.mock('../../../styles/ContainerColor.css', () => ({
   ContainerColor: () => 'ContainerColor',
 }));
 
-vi.mock('../../components/room-avatar', () => ({
+vi.mock('../../../components/room-avatar', () => ({
   RoomAvatar: () => React.createElement('div'),
   RoomIcon: () => React.createElement('div'),
 }));
 
-vi.mock('../../components/UseStateProvider', () => ({
+vi.mock('../../../components/UseStateProvider', () => ({
   UseStateProvider: ({
     children,
   }: {
@@ -101,34 +101,34 @@ vi.mock('../../components/UseStateProvider', () => ({
   }) => React.createElement(React.Fragment, null, children(false, vi.fn())),
 }));
 
-vi.mock('../../components/room-topic-viewer', () => ({
+vi.mock('../../../components/room-topic-viewer', () => ({
   RoomTopicViewer: () => React.createElement('div'),
 }));
 
-vi.mock('../../components/BackRouteHandler', () => ({
+vi.mock('../../../components/BackRouteHandler', () => ({
   BackRouteHandler: ({ children }: { children: (onBack: () => void) => React.ReactNode }) =>
     React.createElement(React.Fragment, null, children(vi.fn())),
 }));
 
-vi.mock('../../components/leave-room-prompt', () => ({
+vi.mock('../../../components/leave-room-prompt', () => ({
   LeaveRoomPrompt: () => React.createElement('div'),
 }));
 
-vi.mock('../../components/invite-user-prompt', () => ({
+vi.mock('../../../components/invite-user-prompt', () => ({
   InviteUserPrompt: () => React.createElement('div'),
 }));
 
-vi.mock('../../hooks/useStateEvent', () => ({
+vi.mock('../../../hooks/useStateEvent', () => ({
   useStateEvent: () => encryptionState.value,
 }));
 
-vi.mock('../../hooks/useMatrixClient', () => ({
+vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getSafeUserId: () => '@user:example.org',
   }),
 }));
 
-vi.mock('../../hooks/useRoom', () => ({
+vi.mock('../../../hooks/useRoom', () => ({
   useRoom: () => ({
     roomId: '!room:example.org',
     getJoinRule: () => undefined,
@@ -136,7 +136,7 @@ vi.mock('../../hooks/useRoom', () => ({
   useIsDirectRoom: () => false,
 }));
 
-vi.mock('../../state/hooks/settings', () => ({
+vi.mock('../../../state/hooks/settings', () => ({
   useSetting: (_atom: unknown, key: string) => {
     switch (key) {
       case 'isPeopleDrawer':
@@ -149,51 +149,51 @@ vi.mock('../../state/hooks/settings', () => ({
   },
 }));
 
-vi.mock('../../state/settings', () => ({
+vi.mock('../../../state/settings', () => ({
   settingsAtom: {},
 }));
 
-vi.mock('../../hooks/useSpace', () => ({
+vi.mock('../../../hooks/useSpace', () => ({
   useSpaceOptionally: () => undefined,
 }));
 
-vi.mock('../../utils/matrix', () => ({
+vi.mock('../../../utils/matrix', () => ({
   getCanonicalAliasOrRoomId: () => '!room:example.org',
   isRoomAlias: () => false,
   mxcUrlToHttp: () => undefined,
 }));
 
-vi.mock('./RoomViewHeader.css', () => ({
+vi.mock('../../../features/room/RoomViewHeader.css', () => ({
   HeaderTopic: 'HeaderTopic',
 }));
 
-vi.mock('../../state/hooks/unread', () => ({
+vi.mock('../../../state/hooks/unread', () => ({
   useRoomUnread: () => false,
 }));
 
-vi.mock('../../hooks/usePowerLevels', () => ({
+vi.mock('../../../hooks/usePowerLevels', () => ({
   usePowerLevelsContext: () => ({}),
 }));
 
-vi.mock('../../mindroom/notifications/readReceipts', () => ({
+vi.mock('../../notifications/readReceipts', () => ({
   markRoomAndThreadsAsRead: vi.fn(),
 }));
 
-vi.mock('../../state/room/roomToUnread', () => ({
+vi.mock('../../../state/room/roomToUnread', () => ({
   roomToUnreadAtom: {},
 }));
 
-vi.mock('../../utils/dom', () => ({
+vi.mock('../../../utils/dom', () => ({
   copyToClipboard: vi.fn(),
 }));
 
-vi.mock('../../hooks/useRoomMeta', () => ({
+vi.mock('../../../hooks/useRoomMeta', () => ({
   useRoomAvatar: () => undefined,
   useRoomName: () => 'General',
   useRoomTopic: () => undefined,
 }));
 
-vi.mock('../../hooks/useScreenSize', () => ({
+vi.mock('../../../hooks/useScreenSize', () => ({
   ScreenSize: {
     Desktop: 'Desktop',
     Tablet: 'Tablet',
@@ -202,35 +202,35 @@ vi.mock('../../hooks/useScreenSize', () => ({
   useScreenSizeContext: () => screenSizeState.value,
 }));
 
-vi.mock('../../utils/keyboard', () => ({
+vi.mock('../../../utils/keyboard', () => ({
   stopPropagation: vi.fn(),
 }));
 
-vi.mock('../../plugins/matrix-to', () => ({
+vi.mock('../../../plugins/matrix-to', () => ({
   getMatrixToRoom: () => 'matrix.to/#/!room:example.org',
 }));
 
-vi.mock('../../plugins/via-servers', () => ({
+vi.mock('../../../plugins/via-servers', () => ({
   getViaServers: () => [],
 }));
 
-vi.mock('../../hooks/useMediaAuthentication', () => ({
+vi.mock('../../../hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
 
-vi.mock('../../hooks/useRoomPinnedEvents', () => ({
+vi.mock('../../../hooks/useRoomPinnedEvents', () => ({
   useRoomPinnedEvents: () => [],
 }));
 
-vi.mock('./room-pin-menu', () => ({
+vi.mock('../../../features/room/room-pin-menu', () => ({
   RoomPinMenu: () => React.createElement('div'),
 }));
 
-vi.mock('../../state/hooks/roomSettings', () => ({
+vi.mock('../../../state/hooks/roomSettings', () => ({
   useOpenRoomSettings: () => vi.fn(),
 }));
 
-vi.mock('../../components/RoomNotificationSwitcher', () => ({
+vi.mock('../../../components/RoomNotificationSwitcher', () => ({
   RoomNotificationModeSwitcher: ({
     children,
   }: {
@@ -238,27 +238,27 @@ vi.mock('../../components/RoomNotificationSwitcher', () => ({
   }) => React.createElement(React.Fragment, null, children(vi.fn(), false, false)),
 }));
 
-vi.mock('../../hooks/useRoomsNotificationPreferences', () => ({
+vi.mock('../../../hooks/useRoomsNotificationPreferences', () => ({
   getRoomNotificationMode: () => 'all_messages',
   getRoomNotificationModeIcon: () => 'Notification',
   useRoomsNotificationPreferencesContext: () => ({}),
 }));
 
-vi.mock('./jump-to-time', () => ({
+vi.mock('../../../features/room/jump-to-time', () => ({
   JumpToTime: () => React.createElement('div'),
 }));
 
-vi.mock('../../hooks/useRoomNavigate', () => ({
+vi.mock('../../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
     navigateRoom: vi.fn(),
   }),
 }));
 
-vi.mock('../../hooks/useRoomCreators', () => ({
+vi.mock('../../../hooks/useRoomCreators', () => ({
   useRoomCreators: () => [],
 }));
 
-vi.mock('../../hooks/useRoomPermissions', () => ({
+vi.mock('../../../hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({
     action: () => true,
   }),
@@ -266,7 +266,7 @@ vi.mock('../../hooks/useRoomPermissions', () => ({
 
 const renderHeader = async () => {
   const store = createStore();
-  const { RoomViewHeader } = await import('./RoomViewHeader');
+  const { RoomViewHeader } = await import('../../../features/room/RoomViewHeader');
   const renderer = create(
     React.createElement(
       Provider,

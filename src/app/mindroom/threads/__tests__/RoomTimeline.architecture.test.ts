@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 describe('RoomTimeline architecture', () => {
   it('delegates thread badge JSX rendering to the MindRoom badge seam', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).not.toContain('const renderThreadBadge');
     expect(source).not.toContain('getMindroomRoomTimelineThreadBadgeModel');
@@ -11,9 +11,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates MindRoom timeline message policy to a fork-owned seam', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const timelineMessageSource = readFileSync(
-      new URL('../../mindroom/threads/roomTimelineMessageExtensions.tsx', import.meta.url),
+      new URL('../roomTimelineMessageExtensions.tsx', import.meta.url),
       'utf8'
     );
 
@@ -35,9 +35,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps reply/start-thread draft policy in MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/roomTimelineReplyDraft.ts', import.meta.url),
+      new URL('../roomTimelineReplyDraft.ts', import.meta.url),
       'utf8'
     );
 
@@ -49,9 +49,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps renderability and preload counting outside RoomTimeline', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/roomTimelineEvents.ts', import.meta.url),
+      new URL('../roomTimelineEvents.ts', import.meta.url),
       'utf8'
     );
 
@@ -62,9 +62,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates eager room preload orchestration outside RoomTimeline', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const windowControllerSource = readFileSync(
-      new URL('../../mindroom/threads/roomTimelineWindowController.ts', import.meta.url),
+      new URL('../roomTimelineWindowController.ts', import.meta.url),
       'utf8'
     );
 
@@ -76,7 +76,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('does not import raw event cache stores directly', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).not.toContain("from './roomEventCache'");
     expect(source).not.toContain("from './threadEventCache'");
@@ -84,7 +84,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates room cache helper derivation to the event repository', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).not.toContain('const getMainTimelineCacheEvents');
     expect(source).not.toContain('export const shouldHydrateLatestRoomCache');
@@ -92,7 +92,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread cache coverage derivation to a fork-owned module', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).not.toContain('const getRoomDerivedThreadSnapshotState');
     expect(source).not.toContain('const isCompleteCachedThreadSnapshot');
@@ -101,9 +101,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread cache coverage decisions to a fork-owned module', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const windowControllerSource = readFileSync(
-      new URL('../../mindroom/threads/roomTimelineWindowController.ts', import.meta.url),
+      new URL('../roomTimelineWindowController.ts', import.meta.url),
       'utf8'
     );
 
@@ -116,16 +116,16 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates cache payload serialization prep to the event repository', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).not.toContain('const withStateTargetEvents');
     expect(source).not.toContain('serializeEventsForCache(');
   });
 
   it('delegates cache persistence snapshots to the event repository', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const roomCacheLifecycleSource = readFileSync(
-      new URL('../../mindroom/threads/roomCacheLifecycleController.ts', import.meta.url),
+      new URL('../roomCacheLifecycleController.ts', import.meta.url),
       'utf8'
     );
 
@@ -147,7 +147,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates overview cache hydration to the MindRoom thread namespace', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).not.toContain("from './useThreadOverviewCacheHydration'");
     expect(source).not.toContain('useThreadOverviewCacheHydration');
@@ -155,7 +155,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates per-room thread index assembly to the MindRoom thread namespace', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).toContain('useMindroomThreadIndex');
     expect(source).not.toContain('const normalThreadRecordMap = useMemo');
@@ -165,9 +165,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread timeline render state to the MindRoom thread namespace', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/useThreadTimelineState.ts', import.meta.url),
+      new URL('../useThreadTimelineState.ts', import.meta.url),
       'utf8'
     );
 
@@ -182,13 +182,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates room overview focus and filter helpers to the MindRoom thread namespace', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const windowControllerSource = readFileSync(
-      new URL('../../mindroom/threads/roomTimelineWindowController.ts', import.meta.url),
+      new URL('../roomTimelineWindowController.ts', import.meta.url),
       'utf8'
     );
     const eventOpenControllerSource = readFileSync(
-      new URL('../../mindroom/threads/roomEventOpenController.ts', import.meta.url),
+      new URL('../roomEventOpenController.ts', import.meta.url),
       'utf8'
     );
 
@@ -204,13 +204,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps thread route deep-link resolution in MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/roomDeepLink.ts', import.meta.url),
+      new URL('../roomDeepLink.ts', import.meta.url),
       'utf8'
     );
     const indexSource = readFileSync(
-      new URL('../../mindroom/threads/useMindroomThreadIndex.ts', import.meta.url),
+      new URL('../useMindroomThreadIndex.ts', import.meta.url),
       'utf8'
     );
 
@@ -224,44 +224,44 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps last-open-thread state in MindRoom threads', () => {
     const clientStorageSource = readFileSync(
-      new URL('../../pages/client/ClientInitStorageAtom.tsx', import.meta.url),
+      new URL('../../../pages/client/ClientInitStorageAtom.tsx', import.meta.url),
       'utf8'
     );
     const clientStorageImplementationSource = readFileSync(
-      new URL('../../mindroom/cache/clientStorageAtoms.ts', import.meta.url),
+      new URL('../../cache/clientStorageAtoms.ts', import.meta.url),
       'utf8'
     );
-    const roomSource = readFileSync(new URL('./Room.tsx', import.meta.url), 'utf8');
+    const roomSource = readFileSync(new URL('../../../features/room/Room.tsx', import.meta.url), 'utf8');
     const roomRouteRestoreSource = readFileSync(
-      new URL('../../mindroom/threads/useRoomThreadRouteRestore.ts', import.meta.url),
+      new URL('../useRoomThreadRouteRestore.ts', import.meta.url),
       'utf8'
     );
     const roomEscapeReadReceiptsSource = readFileSync(
-      new URL('../../mindroom/threads/useRoomEscapeReadReceipts.ts', import.meta.url),
+      new URL('../useRoomEscapeReadReceipts.ts', import.meta.url),
       'utf8'
     );
     const clientLayoutSource = readFileSync(
-      new URL('../../pages/client/ClientLayout.tsx', import.meta.url),
+      new URL('../../../pages/client/ClientLayout.tsx', import.meta.url),
       'utf8'
     );
     const routeRestoreSource = readFileSync(
-      new URL('../../mindroom/routing/clientRouteRestore.ts', import.meta.url),
+      new URL('../../routing/clientRouteRestore.ts', import.meta.url),
       'utf8'
     );
     const sessionCleanupSource = readFileSync(
-      new URL('../../mindroom/cache/sessionCleanup.ts', import.meta.url),
+      new URL('../../cache/sessionCleanup.ts', import.meta.url),
       'utf8'
     );
     const sessionStoreSource = readFileSync(
-      new URL('../../state/sessions.ts', import.meta.url),
+      new URL('../../../state/sessions.ts', import.meta.url),
       'utf8'
     );
     const sessionStoreConfigSource = readFileSync(
-      new URL('../../mindroom/cache/sessionStoreConfig.ts', import.meta.url),
+      new URL('../../cache/sessionStoreConfig.ts', import.meta.url),
       'utf8'
     );
     const initMatrixSource = readFileSync(
-      new URL('../../../client/initMatrix.ts', import.meta.url),
+      new URL('../../../../client/initMatrix.ts', import.meta.url),
       'utf8'
     );
 
@@ -326,17 +326,17 @@ describe('RoomTimeline architecture', () => {
       './roomInputSendSession.ts',
       './voiceRecorderMime.ts',
     ];
-    const source = readFileSync(new URL('./RoomInput.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomInput.tsx', import.meta.url), 'utf8');
     const roomInputExtensionsSource = readFileSync(
-      new URL('../../mindroom/room-input/RoomInputMindroomExtensions.tsx', import.meta.url),
+      new URL('../../room-input/RoomInputMindroomExtensions.tsx', import.meta.url),
       'utf8'
     );
     const controllerSource = readFileSync(
-      new URL('../../mindroom/threads/useRoomInputSendSessionController.ts', import.meta.url),
+      new URL('../useRoomInputSendSessionController.ts', import.meta.url),
       'utf8'
     );
     const sessionSource = readFileSync(
-      new URL('../../mindroom/threads/roomInputSendSession.ts', import.meta.url),
+      new URL('../roomInputSendSession.ts', import.meta.url),
       'utf8'
     );
 
@@ -425,11 +425,11 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps thread navigation seeding policy in MindRoom threads', () => {
     const hookSource = readFileSync(
-      new URL('../../hooks/useRoomNavigate.ts', import.meta.url),
+      new URL('../../../hooks/useRoomNavigate.ts', import.meta.url),
       'utf8'
     );
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/threadNavigation.ts', import.meta.url),
+      new URL('../threadNavigation.ts', import.meta.url),
       'utf8'
     );
 
@@ -442,9 +442,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates cached thread page stitching to the event repository', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const seedPrewarmControllerSource = readFileSync(
-      new URL('../../mindroom/threads/threadSeedPrewarmController.ts', import.meta.url),
+      new URL('../threadSeedPrewarmController.ts', import.meta.url),
       'utf8'
     );
 
@@ -454,13 +454,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates cached thread event mapping and pagination reads to the event repository', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const paginationControllerSource = readFileSync(
-      new URL('../../mindroom/threads/threadPaginationCommandController.ts', import.meta.url),
+      new URL('../threadPaginationCommandController.ts', import.meta.url),
       'utf8'
     );
     const cacheFirstSource = readFileSync(
-      new URL('../../mindroom/threads/threadOpenCacheFirst.ts', import.meta.url),
+      new URL('../threadOpenCacheFirst.ts', import.meta.url),
       'utf8'
     );
 
@@ -473,9 +473,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread bootstrap, seed prewarm, and relation-fetch helpers to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const threadBootstrapSource = readFileSync(
-      new URL('../../mindroom/threads/threadBootstrap.ts', import.meta.url),
+      new URL('../threadBootstrap.ts', import.meta.url),
       'utf8'
     );
 
@@ -492,7 +492,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread seed prewarm queue orchestration to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).toContain('useThreadSeedPrewarmController');
     expect(source).toContain("from '../../mindroom/threads/threadSeedPrewarmController'");
@@ -502,7 +502,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread-open cache/network commands to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).toContain('useThreadOpenCacheController');
     expect(source).toContain("from '../../mindroom/threads/threadOpenCacheController'");
@@ -513,13 +513,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread-open SDK bootstrap to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const bootstrapSource = readFileSync(
-      new URL('../../mindroom/threads/threadOpenSdkBootstrap.ts', import.meta.url),
+      new URL('../threadOpenSdkBootstrap.ts', import.meta.url),
       'utf8'
     );
     const lifecycleSource = readFileSync(
-      new URL('../../mindroom/threads/threadOpenLifecycleController.ts', import.meta.url),
+      new URL('../threadOpenLifecycleController.ts', import.meta.url),
       'utf8'
     );
 
@@ -533,13 +533,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread-open cache-first decisions to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const cacheFirstSource = readFileSync(
-      new URL('../../mindroom/threads/threadOpenCacheFirst.ts', import.meta.url),
+      new URL('../threadOpenCacheFirst.ts', import.meta.url),
       'utf8'
     );
     const lifecycleSource = readFileSync(
-      new URL('../../mindroom/threads/threadOpenLifecycleController.ts', import.meta.url),
+      new URL('../threadOpenLifecycleController.ts', import.meta.url),
       'utf8'
     );
 
@@ -552,13 +552,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread-open post-bootstrap refresh to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const refreshSource = readFileSync(
-      new URL('../../mindroom/threads/threadOpenPostBootstrapRefresh.ts', import.meta.url),
+      new URL('../threadOpenPostBootstrapRefresh.ts', import.meta.url),
       'utf8'
     );
     const lifecycleSource = readFileSync(
-      new URL('../../mindroom/threads/threadOpenLifecycleController.ts', import.meta.url),
+      new URL('../threadOpenLifecycleController.ts', import.meta.url),
       'utf8'
     );
 
@@ -570,13 +570,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread-open target-event context loading to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const targetEventSource = readFileSync(
-      new URL('../../mindroom/threads/threadOpenTargetEvent.ts', import.meta.url),
+      new URL('../threadOpenTargetEvent.ts', import.meta.url),
       'utf8'
     );
     const lifecycleSource = readFileSync(
-      new URL('../../mindroom/threads/threadOpenLifecycleController.ts', import.meta.url),
+      new URL('../threadOpenLifecycleController.ts', import.meta.url),
       'utf8'
     );
 
@@ -587,9 +587,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread-aware timeline refresh orchestration to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const refreshHookSource = readFileSync(
-      new URL('../../mindroom/threads/useThreadAwareTimelineRefresh.ts', import.meta.url),
+      new URL('../useThreadAwareTimelineRefresh.ts', import.meta.url),
       'utf8'
     );
 
@@ -600,13 +600,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps compact thread root data implementation in MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/compactThreadRootData.ts', import.meta.url),
+      new URL('../compactThreadRootData.ts', import.meta.url),
       'utf8'
     );
     const indexSource = readFileSync(
-      new URL('../../mindroom/threads/useMindroomThreadIndex.ts', import.meta.url),
+      new URL('../useMindroomThreadIndex.ts', import.meta.url),
       'utf8'
     );
 
@@ -618,7 +618,7 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps thread presentation derivation in MindRoom threads', () => {
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/threadPresentation.ts', import.meta.url),
+      new URL('../threadPresentation.ts', import.meta.url),
       'utf8'
     );
 
@@ -627,13 +627,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps thread filter DSL parsing in MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/threadFilterDsl.ts', import.meta.url),
+      new URL('../threadFilterDsl.ts', import.meta.url),
       'utf8'
     );
     const indexSource = readFileSync(
-      new URL('../../mindroom/threads/useMindroomThreadIndex.ts', import.meta.url),
+      new URL('../useMindroomThreadIndex.ts', import.meta.url),
       'utf8'
     );
 
@@ -646,13 +646,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps compact room view components in MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/CompactRoomView.tsx', import.meta.url),
+      new URL('../CompactRoomView.tsx', import.meta.url),
       'utf8'
     );
     const cardImplementationSource = readFileSync(
-      new URL('../../mindroom/threads/CompactThreadCard.tsx', import.meta.url),
+      new URL('../CompactThreadCard.tsx', import.meta.url),
       'utf8'
     );
 
@@ -662,13 +662,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps compact thread scheduled-label utilities in MindRoom threads', () => {
-    const hookCompatibilityPath = new URL('../../hooks/useThreadHeaderInfo.ts', import.meta.url);
+    const hookCompatibilityPath = new URL('../../../hooks/useThreadHeaderInfo.ts', import.meta.url);
     const hookImplementationSource = readFileSync(
-      new URL('../../mindroom/threads/useThreadHeaderInfo.ts', import.meta.url),
+      new URL('../useThreadHeaderInfo.ts', import.meta.url),
       'utf8'
     );
     const viewModelSource = readFileSync(
-      new URL('../../mindroom/threads/compactThreadCardViewModel.ts', import.meta.url),
+      new URL('../compactThreadCardViewModel.ts', import.meta.url),
       'utf8'
     );
     const scheduledTaskCompatibilityPath = new URL(
@@ -676,11 +676,11 @@ describe('RoomTimeline architecture', () => {
       import.meta.url
     );
     const scheduledTaskImplementationSource = readFileSync(
-      new URL('../../mindroom/threads/scheduledTaskContract.ts', import.meta.url),
+      new URL('../scheduledTaskContract.ts', import.meta.url),
       'utf8'
     );
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/compactThreadCardUtils.ts', import.meta.url),
+      new URL('../compactThreadCardUtils.ts', import.meta.url),
       'utf8'
     );
 
@@ -701,11 +701,11 @@ describe('RoomTimeline architecture', () => {
       import.meta.url
     );
     const hookImplementationSource = readFileSync(
-      new URL('../../mindroom/threads/useThreadLastActivityTs.ts', import.meta.url),
+      new URL('../useThreadLastActivityTs.ts', import.meta.url),
       'utf8'
     );
     const threadIndicatorSource = readFileSync(
-      new URL('../../mindroom/threads/ThreadIndicator.tsx', import.meta.url),
+      new URL('../ThreadIndicator.tsx', import.meta.url),
       'utf8'
     );
 
@@ -718,31 +718,31 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps thread indicator rendering in MindRoom threads', () => {
     const replySource = readFileSync(
-      new URL('../../components/message/Reply.tsx', import.meta.url),
+      new URL('../../../components/message/Reply.tsx', import.meta.url),
       'utf8'
     );
     const replyStyleSource = readFileSync(
-      new URL('../../components/message/Reply.css.ts', import.meta.url),
+      new URL('../../../components/message/Reply.css.ts', import.meta.url),
       'utf8'
     );
     const indexSource = readFileSync(
-      new URL('../../components/message/index.ts', import.meta.url),
+      new URL('../../../components/message/index.ts', import.meta.url),
       'utf8'
     );
     const replyExtensionsSource = readFileSync(
-      new URL('../../mindroom/messages/replyExtensions.tsx', import.meta.url),
+      new URL('../../messages/replyExtensions.tsx', import.meta.url),
       'utf8'
     );
     const threadIndicatorSource = readFileSync(
-      new URL('../../mindroom/threads/ThreadIndicator.tsx', import.meta.url),
+      new URL('../ThreadIndicator.tsx', import.meta.url),
       'utf8'
     );
     const threadIndicatorViewModelSource = readFileSync(
-      new URL('../../mindroom/threads/threadIndicatorViewModel.ts', import.meta.url),
+      new URL('../threadIndicatorViewModel.ts', import.meta.url),
       'utf8'
     );
     const threadIndicatorStyleSource = readFileSync(
-      new URL('../../mindroom/threads/ThreadIndicator.css.ts', import.meta.url),
+      new URL('../ThreadIndicator.css.ts', import.meta.url),
       'utf8'
     );
 
@@ -765,11 +765,11 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps command-palette thread sourcing in MindRoom threads', () => {
     const paletteSource = readFileSync(
-      new URL('../../mindroom/command-palette/commandPaletteItems.ts', import.meta.url),
+      new URL('../../command-palette/commandPaletteItems.ts', import.meta.url),
       'utf8'
     );
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/commandPaletteThreadItems.ts', import.meta.url),
+      new URL('../commandPaletteThreadItems.ts', import.meta.url),
       'utf8'
     );
 
@@ -789,21 +789,21 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps command-palette opener widgets in MindRoom command-palette', () => {
-    const roomHeaderSource = readFileSync(new URL('./RoomViewHeader.tsx', import.meta.url), 'utf8');
+    const roomHeaderSource = readFileSync(new URL('../../../features/room/RoomViewHeader.tsx', import.meta.url), 'utf8');
     const sidebarSearchTabSource = readFileSync(
-      new URL('../../pages/client/sidebar/SearchTab.tsx', import.meta.url),
+      new URL('../../../pages/client/sidebar/SearchTab.tsx', import.meta.url),
       'utf8'
     );
     const headerButtonSource = readFileSync(
       new URL(
-        '../../mindroom/command-palette/MindroomCommandPaletteHeaderButton.tsx',
+        '../../command-palette/MindroomCommandPaletteHeaderButton.tsx',
         import.meta.url
       ),
       'utf8'
     );
     const sidebarTabSource = readFileSync(
       new URL(
-        '../../mindroom/command-palette/MindroomCommandPaletteSidebarTab.tsx',
+        '../../command-palette/MindroomCommandPaletteSidebarTab.tsx',
         import.meta.url
       ),
       'utf8'
@@ -819,23 +819,23 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps cache-aware room event loading in MindRoom threads', () => {
     const hookImplementationSource = readFileSync(
-      new URL('../../mindroom/threads/useRoomEvent.ts', import.meta.url),
+      new URL('../useRoomEvent.ts', import.meta.url),
       'utf8'
     );
     const replySource = readFileSync(
-      new URL('../../components/message/Reply.tsx', import.meta.url),
+      new URL('../../../components/message/Reply.tsx', import.meta.url),
       'utf8'
     );
     const pinMenuSource = readFileSync(
-      new URL('./room-pin-menu/RoomPinMenu.tsx', import.meta.url),
+      new URL('../../../features/room/room-pin-menu/RoomPinMenu.tsx', import.meta.url),
       'utf8'
     );
     const replyExtensionsSource = readFileSync(
-      new URL('../../mindroom/messages/replyExtensions.tsx', import.meta.url),
+      new URL('../../messages/replyExtensions.tsx', import.meta.url),
       'utf8'
     );
     const pinnedExtensionsSource = readFileSync(
-      new URL('../../mindroom/messages/pinnedMessageExtensions.ts', import.meta.url),
+      new URL('../../messages/pinnedMessageExtensions.ts', import.meta.url),
       'utf8'
     );
 
@@ -855,9 +855,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps room thread overview controls in MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/RoomThreadOverview.tsx', import.meta.url),
+      new URL('../RoomThreadOverview.tsx', import.meta.url),
       'utf8'
     );
 
@@ -867,9 +867,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps room thread overview model in MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/roomThreadOverviewModel.ts', import.meta.url),
+      new URL('../roomThreadOverviewModel.ts', import.meta.url),
       'utf8'
     );
 
@@ -879,17 +879,17 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps thread relation and route utilities in MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const utilitySource = readFileSync(
-      new URL('../../mindroom/threads/threadUtils.ts', import.meta.url),
+      new URL('../threadUtils.ts', import.meta.url),
       'utf8'
     );
     const routeSource = readFileSync(
-      new URL('../../mindroom/threads/threadRouteUtils.ts', import.meta.url),
+      new URL('../threadRouteUtils.ts', import.meta.url),
       'utf8'
     );
     const eventOpenSource = readFileSync(
-      new URL('../../mindroom/threads/roomEventOpenController.ts', import.meta.url),
+      new URL('../roomEventOpenController.ts', import.meta.url),
       'utf8'
     );
 
@@ -900,9 +900,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps thread render identity utilities in MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/threadRenderUtils.ts', import.meta.url),
+      new URL('../threadRenderUtils.ts', import.meta.url),
       'utf8'
     );
 
@@ -913,13 +913,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps thread render state merging in MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const timelineStateSource = readFileSync(
-      new URL('../../mindroom/threads/useThreadTimelineState.ts', import.meta.url),
+      new URL('../useThreadTimelineState.ts', import.meta.url),
       'utf8'
     );
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/useThreadRenderState.ts', import.meta.url),
+      new URL('../useThreadRenderState.ts', import.meta.url),
       'utf8'
     );
 
@@ -931,13 +931,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps thread tag state and hooks in MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const tagsSource = readFileSync(
-      new URL('../../mindroom/threads/threadTags.ts', import.meta.url),
+      new URL('../threadTags.ts', import.meta.url),
       'utf8'
     );
     const hookSource = readFileSync(
-      new URL('../../mindroom/threads/useRoomThreadTags.ts', import.meta.url),
+      new URL('../useRoomThreadTags.ts', import.meta.url),
       'utf8'
     );
 
@@ -947,13 +947,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps thread banner and tag UI in MindRoom threads', () => {
-    const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
+    const roomViewSource = readFileSync(new URL('../../../features/room/RoomView.tsx', import.meta.url), 'utf8');
     const bannerSource = readFileSync(
-      new URL('../../mindroom/threads/ThreadContextBanner.tsx', import.meta.url),
+      new URL('../ThreadContextBanner.tsx', import.meta.url),
       'utf8'
     );
     const pickerSource = readFileSync(
-      new URL('../../mindroom/threads/ThreadTagPicker.tsx', import.meta.url),
+      new URL('../ThreadTagPicker.tsx', import.meta.url),
       'utf8'
     );
 
@@ -963,9 +963,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps room-view thread state orchestration in MindRoom threads', () => {
-    const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
+    const roomViewSource = readFileSync(new URL('../../../features/room/RoomView.tsx', import.meta.url), 'utf8');
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/useRoomViewThreadState.ts', import.meta.url),
+      new URL('../useRoomViewThreadState.ts', import.meta.url),
       'utf8'
     );
 
@@ -983,28 +983,28 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps thread summary cache and state in MindRoom threads', () => {
-    const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
+    const roomViewSource = readFileSync(new URL('../../../features/room/RoomView.tsx', import.meta.url), 'utf8');
     const roomViewThreadStateSource = readFileSync(
-      new URL('../../mindroom/threads/useRoomViewThreadState.ts', import.meta.url),
+      new URL('../useRoomViewThreadState.ts', import.meta.url),
       'utf8'
     );
     const cacheSource = readFileSync(
-      new URL('../../mindroom/threads/threadSummaryCache.ts', import.meta.url),
+      new URL('../threadSummaryCache.ts', import.meta.url),
       'utf8'
     );
     const stateSource = readFileSync(
-      new URL('../../mindroom/threads/threadSummaryState.ts', import.meta.url),
+      new URL('../threadSummaryState.ts', import.meta.url),
       'utf8'
     );
     const storeSource = readFileSync(
-      new URL('../../mindroom/threads/threadSummaryStore.ts', import.meta.url),
+      new URL('../threadSummaryStore.ts', import.meta.url),
       'utf8'
     );
     const publishControllerSource = readFileSync(
-      new URL('../../mindroom/threads/threadSummaryPublishController.ts', import.meta.url),
+      new URL('../threadSummaryPublishController.ts', import.meta.url),
       'utf8'
     );
-    const timelineSource = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const timelineSource = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(roomViewSource).toContain("from '../../mindroom/threads/useRoomViewThreadState'");
     expect(roomViewSource).not.toContain("from '../../mindroom/threads/useRoomThreadSummaryState'");
@@ -1023,19 +1023,19 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps MindRoom message primitives in the MindRoom namespace', () => {
     const renderContentSource = readFileSync(
-      new URL('../../components/RenderMessageContent.tsx', import.meta.url),
+      new URL('../../../components/RenderMessageContent.tsx', import.meta.url),
       'utf8'
     );
     const mindroomRenderContentSource = readFileSync(
-      new URL('../../mindroom/messages/renderMindroomMessageContent.tsx', import.meta.url),
+      new URL('../../messages/renderMindroomMessageContent.tsx', import.meta.url),
       'utf8'
     );
     const messageIndexSource = readFileSync(
-      new URL('../../components/message/index.ts', import.meta.url),
+      new URL('../../../components/message/index.ts', import.meta.url),
       'utf8'
     );
     const msgTypeRenderersSource = readFileSync(
-      new URL('../../components/message/MsgTypeRenderers.tsx', import.meta.url),
+      new URL('../../../components/message/MsgTypeRenderers.tsx', import.meta.url),
       'utf8'
     );
     const removedMessageCompatibilityPaths = [
@@ -1052,100 +1052,100 @@ describe('RoomTimeline architecture', () => {
       '../../components/message/mindroomToolTrace.ts',
     ];
     const roomMessageSource = readFileSync(
-      new URL('./message/Message.tsx', import.meta.url),
+      new URL('../../../features/room/message/Message.tsx', import.meta.url),
       'utf8'
     );
     const roomMessageStyleSource = readFileSync(
-      new URL('./message/styles.css.ts', import.meta.url),
+      new URL('../../../features/room/message/styles.css.ts', import.meta.url),
       'utf8'
     );
     const parserSource = readFileSync(
-      new URL('../../plugins/react-custom-html-parser.tsx', import.meta.url),
+      new URL('../../../plugins/react-custom-html-parser.tsx', import.meta.url),
       'utf8'
     );
     const searchResultPreviewSource = readFileSync(
-      new URL('../message-search/searchResultPreview.ts', import.meta.url),
+      new URL('../../message-search/searchResultPreview.ts', import.meta.url),
       'utf8'
     );
     const customHtmlStyleSource = readFileSync(
-      new URL('../../styles/CustomHtml.css.ts', import.meta.url),
+      new URL('../../../styles/CustomHtml.css.ts', import.meta.url),
       'utf8'
     );
-    const roomUtilsSource = readFileSync(new URL('../../utils/room.ts', import.meta.url), 'utf8');
+    const roomUtilsSource = readFileSync(new URL('../../../utils/room.ts', import.meta.url), 'utf8');
     const streamingHookImplementationSource = readFileSync(
-      new URL('../../mindroom/threads/useThreadStreamingState.ts', import.meta.url),
+      new URL('../useThreadStreamingState.ts', import.meta.url),
       'utf8'
     );
     const threadSummarySource = readFileSync(
-      new URL('../../mindroom/messages/threadSummary.ts', import.meta.url),
+      new URL('../../messages/threadSummary.ts', import.meta.url),
       'utf8'
     );
     const toolApprovalSource = readFileSync(
-      new URL('../../mindroom/messages/toolApproval.ts', import.meta.url),
+      new URL('../../messages/toolApproval.ts', import.meta.url),
       'utf8'
     );
     const aiRunSource = readFileSync(
-      new URL('../../mindroom/messages/aiRun.ts', import.meta.url),
+      new URL('../../messages/aiRun.ts', import.meta.url),
       'utf8'
     );
     const blocksSource = readFileSync(
-      new URL('../../mindroom/messages/blocks.ts', import.meta.url),
+      new URL('../../messages/blocks.ts', import.meta.url),
       'utf8'
     );
     const longTextSource = readFileSync(
-      new URL('../../mindroom/messages/longText.ts', import.meta.url),
+      new URL('../../messages/longText.ts', import.meta.url),
       'utf8'
     );
     const searchResultPolicySource = readFileSync(
-      new URL('../../mindroom/messages/searchResultPolicy.ts', import.meta.url),
+      new URL('../../messages/searchResultPolicy.ts', import.meta.url),
       'utf8'
     );
     const longTextDownloadSource = readFileSync(
-      new URL('../../mindroom/messages/longTextDownload.ts', import.meta.url),
+      new URL('../../messages/longTextDownload.ts', import.meta.url),
       'utf8'
     );
     const toolTraceSource = readFileSync(
-      new URL('../../mindroom/messages/toolTrace.ts', import.meta.url),
+      new URL('../../messages/toolTrace.ts', import.meta.url),
       'utf8'
     );
     const htmlBlocksSource = readFileSync(
-      new URL('../../mindroom/messages/MindroomHtmlBlocks.tsx', import.meta.url),
+      new URL('../../messages/MindroomHtmlBlocks.tsx', import.meta.url),
       'utf8'
     );
     const htmlBlocksStyleSource = readFileSync(
-      new URL('../../mindroom/messages/MindroomHtmlBlocks.css.ts', import.meta.url),
+      new URL('../../messages/MindroomHtmlBlocks.css.ts', import.meta.url),
       'utf8'
     );
     const threadSummaryCardSource = readFileSync(
-      new URL('../../mindroom/messages/MindroomThreadSummaryCard.tsx', import.meta.url),
+      new URL('../../messages/MindroomThreadSummaryCard.tsx', import.meta.url),
       'utf8'
     );
     const messageControlsSource = readFileSync(
-      new URL('../../mindroom/messages/MindroomMessageControls.tsx', import.meta.url),
+      new URL('../../messages/MindroomMessageControls.tsx', import.meta.url),
       'utf8'
     );
     const streamingIndicatorSource = readFileSync(
-      new URL('../../mindroom/messages/StreamingIndicator.tsx', import.meta.url),
+      new URL('../../messages/StreamingIndicator.tsx', import.meta.url),
       'utf8'
     );
     const messageExtensionsSource = readFileSync(
-      new URL('../../mindroom/messages/messageExtensions.tsx', import.meta.url),
+      new URL('../../messages/messageExtensions.tsx', import.meta.url),
       'utf8'
     );
     const threadBadgeSource = readFileSync(
-      new URL('../../mindroom/threads/ThreadBadgeRenderer.tsx', import.meta.url),
+      new URL('../ThreadBadgeRenderer.tsx', import.meta.url),
       'utf8'
     );
     const metadataSource = readFileSync(
-      new URL('../../mindroom/messages/metadata.ts', import.meta.url),
+      new URL('../../messages/metadata.ts', import.meta.url),
       'utf8'
     );
     const editMetadataSource = readFileSync(
-      new URL('../../mindroom/messages/editMetadata.ts', import.meta.url),
+      new URL('../../messages/editMetadata.ts', import.meta.url),
       'utf8'
     );
     const editResolutionSource = readFileSync(
-      new URL('../../mindroom/messages/editResolution.ts', import.meta.url),
+      new URL('../../messages/editResolution.ts', import.meta.url),
       'utf8'
     );
 
@@ -1191,10 +1191,8 @@ describe('RoomTimeline architecture', () => {
     expect(parserSource).not.toContain("from '../mindroom/messages/toolTrace'");
     expect(parserSource).not.toContain('MINDROOM_BLOCK_META');
     expect(parserSource).not.toContain('MindroomCollapsibleBlock');
-    expect(searchResultPreviewSource).toContain(
-      "from '../../mindroom/messages/searchResultPolicy'"
-    );
-    expect(searchResultPreviewSource).not.toContain("from '../../mindroom/messages/longText'");
+    expect(searchResultPreviewSource).toContain("from '../messages/searchResultPolicy'");
+    expect(searchResultPreviewSource).not.toContain("from '../messages/longText'");
     expect(searchResultPreviewSource).not.toContain("content?.['io.mindroom.long_text']");
     expect(roomUtilsSource).toContain("from '../mindroom/messages/editResolution'");
     expect(roomUtilsSource).not.toContain("from '../mindroom/messages/editMetadata'");
@@ -1255,35 +1253,35 @@ describe('RoomTimeline architecture', () => {
       '../settings/local-mindroom/mindroom.ts',
     ];
     const settingsSource = readFileSync(
-      new URL('../settings/Settings.tsx', import.meta.url),
+      new URL('../../../features/settings/Settings.tsx', import.meta.url),
       'utf8'
     );
     const settingsMenuSource = readFileSync(
-      new URL('../settings/settingsMenu.ts', import.meta.url),
+      new URL('../../../features/settings/settingsMenu.ts', import.meta.url),
       'utf8'
     );
     const pageSource = readFileSync(
-      new URL('../../mindroom/local-mindroom/LocalMindroom.tsx', import.meta.url),
+      new URL('../../local-mindroom/LocalMindroom.tsx', import.meta.url),
       'utf8'
     );
     const apiSource = readFileSync(
-      new URL('../../mindroom/local-mindroom/api.ts', import.meta.url),
+      new URL('../../local-mindroom/api.ts', import.meta.url),
       'utf8'
     );
     const helperSource = readFileSync(
-      new URL('../../mindroom/local-mindroom/mindroom.ts', import.meta.url),
+      new URL('../../local-mindroom/mindroom.ts', import.meta.url),
       'utf8'
     );
     const settingsMenuItemSource = readFileSync(
-      new URL('../../mindroom/local-mindroom/settingsMenu.ts', import.meta.url),
+      new URL('../../local-mindroom/settingsMenu.ts', import.meta.url),
       'utf8'
     );
     const settingsPageSource = readFileSync(
-      new URL('../../mindroom/local-mindroom/settingsPage.ts', import.meta.url),
+      new URL('../../local-mindroom/settingsPage.ts', import.meta.url),
       'utf8'
     );
     const settingsRendererSource = readFileSync(
-      new URL('../../mindroom/local-mindroom/settingsRenderer.tsx', import.meta.url),
+      new URL('../../local-mindroom/settingsRenderer.tsx', import.meta.url),
       'utf8'
     );
 
@@ -1312,15 +1310,15 @@ describe('RoomTimeline architecture', () => {
       import.meta.url
     );
     const sidebarIndexSource = readFileSync(
-      new URL('../../pages/client/sidebar/index.ts', import.meta.url),
+      new URL('../../../pages/client/sidebar/index.ts', import.meta.url),
       'utf8'
     );
     const sidebarNavSource = readFileSync(
-      new URL('../../pages/client/SidebarNav.tsx', import.meta.url),
+      new URL('../../../pages/client/SidebarNav.tsx', import.meta.url),
       'utf8'
     );
     const implementationSource = readFileSync(
-      new URL('../../mindroom/sidebar/MindroomTab.tsx', import.meta.url),
+      new URL('../../sidebar/MindroomTab.tsx', import.meta.url),
       'utf8'
     );
 
@@ -1342,31 +1340,31 @@ describe('RoomTimeline architecture', () => {
       '../recent-threads/useResolvedRecentThreadsLayout.ts',
     ];
     const homeSource = readFileSync(
-      new URL('../../pages/client/home/Home.tsx', import.meta.url),
+      new URL('../../../pages/client/home/Home.tsx', import.meta.url),
       'utf8'
     );
     const directSource = readFileSync(
-      new URL('../../pages/client/direct/Direct.tsx', import.meta.url),
+      new URL('../../../pages/client/direct/Direct.tsx', import.meta.url),
       'utf8'
     );
     const spaceSource = readFileSync(
-      new URL('../../pages/client/space/Space.tsx', import.meta.url),
+      new URL('../../../pages/client/space/Space.tsx', import.meta.url),
       'utf8'
     );
     const panelSource = readFileSync(
-      new URL('../../mindroom/recent-threads/RecentThreadsPanel.tsx', import.meta.url),
+      new URL('../../recent-threads/RecentThreadsPanel.tsx', import.meta.url),
       'utf8'
     );
     const summarySource = readFileSync(
-      new URL('../../mindroom/recent-threads/recentThreadSummaryUtils.ts', import.meta.url),
+      new URL('../../recent-threads/recentThreadSummaryUtils.ts', import.meta.url),
       'utf8'
     );
     const threadRecordSource = readFileSync(
-      new URL('../../mindroom/threads/threadRecord.ts', import.meta.url),
+      new URL('../threadRecord.ts', import.meta.url),
       'utf8'
     );
     const stateSource = readFileSync(
-      new URL('../../mindroom/recent-threads/recentThreads.ts', import.meta.url),
+      new URL('../../recent-threads/recentThreads.ts', import.meta.url),
       'utf8'
     );
 
@@ -1385,43 +1383,43 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps native app integration helpers in the MindRoom namespace', () => {
     const backRouteHandlerSource = readFileSync(
-      new URL('../../components/BackRouteHandler.tsx', import.meta.url),
+      new URL('../../../components/BackRouteHandler.tsx', import.meta.url),
       'utf8'
     );
-    const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
+    const roomViewSource = readFileSync(new URL('../../../features/room/RoomView.tsx', import.meta.url), 'utf8');
     const roomViewThreadStateSource = readFileSync(
-      new URL('../../mindroom/threads/useRoomViewThreadState.ts', import.meta.url),
+      new URL('../useRoomViewThreadState.ts', import.meta.url),
       'utf8'
     );
     const systemNotificationSource = readFileSync(
-      new URL('../settings/notifications/SystemNotification.tsx', import.meta.url),
+      new URL('../../../features/settings/notifications/SystemNotification.tsx', import.meta.url),
       'utf8'
     );
     const systemNotificationExtensionsSource = readFileSync(
       new URL(
-        '../../mindroom/notifications/SystemNotificationMindroomExtensions.tsx',
+        '../../notifications/SystemNotificationMindroomExtensions.tsx',
         import.meta.url
       ),
       'utf8'
     );
     const nativeSsoSource = readFileSync(
-      new URL('../../mindroom/native/nativeSso.ts', import.meta.url),
+      new URL('../../native/nativeSso.ts', import.meta.url),
       'utf8'
     );
     const iosPushSource = readFileSync(
-      new URL('../../mindroom/native/iosPush.ts', import.meta.url),
+      new URL('../../native/iosPush.ts', import.meta.url),
       'utf8'
     );
     const iosPushNotificationSource = readFileSync(
-      new URL('../../mindroom/native/IOSPushNotification.tsx', import.meta.url),
+      new URL('../../native/IOSPushNotification.tsx', import.meta.url),
       'utf8'
     );
     const clientNonUiSource = readFileSync(
-      new URL('../../pages/client/ClientNonUIFeatures.tsx', import.meta.url),
+      new URL('../../../pages/client/ClientNonUIFeatures.tsx', import.meta.url),
       'utf8'
     );
     const mindroomClientNonUiSource = readFileSync(
-      new URL('../../mindroom/client/MindroomClientNonUIFeatures.tsx', import.meta.url),
+      new URL('../../client/MindroomClientNonUIFeatures.tsx', import.meta.url),
       'utf8'
     );
 
@@ -1455,17 +1453,17 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps MindRoom Matrix client fetch policy in the MindRoom namespace', () => {
-    const compatibilityPath = new URL('../../../client/matrixClientFactory.ts', import.meta.url);
+    const compatibilityPath = new URL('../../../../client/matrixClientFactory.ts', import.meta.url);
     const initMatrixSource = readFileSync(
-      new URL('../../../client/initMatrix.ts', import.meta.url),
+      new URL('../../../../client/initMatrix.ts', import.meta.url),
       'utf8'
     );
     const authFlowsLoaderSource = readFileSync(
-      new URL('../../components/AuthFlowsLoader.tsx', import.meta.url),
+      new URL('../../../components/AuthFlowsLoader.tsx', import.meta.url),
       'utf8'
     );
     const implementationSource = readFileSync(
-      new URL('../../mindroom/matrix/matrixClientFactory.ts', import.meta.url),
+      new URL('../../matrix/matrixClientFactory.ts', import.meta.url),
       'utf8'
     );
 
@@ -1478,63 +1476,63 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps MindRoom branding and hosted-auth policy in the MindRoom namespace', () => {
     const brandingSource = readFileSync(
-      new URL('../../mindroom/branding/branding.ts', import.meta.url),
+      new URL('../../branding/branding.ts', import.meta.url),
       'utf8'
     );
     const clientBrandingSource = readFileSync(
-      new URL('../../mindroom/branding/clientBranding.ts', import.meta.url),
+      new URL('../../branding/clientBranding.ts', import.meta.url),
       'utf8'
     );
     const authPolicySource = readFileSync(
-      new URL('../../mindroom/auth/authPolicy.ts', import.meta.url),
+      new URL('../../auth/authPolicy.ts', import.meta.url),
       'utf8'
     );
     const authUiSource = readFileSync(
-      new URL('../../mindroom/auth/authUi.ts', import.meta.url),
+      new URL('../../auth/authUi.ts', import.meta.url),
       'utf8'
     );
     const authFooterSource = readFileSync(
-      new URL('../../pages/auth/AuthFooter.tsx', import.meta.url),
+      new URL('../../../pages/auth/AuthFooter.tsx', import.meta.url),
       'utf8'
     );
     const authLayoutSource = readFileSync(
-      new URL('../../pages/auth/AuthLayout.tsx', import.meta.url),
+      new URL('../../../pages/auth/AuthLayout.tsx', import.meta.url),
       'utf8'
     );
     const ssoLoginSource = readFileSync(
-      new URL('../../pages/auth/SSOLogin.tsx', import.meta.url),
+      new URL('../../../pages/auth/SSOLogin.tsx', import.meta.url),
       'utf8'
     );
     const loginSource = readFileSync(
-      new URL('../../pages/auth/login/Login.tsx', import.meta.url),
+      new URL('../../../pages/auth/login/Login.tsx', import.meta.url),
       'utf8'
     );
     const passwordLoginSource = readFileSync(
-      new URL('../../pages/auth/login/PasswordLoginForm.tsx', import.meta.url),
+      new URL('../../../pages/auth/login/PasswordLoginForm.tsx', import.meta.url),
       'utf8'
     );
     const tokenLoginSource = readFileSync(
-      new URL('../../pages/auth/login/TokenLogin.tsx', import.meta.url),
+      new URL('../../../pages/auth/login/TokenLogin.tsx', import.meta.url),
       'utf8'
     );
     const registerSource = readFileSync(
-      new URL('../../pages/auth/register/Register.tsx', import.meta.url),
+      new URL('../../../pages/auth/register/Register.tsx', import.meta.url),
       'utf8'
     );
     const passwordRegisterSource = readFileSync(
-      new URL('../../pages/auth/register/PasswordRegisterForm.tsx', import.meta.url),
+      new URL('../../../pages/auth/register/PasswordRegisterForm.tsx', import.meta.url),
       'utf8'
     );
     const welcomePageSource = readFileSync(
-      new URL('../../pages/client/WelcomePage.tsx', import.meta.url),
+      new URL('../../../pages/client/WelcomePage.tsx', import.meta.url),
       'utf8'
     );
     const splashScreenSource = readFileSync(
-      new URL('../../components/splash-screen/SplashScreen.tsx', import.meta.url),
+      new URL('../../../components/splash-screen/SplashScreen.tsx', import.meta.url),
       'utf8'
     );
     const aboutSource = readFileSync(
-      new URL('../settings/about/About.tsx', import.meta.url),
+      new URL('../../../features/settings/about/About.tsx', import.meta.url),
       'utf8'
     );
 
@@ -1576,13 +1574,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps thread root route canonicalization in MindRoom threads', () => {
-    const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
+    const roomViewSource = readFileSync(new URL('../../../features/room/RoomView.tsx', import.meta.url), 'utf8');
     const roomViewThreadStateSource = readFileSync(
-      new URL('../../mindroom/threads/useRoomViewThreadState.ts', import.meta.url),
+      new URL('../useRoomViewThreadState.ts', import.meta.url),
       'utf8'
     );
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/useThreadRootEvent.ts', import.meta.url),
+      new URL('../useThreadRootEvent.ts', import.meta.url),
       'utf8'
     );
 
@@ -1594,17 +1592,17 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const targetSource = readFileSync(
-      new URL('../../mindroom/threads/threadOverviewRefreshTargets.ts', import.meta.url),
+      new URL('../threadOverviewRefreshTargets.ts', import.meta.url),
       'utf8'
     );
     const controllerSource = readFileSync(
-      new URL('../../mindroom/threads/threadOverviewResumeController.ts', import.meta.url),
+      new URL('../threadOverviewResumeController.ts', import.meta.url),
       'utf8'
     );
     const counterSource = readFileSync(
-      new URL('../../mindroom/threads/threadOverviewRefreshCounter.ts', import.meta.url),
+      new URL('../threadOverviewRefreshCounter.ts', import.meta.url),
       'utf8'
     );
 
@@ -1625,9 +1623,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread sort-freeze resnapshot policy to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const controllerSource = readFileSync(
-      new URL('../../mindroom/threads/threadSortFreezeController.ts', import.meta.url),
+      new URL('../threadSortFreezeController.ts', import.meta.url),
       'utf8'
     );
 
@@ -1638,17 +1636,17 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps room thread-list loading in MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const listSource = readFileSync(
-      new URL('../../mindroom/threads/roomThreadList.ts', import.meta.url),
+      new URL('../roomThreadList.ts', import.meta.url),
       'utf8'
     );
     const hookSource = readFileSync(
-      new URL('../../mindroom/threads/useRoomThreadList.ts', import.meta.url),
+      new URL('../useRoomThreadList.ts', import.meta.url),
       'utf8'
     );
     const indexSource = readFileSync(
-      new URL('../../mindroom/threads/useMindroomThreadIndex.ts', import.meta.url),
+      new URL('../useMindroomThreadIndex.ts', import.meta.url),
       'utf8'
     );
 
@@ -1660,7 +1658,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates compact root edit backfill orchestration to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).toContain('useCompactRootEditBackfillController');
     expect(source).toContain("from '../../mindroom/threads/compactRootEditBackfillController'");
@@ -1670,7 +1668,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread edit backfill orchestration to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).toContain('useThreadEditBackfillController');
     expect(source).toContain("from '../../mindroom/threads/threadEditBackfillController'");
@@ -1681,13 +1679,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps live collapsible-message policy in MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const componentSource = readFileSync(
-      new URL('../../mindroom/threads/CollapsibleMessage.tsx', import.meta.url),
+      new URL('../CollapsibleMessage.tsx', import.meta.url),
       'utf8'
     );
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/threadCollapsibleMessages.ts', import.meta.url),
+      new URL('../threadCollapsibleMessages.ts', import.meta.url),
       'utf8'
     );
 
@@ -1702,9 +1700,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread prepend scroll primitives to scroll utilities', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/timelineScrollUtils.ts', import.meta.url),
+      new URL('../timelineScrollUtils.ts', import.meta.url),
       'utf8'
     );
 
@@ -1724,7 +1722,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread back-pagination mutable state to the controller hook', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).toContain('useThreadBackPaginationController');
     expect(source).not.toContain('pendingThreadBackPaginationAnchorRef');
@@ -1732,7 +1730,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates thread pagination commands to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).toContain('useThreadPaginationCommandController');
     expect(source).toContain("from '../../mindroom/threads/threadPaginationCommandController'");
@@ -1742,13 +1740,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps timeline debug helpers in MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/timelineDebug.ts', import.meta.url),
+      new URL('../timelineDebug.ts', import.meta.url),
       'utf8'
     );
     const controllerSource = readFileSync(
-      new URL('../../mindroom/threads/timelineDebugController.ts', import.meta.url),
+      new URL('../timelineDebugController.ts', import.meta.url),
       'utf8'
     );
 
@@ -1767,7 +1765,7 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps event cache token helpers in MindRoom threads', () => {
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/eventCacheTokenUtils.ts', import.meta.url),
+      new URL('../eventCacheTokenUtils.ts', import.meta.url),
       'utf8'
     );
 
@@ -1777,7 +1775,7 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps event cache edit helpers in MindRoom threads', () => {
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/eventCacheEditUtils.ts', import.meta.url),
+      new URL('../eventCacheEditUtils.ts', import.meta.url),
       'utf8'
     );
 
@@ -1788,15 +1786,15 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps raw event cache stores in MindRoom threads', () => {
     const roomStoreSource = readFileSync(
-      new URL('../../mindroom/threads/roomEventCache.ts', import.meta.url),
+      new URL('../roomEventCache.ts', import.meta.url),
       'utf8'
     );
     const threadStoreSource = readFileSync(
-      new URL('../../mindroom/threads/threadEventCache.ts', import.meta.url),
+      new URL('../threadEventCache.ts', import.meta.url),
       'utf8'
     );
     const repositorySource = readFileSync(
-      new URL('../../mindroom/threads/eventRepository.ts', import.meta.url),
+      new URL('../eventRepository.ts', import.meta.url),
       'utf8'
     );
 
@@ -1810,7 +1808,7 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps thread pagination reconciliation helpers in MindRoom threads', () => {
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/threadPaginationUtils.ts', import.meta.url),
+      new URL('../threadPaginationUtils.ts', import.meta.url),
       'utf8'
     );
 
@@ -1819,9 +1817,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps timeline pagination helpers in MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const implementationSource = readFileSync(
-      new URL('../../mindroom/threads/timelinePagination.ts', import.meta.url),
+      new URL('../timelinePagination.ts', import.meta.url),
       'utf8'
     );
 
@@ -1838,9 +1836,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates timeline pagination commands to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const controllerSource = readFileSync(
-      new URL('../../mindroom/threads/timelinePaginationController.ts', import.meta.url),
+      new URL('../timelinePaginationController.ts', import.meta.url),
       'utf8'
     );
 
@@ -1853,13 +1851,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates timeline read receipt and bottom-anchor ownership to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const controllerSource = readFileSync(
-      new URL('../../mindroom/threads/timelineReadReceiptController.ts', import.meta.url),
+      new URL('../timelineReadReceiptController.ts', import.meta.url),
       'utf8'
     );
     const readReceiptsSource = readFileSync(
-      new URL('../../mindroom/notifications/readReceipts.ts', import.meta.url),
+      new URL('../../notifications/readReceipts.ts', import.meta.url),
       'utf8'
     );
 
@@ -1875,13 +1873,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates room menu mark-read ownership to MindRoom notifications', () => {
-    const headerSource = readFileSync(new URL('./RoomViewHeader.tsx', import.meta.url), 'utf8');
+    const headerSource = readFileSync(new URL('../../../features/room/RoomViewHeader.tsx', import.meta.url), 'utf8');
     const navItemSource = readFileSync(
-      new URL('../room-nav/RoomNavItem.tsx', import.meta.url),
+      new URL('../../../features/room-nav/RoomNavItem.tsx', import.meta.url),
       'utf8'
     );
     const menuItemSource = readFileSync(
-      new URL('../../mindroom/notifications/MindroomMarkRoomReadMenuItem.tsx', import.meta.url),
+      new URL('../../notifications/MindroomMarkRoomReadMenuItem.tsx', import.meta.url),
       'utf8'
     );
 
@@ -1895,15 +1893,15 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates page and sidebar list mark-read ownership to MindRoom notifications', () => {
     const pageSources = [
-      new URL('../../pages/client/home/Home.tsx', import.meta.url),
-      new URL('../../pages/client/direct/Direct.tsx', import.meta.url),
-      new URL('../../pages/client/space/Space.tsx', import.meta.url),
-      new URL('../../pages/client/sidebar/HomeTab.tsx', import.meta.url),
-      new URL('../../pages/client/sidebar/DirectTab.tsx', import.meta.url),
-      new URL('../../pages/client/sidebar/SpaceTabs.tsx', import.meta.url),
+      new URL('../../../pages/client/home/Home.tsx', import.meta.url),
+      new URL('../../../pages/client/direct/Direct.tsx', import.meta.url),
+      new URL('../../../pages/client/space/Space.tsx', import.meta.url),
+      new URL('../../../pages/client/sidebar/HomeTab.tsx', import.meta.url),
+      new URL('../../../pages/client/sidebar/DirectTab.tsx', import.meta.url),
+      new URL('../../../pages/client/sidebar/SpaceTabs.tsx', import.meta.url),
     ].map((url) => readFileSync(url, 'utf8'));
     const menuItemSource = readFileSync(
-      new URL('../../mindroom/notifications/MindroomMarkRoomsReadMenuItem.tsx', import.meta.url),
+      new URL('../../notifications/MindroomMarkRoomsReadMenuItem.tsx', import.meta.url),
       'utf8'
     );
 
@@ -1917,11 +1915,11 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates notification-list room mark-read ownership to MindRoom notifications', () => {
     const notificationsSource = readFileSync(
-      new URL('../../pages/client/inbox/Notifications.tsx', import.meta.url),
+      new URL('../../../pages/client/inbox/Notifications.tsx', import.meta.url),
       'utf8'
     );
     const chipSource = readFileSync(
-      new URL('../../mindroom/notifications/MindroomMarkRoomReadChip.tsx', import.meta.url),
+      new URL('../../notifications/MindroomMarkRoomReadChip.tsx', import.meta.url),
       'utf8'
     );
 
@@ -1932,9 +1930,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates route focus and thread-open scroll effects to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const controllerSource = readFileSync(
-      new URL('../../mindroom/threads/roomFocusScrollController.ts', import.meta.url),
+      new URL('../roomFocusScrollController.ts', import.meta.url),
       'utf8'
     );
 
@@ -1949,9 +1947,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates room jump and thread-card navigation handlers to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const controllerSource = readFileSync(
-      new URL('../../mindroom/threads/roomTimelineNavigationController.ts', import.meta.url),
+      new URL('../roomTimelineNavigationController.ts', import.meta.url),
       'utf8'
     );
 
@@ -1965,13 +1963,13 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates live event arrival policy to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const subscriptionSource = readFileSync(
-      new URL('../../mindroom/threads/roomLiveEventArrive.ts', import.meta.url),
+      new URL('../roomLiveEventArrive.ts', import.meta.url),
       'utf8'
     );
     const controllerSource = readFileSync(
-      new URL('../../mindroom/threads/roomLiveEventController.ts', import.meta.url),
+      new URL('../roomLiveEventController.ts', import.meta.url),
       'utf8'
     );
 
@@ -1989,7 +1987,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates room cache pagination commands to MindRoom threads', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).toContain('useRoomPaginationCommandController');
     expect(source).toContain("from '../../mindroom/threads/roomPaginationCommandController'");
@@ -1999,9 +1997,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps thread-open seed cache in the MindRoom thread namespace', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const lifecycleSource = readFileSync(
-      new URL('../../mindroom/threads/threadOpenLifecycleController.ts', import.meta.url),
+      new URL('../threadOpenLifecycleController.ts', import.meta.url),
       'utf8'
     );
 
@@ -2014,9 +2012,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates latest room cache hydration decisions to the event repository', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const hydrationControllerSource = readFileSync(
-      new URL('../../mindroom/threads/roomCacheHydrationController.ts', import.meta.url),
+      new URL('../roomCacheHydrationController.ts', import.meta.url),
       'utf8'
     );
 
@@ -2030,9 +2028,9 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates cached room pagination reads to the event repository', () => {
-    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
     const paginationControllerSource = readFileSync(
-      new URL('../../mindroom/threads/roomPaginationCommandController.ts', import.meta.url),
+      new URL('../roomPaginationCommandController.ts', import.meta.url),
       'utf8'
     );
 

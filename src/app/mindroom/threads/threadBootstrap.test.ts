@@ -9,7 +9,7 @@ import {
   makeEvent,
   makeRoom,
   matrixClientMock,
-} from '../../features/room/RoomTimeline.test.shared';
+} from './test-utils/RoomTimeline.test.shared';
 
 let fetchAllThreadRelations: typeof import('./threadBootstrap').fetchAllThreadRelations;
 let shouldRefreshOverviewForTimelineEvent: typeof import('./threadBootstrap').shouldRefreshOverviewForTimelineEvent;

@@ -2,15 +2,15 @@ import type { ReactElement, ReactNode } from 'react';
 import React from 'react';
 import { act } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
-import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../mindroom/messages/toolApproval';
-import { MessageEvent } from '../../../types/matrix/room';
+import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../messages/toolApproval';
+import { MessageEvent } from '../../../../types/matrix/room';
 import {
   create,
   createControlledRoomTimelineHarness,
   flushAsyncWork,
   makeEvent,
   makeRoom,
-} from './RoomTimeline.test.shared';
+} from '../test-utils/RoomTimeline.test.shared';
 
 const findElementInNode = (
   node: ReactNode,
@@ -26,7 +26,7 @@ const findElementInNode = (
 
 describe('RoomTimeline approval rendering', () => {
   it('renders thread summary and thread metadata for approval events', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const approvalEvent = makeEvent('$approval', {
       type: 'io.mindroom.tool_approval',
@@ -89,7 +89,7 @@ describe('RoomTimeline approval rendering', () => {
 
     const approvalMessage = renderer?.root.findByProps({ 'data-message-id': '$approval' });
     const reactions = approvalMessage?.props.reactions;
-    const { ThreadBadgeRenderer } = await import('../../mindroom/threads/ThreadBadgeRenderer');
+    const { ThreadBadgeRenderer } = await import('../ThreadBadgeRenderer');
     const threadBadge = findElementInNode(
       reactions,
       (element) => element.type === ThreadBadgeRenderer
@@ -103,7 +103,7 @@ describe('RoomTimeline approval rendering', () => {
   });
 
   it('renders a zero-reply thread badge for approval roots with empty thread metadata', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const approvalEvent = makeEvent('$approval', {
       type: 'io.mindroom.tool_approval',
@@ -149,7 +149,7 @@ describe('RoomTimeline approval rendering', () => {
     });
 
     const approvalMessage = renderer?.root.findByProps({ 'data-message-id': '$approval' });
-    const { ThreadBadgeRenderer } = await import('../../mindroom/threads/ThreadBadgeRenderer');
+    const { ThreadBadgeRenderer } = await import('../ThreadBadgeRenderer');
     const threadBadge = findElementInNode(
       approvalMessage?.props.reactions,
       (element) => element.type === ThreadBadgeRenderer
@@ -161,7 +161,7 @@ describe('RoomTimeline approval rendering', () => {
   });
 
   it('routes decrypted encrypted approval events through the approval renderer', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const encryptedApprovalEvent = makeEvent('$encrypted-approval', {
       type: MessageEvent.RoomMessageEncrypted,

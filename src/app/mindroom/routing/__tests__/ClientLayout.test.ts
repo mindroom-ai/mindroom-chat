@@ -1,12 +1,12 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ClientLayout } from './ClientLayout';
-import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useRoomNavigate } from '../../hooks/useRoomNavigate';
-import { useActiveSession } from '../../hooks/useSessionStore';
-import { getLastOpenThread } from '../../mindroom/threads/lastOpenThread';
-import { updateSessionLastPath } from '../../state/sessions';
+import { ClientLayout } from '../../../pages/client/ClientLayout';
+import { useMatrixClient } from '../../../hooks/useMatrixClient';
+import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
+import { useActiveSession } from '../../../hooks/useSessionStore';
+import { getLastOpenThread } from '../../threads/lastOpenThread';
+import { updateSessionLastPath } from '../../../state/sessions';
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');
@@ -24,23 +24,23 @@ vi.mock('react-router-dom', async (importOriginal) => {
   };
 });
 
-vi.mock('../../hooks/useMatrixClient', () => ({
+vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: vi.fn(),
 }));
 
-vi.mock('../../hooks/useRoomNavigate', () => ({
+vi.mock('../../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: vi.fn(),
 }));
 
-vi.mock('../../hooks/useSessionStore', () => ({
+vi.mock('../../../hooks/useSessionStore', () => ({
   useActiveSession: vi.fn(),
 }));
 
-vi.mock('../../mindroom/threads/lastOpenThread', () => ({
+vi.mock('../../threads/lastOpenThread', () => ({
   getLastOpenThread: vi.fn(),
 }));
 
-vi.mock('../../state/sessions', () => ({
+vi.mock('../../../state/sessions', () => ({
   updateSessionLastPath: vi.fn(),
 }));
 

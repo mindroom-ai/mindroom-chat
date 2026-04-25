@@ -21,7 +21,7 @@ const longTextMocks = vi.hoisted(() => ({
 }));
 
 // These renderer/UI mocks should move into shared Vitest setup once the repo adds one.
-vi.mock('./styles.css', () => ({
+vi.mock('../../../features/room/message/styles.css', () => ({
   BubbleAvatarBase: 'BubbleAvatarBase',
   MessageAvatar: 'MessageAvatar',
   MessageBase: 'MessageBase',
@@ -32,7 +32,7 @@ vi.mock('./styles.css', () => ({
   MessageOptionsBase: 'MessageOptionsBase',
 }));
 
-vi.mock('../../../mindroom/messages/MindroomMessageControls.css', () => ({
+vi.mock('../MindroomMessageControls.css', () => ({
   AiRunInfoButton: 'AiRunInfoButton',
   MenuItemText: 'MenuItemText',
 }));
@@ -256,11 +256,11 @@ vi.mock('../../../components/emoji-board', () => ({
   EmojiBoard: () => React.createElement('div', null, 'emoji-board'),
 }));
 
-vi.mock('../reaction-viewer', () => ({
+vi.mock('../../../features/room/reaction-viewer', () => ({
   ReactionViewer: () => React.createElement('div', null, 'reactions'),
 }));
 
-vi.mock('./MessageEditor', () => ({
+vi.mock('../../../features/room/message/MessageEditor', () => ({
   MessageEditor: () => React.createElement('div', null, 'editor'),
 }));
 
@@ -310,11 +310,11 @@ vi.mock('../../../hooks/useMemberPowerTag', () => ({
   getPowerTagIconSrc: () => undefined,
 }));
 
-vi.mock('../../../mindroom/messages/longText', () => ({
+vi.mock('../longText', () => ({
   getMindroomLongTextSource: longTextMocks.getMindroomLongTextSource,
 }));
 
-vi.mock('../../../mindroom/messages/MindroomLongTextText', () => ({
+vi.mock('../MindroomLongTextText', () => ({
   downloadMindroomLongTextSidecarBlob: longTextMocks.downloadMindroomLongTextSidecarBlob,
   useMindroomLongTextResolvedContent: longTextMocks.useMindroomLongTextResolvedContent,
 }));
@@ -327,7 +327,7 @@ vi.mock('../../../state/settings', () => ({
   },
 }));
 
-const getMessageComponent = async () => (await import('./Message')).Message;
+const getMessageComponent = async () => (await import('../../../features/room/message/Message')).Message;
 
 beforeEach(() => {
   lastMessageBaseNode = undefined;

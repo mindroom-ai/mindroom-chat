@@ -18,7 +18,7 @@ import {
   settingsState,
   threadResolutionMapMock,
   virtualPaginatorState,
-} from './RoomTimeline.test.shared';
+} from '../test-utils/RoomTimeline.test.shared';
 
 describe('RoomTimeline', () => {
   describe('navigation and focus', () => {
@@ -30,7 +30,7 @@ describe('RoomTimeline', () => {
           const paginationLimit = 50;
           settingsState.paginationLimit = paginationLimit;
           try {
-            const { RoomTimeline } = await import('./RoomTimeline');
+            const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
             const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
             const unresolvedThread = makeEvent('$thread-unresolved', { isThreadRoot: true });
             const liveEvents = Array.from({ length: paginationLimit - 1 }, (_, index) =>
@@ -85,7 +85,7 @@ describe('RoomTimeline', () => {
         }, 10000);
 
   it('keeps the active filter when jumping to an unread event hidden by the overview', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const resolvedThread = makeEvent('$thread-resolved', { isThreadRoot: true });
     const unreadMessage = makeEvent('$unread-message');
@@ -139,9 +139,9 @@ describe('RoomTimeline', () => {
 
   it('maps hidden event targets to a visible neighbor instead of filtered index zero', async () => {
     const { getTimelineTargetAnchor } = await import(
-      '../../mindroom/threads/timelineScrollUtils'
+      '../timelineScrollUtils'
     );
-    const { getRenderableEventEntries } = await import('../../mindroom/threads/roomTimelineEvents');
+    const { getRenderableEventEntries } = await import('../roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const threadRoot = makeEvent('$thread-root', { ts: 2 });
     const hiddenReply = makeEvent('$thread-reply', {
@@ -179,9 +179,9 @@ describe('RoomTimeline', () => {
 
   it('falls back to the closest renderable entry when all target candidates are hidden', async () => {
     const { getTimelineTargetAnchor } = await import(
-      '../../mindroom/threads/timelineScrollUtils'
+      '../timelineScrollUtils'
     );
-    const { getRenderableEventEntries } = await import('../../mindroom/threads/roomTimelineEvents');
+    const { getRenderableEventEntries } = await import('../roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const hiddenReply = makeEvent('$thread-reply', {
       threadRootId: '$thread-root',
@@ -223,8 +223,8 @@ describe('RoomTimeline', () => {
   });
 
   it('falls back to the last renderable entry when read-up-to is beyond all visible events', async () => {
-    const { getUnreadTargetAnchor } = await import('../../mindroom/threads/timelineScrollUtils');
-    const { getRenderableEventEntries } = await import('../../mindroom/threads/roomTimelineEvents');
+    const { getUnreadTargetAnchor } = await import('../timelineScrollUtils');
+    const { getRenderableEventEntries } = await import('../roomTimelineEvents');
     const firstVisible = makeEvent('$first', { ts: 1 });
     const lastVisible = makeEvent('$last', { ts: 2 });
     const hiddenReply = makeEvent('$hidden-reply', {
@@ -259,7 +259,7 @@ describe('RoomTimeline', () => {
   });
 
   it('scrolls to the next visible event when read-up-to is filtered out in the live timeline', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const visibleRead = makeEvent('$visible-read', { ts: 1 });
     const hiddenReply = makeEvent('$hidden-reply', {
       threadRootId: '$thread-root',
@@ -292,7 +292,7 @@ describe('RoomTimeline', () => {
   });
 
   it('switches back to all threads before opening an eventId hidden by the active filter', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const resolvedThread = makeEvent('$thread-resolved', { isThreadRoot: true });
     const permalinkMessage = makeEvent('$permalink-message');
@@ -345,7 +345,7 @@ describe('RoomTimeline', () => {
   });
 
   it('keeps the active thread filter when opening an unloaded eventId that still matches it', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const visibleResolvedThread = makeEvent('$thread-visible', { isThreadRoot: true });
     const olderResolvedThread = makeEvent('$thread-older', { isThreadRoot: true });
@@ -398,7 +398,7 @@ describe('RoomTimeline', () => {
   });
 
   it('keeps the unresolved filter when opening an unloaded unresolved thread root', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const visibleUnresolvedThread = makeEvent('$thread-visible', { isThreadRoot: true });
     const olderUnresolvedThread = makeEvent('$thread-older', { isThreadRoot: true });
@@ -449,7 +449,7 @@ describe('RoomTimeline', () => {
   });
 
   it('keeps the unresolved filter when opening an unloaded fallback-only thread root after permalink load', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const visibleUnresolvedThread = makeEvent('$thread-visible', { isThreadRoot: true });
     const fallbackThreadRoot = makeEvent('$thread-fallback');
@@ -507,7 +507,7 @@ describe('RoomTimeline', () => {
 
   it('detects unread divider boundaries when read-up-to is filtered out', async () => {
     const { shouldRenderUnreadDividerAt } = await import(
-      '../../mindroom/threads/timelineScrollUtils'
+      '../timelineScrollUtils'
     );
 
     expect(
@@ -539,7 +539,7 @@ describe('RoomTimeline', () => {
 
       describe('room focus retry handling', () => {
         it('does not retrigger room focus scroll on unrelated live room updates', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const unresolvedThread = makeEvent('$thread-root', { isThreadRoot: true });
     const unreadMessage = makeEvent('$unread-message');
     const unreadTimelineEvents = [unreadMessage];
@@ -600,7 +600,7 @@ describe('RoomTimeline', () => {
   });
 
   it('tracks room-mode focus retries while the target event is still missing from the DOM', async () => {
-    const { getNextRoomFocusRetry } = await import('../../mindroom/threads/timelineScrollUtils');
+    const { getNextRoomFocusRetry } = await import('../timelineScrollUtils');
 
     expect(
       getNextRoomFocusRetry({
@@ -653,9 +653,9 @@ describe('RoomTimeline', () => {
 
   it('maps hidden event targets to a visible neighbor instead of filtered index zero', async () => {
     const { getTimelineTargetAnchor } = await import(
-      '../../mindroom/threads/timelineScrollUtils'
+      '../timelineScrollUtils'
     );
-    const { getRenderableEventEntries } = await import('../../mindroom/threads/roomTimelineEvents');
+    const { getRenderableEventEntries } = await import('../roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const threadRoot = makeEvent('$thread-root', { ts: 2 });
     const hiddenReply = makeEvent('$thread-reply', {
@@ -693,9 +693,9 @@ describe('RoomTimeline', () => {
 
   it('falls back to the closest renderable entry when all target candidates are hidden', async () => {
     const { getTimelineTargetAnchor } = await import(
-      '../../mindroom/threads/timelineScrollUtils'
+      '../timelineScrollUtils'
     );
-    const { getRenderableEventEntries } = await import('../../mindroom/threads/roomTimelineEvents');
+    const { getRenderableEventEntries } = await import('../roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const hiddenReply = makeEvent('$thread-reply', {
       threadRootId: '$thread-root',
@@ -737,8 +737,8 @@ describe('RoomTimeline', () => {
   });
 
   it('falls back to the last renderable entry when read-up-to is beyond all visible events', async () => {
-    const { getUnreadTargetAnchor } = await import('../../mindroom/threads/timelineScrollUtils');
-    const { getRenderableEventEntries } = await import('../../mindroom/threads/roomTimelineEvents');
+    const { getUnreadTargetAnchor } = await import('../timelineScrollUtils');
+    const { getRenderableEventEntries } = await import('../roomTimelineEvents');
     const firstVisible = makeEvent('$first', { ts: 1 });
     const lastVisible = makeEvent('$last', { ts: 2 });
     const hiddenReply = makeEvent('$hidden-reply', {
@@ -773,7 +773,7 @@ describe('RoomTimeline', () => {
   });
 
   it('scrolls to the next visible event when read-up-to is filtered out in the live timeline', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const visibleRead = makeEvent('$visible-read', { ts: 1 });
     const hiddenReply = makeEvent('$hidden-reply', {
       threadRootId: '$thread-root',
@@ -806,7 +806,7 @@ describe('RoomTimeline', () => {
   });
 
   it('switches back to all threads before opening an eventId hidden by the active filter', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const resolvedThread = makeEvent('$thread-resolved', { isThreadRoot: true });
     const permalinkMessage = makeEvent('$permalink-message');
@@ -858,7 +858,7 @@ describe('RoomTimeline', () => {
   });
 
   it('keeps the active thread filter when opening an unloaded eventId that still matches it', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const visibleResolvedThread = makeEvent('$thread-visible', { isThreadRoot: true });
     const olderResolvedThread = makeEvent('$thread-older', { isThreadRoot: true });
@@ -911,7 +911,7 @@ describe('RoomTimeline', () => {
   });
 
   it('keeps the unresolved filter when opening an unloaded unresolved thread root', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const visibleUnresolvedThread = makeEvent('$thread-visible', { isThreadRoot: true });
     const olderUnresolvedThread = makeEvent('$thread-older', { isThreadRoot: true });
@@ -962,7 +962,7 @@ describe('RoomTimeline', () => {
   });
 
   it('keeps the unresolved filter when opening an unloaded fallback-only thread root after permalink load', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const visibleUnresolvedThread = makeEvent('$thread-visible', { isThreadRoot: true });
     const fallbackThreadRoot = makeEvent('$thread-fallback');
@@ -1020,7 +1020,7 @@ describe('RoomTimeline', () => {
 
   it('detects unread divider boundaries when read-up-to is filtered out', async () => {
     const { shouldRenderUnreadDividerAt } = await import(
-      '../../mindroom/threads/timelineScrollUtils'
+      '../timelineScrollUtils'
     );
 
     expect(

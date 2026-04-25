@@ -6,23 +6,23 @@ import {
   createDefaultThreadFilterState,
   FILTER_PRESETS,
   updateThreadFilterKey,
-} from '../../mindroom/threads/roomThreadOverviewModel';
-import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../mindroom/threads/scheduledTaskContract';
-import { applyParsedThreadFilterQuery, parseThreadFilterQuery, serializeThreadFilterQuery } from '../../mindroom/threads/threadFilterDsl';
-import { create, flushAsyncWork, getRenderedEventIds, makeEvent, makeRoom, roomThreadOverviewType, stateEventsByTypeMock, threadStreamingStateMock } from './RoomTimeline.test.shared';
+} from '../roomThreadOverviewModel';
+import { MINDROOM_SCHEDULED_TASK_EVENT } from '../scheduledTaskContract';
+import { applyParsedThreadFilterQuery, parseThreadFilterQuery, serializeThreadFilterQuery } from '../threadFilterDsl';
+import { create, flushAsyncWork, getRenderedEventIds, makeEvent, makeRoom, roomThreadOverviewType, stateEventsByTypeMock, threadStreamingStateMock } from '../test-utils/RoomTimeline.test.shared';
 
 const { scheduledEventsByType } = vi.hoisted(() => ({
   scheduledEventsByType: new Map<string, unknown[]>(),
 }));
 
-vi.mock('../../mindroom/threads/useStateEvents', () => ({
+vi.mock('../useStateEvents', () => ({
   useStateEvents: (_room: unknown, eventType: string) => scheduledEventsByType.get(eventType) ?? [],
 }));
-vi.mock('../../mindroom/threads/useThreadLastActivityTs', () => ({
+vi.mock('../useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: () => 0,
   useThreadLastActivityTs: () => 0,
 }));
-vi.mock('../../mindroom/threads/scheduledTaskContract', () => ({
+vi.mock('../scheduledTaskContract', () => ({
   MINDROOM_SCHEDULED_TASK_EVENT: 'com.mindroom.scheduled.task',
   parseScheduledTaskStateEvent: (event: { getStateKey: () => string; getContent: () => Record<string, unknown> }) => {
     const content = event.getContent();
@@ -53,7 +53,7 @@ const syncQueryState = (
 };
 
 const setup = async () => {
-  const { RoomTimeline } = await import('./RoomTimeline');
+  const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
   const Harness = ({ room }: { room: ReturnType<typeof makeRoom> }) => {
     const [threadFilterState, setThreadFilterState] = React.useState(createDefaultThreadFilterState());
     return React.createElement(RoomTimeline as never, {

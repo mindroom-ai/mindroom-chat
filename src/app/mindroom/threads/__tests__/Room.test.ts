@@ -51,18 +51,18 @@ vi.mock('react-router-dom', () => ({
   useSearchParams: () => [new URLSearchParams(roomState.search)],
 }));
 
-vi.mock('./RoomView', () => ({
+vi.mock('../../../features/room/RoomView', () => ({
   RoomView: (props: MockRoomViewProps) => {
     roomState.roomViewProps = props;
     return React.createElement('mock-room-view');
   },
 }));
 
-vi.mock('./MembersDrawer', () => ({
+vi.mock('../../../features/room/MembersDrawer', () => ({
   MembersDrawer: () => React.createElement('div'),
 }));
 
-vi.mock('../../hooks/useScreenSize', () => ({
+vi.mock('../../../hooks/useScreenSize', () => ({
   ScreenSize: {
     Desktop: 'Desktop',
     Mobile: 'Mobile',
@@ -70,7 +70,7 @@ vi.mock('../../hooks/useScreenSize', () => ({
   useScreenSizeContext: () => 'Desktop',
 }));
 
-vi.mock('../../state/hooks/settings', () => ({
+vi.mock('../../../state/hooks/settings', () => ({
   useSetting: (_atom: unknown, key: string) => {
     switch (key) {
       case 'isPeopleDrawer':
@@ -83,63 +83,63 @@ vi.mock('../../state/hooks/settings', () => ({
   },
 }));
 
-vi.mock('../../state/settings', () => ({
+vi.mock('../../../state/settings', () => ({
   settingsAtom: {},
 }));
 
-vi.mock('../../hooks/usePowerLevels', () => ({
+vi.mock('../../../hooks/usePowerLevels', () => ({
   PowerLevelsContextProvider: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
   usePowerLevels: () => ({}),
 }));
 
-vi.mock('../../hooks/useRoom', () => ({
+vi.mock('../../../hooks/useRoom', () => ({
   useRoom: () => room,
 }));
 
-vi.mock('../../hooks/useKeyDown', () => ({
+vi.mock('../../../hooks/useKeyDown', () => ({
   useKeyDown: vi.fn(),
 }));
 
-vi.mock('../../mindroom/notifications/readReceipts', () => ({
+vi.mock('../../notifications/readReceipts', () => ({
   markRoomAndThreadsAsRead: vi.fn(),
   markThreadAsRead: vi.fn(),
 }));
 
-vi.mock('../../hooks/useMatrixClient', () => ({
+vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({}),
 }));
 
-vi.mock('../../hooks/useRoomMembers', () => ({
+vi.mock('../../../hooks/useRoomMembers', () => ({
   useRoomMembers: () => [],
 }));
 
-vi.mock('../../hooks/useRoomNavigate', () => ({
+vi.mock('../../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
     navigateRoom: navigateRoomMock,
     navigateRoomThread: navigateRoomThreadMock,
   }),
 }));
 
-vi.mock('../../mindroom/threads/lastOpenThread', () => ({
+vi.mock('../lastOpenThread', () => ({
   clearLastOpenThread: clearLastOpenThreadMock,
   getLastOpenThread: getLastOpenThreadMock,
   setLastOpenThread: setLastOpenThreadMock,
 }));
 
-vi.mock('../call/CallView', () => ({
+vi.mock('../../../features/call/CallView', () => ({
   CallView: () => React.createElement('div'),
 }));
 
-vi.mock('./RoomViewHeader', () => ({
+vi.mock('../../../features/room/RoomViewHeader', () => ({
   RoomViewHeader: () => React.createElement('mock-room-view-header'),
 }));
 
-vi.mock('./CallChatView', () => ({
+vi.mock('../../../features/room/CallChatView', () => ({
   CallChatView: () => React.createElement('div'),
 }));
 
-vi.mock('../../state/callEmbed', () => ({
+vi.mock('../../../state/callEmbed', () => ({
   callChatAtom: {},
 }));
 
@@ -163,7 +163,7 @@ describe('Room', () => {
 
   it('auto-restores the saved thread on bare room entry', async () => {
     getLastOpenThreadMock.mockReturnValue('$saved');
-    const { Room } = await import('./Room');
+    const { Room } = await import('../../../features/room/Room');
 
     await act(async () => {
       create(React.createElement(Room));
@@ -180,7 +180,7 @@ describe('Room', () => {
   it('does not override an explicit thread in the URL', async () => {
     roomState.search = '?threadId=%24explicit';
     getLastOpenThreadMock.mockReturnValue('$saved');
-    const { Room } = await import('./Room');
+    const { Room } = await import('../../../features/room/Room');
 
     await act(async () => {
       create(React.createElement(Room));
@@ -193,7 +193,7 @@ describe('Room', () => {
   it('does not override an explicit event permalink', async () => {
     roomState.eventId = '$event';
     getLastOpenThreadMock.mockReturnValue('$saved');
-    const { Room } = await import('./Room');
+    const { Room } = await import('../../../features/room/Room');
 
     await act(async () => {
       create(React.createElement(Room));
@@ -203,7 +203,7 @@ describe('Room', () => {
   });
 
   it('updates the saved thread when room navigation enters a thread', async () => {
-    const { Room } = await import('./Room');
+    const { Room } = await import('../../../features/room/Room');
 
     let renderer: ReturnType<typeof create>;
     await act(async () => {
@@ -221,7 +221,7 @@ describe('Room', () => {
 
   it('clears the saved thread when the same room leaves thread mode', async () => {
     roomState.search = '?threadId=%24saved';
-    const { Room } = await import('./Room');
+    const { Room } = await import('../../../features/room/Room');
 
     let renderer: ReturnType<typeof create>;
     await act(async () => {
@@ -240,7 +240,7 @@ describe('Room', () => {
 
   it('falls back to the room timeline when an auto-restored thread fails', async () => {
     getLastOpenThreadMock.mockReturnValue('$saved');
-    const { Room } = await import('./Room');
+    const { Room } = await import('../../../features/room/Room');
 
     let renderer: ReturnType<typeof create>;
     await act(async () => {
@@ -264,7 +264,7 @@ describe('Room', () => {
   it('does not redirect away from an explicit thread deep link that fails', async () => {
     roomState.search = '?threadId=%24saved';
     getLastOpenThreadMock.mockReturnValue('$saved');
-    const { Room } = await import('./Room');
+    const { Room } = await import('../../../features/room/Room');
 
     await act(async () => {
       create(React.createElement(Room));
@@ -279,7 +279,7 @@ describe('Room', () => {
   });
 
   it('does not render a duplicate room header around RoomView in non-call rooms', async () => {
-    const { Room } = await import('./Room');
+    const { Room } = await import('../../../features/room/Room');
     let renderer: ReturnType<typeof create>;
 
     await act(async () => {

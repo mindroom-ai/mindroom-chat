@@ -4,7 +4,7 @@ import {
   makeEvent,
   makeRoom,
   makeTimeline,
-} from '../../features/room/RoomTimeline.test.shared';
+} from './test-utils/RoomTimeline.test.shared';
 import { buildThreadCacheCoverage } from './threadCacheCoverage';
 import { runThreadOpenCacheFirst } from './threadOpenCacheFirst';
 
