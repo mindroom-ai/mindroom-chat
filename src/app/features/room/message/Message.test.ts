@@ -23,7 +23,6 @@ const longTextMocks = vi.hoisted(() => ({
 // These renderer/UI mocks should move into shared Vitest setup once the repo adds one.
 vi.mock('./styles.css', () => ({
   BubbleAvatarBase: 'BubbleAvatarBase',
-  MessageAiRunInfoButton: 'MessageAiRunInfoButton',
   MessageAvatar: 'MessageAvatar',
   MessageBase: 'MessageBase',
   MessageBaseBubbleCollapsed: 'MessageBaseBubbleCollapsed',
@@ -31,6 +30,11 @@ vi.mock('./styles.css', () => ({
   MessageMenuItemText: 'MessageMenuItemText',
   MessageOptionsBar: 'MessageOptionsBar',
   MessageOptionsBase: 'MessageOptionsBase',
+}));
+
+vi.mock('../../../mindroom/messages/MindroomMessageControls.css', () => ({
+  AiRunInfoButton: 'AiRunInfoButton',
+  MenuItemText: 'MenuItemText',
 }));
 
 vi.mock('focus-trap-react', () => ({
