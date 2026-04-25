@@ -1,7 +1,7 @@
 import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import type { Dispatch, SetStateAction } from 'react';
 import to from 'await-to-js';
-import { THREAD_BATCH_SIZE } from '../../state/settings';
+import { THREAD_BATCH_SIZE } from './preloadSettings';
 import {
   computeReconciliationToken,
   reconcileThreadBackwardPagination,

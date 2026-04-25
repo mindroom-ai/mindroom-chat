@@ -1460,6 +1460,12 @@
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `npm run build` passes
     - `git diff --check` passes
+- `CINNY-075` implementation step 78 / MindRoom preload settings ownership (2026-04-25):
+  - added `src/app/mindroom/threads/preloadSettings.ts` as the fork-owned owner for preload limit defaults, minimums, batch size, and sanitization.
+  - added `src/app/mindroom/settings/MindroomMessagePreloadLimitSetting.tsx` so the generic General settings page only mounts a narrow MindRoom preload setting seam.
+  - MindRoom thread controllers now import `THREAD_BATCH_SIZE` from the fork-owned preload settings module instead of generic settings state.
+  - validation:
+    - focused Vitest passes for `src/app/state/settings.test.ts`, `src/app/mindroom/settings/MindroomMessagePreloadLimitSetting.test.ts`, and `src/app/features/room/RoomTimeline.architecture.test.ts`
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
