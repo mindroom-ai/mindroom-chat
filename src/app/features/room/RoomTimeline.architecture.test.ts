@@ -155,6 +155,16 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('const hydrateThreadFromCache = useCallback');
   });
 
+  it('delegates overview resume refresh orchestration to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('useThreadOverviewResumeController');
+    expect(source).toContain("from '../../mindroom/threads/threadOverviewResumeController'");
+    expect(source).not.toContain('overviewResumeRefreshInFlightRef');
+    expect(source).not.toContain('pendingOverviewResumeRefreshRef');
+    expect(source).not.toContain('refreshOverviewThreadCacheFromRelations');
+  });
+
   it('delegates thread prepend scroll primitives to scroll utilities', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
