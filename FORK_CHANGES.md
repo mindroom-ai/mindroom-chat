@@ -795,6 +795,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 28 / Phase 5 compact root data ownership (2026-04-24):
+  - moved compact thread root data implementation to `src/app/mindroom/threads/compactThreadRootData.ts`.
+  - `src/app/features/room/compactThreadRootData.ts` is now only a compatibility re-export, and MindRoom-owned modules import the implementation directly.
+  - this moves compact root derivation, zero-reply root detection, preview fallback selection, cached compact-root activity, and cached compact-root preview extraction out of the upstream feature folder.
+  - validation:
+    - focused Vitest passes for `compactThreadRootData.test.ts`, `RoomTimeline.architecture.test.ts`, `threadRecord.test.ts`, `threadOverviewCacheHydration.test.ts`, `RoomTimeline.cache.test.ts`, and the thread-open helper tests
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

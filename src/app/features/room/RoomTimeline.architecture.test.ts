@@ -248,6 +248,24 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('threadRefreshInFlightRef');
   });
 
+  it('keeps compact thread root data implementation in MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const compatibilitySource = readFileSync(
+      new URL('./compactThreadRootData.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/compactThreadRootData.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/compactThreadRootData'");
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/compactThreadRootData'");
+    expect(implementationSource).toContain('buildCompactThreadRootData');
+    expect(implementationSource).toContain('isZeroReplyStandaloneThreadRootEvent');
+    expect(compatibilitySource).not.toContain('getThreadRelationTargetId');
+  });
+
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 

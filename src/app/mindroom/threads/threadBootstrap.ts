@@ -2,7 +2,7 @@ import { Direction, MatrixError, RelationType } from 'matrix-js-sdk';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import { ErrorCode } from '../../cs-errorcode';
-import { getCompactThreadRootBodyPreviewText } from '../../features/room/compactThreadRootData';
+import { getCompactThreadRootBodyPreviewText } from './compactThreadRootData';
 import {
   isVisibleThreadRootEvent,
   type TimelineEventEntry,

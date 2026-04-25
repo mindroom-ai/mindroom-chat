@@ -323,6 +323,10 @@ Thread-open targeted event-context loading and pending scroll queue setup now li
 `src/app/mindroom/threads/threadOpenTargetEvent.ts`.
 Thread-aware timeline refresh coalescing now lives in
 `src/app/mindroom/threads/useThreadAwareTimelineRefresh.ts`.
+Compact thread root derivation, preview fallback selection, zero-reply root detection, and cached
+compact-root activity/preview extraction now live in
+`src/app/mindroom/threads/compactThreadRootData.ts`; the old `features/room` path is only a
+compatibility re-export.
 Thread-open cache hydration, latest-slice refresh, relation backfill, and cached relation-tail
 refresh now live in `src/app/mindroom/threads/threadOpenCacheController.ts`; `RoomTimeline` decides
 when to open a thread route but no longer owns their cache/network policy.
