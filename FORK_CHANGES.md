@@ -81,6 +81,9 @@
 - `CINNY-128`
   - Search-result lightweight-rendering policy for MindRoom long-text messages now lives in `src/app/mindroom/messages/searchResultPolicy.ts`.
   - Generic search preview code no longer imports the low-level long-text metadata parser directly.
+- `CINNY-129`
+  - MindRoom edit-wrapper metadata preservation now lives in `src/app/mindroom/messages/editMetadata.ts`.
+  - Generic room edit resolution still preserves standard `m.mentions`, but no longer imports the low-level MindRoom metadata-prefix parser directly.
 
 ### Current Feature Set On `dev`
 

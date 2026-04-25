@@ -35,7 +35,7 @@ import {
 } from './editEvent';
 import { mxcUrlToHttp } from './mediaUrl';
 import { logMindroomEditDebug } from '../mindroom/messages/editDebug';
-import { isMindroomMessageMetadataKey } from '../mindroom/messages/metadata';
+import { copyMindroomResolvedEditMetadata } from '../mindroom/messages/editMetadata';
 
 export const logEditDebug = logMindroomEditDebug;
 
@@ -464,11 +464,13 @@ const copyResolvedMessageMetadata = (
 
     Object.entries(source).forEach(([key, value]) => {
       if (resolvedContent[key] !== undefined) return;
-      if (key === 'm.mentions' || isMindroomMessageMetadataKey(key)) {
+      if (key === 'm.mentions') {
         resolvedContent[key] = value;
       }
     });
   });
+
+  copyMindroomResolvedEditMetadata(resolvedContent, sources);
 };
 
 export const getEditedEvent = (
