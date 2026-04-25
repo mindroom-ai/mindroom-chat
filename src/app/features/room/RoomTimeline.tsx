@@ -58,7 +58,7 @@ import {
   getActiveEventsForAnnotationKey,
 } from '../../utils/reactionAnnotations';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useVirtualPaginator, ItemRange } from '../../hooks/useVirtualPaginator';
+import { useVirtualPaginator } from '../../hooks/useVirtualPaginator';
 import { useAlive } from '../../hooks/useAlive';
 import { editableActiveElement, scrollToBottom } from '../../utils/dom';
 import {
@@ -194,7 +194,12 @@ import {
   getFirstLinkedTimeline,
   getLinkedTimelines,
   getLinkedTimelinesEventAbsoluteIndex,
+  getActiveTimelineRange,
+  getEmptyTimeline,
+  getFocusedRoomEventIndex,
+  getInitialTimeline,
   getLiveTimeline,
+  getRoomUnreadInfo,
   getTimelinesEventsCount,
   recalibrateTimelinePagination,
   timelineToEventsCount,
@@ -527,107 +532,6 @@ const useLiveEventArrive = (
       room.removeListener(RoomEvent.Redaction, handleRedaction);
     };
   }, [room, onArrive]);
-};
-
-const getInitialTimeline = (
-  room: Room,
-  paginationLimit: number,
-  filterOpts?: {
-    threadId: string | undefined;
-    ignoredUsersSet: Set<string>;
-    showHiddenEvents: boolean;
-    hideMembershipEvents: boolean;
-    hideNickAvatarEvents: boolean;
-  }
-) => {
-  const linkedTimelines = getLinkedTimelines(getLiveTimeline(room));
-  const count = filterOpts
-    ? getRenderableEvents(
-        linkedTimelines,
-        room,
-        filterOpts.threadId,
-        filterOpts.ignoredUsersSet,
-        filterOpts.showHiddenEvents,
-        filterOpts.hideMembershipEvents,
-        filterOpts.hideNickAvatarEvents
-      ).length
-    : getTimelinesEventsCount(linkedTimelines);
-  return {
-    linkedTimelines,
-    range: {
-      start: Math.max(count - paginationLimit, 0),
-      end: count,
-    },
-  };
-};
-
-const getEmptyTimeline = () => ({
-  range: { start: 0, end: 0 },
-  linkedTimelines: [],
-});
-
-const getLatestTimelineRange = (count: number, paginationLimit: number): ItemRange => ({
-  start: Math.max(count - paginationLimit, 0),
-  end: count,
-});
-
-const getVisibleTimelineRange = (
-  range: ItemRange,
-  count: number,
-  paginationLimit: number
-): ItemRange => {
-  if (count === 0) {
-    return { start: 0, end: 0 };
-  }
-
-  if (range.start >= count || range.start >= range.end) {
-    return getLatestTimelineRange(count, paginationLimit);
-  }
-
-  const start = Math.max(range.start, 0);
-  const end = Math.min(Math.max(range.end, start + 1), count);
-
-  return { start, end };
-};
-
-export const getActiveTimelineRange = (
-  threadId: string | undefined,
-  roomThreadOverviewActive: boolean,
-  range: ItemRange,
-  count: number,
-  paginationLimit: number
-): ItemRange => {
-  if (threadId) {
-    return { start: 0, end: 0 };
-  }
-
-  if (roomThreadOverviewActive) {
-    return { start: 0, end: count };
-  }
-
-  return getVisibleTimelineRange(range, count, paginationLimit);
-};
-
-const getFocusedRoomEventIndex = (
-  filteredEvents: MatrixEvent[],
-  eventId: string | undefined,
-  fallbackIndex: number
-): number => {
-  if (!eventId) return fallbackIndex;
-  const filteredIndex = filteredEvents.findIndex((event) => event.getId() === eventId);
-  return filteredIndex === -1 ? fallbackIndex : filteredIndex;
-};
-
-const getRoomUnreadInfo = (room: Room, scrollTo = false) => {
-  const readUptoEventId = room.getEventReadUpTo(room.client.getUserId() ?? '');
-  if (!readUptoEventId) return undefined;
-  const evtTimeline = getEventTimeline(room, readUptoEventId);
-  const latestTimeline = evtTimeline && getFirstLinkedTimeline(evtTimeline, Direction.Forward);
-  return {
-    readUptoEventId,
-    inLiveTimeline: latestTimeline === room.getLiveTimeline(),
-    scrollTo,
-  };
 };
 
 export function RoomTimeline({
