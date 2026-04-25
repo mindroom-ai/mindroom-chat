@@ -134,7 +134,9 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
         messageCount: 9,
       },
       readUpToTs: null,
-      scheduledTaskCount: 2,
+      scheduledStatus: {
+        scheduledTaskCount: 2,
+      },
       threadResolution: {
         isResolved: true,
         tags: {
