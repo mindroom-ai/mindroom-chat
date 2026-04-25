@@ -128,6 +128,8 @@
   - These callers now rely on the MindRoom-owned modules directly or through the higher-level controller seams.
 - `CINNY-144`
   - Removed the generic raw room/thread event cache wrappers and retargeted cache tests to the MindRoom-owned stores directly.
+- `CINNY-145`
+  - Removed generic one-line wrappers for thread utility, route, tag, tag hook, and timeline-scroll helpers after all callers targeted MindRoom-owned modules.
 
 ### Current Feature Set On `dev`
 
