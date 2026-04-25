@@ -2095,3 +2095,9 @@
 - Moved compact/normal room view-mode persistence into `src/app/mindroom/threads/roomViewMode.ts`.
 - Left `src/app/state/room/roomThreadFilterState.ts` and `src/app/state/room/roomViewMode.ts` as thin compatibility exports for legacy import paths.
 - Updated room rendering, timeline/index helpers, and session cleanup to consume the fork-owned persistence owners directly.
+
+## CINNY-103 — Move edit debug logging to MindRoom messages (2026-04-25)
+
+- Added `src/app/mindroom/messages/editDebug.ts` as the owner for MindRoom edit-debug flags and scoped logging.
+- Kept `logEditDebug` exported from `src/app/utils/room.ts` as a compatibility alias while moving thread backfill controllers to the fork-owned logger directly.
+- Updated app cache cleanup to reference the fork-owned `mindroom.debug.edits` storage key constant.

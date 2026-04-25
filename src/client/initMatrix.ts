@@ -15,6 +15,7 @@ import { clearRoomThreadFiltersStore } from '../app/mindroom/threads/roomThreadF
 import { createMatrixClient } from './matrixClientFactory';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
 import { clearMindroomLongTextHydrationCache } from '../app/components/message/mindroomLongText';
+import { MINDROOM_EDIT_DEBUG_STORAGE_KEY } from '../app/mindroom/messages/editDebug';
 import { clearRecentThreadViewModelSharedState } from '../app/mindroom/threads/recentThreadViewModel';
 import {
   deleteThreadEventCache,
@@ -170,7 +171,7 @@ const APP_SINGLETON_INDEXED_DB_NAMES = ['mindroom-room-event-cache', 'mindroom-t
 const APP_OWNED_LOCAL_STORAGE_KEYS = [
   'settings',
   'after_login_redirect_url',
-  'mindroom.debug.edits',
+  MINDROOM_EDIT_DEBUG_STORAGE_KEY,
   'i18nextLng',
   'kb-color-mode',
 ] as const;

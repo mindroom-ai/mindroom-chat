@@ -7,7 +7,8 @@ import {
 } from 'react';
 import { Direction, RelationType, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import to from 'await-to-js';
-import { getLatestEdit, logEditDebug } from '../../utils/room';
+import { getLatestEdit } from '../../utils/room';
+import { logMindroomEditDebug as logEditDebug } from '../messages/editDebug';
 import { getLinkedTimelines } from './timelinePagination';
 import { isScrollNearBottom } from './timelineScrollUtils';
 import { markThreadEditBackfillAttempted, shouldFetchThreadEditBackfill } from './threadEditBackfill';
