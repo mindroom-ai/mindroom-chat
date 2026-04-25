@@ -459,6 +459,9 @@ MindRoom slash-bang command definitions, query parsing, and autocomplete UI now 
 `src/app/mindroom/commands/`, with the room-input command/voice mounting seam in
 `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`; the old `features/room` paths are
 only compatibility re-exports.
+Room-input thread indicator mounting also lives behind
+`src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`, so the generic composer does not
+inspect MindRoom thread relation state directly.
 MindRoom bridge detection helpers now live in `src/app/mindroom/bridges/`; the old `features/room`
 path is only a compatibility re-export.
 MindRoom voice recorder UI and MIME policy now live in `src/app/mindroom/voice/`; the old

@@ -8,10 +8,15 @@ import {
   getMindroomRoomInputMessageRelation,
   isMindroomRoomInputAutocompleteQuery,
   MindroomRoomInputAutocomplete,
+  MindroomRoomInputThreadIndicator,
 } from './RoomInputMindroomExtensions';
 
 vi.mock('../commands/MindroomCommandAutocomplete', () => ({
   MindroomCommandAutocomplete: () => null,
+}));
+
+vi.mock('../threads/ThreadIndicator', () => ({
+  ThreadIndicator: () => null,
 }));
 
 const range = {
@@ -59,5 +64,24 @@ describe('RoomInputMindroomExtensions', () => {
       rel_type: 'm.thread',
       is_falling_back: false,
     });
+  });
+
+  it('renders the thread indicator only for threaded reply drafts', () => {
+    expect(
+      MindroomRoomInputThreadIndicator({
+        room: {} as never,
+        relation: undefined,
+      })
+    ).toBeNull();
+
+    expect(
+      MindroomRoomInputThreadIndicator({
+        room: {} as never,
+        relation: {
+          event_id: '$thread',
+          rel_type: 'm.thread',
+        } as never,
+      })
+    ).not.toBeNull();
   });
 });

@@ -10,7 +10,7 @@ import React, {
 } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
-import { EventType, IContent, MsgType, RelationType, Room } from 'matrix-js-sdk';
+import { EventType, IContent, MsgType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { Editor, Transforms } from 'slate';
 import {
@@ -104,7 +104,6 @@ import { Command, SHRUG, TABLEFLIP, UNFLIP, useCommands } from '../../hooks/useC
 import { mobileOrTablet } from '../../utils/user-agent';
 import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { ReplyLayout } from '../../components/message';
-import { ThreadIndicator } from '../../mindroom/threads/ThreadIndicator';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useImagePackRooms } from '../../hooks/useImagePackRooms';
@@ -122,6 +121,7 @@ import {
   getMindroomRoomInputMessageRelation,
   isMindroomRoomInputAutocompleteQuery,
   MindroomRoomInputAutocomplete,
+  MindroomRoomInputThreadIndicator,
   MindroomVoiceRecorderComposer,
   useRoomInputSendSessionController,
   type MindroomRoomInputAutocompletePrefix,
@@ -711,9 +711,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                     )}
                     <Box direction="Row" gap="200" alignItems="Center">
                       {/* Only show thread badge for reply-in-thread from main timeline. */}
-                      {replyDraft?.relation?.rel_type === RelationType.Thread && (
-                        <ThreadIndicator room={room} />
-                      )}
+                      <MindroomRoomInputThreadIndicator
+                        room={room}
+                        relation={replyDraft?.relation}
+                      />
                       {replyDraft ? (
                         <ReplyLayout
                           userColor={replyUsernameColor}

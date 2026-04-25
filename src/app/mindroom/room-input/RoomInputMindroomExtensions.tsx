@@ -1,4 +1,5 @@
 import React from 'react';
+import { RelationType, Room } from 'matrix-js-sdk';
 import { BaseRange, Editor } from 'slate';
 import type { AutocompleteQuery } from '../../components/editor/autocomplete/autocompleteQuery';
 import type { IReplyDraft } from '../../state/room/roomInputDrafts';
@@ -8,6 +9,7 @@ import {
   MINDROOM_COMMAND_PREFIX,
 } from '../commands/mindroomCommandQuery';
 import { getMessageRelation } from '../threads/composeMessageRelation';
+import { ThreadIndicator } from '../threads/ThreadIndicator';
 import { VoiceRecorderComposer } from '../voice/VoiceRecorderDialog';
 
 export { useRoomInputSendSessionController } from '../threads/useRoomInputSendSessionController';
@@ -20,6 +22,11 @@ type MindroomRoomInputAutocompleteProps = {
   editor: Editor;
   query: AutocompleteQuery<string> | undefined;
   requestClose: () => void;
+};
+
+type MindroomRoomInputThreadIndicatorProps = {
+  room: Room;
+  relation: IReplyDraft['relation'] | undefined;
 };
 
 export const getMindroomRoomInputAutocompleteQuery = (
@@ -47,6 +54,15 @@ export function MindroomRoomInputAutocomplete({
   return (
     <MindroomCommandAutocomplete editor={editor} query={query} requestClose={requestClose} />
   );
+}
+
+export function MindroomRoomInputThreadIndicator({
+  room,
+  relation,
+}: MindroomRoomInputThreadIndicatorProps) {
+  if (relation?.rel_type !== RelationType.Thread) return null;
+
+  return <ThreadIndicator room={room} />;
 }
 
 export { VoiceRecorderComposer as MindroomVoiceRecorderComposer };
