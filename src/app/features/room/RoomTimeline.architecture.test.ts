@@ -1723,11 +1723,25 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/timelineReadReceiptController.ts', import.meta.url),
       'utf8'
     );
+    const readReceiptsSource = readFileSync(
+      new URL('../../mindroom/notifications/readReceipts.ts', import.meta.url),
+      'utf8'
+    );
+    const compatibilitySource = readFileSync(
+      new URL('../../utils/notifications.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).toContain('useTimelineReadReceiptController');
     expect(source).not.toContain('markRoomAndThreadsAsRead');
     expect(source).not.toContain('markMainTimelineAsRead');
     expect(controllerSource).toContain('markRoomAndThreadsAsRead');
+    expect(controllerSource).toContain("from '../notifications/readReceipts'");
+    expect(readReceiptsSource).toContain('markRoomAndThreadsAsRead');
+    expect(readReceiptsSource).toContain("from '../threads/threadRenderUtils'");
+    expect(compatibilitySource.trim()).toBe(
+      "export * from '../mindroom/notifications/readReceipts';"
+    );
     expect(controllerSource).toContain('useIntersectionObserver');
     expect(controllerSource).toContain('useDocumentFocusChange');
   });

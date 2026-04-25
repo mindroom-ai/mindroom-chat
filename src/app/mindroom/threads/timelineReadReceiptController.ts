@@ -17,7 +17,7 @@ import {
   markMainTimelineAsRead,
   markRoomAndThreadsAsRead,
   markThreadAsRead,
-} from '../../utils/notifications';
+} from '../notifications/readReceipts';
 import {
   getEventTimeline,
   getFirstLinkedTimeline,

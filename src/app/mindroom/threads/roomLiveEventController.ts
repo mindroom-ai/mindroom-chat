@@ -11,7 +11,7 @@ import {
   isMindroomThreadSummaryEvent,
   type MindroomThreadSummaryInfo,
 } from '../messages/threadSummary';
-import { markMainTimelineAsRead } from '../../utils/notifications';
+import { markMainTimelineAsRead } from '../notifications/readReceipts';
 import { getLiveCollapsibleMessageExpandId } from './threadCollapsibleMessages';
 import { getThreadCacheTargetId } from './eventRepository';
 import { useLiveEventArrive, type TimelineArriveMeta } from './roomLiveEventArrive';
