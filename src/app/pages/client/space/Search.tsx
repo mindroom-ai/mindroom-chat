@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { Box, Icon, Icons, Text, Scroll, IconButton } from 'folds';
 import { Page, PageContent, PageContentCenter, PageHeader } from '../../../components/page';
-import { MessageSearch } from '../../../features/message-search';
+import { MindroomMessageSearch } from '../../../mindroom/message-search/MindroomMessageSearch';
 import { useSpace } from '../../../hooks/useSpace';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
 import { BackRouteHandler } from '../../../components/BackRouteHandler';
@@ -41,7 +41,7 @@ export function SpaceSearch() {
         <Scroll ref={scrollRef} hideTrack visibility="Hover">
           <PageContent>
             <PageContentCenter>
-              <MessageSearch
+              <MindroomMessageSearch
                 defaultRoomsFilterName={space.name}
                 allowGlobal
                 rooms={rooms}

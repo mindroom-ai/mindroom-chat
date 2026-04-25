@@ -238,8 +238,9 @@
   - `roomThreadOverviewModel` now keeps filter state, query/preset helpers, tag helper utilities, and shared filter-key definitions instead of rebuilding `ThreadOverviewMetadata` maps.
 - `CINNY-181`
   - Generic message-search grouping and item-card rendering now accept a result-body renderer seam.
-  - `src/app/mindroom/message-search/searchResultBodyRenderer.tsx` mounts `MindroomSearchResultBody`, so `src/app/features/message-search/SearchResultGroup.tsx` no longer imports a MindRoom component directly.
-  - Added a narrow ownership test to keep generic search grouping unaware of MindRoom result-body components.
+  - `src/app/mindroom/message-search/MindroomMessageSearch.tsx` supplies `src/app/mindroom/message-search/searchResultBodyRenderer.tsx`, which mounts `MindroomSearchResultBody`.
+  - `src/app/features/message-search/SearchResultGroup.tsx` and `src/app/features/message-search/MessageSearch.tsx` no longer import MindRoom result-body components directly.
+  - Added a narrow ownership test to keep generic search code unaware of MindRoom result-body components.
 
 ### Current Feature Set On `dev`
 

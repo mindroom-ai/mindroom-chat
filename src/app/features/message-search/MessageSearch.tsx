@@ -23,7 +23,11 @@ import {
   MessageSearchParams,
   useMessageSearch,
 } from './useMessageSearch';
-import { SearchResultGroupHeader, SearchResultItemCard } from './SearchResultGroup';
+import {
+  SearchResultBodyRenderer,
+  SearchResultGroupHeader,
+  SearchResultItemCard,
+} from './SearchResultGroup';
 import { SearchInput } from './SearchInput';
 import { SearchFilters } from './SearchFilters';
 import { VirtualTile } from '../../components/virtualizer';
@@ -39,7 +43,6 @@ import {
   MESSAGE_SEARCH_FALLBACK_ROW_LIMIT,
 } from './messageSearchRows';
 import { useSyncState } from '../../hooks/useSyncState';
-import { renderMindroomSearchResultBody } from '../../mindroom/message-search/searchResultBodyRenderer';
 
 const useSearchPathSearchParams = (searchParams: URLSearchParams): _SearchPathSearchParams =>
   useMemo(
@@ -53,12 +56,13 @@ const useSearchPathSearchParams = (searchParams: URLSearchParams): _SearchPathSe
     [searchParams]
   );
 
-type MessageSearchProps = {
+export type MessageSearchProps = {
   defaultRoomsFilterName: string;
   allowGlobal?: boolean;
   rooms: string[];
   senders?: string[];
   scrollRef: RefObject<HTMLDivElement>;
+  renderBody: SearchResultBodyRenderer;
 };
 export function MessageSearch({
   defaultRoomsFilterName,
@@ -66,6 +70,7 @@ export function MessageSearch({
   rooms,
   senders,
   scrollRef,
+  renderBody,
 }: MessageSearchProps) {
   const mx = useMatrixClient();
   const mDirects = useAtomValue(mDirectAtom);
@@ -433,7 +438,7 @@ export function MessageSearch({
                   legacyUsernameColor={legacyUsernameColor || mDirects.has(groupRoom.roomId)}
                   hour24Clock={hour24Clock}
                   dateFormatString={dateFormatString}
-                  renderBody={renderMindroomSearchResultBody}
+                  renderBody={renderBody}
                 />
               );
             })}
@@ -482,7 +487,7 @@ export function MessageSearch({
                       legacyUsernameColor={legacyUsernameColor || mDirects.has(groupRoom.roomId)}
                       hour24Clock={hour24Clock}
                       dateFormatString={dateFormatString}
-                      renderBody={renderMindroomSearchResultBody}
+                      renderBody={renderBody}
                     />
                   )}
                 </VirtualTile>
