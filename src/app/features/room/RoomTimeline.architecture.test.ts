@@ -881,6 +881,20 @@ describe('RoomTimeline architecture', () => {
     expect(controllerSource).toContain('paginateEventTimeline');
   });
 
+  it('delegates live event arrival subscription to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const controllerSource = readFileSync(
+      new URL('../../mindroom/threads/roomLiveEventArrive.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/roomLiveEventArrive'");
+    expect(source).not.toContain('const useLiveEventArrive');
+    expect(source).not.toContain('EventTimelineSetHandlerMap');
+    expect(controllerSource).toContain('useLiveEventArrive');
+    expect(controllerSource).toContain('RoomEvent.Redaction');
+  });
+
   it('delegates room cache pagination commands to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
