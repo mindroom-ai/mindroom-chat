@@ -143,6 +143,9 @@
   - Removed active edge-swipe, room-event, and thread-indicator adapters by retargeting callers to MindRoom-owned modules directly.
 - `CINNY-151`
   - Removed the generic notifications read-receipt wrapper and retargeted read-receipt callers to the MindRoom notification module.
+- `CINNY-152`
+  - Overview cache hydration now writes cached thread coverage into `ThreadRecord.cache` through `useMindroomThreadIndex`.
+  - Cached preview/activity/message-count fallbacks and cache coverage now flow through the same per-room record seam instead of leaving coverage as an implicit side effect of thread-open pagination.
 
 ### Current Feature Set On `dev`
 
