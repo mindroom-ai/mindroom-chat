@@ -233,6 +233,21 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('evtThreadTimelineSet');
   });
 
+  it('delegates thread-aware timeline refresh orchestration to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const refreshHookSource = readFileSync(
+      new URL('../../mindroom/threads/useThreadAwareTimelineRefresh.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain(
+      "from '../../mindroom/threads/useThreadAwareTimelineRefresh'"
+    );
+    expect(refreshHookSource).toContain('RoomEvent.TimelineRefresh');
+    expect(source).not.toContain('const useLiveTimelineRefresh');
+    expect(source).not.toContain('threadRefreshInFlightRef');
+  });
+
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 

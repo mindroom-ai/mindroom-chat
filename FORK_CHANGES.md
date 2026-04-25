@@ -787,6 +787,14 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 27 / Phase 5 thread-aware timeline refresh hook (2026-04-24):
+  - moved `useThreadAwareTimelineRefresh` from `RoomTimeline.tsx` to `src/app/mindroom/threads/useThreadAwareTimelineRefresh.ts`.
+  - `RoomTimeline` keeps a compatibility re-export for existing tests/importers but no longer owns the thread-refresh in-flight/pending coalescing refs or `RoomEvent.TimelineRefresh` refresh policy.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.permalink-refresh.test.ts`, `RoomTimeline.architecture.test.ts`, and the thread-open helper tests
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

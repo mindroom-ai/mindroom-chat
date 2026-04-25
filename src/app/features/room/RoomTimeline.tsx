@@ -265,6 +265,7 @@ import {
 } from '../../mindroom/threads/threadOpenTargetEvent';
 import { useThreadSeedPrewarmController } from '../../mindroom/threads/threadSeedPrewarmController';
 import { useThreadOpenCacheController } from '../../mindroom/threads/threadOpenCacheController';
+import { useThreadAwareTimelineRefresh } from '../../mindroom/threads/useThreadAwareTimelineRefresh';
 import { useThreadOverviewResumeController } from '../../mindroom/threads/threadOverviewResumeController';
 import { useThreadCachePersistenceController } from '../../mindroom/threads/threadCachePersistenceController';
 import { useCompactRootEditBackfillController } from '../../mindroom/threads/compactRootEditBackfillController';
@@ -276,6 +277,7 @@ import { useRoomCacheHydrationController } from '../../mindroom/threads/roomCach
 
 export { getRoomEventThreadOpenTarget } from './roomDeepLink';
 export { getRoomEventFocusTarget, getThreadFilteredEvents };
+export { useThreadAwareTimelineRefresh } from '../../mindroom/threads/useThreadAwareTimelineRefresh';
 export {
   collectPriorityThreadSeedPrewarmRoots,
   fetchAllThreadRelations,
@@ -992,73 +994,6 @@ const useLiveEventArrive = (
       room.removeListener(RoomEvent.Redaction, handleRedaction);
     };
   }, [room, onArrive]);
-};
-
-const useLiveTimelineRefresh = (room: Room, onRefresh: () => void) => {
-  useEffect(() => {
-    const handleTimelineRefresh: RoomEventHandlerMap[RoomEvent.TimelineRefresh] = (r) => {
-      if (r.roomId !== room.roomId) return;
-      onRefresh();
-    };
-
-    room.on(RoomEvent.TimelineRefresh, handleTimelineRefresh);
-    return () => {
-      room.removeListener(RoomEvent.TimelineRefresh, handleTimelineRefresh);
-    };
-  }, [room, onRefresh]);
-};
-
-type UseThreadAwareTimelineRefresh = {
-  room: Room;
-  threadId?: string;
-  liveTimelineLinked: boolean;
-  refreshLatestThreadSlice: (threadId: string) => Promise<boolean>;
-  onRoomRefresh: () => void;
-};
-
-export const useThreadAwareTimelineRefresh = ({
-  room,
-  threadId,
-  liveTimelineLinked,
-  refreshLatestThreadSlice,
-  onRoomRefresh,
-}: UseThreadAwareTimelineRefresh) => {
-  const threadRefreshInFlightRef = useRef<string>();
-  const pendingRefreshRef = useRef(false);
-  const activeThreadIdRef = useRef(threadId);
-
-  if (activeThreadIdRef.current !== threadId) {
-    activeThreadIdRef.current = threadId;
-    pendingRefreshRef.current = false;
-  }
-
-  useLiveTimelineRefresh(
-    room,
-    useCallback(() => {
-      if (threadId) {
-        if (threadRefreshInFlightRef.current === threadId) {
-          pendingRefreshRef.current = true;
-          return;
-        }
-        const runRefresh = (tid: string) => {
-          threadRefreshInFlightRef.current = tid;
-          pendingRefreshRef.current = false;
-          void refreshLatestThreadSlice(tid).finally(() => {
-            if (threadRefreshInFlightRef.current !== tid) return;
-            if (pendingRefreshRef.current && activeThreadIdRef.current === tid) {
-              runRefresh(tid);
-            } else {
-              pendingRefreshRef.current = false;
-              threadRefreshInFlightRef.current = undefined;
-            }
-          });
-        };
-        runRefresh(threadId);
-      } else if (liveTimelineLinked) {
-        onRoomRefresh();
-      }
-    }, [liveTimelineLinked, onRoomRefresh, refreshLatestThreadSlice, threadId])
-  );
 };
 
 const getInitialTimeline = (
