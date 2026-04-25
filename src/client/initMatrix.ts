@@ -19,9 +19,9 @@ import { clearRecentThreadViewModelSharedState } from '../app/mindroom/threads/r
 import {
   deleteThreadEventCache,
   getThreadEventCacheDbName,
-} from '../app/features/room/threadEventCache';
-import { deleteRoomEventCache, getRoomEventCacheDbName } from '../app/features/room/roomEventCache';
-import { deleteThreadSummaryCache } from '../app/features/room/threadSummaryCache';
+} from '../app/mindroom/threads/threadEventCache';
+import { deleteRoomEventCache, getRoomEventCacheDbName } from '../app/mindroom/threads/roomEventCache';
+import { deleteThreadSummaryCache } from '../app/mindroom/threads/threadSummaryCache';
 import { clearIOSPushState } from '../app/utils/iosPush';
 import {
   LEGACY_SESSION_STORAGE_KEYS,

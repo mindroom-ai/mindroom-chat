@@ -32,9 +32,9 @@ import {
 import {
   deleteThreadEventCache,
   getThreadEventCacheDbName,
-} from '../app/features/room/threadEventCache';
-import { deleteRoomEventCache, getRoomEventCacheDbName } from '../app/features/room/roomEventCache';
-import { deleteThreadSummaryCache } from '../app/features/room/threadSummaryCache';
+} from '../app/mindroom/threads/threadEventCache';
+import { deleteRoomEventCache, getRoomEventCacheDbName } from '../app/mindroom/threads/roomEventCache';
+import { deleteThreadSummaryCache } from '../app/mindroom/threads/threadSummaryCache';
 import { clearIOSPushState } from '../app/utils/iosPush';
 import { clearRecentThreadsStore } from '../app/state/recentThreads';
 import { clearRecentThreadsPanelHeightStore } from '../app/state/recentThreadsPanelHeight';
@@ -82,19 +82,19 @@ vi.mock('../app/mindroom/threads/recentThreadViewModel', () => ({
   clearRecentThreadViewModelSharedState: vi.fn(),
 }));
 
-vi.mock('../app/features/room/threadEventCache', () => ({
+vi.mock('../app/mindroom/threads/threadEventCache', () => ({
   deleteThreadEventCache: vi.fn().mockResolvedValue(undefined),
   getThreadEventCacheDbName: vi.fn(
     (sessionId: string) => `mindroom-thread-event-cache::${sessionId}`
   ),
 }));
 
-vi.mock('../app/features/room/roomEventCache', () => ({
+vi.mock('../app/mindroom/threads/roomEventCache', () => ({
   deleteRoomEventCache: vi.fn().mockResolvedValue(undefined),
   getRoomEventCacheDbName: vi.fn((sessionId: string) => `mindroom-room-event-cache::${sessionId}`),
 }));
 
-vi.mock('../app/features/room/threadSummaryCache', () => ({
+vi.mock('../app/mindroom/threads/threadSummaryCache', () => ({
   deleteThreadSummaryCache: vi.fn().mockResolvedValue(undefined),
 }));
 
