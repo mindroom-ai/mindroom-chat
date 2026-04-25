@@ -2,6 +2,7 @@ import { RelationType } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   collectStateTargetEvents,
+  loadLatestRoomCacheHydrationSnapshot,
   loadCachedThreadSnapshot,
   persistRoomEventCacheSnapshot,
   persistThreadEventCacheSnapshot,
@@ -194,5 +195,53 @@ describe('eventRepository cached thread snapshots', () => {
     expect(snapshot.relationSnapshotComplete).toBe(true);
     expect(snapshot.tailLoaded).toBe(true);
     expect(loadedPageIndexes).toEqual([1, 2]);
+  });
+});
+
+describe('eventRepository latest room cache hydration snapshots', () => {
+  it('skips latest room cache hydration when the loaded timeline is already newer', async () => {
+    const loadedEvent = makeEvent('$loaded', { ts: 300 });
+
+    const snapshot = await loadLatestRoomCacheHydrationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      limit: 32,
+      loadedEvents: [loadedEvent] as never,
+      mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing'),
+      loadLatest: async () => ({
+        events: [{ event_id: '$cached-old', origin_server_ts: 200 }],
+        hasMoreBefore: false,
+      }),
+    });
+
+    expect(snapshot.status).toBe('already-loaded');
+    expect(snapshot.events).toEqual([]);
+    expect(snapshot.loadedRoomCount).toBe(1);
+  });
+
+  it('hydrates only cached room events that are not already loaded', async () => {
+    const loadedEvent = makeEvent('$loaded', { ts: 100 });
+
+    const snapshot = await loadLatestRoomCacheHydrationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      limit: 32,
+      loadedEvents: [loadedEvent] as never,
+      mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing', {
+        ts: rawEvent.origin_server_ts,
+      }),
+      loadLatest: async () => ({
+        events: [
+          { event_id: '$loaded', origin_server_ts: 100 },
+          { event_id: '$cached-new', origin_server_ts: 200 },
+        ],
+        hasMoreBefore: false,
+      }),
+    });
+
+    expect(snapshot.status).toBe('hydrate');
+    expect(snapshot.events.map((event) => event.getId())).toEqual(['$cached-new']);
+    expect(snapshot.cachedPage.events).toHaveLength(2);
+    expect(snapshot.loadedRoomCount).toBe(1);
   });
 });

@@ -255,18 +255,15 @@ import {
   getEarliestLoadedRoomEvent,
   resolveHydratedRoomBeforeToken,
   resolvePersistedRoomBeforeToken,
-  getLatestLoadedRoomEvent,
   loadCachedRoomEventsBefore,
   loadCachedRoomPaginationToken,
   loadCachedThreadEventsBefore,
-  loadLatestCachedRoomEvents,
   loadCachedThreadSnapshot,
+  loadLatestRoomCacheHydrationSnapshot,
   normalizeCachedRoomEvents,
   normalizeCachedThreadEvents,
   persistRoomEventCacheSnapshot,
   persistThreadEventCacheSnapshot,
-  shouldHydrateLatestRoomCache,
-  filterLatestRoomCacheHydrationEvents,
 } from '../../mindroom/threads/eventRepository';
 import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
 import {
@@ -4452,43 +4449,41 @@ export function RoomTimeline({
       logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-start', {
         limit: safePaginationLimit,
       });
-      const cachedPage = await loadLatestCachedRoomEvents(
-        sessionId,
-        room.roomId,
-        safePaginationLimit
-      );
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
 
       const currentLinkedTimelines = getLinkedTimelines(getLiveTimeline(room));
       const loadedRoomEvents = getMainTimelineCacheEvents(room, currentLinkedTimelines);
-      logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-page', {
-        cachedCount: cachedPage.events.length,
-        hasMoreBefore: cachedPage.hasMoreBefore,
-        loadedRoomCount: loadedRoomEvents.length,
+      const mapper = mx.getEventMapper();
+      const hydrationSnapshot = await loadLatestRoomCacheHydrationSnapshot({
+        sessionId,
+        roomId: room.roomId,
+        limit: safePaginationLimit,
+        loadedEvents: loadedRoomEvents,
+        mapEvent: (rawEvent) => mapper(rawEvent),
       });
 
-      if (
-        !shouldHydrateLatestRoomCache(
-          getLatestLoadedRoomEvent(room, currentLinkedTimelines)?.event as Partial<IEvent> | undefined,
-          cachedPage.events[cachedPage.events.length - 1]
-        )
-      ) {
+      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
+
+      logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-page', {
+        cachedCount: hydrationSnapshot.cachedPage.events.length,
+        hasMoreBefore: hydrationSnapshot.cachedPage.hasMoreBefore,
+        loadedRoomCount: hydrationSnapshot.loadedRoomCount,
+      });
+
+      if (hydrationSnapshot.status === 'already-loaded') {
         logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-skip-latest-already-loaded', {
-          cachedCount: cachedPage.events.length,
-          loadedRoomCount: loadedRoomEvents.length,
+          cachedCount: hydrationSnapshot.cachedPage.events.length,
+          loadedRoomCount: hydrationSnapshot.loadedRoomCount,
         });
         return;
       }
 
-      const mapper = mx.getEventMapper();
-      const cachedEvents = normalizeCachedRoomEvents(
-        filterLatestRoomCacheHydrationEvents(cachedPage.events, loadedRoomEvents)
-      ).map((rawEvent) => mapper(rawEvent));
+      const cachedEvents = hydrationSnapshot.events;
       if (cachedEvents.length === 0) {
         logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-empty-after-filter', {
-          cachedCount: cachedPage.events.length,
-          loadedRoomCount: loadedRoomEvents.length,
+          cachedCount: hydrationSnapshot.cachedPage.events.length,
+          loadedRoomCount: hydrationSnapshot.loadedRoomCount,
         });
         return;
       }

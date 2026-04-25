@@ -7,8 +7,10 @@ import {
 } from 'matrix-js-sdk';
 import {
   getRoomCursorAnchor,
+  loadLatestCachedRoomEvents as loadLatestCachedRoomEventsFromCache,
   normalizeCachedRoomEvents,
   saveRoomEventsToCache as saveRoomEventsToCacheToStorage,
+  type CachedRoomEventPage,
 } from '../../features/room/roomEventCache';
 import {
   getThreadCursorAnchor as getCachedThreadCursorAnchor,
@@ -263,6 +265,61 @@ export const filterLatestRoomCacheHydrationEvents = (
     (rawEvent) =>
       typeof rawEvent.event_id === 'string' && !loadedEventIds.has(rawEvent.event_id)
   );
+};
+
+type LoadLatestRoomCacheHydrationSnapshotOptions = {
+  sessionId: string;
+  roomId: string;
+  limit: number;
+  loadedEvents: MatrixEvent[];
+  mapEvent: (rawEvent: Partial<IEvent>) => MatrixEvent;
+  loadLatest?: typeof loadLatestCachedRoomEventsFromCache;
+};
+
+export type LatestRoomCacheHydrationSnapshot = {
+  cachedPage: CachedRoomEventPage;
+  events: MatrixEvent[];
+  loadedRoomCount: number;
+  status: 'already-loaded' | 'empty-after-filter' | 'hydrate';
+};
+
+export const loadLatestRoomCacheHydrationSnapshot = async ({
+  sessionId,
+  roomId,
+  limit,
+  loadedEvents,
+  mapEvent,
+  loadLatest = loadLatestCachedRoomEventsFromCache,
+}: LoadLatestRoomCacheHydrationSnapshotOptions): Promise<LatestRoomCacheHydrationSnapshot> => {
+  const cachedPage = await loadLatest(sessionId, roomId, limit);
+  const loadedLatestEvent = loadedEvents[loadedEvents.length - 1]?.event as
+    | Partial<IEvent>
+    | undefined;
+
+  if (
+    !shouldHydrateLatestRoomCache(
+      loadedLatestEvent,
+      cachedPage.events[cachedPage.events.length - 1]
+    )
+  ) {
+    return {
+      cachedPage,
+      events: [],
+      loadedRoomCount: loadedEvents.length,
+      status: 'already-loaded',
+    };
+  }
+
+  const events = normalizeCachedRoomEvents(
+    filterLatestRoomCacheHydrationEvents(cachedPage.events, loadedEvents)
+  ).map((rawEvent) => mapEvent(rawEvent));
+
+  return {
+    cachedPage,
+    events,
+    loadedRoomCount: loadedEvents.length,
+    status: events.length > 0 ? 'hydrate' : 'empty-after-filter',
+  };
 };
 
 export const collectStateTargetEvents = (room: Room, events: MatrixEvent[]): MatrixEvent[] => {
