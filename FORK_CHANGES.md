@@ -2436,6 +2436,20 @@
   - `npm run build` passes
   - `npm run lint` still fails at the current branch baseline with unrelated pre-existing errors in `src/app/hooks/router/useResolvedRoomIdOrAlias.ts` and `src/app/pages/client/ClientStartupContext.tsx`; no lint findings in the touched `CINNY-086` files
 
+## CINNY-093 — Remove thread-view orange left border (2026-04-24)
+
+- Removed the thread-view-only orange vertical context strip from `src/app/features/room/RoomTimeline.tsx`.
+- Kept the existing thread header/banner, timeline content, virtualization, pagination, message spacing, and room overview styling unchanged.
+- Implementation scope is one visual render-block removal: the deleted element was absolutely positioned and `pointerEvents: 'none'`, so it had no behavior or layout footprint.
+- review:
+  - two independent Codex reviewers approved `d8db9e72` with no findings; both reran `git diff --check`, targeted eslint on `RoomTimeline.tsx`, and `RoomTimeline.cache.test.ts` (`66/66`).
+- validation:
+  - implementer: `npm test -- src/app/features/room/RoomTimeline.cache.test.ts` passed (`66/66` tests)
+  - implementer: `npx eslint src/app/features/room/RoomTimeline.tsx` passed with the file's existing warning-only baseline (`38` warnings, `0` errors)
+  - implementer: `npm run typecheck` passed
+  - implementer: `npm test` passed (`156/156` files, `1410/1410` tests)
+  - implementer: `npm run build` passed
+
 ## CINNY-085 — Move MindRoom message primitives to fork namespace (2026-04-25)
 
 - Moved thread-summary parsing, tool-approval parsing, the approval card, and the summary card into `src/app/mindroom/messages`.
