@@ -678,6 +678,45 @@ describe('RoomTimeline architecture', () => {
     expect(compatibilitySource).not.toContain('makeRedacted');
   });
 
+  it('keeps raw event cache stores in MindRoom threads', () => {
+    const roomCompatibilitySource = readFileSync(
+      new URL('./roomEventCache.ts', import.meta.url),
+      'utf8'
+    );
+    const threadCompatibilitySource = readFileSync(
+      new URL('./threadEventCache.ts', import.meta.url),
+      'utf8'
+    );
+    const migrationCompatibilitySource = readFileSync(
+      new URL('./cacheDbMigrationUtils.ts', import.meta.url),
+      'utf8'
+    );
+    const roomStoreSource = readFileSync(
+      new URL('../../mindroom/threads/roomEventCache.ts', import.meta.url),
+      'utf8'
+    );
+    const threadStoreSource = readFileSync(
+      new URL('../../mindroom/threads/threadEventCache.ts', import.meta.url),
+      'utf8'
+    );
+    const repositorySource = readFileSync(
+      new URL('../../mindroom/threads/eventRepository.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(roomCompatibilitySource).toContain("from '../../mindroom/threads/roomEventCache'");
+    expect(threadCompatibilitySource).toContain("from '../../mindroom/threads/threadEventCache'");
+    expect(migrationCompatibilitySource).toContain(
+      "from '../../mindroom/threads/cacheDbMigrationUtils'"
+    );
+    expect(roomStoreSource).toContain('mindroom-room-event-cache');
+    expect(threadStoreSource).toContain('mindroom-thread-event-cache');
+    expect(repositorySource).toContain("from './roomEventCache'");
+    expect(repositorySource).toContain("from './threadEventCache'");
+    expect(repositorySource).not.toContain('../../features/room/roomEventCache');
+    expect(repositorySource).not.toContain('../../features/room/threadEventCache');
+  });
+
   it('keeps thread pagination reconciliation helpers in MindRoom threads', () => {
     const compatibilitySource = readFileSync(
       new URL('./threadPaginationUtils.ts', import.meta.url),

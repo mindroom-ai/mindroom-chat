@@ -849,7 +849,7 @@ vi.mock('../../mindroom/threads/useThreadRenderState', () => ({
   useThreadRenderState: () => threadRenderStateMock,
 }));
 
-vi.mock('./threadEventCache', () => ({
+vi.mock('../../mindroom/threads/threadEventCache', () => ({
   getThreadCursorAnchor: vi.fn((rawEvent?: { event_id?: string; origin_server_ts?: number }) =>
     rawEvent?.event_id
       ? {
@@ -883,8 +883,8 @@ vi.mock('./threadSummaryCache', () => ({
 }));
 
 
-vi.mock('./roomEventCache', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./roomEventCache')>();
+vi.mock('../../mindroom/threads/roomEventCache', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../mindroom/threads/roomEventCache')>();
   return {
     ...actual,
     loadCachedRoomEventsBefore: loadCachedRoomEventsBeforeMock,

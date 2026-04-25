@@ -21,11 +21,8 @@ vi.mock('./useSessionStore', () => ({
   useActiveSession: () => useActiveSessionMock(),
 }));
 
-vi.mock('../features/room/roomEventCache', () => ({
+vi.mock('../mindroom/threads/eventRepository', () => ({
   loadCachedRoomEvent: (...args: unknown[]) => loadCachedRoomEventMock(...args),
-}));
-
-vi.mock('../features/room/threadEventCache', () => ({
   loadCachedThreadEvent: (...args: unknown[]) => loadCachedThreadEventMock(...args),
 }));
 
