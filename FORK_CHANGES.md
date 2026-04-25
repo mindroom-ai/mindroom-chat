@@ -721,6 +721,13 @@
   - validation:
     - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
     - `npm run typecheck` passes
+- `CINNY-075` implementation step 19 / Phase 5 room cache lifecycle controller (2026-04-24):
+  - added `src/app/mindroom/threads/roomCacheLifecycleController.ts` as the fork-owned owner for room-event cache persistence, current-room cache write-through, and cached-back-state refresh.
+  - `RoomTimeline` no longer imports `persistRoomEventCacheSnapshot`, `loadRoomCachePersistenceState`, `loadRoomCachedBackStateSnapshot`, or room-cache anchor helpers for those effects; it consumes only the returned `persistRoomEventCache(...)` command.
+  - the initial room cache hydrate/render-state rebuild remains local for now because it still chooses the initial timeline range, bottom-scroll state, and eager-preload completion behavior.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

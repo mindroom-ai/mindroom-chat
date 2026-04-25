@@ -67,10 +67,17 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates cache persistence snapshots to the event repository', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const roomCacheLifecycleSource = readFileSync(
+      new URL('../../mindroom/threads/roomCacheLifecycleController.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain('persistRoomEventCacheSnapshot');
+    expect(source).not.toContain('persistRoomEventCacheSnapshot');
+    expect(roomCacheLifecycleSource).toContain('persistRoomEventCacheSnapshot');
+    expect(source).toContain('useRoomCacheLifecycleController');
     expect(source).toContain('useThreadCachePersistenceController');
     expect(source).toContain("from '../../mindroom/threads/threadCachePersistenceController'");
+    expect(source).toContain("from '../../mindroom/threads/roomCacheLifecycleController'");
     expect(source).not.toContain('saveRoomEventsToCache(');
     expect(source).not.toContain('saveThreadEventsToCache(');
     expect(source).not.toContain('serializeRoomCacheEvents(room');
