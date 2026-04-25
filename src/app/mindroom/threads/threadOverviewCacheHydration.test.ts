@@ -4,6 +4,7 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { ThreadRecord } from './types';
 import {
   buildCachedOverviewCoverage,
+  resolveFetchedRelationOverviewUpdate,
   resolveCachedOverviewUpdate,
 } from './threadOverviewCacheHydration';
 
@@ -41,7 +42,7 @@ const makeEvent = (
     isRedacted: () => false,
     isRedaction: () => false,
     replacingEvent: () => undefined,
-  }) as MatrixEvent;
+  } as MatrixEvent);
 
 const makeRoom = (events: MatrixEvent[] = []): Room =>
   ({
@@ -54,7 +55,7 @@ const makeRoom = (events: MatrixEvent[] = []): Room =>
         getChildEventsForEvent: () => undefined,
       },
     }),
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const mapRawCachedEvent = (rawEvent: IEvent): MatrixEvent => {
   const raw = rawEvent as RawCachedEvent;
@@ -201,5 +202,59 @@ describe('resolveCachedOverviewUpdate', () => {
         compactThreadRootBodyMap: new Map(),
       })
     ).toBeNull();
+  });
+
+  it('projects freshly fetched relation events directly into overview metadata', () => {
+    const threadRootId = '$thread-root';
+    const rootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 10 });
+    const replyEvent = makeEvent('$fetched-reply', {
+      content: { body: 'fresh fetched reply', msgtype: 'm.text' },
+      relation: { rel_type: 'm.thread', event_id: threadRootId },
+      sender: '@fetched:example.org',
+      threadRootId,
+      ts: 120,
+    });
+    const room = makeRoom([rootEvent, replyEvent]);
+
+    const update = resolveFetchedRelationOverviewUpdate({
+      rootId: threadRootId,
+      room,
+      events: [replyEvent],
+      rootEvent,
+      currentRecord: makeRecord({
+        presentation: {
+          latestReplyPreviewText: undefined,
+          messageCount: 0,
+        },
+        status: {
+          lastActivityTs: 10,
+          replyCount: 0,
+        },
+      }),
+      beforeToken: null,
+      expectedReplyCount: 1,
+      relationSnapshotComplete: true,
+      snapshotComplete: true,
+      tailLoaded: true,
+    });
+
+    expect(update).toMatchObject({
+      rootId: threadRootId,
+      nextActivityTs: 120,
+      nextReplyPreviewText: 'fresh fetched reply',
+      nextLastSenderId: '@fetched:example.org',
+      nextMessageCount: 1,
+      nextCacheCoverage: {
+        eventCount: 1,
+        oldestTs: 120,
+        newestTs: 120,
+        backwardToken: null,
+        hasMoreBackward: false,
+        expectedReplyCount: 1,
+        relationSnapshotComplete: true,
+        snapshotComplete: true,
+        tailLoaded: true,
+      },
+    });
   });
 });

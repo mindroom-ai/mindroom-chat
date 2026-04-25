@@ -179,6 +179,10 @@
 - `CINNY-162`
   - MindRoom multi-account session store key and change-event names now live in `src/app/mindroom/cache/sessionStoreConfig.ts`.
   - `src/app/state/sessions.ts` keeps its public exports but no longer owns raw MindRoom session storage strings.
+- `CINNY-163`
+  - Overview resume relation refreshes now apply fetched relation metadata directly through `useMindroomThreadIndex`.
+  - Compact cards no longer depend on an async cache write/read round trip to show latest reply previews, message counts, activity, and cache coverage after page resume.
+  - The resume controller persists fetched relation pages for later thread opens, but the per-room `ThreadRecord` index remains the immediate UI source of truth.
 
 ### Current Feature Set On `dev`
 

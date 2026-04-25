@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
-import {
-  buildThreadSummaryMap,
-  type MindroomThreadSummaryInfo,
-} from '../messages/threadSummary';
-import {
-  applyParsedThreadFilterQuery,
-  parseThreadFilterQuery,
-} from './threadFilterDsl';
+import { buildThreadSummaryMap, type MindroomThreadSummaryInfo } from '../messages/threadSummary';
+import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
 import { getRoomEventThreadOpenTarget } from './roomDeepLink';
 import {
   buildRoomSurfaceEventEntries,
@@ -33,11 +35,12 @@ import {
   resolveThreadRecordOverviewRootIds,
 } from './threadRecordOverview';
 import { useThreadOverviewCacheHydration } from './threadOverviewCacheHydration';
-import type { ThreadCacheCoverage, ThreadRecord } from './types';
 import {
-  buildVisibleThreadParticipantMap,
-  buildVisibleThreadReplyCountMap,
-} from './threadUtils';
+  resolveFetchedRelationOverviewUpdate,
+  type FetchedRelationOverviewUpdateOptions,
+} from './threadOverviewCacheHydration';
+import type { ThreadCacheCoverage, ThreadRecord } from './types';
+import { buildVisibleThreadParticipantMap, buildVisibleThreadReplyCountMap } from './threadUtils';
 import {
   buildCompactThreadRootData,
   buildCompactZeroReplyRootData,
@@ -63,6 +66,21 @@ const EMPTY_ORDERING: ThreadIndexOrdering = {
   filteredIds: [],
   liveOrderedIds: [],
   displayOrderedIds: [],
+};
+
+const setMapEntry = <K, V>(
+  setMap: Dispatch<SetStateAction<Map<K, V>>>,
+  key: K,
+  value: V | undefined
+): void => {
+  if (value === undefined) return;
+
+  setMap((prev) => {
+    if (Object.is(prev.get(key), value)) return prev;
+    const next = new Map(prev);
+    next.set(key, value);
+    return next;
+  });
 };
 
 export type MindroomThreadIndexSnapshot = {
@@ -100,6 +118,7 @@ export type UseMindroomThreadIndexResult = MindroomThreadIndexSnapshot & {
   readUpToTs: number | undefined;
   roomThreadListThreads: Thread[];
   refreshRoomThreadList: () => Promise<void>;
+  applyThreadOverviewRelationEvents: (options: FetchedRelationOverviewUpdateOptions) => void;
 };
 
 export type ResolveMindroomThreadIndexSnapshotOptions = {
@@ -280,10 +299,7 @@ export type UseMindroomThreadIndexOptions = {
   overviewThreadMetadataCacheLimit: number;
   sessionId: string;
   mx: MatrixClient;
-  onStoreThreadSummary: (
-    threadRootId: string,
-    info: MindroomThreadSummaryInfo | undefined
-  ) => void;
+  onStoreThreadSummary: (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => void;
 };
 
 export const useMindroomThreadIndex = ({
@@ -689,6 +705,49 @@ export const useMindroomThreadIndex = ({
     onStoreThreadSummary,
   });
 
+  const applyThreadOverviewRelationEvents = useCallback(
+    (options: FetchedRelationOverviewUpdateOptions) => {
+      if (threadId) return;
+
+      const rootId = options.rootId;
+      const currentRecord = (
+        snapshot.showCompactRoomView ? compactThreadRecordMap : normalThreadRecordMap
+      ).get(rootId);
+      const rootEvent =
+        options.rootEvent ??
+        room.findEventById(rootId) ??
+        room.getThread(rootId)?.rootEvent ??
+        roomThreadListThreads.find((thread) => thread.id === rootId)?.rootEvent ??
+        undefined;
+      const update = resolveFetchedRelationOverviewUpdate({
+        ...options,
+        currentRecord,
+        rootEvent,
+        room,
+      });
+      if (!update) return;
+
+      setMapEntry(setCachedThreadLastActivityTsMap, rootId, update.nextActivityTs);
+      setMapEntry(setCachedThreadLatestReplyPreviewMap, rootId, update.nextReplyPreviewText);
+      setMapEntry(setCachedThreadLastSenderIdMap, rootId, update.nextLastSenderId);
+      setMapEntry(setCachedThreadMessageCountMap, rootId, update.nextMessageCount);
+      setMapEntry(setCachedThreadCoverageMap, rootId, update.nextCacheCoverage);
+
+      if (update.nextSummaryInfo?.summaryText) {
+        onStoreThreadSummary(rootId, update.nextSummaryInfo);
+      }
+    },
+    [
+      compactThreadRecordMap,
+      normalThreadRecordMap,
+      onStoreThreadSummary,
+      room,
+      roomThreadListThreads,
+      snapshot.showCompactRoomView,
+      threadId,
+    ]
+  );
+
   return {
     ...snapshot,
     roomSurfaceEventEntries,
@@ -702,5 +761,6 @@ export const useMindroomThreadIndex = ({
     readUpToTs,
     roomThreadListThreads,
     refreshRoomThreadList,
+    applyThreadOverviewRelationEvents,
   };
 };

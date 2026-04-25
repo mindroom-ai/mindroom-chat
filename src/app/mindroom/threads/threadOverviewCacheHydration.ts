@@ -1,25 +1,13 @@
-import type {
-  Dispatch,
-  MutableRefObject,
-  SetStateAction,
-} from 'react';
+import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { useEffect } from 'react';
-import type {
-  IEvent,
-  MatrixClient,
-  MatrixEvent,
-  Room,
-} from 'matrix-js-sdk';
+import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
 import {
   getCompactCachedThreadActivityTs,
   getCompactCachedThreadRootPreviewInfo,
 } from './compactThreadRootData';
-import {
-  type CachedThreadEventPage,
-  loadLatestCachedThreadEvents,
-} from './eventRepository';
+import { type CachedThreadEventPage, loadLatestCachedThreadEvents } from './eventRepository';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
 import { buildThreadCacheCoverage } from './threadCacheCoverage';
@@ -67,6 +55,19 @@ type CachedOverviewUpdate = {
   nextCacheCoverage?: ThreadCacheCoverage;
 };
 
+export type FetchedRelationOverviewUpdateOptions = {
+  rootId: string;
+  room: Room;
+  events: MatrixEvent[];
+  currentRecord?: ThreadRecord;
+  rootEvent?: MatrixEvent | null;
+  beforeToken?: string | null;
+  expectedReplyCount?: number;
+  relationSnapshotComplete?: boolean;
+  snapshotComplete?: boolean;
+  tailLoaded?: boolean;
+};
+
 type ResolveCachedOverviewUpdateOptions = {
   rootId: string;
   room: Room;
@@ -108,6 +109,19 @@ const getCachedEventTsRange = (
   };
 };
 
+const getMatrixEventTsRange = (
+  events: MatrixEvent[]
+): { oldestTs: number | undefined; newestTs: number | undefined } => {
+  const timestamps = events
+    .map((event) => event.getTs())
+    .filter((ts): ts is number => typeof ts === 'number' && Number.isFinite(ts));
+
+  return {
+    oldestTs: timestamps.length > 0 ? Math.min(...timestamps) : undefined,
+    newestTs: timestamps.length > 0 ? Math.max(...timestamps) : undefined,
+  };
+};
+
 export const buildCachedOverviewCoverage = (
   cachedPage: CachedThreadEventPage
 ): ThreadCacheCoverage => {
@@ -124,6 +138,88 @@ export const buildCachedOverviewCoverage = (
     snapshotComplete: cachedPage.snapshotComplete,
     tailLoaded: cachedPage.tailLoaded,
   });
+};
+
+export const resolveFetchedRelationOverviewUpdate = ({
+  rootId,
+  room,
+  events,
+  currentRecord,
+  rootEvent,
+  beforeToken,
+  expectedReplyCount,
+  relationSnapshotComplete,
+  snapshotComplete,
+  tailLoaded,
+}: FetchedRelationOverviewUpdateOptions): CachedOverviewUpdate | null => {
+  const { oldestTs, newestTs } = getMatrixEventTsRange(events);
+  const liveActivityTs = currentRecord?.status.lastActivityTs ?? 0;
+  const nextActivityTs = newestTs !== undefined && newestTs > liveActivityTs ? newestTs : undefined;
+  const cachedPresentation = resolveThreadPresentationSnapshot({
+    room,
+    threadRootId: rootId,
+    thread: { events, timeline: events },
+    rootEvent: rootEvent ?? undefined,
+  });
+  const currentPresentation = currentRecord?.presentation;
+  const shouldUseFetchedReplyMetadata =
+    (newestTs !== undefined && newestTs >= liveActivityTs) ||
+    !currentPresentation?.latestReplyPreviewText;
+  const nextReplyPreviewText =
+    shouldUseFetchedReplyMetadata &&
+    cachedPresentation.latestReplyPreviewText &&
+    cachedPresentation.latestReplyPreviewText !== currentPresentation?.latestReplyPreviewText
+      ? cachedPresentation.latestReplyPreviewText
+      : undefined;
+  const nextLastSenderId =
+    shouldUseFetchedReplyMetadata &&
+    cachedPresentation.lastSenderId &&
+    cachedPresentation.lastSenderId !== currentPresentation?.lastSenderId
+      ? cachedPresentation.lastSenderId
+      : undefined;
+  const currentMessageCount =
+    currentPresentation?.messageCount ?? currentRecord?.status.replyCount ?? 0;
+  const nextMessageCount =
+    cachedPresentation.messageCount > 0 && cachedPresentation.messageCount > currentMessageCount
+      ? cachedPresentation.messageCount
+      : undefined;
+  const nextSummaryInfo = cachedPresentation.summaryInfo?.summaryText
+    ? cachedPresentation.summaryInfo
+    : undefined;
+  const nextCacheCoverage = buildThreadCacheCoverage({
+    eventCount: events.length,
+    oldestTs,
+    newestTs,
+    backwardToken: beforeToken,
+    hasMoreBackward: typeof beforeToken === 'string',
+    expectedReplyCount,
+    relationSnapshotComplete,
+    snapshotComplete,
+    tailLoaded,
+  });
+
+  if (
+    nextActivityTs === undefined &&
+    nextReplyPreviewText === undefined &&
+    nextLastSenderId === undefined &&
+    nextMessageCount === undefined &&
+    nextSummaryInfo === undefined
+  ) {
+    return {
+      rootId,
+      nextCacheCoverage,
+    };
+  }
+
+  return {
+    rootId,
+    nextActivityTs,
+    nextReplyPreviewText,
+    nextLastSenderId,
+    nextMessageCount,
+    nextSummaryInfo,
+    nextCacheCoverage,
+  };
 };
 
 const hasCachedOverviewCoverage = (cachedPage: CachedThreadEventPage): boolean =>
@@ -265,8 +361,7 @@ export const useThreadOverviewCacheHydration = ({
       .slice(0, overviewThreadMetadataCacheLimit)
       .filter((rootId) => {
         const needsCacheCoverage = !cachedThreadCoverageMap.has(rootId);
-        const needsActivityTs =
-          !cachedThreadLastActivityTsMap.has(rootId) && needsCacheCoverage;
+        const needsActivityTs = !cachedThreadLastActivityTsMap.has(rootId) && needsCacheCoverage;
 
         if (!showCompactRoomView) {
           return needsActivityTs || needsCacheCoverage;
@@ -298,8 +393,9 @@ export const useThreadOverviewCacheHydration = ({
       const updates = await Promise.all(
         threadRootIdsToLoad.map(async (rootId) => {
           const cachedPage = await loadLatestCachedThreadEvents(sessionId, room.roomId, rootId, 32);
-          const currentRecord =
-            (showCompactRoomView ? compactThreadRecordMap : threadRecordMap).get(rootId);
+          const currentRecord = (
+            showCompactRoomView ? compactThreadRecordMap : threadRecordMap
+          ).get(rootId);
           const currentRootEvent =
             room.findEventById(rootId) ??
             room.getThread(rootId)?.rootEvent ??
