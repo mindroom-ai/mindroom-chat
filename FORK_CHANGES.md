@@ -1161,6 +1161,14 @@
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `npm run build` passes
     - `git diff --check` passes
+- `CINNY-075` implementation step 70 / Phase 6 live event policy controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/roomLiveEventController.ts` as the fork-owned owner for live room event cache writes, thread supplemental updates, summary-event write-through, collapsible live-expand tracking, and live auto-follow range updates.
+  - `RoomTimeline` now calls `useRoomLiveEventController` instead of owning the large `useLiveEventArrive` callback body inline, and it no longer imports `eventRepository` directly.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimelineCollapsible.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

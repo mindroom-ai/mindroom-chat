@@ -17,7 +17,6 @@ import {
   EventTimelineSet,
   IContent,
   MatrixEvent,
-  RelationType,
   Room,
   MsgType,
 } from 'matrix-js-sdk';
@@ -154,21 +153,15 @@ import {
   buildVisibleThreadReplyCountMap,
   eventBelongsToThread,
 } from '../../mindroom/threads/threadUtils';
-import {
-  getLatestThreadSummaryInfoFromEventSources,
-  isMindroomThreadSummaryEvent,
-  MindroomThreadSummaryInfo,
-} from '../../components/message/mindroomThreadSummary';
+import { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
 import {
   consumeLiveExpandOnceId,
   getCollapsibleMessageMeasurementKey,
   getCollapsibleMessageMode,
-  getLiveCollapsibleMessageExpandId,
 } from '../../mindroom/threads/threadCollapsibleMessages';
 import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
-  isThreadOnlyRoomActivity,
   shouldPinThreadToBottomOnOpen,
 } from '../../mindroom/threads/threadRenderUtils';
 import { useThreadRenderState } from '../../mindroom/threads/useThreadRenderState';
@@ -182,7 +175,6 @@ import { CompactRoomView } from '../../mindroom/threads/CompactRoomView';
 import { RoomThreadOverview } from '../../mindroom/threads/RoomThreadOverview';
 import {
   getRenderableEventEntries,
-  isRenderableEvent,
   type TimelineEventEntry,
 } from '../../mindroom/threads/roomTimelineEvents';
 import {
@@ -204,10 +196,6 @@ import {
   useEventTimelineLoader,
   useTimelinePagination,
 } from '../../mindroom/threads/timelinePaginationController';
-import {
-  useLiveEventArrive,
-  type TimelineArriveMeta,
-} from '../../mindroom/threads/roomLiveEventArrive';
 import { useThreadSummaryPublishController } from '../../mindroom/threads/threadSummaryPublishController';
 import { useThreadOverviewRefreshCounter } from '../../mindroom/threads/threadOverviewRefreshCounter';
 import { useThreadSortFreezeController } from '../../mindroom/threads/threadSortFreezeController';
@@ -233,9 +221,6 @@ import {
 import { resolveRoomEventThreadRedirect } from '../../mindroom/threads/roomDeepLink';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
 import {
-  getThreadCacheTargetId,
-} from '../../mindroom/threads/eventRepository';
-import {
   getEventElementById,
   getEventEntryIndex,
   getRoomFocusScrollOptions,
@@ -244,14 +229,11 @@ import {
   getTimelineTargetAnchor,
   getUnreadTargetAnchor,
   isAnchorVisibleInScroll,
-  isScrollNearBottom,
   isTimelineAtLiveEnd,
   ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS,
   ROOM_FOCUS_OBSERVER_IDLE_MS,
   setupFocusObserver,
   shouldRenderUnreadDividerAt,
-  shouldAutoScrollRoomOnLiveEvent,
-  shouldAutoScrollThreadOnLiveEvent,
 } from '../../mindroom/threads/timelineScrollUtils';
 import { useRoomThreadResolutionMap } from '../../mindroom/threads/useRoomThreadTags';
 import { useRoomEagerPreload } from '../../mindroom/threads/preloadController';
@@ -288,6 +270,7 @@ import { useRoomPaginationCommandController } from '../../mindroom/threads/roomP
 import { useRoomCacheLifecycleController } from '../../mindroom/threads/roomCacheLifecycleController';
 import { useRoomCacheHydrationController } from '../../mindroom/threads/roomCacheHydrationController';
 import { resolveThreadOverviewRefreshTargets } from '../../mindroom/threads/threadOverviewRefreshTargets';
+import { useRoomLiveEventController } from '../../mindroom/threads/roomLiveEventController';
 
 export { getRoomEventThreadOpenTarget } from '../../mindroom/threads/roomDeepLink';
 export { getRoomEventFocusTarget, getThreadFilteredEvents };
@@ -1279,212 +1262,39 @@ export function RoomTimeline({
     ])
   );
 
-  useLiveEventArrive(
+  useRoomLiveEventController({
+    atBottomRef,
+    atLiveEndRef,
+    effectiveThreadFilterState,
+    hideActivity,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+    ignoredUsersSet,
+    liveExpandOnceIds,
+    mx,
+    normalThreadRecordMap,
+    onStoreThreadSummary,
+    persistRoomEventCache,
+    persistThreadCacheFromRoomEvents,
+    persistThreadEventCache,
+    queueRoomThreadCachePersist,
     room,
-    useCallback(
-      (mEvt: MatrixEvent, timelineMeta: TimelineArriveMeta) => {
-        const mEventId = mEvt.getId();
-        const relation = mEvt.getRelation();
-        const relationTargetId = relation?.event_id;
-        const liveExpandOnceId = getLiveCollapsibleMessageExpandId({
-          mEvent: mEvt,
-          room,
-          threadId,
-          threadFilterState: effectiveThreadFilterState,
-          threadResolutionMap,
-          threadRecordMap: normalThreadRecordMap,
-          ignoredUsersSet,
-          showHiddenEvents,
-          hideMembershipEvents,
-          hideNickAvatarEvents,
-        });
-        const isThreadOnlyActivity = isThreadOnlyRoomActivity(room, mEvt);
-        const threadCacheTargetId = getThreadCacheTargetId(room, mEvt);
-        const isVisibleThreadActivity =
-          mEventId === threadId ||
-          eventBelongsToThread(mEvt, threadId ?? '') ||
-          !!(relationTargetId && threadEventIndexMapRef.current.has(relationTargetId));
-        if (liveExpandOnceId) {
-          liveExpandOnceIds.current.add(liveExpandOnceId);
-        }
-
-        if (!timelineMeta.liveEvent) {
-          if (!threadId && threadCacheTargetId) {
-            queueRoomThreadCachePersist(mEvt);
-            logTimelineDebug(roomDebugTraceId, 'room-thread-cache-persist-paginated', {
-              eventId: mEventId ?? null,
-              threadId: threadCacheTargetId,
-              toStartOfTimeline: timelineMeta.toStartOfTimeline,
-            });
-          }
-          return;
-        }
-
-        if (threadId) {
-          if (isVisibleThreadActivity) {
-            // Only add non-edit events to supplemental thread events.
-            // m.replace edits modify existing events in-place (via makeReplaced)
-            // and are filtered by reactionOrEditEvent() during rendering.
-            // Adding them inflates threadEvents with non-renderable entries (CINNY-031).
-            if (relation?.rel_type !== RelationType.Replace) {
-              setSupplementalThreadEvents(threadId, [mEvt]);
-            }
-            persistThreadEventCache(
-              threadId,
-              [mEvt],
-              room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId),
-              undefined,
-              atLiveEndRef.current
-            );
-            if (
-              (mEventId === threadId || eventBelongsToThread(mEvt, threadId)) &&
-              atLiveEndRef.current
-            ) {
-              setThreadTailLoaded(true);
-            }
-
-            setThreadTimelineTick((val) => val + 1);
-
-            const scrollElement = scrollRef.current;
-            if (scrollElement) {
-              const isNearBottom = isScrollNearBottom({
-                scrollHeight: scrollElement.scrollHeight,
-                scrollTop: scrollElement.scrollTop,
-                clientHeight: scrollElement.clientHeight,
-              });
-              if (
-                shouldAutoScrollThreadOnLiveEvent({
-                  relationType: relation?.rel_type,
-                  isNearBottom,
-                  isTimelineAtLiveEnd: timelineAtLiveEnd,
-                })
-              ) {
-                scrollToBottomRef.current.count += 1;
-                scrollToBottomRef.current.smooth = true;
-              } else if (atLiveEndRef.current && isNearBottom) {
-                // Use only fresh scroll measurement, not debounced atBottomRef,
-                // to prevent streaming edits from trapping user at bottom (CINNY-031).
-                scrollToBottomRef.current.count += 1;
-                scrollToBottomRef.current.smooth = false;
-              }
-            }
-          }
-          return;
-        }
-
-        // Ignore thread-only live activity in the main room timeline for auto-scroll.
-        // These events are hidden there, so forcing bottom jumps is disruptive.
-        // Only re-render when at bottom so thread previews update without causing
-        // scroll jumps for users reading history.
-        if (threadCacheTargetId) {
-          persistThreadCacheFromRoomEvents([mEvt], {
-            tailLoaded: true,
-          });
-        }
-        if (isThreadOnlyActivity) {
-          // Cache summary events arriving via sync for persistence across sessions
-          if (isMindroomThreadSummaryEvent(mEvt)) {
-            const rootId = mEvt.threadRootId;
-            if (rootId) {
-              const info = getLatestThreadSummaryInfoFromEventSources([mEvt]);
-              if (info?.summaryText) {
-                onStoreThreadSummary(rootId, info);
-              }
-            }
-          }
-          if (atBottomRef.current) {
-            setTimeline((ct) => ({ ...ct }));
-          }
-          if (!unreadInfo) {
-            setUnreadInfo(getRoomUnreadInfo(room));
-          }
-          return;
-        }
-
-        persistRoomEventCache([mEvt]);
-
-        // Use a fresh scroll-position measurement instead of the debounced
-        // atBottomRef to decide whether to auto-follow.  The debounced state
-        // can be stale-true for up to 1 s after the user scrolls away, which
-        // causes streaming m.replace edits to trap the user at the bottom
-        // (CINNY-031).
-        const shouldAutoFollow = shouldAutoScrollRoomOnLiveEvent({
-          scrollElement: scrollRef.current,
-          isTimelineAtLiveEnd: atLiveEndRef.current,
-        });
-
-        if (shouldAutoFollow) {
-          if (document.hasFocus() && (!unreadInfo || mEvt.getSender() === mx.getUserId())) {
-            requestAnimationFrame(() =>
-              markMainTimelineAsRead(mx, mEvt.getRoomId()!, hideActivity)
-            );
-          }
-
-          if (!document.hasFocus() && !unreadInfo) {
-            setUnreadInfo(getRoomUnreadInfo(room));
-          }
-
-          scrollToBottomRef.current.count += 1;
-          scrollToBottomRef.current.smooth = true;
-
-          const renderableLiveEvent = isRenderableEvent(
-            mEvt,
-            room,
-            threadId,
-            ignoredUsersSet,
-            showHiddenEvents,
-            hideMembershipEvents,
-            hideNickAvatarEvents
-          );
-
-          if (renderableLiveEvent) {
-            if (roomThreadFilterActive) {
-              setTimeline((ct) => ({ ...ct }));
-            } else {
-              setTimeline((ct) => ({
-                ...ct,
-                range: {
-                  start: ct.range.start + 1,
-                  end: ct.range.end + 1,
-                },
-              }));
-            }
-          } else {
-            setTimeline((ct) => ({ ...ct }));
-          }
-          return;
-        }
-        setTimeline((ct) => ({ ...ct }));
-        if (!unreadInfo) {
-          setUnreadInfo(getRoomUnreadInfo(room));
-        }
-      },
-      [
-        mx,
-        persistRoomEventCache,
-        persistThreadCacheFromRoomEvents,
-        persistThreadEventCache,
-        queueRoomThreadCachePersist,
-        room,
-        roomDebugTraceId,
-        setSupplementalThreadEvents,
-        unreadInfo,
-        hideActivity,
-        threadId,
-        timelineAtLiveEnd,
-        ignoredUsersSet,
-        showHiddenEvents,
-        hideMembershipEvents,
-        hideNickAvatarEvents,
-        roomThreadFilterActive,
-        effectiveThreadFilterState,
-        onStoreThreadSummary,
-        threadResolutionMap,
-        normalThreadRecordMap,
-        sessionId,
-      ]
-    )
-  );
+    roomDebugTraceId,
+    roomThreadFilterActive,
+    scrollRef,
+    scrollToBottomRef,
+    setSupplementalThreadEvents,
+    setThreadTailLoaded,
+    setThreadTimelineTick,
+    setTimeline,
+    setUnreadInfo,
+    showHiddenEvents,
+    threadEventIndexMapRef,
+    threadId,
+    threadResolutionMap,
+    timelineAtLiveEnd,
+    unreadInfo,
+  });
 
   const buildRoomCacheHydratedTimeline = useCallback(
     () =>

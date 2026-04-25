@@ -46,7 +46,7 @@ describe('RoomTimeline architecture', () => {
 
     expect(source).not.toContain("from './roomEventCache'");
     expect(source).not.toContain("from './threadEventCache'");
-    expect(source).toContain("from '../../mindroom/threads/eventRepository'");
+    expect(source).not.toContain("from '../../mindroom/threads/eventRepository'");
   });
 
   it('delegates room cache helper derivation to the event repository', () => {
@@ -922,18 +922,28 @@ describe('RoomTimeline architecture', () => {
     expect(controllerSource).toContain('paginateEventTimeline');
   });
 
-  it('delegates live event arrival subscription to MindRoom threads', () => {
+  it('delegates live event arrival policy to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const controllerSource = readFileSync(
+    const subscriptionSource = readFileSync(
       new URL('../../mindroom/threads/roomLiveEventArrive.ts', import.meta.url),
       'utf8'
     );
+    const controllerSource = readFileSync(
+      new URL('../../mindroom/threads/roomLiveEventController.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain("from '../../mindroom/threads/roomLiveEventArrive'");
+    expect(source).toContain("from '../../mindroom/threads/roomLiveEventController'");
     expect(source).not.toContain('const useLiveEventArrive');
     expect(source).not.toContain('EventTimelineSetHandlerMap');
+    expect(source).not.toContain('getLiveCollapsibleMessageExpandId');
+    expect(source).not.toContain('room-thread-cache-persist-paginated');
+    expect(controllerSource).toContain('useRoomLiveEventController');
     expect(controllerSource).toContain('useLiveEventArrive');
-    expect(controllerSource).toContain('RoomEvent.Redaction');
+    expect(controllerSource).toContain('getLiveCollapsibleMessageExpandId');
+    expect(controllerSource).toContain('room-thread-cache-persist-paginated');
+    expect(subscriptionSource).toContain('useLiveEventArrive');
+    expect(subscriptionSource).toContain('RoomEvent.Redaction');
   });
 
   it('delegates room cache pagination commands to MindRoom threads', () => {
