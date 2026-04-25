@@ -10,8 +10,6 @@ import { clearNavToActivePathStore } from '../app/state/navToActivePath';
 import { createMatrixClient } from '../app/mindroom/matrix/matrixClientFactory';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
 import {
-  MINDROOM_OWNED_LOCAL_STORAGE_KEYS,
-  MINDROOM_OWNED_LOCAL_STORAGE_PREFIXES,
   MINDROOM_SINGLETON_INDEXED_DB_NAMES,
   clearMindroomInMemoryCaches,
   clearMindroomSessionNativeState,
@@ -163,21 +161,6 @@ const LEGACY_APP_SINGLETON_INDEXED_DB_NAMES = [
   'matrix-js-sdk::matrix-sdk-crypto-meta',
 ];
 const APP_SINGLETON_INDEXED_DB_NAMES: readonly string[] = [...MINDROOM_SINGLETON_INDEXED_DB_NAMES];
-const APP_OWNED_LOCAL_STORAGE_KEYS = [
-  'settings',
-  'after_login_redirect_url',
-  ...MINDROOM_OWNED_LOCAL_STORAGE_KEYS,
-  'i18nextLng',
-  'kb-color-mode',
-] as const;
-const APP_OWNED_LOCAL_STORAGE_PREFIXES = [
-  'cinny_',
-  'navToActivePath',
-  ...MINDROOM_OWNED_LOCAL_STORAGE_PREFIXES,
-  'mx_pending_events_',
-  'mxjssdk_memory_filter_',
-  'crypto.',
-] as const;
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -275,16 +258,6 @@ const getAppOwnedIndexedDbNames = async (
     return fallbackNames;
   }
 };
-
-const getStorageKeys = (storage: Pick<Storage, 'length' | 'key'>): string[] =>
-  Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter(
-    (key): key is string => Boolean(key)
-  );
-
-const isAppOwnedLocalStorageKey = (key: string): boolean =>
-  key !== SESSION_STORE_KEY &&
-  (APP_OWNED_LOCAL_STORAGE_KEYS.includes(key as typeof APP_OWNED_LOCAL_STORAGE_KEYS[number]) ||
-    APP_OWNED_LOCAL_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix)));
 
 const clearAppOwnedLocalStorage = (preservedSessionStore: string | null): void => {
   if (typeof localStorage === 'undefined') return;
