@@ -8,6 +8,7 @@ import {
   getMindroomRoomInputMessageRelation,
   isMindroomRoomInputAutocompleteQuery,
   MindroomRoomInputAutocomplete,
+  MindroomRoomInputReplyContext,
   MindroomRoomInputThreadIndicator,
 } from './RoomInputMindroomExtensions';
 
@@ -81,6 +82,31 @@ describe('RoomInputMindroomExtensions', () => {
           event_id: '$thread',
           rel_type: 'm.thread',
         } as never,
+      })
+    ).not.toBeNull();
+  });
+
+  it('renders the composer context only for replies or active thread sends', () => {
+    expect(
+      MindroomRoomInputReplyContext({
+        room: {} as never,
+        relation: undefined,
+      })
+    ).toBeNull();
+
+    expect(
+      MindroomRoomInputReplyContext({
+        room: {} as never,
+        relation: undefined,
+        threadId: '$thread',
+      })
+    ).not.toBeNull();
+
+    expect(
+      MindroomRoomInputReplyContext({
+        children: 'reply',
+        room: {} as never,
+        relation: undefined,
       })
     ).not.toBeNull();
   });

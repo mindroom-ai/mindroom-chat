@@ -1,6 +1,7 @@
 import React from 'react';
 import { RelationType, Room } from 'matrix-js-sdk';
 import { BaseRange, Editor } from 'slate';
+import { Box, Text, config } from 'folds';
 import type { AutocompleteQuery } from '../../components/editor/autocomplete/autocompleteQuery';
 import type { IReplyDraft } from '../../state/room/roomInputDrafts';
 import { MindroomCommandAutocomplete } from '../commands/MindroomCommandAutocomplete';
@@ -27,6 +28,14 @@ type MindroomRoomInputAutocompleteProps = {
 type MindroomRoomInputThreadIndicatorProps = {
   room: Room;
   relation: IReplyDraft['relation'] | undefined;
+};
+
+type MindroomRoomInputReplyContextProps = {
+  children?: React.ReactNode;
+  leading?: React.ReactNode;
+  relation: IReplyDraft['relation'] | undefined;
+  room: Room;
+  threadId?: string;
 };
 
 export const getMindroomRoomInputAutocompleteQuery = (
@@ -63,6 +72,34 @@ export function MindroomRoomInputThreadIndicator({
   if (relation?.rel_type !== RelationType.Thread) return null;
 
   return <ThreadIndicator room={room} />;
+}
+
+export function MindroomRoomInputReplyContext({
+  children,
+  leading,
+  relation,
+  room,
+  threadId,
+}: MindroomRoomInputReplyContextProps) {
+  if (!leading && !children && !threadId) return null;
+
+  return (
+    <Box
+      alignItems="Center"
+      gap="300"
+      style={{ padding: `${config.space.S200} ${config.space.S300} 0` }}
+    >
+      {leading}
+      <Box direction="Row" gap="200" alignItems="Center">
+        <MindroomRoomInputThreadIndicator room={room} relation={relation} />
+        {children ?? (
+          <Text size="T300" priority="300">
+            Sending to this thread
+          </Text>
+        )}
+      </Box>
+    </Box>
+  );
 }
 
 export { VoiceRecorderComposer as MindroomVoiceRecorderComposer };

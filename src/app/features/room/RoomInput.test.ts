@@ -261,7 +261,8 @@ vi.mock('../../mindroom/room-input/RoomInputMindroomExtensions', async () => {
     getMindroomRoomInputAutocompleteQuery: () => undefined,
     isMindroomRoomInputAutocompleteQuery: (query?: { prefix?: string }) => query?.prefix === '!',
     MindroomRoomInputAutocomplete: () => null,
-    MindroomRoomInputThreadIndicator: () => null,
+    MindroomRoomInputReplyContext: ({ children }: { children?: React.ReactNode }) =>
+      React.createElement('div', null, children),
     MindroomVoiceRecorderComposer: (props: {
       onSendRecording: (file: File, duration: number) => Promise<void>;
     }) => {
