@@ -34,32 +34,10 @@ import {
   isSameSenderEditEvent,
 } from './editEvent';
 import { mxcUrlToHttp } from './mediaUrl';
+import { logMindroomEditDebug } from '../mindroom/messages/editDebug';
 import { isMindroomMessageMetadataKey } from '../mindroom/messages/metadata';
 
-const EDIT_DEBUG_FLAG_STORAGE_KEY = 'mindroom.debug.edits';
-
-const isEditDebugEnabled = (): boolean => {
-  try {
-    const g = globalThis as {
-      __MINDROOM_DEBUG_EDITS__?: boolean;
-      localStorage?: Storage;
-    };
-    return (
-      g.__MINDROOM_DEBUG_EDITS__ === true ||
-      g.localStorage?.getItem(EDIT_DEBUG_FLAG_STORAGE_KEY) === '1'
-    );
-  } catch {
-    return false;
-  }
-};
-
-export const logEditDebug = (
-  scope: string,
-  details: Record<string, unknown>
-) => {
-  if (!isEditDebugEnabled()) return;
-  console.info(`[mindroom-edits:${scope}]`, details);
-};
+export const logEditDebug = logMindroomEditDebug;
 
 export const getStateEvent = (
   room: Room,

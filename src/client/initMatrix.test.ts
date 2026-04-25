@@ -17,6 +17,7 @@ import {
 import { createMatrixClient } from './matrixClientFactory';
 import { clearSecretStorageKeys } from './secretStorageKeys';
 import { clearMindroomLongTextHydrationCache } from '../app/components/message/mindroomLongText';
+import { MINDROOM_EDIT_DEBUG_STORAGE_KEY } from '../app/mindroom/messages/editDebug';
 import {
   LEGACY_SESSION_STORAGE_KEYS,
   SESSION_STORE_KEY,
@@ -433,7 +434,7 @@ describe('clearAllCacheAndReload', () => {
 
     localStorageMock.setItem('settings', 'settings');
     localStorageMock.setItem('after_login_redirect_url', '/room');
-    localStorageMock.setItem('mindroom.debug.edits', '1');
+    localStorageMock.setItem(MINDROOM_EDIT_DEBUG_STORAGE_KEY, '1');
     localStorageMock.setItem('i18nextLng', 'en');
     localStorageMock.setItem('kb-color-mode', 'dark');
     localStorageMock.setItem('cinny_access_token', 'legacy-token');
@@ -543,7 +544,7 @@ describe('clearAllCacheAndReload', () => {
     expect(localStorageState.has('third_party_key')).toBe(false);
     expect(localStorageState.has('settings')).toBe(false);
     expect(localStorageState.has('after_login_redirect_url')).toBe(false);
-    expect(localStorageState.has('mindroom.debug.edits')).toBe(false);
+    expect(localStorageState.has(MINDROOM_EDIT_DEBUG_STORAGE_KEY)).toBe(false);
     expect(localStorageState.has('i18nextLng')).toBe(false);
     expect(localStorageState.has('kb-color-mode')).toBe(false);
     expect(localStorageState.has('cinny_access_token')).toBe(false);
