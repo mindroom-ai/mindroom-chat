@@ -8,7 +8,7 @@ import {
   isZeroReplyStandaloneThreadRootEvent,
   mergeCompactThreadRootData,
   pickPreferredThreadRootPreviewText,
-} from '../../mindroom/threads/compactThreadRootData';
+} from './compactThreadRootData';
 
 const makeEvent = (
   eventId: string,

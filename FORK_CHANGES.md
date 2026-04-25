@@ -135,6 +135,8 @@
   - Retargeted feature tests to the MindRoom-owned thread modules directly so `features/room` no longer pretends to own those helpers.
 - `CINNY-147`
   - Moved the compact room view test beside the MindRoom implementation and removed the leftover compact room/card wrapper files from `features/room`.
+- `CINNY-148`
+  - Moved remaining MindRoom thread helper tests from `features/room` to `mindroom/threads`.
 
 ### Current Feature Set On `dev`
 
