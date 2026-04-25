@@ -41,6 +41,10 @@
   - MindRoom client UI storage registration now lives in `src/app/mindroom/cache/clientStorageAtoms.ts`.
   - Generic client storage initialization now calls one MindRoom hook instead of directly registering last-open-thread, recent-thread list, recent-thread height, and recent-thread mobile-expanded atoms.
   - Focused coverage verifies the owner registers and unregisters all imperative MindRoom storage atoms for the active user.
+- `CINNY-117`
+  - Last-open-thread startup restore target selection now lives in `src/app/mindroom/routing/clientRouteRestore.ts`.
+  - Generic `ClientLayout` still owns the bare-home startup timing, but no longer imports last-open-thread storage directly.
+  - Focused routing tests cover converting saved room routes plus last-open-thread state into the exact startup restore target.
 
 ### Current Feature Set On `dev`
 

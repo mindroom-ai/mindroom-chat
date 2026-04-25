@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   buildThreadRestorePath,
   canonicalizeSessionPathname,
+  getLastOpenThreadRestoreTarget,
   getRoomIdFromLastKnownPath,
   parseMindroomStoredRouteUrl,
   pathnameContainsAliasRoute,
@@ -65,6 +66,28 @@ describe('clientRouteRestore', () => {
       '/%21space%3Amindroom.chat/%21room%3Amindroom.chat/?viaServers=a&threadId=%24thread#reply'
     );
     expect(buildThreadRestorePath('/settings/', '$thread')).toBeUndefined();
+  });
+
+  it('resolves last-open-thread startup restore targets from saved room routes', () => {
+    const mx = makeMatrixClient({
+      rooms: [makeRoom('!room:mindroom.chat', '#room:mindroom.chat')],
+    });
+    const getThreadForRoom = vi.fn((roomId: string) =>
+      roomId === '!room:mindroom.chat' ? '$thread' : undefined
+    );
+
+    expect(
+      getLastOpenThreadRestoreTarget(
+        mx,
+        '/home/%23room%3Amindroom.chat/?viaServers=a#reply',
+        getThreadForRoom
+      )
+    ).toEqual({
+      type: 'path',
+      path: '/home/%23room%3Amindroom.chat/?viaServers=a&threadId=%24thread#reply',
+    });
+    expect(getThreadForRoom).toHaveBeenCalledWith('!room:mindroom.chat');
+    expect(getLastOpenThreadRestoreTarget(mx, '/settings/', getThreadForRoom)).toBeUndefined();
   });
 
   it('detects alias routes before rendering children that would flash join fallbacks', () => {

@@ -9,6 +9,7 @@ import {
   SPACE_SEARCH_PATH,
 } from '../../pages/paths';
 import { getCanonicalAliasRoomId, isRoomAlias } from '../../utils/matrix';
+import { getLastOpenThread } from '../threads/lastOpenThread';
 
 const MINDROOM_ROUTE_PARSE_BASE_URL = 'https://mindroom.local';
 const buildStoredRoutePath = ({
@@ -20,6 +21,17 @@ const buildStoredRoutePath = ({
   search?: string;
   hash?: string;
 }): string => `${pathname}${search}${hash}`;
+
+export type LastOpenThreadRestoreTarget =
+  | {
+      type: 'path';
+      path: string;
+    }
+  | {
+      type: 'room-thread';
+      roomId: string;
+      threadId: string;
+    };
 
 export const parseMindroomStoredRouteUrl = (storedPath: string): URL | undefined => {
   try {
@@ -104,6 +116,32 @@ export const buildThreadRestorePath = (
     search: parsedUrl.search,
     hash: parsedUrl.hash,
   });
+};
+
+export const getLastOpenThreadRestoreTarget = (
+  mx: MatrixClient,
+  lastKnownPath: string | undefined,
+  getThreadForRoom: (roomId: string) => string | undefined = getLastOpenThread
+): LastOpenThreadRestoreTarget | undefined => {
+  const roomId = getRoomIdFromLastKnownPath(mx, lastKnownPath);
+  if (!roomId) return undefined;
+
+  const threadId = getThreadForRoom(roomId);
+  if (!threadId) return undefined;
+
+  const restorePath = buildThreadRestorePath(lastKnownPath, threadId);
+  if (restorePath) {
+    return {
+      type: 'path',
+      path: restorePath,
+    };
+  }
+
+  return {
+    type: 'room-thread',
+    roomId,
+    threadId,
+  };
 };
 
 export const pathnameContainsAliasRoute = (pathname: string): boolean => {

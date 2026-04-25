@@ -331,7 +331,10 @@ Route focus scrolling, unread anchor scrolling, pending thread-open scroll retri
 scrolling, thread-open bottom pinning, back-pagination anchor restore, and live-end bottom recovery
 now live in `src/app/mindroom/threads/roomFocusScrollController.ts`.
 Jump-to-latest, jump-to-unread, thread badge opens, compact-card opens, and recent-thread bumping now
-live in `src/app/mindroom/threads/roomTimelineNavigationController.ts`.
+live in `src/app/mindroom/threads/roomTimelineNavigationController.ts`. Startup restore target
+selection for last-open-thread state now lives in
+`src/app/mindroom/routing/clientRouteRestore.ts`, so generic client layout code no longer reads
+last-open-thread storage directly.
 The room-visible seed-prewarm queue, generation guard, and in-flight promise tracking now live in
 `src/app/mindroom/threads/threadSeedPrewarmController.ts`.
 The cached thread snapshot read used to prewarm thread-open seeds also lives in that controller now,

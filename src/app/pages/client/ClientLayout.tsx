@@ -4,14 +4,12 @@ import { matchPath, useLocation, useNavigate } from 'react-router-dom';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useActiveSession } from '../../hooks/useSessionStore';
-import { getLastOpenThread } from '../../mindroom/threads/lastOpenThread';
 import { updateSessionLastPath } from '../../state/sessions';
 import { HOME_PATH } from '../paths';
 import { buildSessionLastKnownPath } from './sessionRouteRestore';
 import {
-  buildThreadRestorePath,
   canonicalizeSessionPathname,
-  getRoomIdFromLastKnownPath,
+  getLastOpenThreadRestoreTarget,
   pathnameContainsAliasRoute,
   resolveCanonicalizedPathname,
 } from '../../mindroom/routing/clientRouteRestore';
@@ -45,19 +43,15 @@ export function ClientLayout({ nav, children }: ClientLayoutProps) {
 
     attemptedStartupRestoreRef.current = true;
 
-    const roomId = getRoomIdFromLastKnownPath(mx, startupRestorePathRef.current);
-    if (!roomId) return;
+    const restoreTarget = getLastOpenThreadRestoreTarget(mx, startupRestorePathRef.current);
+    if (!restoreTarget) return;
 
-    const threadId = getLastOpenThread(roomId);
-    if (!threadId) return;
-
-    const restorePath = buildThreadRestorePath(startupRestorePathRef.current, threadId);
-    if (restorePath) {
-      navigate(restorePath, { replace: true });
+    if (restoreTarget.type === 'path') {
+      navigate(restoreTarget.path, { replace: true });
       return;
     }
 
-    navigateRoomThread(roomId, threadId, undefined, { replace: true });
+    navigateRoomThread(restoreTarget.roomId, restoreTarget.threadId, undefined, { replace: true });
   }, [activeSession, hash, mx, navigate, navigateRoomThread, pathname, search]);
 
   useLayoutEffect(() => {
