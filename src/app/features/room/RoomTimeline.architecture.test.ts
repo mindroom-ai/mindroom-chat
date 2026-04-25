@@ -558,6 +558,31 @@ describe('RoomTimeline architecture', () => {
     expect(threadIndicatorStyleSource).toContain('ThreadStreamingPulse');
   });
 
+  it('keeps command-palette thread sourcing in MindRoom threads', () => {
+    const paletteSource = readFileSync(
+      new URL('../command-palette/commandPaletteItems.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/commandPaletteThreadItems.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(paletteSource).toContain(
+      "from '../../mindroom/threads/commandPaletteThreadItems'"
+    );
+    expect(paletteSource).not.toContain('MINDROOM_THREAD_TAGS_EVENT');
+    expect(paletteSource).not.toContain('aggregateThreadTagEvents');
+    expect(paletteSource).not.toContain('buildThreadRecord');
+    expect(paletteSource).not.toContain('makeRecentThreadsAtom');
+    expect(paletteSource).not.toContain('buildPerTagEventContent');
+    expect(implementationSource).toContain('useMindroomCommandPaletteThreadItems');
+    expect(implementationSource).toContain('MINDROOM_THREAD_TAGS_EVENT');
+    expect(implementationSource).toContain('makeRecentThreadsAtom');
+    expect(implementationSource).toContain('buildThreadRecord');
+    expect(implementationSource).toContain('mergeCommandPaletteThreadItems');
+  });
+
   it('keeps cache-aware room event loading in MindRoom threads', () => {
     const hookCompatibilitySource = readFileSync(
       new URL('../../hooks/useRoomEvent.ts', import.meta.url),
