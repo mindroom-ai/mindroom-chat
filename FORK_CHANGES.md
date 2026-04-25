@@ -279,6 +279,10 @@
   - Room-view implementation now lives in `src/app/mindroom/threads/MindroomRoomView.tsx`.
   - `src/app/features/room/RoomView.tsx` is a narrow compatibility seam that re-exports the MindRoom room view.
   - Thread state, thread banner mounting, timeline wiring, composer wiring, and iOS keyboard fix ownership stay in the MindRoom thread namespace.
+- `CINNY-192`
+  - Room-view header implementation now lives in `src/app/mindroom/threads/MindroomRoomViewHeader.tsx`.
+  - `src/app/features/room/RoomViewHeader.tsx` is a narrow compatibility seam that re-exports the MindRoom room header.
+  - Thread-aware mark-read, native back handling, and command-palette opener wiring stay outside the upstream room feature path.
 
 ### Current Feature Set On `dev`
 

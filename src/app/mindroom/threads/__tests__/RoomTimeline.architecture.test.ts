@@ -19,6 +19,15 @@ const readRoomViewSource = (): string =>
 const readRoomViewSeamSource = (): string =>
   readFileSync(new URL('../../../features/room/RoomView.tsx', import.meta.url), 'utf8');
 
+const readRoomViewHeaderSource = (): string =>
+  readFileSync(new URL('../MindroomRoomViewHeader.tsx', import.meta.url), 'utf8').replaceAll(
+    "from '../",
+    "from '../../mindroom/"
+  );
+
+const readRoomViewHeaderSeamSource = (): string =>
+  readFileSync(new URL('../../../features/room/RoomViewHeader.tsx', import.meta.url), 'utf8');
+
 describe('RoomTimeline architecture', () => {
   it('keeps the generic room timeline file as a narrow MindRoom seam', () => {
     const source = readRoomTimelineSeamSource();
@@ -33,6 +42,14 @@ describe('RoomTimeline architecture', () => {
 
     expect(source).toContain("from '../../mindroom/threads/MindroomRoomView'");
     expect(source).not.toContain('useRoomViewThreadState');
+    expect(source.split('\n').length).toBeLessThan(5);
+  });
+
+  it('keeps the generic room view header file as a narrow MindRoom seam', () => {
+    const source = readRoomViewHeaderSeamSource();
+
+    expect(source).toContain("from '../../mindroom/threads/MindroomRoomViewHeader'");
+    expect(source).not.toContain('MindroomCommandPaletteHeaderButton');
     expect(source.split('\n').length).toBeLessThan(5);
   });
 
@@ -857,7 +874,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps command-palette opener widgets in MindRoom command-palette', () => {
-    const roomHeaderSource = readFileSync(new URL('../../../features/room/RoomViewHeader.tsx', import.meta.url), 'utf8');
+    const roomHeaderSource = readRoomViewHeaderSource();
     const sidebarSearchTabSource = readFileSync(
       new URL('../../../pages/client/sidebar/SearchTab.tsx', import.meta.url),
       'utf8'
@@ -1997,7 +2014,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('delegates room menu mark-read ownership to MindRoom notifications', () => {
-    const headerSource = readFileSync(new URL('../../../features/room/RoomViewHeader.tsx', import.meta.url), 'utf8');
+    const headerSource = readRoomViewHeaderSource();
     const navItemSource = readFileSync(
       new URL('../../../features/room-nav/RoomNavItem.tsx', import.meta.url),
       'utf8'
