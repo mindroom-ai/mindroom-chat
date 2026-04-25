@@ -586,7 +586,7 @@ vi.mock('../../mindroom/threads/eventCacheEditUtils', () => ({
   serializeEventsForCache: () => [],
 }));
 
-vi.mock('./timelineScrollUtils', () => ({
+vi.mock('../../mindroom/threads/timelineScrollUtils', () => ({
   isScrollNearBottom: () => true,
   isTimelineAtLiveEnd: () => true,
   shouldAutoScrollRoomOnLiveEvent: shouldAutoScrollRoomOnLiveEventMock,

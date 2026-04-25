@@ -3,7 +3,7 @@ import {
   captureThreadPrependScrollAnchor,
   restoreThreadPrependScrollAnchor,
   type ThreadPrependScrollAnchor,
-} from '../../features/room/timelineScrollUtils';
+} from './timelineScrollUtils';
 
 type PendingThreadBackPaginationAnchor = ThreadPrependScrollAnchor & {
   threadId: string;
