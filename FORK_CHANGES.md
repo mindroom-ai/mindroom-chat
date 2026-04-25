@@ -45,6 +45,10 @@
   - Last-open-thread startup restore target selection now lives in `src/app/mindroom/routing/clientRouteRestore.ts`.
   - Generic `ClientLayout` still owns the bare-home startup timing, but no longer imports last-open-thread storage directly.
   - Focused routing tests cover converting saved room routes plus last-open-thread state into the exact startup restore target.
+- `CINNY-118`
+  - Room-view thread state orchestration now lives in `src/app/mindroom/threads/useRoomViewThreadState.ts`.
+  - Generic `RoomView` now renders the room shell while the MindRoom hook owns view mode, thread filters, sort-freeze state, summary sharing, canonical thread-id redirect, recent-thread bumping, and thread-exit routing.
+  - Architecture guards prevent direct thread-filter/view-mode/recent-thread restore plumbing from moving back into `src/app/features/room/RoomView.tsx`.
 
 ### Current Feature Set On `dev`
 

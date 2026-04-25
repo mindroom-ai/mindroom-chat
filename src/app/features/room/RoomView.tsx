@@ -1,10 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useAtom } from 'jotai';
+import React, { useCallback, useRef } from 'react';
 import { Box, Text, config } from 'folds';
 import { EventType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { isKeyHotkey } from 'is-hotkey';
-import { getRoomThreadExitTargetFromHistoryState } from '../../mindroom/threads/roomNavigateState';
 import { useStateEvent } from '../../hooks/useStateEvent';
 import { StateEvent } from '../../../types/matrix/room';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
@@ -24,36 +22,10 @@ import { settingsAtom } from '../../state/settings';
 import { useSetting } from '../../state/hooks/settings';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
-import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useEdgeSwipeBack } from '../../mindroom/native/useEdgeSwipeBack';
 import { useIOSKeyboardFix } from '../../hooks/useIOSKeyboardFix';
-import type {
-  ThreadFilterKey,
-  FilterPreset,
-  ThreadSortFreezeState,
-} from '../../mindroom/threads/roomThreadOverviewModel';
-import {
-  updateThreadFilterKey,
-  cycleSortMode,
-  cycleTagFilter,
-  addTagFilter,
-  removeTagFilter,
-  applyPreset,
-  resetThreadFilterState,
-} from '../../mindroom/threads/roomThreadOverviewModel';
-import {
-  applyParsedThreadFilterQuery,
-  parseThreadFilterQuery,
-  serializeThreadFilterQuery,
-} from '../../mindroom/threads/threadFilterDsl';
-import { roomThreadFilterAtomFamily } from '../../mindroom/threads/roomThreadFilterState';
-import { roomViewModeAtomFamily, type RoomViewMode } from '../../mindroom/threads/roomViewMode';
-import { createSessionId } from '../../state/sessions';
 import { ThreadContextBanner } from '../../mindroom/threads/ThreadContextBanner';
-import { useRoomThreadSummaryState } from '../../mindroom/threads/useRoomThreadSummaryState';
-import { useThreadRootEvent } from '../../mindroom/threads/useThreadRootEvent';
-import { bumpRecentThread } from '../../mindroom/recent-threads/recentThreads';
-import { resolveRecentThreadSummaryText } from '../../mindroom/recent-threads/recentThreadSummaryUtils';
+import { useRoomViewThreadState } from '../../mindroom/threads/useRoomViewThreadState';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -106,18 +78,7 @@ export function RoomView({
 
   const { roomId } = room;
   const mx = useMatrixClient();
-  const userId = mx.getSafeUserId();
-  const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), userId), [mx, userId]);
   const editor = useEditor();
-  const roomViewModeAtom = roomViewModeAtomFamily(roomId);
-  const [viewMode, setViewMode] = useAtom(roomViewModeAtom);
-  const threadFilterAtom = useMemo(
-    () => roomThreadFilterAtomFamily(userId, roomId),
-    [roomId, userId]
-  );
-  const [threadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
-  const [threadSortFreezeState, setThreadSortFreezeState] =
-    useState<ThreadSortFreezeState | null>(null);
 
   const tombstoneEvent = useStateEvent(room, StateEvent.RoomTombstone);
   const powerLevels = usePowerLevelsContext();
@@ -125,158 +86,27 @@ export function RoomView({
 
   const permissions = useRoomPermissions(creators, powerLevels);
   const canMessage = permissions.event(EventType.RoomMessage, mx.getSafeUserId());
-  const { navigatePath, navigateRoomFocusEvent, navigateRoomThread } = useRoomNavigate();
-  const { summaryMap, storeThreadSummary } = useRoomThreadSummaryState({
-    roomId,
-    sessionId,
-  });
-  const threadRootId = useThreadRootEvent(room, threadId);
-  const effectiveThreadId = threadRootId ?? threadId;
-  const resolvedThreadRootEvent = effectiveThreadId
-    ? room.getThread(effectiveThreadId)?.rootEvent ?? room.findEventById(effectiveThreadId)
-    : undefined;
-  const threadSummaryInfo = effectiveThreadId ? summaryMap.get(effectiveThreadId) : undefined;
-  const recentThreadSummaryText = useMemo(
-    () =>
-      effectiveThreadId
-        ? resolveRecentThreadSummaryText({
-            room,
-            threadRootId: effectiveThreadId,
-            rootEvent: resolvedThreadRootEvent,
-            summaryInfo: threadSummaryInfo,
-          })
-        : undefined,
-    [effectiveThreadId, resolvedThreadRootEvent, room, threadSummaryInfo]
-  );
-
-  const handleExitThread = useCallback(() => {
-    if (!effectiveThreadId) return;
-    const historyExitTarget = getRoomThreadExitTargetFromHistoryState(window.history.state);
-    if (
-      historyExitTarget?.roomId === room.roomId &&
-      historyExitTarget.threadId === effectiveThreadId
-    ) {
-      if (!historyExitTarget.useHistoryBack && historyExitTarget.exitPath) {
-        navigatePath(historyExitTarget.exitPath, { replace: true });
-        return;
-      }
-      if (historyExitTarget.useHistoryBack) {
-        window.history.back();
-        return;
-      }
-    }
-    navigateRoomFocusEvent(room.roomId, effectiveThreadId, { replace: true });
-  }, [effectiveThreadId, navigatePath, navigateRoomFocusEvent, room.roomId]);
-
-  const updateFromEffectiveQueryState = useCallback(
-    (updater: (state: typeof threadFilterState) => typeof threadFilterState) => {
-      const next = updater(
-        applyParsedThreadFilterQuery(
-          threadFilterState,
-          parseThreadFilterQuery(threadFilterState.searchQuery ?? '')
-        )
-      );
-      const searchQuery = serializeThreadFilterQuery(next);
-      setThreadFilterState(
-        searchQuery === threadFilterState.searchQuery ? next : { ...next, searchQuery }
-      );
-    },
-    [setThreadFilterState, threadFilterState]
-  );
-
-  const handleToggle = useCallback(
-    (key: ThreadFilterKey) => {
-      updateFromEffectiveQueryState((state) => updateThreadFilterKey(state, key));
-    },
-    [updateFromEffectiveQueryState]
-  );
-
-  const handleSortDirectionChange = useCallback(() => {
-    setThreadFilterState({
-      ...threadFilterState,
-      ...cycleSortMode(threadFilterState),
-    });
-  }, [setThreadFilterState, threadFilterState]);
-
-  const handleToggleThreadSortFreeze = useCallback(() => {
-    setThreadSortFreezeState((currentState) =>
-      currentState
-        ? null
-        : {
-            controlSignature: null,
-            orderedRootIds: [],
-          }
-    );
-  }, []);
-
-  const handleReset = useCallback(() => {
-    setThreadFilterState(resetThreadFilterState());
-  }, [setThreadFilterState]);
-
-  const handleCycleTag = useCallback(
-    (tag: string) => {
-      updateFromEffectiveQueryState((state) => cycleTagFilter(state, tag));
-    },
-    [updateFromEffectiveQueryState]
-  );
-
-  const handleAddTag = useCallback(
-    (tag: string) => {
-      updateFromEffectiveQueryState((state) => addTagFilter(state, tag));
-    },
-    [updateFromEffectiveQueryState]
-  );
-
-  const handleRemoveTag = useCallback(
-    (tag: string) => {
-      updateFromEffectiveQueryState((state) => removeTagFilter(state, tag));
-    },
-    [updateFromEffectiveQueryState]
-  );
-
-  const handleApplyPreset = useCallback(
-    (preset: FilterPreset) => {
-      updateFromEffectiveQueryState((state) => applyPreset(state, preset));
-    },
-    [updateFromEffectiveQueryState]
-  );
-
-  const handleSearchQueryChange = useCallback(
-    (query: string) => {
-      setThreadFilterState({
-        ...threadFilterState,
-        searchQuery: query,
-      });
-    },
-    [setThreadFilterState, threadFilterState]
-  );
-
-  const handleViewModeChange = useCallback(
-    (mode: RoomViewMode) => setViewMode(mode),
-    [setViewMode]
-  );
-
-  useEffect(() => {
-    setThreadSortFreezeState(null);
-  }, [roomId]);
-
-  useEffect(() => {
-    if (threadFilterState.sortBy === 'natural') {
-      setThreadSortFreezeState(null);
-    }
-  }, [threadFilterState.sortBy]);
-
-  useEffect(() => {
-    if (!threadId || !effectiveThreadId || threadId === effectiveThreadId) return;
-
-    navigateRoomThread(room.roomId, effectiveThreadId, eventId, { replace: true });
-  }, [effectiveThreadId, eventId, navigateRoomThread, room.roomId, threadId]);
-
-  useEffect(() => {
-    if (!effectiveThreadId) return;
-
-    bumpRecentThread(room.roomId, effectiveThreadId, undefined, recentThreadSummaryText);
-  }, [effectiveThreadId, recentThreadSummaryText, room.roomId]);
+  const {
+    effectiveThreadId,
+    handleAddTag,
+    handleApplyPreset,
+    handleCycleTag,
+    handleExitThread,
+    handleRemoveTag,
+    handleReset,
+    handleSearchQueryChange,
+    handleSortDirectionChange,
+    handleToggle,
+    handleToggleThreadSortFreeze,
+    handleViewModeChange,
+    setThreadSortFreezeState,
+    storeThreadSummary,
+    summaryMap,
+    threadFilterState,
+    threadSortFreezeState,
+    threadSummaryInfo,
+    viewMode,
+  } = useRoomViewThreadState({ eventId, room, threadId });
 
   // Thread view has a more specific "back" action than the generic room-page back:
   // first swipe exits the thread, then the room header/back handler can navigate out.
