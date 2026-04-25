@@ -161,6 +161,9 @@
 - `CINNY-157`
   - Room-input thread indicator mounting now lives behind `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`.
   - Generic `RoomInput` no longer imports the MindRoom thread indicator or checks thread relation types directly.
+- `CINNY-158`
+  - Reply-message cache-aware event lookup and thread indicator mounting now live behind `src/app/mindroom/messages/replyExtensions.tsx`.
+  - Generic `Reply` renders the MindRoom reply seam instead of importing thread cache hooks or thread indicator internals directly.
 
 ### Current Feature Set On `dev`
 

@@ -11,10 +11,12 @@ import { randomNumberBetween } from '../../utils/common';
 import * as css from './Reply.css';
 import { MessageBadEncryptedContent, MessageDeletedContent, MessageFailedContent } from './content';
 import { scaleSystemEmoji } from '../../plugins/react-custom-html-parser';
-import { useRoomEvent } from '../../mindroom/threads/useRoomEvent';
 import colorMXID from '../../../util/colorMXID';
 import { GetMemberPowerTag } from '../../hooks/useMemberPowerTag';
-import { ThreadIndicator } from '../../mindroom/threads/ThreadIndicator';
+import {
+  MindroomReplyThreadIndicator,
+  useMindroomReplyEvent,
+} from '../../mindroom/messages/replyExtensions';
 
 type ReplyLayoutProps = {
   userColor?: string;
@@ -78,9 +80,7 @@ export const Reply = as<'div', ReplyProps>(
         room.findEventById(replyEventId),
       [getLocally, room, timelineSet, replyEventId]
     );
-    const replyEvent = useRoomEvent(room, replyEventId, getFromLocalTimeline, {
-      threadId: threadRootId,
-    });
+    const replyEvent = useMindroomReplyEvent(room, replyEventId, getFromLocalTimeline, threadRootId);
 
     const { body } = replyEvent?.getContent() ?? {};
     const sender = replyEvent?.getSender();
@@ -101,17 +101,13 @@ export const Reply = as<'div', ReplyProps>(
     return (
       <Box direction="Row" gap="200" alignItems="Center" {...props} ref={ref}>
         {/* Hide the thread badge inside thread view to avoid redundant UI. */}
-        {threadRootId && !hideThreadIndicator && (
-          <ThreadIndicator
-            as="button"
-            data-thread-root-id={threadRootId}
-            threadRootId={threadRootId}
-            timelineSet={timelineSet}
-            data-event-id={threadRootId}
-            room={room}
-            onClick={onClick}
-          />
-        )}
+        <MindroomReplyThreadIndicator
+          room={room}
+          timelineSet={timelineSet}
+          threadRootId={threadRootId}
+          hide={hideThreadIndicator}
+          onClick={onClick}
+        />
         <ReplyLayout
           as="button"
           userColor={usernameColor}
