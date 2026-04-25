@@ -155,6 +155,9 @@
 - `CINNY-155`
   - Removed the generic message barrel export for `MindroomThreadSummaryCard`; MindRoom message surfaces import the card from `src/app/mindroom/messages` directly.
   - Removed the sidebar barrel export for `MindroomTab`; `SidebarNav` imports the MindRoom-owned tab directly at the integration point.
+- `CINNY-156`
+  - Pinned-message tool approval rendering now lives in `src/app/mindroom/messages/pinnedToolApproval.tsx`.
+  - Generic `RoomPinMenu` keeps only a MindRoom render seam and no longer merges approval edit content itself.
 
 ### Current Feature Set On `dev`
 

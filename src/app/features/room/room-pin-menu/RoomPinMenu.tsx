@@ -62,9 +62,10 @@ import {
 import { RenderMatrixEvent, useMatrixEventRenderer } from '../../../hooks/useMatrixEventRenderer';
 import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import {
-  getToolApprovalRenderContent,
-  MINDROOM_TOOL_APPROVAL_EVENT,
-} from '../../../mindroom/messages/toolApproval';
+  isMindroomPinnedToolApprovalEvent,
+  MINDROOM_PINNED_TOOL_APPROVAL_EVENT,
+  renderMindroomPinnedToolApprovalEvent,
+} from '../../../mindroom/messages/pinnedToolApproval';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
 import * as customHtmlCss from '../../../styles/CustomHtml.css';
@@ -341,38 +342,16 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
             />
           );
         },
-        [MINDROOM_TOOL_APPROVAL_EVENT]: (event, displayName) => {
-          if (event.isRedacted()) {
-            return (
-              <RedactedContent reason={event.getUnsigned().redacted_because?.content.reason} />
-            );
-          }
-
-          const approvalContent = getToolApprovalRenderContent(
-            event.getContent() as Record<string, unknown>,
-            event.replacingEvent()?.getContent() as Record<string, unknown> | undefined
-          );
-          const getApprovalContent = (() => approvalContent) as GetContentCallback;
-
-          return (
-            <RenderMessageContent
-              displayName={displayName}
-              eventType={event.getType()}
-              roomId={room.roomId}
-              eventId={event.getId() ?? undefined}
-              threadId={event.threadRootId}
-              msgType={typeof approvalContent.msgtype === 'string' ? approvalContent.msgtype : ''}
-              ts={event.getTs()}
-              edited={!!event.replacingEvent()}
-              getContent={getApprovalContent}
-              mediaAutoLoad={mediaAutoLoad}
-              urlPreview={urlPreview}
-              htmlReactParserOptions={htmlReactParserOptions}
-              linkifyOpts={linkifyOpts}
-              outlineAttachment
-            />
-          );
-        },
+        [MINDROOM_PINNED_TOOL_APPROVAL_EVENT]: (event, displayName) =>
+          renderMindroomPinnedToolApprovalEvent(event, {
+            displayName,
+            roomId: room.roomId,
+            mediaAutoLoad,
+            urlPreview,
+            htmlReactParserOptions,
+            linkifyOpts,
+            outlineAttachment: true,
+          }),
         [MessageEvent.RoomMessageEncrypted]: (event, displayName) => {
           const eventId = event.getId()!;
           const evtTimeline = room.getTimelineForEvent(eventId);
@@ -408,31 +387,18 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
                       )}
                     />
                   );
-                if (mEvent.getType() === MINDROOM_TOOL_APPROVAL_EVENT) {
+                if (isMindroomPinnedToolApprovalEvent(mEvent.getType())) {
                   const editedEvent = getEditedEvent(eventId, mEvent, evtTimeline.getTimelineSet());
-                  const approvalContent = getToolApprovalRenderContent(
-                    mEvent.getContent() as Record<string, unknown>,
-                    editedEvent?.getContent() as Record<string, unknown> | undefined
-                  );
-                  const getApprovalContent = (() => approvalContent) as GetContentCallback;
-
-                  return (
-                    <RenderMessageContent
-                      displayName={displayName}
-                      eventType={mEvent.getType()}
-                      roomId={room.roomId}
-                      eventId={eventId}
-                      threadId={mEvent.threadRootId}
-                      msgType={typeof approvalContent.msgtype === 'string' ? approvalContent.msgtype : ''}
-                      ts={mEvent.getTs()}
-                      edited={!!editedEvent || !!mEvent.replacingEvent()}
-                      getContent={getApprovalContent}
-                      mediaAutoLoad={mediaAutoLoad}
-                      urlPreview={urlPreview}
-                      htmlReactParserOptions={htmlReactParserOptions}
-                      linkifyOpts={linkifyOpts}
-                    />
-                  );
+                  return renderMindroomPinnedToolApprovalEvent(mEvent, {
+                    displayName,
+                    roomId: room.roomId,
+                    eventId,
+                    editedEvent,
+                    mediaAutoLoad,
+                    urlPreview,
+                    htmlReactParserOptions,
+                    linkifyOpts,
+                  });
                 }
                 if (mEvent.getType() === MessageEvent.RoomMessage) {
                   const editedEvent = getEditedEvent(eventId, mEvent, evtTimeline.getTimelineSet());
