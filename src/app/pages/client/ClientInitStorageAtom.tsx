@@ -11,15 +11,18 @@ import { makeOpenedSidebarFolderAtom } from '../../state/openedSidebarFolder';
 import { OpenedSidebarFolderProvider } from '../../state/hooks/openedSidebarFolder';
 import { makeCallPreferencesAtom } from '../../state/callPreferences';
 import { CallPreferencesProvider } from '../../state/hooks/callPreferences';
-import { makeRecentThreadsAtom, registerRecentThreadsAtom } from '../../state/recentThreads';
+import {
+  makeRecentThreadsAtom,
+  registerRecentThreadsAtom,
+} from '../../mindroom/recent-threads/recentThreads';
 import {
   makeRecentThreadsPanelHeightAtom,
   registerRecentThreadsPanelHeightAtom,
-} from '../../state/recentThreadsPanelHeight';
+} from '../../mindroom/recent-threads/recentThreadsPanelHeight';
 import {
   makeRecentThreadsPanelMobileExpandedAtom,
   registerRecentThreadsPanelMobileExpandedAtom,
-} from '../../state/recentThreadsPanelMobileExpanded';
+} from '../../mindroom/recent-threads/recentThreadsPanelMobileExpanded';
 
 type ClientInitStorageAtomProps = {
   children: ReactNode;

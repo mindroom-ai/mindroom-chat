@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ScreenSize } from '../../hooks/useScreenSize';
-import { RECENT_THREADS_PANEL_COLLAPSED_HEIGHT } from '../../state/recentThreadsPanelHeight';
+import { RECENT_THREADS_PANEL_COLLAPSED_HEIGHT } from './recentThreadsPanelHeight';
 import { resolveRecentThreadsLayout } from './useResolvedRecentThreadsLayout';
 
 const screenSizes = [ScreenSize.Desktop, ScreenSize.Tablet, ScreenSize.Mobile] as const;

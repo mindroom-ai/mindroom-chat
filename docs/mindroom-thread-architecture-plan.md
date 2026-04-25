@@ -692,6 +692,8 @@ Acceptance:
   expose the existing navigation seam.
 - The Recent Threads UI and summary helper implementation lives in `src/app/mindroom/recent-threads`;
   generic page modules only keep compatibility imports for the page navigation seam.
+- Recent Threads persistence atoms live next to that UI in `src/app/mindroom/recent-threads`; `src/app/state`
+  only keeps compatibility exports.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy

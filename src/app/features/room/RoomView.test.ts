@@ -274,7 +274,7 @@ vi.mock('../../mindroom/threads/useRoomThreadSummaryState', () => ({
   }),
 }));
 
-vi.mock('../../state/recentThreads', () => ({
+vi.mock('../../mindroom/recent-threads/recentThreads', () => ({
   bumpRecentThread: bumpRecentThreadMock,
 }));
 

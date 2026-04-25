@@ -4,13 +4,13 @@ import { Box, Scroll, Text } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useScreenSizeContext } from '../../hooks/useScreenSize';
 import { allRoomsAtom } from '../../state/room-list/roomList';
-import { makeRecentThreadsAtom } from '../../state/recentThreads';
+import { makeRecentThreadsAtom } from './recentThreads';
 import {
   RECENT_THREADS_PANEL_COLLAPSED_HEIGHT,
   RECENT_THREADS_PANEL_MIN_HEIGHT,
   makeRecentThreadsPanelHeightAtom,
-} from '../../state/recentThreadsPanelHeight';
-import { makeRecentThreadsPanelMobileExpandedAtom } from '../../state/recentThreadsPanelMobileExpanded';
+} from './recentThreadsPanelHeight';
+import { makeRecentThreadsPanelMobileExpandedAtom } from './recentThreadsPanelMobileExpanded';
 import { RecentThreadEntry } from './RecentThreadEntry';
 import { RecentThreadsDivider } from './RecentThreadsDivider';
 import {

@@ -6,7 +6,7 @@ import {
   makeRecentThreadsAtom,
   registerRecentThreadsAtom,
 } from './recentThreads';
-import { setImperativeJotaiStore } from './jotaiStore';
+import { setImperativeJotaiStore } from '../../state/jotaiStore';
 
 const USER_ID = '@alice:example.org';
 

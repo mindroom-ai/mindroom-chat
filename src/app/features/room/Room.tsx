@@ -24,7 +24,7 @@ import {
   getLastOpenThread,
   setLastOpenThread,
 } from '../../state/lastOpenThread';
-import { removeRecentThread } from '../../state/recentThreads';
+import { removeRecentThread } from '../../mindroom/recent-threads/recentThreads';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 
 export function Room() {

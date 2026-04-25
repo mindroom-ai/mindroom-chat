@@ -3,7 +3,7 @@ import { Text } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
-import { bumpRecentThread, rekeyRecentThread } from '../../state/recentThreads';
+import { bumpRecentThread, rekeyRecentThread } from './recentThreads';
 import { useRecentThreadViewModel } from '../threads/recentThreadViewModel';
 import * as css from './recentThreads.css';
 

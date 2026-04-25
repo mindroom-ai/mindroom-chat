@@ -918,6 +918,14 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/threadRecord.ts', import.meta.url),
       'utf8'
     );
+    const stateCompatibilitySource = readFileSync(
+      new URL('../../state/recentThreads.ts', import.meta.url),
+      'utf8'
+    );
+    const stateSource = readFileSync(
+      new URL('../../mindroom/recent-threads/recentThreads.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(panelCompatibilitySource.trim()).toBe(
       "export { RecentThreadsPageNav, RecentThreadsPanel } from '../../mindroom/recent-threads/RecentThreadsPanel';"
@@ -931,6 +939,10 @@ describe('RoomTimeline architecture', () => {
     expect(panelSource).toContain('Recent Threads');
     expect(summarySource).toContain('resolveRecentThreadSummaryText');
     expect(threadRecordSource).toContain("from '../recent-threads/recentThreadSummaryUtils'");
+    expect(stateCompatibilitySource.trim()).toBe(
+      "export * from '../mindroom/recent-threads/recentThreads';"
+    );
+    expect(stateSource).toContain('makeRecentThreadsAtom');
   });
 
   it('keeps thread root route canonicalization in MindRoom threads', () => {

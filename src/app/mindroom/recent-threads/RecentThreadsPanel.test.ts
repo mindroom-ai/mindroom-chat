@@ -5,7 +5,7 @@ import type { Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../../hooks/useScreenSize';
 import { allRoomsAtom } from '../../state/room-list/roomList';
-import { clearRecentThreadsStore } from '../../state/recentThreads';
+import { clearRecentThreadsStore } from './recentThreads';
 import { RecentThreadsPageNav, RecentThreadsPanel } from './RecentThreadsPanel';
 import { buildVisibleRecentThreadEntries } from './recentThreadsPanelUtils';
 
