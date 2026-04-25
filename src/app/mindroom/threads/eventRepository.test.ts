@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   collectStateTargetEvents,
   loadRoomCachedBackStateSnapshot,
+  loadRoomCachedPaginationSnapshot,
   loadLatestRoomCacheHydrationSnapshot,
   loadCachedThreadSnapshot,
   persistRoomEventCacheSnapshot,
@@ -270,5 +271,62 @@ describe('eventRepository room cached-back state snapshots', () => {
     expect(requestedAnchor).toEqual({ eventId: '$loaded', ts: 300 });
     expect(snapshot.hasCachedBack).toBe(true);
     expect(snapshot.cachedBeforeToken).toBeNull();
+  });
+});
+
+describe('eventRepository room cached pagination snapshots', () => {
+  it('does not query cached room events when cache metadata proves the room start', async () => {
+    const earliestLoadedEvent = makeEvent('$loaded', { ts: 300 });
+    let beforeQueried = false;
+
+    const snapshot = await loadRoomCachedPaginationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      earliestLoadedEvent: earliestLoadedEvent as never,
+      limit: 50,
+      mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing'),
+      loadPaginationToken: async () => null,
+      loadBefore: async () => {
+        beforeQueried = true;
+        return { events: [], hasMoreBefore: false };
+      },
+    });
+
+    expect(beforeQueried).toBe(false);
+    expect(snapshot.status).toBe('start-known');
+    expect(snapshot.events).toEqual([]);
+    expect(snapshot.hasMoreCachedBack).toBe(false);
+  });
+
+  it('loads cached room pagination events in timeline-prepend order', async () => {
+    const earliestLoadedEvent = makeEvent('$loaded', { ts: 300 });
+
+    const snapshot = await loadRoomCachedPaginationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      earliestLoadedEvent: earliestLoadedEvent as never,
+      limit: 50,
+      mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing', {
+        ts: rawEvent.origin_server_ts,
+      }),
+      loadPaginationToken: async () => undefined,
+      loadBefore: async (_sessionId, _roomId, anchor, limit) => {
+        expect(anchor).toEqual({ eventId: '$loaded', ts: 300 });
+        expect(limit).toBe(50);
+        return {
+          events: [
+            { event_id: '$older', origin_server_ts: 100 },
+            { event_id: '$newer', origin_server_ts: 200 },
+          ],
+          hasMoreBefore: true,
+          beforeToken: 'before-older',
+        };
+      },
+    });
+
+    expect(snapshot.status).toBe('cache-hit');
+    expect(snapshot.events.map((event) => event.getId())).toEqual(['$newer', '$older']);
+    expect(snapshot.beforeToken).toBe('before-older');
+    expect(snapshot.hasMoreCachedBack).toBe(true);
   });
 });
