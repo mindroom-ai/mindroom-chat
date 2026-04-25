@@ -447,6 +447,29 @@ describe('RoomTimeline architecture', () => {
     expect(compatibilitySource).not.toContain('SIX_HOURS_MS');
   });
 
+  it('keeps thread activity timestamp derivation in MindRoom threads', () => {
+    const hookCompatibilitySource = readFileSync(
+      new URL('../../hooks/useThreadLastActivityTs.ts', import.meta.url),
+      'utf8'
+    );
+    const hookImplementationSource = readFileSync(
+      new URL('../../mindroom/threads/useThreadLastActivityTs.ts', import.meta.url),
+      'utf8'
+    );
+    const replySource = readFileSync(
+      new URL('../../components/message/Reply.tsx', import.meta.url),
+      'utf8'
+    );
+
+    expect(hookCompatibilitySource).toContain(
+      "from '../mindroom/threads/useThreadLastActivityTs'"
+    );
+    expect(hookImplementationSource).toContain('getThreadLastActivityTs');
+    expect(hookImplementationSource).toContain("from './threadUtils'");
+    expect(replySource).toContain("from '../../mindroom/threads/useThreadLastActivityTs'");
+    expect(hookCompatibilitySource).not.toContain('isVisibleThreadReplyEvent');
+  });
+
   it('keeps room thread overview controls in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const compatibilitySource = readFileSync(

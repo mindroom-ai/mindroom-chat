@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ThreadOverviewMetadata, ThreadFilterState, TriState } from './roomThreadOverviewModel';
 
-vi.mock('../../hooks/useThreadLastActivityTs', () => ({
+vi.mock('./useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: (_room: unknown, threadRootId: string) => {
     const map: Record<string, number> = {
       '$thread-1': 1000,

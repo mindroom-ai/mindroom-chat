@@ -2070,3 +2070,9 @@
 - Moved scheduled-task state parsing, scheduled-task counting, and thread-header scheduled-label hooks into `src/app/mindroom/threads`.
 - Left thin compatibility exports in `src/app/hooks/useThreadHeaderInfo.ts`, `src/app/hooks/useThreadScheduledTasks.ts`, and `src/app/utils/scheduledTaskContract.ts`.
 - Updated thread records, compact cards, thread context banners, reply badges, and test mocks to consume the fork-owned scheduled-task implementation directly.
+
+## CINNY-099 — Move thread activity timestamp derivation to fork namespace (2026-04-25)
+
+- Moved `useThreadLastActivityTs` and its activity timestamp helper into `src/app/mindroom/threads`.
+- Left `src/app/hooks/useThreadLastActivityTs.ts` as a thin compatibility export for legacy import paths.
+- Updated thread records, overview models, reply badges, and test mocks to consume the fork-owned activity derivation directly.

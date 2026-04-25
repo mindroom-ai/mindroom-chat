@@ -960,7 +960,7 @@ vi.mock('../../mindroom/threads/useRoomThreadList', () => ({
   }),
 }));
 
-vi.mock('../../hooks/useThreadLastActivityTs', () => ({
+vi.mock('../../mindroom/threads/useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: (_room: unknown, threadRootId: string) =>
     threadLastActivityTsMapMock.get(threadRootId) ?? 0,
   useThreadLastActivityTs: () => 0,
