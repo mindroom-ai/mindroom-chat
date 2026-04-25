@@ -275,6 +275,10 @@
   - Room composer implementation now lives in `src/app/mindroom/room-input/MindroomRoomInput.tsx`.
   - `src/app/features/room/RoomInput.tsx` is a narrow compatibility seam that re-exports the MindRoom composer implementation.
   - MindRoom command autocomplete, thread reply context, voice recording, and auto-thread send-session orchestration now stay in the fork-owned room-input namespace.
+- `CINNY-191`
+  - Room-view implementation now lives in `src/app/mindroom/threads/MindroomRoomView.tsx`.
+  - `src/app/features/room/RoomView.tsx` is a narrow compatibility seam that re-exports the MindRoom room view.
+  - Thread state, thread banner mounting, timeline wiring, composer wiring, and iOS keyboard fix ownership stay in the MindRoom thread namespace.
 
 ### Current Feature Set On `dev`
 

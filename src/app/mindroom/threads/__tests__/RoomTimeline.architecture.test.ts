@@ -10,6 +10,15 @@ const readRoomTimelineSource = (): string =>
 const readRoomTimelineSeamSource = (): string =>
   readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
 
+const readRoomViewSource = (): string =>
+  readFileSync(new URL('../MindroomRoomView.tsx', import.meta.url), 'utf8').replaceAll(
+    "from './",
+    "from '../../mindroom/threads/"
+  );
+
+const readRoomViewSeamSource = (): string =>
+  readFileSync(new URL('../../../features/room/RoomView.tsx', import.meta.url), 'utf8');
+
 describe('RoomTimeline architecture', () => {
   it('keeps the generic room timeline file as a narrow MindRoom seam', () => {
     const source = readRoomTimelineSeamSource();
@@ -17,6 +26,14 @@ describe('RoomTimeline architecture', () => {
     expect(source).toContain("from '../../mindroom/threads/MindroomRoomTimeline'");
     expect(source).not.toContain('useMindroomThreadIndex');
     expect(source.split('\n').length).toBeLessThan(8);
+  });
+
+  it('keeps the generic room view file as a narrow MindRoom seam', () => {
+    const source = readRoomViewSeamSource();
+
+    expect(source).toContain("from '../../mindroom/threads/MindroomRoomView'");
+    expect(source).not.toContain('useRoomViewThreadState');
+    expect(source.split('\n').length).toBeLessThan(5);
   });
 
   it('delegates thread badge JSX rendering to the MindRoom badge seam', () => {
@@ -1018,7 +1035,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps thread banner and tag UI in MindRoom threads', () => {
-    const roomViewSource = readFileSync(new URL('../../../features/room/RoomView.tsx', import.meta.url), 'utf8');
+    const roomViewSource = readRoomViewSource();
     const bannerSource = readFileSync(
       new URL('../ThreadContextBanner.tsx', import.meta.url),
       'utf8'
@@ -1034,7 +1051,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps room-view thread state orchestration in MindRoom threads', () => {
-    const roomViewSource = readFileSync(new URL('../../../features/room/RoomView.tsx', import.meta.url), 'utf8');
+    const roomViewSource = readRoomViewSource();
     const implementationSource = readFileSync(
       new URL('../useRoomViewThreadState.ts', import.meta.url),
       'utf8'
@@ -1054,7 +1071,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps thread summary cache and state in MindRoom threads', () => {
-    const roomViewSource = readFileSync(new URL('../../../features/room/RoomView.tsx', import.meta.url), 'utf8');
+    const roomViewSource = readRoomViewSource();
     const roomViewThreadStateSource = readFileSync(
       new URL('../useRoomViewThreadState.ts', import.meta.url),
       'utf8'
@@ -1491,7 +1508,7 @@ describe('RoomTimeline architecture', () => {
       new URL('../../native/MindroomBackRouteHandler.tsx', import.meta.url),
       'utf8'
     );
-    const roomViewSource = readFileSync(new URL('../../../features/room/RoomView.tsx', import.meta.url), 'utf8');
+    const roomViewSource = readRoomViewSource();
     const roomViewThreadStateSource = readFileSync(
       new URL('../useRoomViewThreadState.ts', import.meta.url),
       'utf8'
@@ -1681,7 +1698,7 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps thread root route canonicalization in MindRoom threads', () => {
-    const roomViewSource = readFileSync(new URL('../../../features/room/RoomView.tsx', import.meta.url), 'utf8');
+    const roomViewSource = readRoomViewSource();
     const roomViewThreadStateSource = readFileSync(
       new URL('../useRoomViewThreadState.ts', import.meta.url),
       'utf8'
