@@ -231,7 +231,7 @@ import {
   resolveRoomEventThreadRedirect,
 } from './roomDeepLink';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
-import { useRoomThreadList } from './useRoomThreadList';
+import { useRoomThreadList } from '../../mindroom/threads/useRoomThreadList';
 import { useStateEvents } from '../../hooks/useStateEvents';
 import {
   getThreadCacheTargetId,

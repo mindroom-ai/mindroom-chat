@@ -993,6 +993,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 50 / Phase 5 room thread-list ownership (2026-04-24):
+  - moved server-side room thread-list loading, thread unread/activity helpers, and `useRoomThreadList` to `src/app/mindroom/threads/roomThreadList.ts` and `useRoomThreadList.ts` with their regression tests.
+  - the old `src/app/features/room/{roomThreadList,useRoomThreadList}.ts` paths are now compatibility re-exports; `RoomTimeline`, `Reply`, `threadRecord`, and overview resume code import the MindRoom implementations directly.
+  - this keeps current-room thread-list loading and unread/activity facts beside the canonical thread index instead of upstream-facing room modules.
+  - validation:
+    - focused Vitest passes for `roomThreadList.test.ts`, `threadRecord.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimelineCollapsible.test.ts`, `RoomTimeline.architecture.test.ts`, and `Message.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
