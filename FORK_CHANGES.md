@@ -1169,6 +1169,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `npm run build` passes
+- `CINNY-075` implementation step 73 / Phase 6 timeline read receipt controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/timelineReadReceiptController.ts` as the fork-owned owner for bottom-anchor read state, document-focus read receipts, thread-at-bottom read receipts, and explicit mark-as-read routing.
+  - `RoomTimeline` now consumes `useTimelineReadReceiptController` instead of directly wiring read receipt marking, bottom-anchor intersection observation, focus-change handling, and thread mark-as-read conditions inline.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+    - `git diff --check` passes
 - `CINNY-075` implementation step 72 / Phase 6 room timeline window controller ownership (2026-04-25):
   - added `src/app/mindroom/threads/roomTimelineWindowController.ts` as the fork-owned owner for room overview display-window derivation, unread anchor calculation, preload target selection, visible seed-prewarm prioritization, and thread load-older cache coverage decisions.
   - `RoomTimeline` now consumes `useRoomTimelineWindowController` instead of assembling ordered room overview events, entry maps, unread scroll anchors, active ranges, prewarm roots, and thread load-older coverage inline.

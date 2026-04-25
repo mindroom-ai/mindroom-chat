@@ -97,16 +97,6 @@ import { Reactions, Message, Event, EncryptedContent } from './message';
 import { useMemberEventParser } from '../../hooks/useMemberEventParser';
 import * as customHtmlCss from '../../styles/CustomHtml.css';
 import { RoomIntro } from '../../components/room-intro';
-import {
-  getIntersectionObserverEntry,
-  useIntersectionObserver,
-} from '../../hooks/useIntersectionObserver';
-import {
-  markMainTimelineAsRead,
-  markRoomAndThreadsAsRead,
-  markThreadAsRead,
-} from '../../utils/notifications';
-import { useDebounce } from '../../hooks/useDebounce';
 import { getResizeObserverEntry, useResizeObserver } from '../../hooks/useResizeObserver';
 import * as css from './RoomTimeline.css';
 import { inSameDay, minuteDifference, timeDayMonthYear, today, yesterday } from '../../utils/time';
@@ -115,7 +105,6 @@ import { roomIdToReplyDraftAtomFamily } from '../../state/room/roomInputDrafts';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { GetContentCallback, MessageEvent, StateEvent } from '../../../types/matrix/room';
 import { useKeyDown } from '../../hooks/useKeyDown';
-import { useDocumentFocusChange } from '../../hooks/useDocumentFocusChange';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
 import {
   CollapsibleMessage,
@@ -173,8 +162,6 @@ import { CompactRoomView } from '../../mindroom/threads/CompactRoomView';
 import { RoomThreadOverview } from '../../mindroom/threads/RoomThreadOverview';
 import { getRenderableEventEntries } from '../../mindroom/threads/roomTimelineEvents';
 import {
-  getEventTimeline,
-  getFirstLinkedTimeline,
   getLinkedTimelines,
   getEmptyTimeline,
   getFocusedRoomEventIndex,
@@ -251,6 +238,7 @@ import { resolveThreadOverviewRefreshTargets } from '../../mindroom/threads/thre
 import { useRoomLiveEventController } from '../../mindroom/threads/roomLiveEventController';
 import { useThreadOpenLifecycleController } from '../../mindroom/threads/threadOpenLifecycleController';
 import { useRoomTimelineWindowController } from '../../mindroom/threads/roomTimelineWindowController';
+import { useTimelineReadReceiptController } from '../../mindroom/threads/timelineReadReceiptController';
 
 export { getRoomEventThreadOpenTarget } from '../../mindroom/threads/roomDeepLink';
 export { getRoomEventFocusTarget, getThreadFilteredEvents } from '../../mindroom/threads/threadRoomFocus';
@@ -1370,126 +1358,25 @@ export function RoomTimeline({
     useCallback(() => roomInputRef.current, [roomInputRef])
   );
 
-  const tryAutoMarkAsRead = useCallback(() => {
-    const readUptoEventId = readUptoEventIdRef.current;
-    if (!readUptoEventId) {
-      requestAnimationFrame(() => markMainTimelineAsRead(mx, room.roomId, hideActivity));
-      return;
-    }
-    const evtTimeline = getEventTimeline(room, readUptoEventId);
-    const latestTimeline = evtTimeline && getFirstLinkedTimeline(evtTimeline, Direction.Forward);
-    if (latestTimeline === room.getLiveTimeline()) {
-      requestAnimationFrame(() => markMainTimelineAsRead(mx, room.roomId, hideActivity));
-    }
-  }, [mx, room, hideActivity]);
-
-  const tryAutoMarkThreadAsRead = useCallback(() => {
-    if (
-      !threadId ||
-      threadTailLoaded === false ||
-      threadInitialRenderMode === 'loading' ||
-      threadEvents.length === 0
-    ) {
-      return;
-    }
-
-    requestAnimationFrame(() => markThreadAsRead(mx, room.roomId, threadId, hideActivity));
-  }, [
+  const { handleMarkAsRead } = useTimelineReadReceiptController({
+    atBottom,
+    atBottomAnchorRef,
+    atBottomRef,
+    atLiveEndRef,
+    getScrollElement,
+    handleOpenEvent,
     hideActivity,
     mx,
-    room.roomId,
-    threadEvents.length,
-    threadId,
-    threadInitialRenderMode,
-    threadTailLoaded,
-  ]);
-
-  const debounceSetAtBottom = useDebounce(
-    useCallback((entry: IntersectionObserverEntry) => {
-      if (!entry.isIntersecting) setAtBottom(false);
-    }, []),
-    { wait: 1000 }
-  );
-  useIntersectionObserver(
-    useCallback(
-      (entries) => {
-        const target = atBottomAnchorRef.current;
-        if (!target) return;
-        const targetEntry = getIntersectionObserverEntry(target, entries);
-        if (targetEntry) debounceSetAtBottom(targetEntry);
-        if (targetEntry?.isIntersecting && atLiveEndRef.current) {
-          setAtBottom(true);
-          if (document.hasFocus()) {
-            if (threadId) {
-              tryAutoMarkThreadAsRead();
-            } else {
-              tryAutoMarkAsRead();
-            }
-          }
-        }
-      },
-      [debounceSetAtBottom, threadId, tryAutoMarkAsRead, tryAutoMarkThreadAsRead]
-    ),
-    useCallback(
-      () => ({
-        root: getScrollElement(),
-        rootMargin: '100px',
-      }),
-      [getScrollElement]
-    ),
-    useCallback(() => atBottomAnchorRef.current, [])
-  );
-
-  useDocumentFocusChange(
-    useCallback(
-      (inFocus) => {
-        if (inFocus && atBottomRef.current) {
-          if (threadId) {
-            if (atLiveEndRef.current) {
-              tryAutoMarkThreadAsRead();
-            }
-            return;
-          }
-          if (unreadInfo?.inLiveTimeline) {
-            handleOpenEvent(unreadInfo.readUptoEventId, false, (scrolled) => {
-              // the unread event is already in view
-              // so, try mark as read;
-              if (!scrolled) {
-                tryAutoMarkAsRead();
-              }
-            });
-            return;
-          }
-          tryAutoMarkAsRead();
-        }
-      },
-      [handleOpenEvent, threadId, tryAutoMarkAsRead, tryAutoMarkThreadAsRead, unreadInfo]
-    )
-  );
-
-  useEffect(() => {
-    if (
-      !threadId ||
-      !atBottom ||
-      !timelineAtLiveEnd ||
-      !threadTailLoaded ||
-      threadInitialRenderMode === 'loading' ||
-      threadEvents.length === 0 ||
-      !document.hasFocus()
-    ) {
-      return;
-    }
-
-    tryAutoMarkThreadAsRead();
-  }, [
-    atBottom,
-    threadEvents.length,
+    readUptoEventIdRef,
+    room,
+    setAtBottom,
+    threadEventsLength: threadEvents.length,
     threadId,
     threadInitialRenderMode,
     threadTailLoaded,
     timelineAtLiveEnd,
-    tryAutoMarkThreadAsRead,
-  ]);
+    unreadInfo,
+  });
 
   // Handle up arrow edit
   useKeyDown(
@@ -1945,14 +1832,6 @@ export function RoomTimeline({
     if (unreadInfo?.readUptoEventId) {
       void handleOpenEvent(unreadInfo.readUptoEventId, false);
     }
-  };
-
-  const handleMarkAsRead = () => {
-    if (threadId) {
-      markThreadAsRead(mx, room.roomId, threadId, hideActivity);
-      return;
-    }
-    markRoomAndThreadsAsRead(mx, room.roomId, hideActivity);
   };
 
   const handleOpenReply: MouseEventHandler = useCallback(

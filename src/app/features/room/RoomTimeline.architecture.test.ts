@@ -955,6 +955,21 @@ describe('RoomTimeline architecture', () => {
     expect(controllerSource).toContain('paginateEventTimeline');
   });
 
+  it('delegates timeline read receipt and bottom-anchor ownership to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const controllerSource = readFileSync(
+      new URL('../../mindroom/threads/timelineReadReceiptController.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain('useTimelineReadReceiptController');
+    expect(source).not.toContain('markRoomAndThreadsAsRead');
+    expect(source).not.toContain('markMainTimelineAsRead');
+    expect(controllerSource).toContain('markRoomAndThreadsAsRead');
+    expect(controllerSource).toContain('useIntersectionObserver');
+    expect(controllerSource).toContain('useDocumentFocusChange');
+  });
+
   it('delegates live event arrival policy to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const subscriptionSource = readFileSync(
