@@ -2,14 +2,13 @@ import {
   applyFrozenThreadOrder,
   matchesTagFilters,
   matchesTriState,
+  THREAD_FILTER_KEYS,
   type StatusCounts,
   type ThreadFilterKey,
   type ThreadFilterState,
   type ThreadSortFreezeState,
 } from './roomThreadOverviewModel';
 import type { ThreadRecord } from './types';
-
-const filterKeys: ThreadFilterKey[] = ['resolved', 'streaming', 'scheduled', 'unread', 'idle'];
 
 const getThreadRecordDimension = (record: ThreadRecord, key: ThreadFilterKey): boolean => {
   switch (key) {
@@ -33,18 +32,18 @@ const getThreadRecordDimension = (record: ThreadRecord, key: ThreadFilterKey): b
 };
 
 const hasStatusOrTagFilters = (state: ThreadFilterState): boolean =>
-  filterKeys.some((key) => state[key] !== 'any') || state.tags.size > 0;
+  THREAD_FILTER_KEYS.some((key) => state[key] !== 'any') || state.tags.size > 0;
 
 export const matchesThreadRecordFilterState = (
   record: ThreadRecord,
   state: ThreadFilterState
 ): boolean => {
   if (state.statusMode === 'or') {
-    for (const key of filterKeys) {
+    for (const key of THREAD_FILTER_KEYS) {
       if (state[key] === 'exclude' && getThreadRecordDimension(record, key)) return false;
     }
 
-    const includeKeys = filterKeys.filter((key) => state[key] === 'include');
+    const includeKeys = THREAD_FILTER_KEYS.filter((key) => state[key] === 'include');
     if (includeKeys.length > 0) {
       return (
         includeKeys.some((key) => getThreadRecordDimension(record, key)) &&
@@ -55,7 +54,7 @@ export const matchesThreadRecordFilterState = (
     return matchesTagFilters(record.status.tags, state.tags);
   }
 
-  for (const key of filterKeys) {
+  for (const key of THREAD_FILTER_KEYS) {
     if (!matchesTriState(getThreadRecordDimension(record, key), state[key])) return false;
   }
 
@@ -171,7 +170,7 @@ export const computeThreadRecordStatusCounts = (
     const record = recordMap.get(threadRootId);
     if (!record) return;
 
-    filterKeys.forEach((key) => {
+    THREAD_FILTER_KEYS.forEach((key) => {
       if (getThreadRecordDimension(record, key)) counts[key]++;
     });
   });
