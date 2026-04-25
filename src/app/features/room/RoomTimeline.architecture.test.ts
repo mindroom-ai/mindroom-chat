@@ -69,14 +69,17 @@ describe('RoomTimeline architecture', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).toContain('persistRoomEventCacheSnapshot');
-    expect(source).toContain('persistThreadEventCacheSnapshot');
-    expect(source).toContain('persistThreadCacheFromRoomEventsSnapshot');
+    expect(source).toContain('useThreadCachePersistenceController');
+    expect(source).toContain("from '../../mindroom/threads/threadCachePersistenceController'");
     expect(source).not.toContain('saveRoomEventsToCache(');
     expect(source).not.toContain('saveThreadEventsToCache(');
     expect(source).not.toContain('serializeRoomCacheEvents(room');
     expect(source).not.toContain('serializeThreadCacheEvents(room');
     expect(source).not.toContain('groupThreadCacheEvents');
     expect(source).not.toContain('getRoomDerivedThreadSnapshotState');
+    expect(source).not.toContain('persistThreadEventCacheSnapshot');
+    expect(source).not.toContain('persistThreadCacheFromRoomEventsSnapshot');
+    expect(source).not.toContain('roomThreadCacheFlushQueuedRef');
   });
 
   it('delegates overview cache hydration to the MindRoom thread namespace', () => {

@@ -683,6 +683,14 @@
     - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline (`77` warnings, `0` errors)
+- `CINNY-075` implementation step 14 / Phase 5 cache persistence controller (2026-04-24):
+  - added `src/app/mindroom/threads/threadCachePersistenceController.ts` as the fork-owned owner for thread-cache persistence commands and the microtask queue for room-derived thread-cache writes.
+  - `RoomTimeline` no longer imports `persistThreadEventCacheSnapshot` or `persistThreadCacheFromRoomEventsSnapshot`; it still owns the plain room-event cache write seam via `persistRoomEventCacheSnapshot`.
+  - this removes the local pending room-thread cache refs from `RoomTimeline` and keeps all thread-cache persistence logging/coverage write-through in one MindRoom controller.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`77` warnings, `0` errors)
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
