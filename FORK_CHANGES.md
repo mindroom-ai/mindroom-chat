@@ -18,6 +18,9 @@
   - Last-open-thread persistence now lives in `src/app/mindroom/threads/lastOpenThread.ts`.
   - The old `src/app/state/lastOpenThread.ts` path is a compatibility export only.
   - Session cleanup now clears last-open-thread state through the MindRoom cleanup boundary.
+- `CINNY-110`
+  - The Local MindRoom settings menu item is now built in `src/app/mindroom/local-mindroom/settingsMenu.ts`.
+  - Generic settings menu code only consumes the entry and applies visibility/initial-page rules.
 
 ### Current Feature Set On `dev`
 

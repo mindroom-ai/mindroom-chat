@@ -1,7 +1,7 @@
 import { Icons, IconSrc } from 'folds';
 import { ScreenSize } from '../../hooks/useScreenSize';
 import { SettingsPages } from './settingsPages';
-import { MINDROOM_APP_NAME } from '../../mindroom/branding/branding';
+import { getLocalMindroomSettingsMenuItem } from '../../mindroom/local-mindroom/settingsMenu';
 
 export type SettingsMenuItem = {
   page: SettingsPages;
@@ -35,11 +35,7 @@ const baseSettingsMenuItems: SettingsMenuItem[] = [
     name: 'Emojis & Stickers',
     icon: Icons.Smile,
   },
-  {
-    page: SettingsPages.LocalMindroomPage,
-    name: `Local ${MINDROOM_APP_NAME}`,
-    icon: Icons.Link,
-  },
+  getLocalMindroomSettingsMenuItem(),
   {
     page: SettingsPages.DeveloperToolsPage,
     name: 'Developer Tools',

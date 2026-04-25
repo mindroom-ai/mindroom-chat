@@ -969,6 +969,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../settings/Settings.tsx', import.meta.url),
       'utf8'
     );
+    const settingsMenuSource = readFileSync(
+      new URL('../settings/settingsMenu.ts', import.meta.url),
+      'utf8'
+    );
     const pageCompatibilitySource = readFileSync(
       new URL('../settings/local-mindroom/LocalMindroom.tsx', import.meta.url),
       'utf8'
@@ -993,8 +997,16 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/local-mindroom/mindroom.ts', import.meta.url),
       'utf8'
     );
+    const settingsMenuItemSource = readFileSync(
+      new URL('../../mindroom/local-mindroom/settingsMenu.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(settingsSource).toContain("import { LocalMindroom } from './local-mindroom'");
+    expect(settingsMenuSource).toContain(
+      "from '../../mindroom/local-mindroom/settingsMenu'"
+    );
+    expect(settingsMenuSource).not.toContain("from '../../mindroom/branding/branding'");
     expect(pageCompatibilitySource.trim()).toBe(
       "export { LocalMindroom } from '../../../mindroom/local-mindroom/LocalMindroom';"
     );
@@ -1008,6 +1020,8 @@ describe('RoomTimeline architecture', () => {
     expect(pageSource).toContain('resolveMindroomProvisioningRequest');
     expect(apiSource).toContain('LOCAL_MINDROOM_API_PATH');
     expect(helperSource).toContain('getMindroomPairingCommand');
+    expect(settingsMenuItemSource).toContain('getLocalMindroomSettingsMenuItem');
+    expect(settingsMenuItemSource).toContain('MINDROOM_APP_NAME');
   });
 
   it('keeps the Local MindRoom sidebar shortcut in the MindRoom namespace', () => {
