@@ -128,6 +128,29 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('buildThreadRecordMap({');
   });
 
+  it('keeps thread route deep-link resolution in MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const compatibilitySource = readFileSync(
+      new URL('./roomDeepLink.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/roomDeepLink.ts', import.meta.url),
+      'utf8'
+    );
+    const indexSource = readFileSync(
+      new URL('../../mindroom/threads/useMindroomThreadIndex.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/roomDeepLink'");
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/roomDeepLink'");
+    expect(implementationSource).toContain('resolveRoomEventThreadRedirect');
+    expect(implementationSource).toContain('getRoomEventThreadOpenTarget');
+    expect(indexSource).toContain("from './roomDeepLink'");
+    expect(indexSource).not.toContain('../../features/room/roomDeepLink');
+  });
+
   it('delegates cached thread page stitching to the event repository', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const seedPrewarmControllerSource = readFileSync(
