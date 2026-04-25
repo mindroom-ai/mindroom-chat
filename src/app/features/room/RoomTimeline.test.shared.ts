@@ -20,6 +20,7 @@ import {
   getThreadOpenSeedSnapshot,
   saveThreadOpenSeedSnapshot,
 } from '../../mindroom/threads/threadOpenSeedCache';
+import type { useThreadAwareTimelineRefresh } from '../../mindroom/threads/useThreadAwareTimelineRefresh';
 
 const {
   passthrough,
@@ -1256,7 +1257,7 @@ afterEach(() => {
   mountedRenderers.clear();
 });
 let useThreadAwareTimelineRefreshHook:
-  | typeof import('./RoomTimeline').useThreadAwareTimelineRefresh
+  | typeof useThreadAwareTimelineRefresh
   | undefined;
 
 type TimelineRefreshHarnessProps = {
@@ -1480,7 +1481,7 @@ const createControlledRoomTimelineHarness = (
 };
 
 const setThreadAwareTimelineRefreshHook = (
-  hook: typeof import('./RoomTimeline').useThreadAwareTimelineRefresh | undefined
+  hook: typeof useThreadAwareTimelineRefresh | undefined
 ) => {
   useThreadAwareTimelineRefreshHook = hook;
 };

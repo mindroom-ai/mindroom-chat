@@ -149,6 +149,9 @@
 - `CINNY-153`
   - Removed the remaining unused hook/state/client/sidebar compatibility wrappers after callers moved to MindRoom-owned modules.
   - Auth/client code now imports the MindRoom Matrix client factory directly, and the sidebar index exports the MindRoom Local MindRoom tab without a wrapper file.
+- `CINNY-154`
+  - Removed `RoomTimeline` compatibility re-exports for thread bootstrap, route-focus, deep-link, and timeline-refresh helpers.
+  - Focused tests now import those helpers from their MindRoom-owned modules directly, leaving `RoomTimeline` as a component export only.
 
 ### Current Feature Set On `dev`
 

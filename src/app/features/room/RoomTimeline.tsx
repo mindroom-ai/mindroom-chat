@@ -224,18 +224,6 @@ import {
 } from '../../mindroom/threads/roomFocusScrollController';
 import { useRoomTimelineNavigationController } from '../../mindroom/threads/roomTimelineNavigationController';
 
-export { getRoomEventThreadOpenTarget } from '../../mindroom/threads/roomDeepLink';
-export { getRoomEventFocusTarget, getThreadFilteredEvents } from '../../mindroom/threads/threadRoomFocus';
-export { useThreadAwareTimelineRefresh } from '../../mindroom/threads/useThreadAwareTimelineRefresh';
-export {
-  collectPriorityThreadSeedPrewarmRoots,
-  fetchAllThreadRelations,
-  getLoadedRoomThreadEvents,
-  getLoadedRoomThreadSeedEvents,
-  MAX_THREAD_FETCH_EVENTS,
-  shouldRefreshOverviewForTimelineEvent,
-};
-
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
     <Box
