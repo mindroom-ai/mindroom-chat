@@ -10,7 +10,7 @@ import {
 import {
   hasLikelyIncompleteStreamingBody,
   shouldFetchThreadEditBackfill,
-} from '../../features/room/threadEditBackfillUtils';
+} from './threadEditBackfill';
 import { getLinkedTimelines, getLiveTimeline } from '../../features/room/timelinePagination';
 import { eventBelongsToThread, isThreadReplyEvent } from '../../features/room/threadUtils';
 import { reactionOrEditEvent } from '../../utils/room';

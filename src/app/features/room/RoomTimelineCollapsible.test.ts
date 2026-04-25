@@ -593,6 +593,12 @@ vi.mock('./timelineScrollUtils', () => ({
   shouldAutoScrollThreadOnLiveEvent: () => false,
 }));
 
+vi.mock('../../mindroom/threads/threadEditBackfill', () => ({
+  hasLikelyIncompleteStreamingBody: () => false,
+  markThreadEditBackfillAttempted: vi.fn(),
+  shouldFetchThreadEditBackfill: () => false,
+}));
+
 vi.mock('./threadEditBackfillUtils', () => ({
   hasLikelyIncompleteStreamingBody: () => false,
   markThreadEditBackfillAttempted: vi.fn(),
