@@ -226,10 +226,7 @@ import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,
 } from '../../mindroom/threads/threadFilterDsl';
-import {
-  getTimelineEventById,
-  resolveRoomEventThreadRedirect,
-} from '../../mindroom/threads/roomDeepLink';
+import { resolveRoomEventThreadRedirect } from '../../mindroom/threads/roomDeepLink';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
 import { useRoomThreadList } from '../../mindroom/threads/useRoomThreadList';
 import { useStateEvents } from '../../hooks/useStateEvents';
@@ -238,14 +235,19 @@ import {
 } from '../../mindroom/threads/eventRepository';
 import {
   getEventElementById,
+  getEventEntryIndex,
   getRoomFocusScrollOptions,
   getRoomFocusScrollToItemOptions,
+  getNextRenderableEntryIndex,
+  getTimelineTargetAnchor,
+  getUnreadTargetAnchor,
   isAnchorVisibleInScroll,
   isScrollNearBottom,
   isTimelineAtLiveEnd,
   ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS,
   ROOM_FOCUS_OBSERVER_IDLE_MS,
   setupFocusObserver,
+  shouldRenderUnreadDividerAt,
   shouldAutoScrollRoomOnLiveEvent,
   shouldAutoScrollThreadOnLiveEvent,
 } from '../../mindroom/threads/timelineScrollUtils';
@@ -324,9 +326,6 @@ export const getEventTimeline = (room: Room, eventId: string): EventTimeline | u
   return timelineSet.getTimelineForEvent(eventId) ?? undefined;
 };
 
-const getEventEntryIndex = (entries: TimelineEventEntry[], eventId: string): number =>
-  entries.findIndex(({ event }) => event.getId() === eventId);
-
 const getLinkedTimelinesEventAbsoluteIndex = (
   linkedTimelines: EventTimeline[],
   eventId: string
@@ -344,142 +343,6 @@ const getLinkedTimelinesEventAbsoluteIndex = (
 
   return undefined;
 };
-
-const getVisibleAnchorCandidateIds = (mEvent: MatrixEvent): string[] => {
-  const eventId = mEvent.getId();
-  if (!eventId) return [];
-
-  const candidateIds = new Set<string>();
-  const associatedEventId = mEvent.getAssociatedId() ?? mEvent.getRelation()?.event_id;
-  if (associatedEventId && associatedEventId !== eventId) {
-    candidateIds.add(associatedEventId);
-  }
-
-  const threadRootId = mEvent.threadRootId;
-  if (threadRootId && threadRootId !== eventId) {
-    candidateIds.add(threadRootId);
-  }
-
-  return Array.from(candidateIds);
-};
-
-const getClosestRenderableEntryIndex = (
-  entries: TimelineEventEntry[],
-  absoluteIndex: number
-): number | undefined => {
-  if (entries.length === 0) return undefined;
-
-  const nextIndex = entries.findIndex((entry) => entry.absoluteIndex > absoluteIndex);
-  if (nextIndex === -1) return entries.length - 1;
-  if (nextIndex === 0) return 0;
-
-  const previousIndex = nextIndex - 1;
-  const previousDistance = absoluteIndex - entries[previousIndex].absoluteIndex;
-  const nextDistance = entries[nextIndex].absoluteIndex - absoluteIndex;
-
-  return nextDistance < previousDistance ? nextIndex : previousIndex;
-};
-
-const getNextRenderableEntryIndex = (
-  entries: TimelineEventEntry[],
-  absoluteIndex: number
-): number | undefined => {
-  const nextIndex = entries.findIndex((entry) => entry.absoluteIndex > absoluteIndex);
-  return nextIndex === -1 ? undefined : nextIndex;
-};
-
-const getEntryAnchor = (
-  entries: TimelineEventEntry[],
-  entryIndex: number
-):
-  | {
-      eventId: string;
-      index: number;
-      absoluteIndex: number;
-    }
-  | undefined => {
-  const entry = entries[entryIndex];
-  const eventId = entry?.event.getId();
-  if (!entry || !eventId) return undefined;
-
-  return {
-    eventId,
-    index: entryIndex,
-    absoluteIndex: entry.absoluteIndex,
-  };
-};
-
-export const getTimelineTargetAnchor = ({
-  linkedTimelines,
-  renderableEntries,
-  eventId,
-  absoluteIndex,
-}: {
-  linkedTimelines: EventTimeline[];
-  renderableEntries: TimelineEventEntry[];
-  eventId: string;
-  absoluteIndex: number;
-}) => {
-  const visibleIndex = getEventEntryIndex(renderableEntries, eventId);
-  if (visibleIndex !== -1) {
-    return getEntryAnchor(renderableEntries, visibleIndex);
-  }
-
-  const targetEvent = getTimelineEventById(linkedTimelines, eventId);
-  if (targetEvent) {
-    for (const candidateId of getVisibleAnchorCandidateIds(targetEvent)) {
-      const candidateIndex = getEventEntryIndex(renderableEntries, candidateId);
-      if (candidateIndex !== -1) {
-        return getEntryAnchor(renderableEntries, candidateIndex);
-      }
-    }
-  }
-
-  const closestIndex = getClosestRenderableEntryIndex(renderableEntries, absoluteIndex);
-  if (closestIndex === undefined) return undefined;
-
-  return getEntryAnchor(renderableEntries, closestIndex);
-};
-
-export const getUnreadTargetAnchor = ({
-  renderableEntries,
-  eventId,
-  absoluteIndex,
-}: {
-  renderableEntries: TimelineEventEntry[];
-  eventId: string;
-  absoluteIndex: number;
-}) => {
-  const visibleIndex = getEventEntryIndex(renderableEntries, eventId);
-  if (visibleIndex !== -1) {
-    return getEntryAnchor(renderableEntries, visibleIndex);
-  }
-
-  const nextIndex = getNextRenderableEntryIndex(renderableEntries, absoluteIndex);
-  if (nextIndex !== undefined) {
-    return getEntryAnchor(renderableEntries, nextIndex);
-  }
-
-  const closestIndex = getClosestRenderableEntryIndex(renderableEntries, absoluteIndex);
-  if (closestIndex === undefined) return undefined;
-
-  return getEntryAnchor(renderableEntries, closestIndex);
-};
-
-export const shouldRenderUnreadDividerAt = ({
-  readUptoAbsoluteIndex,
-  eventAbsoluteIndex,
-  prevRenderedEventAbsoluteIndex,
-}: {
-  readUptoAbsoluteIndex: number | undefined;
-  eventAbsoluteIndex: number | undefined;
-  prevRenderedEventAbsoluteIndex: number | undefined;
-}): boolean =>
-  readUptoAbsoluteIndex !== undefined &&
-  eventAbsoluteIndex !== undefined &&
-  eventAbsoluteIndex > readUptoAbsoluteIndex &&
-  (prevRenderedEventAbsoluteIndex === undefined ||
-    prevRenderedEventAbsoluteIndex <= readUptoAbsoluteIndex);
 
 export const getTimelineAndBaseIndex = (
   timelines: EventTimeline[],

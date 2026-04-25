@@ -1062,6 +1062,14 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 58 / Phase 6 timeline anchor helper ownership (2026-04-24):
+  - moved timeline target-anchor selection, unread target-anchor selection, and unread-divider placement into `src/app/mindroom/threads/timelineScrollUtils.ts`.
+  - `RoomTimeline` consumes these helpers for focused-event recovery and unread navigation instead of exporting them itself.
+  - validation:
+    - focused Vitest passes for `timelineScrollUtils.test.ts`, `RoomTimeline.navigation.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

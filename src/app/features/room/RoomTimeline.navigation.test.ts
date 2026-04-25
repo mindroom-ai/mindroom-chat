@@ -138,7 +138,9 @@ describe('RoomTimeline', () => {
   });
 
   it('maps hidden event targets to a visible neighbor instead of filtered index zero', async () => {
-    const { getTimelineTargetAnchor } = await import('./RoomTimeline');
+    const { getTimelineTargetAnchor } = await import(
+      '../../mindroom/threads/timelineScrollUtils'
+    );
     const { getRenderableEventEntries } = await import('./roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const threadRoot = makeEvent('$thread-root', { ts: 2 });
@@ -176,7 +178,9 @@ describe('RoomTimeline', () => {
   });
 
   it('falls back to the closest renderable entry when all target candidates are hidden', async () => {
-    const { getTimelineTargetAnchor } = await import('./RoomTimeline');
+    const { getTimelineTargetAnchor } = await import(
+      '../../mindroom/threads/timelineScrollUtils'
+    );
     const { getRenderableEventEntries } = await import('./roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const hiddenReply = makeEvent('$thread-reply', {
@@ -219,7 +223,7 @@ describe('RoomTimeline', () => {
   });
 
   it('falls back to the last renderable entry when read-up-to is beyond all visible events', async () => {
-    const { getUnreadTargetAnchor } = await import('./RoomTimeline');
+    const { getUnreadTargetAnchor } = await import('../../mindroom/threads/timelineScrollUtils');
     const { getRenderableEventEntries } = await import('./roomTimelineEvents');
     const firstVisible = makeEvent('$first', { ts: 1 });
     const lastVisible = makeEvent('$last', { ts: 2 });
@@ -502,7 +506,9 @@ describe('RoomTimeline', () => {
   });
 
   it('detects unread divider boundaries when read-up-to is filtered out', async () => {
-    const { shouldRenderUnreadDividerAt } = await import('./RoomTimeline');
+    const { shouldRenderUnreadDividerAt } = await import(
+      '../../mindroom/threads/timelineScrollUtils'
+    );
 
     expect(
       shouldRenderUnreadDividerAt({
@@ -646,7 +652,9 @@ describe('RoomTimeline', () => {
   });
 
   it('maps hidden event targets to a visible neighbor instead of filtered index zero', async () => {
-    const { getTimelineTargetAnchor } = await import('./RoomTimeline');
+    const { getTimelineTargetAnchor } = await import(
+      '../../mindroom/threads/timelineScrollUtils'
+    );
     const { getRenderableEventEntries } = await import('./roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const threadRoot = makeEvent('$thread-root', { ts: 2 });
@@ -684,7 +692,9 @@ describe('RoomTimeline', () => {
   });
 
   it('falls back to the closest renderable entry when all target candidates are hidden', async () => {
-    const { getTimelineTargetAnchor } = await import('./RoomTimeline');
+    const { getTimelineTargetAnchor } = await import(
+      '../../mindroom/threads/timelineScrollUtils'
+    );
     const { getRenderableEventEntries } = await import('./roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const hiddenReply = makeEvent('$thread-reply', {
@@ -727,7 +737,7 @@ describe('RoomTimeline', () => {
   });
 
   it('falls back to the last renderable entry when read-up-to is beyond all visible events', async () => {
-    const { getUnreadTargetAnchor } = await import('./RoomTimeline');
+    const { getUnreadTargetAnchor } = await import('../../mindroom/threads/timelineScrollUtils');
     const { getRenderableEventEntries } = await import('./roomTimelineEvents');
     const firstVisible = makeEvent('$first', { ts: 1 });
     const lastVisible = makeEvent('$last', { ts: 2 });
@@ -1009,7 +1019,9 @@ describe('RoomTimeline', () => {
   });
 
   it('detects unread divider boundaries when read-up-to is filtered out', async () => {
-    const { shouldRenderUnreadDividerAt } = await import('./RoomTimeline');
+    const { shouldRenderUnreadDividerAt } = await import(
+      '../../mindroom/threads/timelineScrollUtils'
+    );
 
     expect(
       shouldRenderUnreadDividerAt({
