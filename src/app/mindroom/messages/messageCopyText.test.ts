@@ -49,7 +49,7 @@ describe('getMessageCopyTextBody', () => {
         getMessageCopyTextBody(
           {
             msgtype: 'm.file',
-            body: 'Long text overflow…',
+            body: 'Long text overflow...',
             url: 'mxc://mindroom/overflow',
             'io.mindroom.long_text': {
               version: 2,
@@ -70,7 +70,7 @@ describe('getMessageCopyTextBody', () => {
         getMessageCopyTextBody(
           {
             msgtype: 'm.file',
-            body: 'Long text overflow…',
+            body: 'Long text overflow...',
           },
           { body: 'original placeholder' },
           {
@@ -89,11 +89,11 @@ describe('getMessageCopyTextBody', () => {
         getMessageCopyTextBody(
           {
             msgtype: 'm.file',
-            body: 'Long text overflow…',
+            body: 'Long text overflow...',
           },
           { body: 'original placeholder' }
         )
-      ).toBe('Long text overflow…');
+      ).toBe('Long text overflow...');
     });
 
     it('falls through when neither the resolved content nor the envelope has a plain body', () => {
