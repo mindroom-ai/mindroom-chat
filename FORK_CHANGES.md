@@ -93,6 +93,9 @@
 - `CINNY-132`
   - Auth screen branding, device display name, hosted-login policy, and native SSO redirect policy now route through `src/app/mindroom/auth/authUi.ts`.
   - Generic auth pages no longer import MindRoom branding, native SSO, or hosted-auth policy modules directly.
+- `CINNY-133`
+  - Client-facing MindRoom branding defaults for welcome, splash, and About screens now live in `src/app/mindroom/branding/clientBranding.ts`.
+  - Generic client/about/splash surfaces no longer import the low-level MindRoom branding constants directly.
 
 ### Current Feature Set On `dev`
 
