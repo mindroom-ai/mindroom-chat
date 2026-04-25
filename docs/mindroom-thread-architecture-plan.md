@@ -363,9 +363,10 @@ Thread backward-pagination reconciliation helpers now live in
 compatibility re-export.
 Timeline debug trace helpers now live in `src/app/mindroom/threads/timelineDebug.ts`; the old
 `features/room` path is only a compatibility re-export.
-Timeline live-end, near-bottom, event-element lookup, room-focus retry/scroll options, focus
-observer setup, bottom-anchor visibility recovery, and thread prepend scroll-anchor helpers now
-live in `src/app/mindroom/threads/timelineScrollUtils.ts`; the old `features/room` path is only a
+Timeline live-end, near-bottom, event-element lookup, timeline target-anchor selection, unread
+divider placement, room-focus retry/scroll options, focus observer setup, bottom-anchor visibility
+recovery, and thread prepend scroll-anchor helpers now live in
+`src/app/mindroom/threads/timelineScrollUtils.ts`; the old `features/room` path is only a
 compatibility re-export.
 Event cache pagination token helpers now live in
 `src/app/mindroom/threads/eventCacheTokenUtils.ts`; the old `features/room` path is only a

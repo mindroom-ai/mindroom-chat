@@ -672,10 +672,14 @@ describe('RoomTimeline architecture', () => {
     expect(source).toContain("from '../../mindroom/threads/timelineScrollUtils'");
     expect(compatibilitySource).toContain("from '../../mindroom/threads/timelineScrollUtils'");
     expect(implementationSource).toContain('captureThreadPrependScrollAnchor');
+    expect(implementationSource).toContain('getTimelineTargetAnchor');
+    expect(implementationSource).toContain('shouldRenderUnreadDividerAt');
     expect(implementationSource).toContain('getRoomFocusScrollOptions');
     expect(implementationSource).toContain('setupFocusObserver');
     expect(source).not.toContain('export const captureThreadPrependScrollAnchor');
     expect(source).not.toContain('export const restoreThreadPrependScrollAnchor');
+    expect(source).not.toContain('export const getTimelineTargetAnchor');
+    expect(source).not.toContain('export const shouldRenderUnreadDividerAt');
     expect(source).not.toContain('export const getRoomFocusScrollOptions');
     expect(source).not.toContain('export const setupFocusObserver');
     expect(source).not.toContain('const resolveThreadScrollContainer');
