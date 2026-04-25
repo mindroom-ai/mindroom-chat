@@ -7,15 +7,18 @@ import {
   MATRIX_VOICE_MESSAGE_UNSTABLE_PROPERTY_NAME,
 } from '../../../types/matrix/common';
 import { TUploadItem } from '../../state/room/roomInputDrafts';
+import { VOICE_WAVEFORM_BAR_COUNT } from '../../utils/audioWaveform';
 import { getAudioMsgContent } from './msgContent';
 
-const createUploadItem = (file: File, duration?: number): TUploadItem => ({
+const createUploadItem = (file: File, duration?: number, waveform?: number[]): TUploadItem => ({
   file,
   originalFile: file,
   encInfo: undefined,
   metadata: {
     markedAsSpoiler: false,
-    ...(typeof duration === 'number' ? { voiceMessage: { duration } } : {}),
+    ...(typeof duration === 'number'
+      ? { voiceMessage: { duration, ...(waveform ? { waveform } : {}) } }
+      : {}),
   },
 });
 
@@ -58,6 +61,26 @@ describe('getAudioMsgContent', () => {
         duration: 3210,
       },
     });
+  });
+
+  it('passes normalized voice waveform metadata through stable and unstable audio details', () => {
+    const file = new File(['hello'], 'voice.webm', { type: 'audio/webm' });
+    const content = getAudioMsgContent(
+      createUploadItem(file, 3210, [0, 256, 2048]),
+      'mxc://server/voice'
+    );
+
+    expect(content[MATRIX_AUDIO_DETAILS_UNSTABLE_PROPERTY_NAME]).toMatchObject({
+      duration: 3210,
+      waveform: expect.arrayContaining([0, 1024]),
+    });
+    expect(content[MATRIX_AUDIO_DETAILS_PROPERTY_NAME]).toMatchObject({
+      duration: 3210,
+      waveform: expect.arrayContaining([0, 1024]),
+    });
+    expect(
+      (content[MATRIX_AUDIO_DETAILS_PROPERTY_NAME] as { waveform: number[] }).waveform
+    ).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
   });
 
   it('uses voice-message mime override for bridged signal rooms', () => {

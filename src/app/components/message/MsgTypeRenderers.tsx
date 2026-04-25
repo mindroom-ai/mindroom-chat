@@ -11,6 +11,7 @@ import {
   MessageEditedContent,
   MessageUnsupportedContent,
 } from './content';
+import { VoiceAudioContent } from './content/VoiceAudioContent';
 import {
   IAudioContent,
   IAudioInfo,
@@ -344,7 +345,19 @@ export function MAudio({ content, renderAsFile, renderAudioContent, outlined }: 
   }
 
   const downloadFilename = content.filename ?? content.body ?? 'Audio';
-  const displayName = voiceMessage ? 'Voice message' : downloadFilename;
+  if (voiceMessage) {
+    return (
+      <VoiceAudioContent
+        info={audioInfo}
+        mimeType={safeMimeType}
+        url={mxcUrl}
+        encInfo={content.file}
+        waveform={voiceAudioDetails?.waveform}
+      />
+    );
+  }
+
+  const displayName = downloadFilename;
   return (
     <Attachment outlined={outlined}>
       <AttachmentHeader>

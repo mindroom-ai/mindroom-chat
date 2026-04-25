@@ -2637,3 +2637,95 @@
 - Removed MindRoom-specific scheduled-task and thread-tag event names from the generic Matrix `StateEvent` enum.
 - Added `MINDROOM_SCHEDULED_TASK_EVENT` to the fork-owned scheduled-task contract and `MINDROOM_THREAD_TAGS_EVENT` to the fork-owned thread-tag contract.
 - Updated scheduled-task and thread-tag readers, writers, command-palette actions, and focused tests to consume those owner constants instead of generic Matrix event enums.
+
+## CINNY-089 — Modern compact waveform voice UI (2026-04-25)
+
+- Replaced the composer voice recorder with a compact capsule showing only discard, live SVG waveform, active timer, pause/resume, and send.
+- Added shared waveform utilities and SVG rendering:
+  - Matrix-compatible 48-bar normalization and clamping,
+  - deterministic fallback waveform rendering,
+  - analyser RMS to Matrix waveform conversion,
+  - and optional metadata sanitization that omits malformed empty waveforms instead of writing synthetic metadata.
+- Extracted `useVoiceRecorder` to own microphone capture, `MediaRecorder` lifecycle, native pause/resume, pause-excluded active duration, live analyser sampling, send/discard cleanup, and active-recorder unmount cleanup.
+- Preserved CINNY-052:
+  - `RoomInput` captures room/thread/reply/signal-bridge context when recording starts,
+  - voice sends prefer that captured context over live navigation props,
+  - upload completion still uses the existing send-session state,
+  - and regression coverage now includes thread navigation, overview-to-thread navigation, pause/navigation/resume, cross-room navigation, same-tick send, and deferred reply-draft clearing.
+- Added compact voice-only playback:
+  - voice `m.audio` now renders `VoiceAudioContent` with play/pause, tappable waveform progress/seek, and duration/current time only,
+  - generic non-voice `m.audio` stays on the existing `AudioContent` player,
+  - and the existing lazy media/decrypt/blob URL path is shared through a small `useAudioContentSource` hook.
+- Added focused coverage for waveform utilities, recorder lifecycle, recording capsule controls, RoomInput targeting/metadata, voice metadata writing/parsing, voice playback controls/seek/fallback, renderer branching, and generic audio unchanged behavior.
+- review:
+  - independent Codex review found three issues; follow-up fixed active-recorder cleanup, tightened malformed optional waveform metadata, and added cross-room recording-start targeting coverage.
+- validation:
+  - focused voice suite passed: `npm test -- src/app/utils/audioWaveform.test.ts src/app/components/voice/VoiceWaveform.test.ts src/app/features/room/useVoiceRecorder.test.ts src/app/features/room/VoiceRecordingCapsule.test.ts src/app/features/room/RoomInput.test.ts src/app/features/room/msgContent.test.ts src/app/utils/voiceMessage.test.ts src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/message/MsgTypeRenderers.audio.test.ts src/app/components/message/content/AudioContent.test.tsx` (`10/10` files, `42/42` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `npm run lint` passes with the branch warning-only baseline (`71` warnings, `0` errors)
+  - `git diff --check` passes
+  - `npm test` is red in unrelated room timeline/view tests (`176/182` files, `1565/1573` tests passed); failing files were `RoomTimeline.cache.test.ts`, `RoomTimeline.fetchAllThreadRelations.test.ts`, `RoomTimeline.navigation.test.ts`, `RoomTimeline.permalink-refresh.test.ts`, `RoomTimelineCollapsible.test.ts`, and `RoomView.test.ts`.
+- R1 review follow-up (2026-04-25):
+  - fix commit: `4ddf61cedfea00db9cb002a8aadc21095d65ff90`
+  - `RoomInput` now locks the recording-start voice context until close/send cleanup, disables repeated mic opens while the compact recorder is active, and keeps active voice send-session files/items observed across room navigation after Send so upload completion still sends to the captured room/thread.
+  - `useVoiceRecorder` now stops acquired mic tracks if `MediaRecorder` construction fails, ignores discard while a send stop is pending, and only sends recorded chunks when the stop action was explicitly `send`; unexpected stop events clean up and show an error.
+  - `VoiceRecorderComposer` keeps the room-overview error dialog mounted until OK is clicked instead of closing the parent immediately.
+  - `VoiceAudioContent` now preserves Matrix duration when browser duration is invalid and applies waveform seeks made before first playback after the lazy source loads.
+  - added focused regressions for all R1 items across `useVoiceRecorder`, `VoiceRecordingCapsule`, `VoiceRecorderDialog`, `RoomInput`, and `VoiceAudioContent`.
+- review:
+  - independent second self-review completed via fresh `git diff --stat`, targeted source/test diff review, `git diff --check`, and the full validation pass; scope stayed limited to the R1 voice recorder/playback/send-session fixes plus report/runbook updates.
+- validation R1 follow-up:
+  - focused voice suite passes (`11/11` files, `51/51` tests)
+  - `npm test` passes (`183/183` files, `1582/1582` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `npm run lint` passes with the branch warning-only baseline (`71` warnings, `0` errors)
+  - `git diff --check` passes
+- R2 review follow-up (2026-04-25):
+  - fix commit: `be6ca8cb3a949e0e7aa83bf23dd48507084e539f`
+  - production route verification confirmed cross-room navigation remounts the room subtree through `RoomProvider key={room.roomId}` in `src/app/pages/client/space/RoomProvider.tsx`.
+  - compact voice Send now owns a direct upload/send path after the explicit Send action:
+    - the source room/thread/reply/signal-bridge context captured at recording start is used for upload metadata and `mx.sendMessage`,
+    - upload progress is still written through the existing upload atom so same-room progress can render,
+    - completion/error cleanup removes auto-sent voice items from the captured/source room upload atom even if the source `RoomInput` has unmounted,
+    - and a keyed unmount before the recorder stop callback fires still completes to the captured target.
+  - active recordings that are unmounted before Send continue to discard safely through recorder cleanup, stopping capture resources without creating upload items or sending.
+  - a shared pending voice-send atom disables compact voice recording/sending while one auto-send is pending, preventing a second recording from being silently appended outside the active send.
+  - added production-shaped keyed-room regressions in `RoomInput.test.ts` plus recorder unmount/send-stop coverage in `useVoiceRecorder.test.ts`.
+- review:
+  - independent second self-review completed via focused source/test diff review after validation; scope stayed limited to compact voice lifecycle ownership, source upload cleanup, pending-send blocking, focused tests, and report/runbook updates.
+- validation R2 follow-up:
+  - focused voice suite passes (`11/11` files, `56/56` tests)
+  - `npm test` passes (`183/183` files, `1587/1587` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes; Vite emitted the existing runtime-config, sourcemap, and chunk-size warnings
+  - `npm run lint` passes with the branch warning-only baseline (`71` warnings, `0` errors)
+  - `git diff --check` passes
+- R3 review follow-up (2026-04-25):
+  - fix commit: `5cee523b736bd41c1dcc3ce69fb62d7c23542bf1`
+  - compact voice Send now claims the shared auto-send pending guard at the explicit send-stop request, before the asynchronous `MediaRecorder.stop` callback constructs the voice file.
+  - the captured first send remains authorized through keyed room unmount/remount, while a second room cannot claim/send another compact voice note in that pre-stop pending window.
+  - regular composer submit and upload-board Send/session entry points now no-op while compact voice auto-send is pending, preventing the visible auto-send upload item from being submitted again through the generic pipeline.
+  - added focused regressions in `RoomInput.test.ts` and `useVoiceRecorder.test.ts` for early pending ownership, cross-room second-send blocking, and regular composer/upload-board duplicate prevention.
+- review:
+  - independent second self-review completed via focused source/test diff review plus the full validation pass; scope stayed limited to the R3 compact voice race guards, focused tests, and report/runbook updates.
+- validation R3 follow-up:
+  - focused voice suite passes (`11/11` files, `59/59` tests)
+  - `npm test` passes (`183/183` files, `1590/1590` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes; Vite emitted the existing runtime-config, sourcemap, and chunk-size warnings
+  - `npm run lint` passes with the branch warning-only baseline (`71` warnings, `0` errors)
+  - `git diff --check` passes
+- Rebase-on-current-dev follow-up (2026-04-25):
+  - rebase completed onto current local `dev` at `87873f1c` (`Hide React Query Devtools by default`).
+  - conflict resolution kept the current MindRoom room-input extension/send-session controller seams instead of restoring the old inline `RoomInput` session implementation.
+  - compact voice context capture, direct voice auto-send, keyed cross-room completion, early pending ownership, and regular composer/upload-board duplicate guards were reapplied through those seams.
+  - added focused node-test mocks for CSS-bearing MindRoom voice/streaming UI modules so full Vitest discovery does not load Vanilla Extract styles outside the app build pipeline.
+- validation after rebase-on-current-dev:
+  - focused voice suite passes (`11/11` files, `59/59` tests)
+  - `npm test` passes (`218/218` files, `1757/1757` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes; Vite emitted the existing runtime-config, dependency sourcemap, and chunk-size warnings
+  - `npm run lint` passes with the current branch warning-only baseline (`35` warnings, `0` errors)
+  - `git diff --check dev...HEAD` passes
