@@ -11,10 +11,21 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps renderability and preload counting outside RoomTimeline', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const compatibilitySource = readFileSync(
+      new URL('./roomTimelineEvents.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/roomTimelineEvents.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).not.toContain('export const isRenderableEvent =');
     expect(source).not.toContain('export const getRoomPreloadCounts =');
-    expect(source).toContain("from './roomTimelineEvents'");
+    expect(source).toContain("from '../../mindroom/threads/roomTimelineEvents'");
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/roomTimelineEvents'");
+    expect(implementationSource).toContain('buildRoomSurfaceEventEntries');
+    expect(compatibilitySource).not.toContain('KNOWN_EVENT_TYPES');
   });
 
   it('delegates eager room preload orchestration outside RoomTimeline', () => {

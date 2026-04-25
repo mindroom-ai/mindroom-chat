@@ -6,7 +6,7 @@ import { getCompactThreadRootBodyPreviewText } from './compactThreadRootData';
 import {
   isVisibleThreadRootEvent,
   type TimelineEventEntry,
-} from '../../features/room/roomTimelineEvents';
+} from './roomTimelineEvents';
 import {
   hasLikelyIncompleteStreamingBody,
   shouldFetchThreadEditBackfill,

@@ -194,7 +194,7 @@ import {
   isRenderableEvent,
   isVisibleThreadRootEvent,
   type TimelineEventEntry,
-} from './roomTimelineEvents';
+} from '../../mindroom/threads/roomTimelineEvents';
 import {
   getFirstLinkedTimeline,
   getLinkedTimelines,

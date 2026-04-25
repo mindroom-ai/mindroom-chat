@@ -921,6 +921,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 42 / Phase 5 room timeline event helper ownership (2026-04-24):
+  - moved room renderability, surface event, visible thread-root, and preload-count helpers to `src/app/mindroom/threads/roomTimelineEvents.ts`.
+  - the old `src/app/features/room/roomTimelineEvents.ts` path is now a compatibility re-export; `RoomTimeline`, timeline pagination, preload/index/bootstrap controllers, room focus, and room pagination import the MindRoom implementation directly.
+  - this keeps event filtering and room-surface thread projection beside the thread index/preload namespace instead of the upstream room feature folder.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts`, `RoomTimeline.navigation.test.ts`, `RoomTimelineCollapsible.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
