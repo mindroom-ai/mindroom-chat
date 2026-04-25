@@ -774,11 +774,23 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/timelineDebug.ts', import.meta.url),
       'utf8'
     );
+    const controllerSource = readFileSync(
+      new URL('../../mindroom/threads/timelineDebugController.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).toContain("from '../../mindroom/threads/timelineDebug'");
+    expect(source).toContain("from '../../mindroom/threads/timelineDebugController'");
     expect(compatibilitySource).toContain("from '../../mindroom/threads/timelineDebug'");
     expect(implementationSource).toContain('createTimelineDebugTrace');
     expect(implementationSource).toContain('mindroom.debug.timeline');
+    expect(controllerSource).toContain('useTimelineDebugTraceIds');
+    expect(controllerSource).toContain('useTimelineDebugRangeController');
+    expect(controllerSource).toContain("'room-surface'");
+    expect(controllerSource).toContain("'thread-range'");
+    expect(source).not.toContain('createTimelineDebugTrace');
+    expect(source).not.toContain("'room-surface'");
+    expect(source).not.toContain("'thread-range'");
     expect(compatibilitySource).not.toContain('console.log');
   });
 

@@ -172,7 +172,11 @@ import {
   shouldPinThreadToBottomOnOpen,
 } from '../../mindroom/threads/threadRenderUtils';
 import { useThreadRenderState } from '../../mindroom/threads/useThreadRenderState';
-import { createTimelineDebugTrace, logTimelineDebug } from '../../mindroom/threads/timelineDebug';
+import { logTimelineDebug } from '../../mindroom/threads/timelineDebug';
+import {
+  useTimelineDebugRangeController,
+  useTimelineDebugTraceIds,
+} from '../../mindroom/threads/timelineDebugController';
 import { shouldUseSurfacePreloadTarget } from '../../mindroom/threads/roomPreloadTarget';
 import { CompactRoomView } from '../../mindroom/threads/CompactRoomView';
 import { RoomThreadOverview } from '../../mindroom/threads/RoomThreadOverview';
@@ -519,17 +523,6 @@ export function RoomTimeline({
   const eagerPreloadDoneForRoomRef = useRef<string | null>(null);
   const threadIdRef = useRef(threadId);
   const threadFilterStateRef = useRef(requestedThreadFilterState);
-  const roomDebugTraceRef = useRef({
-    roomId: room.roomId,
-    traceId: createTimelineDebugTrace('room-open', room.roomId),
-  });
-  const currentThreadTraceKey = threadId ? `${room.roomId}|${threadId}` : undefined;
-  const threadDebugTraceRef = useRef<{ traceId?: string; traceKey?: string }>({
-    traceId: currentThreadTraceKey
-      ? createTimelineDebugTrace('thread-open', room.roomId, threadId)
-      : undefined,
-    traceKey: currentThreadTraceKey,
-  });
   const threadEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
     new WeakMap<MatrixEvent, number>()
   );
@@ -540,39 +533,11 @@ export function RoomTimeline({
   roomIdRef.current = room.roomId;
   threadIdRef.current = threadId;
   threadFilterStateRef.current = requestedThreadFilterState;
-  if (roomDebugTraceRef.current.roomId !== room.roomId) {
-    roomDebugTraceRef.current = {
-      roomId: room.roomId,
-      traceId: createTimelineDebugTrace('room-open', room.roomId),
-    };
-  }
-  if (threadDebugTraceRef.current.traceKey !== currentThreadTraceKey) {
-    threadDebugTraceRef.current = {
-      traceId: currentThreadTraceKey
-        ? createTimelineDebugTrace('thread-open', room.roomId, threadId)
-        : undefined,
-      traceKey: currentThreadTraceKey,
-    };
-  }
-  const roomDebugTraceId = roomDebugTraceRef.current.traceId;
-  const threadDebugTraceId = threadDebugTraceRef.current.traceId;
-
-  useEffect(() => {
-    logTimelineDebug(roomDebugTraceId, 'init', {
-      eventId,
-      roomId: room.roomId,
-      threadId,
-    });
-  }, [eventId, room.roomId, roomDebugTraceId, threadId]);
-
-  useEffect(() => {
-    if (!threadId) return;
-    logTimelineDebug(threadDebugTraceId, 'init', {
-      eventId,
-      roomId: room.roomId,
-      threadId,
-    });
-  }, [eventId, room.roomId, threadDebugTraceId, threadId]);
+  const { roomDebugTraceId, threadDebugTraceId } = useTimelineDebugTraceIds({
+    eventId,
+    room,
+    threadId,
+  });
 
   const linkifyOpts = useMemo<LinkifyOpts>(
     () => ({
@@ -915,61 +880,26 @@ export function RoomTimeline({
     sdkHasBackwardToken: canPaginateThreadBack,
   });
 
-  useEffect(() => {
-    if (threadId) return;
-    logTimelineDebug(roomDebugTraceId, 'room-surface', {
-      activeRangeEnd: activeTimelineRange.end,
-      activeRangeStart: activeTimelineRange.start,
-      cacheCount: eventsLength,
-      eagerPreloading,
-      preloadTarget: useSurfacePreloadTarget ? 'surface' : 'renderable',
-      renderableCount: renderableEventEntries.length,
-      surfaceCount: roomSurfaceEventEntries.length,
-      threadOverviewCount: threadFilteredEvents.length,
-      visibleCount: activeTimelineRange.end - activeTimelineRange.start,
-    });
-  }, [
-    activeTimelineRange.end,
-    activeTimelineRange.start,
-    eagerPreloading,
-    eventsLength,
-    renderableEventEntries.length,
-    useSurfacePreloadTarget,
-    roomSurfaceEventEntries.length,
-    threadFilteredEvents.length,
-    threadId,
-    roomDebugTraceId,
-  ]);
-
-  useEffect(() => {
-    if (!threadId) return;
-    logTimelineDebug(threadDebugTraceId, 'thread-range', {
-      activeRangeEnd: activeTimelineRange.end,
-      activeRangeStart: activeTimelineRange.start,
-      canPaginateThreadBack,
-      canPaginateThreadFront,
-      filteredLength,
-      initialCacheHydrated: threadInitialCacheHydrated,
-      initialRenderMode: threadInitialRenderMode,
-      renderedCount: activeTimelineRange.end - activeTimelineRange.start,
-      threadEventCount: threadEvents.length,
-      threadTailLoaded,
-      threadTimelineTick,
-    });
-  }, [
-    activeTimelineRange.end,
-    activeTimelineRange.start,
+  useTimelineDebugRangeController({
+    activeTimelineRange,
     canPaginateThreadBack,
     canPaginateThreadFront,
+    eagerPreloading,
+    eventsLength,
     filteredLength,
-    threadEvents.length,
+    renderableEventCount: renderableEventEntries.length,
+    roomDebugTraceId,
+    roomSurfaceEventCount: roomSurfaceEventEntries.length,
     threadDebugTraceId,
+    threadEventCount: threadEvents.length,
     threadId,
     threadInitialCacheHydrated,
     threadInitialRenderMode,
+    threadOverviewCount: threadFilteredEvents.length,
     threadTailLoaded,
     threadTimelineTick,
-  ]);
+    useSurfacePreloadTarget,
+  });
 
   useEffect(() => {
     const wasActive = prevRoomThreadFilterActiveRef.current;
