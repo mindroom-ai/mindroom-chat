@@ -691,6 +691,14 @@
     - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline (`77` warnings, `0` errors)
+- `CINNY-075` implementation step 15 / Phase 5 compact root edit backfill controller (2026-04-24):
+  - added `src/app/mindroom/threads/compactRootEditBackfillController.ts` as the fork-owned owner for compact-root edit backfill orchestration.
+  - `RoomTimeline` no longer owns the compact root attempted-event WeakMap or the compact-root relation fetch worker; it only enables the controller and passes the existing room-cache persistence command.
+  - thread-message edit backfill remains local for now because it is tied to rendered thread rows and should be separated in a smaller later scroll/render slice.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`77` warnings, `0` errors)
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
