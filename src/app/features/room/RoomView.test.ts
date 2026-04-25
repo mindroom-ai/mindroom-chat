@@ -249,7 +249,7 @@ vi.mock('../../mindroom/native/nativeSso', () => ({
   isNativeIOS: isNativeIOSMock,
 }));
 
-vi.mock('../../mindroom/native/useEdgeSwipeBack', () => ({
+vi.mock('../../hooks/useEdgeSwipeBack', () => ({
   useEdgeSwipeBack: vi.fn(),
 }));
 

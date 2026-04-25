@@ -8,7 +8,7 @@ import {
   getSpacePath,
 } from '../pages/pathUtils';
 import { DIRECT_PATH, EXPLORE_PATH, HOME_PATH, INBOX_PATH, SPACE_PATH } from '../pages/paths';
-import { useEdgeSwipeBack } from '../mindroom/native/useEdgeSwipeBack';
+import { useEdgeSwipeBack } from '../hooks/useEdgeSwipeBack';
 
 type BackRouteHandlerProps = {
   enableEdgeSwipe?: boolean;

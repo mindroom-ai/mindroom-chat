@@ -84,6 +84,9 @@
 - `CINNY-129`
   - MindRoom edit-wrapper metadata preservation now lives in `src/app/mindroom/messages/editMetadata.ts`.
   - Generic room edit resolution still preserves standard `m.mentions`, but no longer imports the low-level MindRoom metadata-prefix parser directly.
+- `CINNY-130`
+  - Room back-route and thread-exit swipe handling now consume the existing `src/app/hooks/useEdgeSwipeBack.ts` compatibility hook.
+  - Generic route and room-view components no longer import the MindRoom native edge-swipe implementation directly.
 
 ### Current Feature Set On `dev`
 
