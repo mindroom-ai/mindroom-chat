@@ -11,9 +11,17 @@ import { SequenceCard } from '../../components/sequence-card';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import colorMXID from '../../../util/colorMXID';
 import { getSearchResultOpenTarget } from './searchResultOpenTarget';
-import { MindroomSearchResultBody } from '../../mindroom/message-search/MindroomSearchResultBody';
 import { UserAvatar } from '../../components/user-avatar';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
+
+export type SearchResultBodyRendererProps = {
+  roomId: string;
+  event: ResultItem['event'];
+  displayName: string;
+  highlights: string[];
+};
+
+export type SearchResultBodyRenderer = (props: SearchResultBodyRendererProps) => React.ReactNode;
 
 type SearchResultGroupProps = {
   room: Room;
@@ -23,6 +31,7 @@ type SearchResultGroupProps = {
   legacyUsernameColor?: boolean;
   hour24Clock: boolean;
   dateFormatString: string;
+  renderBody: SearchResultBodyRenderer;
 };
 export function SearchResultGroup({
   room,
@@ -32,6 +41,7 @@ export function SearchResultGroup({
   legacyUsernameColor,
   hour24Clock,
   dateFormatString,
+  renderBody,
 }: SearchResultGroupProps) {
   return (
     <Box direction="Column" gap="200">
@@ -50,6 +60,7 @@ export function SearchResultGroup({
               legacyUsernameColor={legacyUsernameColor}
               hour24Clock={hour24Clock}
               dateFormatString={dateFormatString}
+              renderBody={renderBody}
             />
           );
         })}
@@ -91,6 +102,7 @@ type SearchResultItemCardProps = {
   legacyUsernameColor?: boolean;
   hour24Clock: boolean;
   dateFormatString: string;
+  renderBody: SearchResultBodyRenderer;
 };
 
 export function SearchResultItemCard({
@@ -101,6 +113,7 @@ export function SearchResultItemCard({
   legacyUsernameColor,
   hour24Clock,
   dateFormatString,
+  renderBody,
 }: SearchResultItemCardProps) {
   const handleOpenClick: MouseEventHandler = (evt) => {
     const eventId = evt.currentTarget.getAttribute('data-event-id');
@@ -170,12 +183,7 @@ export function SearchResultItemCard({
             Reply context hidden in search results. Open the message for full thread context.
           </Text>
         )}
-        <MindroomSearchResultBody
-          roomId={room.roomId}
-          event={event}
-          displayName={displayName}
-          highlights={highlights}
-        />
+        {renderBody({ roomId: room.roomId, event, displayName, highlights })}
       </ModernLayout>
     </SequenceCard>
   );
