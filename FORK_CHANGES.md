@@ -728,6 +728,13 @@
   - validation:
     - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
     - `npm run typecheck` passes
+- `CINNY-075` implementation step 20 / Phase 5 room cache hydration controller (2026-04-24):
+  - added `src/app/mindroom/threads/roomCacheHydrationController.ts` as the fork-owned owner for initial room cache instant-paint hydration.
+  - `RoomTimeline` no longer imports `loadLatestRoomCacheHydrationSnapshot` or `getMainTimelineCacheEvents`; it supplies only a `buildInitialTimeline` callback so UI range selection stays at the render seam.
+  - the controller preserves the existing behavior shape: skip targeted/thread routes, hydrate cached events into the live timeline, process aggregation/decryption, rebuild the room timeline range, mark room cache hydration complete, and clear eager-preloading on room re-entry.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

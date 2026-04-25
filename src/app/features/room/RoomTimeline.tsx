@@ -237,9 +237,7 @@ import {
   getRoomCursorAnchor,
   getThreadCursorAnchor,
   getThreadCacheTargetId,
-  getMainTimelineCacheEvents,
   loadThreadCachedSnapshot,
-  loadLatestRoomCacheHydrationSnapshot,
   mapCachedThreadPageEvents,
 } from '../../mindroom/threads/eventRepository';
 import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
@@ -293,6 +291,7 @@ import { useThreadPaginationCommandController } from '../../mindroom/threads/thr
 import { useThreadEditBackfillController } from '../../mindroom/threads/threadEditBackfillController';
 import { useRoomPaginationCommandController } from '../../mindroom/threads/roomPaginationCommandController';
 import { useRoomCacheLifecycleController } from '../../mindroom/threads/roomCacheLifecycleController';
+import { useRoomCacheHydrationController } from '../../mindroom/threads/roomCacheHydrationController';
 
 export { getRoomEventThreadOpenTarget } from './roomDeepLink';
 export { getRoomEventFocusTarget, getThreadFilteredEvents };
@@ -2558,109 +2557,37 @@ export function RoomTimeline({
     )
   );
 
-  useEffect(() => {
-    if (threadId || eventId) return undefined;
+  const buildRoomCacheHydratedTimeline = useCallback(
+    () =>
+      getInitialTimeline(room, safePaginationLimitRef.current, {
+        threadId: undefined,
+        ignoredUsersSet: recalibrateFilterOptsRef.current?.ignoredUsersSet ?? new Set(),
+        showHiddenEvents: recalibrateFilterOptsRef.current?.showHiddenEvents ?? false,
+        hideMembershipEvents: recalibrateFilterOptsRef.current?.hideMembershipEvents ?? false,
+        hideNickAvatarEvents: recalibrateFilterOptsRef.current?.hideNickAvatarEvents ?? false,
+      }),
+    [room]
+  );
 
-    let cancelled = false;
-    const hydrateRoomFromCache = async () => {
-      logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-start', {
-        limit: safePaginationLimit,
-      });
-
-      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
-
-      const currentLinkedTimelines = getLinkedTimelines(getLiveTimeline(room));
-      const loadedRoomEvents = getMainTimelineCacheEvents(room, currentLinkedTimelines);
-      const mapper = mx.getEventMapper();
-      const hydrationSnapshot = await loadLatestRoomCacheHydrationSnapshot({
-        sessionId,
-        roomId: room.roomId,
-        limit: safePaginationLimit,
-        loadedEvents: loadedRoomEvents,
-        mapEvent: (rawEvent) => mapper(rawEvent),
-      });
-
-      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
-
-      logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-page', {
-        cachedCount: hydrationSnapshot.cachedPage.events.length,
-        hasMoreBefore: hydrationSnapshot.cachedPage.hasMoreBefore,
-        loadedRoomCount: hydrationSnapshot.loadedRoomCount,
-      });
-
-      if (hydrationSnapshot.status === 'already-loaded') {
-        logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-skip-latest-already-loaded', {
-          cachedCount: hydrationSnapshot.cachedPage.events.length,
-          loadedRoomCount: hydrationSnapshot.loadedRoomCount,
-        });
-        return;
-      }
-
-      const cachedEvents = hydrationSnapshot.events;
-      if (cachedEvents.length === 0) {
-        logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-empty-after-filter', {
-          cachedCount: hydrationSnapshot.cachedPage.events.length,
-          loadedRoomCount: hydrationSnapshot.loadedRoomCount,
-        });
-        return;
-      }
-
-      hydrateCachedEvents({
-        room,
-        events: cachedEvents,
-      });
-
-      const liveTimeline = getLiveTimeline(room);
-      const timelineWasEmpty = liveTimeline.getEvents().length === 0;
-      await room.addLiveEvents(cachedEvents, {
-        fromCache: true,
-        timelineWasEmpty,
-        addToState: false,
-      });
-      mx.processAggregatedTimelineEvents(room, cachedEvents);
-
-      if (room.hasEncryptionStateEvent()) {
-        await to(decryptAllTimelineEvent(mx, liveTimeline));
-      }
-
-      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
-      setTimeline(
-        getInitialTimeline(room, safePaginationLimitRef.current, {
-          threadId: undefined,
-          ignoredUsersSet: recalibrateFilterOptsRef.current?.ignoredUsersSet ?? new Set(),
-          showHiddenEvents: recalibrateFilterOptsRef.current?.showHiddenEvents ?? false,
-          hideMembershipEvents: recalibrateFilterOptsRef.current?.hideMembershipEvents ?? false,
-          hideNickAvatarEvents: recalibrateFilterOptsRef.current?.hideNickAvatarEvents ?? false,
-        })
-      );
-      scrollToBottomRef.current.count += 1;
-      scrollToBottomRef.current.smooth = false;
-      setAtBottom(true);
-      logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-complete', {
-        hydratedCount: cachedEvents.length,
-        timelineWasEmpty,
-      });
-    };
-
-    hydrateRoomFromCache()
-      .catch((error) => {
-        console.error('Failed to hydrate latest room cache for', room.roomId, error);
-      })
-      .finally(() => {
-        if (!cancelled && alive() && roomIdRef.current === room.roomId && !threadIdRef.current) {
-          setRoomInitialCacheHydratedKey(room.roomId);
-        }
-        // On re-entry (preload already done for this room), clear eagerPreloading
-        // regardless of whether cache hydration ran. On initial mount the preload
-        // effect handles clearing it, so only clear when preload is already done.
-        if (!cancelled && eagerPreloadDoneForRoomRef.current === room.roomId) {
-          setEagerPreloading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [alive, eventId, mx, room, roomDebugTraceId, safePaginationLimit, sessionId, threadId]);
+  useRoomCacheHydrationController({
+    alive,
+    buildInitialTimeline: buildRoomCacheHydratedTimeline,
+    eagerPreloadDoneForRoomRef,
+    eventId,
+    mx,
+    room,
+    roomDebugTraceId,
+    roomIdRef,
+    safePaginationLimit,
+    scrollToBottomRef,
+    sessionId,
+    setAtBottom,
+    setEagerPreloading,
+    setRoomInitialCacheHydratedKey,
+    setTimeline,
+    threadId,
+    threadIdRef,
+  });
 
   const handleOpenEvent = useCallback(
     async (
