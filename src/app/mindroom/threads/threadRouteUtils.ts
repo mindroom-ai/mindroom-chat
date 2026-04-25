@@ -1,6 +1,6 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { buildResolveConfirmedEventId } from '../../features/room/threadRenderUtils';
+import { buildResolveConfirmedEventId } from './threadRenderUtils';
 
 export const isLocalEchoEventId = (eventId: string | undefined): boolean =>
   typeof eventId === 'string' && eventId.startsWith('~');

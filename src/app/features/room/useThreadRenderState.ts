@@ -6,7 +6,7 @@ import {
   getThreadInitialRenderMode,
   mergeThreadRenderEvents,
   ThreadInitialRenderMode,
-} from './threadRenderUtils';
+} from '../../mindroom/threads/threadRenderUtils';
 import { eventBelongsToThread } from './threadUtils';
 import { logTimelineDebug } from './timelineDebug';
 
