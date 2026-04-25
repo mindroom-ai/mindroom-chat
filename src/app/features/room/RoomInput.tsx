@@ -124,7 +124,7 @@ import {
   MINDROOM_COMMAND_PREFIX,
 } from '../../mindroom/commands/mindroomCommandQuery';
 import { VoiceRecorderComposer } from './VoiceRecorderDialog';
-import { isSignalBridgeRoom } from './bridgeDetection';
+import { isSignalBridgeRoom } from '../../mindroom/bridges/bridgeDetection';
 import {
   createRoomInputSendSessionState,
   getTextRelationForSendSession,
