@@ -943,7 +943,7 @@ vi.mock('../../mindroom/threads/CompactRoomView', () => ({
   CompactRoomView: compactPlaceholderType,
 }));
 
-vi.mock('./useRoomThreadList', () => ({
+vi.mock('../../mindroom/threads/useRoomThreadList', () => ({
   useRoomThreadList: (
     room: { getThreads?: () => Array<{ id?: string; rootEvent?: unknown }> } | undefined,
     enabled = true

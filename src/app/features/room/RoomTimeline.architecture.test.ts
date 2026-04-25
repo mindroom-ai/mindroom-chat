@@ -579,6 +579,35 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('refreshOverviewThreadCacheFromRelations');
   });
 
+  it('keeps room thread-list loading in MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const listCompatibilitySource = readFileSync(
+      new URL('./roomThreadList.ts', import.meta.url),
+      'utf8'
+    );
+    const hookCompatibilitySource = readFileSync(
+      new URL('./useRoomThreadList.ts', import.meta.url),
+      'utf8'
+    );
+    const listSource = readFileSync(
+      new URL('../../mindroom/threads/roomThreadList.ts', import.meta.url),
+      'utf8'
+    );
+    const hookSource = readFileSync(
+      new URL('../../mindroom/threads/useRoomThreadList.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/useRoomThreadList'");
+    expect(listCompatibilitySource).toContain("from '../../mindroom/threads/roomThreadList'");
+    expect(hookCompatibilitySource).toContain("from '../../mindroom/threads/useRoomThreadList'");
+    expect(listSource).toContain('loadRoomThreads');
+    expect(listSource).toContain('getThreadUnread');
+    expect(hookSource).toContain('useRoomThreadList');
+    expect(listCompatibilitySource).not.toContain('fetchRoomThreads');
+    expect(hookCompatibilitySource).not.toContain('ThreadEvent.NewReply');
+  });
+
   it('delegates compact root edit backfill orchestration to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 

@@ -23,7 +23,7 @@ import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { useThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
 import { useThreadScheduledTasks } from '../../hooks/useThreadScheduledTasks';
 import { useThreadStreamingState } from '../../hooks/useThreadStreamingState';
-import { getThreadUnread } from '../../features/room/roomThreadList';
+import { getThreadUnread } from '../../mindroom/threads/roomThreadList';
 
 type ReplyLayoutProps = {
   userColor?: string;

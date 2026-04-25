@@ -9,7 +9,7 @@ import { getThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
 import { getThreadStreamingState } from '../../hooks/useThreadStreamingState';
 import { resolveRecentThreadSummaryText } from '../../features/recent-threads/recentThreadSummaryUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
-import { getThreadUnread } from '../../features/room/roomThreadList';
+import { getThreadUnread } from './roomThreadList';
 import { getEffectiveThreadRootActivityTs } from './threadRouteUtils';
 import {
   getThreadPrimarySummaryText,
