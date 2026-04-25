@@ -219,7 +219,7 @@ describe('RoomTimeline', () => {
 
   it('hydrates cached room events into the live timeline', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
-    const { hydrateCachedEvents } = await import('./eventCacheEditUtils');
+    const { hydrateCachedEvents } = await import('../../mindroom/threads/eventCacheEditUtils');
     const room = makeRoom({
       liveEvents: [makeEvent('$loaded', { ts: 100 })],
     });
@@ -950,7 +950,7 @@ describe('RoomTimeline', () => {
   });
 
   it('counts reply-backed thread roots in preload surface counts even when the root is not renderable in the room timeline', async () => {
-    const { getRoomPreloadCounts } = await import('./roomTimelineEvents');
+    const { getRoomPreloadCounts } = await import('../../mindroom/threads/roomTimelineEvents');
     const fallbackRoot = makeEvent('$thread-root');
     const fallbackReply = makeEvent('$thread-reply', {
       threadRootId: fallbackRoot.getId(),
@@ -1512,7 +1512,7 @@ describe('RoomTimeline', () => {
 
   it('seeds thread fallback immediately from room-loaded replies for targeted opens before thread cache hydration resolves', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
-    const { hydrateCachedEvents } = await import('./eventCacheEditUtils');
+    const { hydrateCachedEvents } = await import('../../mindroom/threads/eventCacheEditUtils');
     const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
@@ -1827,7 +1827,7 @@ describe('RoomTimeline', () => {
 
   it('seeds untargeted first open from the richer in-memory thread snapshot when room and model seeds are thinner', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
-    const { hydrateCachedEvents } = await import('./eventCacheEditUtils');
+    const { hydrateCachedEvents } = await import('../../mindroom/threads/eventCacheEditUtils');
     const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
@@ -4201,7 +4201,7 @@ describe('RoomTimeline', () => {
   });
 
   it('filters hidden relations, thread replies, and ignored senders in isRenderableEvent', async () => {
-    const { isRenderableEvent } = await import('./roomTimelineEvents');
+    const { isRenderableEvent } = await import('../../mindroom/threads/roomTimelineEvents');
     const baseArgs = [
       makeRoom() as never,
       undefined,
@@ -4239,7 +4239,7 @@ describe('RoomTimeline', () => {
   });
 
   it('applies membership and hidden-event toggles in isRenderableEvent', async () => {
-    const { isRenderableEvent } = await import('./roomTimelineEvents');
+    const { isRenderableEvent } = await import('../../mindroom/threads/roomTimelineEvents');
     const room = makeRoom();
     const membershipEvent = makeEvent('$member', { type: 'm.room.member' });
     isMembershipChangedMock.mockReturnValue(true);

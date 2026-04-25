@@ -99,7 +99,7 @@ describe('RoomTimeline', () => {
 
   it('computes room-event focus against the frozen overview order', async () => {
     const { getRoomEventFocusTarget } = await import('./RoomTimeline');
-    const { createThreadSortControlSignature } = await import('./roomThreadOverviewModel');
+    const { createThreadSortControlSignature } = await import('../../mindroom/threads/roomThreadOverviewModel');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
     const thirdThread = makeEvent('$thread-3', { isThreadRoot: true });
@@ -144,7 +144,7 @@ describe('RoomTimeline', () => {
 
   it('computes room-event focus against compact-only roots in the frozen compact order', async () => {
     const { getRoomEventFocusTarget } = await import('./RoomTimeline');
-    const { createThreadSortControlSignature } = await import('./roomThreadOverviewModel');
+    const { createThreadSortControlSignature } = await import('../../mindroom/threads/roomThreadOverviewModel');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
     const compactOnlyThread = makeEvent('$thread-3', { isThreadRoot: true });

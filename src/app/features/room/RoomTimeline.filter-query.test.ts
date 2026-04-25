@@ -6,9 +6,9 @@ import {
   createDefaultThreadFilterState,
   FILTER_PRESETS,
   updateThreadFilterKey,
-} from './roomThreadOverviewModel';
+} from '../../mindroom/threads/roomThreadOverviewModel';
 import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../mindroom/threads/scheduledTaskContract';
-import { applyParsedThreadFilterQuery, parseThreadFilterQuery, serializeThreadFilterQuery } from './threadFilterDsl';
+import { applyParsedThreadFilterQuery, parseThreadFilterQuery, serializeThreadFilterQuery } from '../../mindroom/threads/threadFilterDsl';
 import { create, flushAsyncWork, getRenderedEventIds, makeEvent, makeRoom, roomThreadOverviewType, stateEventsByTypeMock, threadStreamingStateMock } from './RoomTimeline.test.shared';
 
 const { scheduledEventsByType } = vi.hoisted(() => ({
