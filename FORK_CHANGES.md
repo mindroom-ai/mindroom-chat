@@ -166,6 +166,10 @@
 - `CINNY-158`
   - Reply-message cache-aware event lookup and thread indicator mounting now live behind `src/app/mindroom/messages/replyExtensions.tsx`.
   - Generic `Reply` renders the MindRoom reply seam instead of importing thread cache hooks or thread indicator internals directly.
+- `CINNY-159`
+  - Local MindRoom settings page identity now lives in `src/app/mindroom/local-mindroom/settingsPage.ts` instead of the generic `SettingsPages` enum.
+  - Local MindRoom settings rendering now lives behind `src/app/mindroom/local-mindroom/settingsRenderer.tsx`, so generic settings code mounts a narrow render seam instead of importing the page implementation directly.
+  - The sidebar Local MindRoom shortcut opens the MindRoom-owned page id constant instead of depending on a generic MindRoom settings enum member.
 
 ### Current Feature Set On `dev`
 

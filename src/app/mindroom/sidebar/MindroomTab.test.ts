@@ -31,9 +31,6 @@ vi.mock('../../components/Modal500', () => ({
 
 vi.mock('../../features/settings', () => ({
   Settings: () => React.createElement('div'),
-  SettingsPages: {
-    LocalMindroomPage: 'LocalMindroomPage',
-  },
 }));
 
 describe('MindroomTab', () => {

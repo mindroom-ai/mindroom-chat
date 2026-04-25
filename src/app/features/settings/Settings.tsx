@@ -29,7 +29,6 @@ import { Devices } from './devices';
 import { EmojisStickers } from './emojis-stickers';
 import { DeveloperTools } from './developer-tools';
 import { About } from './about';
-import { LocalMindroom } from '../../mindroom/local-mindroom/LocalMindroom';
 import { UseStateProvider } from '../../components/UseStateProvider';
 import { stopPropagation } from '../../utils/keyboard';
 import { LogoutDialog } from '../../components/LogoutDialog';
@@ -39,13 +38,14 @@ import {
   resolveSettingsInitialPage,
   type SettingsMenuItem,
 } from './settingsMenu';
-import { SettingsPages } from './settingsPages';
+import { SettingsPage, SettingsPages } from './settingsPages';
+import { renderLocalMindroomSettingsPage } from '../../mindroom/local-mindroom/settingsRenderer';
 
 const useSettingsMenuItems = (showLocalMindRoom: boolean): SettingsMenuItem[] =>
   useMemo(() => getSettingsMenuItems(showLocalMindRoom), [showLocalMindRoom]);
 
 type SettingsProps = {
-  initialPage?: SettingsPages;
+  initialPage?: SettingsPage;
   requestClose: () => void;
 };
 export function Settings({ initialPage, requestClose }: SettingsProps) {
@@ -61,7 +61,7 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
 
   const screenSize = useScreenSizeContext();
   const showLocalMindRoom = sidebar?.showMindRoom ?? true;
-  const [activePage, setActivePage] = useState<SettingsPages | undefined>(() =>
+  const [activePage, setActivePage] = useState<SettingsPage | undefined>(() =>
     resolveSettingsInitialPage(initialPage, screenSize, showLocalMindRoom)
   );
   const menuItems = useSettingsMenuItems(showLocalMindRoom);
@@ -178,9 +178,7 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
       {activePage === SettingsPages.EmojisStickersPage && (
         <EmojisStickers requestClose={handlePageRequestClose} />
       )}
-      {showLocalMindRoom && activePage === SettingsPages.LocalMindroomPage && (
-        <LocalMindroom requestClose={handlePageRequestClose} />
-      )}
+      {renderLocalMindroomSettingsPage(activePage, showLocalMindRoom, handlePageRequestClose)}
       {activePage === SettingsPages.DeveloperToolsPage && (
         <DeveloperTools requestClose={handlePageRequestClose} />
       )}

@@ -1161,11 +1161,22 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/local-mindroom/settingsMenu.ts', import.meta.url),
       'utf8'
     );
+    const settingsPageSource = readFileSync(
+      new URL('../../mindroom/local-mindroom/settingsPage.ts', import.meta.url),
+      'utf8'
+    );
+    const settingsRendererSource = readFileSync(
+      new URL('../../mindroom/local-mindroom/settingsRenderer.tsx', import.meta.url),
+      'utf8'
+    );
 
     removedLocalMindroomCompatibilityPaths.forEach((path) => {
       expect(existsSync(new URL(path, import.meta.url))).toBe(false);
     });
     expect(settingsSource).toContain(
+      "from '../../mindroom/local-mindroom/settingsRenderer'"
+    );
+    expect(settingsSource).not.toContain(
       "from '../../mindroom/local-mindroom/LocalMindroom'"
     );
     expect(settingsSource).not.toContain("from './local-mindroom'");
@@ -1179,6 +1190,9 @@ describe('RoomTimeline architecture', () => {
     expect(helperSource).toContain('getMindroomPairingCommand');
     expect(settingsMenuItemSource).toContain('getLocalMindroomSettingsMenuItem');
     expect(settingsMenuItemSource).toContain('MINDROOM_APP_NAME');
+    expect(settingsPageSource).toContain('LOCAL_MINDROOM_SETTINGS_PAGE');
+    expect(settingsRendererSource).toContain('renderLocalMindroomSettingsPage');
+    expect(settingsRendererSource).toContain('LocalMindroom');
   });
 
   it('keeps the Local MindRoom sidebar shortcut in the MindRoom namespace', () => {
@@ -1203,7 +1217,7 @@ describe('RoomTimeline architecture', () => {
     expect(sidebarIndexSource).not.toContain('MindroomTab');
     expect(sidebarNavSource).toContain("from '../../mindroom/sidebar/MindroomTab'");
     expect(implementationSource).toContain('Local MindRoom');
-    expect(implementationSource).toContain('SettingsPages.LocalMindroomPage');
+    expect(implementationSource).toContain('LOCAL_MINDROOM_SETTINGS_PAGE');
   });
 
   it('keeps the Recent Threads feature in the MindRoom namespace', () => {
