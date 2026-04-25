@@ -29,7 +29,7 @@ import { Devices } from './devices';
 import { EmojisStickers } from './emojis-stickers';
 import { DeveloperTools } from './developer-tools';
 import { About } from './about';
-import { LocalMindroom } from './local-mindroom';
+import { LocalMindroom } from '../../mindroom/local-mindroom/LocalMindroom';
 import { UseStateProvider } from '../../components/UseStateProvider';
 import { stopPropagation } from '../../utils/keyboard';
 import { LogoutDialog } from '../../components/LogoutDialog';

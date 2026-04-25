@@ -1146,24 +1146,18 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps Local MindRoom settings implementation in the MindRoom namespace', () => {
+    const removedLocalMindroomCompatibilityPaths = [
+      '../settings/local-mindroom/LocalMindroom.tsx',
+      '../settings/local-mindroom/api.ts',
+      '../settings/local-mindroom/index.ts',
+      '../settings/local-mindroom/mindroom.ts',
+    ];
     const settingsSource = readFileSync(
       new URL('../settings/Settings.tsx', import.meta.url),
       'utf8'
     );
     const settingsMenuSource = readFileSync(
       new URL('../settings/settingsMenu.ts', import.meta.url),
-      'utf8'
-    );
-    const pageCompatibilitySource = readFileSync(
-      new URL('../settings/local-mindroom/LocalMindroom.tsx', import.meta.url),
-      'utf8'
-    );
-    const apiCompatibilitySource = readFileSync(
-      new URL('../settings/local-mindroom/api.ts', import.meta.url),
-      'utf8'
-    );
-    const helperCompatibilitySource = readFileSync(
-      new URL('../settings/local-mindroom/mindroom.ts', import.meta.url),
       'utf8'
     );
     const pageSource = readFileSync(
@@ -1183,20 +1177,17 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(settingsSource).toContain("import { LocalMindroom } from './local-mindroom'");
+    removedLocalMindroomCompatibilityPaths.forEach((path) => {
+      expect(existsSync(new URL(path, import.meta.url))).toBe(false);
+    });
+    expect(settingsSource).toContain(
+      "from '../../mindroom/local-mindroom/LocalMindroom'"
+    );
+    expect(settingsSource).not.toContain("from './local-mindroom'");
     expect(settingsMenuSource).toContain(
       "from '../../mindroom/local-mindroom/settingsMenu'"
     );
     expect(settingsMenuSource).not.toContain("from '../../mindroom/branding/branding'");
-    expect(pageCompatibilitySource.trim()).toBe(
-      "export { LocalMindroom } from '../../../mindroom/local-mindroom/LocalMindroom';"
-    );
-    expect(apiCompatibilitySource.trim()).toBe(
-      "export * from '../../../mindroom/local-mindroom/api';"
-    );
-    expect(helperCompatibilitySource.trim()).toBe(
-      "export * from '../../../mindroom/local-mindroom/mindroom';"
-    );
     expect(pageSource).toContain('Connect Local MindRoom');
     expect(pageSource).toContain('resolveMindroomProvisioningRequest');
     expect(apiSource).toContain('LOCAL_MINDROOM_API_PATH');

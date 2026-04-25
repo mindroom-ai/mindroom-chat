@@ -115,6 +115,9 @@
 - `CINNY-139`
   - Removed the generic `src/app/features/recent-threads` compatibility wrapper folder.
   - Home, direct, and space page shells now mount the Recent Threads page navigation from the MindRoom-owned module directly.
+- `CINNY-140`
+  - Removed the generic `src/app/features/settings/local-mindroom` compatibility wrapper folder.
+  - The settings modal now mounts the Local MindRoom page from the MindRoom-owned module directly.
 
 ### Current Feature Set On `dev`
 
