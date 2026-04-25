@@ -148,10 +148,20 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates overview cache hydration to the MindRoom thread namespace', () => {
     const source = readFileSync(new URL('../../../features/room/RoomTimeline.tsx', import.meta.url), 'utf8');
+    const indexSource = readFileSync(
+      new URL('../useMindroomThreadIndex.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).not.toContain("from './useThreadOverviewCacheHydration'");
     expect(source).not.toContain('useThreadOverviewCacheHydration');
     expect(source).toContain('useMindroomThreadIndex');
+    expect(indexSource).toContain('useThreadOverviewCachedMetadata');
+    expect(indexSource).not.toContain('setCachedThreadLastActivityTsMap');
+    expect(indexSource).not.toContain('setCachedThreadLatestReplyPreviewMap');
+    expect(indexSource).not.toContain('setCachedThreadLastSenderIdMap');
+    expect(indexSource).not.toContain('setCachedThreadMessageCountMap');
+    expect(indexSource).not.toContain('setCachedThreadCoverageMap');
   });
 
   it('delegates per-room thread index assembly to the MindRoom thread namespace', () => {

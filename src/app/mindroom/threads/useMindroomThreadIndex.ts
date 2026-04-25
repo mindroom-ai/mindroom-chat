@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { buildThreadSummaryMap, type MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
@@ -38,7 +30,7 @@ import {
   resolveFetchedRelationOverviewUpdate,
   type FetchedRelationOverviewUpdateOptions,
 } from './threadOverviewCacheHydration';
-import type { ThreadCacheCoverage, ThreadRecord } from './types';
+import type { ThreadRecord } from './types';
 import { buildVisibleThreadParticipantMap, buildVisibleThreadReplyCountMap } from './threadUtils';
 import {
   DIRECT_ROOM_TIMELINE_FILTER_STATE,
@@ -57,6 +49,10 @@ import {
   buildRoomThreadScheduledStatusMap,
   type ThreadScheduledStatus,
 } from './threadScheduledStatus';
+import {
+  mergeCompactThreadRootBodyMaps,
+  useThreadOverviewCachedMetadata,
+} from './threadOverviewCacheMetadata';
 
 type ThreadResolutionLike = {
   isResolved: boolean;
@@ -73,21 +69,6 @@ const EMPTY_ORDERING: ThreadIndexOrdering = {
   filteredIds: [],
   liveOrderedIds: [],
   displayOrderedIds: [],
-};
-
-const setMapEntry = <K, V>(
-  setMap: Dispatch<SetStateAction<Map<K, V>>>,
-  key: K,
-  value: V | undefined
-): void => {
-  if (value === undefined) return;
-
-  setMap((prev) => {
-    if (Object.is(prev.get(key), value)) return prev;
-    const next = new Map(prev);
-    next.set(key, value);
-    return next;
-  });
 };
 
 export type MindroomThreadIndexSnapshot = {
@@ -453,43 +434,14 @@ export const useMindroomThreadIndex = ({
     const readUpToEvent = room.findEventById(readUpToId);
     return readUpToEvent?.getTs();
   }, [threadId, room, currentUserId, overviewRefreshCounter]);
-  const [compactCachedThreadRootBodyMap, setCompactCachedThreadRootBodyMap] = useState(
-    () => new Map<string, string>()
-  );
-  const [cachedThreadLastActivityTsMap, setCachedThreadLastActivityTsMap] = useState(
-    () => new Map<string, number>()
-  );
-  const [cachedThreadLatestReplyPreviewMap, setCachedThreadLatestReplyPreviewMap] = useState(
-    () => new Map<string, string>()
-  );
-  const [cachedThreadLastSenderIdMap, setCachedThreadLastSenderIdMap] = useState(
-    () => new Map<string, string>()
-  );
-  const [cachedThreadMessageCountMap, setCachedThreadMessageCountMap] = useState(
-    () => new Map<string, number>()
-  );
-  const [cachedThreadCoverageMap, setCachedThreadCoverageMap] = useState(
-    () => new Map<string, ThreadCacheCoverage>()
-  );
-  const compactCachedRootPreviewAttemptCountsRef = useRef<Map<string, number>>(new Map());
-
-  useEffect(() => {
-    compactCachedRootPreviewAttemptCountsRef.current = new Map();
-    setCompactCachedThreadRootBodyMap(new Map());
-    setCachedThreadLastActivityTsMap(new Map());
-    setCachedThreadLatestReplyPreviewMap(new Map());
-    setCachedThreadLastSenderIdMap(new Map());
-    setCachedThreadMessageCountMap(new Map());
-    setCachedThreadCoverageMap(new Map());
-  }, [room.roomId]);
+  const cachedMetadata = useThreadOverviewCachedMetadata(room.roomId);
 
   const compactThreadRootBodyMap = useMemo(() => {
-    const bodyMap = new Map(compactThreadRootData.bodyMap);
-    compactCachedThreadRootBodyMap.forEach((value, key) => {
-      bodyMap.set(key, value);
-    });
-    return bodyMap;
-  }, [compactThreadRootData.bodyMap, compactCachedThreadRootBodyMap]);
+    return mergeCompactThreadRootBodyMaps(
+      compactThreadRootData.bodyMap,
+      cachedMetadata.compactRootBodyMap
+    );
+  }, [compactThreadRootData.bodyMap, cachedMetadata.compactRootBodyMap]);
 
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(
     requestedThreadFilterState.searchQuery ?? ''
@@ -550,16 +502,16 @@ export const useMindroomThreadIndex = ({
       fallbackSummaryMap: threadSummaryInfoMap,
       fallbackReplyCountMap: threadReplyCountMap,
       rootPreviewTextMap: visibleThreadRootData.bodyMap,
-      fallbackLatestReplyPreviewMap: cachedThreadLatestReplyPreviewMap,
-      fallbackLastSenderIdMap: cachedThreadLastSenderIdMap,
-      fallbackMessageCountMap: cachedThreadMessageCountMap,
-      fallbackLastActivityTsMap: cachedThreadLastActivityTsMap,
+      fallbackLatestReplyPreviewMap: cachedMetadata.latestReplyPreviewMap,
+      fallbackLastSenderIdMap: cachedMetadata.lastSenderIdMap,
+      fallbackMessageCountMap: cachedMetadata.messageCountMap,
+      fallbackLastActivityTsMap: cachedMetadata.lastActivityTsMap,
       fallbackParticipantMap: threadParticipantMap,
       threadResolutionMap,
       currentUserId,
       readUpToTs: readUpToTs ?? null,
       scheduledStatusMap,
-      cacheCoverageMap: cachedThreadCoverageMap,
+      cacheCoverageMap: cachedMetadata.coverageMap,
       absoluteIndexMap: visibleThreadRootData.indexMap,
     });
   }, [
@@ -572,11 +524,11 @@ export const useMindroomThreadIndex = ({
     summaryMap,
     threadSummaryInfoMap,
     threadReplyCountMap,
-    cachedThreadLatestReplyPreviewMap,
-    cachedThreadLastSenderIdMap,
-    cachedThreadMessageCountMap,
-    cachedThreadLastActivityTsMap,
-    cachedThreadCoverageMap,
+    cachedMetadata.latestReplyPreviewMap,
+    cachedMetadata.lastSenderIdMap,
+    cachedMetadata.messageCountMap,
+    cachedMetadata.lastActivityTsMap,
+    cachedMetadata.coverageMap,
     threadParticipantMap,
     threadResolutionMap,
     currentUserId,
@@ -598,16 +550,16 @@ export const useMindroomThreadIndex = ({
       fallbackSummaryMap: threadSummaryInfoMap,
       fallbackReplyCountMap: threadReplyCountMap,
       rootPreviewTextMap: compactThreadRootBodyMap,
-      fallbackLatestReplyPreviewMap: cachedThreadLatestReplyPreviewMap,
-      fallbackLastSenderIdMap: cachedThreadLastSenderIdMap,
-      fallbackMessageCountMap: cachedThreadMessageCountMap,
-      fallbackLastActivityTsMap: cachedThreadLastActivityTsMap,
+      fallbackLatestReplyPreviewMap: cachedMetadata.latestReplyPreviewMap,
+      fallbackLastSenderIdMap: cachedMetadata.lastSenderIdMap,
+      fallbackMessageCountMap: cachedMetadata.messageCountMap,
+      fallbackLastActivityTsMap: cachedMetadata.lastActivityTsMap,
       fallbackParticipantMap: threadParticipantMap,
       threadResolutionMap,
       currentUserId,
       readUpToTs: readUpToTs ?? null,
       scheduledStatusMap,
-      cacheCoverageMap: cachedThreadCoverageMap,
+      cacheCoverageMap: cachedMetadata.coverageMap,
       absoluteIndexMap: compactThreadRootData.indexMap,
     });
   }, [
@@ -622,11 +574,11 @@ export const useMindroomThreadIndex = ({
     summaryMap,
     threadSummaryInfoMap,
     threadReplyCountMap,
-    cachedThreadLatestReplyPreviewMap,
-    cachedThreadLastSenderIdMap,
-    cachedThreadMessageCountMap,
-    cachedThreadLastActivityTsMap,
-    cachedThreadCoverageMap,
+    cachedMetadata.latestReplyPreviewMap,
+    cachedMetadata.lastSenderIdMap,
+    cachedMetadata.messageCountMap,
+    cachedMetadata.lastActivityTsMap,
+    cachedMetadata.coverageMap,
     threadParticipantMap,
     threadResolutionMap,
     currentUserId,
@@ -700,18 +652,9 @@ export const useMindroomThreadIndex = ({
     mx,
     showCompactRoomView: snapshot.showCompactRoomView,
     compactThreadRootBodyMap: compactThreadRootData.bodyMap,
-    compactCachedThreadRootBodyMap,
-    cachedThreadLastActivityTsMap,
-    cachedThreadCoverageMap,
     compactThreadRecordMap: snapshot.compactThreadRecordMap,
     threadRecordMap: snapshot.normalThreadRecordMap,
-    compactCachedRootPreviewAttemptCountsRef,
-    setCompactCachedThreadRootBodyMap,
-    setCachedThreadLastActivityTsMap,
-    setCachedThreadLatestReplyPreviewMap,
-    setCachedThreadLastSenderIdMap,
-    setCachedThreadMessageCountMap,
-    setCachedThreadCoverageMap,
+    cachedMetadata,
     onStoreThreadSummary,
   });
 
@@ -737,11 +680,7 @@ export const useMindroomThreadIndex = ({
       });
       if (!update) return;
 
-      setMapEntry(setCachedThreadLastActivityTsMap, rootId, update.nextActivityTs);
-      setMapEntry(setCachedThreadLatestReplyPreviewMap, rootId, update.nextReplyPreviewText);
-      setMapEntry(setCachedThreadLastSenderIdMap, rootId, update.nextLastSenderId);
-      setMapEntry(setCachedThreadMessageCountMap, rootId, update.nextMessageCount);
-      setMapEntry(setCachedThreadCoverageMap, rootId, update.nextCacheCoverage);
+      cachedMetadata.applyUpdate(update, { includeCompactRootBody: false });
 
       if (update.nextSummaryInfo?.summaryText) {
         onStoreThreadSummary(rootId, update.nextSummaryInfo);
@@ -749,6 +688,7 @@ export const useMindroomThreadIndex = ({
     },
     [
       compactThreadRecordMap,
+      cachedMetadata,
       normalThreadRecordMap,
       onStoreThreadSummary,
       room,
