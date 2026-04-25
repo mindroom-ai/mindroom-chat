@@ -2113,3 +2113,9 @@
 - Updated `src/client/initMatrix.ts` to call that boundary instead of importing individual MindRoom cache, recent-thread, iOS push, and edit-debug owners directly.
 - Exported fork-owned cache DB name constants from the room/thread event cache stores so generic client cleanup no longer owns raw `mindroom-*-event-cache` names.
 - Kept cleanup imports pointed at the fork-owned long-text owner instead of the generic compatibility export.
+
+## CINNY-106 — Extract MindRoom client route restore helpers (2026-04-25)
+
+- Added `src/app/mindroom/routing/clientRouteRestore.ts` for startup thread restore path parsing, saved-route room-id extraction, alias-route detection, and route canonicalization.
+- Reduced `ClientLayout` to React integration: it now wires route restore/canonicalization effects to the fork-owned helper instead of owning the parsing and alias-resolution policy inline.
+- Added focused route-helper coverage for saved-route parsing, thread restore query preservation, alias detection, local alias canonicalization, and homeserver alias resolution fallback.
