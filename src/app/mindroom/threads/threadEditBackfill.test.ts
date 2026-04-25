@@ -4,7 +4,7 @@ import {
   hasLikelyIncompleteStreamingBody,
   markThreadEditBackfillAttempted,
   shouldFetchThreadEditBackfill,
-} from '../../mindroom/threads/threadEditBackfill';
+} from './threadEditBackfill';
 
 const makeMessageEvent = (eventId: string, type = 'm.room.message') =>
   new MatrixEvent({

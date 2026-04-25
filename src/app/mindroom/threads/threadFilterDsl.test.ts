@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ThreadFilterState } from '../../mindroom/threads/roomThreadOverviewModel';
-import { parseThreadFilterQuery, serializeThreadFilterQuery } from '../../mindroom/threads/threadFilterDsl';
+import type { ThreadFilterState } from './roomThreadOverviewModel';
+import { parseThreadFilterQuery, serializeThreadFilterQuery } from './threadFilterDsl';
 
 const makeState = (overrides: Partial<ThreadFilterState> = {}): ThreadFilterState => ({
   resolved: 'any',
