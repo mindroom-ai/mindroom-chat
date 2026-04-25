@@ -64,7 +64,7 @@ import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import {
   getToolApprovalRenderContent,
   MINDROOM_TOOL_APPROVAL_EVENT,
-} from '../../../components/message/mindroomToolApproval';
+} from '../../../mindroom/messages/toolApproval';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
 import * as customHtmlCss from '../../../styles/CustomHtml.css';
