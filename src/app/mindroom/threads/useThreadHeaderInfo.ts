@@ -1,50 +1,24 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import {
   formatScheduledTime,
   getScheduledTimeUpdateInterval,
 } from './compactThreadCardUtils';
 import { useThreadRootEvent } from './useThreadRootEvent';
-import {
-  MINDROOM_SCHEDULED_TASK_EVENT,
-  parseScheduledTaskStateEvent,
-} from './scheduledTaskContract';
+import { MINDROOM_SCHEDULED_TASK_EVENT } from './scheduledTaskContract';
 import { useInterval } from '../../hooks/useInterval';
 import { useStateEvents } from './useStateEvents';
-import { useThreadScheduledTasks } from './useThreadScheduledTasks';
+import {
+  buildRoomThreadScheduledStatusMap,
+  getThreadScheduledStatus,
+} from './threadScheduledStatus';
+
+export { getNextThreadScheduledTs } from './threadScheduledStatus';
 
 export type ThreadHeaderInfo = {
   scheduledTaskCount: number;
   nextScheduledTs?: number;
   scheduledDisplayText?: string;
-};
-
-export const getNextThreadScheduledTs = (
-  scheduledTaskEvents: MatrixEvent[],
-  threadRootId: string | undefined,
-  now = Date.now()
-): number | undefined => {
-  if (!threadRootId) return undefined;
-
-  let nextTs: number | undefined;
-
-  scheduledTaskEvents.forEach((event) => {
-    const parsedTask = parseScheduledTaskStateEvent(event);
-    if (!parsedTask) return;
-    if (parsedTask.status !== 'pending') return;
-    if (parsedTask.threadId !== threadRootId || parsedTask.newThread) return;
-    if (!parsedTask.executeAt) return;
-
-    const executeAtTs = Date.parse(parsedTask.executeAt);
-    if (!Number.isFinite(executeAtTs) || executeAtTs <= now) return;
-
-    if (nextTs === undefined || executeAtTs < nextTs) {
-      nextTs = executeAtTs;
-    }
-  });
-
-  return nextTs;
 };
 
 export const getThreadHeaderScheduledDisplayText = (
@@ -61,16 +35,20 @@ export const useThreadHeaderInfo = (
   threadId: string | undefined
 ): ThreadHeaderInfo => {
   const threadRootId = useThreadRootEvent(room, threadId);
-  const scheduledTaskCount = useThreadScheduledTasks(room, threadRootId);
   const scheduledTaskEvents = useStateEvents(room, MINDROOM_SCHEDULED_TASK_EVENT);
   const [, setRefreshVersion] = useState(0);
   const refresh = useCallback(() => {
     setRefreshVersion((version) => version + 1);
   }, []);
-  const nextScheduledTs = useMemo(
-    () => getNextThreadScheduledTs(scheduledTaskEvents, threadRootId),
+  const scheduledStatus = useMemo(
+    () =>
+      getThreadScheduledStatus(
+        buildRoomThreadScheduledStatusMap(scheduledTaskEvents),
+        threadRootId
+      ),
     [scheduledTaskEvents, threadRootId]
   );
+  const { scheduledTaskCount, nextScheduledTs } = scheduledStatus;
   const scheduledDisplayText = getThreadHeaderScheduledDisplayText(scheduledTaskCount, nextScheduledTs);
   const intervalMs =
     nextScheduledTs === undefined ? -1 : getScheduledTimeUpdateInterval(nextScheduledTs);

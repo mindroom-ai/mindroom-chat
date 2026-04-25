@@ -116,7 +116,9 @@ describe('buildThreadRecord', () => {
       rootPreviewText: 'Cached root preview',
       fallbackLatestReplyPreviewText: 'stale cached reply',
       fallbackMessageCount: 4,
-      scheduledTaskCount: 2,
+      scheduledStatus: {
+        scheduledTaskCount: 2,
+      },
       currentUserId: '@me:server',
       readUpToTs: null,
       threadResolution: {
@@ -295,7 +297,7 @@ describe('buildThreadRecord', () => {
           },
         ],
       ]),
-      scheduledTaskCounts: new Map([['$root', 2]]),
+      scheduledStatusMap: new Map([['$root', { scheduledTaskCount: 2 }]]),
       absoluteIndexMap: new Map([['$root', 5]]),
     });
 

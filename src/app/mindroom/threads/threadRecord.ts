@@ -6,7 +6,6 @@ import {
 } from '../messages/threadSummary';
 import { getThreadStreamingState } from './useThreadStreamingState';
 import { getThreadLastActivityTs } from './useThreadLastActivityTs';
-import { getNextThreadScheduledTs } from './useThreadHeaderInfo';
 import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
 import { getThreadUnread } from './roomThreadList';
@@ -21,6 +20,10 @@ import {
   getPreferredVisibleThreadReplyEvents,
   getVisibleThreadParticipantIds,
 } from './threadUtils';
+import {
+  EMPTY_THREAD_SCHEDULED_STATUS,
+  type ThreadScheduledStatus,
+} from './threadScheduledStatus';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
 
 const THREAD_PARTICIPANT_LIMIT = 3;
@@ -47,9 +50,7 @@ type BuildThreadRecordOptions = {
   threadResolution?: ThreadResolutionLike;
   currentUserId?: string;
   readUpToTs?: number | null;
-  scheduledTaskEvents?: MatrixEvent[];
-  scheduledTaskCount?: number;
-  nextScheduledTs?: number;
+  scheduledStatus?: ThreadScheduledStatus;
   cacheCoverage?: ThreadCacheCoverage;
   absoluteIndex?: number;
 };
@@ -71,8 +72,7 @@ type BuildThreadRecordMapOptions = {
   threadResolutionMap?: ReadonlyMap<string, ThreadResolutionLike>;
   currentUserId?: string;
   readUpToTs?: number | null;
-  scheduledTaskEvents?: MatrixEvent[];
-  scheduledTaskCounts?: ReadonlyMap<string, number>;
+  scheduledStatusMap?: ReadonlyMap<string, ThreadScheduledStatus>;
   cacheCoverageMap?: ReadonlyMap<string, ThreadCacheCoverage>;
   absoluteIndexMap?: ReadonlyMap<string, number>;
 };
@@ -231,9 +231,7 @@ export const buildThreadRecord = ({
   threadResolution,
   currentUserId,
   readUpToTs,
-  scheduledTaskEvents = [],
-  scheduledTaskCount,
-  nextScheduledTs,
+  scheduledStatus = EMPTY_THREAD_SCHEDULED_STATUS,
   cacheCoverage,
   absoluteIndex,
 }: BuildThreadRecordOptions): ThreadRecord => {
@@ -283,11 +281,9 @@ export const buildThreadRecord = ({
     fallbackMessageCount: fallbackMessageCount ?? recordReplyCount,
     fallbackParticipantIds,
   });
-  const resolvedScheduledTaskCount = scheduledTaskCount ?? 0;
+  const resolvedScheduledTaskCount = scheduledStatus.scheduledTaskCount;
   const resolvedNextScheduledTs =
-    resolvedScheduledTaskCount > 0
-      ? nextScheduledTs ?? getNextThreadScheduledTs(scheduledTaskEvents, threadRootId)
-      : undefined;
+    resolvedScheduledTaskCount > 0 ? scheduledStatus.nextScheduledTs : undefined;
   const liveLastActivityTs = getThreadLastActivityTs(room, threadRootId) ?? 0;
   const lastActivityTs =
     Math.max(
@@ -356,8 +352,7 @@ export const buildThreadRecordMap = ({
   threadResolutionMap,
   currentUserId,
   readUpToTs,
-  scheduledTaskEvents,
-  scheduledTaskCounts,
+  scheduledStatusMap,
   cacheCoverageMap,
   absoluteIndexMap,
 }: BuildThreadRecordMapOptions): Map<string, ThreadRecord> => {
@@ -383,8 +378,7 @@ export const buildThreadRecordMap = ({
         threadResolution: threadResolutionMap?.get(threadRootId),
         currentUserId,
         readUpToTs,
-        scheduledTaskEvents,
-        scheduledTaskCount: scheduledTaskCounts?.get(threadRootId),
+        scheduledStatus: scheduledStatusMap?.get(threadRootId),
         cacheCoverage: cacheCoverageMap?.get(threadRootId),
         absoluteIndex: absoluteIndexMap?.get(threadRootId),
       })

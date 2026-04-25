@@ -16,6 +16,7 @@ import {
   matchesThreadRecordFilterState,
   resolveThreadRecordOverviewRootIds,
 } from './threadRecordOverview';
+import type { ThreadScheduledStatus } from './threadScheduledStatus';
 import type { ThreadRecord } from './types';
 
 type ThreadResolutionLike = {
@@ -85,7 +86,7 @@ const getFilteredRoomOverviewEvents = (
   threadResolutionMap: Map<string, ThreadResolutionLike>,
   threadFilterState: ThreadFilterState,
   threadReplyCountMap: Map<string, number> | undefined,
-  scheduledTaskCounts: Map<string, number>,
+  scheduledStatusMap: Map<string, ThreadScheduledStatus>,
   threadReplyCountMapForMeta: Map<string, number>,
   threadParticipantMap: Map<string, string[]>,
   summaryMap: Map<string, MindroomThreadSummaryInfo>,
@@ -156,7 +157,7 @@ const getFilteredRoomOverviewEvents = (
     threadResolutionMap,
     currentUserId,
     readUpToTs: readUpToTs ?? null,
-    scheduledTaskCounts,
+    scheduledStatusMap,
     absoluteIndexMap: activeThreadRootData.indexMap,
   });
 
@@ -185,7 +186,7 @@ export const getRoomEventFocusTarget = ({
   threadId,
   threadFilterState,
   threadReplyCountMap,
-  scheduledTaskCounts,
+  scheduledStatusMap,
   threadReplyCountMapForMeta,
   threadParticipantMap,
   summaryMap,
@@ -205,7 +206,7 @@ export const getRoomEventFocusTarget = ({
   threadId: string | undefined;
   threadFilterState: ThreadFilterState;
   threadReplyCountMap?: Map<string, number>;
-  scheduledTaskCounts: Map<string, number>;
+  scheduledStatusMap: Map<string, ThreadScheduledStatus>;
   threadReplyCountMapForMeta: Map<string, number>;
   threadParticipantMap: Map<string, string[]>;
   summaryMap: Map<string, MindroomThreadSummaryInfo>;
@@ -243,7 +244,7 @@ export const getRoomEventFocusTarget = ({
         threadResolutionMap,
         threadFilterState,
         threadReplyCountMap,
-        scheduledTaskCounts,
+        scheduledStatusMap,
         threadReplyCountMapForMeta,
         threadParticipantMap,
         summaryMap,

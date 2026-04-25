@@ -20,7 +20,6 @@ import {
 import {
   createThreadSortControlSignature,
   collectAvailableRoomTags,
-  getRoomScheduledTaskCounts,
   isRoomThreadOverviewActive,
   type StatusCounts,
   type ThreadFilterState,
@@ -54,6 +53,10 @@ import {
 import { useStateEvents } from './useStateEvents';
 import { useRoomThreadList } from './useRoomThreadList';
 import { MINDROOM_SCHEDULED_TASK_EVENT } from './scheduledTaskContract';
+import {
+  buildRoomThreadScheduledStatusMap,
+  type ThreadScheduledStatus,
+} from './threadScheduledStatus';
 
 type ThreadResolutionLike = {
   isResolved: boolean;
@@ -118,7 +121,7 @@ export type UseMindroomThreadIndexResult = MindroomThreadIndexSnapshot & {
   threadReplyCountMap: Map<string, number>;
   threadParticipantMap: Map<string, string[]>;
   threadSummaryInfoMap: Map<string, MindroomThreadSummaryInfo>;
-  scheduledTaskCounts: Map<string, number>;
+  scheduledStatusMap: Map<string, ThreadScheduledStatus>;
   availableRoomTags: string[];
   readUpToTs: number | undefined;
   roomThreadListThreads: Thread[];
@@ -352,8 +355,11 @@ export const useMindroomThreadIndex = ({
     [threadId, loadedTimelineEvents]
   );
   const scheduledTaskEvents = useStateEvents(room, MINDROOM_SCHEDULED_TASK_EVENT);
-  const scheduledTaskCounts = useMemo(
-    () => (threadId ? new Map<string, number>() : getRoomScheduledTaskCounts(scheduledTaskEvents)),
+  const scheduledStatusMap = useMemo(
+    () =>
+      threadId
+        ? new Map<string, ThreadScheduledStatus>()
+        : buildRoomThreadScheduledStatusMap(scheduledTaskEvents),
     [threadId, scheduledTaskEvents]
   );
   const availableRoomTags = useMemo(
@@ -552,8 +558,7 @@ export const useMindroomThreadIndex = ({
       threadResolutionMap,
       currentUserId,
       readUpToTs: readUpToTs ?? null,
-      scheduledTaskEvents,
-      scheduledTaskCounts,
+      scheduledStatusMap,
       cacheCoverageMap: cachedThreadCoverageMap,
       absoluteIndexMap: visibleThreadRootData.indexMap,
     });
@@ -576,8 +581,7 @@ export const useMindroomThreadIndex = ({
     threadResolutionMap,
     currentUserId,
     readUpToTs,
-    scheduledTaskEvents,
-    scheduledTaskCounts,
+    scheduledStatusMap,
     overviewRefreshCounter,
   ]);
   const compactThreadRecordMap = useMemo(() => {
@@ -602,8 +606,7 @@ export const useMindroomThreadIndex = ({
       threadResolutionMap,
       currentUserId,
       readUpToTs: readUpToTs ?? null,
-      scheduledTaskEvents,
-      scheduledTaskCounts,
+      scheduledStatusMap,
       cacheCoverageMap: cachedThreadCoverageMap,
       absoluteIndexMap: compactThreadRootData.indexMap,
     });
@@ -628,8 +631,7 @@ export const useMindroomThreadIndex = ({
     threadResolutionMap,
     currentUserId,
     readUpToTs,
-    scheduledTaskEvents,
-    scheduledTaskCounts,
+    scheduledStatusMap,
     overviewRefreshCounter,
   ]);
   const focusedRoomOverviewRootId = useMemo(
@@ -764,7 +766,7 @@ export const useMindroomThreadIndex = ({
     threadReplyCountMap,
     threadParticipantMap,
     threadSummaryInfoMap,
-    scheduledTaskCounts,
+    scheduledStatusMap,
     availableRoomTags,
     readUpToTs,
     roomThreadListThreads,

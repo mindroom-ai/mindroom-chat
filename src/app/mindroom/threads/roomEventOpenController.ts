@@ -45,6 +45,7 @@ import {
   eventBelongsToThread,
 } from './threadUtils';
 import type { PendingThreadOpen } from './threadOpenTargetEvent';
+import type { ThreadScheduledStatus } from './threadScheduledStatus';
 import type { ThreadResolutionState } from './useRoomThreadTags';
 
 type FocusItemState = {
@@ -79,7 +80,7 @@ export const useRoomEventOpenController = ({
   roomThreadListThreads,
   safePaginationLimit,
   safePaginationLimitRef,
-  scheduledTaskCounts,
+  scheduledStatusMap,
   scrollRef,
   scrollToBottomRef,
   scrollToElement,
@@ -124,7 +125,7 @@ export const useRoomEventOpenController = ({
   roomThreadListThreads: Thread[];
   safePaginationLimit: number;
   safePaginationLimitRef: MutableRefObject<number>;
-  scheduledTaskCounts: Map<string, number>;
+  scheduledStatusMap: Map<string, ThreadScheduledStatus>;
   scrollRef: RefObject<HTMLElement>;
   scrollToBottomRef: MutableRefObject<{ count: number; smooth: boolean }>;
   scrollToElement: ScrollToElement;
@@ -228,7 +229,7 @@ export const useRoomEventOpenController = ({
               threadId,
               threadFilterState: threadFilterStateRef.current,
               threadReplyCountMap: loadedThreadReplyCountMap,
-              scheduledTaskCounts,
+              scheduledStatusMap,
               threadReplyCountMapForMeta: threadReplyCountMap,
               threadParticipantMap,
               summaryMap: threadSummaryInfoMap,
@@ -284,7 +285,7 @@ export const useRoomEventOpenController = ({
         roomThreadListThreads,
         safePaginationLimitRef,
         searchQuery,
-        scheduledTaskCounts,
+        scheduledStatusMap,
         setFocusItem,
         setTimeline,
         showHiddenEvents,
