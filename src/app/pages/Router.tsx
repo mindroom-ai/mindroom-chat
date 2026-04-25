@@ -62,7 +62,7 @@ import { CreateRoomModalRenderer } from '../features/create-room';
 import { HomeCreateRoom } from './client/home/CreateRoom';
 import { Create } from './client/create';
 import { CreateSpaceModalRenderer } from '../features/create-space';
-import { CommandPaletteRenderer } from '../features/command-palette';
+import { CommandPaletteRenderer } from '../mindroom/command-palette';
 import { SettingsModalRenderer } from '../features/settings';
 import { CallStatusRenderer } from './CallStatusRenderer';
 import { CallEmbedProvider } from '../components/CallEmbedProvider';

@@ -748,7 +748,7 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps command-palette thread sourcing in MindRoom threads', () => {
     const paletteSource = readFileSync(
-      new URL('../command-palette/commandPaletteItems.ts', import.meta.url),
+      new URL('../../mindroom/command-palette/commandPaletteItems.ts', import.meta.url),
       'utf8'
     );
     const implementationSource = readFileSync(
@@ -756,7 +756,7 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(paletteSource).toContain("from '../../mindroom/threads/commandPaletteThreadItems'");
+    expect(paletteSource).toContain("from '../threads/commandPaletteThreadItems'");
     expect(paletteSource).not.toContain('MINDROOM_THREAD_TAGS_EVENT');
     expect(paletteSource).not.toContain('aggregateThreadTagEvents');
     expect(paletteSource).not.toContain('buildThreadRecord');

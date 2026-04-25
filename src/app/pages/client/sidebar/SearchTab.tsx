@@ -2,7 +2,7 @@ import React from 'react';
 import { Icon, Icons } from 'folds';
 import { useAtom } from 'jotai';
 import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../../components/sidebar';
-import { commandPaletteOpenAtom } from '../../../state/commandPalette';
+import { commandPaletteOpenAtom } from '../../../mindroom/command-palette/commandPaletteState';
 
 export function SearchTab() {
   const [opened, setOpen] = useAtom(commandPaletteOpenAtom);
