@@ -2112,3 +2112,4 @@
 - Added `src/app/mindroom/cache/sessionCleanup.ts` as the owner for MindRoom cache store names, localStorage keys/prefixes, session cache deletion, UI-state cleanup, native-state cleanup, and in-memory cache cleanup.
 - Updated `src/client/initMatrix.ts` to call that boundary instead of importing individual MindRoom cache, recent-thread, iOS push, and edit-debug owners directly.
 - Exported fork-owned cache DB name constants from the room/thread event cache stores so generic client cleanup no longer owns raw `mindroom-*-event-cache` names.
+- Kept cleanup imports pointed at the fork-owned long-text owner instead of the generic compatibility export.
