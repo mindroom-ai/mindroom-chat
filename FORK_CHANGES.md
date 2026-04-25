@@ -57,6 +57,9 @@
   - Automatic room-input send-session orchestration now lives in `src/app/mindroom/threads/useRoomInputSendSessionController.ts`.
   - Generic `RoomInput` still owns editor/upload UI, but the MindRoom controller owns auto-thread root selection, upload/text sequencing, retry state, Signal bridge upload MIME policy, and reply-draft cleanup.
   - Existing room input tests plus architecture guards keep the controller and pure send-session policy in the MindRoom thread namespace.
+- `CINNY-121`
+  - MindRoom room-input command autocomplete wiring and voice recorder mounting now live behind `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`.
+  - Generic `RoomInput` no longer imports the MindRoom command prefix/autocomplete component or voice recorder implementation directly.
 
 ### Current Feature Set On `dev`
 

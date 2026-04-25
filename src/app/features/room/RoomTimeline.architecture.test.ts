@@ -225,6 +225,10 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps room input auto-thread send sessions in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomInput.tsx', import.meta.url), 'utf8');
+    const roomInputExtensionsSource = readFileSync(
+      new URL('../../mindroom/room-input/RoomInputMindroomExtensions.tsx', import.meta.url),
+      'utf8'
+    );
     const controllerSource = readFileSync(
       new URL('../../mindroom/threads/useRoomInputSendSessionController.ts', import.meta.url),
       'utf8'
@@ -235,10 +239,16 @@ describe('RoomTimeline architecture', () => {
     );
 
     expect(source).toContain('useRoomInputSendSessionController');
+    expect(source).toContain("from '../../mindroom/room-input/RoomInputMindroomExtensions'");
+    expect(source).not.toContain("from '../../mindroom/commands/");
+    expect(source).not.toContain("from '../../mindroom/voice/");
     expect(source).not.toContain('createRoomInputSendSessionState');
     expect(source).not.toContain('resolveRoomInputSendStep');
     expect(source).not.toContain('hasRoomInputSendFailures');
     expect(source).not.toContain('isSignalBridgeRoom');
+    expect(roomInputExtensionsSource).toContain("from '../commands/mindroomCommandQuery'");
+    expect(roomInputExtensionsSource).toContain("from '../commands/MindroomCommandAutocomplete'");
+    expect(roomInputExtensionsSource).toContain("from '../voice/VoiceRecorderDialog'");
     expect(controllerSource).toContain('createRoomInputSendSessionState');
     expect(controllerSource).toContain('resolveRoomInputSendStep');
     expect(controllerSource).toContain('isSignalBridgeRoom');

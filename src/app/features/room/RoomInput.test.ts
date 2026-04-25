@@ -238,10 +238,6 @@ vi.mock('./CommandAutocomplete', () => ({
   CommandAutocomplete: () => null,
 }));
 
-vi.mock('../../mindroom/commands/MindroomCommandAutocomplete', () => ({
-  MindroomCommandAutocomplete: () => null,
-}));
-
 vi.mock('../../hooks/useCommands', () => ({
   Command: {
     Me: 'me',
@@ -256,13 +252,11 @@ vi.mock('../../hooks/useCommands', () => ({
   useCommands: () => ({}),
 }));
 
-vi.mock('../../mindroom/commands/mindroomCommandQuery', () => ({
-  MINDROOM_COMMAND_PREFIX: '!',
-  getMindroomCommandQuery: () => undefined,
-}));
-
-vi.mock('../../mindroom/voice/VoiceRecorderDialog', () => ({
-  VoiceRecorderComposer: (props: {
+vi.mock('../../mindroom/room-input/RoomInputMindroomExtensions', () => ({
+  getMindroomRoomInputAutocompleteQuery: () => undefined,
+  isMindroomRoomInputAutocompleteQuery: (query?: { prefix?: string }) => query?.prefix === '!',
+  MindroomRoomInputAutocomplete: () => null,
+  MindroomVoiceRecorderComposer: (props: {
     onSendRecording: (file: File, duration: number) => Promise<void>;
   }) => {
     voiceRecorderState.props = props;
