@@ -5,7 +5,7 @@ import {
   compareCachedPaginationAnchors,
   getCachedPaginationToken,
   mergeCachedPaginationTokens,
-} from './eventCacheTokenUtils';
+} from '../../mindroom/threads/eventCacheTokenUtils';
 import {
   copyLegacyIndexedDbIfTargetStoreEmpty,
   openExistingDatabase,

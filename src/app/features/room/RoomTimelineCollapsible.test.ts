@@ -562,7 +562,7 @@ vi.mock('./threadEventCache', () => ({
   saveThreadEventsToCache: vi.fn(async () => undefined),
 }));
 
-vi.mock('./eventCacheTokenUtils', () => ({
+vi.mock('../../mindroom/threads/eventCacheTokenUtils', () => ({
   compareCachedPaginationAnchors: () => 0,
 }));
 

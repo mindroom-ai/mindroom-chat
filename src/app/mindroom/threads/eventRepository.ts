@@ -23,7 +23,7 @@ import {
   type CachedThreadEvent,
   type CachedThreadEventPage,
 } from '../../features/room/threadEventCache';
-import { compareCachedPaginationAnchors } from '../../features/room/eventCacheTokenUtils';
+import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
 import { serializeEventsForCache } from '../../features/room/eventCacheEditUtils';
 import { isThreadOnlyRoomActivity } from './threadRenderUtils';
 import { buildThreadReplyCountMap } from './threadUtils';

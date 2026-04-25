@@ -871,8 +871,9 @@ vi.mock('../../mindroom/threads/threadPaginationUtils', () => ({
   reconcileThreadBackwardPagination: vi.fn(),
 }));
 
-vi.mock('./eventCacheTokenUtils', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./eventCacheTokenUtils')>();
+vi.mock('../../mindroom/threads/eventCacheTokenUtils', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../mindroom/threads/eventCacheTokenUtils')>();
   return actual;
 });
 
