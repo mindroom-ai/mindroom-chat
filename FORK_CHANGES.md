@@ -49,6 +49,10 @@
   - Room-view thread state orchestration now lives in `src/app/mindroom/threads/useRoomViewThreadState.ts`.
   - Generic `RoomView` now renders the room shell while the MindRoom hook owns view mode, thread filters, sort-freeze state, summary sharing, canonical thread-id redirect, recent-thread bumping, and thread-exit routing.
   - Architecture guards prevent direct thread-filter/view-mode/recent-thread restore plumbing from moving back into `src/app/features/room/RoomView.tsx`.
+- `CINNY-119`
+  - Room-route last-open-thread persistence, auto-restore, and failed-thread cleanup now live in `src/app/mindroom/threads/useRoomThreadRouteRestore.ts`.
+  - Generic `Room` now passes only the room route inputs and thread-load-error callback through to the MindRoom hook instead of directly mutating last-open-thread or recent-thread stores.
+  - Existing room route tests continue to cover saved-thread auto-restore, explicit-thread suppression, thread-exit clearing, and failed auto-restore fallback.
 
 ### Current Feature Set On `dev`
 

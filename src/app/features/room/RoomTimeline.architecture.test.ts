@@ -183,6 +183,10 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
     const roomSource = readFileSync(new URL('./Room.tsx', import.meta.url), 'utf8');
+    const roomRouteRestoreSource = readFileSync(
+      new URL('../../mindroom/threads/useRoomThreadRouteRestore.ts', import.meta.url),
+      'utf8'
+    );
     const clientLayoutSource = readFileSync(
       new URL('../../pages/client/ClientLayout.tsx', import.meta.url),
       'utf8'
@@ -206,7 +210,11 @@ describe('RoomTimeline architecture', () => {
     expect(clientStorageSource).not.toContain("from '../../mindroom/recent-threads/recentThreads'");
     expect(clientStorageImplementationSource).toContain('registerLastOpenThreadAtom');
     expect(clientStorageImplementationSource).toContain('registerRecentThreadsAtom');
-    expect(roomSource).toContain("from '../../mindroom/threads/lastOpenThread'");
+    expect(roomSource).not.toContain("from '../../mindroom/threads/lastOpenThread'");
+    expect(roomSource).not.toContain("from '../../mindroom/recent-threads/recentThreads'");
+    expect(roomSource).toContain("from '../../mindroom/threads/useRoomThreadRouteRestore'");
+    expect(roomRouteRestoreSource).toContain("from './lastOpenThread'");
+    expect(roomRouteRestoreSource).toContain('removeRecentThread');
     expect(clientLayoutSource).not.toContain("from '../../mindroom/threads/lastOpenThread'");
     expect(clientLayoutSource).toContain('getLastOpenThreadRestoreTarget');
     expect(routeRestoreSource).toContain("from '../threads/lastOpenThread'");
