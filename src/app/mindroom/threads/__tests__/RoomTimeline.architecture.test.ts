@@ -1286,15 +1286,33 @@ describe('RoomTimeline architecture', () => {
       new URL('../../local-mindroom/settingsRenderer.tsx', import.meta.url),
       'utf8'
     );
+    const settingsExtensionsSource = readFileSync(
+      new URL('../../settings/settingsExtensions.tsx', import.meta.url),
+      'utf8'
+    );
+    const settingsMenuExtensionsSource = readFileSync(
+      new URL('../../settings/settingsMenuExtensions.ts', import.meta.url),
+      'utf8'
+    );
+    const generalSettingsSource = readFileSync(
+      new URL('../../../features/settings/general/General.tsx', import.meta.url),
+      'utf8'
+    );
 
     removedLocalMindroomCompatibilityPaths.forEach((path) => {
       expect(existsSync(new URL(path, import.meta.url))).toBe(false);
     });
-    expect(settingsSource).toContain("from '../../mindroom/local-mindroom/settingsRenderer'");
+    expect(settingsSource).toContain("from '../../mindroom/settings/settingsExtensions'");
     expect(settingsSource).not.toContain("from '../../mindroom/local-mindroom/LocalMindroom'");
+    expect(settingsSource).not.toContain("from '../../mindroom/local-mindroom/settingsRenderer'");
     expect(settingsSource).not.toContain("from './local-mindroom'");
-    expect(settingsMenuSource).toContain("from '../../mindroom/local-mindroom/settingsMenu'");
+    expect(settingsMenuSource).toContain("from '../../mindroom/settings/settingsMenuExtensions'");
+    expect(settingsMenuSource).not.toContain("from '../../mindroom/local-mindroom/settingsMenu'");
     expect(settingsMenuSource).not.toContain("from '../../mindroom/branding/branding'");
+    expect(generalSettingsSource).toContain("from '../../../mindroom/settings/settingsExtensions'");
+    expect(generalSettingsSource).not.toContain(
+      "from '../../../mindroom/settings/MindroomMessagePreloadLimitSetting'"
+    );
     expect(pageSource).toContain('Connect Local MindRoom');
     expect(pageSource).toContain('resolveMindroomProvisioningRequest');
     expect(apiSource).toContain('LOCAL_MINDROOM_API_PATH');
@@ -1304,6 +1322,11 @@ describe('RoomTimeline architecture', () => {
     expect(settingsPageSource).toContain('LOCAL_MINDROOM_SETTINGS_PAGE');
     expect(settingsRendererSource).toContain('renderLocalMindroomSettingsPage');
     expect(settingsRendererSource).toContain('LocalMindroom');
+    expect(settingsExtensionsSource).toContain("from '../local-mindroom/settingsRenderer'");
+    expect(settingsExtensionsSource).toContain('MindroomMessagePreloadLimitSetting');
+    expect(settingsMenuExtensionsSource).toContain("from '../local-mindroom/settingsMenu'");
+    expect(settingsMenuExtensionsSource).toContain("from '../local-mindroom/settingsPage'");
+    expect(settingsMenuExtensionsSource).not.toContain('MindroomMessagePreloadLimitSetting');
   });
 
   it('keeps the Local MindRoom sidebar shortcut in the MindRoom namespace', () => {

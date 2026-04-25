@@ -58,7 +58,7 @@ import { useMessageSpacingItems } from '../../../hooks/useMessageSpacing';
 import { useDateFormatItems } from '../../../hooks/useDateFormat';
 import { SequenceCardStyle } from '../styles.css';
 import { sanitizePageZoom } from '../../../utils/pageZoom';
-import { MindroomMessagePreloadLimitSetting } from '../../../mindroom/settings/MindroomMessagePreloadLimitSetting';
+import { MindroomGeneralMessageSettings } from '../../../mindroom/settings/settingsExtensions';
 
 type ThemeSelectorProps = {
   themeNames: Record<string, string>;
@@ -924,7 +924,7 @@ function Messages() {
       <SequenceCard className={SequenceCardStyle} variant="SurfaceVariant" direction="Column">
         <SettingTile title="Message Spacing" after={<SelectMessageSpacing />} />
       </SequenceCard>
-      <MindroomMessagePreloadLimitSetting className={SequenceCardStyle} />
+      <MindroomGeneralMessageSettings className={SequenceCardStyle} />
       <SequenceCard className={SequenceCardStyle} variant="SurfaceVariant" direction="Column">
         <SettingTile
           title="Legacy Username Color"

@@ -39,7 +39,7 @@ import {
   type SettingsMenuItem,
 } from './settingsMenu';
 import { SettingsPage, SettingsPages } from './settingsPages';
-import { renderLocalMindroomSettingsPage } from '../../mindroom/local-mindroom/settingsRenderer';
+import { renderMindroomSettingsPage } from '../../mindroom/settings/settingsExtensions';
 
 const useSettingsMenuItems = (showLocalMindRoom: boolean): SettingsMenuItem[] =>
   useMemo(() => getSettingsMenuItems(showLocalMindRoom), [showLocalMindRoom]);
@@ -178,7 +178,7 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
       {activePage === SettingsPages.EmojisStickersPage && (
         <EmojisStickers requestClose={handlePageRequestClose} />
       )}
-      {renderLocalMindroomSettingsPage(activePage, showLocalMindRoom, handlePageRequestClose)}
+      {renderMindroomSettingsPage(activePage, showLocalMindRoom, handlePageRequestClose)}
       {activePage === SettingsPages.DeveloperToolsPage && (
         <DeveloperTools requestClose={handlePageRequestClose} />
       )}
