@@ -184,7 +184,7 @@ import {
   getCompactThreadRootBodyPreviewText,
   mergeCompactThreadRootData,
 } from '../../mindroom/threads/compactThreadRootData';
-import { CompactRoomView } from './CompactRoomView';
+import { CompactRoomView } from '../../mindroom/threads/CompactRoomView';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import {
   buildRoomSurfaceEventEntries,

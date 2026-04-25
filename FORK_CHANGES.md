@@ -822,6 +822,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 31 / Phase 5 compact room component ownership (2026-04-24):
+  - moved compact room/card rendering and CSS to `src/app/mindroom/threads/CompactRoomView.tsx`, `CompactThreadCard.tsx`, and `CompactRoomView.css.ts`.
+  - the old `src/app/features/room/CompactRoomView*` and `CompactThreadCard.tsx` paths are compatibility re-exports; `RoomTimeline` imports the MindRoom component directly.
+  - this moves the compact-card UI surface next to its `ThreadRecord` view-model source of truth.
+  - validation:
+    - focused Vitest passes for `CompactRoomView.test.ts`, `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimelineCollapsible.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

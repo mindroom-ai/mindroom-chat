@@ -333,6 +333,10 @@ snapshot assembly, now lives in `src/app/mindroom/threads/threadPresentation.ts`
 Thread filter query parsing/serialization now lives in
 `src/app/mindroom/threads/threadFilterDsl.ts`; the old `features/room` path is only a
 compatibility re-export.
+Compact room view/card rendering now lives in `src/app/mindroom/threads/CompactRoomView.tsx`,
+`src/app/mindroom/threads/CompactThreadCard.tsx`, and
+`src/app/mindroom/threads/CompactRoomView.css.ts`; the old `features/room` paths are only
+compatibility re-exports.
 Thread-open cache hydration, latest-slice refresh, relation backfill, and cached relation-tail
 refresh now live in `src/app/mindroom/threads/threadOpenCacheController.ts`; `RoomTimeline` decides
 when to open a thread route but no longer owns their cache/network policy.
