@@ -340,6 +340,9 @@ compatibility re-exports.
 Room thread overview controls now live in `src/app/mindroom/threads/RoomThreadOverview.tsx` and
 `src/app/mindroom/threads/RoomThreadOverview.css.ts`; the old `features/room` paths are only
 compatibility re-exports.
+Room thread overview filtering/sorting/count model now lives in
+`src/app/mindroom/threads/roomThreadOverviewModel.ts`; the old `features/room` path is only a
+compatibility re-export.
 Thread-open cache hydration, latest-slice refresh, relation backfill, and cached relation-tail
 refresh now live in `src/app/mindroom/threads/threadOpenCacheController.ts`; `RoomTimeline` decides
 when to open a thread route but no longer owns their cache/network policy.

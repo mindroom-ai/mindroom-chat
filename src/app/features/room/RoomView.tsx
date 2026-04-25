@@ -31,7 +31,7 @@ import type {
   ThreadFilterKey,
   FilterPreset,
   ThreadSortFreezeState,
-} from './roomThreadOverviewModel';
+} from '../../mindroom/threads/roomThreadOverviewModel';
 import {
   updateThreadFilterKey,
   cycleSortMode,
@@ -40,12 +40,12 @@ import {
   removeTagFilter,
   applyPreset,
   resetThreadFilterState,
-} from './roomThreadOverviewModel';
+} from '../../mindroom/threads/roomThreadOverviewModel';
 import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,
   serializeThreadFilterQuery,
-} from './threadFilterDsl';
+} from '../../mindroom/threads/threadFilterDsl';
 import { roomThreadFilterAtomFamily } from '../../state/room/roomThreadFilterState';
 import { roomViewModeAtomFamily, type RoomViewMode } from '../../state/room/roomViewMode';
 import { createSessionId } from '../../state/sessions';

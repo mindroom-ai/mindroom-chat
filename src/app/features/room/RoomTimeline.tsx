@@ -221,7 +221,7 @@ import {
   type FilterPreset,
   getRoomScheduledTaskCounts,
   collectAvailableRoomTags,
-} from './roomThreadOverviewModel';
+} from '../../mindroom/threads/roomThreadOverviewModel';
 import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,

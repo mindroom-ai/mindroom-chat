@@ -840,6 +840,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 33 / Phase 5 room overview model ownership (2026-04-24):
+  - moved room thread overview filtering/sorting/count derivation and tests to `src/app/mindroom/threads/roomThreadOverviewModel.ts` and `roomThreadOverviewModel.test.ts`.
+  - the old `src/app/features/room/roomThreadOverviewModel.ts` path is now only a compatibility re-export; production MindRoom-owned callers import the model directly.
+  - this places the filter state serialization, predicate matching, status/tag counts, scheduled task counts, visible-root data, and metadata map derivation beside `useMindroomThreadIndex`.
+  - validation:
+    - focused Vitest passes for `roomThreadOverviewModel.test.ts`, `RoomThreadOverview.test.ts`, `RoomTimeline.architecture.test.ts`, `RoomTimeline.filter-query.test.ts`, `useMindroomThreadIndex.test.ts`, `threadRecordOverview.test.ts`, and `roomThreadFilterState.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

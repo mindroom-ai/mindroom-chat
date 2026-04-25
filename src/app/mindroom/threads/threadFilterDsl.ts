@@ -2,7 +2,7 @@ import type {
   ThreadFilterKey,
   ThreadFilterState,
   TriState,
-} from '../../features/room/roomThreadOverviewModel';
+} from './roomThreadOverviewModel';
 
 const STATUS_KEYS: ThreadFilterKey[] = ['resolved', 'streaming', 'scheduled', 'unread', 'idle'];
 const TAG_NAME = /^[a-z0-9-]{1,50}$/;

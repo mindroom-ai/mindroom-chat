@@ -5,7 +5,7 @@ import {
   isDefaultThreadFilterState,
   serializeThreadFilterState,
   type ThreadFilterState,
-} from '../../features/room/roomThreadOverviewModel';
+} from '../../mindroom/threads/roomThreadOverviewModel';
 import {
   atomWithLocalStorage,
   getLocalStorageItem,
