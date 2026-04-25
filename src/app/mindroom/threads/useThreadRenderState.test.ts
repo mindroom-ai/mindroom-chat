@@ -1,5 +1,6 @@
 import React from 'react';
-import { EventTimelineSet, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
+import { EventEmitter } from 'events';
+import { EventTimelineSet, MatrixEvent, Room, Thread, ThreadEvent } from 'matrix-js-sdk';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { useThreadRenderState } from './useThreadRenderState';
@@ -78,7 +79,42 @@ const attachSerializedReplacement = (
   };
 };
 
+const makeAiRunEditEvent = (
+  eventId: string,
+  ts: number,
+  targetEventId: string,
+  status: string
+) =>
+  new MatrixEvent({
+    content: {
+      body: `* ${eventId}`,
+      'm.new_content': {
+        body: eventId,
+        'io.mindroom.ai_run': {
+          version: 1,
+          status,
+        },
+        msgtype: 'm.text',
+      },
+      'm.relates_to': {
+        event_id: targetEventId,
+        rel_type: 'm.replace',
+      },
+      msgtype: 'm.text',
+    },
+    event_id: eventId,
+    origin_server_ts: ts,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    type: 'm.room.message',
+  });
+
 type HookSnapshot = ReturnType<typeof useThreadRenderState>;
+
+type MockThread = Thread &
+  EventEmitter & {
+    events: MatrixEvent[];
+  };
 
 type HarnessProps = {
   room: Room;
@@ -114,23 +150,29 @@ const makeRoom = (
     getEventForTxnId: vi.fn((txnId: string) => txnMap?.get(txnId)),
   } as unknown as Room);
 
-const makeThread = (rootEvent: MatrixEvent, events: MatrixEvent[]): Thread =>
-  ({
+const makeThread = (rootEvent: MatrixEvent, events: MatrixEvent[]): MockThread =>
+  Object.assign(new EventEmitter(), {
     rootEvent,
     events,
-  } as unknown as Thread);
+  }) as MockThread;
 
 const renderHookHarness = (props: Omit<HarnessProps, 'onRender'>): {
   getSnapshot: () => HookSnapshot;
+  getRenderCount: () => number;
   update: (nextProps: Omit<HarnessProps, 'onRender'>) => void;
   renderer: ReactTestRenderer;
 } => {
   let latestSnapshot: HookSnapshot | undefined;
+  let renderCount = 0;
   const onRender = (snapshot: HookSnapshot) => {
+    renderCount += 1;
     latestSnapshot = snapshot;
   };
 
-  const renderer = create(React.createElement(Harness, { ...props, onRender }));
+  let renderer: ReactTestRenderer | undefined;
+  act(() => {
+    renderer = create(React.createElement(Harness, { ...props, onRender }));
+  });
 
   return {
     getSnapshot: () => {
@@ -139,12 +181,13 @@ const renderHookHarness = (props: Omit<HarnessProps, 'onRender'>): {
       }
       return latestSnapshot;
     },
+    getRenderCount: () => renderCount,
     update: (nextProps) => {
       act(() => {
-        renderer.update(React.createElement(Harness, { ...nextProps, onRender }));
+        renderer?.update(React.createElement(Harness, { ...nextProps, onRender }));
       });
     },
-    renderer,
+    renderer: renderer as ReactTestRenderer,
   };
 };
 
@@ -401,6 +444,64 @@ describe('useThreadRenderState', () => {
 
     // Should deduplicate: local echo and confirmed reply are the same message
     expect(getSnapshot().threadEvents.map((e) => e.getId())).toEqual(['$root', '$reply']);
+
+    renderer.unmount();
+  });
+
+  it('refreshes a mounted thread when a post-mount reply receives streaming and terminal replacements', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+    const replyEvent = makeMessageEvent('$reply', 2);
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+    const thread = makeThread(rootEvent, []);
+
+    const { getSnapshot, getRenderCount, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: true,
+    });
+
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root']);
+    const initialRenderCount = getRenderCount();
+
+    act(() => {
+      thread.events.push(replyEvent);
+      thread.emit(ThreadEvent.NewReply, thread, replyEvent);
+    });
+
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual([
+      '$root',
+      '$reply',
+    ]);
+    expect(getRenderCount()).toBeGreaterThan(initialRenderCount);
+    const afterReplyRenderCount = getRenderCount();
+
+    const streamingEdit = makeAiRunEditEvent('$reply-edit-streaming', 3, '$reply', 'streaming');
+    act(() => {
+      replyEvent.makeReplaced(streamingEdit);
+    });
+
+    expect(getRenderCount()).toBeGreaterThan(afterReplyRenderCount);
+    expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$reply-edit-streaming');
+    const afterStreamingRenderCount = getRenderCount();
+
+    const completedEdit = makeAiRunEditEvent('$reply-edit-completed', 4, '$reply', 'completed');
+    act(() => {
+      replyEvent.makeReplaced(completedEdit);
+    });
+
+    expect(getRenderCount()).toBeGreaterThan(afterStreamingRenderCount);
+    expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$reply-edit-completed');
+    expect(
+      (
+        getSnapshot().threadEvents[1].replacingEvent()?.getContent()['m.new_content'] as {
+          ['io.mindroom.ai_run']?: { status?: string };
+        }
+      )?.['io.mindroom.ai_run']?.status
+    ).toBe('completed');
 
     renderer.unmount();
   });

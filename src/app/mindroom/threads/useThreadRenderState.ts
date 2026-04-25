@@ -4,6 +4,7 @@ import {
   aggregateCachedRelationEvents,
   hydrateCachedEvents,
 } from './eventCacheEditUtils';
+import { useThreadEventRefresh } from './useThreadEventRefresh';
 import {
   buildResolveConfirmedEventId,
   getThreadInitialRenderMode,
@@ -126,6 +127,12 @@ export const useThreadRenderState = ({
     threadId: undefined,
     events: [],
   });
+  const hydratingThreadEventsRef = useRef(false);
+  const [threadEventRefreshTick, setThreadEventRefreshTick] = useState(0);
+  const refreshThreadEvents = useCallback(() => {
+    if (hydratingThreadEventsRef.current) return;
+    setThreadEventRefreshTick((tick) => tick + 1);
+  }, []);
 
   const setSupplementalThreadEvents = useCallback(
     (expectedThreadId: string, events: MatrixEvent[]) => {
@@ -183,21 +190,31 @@ export const useThreadRenderState = ({
   }, [fallbackThreadEventsState.events, fallbackThreadEventsState.threadId, threadId]);
 
   const threadEvents = useMemo(() => {
+    void threadEventRefreshTick;
+
     if (!threadId) {
       threadEventIndexMapRef.current = new Map();
       return [];
     }
 
-    const nextState = buildThreadEvents({
-      room,
-      threadId,
-      thread,
-      fallbackEvents,
-      threadInitialCacheHydrated,
-    });
+    hydratingThreadEventsRef.current = true;
+    let nextState: ReturnType<typeof buildThreadEvents>;
+    try {
+      nextState = buildThreadEvents({
+        room,
+        threadId,
+        thread,
+        fallbackEvents,
+        threadInitialCacheHydrated,
+      });
+    } finally {
+      hydratingThreadEventsRef.current = false;
+    }
     threadEventIndexMapRef.current = nextState.indexMap;
     return nextState.events;
-  }, [fallbackEvents, room, thread, threadId, threadInitialCacheHydrated]);
+  }, [fallbackEvents, room, thread, threadEventRefreshTick, threadId, threadInitialCacheHydrated]);
+
+  useThreadEventRefresh(thread ?? undefined, threadEvents, refreshThreadEvents);
 
   const threadInitialRenderMode = getThreadInitialRenderMode({
     threadId,
