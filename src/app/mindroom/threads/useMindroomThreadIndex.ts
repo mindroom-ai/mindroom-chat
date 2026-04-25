@@ -92,6 +92,7 @@ export type MindroomThreadIndexSnapshot = {
   compactOverviewOrdering: ThreadIndexOrdering;
   focusedRoomOverviewRootId: string | undefined;
   focusedRoomOverviewBypass: boolean;
+  liveThreadFilterState: ThreadFilterState;
   effectiveThreadFilterState: ThreadFilterState;
   roomThreadFilterRequested: boolean;
   roomThreadFilterActive: boolean;
@@ -260,6 +261,7 @@ export const resolveMindroomThreadIndexSnapshot = ({
     compactOverviewOrdering,
     focusedRoomOverviewRootId,
     focusedRoomOverviewBypass,
+    liveThreadFilterState,
     effectiveThreadFilterState,
     roomThreadFilterRequested,
     roomThreadFilterActive,
@@ -292,7 +294,6 @@ export type UseMindroomThreadIndexOptions = {
   threadResolutionMap: Map<string, ThreadResolutionLike>;
   currentUserId: string | undefined;
   requestedThreadFilterState: ThreadFilterState;
-  liveThreadFilterState: ThreadFilterState;
   fallbackThreadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
   overviewRefreshCounter: number;
@@ -319,7 +320,6 @@ export const useMindroomThreadIndex = ({
   threadResolutionMap,
   currentUserId,
   requestedThreadFilterState,
-  liveThreadFilterState,
   fallbackThreadFilterState,
   threadSortFreezeState,
   overviewRefreshCounter,
@@ -487,6 +487,15 @@ export const useMindroomThreadIndex = ({
 
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(
     requestedThreadFilterState.searchQuery ?? ''
+  );
+
+  const liveParsedQuery = useMemo(
+    () => parseThreadFilterQuery(requestedThreadFilterState.searchQuery ?? ''),
+    [requestedThreadFilterState.searchQuery]
+  );
+  const liveThreadFilterState = useMemo(
+    () => applyParsedThreadFilterQuery(requestedThreadFilterState, liveParsedQuery),
+    [requestedThreadFilterState, liveParsedQuery]
   );
 
   useEffect(() => {

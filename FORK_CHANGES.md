@@ -192,6 +192,9 @@
 - `CINNY-166`
   - Room-timeline thread badge rendering now goes through `renderMindroomRoomTimelineThreadBadge`.
   - `RoomTimeline` no longer builds badge view models itself; the MindRoom timeline seam owns model derivation and null rendering for non-thread events.
+- `CINNY-167`
+  - Thread-filter DSL parsing for room overview state now lives inside `useMindroomThreadIndex`.
+  - `RoomTimeline` passes only the requested filter state and renders the index-owned live/effective states, keeping filter parsing/application with the canonical room index.
 
 ### Current Feature Set On `dev`
 
