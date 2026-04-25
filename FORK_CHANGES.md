@@ -198,6 +198,9 @@
 - `CINNY-168`
   - Direct-room thread overview view-state and overview metadata cache limits now live in `src/app/mindroom/threads/roomTimelineViewState.ts`.
   - `RoomTimeline` consumes the resolved view-state seam instead of owning the direct-room fallback filter and focus/compact-mode policy inline.
+- `CINNY-169`
+  - Thread-view edge-swipe exit mounting now lives in `src/app/mindroom/threads/useRoomViewThreadState.ts` beside the thread-exit routing decision.
+  - Generic `RoomView` no longer imports the native MindRoom edge-swipe hook directly.
 
 ### Current Feature Set On `dev`
 

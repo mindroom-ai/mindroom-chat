@@ -1309,6 +1309,10 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
     const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
+    const roomViewThreadStateSource = readFileSync(
+      new URL('../../mindroom/threads/useRoomViewThreadState.ts', import.meta.url),
+      'utf8'
+    );
     const systemNotificationSource = readFileSync(
       new URL('../settings/notifications/SystemNotification.tsx', import.meta.url),
       'utf8'
@@ -1342,7 +1346,9 @@ describe('RoomTimeline architecture', () => {
     );
 
     expect(backRouteHandlerSource).toContain("from '../mindroom/native/useEdgeSwipeBack'");
-    expect(roomViewSource).toContain("from '../../mindroom/native/useEdgeSwipeBack'");
+    expect(roomViewSource).not.toContain("from '../../mindroom/native/useEdgeSwipeBack'");
+    expect(roomViewThreadStateSource).toContain("from '../native/useEdgeSwipeBack'");
+    expect(roomViewThreadStateSource).toContain('useEdgeSwipeBack(handleExitThread');
     expect(nativeSsoSource).toContain('buildNativeSsoRedirectUrl');
     expect(iosPushSource).toContain('resolveIOSPushConfig');
     expect(systemNotificationSource).toContain(

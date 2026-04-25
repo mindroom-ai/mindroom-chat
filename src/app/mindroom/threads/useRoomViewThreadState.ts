@@ -12,6 +12,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { createSessionId } from '../../state/sessions';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
+import { useEdgeSwipeBack } from '../native/useEdgeSwipeBack';
 import { bumpRecentThread } from '../recent-threads/recentThreads';
 import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 import { getRoomThreadExitTargetFromHistoryState } from './roomNavigateState';
@@ -127,6 +128,7 @@ export const useRoomViewThreadState = ({
     }
     navigateRoomFocusEvent(room.roomId, effectiveThreadId, { replace: true });
   }, [effectiveThreadId, navigatePath, navigateRoomFocusEvent, room.roomId]);
+  useEdgeSwipeBack(handleExitThread, !!threadId);
 
   const updateFromEffectiveQueryState = useCallback(
     (updater: (state: ThreadFilterState) => ThreadFilterState) => {
