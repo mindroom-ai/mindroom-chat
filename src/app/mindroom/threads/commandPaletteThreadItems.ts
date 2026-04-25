@@ -37,7 +37,7 @@ type UseMindroomCommandPaletteThreadItemsOptions = {
   getRoom: (roomId: string) => Room | undefined;
   selectedRoom?: Room | undefined;
   selectedRoomId?: string | undefined;
-  canonicalSelectedThreadId?: string | undefined;
+  currentThreadId?: string | undefined;
   navigateRoomThread: (roomId: string, threadId: string) => void;
 };
 
@@ -80,6 +80,14 @@ export const buildThreadResolutionFromTagSnapshot = (
     tags: Object.fromEntries(tagSnapshot.tags.map((tagName) => [tagName, true])),
   };
 };
+
+export const resolveCommandPaletteCurrentThreadRootId = (
+  selectedRoom: Room | undefined,
+  currentThreadId: string | undefined
+): string | undefined =>
+  selectedRoom && currentThreadId
+    ? resolveCanonicalThreadRootId(selectedRoom, currentThreadId) ?? currentThreadId
+    : undefined;
 
 export const mergeCommandPaletteThreadItems = (
   left: CommandPaletteThreadItem,
@@ -206,15 +214,20 @@ export const useMindroomCommandPaletteThreadItems = ({
   getRoom,
   selectedRoom,
   selectedRoomId,
-  canonicalSelectedThreadId,
+  currentThreadId,
   navigateRoomThread,
 }: UseMindroomCommandPaletteThreadItemsOptions): {
+  currentThreadRootId: string | undefined;
   currentThreadResolved: boolean;
   setCurrentThreadResolved: (resolved: boolean) => void;
   threadItems: readonly MindroomCommandPaletteThreadItem[];
 } => {
   const recentThreadsAtom = useMemo(() => makeRecentThreadsAtom(myUserId), [myUserId]);
   const recentThreads = useAtomValue(recentThreadsAtom);
+  const currentThreadRootId = useMemo(
+    () => resolveCommandPaletteCurrentThreadRootId(selectedRoom, currentThreadId),
+    [currentThreadId, selectedRoom]
+  );
 
   const threadTagSnapshots = useMemo(() => {
     const snapshots = new Map<string, Map<string, ThreadTagSnapshot>>();
@@ -229,19 +242,18 @@ export const useMindroomCommandPaletteThreadItems = ({
   }, [allJoinedRoomIds, getRoom]);
 
   const currentThreadResolved = useMemo(() => {
-    if (!selectedRoom || !canonicalSelectedThreadId) return false;
+    if (!selectedRoom || !currentThreadRootId) return false;
 
     return (
-      threadTagSnapshots.get(selectedRoom.roomId)?.get(canonicalSelectedThreadId)?.isResolved ??
-      false
+      threadTagSnapshots.get(selectedRoom.roomId)?.get(currentThreadRootId)?.isResolved ?? false
     );
-  }, [canonicalSelectedThreadId, selectedRoom, threadTagSnapshots]);
+  }, [currentThreadRootId, selectedRoom, threadTagSnapshots]);
 
   const setCurrentThreadResolved = useCallback(
     (resolved: boolean) => {
-      if (!selectedRoom || !canonicalSelectedThreadId) return;
+      if (!selectedRoom || !currentThreadRootId) return;
 
-      const rootEvent = getValidThreadRootEvent(selectedRoom, canonicalSelectedThreadId);
+      const rootEvent = getValidThreadRootEvent(selectedRoom, currentThreadRootId);
       const threadRootId = rootEvent?.getId();
       if (!threadRootId) return;
 
@@ -254,7 +266,7 @@ export const useMindroomCommandPaletteThreadItems = ({
         )
       );
     },
-    [canonicalSelectedThreadId, mx, myUserId, selectedRoom]
+    [currentThreadRootId, mx, myUserId, selectedRoom]
   );
 
   const threadItems = useMemo(() => {
@@ -283,7 +295,7 @@ export const useMindroomCommandPaletteThreadItems = ({
           room,
           threadTagSnapshots,
           selectedRoomId,
-          canonicalSelectedThreadId,
+          canonicalSelectedThreadId: currentThreadRootId,
           navigateRoomThread,
         })
       );
@@ -300,7 +312,7 @@ export const useMindroomCommandPaletteThreadItems = ({
             threadId: thread.id,
             threadTagSnapshots,
             selectedRoomId,
-            canonicalSelectedThreadId,
+            canonicalSelectedThreadId: currentThreadRootId,
             navigateRoomThread,
           })
         );
@@ -310,7 +322,7 @@ export const useMindroomCommandPaletteThreadItems = ({
     return Array.from(items.values());
   }, [
     allJoinedRoomIds,
-    canonicalSelectedThreadId,
+    currentThreadRootId,
     getRoom,
     navigateRoomThread,
     recentThreads,
@@ -319,6 +331,7 @@ export const useMindroomCommandPaletteThreadItems = ({
   ]);
 
   return {
+    currentThreadRootId,
     currentThreadResolved,
     setCurrentThreadResolved,
     threadItems,

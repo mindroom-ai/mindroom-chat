@@ -36,7 +36,6 @@ import { useSetting } from '../../state/hooks/settings';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
 import { useDirects, useRooms, useSpaces } from '../../state/hooks/roomList';
 import { useMindroomCommandPaletteThreadItems } from '../../mindroom/threads/commandPaletteThreadItems';
-import { resolveCanonicalThreadRootId } from '../../mindroom/threads/threadRouteUtils';
 import {
   commandPaletteStaticActionPaths,
   getCommandPaletteMessageTargets,
@@ -116,10 +115,6 @@ export const useCommandPaletteSource = (
 
   const selectedRoom = selectedRoomId ? getRoom(selectedRoomId) : undefined;
   const selectedSpace = selectedSpaceId ? getRoom(selectedSpaceId) : undefined;
-  const canonicalSelectedThreadId =
-    selectedRoom && currentThreadId
-      ? resolveCanonicalThreadRootId(selectedRoom, currentThreadId) ?? currentThreadId
-      : undefined;
 
   const orderedRoomIds = useMemo(
     () => [...rooms, ...spaces].sort(factoryRoomIdByActivity(mx)),
@@ -319,7 +314,7 @@ export const useCommandPaletteSource = (
     roomActivityRank,
   ]);
 
-  const { currentThreadResolved, setCurrentThreadResolved, threadItems } =
+  const { currentThreadRootId, currentThreadResolved, setCurrentThreadResolved, threadItems } =
     useMindroomCommandPaletteThreadItems({
       mx,
       myUserId,
@@ -327,7 +322,7 @@ export const useCommandPaletteSource = (
       getRoom,
       selectedRoom,
       selectedRoomId,
-      canonicalSelectedThreadId,
+      currentThreadId,
       navigateRoomThread,
     });
 
@@ -389,7 +384,7 @@ export const useCommandPaletteSource = (
     () =>
       getCommandPaletteQuickActions({
         currentRoomName: selectedRoom?.name ?? selectedRoom?.roomId,
-        currentThreadId: canonicalSelectedThreadId,
+        currentThreadId: currentThreadRootId,
         isCurrentThreadResolved: currentThreadResolved,
       }).map((item) => ({
         ...item,
@@ -397,7 +392,7 @@ export const useCommandPaletteSource = (
       })),
     [
       actionCallbacks,
-      canonicalSelectedThreadId,
+      currentThreadRootId,
       currentThreadResolved,
       selectedRoom?.name,
       selectedRoom?.roomId,
