@@ -346,6 +346,10 @@ compatibility re-export.
 Thread relation/route utility helpers now live in `src/app/mindroom/threads/threadUtils.ts` and
 `src/app/mindroom/threads/threadRouteUtils.ts`; the old `features/room` paths are only
 compatibility re-exports.
+Thread tag parsing, optimistic pending state, and read/write hooks now live in
+`src/app/mindroom/threads/threadTags.ts`, `threadTagPending.ts`, `useThreadTags.ts`,
+`useRoomThreadTags.ts`, and `useMutateThreadTags.ts`; the old `features/room` paths are only
+compatibility re-exports.
 Thread-open cache hydration, latest-slice refresh, relation backfill, and cached relation-tail
 refresh now live in `src/app/mindroom/threads/threadOpenCacheController.ts`; `RoomTimeline` decides
 when to open a thread route but no longer owns their cache/network policy.

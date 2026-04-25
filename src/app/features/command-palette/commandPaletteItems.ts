@@ -39,8 +39,8 @@ import { makeRecentThreadsAtom } from '../../state/recentThreads';
 import { buildCommandPaletteThreadViewModelFromRecord } from '../../mindroom/threads/commandPaletteThreadViewModel';
 import { buildThreadRecord } from '../../mindroom/threads/threadRecord';
 import { getResolvedRecentThreadRootId } from '../recent-threads/recentThreadSummaryUtils';
-import { resolveCanonicalThreadRootId } from '../room/threadRouteUtils';
-import { getValidThreadRootEvent } from '../room/threadUtils';
+import { resolveCanonicalThreadRootId } from '../../mindroom/threads/threadRouteUtils';
+import { getValidThreadRootEvent } from '../../mindroom/threads/threadUtils';
 import {
   aggregateThreadTagEvents,
   buildPerTagEventContent,
@@ -48,7 +48,7 @@ import {
   getDisplayTags,
   isThreadResolved,
   RESOLVED_TAG,
-} from '../room/threadTags';
+} from '../../mindroom/threads/threadTags';
 import {
   commandPaletteStaticActionPaths,
   getCommandPaletteMessageTargets,
