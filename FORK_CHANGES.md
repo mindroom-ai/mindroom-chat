@@ -137,6 +137,8 @@
   - Moved the compact room view test beside the MindRoom implementation and removed the leftover compact room/card wrapper files from `features/room`.
 - `CINNY-148`
   - Moved remaining MindRoom thread helper tests from `features/room` to `mindroom/threads`.
+- `CINNY-149`
+  - Removed unused top-level hook/state/native wrappers after all active callers used MindRoom-owned modules directly.
 
 ### Current Feature Set On `dev`
 

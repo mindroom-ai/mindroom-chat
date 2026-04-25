@@ -172,10 +172,6 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps last-open-thread state in MindRoom threads', () => {
-    const compatibilitySource = readFileSync(
-      new URL('../../state/lastOpenThread.ts', import.meta.url),
-      'utf8'
-    );
     const clientStorageSource = readFileSync(
       new URL('../../pages/client/ClientInitStorageAtom.tsx', import.meta.url),
       'utf8'
@@ -206,7 +202,6 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(compatibilitySource.trim()).toBe("export * from '../mindroom/threads/lastOpenThread';");
     expect(clientStorageSource).toContain("from '../../mindroom/cache/clientStorageAtoms'");
     expect(clientStorageSource).not.toContain("from '../../mindroom/threads/lastOpenThread'");
     expect(clientStorageSource).not.toContain("from '../../mindroom/recent-threads/recentThreads'");
@@ -223,6 +218,25 @@ describe('RoomTimeline architecture', () => {
     expect(routeRestoreSource).toContain('getLastOpenThreadRestoreTarget');
     expect(sessionCleanupSource).toContain("from '../threads/lastOpenThread'");
     expect(initMatrixSource).not.toContain("from '../app/state/lastOpenThread'");
+  });
+
+  it('does not keep unused top-level MindRoom compatibility wrappers', () => {
+    const removedCompatibilityPaths = [
+      '../../hooks/useIOSPushEnabled.ts',
+      '../../hooks/useThreadScheduledTasks.ts',
+      '../../hooks/useThreadStreamingState.ts',
+      '../../state/lastOpenThread.ts',
+      '../../state/recentThreads.ts',
+      '../../state/recentThreadsPanelHeight.ts',
+      '../../state/recentThreadsPanelMobileExpanded.ts',
+      '../../state/room/roomViewMode.ts',
+      '../../utils/iosPush.ts',
+      '../../utils/nativeSso.ts',
+    ];
+
+    removedCompatibilityPaths.forEach((path) => {
+      expect(existsSync(new URL(path, import.meta.url))).toBe(false);
+    });
   });
 
   it('keeps room input auto-thread send sessions in MindRoom threads', () => {
@@ -928,10 +942,6 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
     const roomUtilsSource = readFileSync(new URL('../../utils/room.ts', import.meta.url), 'utf8');
-    const streamingHookSource = readFileSync(
-      new URL('../../hooks/useThreadStreamingState.ts', import.meta.url),
-      'utf8'
-    );
     const streamingHookImplementationSource = readFileSync(
       new URL('../../mindroom/threads/useThreadStreamingState.ts', import.meta.url),
       'utf8'
@@ -1048,9 +1058,6 @@ describe('RoomTimeline architecture', () => {
     expect(roomUtilsSource).not.toContain("key.startsWith('com.mindroom.')");
     expect(customHtmlStyleSource).not.toContain('MindroomBlock');
     expect(customHtmlStyleSource).not.toContain('MindroomToolGroup');
-    expect(streamingHookSource.trim()).toBe(
-      "export * from '../mindroom/threads/useThreadStreamingState';"
-    );
     expect(streamingHookImplementationSource).toContain("from '../messages/aiRun'");
     expect(streamingHookImplementationSource).toContain('STREAM_STATUS_KEY');
     expect(messageIndexSource).toContain(
@@ -1188,10 +1195,6 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/threadRecord.ts', import.meta.url),
       'utf8'
     );
-    const stateCompatibilitySource = readFileSync(
-      new URL('../../state/recentThreads.ts', import.meta.url),
-      'utf8'
-    );
     const stateSource = readFileSync(
       new URL('../../mindroom/recent-threads/recentThreads.ts', import.meta.url),
       'utf8'
@@ -1207,21 +1210,10 @@ describe('RoomTimeline architecture', () => {
     expect(panelSource).toContain('Recent Threads');
     expect(summarySource).toContain('resolveRecentThreadSummaryText');
     expect(threadRecordSource).toContain("from '../recent-threads/recentThreadSummaryUtils'");
-    expect(stateCompatibilitySource.trim()).toBe(
-      "export * from '../mindroom/recent-threads/recentThreads';"
-    );
     expect(stateSource).toContain('makeRecentThreadsAtom');
   });
 
   it('keeps native app integration helpers in the MindRoom namespace', () => {
-    const nativeSsoCompatibilitySource = readFileSync(
-      new URL('../../utils/nativeSso.ts', import.meta.url),
-      'utf8'
-    );
-    const iosPushCompatibilitySource = readFileSync(
-      new URL('../../utils/iosPush.ts', import.meta.url),
-      'utf8'
-    );
     const edgeSwipeCompatibilitySource = readFileSync(
       new URL('../../hooks/useEdgeSwipeBack.ts', import.meta.url),
       'utf8'
@@ -1231,10 +1223,6 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
     const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
-    const iosPushHookCompatibilitySource = readFileSync(
-      new URL('../../hooks/useIOSPushEnabled.ts', import.meta.url),
-      'utf8'
-    );
     const systemNotificationSource = readFileSync(
       new URL('../settings/notifications/SystemNotification.tsx', import.meta.url),
       'utf8'
@@ -1267,10 +1255,6 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(nativeSsoCompatibilitySource.trim()).toBe(
-      "export * from '../mindroom/native/nativeSso';"
-    );
-    expect(iosPushCompatibilitySource.trim()).toBe("export * from '../mindroom/native/iosPush';");
     expect(edgeSwipeCompatibilitySource.trim()).toBe(
       "export { useEdgeSwipeBack } from '../mindroom/native/useEdgeSwipeBack';"
     );
@@ -1278,9 +1262,6 @@ describe('RoomTimeline architecture', () => {
     expect(backRouteHandlerSource).not.toContain("from '../mindroom/native/useEdgeSwipeBack'");
     expect(roomViewSource).toContain("from '../../hooks/useEdgeSwipeBack'");
     expect(roomViewSource).not.toContain("from '../../mindroom/native/useEdgeSwipeBack'");
-    expect(iosPushHookCompatibilitySource.trim()).toBe(
-      "export { useIOSPushEnabled } from '../mindroom/native/useIOSPushEnabled';"
-    );
     expect(nativeSsoSource).toContain('buildNativeSsoRedirectUrl');
     expect(iosPushSource).toContain('resolveIOSPushConfig');
     expect(systemNotificationSource).toContain(
