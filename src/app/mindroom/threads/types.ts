@@ -1,4 +1,4 @@
-import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
+import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 
 export type ThreadId = {
   roomId: string;

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
+import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import type { ThreadRecord } from './types';
 import { buildThreadBadgeViewModelFromRecord } from './threadBadgeViewModel';
 

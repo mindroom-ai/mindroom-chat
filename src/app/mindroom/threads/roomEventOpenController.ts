@@ -16,7 +16,7 @@ import type {
   Thread,
 } from 'matrix-js-sdk';
 import to from 'await-to-js';
-import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
+import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import type { ScrollToElement, ScrollToItem } from '../../hooks/useVirtualPaginator';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
 import type {

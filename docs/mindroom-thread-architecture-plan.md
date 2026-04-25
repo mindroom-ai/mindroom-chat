@@ -671,11 +671,15 @@ Acceptance:
   - scroll/pagination controller.
 - Keep upstream Cinny files limited to integration seams.
 - Remove abandoned fallback code paths before finalizing history.
+- Keep MindRoom message primitives under `src/app/mindroom/messages`; generic message modules may
+  expose compatibility re-exports, but should not own the implementation.
 
 Acceptance:
 
 - `git diff v4.11.1...HEAD -- src/app/features/room/RoomTimeline.tsx` is materially smaller.
 - MindRoom behavior is mostly contained under fork-owned modules.
+- Summary parsing, approval parsing, approval cards, and summary cards live in the MindRoom
+  namespace, with old `components/message/*` paths reduced to thin compatibility wrappers.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy

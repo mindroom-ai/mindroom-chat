@@ -10,7 +10,7 @@ import type {
   MatrixEvent,
   Room,
 } from 'matrix-js-sdk';
-import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
+import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import type { ThreadRecord } from './types';
 import {
   getCompactCachedThreadActivityTs,

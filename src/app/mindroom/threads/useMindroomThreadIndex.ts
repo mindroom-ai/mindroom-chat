@@ -3,7 +3,7 @@ import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'mat
 import {
   buildThreadSummaryMap,
   type MindroomThreadSummaryInfo,
-} from '../../components/message/mindroomThreadSummary';
+} from '../messages/threadSummary';
 import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,

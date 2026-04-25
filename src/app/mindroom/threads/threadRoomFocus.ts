@@ -1,5 +1,5 @@
 import type { MatrixEvent, Room, Thread } from 'matrix-js-sdk';
-import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
+import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import { buildCompactThreadRootData } from './compactThreadRootData';
 import { isVisibleThreadRootEvent } from './roomTimelineEvents';
 import {

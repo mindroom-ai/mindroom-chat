@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
+import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import { storeThreadSummaryInState, useThreadSummaryStateMap } from './threadSummaryState';
 
 type UseRoomThreadSummaryStateOptions = {

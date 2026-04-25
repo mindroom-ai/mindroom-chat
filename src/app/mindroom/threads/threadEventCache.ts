@@ -4,7 +4,7 @@ import {
   getThreadSummaryEventInfo,
   hasMindroomThreadSummary,
   MindroomThreadSummaryInfo,
-} from '../../components/message/mindroomThreadSummary';
+} from '../messages/threadSummary';
 import {
   CachedPaginationTokenMap,
   getCachedPaginationToken,

@@ -3,8 +3,6 @@ import { Box, Chip, Icon, Icons, Text, toRem } from 'folds';
 import { IContent } from 'matrix-js-sdk';
 import { JUMBO_EMOJI_REG, URL_REG } from '../../utils/regex';
 import { trimReplyFromBody } from '../../utils/room';
-import { useSetting } from '../../state/hooks/settings';
-import { settingsAtom } from '../../state/settings';
 import { MessageTextBody } from './layout';
 import {
   MessageBadEncryptedContent,
@@ -33,12 +31,6 @@ import { parseGeoUri, scaleYDimension } from '../../utils/common';
 import { getVoiceMessageAudioDetails, isVoiceMessageContent } from '../../utils/voiceMessage';
 import { Attachment, AttachmentBox, AttachmentContent, AttachmentHeader } from './attachment';
 import { FileHeader, FileDownloadButton } from './FileHeader';
-import { Time } from './Time';
-import {
-  MindroomThreadSummaryInfo,
-  formatMindroomThreadSummaryMessageCount,
-} from './mindroomThreadSummary';
-import * as summaryCss from './mindroomThreadSummaryCard.css';
 
 export function MBadEncrypted() {
   return (
@@ -185,65 +177,6 @@ export function MNotice({ edited, isStreaming, content, renderBody, renderUrlsPr
       </MessageTextBody>
       {renderUrlsPreview && urls && urls.length > 0 && renderUrlsPreview(urls)}
     </>
-  );
-}
-
-type MindroomThreadSummaryCardProps = {
-  edited?: boolean;
-  compact?: boolean;
-  summaryInfo: MindroomThreadSummaryInfo;
-  renderBody: (props: RenderBodyProps) => ReactNode;
-};
-export function MindroomThreadSummaryCard({
-  edited,
-  compact,
-  summaryInfo,
-  renderBody,
-}: MindroomThreadSummaryCardProps) {
-  const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
-  const [dateFormatString] = useSetting(settingsAtom, 'dateFormatString');
-  const summaryText = summaryInfo.summaryText ?? 'Thread summary';
-  const messageCountLabel =
-    typeof summaryInfo.messageCount === 'number'
-      ? formatMindroomThreadSummaryMessageCount(summaryInfo.messageCount)
-      : undefined;
-
-  return (
-    <Box
-      className={summaryCss.ThreadSummaryCard}
-      direction="Column"
-      gap="200"
-      aria-label="AI thread summary"
-    >
-      <Box className={summaryCss.ThreadSummaryMeta}>
-        <Box as="span" className={summaryCss.ThreadSummaryLabel}>
-          <Icon size="50" src={Icons.Bulb} />
-          <Text size="T200">AI summary</Text>
-        </Box>
-        {messageCountLabel && !compact && (
-          <Chip variant="SurfaceVariant" radii="Pill" outlined>
-            <Text size="T200">{messageCountLabel}</Text>
-          </Chip>
-        )}
-        {summaryInfo.generatedTs && (
-          <Time
-            ts={summaryInfo.generatedTs}
-            hour24Clock={hour24Clock}
-            dateFormatString={dateFormatString}
-          />
-        )}
-      </Box>
-
-      <MessageTextBody
-        preWrap
-        className={
-          compact ? summaryCss.ThreadSummaryBodyCompact : summaryCss.ThreadSummaryBody
-        }
-      >
-        {renderBody({ body: summaryText })}
-        {edited && <MessageEditedContent />}
-      </MessageTextBody>
-    </Box>
   );
 }
 

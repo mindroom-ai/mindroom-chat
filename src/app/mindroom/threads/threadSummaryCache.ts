@@ -1,5 +1,5 @@
 import { getSessionScopedStorageKey } from '../../state/sessions';
-import { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
+import { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 
 const DB_NAME = 'mindroom-thread-summary-cache';
 const DB_VERSION = 1;

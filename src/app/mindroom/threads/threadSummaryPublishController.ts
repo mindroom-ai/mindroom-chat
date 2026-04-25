@@ -3,7 +3,7 @@ import type { MatrixEvent, Thread } from 'matrix-js-sdk';
 import {
   getLatestThreadSummaryInfoFromEventSources,
   type MindroomThreadSummaryInfo,
-} from '../../components/message/mindroomThreadSummary';
+} from '../messages/threadSummary';
 
 export const getActiveThreadSummaryInfo = ({
   thread,

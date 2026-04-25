@@ -1,7 +1,7 @@
 import {
   pickLatestThreadSummaryInfo,
   type MindroomThreadSummaryInfo,
-} from '../../components/message/mindroomThreadSummary';
+} from '../messages/threadSummary';
 
 export const shouldWriteThreadSummaryToCache = (
   cachedInfo: MindroomThreadSummaryInfo | undefined,

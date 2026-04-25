@@ -6,7 +6,7 @@ import {
   MINDROOM_TOOL_APPROVAL_EVENT,
   parseToolApproval,
   parseToolApprovalContent,
-} from './mindroomToolApproval';
+} from './toolApproval';
 
 const makeApprovalEvent = (content: Record<string, unknown>, type = MINDROOM_TOOL_APPROVAL_EVENT) =>
   new MatrixEvent({

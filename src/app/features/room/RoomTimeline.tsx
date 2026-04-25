@@ -114,7 +114,7 @@ import { ImageViewer } from '../../components/image-viewer';
 import {
   getToolApprovalRenderContent,
   MINDROOM_TOOL_APPROVAL_EVENT,
-} from '../../components/message/mindroomToolApproval';
+} from '../../mindroom/messages/toolApproval';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
 import { useRoomUnread } from '../../state/hooks/unread';
 import { roomToUnreadAtom } from '../../state/room/roomToUnread';
@@ -135,7 +135,7 @@ import { useAccessiblePowerTagColors, useGetMemberPowerTag } from '../../hooks/u
 import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
-import { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
+import { MindroomThreadSummaryInfo } from '../../mindroom/messages/threadSummary';
 import {
   consumeLiveExpandOnceId,
   getCollapsibleMessageMeasurementKey,

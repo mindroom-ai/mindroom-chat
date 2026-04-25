@@ -3,7 +3,7 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import {
   pickLatestThreadSummaryInfo,
   type MindroomThreadSummaryInfo,
-} from '../../components/message/mindroomThreadSummary';
+} from '../messages/threadSummary';
 import { getNextThreadScheduledTs } from '../../hooks/useThreadHeaderInfo';
 import { getThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
 import { getThreadStreamingState } from '../../hooks/useThreadStreamingState';

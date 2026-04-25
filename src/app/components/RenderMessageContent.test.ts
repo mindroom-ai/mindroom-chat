@@ -77,7 +77,7 @@ vi.mock('./message/MindroomLongTextText', () => ({
   MindroomLongTextText: () => null,
 }));
 
-vi.mock('./message/MindroomToolApprovalCard', () => ({
+vi.mock('../mindroom/messages/MindroomToolApprovalCard', () => ({
   MindroomToolApprovalCard: ({
     approval,
     eventId,
