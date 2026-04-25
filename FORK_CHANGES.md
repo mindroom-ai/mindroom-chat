@@ -2058,3 +2058,9 @@
 - Added `hasMindroomLongTextMetadata(...)` to `src/app/mindroom/messages/longText.ts`.
 - Updated search-result preview selection to use that fork-owned predicate instead of checking raw `io.mindroom.long_text` metadata inside the generic message-search module.
 - Preserved the existing lightweight-renderer behavior for placeholder long-text metadata, including raw edit wrappers.
+
+## CINNY-097 — Move MindRoom metadata key ownership out of room utils (2026-04-25)
+
+- Added `src/app/mindroom/messages/metadata.ts` as the owner for MindRoom message metadata-key namespace checks.
+- Updated generic edit resolution in `src/app/utils/room.ts` to preserve MindRoom edit metadata by delegating to `isMindroomMessageMetadataKey(...)` instead of matching raw `io.mindroom.*` / `com.mindroom.*` prefixes locally.
+- Kept the existing `m.mentions` preservation behavior in the generic edit resolver unchanged.

@@ -700,6 +700,7 @@ describe('RoomTimeline architecture', () => {
       new URL('../../styles/CustomHtml.css.ts', import.meta.url),
       'utf8'
     );
+    const roomUtilsSource = readFileSync(new URL('../../utils/room.ts', import.meta.url), 'utf8');
     const streamingHookSource = readFileSync(
       new URL('../../hooks/useThreadStreamingState.ts', import.meta.url),
       'utf8'
@@ -756,6 +757,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/ThreadBadgeRenderer.tsx', import.meta.url),
       'utf8'
     );
+    const metadataSource = readFileSync(
+      new URL('../../mindroom/messages/metadata.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(renderContentSource).toContain("../mindroom/messages/threadSummary");
     expect(renderContentSource).toContain("../mindroom/messages/toolApproval");
@@ -785,6 +790,9 @@ describe('RoomTimeline architecture', () => {
     expect(parserSource).not.toContain('MindroomCollapsibleBlock');
     expect(searchResultPreviewSource).toContain("from '../../mindroom/messages/longText'");
     expect(searchResultPreviewSource).not.toContain("content?.['io.mindroom.long_text']");
+    expect(roomUtilsSource).toContain("from '../mindroom/messages/metadata'");
+    expect(roomUtilsSource).not.toContain("key.startsWith('io.mindroom.')");
+    expect(roomUtilsSource).not.toContain("key.startsWith('com.mindroom.')");
     expect(customHtmlStyleSource).not.toContain('MindroomBlock');
     expect(customHtmlStyleSource).not.toContain('MindroomToolGroup');
     expect(streamingHookSource.trim()).toBe(
@@ -842,6 +850,7 @@ describe('RoomTimeline architecture', () => {
     expect(messageControlsSource).toContain('downloadMindroomLongTextSidecarBlob');
     expect(threadBadgeSource).toContain("from '../messages/MindroomThreadSummaryCard'");
     expect(threadBadgeSource).not.toContain('MindroomThreadSummaryCard, ThreadIndicator');
+    expect(metadataSource).toContain('isMindroomMessageMetadataKey');
   });
 
   it('keeps Local MindRoom settings implementation in the MindRoom namespace', () => {
