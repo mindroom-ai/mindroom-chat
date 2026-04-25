@@ -363,6 +363,9 @@ Thread backward-pagination reconciliation helpers now live in
 compatibility re-export.
 Timeline debug trace helpers now live in `src/app/mindroom/threads/timelineDebug.ts`; the old
 `features/room` path is only a compatibility re-export.
+Event cache pagination token helpers now live in
+`src/app/mindroom/threads/eventCacheTokenUtils.ts`; the old `features/room` path is only a
+compatibility re-export.
 Thread tag parsing, optimistic pending state, and read/write hooks now live in
 `src/app/mindroom/threads/threadTags.ts`, `threadTagPending.ts`, `useThreadTags.ts`,
 `useRoomThreadTags.ts`, and `useMutateThreadTags.ts`; the old `features/room` paths are only

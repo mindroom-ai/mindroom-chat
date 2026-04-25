@@ -957,6 +957,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 46 / Phase 5 event cache token helper ownership (2026-04-24):
+  - moved cache pagination token merge/lookup/anchor comparison helpers to `src/app/mindroom/threads/eventCacheTokenUtils.ts` with their regression tests.
+  - the old `src/app/features/room/eventCacheTokenUtils.ts` path is now a compatibility re-export; room/thread event cache stores, the event repository, and thread-open SDK bootstrap import the MindRoom implementation directly.
+  - this starts the cache-layer move with a pure helper before moving the IndexedDB store modules.
+  - validation:
+    - focused Vitest passes for `eventCacheTokenUtils.test.ts`, `roomEventCache.test.ts`, `threadEventCache.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimelineCollapsible.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
