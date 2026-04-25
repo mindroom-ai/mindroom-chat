@@ -14,7 +14,7 @@ import { usePathWithOrigin } from '../../../hooks/usePathWithOrigin';
 import { RegisterPathSearchParams } from '../../paths';
 import { useClientConfig } from '../../../hooks/useClientConfig';
 import { hasAppleIdentityProvider } from '../ssoProviders';
-import { buildNativeSsoRedirectUrl, isNativeIOS } from '../../../utils/nativeSso';
+import { buildNativeSsoRedirectUrl, isNativeIOS } from '../../../mindroom/native/nativeSso';
 import { isAddAccountSearch, withAddAccountSearch } from '../addAccount';
 
 const useRegisterSearchParams = (searchParams: URLSearchParams): RegisterPathSearchParams =>

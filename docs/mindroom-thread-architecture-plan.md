@@ -694,6 +694,8 @@ Acceptance:
   generic page modules only keep compatibility imports for the page navigation seam.
 - Recent Threads persistence atoms live next to that UI in `src/app/mindroom/recent-threads`; `src/app/state`
   only keeps compatibility exports.
+- Native app helpers for iOS push, native SSO, and edge-swipe-back live in `src/app/mindroom/native`;
+  legacy `utils`/`hooks` paths only keep compatibility exports.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy

@@ -945,6 +945,46 @@ describe('RoomTimeline architecture', () => {
     expect(stateSource).toContain('makeRecentThreadsAtom');
   });
 
+  it('keeps native app integration helpers in the MindRoom namespace', () => {
+    const nativeSsoCompatibilitySource = readFileSync(
+      new URL('../../utils/nativeSso.ts', import.meta.url),
+      'utf8'
+    );
+    const iosPushCompatibilitySource = readFileSync(
+      new URL('../../utils/iosPush.ts', import.meta.url),
+      'utf8'
+    );
+    const edgeSwipeCompatibilitySource = readFileSync(
+      new URL('../../hooks/useEdgeSwipeBack.ts', import.meta.url),
+      'utf8'
+    );
+    const iosPushHookCompatibilitySource = readFileSync(
+      new URL('../../hooks/useIOSPushEnabled.ts', import.meta.url),
+      'utf8'
+    );
+    const nativeSsoSource = readFileSync(
+      new URL('../../mindroom/native/nativeSso.ts', import.meta.url),
+      'utf8'
+    );
+    const iosPushSource = readFileSync(
+      new URL('../../mindroom/native/iosPush.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(nativeSsoCompatibilitySource.trim()).toBe(
+      "export * from '../mindroom/native/nativeSso';"
+    );
+    expect(iosPushCompatibilitySource.trim()).toBe("export * from '../mindroom/native/iosPush';");
+    expect(edgeSwipeCompatibilitySource.trim()).toBe(
+      "export { useEdgeSwipeBack } from '../mindroom/native/useEdgeSwipeBack';"
+    );
+    expect(iosPushHookCompatibilitySource.trim()).toBe(
+      "export { useIOSPushEnabled } from '../mindroom/native/useIOSPushEnabled';"
+    );
+    expect(nativeSsoSource).toContain('buildNativeSsoRedirectUrl');
+    expect(iosPushSource).toContain('resolveIOSPushConfig');
+  });
+
   it('keeps thread root route canonicalization in MindRoom threads', () => {
     const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
     const compatibilitySource = readFileSync(
