@@ -213,6 +213,9 @@
 - `CINNY-173`
   - Escape-key room/thread read-receipt handling now lives in `src/app/mindroom/threads/useRoomEscapeReadReceipts.ts`.
   - Generic `Room` no longer imports MindRoom read-receipt commands directly.
+- `CINNY-174`
+  - Room header and room-nav mark-read menu rendering now lives in `src/app/mindroom/notifications/MindroomMarkRoomReadMenuItem.tsx`.
+  - Generic room menu components no longer import MindRoom room/thread read-receipt commands directly.
 
 ### Current Feature Set On `dev`
 

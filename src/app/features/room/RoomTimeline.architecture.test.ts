@@ -1822,6 +1822,25 @@ describe('RoomTimeline architecture', () => {
     expect(controllerSource).toContain('useDocumentFocusChange');
   });
 
+  it('delegates room menu mark-read ownership to MindRoom notifications', () => {
+    const headerSource = readFileSync(new URL('./RoomViewHeader.tsx', import.meta.url), 'utf8');
+    const navItemSource = readFileSync(
+      new URL('../room-nav/RoomNavItem.tsx', import.meta.url),
+      'utf8'
+    );
+    const menuItemSource = readFileSync(
+      new URL('../../mindroom/notifications/MindroomMarkRoomReadMenuItem.tsx', import.meta.url),
+      'utf8'
+    );
+
+    expect(headerSource).toContain('MindroomMarkRoomReadMenuItem');
+    expect(navItemSource).toContain('MindroomMarkRoomReadMenuItem');
+    expect(headerSource).not.toContain('markRoomAndThreadsAsRead');
+    expect(navItemSource).not.toContain('markRoomAndThreadsAsRead');
+    expect(menuItemSource).toContain('markRoomAndThreadsAsRead');
+    expect(menuItemSource).toContain("from './readReceipts'");
+  });
+
   it('delegates route focus and thread-open scroll effects to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const controllerSource = readFileSync(
