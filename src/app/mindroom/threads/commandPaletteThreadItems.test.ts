@@ -20,7 +20,13 @@ const makeItem = (overrides: Partial<CommandPaletteThreadItem>): CommandPaletteT
 
 describe('buildThreadResolutionFromTagSnapshot', () => {
   it('projects tag snapshots into ThreadRecord resolution input', () => {
-    expect(buildThreadResolutionFromTagSnapshot({ isResolved: true, tags: ['done'] })).toEqual({
+    expect(
+      buildThreadResolutionFromTagSnapshot({
+        content: { tags: {} },
+        isResolved: true,
+        displayTags: ['done'],
+      })
+    ).toEqual({
       isResolved: true,
       tags: { done: true },
     });

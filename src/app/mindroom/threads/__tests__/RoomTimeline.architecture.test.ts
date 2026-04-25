@@ -783,6 +783,8 @@ describe('RoomTimeline architecture', () => {
     expect(paletteSource).not.toContain('resolveCanonicalThreadRootId');
     expect(implementationSource).toContain('useMindroomCommandPaletteThreadItems');
     expect(implementationSource).toContain('MINDROOM_THREAD_TAGS_EVENT');
+    expect(implementationSource).toContain("from './threadTagSnapshots'");
+    expect(implementationSource).not.toContain('aggregateThreadTagEvents');
     expect(implementationSource).toContain('makeRecentThreadsAtom');
     expect(implementationSource).toContain('buildThreadRecord');
     expect(implementationSource).toContain('resolveCanonicalThreadRootId');
@@ -942,10 +944,23 @@ describe('RoomTimeline architecture', () => {
       new URL('../useRoomThreadTags.ts', import.meta.url),
       'utf8'
     );
+    const singleThreadHookSource = readFileSync(
+      new URL('../useThreadTags.ts', import.meta.url),
+      'utf8'
+    );
+    const tagSnapshotsSource = readFileSync(
+      new URL('../threadTagSnapshots.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).toContain("from '../../mindroom/threads/useRoomThreadTags'");
     expect(tagsSource).toContain('aggregateThreadTagEvents');
     expect(hookSource).toContain('useRoomThreadResolutionMap');
+    expect(hookSource).toContain("from './threadTagSnapshots'");
+    expect(hookSource).not.toContain('aggregateThreadTagEvents');
+    expect(singleThreadHookSource).toContain("from './threadTagSnapshots'");
+    expect(singleThreadHookSource).not.toContain('aggregateThreadTagEvents');
+    expect(tagSnapshotsSource).toContain('aggregateThreadTagEvents');
   });
 
   it('keeps thread banner and tag UI in MindRoom threads', () => {
