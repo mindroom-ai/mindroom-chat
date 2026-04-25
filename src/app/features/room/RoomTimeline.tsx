@@ -165,7 +165,6 @@ import {
   shouldPinThreadToBottomOnOpen,
 } from '../../mindroom/threads/threadRenderUtils';
 import { useThreadRenderState } from '../../mindroom/threads/useThreadRenderState';
-import { logTimelineDebug } from '../../mindroom/threads/timelineDebug';
 import {
   useTimelineDebugRangeController,
   useTimelineDebugTraceIds,
@@ -250,14 +249,7 @@ import {
   MAX_THREAD_FETCH_EVENTS,
   shouldRefreshOverviewForTimelineEvent,
 } from '../../mindroom/threads/threadBootstrap';
-import { createThreadOpenSeedSession } from '../../mindroom/threads/threadOpenSeedController';
-import { runThreadOpenCacheFirst } from '../../mindroom/threads/threadOpenCacheFirst';
-import { runThreadOpenSdkBootstrap } from '../../mindroom/threads/threadOpenSdkBootstrap';
-import { runThreadOpenPostBootstrapRefresh } from '../../mindroom/threads/threadOpenPostBootstrapRefresh';
-import {
-  runThreadOpenTargetEvent,
-  type PendingThreadOpen,
-} from '../../mindroom/threads/threadOpenTargetEvent';
+import { type PendingThreadOpen } from '../../mindroom/threads/threadOpenTargetEvent';
 import { useThreadSeedPrewarmController } from '../../mindroom/threads/threadSeedPrewarmController';
 import { useThreadOpenCacheController } from '../../mindroom/threads/threadOpenCacheController';
 import { useThreadAwareTimelineRefresh } from '../../mindroom/threads/useThreadAwareTimelineRefresh';
@@ -271,6 +263,7 @@ import { useRoomCacheLifecycleController } from '../../mindroom/threads/roomCach
 import { useRoomCacheHydrationController } from '../../mindroom/threads/roomCacheHydrationController';
 import { resolveThreadOverviewRefreshTargets } from '../../mindroom/threads/threadOverviewRefreshTargets';
 import { useRoomLiveEventController } from '../../mindroom/threads/roomLiveEventController';
+import { useThreadOpenLifecycleController } from '../../mindroom/threads/threadOpenLifecycleController';
 
 export { getRoomEventThreadOpenTarget } from '../../mindroom/threads/roomDeepLink';
 export { getRoomEventFocusTarget, getThreadFilteredEvents };
@@ -1667,183 +1660,45 @@ export function RoomTimeline({
     roomOverviewOrderActive,
   ]);
 
-  useEffect(() => {
-    if (!threadId) return;
-    setFocusItem(undefined);
-    setThreadLoadError(false);
-    setThreadHasMoreCachedBack(false);
-    setThreadInitialCacheHydrated(false);
-    setThreadTailLoaded(false);
-    setThreadTimelineTick(0);
-    setPendingThreadOpenTick(0);
-    threadEditFetchAttemptedRef.current = new WeakMap<MatrixEvent, number>();
-    pendingThreadOpenRef.current = undefined;
-    resetThreadBackPagination();
-    resetThreadRenderState(threadId);
-    const shouldScrollToLatestOnOpen = !eventId;
-    const threadOpenSeedSession = createThreadOpenSeedSession({
-      debugTraceId: threadDebugTraceId,
-      ensureThreadSeedPrewarm,
-      prewarmedThreadSeedIdsRef,
-      prewarmingThreadSeedIdsRef,
-      queuedThreadSeedIdsRef,
-      prewarmingThreadSeedPromisesRef,
-      room,
-      roomTimelineSet,
-      setSupplementalThreadEvents,
-      shouldScrollToLatestOnOpen,
-      threadId,
-    });
-    let mounted = true;
-    threadOpenSeedSession.startUntargetedSeedPrewarmWait(
-      () => mounted && threadIdRef.current === threadId
-    );
-    if (!shouldScrollToLatestOnOpen) {
-      threadOpenSeedSession.applyInitialRoomThreadSeed();
-    }
-    setThreadLatestOpenPending(shouldScrollToLatestOnOpen);
-    const loadThreadTimeline = async () => {
-      const pinThreadToBottomOnOpen = () => {
-        if (
-          !mounted ||
-          threadIdRef.current !== threadId ||
-          suppressThreadOpenBottomPinRef.current
-        ) {
-          return;
-        }
-        scrollToBottomRef.current.count += 1;
-        scrollToBottomRef.current.smooth = false;
-        setAtBottom(true);
-      };
-
-      try {
-        const cacheFirstResult = await runThreadOpenCacheFirst({
-          backfillThreadRelationsIntoCache,
-          debugTraceId: threadDebugTraceId,
-          forceTimelineUpdate,
-          hydrateThreadFromCache,
-          isCurrentThreadOpen: () => mounted && threadIdRef.current === threadId,
-          mx,
-          pinThreadToBottomOnOpen,
-          refreshLatestThreadRelationsTail,
-          room,
-          setThreadHasMoreCachedBack,
-          setThreadInitialCacheHydrated,
-          setThreadTailLoaded,
-          setThreadTimelineTick,
-          shouldScrollToLatestOnOpen,
-          threadId,
-          threadOpenSeedSession,
-        });
-        if (!cacheFirstResult.shouldContinue) return;
-
-        const shouldContinueAfterSdkBootstrap = await runThreadOpenSdkBootstrap({
-          debugTraceId: threadDebugTraceId,
-          hydratedCachedPage: cacheFirstResult.hydratedCachedPage,
-          isMounted: () => mounted,
-          mx,
-          onThreadLoadError,
-          persistThreadEventCache,
-          pinThreadToBottomOnOpen,
-          room,
-          setSupplementalThreadEvents,
-          setThreadHasMoreCachedBack,
-          setThreadLoadError,
-          setThreadTailLoaded,
-          setThreadTimelineTick,
-          setTimeline,
-          shouldScrollToLatestOnOpen,
-          threadId,
-        });
-        if (!shouldContinueAfterSdkBootstrap) return;
-
-        const shouldContinueAfterPostBootstrapRefresh = await runThreadOpenPostBootstrapRefresh({
-          debugTraceId: threadDebugTraceId,
-          isCurrentThreadOpen: () => mounted && threadIdRef.current === threadId,
-          mx,
-          persistThreadEventCache,
-          refreshLatestThreadSlice,
-          room,
-          setSupplementalThreadEvents,
-          setThreadHasMoreCachedBack,
-          setThreadTailLoaded,
-          shouldScrollToLatestOnOpen,
-          threadId,
-        });
-        if (!shouldContinueAfterPostBootstrapRefresh) return;
-
-        setTimeline((ct) => ({ ...ct }));
-        setThreadTimelineTick((val) => val + 1);
-        logTimelineDebug(threadDebugTraceId, 'thread-open-complete', {
-          shouldScrollToLatestOnOpen,
-          threadId,
-        });
-        if (shouldScrollToLatestOnOpen) {
-          pinThreadToBottomOnOpen();
-        }
-
-        const shouldContinueAfterTargetEvent = await runThreadOpenTargetEvent({
-          eventId,
-          forceTimelineUpdate,
-          isCurrentThreadOpen: () => mounted && threadIdRef.current === threadId,
-          mx,
-          room,
-          setPendingThreadOpen: (pending) => {
-            pendingThreadOpenRef.current = pending;
-          },
-          setPendingThreadOpenTick,
-          setThreadTimelineTick,
-          shouldScrollToLatestOnOpen,
-          threadId,
-        });
-        if (!shouldContinueAfterTargetEvent) return;
-      } finally {
-        if (mounted && threadIdRef.current === threadId) {
-          setThreadLatestOpenPending(false);
-        }
-      }
-    };
-
-    loadThreadTimeline();
-
-    return () => {
-      mounted = false;
-      threadOpenSeedSession.cleanup();
-    };
-  }, [
+  useThreadOpenLifecycleController({
+    backfillThreadRelationsIntoCache,
     ensureThreadSeedPrewarm,
     eventId,
     forceTimelineUpdate,
     hydrateThreadFromCache,
     mx,
-    backfillThreadRelationsIntoCache,
+    onThreadLoadError,
+    pendingThreadOpenRef,
     persistThreadEventCache,
-    resetThreadBackPagination,
-    resetThreadRenderState,
+    prewarmedThreadSeedIdsRef,
+    prewarmingThreadSeedIdsRef,
+    prewarmingThreadSeedPromisesRef,
+    queuedThreadSeedIdsRef,
     refreshLatestThreadRelationsTail,
     refreshLatestThreadSlice,
+    resetThreadBackPagination,
+    resetThreadRenderState,
     room,
+    roomTimelineSet,
+    scrollToBottomRef,
+    setAtBottom,
+    setFocusItem,
+    setPendingThreadOpenTick,
     setSupplementalThreadEvents,
+    setThreadHasMoreCachedBack,
+    setThreadInitialCacheHydrated,
+    setThreadLatestOpenPending,
+    setThreadLoadError,
+    setThreadPaginatingFront,
+    setThreadTailLoaded,
+    setThreadTimelineTick,
+    setTimeline,
+    suppressThreadOpenBottomPinRef,
     threadDebugTraceId,
-    onThreadLoadError,
+    threadEditFetchAttemptedRef,
     threadId,
-  ]);
-
-  useEffect(() => {
-    if (threadId) return;
-    setThreadLoadError(false);
-    setThreadHasMoreCachedBack(false);
-    setThreadInitialCacheHydrated(false);
-    setThreadTailLoaded(false);
-    setThreadLatestOpenPending(false);
-    setThreadTimelineTick(0);
-    setThreadPaginatingFront(false);
-    setPendingThreadOpenTick(0);
-    threadEditFetchAttemptedRef.current = new WeakMap<MatrixEvent, number>();
-    pendingThreadOpenRef.current = undefined;
-    resetThreadBackPagination();
-    resetThreadRenderState(undefined);
-  }, [resetThreadBackPagination, resetThreadRenderState, threadId]);
+    threadIdRef,
+  });
 
   // Scroll to bottom on initial timeline load
   useLayoutEffect(() => {

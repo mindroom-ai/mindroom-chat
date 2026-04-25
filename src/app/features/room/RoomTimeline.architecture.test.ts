@@ -226,8 +226,14 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/threadOpenSdkBootstrap.ts', import.meta.url),
       'utf8'
     );
+    const lifecycleSource = readFileSync(
+      new URL('../../mindroom/threads/threadOpenLifecycleController.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain('runThreadOpenSdkBootstrap');
+    expect(source).toContain('useThreadOpenLifecycleController');
+    expect(source).not.toContain('runThreadOpenSdkBootstrap');
+    expect(lifecycleSource).toContain('runThreadOpenSdkBootstrap');
     expect(bootstrapSource).toContain('thread-sdk-bootstrap-ready');
     expect(source).not.toContain('thread-sdk-bootstrap-context-error');
     expect(source).not.toContain('isPendingLocalEchoThreadRoot');
@@ -240,8 +246,13 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/threadOpenCacheFirst.ts', import.meta.url),
       'utf8'
     );
+    const lifecycleSource = readFileSync(
+      new URL('../../mindroom/threads/threadOpenLifecycleController.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain('runThreadOpenCacheFirst');
+    expect(source).not.toContain('runThreadOpenCacheFirst');
+    expect(lifecycleSource).toContain('runThreadOpenCacheFirst');
     expect(cacheFirstSource).toContain('thread-open-complete-cache-hit');
     expect(source).not.toContain('thread-open-complete-cache-hit');
     expect(source).not.toContain('shouldBackfillThreadRelationsFromCoverage');
@@ -254,8 +265,13 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/threadOpenPostBootstrapRefresh.ts', import.meta.url),
       'utf8'
     );
+    const lifecycleSource = readFileSync(
+      new URL('../../mindroom/threads/threadOpenLifecycleController.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain('runThreadOpenPostBootstrapRefresh');
+    expect(source).not.toContain('runThreadOpenPostBootstrapRefresh');
+    expect(lifecycleSource).toContain('runThreadOpenPostBootstrapRefresh');
     expect(refreshSource).toContain('thread-open-forward-gap-check');
     expect(source).not.toContain('thread-open-forward-gap-check');
     expect(source).not.toContain('computeReconciliationToken');
@@ -267,8 +283,13 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/threadOpenTargetEvent.ts', import.meta.url),
       'utf8'
     );
+    const lifecycleSource = readFileSync(
+      new URL('../../mindroom/threads/threadOpenLifecycleController.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain('runThreadOpenTargetEvent');
+    expect(source).not.toContain('runThreadOpenTargetEvent');
+    expect(lifecycleSource).toContain('runThreadOpenTargetEvent');
     expect(targetEventSource).toContain('setPendingThreadOpen');
     expect(source).not.toContain('evtThreadTimelineSet');
   });
@@ -779,8 +800,8 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(source).toContain("from '../../mindroom/threads/timelineDebug'");
     expect(source).toContain("from '../../mindroom/threads/timelineDebugController'");
+    expect(source).not.toContain("from '../../mindroom/threads/timelineDebug'");
     expect(compatibilitySource).toContain("from '../../mindroom/threads/timelineDebug'");
     expect(implementationSource).toContain('createTimelineDebugTrace');
     expect(implementationSource).toContain('mindroom.debug.timeline');
@@ -958,8 +979,14 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps thread-open seed cache in the MindRoom thread namespace', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const lifecycleSource = readFileSync(
+      new URL('../../mindroom/threads/threadOpenLifecycleController.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain("from '../../mindroom/threads/threadOpenSeedController'");
+    expect(source).toContain("from '../../mindroom/threads/threadOpenLifecycleController'");
+    expect(source).not.toContain("from '../../mindroom/threads/threadOpenSeedController'");
+    expect(lifecycleSource).toContain("from './threadOpenSeedController'");
     expect(source).not.toContain("from './threadOpenSeedCache'");
     expect(source).not.toContain('thread-open-seed-scan');
     expect(source).not.toContain('THREAD_OPEN_PREWARM_WAIT_MS');
