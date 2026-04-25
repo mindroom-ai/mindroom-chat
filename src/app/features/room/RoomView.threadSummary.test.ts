@@ -180,7 +180,7 @@ vi.mock('../../hooks/useRoomNavigate', () => ({
   }),
 }));
 
-vi.mock('../../mindroom/native/useEdgeSwipeBack', () => ({
+vi.mock('../../hooks/useEdgeSwipeBack', () => ({
   useEdgeSwipeBack: vi.fn(),
 }));
 

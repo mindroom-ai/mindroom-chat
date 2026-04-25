@@ -1297,6 +1297,11 @@ describe('RoomTimeline architecture', () => {
       new URL('../../hooks/useEdgeSwipeBack.ts', import.meta.url),
       'utf8'
     );
+    const backRouteHandlerSource = readFileSync(
+      new URL('../../components/BackRouteHandler.tsx', import.meta.url),
+      'utf8'
+    );
+    const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
     const iosPushHookCompatibilitySource = readFileSync(
       new URL('../../hooks/useIOSPushEnabled.ts', import.meta.url),
       'utf8'
@@ -1333,6 +1338,10 @@ describe('RoomTimeline architecture', () => {
     expect(edgeSwipeCompatibilitySource.trim()).toBe(
       "export { useEdgeSwipeBack } from '../mindroom/native/useEdgeSwipeBack';"
     );
+    expect(backRouteHandlerSource).toContain("from '../hooks/useEdgeSwipeBack'");
+    expect(backRouteHandlerSource).not.toContain("from '../mindroom/native/useEdgeSwipeBack'");
+    expect(roomViewSource).toContain("from '../../hooks/useEdgeSwipeBack'");
+    expect(roomViewSource).not.toContain("from '../../mindroom/native/useEdgeSwipeBack'");
     expect(iosPushHookCompatibilitySource.trim()).toBe(
       "export { useIOSPushEnabled } from '../mindroom/native/useIOSPushEnabled';"
     );
