@@ -1,5 +1,5 @@
 import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
-import { Direction, type EventTimeline, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { Direction, type MatrixClient, type Room } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import { decryptAllTimelineEvent } from '../../utils/room';
 import {
@@ -72,15 +72,11 @@ export const useRoomEagerPreload = ({
         setTimeout(resolve, 100);
       });
       if (cancelled || !alive()) {
-        console.log('[eager-preload] cancelled or unmounted before starting loop');
         logTimelineDebug(roomDebugTraceId, 'eager-preload-cancelled-before-start');
         setEagerPreloading(false);
         return;
       }
 
-      console.log(
-        `[eager-preload] starting for room ${room.roomId}, limit=${safePaginationLimitRef.current}, savedToken=${savedPaginationToken ? 'yes' : 'no'}`
-      );
       logTimelineDebug(roomDebugTraceId, 'eager-preload-start', {
         limit: safePaginationLimitRef.current,
         savedTokenPresent: !!savedPaginationToken,
@@ -89,16 +85,8 @@ export const useRoomEagerPreload = ({
       let iterations = 0;
       let stalledBatches = 0;
       let preloadSucceeded = false;
-      while (true) {
-        if (cancelled || !alive()) {
-          console.log(`[eager-preload] cancelled or unmounted at iteration ${iterations}`);
-          logTimelineDebug(roomDebugTraceId, 'eager-preload-cancelled', {
-            iterations,
-          });
-          break;
-        }
+      while (!cancelled && alive()) {
         if (roomIdRef.current !== room.roomId || threadIdRef.current) {
-          console.log(`[eager-preload] room/thread changed at iteration ${iterations}`);
           logTimelineDebug(roomDebugTraceId, 'eager-preload-abort-room-change', {
             iterations,
             currentThreadId: threadIdRef.current,
@@ -116,7 +104,9 @@ export const useRoomEagerPreload = ({
         const linkedTimelines = getLinkedTimelines(getLiveTimeline(room));
         const filterOpts = recalibrateFilterOptsRef.current;
         if (!filterOpts) {
-          console.log('[eager-preload] missing filter opts, breaking');
+          logTimelineDebug(roomDebugTraceId, 'eager-preload-missing-filter-opts', {
+            iterations,
+          });
           break;
         }
 
@@ -126,9 +116,6 @@ export const useRoomEagerPreload = ({
           : counts.renderableCount;
 
         if (surfacedCount >= safePaginationLimitRef.current) {
-          console.log(
-            `[eager-preload] done: surfaceCount=${surfacedCount} >= limit=${safePaginationLimitRef.current}`
-          );
           logTimelineDebug(roomDebugTraceId, 'eager-preload-target-reached', {
             cacheCount: counts.cacheCount,
             iterations,
@@ -142,19 +129,20 @@ export const useRoomEagerPreload = ({
 
         const firstTimeline = linkedTimelines[0];
         if (!firstTimeline) {
-          console.log('[eager-preload] no first timeline, breaking');
+          logTimelineDebug(roomDebugTraceId, 'eager-preload-no-first-timeline', {
+            iterations,
+          });
           preloadSucceeded = true;
           break;
         }
 
         let backwardToken = firstTimeline.getPaginationToken(Direction.Backward);
         if (!backwardToken && savedPaginationToken && iterations === 0) {
-          console.log('[eager-preload] pagination token was cleared, restoring saved token');
+          logTimelineDebug(roomDebugTraceId, 'eager-preload-restore-saved-token');
           firstTimeline.setPaginationToken(savedPaginationToken, Direction.Backward);
           backwardToken = savedPaginationToken;
         }
         if (!backwardToken) {
-          console.log('[eager-preload] no backward pagination token, breaking');
           logTimelineDebug(roomDebugTraceId, 'eager-preload-no-backward-token', {
             cacheCount: counts.cacheCount,
             iterations,
@@ -187,13 +175,16 @@ export const useRoomEagerPreload = ({
             })
           );
           if (err) {
-            console.log(`[eager-preload] pagination error at iteration ${iterations}:`, err);
+            logTimelineDebug(roomDebugTraceId, 'eager-preload-pagination-error', {
+              error: err,
+              iterations,
+            });
             break;
           }
           if (didPaginate === false) {
-            console.log(
-              `[eager-preload] paginateEventTimeline returned false at iteration ${iterations}`
-            );
+            logTimelineDebug(roomDebugTraceId, 'eager-preload-pagination-returned-false', {
+              iterations,
+            });
             preloadSucceeded = true;
             break;
           }
@@ -232,11 +223,18 @@ export const useRoomEagerPreload = ({
 
           if (!progressed) {
             stalledBatches += 1;
-            console.log(
-              `[eager-preload] batch ${iterations + 1}: no progress (cached=${refreshedCounts.cacheCount}, renderable=${refreshedCounts.renderableCount}, surface=${refreshedCounts.surfaceCount}, stalled=${stalledBatches}/${MAX_STALLED_BATCHES})`
-            );
+            logTimelineDebug(roomDebugTraceId, 'eager-preload-batch-stalled', {
+              cacheCount: refreshedCounts.cacheCount,
+              iterations: iterations + 1,
+              renderableCount: refreshedCounts.renderableCount,
+              stalledBatches,
+              surfaceCount: refreshedCounts.surfaceCount,
+            });
             if (stalledBatches >= MAX_STALLED_BATCHES) {
-              console.log('[eager-preload] pagination stalled, breaking');
+              logTimelineDebug(roomDebugTraceId, 'eager-preload-stalled-limit-reached', {
+                iterations: iterations + 1,
+                stalledBatches,
+              });
               break;
             }
           } else {
@@ -244,9 +242,6 @@ export const useRoomEagerPreload = ({
           }
 
           iterations++;
-          console.log(
-            `[eager-preload] batch ${iterations}: cached ${refreshedCounts.cacheCount} room events, renderable ${refreshedCounts.renderableCount}, surface ${refreshedCounts.surfaceCount} / ${safePaginationLimitRef.current}`
-          );
           logTimelineDebug(roomDebugTraceId, 'eager-preload-batch', {
             backwardTokenChanged: refreshedBackwardToken !== backwardToken,
             cacheCount: refreshedCounts.cacheCount,
@@ -279,9 +274,6 @@ export const useRoomEagerPreload = ({
               renderableCount: getTimelinesEventsCount(finalLinkedTimelines),
               surfaceCount: getTimelinesEventsCount(finalLinkedTimelines),
             };
-        console.log(
-          `[eager-preload] complete for room ${room.roomId}: ${iterations} batches, ${finalCounts.cacheCount} cached room events, ${finalCounts.renderableCount} renderable events, ${finalCounts.surfaceCount} surface entries`
-        );
         logTimelineDebug(roomDebugTraceId, 'eager-preload-complete', {
           cacheCount: finalCounts.cacheCount,
           iterations,
