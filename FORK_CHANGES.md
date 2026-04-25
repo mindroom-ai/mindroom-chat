@@ -106,6 +106,9 @@
 - `CINNY-136`
   - Added `src/app/mindroom/threads/threadSummaryStore.ts` as the public summary cache/state boundary.
   - Production callers now consume summary cache deletion, shared summary state, and room-view summary hooks through that store instead of selecting individual cache/state modules directly.
+- `CINNY-137`
+  - Added `src/app/mindroom/messages/editResolution.ts` as the public MindRoom edit-resolution boundary.
+  - Generic room edit resolution now imports one MindRoom edit seam instead of individual debug and metadata helpers.
 
 ### Current Feature Set On `dev`
 
