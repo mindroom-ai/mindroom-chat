@@ -140,6 +140,9 @@ Completed in the 2026-04-25 cleanup pass:
   `src/app/features/room/RoomViewHeader.tsx` path is now only a compatibility re-export, so
   thread-aware mark-read, native back handling, and command-palette opener wiring stay in the
   MindRoom namespace.
+- Room shell implementation lives under `src/app/mindroom/threads/MindroomRoom.tsx`. The old
+  generic `src/app/features/room/Room.tsx` path is now only a compatibility re-export, so
+  last-open-thread restore and escape-read-receipt policy stay in the MindRoom thread namespace.
 
 Remaining queue:
 

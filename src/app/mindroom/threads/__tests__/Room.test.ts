@@ -58,6 +58,13 @@ vi.mock('../../../features/room/RoomView', () => ({
   },
 }));
 
+vi.mock('../MindroomRoomView', () => ({
+  RoomView: (props: MockRoomViewProps) => {
+    roomState.roomViewProps = props;
+    return React.createElement('mock-room-view');
+  },
+}));
+
 vi.mock('../../../features/room/MembersDrawer', () => ({
   MembersDrawer: () => React.createElement('div'),
 }));
@@ -132,6 +139,10 @@ vi.mock('../../../features/call/CallView', () => ({
 }));
 
 vi.mock('../../../features/room/RoomViewHeader', () => ({
+  RoomViewHeader: () => React.createElement('mock-room-view-header'),
+}));
+
+vi.mock('../MindroomRoomViewHeader', () => ({
   RoomViewHeader: () => React.createElement('mock-room-view-header'),
 }));
 

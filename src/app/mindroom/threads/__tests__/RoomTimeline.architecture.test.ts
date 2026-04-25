@@ -28,6 +28,15 @@ const readRoomViewHeaderSource = (): string =>
 const readRoomViewHeaderSeamSource = (): string =>
   readFileSync(new URL('../../../features/room/RoomViewHeader.tsx', import.meta.url), 'utf8');
 
+const readRoomSource = (): string =>
+  readFileSync(new URL('../MindroomRoom.tsx', import.meta.url), 'utf8').replaceAll(
+    "from './",
+    "from '../../mindroom/threads/"
+  );
+
+const readRoomSeamSource = (): string =>
+  readFileSync(new URL('../../../features/room/Room.tsx', import.meta.url), 'utf8');
+
 describe('RoomTimeline architecture', () => {
   it('keeps the generic room timeline file as a narrow MindRoom seam', () => {
     const source = readRoomTimelineSeamSource();
@@ -50,6 +59,14 @@ describe('RoomTimeline architecture', () => {
 
     expect(source).toContain("from '../../mindroom/threads/MindroomRoomViewHeader'");
     expect(source).not.toContain('MindroomCommandPaletteHeaderButton');
+    expect(source.split('\n').length).toBeLessThan(5);
+  });
+
+  it('keeps the generic room shell file as a narrow MindRoom seam', () => {
+    const source = readRoomSeamSource();
+
+    expect(source).toContain("from '../../mindroom/threads/MindroomRoom'");
+    expect(source).not.toContain('useRoomThreadRouteRestore');
     expect(source.split('\n').length).toBeLessThan(5);
   });
 
@@ -292,7 +309,7 @@ describe('RoomTimeline architecture', () => {
       new URL('../../cache/clientStorageAtoms.ts', import.meta.url),
       'utf8'
     );
-    const roomSource = readFileSync(new URL('../../../features/room/Room.tsx', import.meta.url), 'utf8');
+    const roomSource = readRoomSource();
     const roomRouteRestoreSource = readFileSync(
       new URL('../useRoomThreadRouteRestore.ts', import.meta.url),
       'utf8'

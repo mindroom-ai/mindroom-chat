@@ -283,6 +283,10 @@
   - Room-view header implementation now lives in `src/app/mindroom/threads/MindroomRoomViewHeader.tsx`.
   - `src/app/features/room/RoomViewHeader.tsx` is a narrow compatibility seam that re-exports the MindRoom room header.
   - Thread-aware mark-read, native back handling, and command-palette opener wiring stay outside the upstream room feature path.
+- `CINNY-193`
+  - Room shell implementation now lives in `src/app/mindroom/threads/MindroomRoom.tsx`.
+  - `src/app/features/room/Room.tsx` is a narrow compatibility seam that re-exports the MindRoom room shell.
+  - Last-open-thread route restore and escape-read-receipt handling stay in the MindRoom thread namespace.
 
 ### Current Feature Set On `dev`
 
