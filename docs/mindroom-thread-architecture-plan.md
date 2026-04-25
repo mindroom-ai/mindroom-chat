@@ -433,6 +433,8 @@ Thread-message edit backfill now lives in
 `src/app/mindroom/threads/threadEditBackfillController.ts`; the backfill policy lives in
 `src/app/mindroom/threads/threadEditBackfill.ts`, with the old `features/room` utility path kept as
 a compatibility re-export for existing tests/importers.
+Live collapsible-message policy for MindRoom summary messages and first-paint live thread replies
+now lives in `src/app/mindroom/threads/threadCollapsibleMessages.ts`.
 Thread cache coverage now includes backward-gap, snapshot-complete, relation-complete, and tail-loaded
 facts, and `RoomTimeline` consumes fork-owned coverage decisions for "Load Older Messages",
 complete cached opens, and relation backfill. The remaining ownership gap is route-specific
