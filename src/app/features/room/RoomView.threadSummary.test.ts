@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearThreadSummarySharedState } from './threadSummaryState';
+import { clearThreadSummarySharedState } from '../../mindroom/threads/threadSummaryState';
 
 type MockThreadContextBannerProps = {
   onExitThread?: () => void;
@@ -188,7 +188,7 @@ vi.mock('./useThreadRootEvent', () => ({
   useThreadRootEvent: (_room: unknown, threadId: string | undefined) => threadId,
 }));
 
-vi.mock('./threadSummaryCache', () => ({
+vi.mock('../../mindroom/threads/threadSummaryCache', () => ({
   loadCachedThreadSummaries: loadCachedThreadSummariesMock,
   saveCachedThreadSummary: saveCachedThreadSummaryMock,
 }));

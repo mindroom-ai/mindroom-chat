@@ -50,7 +50,7 @@ import { roomThreadFilterAtomFamily } from '../../state/room/roomThreadFilterSta
 import { roomViewModeAtomFamily, type RoomViewMode } from '../../state/room/roomViewMode';
 import { createSessionId } from '../../state/sessions';
 import { ThreadContextBanner } from '../../mindroom/threads/ThreadContextBanner';
-import { useRoomThreadSummaryState } from './useRoomThreadSummaryState';
+import { useRoomThreadSummaryState } from '../../mindroom/threads/useRoomThreadSummaryState';
 import { useThreadRootEvent } from './useThreadRootEvent';
 import { bumpRecentThread } from '../../state/recentThreads';
 import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';

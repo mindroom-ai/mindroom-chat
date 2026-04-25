@@ -449,6 +449,34 @@ describe('RoomTimeline architecture', () => {
     expect(pickerCompatibilitySource).not.toContain('normalizeTagName');
   });
 
+  it('keeps thread summary cache and state in MindRoom threads', () => {
+    const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
+    const cacheCompatibilitySource = readFileSync(
+      new URL('./threadSummaryCache.ts', import.meta.url),
+      'utf8'
+    );
+    const stateCompatibilitySource = readFileSync(
+      new URL('./threadSummaryState.ts', import.meta.url),
+      'utf8'
+    );
+    const cacheSource = readFileSync(
+      new URL('../../mindroom/threads/threadSummaryCache.ts', import.meta.url),
+      'utf8'
+    );
+    const stateSource = readFileSync(
+      new URL('../../mindroom/threads/threadSummaryState.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(roomViewSource).toContain("from '../../mindroom/threads/useRoomThreadSummaryState'");
+    expect(cacheCompatibilitySource).toContain("from '../../mindroom/threads/threadSummaryCache'");
+    expect(stateCompatibilitySource).toContain("from '../../mindroom/threads/threadSummaryState'");
+    expect(cacheSource).toContain('loadCachedThreadSummaries');
+    expect(stateSource).toContain('storeThreadSummaryInState');
+    expect(cacheCompatibilitySource).not.toContain('indexedDB');
+    expect(stateCompatibilitySource).not.toContain('useSyncExternalStore');
+  });
+
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
