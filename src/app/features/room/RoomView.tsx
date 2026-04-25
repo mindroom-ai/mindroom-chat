@@ -22,7 +22,6 @@ import { settingsAtom } from '../../state/settings';
 import { useSetting } from '../../state/hooks/settings';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
-import { useEdgeSwipeBack } from '../../mindroom/native/useEdgeSwipeBack';
 import { useIOSKeyboardFix } from '../../hooks/useIOSKeyboardFix';
 import { ThreadContextBanner } from '../../mindroom/threads/ThreadContextBanner';
 import { useRoomViewThreadState } from '../../mindroom/threads/useRoomViewThreadState';
@@ -108,9 +107,6 @@ export function RoomView({
     viewMode,
   } = useRoomViewThreadState({ eventId, room, threadId });
 
-  // Thread view has a more specific "back" action than the generic room-page back:
-  // first swipe exits the thread, then the room header/back handler can navigate out.
-  useEdgeSwipeBack(handleExitThread, !!threadId);
   useIOSKeyboardFix();
 
   useKeyDown(
