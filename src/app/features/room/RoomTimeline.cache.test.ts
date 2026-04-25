@@ -6,7 +6,7 @@ import type { ThreadRecord } from '../../mindroom/threads/types';
 import {
   getThreadOpenSeedSnapshot,
   saveThreadOpenSeedSnapshot,
-} from './threadOpenSeedCache';
+} from '../../mindroom/threads/threadOpenSeedCache';
 import {
   compactPlaceholderType,
   create,

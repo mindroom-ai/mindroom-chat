@@ -289,7 +289,10 @@ import {
   shouldFetchThreadEditBackfill,
 } from './threadEditBackfillUtils';
 import { useRoomThreadResolutionMap } from './useRoomThreadTags';
-import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
+import {
+  getThreadOpenSeedSnapshot,
+  saveThreadOpenSeedSnapshot,
+} from '../../mindroom/threads/threadOpenSeedCache';
 import { isPendingLocalEchoThreadRoot } from './threadRouteUtils';
 import { useThreadOverviewCacheHydration } from '../../mindroom/threads/threadOverviewCacheHydration';
 import { useRoomEagerPreload } from '../../mindroom/threads/preloadController';
