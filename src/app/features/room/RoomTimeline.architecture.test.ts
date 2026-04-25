@@ -655,6 +655,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/threadOverviewRefreshTargets.ts', import.meta.url),
       'utf8'
     );
+    const controllerSource = readFileSync(
+      new URL('../../mindroom/threads/threadOverviewResumeController.ts', import.meta.url),
+      'utf8'
+    );
     const counterSource = readFileSync(
       new URL('../../mindroom/threads/threadOverviewRefreshCounter.ts', import.meta.url),
       'utf8'
@@ -662,12 +666,13 @@ describe('RoomTimeline architecture', () => {
 
     expect(source).toContain('useThreadOverviewResumeController');
     expect(source).toContain("from '../../mindroom/threads/threadOverviewResumeController'");
-    expect(source).toContain("from '../../mindroom/threads/threadOverviewRefreshTargets'");
+    expect(source).not.toContain("from '../../mindroom/threads/threadOverviewRefreshTargets'");
     expect(source).toContain("from '../../mindroom/threads/threadOverviewRefreshCounter'");
     expect(source).not.toContain('isVisibleThreadRootEvent');
     expect(source).not.toContain('ThreadEvent.NewReply');
     expect(targetSource).toContain('resolveThreadOverviewRefreshTargets');
     expect(targetSource).toContain('isVisibleThreadRootEvent');
+    expect(controllerSource).toContain('resolveThreadOverviewRefreshTargets');
     expect(counterSource).toContain('useThreadOverviewRefreshCounter');
     expect(counterSource).toContain('ThreadEvent.NewReply');
     expect(source).not.toContain('overviewResumeRefreshInFlightRef');
