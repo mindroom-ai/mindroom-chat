@@ -2090,7 +2090,7 @@
 - Hook state stored as `{ mxcUri, content }` and only returns content when the tagged `mxcUri` matches the current `source.mxcUri`, so streaming `m.replace` rotations cannot leak the previous sidecar's body into the click handler.
 - `getMessageCopyTextBody(...)` extended with optional `resolvedLongTextContent`; falls back to envelope body when resolution unavailable.
 - `getMessageCopyTextBody(...)` and `isCopyTextMessageContent(...)` now live in `src/app/mindroom/messages/messageCopyText.ts`, keeping the long-text copy policy in the MindRoom message namespace.
-- `Message.tsx` widens the Copy Text visibility gate at the call site (`isCopyTextMessageContent || longTextSource !== undefined`); helper-level gate untouched. Menu item disables with `Copy Text (loading…)` label while sidecar hydrates.
+- `Message.tsx` widens the Copy Text visibility gate through the MindRoom extension state; helper-level gate untouched. Menu item disables with `Copy Text (loading…)` label while sidecar hydrates.
 - Click handler stays synchronous so iOS Safari's user-gesture clipboard requirement is preserved.
 - Tests: 4 helper precedence cases, 5 hook cases (warm/cold/disabled/unmount-cancel/source-change-isolation captured via `renderHook` + `result.current` to fail on the broken pre-fix hook), 1 `Message.test.ts` integration test for the overflow context-menu flow.
 
@@ -2161,7 +2161,8 @@
 
 - Moved the AI-run metadata dialog/button/menu item, long-text original download item, and long-text context-menu hydration state into `src/app/mindroom/messages/MindroomMessageControls.tsx`.
 - Moved the AI-run info-button style out of the generic room message stylesheet and into `src/app/mindroom/messages/MindroomMessageControls.css.ts`.
-- Reduced `src/app/features/room/message/Message.tsx` to a MindRoom integration seam: it imports the fork-owned controls but no longer owns AI-run display formatting, long-text sidecar download naming, or sidecar download execution.
+- Added `src/app/mindroom/messages/messageExtensions.tsx` as the upstream-facing message seam for AI-run shell/header/menu slots and long-text copy/download state.
+- Reduced `src/app/features/room/message/Message.tsx` to a MindRoom integration seam: it imports the fork-owned extension adapter but no longer owns AI-run display formatting, long-text sidecar download naming, sidecar download execution, or direct control primitives.
 - Added focused filename tests for long-text original downloads and extended the architecture guard so future edits do not put those controls back into the upstream-owned message component.
 
 ## CINNY-088 — Move MindRoom custom HTML blocks to fork namespace (2026-04-25)

@@ -661,6 +661,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../components/message/index.ts', import.meta.url),
       'utf8'
     );
+    const replyExtensionsSource = readFileSync(
+      new URL('../../mindroom/messages/replyExtensions.tsx', import.meta.url),
+      'utf8'
+    );
     const threadIndicatorSource = readFileSync(
       new URL('../../mindroom/threads/ThreadIndicator.tsx', import.meta.url),
       'utf8'
@@ -674,11 +678,14 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(replySource).toContain("from '../../mindroom/threads/ThreadIndicator'");
-    expect(replySource).toContain("from '../../mindroom/threads/useRoomEvent'");
+    expect(replySource).toContain("from '../../mindroom/messages/replyExtensions'");
+    expect(replySource).not.toContain("from '../../mindroom/threads/ThreadIndicator'");
+    expect(replySource).not.toContain("from '../../mindroom/threads/useRoomEvent'");
     expect(replySource).not.toContain('useThreadResolution');
     expect(replySource).not.toContain('useThreadScheduledTasks');
     expect(replySource).not.toContain('getThreadUnread');
+    expect(replyExtensionsSource).toContain("from '../threads/ThreadIndicator'");
+    expect(replyExtensionsSource).toContain("from '../threads/useRoomEvent'");
     expect(replyStyleSource).not.toContain('ThreadStreamingPulse');
     expect(indexSource).not.toContain('ThreadIndicator');
     expect(threadIndicatorSource).toContain("from './threadIndicatorViewModel'");
@@ -728,11 +735,23 @@ describe('RoomTimeline architecture', () => {
       new URL('./room-pin-menu/RoomPinMenu.tsx', import.meta.url),
       'utf8'
     );
+    const replyExtensionsSource = readFileSync(
+      new URL('../../mindroom/messages/replyExtensions.tsx', import.meta.url),
+      'utf8'
+    );
+    const pinnedExtensionsSource = readFileSync(
+      new URL('../../mindroom/messages/pinnedMessageExtensions.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(hookImplementationSource).toContain('loadCachedThreadEvent');
     expect(hookImplementationSource).toContain("from './eventRepository'");
-    expect(replySource).toContain("from '../../mindroom/threads/useRoomEvent'");
-    expect(pinMenuSource).toContain("from '../../../mindroom/threads/useRoomEvent'");
+    expect(replySource).toContain("from '../../mindroom/messages/replyExtensions'");
+    expect(pinMenuSource).toContain("from '../../../mindroom/messages/pinnedMessageExtensions'");
+    expect(replySource).not.toContain("from '../../mindroom/threads/useRoomEvent'");
+    expect(pinMenuSource).not.toContain("from '../../../mindroom/threads/useRoomEvent'");
+    expect(replyExtensionsSource).toContain("from '../threads/useRoomEvent'");
+    expect(pinnedExtensionsSource).toContain("from '../threads/useRoomEvent'");
   });
 
   it('keeps room thread overview controls in MindRoom threads', () => {
@@ -997,6 +1016,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/messages/MindroomMessageControls.tsx', import.meta.url),
       'utf8'
     );
+    const messageExtensionsSource = readFileSync(
+      new URL('../../mindroom/messages/messageExtensions.tsx', import.meta.url),
+      'utf8'
+    );
     const threadBadgeSource = readFileSync(
       new URL('../../mindroom/threads/ThreadBadgeRenderer.tsx', import.meta.url),
       'utf8'
@@ -1034,7 +1057,10 @@ describe('RoomTimeline architecture', () => {
     expect(mindroomRenderContentSource).toContain('./MindroomLongTextText');
     expect(mindroomRenderContentSource).toContain('./aiRun');
     expect(mindroomRenderContentSource).toContain('withMindroomToolTraceMarkerParserOptions');
-    expect(roomMessageSource).toContain("from '../../../mindroom/messages/MindroomMessageControls'");
+    expect(roomMessageSource).toContain("from '../../../mindroom/messages/messageExtensions'");
+    expect(roomMessageSource).not.toContain(
+      "from '../../../mindroom/messages/MindroomMessageControls'"
+    );
     expect(roomMessageSource).not.toContain("from '../../../mindroom/messages/longText'");
     expect(roomMessageSource).not.toContain("from '../../../mindroom/messages/MindroomLongTextText'");
     expect(roomMessageSource).not.toContain("from '../../../mindroom/messages/aiRun'");
@@ -1088,6 +1114,9 @@ describe('RoomTimeline architecture', () => {
     expect(messageControlsSource).toContain('MindroomAiRunControls');
     expect(messageControlsSource).toContain('MindroomDownloadOriginalMenuItem');
     expect(messageControlsSource).toContain('downloadMindroomLongTextSidecarBlob');
+    expect(messageExtensionsSource).toContain("from './MindroomMessageControls'");
+    expect(messageExtensionsSource).toContain('MindroomMessageExtensionShell');
+    expect(messageExtensionsSource).toContain('MindroomMessageMenuExtensions');
     expect(threadBadgeSource).toContain("from '../messages/MindroomThreadSummaryCard'");
     expect(threadBadgeSource).not.toContain('MindroomThreadSummaryCard, ThreadIndicator');
     expect(metadataSource).toContain('isMindroomMessageMetadataKey');

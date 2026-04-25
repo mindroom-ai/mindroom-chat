@@ -77,13 +77,13 @@ import { PowerIcon } from '../../../components/power';
 import colorMXID from '../../../../util/colorMXID';
 import { getPowerTagIconSrc } from '../../../hooks/useMemberPowerTag';
 import {
-  MindroomAiRunControls,
-  MindroomAiRunInfoButton,
-  MindroomAiRunMenuItem,
-  MindroomDownloadOriginalMenuItem,
-  MindroomAiRunControlsRenderProps,
-  useMindroomMessageControls,
-} from '../../../mindroom/messages/MindroomMessageControls';
+  getMindroomMessageCopyTextState,
+  MindroomMessageExtensionControls,
+  MindroomMessageExtensionShell,
+  MindroomMessageHeaderExtensions,
+  MindroomMessageMenuExtensions,
+  useMindroomMessageExtensionState,
+} from '../../../mindroom/messages/messageExtensions';
 
 import {
   getMessageCopyTextBody,
@@ -810,12 +810,11 @@ export const Message = as<'div', MessageProps>(
     const showCopyText = isCopyTextMessageContent(
       menuMessageContent as Record<string, unknown>
     );
-    const {
-      aiRunInfo: mindroomAiRunInfo,
-      longTextLoading,
-      longTextSource,
-      resolvedLongTextContent,
-    } = useMindroomMessageControls(menuMessageContent, menuAnchor !== undefined);
+    const mindroomMessageExtensions = useMindroomMessageExtensionState(
+      menuMessageContent,
+      menuAnchor !== undefined
+    );
+    const mindroomCopyText = getMindroomMessageCopyTextState(mindroomMessageExtensions);
 
     const senderDisplayName =
       getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
@@ -916,7 +915,7 @@ export const Message = as<'div', MessageProps>(
 
     const isThreadedMessage = mEvent.threadRootId !== undefined;
 
-    const renderMessageBase = (mindroomAiRunControls?: MindroomAiRunControlsRenderProps) => {
+    const renderMessageBase = (mindroomAiRunControls?: MindroomMessageExtensionControls) => {
       const handleOpenMindroomAiRun = () => {
         closeMenu();
         mindroomAiRunControls?.onOpen();
@@ -959,12 +958,10 @@ export const Message = as<'div', MessageProps>(
                 </Text>
               </>
             )}
-            {mindroomAiRunControls && (
-              <MindroomAiRunInfoButton
-                open={mindroomAiRunControls.open}
-                onOpen={handleOpenMindroomAiRun}
-              />
-            )}
+            <MindroomMessageHeaderExtensions
+              controls={mindroomAiRunControls}
+              onOpenAiRun={handleOpenMindroomAiRun}
+            />
             <Time
               ts={mEvent.getTs()}
               compact={messageLayout === MessageLayout.Compact}
@@ -1181,15 +1178,12 @@ export const Message = as<'div', MessageProps>(
                                 onClose={closeMenu}
                               />
                             )}
-                            {mindroomAiRunControls && (
-                              <MindroomAiRunMenuItem onOpen={handleOpenMindroomAiRun} />
-                            )}
-                            {longTextSource && (
-                              <MindroomDownloadOriginalMenuItem
-                                source={longTextSource}
-                                onClose={closeMenu}
-                              />
-                            )}
+                            <MindroomMessageMenuExtensions
+                              controls={mindroomAiRunControls}
+                              state={mindroomMessageExtensions}
+                              onClose={closeMenu}
+                              onOpenAiRun={handleOpenMindroomAiRun}
+                            />
                             {showDeveloperTools && (
                               <MessageSourceCodeItem
                                 room={room}
@@ -1197,13 +1191,13 @@ export const Message = as<'div', MessageProps>(
                                 onClose={closeMenu}
                               />
                             )}
-                            {!mEvent.isRedacted() && (showCopyText || longTextSource !== undefined) && (
+                            {!mEvent.isRedacted() && (showCopyText || mindroomCopyText.visible) && (
                               <MessageCopyTextItem
                                 room={room}
                                 mEvent={mEvent}
                                 onClose={closeMenu}
-                                resolvedLongTextContent={resolvedLongTextContent}
-                                loading={longTextLoading}
+                                resolvedLongTextContent={mindroomCopyText.resolvedContent}
+                                loading={mindroomCopyText.loading}
                               />
                             )}
                             <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
@@ -1271,15 +1265,11 @@ export const Message = as<'div', MessageProps>(
       );
     };
 
-    if (mindroomAiRunInfo) {
-      return (
-        <MindroomAiRunControls info={mindroomAiRunInfo} forwardedRef={ref}>
-          {renderMessageBase}
-        </MindroomAiRunControls>
-      );
-    }
-
-    return renderMessageBase();
+    return (
+      <MindroomMessageExtensionShell state={mindroomMessageExtensions} forwardedRef={ref}>
+        {renderMessageBase}
+      </MindroomMessageExtensionShell>
+    );
   }
 );
 
