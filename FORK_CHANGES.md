@@ -259,6 +259,10 @@
   - Cached overview metadata now lives behind `src/app/mindroom/threads/threadOverviewCacheMetadata.ts`.
   - `useMindroomThreadIndex` consumes one cached metadata snapshot/controller instead of owning separate cached activity, latest-preview, sender, message-count, compact-root-preview, and cache-coverage maps.
   - Overview cache hydration and fetched relation refreshes update the same cached metadata boundary before `ThreadRecord` derivation consumes it.
+- `CINNY-187`
+  - Message search implementation, helpers, and tests now live under `src/app/mindroom/message-search`.
+  - The old `src/app/features/message-search` feature folder was removed because production callers already route through the MindRoom search wrapper.
+  - Search result body rendering remains a local renderer seam so the search list stays separate from the MindRoom long-text/body component.
 
 ### Current Feature Set On `dev`
 
