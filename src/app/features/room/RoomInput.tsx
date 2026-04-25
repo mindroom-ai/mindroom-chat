@@ -102,7 +102,6 @@ import { getMessageRelation } from '../../mindroom/threads/composeMessageRelatio
 import { getMemberDisplayName, getMentionContent, trimReplyFromBody } from '../../utils/room';
 import { CommandAutocomplete } from './CommandAutocomplete';
 import { Command, SHRUG, TABLEFLIP, UNFLIP, useCommands } from '../../hooks/useCommands';
-import { MindroomCommandAutocomplete } from '../../mindroom/commands/MindroomCommandAutocomplete';
 import { mobileOrTablet } from '../../utils/user-agent';
 import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { ReplyLayout, ThreadIndicator } from '../../components/message';
@@ -119,13 +118,15 @@ import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { useComposingCheck } from '../../hooks/useComposingCheck';
 import {
-  getMindroomCommandQuery,
-  MINDROOM_COMMAND_PREFIX,
-} from '../../mindroom/commands/mindroomCommandQuery';
-import { VoiceRecorderComposer } from '../../mindroom/voice/VoiceRecorderDialog';
+  getMindroomRoomInputAutocompleteQuery,
+  isMindroomRoomInputAutocompleteQuery,
+  MindroomRoomInputAutocomplete,
+  MindroomVoiceRecorderComposer,
+  type MindroomRoomInputAutocompletePrefix,
+} from '../../mindroom/room-input/RoomInputMindroomExtensions';
 import { useRoomInputSendSessionController } from '../../mindroom/threads/useRoomInputSendSessionController';
 
-type RoomInputAutocompletePrefix = AutocompletePrefix | typeof MINDROOM_COMMAND_PREFIX;
+type RoomInputAutocompletePrefix = AutocompletePrefix | MindroomRoomInputAutocompletePrefix;
 
 interface RoomInputProps {
   editor: Editor;
@@ -542,7 +543,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           return;
         }
 
-        const mindroomCommandQuery = getMindroomCommandQuery(editor, prevWordRange);
+        const mindroomCommandQuery = getMindroomRoomInputAutocompleteQuery(editor, prevWordRange);
         if (mindroomCommandQuery) {
           setAutocompleteQuery(mindroomCommandQuery);
           return;
@@ -673,8 +674,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             requestClose={handleCloseAutocomplete}
           />
         )}
-        {autocompleteQuery?.prefix === MINDROOM_COMMAND_PREFIX && (
-          <MindroomCommandAutocomplete
+        {isMindroomRoomInputAutocompleteQuery(autocompleteQuery) && (
+          <MindroomRoomInputAutocomplete
             editor={editor}
             query={autocompleteQuery}
             requestClose={handleCloseAutocomplete}
@@ -737,7 +738,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                     </Box>
                   </Box>
                 )}
-                <VoiceRecorderComposer
+                <MindroomVoiceRecorderComposer
                   active={voiceRecorderOpen}
                   onClose={() => setVoiceRecorderOpen(false)}
                   onSaveRecording={handleVoiceRecording}
