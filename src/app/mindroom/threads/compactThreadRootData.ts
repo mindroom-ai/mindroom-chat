@@ -3,7 +3,6 @@ import {
   getEditedEvent,
   getLatestEdit,
   getLatestMessageContent,
-  trimReplyFromBody,
 } from '../../utils/room';
 import type { CachedThreadEventPage } from './eventRepository';
 import { applySerializedCachedReplaceRelations } from './eventCacheEditUtils';
@@ -12,6 +11,7 @@ import {
   getEffectiveThreadRootActivityTs,
   isPendingLocalEchoThreadRootEvent,
 } from './threadRouteUtils';
+import { getThreadMessagePreviewText } from './threadMessagePreview';
 import { isVisibleThreadTextMessageEventType } from './threadUtils';
 
 export type CompactThreadRootData = {
@@ -114,18 +114,7 @@ export const getCompactThreadRootBodyPreviewText = (
     | Record<string, unknown>
     | null
     | undefined;
-  if (!content || typeof content !== 'object' || Array.isArray(content)) return undefined;
-
-  const newContent = content['m.new_content'];
-  const editedBody =
-    newContent && typeof newContent === 'object' && !Array.isArray(newContent)
-      ? (newContent as Record<string, unknown>).body
-      : undefined;
-  const body = editedBody ?? content.body;
-  if (typeof body !== 'string') return undefined;
-
-  const normalized = trimReplyFromBody(body).replace(/\s+/g, ' ').trim();
-  return normalized.length > 0 ? normalized : undefined;
+  return getThreadMessagePreviewText(content);
 };
 
 export const getCompactCachedThreadRootPreviewInfo = ({
