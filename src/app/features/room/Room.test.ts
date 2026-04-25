@@ -101,7 +101,7 @@ vi.mock('../../hooks/useKeyDown', () => ({
   useKeyDown: vi.fn(),
 }));
 
-vi.mock('../../utils/notifications', () => ({
+vi.mock('../../mindroom/notifications/readReceipts', () => ({
   markRoomAndThreadsAsRead: vi.fn(),
   markThreadAsRead: vi.fn(),
 }));

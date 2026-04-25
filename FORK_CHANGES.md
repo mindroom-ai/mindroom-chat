@@ -141,6 +141,8 @@
   - Removed unused top-level hook/state/native wrappers after all active callers used MindRoom-owned modules directly.
 - `CINNY-150`
   - Removed active edge-swipe, room-event, and thread-indicator adapters by retargeting callers to MindRoom-owned modules directly.
+- `CINNY-151`
+  - Removed the generic notifications read-receipt wrapper and retargeted read-receipt callers to the MindRoom notification module.
 
 ### Current Feature Set On `dev`
 

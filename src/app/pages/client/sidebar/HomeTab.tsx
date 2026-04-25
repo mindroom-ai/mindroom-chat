@@ -21,7 +21,7 @@ import { useHomeSelected } from '../../../hooks/router/useHomeSelected';
 import { UnreadBadge } from '../../../components/unread-badge';
 import { useNavToActivePathAtom } from '../../../state/hooks/navToActivePath';
 import { useHomeRooms } from '../home/useHomeRooms';
-import { markRoomAndThreadsAsRead } from '../../../utils/notifications';
+import { markRoomAndThreadsAsRead } from '../../../mindroom/notifications/readReceipts';
 import { stopPropagation } from '../../../utils/keyboard';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';

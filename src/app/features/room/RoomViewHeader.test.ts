@@ -174,7 +174,7 @@ vi.mock('../../hooks/usePowerLevels', () => ({
   usePowerLevelsContext: () => ({}),
 }));
 
-vi.mock('../../utils/notifications', () => ({
+vi.mock('../../mindroom/notifications/readReceipts', () => ({
   markRoomAndThreadsAsRead: vi.fn(),
 }));
 

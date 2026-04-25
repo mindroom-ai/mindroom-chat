@@ -21,7 +21,7 @@ import { UnreadBadge } from '../../../components/unread-badge';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
 import { useNavToActivePathAtom } from '../../../state/hooks/navToActivePath';
 import { useDirectRooms } from '../direct/useDirectRooms';
-import { markRoomAndThreadsAsRead } from '../../../utils/notifications';
+import { markRoomAndThreadsAsRead } from '../../../mindroom/notifications/readReceipts';
 import { stopPropagation } from '../../../utils/keyboard';
 import { settingsAtom } from '../../../state/settings';
 import { useSetting } from '../../../state/hooks/settings';

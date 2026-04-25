@@ -233,6 +233,7 @@ describe('RoomTimeline architecture', () => {
       '../../state/recentThreadsPanelHeight.ts',
       '../../state/recentThreadsPanelMobileExpanded.ts',
       '../../state/room/roomViewMode.ts',
+      '../../utils/notifications.ts',
       '../../utils/iosPush.ts',
       '../../utils/nativeSso.ts',
     ];
@@ -1664,10 +1665,6 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/notifications/readReceipts.ts', import.meta.url),
       'utf8'
     );
-    const compatibilitySource = readFileSync(
-      new URL('../../utils/notifications.ts', import.meta.url),
-      'utf8'
-    );
 
     expect(source).toContain('useTimelineReadReceiptController');
     expect(source).not.toContain('markRoomAndThreadsAsRead');
@@ -1676,9 +1673,6 @@ describe('RoomTimeline architecture', () => {
     expect(controllerSource).toContain("from '../notifications/readReceipts'");
     expect(readReceiptsSource).toContain('markRoomAndThreadsAsRead');
     expect(readReceiptsSource).toContain("from '../threads/threadRenderUtils'");
-    expect(compatibilitySource.trim()).toBe(
-      "export * from '../mindroom/notifications/readReceipts';"
-    );
     expect(controllerSource).toContain('useIntersectionObserver');
     expect(controllerSource).toContain('useDocumentFocusChange');
   });

@@ -42,7 +42,7 @@ import { useDirectRooms } from './useDirectRooms';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
 import { useClosedNavCategoriesAtom } from '../../../state/hooks/closedNavCategories';
 import { useRoomsUnread } from '../../../state/hooks/unread';
-import { markRoomAndThreadsAsRead } from '../../../utils/notifications';
+import { markRoomAndThreadsAsRead } from '../../../mindroom/notifications/readReceipts';
 import { stopPropagation } from '../../../utils/keyboard';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
