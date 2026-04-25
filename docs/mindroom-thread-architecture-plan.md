@@ -721,6 +721,8 @@ Acceptance:
 - AI-run message controls, long-text original download controls, copy-text long-text state, and
   their styles live in `src/app/mindroom/messages`; generic room message rendering only wires the
   `messageExtensions.tsx` seam.
+- Live-message collapse policy and the `CollapsibleMessage` UI wrapper live in
+  `src/app/mindroom/threads`; the generic room timeline only mounts the fork-owned wrapper.
 - Pinned-message cache-aware event lookup and tool approval rendering live behind
   `src/app/mindroom/messages/pinnedMessageExtensions.ts`; the generic pinned-message menu only
   mounts the pinned-message seam.

@@ -1240,6 +1240,7 @@
 - `CINNY-075` implementation step 60 / Phase 6 collapsible message policy ownership (2026-04-24):
   - moved live collapsible-message tracking, one-shot expand ids, summary always-expanded mode, measurement keys, and expand-id consumption to `src/app/mindroom/threads/threadCollapsibleMessages.ts`.
   - `RoomTimeline` still renders the message surfaces, but no longer owns the MindRoom-specific collapse/expand policy.
+  - moved the `CollapsibleMessage` component, styles, and unit tests into `src/app/mindroom/threads` so the fork-only room timeline collapse UI is not owned by generic component paths.
   - validation:
     - focused Vitest passes for `RoomTimelineCollapsible.test.ts` and `RoomTimeline.architecture.test.ts`
     - `npm run typecheck` passes

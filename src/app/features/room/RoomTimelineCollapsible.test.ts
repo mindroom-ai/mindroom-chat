@@ -423,7 +423,7 @@ vi.mock('../../components/RenderMessageContent', () => ({
   RenderMessageContent: passthrough,
 }));
 
-vi.mock('../../components/CollapsibleMessage', async () => {
+vi.mock('../../mindroom/threads/CollapsibleMessage', async () => {
   const ReactImport = await import('react');
 
   return {

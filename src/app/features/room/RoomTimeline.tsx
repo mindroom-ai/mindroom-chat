@@ -108,7 +108,7 @@ import {
   CollapsibleMessage,
   expandAllMessages,
   collapseAllMessages,
-} from '../../components/CollapsibleMessage';
+} from '../../mindroom/threads/CollapsibleMessage';
 import { Image } from '../../components/media';
 import { ImageViewer } from '../../components/image-viewer';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
