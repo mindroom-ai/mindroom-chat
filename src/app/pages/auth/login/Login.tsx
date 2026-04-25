@@ -14,12 +14,12 @@ import { usePathWithOrigin } from '../../../hooks/usePathWithOrigin';
 import { LoginPathSearchParams } from '../../paths';
 import { useClientConfig } from '../../../hooks/useClientConfig';
 import { hasAppleIdentityProvider } from '../ssoProviders';
-import { buildNativeSsoRedirectUrl, isNativeIOS } from '../../../mindroom/native/nativeSso';
 import { isAddAccountSearch, withAddAccountSearch } from '../addAccount';
 import {
+  getMindroomAuthSsoRedirectUrl,
   isMindroomHomeserver,
   shouldDisablePasswordLogin,
-} from '../../../mindroom/auth/authPolicy';
+} from '../../../mindroom/auth/authUi';
 
 const getLoginTokenSearchParam = () => {
   // when using hasRouter query params in existing route
@@ -51,11 +51,7 @@ export function Login() {
   const webSsoRedirectUrl = usePathWithOrigin(getLoginPath(server));
   const ssoRedirectUrl = useMemo(() => {
     const redirectPath = addAccount ? withAddAccountSearch(webSsoRedirectUrl) : webSsoRedirectUrl;
-    if (isNativeIOS()) {
-      return buildNativeSsoRedirectUrl(redirectPath);
-    }
-
-    return redirectPath;
+    return getMindroomAuthSsoRedirectUrl(redirectPath);
   }, [addAccount, webSsoRedirectUrl]);
   const loginTokenForHashRouter = getLoginTokenSearchParam();
   const absoluteLoginPath = addAccount ? withAddAccountSearch(webSsoRedirectUrl) : webSsoRedirectUrl;
