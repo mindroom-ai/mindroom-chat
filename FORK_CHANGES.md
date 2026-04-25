@@ -251,7 +251,7 @@
   - Local MindRoom settings and the message preload setting remain owned by the MindRoom namespace behind one settings extension seam.
 - `CINNY-184`
   - Thread tag display/resolved snapshots now live in `src/app/mindroom/threads/threadTagSnapshots.ts`.
-  - Command palette thread items, room-level tag resolution, and single-thread tag hooks share the same snapshot derivation instead of aggregating tag state independently.
+  - Command palette thread items, room-level tag resolution, single-thread tag hooks, and tag mutation reads share the same snapshot derivation instead of aggregating tag state independently.
 - `CINNY-185`
   - Time-aware scheduled-thread status now lives behind `src/app/mindroom/threads/useThreadScheduledStatus.ts`.
   - Thread headers and thread indicators consume the shared scheduled-status hook instead of rebuilding scheduled-task maps separately.

@@ -955,6 +955,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../useThreadTags.ts', import.meta.url),
       'utf8'
     );
+    const mutateHookSource = readFileSync(
+      new URL('../useMutateThreadTags.ts', import.meta.url),
+      'utf8'
+    );
     const tagSnapshotsSource = readFileSync(
       new URL('../threadTagSnapshots.ts', import.meta.url),
       'utf8'
@@ -967,6 +971,8 @@ describe('RoomTimeline architecture', () => {
     expect(hookSource).not.toContain('aggregateThreadTagEvents');
     expect(singleThreadHookSource).toContain("from './threadTagSnapshots'");
     expect(singleThreadHookSource).not.toContain('aggregateThreadTagEvents');
+    expect(mutateHookSource).toContain("from './threadTagSnapshots'");
+    expect(mutateHookSource).not.toContain('aggregateThreadTagEvents');
     expect(tagSnapshotsSource).toContain('aggregateThreadTagEvents');
   });
 
