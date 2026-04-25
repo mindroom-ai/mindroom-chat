@@ -157,7 +157,8 @@
   - Removed the sidebar barrel export for `MindroomTab`; `SidebarNav` imports the MindRoom-owned tab directly at the integration point.
 - `CINNY-156`
   - Pinned-message tool approval rendering now lives in `src/app/mindroom/messages/pinnedToolApproval.tsx`.
-  - Generic `RoomPinMenu` keeps only a MindRoom render seam and no longer merges approval edit content itself.
+  - Pinned-message cache-aware event lookup now lives behind `src/app/mindroom/messages/pinnedMessageExtensions.ts`.
+  - Generic `RoomPinMenu` keeps only a MindRoom pinned-message seam and no longer merges approval edit content itself.
 - `CINNY-157`
   - Room-input thread indicator mounting now lives behind `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`.
   - Generic `RoomInput` no longer imports the MindRoom thread indicator or checks thread relation types directly.
