@@ -121,6 +121,8 @@
 - `CINNY-141`
   - Removed unused room-input compatibility wrappers for MindRoom commands, voice recording, bridge detection, compose relations, and auto-thread send sessions.
   - `RoomInput` continues to use the single MindRoom room-input extension seam.
+- `CINNY-142`
+  - Removed unused low-level thread compatibility wrappers for tag colors, pending tag state, tag mutation hooks, thread-summary selection, and room-summary state hooks.
 
 ### Current Feature Set On `dev`
 

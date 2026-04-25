@@ -292,6 +292,21 @@ describe('RoomTimeline architecture', () => {
     expect(sessionSource).toContain('getRoomInputSendMode');
   });
 
+  it('does not keep stale low-level thread compatibility wrappers', () => {
+    const removedThreadCompatibilityPaths = [
+      './threadSummarySelection.ts',
+      './threadTagColor.ts',
+      './threadTagPending.ts',
+      './useMutateThreadTags.ts',
+      './useRoomThreadSummaryState.ts',
+      './useThreadTags.ts',
+    ];
+
+    removedThreadCompatibilityPaths.forEach((path) => {
+      expect(existsSync(new URL(path, import.meta.url))).toBe(false);
+    });
+  });
+
   it('keeps thread navigation seeding policy in MindRoom threads', () => {
     const hookSource = readFileSync(
       new URL('../../hooks/useRoomNavigate.ts', import.meta.url),
