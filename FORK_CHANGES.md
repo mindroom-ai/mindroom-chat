@@ -87,6 +87,9 @@
 - `CINNY-130`
   - Room back-route and thread-exit swipe handling now consume the existing `src/app/hooks/useEdgeSwipeBack.ts` compatibility hook.
   - Generic route and room-view components no longer import the MindRoom native edge-swipe implementation directly.
+- `CINNY-131`
+  - System-notification settings now consume `src/app/mindroom/notifications/SystemNotificationMindroomExtensions.tsx` for MindRoom email-pusher branding and native iOS push settings.
+  - Generic notification settings no longer imports MindRoom branding or native push UI directly.
 
 ### Current Feature Set On `dev`
 
