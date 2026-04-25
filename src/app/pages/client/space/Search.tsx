@@ -4,7 +4,7 @@ import { Page, PageContent, PageContentCenter, PageHeader } from '../../../compo
 import { MindroomMessageSearch } from '../../../mindroom/message-search/MindroomMessageSearch';
 import { useSpace } from '../../../hooks/useSpace';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
-import { BackRouteHandler } from '../../../components/BackRouteHandler';
+import { MindroomBackRouteHandler as BackRouteHandler } from '../../../mindroom/native/MindroomBackRouteHandler';
 import { useSpaceSearchRooms } from './useSpaceSearchRooms';
 
 export function SpaceSearch() {

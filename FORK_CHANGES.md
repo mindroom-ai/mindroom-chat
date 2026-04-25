@@ -241,6 +241,10 @@
   - `src/app/mindroom/message-search/MindroomMessageSearch.tsx` supplies `src/app/mindroom/message-search/searchResultBodyRenderer.tsx`, which mounts `MindroomSearchResultBody`.
   - `src/app/features/message-search/SearchResultGroup.tsx` and `src/app/features/message-search/MessageSearch.tsx` no longer import MindRoom result-body components directly.
   - Added a narrow ownership test to keep generic search code unaware of MindRoom result-body components.
+- `CINNY-182`
+  - Route-level edge-swipe back handling now lives in `src/app/mindroom/native/MindroomBackRouteHandler.tsx`.
+  - Generic `BackRouteHandler` owns only route-back calculation; it no longer imports MindRoom native edge-swipe behavior or accepts native-only props.
+  - Page/header integration points consume the MindRoom wrapper where native swipe behavior is needed.
 
 ### Current Feature Set On `dev`
 

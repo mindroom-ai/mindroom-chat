@@ -8,10 +8,8 @@ import {
   getSpacePath,
 } from '../pages/pathUtils';
 import { DIRECT_PATH, EXPLORE_PATH, HOME_PATH, INBOX_PATH, SPACE_PATH } from '../pages/paths';
-import { useEdgeSwipeBack } from '../mindroom/native/useEdgeSwipeBack';
 
 type BackRouteHandlerProps = {
-  enableEdgeSwipe?: boolean;
   children: (onBack: () => void) => ReactNode;
 };
 export function useBackRoute(): () => void {
@@ -89,13 +87,8 @@ export function useBackRoute(): () => void {
   }, [navigate, location]);
 }
 
-export function BackRouteHandler({
-  children,
-  enableEdgeSwipe = true,
-}: BackRouteHandlerProps) {
+export function BackRouteHandler({ children }: BackRouteHandlerProps) {
   const goBack = useBackRoute();
-
-  useEdgeSwipeBack(goBack, enableEdgeSwipe);
 
   return children(goBack);
 }

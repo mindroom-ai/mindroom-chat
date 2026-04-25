@@ -96,6 +96,10 @@ Completed in the 2026-04-25 cleanup pass:
 - Generic message search no longer imports `MindroomSearchResultBody` directly.
   `MessageSearch` accepts a result-body renderer seam, and
   `src/app/mindroom/message-search/MindroomMessageSearch.tsx` supplies the MindRoom renderer.
+- Generic route-back handling no longer imports MindRoom native edge-swipe behavior directly.
+  `src/app/components/BackRouteHandler.tsx` owns only route-back calculation, while
+  `src/app/mindroom/native/MindroomBackRouteHandler.tsx` mounts the native swipe gesture for
+  MindRoom page/header integration points.
 
 Remaining queue:
 
@@ -845,6 +849,9 @@ Acceptance:
   only keeps compatibility exports.
 - Native app helpers for iOS push, native SSO, and edge-swipe-back live in `src/app/mindroom/native`;
   legacy `utils`/`hooks` paths only keep compatibility exports.
+- Route-level edge-swipe back mounting lives in
+  `src/app/mindroom/native/MindroomBackRouteHandler.tsx`; the generic back-route component should
+  stay a route calculation/render-prop helper.
 - Native iOS push settings UI lives in `src/app/mindroom/native/IOSPushNotification.tsx`;
   generic notification settings only mounts it.
 - Client-level MindRoom favicon updates, invite notification branding, and native iOS push runtime

@@ -1388,6 +1388,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../../components/BackRouteHandler.tsx', import.meta.url),
       'utf8'
     );
+    const mindroomBackRouteHandlerSource = readFileSync(
+      new URL('../../native/MindroomBackRouteHandler.tsx', import.meta.url),
+      'utf8'
+    );
     const roomViewSource = readFileSync(new URL('../../../features/room/RoomView.tsx', import.meta.url), 'utf8');
     const roomViewThreadStateSource = readFileSync(
       new URL('../useRoomViewThreadState.ts', import.meta.url),
@@ -1425,7 +1429,9 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(backRouteHandlerSource).toContain("from '../mindroom/native/useEdgeSwipeBack'");
+    expect(backRouteHandlerSource).not.toContain("from '../mindroom/native/useEdgeSwipeBack'");
+    expect(mindroomBackRouteHandlerSource).toContain("from './useEdgeSwipeBack'");
+    expect(mindroomBackRouteHandlerSource).toContain("from '../../components/BackRouteHandler'");
     expect(roomViewSource).not.toContain("from '../../mindroom/native/useEdgeSwipeBack'");
     expect(roomViewThreadStateSource).toContain("from '../native/useEdgeSwipeBack'");
     expect(roomViewThreadStateSource).toContain('useEdgeSwipeBack(handleExitThread');
