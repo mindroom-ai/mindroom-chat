@@ -4,7 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { StateEvent } from '../../../types/matrix/room';
+import { MINDROOM_SCHEDULED_TASK_EVENT } from './scheduledTaskContract';
 import { useThreadHeaderInfo, type ThreadHeaderInfo } from './useThreadHeaderInfo';
 import { useStateEvents } from '../../hooks/useStateEvents';
 
@@ -88,7 +88,7 @@ const makeScheduledTaskEvent = (
     room_id: '!room:example.org',
     sender: '@alice:example.org',
     state_key: stateKey,
-    type: StateEvent.MindRoomScheduledTask,
+    type: MINDROOM_SCHEDULED_TASK_EVENT,
   });
 
 type HarnessProps = {

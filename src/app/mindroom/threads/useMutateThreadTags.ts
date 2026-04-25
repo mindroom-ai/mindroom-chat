@@ -1,13 +1,13 @@
 import { useCallback, useRef, useState } from 'react';
 import { EventTimeline, Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { StateEvent } from '../../../types/matrix/room';
 import {
   aggregateThreadTagEvents,
   buildAddTagContent,
   buildPerTagEventContent,
   buildPerTagStateKey,
   buildRemoveTagContent,
+  MINDROOM_THREAD_TAGS_EVENT,
   RESOLVED_TAG,
   type ThreadTagsContent,
 } from './threadTags';
@@ -33,7 +33,7 @@ const readLiveTagsContent = (room: Room, threadRootId: string) => {
   const stateEvents = room
     .getLiveTimeline()
     .getState(EventTimeline.FORWARDS)
-    ?.getStateEvents(StateEvent.ThreadTags as string);
+    ?.getStateEvents(MINDROOM_THREAD_TAGS_EVENT);
 
   if (!Array.isArray(stateEvents)) {
     return { tags: {} };
@@ -93,7 +93,7 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
         await mx.sendStateEvent(
           room.roomId,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          StateEvent.ThreadTags as any,
+          MINDROOM_THREAD_TAGS_EVENT as any,
           eventContent,
           stateKey
         );

@@ -1,5 +1,7 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 
+export const MINDROOM_SCHEDULED_TASK_EVENT = 'com.mindroom.scheduled.task';
+
 type ScheduledTaskStateEventContent = {
   status?: unknown;
   workflow?: unknown;

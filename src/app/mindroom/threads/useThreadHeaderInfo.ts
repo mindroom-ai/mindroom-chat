@@ -1,13 +1,15 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { StateEvent } from '../../../types/matrix/room';
 import {
   formatScheduledTime,
   getScheduledTimeUpdateInterval,
 } from './compactThreadCardUtils';
 import { useThreadRootEvent } from './useThreadRootEvent';
-import { parseScheduledTaskStateEvent } from './scheduledTaskContract';
+import {
+  MINDROOM_SCHEDULED_TASK_EVENT,
+  parseScheduledTaskStateEvent,
+} from './scheduledTaskContract';
 import { useInterval } from '../../hooks/useInterval';
 import { useStateEvents } from '../../hooks/useStateEvents';
 import { useThreadScheduledTasks } from './useThreadScheduledTasks';
@@ -60,7 +62,7 @@ export const useThreadHeaderInfo = (
 ): ThreadHeaderInfo => {
   const threadRootId = useThreadRootEvent(room, threadId);
   const scheduledTaskCount = useThreadScheduledTasks(room, threadRootId);
-  const scheduledTaskEvents = useStateEvents(room, StateEvent.MindRoomScheduledTask);
+  const scheduledTaskEvents = useStateEvents(room, MINDROOM_SCHEDULED_TASK_EVENT);
   const [, setRefreshVersion] = useState(0);
   const refresh = useCallback(() => {
     setRefreshVersion((version) => version + 1);

@@ -3,14 +3,13 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { StateEvent } from '../../../types/matrix/room';
 import { useStateEvents } from '../../hooks/useStateEvents';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { getPendingThreadTagsContent, resetPendingThreadTagsForTests, setPendingThreadTagsContent } from './threadTagPending';
-import { buildPerTagStateKey } from './threadTags';
+import { buildPerTagStateKey, MINDROOM_THREAD_TAGS_EVENT } from './threadTags';
 import { useThreadTags } from './useThreadTags';
 
 vi.mock('../../hooks/useStateEvents', () => ({
@@ -66,7 +65,7 @@ const makeLegacyTagEvent = (
     room_id: '!room:example.org',
     sender: '@alice:example.org',
     state_key: stateKey,
-    type: StateEvent.ThreadTags,
+    type: MINDROOM_THREAD_TAGS_EVENT,
   });
 
 const makePerTagEvent = (
@@ -81,7 +80,7 @@ const makePerTagEvent = (
     room_id: '!room:example.org',
     sender: '@alice:example.org',
     state_key: buildPerTagStateKey(threadRootId, tagName),
-    type: StateEvent.ThreadTags,
+    type: MINDROOM_THREAD_TAGS_EVENT,
   });
 
 const makePerTagTombstoneEvent = (threadRootId: string, tagName: string) =>

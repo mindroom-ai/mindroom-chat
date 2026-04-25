@@ -20,6 +20,7 @@ vi.mock('./useThreadStreamingState', () => ({
 }));
 
 vi.mock('./scheduledTaskContract', () => ({
+  MINDROOM_SCHEDULED_TASK_EVENT: 'com.mindroom.scheduled.task',
   parseScheduledTaskStateEvent: (event: {
     getStateKey: () => string;
     getContent: () => Record<string, unknown>;

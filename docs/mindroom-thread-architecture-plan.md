@@ -72,6 +72,9 @@ const cached = await loadLatestCachedThreadSummaryInfo(...);
 const tags = aggregateThreadTagEvents(...);
 ```
 
+MindRoom protocol constants are also fork-owned. Raw `com.mindroom.*` event names should live beside
+the feature that parses or writes them, not in shared Matrix enums or generic UI modules.
+
 Target namespace:
 
 ```text
@@ -415,6 +418,9 @@ Thread tag parsing, optimistic pending state, and read/write hooks now live in
 `src/app/mindroom/threads/threadTags.ts`, `threadTagPending.ts`, `useThreadTags.ts`,
 `useRoomThreadTags.ts`, and `useMutateThreadTags.ts`; the old `features/room` paths are only
 compatibility re-exports.
+MindRoom thread-tag and scheduled-task state event names are owned by `threadTags.ts` and
+`scheduledTaskContract.ts`; the shared Matrix `StateEvent` enum no longer contains
+`com.mindroom.*` state-event names.
 Thread banner/tag UI now lives in `src/app/mindroom/threads/ThreadContextBanner.tsx`,
 `ThreadTagPicker.tsx`, `ThreadTagPill.tsx`, `ThreadContextBanner.css.ts`, and
 `threadTagColor.ts`; the old `features/room` paths are only compatibility re-exports.

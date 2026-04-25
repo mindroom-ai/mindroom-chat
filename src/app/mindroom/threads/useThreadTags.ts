@@ -1,7 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { Room } from 'matrix-js-sdk';
 import { useStateEvents } from '../../hooks/useStateEvents';
-import { StateEvent } from '../../../types/matrix/room';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
@@ -11,6 +10,7 @@ import {
   collectAvailableTags,
   getDisplayTags,
   isThreadResolved,
+  MINDROOM_THREAD_TAGS_EVENT,
   type TagMetadata,
   type ThreadTagsContent,
 } from './threadTags';
@@ -53,7 +53,7 @@ export const useThreadTags = (
   const creators = useRoomCreators(room);
   const permissions = useRoomPermissions(creators, powerLevels);
 
-  const allTagEvents = useStateEvents(room, StateEvent.ThreadTags);
+  const allTagEvents = useStateEvents(room, MINDROOM_THREAD_TAGS_EVENT);
   const pVersion = usePendingThreadTagsVersion();
 
   const aggregated = useMemo(
@@ -84,7 +84,7 @@ export const useThreadTags = (
   const resolved = useMemo(() => isThreadResolved(content), [content]);
 
   const canEdit = useMemo(
-    () => permissions.stateEvent(StateEvent.ThreadTags, mx.getSafeUserId()),
+    () => permissions.stateEvent(MINDROOM_THREAD_TAGS_EVENT, mx.getSafeUserId()),
     [permissions, mx]
   );
 

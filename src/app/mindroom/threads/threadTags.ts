@@ -10,6 +10,7 @@ import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
  * All writes should use the canonical per-tag format.
  */
 
+export const MINDROOM_THREAD_TAGS_EVENT = 'com.mindroom.thread.tags';
 export const RESOLVED_TAG = 'resolved';
 export const MAX_TAG_LENGTH = 50;
 const PERSISTED_TAG_NAME = /^[a-z0-9-]{1,50}$/;
