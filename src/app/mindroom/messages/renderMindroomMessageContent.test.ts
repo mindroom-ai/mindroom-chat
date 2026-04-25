@@ -52,6 +52,11 @@ vi.mock('./MindroomLongTextText', () => ({
   },
 }));
 
+vi.mock('./StreamingIndicator', () => ({
+  renderMindroomStreamingIndicator: () =>
+    React.createElement('span', { 'data-renderer': 'streaming-indicator' }),
+}));
+
 const renderNode = async (
   options: Partial<Parameters<typeof import('./renderMindroomMessageContent').renderMindroomMessageContent>[0]>
 ) => {
