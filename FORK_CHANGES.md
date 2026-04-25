@@ -2450,6 +2450,26 @@
   - implementer: `npm test` passed (`156/156` files, `1410/1410` tests)
   - implementer: `npm run build` passed
 
+## CINNY-088 — Voice message compact root previews (2026-04-24)
+
+- Root cause: compact zero-reply root selection already accepted `m.room.message` voice/audio events, but root preview helpers were body-only. Voice roots therefore surfaced as filename-like bodies such as `voice-message-*.m4a` or fell through to generic compact-card labels when the body was absent.
+- Fix: added a shared msgtype-aware preview helper for compact/thread presentation paths. Voice `m.audio` roots with stable `m.voice` or unstable `org.matrix.msc3245.voice` now resolve to the existing app wording `Voice message` before body normalization, while ordinary text roots keep their body preview behavior. The zero-reply candidate predicates, `m.notice` exclusion, nested-thread exclusion, and edit exclusion were left unchanged.
+- Rebase-on-refactor note: the shared preview helper now lives in `src/app/mindroom/threads/threadMessagePreview.ts`; `src/app/features/room/threadMessagePreview.ts` is only a compatibility export.
+- Added focused regression coverage in:
+  - `src/app/features/room/compactThreadRootData.test.ts` for stable voice filename bodies, unstable/no-body voice roots, zero-reply body-map hydration, and unchanged text previews.
+  - `src/app/features/room/threadPresentation.test.ts` for zero-reply voice root presentation/primary summary text.
+  - `src/app/mindroom/threads/compactThreadCardViewModel.test.ts` for compact card model title/preview plus `0 replies`.
+- review:
+  - independent second self-review completed via fresh `git diff --stat`, targeted `git diff`, `git diff --check`, and source/test readback after validation; scope stayed limited to preview fallback wiring, focused tests, this runbook update, and the implementation note.
+- validation:
+  - `npm test -- src/app/features/room/compactThreadRootData.test.ts src/app/features/room/threadPresentation.test.ts src/app/mindroom/threads/compactThreadCardViewModel.test.ts` passes (`21/21` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `npm test` passes (`175/175` files, `1546/1546` tests)
+  - `npm run lint` passes with the repo's warning-only baseline (`73` warnings, `0` errors)
+  - `git diff --check` passes
+  - live Matrix-room verification was not performed in this implementation worktree; DevAgent review/live-test/merge remains the handoff path.
+
 ## CINNY-085 — Move MindRoom message primitives to fork namespace (2026-04-25)
 
 - Moved thread-summary parsing, tool-approval parsing, the approval card, and the summary card into `src/app/mindroom/messages`.

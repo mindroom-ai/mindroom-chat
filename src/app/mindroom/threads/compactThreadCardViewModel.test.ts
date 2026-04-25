@@ -9,19 +9,21 @@ const makeEvent = ({
   threadRootId,
   sender,
   body,
+  content,
   ts = 1000,
 }: {
   eventId: string;
   threadRootId?: string;
   sender?: string;
   body?: string;
+  content?: Record<string, unknown>;
   ts?: number;
 }): MatrixEvent =>
   ({
     getId: () => eventId,
     threadRootId,
     getSender: () => sender,
-    getContent: () => (body ? { body, msgtype: 'm.text' } : {}),
+    getContent: () => content ?? (body ? { body, msgtype: 'm.text' } : {}),
     getType: () => 'm.room.message',
     getRelation: () => (threadRootId ? { rel_type: 'm.thread' } : undefined),
     isRelation: (relType: string) => !!threadRootId && relType === 'm.thread',
@@ -188,6 +190,36 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
     expect(model.messageCount).toBe(0);
     expect(model.messageCountLabel).toBe('0 replies');
     expect(model.recentThreadSummaryText).toBe('Edited root preview');
+  });
+
+  it('uses voice message previews for zero-reply compact card models', () => {
+    const filename = 'voice-message-2026-04-24T12-03-00.m4a';
+    const rootEvent = makeEvent({
+      eventId: '$root',
+      sender: '@me:server',
+      content: {
+        body: filename,
+        filename,
+        msgtype: 'm.audio',
+        'm.voice': {},
+        'm.audio': {
+          duration: 1000,
+        },
+      },
+    });
+    const room = makeRoom({ rootEvent });
+
+    const model = buildModel(room, {
+      threadRootEvent: rootEvent,
+    });
+
+    expect(model.titleText).toBe('Voice message');
+    expect(model.displayTitleText).toBe('Voice message');
+    expect(model.previewText).toBe('Voice message');
+    expect(model.primarySummaryText).toBe('Voice message');
+    expect(model.recentThreadSummaryText).toBe('Voice message');
+    expect(model.messageCount).toBe(0);
+    expect(model.messageCountLabel).toBe('0 replies');
   });
 
   it('falls back to room-level resolution data when overview metadata is absent', () => {
