@@ -6,9 +6,9 @@ import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { MINDROOM_SCHEDULED_TASK_EVENT } from './scheduledTaskContract';
 import { useThreadHeaderInfo, type ThreadHeaderInfo } from './useThreadHeaderInfo';
-import { useStateEvents } from '../../hooks/useStateEvents';
+import { useStateEvents } from './useStateEvents';
 
-vi.mock('../../hooks/useStateEvents', () => ({
+vi.mock('./useStateEvents', () => ({
   useStateEvents: vi.fn(),
 }));
 

@@ -728,6 +728,8 @@ Acceptance:
   consume them.
 - Page-resume subscriptions for overview refresh live in `src/app/mindroom/threads` with the
   overview resume controller.
+- State-event reads for tags, scheduled tasks, headers, and the thread index live in
+  `src/app/mindroom/threads` with those selectors.
 - Pinned-message cache-aware event lookup and tool approval rendering live behind
   `src/app/mindroom/messages/pinnedMessageExtensions.ts`; the generic pinned-message menu only
   mounts the pinned-message seam.

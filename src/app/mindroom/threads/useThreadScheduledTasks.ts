@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { useStateEvents } from '../../hooks/useStateEvents';
+import { useStateEvents } from './useStateEvents';
 import { getRoomScheduledTaskCounts } from './roomThreadOverviewModel';
 import { MINDROOM_SCHEDULED_TASK_EVENT } from './scheduledTaskContract';
 

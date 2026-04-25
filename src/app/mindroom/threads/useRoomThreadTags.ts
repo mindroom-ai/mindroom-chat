@@ -5,7 +5,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
-import { useStateEvents } from '../../hooks/useStateEvents';
+import { useStateEvents } from './useStateEvents';
 import {
   aggregateThreadTagEvents,
   type TagMetadata,

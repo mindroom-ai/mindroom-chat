@@ -3,7 +3,7 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { useStateEvents } from '../../hooks/useStateEvents';
+import { useStateEvents } from './useStateEvents';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
@@ -12,7 +12,7 @@ import { getPendingThreadTagsContent, resetPendingThreadTagsForTests, setPending
 import { buildPerTagStateKey, MINDROOM_THREAD_TAGS_EVENT } from './threadTags';
 import { useThreadTags } from './useThreadTags';
 
-vi.mock('../../hooks/useStateEvents', () => ({
+vi.mock('./useStateEvents', () => ({
   useStateEvents: vi.fn(),
 }));
 

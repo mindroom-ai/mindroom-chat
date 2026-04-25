@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { Room } from 'matrix-js-sdk';
-import { useStateEvents } from '../../hooks/useStateEvents';
+import { useStateEvents } from './useStateEvents';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
