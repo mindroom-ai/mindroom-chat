@@ -2,7 +2,7 @@ import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { Direction, RelationType, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import { logEditDebug, getLatestEdit } from '../../utils/room';
-import { markThreadEditBackfillAttempted } from '../../features/room/threadEditBackfillUtils';
+import { markThreadEditBackfillAttempted } from './threadEditBackfill';
 import { getCompactRootEventsNeedingBackfill } from './threadBootstrap';
 
 export const useCompactRootEditBackfillController = ({

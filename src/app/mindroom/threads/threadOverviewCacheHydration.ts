@@ -20,7 +20,7 @@ import {
   type CachedThreadEventPage,
   loadLatestCachedThreadEvents,
 } from './eventRepository';
-import { hasLikelyIncompleteStreamingBody } from '../../features/room/threadEditBackfillUtils';
+import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import { resolveThreadPresentationSnapshot } from '../../features/room/threadPresentation';
 
 type MapSetter<K, V> = Dispatch<SetStateAction<Map<K, V>>>;

@@ -89,12 +89,10 @@ import {
   getEditedEvent,
   getEventReactions,
   getLatestMessageContent,
-  getLatestEdit,
   getLatestEditableEvt,
   getMemberDisplayName,
   getReactionContent,
   isMembershipChanged,
-  logEditDebug,
   reactionOrEditEvent,
 } from '../../utils/room';
 import { useSetting } from '../../state/hooks/settings';
@@ -270,10 +268,6 @@ import {
   shouldAutoScrollRoomOnLiveEvent,
   shouldAutoScrollThreadOnLiveEvent,
 } from './timelineScrollUtils';
-import {
-  markThreadEditBackfillAttempted,
-  shouldFetchThreadEditBackfill,
-} from './threadEditBackfillUtils';
 import { useRoomThreadResolutionMap } from './useRoomThreadTags';
 import { getThreadOpenSeedSnapshot } from '../../mindroom/threads/threadOpenSeedCache';
 import { isPendingLocalEchoThreadRoot } from './threadRouteUtils';
@@ -305,6 +299,7 @@ import { useThreadOverviewResumeController } from '../../mindroom/threads/thread
 import { useThreadCachePersistenceController } from '../../mindroom/threads/threadCachePersistenceController';
 import { useCompactRootEditBackfillController } from '../../mindroom/threads/compactRootEditBackfillController';
 import { useThreadPaginationCommandController } from '../../mindroom/threads/threadPaginationCommandController';
+import { useThreadEditBackfillController } from '../../mindroom/threads/threadEditBackfillController';
 
 export { getRoomEventThreadOpenTarget } from './roomDeepLink';
 export { getRoomEventFocusTarget, getThreadFilteredEvents };
@@ -5256,184 +5251,22 @@ export function RoomTimeline({
   );
   const timelineItems = getItems();
 
-  useEffect(() => {
-    if (!threadId || threadEvents.length === 0) return;
-    const targetedOpen = !!eventId;
-
-    const missingEditEvents = threadEvents.filter((mEvent) =>
-      shouldFetchThreadEditBackfill(
-        mEvent,
-        threadEditFetchAttemptedRef.current,
-        threadTailLoaded,
-        targetedOpen
-      )
-    );
-    if (missingEditEvents.length === 0) {
-      logEditDebug('threadBackfill:noneMissing', {
-        targetedOpen,
-        threadId,
-        threadEventCount: threadEvents.length,
-        threadTailLoaded,
-      });
-      return;
-    }
-
-    logEditDebug('threadBackfill:start', {
-      targetedOpen,
-      threadId,
-      threadEventCount: threadEvents.length,
-      missingEditCount: missingEditEvents.length,
-      threadTailLoaded,
-    });
-
-    missingEditEvents.forEach((mEvent) => {
-      markThreadEditBackfillAttempted(
-        mEvent,
-        threadEditFetchAttemptedRef.current,
-        threadTailLoaded
-      );
-    });
-
-    let cancelled = false;
-    const loadMissingThreadEdits = async () => {
-      let didUpdate = false;
-      let updatedCount = 0;
-      const concurrency = 4;
-      let cursor = 0;
-
-      const worker = async () => {
-        while (!cancelled && cursor < missingEditEvents.length) {
-          const currentIndex = cursor;
-          cursor += 1;
-
-          const mEvent = missingEditEvents[currentIndex];
-          const eventId = mEvent.getId();
-          if (!eventId) continue;
-
-          const [relErr, relData] = await to(
-            mx.relations(room.roomId, eventId, RelationType.Replace, mEvent.getType(), {
-              dir: Direction.Backward,
-              limit: 100,
-            })
-          );
-          if (cancelled) continue;
-          if (relErr) {
-            logEditDebug('threadBackfill:fetchError', {
-              threadId,
-              eventId,
-              error: String(relErr),
-            });
-            continue;
-          }
-          const currentReplacement = mEvent.replacingEvent() ?? undefined;
-          const relationEvents = relData?.events ?? [];
-          if (relationEvents.length === 0 && !currentReplacement) {
-            logEditDebug('threadBackfill:noRelations', {
-              threadId,
-              eventId,
-            });
-            continue;
-          }
-
-          const latestEdit = getLatestEdit(
-            mEvent,
-            currentReplacement ? [currentReplacement, ...relationEvents] : relationEvents
-          );
-          if (!latestEdit) continue;
-          if (latestEdit === currentReplacement) {
-            logEditDebug('threadBackfill:alreadyLatest', {
-              threadId,
-              eventId,
-              editEventId: currentReplacement?.getId(),
-              relationCount: relationEvents.length,
-            });
-            continue;
-          }
-
-          // Keep sender guard aligned with edit auth semantics.
-          if (latestEdit.getSender() !== mEvent.getSender()) {
-            logEditDebug('threadBackfill:senderMismatch', {
-              threadId,
-              eventId,
-              editEventId: latestEdit.getId(),
-              editSender: latestEdit.getSender(),
-              targetSender: mEvent.getSender(),
-            });
-            continue;
-          }
-
-          mEvent.makeReplaced(latestEdit);
-          didUpdate = true;
-          updatedCount += 1;
-          logEditDebug('threadBackfill:applied', {
-            threadId,
-            eventId,
-            editEventId: latestEdit.getId(),
-            editTs: latestEdit.getTs(),
-            previousEditEventId: currentReplacement?.getId(),
-            relationCount: relationEvents.length,
-          });
-        }
-      };
-
-      await Promise.all(Array.from({ length: concurrency }, () => worker()));
-
-      if (didUpdate && !cancelled && threadIdRef.current === threadId) {
-        const currentThread = room.getThread(threadId);
-        const currentThreadTimelineSet = currentThread?.getUnfilteredTimelineSet();
-        const firstThreadTimeline = currentThreadTimelineSet
-          ? getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0]
-          : undefined;
-
-        logEditDebug('threadBackfill:updated', {
-          threadId,
-          updatedCount,
-        });
-        const scrollElement = scrollRef.current;
-        // Use only fresh scroll measurement, not debounced atBottomRef (CINNY-031).
-        if (
-          atLiveEndRef.current &&
-          scrollElement &&
-          isScrollNearBottom({
-            scrollHeight: scrollElement.scrollHeight,
-            scrollTop: scrollElement.scrollTop,
-            clientHeight: scrollElement.clientHeight,
-          })
-        ) {
-          scrollToBottomRef.current.count += 1;
-          scrollToBottomRef.current.smooth = false;
-        }
-        persistThreadEventCache(
-          threadId,
-          threadEvents,
-          currentThread?.rootEvent ?? room.findEventById(threadId),
-          firstThreadTimeline?.getPaginationToken(Direction.Backward),
-          threadTailLoaded
-        );
-        setTimeline((ct) => ({ ...ct }));
-        setThreadTimelineTick((val) => val + 1);
-      } else {
-        logEditDebug('threadBackfill:noUpdate', {
-          threadId,
-        });
-      }
-    };
-
-    loadMissingThreadEdits();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
+  useThreadEditBackfillController({
+    atLiveEndRef,
     eventId,
+    forceTimelineUpdate,
     mx,
     persistThreadEventCache,
     room,
-    room.roomId,
-    threadId,
+    scrollRef,
+    scrollToBottomRef,
+    setThreadTimelineTick,
+    threadEditFetchAttemptedRef,
     threadEvents,
+    threadId,
+    threadIdRef,
     threadTailLoaded,
-  ]);
+  });
 
   const { handleThreadPaginateBack, handleThreadPaginateFront } =
     useThreadPaginationCommandController({

@@ -183,6 +183,17 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('compactRootBackfill:start');
   });
 
+  it('delegates thread edit backfill orchestration to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('useThreadEditBackfillController');
+    expect(source).toContain("from '../../mindroom/threads/threadEditBackfillController'");
+    expect(source).not.toContain('const loadMissingThreadEdits = async');
+    expect(source).not.toContain('shouldFetchThreadEditBackfill');
+    expect(source).not.toContain('markThreadEditBackfillAttempted');
+    expect(source).not.toContain('threadBackfill:start');
+  });
+
   it('delegates thread prepend scroll primitives to scroll utilities', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 

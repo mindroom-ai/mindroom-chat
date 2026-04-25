@@ -919,6 +919,13 @@ vi.mock('./timelineScrollUtils', async (importOriginal) => {
   };
 });
 
+vi.mock('../../mindroom/threads/threadEditBackfill', () => ({
+  hasLikelyIncompleteStreamingBody: (value: unknown) =>
+    typeof value === 'string' && /^thinking(?:\.{3}|…)(?:\s*⋯)?$/i.test(value.trim()),
+  markThreadEditBackfillAttempted: vi.fn(),
+  shouldFetchThreadEditBackfill: () => false,
+}));
+
 vi.mock('./threadEditBackfillUtils', () => ({
   hasLikelyIncompleteStreamingBody: (value: unknown) =>
     typeof value === 'string' && /^thinking(?:\.{3}|…)(?:\s*⋯)?$/i.test(value.trim()),

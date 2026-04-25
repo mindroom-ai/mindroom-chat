@@ -7,7 +7,7 @@ import {
 } from '../../utils/room';
 import type { CachedThreadEventPage } from '../../mindroom/threads/eventRepository';
 import { applySerializedCachedReplaceRelations } from './eventCacheEditUtils';
-import { hasLikelyIncompleteStreamingBody } from './threadEditBackfillUtils';
+import { hasLikelyIncompleteStreamingBody } from '../../mindroom/threads/threadEditBackfill';
 import {
   getEffectiveThreadRootActivityTs,
   isPendingLocalEchoThreadRootEvent,
