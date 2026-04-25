@@ -1289,6 +1289,14 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/native/IOSPushNotification.tsx', import.meta.url),
       'utf8'
     );
+    const clientNonUiSource = readFileSync(
+      new URL('../../pages/client/ClientNonUIFeatures.tsx', import.meta.url),
+      'utf8'
+    );
+    const mindroomClientNonUiSource = readFileSync(
+      new URL('../../mindroom/client/MindroomClientNonUIFeatures.tsx', import.meta.url),
+      'utf8'
+    );
 
     expect(nativeSsoCompatibilitySource.trim()).toBe(
       "export * from '../mindroom/native/nativeSso';"
@@ -1307,6 +1315,15 @@ describe('RoomTimeline architecture', () => {
     );
     expect(systemNotificationSource).not.toContain("from '../../../mindroom/native/iosPush'");
     expect(systemNotificationSource).not.toContain('MINDROOM_APP_NAME');
+    expect(clientNonUiSource).toContain(
+      "from '../../mindroom/client/MindroomClientNonUIFeatures'"
+    );
+    expect(clientNonUiSource).not.toContain("from '../../mindroom/native/iosPush'");
+    expect(clientNonUiSource).not.toContain("from '../../mindroom/native/useIOSPushEnabled'");
+    expect(clientNonUiSource).not.toContain('MINDROOM_FAVICON_SRC');
+    expect(mindroomClientNonUiSource).toContain('resolveIOSPushConfig');
+    expect(mindroomClientNonUiSource).toContain('MINDROOM_FAVICON_SRC');
+    expect(mindroomClientNonUiSource).toContain('MindroomNativeIOSPushFeature');
     expect(iosPushNotificationSource).toContain('resolveIOSPushConfig');
     expect(iosPushNotificationSource).toContain('MINDROOM_APP_NAME');
   });
