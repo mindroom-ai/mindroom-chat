@@ -908,12 +908,16 @@ vi.mock('./eventCacheEditUtils', () => ({
     ),
 }));
 
-vi.mock('./timelineScrollUtils', () => ({
-  isScrollNearBottom: () => true,
-  isTimelineAtLiveEnd: isTimelineAtLiveEndMock,
-  shouldAutoScrollRoomOnLiveEvent: () => false,
-  shouldAutoScrollThreadOnLiveEvent: () => false,
-}));
+vi.mock('./timelineScrollUtils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./timelineScrollUtils')>();
+  return {
+    ...actual,
+    isScrollNearBottom: () => true,
+    isTimelineAtLiveEnd: isTimelineAtLiveEndMock,
+    shouldAutoScrollRoomOnLiveEvent: () => false,
+    shouldAutoScrollThreadOnLiveEvent: () => false,
+  };
+});
 
 vi.mock('./threadEditBackfillUtils', () => ({
   hasLikelyIncompleteStreamingBody: (value: unknown) =>

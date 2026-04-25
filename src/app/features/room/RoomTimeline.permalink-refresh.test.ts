@@ -850,7 +850,7 @@ describe('RoomTimeline', () => {
         });
 
   it('captures the first visible thread message as the prepend scroll anchor', async () => {
-    const { captureThreadPrependScrollAnchor } = await import('./RoomTimeline');
+    const { captureThreadPrependScrollAnchor } = await import('./timelineScrollUtils');
 
     const aboveViewport = {
       getAttribute: vi.fn().mockReturnValue('$above'),
@@ -882,7 +882,7 @@ describe('RoomTimeline', () => {
   });
 
   it('restores the captured thread prepend anchor position after older messages are prepended', async () => {
-    const { restoreThreadPrependScrollAnchor } = await import('./RoomTimeline');
+    const { restoreThreadPrependScrollAnchor } = await import('./timelineScrollUtils');
 
     const anchor = {
       getAttribute: vi.fn().mockReturnValue('$anchor'),
