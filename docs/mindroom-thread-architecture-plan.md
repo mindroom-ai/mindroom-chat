@@ -726,6 +726,8 @@ Acceptance:
   `src/app/mindroom/threads`; the generic room timeline only mounts the fork-owned wrapper.
 - Thread event refresh subscriptions live in `src/app/mindroom/threads` with the selectors that
   consume them.
+- Page-resume subscriptions for overview refresh live in `src/app/mindroom/threads` with the
+  overview resume controller.
 - Pinned-message cache-aware event lookup and tool approval rendering live behind
   `src/app/mindroom/messages/pinnedMessageExtensions.ts`; the generic pinned-message menu only
   mounts the pinned-message seam.
