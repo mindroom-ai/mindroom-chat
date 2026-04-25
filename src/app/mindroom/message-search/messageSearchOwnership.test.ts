@@ -11,6 +11,10 @@ describe('message search ownership boundaries', () => {
       new URL('../../features/message-search/MessageSearch.tsx', import.meta.url),
       'utf8'
     );
+    const mindroomMessageSearchSource = readFileSync(
+      new URL('./MindroomMessageSearch.tsx', import.meta.url),
+      'utf8'
+    );
     const rendererSource = readFileSync(
       new URL('./searchResultBodyRenderer.tsx', import.meta.url),
       'utf8'
@@ -19,7 +23,10 @@ describe('message search ownership boundaries', () => {
     expect(searchResultGroupSource).toContain('renderBody');
     expect(searchResultGroupSource).not.toContain('MindroomSearchResultBody');
     expect(searchResultGroupSource).not.toContain('mindroom/message-search');
-    expect(messageSearchSource).toContain('renderMindroomSearchResultBody');
+    expect(messageSearchSource).toContain('renderBody');
+    expect(messageSearchSource).not.toContain('MindroomSearchResultBody');
+    expect(messageSearchSource).not.toContain('mindroom/message-search');
+    expect(mindroomMessageSearchSource).toContain('renderMindroomSearchResultBody');
     expect(rendererSource).toContain('MindroomSearchResultBody');
   });
 });
