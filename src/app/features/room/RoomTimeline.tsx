@@ -297,7 +297,7 @@ import {
 import { useRoomThreadResolutionMap } from './useRoomThreadTags';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { isPendingLocalEchoThreadRoot } from './threadRouteUtils';
-import { useThreadOverviewCacheHydration } from './useThreadOverviewCacheHydration';
+import { useThreadOverviewCacheHydration } from '../../mindroom/threads/threadOverviewCacheHydration';
 import { useRoomEagerPreload } from '../../mindroom/threads/preloadController';
 import {
   getAuthoritativeCachedThreadReplyCount,

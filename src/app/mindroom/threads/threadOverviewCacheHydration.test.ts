@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { IEvent, MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import type { ThreadRecord } from '../../mindroom/threads/types';
-import { resolveCachedOverviewUpdate } from './useThreadOverviewCacheHydration';
+import type { ThreadRecord } from './types';
+import { resolveCachedOverviewUpdate } from './threadOverviewCacheHydration';
 
 type RawCachedEvent = {
   event_id: string;

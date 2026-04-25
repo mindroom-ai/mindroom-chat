@@ -11,17 +11,17 @@ import type {
   Room,
 } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
-import type { ThreadRecord } from '../../mindroom/threads/types';
+import type { ThreadRecord } from './types';
 import {
   getCompactCachedThreadActivityTs,
   getCompactCachedThreadRootPreviewInfo,
-} from './compactThreadRootData';
+} from '../../features/room/compactThreadRootData';
 import {
   type CachedThreadEventPage,
   loadLatestCachedThreadEvents,
-} from '../../mindroom/threads/eventRepository';
-import { hasLikelyIncompleteStreamingBody } from './threadEditBackfillUtils';
-import { resolveThreadPresentationSnapshot } from './threadPresentation';
+} from './eventRepository';
+import { hasLikelyIncompleteStreamingBody } from '../../features/room/threadEditBackfillUtils';
+import { resolveThreadPresentationSnapshot } from '../../features/room/threadPresentation';
 
 type MapSetter<K, V> = Dispatch<SetStateAction<Map<K, V>>>;
 

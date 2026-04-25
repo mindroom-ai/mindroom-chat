@@ -55,4 +55,11 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('const withStateTargetEvents');
     expect(source).not.toContain('serializeEventsForCache(');
   });
+
+  it('delegates overview cache hydration to the MindRoom thread namespace', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).not.toContain("from './useThreadOverviewCacheHydration'");
+    expect(source).toContain("from '../../mindroom/threads/threadOverviewCacheHydration'");
+  });
 });
