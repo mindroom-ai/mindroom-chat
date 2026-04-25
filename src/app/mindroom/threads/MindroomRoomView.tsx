@@ -18,7 +18,7 @@ import {
   RoomViewFollowingPlaceholder,
 } from '../../features/room/RoomViewFollowing';
 import { Page } from '../../components/page';
-import { RoomViewHeader } from '../../features/room/RoomViewHeader';
+import { RoomViewHeader } from './MindroomRoomViewHeader';
 import { useKeyDown } from '../../hooks/useKeyDown';
 import { editableActiveElement } from '../../utils/dom';
 import { settingsAtom } from '../../state/settings';

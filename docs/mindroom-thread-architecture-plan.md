@@ -135,6 +135,11 @@ Completed in the 2026-04-25 cleanup pass:
   generic `src/app/features/room/RoomView.tsx` path is now only a compatibility re-export, so
   thread state, banner/timeline/composer wiring, and room-level iOS keyboard handling stay in the
   MindRoom thread namespace.
+- Room-view header implementation lives under
+  `src/app/mindroom/threads/MindroomRoomViewHeader.tsx`. The old generic
+  `src/app/features/room/RoomViewHeader.tsx` path is now only a compatibility re-export, so
+  thread-aware mark-read, native back handling, and command-palette opener wiring stay in the
+  MindRoom namespace.
 
 Remaining queue:
 

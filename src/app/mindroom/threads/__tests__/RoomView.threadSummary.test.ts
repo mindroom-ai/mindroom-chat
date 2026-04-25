@@ -141,6 +141,10 @@ vi.mock('../../../features/room/RoomViewHeader', () => ({
   RoomViewHeader: passthrough,
 }));
 
+vi.mock('../MindroomRoomViewHeader', () => ({
+  RoomViewHeader: passthrough,
+}));
+
 vi.mock('../ThreadContextBanner', () => ({
   ThreadContextBanner: (props: MockThreadContextBannerProps) => {
     threadContextBannerState.props = props;
