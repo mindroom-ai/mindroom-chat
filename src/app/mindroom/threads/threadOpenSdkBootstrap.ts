@@ -10,7 +10,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import to from 'await-to-js';
 import { compareCachedPaginationAnchors } from '../../features/room/eventCacheTokenUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
-import { isPendingLocalEchoThreadRoot } from '../../features/room/threadRouteUtils';
+import { isPendingLocalEchoThreadRoot } from './threadRouteUtils';
 import {
   findEarliestLoadedThreadReplyByCacheOrder,
   reconcileThreadBackwardPagination,

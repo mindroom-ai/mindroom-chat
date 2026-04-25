@@ -11,8 +11,8 @@ import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import {
   getEffectiveThreadRootActivityTs,
   isPendingLocalEchoThreadRootEvent,
-} from '../../features/room/threadRouteUtils';
-import { isVisibleThreadTextMessageEventType } from '../../features/room/threadUtils';
+} from './threadRouteUtils';
+import { isVisibleThreadTextMessageEventType } from './threadUtils';
 
 export type CompactThreadRootData = {
   ids: string[];

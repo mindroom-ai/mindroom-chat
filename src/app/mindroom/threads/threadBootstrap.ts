@@ -12,7 +12,7 @@ import {
   shouldFetchThreadEditBackfill,
 } from './threadEditBackfill';
 import { getLinkedTimelines, getLiveTimeline } from '../../features/room/timelinePagination';
-import { eventBelongsToThread, isThreadReplyEvent } from '../../features/room/threadUtils';
+import { eventBelongsToThread, isThreadReplyEvent } from './threadUtils';
 import { reactionOrEditEvent } from '../../utils/room';
 import { getThreadCacheTargetId } from './eventRepository';
 import { getKnownThreadReplyCount } from './threadBadgeViewModel';

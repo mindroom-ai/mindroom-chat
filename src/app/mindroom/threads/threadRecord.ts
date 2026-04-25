@@ -10,7 +10,7 @@ import { getThreadStreamingState } from '../../hooks/useThreadStreamingState';
 import { resolveRecentThreadSummaryText } from '../../features/recent-threads/recentThreadSummaryUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
 import { getThreadUnread } from '../../features/room/roomThreadList';
-import { getEffectiveThreadRootActivityTs } from '../../features/room/threadRouteUtils';
+import { getEffectiveThreadRootActivityTs } from './threadRouteUtils';
 import {
   getThreadPrimarySummaryText,
   resolveThreadPresentationSnapshot,
@@ -20,7 +20,7 @@ import {
   buildVisibleThreadReplyCountMap,
   getPreferredVisibleThreadReplyEvents,
   getVisibleThreadParticipantIds,
-} from '../../features/room/threadUtils';
+} from './threadUtils';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
 
 const THREAD_PARTICIPANT_LIMIT = 3;

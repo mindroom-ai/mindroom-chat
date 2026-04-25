@@ -365,6 +365,34 @@ describe('RoomTimeline architecture', () => {
     expect(compatibilitySource).not.toContain('buildThreadMetadataMap');
   });
 
+  it('keeps thread relation and route utilities in MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const utilityCompatibilitySource = readFileSync(
+      new URL('./threadUtils.ts', import.meta.url),
+      'utf8'
+    );
+    const routeCompatibilitySource = readFileSync(
+      new URL('./threadRouteUtils.ts', import.meta.url),
+      'utf8'
+    );
+    const utilitySource = readFileSync(
+      new URL('../../mindroom/threads/threadUtils.ts', import.meta.url),
+      'utf8'
+    );
+    const routeSource = readFileSync(
+      new URL('../../mindroom/threads/threadRouteUtils.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/threadUtils'");
+    expect(utilityCompatibilitySource).toContain("from '../../mindroom/threads/threadUtils'");
+    expect(routeCompatibilitySource).toContain("from '../../mindroom/threads/threadRouteUtils'");
+    expect(utilitySource).toContain('getPreferredVisibleThreadReplyEvents');
+    expect(routeSource).toContain('resolveCanonicalThreadRootId');
+    expect(utilityCompatibilitySource).not.toContain('getPreferredVisibleThreadReplyEvents');
+    expect(routeCompatibilitySource).not.toContain('resolveCanonicalThreadRootId');
+  });
+
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 

@@ -551,7 +551,7 @@ vi.mock('../../state/room/roomToUnread', () => ({
   roomToUnreadAtom: {},
 }));
 
-vi.mock('./threadUtils', () => ({
+vi.mock('../../mindroom/threads/threadUtils', () => ({
   buildThreadParticipantMap: (
     events: Array<{
       getId(): string | undefined;

@@ -16,7 +16,7 @@ import {
   getVisibleThreadEventBodyPreviewText,
   getVisibleThreadMessageCount,
   type VisibleThreadEventCollectionLike,
-} from '../../features/room/threadUtils';
+} from './threadUtils';
 
 export type ThreadPresentationSnapshot = {
   summaryInfo: MindroomThreadSummaryInfo | undefined;
