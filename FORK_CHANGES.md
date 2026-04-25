@@ -228,6 +228,18 @@
 - `CINNY-178`
   - Room-header and sidebar command-palette opener widgets now live in `src/app/mindroom/command-palette`.
   - Generic header/sidebar files no longer import the command-palette atom directly; the sidebar search tab is a thin compatibility export.
+- `CINNY-179`
+  - Scheduled thread status now has one selector owner in `src/app/mindroom/threads/threadScheduledStatus.ts`.
+  - `ThreadRecord`, `useMindroomThreadIndex`, thread headers, scheduled-task hooks, and route focus recovery consume scheduled status snapshots instead of separately counting/scanning scheduled-task events.
+  - Focused scheduled-status tests cover future, past, invalid, and missing timestamps while preserving the existing invalid-timestamp count behavior.
+- `CINNY-180`
+  - Removed legacy metadata-map overview selectors from `roomThreadOverviewModel`.
+  - `threadRecordOverview` is now the canonical owner for record-derived overview filtering, search, sorting, status counts, and tag counts.
+  - `roomThreadOverviewModel` now keeps filter state, query/preset helpers, tag helper utilities, and shared filter-key definitions instead of rebuilding `ThreadOverviewMetadata` maps.
+- `CINNY-181`
+  - Generic message-search grouping and item-card rendering now accept a result-body renderer seam.
+  - `src/app/mindroom/message-search/searchResultBodyRenderer.tsx` mounts `MindroomSearchResultBody`, so `src/app/features/message-search/SearchResultGroup.tsx` no longer imports a MindRoom component directly.
+  - Added a narrow ownership test to keep generic search grouping unaware of MindRoom result-body components.
 
 ### Current Feature Set On `dev`
 

@@ -86,45 +86,42 @@ Definition of "single source of truth":
 
 This queue is intentionally concrete. Remove or rewrite entries as soon as they are completed.
 
-1. Centralize scheduled thread status.
-   - Add one selector that returns `{ scheduledTaskCount, nextScheduledTs }` per thread from
-     scheduled-task state events.
-   - Make thread records, thread header, scheduled-task hooks, focus recovery, and room index code
-     consume that selector instead of independently counting or scanning events.
-   - Acceptance: `ThreadRecord` no longer accepts raw scheduled-task events for per-record scanning,
-     and `useMindroomThreadIndex` returns scheduled status, not just scheduled counts.
+Completed in the 2026-04-25 cleanup pass:
 
-2. Delete dead legacy overview selectors.
-   - Remove production-dead helpers such as legacy visible-root, summary-map, summary-text, and
-     metadata-map builders once callers are confirmed gone.
-   - Move any remaining useful behavior tests to the canonical selector that replaced them.
-   - Acceptance: `roomThreadOverviewModel` only keeps the overview filter/sort/count model that is
-     still actively used, and architecture tests do not bless deleted compatibility paths.
+- Scheduled thread status is centralized in `threadScheduledStatus.ts`.
+  `ThreadRecord` consumes `{ scheduledTaskCount, nextScheduledTs }` snapshots instead of raw
+  scheduled-task events, and `useMindroomThreadIndex` returns `scheduledStatusMap`.
+- Dead legacy overview selectors were removed from `roomThreadOverviewModel`. Filtering, sorting,
+  status counts, tag counts, and search are record-derived through `threadRecordOverview`.
+- Generic message-search result grouping no longer imports `MindroomSearchResultBody` directly.
+  `MessageSearch` wires a MindRoom result-body renderer seam from
+  `src/app/mindroom/message-search/searchResultBodyRenderer.tsx`.
 
-3. Finish the message-search ownership boundary.
-   - `src/app/features/message-search` should not import `src/app/mindroom/message-search` by
-     component name.
-   - Preferred implementation: keep the generic search feature as a reusable shell and pass a small
-     MindRoom result-body renderer seam from the owning integration point.
-   - If the search UI becomes fully fork-specific, move the whole feature under
-     `src/app/mindroom/message-search` and leave only a thin route/page seam in the generic feature
-     tree.
-   - Acceptance: generic search grouping/rendering code has no direct MindRoom component import, and
-     tests cover long-text/preview behavior through the seam.
+Remaining queue:
 
-4. Re-check the upstream diff after each ownership slice.
+1. Re-check the upstream diff after each ownership slice.
    - Run `git diff --stat v4.11.1 src` and inspect non-`src/app/mindroom/**` changes.
    - Keep generic files only when they are true upstream compatibility fixes, generic reusable
      improvements, or narrow seams into MindRoom owners.
    - Acceptance: every large non-MindRoom diff has an explicit reason in this document or
      `FORK_CHANGES.md`.
 
-5. Continue cache/preload cleanup only after the index boundary is clean.
+2. Continue cache/preload cleanup only after the index boundary is clean.
    - Cache hydrate/persist orchestration should sit behind controller/repository seams.
    - Cache coverage must drive load-older, tail-loaded, relation-complete, and no-more-history
      decisions.
    - Acceptance: pagination and preload decisions consume `ThreadRecord.cache` or a lower cache
      coverage selector, not component-local fallback maps.
+
+Latest upstream-diff audit:
+
+- `git diff --stat v4.11.1 src` still shows large upstream-adjacent changes from earlier fork
+  features. The 2026-04-25 cleanup did not add new generic ownership; it kept generic edits to
+  narrow seams:
+  `RoomTimeline` now passes `scheduledStatusMap`, message search receives a result-body renderer,
+  and test harness mocks parse scheduled-task state consistently.
+- The remaining large non-`mindroom` diffs are historical feature seams or generic compatibility
+  fixes. They should be reviewed in later cleanup passes, but this pass did not make them worse.
 
 ## Rebase Constraint
 
@@ -358,11 +355,12 @@ tell whether the new architecture is actually being used everywhere.
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Compact room cards            | Converted at the render seam. `CompactRoomView` receives the per-room `ThreadRecord` map, and `useCompactThreadCardViewModels` only adapts records into card models.                                                                                                                                                                                                                                                                                                                                                          | Keep card rendering passive; do not reintroduce state/cache lookups here.                                                                |
 | Normal room thread badge      | Converted at the render seam. `RoomTimeline` consumes the per-room `ThreadRecord` map from `useMindroomThreadIndex`, badge view models are record-only, and badge JSX lives in a fork-owned renderer.                                                                                                                                                                                                                                                                                                                             | Keep badge rendering passive; do not reintroduce direct reply/summary/status derivation here.                                            |
-| Filtering, sorting, counts    | Converted at the room index and room-view state seams. `useMindroomThreadIndex` assembles normal/compact root data, room-surface entries, timeline-derived reply/participant/summary maps, scheduled counts, normal/compact `ThreadRecord` maps, overview ordering, focused-route bypass, effective filters, status counts, tag counts, room-thread list state, and overview cache hydration. Room overview focus/filter helpers now live in `src/app/mindroom/threads/threadRoomFocus.ts`; `RoomTimeline` consumes the snapshot and helper outputs. Room-level thread filter/view-mode/sort-freeze state now lives behind `useRoomViewThreadState`. | Keep new overview/index derivation in `useMindroomThreadIndex` or lower fork-owned selectors.                                           |
+| Filtering, sorting, counts    | Converted at the room index and room-view state seams. `useMindroomThreadIndex` assembles normal/compact root data, room-surface entries, timeline-derived reply/participant/summary maps, scheduled status, normal/compact `ThreadRecord` maps, overview ordering, focused-route bypass, effective filters, status counts, tag counts, room-thread list state, and overview cache hydration. Legacy `ThreadOverviewMetadata` map builders and metadata-map filter/sort/count selectors are gone; record-derived overview selectors live in `threadRecordOverview`. Room overview focus/filter helpers now live in `src/app/mindroom/threads/threadRoomFocus.ts`; `RoomTimeline` consumes the snapshot and helper outputs. Room-level thread filter/view-mode/sort-freeze state now lives behind `useRoomViewThreadState`. | Keep new overview/index derivation in `useMindroomThreadIndex` or lower fork-owned selectors.                                           |
 | Thread context banner         | Converted at the header seam. The banner builds a `ThreadRecord` and renders summary, tags, resolved state, and scheduled state through `ThreadHeaderViewModel`.                                                                                                                                                                                                                                                                                                                                                              | Keep mutation permissions/actions outside the record; do not reintroduce local summary logic.                                            |
 | Recent threads sidebar        | Converted at the entry seam. `RecentThreadEntry` renders a MindRoom-owned `RecentThreadViewModel` built from `ThreadRecord`; the old `useRecentThreadSummary` path is gone. Client startup registers recent-thread and last-open-thread UI storage through `src/app/mindroom/cache/clientStorageAtoms.ts` instead of direct generic-page wiring.                                                                                                                                                                               | Replace the remaining stored-entry plumbing with a room index subscription when available.                                               |
 | Command palette               | Converted at the MindRoom palette seam. `src/app/mindroom/command-palette` owns the palette UI, open-state atom, item assembly, search helpers, and hotkey handling. Thread sourcing delegates to `src/app/mindroom/threads/commandPaletteThreadItems.ts`; that owner builds recent-thread and SDK-thread `ThreadRecord` objects, reads thread tags, handles current-thread resolved mutations, merges duplicate thread items, and renders a MindRoom-owned `CommandPaletteThreadViewModel`.                                                                 | Keep remaining action/user/room/message logic separate inside the palette owner; do not reintroduce thread-specific derivation into generic room/router/sidebar code. |
 | Message content rendering     | Converted at the message-render seam. Generic `RenderMessageContent` delegates textual MindRoom policy to `src/app/mindroom/messages/renderMindroomMessageContent.tsx`, which owns summary cards, tool approvals, long-text rendering, AI-run streaming markers, and tool-trace parser options. Timeline-specific approval-event content and badge-model wiring now route through `src/app/mindroom/threads/roomTimelineMessageExtensions.tsx`.                                                                                   | Keep generic attachment/media rendering in the generic component; do not reintroduce raw MindRoom message metadata decisions there.       |
+| Message search                | Converted at the result-body seam. Generic `features/message-search` owns search inputs, filters, grouping, pagination, and virtualization, while the MindRoom result-body renderer lives in `src/app/mindroom/message-search/searchResultBodyRenderer.tsx` and mounts `MindroomSearchResultBody`.                                                                                                                                                                                                                                                                               | Keep generic search grouping unaware of MindRoom body components; if more result behavior becomes fork-only, move it behind the same seam or into the MindRoom namespace. |
 | Summary ownership             | Mostly converted. Room view owns shared summary state through `src/app/mindroom/threads/threadSummaryStore.ts`, `useMindroomThreadIndex` owns the timeline-derived summary fallback map for room records, and `RoomTimeline` no longer performs per-visible `loadLatestCachedThreadSummaryInfo` render-path reads.                                                                                                                                                                                                                 | Keep production summary consumers on `threadSummaryStore`; only legacy compatibility paths should import the lower cache/state modules.   |
 | Room/thread cache and preload | Mostly converted at the repository/controller/index seam. Timeline renderability, room-surface entry derivation, room overview display-window derivation, preload target selection, unread anchor derivation, preload counts, eager current-room preload, overview cache hydration and its cached activity/preview/message-count maps, raw cache access, cached room/thread pagination reads, cached thread page stitching/mapping, cache-order/hydration helper derivation, thread cache coverage helpers/decisions, cache payload serialization, room cache persistence/back-state refresh, initial room cache hydration, thread cache persistence/queueing, thread-open seed cache ownership, thread bootstrap/seed-prewarm/relation-fetch helpers, room-visible seed-prewarm queue orchestration, room cache-first back-pagination command, thread-open lifecycle/cache/network commands, live event cache/summary/auto-follow policy, overview resume target selection/refresh orchestration, compact root edit backfill, thread-message edit backfill, and room-derived thread-cache persistence now live outside `RoomTimeline`. Resume-fetched relation pages now update the per-room `ThreadRecord` index directly before the async cache write/read path catches up. `ThreadRecord.cache` is now populated for every record with conservative live/cache coverage. | Keep cache/preload orchestration behind repository/controller/index seams; do not reintroduce render-path cache reads. |
 | Scroll and pagination         | Mostly converted. Thread prepend anchor capture/restore lives in scroll utilities, thread back-pagination mutable state lives in `useThreadBackPaginationController`, thread back/front pagination commands live in `useThreadPaginationCommandController`, route debug trace/range instrumentation lives in `useTimelineDebugTraceIds` / `useTimelineDebugRangeController`, bottom-anchor/read-receipt ownership lives in `useTimelineReadReceiptController`, event deep-link/open routing lives in `useRoomEventOpenController` / `useRoomEventRouteOpenController`, route focus/pending-open/edit/bottom-pin scroll effects live in `useRoomFocusScrollController`, and jump-to-latest/unread plus thread-card open navigation live in `useRoomTimelineNavigationController`. | Keep remaining generic message actions local unless a clearer fork-owned seam appears. |
@@ -372,7 +370,7 @@ The main architecture pass has crossed the per-room index boundary: `RoomTimelin
 `useMindroomThreadIndex` instead of assembling normal/compact `ThreadRecord` maps, overview
 ordering, focused-route bypass, effective filters, status counts, tag counts, and overview cache
 fallback maps directly. The hook also owns room-surface entry derivation, visible/compact root data,
-timeline-derived reply/participant/summary maps, scheduled-count derivation, available room tags,
+timeline-derived reply/participant/summary maps, scheduled-status derivation, available room tags,
 read-up-to timestamp derivation, and current-room SDK thread-list loading. Compact cards, normal room badges, overview filter/sort/count logic, the
 room-overview focus/filter helpers, thread banner, recent thread entries, command palette thread items, and overview cache hydration
 share the `ThreadRecord` seam. Command-palette UI and state now live in
@@ -692,7 +690,7 @@ Acceptance:
   - normal and compact `ThreadRecord` maps,
   - active `ThreadRecord` map,
   - timeline-derived reply/participant/summary maps,
-  - scheduled counts,
+  - scheduled status,
   - available tags,
   - room-thread list state,
   - normal/compact root ids,
@@ -708,8 +706,8 @@ Acceptance:
 
 - `RoomTimeline` no longer owns `normalThreadRecordMap`, `compactThreadRecordMap`, overview ordering,
   status counts, or tag counts assembly.
-- `RoomTimeline` no longer owns timeline-derived summary/reply/participant maps, scheduled-count
-  maps, compact root data, or current-room thread-list loading.
+- `RoomTimeline` no longer owns timeline-derived summary/reply/participant maps,
+  scheduled-status maps, compact root data, or current-room thread-list loading.
 - `RoomTimeline` no longer owns room overview focus/filter helpers that build ad-hoc
   `ThreadRecord` maps for focus recovery.
 - Focused route, compact view, and normal overview behavior are covered by behavior/API tests for the
