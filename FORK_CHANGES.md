@@ -267,6 +267,10 @@
   - Room timeline implementation now lives in `src/app/mindroom/threads/MindroomRoomTimeline.tsx`.
   - `src/app/features/room/RoomTimeline.tsx` is a narrow compatibility seam that re-exports the MindRoom timeline.
   - Architecture tests now guard both boundaries: the generic file stays small, while timeline/cache/index policy remains under the MindRoom thread namespace.
+- `CINNY-189`
+  - Room message rendering now lives in `src/app/mindroom/messages/MindroomMessage.tsx`.
+  - `src/app/features/room/message/Message.tsx` is a narrow compatibility seam that re-exports the MindRoom message implementation.
+  - Message extension state, AI-run controls, long-text copy/download policy, and MindRoom menu/header slots stay under the MindRoom message namespace instead of the upstream room-message feature path.
 
 ### Current Feature Set On `dev`
 

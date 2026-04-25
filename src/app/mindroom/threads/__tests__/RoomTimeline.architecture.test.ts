@@ -1108,8 +1108,12 @@ describe('RoomTimeline architecture', () => {
       '../../components/message/mindroomThreadSummaryCard.css.ts',
       '../../components/message/mindroomToolTrace.ts',
     ];
-    const roomMessageSource = readFileSync(
+    const roomMessageSeamSource = readFileSync(
       new URL('../../../features/room/message/Message.tsx', import.meta.url),
+      'utf8'
+    );
+    const mindroomMessageSource = readFileSync(
+      new URL('../../messages/MindroomMessage.tsx', import.meta.url),
       'utf8'
     );
     const roomMessageStyleSource = readFileSync(
@@ -1228,20 +1232,23 @@ describe('RoomTimeline architecture', () => {
     expect(mindroomRenderContentSource).toContain('./StreamingIndicator');
     expect(mindroomRenderContentSource).toContain('renderMindroomStreamingIndicator');
     expect(mindroomRenderContentSource).toContain('withMindroomToolTraceMarkerParserOptions');
-    expect(roomMessageSource).toContain("from '../../../mindroom/messages/messageExtensions'");
-    expect(roomMessageSource).not.toContain("from '../../../mindroom/messages/messageCopyText'");
-    expect(roomMessageSource).not.toContain(
+    expect(roomMessageSeamSource).toContain("from '../../../mindroom/messages/MindroomMessage'");
+    expect(roomMessageSeamSource).not.toContain('useMindroomMessageExtensionState');
+    expect(roomMessageSeamSource.trim().split('\n').length).toBeLessThan(20);
+    expect(mindroomMessageSource).toContain("from './messageExtensions'");
+    expect(mindroomMessageSource).not.toContain("from '../../../mindroom/messages/messageCopyText'");
+    expect(mindroomMessageSource).not.toContain(
       "from '../../../mindroom/messages/MindroomMessageControls'"
     );
-    expect(roomMessageSource).not.toContain("from '../../../mindroom/messages/longText'");
-    expect(roomMessageSource).not.toContain(
+    expect(mindroomMessageSource).not.toContain("from '../../../mindroom/messages/longText'");
+    expect(mindroomMessageSource).not.toContain(
       "from '../../../mindroom/messages/MindroomLongTextText'"
     );
-    expect(roomMessageSource).not.toContain("from '../../../mindroom/messages/aiRun'");
-    expect(roomMessageSource).not.toContain("from '../../../mindroom/messages/aiRunDisplay'");
-    expect(roomMessageSource).not.toContain('getLongTextDownloadName');
-    expect(roomMessageSource).not.toContain('downloadMindroomLongTextSidecarBlob');
-    expect(roomMessageSource).not.toContain('getMindroomAiRunModelLabel');
+    expect(mindroomMessageSource).not.toContain("from '../../../mindroom/messages/aiRun'");
+    expect(mindroomMessageSource).not.toContain("from '../../../mindroom/messages/aiRunDisplay'");
+    expect(mindroomMessageSource).not.toContain('getLongTextDownloadName');
+    expect(mindroomMessageSource).not.toContain('downloadMindroomLongTextSidecarBlob');
+    expect(mindroomMessageSource).not.toContain('getMindroomAiRunModelLabel');
     expect(roomMessageStyleSource).not.toContain('MessageAiRunInfoButton');
     expect(parserSource).toContain("from '../mindroom/messages/MindroomHtmlBlocks'");
     expect(parserSource).not.toContain("from '../mindroom/messages/blocks'");
