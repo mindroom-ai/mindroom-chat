@@ -15,8 +15,8 @@ import { parseScheduledTaskStateEvent } from '../../utils/scheduledTaskContract'
 import type { RoomViewMode } from '../../state/room/roomViewMode';
 import {
   getPreferredVisibleThreadReplyEvents,
-} from '../../features/room/threadUtils';
-import { getEffectiveThreadRootActivityTs } from '../../features/room/threadRouteUtils';
+} from './threadUtils';
+import { getEffectiveThreadRootActivityTs } from './threadRouteUtils';
 import {
   getThreadPrimarySummaryText,
   resolveThreadPresentationSnapshot,

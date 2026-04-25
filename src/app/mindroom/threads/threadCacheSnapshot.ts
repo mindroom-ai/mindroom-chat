@@ -1,5 +1,5 @@
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
-import { buildThreadReplyCountMap } from '../../features/room/threadUtils';
+import { buildThreadReplyCountMap } from './threadUtils';
 import { getKnownThreadReplyCount } from './threadRecord';
 
 export const getRoomDerivedThreadSnapshotState = ({

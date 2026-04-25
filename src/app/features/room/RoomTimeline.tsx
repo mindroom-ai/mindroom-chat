@@ -161,7 +161,7 @@ import {
   buildVisibleThreadReplyCountMap,
   eventBelongsToThread,
   isVisibleThreadTextMessageEventType,
-} from './threadUtils';
+} from '../../mindroom/threads/threadUtils';
 import {
   buildThreadSummaryMap,
   getLatestThreadSummaryInfoFromEventSources,

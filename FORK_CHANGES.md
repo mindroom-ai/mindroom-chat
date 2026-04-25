@@ -849,6 +849,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 34 / Phase 5 thread utility ownership (2026-04-24):
+  - moved shared thread relation and route helpers plus tests to `src/app/mindroom/threads/threadUtils.ts`, `threadUtils.test.ts`, `threadRouteUtils.ts`, and `threadRouteUtils.test.ts`.
+  - the old `src/app/features/room/threadUtils.ts` and `threadRouteUtils.ts` paths are compatibility re-exports; MindRoom-owned modules import the implementations directly.
+  - this removes another broad source-of-truth seam from `features/room` while preserving old imports for remaining upstream-adjacent code.
+  - validation:
+    - focused Vitest passes for `threadUtils.test.ts`, `threadRouteUtils.test.ts`, `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimelineCollapsible.test.ts`, `roomThreadOverviewModel.test.ts`, and `threadPresentation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

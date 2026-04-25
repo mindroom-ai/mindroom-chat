@@ -1,4 +1,4 @@
-import { isThreadReplyEvent } from '../../features/room/threadUtils';
+import { isThreadReplyEvent } from './threadUtils';
 import {
   getKnownThreadReplyCount,
   getThreadReplyCount,
