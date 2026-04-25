@@ -60,6 +60,9 @@
 - `CINNY-121`
   - MindRoom room-input command autocomplete wiring and voice recorder mounting now live behind `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`.
   - Generic `RoomInput` no longer imports the MindRoom command prefix/autocomplete component or voice recorder implementation directly.
+- `CINNY-122`
+  - Client-level MindRoom favicon updates, invite notification branding, and native iOS push registration now live in `src/app/mindroom/client/MindroomClientNonUIFeatures.tsx`.
+  - Generic `ClientNonUIFeatures` keeps upstream-style page zoom, emoji, and message notification effects, and mounts a single MindRoom non-UI seam.
 
 ### Current Feature Set On `dev`
 
