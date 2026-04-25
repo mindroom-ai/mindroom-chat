@@ -45,7 +45,7 @@ export type ThreadRecord = ThreadId & {
   rootEventId?: string;
   presentation: ThreadPresentationSnapshot;
   status: ThreadStatusSnapshot;
-  cache?: ThreadCacheCoverage;
+  cache: ThreadCacheCoverage;
   absoluteIndex: number;
 };
 

@@ -79,6 +79,11 @@ const makeThreadFilterRecord = (
     tags: [],
     ...overrides.status,
   },
+  cache: {
+    eventCount: 0,
+    relationSnapshotComplete: false,
+    tailLoaded: false,
+  },
 });
 
 describe('RoomTimeline', () => {

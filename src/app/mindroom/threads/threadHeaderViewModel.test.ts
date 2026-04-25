@@ -33,6 +33,11 @@ const makeRecord = (overrides: Partial<ThreadRecord> = {}): ThreadRecord => ({
   threadRootId: '$thread',
   rootEventId: '$thread',
   absoluteIndex: 0,
+  cache: {
+    eventCount: 0,
+    relationSnapshotComplete: false,
+    tailLoaded: false,
+  },
   ...overrides,
   presentation: {
     ...basePresentation,

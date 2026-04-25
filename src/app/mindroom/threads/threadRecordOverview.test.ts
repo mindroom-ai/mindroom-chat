@@ -51,6 +51,11 @@ const makeRecord = (threadRootId: string, overrides: Partial<ThreadRecord> = {})
     lastActivityTs: 0,
     tags: [],
   },
+  cache: {
+    eventCount: 0,
+    relationSnapshotComplete: false,
+    tailLoaded: false,
+  },
   absoluteIndex: 0,
   ...overrides,
 });

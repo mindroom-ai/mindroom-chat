@@ -94,6 +94,11 @@ const makeRecord = (overrides: Partial<ThreadRecord> = {}): ThreadRecord => ({
     tags: [],
     ...overrides.status,
   },
+  cache: {
+    eventCount: 0,
+    relationSnapshotComplete: false,
+    tailLoaded: false,
+  },
   absoluteIndex: 0,
   ...overrides,
 });
