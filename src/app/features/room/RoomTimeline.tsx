@@ -222,7 +222,10 @@ import {
   getRoomScheduledTaskCounts,
   collectAvailableRoomTags,
 } from './roomThreadOverviewModel';
-import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
+import {
+  applyParsedThreadFilterQuery,
+  parseThreadFilterQuery,
+} from '../../mindroom/threads/threadFilterDsl';
 import {
   getTimelineEventById,
   resolveRoomEventThreadRedirect,

@@ -282,6 +282,24 @@ describe('RoomTimeline architecture', () => {
     expect(compatibilitySource).not.toContain('getLatestRenderableVisibleThreadReplyEvent');
   });
 
+  it('keeps thread filter DSL parsing in MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const compatibilitySource = readFileSync(
+      new URL('./threadFilterDsl.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/threadFilterDsl.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/threadFilterDsl'");
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/threadFilterDsl'");
+    expect(implementationSource).toContain('parseThreadFilterQuery');
+    expect(implementationSource).toContain('serializeThreadFilterQuery');
+    expect(compatibilitySource).not.toContain('looksLikeDslToken');
+  });
+
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
