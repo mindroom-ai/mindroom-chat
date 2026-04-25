@@ -10,7 +10,7 @@ import {
   type ThreadSortFreezeState,
 } from './roomThreadOverviewModel';
 import { parseThreadFilterQuery } from './threadFilterDsl';
-import type { RoomViewMode } from '../../state/room/roomViewMode';
+import type { RoomViewMode } from './roomViewMode';
 import { buildThreadRecordMap } from './threadRecord';
 import {
   matchesThreadRecordFilterState,

@@ -11,7 +11,7 @@ import { clearNavToActivePathStore } from '../app/state/navToActivePath';
 import { clearRecentThreadsStore } from '../app/state/recentThreads';
 import { clearRecentThreadsPanelHeightStore } from '../app/state/recentThreadsPanelHeight';
 import { clearRecentThreadsPanelMobileExpandedStore } from '../app/state/recentThreadsPanelMobileExpanded';
-import { clearRoomThreadFiltersStore } from '../app/state/room/roomThreadFilterState';
+import { clearRoomThreadFiltersStore } from '../app/mindroom/threads/roomThreadFilterState';
 import { createMatrixClient } from './matrixClientFactory';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
 import { clearMindroomLongTextHydrationCache } from '../app/components/message/mindroomLongText';

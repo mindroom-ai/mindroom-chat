@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { MatrixEvent, Room, Thread } from 'matrix-js-sdk';
-import type { RoomViewMode } from '../../state/room/roomViewMode';
+import type { RoomViewMode } from './roomViewMode';
 import type { Timeline } from './timelinePagination';
 import {
   getActiveTimelineRange,

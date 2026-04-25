@@ -183,7 +183,7 @@ import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,
 } from '../../mindroom/threads/threadFilterDsl';
-import type { RoomViewMode } from '../../state/room/roomViewMode';
+import type { RoomViewMode } from '../../mindroom/threads/roomViewMode';
 import {
   isTimelineAtLiveEnd,
   shouldRenderUnreadDividerAt,

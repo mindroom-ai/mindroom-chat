@@ -28,7 +28,7 @@ import {
   FILTER_PRESETS,
   isOrModeStatusChip,
 } from './roomThreadOverviewModel';
-import type { RoomViewMode } from '../../state/room/roomViewMode';
+import type { RoomViewMode } from './roomViewMode';
 
 export type { ThreadFilterState, ThreadFilterKey };
 

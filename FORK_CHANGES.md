@@ -2088,3 +2088,10 @@
 - Moved room-thread exit route-state helpers into `src/app/mindroom/threads/roomNavigateState.ts`.
 - Left `src/app/hooks/roomNavigateState.ts` as a thin compatibility export for legacy import paths.
 - Updated room navigation, thread exit handling, and tests to import the fork-owned route-state implementation directly.
+
+## CINNY-102 — Move room thread UI persistence to fork namespace (2026-04-25)
+
+- Moved room-scoped thread filter persistence into `src/app/mindroom/threads/roomThreadFilterState.ts`.
+- Moved compact/normal room view-mode persistence into `src/app/mindroom/threads/roomViewMode.ts`.
+- Left `src/app/state/room/roomThreadFilterState.ts` and `src/app/state/room/roomViewMode.ts` as thin compatibility exports for legacy import paths.
+- Updated room rendering, timeline/index helpers, and session cleanup to consume the fork-owned persistence owners directly.

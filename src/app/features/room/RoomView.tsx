@@ -46,8 +46,8 @@ import {
   parseThreadFilterQuery,
   serializeThreadFilterQuery,
 } from '../../mindroom/threads/threadFilterDsl';
-import { roomThreadFilterAtomFamily } from '../../state/room/roomThreadFilterState';
-import { roomViewModeAtomFamily, type RoomViewMode } from '../../state/room/roomViewMode';
+import { roomThreadFilterAtomFamily } from '../../mindroom/threads/roomThreadFilterState';
+import { roomViewModeAtomFamily, type RoomViewMode } from '../../mindroom/threads/roomViewMode';
 import { createSessionId } from '../../state/sessions';
 import { ThreadContextBanner } from '../../mindroom/threads/ThreadContextBanner';
 import { useRoomThreadSummaryState } from '../../mindroom/threads/useRoomThreadSummaryState';
