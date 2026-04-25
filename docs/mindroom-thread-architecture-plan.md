@@ -733,6 +733,8 @@ Acceptance:
 - Pinned-message cache-aware event lookup and tool approval rendering live behind
   `src/app/mindroom/messages/pinnedMessageExtensions.ts`; the generic pinned-message menu only
   mounts the pinned-message seam.
+- Pinned-message MindRoom event-type dispatch also lives behind that same seam; generic
+  `RoomPinMenu` should not import MindRoom pinned-event constants or approval renderers directly.
 - MindRoom custom-HTML blocks and tool-trace grouping live in `src/app/mindroom/messages`; the
   generic custom HTML parser only delegates to that renderer.
 - Local MindRoom settings/provisioning implementation lives in `src/app/mindroom/local-mindroom`;

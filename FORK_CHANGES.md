@@ -170,6 +170,9 @@
   - Local MindRoom settings page identity now lives in `src/app/mindroom/local-mindroom/settingsPage.ts` instead of the generic `SettingsPages` enum.
   - Local MindRoom settings rendering now lives behind `src/app/mindroom/local-mindroom/settingsRenderer.tsx`, so generic settings code mounts a narrow render seam instead of importing the page implementation directly.
   - The sidebar Local MindRoom shortcut opens the MindRoom-owned page id constant instead of depending on a generic MindRoom settings enum member.
+- `CINNY-160`
+  - Pinned-message MindRoom approval event dispatch now lives behind `src/app/mindroom/messages/pinnedMessageExtensions.ts`.
+  - Generic `RoomPinMenu` asks the MindRoom owner for pinned-message renderers and encrypted-event render results instead of switching on MindRoom approval event constants directly.
 
 ### Current Feature Set On `dev`
 
