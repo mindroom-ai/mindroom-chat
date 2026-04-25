@@ -53,6 +53,10 @@
   - Room-route last-open-thread persistence, auto-restore, and failed-thread cleanup now live in `src/app/mindroom/threads/useRoomThreadRouteRestore.ts`.
   - Generic `Room` now passes only the room route inputs and thread-load-error callback through to the MindRoom hook instead of directly mutating last-open-thread or recent-thread stores.
   - Existing room route tests continue to cover saved-thread auto-restore, explicit-thread suppression, thread-exit clearing, and failed auto-restore fallback.
+- `CINNY-120`
+  - Automatic room-input send-session orchestration now lives in `src/app/mindroom/threads/useRoomInputSendSessionController.ts`.
+  - Generic `RoomInput` still owns editor/upload UI, but the MindRoom controller owns auto-thread root selection, upload/text sequencing, retry state, Signal bridge upload MIME policy, and reply-draft cleanup.
+  - Existing room input tests plus architecture guards keep the controller and pure send-session policy in the MindRoom thread namespace.
 
 ### Current Feature Set On `dev`
 

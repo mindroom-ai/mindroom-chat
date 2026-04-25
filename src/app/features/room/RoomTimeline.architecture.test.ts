@@ -223,6 +223,28 @@ describe('RoomTimeline architecture', () => {
     expect(initMatrixSource).not.toContain("from '../app/state/lastOpenThread'");
   });
 
+  it('keeps room input auto-thread send sessions in MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomInput.tsx', import.meta.url), 'utf8');
+    const controllerSource = readFileSync(
+      new URL('../../mindroom/threads/useRoomInputSendSessionController.ts', import.meta.url),
+      'utf8'
+    );
+    const sessionSource = readFileSync(
+      new URL('../../mindroom/threads/roomInputSendSession.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain('useRoomInputSendSessionController');
+    expect(source).not.toContain('createRoomInputSendSessionState');
+    expect(source).not.toContain('resolveRoomInputSendStep');
+    expect(source).not.toContain('hasRoomInputSendFailures');
+    expect(source).not.toContain('isSignalBridgeRoom');
+    expect(controllerSource).toContain('createRoomInputSendSessionState');
+    expect(controllerSource).toContain('resolveRoomInputSendStep');
+    expect(controllerSource).toContain('isSignalBridgeRoom');
+    expect(sessionSource).toContain('getRoomInputSendMode');
+  });
+
   it('keeps thread navigation seeding policy in MindRoom threads', () => {
     const hookSource = readFileSync(
       new URL('../../hooks/useRoomNavigate.ts', import.meta.url),
