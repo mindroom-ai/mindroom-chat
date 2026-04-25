@@ -255,13 +255,13 @@ import {
   getEarliestLoadedRoomEvent,
   resolveHydratedRoomBeforeToken,
   resolvePersistedRoomBeforeToken,
+  loadThreadCachedPaginationSnapshot,
+  loadThreadCachedSnapshot,
   loadCachedRoomPaginationToken,
-  loadCachedThreadEventsBefore,
-  loadCachedThreadSnapshot,
   loadLatestRoomCacheHydrationSnapshot,
   loadRoomCachedBackStateSnapshot,
   loadRoomCachedPaginationSnapshot,
-  normalizeCachedThreadEvents,
+  mapCachedThreadPageEvents,
   persistRoomEventCacheSnapshot,
   persistThreadEventCacheSnapshot,
 } from '../../mindroom/threads/eventRepository';
@@ -3400,12 +3400,14 @@ export function RoomTimeline({
         limit: safePaginationLimitRef.current,
         threadId: expectedThreadId,
       });
-      const cachedPage = await loadCachedThreadSnapshot({
+      const mapper = mx.getEventMapper();
+      const cachedSnapshot = await loadThreadCachedSnapshot({
         sessionId,
         roomId: room.roomId,
         threadId: expectedThreadId,
         limit: safePaginationLimitRef.current,
         maxPages: MAX_THREAD_FETCH_ITERATIONS,
+        mapEvent: (rawEvent) => mapper(rawEvent),
         shouldContinue: () => alive() && threadIdRef.current === expectedThreadId,
         onPage: (page, pageIndex, snapshot) => {
           logTimelineDebug(threadDebugTraceId, 'thread-cache-hydrate-page', {
@@ -3422,17 +3424,15 @@ export function RoomTimeline({
           });
         },
       });
-      if (!cachedPage) return undefined;
-      const mapper = mx.getEventMapper();
+      if (!cachedSnapshot) return undefined;
+      const cachedPage = cachedSnapshot.cachedPage;
       const cachedSnapshotComplete = cachedPage.snapshotComplete === true;
       const cachedRelationSnapshotComplete = cachedPage.relationSnapshotComplete === true;
       const tailLoaded = cachedPage.tailLoaded === true;
 
       if (!alive() || threadIdRef.current !== expectedThreadId) return undefined;
 
-      const cachedEvents = normalizeCachedThreadEvents(cachedPage.events, cachedPage.rootEvent).map(
-        (rawEvent) => mapper(rawEvent)
-      );
+      const cachedEvents = cachedSnapshot.events;
       const liveRootMatrixEvent =
         room.getThread(expectedThreadId)?.rootEvent ??
         room.findEventById(expectedThreadId) ??
@@ -3513,19 +3513,16 @@ export function RoomTimeline({
 
   const loadThreadOpenSeedSnapshotFromCache = useCallback(
     async (expectedThreadId: string): Promise<MatrixEvent[]> => {
-      const cachedPage = await loadCachedThreadSnapshot({
+      const mapper = mx.getEventMapper();
+      const cachedSnapshot = await loadThreadCachedSnapshot({
         sessionId,
         roomId: room.roomId,
         threadId: expectedThreadId,
         limit: safePaginationLimitRef.current,
         maxPages: MAX_THREAD_FETCH_ITERATIONS,
+        mapEvent: (rawEvent) => mapper(rawEvent),
       });
-      if (!cachedPage) return [];
-
-      const mapper = mx.getEventMapper();
-      return normalizeCachedThreadEvents(cachedPage.events, cachedPage.rootEvent).map((rawEvent) =>
-        mapper(rawEvent)
-      );
+      return cachedSnapshot?.events ?? [];
     },
     [mx, room.roomId, sessionId]
   );
@@ -3911,10 +3908,11 @@ export function RoomTimeline({
         return false;
       }
 
-      const cachedSnapshotEvents = normalizeCachedThreadEvents(
-        cachedPage.events,
-        cachedPage.rootEvent
-      ).map((rawEvent) => mapper(rawEvent));
+      const cachedSnapshotEvents = mapCachedThreadPageEvents({
+        events: cachedPage.events,
+        rootEvent: cachedPage.rootEvent,
+        mapEvent: (rawEvent) => mapper(rawEvent),
+      });
       const liveThreadTimelineSet = room.getThread(expectedThreadId)?.getUnfilteredTimelineSet();
       const redactedRelationTargets = collectRedactedRelationTargetsFromLookup(
         latestRelationEvents,
@@ -5123,10 +5121,11 @@ export function RoomTimeline({
           (hydratedCachedPage.events.length > 0 || !!hydratedCachedPage.rootEvent);
         if (canBackfillThreadRelations && hydratedCachedPage) {
           const mapper = mx.getEventMapper();
-          const cachedSnapshotEvents = normalizeCachedThreadEvents(
-            hydratedCachedPage.events,
-            hydratedCachedPage.rootEvent
-          ).map((rawEvent) => mapper(rawEvent));
+          const cachedSnapshotEvents = mapCachedThreadPageEvents({
+            events: hydratedCachedPage.events,
+            rootEvent: hydratedCachedPage.rootEvent,
+            mapEvent: (rawEvent) => mapper(rawEvent),
+          });
           const baselineBackfillEvents =
             initialRoomThreadSeedEvents.length > 0
               ? mergeThreadBackfillEvents(cachedSnapshotEvents, initialRoomThreadSeedEvents)
@@ -7280,20 +7279,20 @@ threadDebugTraceId,
     threadPaginatingBackRef.current = true;
     try {
       const earliestThreadReply = findEarliestLoadedThreadReplyByCacheOrder(threadEvents, expectedThreadId);
-      const cachedPage = await loadCachedThreadEventsBefore(
+      const mapper = mx.getEventMapper();
+      const cachedPaginationSnapshot = await loadThreadCachedPaginationSnapshot({
         sessionId,
-        room.roomId,
-        expectedThreadId,
-        getThreadCursorAnchor(earliestThreadReply?.event as Partial<IEvent> | undefined),
-        THREAD_BATCH_SIZE
-      );
+        roomId: room.roomId,
+        threadId: expectedThreadId,
+        earliestLoadedReply: earliestThreadReply,
+        limit: THREAD_BATCH_SIZE,
+        mapEvent: (rawEvent) => mapper(rawEvent),
+      });
       if (threadIdRef.current !== expectedThreadId) return;
 
-      const mapper = mx.getEventMapper();
-      const cachedEvents = normalizeCachedThreadEvents(cachedPage.events, cachedPage.rootEvent).map(
-        (rawEvent) => mapper(rawEvent)
-      );
-      if (cachedEvents.length > 0) {
+      if (cachedPaginationSnapshot.status === 'cache-hit') {
+        const cachedPage = cachedPaginationSnapshot.cachedPage;
+        const cachedEvents = cachedPaginationSnapshot.events;
         const currentThreadTimelineSet = thread?.getUnfilteredTimelineSet();
         const currentFirstThreadTimeline = currentThreadTimelineSet
           ? getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0]
@@ -7305,9 +7304,7 @@ threadDebugTraceId,
           );
         }
         setSupplementalThreadEvents(expectedThreadId, cachedEvents);
-        setThreadHasMoreCachedBack(
-          cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string'
-        );
+        setThreadHasMoreCachedBack(cachedPaginationSnapshot.hasMoreCachedBack);
         setTimeline((ct) => ({ ...ct }));
         setThreadTimelineTick((val) => val + 1);
         didPaginateBack = true;

@@ -78,7 +78,16 @@ describe('RoomTimeline architecture', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
     expect(source).not.toContain('cachedThreadEvents.unshift(...cachedPage.events)');
-    expect(source).toContain('loadCachedThreadSnapshot');
+    expect(source).toContain('loadThreadCachedSnapshot');
+  });
+
+  it('delegates cached thread event mapping and pagination reads to the event repository', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('loadThreadCachedPaginationSnapshot');
+    expect(source).toContain('mapCachedThreadPageEvents');
+    expect(source).not.toContain('loadCachedThreadEventsBefore');
+    expect(source).not.toContain('normalizeCachedThreadEvents');
   });
 
   it('delegates latest room cache hydration decisions to the event repository', () => {

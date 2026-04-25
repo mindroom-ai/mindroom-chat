@@ -18,6 +18,7 @@ import {
   getThreadCursorAnchor as getCachedThreadCursorAnchor,
   loadCachedThreadEventsBefore as loadCachedThreadEventsBeforeFromCache,
   loadLatestCachedThreadEvents as loadLatestCachedThreadEventsFromCache,
+  normalizeCachedThreadEvents,
   saveThreadEventsToCache as saveThreadEventsToCacheToStorage,
   type CachedThreadEvent,
   type CachedThreadEventPage,
@@ -57,6 +58,7 @@ type SaveThreadEventsToCache = typeof saveThreadEventsToCacheToStorage;
 type SaveRoomEventsToCache = typeof saveRoomEventsToCacheToStorage;
 type LoadCachedRoomEventsBefore = typeof loadCachedRoomEventsBeforeFromCache;
 type LoadCachedRoomPaginationToken = typeof loadCachedRoomPaginationTokenFromCache;
+type LoadCachedThreadEventsBefore = typeof loadCachedThreadEventsBeforeFromCache;
 
 type LoadCachedThreadSnapshotOptions = {
   sessionId: string;
@@ -149,6 +151,102 @@ export const loadCachedThreadSnapshot = async ({
     relationSnapshotComplete: cachedRelationSnapshotComplete,
     snapshotComplete: cachedSnapshotComplete,
     tailLoaded,
+  };
+};
+
+export const mapCachedThreadPageEvents = ({
+  events,
+  rootEvent,
+  mapEvent,
+}: {
+  events: Partial<IEvent>[];
+  rootEvent?: Partial<IEvent>;
+  mapEvent: (rawEvent: Partial<IEvent>) => MatrixEvent;
+}): MatrixEvent[] =>
+  normalizeCachedThreadEvents(events, rootEvent).map((rawEvent) => mapEvent(rawEvent));
+
+export type ThreadCachedSnapshot = {
+  cachedPage: CachedThreadSnapshot;
+  events: MatrixEvent[];
+  rootEvent?: Partial<IEvent>;
+  beforeToken?: string | null;
+  hasMoreBefore: boolean;
+  expectedReplyCount?: number;
+  relationSnapshotComplete?: boolean;
+  snapshotComplete?: boolean;
+  tailLoaded?: boolean;
+};
+
+export const loadThreadCachedSnapshot = async ({
+  mapEvent,
+  ...options
+}: LoadCachedThreadSnapshotOptions & {
+  mapEvent: (rawEvent: Partial<IEvent>) => MatrixEvent;
+}): Promise<ThreadCachedSnapshot | undefined> => {
+  const cachedPage = await loadCachedThreadSnapshot(options);
+  if (!cachedPage) return undefined;
+
+  return {
+    cachedPage,
+    events: mapCachedThreadPageEvents({
+      events: cachedPage.events,
+      rootEvent: cachedPage.rootEvent,
+      mapEvent,
+    }),
+    rootEvent: cachedPage.rootEvent,
+    beforeToken: cachedPage.beforeToken,
+    hasMoreBefore: cachedPage.hasMoreBefore,
+    expectedReplyCount: cachedPage.expectedReplyCount,
+    relationSnapshotComplete: cachedPage.relationSnapshotComplete,
+    snapshotComplete: cachedPage.snapshotComplete,
+    tailLoaded: cachedPage.tailLoaded,
+  };
+};
+
+export type ThreadCachedPaginationSnapshot = {
+  cachedPage: CachedThreadEventPage;
+  events: MatrixEvent[];
+  beforeToken?: string | null;
+  hasMoreCachedBack: boolean;
+  status: 'cache-hit' | 'cache-miss';
+};
+
+export const loadThreadCachedPaginationSnapshot = async ({
+  sessionId,
+  roomId,
+  threadId,
+  earliestLoadedReply,
+  limit,
+  mapEvent,
+  loadBefore = loadCachedThreadEventsBeforeFromCache,
+}: {
+  sessionId: string;
+  roomId: string;
+  threadId: string;
+  earliestLoadedReply?: MatrixEvent;
+  limit: number;
+  mapEvent: (rawEvent: Partial<IEvent>) => MatrixEvent;
+  loadBefore?: LoadCachedThreadEventsBefore;
+}): Promise<ThreadCachedPaginationSnapshot> => {
+  const cachedPage = await loadBefore(
+    sessionId,
+    roomId,
+    threadId,
+    getCachedThreadCursorAnchor(earliestLoadedReply?.event as Partial<IEvent> | undefined),
+    limit
+  );
+  const events = mapCachedThreadPageEvents({
+    events: cachedPage.events,
+    rootEvent: cachedPage.rootEvent,
+    mapEvent,
+  });
+
+  return {
+    cachedPage,
+    events,
+    beforeToken: cachedPage.beforeToken,
+    hasMoreCachedBack: cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string',
+    status: events.length > 0 ? 'cache-hit' : 'cache-miss',
   };
 };
 

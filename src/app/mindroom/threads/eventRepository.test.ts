@@ -2,6 +2,8 @@ import { RelationType } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   collectStateTargetEvents,
+  loadThreadCachedPaginationSnapshot,
+  loadThreadCachedSnapshot,
   loadRoomCachedBackStateSnapshot,
   loadRoomCachedPaginationSnapshot,
   loadLatestRoomCacheHydrationSnapshot,
@@ -197,6 +199,70 @@ describe('eventRepository cached thread snapshots', () => {
     expect(snapshot.relationSnapshotComplete).toBe(true);
     expect(snapshot.tailLoaded).toBe(true);
     expect(loadedPageIndexes).toEqual([1, 2]);
+  });
+
+  it('loads mapped cached thread snapshot events in normalized order', async () => {
+    const snapshot = await loadThreadCachedSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      threadId: '$root',
+      limit: 50,
+      maxPages: 5,
+      mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing', {
+        ts: rawEvent.origin_server_ts,
+      }),
+      loadLatest: async () => ({
+        rootEvent: { event_id: '$root', origin_server_ts: 100 },
+        events: [{ event_id: '$reply', origin_server_ts: 200 }],
+        hasMoreBefore: false,
+        beforeToken: null,
+        expectedReplyCount: 1,
+        snapshotComplete: true,
+        relationSnapshotComplete: true,
+        tailLoaded: true,
+      }),
+    });
+
+    expect(snapshot?.events.map((event) => event.getId())).toEqual(['$root', '$reply']);
+    expect(snapshot?.cachedPage.beforeToken).toBeNull();
+    expect(snapshot?.expectedReplyCount).toBe(1);
+    expect(snapshot?.snapshotComplete).toBe(true);
+    expect(snapshot?.relationSnapshotComplete).toBe(true);
+    expect(snapshot?.tailLoaded).toBe(true);
+  });
+
+  it('loads mapped cached thread pagination events from the requested anchor', async () => {
+    const earliestLoadedReply = makeEvent('$loaded', {
+      ts: 300,
+      threadRootId: '$root',
+    });
+
+    const snapshot = await loadThreadCachedPaginationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      threadId: '$root',
+      earliestLoadedReply: earliestLoadedReply as never,
+      limit: 50,
+      mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing', {
+        ts: rawEvent.origin_server_ts,
+      }),
+      loadBefore: async (_sessionId, _roomId, threadId, anchor, limit) => {
+        expect(threadId).toBe('$root');
+        expect(anchor).toEqual({ eventId: '$loaded', ts: 300 });
+        expect(limit).toBe(50);
+        return {
+          rootEvent: { event_id: '$root', origin_server_ts: 100 },
+          events: [{ event_id: '$older-reply', origin_server_ts: 200 }],
+          hasMoreBefore: true,
+          beforeToken: 'before-older-reply',
+        };
+      },
+    });
+
+    expect(snapshot.status).toBe('cache-hit');
+    expect(snapshot.events.map((event) => event.getId())).toEqual(['$root', '$older-reply']);
+    expect(snapshot.beforeToken).toBe('before-older-reply');
+    expect(snapshot.hasMoreCachedBack).toBe(true);
   });
 });
 
