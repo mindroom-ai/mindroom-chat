@@ -1169,6 +1169,16 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `npm run build` passes
+- `CINNY-075` implementation step 75 / Phase 6 room focus scroll controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/roomFocusScrollController.ts` as the fork-owned owner for route focus scrolling, unread anchor scrolling, pending thread-open scroll retries, edit-message scrolling, thread-open bottom pinning, back-pagination anchor restore, and live-end bottom recovery.
+  - `RoomTimeline` now consumes `useRoomFocusScrollController` instead of directly owning those DOM scroll effects and no longer imports route focus scroll policy helpers directly.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.navigation.test.ts`, and `RoomTimeline.permalink-refresh.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+    - `npm test` passes (`181/181` files, `1553/1553` tests)
+    - `git diff --check` passes
 - `CINNY-075` implementation step 74 / Phase 6 room event open controller ownership (2026-04-25):
   - added `src/app/mindroom/threads/roomEventOpenController.ts` as the fork-owned owner for room-event deep-link redirects, focused-event timeline loading, pending thread-open focus handoff, and route event-id dedupe.
   - `RoomTimeline` now consumes `useRoomEventOpenController` and `useRoomEventRouteOpenController` instead of directly sequencing room event focus targets, unloaded-event timeline loading, thread-event pending scroll state, and route open guards inline.

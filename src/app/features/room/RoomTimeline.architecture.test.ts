@@ -975,6 +975,23 @@ describe('RoomTimeline architecture', () => {
     expect(controllerSource).toContain('useDocumentFocusChange');
   });
 
+  it('delegates route focus and thread-open scroll effects to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const controllerSource = readFileSync(
+      new URL('../../mindroom/threads/roomFocusScrollController.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain('useRoomFocusScrollController');
+    expect(source).not.toContain('pendingRoomFocusRef');
+    expect(source).not.toContain('setupFocusObserver');
+    expect(source).not.toContain('getRoomFocusScrollOptions');
+    expect(source).not.toContain('shouldPinThreadToBottomOnOpen');
+    expect(controllerSource).toContain('setupFocusObserver');
+    expect(controllerSource).toContain('shouldPinThreadToBottomOnOpen');
+    expect(controllerSource).toContain('restorePendingThreadBackPaginationAnchor');
+  });
+
   it('delegates live event arrival policy to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const subscriptionSource = readFileSync(
