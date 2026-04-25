@@ -130,7 +130,6 @@ import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
 } from '../../mindroom/threads/threadRenderUtils';
-import { useThreadRenderState } from '../../mindroom/threads/useThreadRenderState';
 import {
   useTimelineDebugRangeController,
   useTimelineDebugTraceIds,
@@ -139,7 +138,6 @@ import { CompactRoomView } from '../../mindroom/threads/CompactRoomView';
 import { RoomThreadOverview } from '../../mindroom/threads/RoomThreadOverview';
 import { getRenderableEventEntries } from '../../mindroom/threads/roomTimelineEvents';
 import {
-  getLinkedTimelines,
   getEmptyTimeline,
   getInitialTimeline,
   getLiveTimeline,
@@ -202,6 +200,7 @@ import {
 } from '../../mindroom/threads/roomFocusScrollController';
 import { useRoomTimelineNavigationController } from '../../mindroom/threads/roomTimelineNavigationController';
 import { buildMindroomRoomTimelineReplyDraft } from '../../mindroom/threads/roomTimelineReplyDraft';
+import { useThreadTimelineState } from '../../mindroom/threads/useThreadTimelineState';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -584,41 +583,25 @@ export function RoomTimeline({
     timeline.linkedTimelines[timeline.linkedTimelines.length - 1] === getLiveTimeline(room);
   const canPaginateBack =
     typeof timeline.linkedTimelines[0]?.getPaginationToken(Direction.Backward) === 'string';
-  const thread = threadId ? room.getThread(threadId) : null;
-  const roomTimelineSet = room.getUnfilteredTimelineSet();
-  const threadTimelineSet = thread?.getUnfilteredTimelineSet();
-  const threadLinkedTimelines = threadTimelineSet
-    ? getLinkedTimelines(threadTimelineSet.getLiveTimeline())
-    : [];
-  const lastThreadTimeline = threadLinkedTimelines[threadLinkedTimelines.length - 1];
   const {
+    canPaginateThreadBack,
+    canPaginateThreadFront,
+    roomTimelineSet,
+    thread,
+    threadBackwardPaginationToken,
+    threadEventMap,
     threadEventIndexMapRef,
     threadEvents,
     threadInitialRenderMode,
+    threadTimelineSet,
     setSupplementalThreadEvents,
     resetThreadRenderState,
-  } = useThreadRenderState({
+  } = useThreadTimelineState({
     room,
-    roomTimelineSet,
-    threadTimelineSet,
     threadId,
-    thread,
     threadInitialCacheHydrated,
     debugTraceId: threadDebugTraceId,
   });
-  const threadEventMap = useMemo(() => {
-    const eventMap = new Map<string, MatrixEvent>();
-    threadEvents.forEach((mEvent) => {
-      const eventId = mEvent.getId();
-      if (eventId) eventMap.set(eventId, mEvent);
-    });
-    return eventMap;
-  }, [threadEvents]);
-  const threadBackwardPaginationToken =
-    threadLinkedTimelines[0]?.getPaginationToken(Direction.Backward) ?? null;
-  const canPaginateThreadBack = typeof threadBackwardPaginationToken === 'string';
-  const canPaginateThreadFront =
-    typeof lastThreadTimeline?.getPaginationToken(Direction.Forward) === 'string';
   const {
     activeTimelineRange,
     filteredLength,
