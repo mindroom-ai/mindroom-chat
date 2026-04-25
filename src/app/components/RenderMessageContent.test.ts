@@ -64,11 +64,11 @@ vi.mock('../plugins/matrix-to', () => ({
   testMatrixTo: () => false,
 }));
 
-vi.mock('./message/mindroomLongText', () => ({
+vi.mock('../mindroom/messages/longText', () => ({
   getMindroomLongTextSource: () => undefined,
 }));
 
-vi.mock('./message/MindroomLongTextText', () => ({
+vi.mock('../mindroom/messages/MindroomLongTextText', () => ({
   MindroomLongTextKind: {
     Text: 'text',
     Emote: 'emote',

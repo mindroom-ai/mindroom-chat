@@ -680,6 +680,8 @@ Acceptance:
 - MindRoom behavior is mostly contained under fork-owned modules.
 - Summary parsing, approval parsing, approval cards, and summary cards live in the MindRoom
   namespace, with old `components/message/*` paths reduced to thin compatibility wrappers.
+- Long-text sidecar hydration, AI-run metadata/display helpers, tool-trace parsing, and
+  MindRoom block parsing also live in the MindRoom namespace with compatibility wrappers only.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy

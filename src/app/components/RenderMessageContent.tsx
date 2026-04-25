@@ -33,8 +33,8 @@ import { PdfViewer } from './Pdf-viewer';
 import { TextViewer } from './text-viewer';
 import { testMatrixTo } from '../plugins/matrix-to';
 import { IImageContent } from '../../types/matrix/common';
-import { getMindroomLongTextSource } from './message/mindroomLongText';
-import { MindroomLongTextKind, MindroomLongTextText } from './message/MindroomLongTextText';
+import { getMindroomLongTextSource } from '../mindroom/messages/longText';
+import { MindroomLongTextKind, MindroomLongTextText } from '../mindroom/messages/MindroomLongTextText';
 import { getMindroomThreadSummaryInfo } from '../mindroom/messages/threadSummary';
 import { MindroomToolApprovalCard } from '../mindroom/messages/MindroomToolApprovalCard';
 import {
@@ -42,7 +42,7 @@ import {
   parseToolApprovalContent,
 } from '../mindroom/messages/toolApproval';
 import { withMindroomToolTraceMarkerParserOptions } from '../plugins/react-custom-html-parser';
-import { isMindroomAiRunStreaming } from './message/mindroomAiRun';
+import { isMindroomAiRunStreaming } from '../mindroom/messages/aiRun';
 
 type RenderMessageContentProps = {
   displayName: string;

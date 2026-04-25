@@ -38,12 +38,12 @@ import * as css from '../styles/CustomHtml.css';
 import {
   MindroomToolRefParseResult,
   parseMindroomToolRefHtml,
-} from '../components/message/mindroomBlocks';
+} from '../mindroom/messages/blocks';
 import {
   MindroomToolTraceEvent,
   getMindroomToolTraceEvents,
   isMindroomToolTraceV2,
-} from '../components/message/mindroomToolTrace';
+} from '../mindroom/messages/toolTrace';
 import {
   getMxIdLocalPart,
   getCanonicalAliasRoomId,

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   getMindroomLongTextSource,
   hydrateMindroomLongTextSource,
-} from './mindroomLongText';
-import { getMindroomToolTraceEventByIndex } from './mindroomToolTrace';
+} from './longText';
+import { getMindroomToolTraceEventByIndex } from './toolTrace';
 
 const expectDefined = <T>(value: T | undefined): T => {
   expect(value).toBeDefined();

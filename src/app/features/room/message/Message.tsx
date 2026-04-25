@@ -87,19 +87,19 @@ import { getPowerTagIconSrc } from '../../../hooks/useMemberPowerTag';
 import {
   MindroomLongTextSource,
   getMindroomLongTextSource,
-} from '../../../components/message/mindroomLongText';
+} from '../../../mindroom/messages/longText';
 import {
   downloadMindroomLongTextSidecarBlob,
   useMindroomLongTextResolvedContent,
-} from '../../../components/message/MindroomLongTextText';
-import { MindroomAiRunInfo, getMindroomAiRunInfo } from '../../../components/message/mindroomAiRun';
+} from '../../../mindroom/messages/MindroomLongTextText';
+import { MindroomAiRunInfo, getMindroomAiRunInfo } from '../../../mindroom/messages/aiRun';
 import {
   formatMindroomAiRunNumber,
   formatMindroomAiRunTimeToFirstToken,
   getMindroomAiRunContextLabel,
   getMindroomAiRunModelLabel,
   getMindroomAiRunUsageLabel,
-} from '../../../components/message/mindroomAiRunDisplay';
+} from '../../../mindroom/messages/aiRunDisplay';
 import { assignElementRef } from '../../../utils/react';
 
 import { getMessageCopyTextBody, isCopyTextMessageContent } from './messageCopyText';

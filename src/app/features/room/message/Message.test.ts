@@ -306,11 +306,11 @@ vi.mock('../../../hooks/useMemberPowerTag', () => ({
   getPowerTagIconSrc: () => undefined,
 }));
 
-vi.mock('../../../components/message/mindroomLongText', () => ({
+vi.mock('../../../mindroom/messages/longText', () => ({
   getMindroomLongTextSource: longTextMocks.getMindroomLongTextSource,
 }));
 
-vi.mock('../../../components/message/MindroomLongTextText', () => ({
+vi.mock('../../../mindroom/messages/MindroomLongTextText', () => ({
   downloadMindroomLongTextSidecarBlob: longTextMocks.downloadMindroomLongTextSidecarBlob,
   useMindroomLongTextResolvedContent: longTextMocks.useMindroomLongTextResolvedContent,
 }));
