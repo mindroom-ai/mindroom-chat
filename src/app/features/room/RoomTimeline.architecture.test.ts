@@ -221,6 +221,18 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('computeReconciliationToken');
   });
 
+  it('delegates thread-open target-event context loading to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const targetEventSource = readFileSync(
+      new URL('../../mindroom/threads/threadOpenTargetEvent.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain('runThreadOpenTargetEvent');
+    expect(targetEventSource).toContain('setPendingThreadOpen');
+    expect(source).not.toContain('evtThreadTimelineSet');
+  });
+
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 

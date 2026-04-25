@@ -319,6 +319,8 @@ permalink/search relation refresh, now lives in
 Thread-open cache-first flow, including cache hydrate fallback, complete-cache short-circuit,
 relation-backfill dispatch, and initial untargeted seed fallback, now lives in
 `src/app/mindroom/threads/threadOpenCacheFirst.ts`.
+Thread-open targeted event-context loading and pending scroll queue setup now live in
+`src/app/mindroom/threads/threadOpenTargetEvent.ts`.
 Thread-open cache hydration, latest-slice refresh, relation backfill, and cached relation-tail
 refresh now live in `src/app/mindroom/threads/threadOpenCacheController.ts`; `RoomTimeline` decides
 when to open a thread route but no longer owns their cache/network policy.
@@ -344,8 +346,8 @@ a compatibility re-export for existing tests/importers.
 Thread cache coverage now includes backward-gap, snapshot-complete, relation-complete, and tail-loaded
 facts, and `RoomTimeline` consumes fork-owned coverage decisions for "Load Older Messages",
 complete cached opens, and relation backfill. The remaining ownership gap is route-specific
-target-event context loading and pending scroll setup, which still belongs to `RoomTimeline` until
-the route/scroll seam is extracted.
+scroll execution against rendered DOM nodes, which still belongs to `RoomTimeline` until the
+route/scroll seam is extracted.
 Thread back/front pagination commands now live in
 `src/app/mindroom/threads/threadPaginationCommandController.ts`; `RoomTimeline` only wires the
 returned handlers into the load-older/load-newer buttons.

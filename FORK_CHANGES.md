@@ -779,6 +779,14 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 26 / Phase 5 thread-open target-event seam (2026-04-24):
+  - added `src/app/mindroom/threads/threadOpenTargetEvent.ts` as the fork-owned owner for targeted thread-open event-context loading and pending-scroll queue setup.
+  - `RoomTimeline` now keeps only the rendered-DOM scroll execution/layout retry loop; the route-open effect no longer owns the targeted `getEventTimeline(...)` context load.
+  - validation:
+    - focused Vitest passes for `threadOpenTargetEvent.test.ts`, `threadOpenCacheFirst.test.ts`, `threadOpenPostBootstrapRefresh.test.ts`, `threadOpenSdkBootstrap.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.architecture.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
