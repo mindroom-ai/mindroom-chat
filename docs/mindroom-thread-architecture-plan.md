@@ -47,6 +47,85 @@ Rules:
 - Components do not read IndexedDB directly.
 - Components do not independently re-derive summary, tags, counts, previews, or status.
 
+## Living Document Rules
+
+This file is the planning source of truth while the refactor is active. Update it whenever a slice
+changes the architecture boundary, proves a phase complete, or intentionally leaves a follow-up.
+
+Working rules:
+
+- Prefer one behavior-preserving commit per architectural boundary.
+- Each commit should explain which owner became canonical and which old source of truth was removed.
+- Keep MindRoom-specific implementation in `src/app/mindroom/**` unless the change is an upstream
+  compatibility fix or a narrow integration seam.
+- Keep upstream-adjacent files small. They may mount a MindRoom seam or pass data into one, but they
+  should not parse MindRoom protocol state, read MindRoom cache tables, or assemble thread records.
+- Do not add defensive fallback paths unless the missing source of truth is explicitly documented,
+  covered by a failing regression test, and scheduled for removal.
+- If a fallback is needed for cache/live mixed startup, name the cache coverage condition that makes
+  it valid. A fallback without coverage metadata is treated as technical debt.
+- Prefer behavior/API tests over broad source-string tests. Source-string tests are allowed only for
+  narrow import-boundary guardrails.
+- Before moving to the next slice, make branch health explicit: targeted tests for the touched owner,
+  then `npm run typecheck`, and for larger slices `npm test`, `npm run lint`, `npm run build`, and
+  `git diff --check`.
+- Update `FORK_CHANGES.md` after implementation commits, not for speculative plan edits.
+- Leave history rewrite and squashing until the architecture is stable and validated.
+
+Definition of "single source of truth":
+
+- Raw Matrix events and raw cached events enter through repository/cache owners.
+- `useMindroomThreadIndex` and lower fork-owned selectors build the canonical current-room
+  `ThreadRecord` map.
+- Surface-specific code can derive view models from `ThreadRecord`, but it must not read raw cache,
+  scan state events, or invent independent summary/status/count precedence.
+- If two surfaces disagree, the fix belongs in the selector/index/view-model layer, not in one
+  surface's render code.
+
+## Active Work Queue
+
+This queue is intentionally concrete. Remove or rewrite entries as soon as they are completed.
+
+1. Centralize scheduled thread status.
+   - Add one selector that returns `{ scheduledTaskCount, nextScheduledTs }` per thread from
+     scheduled-task state events.
+   - Make thread records, thread header, scheduled-task hooks, focus recovery, and room index code
+     consume that selector instead of independently counting or scanning events.
+   - Acceptance: `ThreadRecord` no longer accepts raw scheduled-task events for per-record scanning,
+     and `useMindroomThreadIndex` returns scheduled status, not just scheduled counts.
+
+2. Delete dead legacy overview selectors.
+   - Remove production-dead helpers such as legacy visible-root, summary-map, summary-text, and
+     metadata-map builders once callers are confirmed gone.
+   - Move any remaining useful behavior tests to the canonical selector that replaced them.
+   - Acceptance: `roomThreadOverviewModel` only keeps the overview filter/sort/count model that is
+     still actively used, and architecture tests do not bless deleted compatibility paths.
+
+3. Finish the message-search ownership boundary.
+   - `src/app/features/message-search` should not import `src/app/mindroom/message-search` by
+     component name.
+   - Preferred implementation: keep the generic search feature as a reusable shell and pass a small
+     MindRoom result-body renderer seam from the owning integration point.
+   - If the search UI becomes fully fork-specific, move the whole feature under
+     `src/app/mindroom/message-search` and leave only a thin route/page seam in the generic feature
+     tree.
+   - Acceptance: generic search grouping/rendering code has no direct MindRoom component import, and
+     tests cover long-text/preview behavior through the seam.
+
+4. Re-check the upstream diff after each ownership slice.
+   - Run `git diff --stat v4.11.1 src` and inspect non-`src/app/mindroom/**` changes.
+   - Keep generic files only when they are true upstream compatibility fixes, generic reusable
+     improvements, or narrow seams into MindRoom owners.
+   - Acceptance: every large non-MindRoom diff has an explicit reason in this document or
+     `FORK_CHANGES.md`.
+
+5. Continue cache/preload cleanup only after the index boundary is clean.
+   - Cache hydrate/persist orchestration should sit behind controller/repository seams.
+   - Cache coverage must drive load-older, tail-loaded, relation-complete, and no-more-history
+     decisions.
+   - Acceptance: pagination and preload decisions consume `ThreadRecord.cache` or a lower cache
+     coverage selector, not component-local fallback maps.
+
 ## Rebase Constraint
 
 MindRoom-specific logic should live in fork-owned modules. Upstream Cinny files should contain only
