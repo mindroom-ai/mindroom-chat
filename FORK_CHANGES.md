@@ -78,6 +78,9 @@
 - `CINNY-127`
   - The pinned-message menu now uses compatibility seams for cache-aware event loading and MindRoom tool-approval rendering.
   - Deep MindRoom hook/message imports stay behind the existing hook and message compatibility modules.
+- `CINNY-128`
+  - Search-result lightweight-rendering policy for MindRoom long-text messages now lives in `src/app/mindroom/messages/searchResultPolicy.ts`.
+  - Generic search preview code no longer imports the low-level long-text metadata parser directly.
 
 ### Current Feature Set On `dev`
 
