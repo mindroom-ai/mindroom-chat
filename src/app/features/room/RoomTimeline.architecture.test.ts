@@ -411,8 +411,16 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates thread bootstrap, seed prewarm, and relation-fetch helpers to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const threadBootstrapSource = readFileSync(
+      new URL('../../mindroom/threads/threadBootstrap.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain("from '../../mindroom/threads/threadBootstrap'");
+    expect(source).not.toContain("from '../../mindroom/threads/threadBootstrap'");
+    expect(threadBootstrapSource).toContain('export async function fetchAllThreadRelations');
+    expect(threadBootstrapSource).toContain('export const collectPriorityThreadSeedPrewarmRoots =');
+    expect(threadBootstrapSource).toContain('export const getLoadedRoomThreadEvents =');
+    expect(threadBootstrapSource).toContain('export const getLoadedRoomThreadSeedEvents =');
     expect(source).not.toContain('export async function fetchAllThreadRelations');
     expect(source).not.toContain('export const collectPriorityThreadSeedPrewarmRoots =');
     expect(source).not.toContain('export const getLoadedRoomThreadEvents =');
