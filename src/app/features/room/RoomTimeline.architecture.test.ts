@@ -1112,6 +1112,7 @@ describe('RoomTimeline architecture', () => {
     expect(mindroomRenderContentSource).toContain('renderMindroomStreamingIndicator');
     expect(mindroomRenderContentSource).toContain('withMindroomToolTraceMarkerParserOptions');
     expect(roomMessageSource).toContain("from '../../../mindroom/messages/messageExtensions'");
+    expect(roomMessageSource).not.toContain("from '../../../mindroom/messages/messageCopyText'");
     expect(roomMessageSource).not.toContain(
       "from '../../../mindroom/messages/MindroomMessageControls'"
     );
@@ -1175,6 +1176,7 @@ describe('RoomTimeline architecture', () => {
     expect(streamingIndicatorSource).toContain('AI is responding');
     expect(streamingIndicatorSource).toContain('renderMindroomStreamingIndicator');
     expect(messageExtensionsSource).toContain("from './MindroomMessageControls'");
+    expect(messageExtensionsSource).toContain("from './messageCopyText'");
     expect(messageExtensionsSource).toContain('MindroomMessageExtensionShell');
     expect(messageExtensionsSource).toContain('MindroomMessageMenuExtensions');
     expect(threadBadgeSource).toContain("from '../messages/MindroomThreadSummaryCard'");

@@ -9,6 +9,8 @@ import {
   useMindroomMessageControls,
 } from './MindroomMessageControls';
 
+export { getMessageCopyTextBody, isCopyTextMessageContent } from './messageCopyText';
+
 export type MindroomMessageExtensionControls = MindroomAiRunControlsRenderProps;
 
 export type MindroomMessageExtensionState = ReturnType<typeof useMindroomMessageControls>;

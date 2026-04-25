@@ -77,18 +77,15 @@ import { PowerIcon } from '../../../components/power';
 import colorMXID from '../../../../util/colorMXID';
 import { getPowerTagIconSrc } from '../../../hooks/useMemberPowerTag';
 import {
+  getMessageCopyTextBody,
   getMindroomMessageCopyTextState,
+  isCopyTextMessageContent,
   MindroomMessageExtensionControls,
   MindroomMessageExtensionShell,
   MindroomMessageHeaderExtensions,
   MindroomMessageMenuExtensions,
   useMindroomMessageExtensionState,
 } from '../../../mindroom/messages/messageExtensions';
-
-import {
-  getMessageCopyTextBody,
-  isCopyTextMessageContent,
-} from '../../../mindroom/messages/messageCopyText';
 
 export type ReactionHandler = (keyOrMxc: string, shortcode: string) => void;
 
