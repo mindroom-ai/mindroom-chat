@@ -1094,6 +1094,14 @@
     - focused Vitest passes for `useMindroomThreadIndex.test.ts`, `RoomTimeline.filter-query.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.architecture.test.ts`
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
+- `CINNY-075` implementation step 62 / Phase 5 overview refresh target ownership (2026-04-25):
+  - added `src/app/mindroom/threads/threadOverviewRefreshTargets.ts` as the fork-owned selector for viewport-aware summary refresh ids and overview resume refresh targets.
+  - `RoomTimeline` now passes only active range/current overview ids into that selector instead of directly classifying visible thread roots for resume policy.
+  - validation:
+    - focused Vitest passes for `threadOverviewRefreshTargets.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

@@ -186,7 +186,6 @@ import {
   getRenderableEventEntries,
   getRenderableEvents,
   isRenderableEvent,
-  isVisibleThreadRootEvent,
   type TimelineEventEntry,
 } from '../../mindroom/threads/roomTimelineEvents';
 import {
@@ -278,6 +277,7 @@ import { useThreadEditBackfillController } from '../../mindroom/threads/threadEd
 import { useRoomPaginationCommandController } from '../../mindroom/threads/roomPaginationCommandController';
 import { useRoomCacheLifecycleController } from '../../mindroom/threads/roomCacheLifecycleController';
 import { useRoomCacheHydrationController } from '../../mindroom/threads/roomCacheHydrationController';
+import { resolveThreadOverviewRefreshTargets } from '../../mindroom/threads/threadOverviewRefreshTargets';
 
 export { getRoomEventThreadOpenTarget } from '../../mindroom/threads/roomDeepLink';
 export { getRoomEventFocusTarget, getThreadFilteredEvents };
@@ -2934,48 +2934,32 @@ export function RoomTimeline({
     onStoreThreadSummary(threadId, activeThreadSummaryInfo);
   }, [activeThreadSummaryInfo, onStoreThreadSummary, threadId]);
 
-  const visibleThreadSummaryRefreshIds = useMemo(() => {
-    if (threadId) return [] as string[];
-
-    return threadFilteredEventEntries
-      .slice(activeTimelineRange.start, activeTimelineRange.end)
-      .map((entry) => entry.event)
-      .filter((event) =>
-        isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)
-      )
-      .map((event) => event.getId())
-      .filter((eventId): eventId is string => !!eventId);
-  }, [
-    activeTimelineRange.end,
-    activeTimelineRange.start,
-    room,
-    threadId,
-    threadFilteredEventEntries,
-    threadReplyCountMap,
-    threadResolutionMap,
-  ]);
-
-  const overviewResumeRefreshIds = useMemo(() => {
-    if (threadId) return [] as string[];
-
-    const nextIds = new Set<string>();
-    visibleThreadSummaryRefreshIds.forEach((rootId) => {
-      nextIds.add(rootId);
-    });
-    (showCompactRoomView ? compactFilteredThreadRootIds : filteredThreadRootIds)
-      .slice(0, OVERVIEW_THREAD_METADATA_CACHE_LIMIT)
-      .forEach((rootId) => {
-        nextIds.add(rootId);
-      });
-
-    return [...nextIds].slice(0, OVERVIEW_THREAD_METADATA_CACHE_LIMIT);
-  }, [
-    compactFilteredThreadRootIds,
-    filteredThreadRootIds,
-    showCompactRoomView,
-    threadId,
-    visibleThreadSummaryRefreshIds,
-  ]);
+  const { overviewResumeRefreshIds } = useMemo(
+    () =>
+      resolveThreadOverviewRefreshTargets({
+        activeTimelineRange,
+        compactFilteredThreadRootIds,
+        filteredThreadRootIds,
+        limit: OVERVIEW_THREAD_METADATA_CACHE_LIMIT,
+        room,
+        showCompactRoomView,
+        threadFilteredEventEntries,
+        threadId,
+        threadReplyCountMap,
+        threadResolutionMap,
+      }),
+    [
+      activeTimelineRange,
+      compactFilteredThreadRootIds,
+      filteredThreadRootIds,
+      room,
+      showCompactRoomView,
+      threadFilteredEventEntries,
+      threadId,
+      threadReplyCountMap,
+      threadResolutionMap,
+    ]
+  );
 
   useThreadOverviewResumeController({
     alive,
