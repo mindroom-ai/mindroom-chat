@@ -5,7 +5,7 @@ import {
   markMainTimelineAsRead,
   markRoomAndThreadsAsRead,
   markThreadAsRead,
-} from './notifications';
+} from './readReceipts';
 
 const ROOM_ID = '!room:example.org';
 const USER_ID = '@alice:example.org';

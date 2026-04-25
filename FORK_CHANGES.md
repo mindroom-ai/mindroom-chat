@@ -63,6 +63,9 @@
 - `CINNY-122`
   - Client-level MindRoom favicon updates, invite notification branding, and native iOS push registration now live in `src/app/mindroom/client/MindroomClientNonUIFeatures.tsx`.
   - Generic `ClientNonUIFeatures` keeps upstream-style page zoom, emoji, and message notification effects, and mounts a single MindRoom non-UI seam.
+- `CINNY-123`
+  - Thread-aware read-receipt policy now lives in `src/app/mindroom/notifications/readReceipts.ts`.
+  - The old `src/app/utils/notifications.ts` path is compatibility-only while MindRoom timeline controllers import the fork-owned owner directly.
 
 ### Current Feature Set On `dev`
 

@@ -322,7 +322,9 @@ instead of assembling those derived maps and ranges inline.
 Bottom-anchor intersection handling, document-focus read receipts, thread-at-bottom read receipts,
 and explicit mark-as-read routing now live in
 `src/app/mindroom/threads/timelineReadReceiptController.ts`; `RoomTimeline` consumes the returned
-mark-as-read handler and keeps only the visual jump controls.
+mark-as-read handler and keeps only the visual jump controls. Thread-aware read-receipt target
+selection now lives in `src/app/mindroom/notifications/readReceipts.ts`; the old
+`src/app/utils/notifications.ts` path is compatibility-only.
 Room-event deep-link redirect, focused-event timeline loading, pending thread-open focus handoff,
 and route event-id dedupe now live in `src/app/mindroom/threads/roomEventOpenController.ts`;
 `RoomTimeline` consumes the open-event handler and route hook instead of sequencing those branches
