@@ -1552,11 +1552,18 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps live collapsible-message policy in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const componentSource = readFileSync(
+      new URL('../../mindroom/threads/CollapsibleMessage.tsx', import.meta.url),
+      'utf8'
+    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/threadCollapsibleMessages.ts', import.meta.url),
       'utf8'
     );
 
+    expect(source).toContain("from '../../mindroom/threads/CollapsibleMessage'");
+    expect(source).not.toContain("from '../../components/CollapsibleMessage'");
+    expect(componentSource).toContain('CollapsibleMessageCollapseMode');
     expect(source).toContain("from '../../mindroom/threads/threadCollapsibleMessages'");
     expect(implementationSource).toContain('shouldTrackLiveCollapsibleMessage');
     expect(implementationSource).toContain('getLiveCollapsibleMessageExpandId');
