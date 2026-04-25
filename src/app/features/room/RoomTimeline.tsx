@@ -229,7 +229,7 @@ import {
 import {
   getTimelineEventById,
   resolveRoomEventThreadRedirect,
-} from './roomDeepLink';
+} from '../../mindroom/threads/roomDeepLink';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
 import { useRoomThreadList } from '../../mindroom/threads/useRoomThreadList';
 import { useStateEvents } from '../../hooks/useStateEvents';
@@ -278,7 +278,7 @@ import { useRoomPaginationCommandController } from '../../mindroom/threads/roomP
 import { useRoomCacheLifecycleController } from '../../mindroom/threads/roomCacheLifecycleController';
 import { useRoomCacheHydrationController } from '../../mindroom/threads/roomCacheHydrationController';
 
-export { getRoomEventThreadOpenTarget } from './roomDeepLink';
+export { getRoomEventThreadOpenTarget } from '../../mindroom/threads/roomDeepLink';
 export { getRoomEventFocusTarget, getThreadFilteredEvents };
 export { useThreadAwareTimelineRefresh } from '../../mindroom/threads/useThreadAwareTimelineRefresh';
 export {

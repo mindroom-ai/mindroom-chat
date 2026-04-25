@@ -1002,6 +1002,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 51 / Phase 5 room deep-link ownership (2026-04-24):
+  - moved room-event-to-thread deep-link target resolution to `src/app/mindroom/threads/roomDeepLink.ts`.
+  - the old `src/app/features/room/roomDeepLink.ts` path is now a compatibility re-export; `RoomTimeline` and `useMindroomThreadIndex` import the MindRoom implementation directly.
+  - this removes the last production import from `src/app/mindroom/threads` back into `src/app/features/room`; remaining back-references are test fixture imports only.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.permalink-refresh.test.ts`, `useMindroomThreadIndex.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

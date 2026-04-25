@@ -5,7 +5,7 @@ import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,
 } from './threadFilterDsl';
-import { getRoomEventThreadOpenTarget } from '../../features/room/roomDeepLink';
+import { getRoomEventThreadOpenTarget } from './roomDeepLink';
 import {
   isVisibleThreadRootEvent,
   type TimelineEventEntry,

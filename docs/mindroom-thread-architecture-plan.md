@@ -394,6 +394,9 @@ Thread summary cache/state/selection now lives in `src/app/mindroom/threads/thre
 Thread root route canonicalization now lives in
 `src/app/mindroom/threads/useThreadRootEvent.ts`; the old `features/room` path is only a
 compatibility re-export.
+Room-event-to-thread deep-link resolution now lives in
+`src/app/mindroom/threads/roomDeepLink.ts`; the old `features/room` path is only a compatibility
+re-export.
 Thread-open cache hydration, latest-slice refresh, relation backfill, and cached relation-tail
 refresh now live in `src/app/mindroom/threads/threadOpenCacheController.ts`; `RoomTimeline` decides
 when to open a thread route but no longer owns their cache/network policy.
