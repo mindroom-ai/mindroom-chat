@@ -633,10 +633,12 @@ describe('RoomTimeline architecture', () => {
     expect(paletteSource).not.toContain('buildThreadRecord');
     expect(paletteSource).not.toContain('makeRecentThreadsAtom');
     expect(paletteSource).not.toContain('buildPerTagEventContent');
+    expect(paletteSource).not.toContain('resolveCanonicalThreadRootId');
     expect(implementationSource).toContain('useMindroomCommandPaletteThreadItems');
     expect(implementationSource).toContain('MINDROOM_THREAD_TAGS_EVENT');
     expect(implementationSource).toContain('makeRecentThreadsAtom');
     expect(implementationSource).toContain('buildThreadRecord');
+    expect(implementationSource).toContain('resolveCanonicalThreadRootId');
     expect(implementationSource).toContain('mergeCommandPaletteThreadItems');
   });
 

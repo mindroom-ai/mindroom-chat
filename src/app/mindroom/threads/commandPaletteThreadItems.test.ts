@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildThreadResolutionFromTagSnapshot,
   mergeCommandPaletteThreadItems,
+  resolveCommandPaletteCurrentThreadRootId,
 } from './commandPaletteThreadItems';
 import type { CommandPaletteThreadItem } from '../../features/command-palette/commandPaletteTypes';
 
@@ -58,5 +59,27 @@ describe('mergeCommandPaletteThreadItems', () => {
     expect(merged.messageCount).toBe(2);
     expect(merged.sortRank).toBe(5);
     expect(merged.boost).toBe(20);
+  });
+});
+
+describe('resolveCommandPaletteCurrentThreadRootId', () => {
+  it('canonicalizes the route thread id through the MindRoom thread owner', () => {
+    const room = {
+      getThread: () => undefined,
+      findEventById: () => ({
+        getId: () => '$reply',
+        getTxnId: () => undefined,
+        getUnsigned: () => ({}),
+        isSending: () => false,
+        threadRootId: '$root',
+      }),
+    };
+
+    expect(resolveCommandPaletteCurrentThreadRootId(room as never, '$reply')).toBe('$root');
+  });
+
+  it('returns undefined when the command palette is not on a thread route', () => {
+    expect(resolveCommandPaletteCurrentThreadRootId(undefined, '$reply')).toBeUndefined();
+    expect(resolveCommandPaletteCurrentThreadRootId({} as never, undefined)).toBeUndefined();
   });
 });

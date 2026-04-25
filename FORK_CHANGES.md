@@ -69,6 +69,9 @@
 - `CINNY-124`
   - Text-only room-input thread relation wiring now lives behind `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`.
   - Generic `RoomInput` still owns editor and upload UI, but no longer imports the low-level MindRoom message-relation builder directly.
+- `CINNY-125`
+  - Command-palette current-thread canonicalization now lives in `src/app/mindroom/threads/commandPaletteThreadItems.ts`.
+  - Generic command-palette item assembly now passes the route thread id to the MindRoom thread source instead of importing thread-route canonicalization directly.
 
 ### Current Feature Set On `dev`
 
