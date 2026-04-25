@@ -1,4 +1,4 @@
-import { EventTimeline, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { type MatrixClient, type Room } from 'matrix-js-sdk';
 import { useAtomValue } from 'jotai';
 import { useCallback, useMemo } from 'react';
 import type { CommandPaletteThreadItem } from '../command-palette/commandPaletteTypes';
@@ -14,19 +14,15 @@ import { buildThreadRecord } from './threadRecord';
 import { resolveCanonicalThreadRootId } from './threadRouteUtils';
 import { getValidThreadRootEvent } from './threadUtils';
 import {
-  aggregateThreadTagEvents,
   buildPerTagEventContent,
   buildPerTagStateKey,
-  getDisplayTags,
-  isThreadResolved,
   MINDROOM_THREAD_TAGS_EVENT,
   RESOLVED_TAG,
 } from './threadTags';
-
-type ThreadTagSnapshot = {
-  isResolved: boolean;
-  tags: string[];
-};
+import {
+  getRoomThreadTagSnapshotMap,
+  type ThreadTagSnapshot,
+} from './threadTagSnapshots';
 
 type MindroomCommandPaletteThreadItem = CommandPaletteThreadItem & { onSelect: () => void };
 
@@ -48,28 +44,6 @@ const fireAndForget = <T,>(promise: Promise<T>) => {
 const mapUserDisplayName = (room: Room, userId: string): string =>
   getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId;
 
-export const getMindroomThreadTagSnapshots = (room: Room): Map<string, ThreadTagSnapshot> => {
-  const stateEvents =
-    room
-      .getLiveTimeline()
-      .getState(EventTimeline.FORWARDS)
-      ?.getStateEvents(MINDROOM_THREAD_TAGS_EVENT) ?? [];
-
-  if (!Array.isArray(stateEvents) || stateEvents.length === 0) {
-    return new Map();
-  }
-
-  const snapshots = new Map<string, ThreadTagSnapshot>();
-  aggregateThreadTagEvents(stateEvents).forEach((content, threadRootId) => {
-    snapshots.set(threadRootId, {
-      isResolved: isThreadResolved(content),
-      tags: getDisplayTags(content),
-    });
-  });
-
-  return snapshots;
-};
-
 export const buildThreadResolutionFromTagSnapshot = (
   tagSnapshot: ThreadTagSnapshot | undefined
 ): { isResolved: boolean; tags: Record<string, unknown> | null } | undefined => {
@@ -77,7 +51,7 @@ export const buildThreadResolutionFromTagSnapshot = (
 
   return {
     isResolved: tagSnapshot.isResolved,
-    tags: Object.fromEntries(tagSnapshot.tags.map((tagName) => [tagName, true])),
+    tags: Object.fromEntries(tagSnapshot.displayTags.map((tagName) => [tagName, true])),
   };
 };
 
@@ -235,7 +209,7 @@ export const useMindroomCommandPaletteThreadItems = ({
     allJoinedRoomIds.forEach((roomId) => {
       const room = getRoom(roomId);
       if (!room) return;
-      snapshots.set(room.roomId, getMindroomThreadTagSnapshots(room));
+      snapshots.set(room.roomId, getRoomThreadTagSnapshotMap(room));
     });
 
     return snapshots;

@@ -6,7 +6,6 @@ import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import {
-  aggregateThreadTagEvents,
   collectAvailableTags,
   getDisplayTags,
   isThreadResolved,
@@ -20,6 +19,7 @@ import {
   sameThreadTagsContent,
   usePendingThreadTagsVersion,
 } from './threadTagPending';
+import { buildThreadTagSnapshotMap } from './threadTagSnapshots';
 
 export type UseThreadTagsResult = {
   /** Full parsed tag map */
@@ -56,14 +56,17 @@ export const useThreadTags = (
   const allTagEvents = useStateEvents(room, MINDROOM_THREAD_TAGS_EVENT);
   const pVersion = usePendingThreadTagsVersion();
 
-  const aggregated = useMemo(
-    () => aggregateThreadTagEvents(allTagEvents),
+  const tagSnapshots = useMemo(
+    () => buildThreadTagSnapshotMap(allTagEvents),
     [allTagEvents]
   );
 
   const actualContent = useMemo(
-    () => (threadRootId ? aggregated.get(threadRootId) ?? EMPTY_THREAD_TAGS : EMPTY_THREAD_TAGS),
-    [aggregated, threadRootId]
+    () =>
+      threadRootId
+        ? tagSnapshots.get(threadRootId)?.content ?? EMPTY_THREAD_TAGS
+        : EMPTY_THREAD_TAGS,
+    [tagSnapshots, threadRootId]
   );
   const pendingContent = useMemo(
     () => (threadRootId ? getPendingThreadTagsContent(room.roomId, threadRootId) : undefined),
@@ -89,8 +92,8 @@ export const useThreadTags = (
   );
 
   const allTagContents = useMemo(
-    () => Array.from(aggregated.values()),
-    [aggregated]
+    () => Array.from(tagSnapshots.values(), (snapshot) => snapshot.content),
+    [tagSnapshots]
   );
 
   const availableTags = useMemo(

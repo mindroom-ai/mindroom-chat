@@ -7,12 +7,15 @@ import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useStateEvents } from './useStateEvents';
 import {
-  aggregateThreadTagEvents,
   type TagMetadata,
   isThreadResolved,
   MINDROOM_THREAD_TAGS_EVENT,
   type ThreadTagsContent,
 } from './threadTags';
+import {
+  buildThreadTagSnapshotMap,
+  type ThreadTagSnapshot,
+} from './threadTagSnapshots';
 import {
   clearPendingThreadTagsContent,
   getPendingThreadTagsContentMap,
@@ -39,12 +42,12 @@ const baseResolutionMapCache = new WeakMap<MatrixEvent[], Map<string, ThreadReso
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
-const getThreadResolutionState = (content?: ThreadTagsContent): ThreadResolutionState => {
-  if (content && Object.keys(content.tags).length > 0) {
+const getThreadResolutionState = (snapshot?: ThreadTagSnapshot): ThreadResolutionState => {
+  if (snapshot && Object.keys(snapshot.content.tags).length > 0) {
     return {
       event: undefined,
-      tags: content.tags,
-      isResolved: isThreadResolved(content),
+      tags: snapshot.content.tags,
+      isResolved: snapshot.isResolved,
       isPending: false,
     };
   }
@@ -58,10 +61,10 @@ const getBaseResolutionMap = (events: MatrixEvent[]): Map<string, ThreadResoluti
     return cached;
   }
 
-  const aggregated = aggregateThreadTagEvents(events);
+  const snapshots = buildThreadTagSnapshotMap(events);
   const map = new Map<string, ThreadResolutionState>();
-  aggregated.forEach((content, threadRootId) => {
-    map.set(threadRootId, getThreadResolutionState(content));
+  snapshots.forEach((snapshot, threadRootId) => {
+    map.set(threadRootId, getThreadResolutionState(snapshot));
   });
 
   baseResolutionMapCache.set(events, map);

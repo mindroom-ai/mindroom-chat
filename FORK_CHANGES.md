@@ -249,6 +249,9 @@
   - Settings integration now goes through `src/app/mindroom/settings/settingsMenuExtensions.ts` and `src/app/mindroom/settings/settingsExtensions.tsx`.
   - Generic settings menu/page/general-message sections no longer import concrete Local MindRoom page/menu/rendering modules or the preload-limit tile directly.
   - Local MindRoom settings and the message preload setting remain owned by the MindRoom namespace behind one settings extension seam.
+- `CINNY-184`
+  - Thread tag display/resolved snapshots now live in `src/app/mindroom/threads/threadTagSnapshots.ts`.
+  - Command palette thread items, room-level tag resolution, and single-thread tag hooks share the same snapshot derivation instead of aggregating tag state independently.
 
 ### Current Feature Set On `dev`
 
