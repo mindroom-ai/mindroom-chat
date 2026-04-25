@@ -2003,3 +2003,10 @@
 - Moved the AI-run info-button style out of the generic room message stylesheet and into `src/app/mindroom/messages/MindroomMessageControls.css.ts`.
 - Reduced `src/app/features/room/message/Message.tsx` to a MindRoom integration seam: it imports the fork-owned controls but no longer owns AI-run display formatting, long-text sidecar download naming, or sidecar download execution.
 - Added focused filename tests for long-text original downloads and extended the architecture guard so future edits do not put those controls back into the upstream-owned message component.
+
+## CINNY-088 — Move MindRoom custom HTML blocks to fork namespace (2026-04-25)
+
+- Moved MindRoom collapsible HTML blocks (`think`, `debug`, `system`, `plan`, `analysis`, `research`) and tool-trace marker grouping into `src/app/mindroom/messages/MindroomHtmlBlocks.tsx`.
+- Moved the corresponding MindRoom custom-HTML styles into `src/app/mindroom/messages/MindroomHtmlBlocks.css.ts`.
+- Kept `src/app/plugins/react-custom-html-parser.tsx` as a generic parser seam that delegates MindRoom block rendering and re-exports the tool-trace parser option for existing callers.
+- Removed the MindRoom block styles from `src/app/styles/CustomHtml.css.ts` and extended architecture tests to keep parser/style ownership out of generic modules.

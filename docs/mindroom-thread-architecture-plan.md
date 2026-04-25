@@ -684,6 +684,8 @@ Acceptance:
   MindRoom block parsing also live in the MindRoom namespace with compatibility wrappers only.
 - AI-run message controls, long-text original download controls, and their styles live in
   `src/app/mindroom/messages`; generic room message rendering only wires them in.
+- MindRoom custom-HTML blocks and tool-trace grouping live in `src/app/mindroom/messages`; the
+  generic custom HTML parser only delegates to that renderer.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy
