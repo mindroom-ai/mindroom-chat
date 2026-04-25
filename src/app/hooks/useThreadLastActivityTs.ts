@@ -1,7 +1,10 @@
 import { useCallback, useState } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../utils/thread';
-import { isVisibleThreadReplyEvent, isVisibleThreadReplyEventType } from '../features/room/threadUtils';
+import {
+  isVisibleThreadReplyEvent,
+  isVisibleThreadReplyEventType,
+} from '../mindroom/threads/threadUtils';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 
 type BundledThreadLatestEvent = {
