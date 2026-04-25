@@ -1,6 +1,6 @@
 import type { MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
-import { buildCompactThreadRootData } from '../../features/room/compactThreadRootData';
+import { buildCompactThreadRootData } from './compactThreadRootData';
 import { isVisibleThreadRootEvent } from '../../features/room/roomTimelineEvents';
 import {
   createThreadSortControlSignature,

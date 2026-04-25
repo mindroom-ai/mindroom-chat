@@ -183,7 +183,7 @@ import {
   buildCompactThreadRootData,
   getCompactThreadRootBodyPreviewText,
   mergeCompactThreadRootData,
-} from './compactThreadRootData';
+} from '../../mindroom/threads/compactThreadRootData';
 import { CompactRoomView } from './CompactRoomView';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import {

@@ -15,7 +15,7 @@ import type { ThreadRecord } from './types';
 import {
   getCompactCachedThreadActivityTs,
   getCompactCachedThreadRootPreviewInfo,
-} from '../../features/room/compactThreadRootData';
+} from './compactThreadRootData';
 import {
   type CachedThreadEventPage,
   loadLatestCachedThreadEvents,
