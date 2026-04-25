@@ -3,7 +3,7 @@ import {
   MINDROOM_TOOL_REF_HTML_REG_G,
   parseMindroomToolRefHtml,
   parseMindroomToolRefText,
-} from './mindroomBlocks';
+} from './blocks';
 
 describe('MINDROOM_TOOL_REF_HTML_REG_G', () => {
   it('matches the formatted_body marker contract', () => {

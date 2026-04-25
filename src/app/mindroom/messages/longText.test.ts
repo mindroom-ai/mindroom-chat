@@ -4,7 +4,7 @@ import {
   getMindroomLongTextSource,
   hydrateMindroomLongTextSource,
   parseMindroomLongTextJsonSidecar,
-} from './mindroomLongText';
+} from './longText';
 
 beforeEach(() => {
   clearMindroomLongTextHydrationCache();

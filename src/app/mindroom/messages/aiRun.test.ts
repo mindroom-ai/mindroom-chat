@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getMindroomAiRunInfo, hasMindroomAiRunMetadata, isMindroomAiRunStreaming } from './mindroomAiRun';
+import { getMindroomAiRunInfo, hasMindroomAiRunMetadata, isMindroomAiRunStreaming } from './aiRun';
 
 describe('hasMindroomAiRunMetadata', () => {
   it('returns true only for version 1 ai_run metadata', () => {

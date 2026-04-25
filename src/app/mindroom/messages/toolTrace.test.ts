@@ -3,7 +3,7 @@ import {
   getMindroomToolTraceEventByIndex,
   getMindroomToolTraceEvents,
   isMindroomToolTraceV2,
-} from './mindroomToolTrace';
+} from './toolTrace';
 
 describe('isMindroomToolTraceV2', () => {
   it('returns true only for version 2 traces', () => {

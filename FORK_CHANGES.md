@@ -1989,3 +1989,10 @@
 - Removed the MindRoom summary card implementation from `MsgTypeRenderers.tsx`; generic message exports now re-export the fork-owned summary card.
 - Updated MindRoom thread modules, room rendering, recent-thread helpers, and pin-menu approval rendering to import these primitives from the MindRoom namespace directly.
 - Added an architecture guard that asserts the generic paths are wrappers and `RenderMessageContent`/thread badges consume the fork-owned modules.
+
+## CINNY-086 — Move remaining MindRoom message helpers to fork namespace (2026-04-25)
+
+- Moved long-text sidecar parsing/hydration/rendering, AI-run metadata/display helpers, tool-trace parsing, and MindRoom formatted-body block parsing into `src/app/mindroom/messages`.
+- Left thin compatibility re-exports under `src/app/components/message/*` for legacy import paths.
+- Updated `RenderMessageContent`, room message rendering, the streaming-state hook, and the custom HTML parser to import these helpers from the MindRoom namespace directly.
+- Moved the associated unit tests into `src/app/mindroom/messages` and extended the architecture guard to cover the remaining message boundary.

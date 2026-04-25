@@ -5,7 +5,7 @@ import {
   getMindroomAiRunContextLabel,
   getMindroomAiRunModelLabel,
   getMindroomAiRunUsageLabel,
-} from './mindroomAiRunDisplay';
+} from './aiRunDisplay';
 
 describe('getMindroomAiRunModelLabel', () => {
   it('combines config, provider, and model id when present', () => {

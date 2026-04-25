@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { RelationsEvent, type Relations } from 'matrix-js-sdk/lib/models/relations';
-import { getMindroomAiRunInfo } from '../components/message/mindroomAiRun';
+import { getMindroomAiRunInfo } from '../mindroom/messages/aiRun';
 import {
   getSerializedReplacementEvent,
   isSameSenderEditEvent,
