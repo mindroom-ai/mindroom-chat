@@ -30,7 +30,7 @@ import {
 import {
   hydrateCachedEvents,
   reconcileRelationEventsWithAggregation,
-} from '../../features/room/eventCacheEditUtils';
+} from './eventCacheEditUtils';
 
 type RoomTimelineState = Timeline;
 

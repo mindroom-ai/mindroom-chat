@@ -7,7 +7,7 @@ import {
 import { type MatrixClient, type Room } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import { decryptAllTimelineEvent } from '../../utils/room';
-import { hydrateCachedEvents } from '../../features/room/eventCacheEditUtils';
+import { hydrateCachedEvents } from './eventCacheEditUtils';
 import { logTimelineDebug } from './timelineDebug';
 import {
   getLinkedTimelines,

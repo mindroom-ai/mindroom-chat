@@ -894,7 +894,7 @@ vi.mock('./roomEventCache', async (importOriginal) => {
   };
 });
 
-vi.mock('./eventCacheEditUtils', () => ({
+vi.mock('../../mindroom/threads/eventCacheEditUtils', () => ({
   aggregateCachedRelationEvents: vi.fn(),
   collectRedactedRelationTargetsFromLookup: vi.fn(() => []),
   hydrateCachedEvents: vi.fn(() => []),

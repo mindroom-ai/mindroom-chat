@@ -6,7 +6,7 @@ import {
   trimReplyFromBody,
 } from '../../utils/room';
 import type { CachedThreadEventPage } from './eventRepository';
-import { applySerializedCachedReplaceRelations } from '../../features/room/eventCacheEditUtils';
+import { applySerializedCachedReplaceRelations } from './eventCacheEditUtils';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import {
   getEffectiveThreadRootActivityTs,

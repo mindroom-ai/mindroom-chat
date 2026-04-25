@@ -661,6 +661,23 @@ describe('RoomTimeline architecture', () => {
     expect(compatibilitySource).not.toContain('localeCompare');
   });
 
+  it('keeps event cache edit helpers in MindRoom threads', () => {
+    const compatibilitySource = readFileSync(
+      new URL('./eventCacheEditUtils.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/eventCacheEditUtils.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/eventCacheEditUtils'");
+    expect(implementationSource).toContain('hydrateCachedEvents');
+    expect(implementationSource).toContain('serializeEventsForCache');
+    expect(implementationSource).toContain('reconcileRelationEventsWithAggregation');
+    expect(compatibilitySource).not.toContain('makeRedacted');
+  });
+
   it('keeps thread pagination reconciliation helpers in MindRoom threads', () => {
     const compatibilitySource = readFileSync(
       new URL('./threadPaginationUtils.ts', import.meta.url),
