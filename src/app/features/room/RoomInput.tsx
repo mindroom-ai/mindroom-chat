@@ -99,7 +99,7 @@ import {
   getImageMsgContent,
   getVideoMsgContent,
 } from './msgContent';
-import { getMessageRelation } from './composeMessageRelation';
+import { getMessageRelation } from '../../mindroom/threads/composeMessageRelation';
 import { getMemberDisplayName, getMentionContent, trimReplyFromBody } from '../../utils/room';
 import { CommandAutocomplete } from './CommandAutocomplete';
 import { Command, SHRUG, TABLEFLIP, UNFLIP, useCommands } from '../../hooks/useCommands';
@@ -130,7 +130,7 @@ import {
   hasRoomInputSendFailures,
   resolveRoomInputSendStep,
   RoomInputSendSessionState,
-} from './roomInputSendSession';
+} from '../../mindroom/threads/roomInputSendSession';
 
 type RoomInputAutocompletePrefix = AutocompletePrefix | typeof MINDROOM_COMMAND_PREFIX;
 

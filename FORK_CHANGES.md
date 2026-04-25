@@ -1020,6 +1020,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 53 / Phase 5 compose send-session ownership (2026-04-24):
+  - moved thread-aware compose relation helpers and automatic room-input send-session sequencing to `src/app/mindroom/threads/composeMessageRelation.ts` and `roomInputSendSession.ts` with their regression tests.
+  - the old `src/app/features/room/{composeMessageRelation,roomInputSendSession}.ts` paths are now compatibility re-exports; `RoomInput` imports the MindRoom implementations directly.
+  - this keeps auto-thread text/upload root creation and existing-thread relation policy beside the thread namespace instead of the upstream-facing composer.
+  - validation:
+    - focused Vitest passes for `composeMessageRelation.test.ts`, `roomInputSendSession.test.ts`, and `RoomInput.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
