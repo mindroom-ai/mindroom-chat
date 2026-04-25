@@ -1169,6 +1169,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `npm run build` passes
+- `CINNY-075` implementation step 72 / Phase 6 room timeline window controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/roomTimelineWindowController.ts` as the fork-owned owner for room overview display-window derivation, unread anchor calculation, preload target selection, visible seed-prewarm prioritization, and thread load-older cache coverage decisions.
+  - `RoomTimeline` now consumes `useRoomTimelineWindowController` instead of assembling ordered room overview events, entry maps, unread scroll anchors, active ranges, prewarm roots, and thread load-older coverage inline.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+    - `git diff --check` passes
 - `CINNY-075` implementation step 71 / Phase 6 thread-open lifecycle controller ownership (2026-04-25):
   - added `src/app/mindroom/threads/threadOpenLifecycleController.ts` as the fork-owned owner for thread route open/reset lifecycle orchestration.
   - `RoomTimeline` now calls `useThreadOpenLifecycleController` instead of directly sequencing cache-first open, SDK bootstrap, post-bootstrap refresh, targeted event loading, seed-session cleanup, and thread/room reset state inline.
