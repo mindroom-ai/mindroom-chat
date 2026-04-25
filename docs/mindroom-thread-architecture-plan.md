@@ -720,8 +720,9 @@ Acceptance:
   MindRoom block parsing also live in the MindRoom namespace with compatibility wrappers only.
 - AI-run message controls, long-text original download controls, and their styles live in
   `src/app/mindroom/messages`; generic room message rendering only wires them in.
-- Pinned-message tool approval rendering lives in `src/app/mindroom/messages/pinnedToolApproval.tsx`;
-  the generic pinned-message menu only mounts the render seam.
+- Pinned-message cache-aware event lookup and tool approval rendering live behind
+  `src/app/mindroom/messages/pinnedMessageExtensions.ts`; the generic pinned-message menu only
+  mounts the pinned-message seam.
 - MindRoom custom-HTML blocks and tool-trace grouping live in `src/app/mindroom/messages`; the
   generic custom HTML parser only delegates to that renderer.
 - Local MindRoom settings/provisioning implementation lives in `src/app/mindroom/local-mindroom`;

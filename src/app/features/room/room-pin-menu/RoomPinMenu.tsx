@@ -24,7 +24,6 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useRoomPinnedEvents } from '../../../hooks/useRoomPinnedEvents';
 import * as css from './RoomPinMenu.css';
 import { SequenceCard } from '../../../components/sequence-card';
-import { useRoomEvent } from '../../../mindroom/threads/useRoomEvent';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import {
   AvatarBase,
@@ -64,8 +63,9 @@ import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import {
   isMindroomPinnedToolApprovalEvent,
   MINDROOM_PINNED_TOOL_APPROVAL_EVENT,
+  useMindroomPinnedEvent,
   renderMindroomPinnedToolApprovalEvent,
-} from '../../../mindroom/messages/pinnedToolApproval';
+} from '../../../mindroom/messages/pinnedMessageExtensions';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
 import * as customHtmlCss from '../../../styles/CustomHtml.css';
@@ -116,7 +116,7 @@ function PinnedMessage({
   hour24Clock,
   dateFormatString,
 }: PinnedMessageProps) {
-  const pinnedEvent = useRoomEvent(room, eventId);
+  const pinnedEvent = useMindroomPinnedEvent(room, eventId);
   const useAuthentication = useMediaAuthentication();
   const mx = useMatrixClient();
 
