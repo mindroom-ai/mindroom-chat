@@ -9,6 +9,13 @@ import {
   getRoomCursorAnchor,
   normalizeCachedRoomEvents,
 } from '../../features/room/roomEventCache';
+import {
+  getThreadCursorAnchor as getCachedThreadCursorAnchor,
+  loadCachedThreadEventsBefore as loadCachedThreadEventsBeforeFromCache,
+  loadLatestCachedThreadEvents as loadLatestCachedThreadEventsFromCache,
+  type CachedThreadEvent,
+  type CachedThreadEventPage,
+} from '../../features/room/threadEventCache';
 import { compareCachedPaginationAnchors } from '../../features/room/eventCacheTokenUtils';
 import { serializeEventsForCache } from '../../features/room/eventCacheEditUtils';
 import { isThreadOnlyRoomActivity } from '../../features/room/threadRenderUtils';
@@ -35,6 +42,102 @@ export {
   type CachedThreadEvent,
   type CachedThreadEventPage,
 } from '../../features/room/threadEventCache';
+
+type ThreadCursorAnchor = ReturnType<typeof getCachedThreadCursorAnchor>;
+
+type LoadCachedThreadSnapshotOptions = {
+  sessionId: string;
+  roomId: string;
+  threadId: string;
+  limit: number;
+  maxPages: number;
+  shouldContinue?: () => boolean;
+  onPage?: (page: CachedThreadEventPage, pageIndex: number, snapshot: CachedThreadSnapshot) => void;
+  loadLatest?: typeof loadLatestCachedThreadEventsFromCache;
+  loadBefore?: typeof loadCachedThreadEventsBeforeFromCache;
+};
+
+export type CachedThreadSnapshot = CachedThreadEventPage & {
+  events: CachedThreadEvent[];
+};
+
+export const loadCachedThreadSnapshot = async ({
+  sessionId,
+  roomId,
+  threadId,
+  limit,
+  maxPages,
+  shouldContinue,
+  onPage,
+  loadLatest = loadLatestCachedThreadEventsFromCache,
+  loadBefore = loadCachedThreadEventsBeforeFromCache,
+}: LoadCachedThreadSnapshotOptions): Promise<CachedThreadSnapshot | undefined> => {
+  let cachedPage = await loadLatest(sessionId, roomId, threadId, limit);
+  const cachedThreadEvents = [...cachedPage.events];
+  let cachedRootEvent = cachedPage.rootEvent;
+  let cachedBeforeToken = cachedPage.beforeToken;
+  let cachedHasMoreBefore = cachedPage.hasMoreBefore;
+  let cachedExpectedReplyCount = cachedPage.expectedReplyCount;
+  const cachedSnapshotComplete = cachedPage.snapshotComplete === true;
+  const cachedRelationSnapshotComplete = cachedPage.relationSnapshotComplete === true;
+  const tailLoaded = cachedPage.tailLoaded === true;
+
+  onPage?.(cachedPage, 1, {
+    ...cachedPage,
+    beforeToken: cachedBeforeToken,
+    events: cachedThreadEvents,
+    hasMoreBefore: cachedHasMoreBefore,
+    rootEvent: cachedRootEvent,
+    expectedReplyCount: cachedExpectedReplyCount,
+    relationSnapshotComplete: cachedRelationSnapshotComplete,
+    snapshotComplete: cachedSnapshotComplete,
+    tailLoaded,
+  });
+
+  for (let pageIndex = 1; cachedPage.hasMoreBefore && pageIndex < maxPages; pageIndex += 1) {
+    if (shouldContinue && !shouldContinue()) return undefined;
+
+    const earliestCachedReply = cachedPage.events[0];
+    const beforeAnchor: ThreadCursorAnchor = getCachedThreadCursorAnchor(earliestCachedReply);
+    if (!beforeAnchor) break;
+
+    cachedPage = await loadBefore(sessionId, roomId, threadId, beforeAnchor, limit);
+    cachedThreadEvents.unshift(...cachedPage.events);
+    cachedRootEvent ??= cachedPage.rootEvent;
+    cachedBeforeToken = cachedPage.beforeToken;
+    cachedHasMoreBefore = cachedPage.hasMoreBefore;
+    cachedExpectedReplyCount = cachedPage.expectedReplyCount ?? cachedExpectedReplyCount;
+    onPage?.(cachedPage, pageIndex + 1, {
+      ...cachedPage,
+      beforeToken: cachedBeforeToken,
+      events: cachedThreadEvents,
+      hasMoreBefore: cachedHasMoreBefore,
+      rootEvent: cachedRootEvent,
+      expectedReplyCount: cachedExpectedReplyCount,
+      relationSnapshotComplete: cachedRelationSnapshotComplete,
+      snapshotComplete: cachedSnapshotComplete,
+      tailLoaded,
+    });
+
+    if (cachedPage.events.length === 0) {
+      break;
+    }
+  }
+
+  if (shouldContinue && !shouldContinue()) return undefined;
+
+  return {
+    ...cachedPage,
+    beforeToken: cachedBeforeToken,
+    events: cachedThreadEvents,
+    hasMoreBefore: cachedHasMoreBefore,
+    rootEvent: cachedRootEvent,
+    expectedReplyCount: cachedExpectedReplyCount,
+    relationSnapshotComplete: cachedRelationSnapshotComplete,
+    snapshotComplete: cachedSnapshotComplete,
+    tailLoaded,
+  };
+};
 
 export const getThreadCacheTargetId = (room: Room, mEvent: MatrixEvent): string | undefined => {
   const eventId = mEvent.getId();
