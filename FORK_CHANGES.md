@@ -1111,6 +1111,14 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 64 / Phase 6 timeline pagination controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/timelinePaginationController.ts` as the fork-owned owner for virtual timeline pagination and permalink event-timeline loading commands.
+  - `RoomTimeline` now imports `useTimelinePagination` and `useEventTimelineLoader` from that controller instead of defining local hook bodies.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.navigation.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

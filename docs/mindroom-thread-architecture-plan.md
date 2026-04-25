@@ -449,6 +449,9 @@ route/scroll seam is extracted.
 Thread back/front pagination commands now live in
 `src/app/mindroom/threads/threadPaginationCommandController.ts`; `RoomTimeline` only wires the
 returned handlers into the load-older/load-newer buttons.
+Virtual timeline pagination and permalink event-timeline loading now live in
+`src/app/mindroom/threads/timelinePaginationController.ts`; `RoomTimeline` only wires the returned
+commands into the paginator and route-focus flows.
 Room cache-first back-pagination now lives in
 `src/app/mindroom/threads/roomPaginationCommandController.ts`; `RoomTimeline` wires the returned
 handler into the virtual paginator and no longer imports cached room pagination readers directly.
@@ -593,6 +596,7 @@ Acceptance:
   to drive "load older messages", tail-loaded, relation-complete, and no-more-history decisions.
 - Thread back/front pagination command bodies live behind a fork-owned controller; `RoomTimeline`
   keeps only button wiring and route-specific focus/scroll effects.
+- Virtual timeline pagination and event-timeline loading live behind fork-owned controller hooks.
 
 ### Phase 6: Isolate Scroll And Pagination
 
