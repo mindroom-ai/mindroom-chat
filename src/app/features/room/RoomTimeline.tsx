@@ -11,14 +11,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import {
-  Direction,
-  EventTimelineSet,
-  IContent,
-  MatrixEvent,
-  Room,
-  MsgType,
-} from 'matrix-js-sdk';
+import { Direction, EventTimelineSet, IContent, MatrixEvent, Room, MsgType } from 'matrix-js-sdk';
 import { type Relations } from 'matrix-js-sdk/lib/models/relations';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import classNames from 'classnames';
@@ -85,11 +78,7 @@ import {
   reactionOrEditEvent,
 } from '../../utils/room';
 import { useSetting } from '../../state/hooks/settings';
-import {
-  MessageLayout,
-  sanitizePaginationLimit,
-  settingsAtom,
-} from '../../state/settings';
+import { MessageLayout, sanitizePaginationLimit, settingsAtom } from '../../state/settings';
 import { useMatrixEventRenderer } from '../../hooks/useMatrixEventRenderer';
 import { Reactions, Message, Event, EncryptedContent } from './message';
 import { useMemberEventParser } from '../../hooks/useMemberEventParser';
@@ -159,17 +148,15 @@ import {
   type RecalibrateFilterOpts,
   type Timeline,
 } from '../../mindroom/threads/timelinePagination';
-import {
-  useTimelinePagination,
-} from '../../mindroom/threads/timelinePaginationController';
+import { useTimelinePagination } from '../../mindroom/threads/timelinePaginationController';
 import { useThreadSummaryPublishController } from '../../mindroom/threads/threadSummaryPublishController';
 import { useThreadOverviewRefreshCounter } from '../../mindroom/threads/threadOverviewRefreshCounter';
 import { useThreadSortFreezeController } from '../../mindroom/threads/threadSortFreezeController';
 import { useMindroomThreadIndex } from '../../mindroom/threads/useMindroomThreadIndex';
 import {
-  getMindroomRoomTimelineApprovalContent,
+  getMindroomRoomTimelineApprovalContentIfSupported,
+  getMindroomRoomTimelineMessageRenderers,
   getMindroomRoomTimelineThreadBadgeModel,
-  MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT,
   MindroomRoomTimelineThreadBadgeRenderer,
 } from '../../mindroom/threads/roomTimelineMessageExtensions';
 import type { ThreadFilterKey } from '../../mindroom/threads/RoomThreadOverview';
@@ -803,19 +790,16 @@ export function RoomTimeline({
     useSurfacePreloadTarget,
   });
 
-  const {
-    persistThreadCacheFromRoomEvents,
-    persistThreadEventCache,
-    queueRoomThreadCachePersist,
-  } = useThreadCachePersistenceController({
-    alive,
-    room,
-    roomDebugTraceId,
-    roomIdRef,
-    sessionId,
-    threadDebugTraceId,
-    threadIdRef,
-  });
+  const { persistThreadCacheFromRoomEvents, persistThreadEventCache, queueRoomThreadCachePersist } =
+    useThreadCachePersistenceController({
+      alive,
+      room,
+      roomDebugTraceId,
+      roomIdRef,
+      sessionId,
+      threadDebugTraceId,
+      threadIdRef,
+    });
 
   const { persistRoomEventCache } = useRoomCacheLifecycleController({
     alive,
@@ -1209,31 +1193,27 @@ export function RoomTimeline({
     }
   }, [unread]);
 
-  const {
-    handleJumpToLatest,
-    handleJumpToUnread,
-    handleOpenCompactThread,
-    handleOpenReply,
-  } = useRoomTimelineNavigationController({
-    eventId,
-    handleOpenEvent,
-    hideMembershipEvents,
-    hideNickAvatarEvents,
-    ignoredUsersSet,
-    navigateRoom,
-    navigateRoomThread,
-    refreshLatestThreadSlice,
-    room,
-    safePaginationLimit,
-    scrollRef,
-    scrollToBottomRef,
-    setAtBottom,
-    setTimeline,
-    showHiddenEvents,
-    threadId,
-    threadIdRef,
-    unreadInfo,
-  });
+  const { handleJumpToLatest, handleJumpToUnread, handleOpenCompactThread, handleOpenReply } =
+    useRoomTimelineNavigationController({
+      eventId,
+      handleOpenEvent,
+      hideMembershipEvents,
+      hideNickAvatarEvents,
+      ignoredUsersSet,
+      navigateRoom,
+      navigateRoomThread,
+      refreshLatestThreadSlice,
+      room,
+      safePaginationLimit,
+      scrollRef,
+      scrollToBottomRef,
+      setAtBottom,
+      setTimeline,
+      showHiddenEvents,
+      threadId,
+      threadIdRef,
+      unreadInfo,
+    });
 
   const handleUserClick: MouseEventHandler<HTMLButtonElement> = useCallback(
     (evt) => {
@@ -1375,10 +1355,7 @@ export function RoomTimeline({
     threadResolutionMap,
   });
 
-  const getTimelineThreadBadgeModel = (
-    mEventId: string,
-    mEvent: MatrixEvent
-  ) =>
+  const getTimelineThreadBadgeModel = (mEventId: string, mEvent: MatrixEvent) =>
     getMindroomRoomTimelineThreadBadgeModel({
       eventId: mEventId,
       event: mEvent,
@@ -1535,122 +1512,122 @@ export function RoomTimeline({
           </Message>
         );
       },
-      [MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT]: (
-        mEventId,
-        mEvent,
-        item,
-        timelineSet,
-        collapse
-      ) => {
-        const reactionRelations = getEventReactions(timelineSet, mEventId);
-        const hasReactions = getActiveAnnotationsByKey(reactionRelations).length > 0;
-        const { replyEventId, threadRootId } = mEvent;
-        const highlighted = focusItem?.index === item && focusItem.highlight;
-        const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
-        const approvalContent = getMindroomRoomTimelineApprovalContent(mEvent, editedEvent);
-        const getContent = (() => approvalContent) as GetContentCallback;
-        const senderId = mEvent.getSender() ?? '';
-        const senderDisplayName =
-          getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-        const threadBadgeModel = getTimelineThreadBadgeModel(mEventId, mEvent);
-        const threadSummary = threadBadgeModel ? (
-          <MindroomRoomTimelineThreadBadgeRenderer
-            model={threadBadgeModel}
-            room={room}
-            onClick={handleOpenReply}
-          />
-        ) : null;
+      ...getMindroomRoomTimelineMessageRenderers(
+        (mEventId, mEvent, item, timelineSet, collapse) => {
+          const reactionRelations = getEventReactions(timelineSet, mEventId);
+          const hasReactions = getActiveAnnotationsByKey(reactionRelations).length > 0;
+          const { replyEventId, threadRootId } = mEvent;
+          const highlighted = focusItem?.index === item && focusItem.highlight;
+          const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
+          const approvalContent =
+            getMindroomRoomTimelineApprovalContentIfSupported(mEvent, editedEvent) ??
+            mEvent.getContent();
+          const getContent = (() => approvalContent) as GetContentCallback;
+          const senderId = mEvent.getSender() ?? '';
+          const senderDisplayName =
+            getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
+          const threadBadgeModel = getTimelineThreadBadgeModel(mEventId, mEvent);
+          const threadSummary = threadBadgeModel ? (
+            <MindroomRoomTimelineThreadBadgeRenderer
+              model={threadBadgeModel}
+              room={room}
+              onClick={handleOpenReply}
+            />
+          ) : null;
 
-        return (
-          <Message
-            key={mEvent.getId()}
-            data-message-item={item}
-            data-message-id={mEventId}
-            room={room}
-            mEvent={mEvent}
-            resolvedMessageContent={approvalContent}
-            messageSpacing={messageSpacing}
-            messageLayout={messageLayout}
-            collapse={collapse}
-            highlight={highlighted}
-            canDelete={canRedact || (canDeleteOwn && mEvent.getSender() === mx.getUserId())}
-            canSendReaction={canSendReaction}
-            canPinEvent={canPinEvent}
-            imagePackRooms={imagePackRooms}
-            relations={hasReactions ? reactionRelations : undefined}
-            onUserClick={handleUserClick}
-            onUsernameClick={handleUsernameClick}
-            onReplyClick={handleReplyClick}
-            onReactionToggle={handleReactionToggle}
-            reply={
-              !(
-                threadId &&
-                replyEventId &&
-                (replyEventId === prevEvent?.getId() || replyEventId === threadId)
-              ) &&
-              replyEventId && (
-                <Reply
-                  room={room}
-                  timelineSet={timelineSet}
-                  replyEventId={replyEventId}
-                  threadRootId={threadRootId}
-                  getLocally={threadId ? () => threadEventMap.get(replyEventId) : undefined}
-                  hideThreadIndicator={!!threadId}
-                  onClick={handleOpenReply}
-                  getMemberPowerTag={getMemberPowerTag}
-                  accessibleTagColors={accessiblePowerTagColors}
-                  legacyUsernameColor={legacyUsernameColor || direct}
+          return (
+            <Message
+              key={mEvent.getId()}
+              data-message-item={item}
+              data-message-id={mEventId}
+              room={room}
+              mEvent={mEvent}
+              resolvedMessageContent={approvalContent}
+              messageSpacing={messageSpacing}
+              messageLayout={messageLayout}
+              collapse={collapse}
+              highlight={highlighted}
+              canDelete={canRedact || (canDeleteOwn && mEvent.getSender() === mx.getUserId())}
+              canSendReaction={canSendReaction}
+              canPinEvent={canPinEvent}
+              imagePackRooms={imagePackRooms}
+              relations={hasReactions ? reactionRelations : undefined}
+              onUserClick={handleUserClick}
+              onUsernameClick={handleUsernameClick}
+              onReplyClick={handleReplyClick}
+              onReactionToggle={handleReactionToggle}
+              reply={
+                !(
+                  threadId &&
+                  replyEventId &&
+                  (replyEventId === prevEvent?.getId() || replyEventId === threadId)
+                ) &&
+                replyEventId && (
+                  <Reply
+                    room={room}
+                    timelineSet={timelineSet}
+                    replyEventId={replyEventId}
+                    threadRootId={threadRootId}
+                    getLocally={threadId ? () => threadEventMap.get(replyEventId) : undefined}
+                    hideThreadIndicator={!!threadId}
+                    onClick={handleOpenReply}
+                    getMemberPowerTag={getMemberPowerTag}
+                    accessibleTagColors={accessiblePowerTagColors}
+                    legacyUsernameColor={legacyUsernameColor || direct}
+                  />
+                )
+              }
+              reactions={
+                (threadSummary || reactionRelations) && (
+                  <>
+                    {threadSummary}
+                    {reactionRelations && (
+                      <Reactions
+                        style={{ marginTop: config.space.S200 }}
+                        room={room}
+                        relations={reactionRelations}
+                        mEventId={mEventId}
+                        canSendReaction={canSendReaction}
+                        onReactionToggle={handleReactionToggle}
+                      />
+                    )}
+                  </>
+                )
+              }
+              hideReadReceipts={hideActivity}
+              showDeveloperTools={showDeveloperTools}
+              memberPowerTag={getMemberPowerTag(senderId)}
+              accessibleTagColors={accessiblePowerTagColors}
+              legacyUsernameColor={legacyUsernameColor || direct}
+              hour24Clock={hour24Clock}
+              dateFormatString={dateFormatString}
+            >
+              {mEvent.isRedacted() ? (
+                <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />
+              ) : (
+                <RenderMessageContent
+                  displayName={senderDisplayName}
+                  eventType={mEvent.getType()}
+                  roomId={room.roomId}
+                  eventId={mEventId}
+                  threadId={mEvent.threadRootId ?? threadId}
+                  msgType={
+                    typeof approvalContent.msgtype === 'string' ? approvalContent.msgtype : ''
+                  }
+                  ts={mEvent.getTs()}
+                  edited={!!editedEvent}
+                  getContent={getContent}
+                  mediaAutoLoad={mediaAutoLoad}
+                  urlPreview={showUrlPreview}
+                  htmlReactParserOptions={htmlReactParserOptions}
+                  linkifyOpts={linkifyOpts}
+                  outlineAttachment={messageLayout === MessageLayout.Bubble}
                 />
-              )
-            }
-            reactions={
-              (threadSummary || reactionRelations) && (
-                <>
-                  {threadSummary}
-                  {reactionRelations && (
-                    <Reactions
-                      style={{ marginTop: config.space.S200 }}
-                      room={room}
-                      relations={reactionRelations}
-                      mEventId={mEventId}
-                      canSendReaction={canSendReaction}
-                      onReactionToggle={handleReactionToggle}
-                    />
-                  )}
-                </>
-              )
-            }
-            hideReadReceipts={hideActivity}
-            showDeveloperTools={showDeveloperTools}
-            memberPowerTag={getMemberPowerTag(senderId)}
-            accessibleTagColors={accessiblePowerTagColors}
-            legacyUsernameColor={legacyUsernameColor || direct}
-            hour24Clock={hour24Clock}
-            dateFormatString={dateFormatString}
-          >
-            {mEvent.isRedacted() ? (
-              <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />
-            ) : (
-              <RenderMessageContent
-                displayName={senderDisplayName}
-                eventType={mEvent.getType()}
-                roomId={room.roomId}
-                eventId={mEventId}
-                threadId={mEvent.threadRootId ?? threadId}
-                msgType={typeof approvalContent.msgtype === 'string' ? approvalContent.msgtype : ''}
-                ts={mEvent.getTs()}
-                edited={!!editedEvent}
-                getContent={getContent}
-                mediaAutoLoad={mediaAutoLoad}
-                urlPreview={showUrlPreview}
-                htmlReactParserOptions={htmlReactParserOptions}
-                linkifyOpts={linkifyOpts}
-                outlineAttachment={messageLayout === MessageLayout.Bubble}
-              />
-            )}
-          </Message>
-        );
-      },
+              )}
+            </Message>
+          );
+        }
+      ),
       [MessageEvent.RoomMessageEncrypted]: (mEventId, mEvent, item, timelineSet, collapse) => {
         const reactionRelations = getEventReactions(timelineSet, mEventId);
         const hasReactions = getActiveAnnotationsByKey(reactionRelations).length > 0;
@@ -1753,11 +1730,11 @@ export function RoomTimeline({
                       )}
                     />
                   );
-                if (mEvent.getType() === MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT) {
-                  const approvalContent = getMindroomRoomTimelineApprovalContent(
-                    mEvent,
-                    editedEvent
-                  );
+                const approvalContent = getMindroomRoomTimelineApprovalContentIfSupported(
+                  mEvent,
+                  editedEvent
+                );
+                if (approvalContent) {
                   const getContent = (() => approvalContent) as GetContentCallback;
                   const senderId = mEvent.getSender() ?? '';
                   const senderDisplayName =

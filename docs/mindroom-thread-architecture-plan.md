@@ -316,6 +316,8 @@ classification, and overview refresh targeting now live in `src/app/mindroom/thr
 Timeline-specific MindRoom approval content and badge-model derivation now route through
 `src/app/mindroom/threads/roomTimelineMessageExtensions.tsx`, so `RoomTimeline` no longer imports
 the low-level approval message owner or badge-record builder directly.
+Room-timeline MindRoom approval event-type dispatch also lives behind that seam; `RoomTimeline`
+should not import raw MindRoom approval event constants directly.
 Shared thread-summary cache/state APIs now route through
 `src/app/mindroom/threads/threadSummaryStore.ts`, leaving the lower cache and state modules as
 implementation details plus legacy compatibility paths.

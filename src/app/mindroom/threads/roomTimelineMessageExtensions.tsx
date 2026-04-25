@@ -1,4 +1,5 @@
-import type { MatrixEvent } from 'matrix-js-sdk';
+import type { EventTimelineSet, MatrixEvent } from 'matrix-js-sdk';
+import type { EventRenderer, EventRendererOpts } from '../../hooks/useMatrixEventRenderer';
 import {
   getToolApprovalRenderContent,
   MINDROOM_TOOL_APPROVAL_EVENT,
@@ -11,6 +12,14 @@ export const MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT = MINDROOM_TOOL_APPROVAL_EVEN
 
 export { ThreadBadgeRenderer as MindroomRoomTimelineThreadBadgeRenderer };
 
+type RoomTimelineEventRendererArgs = [string, MatrixEvent, number, EventTimelineSet, boolean];
+
+export const getMindroomRoomTimelineMessageRenderers = (
+  renderApprovalEvent: EventRenderer<RoomTimelineEventRendererArgs>
+): EventRendererOpts<RoomTimelineEventRendererArgs> => ({
+  [MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT]: renderApprovalEvent,
+});
+
 export const getMindroomRoomTimelineApprovalContent = (
   event: MatrixEvent,
   editedEvent?: MatrixEvent
@@ -19,6 +28,15 @@ export const getMindroomRoomTimelineApprovalContent = (
     event.getContent() as Record<string, unknown>,
     editedEvent?.getContent() as Record<string, unknown> | undefined
   );
+
+export const getMindroomRoomTimelineApprovalContentIfSupported = (
+  event: MatrixEvent,
+  editedEvent?: MatrixEvent
+): Record<string, unknown> | undefined => {
+  if (event.getType() !== MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT) return undefined;
+
+  return getMindroomRoomTimelineApprovalContent(event, editedEvent);
+};
 
 export const getMindroomRoomTimelineThreadBadgeModel = ({
   eventId,
