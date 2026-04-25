@@ -281,21 +281,23 @@ tell whether the new architecture is actually being used everywhere.
 | Recent threads sidebar        | Converted at the entry seam. `RecentThreadEntry` renders a MindRoom-owned `RecentThreadViewModel` built from `ThreadRecord`; the old `useRecentThreadSummary` path is gone. | Replace the remaining stored-entry plumbing with a room index subscription when available.    |
 | Command palette               | Converted at the thread-item seam. Thread items now build `ThreadRecord` objects and render a MindRoom-owned `CommandPaletteThreadViewModel`.                              | Keep remaining action/user/room logic separate; do not reintroduce thread-specific derivation. |
 | Summary ownership             | Mostly converted. Room view owns shared summary state, and `RoomTimeline` no longer performs per-visible `loadLatestCachedThreadSummaryInfo` render-path reads.            | Merge remaining summary cache/index helpers behind a fork-owned summary owner.                |
-| Room/thread cache and preload | Started. Timeline renderability, room-surface entry derivation, preload counts, eager current-room preload, overview cache hydration, raw event cache access, cached thread page stitching, cache-order/hydration helper derivation, thread cache coverage helpers, and cache payload serialization now have seams outside `RoomTimeline`; room/thread cache hydrate and persist orchestration still lives there. | Extract the remaining cache hydrate/persist commands in small behavior-preserving slices. |
-| Scroll and pagination         | Not converted. Keep separate from the data-model work.                                                                                                                     | Address after cache coverage metadata exists.                                                 |
+| Room/thread cache and preload | Mostly converted at the repository/controller seam. Timeline renderability, room-surface entry derivation, preload counts, eager current-room preload, overview cache hydration, raw cache access, cached room/thread pagination reads, cached thread page stitching/mapping, cache-order/hydration helper derivation, thread cache coverage helpers, cache payload serialization, room cache persistence state, thread-open seed cache ownership, and room-derived thread-cache persistence now live outside `RoomTimeline`. | Keep remaining thread-open/bootstrap orchestration narrow; do not reintroduce raw cache reads or seed-cache ownership in `RoomTimeline`. |
+| Scroll and pagination         | Started. Thread prepend anchor capture/restore lives in scroll utilities, and thread back-pagination mutable state lives in `useThreadBackPaginationController`; the data-fetch branch still stays in `RoomTimeline` as a narrow command handler. | If pagination grows again, move the cache/network data-fetch branch behind a controller command without changing scroll behavior. |
 | Reaction rendering            | Not part of the thread model refactor. Fresh normal-message and thread-reply reactions pass e2e.                                                                           | If regressions remain, debug as cache/relation coverage or room-specific data, not UI model.  |
 
-The immediate next code slice is still Phase 5 preload/cache cleanup, not Phase 6 scroll.
-Compact cards, normal room badges, overview filter/sort/count logic, the thread banner, recent
-thread entries, command palette thread items, and overview cache hydration now share the
-`ThreadRecord` seam. `RoomTimeline` no longer does per-visible cached-summary reads, no longer
-builds `ThreadOverviewMetadata` maps as an intermediate source for records, and no longer has a
-metadata-map fallback in `getThreadFilteredEvents`. `threadRecord` no longer accepts legacy metadata
-objects or maps. Normal badge rendering is now behind a fork-owned view-model seam, and
-renderability/preload counting, eager current-room preload, overview cache hydration, raw event cache access,
-cached thread page stitching, cache-order/hydration helper derivation, thread cache coverage helpers,
-and cache payload serialization have been moved out of `RoomTimeline`. The next useful cleanup is extracting the
-remaining async cache hydrate/persist orchestration behind controller seams.
+The main architecture pass is now at the guardrail/verification stage. Compact cards, normal room
+badges, overview filter/sort/count logic, the thread banner, recent thread entries, command palette
+thread items, and overview cache hydration share the `ThreadRecord` seam. `RoomTimeline` no longer
+does per-visible cached-summary reads, no longer builds `ThreadOverviewMetadata` maps as an
+intermediate source for records, no longer has a metadata-map fallback in `getThreadFilteredEvents`,
+and no longer imports raw room/thread cache stores, cached room/thread pagination readers,
+cached event normalizers, thread-open seed cache from `features/room`, or back-pagination anchor
+refs. `threadRecord` no longer accepts legacy metadata objects or maps. Normal badge rendering is
+behind a fork-owned view-model seam, and renderability/preload counting, eager current-room preload,
+overview cache hydration, raw event cache access, cached room/thread pagination, cached thread page
+stitching/mapping, cache-order/hydration helper derivation, thread cache coverage helpers, cache
+payload serialization, room cache persistence state, room-derived thread-cache persistence, and
+thread back-pagination state have been moved out of `RoomTimeline`.
 
 ## Refactor Phases
 
