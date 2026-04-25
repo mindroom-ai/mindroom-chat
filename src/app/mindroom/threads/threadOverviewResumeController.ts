@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   type Dispatch,
   type MutableRefObject,
@@ -19,6 +20,9 @@ import { fetchAllThreadRelations } from './threadBootstrap';
 import { isCompleteCachedThreadSnapshot } from './threadCacheSnapshot';
 import { saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { getKnownThreadReplyCount } from './threadRecord';
+import { resolveThreadOverviewRefreshTargets } from './threadOverviewRefreshTargets';
+import type { TimelineEventEntry } from './roomTimelineEvents';
+import type { Timeline } from './timelinePagination';
 
 type PersistThreadEventCache = (
   expectedThreadId: string,
@@ -33,8 +37,12 @@ type PersistThreadEventCache = (
 
 export const useThreadOverviewResumeController = ({
   alive,
+  activeTimelineRange,
+  compactFilteredThreadRootIds,
   compactViewRequested,
   debugTraceId,
+  filteredThreadRootIds,
+  limit,
   mx,
   onStoreThreadSummary,
   persistThreadEventCache,
@@ -42,13 +50,20 @@ export const useThreadOverviewResumeController = ({
   room,
   setOverviewRefreshCounter,
   setSupplementalThreadEvents,
-  targetThreadIds,
+  showCompactRoomView,
+  threadFilteredEventEntries,
   threadId,
   threadIdRef,
+  threadReplyCountMap,
+  threadResolutionMap,
 }: {
   alive: () => boolean;
+  activeTimelineRange: Timeline['range'];
+  compactFilteredThreadRootIds: string[];
   compactViewRequested: boolean;
   debugTraceId: string;
+  filteredThreadRootIds: string[];
+  limit: number;
   mx: MatrixClient;
   onStoreThreadSummary: (
     threadRootId: string,
@@ -59,13 +74,43 @@ export const useThreadOverviewResumeController = ({
   room: Room;
   setOverviewRefreshCounter: Dispatch<SetStateAction<number>>;
   setSupplementalThreadEvents: (threadId: string, events: MatrixEvent[]) => void;
-  targetThreadIds: string[];
+  showCompactRoomView: boolean;
+  threadFilteredEventEntries: TimelineEventEntry[];
   threadId: string | undefined;
   threadIdRef: MutableRefObject<string | undefined>;
+  threadReplyCountMap: Map<string, number>;
+  threadResolutionMap: Map<string, { isResolved: boolean }>;
 }): void => {
   const overviewResumeRefreshInFlightRef = useRef(false);
   const pendingOverviewResumeRefreshRef = useRef(false);
   const lastOverviewResumeRefreshTsRef = useRef(0);
+  const { overviewResumeRefreshIds: targetThreadIds } = useMemo(
+    () =>
+      resolveThreadOverviewRefreshTargets({
+        activeTimelineRange,
+        compactFilteredThreadRootIds,
+        filteredThreadRootIds,
+        limit,
+        room,
+        showCompactRoomView,
+        threadFilteredEventEntries,
+        threadId,
+        threadReplyCountMap,
+        threadResolutionMap,
+      }),
+    [
+      activeTimelineRange,
+      compactFilteredThreadRootIds,
+      filteredThreadRootIds,
+      limit,
+      room,
+      showCompactRoomView,
+      threadFilteredEventEntries,
+      threadId,
+      threadReplyCountMap,
+      threadResolutionMap,
+    ]
+  );
 
   useEffect(() => {
     overviewResumeRefreshInFlightRef.current = false;

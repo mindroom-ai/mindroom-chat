@@ -1189,6 +1189,16 @@
     - `npm run build` passes
     - `npm test` passes (`181/181` files, `1554/1554` tests)
     - `git diff --check` passes
+- `CINNY-075` implementation step 77 / Phase 5 overview resume target ownership (2026-04-25):
+  - folded overview resume target selection into `src/app/mindroom/threads/threadOverviewResumeController.ts`.
+  - `RoomTimeline` now passes the snapshot inputs to `useThreadOverviewResumeController` instead of importing `resolveThreadOverviewRefreshTargets` or memoizing resume target ids inline.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts` and `RoomTimeline.cache.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+    - `npm test` passes (`181/181` files, `1554/1554` tests)
+    - `git diff --check` passes
 - `CINNY-075` implementation step 74 / Phase 6 room event open controller ownership (2026-04-25):
   - added `src/app/mindroom/threads/roomEventOpenController.ts` as the fork-owned owner for room-event deep-link redirects, focused-event timeline loading, pending thread-open focus handoff, and route event-id dedupe.
   - `RoomTimeline` now consumes `useRoomEventOpenController` and `useRoomEventRouteOpenController` instead of directly sequencing room event focus targets, unloaded-event timeline loading, thread-event pending scroll state, and route open guards inline.

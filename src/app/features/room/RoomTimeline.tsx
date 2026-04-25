@@ -211,7 +211,6 @@ import { useThreadEditBackfillController } from '../../mindroom/threads/threadEd
 import { useRoomPaginationCommandController } from '../../mindroom/threads/roomPaginationCommandController';
 import { useRoomCacheLifecycleController } from '../../mindroom/threads/roomCacheLifecycleController';
 import { useRoomCacheHydrationController } from '../../mindroom/threads/roomCacheHydrationController';
-import { resolveThreadOverviewRefreshTargets } from '../../mindroom/threads/threadOverviewRefreshTargets';
 import { useRoomLiveEventController } from '../../mindroom/threads/roomLiveEventController';
 import { useThreadOpenLifecycleController } from '../../mindroom/threads/threadOpenLifecycleController';
 import { useRoomTimelineWindowController } from '../../mindroom/threads/roomTimelineWindowController';
@@ -1374,37 +1373,14 @@ export function RoomTimeline({
     threadSummaryInfoMap,
   });
 
-  const { overviewResumeRefreshIds } = useMemo(
-    () =>
-      resolveThreadOverviewRefreshTargets({
-        activeTimelineRange,
-        compactFilteredThreadRootIds,
-        filteredThreadRootIds,
-        limit: OVERVIEW_THREAD_METADATA_CACHE_LIMIT,
-        room,
-        showCompactRoomView,
-        threadFilteredEventEntries,
-        threadId,
-        threadReplyCountMap,
-        threadResolutionMap,
-      }),
-    [
-      activeTimelineRange,
-      compactFilteredThreadRootIds,
-      filteredThreadRootIds,
-      room,
-      showCompactRoomView,
-      threadFilteredEventEntries,
-      threadId,
-      threadReplyCountMap,
-      threadResolutionMap,
-    ]
-  );
-
   useThreadOverviewResumeController({
     alive,
+    activeTimelineRange,
+    compactFilteredThreadRootIds,
     compactViewRequested,
     debugTraceId: roomDebugTraceId,
+    filteredThreadRootIds,
+    limit: OVERVIEW_THREAD_METADATA_CACHE_LIMIT,
     mx,
     onStoreThreadSummary,
     persistThreadEventCache,
@@ -1412,9 +1388,12 @@ export function RoomTimeline({
     room,
     setOverviewRefreshCounter,
     setSupplementalThreadEvents,
-    targetThreadIds: overviewResumeRefreshIds,
+    showCompactRoomView,
+    threadFilteredEventEntries,
     threadId,
     threadIdRef,
+    threadReplyCountMap,
+    threadResolutionMap,
   });
 
   const getTimelineThreadBadgeModel = (
