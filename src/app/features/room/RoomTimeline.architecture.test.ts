@@ -144,6 +144,17 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('visibleThreadSeedPrewarmGenerationRef');
   });
 
+  it('delegates thread-open cache/network commands to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('useThreadOpenCacheController');
+    expect(source).toContain("from '../../mindroom/threads/threadOpenCacheController'");
+    expect(source).not.toContain('const refreshLatestThreadSlice = useCallback');
+    expect(source).not.toContain('const backfillThreadRelationsIntoCache = useCallback');
+    expect(source).not.toContain('const refreshLatestThreadRelationsTail = useCallback');
+    expect(source).not.toContain('const hydrateThreadFromCache = useCallback');
+  });
+
   it('delegates thread prepend scroll primitives to scroll utilities', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
