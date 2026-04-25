@@ -2,7 +2,6 @@ import { useCallback, useRef, useState } from 'react';
 import { EventTimeline, Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import {
-  aggregateThreadTagEvents,
   buildAddTagContent,
   buildPerTagEventContent,
   buildPerTagStateKey,
@@ -16,6 +15,7 @@ import {
   clearPendingThreadTagsContent,
   setPendingThreadTagsContent,
 } from './threadTagPending';
+import { buildThreadTagSnapshotMap } from './threadTagSnapshots';
 
 export type UseMutateThreadTagsResult = {
   addTag: (threadRootId: string, tagName: string) => Promise<void>;
@@ -39,7 +39,7 @@ const readLiveTagsContent = (room: Room, threadRootId: string) => {
     return { tags: {} };
   }
 
-  return aggregateThreadTagEvents(stateEvents).get(threadRootId) ?? { tags: {} };
+  return buildThreadTagSnapshotMap(stateEvents).get(threadRootId)?.content ?? { tags: {} };
 };
 
 /**
