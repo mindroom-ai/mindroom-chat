@@ -15,7 +15,8 @@ import {
   openExistingDatabase,
 } from './cacheDbMigrationUtils';
 
-const DB_NAME = 'mindroom-thread-event-cache';
+export const MINDROOM_THREAD_EVENT_CACHE_DB_NAME = 'mindroom-thread-event-cache';
+const DB_NAME = MINDROOM_THREAD_EVENT_CACHE_DB_NAME;
 const DB_VERSION = 1;
 const EVENT_STORE = 'thread_events';
 const META_STORE = 'thread_meta';

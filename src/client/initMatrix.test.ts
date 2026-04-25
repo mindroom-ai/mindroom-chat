@@ -34,12 +34,15 @@ import {
   deleteThreadEventCache,
   getThreadEventCacheDbName,
 } from '../app/mindroom/threads/threadEventCache';
-import { deleteRoomEventCache, getRoomEventCacheDbName } from '../app/mindroom/threads/roomEventCache';
+import {
+  deleteRoomEventCache,
+  getRoomEventCacheDbName,
+} from '../app/mindroom/threads/roomEventCache';
 import { deleteThreadSummaryCache } from '../app/mindroom/threads/threadSummaryCache';
-import { clearIOSPushState } from '../app/utils/iosPush';
-import { clearRecentThreadsStore } from '../app/state/recentThreads';
-import { clearRecentThreadsPanelHeightStore } from '../app/state/recentThreadsPanelHeight';
-import { clearRecentThreadsPanelMobileExpandedStore } from '../app/state/recentThreadsPanelMobileExpanded';
+import { clearIOSPushState } from '../app/mindroom/native/iosPush';
+import { clearRecentThreadsStore } from '../app/mindroom/recent-threads/recentThreads';
+import { clearRecentThreadsPanelHeightStore } from '../app/mindroom/recent-threads/recentThreadsPanelHeight';
+import { clearRecentThreadsPanelMobileExpandedStore } from '../app/mindroom/recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadViewModelSharedState } from '../app/mindroom/threads/recentThreadViewModel';
 
 vi.mock('matrix-js-sdk/lib/store/indexeddb', () => ({
@@ -67,15 +70,15 @@ vi.mock('../app/state/navToActivePath', () => ({
   clearNavToActivePathStore: vi.fn(),
 }));
 
-vi.mock('../app/state/recentThreads', () => ({
+vi.mock('../app/mindroom/recent-threads/recentThreads', () => ({
   clearRecentThreadsStore: vi.fn(),
 }));
 
-vi.mock('../app/state/recentThreadsPanelHeight', () => ({
+vi.mock('../app/mindroom/recent-threads/recentThreadsPanelHeight', () => ({
   clearRecentThreadsPanelHeightStore: vi.fn(),
 }));
 
-vi.mock('../app/state/recentThreadsPanelMobileExpanded', () => ({
+vi.mock('../app/mindroom/recent-threads/recentThreadsPanelMobileExpanded', () => ({
   clearRecentThreadsPanelMobileExpandedStore: vi.fn(),
 }));
 
@@ -83,7 +86,12 @@ vi.mock('../app/mindroom/threads/recentThreadViewModel', () => ({
   clearRecentThreadViewModelSharedState: vi.fn(),
 }));
 
+vi.mock('../app/mindroom/threads/roomThreadFilterState', () => ({
+  clearRoomThreadFiltersStore: vi.fn(),
+}));
+
 vi.mock('../app/mindroom/threads/threadEventCache', () => ({
+  MINDROOM_THREAD_EVENT_CACHE_DB_NAME: 'mindroom-thread-event-cache',
   deleteThreadEventCache: vi.fn().mockResolvedValue(undefined),
   getThreadEventCacheDbName: vi.fn(
     (sessionId: string) => `mindroom-thread-event-cache::${sessionId}`
@@ -91,6 +99,7 @@ vi.mock('../app/mindroom/threads/threadEventCache', () => ({
 }));
 
 vi.mock('../app/mindroom/threads/roomEventCache', () => ({
+  MINDROOM_ROOM_EVENT_CACHE_DB_NAME: 'mindroom-room-event-cache',
   deleteRoomEventCache: vi.fn().mockResolvedValue(undefined),
   getRoomEventCacheDbName: vi.fn((sessionId: string) => `mindroom-room-event-cache::${sessionId}`),
 }));
@@ -99,7 +108,8 @@ vi.mock('../app/mindroom/threads/threadSummaryCache', () => ({
   deleteThreadSummaryCache: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../app/utils/iosPush', () => ({
+vi.mock('../app/mindroom/native/iosPush', () => ({
+  IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX: 'mindroom_ios_push_',
   clearIOSPushState: vi.fn(),
 }));
 
