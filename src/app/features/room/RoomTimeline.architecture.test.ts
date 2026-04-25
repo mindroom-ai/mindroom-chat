@@ -293,11 +293,16 @@ describe('RoomTimeline architecture', () => {
       './threadSummaryCache.ts',
       './threadSummarySelection.ts',
       './threadSummaryState.ts',
+      './threadRouteUtils.ts',
       './threadTagColor.ts',
       './threadTagPending.ts',
+      './threadTags.ts',
+      './threadUtils.ts',
+      './timelineScrollUtils.ts',
       './useMutateThreadTags.ts',
       './useRoomThreadList.ts',
       './useRoomThreadSummaryState.ts',
+      './useRoomThreadTags.ts',
       './useThreadRenderState.ts',
       './useThreadRootEvent.ts',
       './useThreadTags.ts',
@@ -772,14 +777,6 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps thread relation and route utilities in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const utilityCompatibilitySource = readFileSync(
-      new URL('./threadUtils.ts', import.meta.url),
-      'utf8'
-    );
-    const routeCompatibilitySource = readFileSync(
-      new URL('./threadRouteUtils.ts', import.meta.url),
-      'utf8'
-    );
     const utilitySource = readFileSync(
       new URL('../../mindroom/threads/threadUtils.ts', import.meta.url),
       'utf8'
@@ -795,12 +792,8 @@ describe('RoomTimeline architecture', () => {
 
     expect(source).toContain('useRoomEventOpenController');
     expect(eventOpenSource).toContain("from './threadUtils'");
-    expect(utilityCompatibilitySource).toContain("from '../../mindroom/threads/threadUtils'");
-    expect(routeCompatibilitySource).toContain("from '../../mindroom/threads/threadRouteUtils'");
     expect(utilitySource).toContain('getPreferredVisibleThreadReplyEvents');
     expect(routeSource).toContain('resolveCanonicalThreadRootId');
-    expect(utilityCompatibilitySource).not.toContain('getPreferredVisibleThreadReplyEvents');
-    expect(routeCompatibilitySource).not.toContain('resolveCanonicalThreadRootId');
   });
 
   it('keeps thread render identity utilities in MindRoom threads', () => {
@@ -836,14 +829,6 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps thread tag state and hooks in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const tagsCompatibilitySource = readFileSync(
-      new URL('./threadTags.ts', import.meta.url),
-      'utf8'
-    );
-    const hookCompatibilitySource = readFileSync(
-      new URL('./useRoomThreadTags.ts', import.meta.url),
-      'utf8'
-    );
     const tagsSource = readFileSync(
       new URL('../../mindroom/threads/threadTags.ts', import.meta.url),
       'utf8'
@@ -854,12 +839,8 @@ describe('RoomTimeline architecture', () => {
     );
 
     expect(source).toContain("from '../../mindroom/threads/useRoomThreadTags'");
-    expect(tagsCompatibilitySource).toContain("from '../../mindroom/threads/threadTags'");
-    expect(hookCompatibilitySource).toContain("from '../../mindroom/threads/useRoomThreadTags'");
     expect(tagsSource).toContain('aggregateThreadTagEvents');
     expect(hookSource).toContain('useRoomThreadResolutionMap');
-    expect(tagsCompatibilitySource).not.toContain('aggregateThreadTagEvents');
-    expect(hookCompatibilitySource).not.toContain('useRoomThreadResolutionMap');
   });
 
   it('keeps thread banner and tag UI in MindRoom threads', () => {
@@ -1615,17 +1596,12 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates thread prepend scroll primitives to scroll utilities', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const compatibilitySource = readFileSync(
-      new URL('./timelineScrollUtils.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/timelineScrollUtils.ts', import.meta.url),
       'utf8'
     );
 
     expect(source).toContain("from '../../mindroom/threads/timelineScrollUtils'");
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/timelineScrollUtils'");
     expect(implementationSource).toContain('captureThreadPrependScrollAnchor');
     expect(implementationSource).toContain('getTimelineTargetAnchor');
     expect(implementationSource).toContain('shouldRenderUnreadDividerAt');
