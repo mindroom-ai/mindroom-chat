@@ -1169,6 +1169,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `npm run build` passes
+- `CINNY-075` implementation step 74 / Phase 6 room event open controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/roomEventOpenController.ts` as the fork-owned owner for room-event deep-link redirects, focused-event timeline loading, pending thread-open focus handoff, and route event-id dedupe.
+  - `RoomTimeline` now consumes `useRoomEventOpenController` and `useRoomEventRouteOpenController` instead of directly sequencing room event focus targets, unloaded-event timeline loading, thread-event pending scroll state, and route open guards inline.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.navigation.test.ts`, and `RoomTimeline.permalink-refresh.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+    - `git diff --check` passes
 - `CINNY-075` implementation step 73 / Phase 6 timeline read receipt controller ownership (2026-04-25):
   - added `src/app/mindroom/threads/timelineReadReceiptController.ts` as the fork-owned owner for bottom-anchor read state, document-focus read receipts, thread-at-bottom read receipts, and explicit mark-as-read routing.
   - `RoomTimeline` now consumes `useTimelineReadReceiptController` instead of directly wiring read receipt marking, bottom-anchor intersection observation, focus-change handling, and thread mark-as-read conditions inline.
