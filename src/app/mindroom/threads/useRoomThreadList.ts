@@ -88,7 +88,10 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
     };
   }, [enabled, room]);
 
-  const rawThreads = useMemo(() => room.getThreads(), [room, version]);
+  const rawThreads = useMemo(() => {
+    void version;
+    return room.getThreads();
+  }, [room, version]);
   const userId = mx.getUserId() ?? '';
   const threadUnreads = useMemo(
     () => getRoomThreadsUnread(room, rawThreads, userId),
@@ -98,7 +101,10 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
     () => sortThreadsByActivity(rawThreads, threadUnreads),
     [rawThreads, threadUnreads]
   );
-  const fullyLoaded = useMemo(() => roomThreadListIsComplete(room), [room, version]);
+  const fullyLoaded = useMemo(() => {
+    void version;
+    return roomThreadListIsComplete(room);
+  }, [room, version]);
 
   return {
     threads,

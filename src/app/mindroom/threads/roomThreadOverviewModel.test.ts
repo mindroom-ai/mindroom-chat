@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ThreadOverviewMetadata, ThreadFilterState, TriState } from './roomThreadOverviewModel';
+import type { ThreadOverviewMetadata, ThreadFilterState } from './roomThreadOverviewModel';
 
 vi.mock('./useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: (_room: unknown, threadRootId: string) => {

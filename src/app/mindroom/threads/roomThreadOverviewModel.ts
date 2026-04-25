@@ -7,7 +7,6 @@ import {
 import { getThreadLastActivityTs } from './useThreadLastActivityTs';
 import { getThreadStreamingState } from './useThreadStreamingState';
 import {
-  getCompactThreadRootBodyPreviewText,
   isNestedThreadReplyEvent,
   isZeroReplyStandaloneThreadRootEvent,
 } from './compactThreadRootData';
