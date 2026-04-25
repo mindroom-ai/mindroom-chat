@@ -263,7 +263,7 @@ vi.mock('./useRoomThreadTags', () => ({
   }),
 }));
 
-vi.mock('./useThreadRootEvent', () => ({
+vi.mock('../../mindroom/threads/useThreadRootEvent', () => ({
   useThreadRootEvent: useThreadRootEventMock,
 }));
 

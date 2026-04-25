@@ -7,7 +7,7 @@ import * as replyCss from '../../components/message/Reply.css';
 import { useThreadHeaderInfo } from '../../hooks/useThreadHeaderInfo';
 import { buildThreadHeaderViewModelFromRecord } from './threadHeaderViewModel';
 import { buildThreadRecord } from './threadRecord';
-import { useThreadRootEvent } from '../../features/room/useThreadRootEvent';
+import { useThreadRootEvent } from './useThreadRootEvent';
 import { useThreadTags } from './useThreadTags';
 import { useMutateThreadTags } from './useMutateThreadTags';
 import { ThreadTagPill } from './ThreadTagPill';
