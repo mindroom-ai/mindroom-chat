@@ -115,6 +115,9 @@ Completed in the 2026-04-25 cleanup pass:
   `src/app/mindroom/threads/threadOverviewCacheMetadata.ts`; `useMindroomThreadIndex` now consumes
   one cached metadata snapshot/controller instead of owning independent cached activity,
   latest-preview, sender, message-count, compact-root-preview, and coverage maps.
+- Message search implementation, helpers, and tests live under
+  `src/app/mindroom/message-search`; the old generic `features/message-search` folder is gone
+  because this fork only mounts message search through the MindRoom search wrapper.
 
 Remaining queue:
 
@@ -130,6 +133,8 @@ Remaining queue:
      compatibility/page seams, core message/timeline integration seams, auth/session/iOS support,
      and reusable hooks/components. Keep shrinking this count by moving fork-owned behavior behind
      MindRoom wrappers instead of pushing more policy into generic files.
+   - Follow-up audit, 2026-04-25 after moving message search into `src/app/mindroom/message-search`:
+     the command reports 257 non-MindRoom paths.
 
 2. Continue cache/preload cleanup only after the index boundary is clean.
    - Cache hydrate/persist orchestration should sit behind controller/repository seams.
