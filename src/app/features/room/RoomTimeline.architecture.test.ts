@@ -56,6 +56,17 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('serializeEventsForCache(');
   });
 
+  it('delegates cache persistence snapshots to the event repository', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('persistRoomEventCacheSnapshot');
+    expect(source).toContain('persistThreadEventCacheSnapshot');
+    expect(source).not.toContain('saveRoomEventsToCache(');
+    expect(source).not.toContain('saveThreadEventsToCache(');
+    expect(source).not.toContain('serializeRoomCacheEvents(room');
+    expect(source).not.toContain('serializeThreadCacheEvents(room');
+  });
+
   it('delegates overview cache hydration to the MindRoom thread namespace', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 

@@ -8,17 +8,21 @@ import {
 import {
   getRoomCursorAnchor,
   normalizeCachedRoomEvents,
+  saveRoomEventsToCache as saveRoomEventsToCacheToStorage,
 } from '../../features/room/roomEventCache';
 import {
   getThreadCursorAnchor as getCachedThreadCursorAnchor,
   loadCachedThreadEventsBefore as loadCachedThreadEventsBeforeFromCache,
   loadLatestCachedThreadEvents as loadLatestCachedThreadEventsFromCache,
+  saveThreadEventsToCache as saveThreadEventsToCacheToStorage,
   type CachedThreadEvent,
   type CachedThreadEventPage,
 } from '../../features/room/threadEventCache';
 import { compareCachedPaginationAnchors } from '../../features/room/eventCacheTokenUtils';
 import { serializeEventsForCache } from '../../features/room/eventCacheEditUtils';
 import { isThreadOnlyRoomActivity } from '../../features/room/threadRenderUtils';
+import { buildThreadReplyCountMap } from '../../features/room/threadUtils';
+import { getKnownThreadReplyCount } from './threadRecord';
 
 export {
   getRoomCursorAnchor,
@@ -44,6 +48,9 @@ export {
 } from '../../features/room/threadEventCache';
 
 type ThreadCursorAnchor = ReturnType<typeof getCachedThreadCursorAnchor>;
+
+type SaveThreadEventsToCache = typeof saveThreadEventsToCacheToStorage;
+type SaveRoomEventsToCache = typeof saveRoomEventsToCacheToStorage;
 
 type LoadCachedThreadSnapshotOptions = {
   sessionId: string;
@@ -302,3 +309,107 @@ export const serializeRoomCacheEvents = (
       (mEvent) => !isThreadOnlyRoomActivity(room, mEvent)
     )
   );
+
+export type ThreadEventCacheSnapshotWrite = {
+  rawEvents: Partial<IEvent>[];
+  rawRootEvent?: Partial<IEvent>;
+  loadedReplyCount: number;
+  expectedReplyCount?: number;
+  beforeTokenForEarliest?: string | null;
+  tailLoaded?: boolean;
+  snapshotComplete?: boolean;
+  relationSnapshotComplete?: boolean;
+};
+
+export const persistThreadEventCacheSnapshot = ({
+  sessionId,
+  room,
+  threadId,
+  events,
+  rootEvent,
+  beforeTokenForEarliest,
+  tailLoaded,
+  snapshotComplete,
+  expectedReplyCount,
+  relationSnapshotComplete,
+  save = saveThreadEventsToCacheToStorage,
+}: {
+  sessionId: string;
+  room: Room;
+  threadId: string;
+  events: MatrixEvent[];
+  rootEvent?: MatrixEvent | null;
+  beforeTokenForEarliest?: string | null;
+  tailLoaded?: boolean;
+  snapshotComplete?: boolean;
+  expectedReplyCount?: number;
+  relationSnapshotComplete?: boolean;
+  save?: SaveThreadEventsToCache;
+}): ThreadEventCacheSnapshotWrite => {
+  const resolvedRootEvent = rootEvent ?? undefined;
+  const loadedReplyCount = buildThreadReplyCountMap(events).get(threadId) ?? 0;
+  const persistedExpectedReplyCount =
+    expectedReplyCount ??
+    (resolvedRootEvent ? getKnownThreadReplyCount(resolvedRootEvent) : undefined) ??
+    ((snapshotComplete === true || (beforeTokenForEarliest === null && tailLoaded === true))
+      ? loadedReplyCount
+      : undefined);
+  const rawEvents = serializeThreadCacheEvents(room, events, resolvedRootEvent);
+  const rawRootEvent = resolvedRootEvent
+    ? rawEvents.find((rawEvent) => rawEvent.event_id === resolvedRootEvent.getId())
+    : undefined;
+
+  save(
+    sessionId,
+    room.roomId,
+    threadId,
+    rawEvents,
+    rawRootEvent,
+    beforeTokenForEarliest,
+    tailLoaded,
+    snapshotComplete,
+    persistedExpectedReplyCount,
+    relationSnapshotComplete
+  ).catch(() => undefined);
+
+  return {
+    rawEvents,
+    rawRootEvent,
+    loadedReplyCount,
+    expectedReplyCount: persistedExpectedReplyCount,
+    beforeTokenForEarliest,
+    tailLoaded,
+    snapshotComplete,
+    relationSnapshotComplete,
+  };
+};
+
+export type RoomEventCacheSnapshotWrite = {
+  rawEvents: Partial<IEvent>[];
+  sourceEventCount: number;
+  beforeTokenForEarliest?: string | null;
+};
+
+export const persistRoomEventCacheSnapshot = ({
+  sessionId,
+  room,
+  events,
+  beforeTokenForEarliest,
+  save = saveRoomEventsToCacheToStorage,
+}: {
+  sessionId: string;
+  room: Room;
+  events: MatrixEvent[];
+  beforeTokenForEarliest?: string | null;
+  save?: SaveRoomEventsToCache;
+}): RoomEventCacheSnapshotWrite => {
+  const rawEvents = serializeRoomCacheEvents(room, events);
+
+  save(sessionId, room.roomId, rawEvents, beforeTokenForEarliest).catch(() => undefined);
+
+  return {
+    rawEvents,
+    sourceEventCount: events.length,
+    beforeTokenForEarliest,
+  };
+};

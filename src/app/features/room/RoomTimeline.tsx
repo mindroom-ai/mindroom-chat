@@ -161,7 +161,6 @@ import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import {
-  buildThreadReplyCountMap,
   buildVisibleThreadParticipantMap,
   buildVisibleThreadReplyCountMap,
   eventBelongsToThread,
@@ -264,10 +263,8 @@ import {
   loadCachedThreadSnapshot,
   normalizeCachedRoomEvents,
   normalizeCachedThreadEvents,
-  saveRoomEventsToCache,
-  saveThreadEventsToCache,
-  serializeRoomCacheEvents,
-  serializeThreadCacheEvents,
+  persistRoomEventCacheSnapshot,
+  persistThreadEventCacheSnapshot,
   shouldHydrateLatestRoomCache,
   filterLatestRoomCacheHydrationEvents,
 } from '../../mindroom/threads/eventRepository';
@@ -3118,41 +3115,30 @@ export function RoomTimeline({
       expectedReplyCount?: number,
       relationSnapshotComplete?: boolean
     ) => {
-      const loadedReplyCount = buildThreadReplyCountMap(events).get(expectedThreadId) ?? 0;
-      const persistedExpectedReplyCount =
-        expectedReplyCount ??
-        (rootEvent ? getKnownThreadReplyCount(rootEvent) : undefined) ??
-        ((snapshotComplete === true || (beforeTokenForEarliest === null && tailLoaded === true))
-          ? loadedReplyCount
-          : undefined);
-      const rawEvents = serializeThreadCacheEvents(room, events, rootEvent ?? undefined);
-      const rawRootEvent = rootEvent
-        ? rawEvents.find((rawEvent) => rawEvent.event_id === rootEvent.getId())
-        : undefined;
+      const snapshot = persistThreadEventCacheSnapshot({
+        sessionId,
+        room,
+        threadId: expectedThreadId,
+        events,
+        rootEvent,
+        beforeTokenForEarliest,
+        tailLoaded,
+        snapshotComplete,
+        expectedReplyCount,
+        relationSnapshotComplete,
+      });
       logTimelineDebug(threadDebugTraceId, 'thread-cache-persist', {
         beforeTokenForEarliest: beforeTokenForEarliest ?? null,
-        cacheEventCount: rawEvents.length,
-        expectedReplyCount: persistedExpectedReplyCount ?? null,
-        loadedReplyCount,
-        rawEventCount: rawEvents.length,
+        cacheEventCount: snapshot.rawEvents.length,
+        expectedReplyCount: snapshot.expectedReplyCount ?? null,
+        loadedReplyCount: snapshot.loadedReplyCount,
+        rawEventCount: snapshot.rawEvents.length,
         relationSnapshotComplete: relationSnapshotComplete === true,
         rootPresent: !!rootEvent,
         snapshotComplete: snapshotComplete === true,
         tailLoaded: tailLoaded === true,
         threadId: expectedThreadId,
       });
-      saveThreadEventsToCache(
-        sessionId,
-        room.roomId,
-        expectedThreadId,
-        rawEvents,
-        rawRootEvent,
-        beforeTokenForEarliest,
-        tailLoaded,
-        snapshotComplete,
-        persistedExpectedReplyCount,
-        relationSnapshotComplete
-      ).catch(() => undefined);
     },
     [room, sessionId, threadDebugTraceId]
   );
@@ -3227,15 +3213,17 @@ export function RoomTimeline({
 
   const persistRoomEventCache = useCallback(
     (events: MatrixEvent[], beforeTokenForEarliest?: string | null) => {
-      const rawEvents = serializeRoomCacheEvents(room, events);
+      const snapshot = persistRoomEventCacheSnapshot({
+        sessionId,
+        room,
+        events,
+        beforeTokenForEarliest,
+      });
       logTimelineDebug(roomDebugTraceId, 'room-cache-persist', {
         beforeTokenForEarliest: beforeTokenForEarliest ?? null,
-        rawEventCount: rawEvents.length,
-        sourceEventCount: events.length,
+        rawEventCount: snapshot.rawEvents.length,
+        sourceEventCount: snapshot.sourceEventCount,
       });
-      saveRoomEventsToCache(sessionId, room.roomId, rawEvents, beforeTokenForEarliest).catch(
-        () => undefined
-      );
     },
     [room, roomDebugTraceId, sessionId]
   );
