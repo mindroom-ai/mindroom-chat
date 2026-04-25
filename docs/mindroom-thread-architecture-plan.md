@@ -701,6 +701,8 @@ Acceptance:
 - Product branding constants and hosted `mindroom.chat` auth policy live in `src/app/mindroom/branding`
   and `src/app/mindroom/auth`; auth/settings/page shells consume those owners rather than duplicating
   product strings and server checks.
+- Search-result rendering delegates MindRoom long-text metadata detection to `src/app/mindroom/messages`
+  instead of checking raw `io.mindroom.*` keys inside the generic message-search module.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy

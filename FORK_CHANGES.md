@@ -2052,3 +2052,9 @@
 - Added `src/app/mindroom/branding/branding.ts` as the single owner for MindRoom product labels, logo asset, source/docs URLs, notification brand, powered-by defaults, and Matrix device display name.
 - Added `src/app/mindroom/auth/authPolicy.ts` as the single owner for `mindroom.chat` SSO-only hosted-auth behavior.
 - Updated auth pages, welcome/about/splash surfaces, settings notifications, and Matrix login/register requests to consume those fork-owned constants/helpers instead of hard-coding MindRoom strings and URL checks across upstream-owned files.
+
+## CINNY-096 — Delegate search long-text detection to MindRoom message owner (2026-04-25)
+
+- Added `hasMindroomLongTextMetadata(...)` to `src/app/mindroom/messages/longText.ts`.
+- Updated search-result preview selection to use that fork-owned predicate instead of checking raw `io.mindroom.long_text` metadata inside the generic message-search module.
+- Preserved the existing lightweight-renderer behavior for placeholder long-text metadata, including raw edit wrappers.
