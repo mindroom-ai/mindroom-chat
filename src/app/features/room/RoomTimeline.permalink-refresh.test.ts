@@ -421,7 +421,9 @@ describe('RoomTimeline', () => {
   });
 
   it('uses stopInView=false for the explicit room focus scroll', async () => {
-    const { getRoomFocusScrollToItemOptions } = await import('./RoomTimeline');
+    const { getRoomFocusScrollToItemOptions } = await import(
+      '../../mindroom/threads/timelineScrollUtils'
+    );
 
     expect(getRoomFocusScrollToItemOptions(10, 100)).toEqual({
       align: 'center',
@@ -433,7 +435,7 @@ describe('RoomTimeline', () => {
 
   it('switches room focus to start alignment near the loaded room start', async () => {
     const { getRoomFocusScrollOptions, getRoomFocusScrollToItemOptions } = await import(
-      './RoomTimeline'
+      '../../mindroom/threads/timelineScrollUtils'
     );
 
     expect(getRoomFocusScrollOptions(0, 100)).toEqual({
@@ -459,7 +461,7 @@ describe('RoomTimeline', () => {
       describe('refresh and jump-to-latest', () => {
         it('switches room focus to end alignment near the loaded room end', async () => {
     const { getRoomFocusScrollOptions, getRoomFocusScrollToItemOptions } = await import(
-      './RoomTimeline'
+      '../../mindroom/threads/timelineScrollUtils'
     );
 
     expect(getRoomFocusScrollOptions(8, 12)).toEqual({
@@ -476,7 +478,7 @@ describe('RoomTimeline', () => {
   });
 
   it('recenters focus during observed resize activity and finishes after the idle window', async () => {
-    const { setupFocusObserver } = await import('./RoomTimeline');
+    const { setupFocusObserver } = await import('../../mindroom/threads/timelineScrollUtils');
     vi.useFakeTimers();
 
     try {
@@ -554,7 +556,9 @@ describe('RoomTimeline', () => {
   });
 
   it('cancels a pending room focus retry when the focused event changes', async () => {
-    const { isContinuingRoomFocusRetry } = await import('./RoomTimeline');
+    const { isContinuingRoomFocusRetry } = await import(
+      '../../mindroom/threads/timelineScrollUtils'
+    );
 
     expect(
       isContinuingRoomFocusRetry('$first', {
@@ -834,7 +838,9 @@ describe('RoomTimeline', () => {
   });
 
     it('isAnchorVisibleInScroll returns true when anchor is within scroll bounds plus margin', async () => {
-    const { isAnchorVisibleInScroll } = await import('./RoomTimeline');
+    const { isAnchorVisibleInScroll } = await import(
+      '../../mindroom/threads/timelineScrollUtils'
+    );
 
     const anchor = { getBoundingClientRect: () => ({ top: 500 }) } as Element;
     const scroll = { getBoundingClientRect: () => ({ bottom: 450 }) } as Element;
@@ -842,7 +848,9 @@ describe('RoomTimeline', () => {
   });
 
         it('isAnchorVisibleInScroll returns false when anchor is below scroll bounds plus margin', async () => {
-    const { isAnchorVisibleInScroll } = await import('./RoomTimeline');
+    const { isAnchorVisibleInScroll } = await import(
+      '../../mindroom/threads/timelineScrollUtils'
+    );
 
     const anchor = { getBoundingClientRect: () => ({ top: 600 }) } as Element;
     const scroll = { getBoundingClientRect: () => ({ bottom: 450 }) } as Element;
@@ -850,7 +858,9 @@ describe('RoomTimeline', () => {
         });
 
   it('captures the first visible thread message as the prepend scroll anchor', async () => {
-    const { captureThreadPrependScrollAnchor } = await import('./timelineScrollUtils');
+    const { captureThreadPrependScrollAnchor } = await import(
+      '../../mindroom/threads/timelineScrollUtils'
+    );
 
     const aboveViewport = {
       getAttribute: vi.fn().mockReturnValue('$above'),
@@ -882,7 +892,9 @@ describe('RoomTimeline', () => {
   });
 
   it('restores the captured thread prepend anchor position after older messages are prepended', async () => {
-    const { restoreThreadPrependScrollAnchor } = await import('./timelineScrollUtils');
+    const { restoreThreadPrependScrollAnchor } = await import(
+      '../../mindroom/threads/timelineScrollUtils'
+    );
 
     const anchor = {
       getAttribute: vi.fn().mockReturnValue('$anchor'),

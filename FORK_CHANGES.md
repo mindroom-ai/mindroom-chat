@@ -1054,6 +1054,14 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 57 / Phase 6 room-focus scroll helper ownership (2026-04-24):
+  - moved room-focus retry math, focus scroll option selection, resize-observer recenter setup, and bottom-anchor visibility recovery into `src/app/mindroom/threads/timelineScrollUtils.ts`.
+  - `RoomTimeline` still executes route-specific DOM effects, but no longer owns those reusable scroll/focus policies.
+  - validation:
+    - focused Vitest passes for `timelineScrollUtils.test.ts`, `RoomTimeline.permalink-refresh.test.ts`, `RoomTimeline.navigation.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

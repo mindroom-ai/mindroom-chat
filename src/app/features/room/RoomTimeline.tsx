@@ -238,8 +238,14 @@ import {
 } from '../../mindroom/threads/eventRepository';
 import {
   getEventElementById,
+  getRoomFocusScrollOptions,
+  getRoomFocusScrollToItemOptions,
+  isAnchorVisibleInScroll,
   isScrollNearBottom,
   isTimelineAtLiveEnd,
+  ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS,
+  ROOM_FOCUS_OBSERVER_IDLE_MS,
+  setupFocusObserver,
   shouldAutoScrollRoomOnLiveEvent,
   shouldAutoScrollThreadOnLiveEvent,
 } from '../../mindroom/threads/timelineScrollUtils';
@@ -536,97 +542,9 @@ type RoomTimelineProps = {
   editor: Editor;
 };
 
-const ROOM_FOCUS_SCROLL_RETRY_MAX_ATTEMPTS = 10;
-const ROOM_FOCUS_OBSERVER_IDLE_MS = 200;
-const ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS = 2000;
-const ROOM_FOCUS_NEAR_START_THRESHOLD = 5;
-const ROOM_FOCUS_NEAR_END_THRESHOLD = 5;
-const ROOM_FOCUS_START_MARGIN_PX = 32;
-const ROOM_FOCUS_END_MARGIN_PX = 32;
-
-type RoomFocusRetry = {
-  eventId: string;
-  attempts: number;
-};
-
 type PendingRoomFocus = {
   eventId: string;
 };
-
-export const getNextRoomFocusRetry = ({
-  focusEventId,
-  pendingRetry,
-  scrolled,
-  targetFound,
-}: {
-  focusEventId: string | undefined;
-  pendingRetry: RoomFocusRetry | undefined;
-  scrolled: boolean;
-  targetFound: boolean;
-}): RoomFocusRetry | undefined => {
-  if (!focusEventId || targetFound || !scrolled) {
-    return undefined;
-  }
-
-  const attempts = pendingRetry?.eventId === focusEventId ? pendingRetry.attempts + 1 : 1;
-
-  if (attempts > ROOM_FOCUS_SCROLL_RETRY_MAX_ATTEMPTS) {
-    return undefined;
-  }
-
-  return {
-    eventId: focusEventId,
-    attempts,
-  };
-};
-
-export const isContinuingRoomFocusRetry = (
-  focusEventId: string | undefined,
-  pendingRetry: RoomFocusRetry | undefined
-): boolean => !!focusEventId && pendingRetry?.eventId === focusEventId;
-
-export const isRoomFocusNearTimelineStart = (
-  focusIndex: number,
-  threshold = ROOM_FOCUS_NEAR_START_THRESHOLD
-): boolean => focusIndex < threshold;
-
-export const isRoomFocusNearTimelineEnd = (
-  focusIndex: number,
-  itemCount: number,
-  threshold = ROOM_FOCUS_NEAR_END_THRESHOLD
-): boolean => itemCount - focusIndex <= threshold;
-
-export const getRoomFocusScrollOptions = (focusIndex: number, itemCount: number) => {
-  const nearStart = isRoomFocusNearTimelineStart(focusIndex);
-  const nearEnd = isRoomFocusNearTimelineEnd(focusIndex, itemCount);
-
-  if (nearStart) {
-    return {
-      behavior: 'instant' as const,
-      align: 'start' as const,
-      offset: ROOM_FOCUS_START_MARGIN_PX,
-    };
-  }
-
-  if (nearEnd) {
-    return {
-      behavior: 'instant' as const,
-      align: 'end' as const,
-      offset: -ROOM_FOCUS_END_MARGIN_PX,
-    };
-  }
-
-  return {
-    behavior: 'instant' as const,
-    align: 'center' as const,
-    offset: undefined,
-  };
-};
-
-export const getRoomFocusScrollToItemOptions = (focusIndex: number, itemCount: number) => ({
-  ...getRoomFocusScrollOptions(focusIndex, itemCount),
-  stopInView: false,
-});
 
 const DIRECT_ROOM_TIMELINE_FILTER_STATE: ThreadFilterState = {
   resolved: 'any',
@@ -639,59 +557,6 @@ const DIRECT_ROOM_TIMELINE_FILTER_STATE: ThreadFilterState = {
   tags: new Map(),
   searchQuery: '',
   statusMode: 'and',
-};
-
-export const setupFocusObserver = (opts: {
-  scrollContainer: HTMLElement;
-  target: HTMLElement;
-  onRecenter: () => void;
-  onDone: () => void;
-  idleMs?: number;
-  hardMs?: number;
-}): (() => void) => {
-  if (typeof ResizeObserver === 'undefined') {
-    opts.onDone();
-    return () => undefined;
-  }
-
-  let idleTimer: ReturnType<typeof setTimeout> | undefined;
-  let hardTimer: ReturnType<typeof setTimeout> | undefined;
-  let rafId: number | undefined;
-  let done = false;
-
-  let ro: ResizeObserver | undefined;
-
-  const finish = () => {
-    if (done) return;
-    done = true;
-    ro?.disconnect();
-    if (idleTimer) clearTimeout(idleTimer);
-    if (hardTimer) clearTimeout(hardTimer);
-    if (rafId !== undefined) cancelAnimationFrame(rafId);
-    opts.onDone();
-  };
-
-  const scheduleRecenter = () => {
-    if (done) return;
-    if (rafId !== undefined) cancelAnimationFrame(rafId);
-    rafId = requestAnimationFrame(() => {
-      opts.onRecenter();
-      if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = setTimeout(finish, opts.idleMs ?? ROOM_FOCUS_OBSERVER_IDLE_MS);
-    });
-  };
-
-  ro = new ResizeObserver(scheduleRecenter);
-  ro.observe(opts.target);
-  ro.observe(opts.scrollContainer);
-
-  idleTimer = setTimeout(finish, opts.idleMs ?? ROOM_FOCUS_OBSERVER_IDLE_MS);
-  hardTimer = setTimeout(() => {
-    opts.onRecenter();
-    finish();
-  }, opts.hardMs ?? ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS);
-
-  return finish;
 };
 
 const isCollapsibleTextMessageEvent = (mEvent: MatrixEvent): boolean =>
@@ -815,16 +680,6 @@ export const getCollapsibleMessageMeasurementKey = (
 
 export const consumeLiveExpandOnceId = (liveExpandOnceIds: Set<string>, mEventId: string) => {
   liveExpandOnceIds.delete(mEventId);
-};
-
-export const isAnchorVisibleInScroll = (
-  anchor: Element,
-  scroll: Element,
-  marginPx = 100
-): boolean => {
-  const anchorRect = anchor.getBoundingClientRect();
-  const scrollRect = scroll.getBoundingClientRect();
-  return anchorRect.top <= scrollRect.bottom + marginPx;
 };
 
 const OVERVIEW_THREAD_METADATA_CACHE_LIMIT = 64;
