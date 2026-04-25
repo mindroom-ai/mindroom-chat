@@ -18,19 +18,19 @@ import {
   shouldUseLightweightSearchResultBody,
 } from './searchResultPreview';
 
-type SearchResultBodyProps = {
+type MindroomSearchResultBodyProps = {
   roomId: string;
   event: IEventWithRoomId;
   displayName: string;
   highlights: string[];
 };
 
-export function SearchResultBody({
+export function MindroomSearchResultBody({
   roomId,
   event,
   displayName,
   highlights,
-}: SearchResultBodyProps) {
+}: MindroomSearchResultBodyProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const redactedBecause = event.unsigned?.redacted_because;

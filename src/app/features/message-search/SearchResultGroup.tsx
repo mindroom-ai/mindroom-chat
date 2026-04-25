@@ -11,7 +11,7 @@ import { SequenceCard } from '../../components/sequence-card';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import colorMXID from '../../../util/colorMXID';
 import { getSearchResultOpenTarget } from './searchResultOpenTarget';
-import { SearchResultBody } from './SearchResultBody';
+import { MindroomSearchResultBody } from '../../mindroom/message-search/MindroomSearchResultBody';
 import { UserAvatar } from '../../components/user-avatar';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 
@@ -170,7 +170,7 @@ export function SearchResultItemCard({
             Reply context hidden in search results. Open the message for full thread context.
           </Text>
         )}
-        <SearchResultBody
+        <MindroomSearchResultBody
           roomId={room.roomId}
           event={event}
           displayName={displayName}

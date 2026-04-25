@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ROOM_THREAD_EXIT_TARGET_STATE_KEY,
   setRoomThreadExitTargetForHistoryState,
-} from '../../mindroom/threads/roomNavigateState';
+} from '../roomNavigateState';
 
 type MockThreadContextBannerProps = {
   onExitThread?: () => void;
@@ -149,95 +149,95 @@ vi.mock('is-hotkey', () => ({
   isKeyHotkey: () => false,
 }));
 
-vi.mock('../../hooks/useStateEvent', () => ({
+vi.mock('../../../hooks/useStateEvent', () => ({
   useStateEvent: () => undefined,
 }));
 
-vi.mock('../../hooks/usePowerLevels', () => ({
+vi.mock('../../../hooks/usePowerLevels', () => ({
   usePowerLevelsContext: () => ({}),
 }));
 
-vi.mock('../../hooks/useMatrixClient', () => ({
+vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getHomeserverUrl: () => 'https://mindroom.chat',
     getSafeUserId: () => '@alice:example.org',
   }),
 }));
 
-vi.mock('../../components/editor', () => ({
+vi.mock('../../../components/editor', () => ({
   useEditor: () => ({}),
 }));
 
-vi.mock('./RoomInputPlaceholder', () => ({
+vi.mock('../../../features/room/RoomInputPlaceholder', () => ({
   RoomInputPlaceholder: passthrough,
 }));
 
-vi.mock('./RoomTimeline', () => ({
+vi.mock('../../../features/room/RoomTimeline', () => ({
   RoomTimeline: roomTimelineType,
 }));
 
-vi.mock('./RoomViewTyping', () => ({
+vi.mock('../../../features/room/RoomViewTyping', () => ({
   RoomViewTyping: passthrough,
 }));
 
-vi.mock('./RoomTombstone', () => ({
+vi.mock('../../../features/room/RoomTombstone', () => ({
   RoomTombstone: passthrough,
 }));
 
-vi.mock('./RoomInput', () => ({
+vi.mock('../../../features/room/RoomInput', () => ({
   RoomInput: passthrough,
 }));
 
-vi.mock('./RoomViewFollowing', () => ({
+vi.mock('../../../features/room/RoomViewFollowing', () => ({
   RoomViewFollowing: passthrough,
   RoomViewFollowingPlaceholder: passthrough,
 }));
 
-vi.mock('../../components/page', () => ({
+vi.mock('../../../components/page', () => ({
   Page: React.forwardRef<HTMLDivElement, MockPageProps>((props, ref) => {
     pageState.props = props;
     return React.createElement('div', { ...props, ref });
   }),
 }));
 
-vi.mock('./RoomViewHeader', () => ({
+vi.mock('../../../features/room/RoomViewHeader', () => ({
   RoomViewHeader: passthrough,
 }));
 
-vi.mock('../../mindroom/threads/ThreadContextBanner', () => ({
+vi.mock('../ThreadContextBanner', () => ({
   ThreadContextBanner: (props: MockThreadContextBannerProps) => {
     threadContextBannerState.props = props;
     return React.createElement('div');
   },
 }));
 
-vi.mock('../../hooks/useKeyDown', () => ({
+vi.mock('../../../hooks/useKeyDown', () => ({
   useKeyDown: vi.fn(),
 }));
 
-vi.mock('../../utils/dom', () => ({
+vi.mock('../../../utils/dom', () => ({
   editableActiveElement: () => false,
 }));
 
-vi.mock('../../state/settings', () => ({
+vi.mock('../../../state/settings', () => ({
   settingsAtom: {},
 }));
 
-vi.mock('../../state/hooks/settings', () => ({
+vi.mock('../../../state/hooks/settings', () => ({
   useSetting: () => [false],
 }));
 
-vi.mock('../../hooks/useRoomPermissions', () => ({
+vi.mock('../../../hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({
     event: () => true,
   }),
 }));
 
-vi.mock('../../hooks/useRoomCreators', () => ({
+vi.mock('../../../hooks/useRoomCreators', () => ({
   useRoomCreators: () => [],
 }));
 
-vi.mock('../../hooks/useRoomNavigate', () => ({
+vi.mock('../../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
     navigatePath: navigatePathMock,
     navigateRoomFocusEvent: navigateRoomFocusEventMock,
@@ -245,15 +245,15 @@ vi.mock('../../hooks/useRoomNavigate', () => ({
   }),
 }));
 
-vi.mock('../../mindroom/native/nativeSso', () => ({
+vi.mock('../../native/nativeSso', () => ({
   isNativeIOS: isNativeIOSMock,
 }));
 
-vi.mock('../../mindroom/native/useEdgeSwipeBack', () => ({
+vi.mock('../../native/useEdgeSwipeBack', () => ({
   useEdgeSwipeBack: vi.fn(),
 }));
 
-vi.mock('../../mindroom/threads/useRoomThreadTags', () => ({
+vi.mock('../useRoomThreadTags', () => ({
   useThreadResolution: () => ({ isResolved: false, isPending: false, tags: null }),
   useToggleThreadResolution: () => ({
     canToggle: false,
@@ -263,18 +263,18 @@ vi.mock('../../mindroom/threads/useRoomThreadTags', () => ({
   }),
 }));
 
-vi.mock('../../mindroom/threads/useThreadRootEvent', () => ({
+vi.mock('../useThreadRootEvent', () => ({
   useThreadRootEvent: useThreadRootEventMock,
 }));
 
-vi.mock('../../mindroom/threads/useRoomThreadSummaryState', () => ({
+vi.mock('../useRoomThreadSummaryState', () => ({
   useRoomThreadSummaryState: () => ({
     summaryMap: new Map(),
     storeThreadSummary: vi.fn(),
   }),
 }));
 
-vi.mock('../../mindroom/recent-threads/recentThreads', () => ({
+vi.mock('../../recent-threads/recentThreads', () => ({
   bumpRecentThread: bumpRecentThreadMock,
 }));
 
@@ -334,7 +334,7 @@ describe('RoomView', () => {
   });
 
   it('persists the thread filter state across thread enter/exit', async () => {
-    const { RoomView } = await import('./RoomView');
+    const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
 
@@ -365,7 +365,7 @@ describe('RoomView', () => {
   });
 
   it('keeps thread filter state isolated per room when switching rooms', async () => {
-    const { RoomView } = await import('./RoomView');
+    const { RoomView } = await import('../../../features/room/RoomView');
     const roomA = makeRoom(nextRoomId('room-a'));
     const roomB = makeRoom(nextRoomId('room-b'));
     let renderer: ReturnType<typeof create> | undefined;
@@ -414,7 +414,7 @@ describe('RoomView', () => {
   });
 
   it('persists the freeze state across thread enter/exit in the same room', async () => {
-    const { RoomView } = await import('./RoomView');
+    const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
 
@@ -442,7 +442,7 @@ describe('RoomView', () => {
   });
 
   it('resets the freeze state when switching rooms', async () => {
-    const { RoomView } = await import('./RoomView');
+    const { RoomView } = await import('../../../features/room/RoomView');
     const roomA = makeRoom(nextRoomId('room-a'));
     const roomB = makeRoom(nextRoomId('room-b'));
     let renderer: ReturnType<typeof create> | undefined;
@@ -465,7 +465,7 @@ describe('RoomView', () => {
   });
 
   it('clears the freeze state when sort cycles back to natural', async () => {
-    const { RoomView } = await import('./RoomView');
+    const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
 
@@ -493,7 +493,7 @@ describe('RoomView', () => {
   });
 
   it('resets all filters on onReset', async () => {
-    const { RoomView } = await import('./RoomView');
+    const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
 
@@ -527,7 +527,7 @@ describe('RoomView', () => {
       },
     };
 
-    const { RoomView } = await import('./RoomView');
+    const { RoomView } = await import('../../../features/room/RoomView');
 
     await act(async () => {
       create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
@@ -553,7 +553,7 @@ describe('RoomView', () => {
       threadId: '$thread',
     });
 
-    const { RoomView } = await import('./RoomView');
+    const { RoomView } = await import('../../../features/room/RoomView');
 
     await act(async () => {
       create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
@@ -582,7 +582,7 @@ describe('RoomView', () => {
       useHistoryBack: false,
     });
 
-    const { RoomView } = await import('./RoomView');
+    const { RoomView } = await import('../../../features/room/RoomView');
 
     await act(async () => {
       create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
@@ -602,7 +602,7 @@ describe('RoomView', () => {
   });
 
   it('falls back to the focused room event route for deep-linked threads', async () => {
-    const { RoomView } = await import('./RoomView');
+    const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom(nextRoomId('room-a'));
 
     await act(async () => {
@@ -624,7 +624,7 @@ describe('RoomView', () => {
   });
 
   it('renders the room page with the app-height lock style', async () => {
-    const { RoomView } = await import('./RoomView');
+    const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom('!room-a:example.org');
 
     await act(async () => {
@@ -635,7 +635,7 @@ describe('RoomView', () => {
   });
 
   it('canonicalizes resolved thread ids and passes them through the thread view', async () => {
-    const { RoomView } = await import('./RoomView');
+    const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom(nextRoomId('room-a'));
     useThreadRootEventMock.mockReturnValue('$confirmed-thread');
 
@@ -661,7 +661,7 @@ describe('RoomView', () => {
   });
 
   it('bumps the recent-thread list from the canonical open thread id', async () => {
-    const { RoomView } = await import('./RoomView');
+    const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom(nextRoomId('room-a'));
     useThreadRootEventMock.mockReturnValue('$confirmed-thread');
 

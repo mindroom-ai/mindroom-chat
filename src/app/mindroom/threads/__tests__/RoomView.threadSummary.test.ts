@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearThreadSummarySharedState } from '../../mindroom/threads/threadSummaryState';
+import { clearThreadSummarySharedState } from '../threadSummaryState';
 
 type MockThreadContextBannerProps = {
   onExitThread?: () => void;
@@ -86,109 +86,109 @@ vi.mock('is-hotkey', () => ({
   isKeyHotkey: () => false,
 }));
 
-vi.mock('../../hooks/useStateEvent', () => ({
+vi.mock('../../../hooks/useStateEvent', () => ({
   useStateEvent: () => undefined,
 }));
 
-vi.mock('../../hooks/usePowerLevels', () => ({
+vi.mock('../../../hooks/usePowerLevels', () => ({
   usePowerLevelsContext: () => ({}),
 }));
 
-vi.mock('../../hooks/useMatrixClient', () => ({
+vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getHomeserverUrl: () => 'https://mindroom.chat',
     getSafeUserId: () => '@alice:example.org',
   }),
 }));
 
-vi.mock('../../components/editor', () => ({
+vi.mock('../../../components/editor', () => ({
   useEditor: () => ({}),
 }));
 
-vi.mock('./RoomInputPlaceholder', () => ({
+vi.mock('../../../features/room/RoomInputPlaceholder', () => ({
   RoomInputPlaceholder: passthrough,
 }));
 
-vi.mock('./RoomTimeline', () => ({
+vi.mock('../../../features/room/RoomTimeline', () => ({
   RoomTimeline: (props: MockRoomTimelineProps) => {
     roomTimelineState.props = props;
     return React.createElement('div');
   },
 }));
 
-vi.mock('./RoomViewTyping', () => ({
+vi.mock('../../../features/room/RoomViewTyping', () => ({
   RoomViewTyping: passthrough,
 }));
 
-vi.mock('./RoomTombstone', () => ({
+vi.mock('../../../features/room/RoomTombstone', () => ({
   RoomTombstone: passthrough,
 }));
 
-vi.mock('./RoomInput', () => ({
+vi.mock('../../../features/room/RoomInput', () => ({
   RoomInput: passthrough,
 }));
 
-vi.mock('./RoomViewFollowing', () => ({
+vi.mock('../../../features/room/RoomViewFollowing', () => ({
   RoomViewFollowing: passthrough,
   RoomViewFollowingPlaceholder: passthrough,
 }));
 
-vi.mock('../../components/page', () => ({
+vi.mock('../../../components/page', () => ({
   Page: passthrough,
 }));
 
-vi.mock('./RoomViewHeader', () => ({
+vi.mock('../../../features/room/RoomViewHeader', () => ({
   RoomViewHeader: passthrough,
 }));
 
-vi.mock('../../mindroom/threads/ThreadContextBanner', () => ({
+vi.mock('../ThreadContextBanner', () => ({
   ThreadContextBanner: (props: MockThreadContextBannerProps) => {
     threadContextBannerState.props = props;
     return React.createElement('div');
   },
 }));
 
-vi.mock('../../hooks/useKeyDown', () => ({
+vi.mock('../../../hooks/useKeyDown', () => ({
   useKeyDown: vi.fn(),
 }));
 
-vi.mock('../../utils/dom', () => ({
+vi.mock('../../../utils/dom', () => ({
   editableActiveElement: () => false,
 }));
 
-vi.mock('../../state/settings', () => ({
+vi.mock('../../../state/settings', () => ({
   settingsAtom: {},
 }));
 
-vi.mock('../../state/hooks/settings', () => ({
+vi.mock('../../../state/hooks/settings', () => ({
   useSetting: () => [false],
 }));
 
-vi.mock('../../hooks/useRoomPermissions', () => ({
+vi.mock('../../../hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({
     event: () => true,
   }),
 }));
 
-vi.mock('../../hooks/useRoomCreators', () => ({
+vi.mock('../../../hooks/useRoomCreators', () => ({
   useRoomCreators: () => [],
 }));
 
-vi.mock('../../hooks/useRoomNavigate', () => ({
+vi.mock('../../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
     navigateRoomFocusEvent: vi.fn(),
   }),
 }));
 
-vi.mock('../../mindroom/native/useEdgeSwipeBack', () => ({
+vi.mock('../../native/useEdgeSwipeBack', () => ({
   useEdgeSwipeBack: vi.fn(),
 }));
 
-vi.mock('../../mindroom/threads/useThreadRootEvent', () => ({
+vi.mock('../useThreadRootEvent', () => ({
   useThreadRootEvent: (_room: unknown, threadId: string | undefined) => threadId,
 }));
 
-vi.mock('../../mindroom/threads/threadSummaryCache', () => ({
+vi.mock('../threadSummaryCache', () => ({
   loadCachedThreadSummaries: loadCachedThreadSummariesMock,
   saveCachedThreadSummary: saveCachedThreadSummaryMock,
 }));
@@ -223,7 +223,7 @@ describe('RoomView thread summary sharing', () => {
   });
 
   it('shows cached summary first and upgrades banner and room state when a newer live summary arrives', async () => {
-    const { RoomView } = await import('./RoomView');
+    const { RoomView } = await import('../../../features/room/RoomView');
     const room = {
       roomId: '!room:example.org',
       getThread: () => undefined,

@@ -2,7 +2,7 @@ import { IEventWithRoomId, MsgType, RelationType } from 'matrix-js-sdk';
 import { MessageEvent } from '../../../types/matrix/room';
 import {
   shouldUseMindroomLightweightSearchResultBody,
-} from '../../mindroom/messages/searchResultPolicy';
+} from '../messages/searchResultPolicy';
 import { parseBlockMD, parseInlineMD } from '../../plugins/markdown';
 
 const collapseWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();

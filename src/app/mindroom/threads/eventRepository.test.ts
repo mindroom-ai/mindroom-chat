@@ -15,7 +15,7 @@ import {
   serializeRoomCacheEvents,
   serializeThreadCacheEvents,
 } from './eventRepository';
-import { makeEvent, makeRoom } from '../../features/room/RoomTimeline.test.shared';
+import { makeEvent, makeRoom } from './test-utils/RoomTimeline.test.shared';
 
 describe('eventRepository cache serialization helpers', () => {
   it('adds replacement and redaction targets before cache serialization', () => {

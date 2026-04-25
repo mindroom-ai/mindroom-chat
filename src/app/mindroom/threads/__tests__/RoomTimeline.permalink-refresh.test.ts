@@ -21,14 +21,14 @@ import {
   threadLastActivityTsMapMock,
   threadResolutionMapMock,
   TimelineRefreshHarness,
-} from './RoomTimeline.test.shared';
+} from '../test-utils/RoomTimeline.test.shared';
 
 describe('RoomTimeline', () => {
 
     describe('permalink focus and timeline refresh', () => {
       describe('permalink targeting', () => {
   it('computes room-event focus against the active thread-filtered room list', async () => {
-    const { getRoomEventFocusTarget } = await import('../../mindroom/threads/threadRoomFocus');
+    const { getRoomEventFocusTarget } = await import('../threadRoomFocus');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const messageEvent = makeEvent('$message-1');
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
@@ -61,7 +61,7 @@ describe('RoomTimeline', () => {
   }, 10000);
 
   it('derives free-text search from the DSL query when no searchQuery override is passed', async () => {
-    const { getRoomEventFocusTarget } = await import('../../mindroom/threads/threadRoomFocus');
+    const { getRoomEventFocusTarget } = await import('../threadRoomFocus');
     const matchingThread = makeEvent('$thread-1', {
       isThreadRoot: true,
       content: { body: 'hello world' },
@@ -98,8 +98,8 @@ describe('RoomTimeline', () => {
   });
 
   it('computes room-event focus against the frozen overview order', async () => {
-    const { getRoomEventFocusTarget } = await import('../../mindroom/threads/threadRoomFocus');
-    const { createThreadSortControlSignature } = await import('../../mindroom/threads/roomThreadOverviewModel');
+    const { getRoomEventFocusTarget } = await import('../threadRoomFocus');
+    const { createThreadSortControlSignature } = await import('../roomThreadOverviewModel');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
     const thirdThread = makeEvent('$thread-3', { isThreadRoot: true });
@@ -143,8 +143,8 @@ describe('RoomTimeline', () => {
   });
 
   it('computes room-event focus against compact-only roots in the frozen compact order', async () => {
-    const { getRoomEventFocusTarget } = await import('../../mindroom/threads/threadRoomFocus');
-    const { createThreadSortControlSignature } = await import('../../mindroom/threads/roomThreadOverviewModel');
+    const { getRoomEventFocusTarget } = await import('../threadRoomFocus');
+    const { createThreadSortControlSignature } = await import('../roomThreadOverviewModel');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
     const compactOnlyThread = makeEvent('$thread-3', { isThreadRoot: true });
@@ -207,7 +207,7 @@ describe('RoomTimeline', () => {
   });
 
   it('derives a thread redirect target for room-overview thread permalinks', async () => {
-    const { getRoomEventThreadOpenTarget } = await import('../../mindroom/threads/roomDeepLink');
+    const { getRoomEventThreadOpenTarget } = await import('../roomDeepLink');
     const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
     const threadReply = makeEvent('$thread-reply', {
       threadRootId: threadRoot.getId(),
@@ -241,7 +241,7 @@ describe('RoomTimeline', () => {
   });
 
   it('redirects compact-room permalinks into thread view', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
     const room = makeRoom({
@@ -269,7 +269,7 @@ describe('RoomTimeline', () => {
   });
 
   it('keeps synthetic room-focus permalinks in compact room view', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
     const room = makeRoom({
@@ -294,7 +294,7 @@ describe('RoomTimeline', () => {
   });
 
   it('bypasses room overview filters for synthetic room-focus routes when the focused root is hidden', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
     const room = makeRoom({
@@ -327,7 +327,7 @@ describe('RoomTimeline', () => {
   });
 
   it('keeps synthetic room-focus permalinks in room-overview order for visible roots in natural mode', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const filler = makeEvent('$filler');
     const firstThreadRoot = makeEvent('$thread-root-1', { isThreadRoot: true });
@@ -368,7 +368,7 @@ describe('RoomTimeline', () => {
   });
 
   it('lets synthetic room-focus routes switch between expanded and compact views', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
     const room = makeRoom({
@@ -422,7 +422,7 @@ describe('RoomTimeline', () => {
 
   it('uses stopInView=false for the explicit room focus scroll', async () => {
     const { getRoomFocusScrollToItemOptions } = await import(
-      '../../mindroom/threads/timelineScrollUtils'
+      '../timelineScrollUtils'
     );
 
     expect(getRoomFocusScrollToItemOptions(10, 100)).toEqual({
@@ -435,7 +435,7 @@ describe('RoomTimeline', () => {
 
   it('switches room focus to start alignment near the loaded room start', async () => {
     const { getRoomFocusScrollOptions, getRoomFocusScrollToItemOptions } = await import(
-      '../../mindroom/threads/timelineScrollUtils'
+      '../timelineScrollUtils'
     );
 
     expect(getRoomFocusScrollOptions(0, 100)).toEqual({
@@ -461,7 +461,7 @@ describe('RoomTimeline', () => {
       describe('refresh and jump-to-latest', () => {
         it('switches room focus to end alignment near the loaded room end', async () => {
     const { getRoomFocusScrollOptions, getRoomFocusScrollToItemOptions } = await import(
-      '../../mindroom/threads/timelineScrollUtils'
+      '../timelineScrollUtils'
     );
 
     expect(getRoomFocusScrollOptions(8, 12)).toEqual({
@@ -478,7 +478,7 @@ describe('RoomTimeline', () => {
   });
 
   it('recenters focus during observed resize activity and finishes after the idle window', async () => {
-    const { setupFocusObserver } = await import('../../mindroom/threads/timelineScrollUtils');
+    const { setupFocusObserver } = await import('../timelineScrollUtils');
     vi.useFakeTimers();
 
     try {
@@ -557,7 +557,7 @@ describe('RoomTimeline', () => {
 
   it('cancels a pending room focus retry when the focused event changes', async () => {
     const { isContinuingRoomFocusRetry } = await import(
-      '../../mindroom/threads/timelineScrollUtils'
+      '../timelineScrollUtils'
     );
 
     expect(
@@ -576,7 +576,7 @@ describe('RoomTimeline', () => {
   });
 
   it('does not focus room events hidden by the active filter', async () => {
-    const { getRoomEventFocusTarget } = await import('../../mindroom/threads/threadRoomFocus');
+    const { getRoomEventFocusTarget } = await import('../threadRoomFocus');
     const unresolvedThread = makeEvent('$thread-unresolved', { isThreadRoot: true });
     const resolvedThread = makeEvent('$thread-resolved', { isThreadRoot: true });
     const room = makeRoom();
@@ -609,7 +609,7 @@ describe('RoomTimeline', () => {
   });
 
   it('coalesces queued refreshes and reruns after in-flight settles', async () => {
-    const { useThreadAwareTimelineRefresh } = await import('../../mindroom/threads/useThreadAwareTimelineRefresh');
+    const { useThreadAwareTimelineRefresh } = await import('../useThreadAwareTimelineRefresh');
     setThreadAwareTimelineRefreshHook(useThreadAwareTimelineRefresh);
     const threadId = '$thread';
     const room = makeRoom();
@@ -675,7 +675,7 @@ describe('RoomTimeline', () => {
   });
 
   it('cancels a queued refresh when the thread closes mid-flight', async () => {
-    const { useThreadAwareTimelineRefresh } = await import('../../mindroom/threads/useThreadAwareTimelineRefresh');
+    const { useThreadAwareTimelineRefresh } = await import('../useThreadAwareTimelineRefresh');
     setThreadAwareTimelineRefreshHook(useThreadAwareTimelineRefresh);
     const threadId = '$thread';
     const room = makeRoom();
@@ -754,7 +754,7 @@ describe('RoomTimeline', () => {
 
   it('shows Jump to Latest when timeline is not at live end (non-live navigation)', async () => {
     isTimelineAtLiveEndMock.mockReturnValue(false);
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const room = makeRoom({ liveEvents: [makeEvent('$1')] });
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer: ReturnType<typeof create> | undefined;
@@ -785,7 +785,7 @@ describe('RoomTimeline', () => {
 
   it('recovery effect hides Jump to Latest when anchor is visible and timelineAtLiveEnd flips to true', async () => {
     isTimelineAtLiveEndMock.mockReturnValue(false);
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const room = makeRoom({ liveEvents: [makeEvent('$1')] });
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer: ReturnType<typeof create> | undefined;
@@ -839,7 +839,7 @@ describe('RoomTimeline', () => {
 
     it('isAnchorVisibleInScroll returns true when anchor is within scroll bounds plus margin', async () => {
     const { isAnchorVisibleInScroll } = await import(
-      '../../mindroom/threads/timelineScrollUtils'
+      '../timelineScrollUtils'
     );
 
     const anchor = { getBoundingClientRect: () => ({ top: 500 }) } as Element;
@@ -849,7 +849,7 @@ describe('RoomTimeline', () => {
 
         it('isAnchorVisibleInScroll returns false when anchor is below scroll bounds plus margin', async () => {
     const { isAnchorVisibleInScroll } = await import(
-      '../../mindroom/threads/timelineScrollUtils'
+      '../timelineScrollUtils'
     );
 
     const anchor = { getBoundingClientRect: () => ({ top: 600 }) } as Element;
@@ -859,7 +859,7 @@ describe('RoomTimeline', () => {
 
   it('captures the first visible thread message as the prepend scroll anchor', async () => {
     const { captureThreadPrependScrollAnchor } = await import(
-      '../../mindroom/threads/timelineScrollUtils'
+      '../timelineScrollUtils'
     );
 
     const aboveViewport = {
@@ -893,7 +893,7 @@ describe('RoomTimeline', () => {
 
   it('restores the captured thread prepend anchor position after older messages are prepended', async () => {
     const { restoreThreadPrependScrollAnchor } = await import(
-      '../../mindroom/threads/timelineScrollUtils'
+      '../timelineScrollUtils'
     );
 
     const anchor = {

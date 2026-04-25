@@ -3,13 +3,13 @@ import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RelationType } from 'matrix-js-sdk';
-import { RoomInput } from './RoomInput';
+import { RoomInput } from '../../../features/room/RoomInput';
 import {
   IReplyDraft,
   roomIdToReplyDraftAtomFamily,
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
-} from '../../state/room/roomInputDrafts';
+} from '../../../state/room/roomInputDrafts';
 
 const ROOM_ID = '!room:example.org';
 
@@ -88,7 +88,7 @@ vi.mock('folds', () => {
   };
 });
 
-vi.mock('../../components/editor', () => ({
+vi.mock('../../../components/editor', () => ({
   AUTOCOMPLETE_PREFIXES: [],
   AutocompletePrefix: {},
   AutocompleteQuery: {},
@@ -123,12 +123,12 @@ vi.mock('../../components/editor', () => ({
   trimCustomHtml: (value: string) => value,
 }));
 
-vi.mock('../../components/emoji-board', () => ({
+vi.mock('../../../components/emoji-board', () => ({
   EmojiBoard: () => null,
   EmojiBoardTab: {},
 }));
 
-vi.mock('../../components/UseStateProvider', () => ({
+vi.mock('../../../components/UseStateProvider', () => ({
   UseStateProvider: ({
     children,
     initial,
@@ -138,11 +138,11 @@ vi.mock('../../components/UseStateProvider', () => ({
   }) => children(initial, vi.fn()),
 }));
 
-vi.mock('../../components/upload-card', () => ({
+vi.mock('../../../components/upload-card', () => ({
   UploadCardRenderer: () => null,
 }));
 
-vi.mock('../../components/upload-board', () => ({
+vi.mock('../../../components/upload-board', () => ({
   UploadBoard: ({
     header,
     children,
@@ -155,90 +155,90 @@ vi.mock('../../components/upload-board', () => ({
   UploadBoardHeader: () => React.createElement('div'),
 }));
 
-vi.mock('../../hooks/useMatrixClient', () => ({
+vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => mxState,
 }));
 
-vi.mock('../../hooks/useTypingStatusUpdater', () => ({
+vi.mock('../../../hooks/useTypingStatusUpdater', () => ({
   useTypingStatusUpdater: () => vi.fn(),
 }));
 
-vi.mock('../../hooks/useFilePicker', () => ({
+vi.mock('../../../hooks/useFilePicker', () => ({
   useFilePicker: () => vi.fn(),
 }));
 
-vi.mock('../../hooks/useFilePasteHandler', () => ({
+vi.mock('../../../hooks/useFilePasteHandler', () => ({
   useFilePasteHandler: () => vi.fn(),
 }));
 
-vi.mock('../../hooks/useFileDrop', () => ({
+vi.mock('../../../hooks/useFileDrop', () => ({
   useFileDropZone: () => false,
 }));
 
-vi.mock('../../state/hooks/settings', () => ({
+vi.mock('../../../state/hooks/settings', () => ({
   useSetting: () => [false, vi.fn()],
 }));
 
-vi.mock('../../state/settings', () => ({
+vi.mock('../../../state/settings', () => ({
   settingsAtom: {},
 }));
 
-vi.mock('../../utils/dom', () => ({
+vi.mock('../../../utils/dom', () => ({
   getImageUrlBlob: vi.fn(),
   loadImageElement: vi.fn(),
   pauseAllMediaElements: vi.fn(),
 }));
 
-vi.mock('../../hooks/useMediaAuthentication', () => ({
+vi.mock('../../../hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
 
-vi.mock('../../hooks/useImagePackRooms', () => ({
+vi.mock('../../../hooks/useImagePackRooms', () => ({
   useImagePackRooms: () => [],
 }));
 
-vi.mock('../../hooks/usePowerLevels', () => ({
+vi.mock('../../../hooks/usePowerLevels', () => ({
   usePowerLevelsContext: () => ({}),
 }));
 
-vi.mock('../../hooks/useRoom', () => ({
+vi.mock('../../../hooks/useRoom', () => ({
   useIsDirectRoom: () => false,
 }));
 
-vi.mock('../../hooks/useMemberPowerTag', () => ({
+vi.mock('../../../hooks/useMemberPowerTag', () => ({
   useAccessiblePowerTagColors: () => new Map(),
   useGetMemberPowerTag: () => () => undefined,
 }));
 
-vi.mock('../../hooks/useRoomCreators', () => ({
+vi.mock('../../../hooks/useRoomCreators', () => ({
   useRoomCreators: () => [],
 }));
 
-vi.mock('../../hooks/useTheme', () => ({
+vi.mock('../../../hooks/useTheme', () => ({
   useTheme: () => ({ kind: 'light' }),
 }));
 
-vi.mock('../../hooks/useRoomCreatorsTag', () => ({
+vi.mock('../../../hooks/useRoomCreatorsTag', () => ({
   useRoomCreatorsTag: () => undefined,
 }));
 
-vi.mock('../../hooks/usePowerLevelTags', () => ({
+vi.mock('../../../hooks/usePowerLevelTags', () => ({
   usePowerLevelTags: () => [],
 }));
 
-vi.mock('../../hooks/useComposingCheck', () => ({
+vi.mock('../../../hooks/useComposingCheck', () => ({
   useComposingCheck: () => () => false,
 }));
 
-vi.mock('../../hooks/useElementSizeObserver', () => ({
+vi.mock('../../../hooks/useElementSizeObserver', () => ({
   useElementSizeObserver: vi.fn(),
 }));
 
-vi.mock('./CommandAutocomplete', () => ({
+vi.mock('../../../features/room/CommandAutocomplete', () => ({
   CommandAutocomplete: () => null,
 }));
 
-vi.mock('../../hooks/useCommands', () => ({
+vi.mock('../../../hooks/useCommands', () => ({
   Command: {
     Me: 'me',
     Notice: 'notice',
@@ -252,10 +252,10 @@ vi.mock('../../hooks/useCommands', () => ({
   useCommands: () => ({}),
 }));
 
-vi.mock('../../mindroom/room-input/RoomInputMindroomExtensions', async () => {
+vi.mock('../RoomInputMindroomExtensions', async () => {
   const { useRoomInputSendSessionController } = await vi.importActual<
-    typeof import('../../mindroom/threads/useRoomInputSendSessionController')
-  >('../../mindroom/threads/useRoomInputSendSessionController');
+    typeof import('../../threads/useRoomInputSendSessionController')
+  >('../../threads/useRoomInputSendSessionController');
 
   return {
     getMindroomRoomInputAutocompleteQuery: () => undefined,
@@ -273,16 +273,16 @@ vi.mock('../../mindroom/room-input/RoomInputMindroomExtensions', async () => {
   };
 });
 
-vi.mock('../../components/message', () => ({
+vi.mock('../../../components/message', () => ({
   ReplyLayout: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('div', null, children),
 }));
 
-vi.mock('../../mindroom/threads/ThreadIndicator', () => ({
+vi.mock('../../threads/ThreadIndicator', () => ({
   ThreadIndicator: () => React.createElement('div'),
 }));
 
-vi.mock('../../utils/user-agent', () => ({
+vi.mock('../../../utils/user-agent', () => ({
   mobileOrTablet: () => false,
 }));
 

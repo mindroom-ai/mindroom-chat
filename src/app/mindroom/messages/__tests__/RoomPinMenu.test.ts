@@ -111,7 +111,7 @@ vi.mock('../../../components/sequence-card', () => ({
     React.createElement('div', props, children),
 }));
 
-vi.mock('./RoomPinMenu.css', () => ({
+vi.mock('../../../features/room/room-pin-menu/RoomPinMenu.css', () => ({
   PinMenu: 'PinMenu',
   PinMenuHeader: 'PinMenuHeader',
   PinMenuContent: 'PinMenuContent',
@@ -219,7 +219,7 @@ vi.mock('../../../styles/CustomHtml.css', () => ({
   Code: 'Code',
 }));
 
-vi.mock('../message', () => ({
+vi.mock('../../../features/room/message', () => ({
   EncryptedContent: ({ children }: { children: () => React.ReactNode }) =>
     React.createElement(React.Fragment, null, children()),
 }));
@@ -310,7 +310,7 @@ vi.mock('../../../hooks/useRoomPinnedEvents', () => ({
   useRoomPinnedEvents: () => new Set(['$approval']),
 }));
 
-vi.mock('../../../mindroom/threads/useRoomEvent', () => ({
+vi.mock('../../threads/useRoomEvent', () => ({
   useRoomEvent: () => pinnedEventMock,
 }));
 
@@ -318,7 +318,7 @@ vi.mock('../../../hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
 
-import { RoomPinMenu } from './RoomPinMenu';
+import { RoomPinMenu } from '../../../features/room/room-pin-menu/RoomPinMenu';
 
 describe('RoomPinMenu', () => {
   let renderer: ReactTestRenderer | undefined;

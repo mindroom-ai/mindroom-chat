@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { makeEvent, makeRoom } from '../../features/room/RoomTimeline.test.shared';
+import { makeEvent, makeRoom } from './test-utils/RoomTimeline.test.shared';
 import { runThreadOpenSdkBootstrap } from './threadOpenSdkBootstrap';
 
 describe('runThreadOpenSdkBootstrap', () => {

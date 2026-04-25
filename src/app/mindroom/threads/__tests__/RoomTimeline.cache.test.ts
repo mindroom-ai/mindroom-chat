@@ -2,11 +2,11 @@ import React, { createRef } from 'react';
 import { Direction, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import type { ThreadRecord } from '../../mindroom/threads/types';
+import type { ThreadRecord } from '../types';
 import {
   getThreadOpenSeedSnapshot,
   saveThreadOpenSeedSnapshot,
-} from '../../mindroom/threads/threadOpenSeedCache';
+} from '../threadOpenSeedCache';
 import {
   compactPlaceholderType,
   create,
@@ -42,7 +42,7 @@ import {
   threadResolutionMapMock,
   virtualPaginatorState,
   waitForCondition,
-} from './RoomTimeline.test.shared';
+} from '../test-utils/RoomTimeline.test.shared';
 
 const makeThreadFilterRecord = (
   threadRootId: string,
@@ -89,7 +89,7 @@ const makeThreadFilterRecord = (
 describe('RoomTimeline', () => {
   describe('cache and overview', () => {
     it('renders without thread render hook initialization errors', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const room = makeRoom();
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
@@ -104,7 +104,7 @@ describe('RoomTimeline', () => {
 
   it('only hydrates the latest room cache slice when it is newer than the loaded room tail', async () => {
     const { shouldHydrateLatestRoomCache } = await import(
-      '../../mindroom/threads/eventRepository'
+      '../eventRepository'
     );
 
     expect(
@@ -120,7 +120,7 @@ describe('RoomTimeline', () => {
 
   it('deduplicates cached room hydration events against already loaded SDK events', async () => {
     const { filterLatestRoomCacheHydrationEvents } = await import(
-      '../../mindroom/threads/eventRepository'
+      '../eventRepository'
     );
 
     expect(
@@ -133,7 +133,7 @@ describe('RoomTimeline', () => {
 
   it('shows zero visible replies when a loaded thread only contains hidden threaded metadata relations', async () => {
     const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } = await import(
-      '../../mindroom/threads/threadBadgeViewModel'
+      '../threadBadgeViewModel'
     );
     const rootEvent = makeEvent('$thread-root', {
       isThreadRoot: true,
@@ -186,7 +186,7 @@ describe('RoomTimeline', () => {
 
   it('preserves bundled thread counts when a thread root is visible before replies are loaded', async () => {
     const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } = await import(
-      '../../mindroom/threads/threadBadgeViewModel'
+      '../threadBadgeViewModel'
     );
     const rootEvent = makeEvent('$thread-root', {
       isThreadRoot: true,
@@ -218,8 +218,8 @@ describe('RoomTimeline', () => {
   });
 
   it('hydrates cached room events into the live timeline', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { hydrateCachedEvents } = await import('../../mindroom/threads/eventCacheEditUtils');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { hydrateCachedEvents } = await import('../eventCacheEditUtils');
     const room = makeRoom({
       liveEvents: [makeEvent('$loaded', { ts: 100 })],
     });
@@ -294,7 +294,7 @@ describe('RoomTimeline', () => {
   });
 
   it('logs room cache hydration failures instead of swallowing them', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const hydrationError = new Error('hydrate failed');
     const room = makeRoom({
       liveEvents: [makeEvent('$loaded', { ts: 100 })],
@@ -368,7 +368,7 @@ describe('RoomTimeline', () => {
   });
 
   it('preserves an explicit null backward token when hydrating cached room history', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const liveEvent = makeEvent('$live-event', { ts: 10 });
     const cachedEvent = makeCachedRoomEvent('$cached-event', 5);
     const liveTimeline = makeTimeline([liveEvent], {
@@ -408,7 +408,7 @@ describe('RoomTimeline', () => {
   });
 
   it('shows RoomIntro on room re-entry for a reused room object that already reached the top', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const liveEvent = makeEvent('$live-event', { ts: 10 });
     const liveTimeline = makeTimeline([liveEvent], {
       backwardToken: 'stale-back-token',
@@ -454,7 +454,7 @@ describe('RoomTimeline', () => {
   });
 
   it('falls back to the existing SDK backward token when cached room history has no beforeToken metadata', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const liveEvent = makeEvent('$live-event', { ts: 10 });
     const cachedEvent = makeCachedRoomEvent('$cached-event', 5);
     const liveTimeline = makeTimeline([liveEvent], {
@@ -493,7 +493,7 @@ describe('RoomTimeline', () => {
   });
 
   it('recovers a stale room backward token only when cache metadata proves the room start', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const liveEvent = makeEvent('$live-event', { ts: 10 });
     const liveTimeline = makeTimeline([liveEvent], {
       backwardToken: 'stale-back-token',
@@ -527,7 +527,7 @@ describe('RoomTimeline', () => {
   });
 
   it('keeps eager-preloading past fifty batches in thread-heavy rooms until the configured limit is reached', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     settingsState.paginationLimit = 60;
 
     const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -590,7 +590,7 @@ describe('RoomTimeline', () => {
   });
 
   it('uses cache ordering for same-timestamp earliest room events when resolving room-start state', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const sdkFirstEvent = makeEvent('$b-event', { ts: 10 });
     const cacheFirstEvent = makeEvent('$a-event', { ts: 10 });
     const liveTimeline = makeTimeline([sdkFirstEvent, cacheFirstEvent], {
@@ -631,7 +631,7 @@ describe('RoomTimeline', () => {
   });
 
   it('renders the room thread overview outside thread view', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const root = makeEvent('$thread-root', { isThreadRoot: true });
     const room = makeRoom({ liveEvents: [root] });
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
@@ -654,7 +654,7 @@ describe('RoomTimeline', () => {
   });
 
   it('does not show a false zero-thread overview while initial room cache hydrate is pending', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     loadLatestCachedRoomEventsMock.mockImplementation(
       () =>
         new Promise(() => {
@@ -683,7 +683,7 @@ describe('RoomTimeline', () => {
   it('keeps the zero-thread overview hidden until the initial room cache hydrate settles', async () => {
     vi.useFakeTimers();
     try {
-      const { RoomTimeline } = await import('./RoomTimeline');
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       loadLatestCachedRoomEventsMock.mockImplementation(
         () =>
           new Promise(() => {
@@ -718,7 +718,7 @@ describe('RoomTimeline', () => {
   });
 
   it('keeps the zero-thread overview hidden during initial client catchup after cache hydrate settles', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const room = makeRoom();
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
@@ -739,7 +739,7 @@ describe('RoomTimeline', () => {
   });
 
   it('does not treat non-root notices as room-overview readiness during initial catchup', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const notice = makeEvent('$notice', {
       content: { body: 'Bridge notice', msgtype: 'm.notice' },
     });
@@ -763,7 +763,7 @@ describe('RoomTimeline', () => {
   });
 
   it('shows a real zero-thread overview after initial client sync settles', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const room = makeRoom();
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
@@ -790,7 +790,7 @@ describe('RoomTimeline', () => {
   });
 
   it('passes visible room thread counts to the overview', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const unresolvedThread = makeEvent('$thread-unresolved', { isThreadRoot: true });
     const resolvedThread = makeEvent('$thread-resolved', { isThreadRoot: true });
     const messageEvent = makeEvent('$message');
@@ -810,7 +810,7 @@ describe('RoomTimeline', () => {
   });
 
   it('counts fallback-only thread roots in the room thread overview', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const fallbackRoot = makeEvent('$thread-root');
     const fallbackReply = makeEvent('$thread-reply', {
       threadRootId: fallbackRoot.getId(),
@@ -830,7 +830,7 @@ describe('RoomTimeline', () => {
   });
 
   it('counts old standalone zero-reply message roots in the room thread overview', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
     const standaloneRoot = makeEvent('$thread-root', {
       ts: 1_000,
@@ -855,7 +855,7 @@ describe('RoomTimeline', () => {
   });
 
   it('does not count standalone m.notice messages as zero-reply roots', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const noticeRoot = makeEvent('$notice-root', {
       ts: 1_000,
       content: { body: 'Notice root', msgtype: 'm.notice' },
@@ -885,7 +885,7 @@ describe('RoomTimeline', () => {
   });
 
   it('shows pending encrypted local-echo zero-reply roots immediately in compact view', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
     const firstThread = makeEvent('$thread-1', {
       isThreadRoot: true,
@@ -946,7 +946,7 @@ describe('RoomTimeline', () => {
 
   it('preserves zero replies for recent standalone roots in the regular timeline thread badge logic', async () => {
     const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } = await import(
-      '../../mindroom/threads/threadBadgeViewModel'
+      '../threadBadgeViewModel'
     );
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
     const standaloneRoot = makeEvent('$thread-root', {
@@ -964,7 +964,7 @@ describe('RoomTimeline', () => {
   });
 
   it('counts reply-backed thread roots in preload surface counts even when the root is not renderable in the room timeline', async () => {
-    const { getRoomPreloadCounts } = await import('../../mindroom/threads/roomTimelineEvents');
+    const { getRoomPreloadCounts } = await import('../roomTimelineEvents');
     const fallbackRoot = makeEvent('$thread-root');
     const fallbackReply = makeEvent('$thread-reply', {
       threadRootId: fallbackRoot.getId(),
@@ -991,7 +991,7 @@ describe('RoomTimeline', () => {
   });
 
   it('renders reply-backed thread roots in overview mode when only replies are loaded in the room timeline', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const fallbackRoot = makeEvent('$thread-root');
     const fallbackReply = makeEvent('$thread-reply', {
       threadRootId: fallbackRoot.getId(),
@@ -1025,7 +1025,7 @@ describe('RoomTimeline', () => {
   });
 
   it('keeps the frozen expanded overview order while metadata updates', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
     const thirdThread = makeEvent('$thread-3', { isThreadRoot: true });
@@ -1090,7 +1090,7 @@ describe('RoomTimeline', () => {
   });
 
   it('appends new matching roots and drops removed roots while frozen', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
     const liveEvents = [firstThread, secondThread];
@@ -1153,7 +1153,7 @@ describe('RoomTimeline', () => {
   it('resnapshots on control changes without disabling freeze', async () => {
     vi.useFakeTimers();
     try {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
     const resolvedThread = makeEvent('$thread-3', { isThreadRoot: true });
@@ -1215,7 +1215,7 @@ describe('RoomTimeline', () => {
   });
 
   it('uses the frozen ordering for compact view thread ids', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
     const thirdThread = makeEvent('$thread-3', { isThreadRoot: true });
@@ -1280,7 +1280,7 @@ describe('RoomTimeline', () => {
   });
 
   it('keeps direct rooms on the message timeline even with compact overview state', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const directMessage = makeEvent('$dm-message');
     const room = makeRoom({
       liveEvents: [directMessage],
@@ -1307,7 +1307,7 @@ describe('RoomTimeline', () => {
   });
 
   it('redirects frozen compact-order permalinks into thread view', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
     const compactOnlyThread = makeEvent('$thread-3', { isThreadRoot: true });
@@ -1385,8 +1385,8 @@ describe('RoomTimeline', () => {
   });
 
   it('preloads cached overview metadata in the frozen display order', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
     const thirdThread = makeEvent('$thread-3', { isThreadRoot: true });
@@ -1433,7 +1433,7 @@ describe('RoomTimeline', () => {
   });
 
   it('does not issue per-visible-thread summary cache reads from the render path', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
     const room = makeRoom({
@@ -1460,7 +1460,7 @@ describe('RoomTimeline', () => {
   });
 
   it('collects room-loaded thread events in chronological order without surfacing relation rows', async () => {
-    const { getLoadedRoomThreadEvents, getLoadedRoomThreadSeedEvents } = await import('../../mindroom/threads/threadBootstrap');
+    const { getLoadedRoomThreadEvents, getLoadedRoomThreadSeedEvents } = await import('../threadBootstrap');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1 });
     const newerReply = makeEvent('$thread-reply-2', {
@@ -1525,9 +1525,9 @@ describe('RoomTimeline', () => {
   });
 
   it('seeds thread fallback immediately from room-loaded replies for targeted opens before thread cache hydration resolves', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { hydrateCachedEvents } = await import('../../mindroom/threads/eventCacheEditUtils');
-    const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { hydrateCachedEvents } = await import('../eventCacheEditUtils');
+    const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -1607,7 +1607,7 @@ describe('RoomTimeline', () => {
   });
 
   it('warms thread-open seed snapshots from room-preloaded thread events', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -1677,7 +1677,7 @@ describe('RoomTimeline', () => {
   });
 
   it('prioritizes large thread seeds from the room thread list even when they are outside the viewport', async () => {
-    const { collectPriorityThreadSeedPrewarmRoots } = await import('../../mindroom/threads/threadBootstrap');
+    const { collectPriorityThreadSeedPrewarmRoots } = await import('../threadBootstrap');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -1736,7 +1736,7 @@ describe('RoomTimeline', () => {
   });
 
   it('prioritizes threads from the active overview range over larger off-screen room threads', async () => {
-    const { collectPriorityThreadSeedPrewarmRoots } = await import('../../mindroom/threads/threadBootstrap');
+    const { collectPriorityThreadSeedPrewarmRoots } = await import('../threadBootstrap');
     const visibleRoots = Array.from({ length: 12 }, (_, index) =>
       makeEvent(`$thread-root-${index + 1}`, {
         isThreadRoot: true,
@@ -1800,7 +1800,7 @@ describe('RoomTimeline', () => {
   });
 
   it('ignores room thread-list entries without a root event or known reply count', async () => {
-    const { collectPriorityThreadSeedPrewarmRoots } = await import('../../mindroom/threads/threadBootstrap');
+    const { collectPriorityThreadSeedPrewarmRoots } = await import('../threadBootstrap');
     const visibleRoot = makeEvent('$visible-thread-root', {
       isThreadRoot: true,
       ts: 1,
@@ -1840,9 +1840,9 @@ describe('RoomTimeline', () => {
   });
 
   it('seeds untargeted first open from the richer in-memory thread snapshot when room and model seeds are thinner', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { hydrateCachedEvents } = await import('../../mindroom/threads/eventCacheEditUtils');
-    const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { hydrateCachedEvents } = await import('../eventCacheEditUtils');
+    const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -1961,8 +1961,8 @@ describe('RoomTimeline', () => {
   });
 
   it('seeds untargeted thread reopen immediately from an existing local thread model before cache hydration resolves', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -2041,8 +2041,8 @@ describe('RoomTimeline', () => {
   });
 
   it('seeds untargeted zero-reply thread opens from the locally available root before cache hydration resolves', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
     const threadId = '~pending-root';
     const rootEvent = makeEvent(threadId, {
       content: { body: 'YOLO' },
@@ -2105,8 +2105,8 @@ describe('RoomTimeline', () => {
   });
 
   it('opens confirmed zero-reply roots without warning when no sdk thread model exists yet', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
     const threadId = '$zero-reply-root';
     const rootEvent = makeEvent(threadId, {
@@ -2163,8 +2163,8 @@ describe('RoomTimeline', () => {
   });
 
   it('reuses the in-memory thread snapshot on untargeted reopen before cache hydration resolves', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -2257,8 +2257,8 @@ describe('RoomTimeline', () => {
   });
 
   it('hydrates every cached thread page before falling back to network bootstrap', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadCachedThreadEventsBefore, loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadCachedThreadEventsBefore, loadLatestCachedThreadEvents } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const room = makeRoom();
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
@@ -2351,8 +2351,8 @@ describe('RoomTimeline', () => {
   });
 
   it('skips thread bootstrap but still refreshes the latest relations tail on untargeted complete cache hits', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const room = makeRoom();
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
@@ -2428,8 +2428,8 @@ describe('RoomTimeline', () => {
   });
 
   it('prefers cached thread hydrate over a tiny room seed on untargeted open', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -2564,8 +2564,8 @@ describe('RoomTimeline', () => {
   });
 
   it('repairs complete cached thread snapshots that are missing relation hydration', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -2718,8 +2718,8 @@ describe('RoomTimeline', () => {
   });
 
   it('infers a complete cached thread snapshot from the persisted expected reply count when root counts are sparse', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const room = makeRoom({
       findEventById: (eventId: string) =>
@@ -2862,8 +2862,8 @@ describe('RoomTimeline', () => {
   });
 
   it('does not trust stale complete cache flags when the persisted expected reply count is larger than the cached reply set', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const room = makeRoom({
       findEventById: (eventId: string) =>
@@ -2953,8 +2953,8 @@ describe('RoomTimeline', () => {
   });
 
   it('prefers fresher room root counts over stale cached root counts when checking complete cached thread snapshots', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const room = makeRoom({
       findEventById: (eventId: string) =>
@@ -3083,8 +3083,8 @@ describe('RoomTimeline', () => {
   });
 
   it('falls back to the cached root count when the fresher room root is sparse', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const room = makeRoom({
       findEventById: (eventId: string) =>
@@ -3190,8 +3190,8 @@ describe('RoomTimeline', () => {
   });
 
   it('fills incomplete cached thread snapshots from thread relations before falling back to sdk bootstrap', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -3387,8 +3387,8 @@ describe('RoomTimeline', () => {
   });
 
   it('does not treat an empty relations backfill as complete when the known reply count is still unmet', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import('../threadEventCache');
     const threadId = '$thread-root-empty-backfill';
     const firstReplyId = '$thread-reply-1-empty-backfill';
     const rootEvent = makeEvent(threadId, {
@@ -3525,8 +3525,8 @@ describe('RoomTimeline', () => {
   });
 
   it('clears stale sdk backward tokens on complete cached thread hydrate', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -3618,8 +3618,8 @@ describe('RoomTimeline', () => {
   });
 
   it('does not treat a sparse cached thread page as complete without a loaded tail marker', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { loadLatestCachedThreadEvents } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const room = makeRoom();
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
@@ -3676,8 +3676,8 @@ describe('RoomTimeline', () => {
   });
 
   it('marks room-derived thread cache snapshots complete only when the known reply count is satisfied', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { saveThreadEventsToCache } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { saveThreadEventsToCache } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -3737,8 +3737,8 @@ describe('RoomTimeline', () => {
   });
 
   it('keeps room-derived thread cache snapshots incomplete when only a subset of replies is loaded', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { saveThreadEventsToCache } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { saveThreadEventsToCache } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -3804,8 +3804,8 @@ describe('RoomTimeline', () => {
   });
 
   it('does not downgrade room-derived thread cache completeness when the room tail is still unknown', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { saveThreadEventsToCache } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { saveThreadEventsToCache } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -3873,8 +3873,8 @@ describe('RoomTimeline', () => {
   });
 
   it('does not treat sdk thread length as authoritative when root counts are sparse', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { saveThreadEventsToCache } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { saveThreadEventsToCache } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -3931,8 +3931,8 @@ describe('RoomTimeline', () => {
   });
 
   it('persists root-targeted relations into the thread cache during room cache persistence', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { saveThreadEventsToCache } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { saveThreadEventsToCache } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -3985,8 +3985,8 @@ describe('RoomTimeline', () => {
   });
 
   it('persists redactions targeting thread replies into the thread cache during room cache persistence', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { saveThreadEventsToCache } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { saveThreadEventsToCache } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -4045,8 +4045,8 @@ describe('RoomTimeline', () => {
   });
 
   it('persists paginated thread-only room events into the thread cache', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const { saveThreadEventsToCache } = await import('../../mindroom/threads/threadEventCache');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { saveThreadEventsToCache } = await import('../threadEventCache');
     const threadId = '$thread-root';
     const rootEvent = makeEvent(threadId, {
       isThreadRoot: true,
@@ -4107,7 +4107,7 @@ describe('RoomTimeline', () => {
   });
 
   it('filters room events by thread resolution state', async () => {
-    const { getThreadFilteredEvents } = await import('../../mindroom/threads/threadRoomFocus');
+    const { getThreadFilteredEvents } = await import('../threadRoomFocus');
     const room = makeRoom();
     const unresolvedEvent = makeEvent('$thread-unresolved', { isThreadRoot: true });
     const resolvedEvent = makeEvent('$thread-resolved', { isThreadRoot: true });
@@ -4147,7 +4147,7 @@ describe('RoomTimeline', () => {
   });
 
   it('treats fallback reply counts as visible thread roots for filtering', async () => {
-    const { getThreadFilteredEvents } = await import('../../mindroom/threads/threadRoomFocus');
+    const { getThreadFilteredEvents } = await import('../threadRoomFocus');
     const room = makeRoom();
     const fallbackRoot = makeEvent('$thread-root');
     const messageEvent = makeEvent('$message');
@@ -4183,7 +4183,7 @@ describe('RoomTimeline', () => {
   });
 
   it('does not treat thread replies as visible thread roots for filtering', async () => {
-    const { getThreadFilteredEvents } = await import('../../mindroom/threads/threadRoomFocus');
+    const { getThreadFilteredEvents } = await import('../threadRoomFocus');
     const room = makeRoom();
     const fakeReply = makeEvent('$reply-event', {
       threadRootId: '$actual-root',
@@ -4215,7 +4215,7 @@ describe('RoomTimeline', () => {
   });
 
   it('filters hidden relations, thread replies, and ignored senders in isRenderableEvent', async () => {
-    const { isRenderableEvent } = await import('../../mindroom/threads/roomTimelineEvents');
+    const { isRenderableEvent } = await import('../roomTimelineEvents');
     const baseArgs = [
       makeRoom() as never,
       undefined,
@@ -4253,7 +4253,7 @@ describe('RoomTimeline', () => {
   });
 
   it('applies membership and hidden-event toggles in isRenderableEvent', async () => {
-    const { isRenderableEvent } = await import('../../mindroom/threads/roomTimelineEvents');
+    const { isRenderableEvent } = await import('../roomTimelineEvents');
     const room = makeRoom();
     const membershipEvent = makeEvent('$member', { type: 'm.room.member' });
     isMembershipChangedMock.mockReturnValue(true);
@@ -4320,7 +4320,7 @@ describe('RoomTimeline', () => {
   });
 
   it('keeps filtered mode pinned to the full filtered range when live non-matching events arrive', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const unresolvedEvents = [
       makeEvent('$thread-1', { isThreadRoot: true }),
@@ -4373,7 +4373,7 @@ describe('RoomTimeline', () => {
   });
 
   it('re-renders the room timeline for non-renderable live events at bottom', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const visibleMessage = makeEvent('$message');
     const hiddenEdit = makeEvent('$edit', {
