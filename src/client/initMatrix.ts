@@ -7,7 +7,7 @@ import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 
 import { clearSecretStorageKeys, cryptoCallbacks } from './secretStorageKeys';
 import { clearNavToActivePathStore } from '../app/state/navToActivePath';
-import { createMatrixClient } from './matrixClientFactory';
+import { createMatrixClient } from '../app/mindroom/matrix/matrixClientFactory';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
 import {
   MINDROOM_OWNED_LOCAL_STORAGE_KEYS,

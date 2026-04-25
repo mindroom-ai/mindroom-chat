@@ -11,7 +11,7 @@ import {
 } from '../../afterLoginRedirectPath';
 import { getHomePath } from '../../pathUtils';
 import { putSession } from '../../../state/sessions';
-import { createMatrixClient } from '../../../../client/matrixClientFactory';
+import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory';
 
 export enum GetBaseUrlError {
   NotAllow = 'NotAllow',

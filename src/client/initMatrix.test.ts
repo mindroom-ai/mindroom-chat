@@ -14,7 +14,7 @@ import {
   STARTUP_SYNC_TIMELINE_LIMIT,
   startClient,
 } from './initMatrix';
-import { createMatrixClient } from './matrixClientFactory';
+import { createMatrixClient } from '../app/mindroom/matrix/matrixClientFactory';
 import { clearSecretStorageKeys } from './secretStorageKeys';
 import { MINDROOM_EDIT_DEBUG_STORAGE_KEY } from '../app/mindroom/messages/editDebug';
 import { clearMindroomLongTextHydrationCache } from '../app/mindroom/messages/longText';
@@ -62,7 +62,7 @@ vi.mock('../app/mindroom/messages/longText', () => ({
   clearMindroomLongTextHydrationCache: vi.fn(),
 }));
 
-vi.mock('./matrixClientFactory', () => ({
+vi.mock('../app/mindroom/matrix/matrixClientFactory', () => ({
   createMatrixClient: vi.fn(),
 }));
 

@@ -19,7 +19,7 @@ import {
   RegisterRequest,
   UIAFlow,
 } from 'matrix-js-sdk';
-import { createMatrixClient } from '../../../../client/matrixClientFactory';
+import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory';
 import { PasswordInput } from '../../../components/password-input';
 import {
   getLoginTermUrl,
