@@ -704,6 +704,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../components/RenderMessageContent.tsx', import.meta.url),
       'utf8'
     );
+    const mindroomRenderContentSource = readFileSync(
+      new URL('../../mindroom/messages/renderMindroomMessageContent.tsx', import.meta.url),
+      'utf8'
+    );
     const messageIndexSource = readFileSync(
       new URL('../../components/message/index.ts', import.meta.url),
       'utf8'
@@ -830,18 +834,26 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(renderContentSource).toContain("../mindroom/messages/threadSummary");
-    expect(renderContentSource).toContain("../mindroom/messages/toolApproval");
-    expect(renderContentSource).toContain("../mindroom/messages/MindroomToolApprovalCard");
-    expect(renderContentSource).toContain("../mindroom/messages/longText");
-    expect(renderContentSource).toContain("../mindroom/messages/MindroomLongTextText");
-    expect(renderContentSource).toContain("../mindroom/messages/aiRun");
+    expect(renderContentSource).toContain("../mindroom/messages/renderMindroomMessageContent");
+    expect(renderContentSource).not.toContain("../mindroom/messages/threadSummary");
+    expect(renderContentSource).not.toContain("../mindroom/messages/toolApproval");
+    expect(renderContentSource).not.toContain("../mindroom/messages/MindroomToolApprovalCard");
+    expect(renderContentSource).not.toContain("../mindroom/messages/longText");
+    expect(renderContentSource).not.toContain("../mindroom/messages/MindroomLongTextText");
+    expect(renderContentSource).not.toContain("../mindroom/messages/aiRun");
     expect(renderContentSource).not.toContain('./message/mindroomThreadSummary');
     expect(renderContentSource).not.toContain('./message/mindroomToolApproval');
     expect(renderContentSource).not.toContain('./message/MindroomToolApprovalCard');
     expect(renderContentSource).not.toContain('./message/mindroomLongText');
     expect(renderContentSource).not.toContain('./message/MindroomLongTextText');
     expect(renderContentSource).not.toContain('./message/mindroomAiRun');
+    expect(mindroomRenderContentSource).toContain('./threadSummary');
+    expect(mindroomRenderContentSource).toContain('./toolApproval');
+    expect(mindroomRenderContentSource).toContain('./MindroomToolApprovalCard');
+    expect(mindroomRenderContentSource).toContain('./longText');
+    expect(mindroomRenderContentSource).toContain('./MindroomLongTextText');
+    expect(mindroomRenderContentSource).toContain('./aiRun');
+    expect(mindroomRenderContentSource).toContain('withMindroomToolTraceMarkerParserOptions');
     expect(roomMessageSource).toContain("from '../../../mindroom/messages/MindroomMessageControls'");
     expect(roomMessageSource).not.toContain("from '../../../mindroom/messages/longText'");
     expect(roomMessageSource).not.toContain("from '../../../mindroom/messages/MindroomLongTextText'");

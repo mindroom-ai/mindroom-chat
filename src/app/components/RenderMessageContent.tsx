@@ -5,18 +5,14 @@ import { Opts } from 'linkifyjs';
 import { config } from 'folds';
 import {
   AudioContent,
-  BrokenContent,
   DownloadFile,
   FileContent,
   ImageContent,
   MAudio,
   MBadEncrypted,
-  MEmote,
   MFile,
   MImage,
   MLocation,
-  MNotice,
-  MindroomThreadSummaryCard,
   MText,
   MVideo,
   ReadPdfFile,
@@ -33,16 +29,7 @@ import { PdfViewer } from './Pdf-viewer';
 import { TextViewer } from './text-viewer';
 import { testMatrixTo } from '../plugins/matrix-to';
 import { IImageContent } from '../../types/matrix/common';
-import { getMindroomLongTextSource } from '../mindroom/messages/longText';
-import { MindroomLongTextKind, MindroomLongTextText } from '../mindroom/messages/MindroomLongTextText';
-import { getMindroomThreadSummaryInfo } from '../mindroom/messages/threadSummary';
-import { MindroomToolApprovalCard } from '../mindroom/messages/MindroomToolApprovalCard';
-import {
-  MINDROOM_TOOL_APPROVAL_EVENT,
-  parseToolApprovalContent,
-} from '../mindroom/messages/toolApproval';
-import { withMindroomToolTraceMarkerParserOptions } from '../plugins/react-custom-html-parser';
-import { isMindroomAiRunStreaming } from '../mindroom/messages/aiRun';
+import { renderMindroomMessageContent } from '../mindroom/messages/renderMindroomMessageContent';
 
 type RenderMessageContentProps = {
   displayName: string;
@@ -78,8 +65,6 @@ export function RenderMessageContent({
   linkifyOpts,
   outlineAttachment,
 }: RenderMessageContentProps) {
-  const getMindroomAwareContent = (): Record<string, unknown> => getContent<Record<string, unknown>>();
-
   const renderUrlsPreview = (urls: string[]) => {
     const filteredUrls = urls.filter((url) => !testMatrixTo(url));
     if (filteredUrls.length === 0) return undefined;
@@ -91,9 +76,6 @@ export function RenderMessageContent({
       </UrlPreviewHolder>
     );
   };
-
-  const getMindroomAwareHtmlReactParserOptions = (content: Record<string, unknown>) =>
-    withMindroomToolTraceMarkerParserOptions(htmlReactParserOptions, content);
 
   const renderCaption = () => {
     const content: IImageContent = getContent();
@@ -154,169 +136,22 @@ export function RenderMessageContent({
     </>
   );
 
-  const content = getMindroomAwareContent();
-  const threadSummaryInfo = getMindroomThreadSummaryInfo(content);
-  if (threadSummaryInfo) {
-    return (
-      <MindroomThreadSummaryCard
-        edited={edited}
-        summaryInfo={threadSummaryInfo}
-        renderBody={(props) => (
-          <RenderBody
-            {...props}
-            highlightRegex={highlightRegex}
-            htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(content)}
-            linkifyOpts={linkifyOpts}
-          />
-        )}
-      />
-    );
-  }
-
-  if (eventType === MINDROOM_TOOL_APPROVAL_EVENT) {
-    const approval = parseToolApprovalContent(eventType, content);
-    return approval ? (
-      <MindroomToolApprovalCard
-        approval={approval}
-        roomId={roomId}
-        eventId={eventId}
-        threadId={threadId}
-      />
-    ) : (
-      <BrokenContent />
-    );
-  }
-
-  if (msgType === MsgType.Text) {
-    const isStreaming = isMindroomAiRunStreaming(content);
-    const longTextSource = getMindroomLongTextSource(content);
-    if (longTextSource) {
-      return (
-        <MindroomLongTextText
-          kind={MindroomLongTextKind.Text}
-          edited={edited}
-          isStreaming={isStreaming}
-          content={longTextSource.previewContent}
-          longTextSource={longTextSource}
-          renderBody={(resolvedContent, props) => (
-            <RenderBody
-              {...props}
-              highlightRegex={highlightRegex}
-              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(resolvedContent)}
-              linkifyOpts={linkifyOpts}
-            />
-          )}
-          renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
-        />
-      );
-    }
-    const mindroomHtmlReactParserOptions = getMindroomAwareHtmlReactParserOptions(content);
-
-    return (
-      <MText
-        edited={edited}
-        isStreaming={isStreaming}
-        content={content}
-        renderBody={(props) => (
-          <RenderBody
-            {...props}
-            highlightRegex={highlightRegex}
-            htmlReactParserOptions={mindroomHtmlReactParserOptions}
-            linkifyOpts={linkifyOpts}
-          />
-        )}
-        renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
-      />
-    );
-  }
-
-  if (msgType === MsgType.Emote) {
-    const isStreaming = isMindroomAiRunStreaming(content);
-    const longTextSource = getMindroomLongTextSource(content);
-    if (longTextSource) {
-      return (
-        <MindroomLongTextText
-          kind={MindroomLongTextKind.Emote}
-          displayName={displayName}
-          edited={edited}
-          isStreaming={isStreaming}
-          content={longTextSource.previewContent}
-          longTextSource={longTextSource}
-          renderBody={(resolvedContent, props) => (
-            <RenderBody
-              {...props}
-              highlightRegex={highlightRegex}
-              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(resolvedContent)}
-              linkifyOpts={linkifyOpts}
-            />
-          )}
-          renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
-        />
-      );
-    }
-    const mindroomHtmlReactParserOptions = getMindroomAwareHtmlReactParserOptions(content);
-
-    return (
-      <MEmote
-        displayName={displayName}
-        edited={edited}
-        isStreaming={isStreaming}
-        content={content}
-        renderBody={(props) => (
-          <RenderBody
-            {...props}
-            highlightRegex={highlightRegex}
-            htmlReactParserOptions={mindroomHtmlReactParserOptions}
-            linkifyOpts={linkifyOpts}
-          />
-        )}
-        renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
-      />
-    );
-  }
-
-  if (msgType === MsgType.Notice) {
-    const isStreaming = isMindroomAiRunStreaming(content);
-    const longTextSource = getMindroomLongTextSource(content);
-    if (longTextSource) {
-      return (
-        <MindroomLongTextText
-          kind={MindroomLongTextKind.Notice}
-          edited={edited}
-          isStreaming={isStreaming}
-          content={longTextSource.previewContent}
-          longTextSource={longTextSource}
-          renderBody={(resolvedContent, props) => (
-            <RenderBody
-              {...props}
-              highlightRegex={highlightRegex}
-              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(resolvedContent)}
-              linkifyOpts={linkifyOpts}
-            />
-          )}
-          renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
-        />
-      );
-    }
-    const mindroomHtmlReactParserOptions = getMindroomAwareHtmlReactParserOptions(content);
-
-    return (
-      <MNotice
-        edited={edited}
-        isStreaming={isStreaming}
-        content={content}
-        renderBody={(props) => (
-          <RenderBody
-            {...props}
-            highlightRegex={highlightRegex}
-            htmlReactParserOptions={mindroomHtmlReactParserOptions}
-            linkifyOpts={linkifyOpts}
-          />
-        )}
-        renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
-      />
-    );
-  }
+  const content = getContent<Record<string, unknown>>();
+  const mindroomContent = renderMindroomMessageContent({
+    displayName,
+    eventType,
+    roomId,
+    eventId,
+    threadId,
+    msgType,
+    edited,
+    content,
+    renderUrlsPreview: urlPreview ? renderUrlsPreview : undefined,
+    highlightRegex,
+    htmlReactParserOptions,
+    linkifyOpts,
+  });
+  if (mindroomContent !== undefined) return mindroomContent;
 
   if (msgType === MsgType.Image) {
     return (
@@ -388,28 +223,6 @@ export function RenderMessageContent({
   }
 
   if (msgType === MsgType.File) {
-    const longTextSource = getMindroomLongTextSource(content);
-    if (longTextSource) {
-      const isStreaming = isMindroomAiRunStreaming(content);
-      return (
-        <MindroomLongTextText
-          kind={MindroomLongTextKind.Text}
-          edited={edited}
-          isStreaming={isStreaming}
-          content={longTextSource.previewContent}
-          longTextSource={longTextSource}
-          renderBody={(resolvedContent, props) => (
-            <RenderBody
-              {...props}
-              highlightRegex={highlightRegex}
-              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(resolvedContent)}
-              linkifyOpts={linkifyOpts}
-            />
-          )}
-          renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
-        />
-      );
-    }
     return renderFile();
   }
 
