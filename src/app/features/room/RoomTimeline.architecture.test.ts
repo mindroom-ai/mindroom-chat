@@ -589,10 +589,17 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/threadFilterDsl.ts', import.meta.url),
       'utf8'
     );
+    const indexSource = readFileSync(
+      new URL('../../mindroom/threads/useMindroomThreadIndex.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain("from '../../mindroom/threads/threadFilterDsl'");
+    expect(source).not.toContain("from '../../mindroom/threads/threadFilterDsl'");
     expect(implementationSource).toContain('parseThreadFilterQuery');
     expect(implementationSource).toContain('serializeThreadFilterQuery');
+    expect(indexSource).toContain("from './threadFilterDsl'");
+    expect(indexSource).toContain('parseThreadFilterQuery');
+    expect(indexSource).toContain('applyParsedThreadFilterQuery');
   });
 
   it('keeps compact room view components in MindRoom threads', () => {

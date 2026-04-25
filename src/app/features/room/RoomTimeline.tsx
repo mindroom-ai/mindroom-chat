@@ -164,10 +164,6 @@ import {
   type ThreadSortFreezeState,
   type FilterPreset,
 } from '../../mindroom/threads/roomThreadOverviewModel';
-import {
-  applyParsedThreadFilterQuery,
-  parseThreadFilterQuery,
-} from '../../mindroom/threads/threadFilterDsl';
 import type { RoomViewMode } from '../../mindroom/threads/roomViewMode';
 import {
   isTimelineAtLiveEnd,
@@ -305,14 +301,6 @@ export function RoomTimeline({
     !direct && !threadId && focusEventInRoom && viewMode !== 'compact' && eventId
   );
   const requestedThreadFilterState = direct ? DIRECT_ROOM_TIMELINE_FILTER_STATE : threadFilterState;
-  const liveParsedQuery = useMemo(
-    () => parseThreadFilterQuery(requestedThreadFilterState.searchQuery ?? ''),
-    [requestedThreadFilterState.searchQuery]
-  );
-  const liveThreadFilterState = useMemo(
-    () => applyParsedThreadFilterQuery(requestedThreadFilterState, liveParsedQuery),
-    [requestedThreadFilterState, liveParsedQuery]
-  );
   const effectiveViewMode: RoomViewMode = direct ? 'normal' : viewMode;
   const [hideMembershipEvents] = useSetting(settingsAtom, 'hideMembershipEvents');
   const [hideNickAvatarEvents] = useSetting(settingsAtom, 'hideNickAvatarEvents');
@@ -539,6 +527,7 @@ export function RoomTimeline({
     refreshRoomThreadList,
     effectiveThreadFilterState,
     roomThreadFilterActive,
+    liveThreadFilterState,
     filteredThreadRootIds,
     compactFilteredThreadRootIds,
     roomOverviewOrderActive,
@@ -566,7 +555,6 @@ export function RoomTimeline({
     threadResolutionMap,
     currentUserId: mx.getSafeUserId(),
     requestedThreadFilterState,
-    liveThreadFilterState,
     fallbackThreadFilterState: DIRECT_ROOM_TIMELINE_FILTER_STATE,
     threadSortFreezeState,
     overviewRefreshCounter,
