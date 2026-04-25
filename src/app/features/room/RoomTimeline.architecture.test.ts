@@ -1078,6 +1078,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/messages/editMetadata.ts', import.meta.url),
       'utf8'
     );
+    const editResolutionSource = readFileSync(
+      new URL('../../mindroom/messages/editResolution.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(renderContentSource).toContain("../mindroom/messages/renderMindroomMessageContent");
     expect(renderContentSource).not.toContain("../mindroom/messages/threadSummary");
@@ -1118,7 +1122,9 @@ describe('RoomTimeline architecture', () => {
     );
     expect(searchResultPreviewSource).not.toContain("from '../../mindroom/messages/longText'");
     expect(searchResultPreviewSource).not.toContain("content?.['io.mindroom.long_text']");
-    expect(roomUtilsSource).toContain("from '../mindroom/messages/editMetadata'");
+    expect(roomUtilsSource).toContain("from '../mindroom/messages/editResolution'");
+    expect(roomUtilsSource).not.toContain("from '../mindroom/messages/editMetadata'");
+    expect(roomUtilsSource).not.toContain("from '../mindroom/messages/editDebug'");
     expect(roomUtilsSource).not.toContain("from '../mindroom/messages/metadata'");
     expect(roomUtilsSource).not.toContain("key.startsWith('io.mindroom.')");
     expect(roomUtilsSource).not.toContain("key.startsWith('com.mindroom.')");
@@ -1182,6 +1188,8 @@ describe('RoomTimeline architecture', () => {
     expect(threadBadgeSource).not.toContain('MindroomThreadSummaryCard, ThreadIndicator');
     expect(metadataSource).toContain('isMindroomMessageMetadataKey');
     expect(editMetadataSource).toContain('isMindroomMessageMetadataKey');
+    expect(editResolutionSource).toContain("from './editDebug'");
+    expect(editResolutionSource).toContain("from './editMetadata'");
   });
 
   it('keeps Local MindRoom settings implementation in the MindRoom namespace', () => {

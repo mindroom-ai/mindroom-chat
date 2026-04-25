@@ -34,8 +34,10 @@ import {
   isSameSenderEditEvent,
 } from './editEvent';
 import { mxcUrlToHttp } from './mediaUrl';
-import { logMindroomEditDebug } from '../mindroom/messages/editDebug';
-import { copyMindroomResolvedEditMetadata } from '../mindroom/messages/editMetadata';
+import {
+  copyMindroomResolvedEditMetadata,
+  logMindroomEditDebug,
+} from '../mindroom/messages/editResolution';
 
 export const logEditDebug = logMindroomEditDebug;
 
