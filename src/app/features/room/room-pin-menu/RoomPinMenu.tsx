@@ -61,10 +61,9 @@ import {
 import { RenderMatrixEvent, useMatrixEventRenderer } from '../../../hooks/useMatrixEventRenderer';
 import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import {
-  isMindroomPinnedToolApprovalEvent,
-  MINDROOM_PINNED_TOOL_APPROVAL_EVENT,
+  getMindroomPinnedMessageRenderers,
   useMindroomPinnedEvent,
-  renderMindroomPinnedToolApprovalEvent,
+  renderMindroomPinnedEncryptedMessageEvent,
 } from '../../../mindroom/messages/pinnedMessageExtensions';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
@@ -317,6 +316,18 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
         }),
       [mx, room, linkifyOpts, mentionClickHandler, spoilerClickHandler, useAuthentication]
     );
+    const mindroomPinnedMessageRenderers = useMemo(
+      () =>
+        getMindroomPinnedMessageRenderers({
+          roomId: room.roomId,
+          mediaAutoLoad,
+          urlPreview,
+          htmlReactParserOptions,
+          linkifyOpts,
+          outlineAttachment: true,
+        }),
+      [room.roomId, mediaAutoLoad, urlPreview, htmlReactParserOptions, linkifyOpts]
+    );
 
     const renderMatrixEvent = useMatrixEventRenderer<[MatrixEvent, string, GetContentCallback]>(
       {
@@ -342,16 +353,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
             />
           );
         },
-        [MINDROOM_PINNED_TOOL_APPROVAL_EVENT]: (event, displayName) =>
-          renderMindroomPinnedToolApprovalEvent(event, {
-            displayName,
-            roomId: room.roomId,
-            mediaAutoLoad,
-            urlPreview,
-            htmlReactParserOptions,
-            linkifyOpts,
-            outlineAttachment: true,
-          }),
+        ...mindroomPinnedMessageRenderers,
         [MessageEvent.RoomMessageEncrypted]: (event, displayName) => {
           const eventId = event.getId()!;
           const evtTimeline = room.getTimelineForEvent(eventId);
@@ -387,18 +389,19 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
                       )}
                     />
                   );
-                if (isMindroomPinnedToolApprovalEvent(mEvent.getType())) {
-                  const editedEvent = getEditedEvent(eventId, mEvent, evtTimeline.getTimelineSet());
-                  return renderMindroomPinnedToolApprovalEvent(mEvent, {
-                    displayName,
-                    roomId: room.roomId,
-                    eventId,
-                    editedEvent,
-                    mediaAutoLoad,
-                    urlPreview,
-                    htmlReactParserOptions,
-                    linkifyOpts,
-                  });
+                const mindroomPinnedMessage = renderMindroomPinnedEncryptedMessageEvent(mEvent, {
+                  displayName,
+                  roomId: room.roomId,
+                  eventId,
+                  resolveEditedEvent: (candidate) =>
+                    getEditedEvent(eventId, candidate, evtTimeline.getTimelineSet()),
+                  mediaAutoLoad,
+                  urlPreview,
+                  htmlReactParserOptions,
+                  linkifyOpts,
+                });
+                if (mindroomPinnedMessage) {
+                  return mindroomPinnedMessage;
                 }
                 if (mEvent.getType() === MessageEvent.RoomMessage) {
                   const editedEvent = getEditedEvent(eventId, mEvent, evtTimeline.getTimelineSet());

@@ -750,8 +750,13 @@ describe('RoomTimeline architecture', () => {
     expect(pinMenuSource).toContain("from '../../../mindroom/messages/pinnedMessageExtensions'");
     expect(replySource).not.toContain("from '../../mindroom/threads/useRoomEvent'");
     expect(pinMenuSource).not.toContain("from '../../../mindroom/threads/useRoomEvent'");
+    expect(pinMenuSource).not.toContain('MINDROOM_PINNED_TOOL_APPROVAL_EVENT');
+    expect(pinMenuSource).not.toContain('isMindroomPinnedToolApprovalEvent');
+    expect(pinMenuSource).not.toContain('renderMindroomPinnedToolApprovalEvent');
     expect(replyExtensionsSource).toContain("from '../threads/useRoomEvent'");
     expect(pinnedExtensionsSource).toContain("from '../threads/useRoomEvent'");
+    expect(pinnedExtensionsSource).toContain('getMindroomPinnedMessageRenderers');
+    expect(pinnedExtensionsSource).toContain('renderMindroomPinnedEncryptedMessageEvent');
   });
 
   it('keeps room thread overview controls in MindRoom threads', () => {
