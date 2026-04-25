@@ -362,6 +362,67 @@ export const loadRoomCachedBackStateSnapshot = async ({
   };
 };
 
+export type RoomCachedPaginationSnapshot = {
+  cachedBeforeToken: string | null | undefined;
+  cachedPage?: CachedRoomEventPage;
+  events: MatrixEvent[];
+  beforeToken?: string | null;
+  hasMoreCachedBack: boolean;
+  status: 'start-known' | 'cache-hit' | 'cache-miss';
+};
+
+export const loadRoomCachedPaginationSnapshot = async ({
+  sessionId,
+  roomId,
+  earliestLoadedEvent,
+  limit,
+  mapEvent,
+  loadBefore = loadCachedRoomEventsBeforeFromCache,
+  loadPaginationToken = loadCachedRoomPaginationTokenFromCache,
+}: {
+  sessionId: string;
+  roomId: string;
+  earliestLoadedEvent?: MatrixEvent;
+  limit: number;
+  mapEvent: (rawEvent: Partial<IEvent>) => MatrixEvent;
+  loadBefore?: LoadCachedRoomEventsBefore;
+  loadPaginationToken?: LoadCachedRoomPaginationToken;
+}): Promise<RoomCachedPaginationSnapshot> => {
+  const cachedBeforeToken = await loadPaginationToken(
+    sessionId,
+    roomId,
+    earliestLoadedEvent?.getId()
+  );
+
+  if (cachedBeforeToken === null) {
+    return {
+      cachedBeforeToken,
+      events: [],
+      hasMoreCachedBack: false,
+      status: 'start-known',
+    };
+  }
+
+  const cachedPage = await loadBefore(
+    sessionId,
+    roomId,
+    getRoomCursorAnchor(earliestLoadedEvent?.event as Partial<IEvent> | undefined),
+    limit
+  );
+  const events = normalizeCachedRoomEvents(cachedPage.events)
+    .map((rawEvent) => mapEvent(rawEvent))
+    .reverse();
+
+  return {
+    cachedBeforeToken,
+    cachedPage,
+    events,
+    beforeToken: cachedPage.beforeToken,
+    hasMoreCachedBack: cachedPage.hasMoreBefore,
+    status: events.length > 0 ? 'cache-hit' : 'cache-miss',
+  };
+};
+
 export const collectStateTargetEvents = (room: Room, events: MatrixEvent[]): MatrixEvent[] => {
   const eventsById = new Map<string, MatrixEvent>();
 

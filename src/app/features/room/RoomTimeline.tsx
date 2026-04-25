@@ -255,13 +255,12 @@ import {
   getEarliestLoadedRoomEvent,
   resolveHydratedRoomBeforeToken,
   resolvePersistedRoomBeforeToken,
-  loadCachedRoomEventsBefore,
   loadCachedRoomPaginationToken,
   loadCachedThreadEventsBefore,
   loadCachedThreadSnapshot,
   loadLatestRoomCacheHydrationSnapshot,
   loadRoomCachedBackStateSnapshot,
-  normalizeCachedRoomEvents,
+  loadRoomCachedPaginationSnapshot,
   normalizeCachedThreadEvents,
   persistRoomEventCacheSnapshot,
   persistThreadEventCacheSnapshot,
@@ -2989,15 +2988,18 @@ export function RoomTimeline({
             )
           : undefined;
         const earliestLoadedEvent = getEarliestLoadedRoomEvent(room, currentLinkedTimelines);
-        const cachedBeforeToken = await loadCachedRoomPaginationToken(
+        const mapper = mx.getEventMapper();
+        const cachedPaginationSnapshot = await loadRoomCachedPaginationSnapshot({
           sessionId,
-          room.roomId,
-          earliestLoadedEvent?.getId()
-        );
+          roomId: room.roomId,
+          earliestLoadedEvent,
+          limit: safePaginationLimitRef.current,
+          mapEvent: (rawEvent) => mapper(rawEvent),
+        });
 
         if (!alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
 
-        if (cachedBeforeToken === null) {
+        if (cachedPaginationSnapshot.status === 'start-known') {
           if (firstTimeline.getPaginationToken(Direction.Backward) !== null) {
             firstTimeline.setPaginationToken(null, Direction.Backward);
             setTimeline((currentTimeline) =>
@@ -3010,20 +3012,8 @@ export function RoomTimeline({
           return;
         }
 
-        const cachedPage = await loadCachedRoomEventsBefore(
-          sessionId,
-          room.roomId,
-          getRoomCursorAnchor(earliestLoadedEvent?.event as Partial<IEvent> | undefined),
-          safePaginationLimitRef.current
-        );
-
-        if (!alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
-
-        if (cachedPage.events.length > 0) {
-          const mapper = mx.getEventMapper();
-          const cachedEvents = normalizeCachedRoomEvents(cachedPage.events)
-            .map((rawEvent) => mapper(rawEvent))
-            .reverse();
+        if (cachedPaginationSnapshot.status === 'cache-hit') {
+          const cachedEvents = cachedPaginationSnapshot.events;
           const redactedRelationTargets = hydrateCachedEvents({
             room,
             events: cachedEvents,
@@ -3044,7 +3034,7 @@ export function RoomTimeline({
             true,
             false,
             firstTimeline,
-            resolveHydratedRoomBeforeToken(cachedPage.beforeToken, paginationToken)
+            resolveHydratedRoomBeforeToken(cachedPaginationSnapshot.beforeToken, paginationToken)
           );
           mx.processAggregatedTimelineEvents(room, timelineEvents);
           room.processThreadRoots(
@@ -3070,7 +3060,7 @@ export function RoomTimeline({
               recalibrateFilterOptsRef.current ?? undefined,
               timelinesRenderableCounts
             );
-            setRoomHasMoreCachedBack(cachedPage.hasMoreBefore);
+            setRoomHasMoreCachedBack(cachedPaginationSnapshot.hasMoreCachedBack);
           }
           return;
         }

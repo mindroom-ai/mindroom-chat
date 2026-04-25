@@ -89,4 +89,12 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('shouldHydrateLatestRoomCache(');
     expect(source).not.toContain('filterLatestRoomCacheHydrationEvents(');
   });
+
+  it('delegates cached room pagination reads to the event repository', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('loadRoomCachedPaginationSnapshot');
+    expect(source).not.toContain('loadCachedRoomEventsBefore');
+    expect(source).not.toContain('normalizeCachedRoomEvents');
+  });
 });
