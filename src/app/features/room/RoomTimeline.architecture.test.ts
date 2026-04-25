@@ -324,6 +324,29 @@ describe('RoomTimeline architecture', () => {
     expect(compatibilitySource).not.toContain('useCompactThreadCardViewModels');
   });
 
+  it('keeps room thread overview controls in MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const compatibilitySource = readFileSync(
+      new URL('./RoomThreadOverview.tsx', import.meta.url),
+      'utf8'
+    );
+    const cssCompatibilitySource = readFileSync(
+      new URL('./RoomThreadOverview.css.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/RoomThreadOverview.tsx', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/RoomThreadOverview'");
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/RoomThreadOverview'");
+    expect(cssCompatibilitySource).toContain("from '../../mindroom/threads/RoomThreadOverview.css'");
+    expect(implementationSource).toContain('RoomThreadOverviewProps');
+    expect(implementationSource).toContain('FILTER_PRESETS');
+    expect(compatibilitySource).not.toContain('FILTER_PRESETS');
+  });
+
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
