@@ -345,6 +345,8 @@ compatibility re-exports.
 Room thread overview filtering/sorting/count model now lives in
 `src/app/mindroom/threads/roomThreadOverviewModel.ts`; the old `features/room` path is only a
 compatibility re-export.
+Thread sort-freeze resnapshot policy now lives in
+`src/app/mindroom/threads/threadSortFreezeController.ts`.
 Thread relation/route utility helpers now live in `src/app/mindroom/threads/threadUtils.ts` and
 `src/app/mindroom/threads/threadRouteUtils.ts`; the old `features/room` paths are only
 compatibility re-exports.
