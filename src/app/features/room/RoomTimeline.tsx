@@ -177,7 +177,7 @@ import {
 } from '../../mindroom/threads/threadRenderUtils';
 import { useThreadRenderState } from '../../mindroom/threads/useThreadRenderState';
 import { createTimelineDebugTrace, logTimelineDebug } from '../../mindroom/threads/timelineDebug';
-import { shouldUseSurfacePreloadTarget } from './roomPreloadTarget';
+import { shouldUseSurfacePreloadTarget } from '../../mindroom/threads/roomPreloadTarget';
 import {
   buildCompactZeroReplyRootData,
   buildCompactThreadRootData,

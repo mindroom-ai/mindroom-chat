@@ -30,8 +30,14 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates eager room preload orchestration outside RoomTimeline', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const targetCompatibilitySource = readFileSync(
+      new URL('./roomPreloadTarget.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).toContain('useRoomEagerPreload');
+    expect(source).toContain("from '../../mindroom/threads/roomPreloadTarget'");
+    expect(targetCompatibilitySource).toContain("from '../../mindroom/threads/roomPreloadTarget'");
     expect(source).not.toContain('[eager-preload]');
   });
 

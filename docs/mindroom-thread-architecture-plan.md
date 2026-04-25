@@ -372,6 +372,9 @@ compatibility re-export.
 Event cache hydration, relation aggregation, redaction/replacement application, and serialization
 helpers now live in `src/app/mindroom/threads/eventCacheEditUtils.ts`; the old `features/room` path
 is only a compatibility re-export.
+Current-room surface preload target selection now lives in
+`src/app/mindroom/threads/roomPreloadTarget.ts`; the old `features/room` path is only a
+compatibility re-export.
 Raw room/thread IndexedDB event cache stores and their legacy migration helper now live in
 `src/app/mindroom/threads/roomEventCache.ts`, `threadEventCache.ts`, and
 `cacheDbMigrationUtils.ts`; the old `features/room` paths are only compatibility re-exports.
