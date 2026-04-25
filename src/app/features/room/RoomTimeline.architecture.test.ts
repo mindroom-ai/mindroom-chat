@@ -223,8 +223,11 @@ describe('RoomTimeline architecture', () => {
   it('does not keep unused top-level MindRoom compatibility wrappers', () => {
     const removedCompatibilityPaths = [
       '../../hooks/useIOSPushEnabled.ts',
+      '../../hooks/useEdgeSwipeBack.ts',
+      '../../hooks/useRoomEvent.ts',
       '../../hooks/useThreadScheduledTasks.ts',
       '../../hooks/useThreadStreamingState.ts',
+      '../../components/message/ThreadIndicator.ts',
       '../../state/lastOpenThread.ts',
       '../../state/recentThreads.ts',
       '../../state/recentThreadsPanelHeight.ts',
@@ -635,10 +638,6 @@ describe('RoomTimeline architecture', () => {
       new URL('../../components/message/Reply.tsx', import.meta.url),
       'utf8'
     );
-    const threadIndicatorCompatibilitySource = readFileSync(
-      new URL('../../components/message/ThreadIndicator.ts', import.meta.url),
-      'utf8'
-    );
     const replyStyleSource = readFileSync(
       new URL('../../components/message/Reply.css.ts', import.meta.url),
       'utf8'
@@ -660,16 +659,13 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(replySource).toContain("from './ThreadIndicator'");
-    expect(replySource).toContain("from '../../hooks/useRoomEvent'");
-    expect(replySource).not.toContain("from '../../mindroom/threads/ThreadIndicator'");
-    expect(replySource).not.toContain("from '../../mindroom/threads/useRoomEvent'");
+    expect(replySource).toContain("from '../../mindroom/threads/ThreadIndicator'");
+    expect(replySource).toContain("from '../../mindroom/threads/useRoomEvent'");
     expect(replySource).not.toContain('useThreadResolution');
     expect(replySource).not.toContain('useThreadScheduledTasks');
     expect(replySource).not.toContain('getThreadUnread');
     expect(replyStyleSource).not.toContain('ThreadStreamingPulse');
-    expect(indexSource).toContain("from './ThreadIndicator'");
-    expect(threadIndicatorCompatibilitySource).toContain("from '../../mindroom/threads/ThreadIndicator'");
+    expect(indexSource).not.toContain('ThreadIndicator');
     expect(threadIndicatorSource).toContain("from './threadIndicatorViewModel'");
     expect(threadIndicatorViewModelSource).toContain('getThreadRootReplyCount');
     expect(threadIndicatorSource).toContain("from './useRoomThreadTags'");
@@ -705,10 +701,6 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps cache-aware room event loading in MindRoom threads', () => {
-    const hookCompatibilitySource = readFileSync(
-      new URL('../../hooks/useRoomEvent.ts', import.meta.url),
-      'utf8'
-    );
     const hookImplementationSource = readFileSync(
       new URL('../../mindroom/threads/useRoomEvent.ts', import.meta.url),
       'utf8'
@@ -722,14 +714,10 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(hookCompatibilitySource).toContain("from '../mindroom/threads/useRoomEvent'");
     expect(hookImplementationSource).toContain('loadCachedThreadEvent');
     expect(hookImplementationSource).toContain("from './eventRepository'");
-    expect(replySource).toContain("from '../../hooks/useRoomEvent'");
-    expect(replySource).not.toContain("from '../../mindroom/threads/useRoomEvent'");
-    expect(pinMenuSource).toContain("from '../../../hooks/useRoomEvent'");
-    expect(pinMenuSource).not.toContain("from '../../../mindroom/threads/useRoomEvent'");
-    expect(hookCompatibilitySource).not.toContain('loadCachedThreadEvent');
+    expect(replySource).toContain("from '../../mindroom/threads/useRoomEvent'");
+    expect(pinMenuSource).toContain("from '../../../mindroom/threads/useRoomEvent'");
   });
 
   it('keeps room thread overview controls in MindRoom threads', () => {
@@ -1214,10 +1202,6 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps native app integration helpers in the MindRoom namespace', () => {
-    const edgeSwipeCompatibilitySource = readFileSync(
-      new URL('../../hooks/useEdgeSwipeBack.ts', import.meta.url),
-      'utf8'
-    );
     const backRouteHandlerSource = readFileSync(
       new URL('../../components/BackRouteHandler.tsx', import.meta.url),
       'utf8'
@@ -1255,13 +1239,8 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(edgeSwipeCompatibilitySource.trim()).toBe(
-      "export { useEdgeSwipeBack } from '../mindroom/native/useEdgeSwipeBack';"
-    );
-    expect(backRouteHandlerSource).toContain("from '../hooks/useEdgeSwipeBack'");
-    expect(backRouteHandlerSource).not.toContain("from '../mindroom/native/useEdgeSwipeBack'");
-    expect(roomViewSource).toContain("from '../../hooks/useEdgeSwipeBack'");
-    expect(roomViewSource).not.toContain("from '../../mindroom/native/useEdgeSwipeBack'");
+    expect(backRouteHandlerSource).toContain("from '../mindroom/native/useEdgeSwipeBack'");
+    expect(roomViewSource).toContain("from '../../mindroom/native/useEdgeSwipeBack'");
     expect(nativeSsoSource).toContain('buildNativeSsoRedirectUrl');
     expect(iosPushSource).toContain('resolveIOSPushConfig');
     expect(systemNotificationSource).toContain(
