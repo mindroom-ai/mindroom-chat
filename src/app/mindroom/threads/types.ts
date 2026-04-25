@@ -36,6 +36,8 @@ export type ThreadCacheCoverage = {
   oldestTs?: number;
   newestTs?: number;
   backwardToken?: string | null;
+  hasMoreBackward?: boolean;
+  snapshotComplete?: boolean;
   relationSnapshotComplete: boolean;
   tailLoaded: boolean;
   expectedReplyCount?: number;

@@ -49,6 +49,15 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('const mergeThreadBackfillEvents');
   });
 
+  it('delegates thread cache coverage decisions to a fork-owned module', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain("from '../../mindroom/threads/threadCacheCoverage'");
+    expect(source).not.toContain('hydratedCachedPage.snapshotComplete === true &&');
+    expect(source).not.toContain('hydratedCachedPage.relationSnapshotComplete === true &&');
+    expect(source).toContain('showThreadLoadOlderMessages');
+  });
+
   it('delegates cache payload serialization prep to the event repository', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
