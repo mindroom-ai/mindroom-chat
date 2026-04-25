@@ -692,6 +692,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../plugins/react-custom-html-parser.tsx', import.meta.url),
       'utf8'
     );
+    const searchResultPreviewSource = readFileSync(
+      new URL('../message-search/searchResultPreview.ts', import.meta.url),
+      'utf8'
+    );
     const customHtmlStyleSource = readFileSync(
       new URL('../../styles/CustomHtml.css.ts', import.meta.url),
       'utf8'
@@ -779,6 +783,8 @@ describe('RoomTimeline architecture', () => {
     expect(parserSource).not.toContain("from '../mindroom/messages/toolTrace'");
     expect(parserSource).not.toContain('MINDROOM_BLOCK_META');
     expect(parserSource).not.toContain('MindroomCollapsibleBlock');
+    expect(searchResultPreviewSource).toContain("from '../../mindroom/messages/longText'");
+    expect(searchResultPreviewSource).not.toContain("content?.['io.mindroom.long_text']");
     expect(customHtmlStyleSource).not.toContain('MindroomBlock');
     expect(customHtmlStyleSource).not.toContain('MindroomToolGroup');
     expect(streamingHookSource.trim()).toBe(

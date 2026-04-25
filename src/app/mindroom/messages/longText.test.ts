@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearMindroomLongTextHydrationCache,
   getMindroomLongTextSource,
+  hasMindroomLongTextMetadata,
   hydrateMindroomLongTextSource,
   parseMindroomLongTextJsonSidecar,
 } from './longText';
@@ -80,6 +81,43 @@ describe('getMindroomLongTextSource', () => {
     expect(source?.mxcUri).toBe('mxc://server/new-content');
     expect(source?.previewContent.body).toBeUndefined();
     expect(source?.previewContent.msgtype).toBe('m.file');
+  });
+});
+
+describe('hasMindroomLongTextMetadata', () => {
+  it('detects long-text metadata without requiring a resolvable sidecar source', () => {
+    expect(
+      hasMindroomLongTextMetadata({
+        msgtype: 'm.text',
+        body: 'placeholder',
+        'io.mindroom.long_text': {
+          version: 2,
+        },
+      })
+    ).toBe(true);
+  });
+
+  it('detects metadata in raw edit wrappers', () => {
+    expect(
+      hasMindroomLongTextMetadata({
+        'm.new_content': {
+          msgtype: 'm.text',
+          body: 'placeholder',
+          'io.mindroom.long_text': {
+            version: 2,
+          },
+        },
+      })
+    ).toBe(true);
+  });
+
+  it('ignores regular message content', () => {
+    expect(
+      hasMindroomLongTextMetadata({
+        msgtype: 'm.text',
+        body: 'normal',
+      })
+    ).toBe(false);
   });
 });
 

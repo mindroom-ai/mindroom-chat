@@ -110,6 +110,9 @@ const getLongTextCandidates = (content: Record<string, unknown>): Record<string,
   return newContent ? [newContent, content] : [content];
 };
 
+export const hasMindroomLongTextMetadata = (content: Record<string, unknown>): boolean =>
+  getLongTextCandidates(content).some((candidate) => isRecord(candidate[LONG_TEXT_TAG]));
+
 const getLongTextSourceFromCandidate = (
   previewContent: Record<string, unknown>
 ): MindroomLongTextSource | undefined => {

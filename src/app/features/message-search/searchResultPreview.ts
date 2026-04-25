@@ -1,5 +1,6 @@
 import { IEventWithRoomId, MsgType, RelationType } from 'matrix-js-sdk';
 import { MessageEvent } from '../../../types/matrix/room';
+import { hasMindroomLongTextMetadata } from '../../mindroom/messages/longText';
 import { parseBlockMD, parseInlineMD } from '../../plugins/markdown';
 
 const collapseWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
@@ -101,7 +102,7 @@ export const shouldUseLightweightSearchResultBody = (
     typeof content?.formatted_body === 'string' ? content.formatted_body : undefined;
 
   return (
-    typeof content?.['io.mindroom.long_text'] === 'object' ||
+    hasMindroomLongTextMetadata(content) ||
     (typeof body === 'string' && body.length > SEARCH_RESULT_RICH_BODY_CHAR_LIMIT) ||
     (typeof formattedBody === 'string' &&
       formattedBody.length > SEARCH_RESULT_RICH_BODY_CHAR_LIMIT * 2)
