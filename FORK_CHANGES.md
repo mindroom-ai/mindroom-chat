@@ -1011,6 +1011,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 52 / Phase 5 preload target ownership (2026-04-24):
+  - moved current-room surface preload target selection to `src/app/mindroom/threads/roomPreloadTarget.ts` with its regression tests.
+  - the old `src/app/features/room/roomPreloadTarget.ts` path is now a compatibility re-export; `RoomTimeline` imports the MindRoom implementation directly.
+  - this keeps compact/filter room preload targeting beside the preload controller namespace.
+  - validation:
+    - focused Vitest passes for `roomPreloadTarget.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
