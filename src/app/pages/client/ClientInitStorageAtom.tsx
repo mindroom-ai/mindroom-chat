@@ -1,31 +1,16 @@
-import React, { ReactNode, useLayoutEffect, useMemo } from 'react';
+import React, { ReactNode, useMemo } from 'react';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useMindroomClientStorageAtoms } from '../../mindroom/cache/clientStorageAtoms';
 import { makeClosedNavCategoriesAtom } from '../../state/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../state/hooks/closedNavCategories';
 import { makeClosedLobbyCategoriesAtom } from '../../state/closedLobbyCategories';
 import { ClosedLobbyCategoriesProvider } from '../../state/hooks/closedLobbyCategories';
-import {
-  makeLastOpenThreadAtom,
-  registerLastOpenThreadAtom,
-} from '../../mindroom/threads/lastOpenThread';
 import { makeNavToActivePathAtom } from '../../state/navToActivePath';
 import { NavToActivePathProvider } from '../../state/hooks/navToActivePath';
 import { makeOpenedSidebarFolderAtom } from '../../state/openedSidebarFolder';
 import { OpenedSidebarFolderProvider } from '../../state/hooks/openedSidebarFolder';
 import { makeCallPreferencesAtom } from '../../state/callPreferences';
 import { CallPreferencesProvider } from '../../state/hooks/callPreferences';
-import {
-  makeRecentThreadsAtom,
-  registerRecentThreadsAtom,
-} from '../../mindroom/recent-threads/recentThreads';
-import {
-  makeRecentThreadsPanelHeightAtom,
-  registerRecentThreadsPanelHeightAtom,
-} from '../../mindroom/recent-threads/recentThreadsPanelHeight';
-import {
-  makeRecentThreadsPanelMobileExpandedAtom,
-  registerRecentThreadsPanelMobileExpandedAtom,
-} from '../../mindroom/recent-threads/recentThreadsPanelMobileExpanded';
 
 type ClientInitStorageAtomProps = {
   children: ReactNode;
@@ -40,44 +25,11 @@ export function ClientInitStorageAtom({ children }: ClientInitStorageAtomProps) 
 
   const navToActivePathAtom = useMemo(() => makeNavToActivePathAtom(userId), [userId]);
 
-  const lastOpenThreadAtom = useMemo(() => makeLastOpenThreadAtom(userId), [userId]);
-
   const openedSidebarFolderAtom = useMemo(() => makeOpenedSidebarFolderAtom(userId), [userId]);
 
   const callPreferencesAtom = useMemo(() => makeCallPreferencesAtom(userId), [userId]);
 
-  const recentThreadsAtom = useMemo(() => makeRecentThreadsAtom(userId), [userId]);
-
-  const recentThreadsPanelHeightAtom = useMemo(
-    () => makeRecentThreadsPanelHeightAtom(userId),
-    [userId]
-  );
-  const recentThreadsPanelMobileExpandedAtom = useMemo(
-    () => makeRecentThreadsPanelMobileExpandedAtom(userId),
-    [userId]
-  );
-
-  useLayoutEffect(() => {
-    const unregisterLastOpenThreadAtom = registerLastOpenThreadAtom(lastOpenThreadAtom);
-    const unregisterRecentThreadsAtom = registerRecentThreadsAtom(recentThreadsAtom);
-    const unregisterRecentThreadsPanelHeightAtom = registerRecentThreadsPanelHeightAtom(
-      recentThreadsPanelHeightAtom
-    );
-    const unregisterRecentThreadsPanelMobileExpandedAtom =
-      registerRecentThreadsPanelMobileExpandedAtom(recentThreadsPanelMobileExpandedAtom);
-
-    return () => {
-      unregisterRecentThreadsPanelMobileExpandedAtom();
-      unregisterRecentThreadsPanelHeightAtom();
-      unregisterRecentThreadsAtom();
-      unregisterLastOpenThreadAtom();
-    };
-  }, [
-    lastOpenThreadAtom,
-    recentThreadsAtom,
-    recentThreadsPanelHeightAtom,
-    recentThreadsPanelMobileExpandedAtom,
-  ]);
+  useMindroomClientStorageAtoms(userId);
 
   return (
     <ClosedNavCategoriesProvider value={closedNavCategoriesAtom}>

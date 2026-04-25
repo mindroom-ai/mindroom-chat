@@ -37,6 +37,10 @@
   - Command-palette thread sourcing now lives in `src/app/mindroom/threads/commandPaletteThreadItems.ts`.
   - Generic command-palette item assembly keeps room/user/action/message sourcing, while thread tags, recent-thread entries, SDK thread records, resolved-state mutation, and duplicate thread item merging are owned by the MindRoom thread namespace.
   - Architecture guards now prevent raw thread tag/recent-thread/thread-record derivation from moving back into `src/app/features/command-palette/commandPaletteItems.ts`.
+- `CINNY-116`
+  - MindRoom client UI storage registration now lives in `src/app/mindroom/cache/clientStorageAtoms.ts`.
+  - Generic client storage initialization now calls one MindRoom hook instead of directly registering last-open-thread, recent-thread list, recent-thread height, and recent-thread mobile-expanded atoms.
+  - Focused coverage verifies the owner registers and unregisters all imperative MindRoom storage atoms for the active user.
 
 ### Current Feature Set On `dev`
 
