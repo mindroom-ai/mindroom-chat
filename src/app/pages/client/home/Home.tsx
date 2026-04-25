@@ -65,7 +65,7 @@ import {
 import { UseStateProvider } from '../../../components/UseStateProvider';
 import { JoinAddressPrompt } from '../../../components/join-address-prompt';
 import { _RoomSearchParams } from '../../paths';
-import { RecentThreadsPageNav } from '../../../features/recent-threads';
+import { RecentThreadsPageNav } from '../../../mindroom/recent-threads/RecentThreadsPanel';
 
 type HomeMenuProps = {
   requestClose: () => void;

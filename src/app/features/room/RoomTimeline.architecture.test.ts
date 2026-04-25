@@ -1223,16 +1223,25 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps the Recent Threads feature in the MindRoom namespace', () => {
-    const panelCompatibilitySource = readFileSync(
-      new URL('../recent-threads/RecentThreadsPanel.tsx', import.meta.url),
+    const removedRecentThreadsCompatibilityPaths = [
+      '../recent-threads/RecentThreadEntry.tsx',
+      '../recent-threads/RecentThreadsDivider.tsx',
+      '../recent-threads/RecentThreadsPanel.tsx',
+      '../recent-threads/index.ts',
+      '../recent-threads/recentThreadSummaryUtils.ts',
+      '../recent-threads/recentThreadsPanelUtils.ts',
+      '../recent-threads/useResolvedRecentThreadsLayout.ts',
+    ];
+    const homeSource = readFileSync(
+      new URL('../../pages/client/home/Home.tsx', import.meta.url),
       'utf8'
     );
-    const entryCompatibilitySource = readFileSync(
-      new URL('../recent-threads/RecentThreadEntry.tsx', import.meta.url),
+    const directSource = readFileSync(
+      new URL('../../pages/client/direct/Direct.tsx', import.meta.url),
       'utf8'
     );
-    const summaryCompatibilitySource = readFileSync(
-      new URL('../recent-threads/recentThreadSummaryUtils.ts', import.meta.url),
+    const spaceSource = readFileSync(
+      new URL('../../pages/client/space/Space.tsx', import.meta.url),
       'utf8'
     );
     const panelSource = readFileSync(
@@ -1256,15 +1265,13 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(panelCompatibilitySource.trim()).toBe(
-      "export { RecentThreadsPageNav, RecentThreadsPanel } from '../../mindroom/recent-threads/RecentThreadsPanel';"
-    );
-    expect(entryCompatibilitySource.trim()).toBe(
-      "export { RecentThreadEntry } from '../../mindroom/recent-threads/RecentThreadEntry';"
-    );
-    expect(summaryCompatibilitySource.trim()).toBe(
-      "export * from '../../mindroom/recent-threads/recentThreadSummaryUtils';"
-    );
+    removedRecentThreadsCompatibilityPaths.forEach((path) => {
+      expect(existsSync(new URL(path, import.meta.url))).toBe(false);
+    });
+    [homeSource, directSource, spaceSource].forEach((source) => {
+      expect(source).toContain("from '../../../mindroom/recent-threads/RecentThreadsPanel'");
+      expect(source).not.toContain("from '../../../features/recent-threads'");
+    });
     expect(panelSource).toContain('Recent Threads');
     expect(summarySource).toContain('resolveRecentThreadSummaryText');
     expect(threadRecordSource).toContain("from '../recent-threads/recentThreadSummaryUtils'");
