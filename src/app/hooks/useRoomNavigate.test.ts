@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NavigateOptions } from 'react-router-dom';
 import { getHomeRoomPath, withSearchParam } from '../pages/pathUtils';
 import { useRoomNavigate } from './useRoomNavigate';
-import { ROOM_THREAD_EXIT_TARGET_STATE_KEY } from './roomNavigateState';
+import { ROOM_THREAD_EXIT_TARGET_STATE_KEY } from '../mindroom/threads/roomNavigateState';
 
 const mocks = vi.hoisted(() => ({
   isNativeIOS: vi.fn(() => false),

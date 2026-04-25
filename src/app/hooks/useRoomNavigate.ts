@@ -21,7 +21,7 @@ import { isNativeIOS } from '../mindroom/native/nativeSso';
 import {
   setRoomThreadExitTargetForHistoryState,
   withRoomThreadExitTargetState,
-} from './roomNavigateState';
+} from '../mindroom/threads/roomNavigateState';
 
 const afterNextPaint = (callback: () => void) => {
   if (typeof requestAnimationFrame === 'function') {

@@ -439,6 +439,9 @@ Thread summary cache/state/selection now lives in `src/app/mindroom/threads/thre
 Thread root route canonicalization now lives in
 `src/app/mindroom/threads/useThreadRootEvent.ts`; the old `features/room` path is only a
 compatibility re-export.
+Thread exit route-state persistence now lives in
+`src/app/mindroom/threads/roomNavigateState.ts`; the old `hooks` path is only a compatibility
+re-export.
 Room-event-to-thread deep-link resolution now lives in
 `src/app/mindroom/threads/roomDeepLink.ts`; the old `features/room` path is only a compatibility
 re-export.
