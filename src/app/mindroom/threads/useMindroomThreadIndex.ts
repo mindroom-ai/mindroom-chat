@@ -4,7 +4,7 @@ import type { MindroomThreadSummaryInfo } from '../../components/message/mindroo
 import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,
-} from '../../features/room/threadFilterDsl';
+} from './threadFilterDsl';
 import { getRoomEventThreadOpenTarget } from '../../features/room/roomDeepLink';
 import {
   isVisibleThreadRootEvent,
