@@ -114,6 +114,17 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('normalizeCachedThreadEvents');
   });
 
+  it('delegates thread bootstrap, seed prewarm, and relation-fetch helpers to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain("from '../../mindroom/threads/threadBootstrap'");
+    expect(source).not.toContain('export async function fetchAllThreadRelations');
+    expect(source).not.toContain('export const collectPriorityThreadSeedPrewarmRoots =');
+    expect(source).not.toContain('export const getLoadedRoomThreadEvents =');
+    expect(source).not.toContain('export const getLoadedRoomThreadSeedEvents =');
+    expect(source).not.toContain('export const getCompactRootEventsNeedingBackfill =');
+  });
+
   it('delegates thread prepend scroll primitives to scroll utilities', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 

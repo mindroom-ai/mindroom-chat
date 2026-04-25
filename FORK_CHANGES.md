@@ -643,6 +643,14 @@
     - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.permalink-refresh.test.ts`, and `RoomTimeline.cache.test.ts`
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline (`81` warnings, `0` errors)
+- `CINNY-075` implementation step 9 / Phase 5 prep (2026-04-24):
+  - moved thread bootstrap helpers into `src/app/mindroom/threads/threadBootstrap.ts`.
+  - `RoomTimeline` no longer owns room-loaded thread seed extraction, thread model seed merging, priority seed-prewarm target selection, full relation-page fetching, compact root backfill target selection, thread-not-found classification, or overview refresh targeting.
+  - kept compatibility re-exports from `RoomTimeline.tsx` for existing tests while implementation lives under the fork-owned namespace.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.fetchAllThreadRelations.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`80` warnings, `0` errors)
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
