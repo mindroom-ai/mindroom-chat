@@ -123,6 +123,9 @@
   - `RoomInput` continues to use the single MindRoom room-input extension seam.
 - `CINNY-142`
   - Removed unused low-level thread compatibility wrappers for tag colors, pending tag state, tag mutation hooks, thread-summary selection, and room-summary state hooks.
+- `CINNY-143`
+  - Removed architecture-test-only wrappers for room preload target selection, thread deep links, thread render state, summary cache/state, thread-list loading, thread-root lookup, and cache DB migration helpers.
+  - These callers now rely on the MindRoom-owned modules directly or through the higher-level controller seams.
 
 ### Current Feature Set On `dev`
 
