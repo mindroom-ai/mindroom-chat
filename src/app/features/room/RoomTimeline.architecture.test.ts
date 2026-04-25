@@ -189,6 +189,19 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('isZeroReplyStandaloneThreadRootEvent');
   });
 
+  it('delegates thread-open post-bootstrap refresh to MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const refreshSource = readFileSync(
+      new URL('../../mindroom/threads/threadOpenPostBootstrapRefresh.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain('runThreadOpenPostBootstrapRefresh');
+    expect(refreshSource).toContain('thread-open-forward-gap-check');
+    expect(source).not.toContain('thread-open-forward-gap-check');
+    expect(source).not.toContain('computeReconciliationToken');
+  });
+
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
