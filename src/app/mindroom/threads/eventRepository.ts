@@ -28,6 +28,14 @@ import { serializeEventsForCache } from '../../features/room/eventCacheEditUtils
 import { isThreadOnlyRoomActivity } from '../../features/room/threadRenderUtils';
 import { buildThreadReplyCountMap } from '../../features/room/threadUtils';
 import { getKnownThreadReplyCount } from './threadRecord';
+import {
+  getRoomDerivedThreadSnapshotState,
+  mergeThreadBackfillEvents,
+} from './threadCacheSnapshot';
+import {
+  getThreadOpenSeedSnapshot,
+  saveThreadOpenSeedSnapshot,
+} from './threadOpenSeedCache';
 
 export {
   getRoomCursorAnchor,
@@ -671,6 +679,102 @@ export const persistThreadEventCacheSnapshot = ({
     snapshotComplete,
     relationSnapshotComplete,
   };
+};
+
+type ThreadCacheFromRoomEventsOptions = {
+  beforeTokenForEarliest?: string | null;
+  roomStartKnown?: boolean;
+  roomTailLoaded?: boolean;
+  snapshotComplete?: boolean;
+  tailLoaded?: boolean;
+};
+
+export type ThreadCacheFromRoomEventsWrite = {
+  threadId: string;
+  threadEvents: MatrixEvent[];
+  rootEvent?: MatrixEvent;
+  nextSeedEvents: MatrixEvent[];
+  roomDerivedSnapshot?: ReturnType<typeof getRoomDerivedThreadSnapshotState>;
+  cacheSnapshot: ThreadEventCacheSnapshotWrite;
+};
+
+export const persistThreadCacheFromRoomEventsSnapshot = ({
+  sessionId,
+  room,
+  events,
+  opts,
+  getSeedSnapshot = getThreadOpenSeedSnapshot,
+  saveSeedSnapshot = saveThreadOpenSeedSnapshot,
+  saveThreadSnapshot = saveThreadEventsToCacheToStorage,
+}: {
+  sessionId: string;
+  room: Room;
+  events: MatrixEvent[];
+  opts?: ThreadCacheFromRoomEventsOptions;
+  getSeedSnapshot?: typeof getThreadOpenSeedSnapshot;
+  saveSeedSnapshot?: typeof saveThreadOpenSeedSnapshot;
+  saveThreadSnapshot?: SaveThreadEventsToCache;
+}): ThreadCacheFromRoomEventsWrite[] => {
+  const writes: ThreadCacheFromRoomEventsWrite[] = [];
+  const groupedThreadEvents = groupThreadCacheEvents(room, events);
+
+  groupedThreadEvents.forEach((threadEvents, threadId) => {
+    const rootEvent = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);
+    const existingThreadSeedEvents = getSeedSnapshot(room, threadId);
+    const roomDerivedThreadSeedEvents = rootEvent
+      ? mergeThreadBackfillEvents([rootEvent], threadEvents)
+      : threadEvents;
+    const nextSeedEvents = mergeThreadBackfillEvents(
+      existingThreadSeedEvents,
+      roomDerivedThreadSeedEvents
+    );
+    let beforeTokenForEarliest = opts?.beforeTokenForEarliest;
+    let expectedReplyCount: number | undefined;
+    let snapshotComplete = opts?.snapshotComplete;
+    let tailLoaded = opts?.tailLoaded;
+    let roomDerivedSnapshot: ReturnType<typeof getRoomDerivedThreadSnapshotState> | undefined;
+
+    if (opts?.roomStartKnown !== undefined || opts?.roomTailLoaded !== undefined) {
+      roomDerivedSnapshot = getRoomDerivedThreadSnapshotState({
+        room,
+        threadId,
+        rootEvent,
+        threadEvents,
+        roomStartKnown: opts?.roomStartKnown === true,
+        roomTailLoaded: opts?.roomTailLoaded === true,
+      });
+      beforeTokenForEarliest = roomDerivedSnapshot.beforeTokenForEarliest;
+      expectedReplyCount = roomDerivedSnapshot.expectedReplyCount;
+      snapshotComplete = roomDerivedSnapshot.snapshotComplete;
+      tailLoaded = roomDerivedSnapshot.tailLoaded;
+    }
+
+    saveSeedSnapshot(room, threadId, nextSeedEvents);
+
+    const cacheSnapshot = persistThreadEventCacheSnapshot({
+      sessionId,
+      room,
+      threadId,
+      events: threadEvents,
+      rootEvent,
+      beforeTokenForEarliest,
+      tailLoaded,
+      snapshotComplete,
+      expectedReplyCount,
+      save: saveThreadSnapshot,
+    });
+
+    writes.push({
+      threadId,
+      threadEvents,
+      rootEvent,
+      nextSeedEvents,
+      roomDerivedSnapshot,
+      cacheSnapshot,
+    });
+  });
+
+  return writes;
 };
 
 export type RoomEventCacheSnapshotWrite = {

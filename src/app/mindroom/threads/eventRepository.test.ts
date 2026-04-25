@@ -1,4 +1,4 @@
-import { RelationType } from 'matrix-js-sdk';
+import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   collectStateTargetEvents,
@@ -9,6 +9,7 @@ import {
   loadRoomCachedPaginationSnapshot,
   loadLatestRoomCacheHydrationSnapshot,
   loadCachedThreadSnapshot,
+  persistThreadCacheFromRoomEventsSnapshot,
   persistRoomEventCacheSnapshot,
   persistThreadEventCacheSnapshot,
   serializeRoomCacheEvents,
@@ -151,6 +152,75 @@ describe('eventRepository cache persistence snapshots', () => {
       room.roomId,
       [{ event_id: '$root' }, { event_id: '$room' }],
       'before-root',
+    ]);
+  });
+
+  it('persists thread cache snapshots derived from room events and updates open seeds', () => {
+    const rootEvent = makeEvent('$root', {
+      ts: 100,
+      isThreadRoot: true,
+      unsigned: {
+        'm.relations': {
+          'm.thread': {
+            count: 1,
+          },
+        },
+      },
+    });
+    const replyEvent = makeEvent('$reply', {
+      threadRootId: '$root',
+      ts: 200,
+      content: { body: 'reply' },
+    });
+    const room = makeRoom({ liveEvents: [rootEvent, replyEvent] });
+    const writes: unknown[][] = [];
+    const savedSeeds: MatrixEvent[][] = [];
+
+    const snapshots = persistThreadCacheFromRoomEventsSnapshot({
+      sessionId: 'session',
+      room: room as never,
+      events: [replyEvent] as never,
+      opts: {
+        roomStartKnown: true,
+        roomTailLoaded: true,
+      },
+      getSeedSnapshot: () => [],
+      saveSeedSnapshot: (_room, _threadId, events) => {
+        savedSeeds.push(events);
+      },
+      saveThreadSnapshot: (...args) => {
+        writes.push(args);
+        return Promise.resolve();
+      },
+    });
+
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0].threadId).toBe('$root');
+    expect(snapshots[0].nextSeedEvents.map((event) => event.getId())).toEqual([
+      '$root',
+      '$reply',
+    ]);
+    expect(snapshots[0].roomDerivedSnapshot).toMatchObject({
+      beforeTokenForEarliest: null,
+      expectedReplyCount: 1,
+      loadedReplyCount: 1,
+      snapshotComplete: true,
+      tailLoaded: true,
+    });
+    expect(snapshots[0].cacheSnapshot.expectedReplyCount).toBe(1);
+    expect(savedSeeds[0].map((event) => event.getId())).toEqual(['$root', '$reply']);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject([
+      'session',
+      room.roomId,
+      '$root',
+      [{ event_id: '$root' }, { event_id: '$reply' }],
+      { event_id: '$root' },
+      null,
+      true,
+      true,
+      1,
+      undefined,
     ]);
   });
 });

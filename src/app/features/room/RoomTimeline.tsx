@@ -249,7 +249,6 @@ import {
   getRoomCursorAnchor,
   getThreadCursorAnchor,
   getThreadCacheTargetId,
-  groupThreadCacheEvents,
   getMainTimelineCacheEvents,
   findEarliestLoadedRoomEventByCacheOrder,
   getEarliestLoadedRoomEvent,
@@ -261,6 +260,7 @@ import {
   loadRoomCachedBackStateSnapshot,
   loadRoomCachedPaginationSnapshot,
   mapCachedThreadPageEvents,
+  persistThreadCacheFromRoomEventsSnapshot,
   persistRoomEventCacheSnapshot,
   persistThreadEventCacheSnapshot,
 } from '../../mindroom/threads/eventRepository';
@@ -299,7 +299,6 @@ import { useRoomEagerPreload } from '../../mindroom/threads/preloadController';
 import { useThreadBackPaginationController } from '../../mindroom/threads/threadBackPaginationController';
 import {
   getAuthoritativeCachedThreadReplyCount,
-  getRoomDerivedThreadSnapshotState,
   isCompleteCachedThreadSnapshot,
   mergeThreadBackfillEvents,
 } from '../../mindroom/threads/threadCacheSnapshot';
@@ -3062,61 +3061,49 @@ export function RoomTimeline({
         tailLoaded?: boolean;
       }
     ) => {
-      const groupedThreadEvents = groupThreadCacheEvents(room, events);
-      groupedThreadEvents.forEach((threadEvents, expectedThreadId) => {
-        const rootEvent =
-          room.getThread(expectedThreadId)?.rootEvent ?? room.findEventById(expectedThreadId);
-        const existingThreadSeedEvents = getThreadOpenSeedSnapshot(room, expectedThreadId);
-        const roomDerivedThreadSeedEvents = rootEvent
-          ? mergeThreadBackfillEvents([rootEvent], threadEvents)
-          : threadEvents;
-        const nextThreadSeedEvents = mergeThreadBackfillEvents(
-          existingThreadSeedEvents,
-          roomDerivedThreadSeedEvents
-        );
-        let beforeTokenForEarliest = opts?.beforeTokenForEarliest;
-        let expectedReplyCount: number | undefined;
-        let snapshotComplete = opts?.snapshotComplete;
-        let tailLoaded = opts?.tailLoaded;
+      const writes = persistThreadCacheFromRoomEventsSnapshot({
+        sessionId,
+        room,
+        events,
+        opts,
+      });
 
-        if (opts?.roomStartKnown !== undefined || opts?.roomTailLoaded !== undefined) {
-          const roomDerivedSnapshot = getRoomDerivedThreadSnapshotState({
-            room,
-            threadId: expectedThreadId,
-            rootEvent,
-            threadEvents,
-            roomStartKnown: opts?.roomStartKnown === true,
-            roomTailLoaded: opts?.roomTailLoaded === true,
-          });
-          beforeTokenForEarliest = roomDerivedSnapshot.beforeTokenForEarliest;
-          expectedReplyCount = roomDerivedSnapshot.expectedReplyCount;
-          snapshotComplete = roomDerivedSnapshot.snapshotComplete;
-          tailLoaded = roomDerivedSnapshot.tailLoaded;
-          logTimelineDebug(roomDebugTraceId, 'room-thread-cache-room-snapshot', {
-            beforeTokenForEarliest: beforeTokenForEarliest ?? null,
-            expectedReplyCount: roomDerivedSnapshot.expectedReplyCount ?? null,
-            loadedReplyCount: roomDerivedSnapshot.loadedReplyCount,
-            seedCount: nextThreadSeedEvents.length,
-            snapshotComplete,
-            tailLoaded,
+      writes.forEach(
+        ({
+          threadId: expectedThreadId,
+          rootEvent,
+          nextSeedEvents,
+          roomDerivedSnapshot,
+          cacheSnapshot,
+        }) => {
+          if (roomDerivedSnapshot) {
+            logTimelineDebug(roomDebugTraceId, 'room-thread-cache-room-snapshot', {
+              beforeTokenForEarliest: roomDerivedSnapshot.beforeTokenForEarliest ?? null,
+              expectedReplyCount: roomDerivedSnapshot.expectedReplyCount ?? null,
+              loadedReplyCount: roomDerivedSnapshot.loadedReplyCount,
+              seedCount: nextSeedEvents.length,
+              snapshotComplete: roomDerivedSnapshot.snapshotComplete,
+              tailLoaded: roomDerivedSnapshot.tailLoaded,
+              threadId: expectedThreadId,
+            });
+          }
+
+          logTimelineDebug(threadDebugTraceId, 'thread-cache-persist', {
+            beforeTokenForEarliest: cacheSnapshot.beforeTokenForEarliest ?? null,
+            cacheEventCount: cacheSnapshot.rawEvents.length,
+            expectedReplyCount: cacheSnapshot.expectedReplyCount ?? null,
+            loadedReplyCount: cacheSnapshot.loadedReplyCount,
+            rawEventCount: cacheSnapshot.rawEvents.length,
+            relationSnapshotComplete: cacheSnapshot.relationSnapshotComplete === true,
+            rootPresent: !!rootEvent,
+            snapshotComplete: cacheSnapshot.snapshotComplete === true,
+            tailLoaded: cacheSnapshot.tailLoaded === true,
             threadId: expectedThreadId,
           });
         }
-
-        saveThreadOpenSeedSnapshot(room, expectedThreadId, nextThreadSeedEvents);
-
-        persistThreadEventCache(
-          expectedThreadId,
-          threadEvents,
-          rootEvent,
-          beforeTokenForEarliest,
-          tailLoaded,
-          snapshotComplete,
-          expectedReplyCount
-        );
-      });
+      );
     },
-    [persistThreadEventCache, room, roomDebugTraceId]
+    [room, roomDebugTraceId, sessionId, threadDebugTraceId]
   );
 
   const persistRoomEventCache = useCallback(
