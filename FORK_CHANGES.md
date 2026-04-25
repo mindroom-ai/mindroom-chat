@@ -66,6 +66,9 @@
 - `CINNY-123`
   - Thread-aware read-receipt policy now lives in `src/app/mindroom/notifications/readReceipts.ts`.
   - The old `src/app/utils/notifications.ts` path is compatibility-only while MindRoom timeline controllers import the fork-owned owner directly.
+- `CINNY-124`
+  - Text-only room-input thread relation wiring now lives behind `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`.
+  - Generic `RoomInput` still owns editor and upload UI, but no longer imports the low-level MindRoom message-relation builder directly.
 
 ### Current Feature Set On `dev`
 
