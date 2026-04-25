@@ -876,6 +876,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 37 / Phase 5 thread summary ownership (2026-04-24):
+  - moved thread summary persistence, shared summary state, summary precedence, and the RoomView summary hook to `src/app/mindroom/threads/threadSummaryCache.ts`, `threadSummaryState.ts`, `threadSummarySelection.ts`, and `useRoomThreadSummaryState.ts`.
+  - the old `src/app/features/room/threadSummary*` and `useRoomThreadSummaryState.ts` paths are compatibility re-exports; `RoomView` and recent-thread view-model code import the MindRoom summary owner directly.
+  - this keeps cached summary selection and write-through with the thread view-model/index namespace instead of the upstream room feature folder.
+  - validation:
+    - focused Vitest passes for `threadSummarySelection.test.ts`, `useRecentThreadViewModel.test.ts`, `RoomView.threadSummary.test.ts`, `RoomView.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

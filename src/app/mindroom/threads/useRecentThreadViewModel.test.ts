@@ -16,7 +16,7 @@ const {
   getCompactThreadRootBodyPreviewTextMock: vi.fn(),
 }));
 
-vi.mock('../../features/room/threadSummaryCache', () => ({
+vi.mock('./threadSummaryCache', () => ({
   loadCachedThreadSummaries: loadCachedThreadSummariesMock,
   saveCachedThreadSummary: saveCachedThreadSummaryMock,
 }));
@@ -27,7 +27,7 @@ vi.mock('../../components/message/mindroomThreadSummary', () => ({
     [...infos].reverse().find((info) => !!info?.summaryText),
 }));
 
-vi.mock('../../features/room/compactThreadRootData', () => ({
+vi.mock('./compactThreadRootData', () => ({
   getCompactThreadRootBodyPreviewText: getCompactThreadRootBodyPreviewTextMock,
   isZeroReplyStandaloneThreadRootEvent: () => false,
   pickPreferredThreadRootPreviewText: ({
@@ -51,7 +51,7 @@ import {
   clearRecentThreadViewModelSharedState,
   useRecentThreadViewModel,
 } from './recentThreadViewModel';
-import { storeThreadSummaryInState } from '../../features/room/threadSummaryState';
+import { storeThreadSummaryInState } from './threadSummaryState';
 
 type Listener = () => void;
 

@@ -353,6 +353,9 @@ compatibility re-exports.
 Thread banner/tag UI now lives in `src/app/mindroom/threads/ThreadContextBanner.tsx`,
 `ThreadTagPicker.tsx`, `ThreadTagPill.tsx`, `ThreadContextBanner.css.ts`, and
 `threadTagColor.ts`; the old `features/room` paths are only compatibility re-exports.
+Thread summary cache/state/selection now lives in `src/app/mindroom/threads/threadSummaryCache.ts`,
+`threadSummaryState.ts`, `threadSummarySelection.ts`, and `useRoomThreadSummaryState.ts`; the old
+`features/room` paths are only compatibility re-exports.
 Thread-open cache hydration, latest-slice refresh, relation backfill, and cached relation-tail
 refresh now live in `src/app/mindroom/threads/threadOpenCacheController.ts`; `RoomTimeline` decides
 when to open a thread route but no longer owns their cache/network policy.

@@ -267,7 +267,7 @@ vi.mock('./useThreadRootEvent', () => ({
   useThreadRootEvent: useThreadRootEventMock,
 }));
 
-vi.mock('./useRoomThreadSummaryState', () => ({
+vi.mock('../../mindroom/threads/useRoomThreadSummaryState', () => ({
   useRoomThreadSummaryState: () => ({
     summaryMap: new Map(),
     storeThreadSummary: vi.fn(),
