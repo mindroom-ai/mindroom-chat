@@ -98,7 +98,6 @@ import {
   getImageMsgContent,
   getVideoMsgContent,
 } from './msgContent';
-import { getMessageRelation } from '../../mindroom/threads/composeMessageRelation';
 import { getMemberDisplayName, getMentionContent, trimReplyFromBody } from '../../utils/room';
 import { CommandAutocomplete } from './CommandAutocomplete';
 import { Command, SHRUG, TABLEFLIP, UNFLIP, useCommands } from '../../hooks/useCommands';
@@ -119,6 +118,7 @@ import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { useComposingCheck } from '../../hooks/useComposingCheck';
 import {
   getMindroomRoomInputAutocompleteQuery,
+  getMindroomRoomInputMessageRelation,
   isMindroomRoomInputAutocompleteQuery,
   MindroomRoomInputAutocomplete,
   MindroomVoiceRecorderComposer,
@@ -473,7 +473,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
       if (!content) return;
 
-      const relation = getMessageRelation(replyDraft?.eventId, replyDraft?.relation, threadId);
+      const relation = getMindroomRoomInputMessageRelation(replyDraft, threadId);
       if (relation) {
         content['m.relates_to'] = relation;
       }

@@ -1,11 +1,13 @@
 import React from 'react';
 import { BaseRange, Editor } from 'slate';
 import type { AutocompleteQuery } from '../../components/editor/autocomplete/autocompleteQuery';
+import type { IReplyDraft } from '../../state/room/roomInputDrafts';
 import { MindroomCommandAutocomplete } from '../commands/MindroomCommandAutocomplete';
 import {
   getMindroomCommandQuery,
   MINDROOM_COMMAND_PREFIX,
 } from '../commands/mindroomCommandQuery';
+import { getMessageRelation } from '../threads/composeMessageRelation';
 import { VoiceRecorderComposer } from '../voice/VoiceRecorderDialog';
 
 export type MindroomRoomInputAutocompletePrefix = typeof MINDROOM_COMMAND_PREFIX;
@@ -27,6 +29,11 @@ export const getMindroomRoomInputAutocompleteQuery = (
 export const isMindroomRoomInputAutocompleteQuery = (
   query: AutocompleteQuery<string> | undefined
 ): query is MindroomRoomInputAutocompleteQuery => query?.prefix === MINDROOM_COMMAND_PREFIX;
+
+export const getMindroomRoomInputMessageRelation = (
+  replyDraft: Pick<IReplyDraft, 'eventId' | 'relation'> | undefined,
+  threadId: string | undefined
+) => getMessageRelation(replyDraft?.eventId, replyDraft?.relation, threadId);
 
 export function MindroomRoomInputAutocomplete({
   editor,
