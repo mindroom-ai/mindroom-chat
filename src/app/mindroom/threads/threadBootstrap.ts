@@ -11,7 +11,7 @@ import {
   hasLikelyIncompleteStreamingBody,
   shouldFetchThreadEditBackfill,
 } from './threadEditBackfill';
-import { getLinkedTimelines, getLiveTimeline } from '../../features/room/timelinePagination';
+import { getLinkedTimelines, getLiveTimeline } from './timelinePagination';
 import { eventBelongsToThread, isThreadReplyEvent } from './threadUtils';
 import { reactionOrEditEvent } from '../../utils/room';
 import { getThreadCacheTargetId } from './eventRepository';

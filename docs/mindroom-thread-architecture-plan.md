@@ -355,6 +355,9 @@ compatibility re-export.
 Room timeline event renderability, surface entry, visible thread-root, and preload-count helpers now
 live in `src/app/mindroom/threads/roomTimelineEvents.ts`; the old `features/room` path is only a
 compatibility re-export.
+Timeline linking/count/recalibration helpers now live in
+`src/app/mindroom/threads/timelinePagination.ts`; the old `features/room` path is only a
+compatibility re-export.
 Thread tag parsing, optimistic pending state, and read/write hooks now live in
 `src/app/mindroom/threads/threadTags.ts`, `threadTagPending.ts`, `useThreadTags.ts`,
 `useRoomThreadTags.ts`, and `useMutateThreadTags.ts`; the old `features/room` paths are only

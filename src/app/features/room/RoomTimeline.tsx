@@ -204,7 +204,7 @@ import {
   timelineToEventsCount,
   type RecalibrateFilterOpts,
   type Timeline,
-} from './timelinePagination';
+} from '../../mindroom/threads/timelinePagination';
 import { buildThreadBadgeViewModelFromRecord } from '../../mindroom/threads/threadBadgeViewModel';
 import { ThreadBadgeRenderer } from '../../mindroom/threads/ThreadBadgeRenderer';
 import {

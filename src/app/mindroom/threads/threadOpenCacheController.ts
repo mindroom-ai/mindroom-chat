@@ -10,7 +10,7 @@ import {
 import to from 'await-to-js';
 import { THREAD_BATCH_SIZE } from '../../state/settings';
 import { logTimelineDebug } from '../../features/room/timelineDebug';
-import { getLinkedTimelines } from '../../features/room/timelinePagination';
+import { getLinkedTimelines } from './timelinePagination';
 import {
   collectRedactedRelationTargetsFromLookup,
   reconcileRelationEventsWithAggregation,

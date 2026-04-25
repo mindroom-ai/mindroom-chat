@@ -1,6 +1,6 @@
 import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import type { Dispatch, SetStateAction } from 'react';
-import { getLinkedTimelines } from '../../features/room/timelinePagination';
+import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from '../../features/room/timelineDebug';
 import { mapCachedThreadPageEvents } from './eventRepository';
 import {

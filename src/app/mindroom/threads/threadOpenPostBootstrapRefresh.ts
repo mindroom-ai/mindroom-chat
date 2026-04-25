@@ -6,7 +6,7 @@ import {
   computeReconciliationToken,
   reconcileThreadBackwardPagination,
 } from '../../features/room/threadPaginationUtils';
-import { getLinkedTimelines } from '../../features/room/timelinePagination';
+import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from '../../features/room/timelineDebug';
 
 type PersistThreadEventCache = (

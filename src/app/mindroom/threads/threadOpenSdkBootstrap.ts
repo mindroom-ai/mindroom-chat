@@ -15,7 +15,7 @@ import {
   findEarliestLoadedThreadReplyByCacheOrder,
   reconcileThreadBackwardPagination,
 } from '../../features/room/threadPaginationUtils';
-import { getLinkedTimelines } from '../../features/room/timelinePagination';
+import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from '../../features/room/timelineDebug';
 import { getThreadCursorAnchor } from './eventRepository';
 import { isThreadNotFoundError } from './threadBootstrap';

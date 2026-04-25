@@ -13,7 +13,7 @@ import {
   getLinkedTimelines,
   getLiveTimeline,
   type Timeline,
-} from '../../features/room/timelinePagination';
+} from './timelinePagination';
 import {
   getMainTimelineCacheEvents,
   loadLatestRoomCacheHydrationSnapshot,

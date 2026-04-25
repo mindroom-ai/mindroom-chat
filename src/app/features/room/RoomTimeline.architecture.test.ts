@@ -627,6 +627,24 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('threadPaginatingFrontRef');
   });
 
+  it('keeps timeline pagination helpers in MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const compatibilitySource = readFileSync(
+      new URL('./timelinePagination.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/timelinePagination.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/timelinePagination'");
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/timelinePagination'");
+    expect(implementationSource).toContain('recalibrateTimelinePagination');
+    expect(implementationSource).toContain('getLinkedTimelines');
+    expect(compatibilitySource).not.toContain('getRenderableEvents');
+  });
+
   it('delegates room cache pagination commands to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
