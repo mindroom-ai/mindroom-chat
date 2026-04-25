@@ -11,7 +11,7 @@ import {
   parseScheduledTaskStateEvent,
 } from './scheduledTaskContract';
 import { useInterval } from '../../hooks/useInterval';
-import { useStateEvents } from '../../hooks/useStateEvents';
+import { useStateEvents } from './useStateEvents';
 import { useThreadScheduledTasks } from './useThreadScheduledTasks';
 
 export type ThreadHeaderInfo = {

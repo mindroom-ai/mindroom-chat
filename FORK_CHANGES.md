@@ -1020,6 +1020,7 @@
     - `git diff --check` passes
 - `CINNY-075` implementation step 35 / Phase 5 thread tag ownership (2026-04-24):
   - moved thread tag parsing, optimistic pending state, read hooks, write hooks, and tests to `src/app/mindroom/threads/threadTags.ts`, `threadTagPending.ts`, `useThreadTags.ts`, `useRoomThreadTags.ts`, and `useMutateThreadTags.ts`.
+  - moved the shared state-event reader hook into `src/app/mindroom/threads/useStateEvents.ts`, since it is only used by MindRoom tag, scheduled-task, header, and index selectors.
   - the old `src/app/features/room/threadTags.ts`, `threadTagPending.ts`, `useThreadTags.ts`, `useRoomThreadTags.ts`, and `useMutateThreadTags.ts` paths are compatibility re-exports; production consumers that render thread status now import the MindRoom implementations directly.
   - this keeps tag/resolved state ownership with the `ThreadRecord`/thread-index namespace instead of having a second source of truth under the upstream room feature folder.
   - validation:

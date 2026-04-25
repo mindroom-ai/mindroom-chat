@@ -371,7 +371,7 @@ vi.mock('../../hooks/useDocumentFocusChange', () => ({
   useDocumentFocusChange: vi.fn(),
 }));
 
-vi.mock('../../hooks/useStateEvents', () => ({
+vi.mock('../../mindroom/threads/useStateEvents', () => ({
   useStateEvents: (_room: unknown, eventType: string) => stateEventsByTypeMock.get(eventType) ?? [],
 }));
 

@@ -44,7 +44,7 @@ import {
   getCompactThreadRootBodyPreviewText,
   mergeCompactThreadRootData,
 } from './compactThreadRootData';
-import { useStateEvents } from '../../hooks/useStateEvents';
+import { useStateEvents } from './useStateEvents';
 import { useRoomThreadList } from './useRoomThreadList';
 import { MINDROOM_SCHEDULED_TASK_EVENT } from './scheduledTaskContract';
 

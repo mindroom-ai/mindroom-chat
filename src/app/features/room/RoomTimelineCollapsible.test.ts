@@ -271,7 +271,7 @@ vi.mock('../../hooks/useResizeObserver', () => ({
   useResizeObserver: vi.fn(),
 }));
 
-vi.mock('../../hooks/useStateEvents', () => ({
+vi.mock('../../mindroom/threads/useStateEvents', () => ({
   useStateEvents: () => [],
 }));
 
