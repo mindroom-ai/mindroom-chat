@@ -255,6 +255,10 @@
 - `CINNY-185`
   - Time-aware scheduled-thread status now lives behind `src/app/mindroom/threads/useThreadScheduledStatus.ts`.
   - Thread headers and thread indicators consume the shared scheduled-status hook instead of rebuilding scheduled-task maps separately.
+- `CINNY-186`
+  - Cached overview metadata now lives behind `src/app/mindroom/threads/threadOverviewCacheMetadata.ts`.
+  - `useMindroomThreadIndex` consumes one cached metadata snapshot/controller instead of owning separate cached activity, latest-preview, sender, message-count, compact-root-preview, and cache-coverage maps.
+  - Overview cache hydration and fetched relation refreshes update the same cached metadata boundary before `ThreadRecord` derivation consumes it.
 
 ### Current Feature Set On `dev`
 

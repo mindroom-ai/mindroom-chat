@@ -111,6 +111,10 @@ Completed in the 2026-04-25 cleanup pass:
 - Time-aware scheduled-thread status is centralized behind
   `src/app/mindroom/threads/useThreadScheduledStatus.ts`; thread headers and thread indicators no
   longer rebuild scheduled-task maps independently.
+- Cached overview metadata is centralized behind
+  `src/app/mindroom/threads/threadOverviewCacheMetadata.ts`; `useMindroomThreadIndex` now consumes
+  one cached metadata snapshot/controller instead of owning independent cached activity,
+  latest-preview, sender, message-count, compact-root-preview, and coverage maps.
 
 Remaining queue:
 
@@ -136,8 +140,8 @@ Remaining queue:
    - Latest audit, 2026-04-25: coverage helpers/controllers already own the key decisions through
      `ThreadCacheCoverage`, `threadCacheCoverage.ts`, `threadOpenCacheController.ts`,
      `threadOpenCacheFirst.ts`, and `threadOverviewCacheHydration.ts`. Remaining cleanup should be
-     incremental: keep reducing stateful cached maps inside `useMindroomThreadIndex` only when the
-     replacement makes the index API clearer and keeps tests behavior-first.
+     incremental: keep moving cache/preload orchestration out of the index only when the replacement
+     makes the index API clearer and keeps tests behavior-first.
 
 Latest upstream-diff audit:
 

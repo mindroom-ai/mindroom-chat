@@ -1,4 +1,3 @@
-import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { useEffect } from 'react';
 import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
@@ -11,8 +10,10 @@ import { type CachedThreadEventPage, loadLatestCachedThreadEvents } from './even
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
 import { buildThreadCacheCoverage } from './threadCacheCoverage';
-
-type MapSetter<K, V> = Dispatch<SetStateAction<Map<K, V>>>;
+import type {
+  ThreadOverviewCachedMetadataController,
+  ThreadOverviewCachedMetadataUpdate,
+} from './threadOverviewCacheMetadata';
 
 type ThreadLikeRoot = {
   id: string;
@@ -29,30 +30,14 @@ type UseThreadOverviewCacheHydrationOptions = {
   mx: MatrixClient;
   showCompactRoomView: boolean;
   compactThreadRootBodyMap: Map<string, string>;
-  compactCachedThreadRootBodyMap: Map<string, string>;
-  cachedThreadLastActivityTsMap: Map<string, number>;
-  cachedThreadCoverageMap: Map<string, ThreadCacheCoverage>;
   compactThreadRecordMap: ReadonlyMap<string, ThreadRecord>;
   threadRecordMap: ReadonlyMap<string, ThreadRecord>;
-  compactCachedRootPreviewAttemptCountsRef: MutableRefObject<Map<string, number>>;
-  setCompactCachedThreadRootBodyMap: MapSetter<string, string>;
-  setCachedThreadLastActivityTsMap: MapSetter<string, number>;
-  setCachedThreadLatestReplyPreviewMap: MapSetter<string, string>;
-  setCachedThreadLastSenderIdMap: MapSetter<string, string>;
-  setCachedThreadMessageCountMap: MapSetter<string, number>;
-  setCachedThreadCoverageMap: MapSetter<string, ThreadCacheCoverage>;
+  cachedMetadata: ThreadOverviewCachedMetadataController;
   onStoreThreadSummary: (rootId: string, info: MindroomThreadSummaryInfo) => void;
 };
 
-type CachedOverviewUpdate = {
-  rootId: string;
-  nextActivityTs?: number;
-  nextPreview?: string;
-  nextReplyPreviewText?: string;
-  nextLastSenderId?: string;
-  nextMessageCount?: number;
+type CachedOverviewUpdate = ThreadOverviewCachedMetadataUpdate & {
   nextSummaryInfo?: MindroomThreadSummaryInfo;
-  nextCacheCoverage?: ThreadCacheCoverage;
 };
 
 export type FetchedRelationOverviewUpdateOptions = {
@@ -78,22 +63,6 @@ type ResolveCachedOverviewUpdateOptions = {
   showCompactRoomView: boolean;
   compactCachedThreadRootBodyMap: ReadonlyMap<string, string>;
   compactThreadRootBodyMap: ReadonlyMap<string, string>;
-};
-
-const applyMapUpdates = <K, V>(
-  entries: Array<{ key: K; value: V | undefined }>,
-  setMap: MapSetter<K, V>
-): void => {
-  if (entries.length === 0) return;
-
-  setMap((prev) => {
-    const next = new Map(prev);
-    entries.forEach(({ key, value }) => {
-      if (value === undefined) return;
-      next.set(key, value);
-    });
-    return next;
-  });
 };
 
 const getCachedEventTsRange = (
@@ -340,20 +309,19 @@ export const useThreadOverviewCacheHydration = ({
   mx,
   showCompactRoomView,
   compactThreadRootBodyMap,
-  compactCachedThreadRootBodyMap,
-  cachedThreadLastActivityTsMap,
-  cachedThreadCoverageMap,
   compactThreadRecordMap,
   threadRecordMap,
-  compactCachedRootPreviewAttemptCountsRef,
-  setCompactCachedThreadRootBodyMap,
-  setCachedThreadLastActivityTsMap,
-  setCachedThreadLatestReplyPreviewMap,
-  setCachedThreadLastSenderIdMap,
-  setCachedThreadMessageCountMap,
-  setCachedThreadCoverageMap,
+  cachedMetadata,
   onStoreThreadSummary,
 }: UseThreadOverviewCacheHydrationOptions): void => {
+  const {
+    compactRootBodyMap: compactCachedThreadRootBodyMap,
+    lastActivityTsMap: cachedThreadLastActivityTsMap,
+    coverageMap: cachedThreadCoverageMap,
+    compactRootPreviewAttemptCountsRef,
+    applyUpdates,
+  } = cachedMetadata;
+
   useEffect(() => {
     if (threadId || overviewThreadRootIds.length === 0) return;
 
@@ -368,7 +336,7 @@ export const useThreadOverviewCacheHydration = ({
         }
 
         const currentPreview = compactThreadRootBodyMap.get(rootId);
-        const attemptCount = compactCachedRootPreviewAttemptCountsRef.current.get(rootId) ?? 0;
+        const attemptCount = compactRootPreviewAttemptCountsRef.current.get(rootId) ?? 0;
         const maxAttempts =
           !currentPreview || hasLikelyIncompleteStreamingBody(currentPreview) ? 3 : 1;
         const needsPreview =
@@ -381,8 +349,8 @@ export const useThreadOverviewCacheHydration = ({
     if (showCompactRoomView) {
       threadRootIdsToLoad.forEach((rootId) => {
         if (compactCachedThreadRootBodyMap.has(rootId)) return;
-        const currentCount = compactCachedRootPreviewAttemptCountsRef.current.get(rootId) ?? 0;
-        compactCachedRootPreviewAttemptCountsRef.current.set(rootId, currentCount + 1);
+        const currentCount = compactRootPreviewAttemptCountsRef.current.get(rootId) ?? 0;
+        compactRootPreviewAttemptCountsRef.current.set(rootId, currentCount + 1);
       });
     }
 
@@ -423,49 +391,7 @@ export const useThreadOverviewCacheHydration = ({
       });
       if (nextUpdates.length === 0) return;
 
-      applyMapUpdates(
-        nextUpdates.map(({ rootId, nextActivityTs }) => ({ key: rootId, value: nextActivityTs })),
-        setCachedThreadLastActivityTsMap
-      );
-
-      if (showCompactRoomView) {
-        applyMapUpdates(
-          nextUpdates.map(({ rootId, nextPreview }) => ({ key: rootId, value: nextPreview })),
-          setCompactCachedThreadRootBodyMap
-        );
-      }
-
-      applyMapUpdates(
-        nextUpdates.map(({ rootId, nextReplyPreviewText }) => ({
-          key: rootId,
-          value: nextReplyPreviewText,
-        })),
-        setCachedThreadLatestReplyPreviewMap
-      );
-
-      applyMapUpdates(
-        nextUpdates.map(({ rootId, nextLastSenderId }) => ({
-          key: rootId,
-          value: nextLastSenderId,
-        })),
-        setCachedThreadLastSenderIdMap
-      );
-
-      applyMapUpdates(
-        nextUpdates.map(({ rootId, nextMessageCount }) => ({
-          key: rootId,
-          value: nextMessageCount,
-        })),
-        setCachedThreadMessageCountMap
-      );
-
-      applyMapUpdates(
-        nextUpdates.map(({ rootId, nextCacheCoverage }) => ({
-          key: rootId,
-          value: nextCacheCoverage,
-        })),
-        setCachedThreadCoverageMap
-      );
+      applyUpdates(nextUpdates, { includeCompactRootBody: showCompactRoomView });
 
       nextUpdates.forEach(({ rootId, nextSummaryInfo }) => {
         if (!nextSummaryInfo?.summaryText) return;
@@ -481,7 +407,7 @@ export const useThreadOverviewCacheHydration = ({
   }, [
     cachedThreadLastActivityTsMap,
     cachedThreadCoverageMap,
-    compactCachedRootPreviewAttemptCountsRef,
+    compactRootPreviewAttemptCountsRef,
     compactCachedThreadRootBodyMap,
     compactThreadRecordMap,
     compactThreadRootBodyMap,
@@ -493,12 +419,7 @@ export const useThreadOverviewCacheHydration = ({
     room.roomId,
     roomThreadListThreads,
     sessionId,
-    setCachedThreadLastActivityTsMap,
-    setCachedThreadLastSenderIdMap,
-    setCachedThreadLatestReplyPreviewMap,
-    setCachedThreadMessageCountMap,
-    setCachedThreadCoverageMap,
-    setCompactCachedThreadRootBodyMap,
+    applyUpdates,
     showCompactRoomView,
     threadId,
     threadRecordMap,
