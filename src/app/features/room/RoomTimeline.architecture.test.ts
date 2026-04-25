@@ -279,7 +279,11 @@ describe('RoomTimeline architecture', () => {
   it('does not keep stale low-level thread compatibility wrappers', () => {
     const removedThreadCompatibilityPaths = [
       './cacheDbMigrationUtils.ts',
+      './CompactRoomView.css.ts',
+      './CompactRoomView.tsx',
+      './CompactThreadCard.tsx',
       './compactThreadRootData.ts',
+      './compactThreadCardUtils.ts',
       './eventCacheEditUtils.ts',
       './eventCacheTokenUtils.ts',
       './RoomThreadOverview.css.ts',
@@ -536,11 +540,6 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps compact room view components in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const compatibilitySource = readFileSync(new URL('./CompactRoomView.tsx', import.meta.url), 'utf8');
-    const cardCompatibilitySource = readFileSync(
-      new URL('./CompactThreadCard.tsx', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/CompactRoomView.tsx', import.meta.url),
       'utf8'
@@ -551,11 +550,8 @@ describe('RoomTimeline architecture', () => {
     );
 
     expect(source).toContain("from '../../mindroom/threads/CompactRoomView'");
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/CompactRoomView'");
-    expect(cardCompatibilitySource).toContain("from '../../mindroom/threads/CompactThreadCard'");
     expect(implementationSource).toContain('useCompactThreadCardViewModels');
     expect(cardImplementationSource).toContain('CompactThreadCardViewModel');
-    expect(compatibilitySource).not.toContain('useCompactThreadCardViewModels');
   });
 
   it('keeps compact thread scheduled-label utilities in MindRoom threads', () => {
@@ -579,10 +575,6 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/scheduledTaskContract.ts', import.meta.url),
       'utf8'
     );
-    const compatibilitySource = readFileSync(
-      new URL('./compactThreadCardUtils.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/compactThreadCardUtils.ts', import.meta.url),
       'utf8'
@@ -596,11 +588,9 @@ describe('RoomTimeline architecture', () => {
       "from '../mindroom/threads/scheduledTaskContract'"
     );
     expect(scheduledTaskImplementationSource).toContain('parseScheduledTaskStateEvent');
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/compactThreadCardUtils'");
     expect(implementationSource).toContain('formatScheduledTime');
     expect(implementationSource).toContain('getScheduledTimeUpdateInterval');
     expect(hookCompatibilitySource).not.toContain('StateEvent.MindRoomScheduledTask');
-    expect(compatibilitySource).not.toContain('SIX_HOURS_MS');
   });
 
   it('keeps thread activity timestamp derivation in MindRoom threads', () => {
