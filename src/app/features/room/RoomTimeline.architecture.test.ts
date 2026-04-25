@@ -247,8 +247,15 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates latest room cache hydration decisions to the event repository', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const hydrationControllerSource = readFileSync(
+      new URL('../../mindroom/threads/roomCacheHydrationController.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain('loadLatestRoomCacheHydrationSnapshot');
+    expect(source).toContain('useRoomCacheHydrationController');
+    expect(source).toContain("from '../../mindroom/threads/roomCacheHydrationController'");
+    expect(source).not.toContain('loadLatestRoomCacheHydrationSnapshot');
+    expect(hydrationControllerSource).toContain('loadLatestRoomCacheHydrationSnapshot');
     expect(source).not.toContain('loadLatestCachedRoomEvents');
     expect(source).not.toContain('shouldHydrateLatestRoomCache(');
     expect(source).not.toContain('filterLatestRoomCacheHydrationEvents(');
