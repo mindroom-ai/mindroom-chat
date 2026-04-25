@@ -2729,3 +2729,18 @@
   - `npm run build` passes; Vite emitted the existing runtime-config, dependency sourcemap, and chunk-size warnings
   - `npm run lint` passes with the current branch warning-only baseline (`35` warnings, `0` errors)
   - `git diff --check dev...HEAD` passes
+
+## CINNY-094 — Mounted thread replacement refresh merge (2026-04-25)
+
+- Adapted the reviewed mounted-thread replacement refresh fix from `aa9904f0` onto the current MindRoom-owned thread render state path.
+- `useThreadRenderState` now tracks its rendered `threadEvents` through `useThreadEventRefresh` and bumps a guarded `threadEventRefreshTick` so post-mount `ThreadEvent.NewReply` replies refresh in place when streaming and terminal `m.replace` metadata arrives.
+- Preserved the current refactor paths under `src/app/mindroom/threads` and reused the existing local `./useThreadEventRefresh` owner.
+- Added focused regression coverage for a mounted thread receiving a post-mount reply, then streaming and completed replacement edits, without remounting the hook.
+- review:
+  - independent second self-review completed via source/test diff review and `git diff --check`; scope stayed limited to the hook, focused test, and this runbook note.
+- validation:
+  - `npm test -- src/app/mindroom/threads/useThreadRenderState.test.ts` passes (`10/10` tests)
+  - `npm run typecheck` passes
+  - `npm test -- src/app/mindroom/threads/useThreadStreamingState.test.ts src/app/mindroom/threads/eventCacheEditUtils.test.ts` passes (`25/25` tests)
+  - `npm run build` passes; Vite emitted the existing runtime-config, dependency sourcemap, and chunk-size warnings
+  - `npm run lint` passes with the current branch warning-only baseline (`35` warnings, `0` errors)
