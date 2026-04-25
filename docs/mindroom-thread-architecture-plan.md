@@ -120,11 +120,12 @@ Remaining queue:
      improvements, or narrow seams into MindRoom owners.
    - Acceptance: every large non-MindRoom diff has an explicit reason in this document or
      `FORK_CHANGES.md`.
-   - Latest audit, 2026-04-25 after the message-search seam: `git diff --name-only v4.11.1 -- src
-     | grep -v '^src/app/mindroom/' | wc -l` reports 264 non-MindRoom paths. Large remaining
-     categories are generic compatibility/page seams, core message/timeline integration seams,
-     auth/session/iOS support, and reusable hooks/components. Keep shrinking this count by moving
-     fork-owned behavior behind MindRoom wrappers instead of pushing more policy into generic files.
+   - Latest audit, 2026-04-25 after the edge-swipe, settings, tag snapshot, and scheduled-status
+     seams: `git diff --name-only v4.11.1 -- src | grep -v '^src/app/mindroom/' | wc -l`
+     reports 270 non-MindRoom paths. Large remaining categories are historical generic
+     compatibility/page seams, core message/timeline integration seams, auth/session/iOS support,
+     and reusable hooks/components. Keep shrinking this count by moving fork-owned behavior behind
+     MindRoom wrappers instead of pushing more policy into generic files.
 
 2. Continue cache/preload cleanup only after the index boundary is clean.
    - Cache hydrate/persist orchestration should sit behind controller/repository seams.
