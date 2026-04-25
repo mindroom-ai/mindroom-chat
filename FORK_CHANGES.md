@@ -2010,3 +2010,9 @@
 - Moved the corresponding MindRoom custom-HTML styles into `src/app/mindroom/messages/MindroomHtmlBlocks.css.ts`.
 - Kept `src/app/plugins/react-custom-html-parser.tsx` as a generic parser seam that delegates MindRoom block rendering and re-exports the tool-trace parser option for existing callers.
 - Removed the MindRoom block styles from `src/app/styles/CustomHtml.css.ts` and extended architecture tests to keep parser/style ownership out of generic modules.
+
+## CINNY-089 — Move Local MindRoom settings to fork namespace (2026-04-25)
+
+- Moved the Local MindRoom settings page, provisioning API client, helper utilities, and tests from `src/app/features/settings/local-mindroom` to `src/app/mindroom/local-mindroom`.
+- Left thin compatibility re-exports in `src/app/features/settings/local-mindroom` so the generic settings modal and page registry keep stable import paths.
+- Updated relative imports after the move and added an architecture guard so future Local MindRoom implementation work stays in the fork-owned namespace.
