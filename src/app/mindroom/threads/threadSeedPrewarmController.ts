@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
-import type { MatrixEvent, Room } from 'matrix-js-sdk';
+import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { logTimelineDebug } from '../../features/room/timelineDebug';
+import { loadThreadCachedSnapshot } from './eventRepository';
 import { mergeThreadBackfillEvents } from './threadCacheSnapshot';
 import {
   getThreadOpenSeedSnapshot,
   saveThreadOpenSeedSnapshot,
 } from './threadOpenSeedCache';
+import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
 
 type ThreadSeedPrewarmTarget = {
   threadId: string;
@@ -31,15 +33,21 @@ export type ThreadSeedPrewarmController = {
 
 export const useThreadSeedPrewarmController = ({
   room,
+  mx,
+  sessionId,
+  safePaginationLimitRef,
   activeThreadId,
   priorityTargets,
-  loadThreadOpenSeedSnapshotFromCache,
+  loadThreadOpenSeedSnapshotFromCache: loadThreadOpenSeedSnapshotFromCacheProp,
   debugTraceId,
 }: {
   room: Room;
+  mx: MatrixClient;
+  sessionId: string;
+  safePaginationLimitRef: MutableRefObject<number>;
   activeThreadId: string | undefined;
   priorityTargets: ThreadSeedPrewarmTarget[];
-  loadThreadOpenSeedSnapshotFromCache: (expectedThreadId: string) => Promise<MatrixEvent[]>;
+  loadThreadOpenSeedSnapshotFromCache?: (expectedThreadId: string) => Promise<MatrixEvent[]>;
   debugTraceId: string;
 }): ThreadSeedPrewarmController => {
   const activeThreadIdRef = useRef(activeThreadId);
@@ -64,6 +72,26 @@ export const useThreadSeedPrewarmController = ({
     threadSeedPrewarmQueueRef.current = [];
     threadSeedPrewarmRunningRef.current = false;
   }, [room.roomId]);
+
+  const loadThreadOpenSeedSnapshotFromCache = useCallback(
+    async (expectedThreadId: string): Promise<MatrixEvent[]> => {
+      if (loadThreadOpenSeedSnapshotFromCacheProp) {
+        return loadThreadOpenSeedSnapshotFromCacheProp(expectedThreadId);
+      }
+
+      const mapper = mx.getEventMapper();
+      const cachedSnapshot = await loadThreadCachedSnapshot({
+        sessionId,
+        roomId: room.roomId,
+        threadId: expectedThreadId,
+        limit: safePaginationLimitRef.current,
+        maxPages: MAX_THREAD_FETCH_ITERATIONS,
+        mapEvent: (rawEvent) => mapper(rawEvent),
+      });
+      return cachedSnapshot?.events ?? [];
+    },
+    [loadThreadOpenSeedSnapshotFromCacheProp, mx, room.roomId, safePaginationLimitRef, sessionId]
+  );
 
   const ensureThreadSeedPrewarm = useCallback(
     (

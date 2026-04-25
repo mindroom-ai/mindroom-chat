@@ -119,9 +119,14 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates cached thread page stitching to the event repository', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const seedPrewarmControllerSource = readFileSync(
+      new URL('../../mindroom/threads/threadSeedPrewarmController.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).not.toContain('cachedThreadEvents.unshift(...cachedPage.events)');
-    expect(source).toContain('loadThreadCachedSnapshot');
+    expect(source).not.toContain('loadThreadCachedSnapshot');
+    expect(seedPrewarmControllerSource).toContain('loadThreadCachedSnapshot');
   });
 
   it('delegates cached thread event mapping and pagination reads to the event repository', () => {
