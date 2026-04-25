@@ -1,3 +1,8 @@
+import {
+  MINDROOM_SESSION_STORE_EVENT,
+  MINDROOM_SESSION_STORE_KEY,
+} from '../mindroom/cache/sessionStoreConfig';
+
 export type StoredSession = {
   sessionId: string;
   baseUrl: string;
@@ -46,8 +51,8 @@ type SessionStoreSnapshot = {
   sessions: StoredSession[];
 };
 
-export const SESSION_STORE_KEY = 'mindroom_multi_account_store';
-export const SESSION_STORE_EVENT = 'mindroom-session-store-changed';
+export const SESSION_STORE_KEY = MINDROOM_SESSION_STORE_KEY;
+export const SESSION_STORE_EVENT = MINDROOM_SESSION_STORE_EVENT;
 export const SESSION_STORE_VERSION = 1 as const;
 export const LEGACY_SESSION_STORAGE_KEYS = [
   'cinny_access_token',

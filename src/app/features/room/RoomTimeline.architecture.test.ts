@@ -214,6 +214,14 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/cache/sessionCleanup.ts', import.meta.url),
       'utf8'
     );
+    const sessionStoreSource = readFileSync(
+      new URL('../../state/sessions.ts', import.meta.url),
+      'utf8'
+    );
+    const sessionStoreConfigSource = readFileSync(
+      new URL('../../mindroom/cache/sessionStoreConfig.ts', import.meta.url),
+      'utf8'
+    );
     const initMatrixSource = readFileSync(
       new URL('../../../client/initMatrix.ts', import.meta.url),
       'utf8'
@@ -234,6 +242,11 @@ describe('RoomTimeline architecture', () => {
     expect(routeRestoreSource).toContain("from '../threads/lastOpenThread'");
     expect(routeRestoreSource).toContain('getLastOpenThreadRestoreTarget');
     expect(sessionCleanupSource).toContain("from '../threads/lastOpenThread'");
+    expect(sessionStoreSource).toContain("from '../mindroom/cache/sessionStoreConfig'");
+    expect(sessionStoreSource).not.toContain("= 'mindroom_multi_account_store'");
+    expect(sessionStoreSource).not.toContain("= 'mindroom-session-store-changed'");
+    expect(sessionStoreConfigSource).toContain('MINDROOM_SESSION_STORE_KEY');
+    expect(sessionStoreConfigSource).toContain('MINDROOM_SESSION_STORE_EVENT');
     expect(initMatrixSource).not.toContain("from '../app/state/lastOpenThread'");
   });
 

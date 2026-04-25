@@ -784,6 +784,9 @@ Acceptance:
 - MindRoom session cleanup ownership lives in `src/app/mindroom/cache/sessionCleanup.ts`;
   client startup/logout code should call that boundary instead of importing individual fork caches,
   recent-thread stores, iOS push state, or raw `mindroom-*-event-cache` names.
+- MindRoom multi-account session store key/event ownership lives in
+  `src/app/mindroom/cache/sessionStoreConfig.ts`; generic session state should expose compatibility
+  constants but not own raw MindRoom storage strings.
 - MindRoom startup route-restore and alias-canonicalization policy lives in
   `src/app/mindroom/routing/clientRouteRestore.ts`; `ClientLayout` should remain a narrow React
   integration point for those effects.

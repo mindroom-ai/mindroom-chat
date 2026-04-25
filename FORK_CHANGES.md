@@ -176,6 +176,9 @@
 - `CINNY-161`
   - Room-timeline MindRoom approval event dispatch now lives behind `src/app/mindroom/threads/roomTimelineMessageExtensions.tsx`.
   - Generic `RoomTimeline` asks the MindRoom timeline seam for approval renderers and approval content resolution instead of importing the raw MindRoom approval event constant directly.
+- `CINNY-162`
+  - MindRoom multi-account session store key and change-event names now live in `src/app/mindroom/cache/sessionStoreConfig.ts`.
+  - `src/app/state/sessions.ts` keeps its public exports but no longer owns raw MindRoom session storage strings.
 
 ### Current Feature Set On `dev`
 
