@@ -105,6 +105,11 @@ Remaining queue:
      improvements, or narrow seams into MindRoom owners.
    - Acceptance: every large non-MindRoom diff has an explicit reason in this document or
      `FORK_CHANGES.md`.
+   - Latest audit, 2026-04-25 after the message-search seam: `git diff --name-only v4.11.1 -- src
+     | grep -v '^src/app/mindroom/' | wc -l` reports 264 non-MindRoom paths. Large remaining
+     categories are generic compatibility/page seams, core message/timeline integration seams,
+     auth/session/iOS support, and reusable hooks/components. Keep shrinking this count by moving
+     fork-owned behavior behind MindRoom wrappers instead of pushing more policy into generic files.
 
 2. Continue cache/preload cleanup only after the index boundary is clean.
    - Cache hydrate/persist orchestration should sit behind controller/repository seams.
@@ -112,6 +117,11 @@ Remaining queue:
      decisions.
    - Acceptance: pagination and preload decisions consume `ThreadRecord.cache` or a lower cache
      coverage selector, not component-local fallback maps.
+   - Latest audit, 2026-04-25: coverage helpers/controllers already own the key decisions through
+     `ThreadCacheCoverage`, `threadCacheCoverage.ts`, `threadOpenCacheController.ts`,
+     `threadOpenCacheFirst.ts`, and `threadOverviewCacheHydration.ts`. Remaining cleanup should be
+     incremental: keep reducing stateful cached maps inside `useMindroomThreadIndex` only when the
+     replacement makes the index API clearer and keeps tests behavior-first.
 
 Latest upstream-diff audit:
 
