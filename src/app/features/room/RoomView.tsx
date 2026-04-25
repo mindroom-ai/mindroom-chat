@@ -4,7 +4,7 @@ import { Box, Text, config } from 'folds';
 import { EventType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { isKeyHotkey } from 'is-hotkey';
-import { getRoomThreadExitTargetFromHistoryState } from '../../hooks/roomNavigateState';
+import { getRoomThreadExitTargetFromHistoryState } from '../../mindroom/threads/roomNavigateState';
 import { useStateEvent } from '../../hooks/useStateEvent';
 import { StateEvent } from '../../../types/matrix/room';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';

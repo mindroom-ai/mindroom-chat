@@ -2082,3 +2082,9 @@
 - Moved `useRoomEvent` into `src/app/mindroom/threads` so cache-first room/thread event lookup is owned beside the MindRoom event repository.
 - Left `src/app/hooks/useRoomEvent.ts` as a thin compatibility export for legacy import paths.
 - Updated reply rendering, pinned-event rendering, and tests to import the fork-owned cache-aware event hook directly.
+
+## CINNY-101 — Move thread exit route state to fork namespace (2026-04-25)
+
+- Moved room-thread exit route-state helpers into `src/app/mindroom/threads/roomNavigateState.ts`.
+- Left `src/app/hooks/roomNavigateState.ts` as a thin compatibility export for legacy import paths.
+- Updated room navigation, thread exit handling, and tests to import the fork-owned route-state implementation directly.

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ROOM_THREAD_EXIT_TARGET_STATE_KEY,
   setRoomThreadExitTargetForHistoryState,
-} from '../../hooks/roomNavigateState';
+} from '../../mindroom/threads/roomNavigateState';
 
 type MockThreadContextBannerProps = {
   onExitThread?: () => void;
