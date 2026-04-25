@@ -1055,7 +1055,7 @@ describe('RoomTimeline architecture', () => {
     expect(customHtmlStyleSource).not.toContain('MindroomToolGroup');
     expect(streamingHookImplementationSource).toContain("from '../messages/aiRun'");
     expect(streamingHookImplementationSource).toContain('STREAM_STATUS_KEY');
-    expect(messageIndexSource).toContain(
+    expect(messageIndexSource).not.toContain(
       "from '../../mindroom/messages/MindroomThreadSummaryCard'"
     );
     expect(msgTypeRenderersSource).not.toContain('function MindroomThreadSummaryCard');
@@ -1148,15 +1148,18 @@ describe('RoomTimeline architecture', () => {
       new URL('../../pages/client/sidebar/index.ts', import.meta.url),
       'utf8'
     );
+    const sidebarNavSource = readFileSync(
+      new URL('../../pages/client/SidebarNav.tsx', import.meta.url),
+      'utf8'
+    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/sidebar/MindroomTab.tsx', import.meta.url),
       'utf8'
     );
 
     expect(existsSync(compatibilityPath)).toBe(false);
-    expect(sidebarIndexSource).toContain(
-      "from '../../../mindroom/sidebar/MindroomTab'"
-    );
+    expect(sidebarIndexSource).not.toContain('MindroomTab');
+    expect(sidebarNavSource).toContain("from '../../mindroom/sidebar/MindroomTab'");
     expect(implementationSource).toContain('Local MindRoom');
     expect(implementationSource).toContain('SettingsPages.LocalMindroomPage');
   });

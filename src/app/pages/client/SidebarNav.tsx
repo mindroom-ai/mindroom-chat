@@ -13,13 +13,13 @@ import {
   SpaceTabs,
   InboxTab,
   ExploreTab,
-  MindroomTab,
   SettingsTab,
   UnverifiedTab,
   SearchTab,
 } from './sidebar';
 import { CreateTab } from './sidebar/CreateTab';
 import { useClientConfig } from '../../hooks/useClientConfig';
+import { MindroomTab } from '../../mindroom/sidebar/MindroomTab';
 
 export function SidebarNav() {
   const scrollRef = useRef<HTMLDivElement>(null);
