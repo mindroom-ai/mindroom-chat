@@ -477,6 +477,24 @@ describe('RoomTimeline architecture', () => {
     expect(stateCompatibilitySource).not.toContain('useSyncExternalStore');
   });
 
+  it('keeps thread root route canonicalization in MindRoom threads', () => {
+    const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
+    const compatibilitySource = readFileSync(
+      new URL('./useThreadRootEvent.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/useThreadRootEvent.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(roomViewSource).toContain("from '../../mindroom/threads/useThreadRootEvent'");
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/useThreadRootEvent'");
+    expect(implementationSource).toContain('resolveCanonicalThreadRootId');
+    expect(implementationSource).toContain('RoomEvent.LocalEchoUpdated');
+    expect(compatibilitySource).not.toContain('RoomEvent.LocalEchoUpdated');
+  });
+
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 

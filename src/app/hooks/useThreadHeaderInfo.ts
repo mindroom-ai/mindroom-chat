@@ -6,7 +6,7 @@ import {
   formatScheduledTime,
   getScheduledTimeUpdateInterval,
 } from '../features/room/compactThreadCardUtils';
-import { useThreadRootEvent } from '../features/room/useThreadRootEvent';
+import { useThreadRootEvent } from '../mindroom/threads/useThreadRootEvent';
 import { parseScheduledTaskStateEvent } from '../utils/scheduledTaskContract';
 import { useInterval } from './useInterval';
 import { useStateEvents } from './useStateEvents';

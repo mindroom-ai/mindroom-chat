@@ -184,7 +184,7 @@ vi.mock('../../hooks/useEdgeSwipeBack', () => ({
   useEdgeSwipeBack: vi.fn(),
 }));
 
-vi.mock('./useThreadRootEvent', () => ({
+vi.mock('../../mindroom/threads/useThreadRootEvent', () => ({
   useThreadRootEvent: (_room: unknown, threadId: string | undefined) => threadId,
 }));
 
