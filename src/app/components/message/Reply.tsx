@@ -22,7 +22,7 @@ import { useThreadResolution } from '../../mindroom/threads/useRoomThreadTags';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { useThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
 import { useThreadScheduledTasks } from '../../hooks/useThreadScheduledTasks';
-import { useThreadStreamingState } from '../../hooks/useThreadStreamingState';
+import { useThreadStreamingState } from '../../mindroom/threads/useThreadStreamingState';
 import { getThreadUnread } from '../../mindroom/threads/roomThreadList';
 
 type ReplyLayoutProps = {

@@ -14,7 +14,7 @@ vi.mock('../../hooks/useThreadLastActivityTs', () => ({
   },
 }));
 
-vi.mock('../../hooks/useThreadStreamingState', () => ({
+vi.mock('./useThreadStreamingState', () => ({
   getThreadStreamingState: (_room: unknown, threadRootId: string) =>
     threadRootId === '$thread-streaming',
 }));

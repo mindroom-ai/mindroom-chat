@@ -6,7 +6,7 @@ import {
 } from '../messages/threadSummary';
 import { getNextThreadScheduledTs } from '../../hooks/useThreadHeaderInfo';
 import { getThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
-import { getThreadStreamingState } from '../../hooks/useThreadStreamingState';
+import { getThreadStreamingState } from './useThreadStreamingState';
 import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
 import { getThreadUnread } from './roomThreadList';

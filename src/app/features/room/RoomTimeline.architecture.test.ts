@@ -700,6 +700,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../hooks/useThreadStreamingState.ts', import.meta.url),
       'utf8'
     );
+    const streamingHookImplementationSource = readFileSync(
+      new URL('../../mindroom/threads/useThreadStreamingState.ts', import.meta.url),
+      'utf8'
+    );
     const threadSummarySource = readFileSync(
       new URL('../../mindroom/messages/threadSummary.ts', import.meta.url),
       'utf8'
@@ -777,7 +781,11 @@ describe('RoomTimeline architecture', () => {
     expect(parserSource).not.toContain('MindroomCollapsibleBlock');
     expect(customHtmlStyleSource).not.toContain('MindroomBlock');
     expect(customHtmlStyleSource).not.toContain('MindroomToolGroup');
-    expect(streamingHookSource).toContain("from '../mindroom/messages/aiRun'");
+    expect(streamingHookSource.trim()).toBe(
+      "export * from '../mindroom/threads/useThreadStreamingState';"
+    );
+    expect(streamingHookImplementationSource).toContain("from '../messages/aiRun'");
+    expect(streamingHookImplementationSource).toContain('STREAM_STATUS_KEY');
     expect(messageIndexSource).toContain(
       "from '../../mindroom/messages/MindroomThreadSummaryCard'"
     );
