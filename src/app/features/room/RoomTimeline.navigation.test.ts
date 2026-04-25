@@ -594,7 +594,7 @@ describe('RoomTimeline', () => {
   });
 
   it('tracks room-mode focus retries while the target event is still missing from the DOM', async () => {
-    const { getNextRoomFocusRetry } = await import('./RoomTimeline');
+    const { getNextRoomFocusRetry } = await import('../../mindroom/threads/timelineScrollUtils');
 
     expect(
       getNextRoomFocusRetry({
