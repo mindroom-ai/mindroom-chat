@@ -17,7 +17,7 @@ import {
   deleteThreadEventCache,
   getThreadEventCacheDbName,
 } from '../threads/threadEventCache';
-import { deleteThreadSummaryCache } from '../threads/threadSummaryCache';
+import { deleteThreadSummaryCache } from '../threads/threadSummaryStore';
 
 export const MINDROOM_SINGLETON_INDEXED_DB_NAMES = [
   MINDROOM_ROOM_EVENT_CACHE_DB_NAME,

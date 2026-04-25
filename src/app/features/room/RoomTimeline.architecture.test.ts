@@ -909,6 +909,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/threadSummaryState.ts', import.meta.url),
       'utf8'
     );
+    const storeSource = readFileSync(
+      new URL('../../mindroom/threads/threadSummaryStore.ts', import.meta.url),
+      'utf8'
+    );
     const publishControllerSource = readFileSync(
       new URL('../../mindroom/threads/threadSummaryPublishController.ts', import.meta.url),
       'utf8'
@@ -917,11 +921,14 @@ describe('RoomTimeline architecture', () => {
 
     expect(roomViewSource).toContain("from '../../mindroom/threads/useRoomViewThreadState'");
     expect(roomViewSource).not.toContain("from '../../mindroom/threads/useRoomThreadSummaryState'");
-    expect(roomViewThreadStateSource).toContain("from './useRoomThreadSummaryState'");
+    expect(roomViewThreadStateSource).toContain("from './threadSummaryStore'");
     expect(timelineSource).toContain("from '../../mindroom/threads/threadSummaryPublishController'");
     expect(timelineSource).not.toContain('threadSummaryInfoMap.forEach');
     expect(cacheCompatibilitySource).toContain("from '../../mindroom/threads/threadSummaryCache'");
     expect(stateCompatibilitySource).toContain("from '../../mindroom/threads/threadSummaryState'");
+    expect(storeSource).toContain("from './threadSummaryCache'");
+    expect(storeSource).toContain("from './threadSummaryState'");
+    expect(storeSource).toContain("from './useRoomThreadSummaryState'");
     expect(cacheSource).toContain('loadCachedThreadSummaries');
     expect(stateSource).toContain('storeThreadSummaryInState');
     expect(publishControllerSource).toContain('useThreadSummaryPublishController');
