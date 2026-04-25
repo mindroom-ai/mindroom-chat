@@ -1,6 +1,6 @@
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import { describe, expect, it } from 'vitest';
-import { StateEvent } from '../../types/matrix/room';
+import { StateEvent } from '../../../types/matrix/room';
 import { parseScheduledTaskStateEvent } from './scheduledTaskContract';
 
 const makeScheduledTaskEvent = (content: Record<string, unknown>, stateKey = 'task-1') =>

@@ -19,7 +19,7 @@ vi.mock('./useThreadStreamingState', () => ({
     threadRootId === '$thread-streaming',
 }));
 
-vi.mock('../../utils/scheduledTaskContract', () => ({
+vi.mock('./scheduledTaskContract', () => ({
   parseScheduledTaskStateEvent: (event: {
     getStateKey: () => string;
     getContent: () => Record<string, unknown>;

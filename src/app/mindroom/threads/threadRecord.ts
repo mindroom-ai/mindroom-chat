@@ -4,9 +4,9 @@ import {
   pickLatestThreadSummaryInfo,
   type MindroomThreadSummaryInfo,
 } from '../messages/threadSummary';
-import { getNextThreadScheduledTs } from '../../hooks/useThreadHeaderInfo';
 import { getThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
 import { getThreadStreamingState } from './useThreadStreamingState';
+import { getNextThreadScheduledTs } from './useThreadHeaderInfo';
 import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
 import { getThreadUnread } from './roomThreadList';

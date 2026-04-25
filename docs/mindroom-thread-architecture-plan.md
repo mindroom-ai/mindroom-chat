@@ -706,6 +706,8 @@ Acceptance:
 - Generic edit resolution delegates MindRoom message metadata-key ownership to
   `src/app/mindroom/messages/metadata.ts`; upstream-owned utilities should not grow new raw
   `io.mindroom.*` / `com.mindroom.*` prefix checks.
+- Scheduled-thread state parsing, counts, header labels, and hooks live in `src/app/mindroom/threads`;
+  legacy hook/util paths are compatibility exports only.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy

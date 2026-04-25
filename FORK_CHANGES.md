@@ -2064,3 +2064,9 @@
 - Added `src/app/mindroom/messages/metadata.ts` as the owner for MindRoom message metadata-key namespace checks.
 - Updated generic edit resolution in `src/app/utils/room.ts` to preserve MindRoom edit metadata by delegating to `isMindroomMessageMetadataKey(...)` instead of matching raw `io.mindroom.*` / `com.mindroom.*` prefixes locally.
 - Kept the existing `m.mentions` preservation behavior in the generic edit resolver unchanged.
+
+## CINNY-098 — Move scheduled-thread helpers to fork namespace (2026-04-25)
+
+- Moved scheduled-task state parsing, scheduled-task counting, and thread-header scheduled-label hooks into `src/app/mindroom/threads`.
+- Left thin compatibility exports in `src/app/hooks/useThreadHeaderInfo.ts`, `src/app/hooks/useThreadScheduledTasks.ts`, and `src/app/utils/scheduledTaskContract.ts`.
+- Updated thread records, compact cards, thread context banners, reply badges, and test mocks to consume the fork-owned scheduled-task implementation directly.

@@ -403,12 +403,24 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps compact thread scheduled-label utilities in MindRoom threads', () => {
-    const hookSource = readFileSync(
+    const hookCompatibilitySource = readFileSync(
       new URL('../../hooks/useThreadHeaderInfo.ts', import.meta.url),
+      'utf8'
+    );
+    const hookImplementationSource = readFileSync(
+      new URL('../../mindroom/threads/useThreadHeaderInfo.ts', import.meta.url),
       'utf8'
     );
     const viewModelSource = readFileSync(
       new URL('../../mindroom/threads/compactThreadCardViewModel.ts', import.meta.url),
+      'utf8'
+    );
+    const scheduledTaskCompatibilitySource = readFileSync(
+      new URL('../../utils/scheduledTaskContract.ts', import.meta.url),
+      'utf8'
+    );
+    const scheduledTaskImplementationSource = readFileSync(
+      new URL('../../mindroom/threads/scheduledTaskContract.ts', import.meta.url),
       'utf8'
     );
     const compatibilitySource = readFileSync(
@@ -420,11 +432,18 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(hookSource).toContain("from '../mindroom/threads/compactThreadCardUtils'");
+    expect(hookCompatibilitySource).toContain("from '../mindroom/threads/useThreadHeaderInfo'");
+    expect(hookImplementationSource).toContain("from './compactThreadCardUtils'");
+    expect(hookImplementationSource).toContain("from './scheduledTaskContract'");
     expect(viewModelSource).toContain("from './compactThreadCardUtils'");
+    expect(scheduledTaskCompatibilitySource).toContain(
+      "from '../mindroom/threads/scheduledTaskContract'"
+    );
+    expect(scheduledTaskImplementationSource).toContain('parseScheduledTaskStateEvent');
     expect(compatibilitySource).toContain("from '../../mindroom/threads/compactThreadCardUtils'");
     expect(implementationSource).toContain('formatScheduledTime');
     expect(implementationSource).toContain('getScheduledTimeUpdateInterval');
+    expect(hookCompatibilitySource).not.toContain('StateEvent.MindRoomScheduledTask');
     expect(compatibilitySource).not.toContain('SIX_HOURS_MS');
   });
 
