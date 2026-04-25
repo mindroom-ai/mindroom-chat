@@ -4,7 +4,7 @@ import { matchPath, useLocation, useNavigate } from 'react-router-dom';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useActiveSession } from '../../hooks/useSessionStore';
-import { getLastOpenThread } from '../../state/lastOpenThread';
+import { getLastOpenThread } from '../../mindroom/threads/lastOpenThread';
 import { updateSessionLastPath } from '../../state/sessions';
 import { HOME_PATH } from '../paths';
 import { buildSessionLastKnownPath } from './sessionRouteRestore';

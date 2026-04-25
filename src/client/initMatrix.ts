@@ -6,7 +6,6 @@ import { Filter } from 'matrix-js-sdk/lib/filter';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 
 import { clearSecretStorageKeys, cryptoCallbacks } from './secretStorageKeys';
-import { clearLastOpenThreadStore } from '../app/state/lastOpenThread';
 import { clearNavToActivePathStore } from '../app/state/navToActivePath';
 import { createMatrixClient } from './matrixClientFactory';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
@@ -408,7 +407,6 @@ const getMatrixClientSessionCleanupContext = (
 };
 
 const clearSessionScopedUiState = (userId: string): void => {
-  clearLastOpenThreadStore(userId);
   clearNavToActivePathStore(userId);
   clearMindroomSessionUiState(userId);
 };

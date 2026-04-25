@@ -5,6 +5,7 @@ import { IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX, clearIOSPushState } from '../native/
 import { clearRecentThreadsPanelHeightStore } from '../recent-threads/recentThreadsPanelHeight';
 import { clearRecentThreadsPanelMobileExpandedStore } from '../recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
+import { clearLastOpenThreadStore } from '../threads/lastOpenThread';
 import { clearRecentThreadViewModelSharedState } from '../threads/recentThreadViewModel';
 import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
 import { deleteRoomEventCache, getRoomEventCacheDbName } from '../threads/roomEventCache';
@@ -32,6 +33,10 @@ vi.mock('../native/iosPush', () => ({
 
 vi.mock('../recent-threads/recentThreads', () => ({
   clearRecentThreadsStore: vi.fn(),
+}));
+
+vi.mock('../threads/lastOpenThread', () => ({
+  clearLastOpenThreadStore: vi.fn(),
 }));
 
 vi.mock('../recent-threads/recentThreadsPanelHeight', () => ({
@@ -102,6 +107,7 @@ describe('MindRoom session cleanup', () => {
     clearMindroomSessionNativeState('session-a');
     clearMindroomInMemoryCaches();
 
+    expect(vi.mocked(clearLastOpenThreadStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearRoomThreadFiltersStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(

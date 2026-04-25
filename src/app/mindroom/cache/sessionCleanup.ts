@@ -4,6 +4,7 @@ import { IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX, clearIOSPushState } from '../native/
 import { clearRecentThreadsPanelHeightStore } from '../recent-threads/recentThreadsPanelHeight';
 import { clearRecentThreadsPanelMobileExpandedStore } from '../recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
+import { clearLastOpenThreadStore } from '../threads/lastOpenThread';
 import { clearRecentThreadViewModelSharedState } from '../threads/recentThreadViewModel';
 import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
 import {
@@ -40,6 +41,7 @@ export const deleteMindroomSessionCaches = async (sessionId: string): Promise<vo
 };
 
 export const clearMindroomSessionUiState = (userId: string): void => {
+  clearLastOpenThreadStore(userId);
   clearRoomThreadFiltersStore(userId);
   clearRecentThreadsStore(userId);
   clearRecentThreadsPanelHeightStore(userId);

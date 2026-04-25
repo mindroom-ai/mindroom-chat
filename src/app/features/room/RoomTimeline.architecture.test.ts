@@ -169,6 +169,37 @@ describe('RoomTimeline architecture', () => {
     expect(indexSource).not.toContain('../../features/room/roomDeepLink');
   });
 
+  it('keeps last-open-thread state in MindRoom threads', () => {
+    const compatibilitySource = readFileSync(
+      new URL('../../state/lastOpenThread.ts', import.meta.url),
+      'utf8'
+    );
+    const clientStorageSource = readFileSync(
+      new URL('../../pages/client/ClientInitStorageAtom.tsx', import.meta.url),
+      'utf8'
+    );
+    const roomSource = readFileSync(new URL('./Room.tsx', import.meta.url), 'utf8');
+    const clientLayoutSource = readFileSync(
+      new URL('../../pages/client/ClientLayout.tsx', import.meta.url),
+      'utf8'
+    );
+    const sessionCleanupSource = readFileSync(
+      new URL('../../mindroom/cache/sessionCleanup.ts', import.meta.url),
+      'utf8'
+    );
+    const initMatrixSource = readFileSync(
+      new URL('../../../client/initMatrix.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(compatibilitySource.trim()).toBe("export * from '../mindroom/threads/lastOpenThread';");
+    expect(clientStorageSource).toContain("from '../../mindroom/threads/lastOpenThread'");
+    expect(roomSource).toContain("from '../../mindroom/threads/lastOpenThread'");
+    expect(clientLayoutSource).toContain("from '../../mindroom/threads/lastOpenThread'");
+    expect(sessionCleanupSource).toContain("from '../threads/lastOpenThread'");
+    expect(initMatrixSource).not.toContain("from '../app/state/lastOpenThread'");
+  });
+
   it('delegates cached thread page stitching to the event repository', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const seedPrewarmControllerSource = readFileSync(

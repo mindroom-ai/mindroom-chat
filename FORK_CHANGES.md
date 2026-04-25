@@ -14,6 +14,10 @@
   - `RenderMessageContent` now delegates textual MindRoom rendering policy through `src/app/mindroom/messages/renderMindroomMessageContent.tsx`.
   - Summary cards, tool approval cards, long-text rendering, AI-run streaming flags, and tool-trace parser options are owned by the MindRoom message namespace instead of the generic message renderer.
   - Generic message rendering keeps the upstream-style media/attachment fallback path and only imports the MindRoom render seam.
+- `CINNY-109`
+  - Last-open-thread persistence now lives in `src/app/mindroom/threads/lastOpenThread.ts`.
+  - The old `src/app/state/lastOpenThread.ts` path is a compatibility export only.
+  - Session cleanup now clears last-open-thread state through the MindRoom cleanup boundary.
 
 ### Current Feature Set On `dev`
 

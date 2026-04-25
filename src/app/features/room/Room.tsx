@@ -23,7 +23,7 @@ import {
   clearLastOpenThread,
   getLastOpenThread,
   setLastOpenThread,
-} from '../../state/lastOpenThread';
+} from '../../mindroom/threads/lastOpenThread';
 import { removeRecentThread } from '../../mindroom/recent-threads/recentThreads';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 
