@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createMatrixFetchFn } from '../app/mindroom/matrix/matrixClientFactory';
+import { createMatrixFetchFn } from './matrixClientFactory';
 
 describe('createMatrixFetchFn', () => {
   it('adds credentials for same-origin requests', async () => {

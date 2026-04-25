@@ -24,6 +24,9 @@
 - `CINNY-111`
   - Native iOS push notification settings UI now lives in `src/app/mindroom/native/IOSPushNotification.tsx`.
   - Generic notification settings now mounts the MindRoom native component instead of owning iOS push logic and app-name copy.
+- `CINNY-112`
+  - Matrix client same-origin credentials fetch policy now lives in `src/app/mindroom/matrix/matrixClientFactory.ts`.
+  - The old `src/client/matrixClientFactory.ts` path is compatibility-only.
 
 ### Current Feature Set On `dev`
 
