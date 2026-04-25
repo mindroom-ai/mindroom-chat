@@ -327,6 +327,9 @@ Compact thread root derivation, preview fallback selection, zero-reply root dete
 compact-root activity/preview extraction now live in
 `src/app/mindroom/threads/compactThreadRootData.ts`; the old `features/room` path is only a
 compatibility re-export.
+Thread presentation derivation, including summary/root-preview/latest-reply/last-sender/message-count
+snapshot assembly, now lives in `src/app/mindroom/threads/threadPresentation.ts`; the old
+`features/room` path is only a compatibility re-export.
 Thread-open cache hydration, latest-slice refresh, relation backfill, and cached relation-tail
 refresh now live in `src/app/mindroom/threads/threadOpenCacheController.ts`; `RoomTimeline` decides
 when to open a thread route but no longer owns their cache/network policy.

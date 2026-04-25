@@ -14,7 +14,7 @@ import { getEffectiveThreadRootActivityTs } from '../../features/room/threadRout
 import {
   getThreadPrimarySummaryText,
   resolveThreadPresentationSnapshot,
-} from '../../features/room/threadPresentation';
+} from './threadPresentation';
 import {
   buildVisibleThreadParticipantMap,
   buildVisibleThreadReplyCountMap,

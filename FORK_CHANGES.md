@@ -804,6 +804,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 29 / Phase 5 thread presentation ownership (2026-04-24):
+  - moved thread presentation derivation to `src/app/mindroom/threads/threadPresentation.ts`.
+  - `src/app/features/room/threadPresentation.ts` is now only a compatibility re-export, and MindRoom-owned modules import the implementation directly.
+  - this keeps summary/root-preview/latest-reply/last-sender/message-count snapshot assembly with the canonical `ThreadRecord`/view-model stack instead of the upstream feature folder.
+  - validation:
+    - focused Vitest passes for `threadPresentation.test.ts`, `RoomTimeline.architecture.test.ts`, `threadRecord.test.ts`, `threadOverviewCacheHydration.test.ts`, `compactThreadCardViewModel.test.ts`, and `RoomTimeline.cache.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

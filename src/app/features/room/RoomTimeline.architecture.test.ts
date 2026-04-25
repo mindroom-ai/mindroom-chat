@@ -266,6 +266,22 @@ describe('RoomTimeline architecture', () => {
     expect(compatibilitySource).not.toContain('getThreadRelationTargetId');
   });
 
+  it('keeps thread presentation derivation in MindRoom threads', () => {
+    const compatibilitySource = readFileSync(
+      new URL('./threadPresentation.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/threadPresentation.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/threadPresentation'");
+    expect(implementationSource).toContain('resolveThreadPresentationSnapshot');
+    expect(implementationSource).toContain('getLatestThreadSummaryInfoFromEventSources');
+    expect(compatibilitySource).not.toContain('getLatestRenderableVisibleThreadReplyEvent');
+  });
+
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 

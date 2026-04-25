@@ -7,7 +7,7 @@ import { getThreadHeaderScheduledDisplayText } from '../../hooks/useThreadHeader
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
 import { formatScheduledTime } from '../../features/room/compactThreadCardUtils';
-import { getThreadPrimarySummaryText } from '../../features/room/threadPresentation';
+import { getThreadPrimarySummaryText } from './threadPresentation';
 import type {
   CompactThreadAttentionState,
   CompactThreadCardViewModel,
