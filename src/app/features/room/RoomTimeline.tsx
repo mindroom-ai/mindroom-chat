@@ -259,6 +259,10 @@ import { createThreadOpenSeedSession } from '../../mindroom/threads/threadOpenSe
 import { runThreadOpenCacheFirst } from '../../mindroom/threads/threadOpenCacheFirst';
 import { runThreadOpenSdkBootstrap } from '../../mindroom/threads/threadOpenSdkBootstrap';
 import { runThreadOpenPostBootstrapRefresh } from '../../mindroom/threads/threadOpenPostBootstrapRefresh';
+import {
+  runThreadOpenTargetEvent,
+  type PendingThreadOpen,
+} from '../../mindroom/threads/threadOpenTargetEvent';
 import { useThreadSeedPrewarmController } from '../../mindroom/threads/threadSeedPrewarmController';
 import { useThreadOpenCacheController } from '../../mindroom/threads/threadOpenCacheController';
 import { useThreadOverviewResumeController } from '../../mindroom/threads/threadOverviewResumeController';
@@ -1326,16 +1330,7 @@ export function RoomTimeline({
   const threadEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
     new WeakMap<MatrixEvent, number>()
   );
-  const pendingThreadOpenRef = useRef<
-    | {
-        threadId: string;
-        eventId: string;
-        highlight: boolean;
-        onScroll: ((scrolled: boolean) => void) | undefined;
-        attempts: number;
-      }
-    | undefined
-  >();
+  const pendingThreadOpenRef = useRef<PendingThreadOpen | undefined>();
   const pendingRoomFocusRef = useRef<PendingRoomFocus | undefined>();
   const suppressFocusPaginationRef = useRef(false);
   const alive = useAlive();
@@ -3006,27 +3001,21 @@ export function RoomTimeline({
           pinThreadToBottomOnOpen();
         }
 
-        // When opening a thread with a specific eventId (e.g. from search),
-        // load that event's context into the thread timeline and scroll to it.
-        if (!shouldScrollToLatestOnOpen && eventId && eventId !== threadId) {
-          const evtThreadTimelineSet = room.getThread(threadId)?.getUnfilteredTimelineSet();
-          if (evtThreadTimelineSet) {
-            const [evtErr] = await to(mx.getEventTimeline(evtThreadTimelineSet, eventId));
-            if (!mounted || threadIdRef.current !== threadId) return;
-            if (!evtErr) {
-              setTimeline((ct) => ({ ...ct }));
-              setThreadTimelineTick((val) => val + 1);
-            }
-          }
-          pendingThreadOpenRef.current = {
-            threadId,
-            eventId,
-            highlight: true,
-            onScroll: undefined,
-            attempts: 0,
-          };
-          setPendingThreadOpenTick((val) => val + 1);
-        }
+        const shouldContinueAfterTargetEvent = await runThreadOpenTargetEvent({
+          eventId,
+          forceTimelineUpdate,
+          isCurrentThreadOpen: () => mounted && threadIdRef.current === threadId,
+          mx,
+          room,
+          setPendingThreadOpen: (pending) => {
+            pendingThreadOpenRef.current = pending;
+          },
+          setPendingThreadOpenTick,
+          setThreadTimelineTick,
+          shouldScrollToLatestOnOpen,
+          threadId,
+        });
+        if (!shouldContinueAfterTargetEvent) return;
       } finally {
         if (mounted && threadIdRef.current === threadId) {
           setThreadLatestOpenPending(false);
