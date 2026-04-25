@@ -615,6 +615,13 @@
     - `npm run typecheck` passes
     - `npm run build` passes
     - focused live Matrix e2e passes for `e2e/live/cinny060-thread-summary-consistency.spec.ts` and `e2e/live/cinny068-fresh-zero-reply-open.spec.ts` (`3/3`)
+- `CINNY-075` Phase 4b cleanup gate (2026-04-24):
+  - clarified in `docs/mindroom-thread-architecture-plan.md` that Phase 4 is not complete while `RoomTimeline` still assembles normal/compact `ThreadRecord` maps and overview ids directly.
+  - added the Phase 4b target: introduce `useMindroomThreadIndex` as the fork-owned room index boundary before more cache/preload extraction.
+  - made branch-health expectations explicit for the refactor path: `npm run lint`, `git diff --check`, and behavior/API tests should gate each slice.
+  - fixed the current lint errors in unresolved-promise tests, alias-response destructuring, context provider value identity, and the `threadRecordOverview` exhaustive switch fallback.
+  - validation:
+    - `npm run lint` passes with the branch warning-only baseline (`86` warnings, `0` errors)
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
