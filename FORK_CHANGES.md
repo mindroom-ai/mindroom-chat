@@ -667,6 +667,14 @@
     - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline (`80` warnings, `0` errors)
+- `CINNY-075` implementation step 12 / Phase 5 command controller (2026-04-24):
+  - added `src/app/mindroom/threads/threadOpenCacheController.ts` as the fork-owned owner for thread-open cache/network commands.
+  - `RoomTimeline` no longer owns the callback bodies for cached thread hydration, latest-thread slice refresh, relation backfill, or cached relation-tail refresh; it now calls the controller and keeps only route/render/scroll coordination.
+  - this keeps thread-open policy closer to the repository/coverage modules while preserving existing state setters and command timing at the `RoomTimeline` seam.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`77` warnings, `0` errors)
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.

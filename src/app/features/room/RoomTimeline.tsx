@@ -268,7 +268,6 @@ import {
 } from './threadPaginationUtils';
 import {
   aggregateCachedRelationEvents,
-  collectRedactedRelationTargetsFromLookup,
   hydrateCachedEvents,
   reconcileRelationEventsWithAggregation,
 } from './eventCacheEditUtils';
@@ -292,14 +291,11 @@ import { isPendingLocalEchoThreadRoot } from './threadRouteUtils';
 import { useRoomEagerPreload } from '../../mindroom/threads/preloadController';
 import { useThreadBackPaginationController } from '../../mindroom/threads/threadBackPaginationController';
 import {
-  getAuthoritativeCachedThreadReplyCount,
   isCompleteCachedThreadSnapshot,
   mergeThreadBackfillEvents,
 } from '../../mindroom/threads/threadCacheSnapshot';
 import {
   buildThreadCacheCoverage,
-  hasThreadCacheBackwardGap,
-  hasThreadCacheKnownBackwardStart,
   hasUsableThreadCacheSnapshot,
   isCompleteThreadCacheCoverage,
   shouldBackfillThreadRelationsFromCoverage,
@@ -319,6 +315,7 @@ import {
   THREAD_OPEN_PREWARM_WAIT_MS,
 } from '../../mindroom/threads/threadBootstrap';
 import { useThreadSeedPrewarmController } from '../../mindroom/threads/threadSeedPrewarmController';
+import { useThreadOpenCacheController } from '../../mindroom/threads/threadOpenCacheController';
 
 export { getRoomEventThreadOpenTarget } from './roomDeepLink';
 export { getRoomEventFocusTarget, getThreadFilteredEvents };
@@ -2478,132 +2475,6 @@ export function RoomTimeline({
     [alive, persistThreadCacheFromRoomEvents, room.roomId]
   );
 
-  const hydrateThreadFromCache = useCallback(
-    async (expectedThreadId: string) => {
-      logTimelineDebug(threadDebugTraceId, 'thread-cache-hydrate-start', {
-        limit: safePaginationLimitRef.current,
-        threadId: expectedThreadId,
-      });
-      const mapper = mx.getEventMapper();
-      const cachedSnapshot = await loadThreadCachedSnapshot({
-        sessionId,
-        roomId: room.roomId,
-        threadId: expectedThreadId,
-        limit: safePaginationLimitRef.current,
-        maxPages: MAX_THREAD_FETCH_ITERATIONS,
-        mapEvent: (rawEvent) => mapper(rawEvent),
-        shouldContinue: () => alive() && threadIdRef.current === expectedThreadId,
-        onPage: (page, pageIndex, snapshot) => {
-          logTimelineDebug(threadDebugTraceId, 'thread-cache-hydrate-page', {
-            beforeToken: page.beforeToken ?? null,
-            cachedCount: page.events.length,
-            expectedReplyCount: snapshot.expectedReplyCount ?? null,
-            hasMoreBefore: page.hasMoreBefore,
-            pageIndex,
-            relationSnapshotComplete: snapshot.relationSnapshotComplete === true,
-            rootPresent: !!page.rootEvent,
-            snapshotComplete: snapshot.snapshotComplete === true,
-            tailLoaded: snapshot.tailLoaded === true,
-            threadId: expectedThreadId,
-          });
-        },
-      });
-      if (!cachedSnapshot) return undefined;
-      const cachedPage = cachedSnapshot.cachedPage;
-      const cachedSnapshotComplete = cachedPage.snapshotComplete === true;
-      const cachedRelationSnapshotComplete = cachedPage.relationSnapshotComplete === true;
-      const tailLoaded = cachedPage.tailLoaded === true;
-
-      if (!alive() || threadIdRef.current !== expectedThreadId) return undefined;
-
-      const cachedEvents = cachedSnapshot.events;
-      const liveRootMatrixEvent =
-        room.getThread(expectedThreadId)?.rootEvent ??
-        room.findEventById(expectedThreadId) ??
-        undefined;
-      const cachedRootMatrixEvent =
-        cachedEvents.find((mEvent) => mEvent.getId() === expectedThreadId) ?? undefined;
-      const authoritativeExpectedReplyCount = getAuthoritativeCachedThreadReplyCount({
-        rootEvent: liveRootMatrixEvent,
-        cachedRootEvent: cachedRootMatrixEvent,
-        expectedReplyCount: cachedPage.expectedReplyCount,
-      });
-      const snapshotComplete = isCompleteCachedThreadSnapshot({
-        room,
-        threadId: expectedThreadId,
-        rootEvent: liveRootMatrixEvent,
-        cachedRootEvent: cachedRootMatrixEvent,
-        cachedEvents,
-        beforeToken: cachedPage.beforeToken,
-        hasMoreBefore: cachedPage.hasMoreBefore,
-        expectedReplyCount: authoritativeExpectedReplyCount,
-        snapshotComplete: cachedSnapshotComplete,
-        tailLoaded,
-      });
-      const cacheCoverage = buildThreadCacheCoverage({
-        eventCount: cachedEvents.length + (cachedRootMatrixEvent ? 1 : 0),
-        backwardToken: cachedPage.beforeToken,
-        hasMoreBackward: cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string',
-        expectedReplyCount: authoritativeExpectedReplyCount,
-        relationSnapshotComplete: cachedRelationSnapshotComplete,
-        snapshotComplete,
-        tailLoaded,
-      });
-      const currentThreadTimelineSet = room.getThread(expectedThreadId)?.getUnfilteredTimelineSet();
-      const currentFirstThreadTimeline = currentThreadTimelineSet
-        ? getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0]
-        : undefined;
-      const cacheProvesNoBackwardGap =
-        snapshotComplete === true && hasThreadCacheKnownBackwardStart(cacheCoverage);
-      const hadStaleSdkBackwardToken =
-        currentFirstThreadTimeline?.getPaginationToken(Direction.Backward) != null;
-      if (cacheProvesNoBackwardGap && currentFirstThreadTimeline && hadStaleSdkBackwardToken) {
-        currentFirstThreadTimeline.setPaginationToken(null, Direction.Backward);
-        logTimelineDebug(threadDebugTraceId, 'thread-cache-hydrate-clear-backward-gap', {
-          threadId: expectedThreadId,
-        });
-      }
-      setThreadHasMoreCachedBack(hasThreadCacheBackwardGap(cacheCoverage));
-      if (cachedEvents.length === 0) {
-        logTimelineDebug(threadDebugTraceId, 'thread-cache-hydrate-empty', {
-          tailLoaded,
-          threadId: expectedThreadId,
-        });
-        return {
-          ...cachedPage,
-          cacheCoverage,
-          expectedReplyCount: authoritativeExpectedReplyCount,
-          relationSnapshotComplete: cachedRelationSnapshotComplete,
-          snapshotComplete,
-          tailLoaded,
-        };
-      }
-
-      setSupplementalThreadEvents(expectedThreadId, cachedEvents);
-      saveThreadOpenSeedSnapshot(room, expectedThreadId, cachedEvents);
-      setTimeline((ct) => ({ ...ct }));
-      setThreadTimelineTick((val) => val + 1);
-      logTimelineDebug(threadDebugTraceId, 'thread-cache-hydrate-applied', {
-        appliedCount: cachedEvents.length,
-        expectedReplyCount: authoritativeExpectedReplyCount ?? null,
-        hasMoreBefore: cachedPage.hasMoreBefore,
-        relationSnapshotComplete: cachedRelationSnapshotComplete,
-        snapshotComplete,
-        tailLoaded,
-        threadId: expectedThreadId,
-      });
-      return {
-        ...cachedPage,
-        cacheCoverage,
-        expectedReplyCount: authoritativeExpectedReplyCount,
-        relationSnapshotComplete: cachedRelationSnapshotComplete,
-        snapshotComplete,
-        tailLoaded,
-      };
-    },
-    [alive, mx, room.roomId, sessionId, setSupplementalThreadEvents, threadDebugTraceId]
-  );
-
   const loadThreadOpenSeedSnapshotFromCache = useCallback(
     async (expectedThreadId: string): Promise<MatrixEvent[]> => {
       const mapper = mx.getEventMapper();
@@ -2634,295 +2505,32 @@ export function RoomTimeline({
     debugTraceId: roomDebugTraceId,
   });
 
-  const refreshLatestThreadSlice = useCallback(
-    async (
-      expectedThreadId: string,
-      opts?: {
-        allowWhenThreadClosed?: boolean;
-      }
-    ): Promise<boolean> => {
-      const allowWhenThreadClosed = opts?.allowWhenThreadClosed === true;
-      let currentThread = room.getThread(expectedThreadId);
-      if (!currentThread && allowWhenThreadClosed) {
-        const [threadErr] = await to(
-          mx.getThreadTimeline(room.getUnfilteredTimelineSet(), expectedThreadId)
-        );
-        if (threadErr) return false;
-        currentThread = room.getThread(expectedThreadId);
-      }
-      if (!currentThread) return false;
-      const shouldAbortRefresh = () => {
-        if (!alive() || roomIdRef.current !== room.roomId) return true;
-        if (allowWhenThreadClosed) {
-          return !!threadIdRef.current && threadIdRef.current !== expectedThreadId;
-        }
-        return threadIdRef.current !== expectedThreadId;
-      };
+  const forceTimelineUpdate = useCallback(() => {
+    setTimeline((ct) => ({ ...ct }));
+  }, []);
 
-      // Use the SDK's paginateEventTimeline in a loop — the same mechanism used
-      // by the working room preload loop and handleThreadPaginateBack.
-      // Unlike Thread.addEvents(), paginateEventTimeline uses the SDK's proper
-      // timelineSet.addEventsToTimeline() + thread.processEvent() path.
-      const threadTimelineSet = currentThread.getUnfilteredTimelineSet();
-      for (let iteration = 0; iteration < MAX_THREAD_FETCH_ITERATIONS; iteration++) {
-        if (shouldAbortRefresh()) return false;
-
-        const linkedTimelines = getLinkedTimelines(threadTimelineSet.getLiveTimeline());
-        const firstTimeline = linkedTimelines[0];
-        if (!firstTimeline?.getPaginationToken(Direction.Backward)) break;
-
-        const [err, didPaginate] = await to(
-          mx.paginateEventTimeline(firstTimeline, {
-            backwards: true,
-            limit: THREAD_BATCH_SIZE,
-          })
-        );
-        if (err || didPaginate === false) break;
-      }
-
-      if (shouldAbortRefresh()) return false;
-
-      const allEvents = currentThread.events;
-      const rootEvent = currentThread.rootEvent ?? room.findEventById(expectedThreadId);
-      const firstThreadTimeline = getLinkedTimelines(threadTimelineSet.getLiveTimeline())[0];
-      const backwardToken = firstThreadTimeline?.getPaginationToken(Direction.Backward) ?? null;
-      const snapshotComplete = isCompleteCachedThreadSnapshot({
-        room,
-        threadId: expectedThreadId,
-        rootEvent: rootEvent ?? undefined,
-        cachedRootEvent: rootEvent ?? undefined,
-        cachedEvents: rootEvent ? [rootEvent, ...allEvents] : allEvents,
-        beforeToken: backwardToken,
-        hasMoreBefore: typeof backwardToken === 'string',
-        expectedReplyCount: rootEvent ? getKnownThreadReplyCount(rootEvent) : undefined,
-        snapshotComplete: typeof backwardToken !== 'string',
-        tailLoaded: true,
-      });
-
-      if (allEvents.length > 0) {
-        setSupplementalThreadEvents(expectedThreadId, allEvents);
-        saveThreadOpenSeedSnapshot(room, expectedThreadId, allEvents);
-        persistThreadEventCache(
-          expectedThreadId,
-          allEvents,
-          rootEvent,
-          backwardToken,
-          true,
-          snapshotComplete
-        );
-      }
-
-      if (firstThreadTimeline) {
-        reconcileThreadBackwardPagination(
-          firstThreadTimeline,
-          backwardToken,
-          setThreadHasMoreCachedBack
-        );
-      }
-
-      setTimeline((ct) => ({ ...ct }));
-      setThreadTimelineTick((val) => val + 1);
-      setThreadTailLoaded(true);
-      logTimelineDebug(threadDebugTraceId, 'thread-refresh-latest-complete', {
-        snapshotComplete,
-        persistedCount: allEvents.length,
-        tailLoaded: true,
-        threadId: expectedThreadId,
-        backwardTokenPresent: typeof backwardToken === 'string',
-      });
-      return true;
-    },
-    [mx, persistThreadEventCache, room, setSupplementalThreadEvents, threadDebugTraceId]
-  );
-
-  const backfillThreadRelationsIntoCache = useCallback(
-    async (
-      expectedThreadId: string,
-      cachedRootEvent?: Partial<IEvent>,
-      baselineEvents: MatrixEvent[] = [],
-      expectedReplyCount?: number
-    ): Promise<{ completed: boolean; fetchedCount: number } | undefined> => {
-      const liveRootEvent =
-        room.getThread(expectedThreadId)?.rootEvent ?? room.findEventById(expectedThreadId);
-      const mapper = mx.getEventMapper();
-      const mappedCachedRootEvent =
-        !liveRootEvent && cachedRootEvent ? mapper(cachedRootEvent) : undefined;
-      const rootEvent = liveRootEvent ?? mappedCachedRootEvent;
-      if (!rootEvent) return undefined;
-
-      logTimelineDebug(threadDebugTraceId, 'thread-relations-backfill-start', {
-        threadId: expectedThreadId,
-      });
-
-      const relationPageResult = await fetchAllThreadRelations(
-        mx,
-        room.roomId,
-        expectedThreadId,
-        THREAD_BATCH_SIZE,
-        () => !alive() || threadIdRef.current !== expectedThreadId
-      );
-      if (!relationPageResult || !alive() || threadIdRef.current !== expectedThreadId) {
-        return undefined;
-      }
-
-      const relationSnapshotComplete = typeof relationPageResult.nextBatchToken !== 'string';
-      const mergedEvents = mergeThreadBackfillEvents(baselineEvents, relationPageResult.events);
-      const snapshotComplete = isCompleteCachedThreadSnapshot({
-        room,
-        threadId: expectedThreadId,
-        rootEvent: liveRootEvent,
-        cachedRootEvent: mappedCachedRootEvent,
-        cachedEvents: mergedEvents,
-        beforeToken: relationPageResult.nextBatchToken ?? null,
-        hasMoreBefore: typeof relationPageResult.nextBatchToken === 'string',
-        expectedReplyCount,
-        snapshotComplete: relationSnapshotComplete,
-        tailLoaded: true,
-      });
-      const relationCoverage = buildThreadCacheCoverage({
-        eventCount: mergedEvents.length + (rootEvent ? 1 : 0),
-        backwardToken: relationPageResult.nextBatchToken ?? null,
-        hasMoreBackward: typeof relationPageResult.nextBatchToken === 'string',
-        expectedReplyCount,
-        relationSnapshotComplete,
-        snapshotComplete,
-        tailLoaded: true,
-      });
-      const currentThreadTimelineSet = room.getThread(expectedThreadId)?.getUnfilteredTimelineSet();
-      const firstThreadTimeline = currentThreadTimelineSet
-        ? getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0]
-        : undefined;
-      const hadStaleSdkBackwardToken =
-        firstThreadTimeline?.getPaginationToken(Direction.Backward) != null;
-      if (snapshotComplete && firstThreadTimeline && hadStaleSdkBackwardToken) {
-        firstThreadTimeline.setPaginationToken(null, Direction.Backward);
-        logTimelineDebug(threadDebugTraceId, 'thread-relations-backfill-clear-backward-gap', {
-          threadId: expectedThreadId,
-        });
-      }
-      setSupplementalThreadEvents(expectedThreadId, mergedEvents);
-      saveThreadOpenSeedSnapshot(room, expectedThreadId, mergedEvents);
-      persistThreadEventCache(
-        expectedThreadId,
-        mergedEvents,
-        rootEvent,
-        relationPageResult.nextBatchToken ?? null,
-        true,
-        snapshotComplete,
-        expectedReplyCount,
-        relationSnapshotComplete
-      );
-      setThreadHasMoreCachedBack(hasThreadCacheBackwardGap(relationCoverage));
-      setThreadTailLoaded(true);
-      setTimeline((ct) => ({ ...ct }));
-      setThreadTimelineTick((val) => val + 1);
-      logTimelineDebug(threadDebugTraceId, 'thread-relations-backfill-complete', {
-        fetchedCount: relationPageResult.events.length,
-        mergedCount: mergedEvents.length,
-        relationSnapshotComplete,
-        snapshotComplete,
-        threadId: expectedThreadId,
-        nextBatchPresent: typeof relationPageResult.nextBatchToken === 'string',
-      });
-
-      return {
-        completed: snapshotComplete,
-        fetchedCount: relationPageResult.events.length,
-      };
-    },
-    [alive, mx, persistThreadEventCache, room, setSupplementalThreadEvents, threadDebugTraceId]
-  );
-
-  const refreshLatestThreadRelationsTail = useCallback(
-    async (
-      expectedThreadId: string,
-      cachedPage: {
-        beforeToken?: string | null;
-        events: Partial<IEvent>[];
-        expectedReplyCount?: number;
-        rootEvent?: Partial<IEvent>;
-        relationSnapshotComplete?: boolean;
-        snapshotComplete?: boolean;
-        tailLoaded?: boolean;
-      }
-    ): Promise<boolean> => {
-      const [err, relData] = await to(
-        mx.fetchRelations(room.roomId, expectedThreadId, null, null, {
-          dir: Direction.Backward,
-          limit: THREAD_BATCH_SIZE,
-          recurse: true,
-        })
-      );
-      if (err || !relData || !alive() || threadIdRef.current !== expectedThreadId) {
-        return false;
-      }
-
-      const mapper = mx.getEventMapper();
-      const latestRelationEvents = relData.chunk
-        .slice()
-        .reverse()
-        .map((rawEvent) => mapper(rawEvent));
-      if (latestRelationEvents.length === 0) {
-        logTimelineDebug(threadDebugTraceId, 'thread-refresh-latest-tail-empty', {
-          threadId: expectedThreadId,
-        });
-        return false;
-      }
-
-      const cachedSnapshotEvents = mapCachedThreadPageEvents({
-        events: cachedPage.events,
-        rootEvent: cachedPage.rootEvent,
-        mapEvent: (rawEvent) => mapper(rawEvent),
-      });
-      const liveThreadTimelineSet = room.getThread(expectedThreadId)?.getUnfilteredTimelineSet();
-      const redactedRelationTargets = collectRedactedRelationTargetsFromLookup(
-        latestRelationEvents,
-        cachedSnapshotEvents
-      );
-      reconcileRelationEventsWithAggregation(
-        latestRelationEvents,
-        [
-          { relations: roomTimelineSet.relations, timelineSet: roomTimelineSet },
-          liveThreadTimelineSet
-            ? { relations: liveThreadTimelineSet.relations, timelineSet: liveThreadTimelineSet }
-            : undefined,
-        ],
-        undefined,
-        redactedRelationTargets
-      );
-      const mergedEvents = mergeThreadBackfillEvents(cachedSnapshotEvents, latestRelationEvents);
-      const liveRootEvent =
-        room.getThread(expectedThreadId)?.rootEvent ?? room.findEventById(expectedThreadId);
-      const mappedCachedRootEvent =
-        !liveRootEvent && cachedPage.rootEvent ? mapper(cachedPage.rootEvent) : undefined;
-      const rootEvent =
-        liveRootEvent ??
-        mappedCachedRootEvent ??
-        mergedEvents.find((mEvent) => mEvent.getId() === expectedThreadId);
-
-      setSupplementalThreadEvents(expectedThreadId, mergedEvents);
-      saveThreadOpenSeedSnapshot(room, expectedThreadId, mergedEvents);
-      persistThreadEventCache(
-        expectedThreadId,
-        mergedEvents,
-        rootEvent,
-        cachedPage.beforeToken ?? null,
-        cachedPage.tailLoaded === true,
-        cachedPage.snapshotComplete === true,
-        cachedPage.expectedReplyCount,
-        cachedPage.relationSnapshotComplete === true
-      );
-      setTimeline((ct) => ({ ...ct }));
-      setThreadTimelineTick((val) => val + 1);
-      logTimelineDebug(threadDebugTraceId, 'thread-refresh-latest-tail-complete', {
-        fetchedCount: latestRelationEvents.length,
-        mergedCount: mergedEvents.length,
-        threadId: expectedThreadId,
-      });
-      return true;
-    },
-    [alive, mx, persistThreadEventCache, room, setSupplementalThreadEvents, threadDebugTraceId]
-  );
+  const {
+    backfillThreadRelationsIntoCache,
+    hydrateThreadFromCache,
+    refreshLatestThreadRelationsTail,
+    refreshLatestThreadSlice,
+  } = useThreadOpenCacheController({
+    alive,
+    debugTraceId: threadDebugTraceId,
+    forceTimelineUpdate,
+    mx,
+    persistThreadEventCache,
+    room,
+    roomIdRef,
+    roomTimelineSet,
+    safePaginationLimitRef,
+    sessionId,
+    setSupplementalThreadEvents,
+    setThreadHasMoreCachedBack,
+    setThreadTailLoaded,
+    setThreadTimelineTick,
+    threadIdRef,
+  });
 
   const getScrollElement = useCallback(() => scrollRef.current, []);
 
