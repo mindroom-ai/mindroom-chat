@@ -1,7 +1,7 @@
 import { Direction, MatrixClient, MatrixEvent, RelationType, Room, ReceiptType } from 'matrix-js-sdk';
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { isThreadOnlyRoomActivity } from '../mindroom/threads/threadRenderUtils';
-import { eventBelongsToThread } from '../features/room/threadUtils';
+import { eventBelongsToThread } from '../mindroom/threads/threadUtils';
 
 const getReceiptType = (privateReceipt: boolean): ReceiptType =>
   privateReceipt ? ReceiptType.ReadPrivate : ReceiptType.Read;
