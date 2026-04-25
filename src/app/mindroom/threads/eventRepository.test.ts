@@ -2,6 +2,7 @@ import { RelationType } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   collectStateTargetEvents,
+  loadCachedThreadSnapshot,
   serializeRoomCacheEvents,
   serializeThreadCacheEvents,
 } from './eventRepository';
@@ -60,5 +61,53 @@ describe('eventRepository cache serialization helpers', () => {
         (event) => event.event_id
       )
     ).toEqual(['$root', '$reply']);
+  });
+});
+
+describe('eventRepository cached thread snapshots', () => {
+  it('loads and stitches cached thread pages from newest to oldest', async () => {
+    const rootEvent = { event_id: '$root', origin_server_ts: 10 };
+    const newerReply = { event_id: '$newer', origin_server_ts: 30 };
+    const olderReply = { event_id: '$older', origin_server_ts: 20 };
+    const loadedPageIndexes: number[] = [];
+
+    const snapshot = await loadCachedThreadSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      threadId: '$root',
+      limit: 2,
+      maxPages: 5,
+      loadLatest: async () => ({
+        rootEvent,
+        events: [newerReply],
+        hasMoreBefore: true,
+        beforeToken: 'before-newer',
+        expectedReplyCount: 2,
+        snapshotComplete: true,
+        relationSnapshotComplete: true,
+        tailLoaded: true,
+      }),
+      loadBefore: async (_sessionId, _roomId, _threadId, anchor) => {
+        expect(anchor).toEqual({ eventId: '$newer', ts: 30 });
+        return {
+          events: [olderReply],
+          hasMoreBefore: false,
+          beforeToken: null,
+        };
+      },
+      onPage: (_page, pageIndex) => {
+        loadedPageIndexes.push(pageIndex);
+      },
+    });
+
+    expect(snapshot.events.map((event) => event.event_id)).toEqual(['$older', '$newer']);
+    expect(snapshot.rootEvent).toBe(rootEvent);
+    expect(snapshot.beforeToken).toBeNull();
+    expect(snapshot.hasMoreBefore).toBe(false);
+    expect(snapshot.expectedReplyCount).toBe(2);
+    expect(snapshot.snapshotComplete).toBe(true);
+    expect(snapshot.relationSnapshotComplete).toBe(true);
+    expect(snapshot.tailLoaded).toBe(true);
+    expect(loadedPageIndexes).toEqual([1, 2]);
   });
 });

@@ -261,7 +261,7 @@ import {
   loadCachedRoomPaginationToken,
   loadCachedThreadEventsBefore,
   loadLatestCachedRoomEvents,
-  loadLatestCachedThreadEvents,
+  loadCachedThreadSnapshot,
   normalizeCachedRoomEvents,
   normalizeCachedThreadEvents,
   saveRoomEventsToCache,
@@ -3424,77 +3424,37 @@ export function RoomTimeline({
         limit: safePaginationLimitRef.current,
         threadId: expectedThreadId,
       });
-      let cachedPage = await loadLatestCachedThreadEvents(
+      const cachedPage = await loadCachedThreadSnapshot({
         sessionId,
-        room.roomId,
-        expectedThreadId,
-        safePaginationLimitRef.current
-      );
+        roomId: room.roomId,
+        threadId: expectedThreadId,
+        limit: safePaginationLimitRef.current,
+        maxPages: MAX_THREAD_FETCH_ITERATIONS,
+        shouldContinue: () => alive() && threadIdRef.current === expectedThreadId,
+        onPage: (page, pageIndex, snapshot) => {
+          logTimelineDebug(threadDebugTraceId, 'thread-cache-hydrate-page', {
+            beforeToken: page.beforeToken ?? null,
+            cachedCount: page.events.length,
+            expectedReplyCount: snapshot.expectedReplyCount ?? null,
+            hasMoreBefore: page.hasMoreBefore,
+            pageIndex,
+            relationSnapshotComplete: snapshot.relationSnapshotComplete === true,
+            rootPresent: !!page.rootEvent,
+            snapshotComplete: snapshot.snapshotComplete === true,
+            tailLoaded: snapshot.tailLoaded === true,
+            threadId: expectedThreadId,
+          });
+        },
+      });
+      if (!cachedPage) return undefined;
       const mapper = mx.getEventMapper();
-      const cachedThreadEvents = [...cachedPage.events];
-      let cachedRootEvent = cachedPage.rootEvent;
-      let cachedBeforeToken = cachedPage.beforeToken;
-      let cachedHasMoreBefore = cachedPage.hasMoreBefore;
-      let cachedExpectedReplyCount = cachedPage.expectedReplyCount;
       const cachedSnapshotComplete = cachedPage.snapshotComplete === true;
       const cachedRelationSnapshotComplete = cachedPage.relationSnapshotComplete === true;
       const tailLoaded = cachedPage.tailLoaded === true;
 
-      logTimelineDebug(threadDebugTraceId, 'thread-cache-hydrate-page', {
-        beforeToken: cachedPage.beforeToken ?? null,
-        cachedCount: cachedPage.events.length,
-        expectedReplyCount: cachedExpectedReplyCount ?? null,
-        hasMoreBefore: cachedPage.hasMoreBefore,
-        pageIndex: 1,
-        relationSnapshotComplete: cachedRelationSnapshotComplete,
-        rootPresent: !!cachedPage.rootEvent,
-        snapshotComplete: cachedSnapshotComplete,
-        tailLoaded,
-        threadId: expectedThreadId,
-      });
-
-      for (
-        let pageIndex = 1;
-        cachedPage.hasMoreBefore && pageIndex < MAX_THREAD_FETCH_ITERATIONS;
-        pageIndex += 1
-      ) {
-        if (!alive() || threadIdRef.current !== expectedThreadId) return undefined;
-        const earliestCachedReply = cachedPage.events[0];
-        const beforeAnchor = getThreadCursorAnchor(earliestCachedReply);
-        if (!beforeAnchor) break;
-
-        cachedPage = await loadCachedThreadEventsBefore(
-          sessionId,
-          room.roomId,
-          expectedThreadId,
-          beforeAnchor,
-          safePaginationLimitRef.current
-        );
-        cachedThreadEvents.unshift(...cachedPage.events);
-        cachedRootEvent ??= cachedPage.rootEvent;
-        cachedBeforeToken = cachedPage.beforeToken;
-        cachedHasMoreBefore = cachedPage.hasMoreBefore;
-        cachedExpectedReplyCount = cachedPage.expectedReplyCount ?? cachedExpectedReplyCount;
-        logTimelineDebug(threadDebugTraceId, 'thread-cache-hydrate-page', {
-          beforeToken: cachedPage.beforeToken ?? null,
-          cachedCount: cachedPage.events.length,
-          expectedReplyCount: cachedExpectedReplyCount ?? null,
-          hasMoreBefore: cachedPage.hasMoreBefore,
-          pageIndex: pageIndex + 1,
-          relationSnapshotComplete: cachedRelationSnapshotComplete,
-          rootPresent: !!cachedPage.rootEvent,
-          snapshotComplete: cachedSnapshotComplete,
-          tailLoaded,
-          threadId: expectedThreadId,
-        });
-        if (cachedPage.events.length === 0) {
-          break;
-        }
-      }
-
       if (!alive() || threadIdRef.current !== expectedThreadId) return undefined;
 
-      const cachedEvents = normalizeCachedThreadEvents(cachedThreadEvents, cachedRootEvent).map(
+      const cachedEvents = normalizeCachedThreadEvents(cachedPage.events, cachedPage.rootEvent).map(
         (rawEvent) => mapper(rawEvent)
       );
       const liveRootMatrixEvent =
@@ -3506,7 +3466,7 @@ export function RoomTimeline({
       const authoritativeExpectedReplyCount = getAuthoritativeCachedThreadReplyCount({
         rootEvent: liveRootMatrixEvent,
         cachedRootEvent: cachedRootMatrixEvent,
-        expectedReplyCount: cachedExpectedReplyCount,
+        expectedReplyCount: cachedPage.expectedReplyCount,
       });
       const snapshotComplete = isCompleteCachedThreadSnapshot({
         room,
@@ -3514,8 +3474,8 @@ export function RoomTimeline({
         rootEvent: liveRootMatrixEvent,
         cachedRootEvent: cachedRootMatrixEvent,
         cachedEvents,
-        beforeToken: cachedBeforeToken,
-        hasMoreBefore: cachedHasMoreBefore,
+        beforeToken: cachedPage.beforeToken,
+        hasMoreBefore: cachedPage.hasMoreBefore,
         expectedReplyCount: authoritativeExpectedReplyCount,
         snapshotComplete: cachedSnapshotComplete,
         tailLoaded,
@@ -3525,7 +3485,7 @@ export function RoomTimeline({
         ? getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0]
         : undefined;
       const cacheProvesNoBackwardGap =
-        snapshotComplete === true && cachedHasMoreBefore === false && cachedBeforeToken == null;
+        snapshotComplete === true && cachedPage.hasMoreBefore === false && cachedPage.beforeToken == null;
       const hadStaleSdkBackwardToken =
         currentFirstThreadTimeline?.getPaginationToken(Direction.Backward) != null;
       if (cacheProvesNoBackwardGap && currentFirstThreadTimeline && hadStaleSdkBackwardToken) {
@@ -3535,7 +3495,7 @@ export function RoomTimeline({
         });
       }
       setThreadHasMoreCachedBack(
-        cachedHasMoreBefore || typeof cachedBeforeToken === 'string'
+        cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string'
       );
       if (cachedEvents.length === 0) {
         logTimelineDebug(threadDebugTraceId, 'thread-cache-hydrate-empty', {
@@ -3544,10 +3504,6 @@ export function RoomTimeline({
         });
         return {
           ...cachedPage,
-          beforeToken: cachedBeforeToken,
-          events: cachedThreadEvents,
-          hasMoreBefore: cachedHasMoreBefore,
-          rootEvent: cachedRootEvent,
           expectedReplyCount: authoritativeExpectedReplyCount,
           relationSnapshotComplete: cachedRelationSnapshotComplete,
           snapshotComplete,
@@ -3562,7 +3518,7 @@ export function RoomTimeline({
       logTimelineDebug(threadDebugTraceId, 'thread-cache-hydrate-applied', {
         appliedCount: cachedEvents.length,
         expectedReplyCount: authoritativeExpectedReplyCount ?? null,
-        hasMoreBefore: cachedHasMoreBefore,
+        hasMoreBefore: cachedPage.hasMoreBefore,
         relationSnapshotComplete: cachedRelationSnapshotComplete,
         snapshotComplete,
         tailLoaded,
@@ -3570,10 +3526,6 @@ export function RoomTimeline({
       });
         return {
           ...cachedPage,
-          beforeToken: cachedBeforeToken,
-          events: cachedThreadEvents,
-          hasMoreBefore: cachedHasMoreBefore,
-          rootEvent: cachedRootEvent,
           expectedReplyCount: authoritativeExpectedReplyCount,
           relationSnapshotComplete: cachedRelationSnapshotComplete,
           snapshotComplete,
@@ -3585,38 +3537,17 @@ export function RoomTimeline({
 
   const loadThreadOpenSeedSnapshotFromCache = useCallback(
     async (expectedThreadId: string): Promise<MatrixEvent[]> => {
-      let cachedPage = await loadLatestCachedThreadEvents(
+      const cachedPage = await loadCachedThreadSnapshot({
         sessionId,
-        room.roomId,
-        expectedThreadId,
-        safePaginationLimitRef.current
-      );
-      const cachedThreadEvents = [...cachedPage.events];
-      let cachedRootEvent = cachedPage.rootEvent;
-
-      for (
-        let pageIndex = 1;
-        cachedPage.hasMoreBefore && pageIndex < MAX_THREAD_FETCH_ITERATIONS;
-        pageIndex += 1
-      ) {
-        const earliestCachedReply = cachedPage.events[0];
-        const beforeAnchor = getThreadCursorAnchor(earliestCachedReply);
-        if (!beforeAnchor) break;
-
-        cachedPage = await loadCachedThreadEventsBefore(
-          sessionId,
-          room.roomId,
-          expectedThreadId,
-          beforeAnchor,
-          safePaginationLimitRef.current
-        );
-        cachedThreadEvents.unshift(...cachedPage.events);
-        cachedRootEvent ??= cachedPage.rootEvent;
-        if (cachedPage.events.length === 0) break;
-      }
+        roomId: room.roomId,
+        threadId: expectedThreadId,
+        limit: safePaginationLimitRef.current,
+        maxPages: MAX_THREAD_FETCH_ITERATIONS,
+      });
+      if (!cachedPage) return [];
 
       const mapper = mx.getEventMapper();
-      return normalizeCachedThreadEvents(cachedThreadEvents, cachedRootEvent).map((rawEvent) =>
+      return normalizeCachedThreadEvents(cachedPage.events, cachedPage.rootEvent).map((rawEvent) =>
         mapper(rawEvent)
       );
     },

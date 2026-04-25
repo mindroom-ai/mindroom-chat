@@ -62,4 +62,11 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain("from './useThreadOverviewCacheHydration'");
     expect(source).toContain("from '../../mindroom/threads/threadOverviewCacheHydration'");
   });
+
+  it('delegates cached thread page stitching to the event repository', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).not.toContain('cachedThreadEvents.unshift(...cachedPage.events)');
+    expect(source).toContain('loadCachedThreadSnapshot');
+  });
 });
