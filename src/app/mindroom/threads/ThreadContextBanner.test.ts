@@ -72,7 +72,7 @@ vi.mock('@tabler/icons-react', async () => {
   };
 });
 
-vi.mock('./useThreadRootEvent', () => ({
+vi.mock('../../features/room/useThreadRootEvent', () => ({
   useThreadRootEvent: bannerMocks.useThreadRootEvent,
 }));
 

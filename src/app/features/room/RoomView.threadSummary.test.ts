@@ -141,7 +141,7 @@ vi.mock('./RoomViewHeader', () => ({
   RoomViewHeader: passthrough,
 }));
 
-vi.mock('./ThreadContextBanner', () => ({
+vi.mock('../../mindroom/threads/ThreadContextBanner', () => ({
   ThreadContextBanner: (props: MockThreadContextBannerProps) => {
     threadContextBannerState.props = props;
     return React.createElement('div');

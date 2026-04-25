@@ -49,7 +49,7 @@ import {
 import { roomThreadFilterAtomFamily } from '../../state/room/roomThreadFilterState';
 import { roomViewModeAtomFamily, type RoomViewMode } from '../../state/room/roomViewMode';
 import { createSessionId } from '../../state/sessions';
-import { ThreadContextBanner } from './ThreadContextBanner';
+import { ThreadContextBanner } from '../../mindroom/threads/ThreadContextBanner';
 import { useRoomThreadSummaryState } from './useRoomThreadSummaryState';
 import { useThreadRootEvent } from './useThreadRootEvent';
 import { bumpRecentThread } from '../../state/recentThreads';
