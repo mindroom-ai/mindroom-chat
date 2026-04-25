@@ -69,7 +69,6 @@ import { useFilePicker } from '../../hooks/useFilePicker';
 import { useFilePasteHandler } from '../../hooks/useFilePasteHandler';
 import { useFileDropZone } from '../../hooks/useFileDrop';
 import {
-  IReplyDraft,
   TUploadItem,
   TUploadMetadata,
   roomIdToMsgDraftAtomFamily,
@@ -124,27 +123,9 @@ import {
   MINDROOM_COMMAND_PREFIX,
 } from '../../mindroom/commands/mindroomCommandQuery';
 import { VoiceRecorderComposer } from '../../mindroom/voice/VoiceRecorderDialog';
-import { isSignalBridgeRoom } from '../../mindroom/bridges/bridgeDetection';
-import {
-  createRoomInputSendSessionState,
-  getTextRelationForSendSession,
-  getUploadRelationForSendSession,
-  hasMatchingReplyDraftContext,
-  hasRoomInputSendFailures,
-  resolveRoomInputSendStep,
-  RoomInputSendSessionState,
-} from '../../mindroom/threads/roomInputSendSession';
+import { useRoomInputSendSessionController } from '../../mindroom/threads/useRoomInputSendSessionController';
 
 type RoomInputAutocompletePrefix = AutocompletePrefix | typeof MINDROOM_COMMAND_PREFIX;
-
-type SendSession = RoomInputSendSessionState & {
-  roomId: string;
-  threadId: string | undefined;
-  replyDraft: IReplyDraft | undefined;
-  textContent?: IContent;
-  replyCleared: boolean;
-  signalBridgedRoom: boolean;
-};
 
 interface RoomInputProps {
   editor: Editor;
@@ -171,12 +152,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [msgDraft, setMsgDraft] = useAtom(roomIdToMsgDraftAtomFamily(roomId));
     const [replyDraft, setReplyDraft] = useAtom(roomIdToReplyDraftAtomFamily(roomId));
     const replyUserID = replyDraft?.userId;
-    const roomIdRef = useRef(roomId);
-    roomIdRef.current = roomId;
-    const threadIdRef = useRef(threadId);
-    threadIdRef.current = threadId;
-    const replyDraftRef = useRef(replyDraft);
-    replyDraftRef.current = replyDraft;
 
     const powerLevelTags = usePowerLevelTags(room, powerLevels);
     const creatorsTag = useRoomCreatorsTag();
@@ -218,8 +193,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [voiceRecorderOpen, setVoiceRecorderOpen] = useState(false);
 
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId);
-    const sendSessionRef = useRef<SendSession | undefined>();
-    const processingSendSessionRef = useRef(false);
 
     const createUploadItems = useCallback(
       async (
@@ -395,180 +368,20 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [mx]
     );
 
-    const clearReplyDraftForSession = useCallback(
-      (session: SendSession) => {
-        if (session.replyCleared) return;
-
-        session.replyCleared = true;
-        if (
-          !hasMatchingReplyDraftContext(
-            {
-              roomId: session.roomId,
-              threadId: session.threadId,
-              replyDraft: session.replyDraft,
-            },
-            {
-              roomId: roomIdRef.current,
-              threadId: threadIdRef.current,
-              replyDraft: replyDraftRef.current,
-            }
-          )
-        ) {
-          return;
-        }
-        setReplyDraft(undefined);
-      },
-      [setReplyDraft]
-    );
-
-    const sendSessionText = useCallback(
-      async (session: SendSession) => {
-        if (!session.textContent) return;
-
-        const relation = getTextRelationForSendSession(session);
-        const content: IContent = relation
-          ? {
-              ...session.textContent,
-              'm.relates_to': relation,
-            }
-          : session.textContent;
-        const response = await mx.sendMessage(session.roomId, content as any);
-
-        session.textPending = false;
-        if (session.mode === 'auto-thread-text-root') {
-          session.rootEventId = response.event_id;
-        }
-        clearReplyDraftForSession(session);
-        resetEditor(editor);
-        resetEditorHistory(editor);
-        sendTypingStatus(false);
-      },
-      [mx, clearReplyDraftForSession, editor, sendTypingStatus]
-    );
-
-    const sendSessionUpload = useCallback(
-      async (session: SendSession, file: TUploadContent, mxc: string, isRoot: boolean) => {
-        const fileItem = selectedFilesRef.current.find((item) => item.file === file);
-        if (!fileItem) return;
-
-        const content = await buildUploadMessageContent(fileItem, mxc, session.signalBridgedRoom);
-        const relation = getUploadRelationForSendSession(session, isRoot);
-        const contentWithRelation: IContent = relation
-          ? {
-              ...content,
-              'm.relates_to': relation,
-            }
-          : content;
-        const response = await mx.sendMessage(session.roomId, contentWithRelation as any);
-
-        session.sentFiles.add(file);
-        session.failedFiles.delete(file);
-        if (session.mode === 'auto-thread-upload-root' && isRoot) {
-          session.rootEventId = response.event_id;
-        }
-        clearReplyDraftForSession(session);
-        removeUploadsFromBoard(file);
-      },
-      [
-        mx,
-        buildUploadMessageContent,
-        clearReplyDraftForSession,
-        removeUploadsFromBoard,
-      ]
-    );
-
-    const processSendSession = useCallback(async () => {
-      if (processingSendSessionRef.current) return;
-
-      processingSendSessionRef.current = true;
-      try {
-        while (true) {
-          const session = sendSessionRef.current;
-          if (!session) return;
-
-          const step = resolveRoomInputSendStep(
-            session,
-            uploadsRef.current,
-            selectedFilesRef.current.map((fileItem) => fileItem.file)
-          );
-
-          if (step.kind === 'wait') {
-            return;
-          }
-          if (step.kind === 'complete') {
-            sendSessionRef.current = undefined;
-            return;
-          }
-
-          if (step.kind === 'send-text') {
-            try {
-              await sendSessionText(session);
-            } catch (error) {
-              session.blockedRoot = true;
-              return;
-            }
-            continue;
-          }
-
-          try {
-            await sendSessionUpload(session, step.file, step.mxc, step.isRoot);
-          } catch (error) {
-            if (step.isRoot) {
-              session.blockedRoot = true;
-              return;
-            }
-
-            session.failedFiles.add(step.file);
-          }
-        }
-      } finally {
-        processingSendSessionRef.current = false;
-      }
-    }, [sendSessionText, sendSessionUpload]);
-
-    const startSendSession = useCallback(
-      async ({
-        textContent,
-        files,
-      }: {
-        textContent?: IContent;
-        files?: TUploadContent[];
-      } = {}) => {
-        const existingSession = sendSessionRef.current;
-        if (existingSession) {
-          if (!hasRoomInputSendFailures(existingSession)) {
-            // Intentionally ignore repeated Send clicks while a session is only waiting on
-            // upload retries. Upload-level recovery stays on the upload board retry controls.
-            return;
-          }
-
-          existingSession.blockedRoot = false;
-          existingSession.failedFiles.clear();
-          await processSendSession();
-          return;
-        }
-
-        const sendFiles = files ?? selectedFilesRef.current.map((fileItem) => fileItem.file);
-        if (sendFiles.length === 0) return;
-
-        sendSessionRef.current = {
-          roomId,
-          threadId,
-          replyDraft,
-          textContent,
-          replyCleared: false,
-          signalBridgedRoom: isSignalBridgeRoom(room),
-          ...createRoomInputSendSessionState({
-            files: sendFiles,
-            hasText: Boolean(textContent),
-            threadId,
-            replyDraft,
-          }),
-        };
-        await processSendSession();
-      },
-      [roomId, threadId, replyDraft, room, processSendSession]
-    );
+    const { processSendSession, startSendSession } = useRoomInputSendSessionController({
+      mx,
+      room,
+      roomId,
+      threadId,
+      replyDraft,
+      setReplyDraft,
+      editor,
+      sendTypingStatus,
+      selectedFilesRef,
+      uploadsRef,
+      buildUploadMessageContent,
+      removeUploadsFromBoard,
+    });
 
     const handleVoiceSend = useCallback(
       async (file: File, duration: number) => {

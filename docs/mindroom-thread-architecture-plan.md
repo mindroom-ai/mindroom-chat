@@ -443,9 +443,10 @@ re-exports.
 Server-side room thread-list loading, thread unread/activity helpers, and the `useRoomThreadList`
 hook now live in `src/app/mindroom/threads/roomThreadList.ts` and `useRoomThreadList.ts`; the old
 `features/room` paths are only compatibility re-exports.
-Thread-aware compose relation helpers and automatic room-input send-session sequencing now live in
-`src/app/mindroom/threads/composeMessageRelation.ts` and `roomInputSendSession.ts`; the old
-`features/room` paths are only compatibility re-exports.
+Thread-aware compose relation helpers, automatic room-input send-session policy, and the composer
+send-session controller now live in `src/app/mindroom/threads/composeMessageRelation.ts`,
+`roomInputSendSession.ts`, and `useRoomInputSendSessionController.ts`; the old `features/room`
+paths are only compatibility re-exports.
 MindRoom slash-bang command definitions, query parsing, and autocomplete UI now live in
 `src/app/mindroom/commands/`; the old `features/room` paths are only compatibility re-exports.
 MindRoom bridge detection helpers now live in `src/app/mindroom/bridges/`; the old `features/room`
