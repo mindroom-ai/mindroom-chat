@@ -242,6 +242,16 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps room input auto-thread send sessions in MindRoom threads', () => {
+    const removedRoomInputCompatibilityPaths = [
+      './MindroomCommandAutocomplete.tsx',
+      './VoiceRecorderDialog.tsx',
+      './bridgeDetection.ts',
+      './composeMessageRelation.ts',
+      './mindroomCommandQuery.ts',
+      './mindroomCommands.ts',
+      './roomInputSendSession.ts',
+      './voiceRecorderMime.ts',
+    ];
     const source = readFileSync(new URL('./RoomInput.tsx', import.meta.url), 'utf8');
     const roomInputExtensionsSource = readFileSync(
       new URL('../../mindroom/room-input/RoomInputMindroomExtensions.tsx', import.meta.url),
@@ -256,6 +266,9 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
+    removedRoomInputCompatibilityPaths.forEach((path) => {
+      expect(existsSync(new URL(path, import.meta.url))).toBe(false);
+    });
     expect(source).toContain('useRoomInputSendSessionController');
     expect(source).toContain("from '../../mindroom/room-input/RoomInputMindroomExtensions'");
     expect(source).not.toContain("from '../../mindroom/threads/useRoomInputSendSessionController'");

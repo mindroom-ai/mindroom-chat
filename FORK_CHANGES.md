@@ -118,6 +118,9 @@
 - `CINNY-140`
   - Removed the generic `src/app/features/settings/local-mindroom` compatibility wrapper folder.
   - The settings modal now mounts the Local MindRoom page from the MindRoom-owned module directly.
+- `CINNY-141`
+  - Removed unused room-input compatibility wrappers for MindRoom commands, voice recording, bridge detection, compose relations, and auto-thread send sessions.
+  - `RoomInput` continues to use the single MindRoom room-input extension seam.
 
 ### Current Feature Set On `dev`
 
