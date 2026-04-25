@@ -130,6 +130,9 @@
   - Removed the generic raw room/thread event cache wrappers and retargeted cache tests to the MindRoom-owned stores directly.
 - `CINNY-145`
   - Removed generic one-line wrappers for thread utility, route, tag, tag hook, and timeline-scroll helpers after all callers targeted MindRoom-owned modules.
+- `CINNY-146`
+  - Removed the remaining one-line room-feature wrappers for MindRoom thread overview, banner/tag UI, cache helpers, timeline helpers, filter DSL, and thread presentation.
+  - Retargeted feature tests to the MindRoom-owned thread modules directly so `features/room` no longer pretends to own those helpers.
 
 ### Current Feature Set On `dev`
 

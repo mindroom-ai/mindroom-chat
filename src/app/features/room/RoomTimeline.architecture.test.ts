@@ -29,10 +29,6 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps renderability and preload counting outside RoomTimeline', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const compatibilitySource = readFileSync(
-      new URL('./roomTimelineEvents.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/roomTimelineEvents.ts', import.meta.url),
       'utf8'
@@ -41,9 +37,7 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('export const isRenderableEvent =');
     expect(source).not.toContain('export const getRoomPreloadCounts =');
     expect(source).toContain("from '../../mindroom/threads/roomTimelineEvents'");
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/roomTimelineEvents'");
     expect(implementationSource).toContain('buildRoomSurfaceEventEntries');
-    expect(compatibilitySource).not.toContain('KNOWN_EVENT_TYPES');
   });
 
   it('delegates eager room preload orchestration outside RoomTimeline', () => {
@@ -285,11 +279,23 @@ describe('RoomTimeline architecture', () => {
   it('does not keep stale low-level thread compatibility wrappers', () => {
     const removedThreadCompatibilityPaths = [
       './cacheDbMigrationUtils.ts',
+      './compactThreadRootData.ts',
+      './eventCacheEditUtils.ts',
+      './eventCacheTokenUtils.ts',
+      './RoomThreadOverview.css.ts',
+      './RoomThreadOverview.tsx',
       './roomEventCache.ts',
       './roomDeepLink.ts',
       './roomPreloadTarget.ts',
       './roomThreadList.ts',
+      './roomThreadOverviewModel.ts',
+      './roomTimelineEvents.ts',
       './threadEventCache.ts',
+      './threadEditBackfillUtils.ts',
+      './threadFilterDsl.ts',
+      './threadPaginationUtils.ts',
+      './threadPresentation.ts',
+      './threadRenderUtils.ts',
       './threadSummaryCache.ts',
       './threadSummarySelection.ts',
       './threadSummaryState.ts',
@@ -298,6 +304,12 @@ describe('RoomTimeline architecture', () => {
       './threadTagPending.ts',
       './threadTags.ts',
       './threadUtils.ts',
+      './ThreadContextBanner.css.ts',
+      './ThreadContextBanner.tsx',
+      './ThreadTagPicker.tsx',
+      './ThreadTagPill.tsx',
+      './timelineDebug.ts',
+      './timelinePagination.ts',
       './timelineScrollUtils.ts',
       './useMutateThreadTags.ts',
       './useRoomThreadList.ts',
@@ -485,10 +497,6 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps compact thread root data implementation in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const compatibilitySource = readFileSync(
-      new URL('./compactThreadRootData.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/compactThreadRootData.ts', import.meta.url),
       'utf8'
@@ -499,45 +507,31 @@ describe('RoomTimeline architecture', () => {
     );
 
     expect(source).not.toContain("from '../../mindroom/threads/compactThreadRootData'");
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/compactThreadRootData'");
     expect(implementationSource).toContain('buildCompactThreadRootData');
     expect(implementationSource).toContain('isZeroReplyStandaloneThreadRootEvent');
     expect(indexSource).toContain("from './compactThreadRootData'");
-    expect(compatibilitySource).not.toContain('getThreadRelationTargetId');
   });
 
   it('keeps thread presentation derivation in MindRoom threads', () => {
-    const compatibilitySource = readFileSync(
-      new URL('./threadPresentation.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/threadPresentation.ts', import.meta.url),
       'utf8'
     );
 
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/threadPresentation'");
     expect(implementationSource).toContain('resolveThreadPresentationSnapshot');
     expect(implementationSource).toContain('getLatestThreadSummaryInfoFromEventSources');
-    expect(compatibilitySource).not.toContain('getLatestRenderableVisibleThreadReplyEvent');
   });
 
   it('keeps thread filter DSL parsing in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const compatibilitySource = readFileSync(
-      new URL('./threadFilterDsl.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/threadFilterDsl.ts', import.meta.url),
       'utf8'
     );
 
     expect(source).toContain("from '../../mindroom/threads/threadFilterDsl'");
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/threadFilterDsl'");
     expect(implementationSource).toContain('parseThreadFilterQuery');
     expect(implementationSource).toContain('serializeThreadFilterQuery');
-    expect(compatibilitySource).not.toContain('looksLikeDslToken');
   });
 
   it('keeps compact room view components in MindRoom threads', () => {
@@ -736,43 +730,26 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps room thread overview controls in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const compatibilitySource = readFileSync(
-      new URL('./RoomThreadOverview.tsx', import.meta.url),
-      'utf8'
-    );
-    const cssCompatibilitySource = readFileSync(
-      new URL('./RoomThreadOverview.css.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/RoomThreadOverview.tsx', import.meta.url),
       'utf8'
     );
 
     expect(source).toContain("from '../../mindroom/threads/RoomThreadOverview'");
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/RoomThreadOverview'");
-    expect(cssCompatibilitySource).toContain("from '../../mindroom/threads/RoomThreadOverview.css'");
     expect(implementationSource).toContain('RoomThreadOverviewProps');
     expect(implementationSource).toContain('FILTER_PRESETS');
-    expect(compatibilitySource).not.toContain('FILTER_PRESETS');
   });
 
   it('keeps room thread overview model in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const compatibilitySource = readFileSync(
-      new URL('./roomThreadOverviewModel.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/roomThreadOverviewModel.ts', import.meta.url),
       'utf8'
     );
 
     expect(source).toContain("from '../../mindroom/threads/roomThreadOverviewModel'");
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/roomThreadOverviewModel'");
     expect(implementationSource).toContain('createDefaultThreadFilterState');
     expect(implementationSource).toContain('buildThreadMetadataMap');
-    expect(compatibilitySource).not.toContain('buildThreadMetadataMap');
   });
 
   it('keeps thread relation and route utilities in MindRoom threads', () => {
@@ -798,21 +775,15 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps thread render identity utilities in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const compatibilitySource = readFileSync(
-      new URL('./threadRenderUtils.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/threadRenderUtils.ts', import.meta.url),
       'utf8'
     );
 
     expect(source).toContain("from '../../mindroom/threads/threadRenderUtils'");
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/threadRenderUtils'");
     expect(implementationSource).toContain('mergeThreadRenderEvents');
     expect(implementationSource).toContain('buildResolveConfirmedEventId');
     expect(implementationSource).toContain('isThreadOnlyRoomActivity');
-    expect(compatibilitySource).not.toContain('getEffectiveReplacementEvent');
   });
 
   it('keeps thread render state merging in MindRoom threads', () => {
@@ -845,14 +816,6 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps thread banner and tag UI in MindRoom threads', () => {
     const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
-    const bannerCompatibilitySource = readFileSync(
-      new URL('./ThreadContextBanner.tsx', import.meta.url),
-      'utf8'
-    );
-    const pickerCompatibilitySource = readFileSync(
-      new URL('./ThreadTagPicker.tsx', import.meta.url),
-      'utf8'
-    );
     const bannerSource = readFileSync(
       new URL('../../mindroom/threads/ThreadContextBanner.tsx', import.meta.url),
       'utf8'
@@ -863,12 +826,8 @@ describe('RoomTimeline architecture', () => {
     );
 
     expect(roomViewSource).toContain("from '../../mindroom/threads/ThreadContextBanner'");
-    expect(bannerCompatibilitySource).toContain("from '../../mindroom/threads/ThreadContextBanner'");
-    expect(pickerCompatibilitySource).toContain("from '../../mindroom/threads/ThreadTagPicker'");
     expect(bannerSource).toContain('buildThreadHeaderViewModelFromRecord');
     expect(pickerSource).toContain('normalizeTagName');
-    expect(bannerCompatibilitySource).not.toContain('buildThreadHeaderViewModelFromRecord');
-    expect(pickerCompatibilitySource).not.toContain('normalizeTagName');
   });
 
   it('keeps room-view thread state orchestration in MindRoom threads', () => {
@@ -1636,10 +1595,6 @@ describe('RoomTimeline architecture', () => {
 
   it('keeps timeline debug helpers in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const compatibilitySource = readFileSync(
-      new URL('./timelineDebug.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/timelineDebug.ts', import.meta.url),
       'utf8'
@@ -1651,7 +1606,6 @@ describe('RoomTimeline architecture', () => {
 
     expect(source).toContain("from '../../mindroom/threads/timelineDebugController'");
     expect(source).not.toContain("from '../../mindroom/threads/timelineDebug'");
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/timelineDebug'");
     expect(implementationSource).toContain('createTimelineDebugTrace');
     expect(implementationSource).toContain('mindroom.debug.timeline');
     expect(controllerSource).toContain('useTimelineDebugTraceIds');
@@ -1661,40 +1615,27 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('createTimelineDebugTrace');
     expect(source).not.toContain("'room-surface'");
     expect(source).not.toContain("'thread-range'");
-    expect(compatibilitySource).not.toContain('console.log');
   });
 
   it('keeps event cache token helpers in MindRoom threads', () => {
-    const compatibilitySource = readFileSync(
-      new URL('./eventCacheTokenUtils.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/eventCacheTokenUtils.ts', import.meta.url),
       'utf8'
     );
 
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/eventCacheTokenUtils'");
     expect(implementationSource).toContain('mergeCachedPaginationTokens');
     expect(implementationSource).toContain('compareCachedPaginationAnchors');
-    expect(compatibilitySource).not.toContain('localeCompare');
   });
 
   it('keeps event cache edit helpers in MindRoom threads', () => {
-    const compatibilitySource = readFileSync(
-      new URL('./eventCacheEditUtils.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/eventCacheEditUtils.ts', import.meta.url),
       'utf8'
     );
 
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/eventCacheEditUtils'");
     expect(implementationSource).toContain('hydrateCachedEvents');
     expect(implementationSource).toContain('serializeEventsForCache');
     expect(implementationSource).toContain('reconcileRelationEventsWithAggregation');
-    expect(compatibilitySource).not.toContain('makeRedacted');
   });
 
   it('keeps raw event cache stores in MindRoom threads', () => {
@@ -1720,34 +1661,23 @@ describe('RoomTimeline architecture', () => {
   });
 
   it('keeps thread pagination reconciliation helpers in MindRoom threads', () => {
-    const compatibilitySource = readFileSync(
-      new URL('./threadPaginationUtils.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/threadPaginationUtils.ts', import.meta.url),
       'utf8'
     );
 
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/threadPaginationUtils'");
     expect(implementationSource).toContain('computeReconciliationToken');
     expect(implementationSource).toContain('reconcileThreadBackwardPagination');
-    expect(compatibilitySource).not.toContain('Direction.Backward');
   });
 
   it('keeps timeline pagination helpers in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
-    const compatibilitySource = readFileSync(
-      new URL('./timelinePagination.ts', import.meta.url),
-      'utf8'
-    );
     const implementationSource = readFileSync(
       new URL('../../mindroom/threads/timelinePagination.ts', import.meta.url),
       'utf8'
     );
 
     expect(source).toContain("from '../../mindroom/threads/timelinePagination'");
-    expect(compatibilitySource).toContain("from '../../mindroom/threads/timelinePagination'");
     expect(implementationSource).toContain('recalibrateTimelinePagination');
     expect(implementationSource).toContain('getEventIdAbsoluteIndex');
     expect(implementationSource).toContain('getLinkedTimelines');
@@ -1757,7 +1687,6 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('export const getTimelineAndBaseIndex');
     expect(source).not.toContain('const getInitialTimeline');
     expect(source).not.toContain('export const getActiveTimelineRange');
-    expect(compatibilitySource).not.toContain('getRenderableEvents');
   });
 
   it('delegates timeline pagination commands to MindRoom threads', () => {

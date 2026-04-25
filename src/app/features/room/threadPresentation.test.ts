@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getThreadPrimarySummaryText,
   resolveThreadPresentationSnapshot,
-} from './threadPresentation';
+} from '../../mindroom/threads/threadPresentation';
 
 const makeRootEvent = (
   eventId: string,

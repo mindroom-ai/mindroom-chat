@@ -9,12 +9,12 @@ import {
   cycleSortMode,
   resetThreadFilterState,
   updateThreadFilterKey,
-} from './roomThreadOverviewModel';
+} from '../../mindroom/threads/roomThreadOverviewModel';
 import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,
   serializeThreadFilterQuery,
-} from './threadFilterDsl';
+} from '../../mindroom/threads/threadFilterDsl';
 import {
   clearThreadOpenSeedSnapshotsForTests,
   getThreadOpenSeedSnapshot,
@@ -936,7 +936,7 @@ vi.mock('../../mindroom/threads/threadEditBackfill', () => ({
   shouldFetchThreadEditBackfill: () => false,
 }));
 
-vi.mock('./threadEditBackfillUtils', () => ({
+vi.mock('../../mindroom/threads/threadEditBackfill', () => ({
   hasLikelyIncompleteStreamingBody: (value: unknown) =>
     typeof value === 'string' && /^thinking(?:\.{3}|…)(?:\s*⋯)?$/i.test(value.trim()),
   markThreadEditBackfillAttempted: vi.fn(),
@@ -1328,18 +1328,18 @@ const TEST_DEFAULT_THREAD_FILTER_STATE = {
 };
 
 const canonicalizeThreadFilterState = (
-  state: import('./roomThreadOverviewModel').ThreadFilterState
-): import('./roomThreadOverviewModel').ThreadFilterState => {
+  state: import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState
+): import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState => {
   const searchQuery = serializeThreadFilterQuery(state);
   return searchQuery === state.searchQuery ? state : { ...state, searchQuery };
 };
 
 const syncQueryState = (
-  state: import('./roomThreadOverviewModel').ThreadFilterState,
+  state: import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState,
   updater: (
-    nextState: import('./roomThreadOverviewModel').ThreadFilterState
-  ) => import('./roomThreadOverviewModel').ThreadFilterState
-): import('./roomThreadOverviewModel').ThreadFilterState => {
+    nextState: import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState
+  ) => import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState
+): import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState => {
   const next = updater(
     applyParsedThreadFilterQuery(state, parseThreadFilterQuery(state.searchQuery ?? ''))
   );
@@ -1349,7 +1349,7 @@ const syncQueryState = (
 
 const threadFilterStateFromLegacy = (
   filter?: 'all' | 'resolved' | 'unresolved' | 'unread'
-): import('./roomThreadOverviewModel').ThreadFilterState => {
+): import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState => {
   switch (filter) {
     case 'resolved':
       return canonicalizeThreadFilterState({
@@ -1404,19 +1404,19 @@ const createControlledRoomTimelineHarness = (
     summaryMap?: Map<string, unknown>;
     onStoreThreadSummary?: (threadRootId: string, info?: unknown) => void;
     initialThreadFilter?: 'all' | 'resolved' | 'unresolved' | 'unread';
-    initialThreadFilterState?: import('./roomThreadOverviewModel').ThreadFilterState;
+    initialThreadFilterState?: import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState;
     initialViewMode?: 'normal' | 'compact';
     initialThreadSortFrozen?: boolean;
   }) {
     const [threadFilterState, setThreadFilterState] =
-      React.useState<import('./roomThreadOverviewModel').ThreadFilterState>(
+      React.useState<import('../../mindroom/threads/roomThreadOverviewModel').ThreadFilterState>(
         canonicalizeThreadFilterState(
           initialThreadFilterState ?? threadFilterStateFromLegacy(initialThreadFilter)
         )
       );
     const [viewMode, setViewMode] = React.useState<'normal' | 'compact'>(initialViewMode);
     const [threadSortFreezeState, setThreadSortFreezeState] = React.useState<
-      import('./roomThreadOverviewModel').ThreadSortFreezeState | null
+      import('../../mindroom/threads/roomThreadOverviewModel').ThreadSortFreezeState | null
     >(
       initialThreadSortFrozen
         ? {

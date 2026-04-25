@@ -141,7 +141,7 @@ describe('RoomTimeline', () => {
     const { getTimelineTargetAnchor } = await import(
       '../../mindroom/threads/timelineScrollUtils'
     );
-    const { getRenderableEventEntries } = await import('./roomTimelineEvents');
+    const { getRenderableEventEntries } = await import('../../mindroom/threads/roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const threadRoot = makeEvent('$thread-root', { ts: 2 });
     const hiddenReply = makeEvent('$thread-reply', {
@@ -181,7 +181,7 @@ describe('RoomTimeline', () => {
     const { getTimelineTargetAnchor } = await import(
       '../../mindroom/threads/timelineScrollUtils'
     );
-    const { getRenderableEventEntries } = await import('./roomTimelineEvents');
+    const { getRenderableEventEntries } = await import('../../mindroom/threads/roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const hiddenReply = makeEvent('$thread-reply', {
       threadRootId: '$thread-root',
@@ -224,7 +224,7 @@ describe('RoomTimeline', () => {
 
   it('falls back to the last renderable entry when read-up-to is beyond all visible events', async () => {
     const { getUnreadTargetAnchor } = await import('../../mindroom/threads/timelineScrollUtils');
-    const { getRenderableEventEntries } = await import('./roomTimelineEvents');
+    const { getRenderableEventEntries } = await import('../../mindroom/threads/roomTimelineEvents');
     const firstVisible = makeEvent('$first', { ts: 1 });
     const lastVisible = makeEvent('$last', { ts: 2 });
     const hiddenReply = makeEvent('$hidden-reply', {
@@ -655,7 +655,7 @@ describe('RoomTimeline', () => {
     const { getTimelineTargetAnchor } = await import(
       '../../mindroom/threads/timelineScrollUtils'
     );
-    const { getRenderableEventEntries } = await import('./roomTimelineEvents');
+    const { getRenderableEventEntries } = await import('../../mindroom/threads/roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const threadRoot = makeEvent('$thread-root', { ts: 2 });
     const hiddenReply = makeEvent('$thread-reply', {
@@ -695,7 +695,7 @@ describe('RoomTimeline', () => {
     const { getTimelineTargetAnchor } = await import(
       '../../mindroom/threads/timelineScrollUtils'
     );
-    const { getRenderableEventEntries } = await import('./roomTimelineEvents');
+    const { getRenderableEventEntries } = await import('../../mindroom/threads/roomTimelineEvents');
     const olderMessage = makeEvent('$older', { ts: 1 });
     const hiddenReply = makeEvent('$thread-reply', {
       threadRootId: '$thread-root',
@@ -738,7 +738,7 @@ describe('RoomTimeline', () => {
 
   it('falls back to the last renderable entry when read-up-to is beyond all visible events', async () => {
     const { getUnreadTargetAnchor } = await import('../../mindroom/threads/timelineScrollUtils');
-    const { getRenderableEventEntries } = await import('./roomTimelineEvents');
+    const { getRenderableEventEntries } = await import('../../mindroom/threads/roomTimelineEvents');
     const firstVisible = makeEvent('$first', { ts: 1 });
     const lastVisible = makeEvent('$last', { ts: 2 });
     const hiddenReply = makeEvent('$hidden-reply', {

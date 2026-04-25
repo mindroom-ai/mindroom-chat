@@ -3,7 +3,7 @@ import { Editor } from 'slate';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessageEvent } from '../../../types/matrix/room';
-import { createDefaultThreadFilterState } from './roomThreadOverviewModel';
+import { createDefaultThreadFilterState } from '../../mindroom/threads/roomThreadOverviewModel';
 
 const RELATION_ANNOTATION = 'm.annotation';
 const RELATION_REPLACE = 'm.replace';
@@ -613,7 +613,7 @@ vi.mock('../../mindroom/threads/threadEditBackfill', () => ({
   shouldFetchThreadEditBackfill: () => false,
 }));
 
-vi.mock('./threadEditBackfillUtils', () => ({
+vi.mock('../../mindroom/threads/threadEditBackfill', () => ({
   hasLikelyIncompleteStreamingBody: () => false,
   markThreadEditBackfillAttempted: vi.fn(),
   shouldFetchThreadEditBackfill: () => false,
