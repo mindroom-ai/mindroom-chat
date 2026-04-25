@@ -32,6 +32,7 @@ import { AsyncState, AsyncStatus, useAsyncCallback } from '../../../hooks/useAsy
 import { useAutoDiscoveryInfo } from '../../../hooks/useAutoDiscoveryInfo';
 import { RegisterError, RegisterResult, register, useRegisterComplete } from './registerUtil';
 import { FieldError } from '../FiledError';
+import { MINDROOM_DEVICE_DISPLAY_NAME } from '../../../mindroom/branding/branding';
 import {
   AutoDummyStageDialog,
   AutoTermsStageDialog,
@@ -109,7 +110,7 @@ function RegisterUIAFlow({
         auth: authDict,
         password,
         username,
-        initial_device_display_name: 'MindRoom Web',
+        initial_device_display_name: MINDROOM_DEVICE_DISPLAY_NAME,
       });
     },
     [onRegister, formData]
@@ -252,7 +253,7 @@ export function PasswordRegisterForm({
       auth: {
         session: authData.session,
       },
-      initial_device_display_name: 'MindRoom Web',
+      initial_device_display_name: MINDROOM_DEVICE_DISPLAY_NAME,
     });
   };
 

@@ -2,25 +2,26 @@ import React from 'react';
 import { Box, Button, Icon, Icons, Text, config, toRem } from 'folds';
 import { Page, PageHero, PageHeroSection } from '../../components/page';
 import { useClientConfig } from '../../hooks/useClientConfig';
-import MindRoomLogo from '../../../../public/res/branding/mindroom-logo.png';
+import {
+  MINDROOM_APP_NAME,
+  MINDROOM_DEFAULT_POWERED_BY,
+  MINDROOM_DOCS_URL,
+  MINDROOM_LOGO_ALT,
+  MINDROOM_LOGO_SRC,
+  MINDROOM_SOURCE_URL,
+} from '../../mindroom/branding/branding';
 
 const safeIcon = (icon?: (filled?: boolean) => JSX.Element) => icon ?? Icons.Info;
 
 export function WelcomePage() {
   const { welcome } = useClientConfig();
-  const title = welcome?.title ?? 'Welcome to MindRoom';
+  const title = welcome?.title ?? `Welcome to ${MINDROOM_APP_NAME}`;
   const subtitle = welcome?.subtitle ?? 'Yet another matrix client.';
   const sourceLabel = welcome?.sourceLabel ?? 'Source Code';
-  const sourceUrl = welcome?.sourceUrl ?? 'https://github.com/mindroom-ai/mindroom';
+  const sourceUrl = welcome?.sourceUrl ?? MINDROOM_SOURCE_URL;
   const docsLabel = welcome?.docsLabel ?? 'Docs';
-  const docsUrl = welcome?.docsUrl ?? 'https://docs.mindroom.chat/';
-  const poweredBy =
-    welcome?.poweredBy ?? [
-      { label: 'MindRoom', url: 'https://github.com/mindroom-ai/mindroom' },
-      { label: 'Matrix', url: 'https://matrix.org' },
-      { label: 'Cinny', url: 'https://github.com/cinnyapp/cinny' },
-      { label: 'MindRoom Cinny Fork', url: 'https://github.com/mindroom-ai/mindroom-cinny' },
-    ];
+  const docsUrl = welcome?.docsUrl ?? MINDROOM_DOCS_URL;
+  const poweredBy = welcome?.poweredBy ?? MINDROOM_DEFAULT_POWERED_BY;
 
   return (
     <Page>
@@ -32,7 +33,7 @@ export function WelcomePage() {
       >
         <PageHeroSection>
           <PageHero
-            icon={<img width="70" height="70" src={MindRoomLogo} alt="MindRoom Logo" />}
+            icon={<img width="70" height="70" src={MINDROOM_LOGO_SRC} alt={MINDROOM_LOGO_ALT} />}
             title={title}
             subTitle={<span>{subtitle}</span>}
           >

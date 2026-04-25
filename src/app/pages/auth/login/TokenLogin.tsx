@@ -15,6 +15,7 @@ import { MatrixError } from 'matrix-js-sdk';
 import { useAutoDiscoveryInfo } from '../../../hooks/useAutoDiscoveryInfo';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { CustomLoginResponse, LoginError, login, useLoginComplete } from './loginUtil';
+import { MINDROOM_DEVICE_DISPLAY_NAME } from '../../../mindroom/branding/branding';
 
 function LoginTokenError({ message }: { message: string }) {
   return (
@@ -58,7 +59,7 @@ export function TokenLogin({ token, addAccount = false }: TokenLoginProps) {
     startLogin(baseUrl, {
       type: 'm.login.token',
       token,
-      initial_device_display_name: 'MindRoom Web',
+      initial_device_display_name: MINDROOM_DEVICE_DISPLAY_NAME,
     });
   }, [baseUrl, token, startLogin]);
 

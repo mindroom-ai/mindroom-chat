@@ -38,6 +38,7 @@ import { FieldError } from '../FiledError';
 import { getResetPasswordPath } from '../../pathUtils';
 import { stopPropagation } from '../../../utils/keyboard';
 import { withAddAccountSearchIf } from '../addAccount';
+import { MINDROOM_DEVICE_DISPLAY_NAME } from '../../../mindroom/branding/branding';
 
 function UsernameHint({ server }: { server: string }) {
   const [anchor, setAnchor] = useState<RectCords>();
@@ -139,7 +140,7 @@ export function PasswordLoginForm({
         user: username,
       },
       password,
-      initial_device_display_name: 'MindRoom Web',
+      initial_device_display_name: MINDROOM_DEVICE_DISPLAY_NAME,
     });
   };
 
@@ -157,7 +158,7 @@ export function PasswordLoginForm({
         user: mxIdUsername,
       },
       password,
-      initial_device_display_name: 'MindRoom Web',
+      initial_device_display_name: MINDROOM_DEVICE_DISPLAY_NAME,
     });
   };
   const handleEmailLogin = (email: string, password: string) => {
@@ -169,7 +170,7 @@ export function PasswordLoginForm({
         address: email,
       },
       password,
-      initial_device_display_name: 'MindRoom Web',
+      initial_device_display_name: MINDROOM_DEVICE_DISPLAY_NAME,
     });
   };
 

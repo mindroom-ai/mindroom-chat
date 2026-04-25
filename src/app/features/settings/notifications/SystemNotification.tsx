@@ -23,6 +23,7 @@ import {
   setIOSPushEnabled,
   unregisterIOSPush,
 } from '../../../mindroom/native/iosPush';
+import { MINDROOM_APP_NAME, MINDROOM_NOTIFICATION_BRAND } from '../../../mindroom/branding/branding';
 
 function EmailNotification() {
   const mx = useMatrixClient();
@@ -40,7 +41,7 @@ function EmailNotification() {
             device_display_name: email,
             lang: 'en',
             data: {
-              brand: 'MindRoom',
+              brand: MINDROOM_NOTIFICATION_BRAND,
             },
             append: true,
           });
@@ -182,7 +183,8 @@ function IOSPushNotification() {
       )}
       {iosPushConfig && toggleState.status !== AsyncStatus.Error && permission === 'denied' && (
         <Text as="span" style={{ color: color.Critical.Main }} size="T200">
-          Notification permission is denied. Enable notifications for MindRoom in iOS Settings.
+          Notification permission is denied. Enable notifications for {MINDROOM_APP_NAME} in iOS
+          Settings.
         </Text>
       )}
       {iosPushConfig && toggleState.status !== AsyncStatus.Error && permission === 'prompt' && (

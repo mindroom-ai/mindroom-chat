@@ -16,6 +16,7 @@ import { useClientConfig } from '../../../hooks/useClientConfig';
 import { hasAppleIdentityProvider } from '../ssoProviders';
 import { buildNativeSsoRedirectUrl, isNativeIOS } from '../../../mindroom/native/nativeSso';
 import { isAddAccountSearch, withAddAccountSearch } from '../addAccount';
+import { shouldUseSsoOnlyRegistration } from '../../../mindroom/auth/authPolicy';
 
 const useRegisterSearchParams = (searchParams: URLSearchParams): RegisterPathSearchParams =>
   useMemo(
@@ -38,8 +39,7 @@ export function Register() {
   const registrationAllowed = auth?.allowRegistration !== false;
   const requireAppleProvider = auth?.requireAppleProvider === true;
   const appleProviderAvailable = hasAppleIdentityProvider(sso?.identity_providers);
-  const serverWithoutScheme = server.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-  const ssoOnlyRegistration = serverWithoutScheme.toLowerCase() === 'mindroom.chat';
+  const ssoOnlyRegistration = shouldUseSsoOnlyRegistration(server);
   const showPasswordRegistration =
     registerFlows.status === RegisterFlowStatus.FlowRequired && !ssoOnlyRegistration;
 
