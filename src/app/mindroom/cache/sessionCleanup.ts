@@ -1,5 +1,5 @@
-import { clearMindroomLongTextHydrationCache } from '../../components/message/mindroomLongText';
 import { MINDROOM_EDIT_DEBUG_STORAGE_KEY } from '../messages/editDebug';
+import { clearMindroomLongTextHydrationCache } from '../messages/longText';
 import { IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX, clearIOSPushState } from '../native/iosPush';
 import { clearRecentThreadsPanelHeightStore } from '../recent-threads/recentThreadsPanelHeight';
 import { clearRecentThreadsPanelMobileExpandedStore } from '../recent-threads/recentThreadsPanelMobileExpanded';

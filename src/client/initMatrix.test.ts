@@ -16,8 +16,8 @@ import {
 } from './initMatrix';
 import { createMatrixClient } from './matrixClientFactory';
 import { clearSecretStorageKeys } from './secretStorageKeys';
-import { clearMindroomLongTextHydrationCache } from '../app/components/message/mindroomLongText';
 import { MINDROOM_EDIT_DEBUG_STORAGE_KEY } from '../app/mindroom/messages/editDebug';
+import { clearMindroomLongTextHydrationCache } from '../app/mindroom/messages/longText';
 import {
   LEGACY_SESSION_STORAGE_KEYS,
   SESSION_STORE_KEY,
@@ -58,7 +58,7 @@ vi.mock('./secretStorageKeys', () => ({
   cryptoCallbacks: {},
 }));
 
-vi.mock('../app/components/message/mindroomLongText', () => ({
+vi.mock('../app/mindroom/messages/longText', () => ({
   clearMindroomLongTextHydrationCache: vi.fn(),
 }));
 
