@@ -190,14 +190,6 @@ import {
 import { useRoomThreadResolutionMap } from '../../mindroom/threads/useRoomThreadTags';
 import { useRoomEagerPreload } from '../../mindroom/threads/preloadController';
 import { useThreadBackPaginationController } from '../../mindroom/threads/threadBackPaginationController';
-import {
-  collectPriorityThreadSeedPrewarmRoots,
-  fetchAllThreadRelations,
-  getLoadedRoomThreadEvents,
-  getLoadedRoomThreadSeedEvents,
-  MAX_THREAD_FETCH_EVENTS,
-  shouldRefreshOverviewForTimelineEvent,
-} from '../../mindroom/threads/threadBootstrap';
 import { type PendingThreadOpen } from '../../mindroom/threads/threadOpenTargetEvent';
 import { useThreadSeedPrewarmController } from '../../mindroom/threads/threadSeedPrewarmController';
 import { useThreadOpenCacheController } from '../../mindroom/threads/threadOpenCacheController';
