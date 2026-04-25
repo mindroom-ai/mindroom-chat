@@ -27,6 +27,9 @@
 - `CINNY-112`
   - Matrix client same-origin credentials fetch policy now lives in `src/app/mindroom/matrix/matrixClientFactory.ts`.
   - The old `src/client/matrixClientFactory.ts` path is compatibility-only.
+- `CINNY-113`
+  - Thread-open navigation seeding now lives in `src/app/mindroom/threads/threadNavigation.ts`.
+  - Generic room navigation remains responsible for room path construction, while the MindRoom owner handles thread-exit state, iOS history-back policy, and post-navigation persistence.
 
 ### Current Feature Set On `dev`
 

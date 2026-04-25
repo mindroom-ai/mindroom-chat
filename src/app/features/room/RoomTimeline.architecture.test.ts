@@ -200,6 +200,24 @@ describe('RoomTimeline architecture', () => {
     expect(initMatrixSource).not.toContain("from '../app/state/lastOpenThread'");
   });
 
+  it('keeps thread navigation seeding policy in MindRoom threads', () => {
+    const hookSource = readFileSync(
+      new URL('../../hooks/useRoomNavigate.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/threadNavigation.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(hookSource).toContain("from '../mindroom/threads/threadNavigation'");
+    expect(hookSource).not.toContain("from '../mindroom/native/nativeSso'");
+    expect(hookSource).not.toContain("from '../mindroom/threads/roomNavigateState'");
+    expect(implementationSource).toContain('navigateMindroomRoomThread');
+    expect(implementationSource).toContain('withRoomThreadExitTargetState');
+    expect(implementationSource).toContain('isNativeIOS');
+  });
+
   it('delegates cached thread page stitching to the event repository', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const seedPrewarmControllerSource = readFileSync(

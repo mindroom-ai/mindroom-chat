@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { NavigateOptions, useNavigate } from 'react-router-dom';
+import { type NavigateOptions, useNavigate } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
 import { getCanonicalAliasOrRoomId } from '../utils/matrix';
 import {
@@ -17,19 +17,7 @@ import { useSelectedSpace } from './router/useSelectedSpace';
 import { settingsAtom } from '../state/settings';
 import { useSetting } from '../state/hooks/settings';
 import { _RoomSearchParams } from '../pages/paths';
-import { isNativeIOS } from '../mindroom/native/nativeSso';
-import {
-  setRoomThreadExitTargetForHistoryState,
-  withRoomThreadExitTargetState,
-} from '../mindroom/threads/roomNavigateState';
-
-const afterNextPaint = (callback: () => void) => {
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(callback);
-    return;
-  }
-  queueMicrotask(callback);
-};
+import { navigateMindroomRoomThread } from '../mindroom/threads/threadNavigation';
 
 export const useRoomNavigate = () => {
   const navigate = useNavigate();
@@ -111,33 +99,12 @@ export const useRoomNavigate = () => {
 
   const navigateRoomThread = useCallback(
     (roomId: string, threadId: string, eventId?: string, opts?: NavigateOptions) => {
-      const seededExitTarget = !opts?.replace;
-      const useHistoryBack = !isNativeIOS();
-      const exitPath = seededExitTarget
-        ? `${window.location.pathname}${window.location.search}${window.location.hash}`
-        : undefined;
-      const nextOpts = seededExitTarget
-        ? {
-            ...opts,
-            state: withRoomThreadExitTargetState(opts?.state, {
-              exitPath,
-              roomId,
-              threadId,
-              useHistoryBack,
-            }),
-          }
-        : opts;
-
-      navigateRoomThreadDirect(roomId, threadId, eventId, nextOpts);
-
-      afterNextPaint(() => {
-        if (!seededExitTarget) return;
-        setRoomThreadExitTargetForHistoryState(window.history.state, {
-            exitPath,
-            roomId,
-            threadId,
-            useHistoryBack,
-          });
+      navigateMindroomRoomThread({
+        roomId,
+        threadId,
+        eventId,
+        opts,
+        navigateRoomThreadDirect,
       });
     },
     [navigateRoomThreadDirect]
