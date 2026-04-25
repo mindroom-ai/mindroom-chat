@@ -42,6 +42,10 @@ import {
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
 import { buildVisibleThreadParticipantMap, buildVisibleThreadReplyCountMap } from './threadUtils';
 import {
+  DIRECT_ROOM_TIMELINE_FILTER_STATE,
+  THREAD_OVERVIEW_METADATA_CACHE_LIMIT,
+} from './roomTimelineViewState';
+import {
   buildCompactThreadRootData,
   buildCompactZeroReplyRootData,
   getCompactThreadRootBodyPreviewText,
@@ -294,10 +298,8 @@ export type UseMindroomThreadIndexOptions = {
   threadResolutionMap: Map<string, ThreadResolutionLike>;
   currentUserId: string | undefined;
   requestedThreadFilterState: ThreadFilterState;
-  fallbackThreadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
   overviewRefreshCounter: number;
-  overviewThreadMetadataCacheLimit: number;
   sessionId: string;
   mx: MatrixClient;
   onStoreThreadSummary: (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => void;
@@ -320,10 +322,8 @@ export const useMindroomThreadIndex = ({
   threadResolutionMap,
   currentUserId,
   requestedThreadFilterState,
-  fallbackThreadFilterState,
   threadSortFreezeState,
   overviewRefreshCounter,
-  overviewThreadMetadataCacheLimit,
   sessionId,
   mx,
   onStoreThreadSummary,
@@ -664,7 +664,7 @@ export const useMindroomThreadIndex = ({
         compactThreadRecordMap,
         threadFilterState: debouncedThreadFilterState,
         liveThreadFilterState,
-        fallbackThreadFilterState,
+        fallbackThreadFilterState: DIRECT_ROOM_TIMELINE_FILTER_STATE,
         searchQuery: debouncedParsedQuery.freeText,
         threadSortFreezeState,
         threadSortControlSignature,
@@ -680,7 +680,6 @@ export const useMindroomThreadIndex = ({
       compactThreadRecordMap,
       debouncedThreadFilterState,
       liveThreadFilterState,
-      fallbackThreadFilterState,
       debouncedParsedQuery.freeText,
       threadSortFreezeState,
       threadSortControlSignature,
@@ -692,7 +691,7 @@ export const useMindroomThreadIndex = ({
   useThreadOverviewCacheHydration({
     threadId,
     overviewThreadRootIds: snapshot.overviewThreadRootIds,
-    overviewThreadMetadataCacheLimit,
+    overviewThreadMetadataCacheLimit: THREAD_OVERVIEW_METADATA_CACHE_LIMIT,
     room,
     roomThreadListThreads,
     sessionId,

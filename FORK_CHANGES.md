@@ -195,6 +195,9 @@
 - `CINNY-167`
   - Thread-filter DSL parsing for room overview state now lives inside `useMindroomThreadIndex`.
   - `RoomTimeline` passes only the requested filter state and renders the index-owned live/effective states, keeping filter parsing/application with the canonical room index.
+- `CINNY-168`
+  - Direct-room thread overview view-state and overview metadata cache limits now live in `src/app/mindroom/threads/roomTimelineViewState.ts`.
+  - `RoomTimeline` consumes the resolved view-state seam instead of owning the direct-room fallback filter and focus/compact-mode policy inline.
 
 ### Current Feature Set On `dev`
 
