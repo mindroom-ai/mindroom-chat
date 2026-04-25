@@ -51,7 +51,7 @@ import {
   useRoomsNotificationPreferencesContext,
 } from '../../../hooks/useRoomsNotificationPreferences';
 import { useDirectCreateSelected } from '../../../hooks/router/useDirectSelected';
-import { RecentThreadsPageNav } from '../../../features/recent-threads';
+import { RecentThreadsPageNav } from '../../../mindroom/recent-threads/RecentThreadsPanel';
 
 type DirectMenuProps = {
   requestClose: () => void;

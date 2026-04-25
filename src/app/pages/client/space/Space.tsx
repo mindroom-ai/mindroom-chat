@@ -85,7 +85,7 @@ import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { BreakWord } from '../../../styles/Text.css';
 import { InviteUserPrompt } from '../../../components/invite-user-prompt';
 import { useCallEmbed } from '../../../hooks/useCallEmbed';
-import { RecentThreadsPageNav } from '../../../features/recent-threads';
+import { RecentThreadsPageNav } from '../../../mindroom/recent-threads/RecentThreadsPanel';
 
 type SpaceMenuProps = {
   room: Room;

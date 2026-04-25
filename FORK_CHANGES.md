@@ -112,6 +112,9 @@
 - `CINNY-138`
   - Removed obsolete `src/app/components/message/mindroom*` compatibility wrappers after production callers moved to MindRoom-owned message modules.
   - Pinned-message tool approval rendering now imports the MindRoom message owner directly instead of through a generic message wrapper.
+- `CINNY-139`
+  - Removed the generic `src/app/features/recent-threads` compatibility wrapper folder.
+  - Home, direct, and space page shells now mount the Recent Threads page navigation from the MindRoom-owned module directly.
 
 ### Current Feature Set On `dev`
 
