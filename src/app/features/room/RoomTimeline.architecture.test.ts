@@ -602,8 +602,18 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates thread prepend scroll primitives to scroll utilities', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const compatibilitySource = readFileSync(
+      new URL('./timelineScrollUtils.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/timelineScrollUtils.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain("from './timelineScrollUtils'");
+    expect(source).toContain("from '../../mindroom/threads/timelineScrollUtils'");
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/timelineScrollUtils'");
+    expect(implementationSource).toContain('captureThreadPrependScrollAnchor');
     expect(source).not.toContain('export const captureThreadPrependScrollAnchor');
     expect(source).not.toContain('export const restoreThreadPrependScrollAnchor');
     expect(source).not.toContain('const resolveThreadScrollContainer');

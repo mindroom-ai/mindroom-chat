@@ -242,7 +242,7 @@ import {
   isTimelineAtLiveEnd,
   shouldAutoScrollRoomOnLiveEvent,
   shouldAutoScrollThreadOnLiveEvent,
-} from './timelineScrollUtils';
+} from '../../mindroom/threads/timelineScrollUtils';
 import { useRoomThreadResolutionMap } from '../../mindroom/threads/useRoomThreadTags';
 import { useRoomEagerPreload } from '../../mindroom/threads/preloadController';
 import { useThreadBackPaginationController } from '../../mindroom/threads/threadBackPaginationController';

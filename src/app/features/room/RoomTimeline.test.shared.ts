@@ -909,8 +909,9 @@ vi.mock('../../mindroom/threads/eventCacheEditUtils', () => ({
     ),
 }));
 
-vi.mock('./timelineScrollUtils', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./timelineScrollUtils')>();
+vi.mock('../../mindroom/threads/timelineScrollUtils', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../mindroom/threads/timelineScrollUtils')>();
   return {
     ...actual,
     isScrollNearBottom: () => true,

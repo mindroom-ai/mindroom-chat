@@ -984,6 +984,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 49 / Phase 6 scroll helper ownership (2026-04-24):
+  - moved timeline live-end checks, near-bottom checks, event-element lookup, and thread prepend scroll-anchor helpers to `src/app/mindroom/threads/timelineScrollUtils.ts` with their regression tests.
+  - the old `src/app/features/room/timelineScrollUtils.ts` path is now a compatibility re-export; `RoomTimeline` and MindRoom thread pagination/edit-backfill controllers import the MindRoom implementation directly.
+  - this keeps scroll-anchor policy beside the thread pagination controllers while leaving DOM effect execution in `RoomTimeline`.
+  - validation:
+    - focused Vitest passes for `timelineScrollUtils.test.ts`, `RoomTimeline.permalink-refresh.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimelineCollapsible.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
