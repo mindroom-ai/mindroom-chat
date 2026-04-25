@@ -169,6 +169,10 @@ import {
   isTimelineAtLiveEnd,
   shouldRenderUnreadDividerAt,
 } from '../../mindroom/threads/timelineScrollUtils';
+import {
+  resolveRoomTimelineViewState,
+  THREAD_OVERVIEW_METADATA_CACHE_LIMIT,
+} from '../../mindroom/threads/roomTimelineViewState';
 import { useRoomThreadResolutionMap } from '../../mindroom/threads/useRoomThreadTags';
 import { useRoomEagerPreload } from '../../mindroom/threads/preloadController';
 import { useThreadBackPaginationController } from '../../mindroom/threads/threadBackPaginationController';
@@ -247,21 +251,6 @@ type RoomTimelineProps = {
   editor: Editor;
 };
 
-const DIRECT_ROOM_TIMELINE_FILTER_STATE: ThreadFilterState = {
-  resolved: 'any',
-  streaming: 'any',
-  scheduled: 'any',
-  unread: 'any',
-  idle: 'any',
-  sortBy: 'natural',
-  sortDirection: 'desc',
-  tags: new Map(),
-  searchQuery: '',
-  statusMode: 'and',
-};
-
-const OVERVIEW_THREAD_METADATA_CACHE_LIMIT = 64;
-
 export function RoomTimeline({
   room,
   eventId,
@@ -296,12 +285,19 @@ export function RoomTimeline({
   const [messageSpacing] = useSetting(settingsAtom, 'messageSpacing');
   const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
   const direct = useIsDirectRoom();
-  const showRoomThreadOverviewControls = !threadId && !direct;
-  const focusedRoomOverviewRequested = Boolean(
-    !direct && !threadId && focusEventInRoom && viewMode !== 'compact' && eventId
-  );
-  const requestedThreadFilterState = direct ? DIRECT_ROOM_TIMELINE_FILTER_STATE : threadFilterState;
-  const effectiveViewMode: RoomViewMode = direct ? 'normal' : viewMode;
+  const {
+    effectiveViewMode,
+    focusedRoomOverviewRequested,
+    requestedThreadFilterState,
+    showRoomThreadOverviewControls,
+  } = resolveRoomTimelineViewState({
+    direct,
+    eventId,
+    focusEventInRoom,
+    threadFilterState,
+    threadId,
+    viewMode,
+  });
   const [hideMembershipEvents] = useSetting(settingsAtom, 'hideMembershipEvents');
   const [hideNickAvatarEvents] = useSetting(settingsAtom, 'hideNickAvatarEvents');
   const [mediaAutoLoad] = useSetting(settingsAtom, 'mediaAutoLoad');
@@ -555,10 +551,8 @@ export function RoomTimeline({
     threadResolutionMap,
     currentUserId: mx.getSafeUserId(),
     requestedThreadFilterState,
-    fallbackThreadFilterState: DIRECT_ROOM_TIMELINE_FILTER_STATE,
     threadSortFreezeState,
     overviewRefreshCounter,
-    overviewThreadMetadataCacheLimit: OVERVIEW_THREAD_METADATA_CACHE_LIMIT,
     sessionId,
     mx,
     onStoreThreadSummary,
@@ -1327,7 +1321,7 @@ export function RoomTimeline({
     compactViewRequested,
     debugTraceId: roomDebugTraceId,
     filteredThreadRootIds,
-    limit: OVERVIEW_THREAD_METADATA_CACHE_LIMIT,
+    limit: THREAD_OVERVIEW_METADATA_CACHE_LIMIT,
     mx,
     onApplyThreadRelations: applyThreadOverviewRelationEvents,
     onStoreThreadSummary,
