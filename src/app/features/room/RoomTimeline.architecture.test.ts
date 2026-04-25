@@ -673,7 +673,8 @@ describe('RoomTimeline architecture', () => {
     expect(hookImplementationSource).toContain("from './eventRepository'");
     expect(replySource).toContain("from '../../hooks/useRoomEvent'");
     expect(replySource).not.toContain("from '../../mindroom/threads/useRoomEvent'");
-    expect(pinMenuSource).toContain("from '../../../mindroom/threads/useRoomEvent'");
+    expect(pinMenuSource).toContain("from '../../../hooks/useRoomEvent'");
+    expect(pinMenuSource).not.toContain("from '../../../mindroom/threads/useRoomEvent'");
     expect(hookCompatibilitySource).not.toContain('loadCachedThreadEvent');
   });
 

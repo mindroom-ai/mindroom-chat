@@ -24,7 +24,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useRoomPinnedEvents } from '../../../hooks/useRoomPinnedEvents';
 import * as css from './RoomPinMenu.css';
 import { SequenceCard } from '../../../components/sequence-card';
-import { useRoomEvent } from '../../../mindroom/threads/useRoomEvent';
+import { useRoomEvent } from '../../../hooks/useRoomEvent';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import {
   AvatarBase,
@@ -64,7 +64,7 @@ import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import {
   getToolApprovalRenderContent,
   MINDROOM_TOOL_APPROVAL_EVENT,
-} from '../../../mindroom/messages/toolApproval';
+} from '../../../components/message/mindroomToolApproval';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
 import * as customHtmlCss from '../../../styles/CustomHtml.css';
