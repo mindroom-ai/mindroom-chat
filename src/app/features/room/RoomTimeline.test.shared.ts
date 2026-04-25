@@ -937,7 +937,7 @@ vi.mock('./RoomThreadOverview', () => ({
   RoomThreadOverview: roomThreadOverviewType,
 }));
 
-vi.mock('./CompactRoomView', () => ({
+vi.mock('../../mindroom/threads/CompactRoomView', () => ({
   CompactRoomView: compactPlaceholderType,
 }));
 

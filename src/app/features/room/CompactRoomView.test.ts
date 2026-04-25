@@ -78,7 +78,7 @@ vi.mock('../../mindroom/threads/compactThreadCardViewModel', () => ({
   useCompactThreadCardViewModels: useCompactThreadCardViewModelsMock,
 }));
 
-vi.mock('./CompactThreadCard', () => ({
+vi.mock('../../mindroom/threads/CompactThreadCard', () => ({
   CompactThreadCard: ({
     viewModel,
     onClick,
@@ -100,7 +100,7 @@ vi.mock('./CompactThreadCard', () => ({
   },
 }));
 
-vi.mock('./CompactRoomView.css', () => ({
+vi.mock('../../mindroom/threads/CompactRoomView.css', () => ({
   View: 'View',
   EmptyState: 'EmptyState',
 }));

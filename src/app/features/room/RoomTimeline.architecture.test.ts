@@ -300,6 +300,30 @@ describe('RoomTimeline architecture', () => {
     expect(compatibilitySource).not.toContain('looksLikeDslToken');
   });
 
+  it('keeps compact room view components in MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const compatibilitySource = readFileSync(new URL('./CompactRoomView.tsx', import.meta.url), 'utf8');
+    const cardCompatibilitySource = readFileSync(
+      new URL('./CompactThreadCard.tsx', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/CompactRoomView.tsx', import.meta.url),
+      'utf8'
+    );
+    const cardImplementationSource = readFileSync(
+      new URL('../../mindroom/threads/CompactThreadCard.tsx', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/CompactRoomView'");
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/CompactRoomView'");
+    expect(cardCompatibilitySource).toContain("from '../../mindroom/threads/CompactThreadCard'");
+    expect(implementationSource).toContain('useCompactThreadCardViewModels');
+    expect(cardImplementationSource).toContain('CompactThreadCardViewModel');
+    expect(compatibilitySource).not.toContain('useCompactThreadCardViewModels');
+  });
+
   it('delegates overview resume refresh orchestration to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
 
