@@ -118,6 +118,10 @@ Completed in the 2026-04-25 cleanup pass:
 - Message search implementation, helpers, and tests live under
   `src/app/mindroom/message-search`; the old generic `features/message-search` folder is gone
   because this fork only mounts message search through the MindRoom search wrapper.
+- Room timeline implementation lives under `src/app/mindroom/threads/MindroomRoomTimeline.tsx`.
+  `src/app/features/room/RoomTimeline.tsx` is now a narrow compatibility re-export, so future
+  timeline ownership work happens in the MindRoom namespace instead of the upstream room feature
+  folder.
 
 Remaining queue:
 

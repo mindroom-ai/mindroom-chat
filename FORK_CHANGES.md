@@ -263,6 +263,10 @@
   - Message search implementation, helpers, and tests now live under `src/app/mindroom/message-search`.
   - The old `src/app/features/message-search` feature folder was removed because production callers already route through the MindRoom search wrapper.
   - Search result body rendering remains a local renderer seam so the search list stays separate from the MindRoom long-text/body component.
+- `CINNY-188`
+  - Room timeline implementation now lives in `src/app/mindroom/threads/MindroomRoomTimeline.tsx`.
+  - `src/app/features/room/RoomTimeline.tsx` is a narrow compatibility seam that re-exports the MindRoom timeline.
+  - Architecture tests now guard both boundaries: the generic file stays small, while timeline/cache/index policy remains under the MindRoom thread namespace.
 
 ### Current Feature Set On `dev`
 
