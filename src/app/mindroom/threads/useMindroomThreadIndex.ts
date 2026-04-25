@@ -33,7 +33,7 @@ import {
   resolveThreadRecordOverviewRootIds,
 } from './threadRecordOverview';
 import { useThreadOverviewCacheHydration } from './threadOverviewCacheHydration';
-import type { ThreadRecord } from './types';
+import type { ThreadCacheCoverage, ThreadRecord } from './types';
 import {
   buildVisibleThreadParticipantMap,
   buildVisibleThreadReplyCountMap,
@@ -446,6 +446,9 @@ export const useMindroomThreadIndex = ({
   const [cachedThreadMessageCountMap, setCachedThreadMessageCountMap] = useState(
     () => new Map<string, number>()
   );
+  const [cachedThreadCoverageMap, setCachedThreadCoverageMap] = useState(
+    () => new Map<string, ThreadCacheCoverage>()
+  );
   const compactCachedRootPreviewAttemptCountsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
@@ -455,6 +458,7 @@ export const useMindroomThreadIndex = ({
     setCachedThreadLatestReplyPreviewMap(new Map());
     setCachedThreadLastSenderIdMap(new Map());
     setCachedThreadMessageCountMap(new Map());
+    setCachedThreadCoverageMap(new Map());
   }, [room.roomId]);
 
   const compactThreadRootBodyMap = useMemo(() => {
@@ -525,6 +529,7 @@ export const useMindroomThreadIndex = ({
       readUpToTs: readUpToTs ?? null,
       scheduledTaskEvents,
       scheduledTaskCounts,
+      cacheCoverageMap: cachedThreadCoverageMap,
       absoluteIndexMap: visibleThreadRootData.indexMap,
     });
   }, [
@@ -541,6 +546,7 @@ export const useMindroomThreadIndex = ({
     cachedThreadLastSenderIdMap,
     cachedThreadMessageCountMap,
     cachedThreadLastActivityTsMap,
+    cachedThreadCoverageMap,
     threadParticipantMap,
     threadResolutionMap,
     currentUserId,
@@ -573,6 +579,7 @@ export const useMindroomThreadIndex = ({
       readUpToTs: readUpToTs ?? null,
       scheduledTaskEvents,
       scheduledTaskCounts,
+      cacheCoverageMap: cachedThreadCoverageMap,
       absoluteIndexMap: compactThreadRootData.indexMap,
     });
   }, [
@@ -591,6 +598,7 @@ export const useMindroomThreadIndex = ({
     cachedThreadLastSenderIdMap,
     cachedThreadMessageCountMap,
     cachedThreadLastActivityTsMap,
+    cachedThreadCoverageMap,
     threadParticipantMap,
     threadResolutionMap,
     currentUserId,
@@ -668,6 +676,7 @@ export const useMindroomThreadIndex = ({
     compactThreadRootBodyMap: compactThreadRootData.bodyMap,
     compactCachedThreadRootBodyMap,
     cachedThreadLastActivityTsMap,
+    cachedThreadCoverageMap,
     compactThreadRecordMap: snapshot.compactThreadRecordMap,
     threadRecordMap: snapshot.normalThreadRecordMap,
     compactCachedRootPreviewAttemptCountsRef,
@@ -676,6 +685,7 @@ export const useMindroomThreadIndex = ({
     setCachedThreadLatestReplyPreviewMap,
     setCachedThreadLastSenderIdMap,
     setCachedThreadMessageCountMap,
+    setCachedThreadCoverageMap,
     onStoreThreadSummary,
   });
 

@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { IEvent, MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { ThreadRecord } from './types';
-import { resolveCachedOverviewUpdate } from './threadOverviewCacheHydration';
+import {
+  buildCachedOverviewCoverage,
+  resolveCachedOverviewUpdate,
+} from './threadOverviewCacheHydration';
 
 type RawCachedEvent = {
   event_id: string;
@@ -109,22 +112,86 @@ describe('resolveCachedOverviewUpdate', () => {
     const rootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 10 });
     const room = makeRoom([rootEvent]);
 
+    const update = resolveCachedOverviewUpdate({
+      rootId: threadRootId,
+      room,
+      mapper: mapRawCachedEvent,
+      cachedPage: {
+        events: [
+          {
+            event_id: '$cached-reply',
+            origin_server_ts: 90,
+            sender: '@cached:example.org',
+            content: { body: 'older cached reply', msgtype: 'm.text' },
+            threadRootId,
+            relation: { rel_type: 'm.thread', event_id: threadRootId },
+          },
+        ],
+        hasMoreBefore: false,
+      },
+      currentRecord: makeRecord(),
+      currentRootEvent: rootEvent,
+      showCompactRoomView: false,
+      compactCachedThreadRootBodyMap: new Map(),
+      compactThreadRootBodyMap: new Map(),
+    });
+
+    expect(update).toMatchObject({
+      rootId: threadRootId,
+      nextCacheCoverage: {
+        eventCount: 1,
+        oldestTs: 90,
+        newestTs: 90,
+        hasMoreBackward: false,
+        relationSnapshotComplete: false,
+        tailLoaded: false,
+      },
+    });
+    expect(update?.nextActivityTs).toBeUndefined();
+    expect(update?.nextReplyPreviewText).toBeUndefined();
+    expect(update?.nextLastSenderId).toBeUndefined();
+    expect(update?.nextMessageCount).toBeUndefined();
+  });
+
+  it('derives ThreadRecord cache coverage from cached overview pages', () => {
+    expect(
+      buildCachedOverviewCoverage({
+        events: [
+          { event_id: '$a', origin_server_ts: 200 },
+          { event_id: '$b', origin_server_ts: 100 },
+        ],
+        hasMoreBefore: true,
+        beforeToken: 'older',
+        expectedReplyCount: 7,
+        relationSnapshotComplete: true,
+        snapshotComplete: false,
+        tailLoaded: true,
+      })
+    ).toMatchObject({
+      eventCount: 2,
+      oldestTs: 100,
+      newestTs: 200,
+      backwardToken: 'older',
+      hasMoreBackward: true,
+      expectedReplyCount: 7,
+      relationSnapshotComplete: true,
+      snapshotComplete: false,
+      tailLoaded: true,
+    });
+  });
+
+  it('does not treat an empty cache miss as record coverage', () => {
+    const threadRootId = '$thread-root';
+    const rootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 10 });
+    const room = makeRoom([rootEvent]);
+
     expect(
       resolveCachedOverviewUpdate({
         rootId: threadRootId,
         room,
         mapper: mapRawCachedEvent,
         cachedPage: {
-          events: [
-            {
-              event_id: '$cached-reply',
-              origin_server_ts: 90,
-              sender: '@cached:example.org',
-              content: { body: 'older cached reply', msgtype: 'm.text' },
-              threadRootId,
-              relation: { rel_type: 'm.thread', event_id: threadRootId },
-            },
-          ],
+          events: [],
           hasMoreBefore: false,
         },
         currentRecord: makeRecord(),

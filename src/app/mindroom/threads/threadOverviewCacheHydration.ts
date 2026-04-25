@@ -11,7 +11,7 @@ import type {
   Room,
 } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
-import type { ThreadRecord } from './types';
+import type { ThreadCacheCoverage, ThreadRecord } from './types';
 import {
   getCompactCachedThreadActivityTs,
   getCompactCachedThreadRootPreviewInfo,
@@ -22,6 +22,7 @@ import {
 } from './eventRepository';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
+import { buildThreadCacheCoverage } from './threadCacheCoverage';
 
 type MapSetter<K, V> = Dispatch<SetStateAction<Map<K, V>>>;
 
@@ -42,6 +43,7 @@ type UseThreadOverviewCacheHydrationOptions = {
   compactThreadRootBodyMap: Map<string, string>;
   compactCachedThreadRootBodyMap: Map<string, string>;
   cachedThreadLastActivityTsMap: Map<string, number>;
+  cachedThreadCoverageMap: Map<string, ThreadCacheCoverage>;
   compactThreadRecordMap: ReadonlyMap<string, ThreadRecord>;
   threadRecordMap: ReadonlyMap<string, ThreadRecord>;
   compactCachedRootPreviewAttemptCountsRef: MutableRefObject<Map<string, number>>;
@@ -50,6 +52,7 @@ type UseThreadOverviewCacheHydrationOptions = {
   setCachedThreadLatestReplyPreviewMap: MapSetter<string, string>;
   setCachedThreadLastSenderIdMap: MapSetter<string, string>;
   setCachedThreadMessageCountMap: MapSetter<string, number>;
+  setCachedThreadCoverageMap: MapSetter<string, ThreadCacheCoverage>;
   onStoreThreadSummary: (rootId: string, info: MindroomThreadSummaryInfo) => void;
 };
 
@@ -61,6 +64,7 @@ type CachedOverviewUpdate = {
   nextLastSenderId?: string;
   nextMessageCount?: number;
   nextSummaryInfo?: MindroomThreadSummaryInfo;
+  nextCacheCoverage?: ThreadCacheCoverage;
 };
 
 type ResolveCachedOverviewUpdateOptions = {
@@ -90,6 +94,46 @@ const applyMapUpdates = <K, V>(
     return next;
   });
 };
+
+const getCachedEventTsRange = (
+  cachedPage: Pick<CachedThreadEventPage, 'events'>
+): { oldestTs: number | undefined; newestTs: number | undefined } => {
+  const timestamps = cachedPage.events
+    .map((event) => event.origin_server_ts)
+    .filter((ts): ts is number => typeof ts === 'number' && Number.isFinite(ts));
+
+  return {
+    oldestTs: timestamps.length > 0 ? Math.min(...timestamps) : undefined,
+    newestTs: timestamps.length > 0 ? Math.max(...timestamps) : undefined,
+  };
+};
+
+export const buildCachedOverviewCoverage = (
+  cachedPage: CachedThreadEventPage
+): ThreadCacheCoverage => {
+  const { oldestTs, newestTs } = getCachedEventTsRange(cachedPage);
+
+  return buildThreadCacheCoverage({
+    eventCount: cachedPage.events.length,
+    oldestTs,
+    newestTs,
+    backwardToken: cachedPage.beforeToken,
+    hasMoreBackward: cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string',
+    expectedReplyCount: cachedPage.expectedReplyCount,
+    relationSnapshotComplete: cachedPage.relationSnapshotComplete,
+    snapshotComplete: cachedPage.snapshotComplete,
+    tailLoaded: cachedPage.tailLoaded,
+  });
+};
+
+const hasCachedOverviewCoverage = (cachedPage: CachedThreadEventPage): boolean =>
+  cachedPage.events.length > 0 ||
+  !!cachedPage.rootEvent ||
+  cachedPage.beforeToken !== undefined ||
+  cachedPage.expectedReplyCount !== undefined ||
+  cachedPage.snapshotComplete !== undefined ||
+  cachedPage.relationSnapshotComplete !== undefined ||
+  cachedPage.tailLoaded !== undefined;
 
 export const resolveCachedOverviewUpdate = ({
   rootId,
@@ -142,6 +186,9 @@ export const resolveCachedOverviewUpdate = ({
   const nextSummaryInfo = cachedPresentation.summaryInfo?.summaryText
     ? cachedPresentation.summaryInfo
     : undefined;
+  const nextCacheCoverage = hasCachedOverviewCoverage(cachedPage)
+    ? buildCachedOverviewCoverage(cachedPage)
+    : undefined;
 
   let nextPreview: string | undefined;
   if (showCompactRoomView && !compactCachedThreadRootBodyMap.has(rootId)) {
@@ -169,7 +216,8 @@ export const resolveCachedOverviewUpdate = ({
     nextReplyPreviewText === undefined &&
     nextLastSenderId === undefined &&
     nextMessageCount === undefined &&
-    nextSummaryInfo === undefined
+    nextSummaryInfo === undefined &&
+    nextCacheCoverage === undefined
   ) {
     return null;
   }
@@ -182,6 +230,7 @@ export const resolveCachedOverviewUpdate = ({
     nextLastSenderId,
     nextMessageCount,
     nextSummaryInfo,
+    nextCacheCoverage,
   };
 };
 
@@ -197,6 +246,7 @@ export const useThreadOverviewCacheHydration = ({
   compactThreadRootBodyMap,
   compactCachedThreadRootBodyMap,
   cachedThreadLastActivityTsMap,
+  cachedThreadCoverageMap,
   compactThreadRecordMap,
   threadRecordMap,
   compactCachedRootPreviewAttemptCountsRef,
@@ -205,6 +255,7 @@ export const useThreadOverviewCacheHydration = ({
   setCachedThreadLatestReplyPreviewMap,
   setCachedThreadLastSenderIdMap,
   setCachedThreadMessageCountMap,
+  setCachedThreadCoverageMap,
   onStoreThreadSummary,
 }: UseThreadOverviewCacheHydrationOptions): void => {
   useEffect(() => {
@@ -213,10 +264,12 @@ export const useThreadOverviewCacheHydration = ({
     const threadRootIdsToLoad = overviewThreadRootIds
       .slice(0, overviewThreadMetadataCacheLimit)
       .filter((rootId) => {
-        const needsActivityTs = !cachedThreadLastActivityTsMap.has(rootId);
+        const needsCacheCoverage = !cachedThreadCoverageMap.has(rootId);
+        const needsActivityTs =
+          !cachedThreadLastActivityTsMap.has(rootId) && needsCacheCoverage;
 
         if (!showCompactRoomView) {
-          return needsActivityTs;
+          return needsActivityTs || needsCacheCoverage;
         }
 
         const currentPreview = compactThreadRootBodyMap.get(rootId);
@@ -226,7 +279,7 @@ export const useThreadOverviewCacheHydration = ({
         const needsPreview =
           !compactCachedThreadRootBodyMap.has(rootId) && attemptCount < maxAttempts;
 
-        return needsActivityTs || needsPreview;
+        return needsActivityTs || needsPreview || needsCacheCoverage;
       });
     if (threadRootIdsToLoad.length === 0) return;
 
@@ -310,6 +363,14 @@ export const useThreadOverviewCacheHydration = ({
         setCachedThreadMessageCountMap
       );
 
+      applyMapUpdates(
+        nextUpdates.map(({ rootId, nextCacheCoverage }) => ({
+          key: rootId,
+          value: nextCacheCoverage,
+        })),
+        setCachedThreadCoverageMap
+      );
+
       nextUpdates.forEach(({ rootId, nextSummaryInfo }) => {
         if (!nextSummaryInfo?.summaryText) return;
         onStoreThreadSummary(rootId, nextSummaryInfo);
@@ -323,6 +384,7 @@ export const useThreadOverviewCacheHydration = ({
     };
   }, [
     cachedThreadLastActivityTsMap,
+    cachedThreadCoverageMap,
     compactCachedRootPreviewAttemptCountsRef,
     compactCachedThreadRootBodyMap,
     compactThreadRecordMap,
@@ -339,6 +401,7 @@ export const useThreadOverviewCacheHydration = ({
     setCachedThreadLastSenderIdMap,
     setCachedThreadLatestReplyPreviewMap,
     setCachedThreadMessageCountMap,
+    setCachedThreadCoverageMap,
     setCompactCachedThreadRootBodyMap,
     showCompactRoomView,
     threadId,
