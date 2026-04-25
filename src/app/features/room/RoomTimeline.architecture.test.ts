@@ -80,4 +80,13 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('cachedThreadEvents.unshift(...cachedPage.events)');
     expect(source).toContain('loadCachedThreadSnapshot');
   });
+
+  it('delegates latest room cache hydration decisions to the event repository', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('loadLatestRoomCacheHydrationSnapshot');
+    expect(source).not.toContain('loadLatestCachedRoomEvents');
+    expect(source).not.toContain('shouldHydrateLatestRoomCache(');
+    expect(source).not.toContain('filterLatestRoomCacheHydrationEvents(');
+  });
 });
