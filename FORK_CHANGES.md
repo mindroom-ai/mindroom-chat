@@ -2119,3 +2119,9 @@
 - Added `src/app/mindroom/routing/clientRouteRestore.ts` for startup thread restore path parsing, saved-route room-id extraction, alias-route detection, and route canonicalization.
 - Reduced `ClientLayout` to React integration: it now wires route restore/canonicalization effects to the fork-owned helper instead of owning the parsing and alias-resolution policy inline.
 - Added focused route-helper coverage for saved-route parsing, thread restore query preservation, alias detection, local alias canonicalization, and homeserver alias resolution fallback.
+
+## CINNY-107 — Move MindRoom state-event names to feature owners (2026-04-25)
+
+- Removed MindRoom-specific scheduled-task and thread-tag event names from the generic Matrix `StateEvent` enum.
+- Added `MINDROOM_SCHEDULED_TASK_EVENT` to the fork-owned scheduled-task contract and `MINDROOM_THREAD_TAGS_EVENT` to the fork-owned thread-tag contract.
+- Updated scheduled-task and thread-tag readers, writers, command-palette actions, and focused tests to consume those owner constants instead of generic Matrix event enums.

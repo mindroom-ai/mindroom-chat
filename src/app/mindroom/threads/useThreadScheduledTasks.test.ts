@@ -3,7 +3,7 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { StateEvent } from '../../../types/matrix/room';
+import { MINDROOM_SCHEDULED_TASK_EVENT } from './scheduledTaskContract';
 import { useThreadScheduledTasks } from './useThreadScheduledTasks';
 import { useStateEvents } from '../../hooks/useStateEvents';
 
@@ -38,7 +38,7 @@ const makeScheduledTaskEvent = (
     room_id: '!room:example.org',
     sender: '@alice:example.org',
     state_key: stateKey,
-    type: StateEvent.MindRoomScheduledTask,
+    type: MINDROOM_SCHEDULED_TASK_EVENT,
   });
 
 type HarnessProps = {
@@ -92,7 +92,7 @@ describe('useThreadScheduledTasks', () => {
     const { getSnapshot, renderer } = renderHookHarness(room, '$thread-1', () => []);
 
     expect(getSnapshot()).toBe(0);
-    expect(mockedUseStateEvents).toHaveBeenCalledWith(room, StateEvent.MindRoomScheduledTask);
+    expect(mockedUseStateEvents).toHaveBeenCalledWith(room, MINDROOM_SCHEDULED_TASK_EVENT);
 
     renderer.unmount();
   });

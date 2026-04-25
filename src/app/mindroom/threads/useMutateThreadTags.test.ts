@@ -3,10 +3,9 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { StateEvent } from '../../../types/matrix/room';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { getPendingThreadTagsContent, resetPendingThreadTagsForTests } from './threadTagPending';
-import { buildPerTagStateKey } from './threadTags';
+import { buildPerTagStateKey, MINDROOM_THREAD_TAGS_EVENT } from './threadTags';
 import { getValidThreadRootEvent } from './threadUtils';
 import { useMutateThreadTags } from './useMutateThreadTags';
 
@@ -73,7 +72,7 @@ const makeLegacyThreadTagsEvent = (
     room_id: '!room:example.org',
     sender: '@alice:example.org',
     state_key: stateKey,
-    type: StateEvent.ThreadTags,
+    type: MINDROOM_THREAD_TAGS_EVENT,
   });
 
 const makePerTagEvent = (
@@ -88,7 +87,7 @@ const makePerTagEvent = (
     room_id: '!room:example.org',
     sender: '@alice:example.org',
     state_key: buildPerTagStateKey(threadRootId, tagName),
-    type: StateEvent.ThreadTags,
+    type: MINDROOM_THREAD_TAGS_EVENT,
   });
 
 const makeRoom = (events: MatrixEvent[] = []) =>
@@ -100,7 +99,7 @@ const makeRoom = (events: MatrixEvent[] = []) =>
     getLiveTimeline: () => ({
       getState: () => ({
         getStateEvents: (eventType: string) =>
-          eventType === StateEvent.ThreadTags ? events : [],
+          eventType === MINDROOM_THREAD_TAGS_EVENT ? events : [],
       }),
     }),
   }) as unknown as Room;
@@ -148,7 +147,7 @@ describe('useMutateThreadTags', () => {
     expect(sendStateEvent).toHaveBeenCalledTimes(1);
     expect(sendStateEvent).toHaveBeenCalledWith(
       '!room:example.org',
-      'com.mindroom.thread.tags',
+      MINDROOM_THREAD_TAGS_EVENT,
       {
         set_by: '@alice:example.org',
         set_at: ISO_1,
@@ -191,7 +190,7 @@ describe('useMutateThreadTags', () => {
 
     expect(sendStateEvent).toHaveBeenCalledWith(
       '!room:example.org',
-      'com.mindroom.thread.tags',
+      MINDROOM_THREAD_TAGS_EVENT,
       {
         set_by: '@alice:example.org',
         set_at: ISO_1,
@@ -238,7 +237,7 @@ describe('useMutateThreadTags', () => {
 
     expect(sendStateEvent).toHaveBeenCalledWith(
       '!room:example.org',
-      'com.mindroom.thread.tags',
+      MINDROOM_THREAD_TAGS_EVENT,
       {},
       '["$root","feature"]'
     );
@@ -276,7 +275,7 @@ describe('useMutateThreadTags', () => {
 
     expect(sendStateEvent).toHaveBeenCalledWith(
       '!room:example.org',
-      'com.mindroom.thread.tags',
+      MINDROOM_THREAD_TAGS_EVENT,
       {
         set_by: '@alice:example.org',
         set_at: ISO_2,
@@ -320,7 +319,7 @@ describe('useMutateThreadTags', () => {
 
     expect(sendStateEvent).toHaveBeenCalledWith(
       '!room:example.org',
-      'com.mindroom.thread.tags',
+      MINDROOM_THREAD_TAGS_EVENT,
       {},
       '["$root","resolved"]'
     );

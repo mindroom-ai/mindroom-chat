@@ -45,8 +45,8 @@ import {
   mergeCompactThreadRootData,
 } from './compactThreadRootData';
 import { useStateEvents } from '../../hooks/useStateEvents';
-import { StateEvent } from '../../../types/matrix/room';
 import { useRoomThreadList } from './useRoomThreadList';
+import { MINDROOM_SCHEDULED_TASK_EVENT } from './scheduledTaskContract';
 
 type ThreadResolutionLike = {
   isResolved: boolean;
@@ -335,7 +335,7 @@ export const useMindroomThreadIndex = ({
         : buildThreadSummaryMap(loadedTimelineEvents),
     [threadId, loadedTimelineEvents]
   );
-  const scheduledTaskEvents = useStateEvents(room, StateEvent.MindRoomScheduledTask);
+  const scheduledTaskEvents = useStateEvents(room, MINDROOM_SCHEDULED_TASK_EVENT);
   const scheduledTaskCounts = useMemo(
     () => (threadId ? new Map<string, number>() : getRoomScheduledTaskCounts(scheduledTaskEvents)),
     [threadId, scheduledTaskEvents]

@@ -3,14 +3,13 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { StateEvent } from '../../../types/matrix/room';
 import { useStateEvents } from '../../hooks/useStateEvents';
 import {
   getPendingThreadTagsContent,
   resetPendingThreadTagsForTests,
   setPendingThreadTagsContent,
 } from './threadTagPending';
-import { buildPerTagStateKey } from './threadTags';
+import { buildPerTagStateKey, MINDROOM_THREAD_TAGS_EVENT } from './threadTags';
 import { useRoomThreadResolutionMap, useThreadResolution } from './useRoomThreadTags';
 
 vi.mock('../../hooks/useStateEvents', () => ({
@@ -41,7 +40,7 @@ const makeLegacyThreadTagsEvent = (
     room_id: '!room:example.org',
     sender: '@alice:example.org',
     state_key: stateKey,
-    type: StateEvent.ThreadTags,
+    type: MINDROOM_THREAD_TAGS_EVENT,
   });
 
 const makePerTagEvent = (
@@ -56,7 +55,7 @@ const makePerTagEvent = (
     room_id: '!room:example.org',
     sender: '@alice:example.org',
     state_key: buildPerTagStateKey(threadRootId, tagName),
-    type: StateEvent.ThreadTags,
+    type: MINDROOM_THREAD_TAGS_EVENT,
   });
 
 const makePerTagTombstoneEvent = (threadRootId: string, tagName: string) =>
@@ -87,7 +86,7 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
   it('reads resolved state and plain tag names from per-tag state events', () => {
     const room = { roomId: '!room:example.org' } as Room;
     mockedUseStateEvents.mockImplementation((_room, eventType) => {
-      if (eventType === StateEvent.ThreadTags) {
+      if (eventType === MINDROOM_THREAD_TAGS_EVENT) {
         return [
           makePerTagEvent('$root', 'resolved', {
             set_by: '@alice:example.org',
@@ -125,7 +124,7 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
   it('builds a room resolution map from mixed legacy and per-tag state', () => {
     const room = { roomId: '!room:example.org' } as Room;
     mockedUseStateEvents.mockImplementation((_room, eventType) => {
-      if (eventType === StateEvent.ThreadTags) {
+      if (eventType === MINDROOM_THREAD_TAGS_EVENT) {
         return [
           makeLegacyThreadTagsEvent('$root', {
             resolved: { set_by: '@alice:example.org', set_at: ISO_1 },
@@ -211,7 +210,7 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
       },
     });
     mockedUseStateEvents.mockImplementation((_room, eventType) => {
-      if (eventType === StateEvent.ThreadTags) {
+      if (eventType === MINDROOM_THREAD_TAGS_EVENT) {
         return [
           makePerTagEvent('$root', 'urgent', {
             set_by: '@alice:example.org',

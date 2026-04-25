@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EventTimeline } from 'matrix-js-sdk';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
-import { StateEvent } from '../../../types/matrix/room';
 import {
   aggregateThreadTagEvents,
   buildAddTagContent,
@@ -15,6 +14,7 @@ import {
   isThreadResolved,
   isThreadTagsTombstone,
   isValidTagName,
+  MINDROOM_THREAD_TAGS_EVENT,
   normalizeTagName,
   normalizeSetAt,
   parsePerTagContent,
@@ -37,7 +37,7 @@ const makeThreadTagsEvent = (stateKey: string, content: Record<string, unknown>)
     room_id: '!room:example.org',
     sender: '@alice:example.org',
     state_key: stateKey,
-    type: StateEvent.ThreadTags,
+    type: MINDROOM_THREAD_TAGS_EVENT,
   });
 
 afterEach(() => {

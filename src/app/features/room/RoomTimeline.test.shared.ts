@@ -973,6 +973,7 @@ vi.mock('../../mindroom/threads/useThreadStreamingState', () => ({
 }));
 
 vi.mock('../../mindroom/threads/scheduledTaskContract', () => ({
+  MINDROOM_SCHEDULED_TASK_EVENT: 'com.mindroom.scheduled.task',
   parseScheduledTaskStateEvent: () => null,
 }));
 

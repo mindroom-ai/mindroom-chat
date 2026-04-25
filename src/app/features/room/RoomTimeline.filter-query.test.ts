@@ -1,13 +1,13 @@
 import React from 'react';
 import { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { StateEvent } from '../../../types/matrix/room';
 import {
   applyPreset,
   createDefaultThreadFilterState,
   FILTER_PRESETS,
   updateThreadFilterKey,
 } from './roomThreadOverviewModel';
+import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../mindroom/threads/scheduledTaskContract';
 import { applyParsedThreadFilterQuery, parseThreadFilterQuery, serializeThreadFilterQuery } from './threadFilterDsl';
 import { create, flushAsyncWork, getRenderedEventIds, makeEvent, makeRoom, roomThreadOverviewType, stateEventsByTypeMock, threadStreamingStateMock } from './RoomTimeline.test.shared';
 
@@ -23,6 +23,7 @@ vi.mock('../../mindroom/threads/useThreadLastActivityTs', () => ({
   useThreadLastActivityTs: () => 0,
 }));
 vi.mock('../../mindroom/threads/scheduledTaskContract', () => ({
+  MINDROOM_SCHEDULED_TASK_EVENT: 'com.mindroom.scheduled.task',
   parseScheduledTaskStateEvent: (event: { getStateKey: () => string; getContent: () => Record<string, unknown> }) => {
     const content = event.getContent();
     return { taskId: event.getStateKey(), status: content.status as string, threadId: content.thread_id as string | null, newThread: content.new_thread as boolean, executeAt: content.execute_at as string | null };
@@ -34,10 +35,10 @@ const makeThreadRoom = () => {
   const scheduled = makeEvent('$scheduled-root', { isThreadRoot: true, ts: 2 });
   const plain = makeEvent('$plain-root', { isThreadRoot: true, ts: 3 });
   threadStreamingStateMock.set(streaming.getId(), true);
-  scheduledEventsByType.set(StateEvent.MindRoomScheduledTask, [
-    makeEvent('$scheduled-task', { type: StateEvent.MindRoomScheduledTask, stateKey: 'task-1', content: { status: 'pending', thread_id: scheduled.getId(), new_thread: false, execute_at: '2999-01-01T00:00:00Z' } }),
+  scheduledEventsByType.set(MINDROOM_SCHEDULED_TASK_EVENT, [
+    makeEvent('$scheduled-task', { type: MINDROOM_SCHEDULED_TASK_EVENT, stateKey: 'task-1', content: { status: 'pending', thread_id: scheduled.getId(), new_thread: false, execute_at: '2999-01-01T00:00:00Z' } }),
   ]);
-  stateEventsByTypeMock.set(StateEvent.MindRoomScheduledTask, scheduledEventsByType.get(StateEvent.MindRoomScheduledTask)!);
+  stateEventsByTypeMock.set(MINDROOM_SCHEDULED_TASK_EVENT, scheduledEventsByType.get(MINDROOM_SCHEDULED_TASK_EVENT)!);
   const room = makeRoom({ liveEvents: [streaming, scheduled, plain], threads: [{ id: streaming.getId(), rootEvent: streaming }, { id: scheduled.getId(), rootEvent: scheduled }, { id: plain.getId(), rootEvent: plain }] });
   room.getUnfilteredTimelineSet().relations = { getChildEventsForEvent: () => undefined };
   return { room, streamingId: streaming.getId(), scheduledId: scheduled.getId(), plainId: plain.getId() };

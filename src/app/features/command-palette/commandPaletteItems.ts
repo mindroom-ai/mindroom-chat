@@ -47,6 +47,7 @@ import {
   buildPerTagStateKey,
   getDisplayTags,
   isThreadResolved,
+  MINDROOM_THREAD_TAGS_EVENT,
   RESOLVED_TAG,
 } from '../../mindroom/threads/threadTags';
 import {
@@ -103,7 +104,7 @@ const getThreadTagSnapshots = (room: Room): Map<string, ThreadTagSnapshot> => {
     room
       .getLiveTimeline()
       .getState(EventTimeline.FORWARDS)
-      ?.getStateEvents(StateEvent.ThreadTags as string) ?? [];
+      ?.getStateEvents(MINDROOM_THREAD_TAGS_EVENT) ?? [];
 
   if (!Array.isArray(stateEvents) || stateEvents.length === 0) {
     return new Map();
@@ -445,7 +446,7 @@ export const useCommandPaletteSource = (
       fireAndForget(
         mx.sendStateEvent(
           selectedRoom.roomId,
-          StateEvent.ThreadTags as any,
+          MINDROOM_THREAD_TAGS_EVENT as any,
           resolved ? buildPerTagEventContent(myUserId) : {},
           buildPerTagStateKey(threadRootId, RESOLVED_TAG)
         )

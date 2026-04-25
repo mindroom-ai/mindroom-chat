@@ -4,14 +4,13 @@ import {
   collectRoomState,
   predictMergedStateAfterMigration,
 } from '../../../../scripts/migrate-thread-tags.mjs';
-
-const THREAD_TAGS_EVENT_TYPE = 'com.mindroom.thread.tags';
+import { MINDROOM_THREAD_TAGS_EVENT } from '../../mindroom/threads/threadTags';
 
 describe('migrate-thread-tags script helpers', () => {
   it('tombstones malformed legacy state keys even when no valid tags survive parsing', () => {
     const collectedState = collectRoomState([
       {
-        type: THREAD_TAGS_EVENT_TYPE,
+        type: MINDROOM_THREAD_TAGS_EVENT,
         state_key: '$root',
         content: {
           tags: {
@@ -45,10 +44,7 @@ describe('migrate-thread-tags script helpers', () => {
     expect(migrationPlans.totalWrites).toBe(0);
     expect(migrationPlans.totalLegacyTombstones).toBe(1);
 
-    const predictedMergedState = predictMergedStateAfterMigration(
-      collectedState,
-      migrationPlans
-    );
+    const predictedMergedState = predictMergedStateAfterMigration(collectedState, migrationPlans);
 
     expect(Array.from(predictedMergedState.entries())).toEqual(
       Array.from(collectedState.merged.entries())

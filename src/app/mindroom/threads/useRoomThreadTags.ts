@@ -6,11 +6,11 @@ import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useStateEvents } from '../../hooks/useStateEvents';
-import { StateEvent } from '../../../types/matrix/room';
 import {
   aggregateThreadTagEvents,
   type TagMetadata,
   isThreadResolved,
+  MINDROOM_THREAD_TAGS_EVENT,
   type ThreadTagsContent,
 } from './threadTags';
 import {
@@ -98,7 +98,7 @@ export const useThreadResolution = (room: Room, threadRootId?: string): ThreadRe
 };
 
 export const useRoomThreadResolutionMap = (room: Room): Map<string, ThreadResolutionState> => {
-  const events = useStateEvents(room, StateEvent.ThreadTags);
+  const events = useStateEvents(room, MINDROOM_THREAD_TAGS_EVENT);
   const pVersion = usePendingVersion();
   const pendingMap = useMemo(
     () => getPendingThreadTagsContentMap(room.roomId),
@@ -138,7 +138,7 @@ export const useToggleThreadResolution = (room: Room) => {
   const powerLevels = usePowerLevelsContext();
   const creators = useRoomCreators(room);
   const permissions = useRoomPermissions(creators, powerLevels);
-  const canToggle = permissions.stateEvent(StateEvent.ThreadTags, mx.getSafeUserId());
+  const canToggle = permissions.stateEvent(MINDROOM_THREAD_TAGS_EVENT, mx.getSafeUserId());
 
   return {
     canToggle,

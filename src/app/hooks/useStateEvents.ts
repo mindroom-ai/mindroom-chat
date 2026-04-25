@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { StateEvent } from '../../types/matrix/room';
 import { useRoomState } from './useRoomState';
 
-export const useStateEvents = (room: Room, eventType: StateEvent): MatrixEvent[] => {
+export const useStateEvents = (room: Room, eventType: StateEvent | string): MatrixEvent[] => {
   const roomState = useRoomState(room);
 
   return useMemo(() => {
