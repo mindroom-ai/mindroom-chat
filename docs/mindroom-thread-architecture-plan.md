@@ -802,6 +802,9 @@ Acceptance:
   legacy hook paths are compatibility exports only.
 - Cache-aware room/thread event lookup lives in `src/app/mindroom/threads/useRoomEvent.ts`, next to the
   event repository it uses; the generic hook path is compatibility-only.
+- MindRoom preload limit constants, sanitization, and the settings tile live in
+  `src/app/mindroom/threads/preloadSettings.ts` and `src/app/mindroom/settings`; generic settings
+  state only persists the value and generic settings UI only mounts the fork-owned tile.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy

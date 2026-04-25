@@ -8,7 +8,7 @@ import {
   type SetStateAction,
 } from 'react';
 import { type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
-import { THREAD_BATCH_SIZE } from '../../state/settings';
+import { THREAD_BATCH_SIZE } from './preloadSettings';
 import { usePageResume } from './usePageResume';
 import { loadRoomThreads } from './roomThreadList';
 import { logTimelineDebug } from './timelineDebug';

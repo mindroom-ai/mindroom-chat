@@ -38,7 +38,6 @@ import {
   MessageSpacing,
   PAGE_ZOOM_MAX,
   PAGE_ZOOM_MIN,
-  sanitizePaginationLimit,
   settingsAtom,
 } from '../../../state/settings';
 import { SettingTile } from '../../../components/setting-tile';
@@ -59,6 +58,7 @@ import { useMessageSpacingItems } from '../../../hooks/useMessageSpacing';
 import { useDateFormatItems } from '../../../hooks/useDateFormat';
 import { SequenceCardStyle } from '../styles.css';
 import { sanitizePageZoom } from '../../../utils/pageZoom';
+import { MindroomMessagePreloadLimitSetting } from '../../../mindroom/settings/MindroomMessagePreloadLimitSetting';
 
 type ThemeSelectorProps = {
   themeNames: Record<string, string>;
@@ -316,57 +316,6 @@ function PageZoomInput() {
       onChange={handleZoomChange}
       onKeyDown={handleZoomEnter}
       after={<Text size="T300">%</Text>}
-      outlined
-    />
-  );
-}
-
-function PaginationLimitInput() {
-  const [paginationLimit, setPaginationLimit] = useSetting(settingsAtom, 'paginationLimit');
-  const [currentLimit, setCurrentLimit] = useState(`${paginationLimit}`);
-
-  const commitValue = (raw: string) => {
-    const parsed = parseInt(raw, 10);
-    if (Number.isNaN(parsed)) return;
-    const safe = sanitizePaginationLimit(parsed);
-    setPaginationLimit(safe);
-    setCurrentLimit(safe.toString());
-  };
-
-  const handleChange: ChangeEventHandler<HTMLInputElement> = (evt) => {
-    setCurrentLimit(evt.target.value);
-  };
-
-  const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (evt) => {
-    if (isKeyHotkey('escape', evt)) {
-      evt.stopPropagation();
-      setCurrentLimit(paginationLimit.toString());
-    }
-    if (
-      isKeyHotkey('enter', evt) &&
-      'value' in evt.target &&
-      typeof evt.target.value === 'string'
-    ) {
-      commitValue(evt.target.value);
-    }
-  };
-
-  const handleBlur = () => {
-    commitValue(currentLimit);
-  };
-
-  return (
-    <Input
-      style={{ width: toRem(100) }}
-      variant={paginationLimit === parseInt(currentLimit, 10) ? 'Secondary' : 'Success'}
-      size="300"
-      radii="300"
-      type="number"
-      min="50"
-      value={currentLimit}
-      onChange={handleChange}
-      onKeyDown={handleKeyDown}
-      onBlur={handleBlur}
       outlined
     />
   );
@@ -975,13 +924,7 @@ function Messages() {
       <SequenceCard className={SequenceCardStyle} variant="SurfaceVariant" direction="Column">
         <SettingTile title="Message Spacing" after={<SelectMessageSpacing />} />
       </SequenceCard>
-      <SequenceCard className={SequenceCardStyle} variant="SurfaceVariant" direction="Column">
-        <SettingTile
-          title="Message Preload Limit"
-          description="Target number of history entries to preload for rooms and threads. The client fetches them in smaller batches under the hood. Minimum 50. Higher values use more memory."
-          after={<PaginationLimitInput />}
-        />
-      </SequenceCard>
+      <MindroomMessagePreloadLimitSetting className={SequenceCardStyle} />
       <SequenceCard className={SequenceCardStyle} variant="SurfaceVariant" direction="Column">
         <SettingTile
           title="Legacy Username Color"

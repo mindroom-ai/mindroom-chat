@@ -8,7 +8,7 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import to from 'await-to-js';
-import { THREAD_BATCH_SIZE } from '../../state/settings';
+import { THREAD_BATCH_SIZE } from './preloadSettings';
 import { logTimelineDebug } from './timelineDebug';
 import { getLinkedTimelines } from './timelinePagination';
 import {
