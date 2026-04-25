@@ -1841,6 +1841,28 @@ describe('RoomTimeline architecture', () => {
     expect(menuItemSource).toContain("from './readReceipts'");
   });
 
+  it('delegates page and sidebar list mark-read ownership to MindRoom notifications', () => {
+    const pageSources = [
+      new URL('../../pages/client/home/Home.tsx', import.meta.url),
+      new URL('../../pages/client/direct/Direct.tsx', import.meta.url),
+      new URL('../../pages/client/space/Space.tsx', import.meta.url),
+      new URL('../../pages/client/sidebar/HomeTab.tsx', import.meta.url),
+      new URL('../../pages/client/sidebar/DirectTab.tsx', import.meta.url),
+      new URL('../../pages/client/sidebar/SpaceTabs.tsx', import.meta.url),
+    ].map((url) => readFileSync(url, 'utf8'));
+    const menuItemSource = readFileSync(
+      new URL('../../mindroom/notifications/MindroomMarkRoomsReadMenuItem.tsx', import.meta.url),
+      'utf8'
+    );
+
+    pageSources.forEach((source) => {
+      expect(source).toContain('MindroomMarkRoomsReadMenuItem');
+      expect(source).not.toContain('markRoomAndThreadsAsRead');
+    });
+    expect(menuItemSource).toContain('markRoomAndThreadsAsRead');
+    expect(menuItemSource).toContain("from './readReceipts'");
+  });
+
   it('delegates route focus and thread-open scroll effects to MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const controllerSource = readFileSync(

@@ -219,6 +219,9 @@
 - `CINNY-175`
   - Command-palette UI, item assembly, search helpers, hotkey handling, tests, and open-state atom now live in `src/app/mindroom/command-palette`.
   - Generic router/sidebar/header integration points import the MindRoom palette seam instead of owning a fork-only feature folder under `src/app/features`.
+- `CINNY-176`
+  - Home/direct/space page and sidebar mark-read menu items now use `src/app/mindroom/notifications/MindroomMarkRoomsReadMenuItem.tsx`.
+  - Generic page/sidebar navigation code still owns room-list selection, but no longer duplicates thread-aware read-receipt mutation logic.
 
 ### Current Feature Set On `dev`
 
