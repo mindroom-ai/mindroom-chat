@@ -88,7 +88,9 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
       if (!pendingAnchor || pendingAnchor.threadId !== threadId) return false;
 
       const restored = restoreThreadPrependScrollAnchor(scrollRoot, pendingAnchor);
-      pendingAnchorRef.current = undefined;
+      if (restored) {
+        pendingAnchorRef.current = undefined;
+      }
       return restored;
     },
     []

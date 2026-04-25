@@ -94,6 +94,26 @@ describe('useThreadBackPaginationController', () => {
     renderer.unmount();
   });
 
+  it('keeps the pending anchor when the first restore runs before the anchor is mounted', () => {
+    const { getController, renderer } = renderController();
+    const anchor = makeMessageElement('$anchor', 140, 180);
+    const scrollRoot = makeScrollRoot([anchor]);
+
+    act(() => {
+      getController().begin('$thread', scrollRoot);
+    });
+
+    expect(getController().restorePendingAnchor(makeScrollRoot([]), '$thread')).toBe(false);
+
+    const shiftedAnchor = makeMessageElement('$anchor', 420, 460);
+    const shiftedScrollRoot = makeScrollRoot([shiftedAnchor]);
+    expect(getController().restorePendingAnchor(shiftedScrollRoot, '$thread')).toBe(true);
+    expect(shiftedScrollRoot.scrollTop).toBe(320);
+    expect(getController().restorePendingAnchor(shiftedScrollRoot, '$thread')).toBe(false);
+
+    renderer.unmount();
+  });
+
   it('finishes failed pagination by clearing the paginating flag and pending anchor', () => {
     const { getController, renderer } = renderController();
     const anchor = makeMessageElement('$anchor', 140, 180);
