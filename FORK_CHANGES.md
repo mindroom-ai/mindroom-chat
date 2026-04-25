@@ -1169,6 +1169,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `npm run build` passes
+- `CINNY-075` implementation step 71 / Phase 6 thread-open lifecycle controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/threadOpenLifecycleController.ts` as the fork-owned owner for thread route open/reset lifecycle orchestration.
+  - `RoomTimeline` now calls `useThreadOpenLifecycleController` instead of directly sequencing cache-first open, SDK bootstrap, post-bootstrap refresh, targeted event loading, seed-session cleanup, and thread/room reset state inline.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
