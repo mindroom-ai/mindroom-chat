@@ -40,6 +40,7 @@ vi.mock('folds', async (importOriginal) => {
     ),
     Icons: {
       ArrowLeft: 'ArrowLeft',
+      CheckTwice: 'CheckTwice',
       Pin: 'Pin',
       Search: 'Search',
       Terminal: 'Terminal',
