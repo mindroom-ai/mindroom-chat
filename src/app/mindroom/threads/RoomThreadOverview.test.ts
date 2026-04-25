@@ -62,7 +62,7 @@ vi.mock('./RoomThreadOverview.css', () => ({
   SearchInput: 'SearchInput',
 }));
 
-vi.mock('../../components/message/Reply.css', () => ({
+vi.mock('./ThreadIndicator.css', () => ({
   ThreadStreamingDot: 'ThreadStreamingDot',
   ThreadScheduledIcon: 'ThreadScheduledIcon',
 }));

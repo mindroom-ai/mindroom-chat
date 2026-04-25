@@ -725,6 +725,9 @@ Acceptance:
 - Thread-open navigation seeding lives in `src/app/mindroom/threads/threadNavigation.ts`; generic
   room navigation should build room paths and delegate thread-exit route-state/iOS policy to that
   owner.
+- Thread indicator rendering lives in `src/app/mindroom/threads/ThreadIndicator.tsx`; generic reply
+  rendering should only mount the indicator and should not own activity, resolution, scheduled-task,
+  unread, participant, or reply-count derivation.
 - Search-result rendering delegates MindRoom long-text metadata detection to `src/app/mindroom/messages`
   instead of checking raw `io.mindroom.*` keys inside the generic message-search module.
 - Generic edit resolution delegates MindRoom message metadata-key ownership to

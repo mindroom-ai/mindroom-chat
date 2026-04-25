@@ -3,7 +3,7 @@ import { Box, Icon, IconButton, Icons, Text, Button } from 'folds';
 import { IconCalendarEvent } from '@tabler/icons-react';
 import { Room } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
-import * as replyCss from '../../components/message/Reply.css';
+import * as threadIndicatorCss from './ThreadIndicator.css';
 import { useThreadHeaderInfo } from './useThreadHeaderInfo';
 import { buildThreadHeaderViewModelFromRecord } from './threadHeaderViewModel';
 import { buildThreadRecord } from './threadRecord';
@@ -186,7 +186,7 @@ export function ThreadContextBanner({
                   )}
                   <Box
                     as="span"
-                    className={`${css.ScheduledIndicator} ${replyCss.ThreadScheduledIndicator}`}
+                    className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
                     alignItems="Center"
                     gap="100"
                     role="img"
@@ -196,7 +196,7 @@ export function ThreadContextBanner({
                     <IconCalendarEvent
                       size={12}
                       stroke={1.8}
-                      className={replyCss.ThreadScheduledIcon}
+                      className={threadIndicatorCss.ThreadScheduledIcon}
                       aria-hidden="true"
                     />
                     <Text as="span" size="T200" priority="300" truncate>

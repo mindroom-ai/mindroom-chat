@@ -1,7 +1,7 @@
 import React from 'react';
 import { Avatar, Badge, Box, Chip, Icon, Icons, Text } from 'folds';
 import { IconCalendarEvent } from '@tabler/icons-react';
-import * as replyCss from '../../components/message/Reply.css';
+import * as threadIndicatorCss from './ThreadIndicator.css';
 import { UserAvatar } from '../../components/user-avatar';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import type { CompactThreadCardViewModel } from './types';
@@ -104,7 +104,7 @@ export function CompactThreadCard({ viewModel, onClick }: CompactThreadCardProps
           {scheduledDisplayText && scheduledTaskLabel && (
             <Box
               as="span"
-              className={`${css.ScheduledIndicator} ${replyCss.ThreadScheduledIndicator}`}
+              className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
               alignItems="Center"
               gap="100"
               role="img"
@@ -114,7 +114,7 @@ export function CompactThreadCard({ viewModel, onClick }: CompactThreadCardProps
               <IconCalendarEvent
                 size={12}
                 stroke={1.8}
-                className={replyCss.ThreadScheduledIcon}
+                className={threadIndicatorCss.ThreadScheduledIcon}
                 aria-hidden="true"
               />
               <Text as="span" size="T200" priority="300" truncate>
@@ -132,7 +132,7 @@ export function CompactThreadCard({ viewModel, onClick }: CompactThreadCardProps
               {participants.map((participant, index) => (
                 <Avatar
                   key={participant.userId}
-                  className={`${css.ParticipantAvatar} ${replyCss.ThreadParticipant}`}
+                  className={`${css.ParticipantAvatar} ${threadIndicatorCss.ThreadParticipant}`}
                   size="200"
                   radii="400"
                   title={participant.displayName}
@@ -178,7 +178,7 @@ export function CompactThreadCard({ viewModel, onClick }: CompactThreadCardProps
           {isStreaming && (
             <Chip as="span" className={css.StatusChip} variant="Primary" fill="Soft" radii="Pill">
               <Box as="span" alignItems="Center" gap="100">
-                <span className={replyCss.ThreadStreamingDot} aria-hidden="true" />
+                <span className={threadIndicatorCss.ThreadStreamingDot} aria-hidden="true" />
                 <Text as="span" size="T200">
                   streaming
                 </Text>
@@ -188,7 +188,7 @@ export function CompactThreadCard({ viewModel, onClick }: CompactThreadCardProps
           {isUnread && (
             <Box as="span" className={css.UnreadWrap} alignItems="Center" gap="100">
               <span
-                className={`${replyCss.ThreadUnreadDot} ${css.UnreadDot}`}
+                className={`${threadIndicatorCss.ThreadUnreadDot} ${css.UnreadDot}`}
                 role="img"
                 aria-label="Unread messages"
               />
