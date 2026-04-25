@@ -420,6 +420,8 @@ when to open a thread route but no longer owns their cache/network policy.
 Overview resume refresh throttling, compact/expanded thread-list refresh, relation-cache refresh,
 summary write-through, and `usePageResume` hookup now live in
 `src/app/mindroom/threads/threadOverviewResumeController.ts`.
+Overview metadata refresh counter subscriptions now live in
+`src/app/mindroom/threads/threadOverviewRefreshCounter.ts`.
 Viewport-aware overview refresh target selection now lives in
 `src/app/mindroom/threads/threadOverviewRefreshTargets.ts`; `RoomTimeline` supplies only the active
 range and current overview ids.
@@ -582,6 +584,7 @@ Acceptance:
 - Thread-open cache hydration, latest-slice refresh, relation backfill, and cached relation-tail
   refresh live behind a fork-owned command controller.
 - Overview resume refresh throttling and relation-cache refresh live behind a fork-owned controller.
+- Overview metadata refresh counter subscriptions live behind a fork-owned hook.
 - Overview resume refresh target selection lives behind a fork-owned selector; `RoomTimeline` does
   not directly classify visible thread roots for this policy.
 - Thread-cache persistence and room-derived thread-cache write queueing live behind a fork-owned
