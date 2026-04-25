@@ -133,6 +133,8 @@
 - `CINNY-146`
   - Removed the remaining one-line room-feature wrappers for MindRoom thread overview, banner/tag UI, cache helpers, timeline helpers, filter DSL, and thread presentation.
   - Retargeted feature tests to the MindRoom-owned thread modules directly so `features/room` no longer pretends to own those helpers.
+- `CINNY-147`
+  - Moved the compact room view test beside the MindRoom implementation and removed the leftover compact room/card wrapper files from `features/room`.
 
 ### Current Feature Set On `dev`
 

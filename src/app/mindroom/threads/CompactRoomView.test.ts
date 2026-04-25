@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CompactThreadCardViewModel, ThreadRecord } from '../../mindroom/threads/types';
+import type { CompactThreadCardViewModel, ThreadRecord } from './types';
 import { CompactRoomView } from './CompactRoomView';
 
 const { passthrough, renderedCardProps, useCompactThreadCardViewModelsMock } = vi.hoisted(() => ({
@@ -74,11 +74,11 @@ vi.mock('folds', async (importOriginal) => {
   };
 });
 
-vi.mock('../../mindroom/threads/compactThreadCardViewModel', () => ({
+vi.mock('./compactThreadCardViewModel', () => ({
   useCompactThreadCardViewModels: useCompactThreadCardViewModelsMock,
 }));
 
-vi.mock('../../mindroom/threads/CompactThreadCard', () => ({
+vi.mock('./CompactThreadCard', () => ({
   CompactThreadCard: ({
     viewModel,
     onClick,
@@ -100,7 +100,7 @@ vi.mock('../../mindroom/threads/CompactThreadCard', () => ({
   },
 }));
 
-vi.mock('../../mindroom/threads/CompactRoomView.css', () => ({
+vi.mock('./CompactRoomView.css', () => ({
   View: 'View',
   EmptyState: 'EmptyState',
 }));
