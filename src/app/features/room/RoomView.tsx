@@ -53,7 +53,7 @@ import { ThreadContextBanner } from '../../mindroom/threads/ThreadContextBanner'
 import { useRoomThreadSummaryState } from '../../mindroom/threads/useRoomThreadSummaryState';
 import { useThreadRootEvent } from '../../mindroom/threads/useThreadRootEvent';
 import { bumpRecentThread } from '../../state/recentThreads';
-import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
+import { resolveRecentThreadSummaryText } from '../../mindroom/recent-threads/recentThreadSummaryUtils';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {

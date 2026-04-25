@@ -1,4 +1,4 @@
-import { truncateRecentThreadSummaryText } from '../../features/recent-threads/recentThreadSummaryUtils';
+import { truncateRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 import type { CommandPaletteThreadViewModel, ThreadRecord } from './types';
 
 type BuildCommandPaletteThreadViewModelFromRecordOptions = {

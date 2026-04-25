@@ -2022,3 +2022,9 @@
 - Moved the Local MindRoom sidebar shortcut implementation, styling, and test from `src/app/pages/client/sidebar` to `src/app/mindroom/sidebar`.
 - Left `src/app/pages/client/sidebar/MindroomTab.tsx` as a thin compatibility re-export so the generic sidebar registry can keep its existing index export.
 - Added an architecture guard to keep future Local MindRoom sidebar behavior out of upstream-owned sidebar files.
+
+## CINNY-091 — Move Recent Threads feature to fork namespace (2026-04-25)
+
+- Moved the Recent Threads panel, entries, divider, layout helpers, summary helpers, styling, and tests from `src/app/features/recent-threads` to `src/app/mindroom/recent-threads`.
+- Left thin compatibility exports in `src/app/features/recent-threads` for page seams and older imports.
+- Updated MindRoom thread/index consumers to import recent-thread summary helpers from the fork-owned namespace directly.

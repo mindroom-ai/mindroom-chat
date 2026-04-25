@@ -38,7 +38,7 @@ import { useDirects, useRooms, useSpaces } from '../../state/hooks/roomList';
 import { makeRecentThreadsAtom } from '../../state/recentThreads';
 import { buildCommandPaletteThreadViewModelFromRecord } from '../../mindroom/threads/commandPaletteThreadViewModel';
 import { buildThreadRecord } from '../../mindroom/threads/threadRecord';
-import { getResolvedRecentThreadRootId } from '../recent-threads/recentThreadSummaryUtils';
+import { getResolvedRecentThreadRootId } from '../../mindroom/recent-threads/recentThreadSummaryUtils';
 import { resolveCanonicalThreadRootId } from '../../mindroom/threads/threadRouteUtils';
 import { getValidThreadRootEvent } from '../../mindroom/threads/threadUtils';
 import {

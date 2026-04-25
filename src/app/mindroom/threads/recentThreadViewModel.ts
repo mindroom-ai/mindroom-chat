@@ -7,7 +7,7 @@ import {
   getResolvedRecentThreadRootId,
   shouldPersistRecentThreadSummaryText,
   truncateRecentThreadSummaryText,
-} from '../../features/recent-threads/recentThreadSummaryUtils';
+} from '../recent-threads/recentThreadSummaryUtils';
 import {
   clearThreadSummarySharedState,
   useThreadSummaryStateMap,
