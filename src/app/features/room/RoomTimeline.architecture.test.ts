@@ -830,6 +830,52 @@ describe('RoomTimeline architecture', () => {
     expect(threadBadgeSource).not.toContain('MindroomThreadSummaryCard, ThreadIndicator');
   });
 
+  it('keeps Local MindRoom settings implementation in the MindRoom namespace', () => {
+    const settingsSource = readFileSync(
+      new URL('../settings/Settings.tsx', import.meta.url),
+      'utf8'
+    );
+    const pageCompatibilitySource = readFileSync(
+      new URL('../settings/local-mindroom/LocalMindroom.tsx', import.meta.url),
+      'utf8'
+    );
+    const apiCompatibilitySource = readFileSync(
+      new URL('../settings/local-mindroom/api.ts', import.meta.url),
+      'utf8'
+    );
+    const helperCompatibilitySource = readFileSync(
+      new URL('../settings/local-mindroom/mindroom.ts', import.meta.url),
+      'utf8'
+    );
+    const pageSource = readFileSync(
+      new URL('../../mindroom/local-mindroom/LocalMindroom.tsx', import.meta.url),
+      'utf8'
+    );
+    const apiSource = readFileSync(
+      new URL('../../mindroom/local-mindroom/api.ts', import.meta.url),
+      'utf8'
+    );
+    const helperSource = readFileSync(
+      new URL('../../mindroom/local-mindroom/mindroom.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(settingsSource).toContain("import { LocalMindroom } from './local-mindroom'");
+    expect(pageCompatibilitySource.trim()).toBe(
+      "export { LocalMindroom } from '../../../mindroom/local-mindroom/LocalMindroom';"
+    );
+    expect(apiCompatibilitySource.trim()).toBe(
+      "export * from '../../../mindroom/local-mindroom/api';"
+    );
+    expect(helperCompatibilitySource.trim()).toBe(
+      "export * from '../../../mindroom/local-mindroom/mindroom';"
+    );
+    expect(pageSource).toContain('Connect Local MindRoom');
+    expect(pageSource).toContain('resolveMindroomProvisioningRequest');
+    expect(apiSource).toContain('LOCAL_MINDROOM_API_PATH');
+    expect(helperSource).toContain('getMindroomPairingCommand');
+  });
+
   it('keeps thread root route canonicalization in MindRoom threads', () => {
     const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
     const compatibilitySource = readFileSync(

@@ -686,6 +686,8 @@ Acceptance:
   `src/app/mindroom/messages`; generic room message rendering only wires them in.
 - MindRoom custom-HTML blocks and tool-trace grouping live in `src/app/mindroom/messages`; the
   generic custom HTML parser only delegates to that renderer.
+- Local MindRoom settings/provisioning implementation lives in `src/app/mindroom/local-mindroom`;
+  generic settings modules only expose route/menu seams.
 - Rebase conflicts are expected and localized.
 
 ## Testing Strategy
