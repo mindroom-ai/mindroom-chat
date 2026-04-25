@@ -2046,3 +2046,9 @@
 - Moved the thread streaming-state selector/hook and tests to `src/app/mindroom/threads/useThreadStreamingState.ts`.
 - Left `src/app/hooks/useThreadStreamingState.ts` as a thin compatibility export for legacy import paths.
 - Updated thread records, thread overview models, reply badges, and test mocks to use the fork-owned streaming-state owner directly.
+
+## CINNY-095 — Centralize MindRoom branding and hosted auth policy (2026-04-25)
+
+- Added `src/app/mindroom/branding/branding.ts` as the single owner for MindRoom product labels, logo asset, source/docs URLs, notification brand, powered-by defaults, and Matrix device display name.
+- Added `src/app/mindroom/auth/authPolicy.ts` as the single owner for `mindroom.chat` SSO-only hosted-auth behavior.
+- Updated auth pages, welcome/about/splash surfaces, settings notifications, and Matrix login/register requests to consume those fork-owned constants/helpers instead of hard-coding MindRoom strings and URL checks across upstream-owned files.

@@ -1,6 +1,7 @@
 import { Icons, IconSrc } from 'folds';
 import { ScreenSize } from '../../hooks/useScreenSize';
 import { SettingsPages } from './settingsPages';
+import { MINDROOM_APP_NAME } from '../../mindroom/branding/branding';
 
 export type SettingsMenuItem = {
   page: SettingsPages;
@@ -36,7 +37,7 @@ const baseSettingsMenuItems: SettingsMenuItem[] = [
   },
   {
     page: SettingsPages.LocalMindroomPage,
-    name: 'Local MindRoom',
+    name: `Local ${MINDROOM_APP_NAME}`,
     icon: Icons.Link,
   },
   {

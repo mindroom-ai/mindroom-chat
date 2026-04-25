@@ -16,6 +16,10 @@ import { useClientConfig } from '../../../hooks/useClientConfig';
 import { hasAppleIdentityProvider } from '../ssoProviders';
 import { buildNativeSsoRedirectUrl, isNativeIOS } from '../../../mindroom/native/nativeSso';
 import { isAddAccountSearch, withAddAccountSearch } from '../addAccount';
+import {
+  isMindroomHomeserver,
+  shouldDisablePasswordLogin,
+} from '../../../mindroom/auth/authPolicy';
 
 const getLoginTokenSearchParam = () => {
   // when using hasRouter query params in existing route
@@ -63,9 +67,8 @@ export function Login() {
   }
 
   const parsedFlows = useParsedLoginFlows(loginFlows.flows);
-  const serverWithoutScheme = server.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-  const isMindroomServer = serverWithoutScheme.toLowerCase() === 'mindroom.chat';
-  const disablePasswordLogin = auth?.disablePasswordLogin === true || isMindroomServer;
+  const isMindroomServer = isMindroomHomeserver(server);
+  const disablePasswordLogin = shouldDisablePasswordLogin(server, auth);
   const showPasswordLogin = parsedFlows.password !== undefined && !disablePasswordLogin;
   const registrationAllowed = auth?.allowRegistration !== false;
   const requireAppleProvider = auth?.requireAppleProvider === true;

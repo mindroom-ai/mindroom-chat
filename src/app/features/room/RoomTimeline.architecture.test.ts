@@ -993,6 +993,38 @@ describe('RoomTimeline architecture', () => {
     expect(iosPushSource).toContain('resolveIOSPushConfig');
   });
 
+  it('keeps MindRoom branding and hosted-auth policy in the MindRoom namespace', () => {
+    const brandingSource = readFileSync(
+      new URL('../../mindroom/branding/branding.ts', import.meta.url),
+      'utf8'
+    );
+    const authPolicySource = readFileSync(
+      new URL('../../mindroom/auth/authPolicy.ts', import.meta.url),
+      'utf8'
+    );
+    const authLayoutSource = readFileSync(
+      new URL('../../pages/auth/AuthLayout.tsx', import.meta.url),
+      'utf8'
+    );
+    const loginSource = readFileSync(
+      new URL('../../pages/auth/login/Login.tsx', import.meta.url),
+      'utf8'
+    );
+    const registerSource = readFileSync(
+      new URL('../../pages/auth/register/Register.tsx', import.meta.url),
+      'utf8'
+    );
+
+    expect(brandingSource).toContain('MINDROOM_DEVICE_DISPLAY_NAME');
+    expect(brandingSource).toContain('MINDROOM_CINNY_SOURCE_URL');
+    expect(authPolicySource).toContain('MINDROOM_HOMESERVER');
+    expect(authLayoutSource).toContain("from '../../mindroom/branding/branding'");
+    expect(loginSource).toContain("from '../../../mindroom/auth/authPolicy'");
+    expect(registerSource).toContain("from '../../../mindroom/auth/authPolicy'");
+    expect(loginSource).not.toContain("=== 'mindroom.chat'");
+    expect(registerSource).not.toContain("=== 'mindroom.chat'");
+  });
+
   it('keeps thread root route canonicalization in MindRoom threads', () => {
     const roomViewSource = readFileSync(new URL('./RoomView.tsx', import.meta.url), 'utf8');
     const compatibilitySource = readFileSync(
