@@ -313,6 +313,9 @@ prewarm wait timeout now live in `src/app/mindroom/threads/threadOpenSeedControl
 Thread-open SDK bootstrap, zero-reply/pending-root early completion, relation fallback hydration,
 and SDK backward-token reconciliation now live in
 `src/app/mindroom/threads/threadOpenSdkBootstrap.ts`.
+Thread-open post-bootstrap refresh, including untargeted latest-slice refresh and targeted
+permalink/search relation refresh, now lives in
+`src/app/mindroom/threads/threadOpenPostBootstrapRefresh.ts`.
 Thread-open cache hydration, latest-slice refresh, relation backfill, and cached relation-tail
 refresh now live in `src/app/mindroom/threads/threadOpenCacheController.ts`; `RoomTimeline` decides
 when to dispatch these commands but no longer owns their cache/network policy.

@@ -98,7 +98,6 @@ import {
   MessageLayout,
   sanitizePaginationLimit,
   settingsAtom,
-  THREAD_BATCH_SIZE,
 } from '../../state/settings';
 import { useMatrixEventRenderer } from '../../hooks/useMatrixEventRenderer';
 import { Reactions, Message, Event, EncryptedContent } from './message';
@@ -236,10 +235,6 @@ import {
   mapCachedThreadPageEvents,
 } from '../../mindroom/threads/eventRepository';
 import {
-  computeReconciliationToken,
-  reconcileThreadBackwardPagination,
-} from './threadPaginationUtils';
-import {
   getEventElementById,
   isScrollNearBottom,
   isTimelineAtLiveEnd,
@@ -266,6 +261,7 @@ import {
 } from '../../mindroom/threads/threadBootstrap';
 import { createThreadOpenSeedSession } from '../../mindroom/threads/threadOpenSeedController';
 import { runThreadOpenSdkBootstrap } from '../../mindroom/threads/threadOpenSdkBootstrap';
+import { runThreadOpenPostBootstrapRefresh } from '../../mindroom/threads/threadOpenPostBootstrapRefresh';
 import { useThreadSeedPrewarmController } from '../../mindroom/threads/threadSeedPrewarmController';
 import { useThreadOpenCacheController } from '../../mindroom/threads/threadOpenCacheController';
 import { useThreadOverviewResumeController } from '../../mindroom/threads/threadOverviewResumeController';
@@ -3058,78 +3054,20 @@ export function RoomTimeline({
         });
         if (!shouldContinueAfterSdkBootstrap) return;
 
-        if (shouldScrollToLatestOnOpen) {
-          await refreshLatestThreadSlice(threadId);
-          if (!mounted || threadIdRef.current !== threadId) return;
-        } else {
-          // Targeted open (permalink/search jump): fetch authoritative backward
-          // pagination state from server to clear stale cached tokens on short
-          // threads that would otherwise show a spurious "Load Older Messages".
-          const currentThread = room.getThread(threadId);
-          if (currentThread) {
-            const [relErr, relData] = await to(
-              mx.fetchRelations(room.roomId, threadId, 'm.thread' as any, null, {
-                dir: Direction.Backward,
-                limit: THREAD_BATCH_SIZE,
-              })
-            );
-            if (!mounted || threadIdRef.current !== threadId) return;
-            if (!relErr && relData) {
-              // Merge fetched latest slice into the live thread before trusting
-              // relData.next_batch, matching the refreshLatestThreadSlice flow.
-              const mapper = mx.getEventMapper();
-              const latestEvents = relData.chunk
-                .slice()
-                .reverse()
-                .map((rawEvent: Parameters<typeof mapper>[0]) => mapper(rawEvent));
-              if (latestEvents.length > 0) {
-                currentThread.addEvents(latestEvents, false);
-                setSupplementalThreadEvents(threadId, latestEvents);
-              }
-
-              const currentFirstTimeline = getLinkedTimelines(
-                currentThread.getUnfilteredTimelineSet().getLiveTimeline()
-              )[0];
-              // Persist only the fetched slice (not full currentThread.events)
-              // to avoid mis-keying the pagination token to an older reply.
-              persistThreadEventCache(
-                threadId,
-                latestEvents,
-                currentThread.rootEvent,
-                relData.next_batch ?? null
-              );
-
-              // Reconcile using in-memory values directly, avoiding
-              // the async race from persist→read-back through IndexedDB.
-              if (currentFirstTimeline) {
-                const reconcileToken = computeReconciliationToken(
-                  relData.next_batch ?? null,
-                  latestEvents,
-                  currentThread.events,
-                  threadId
-                );
-                reconcileThreadBackwardPagination(
-                  currentFirstTimeline,
-                  reconcileToken,
-                  setThreadHasMoreCachedBack
-                );
-              }
-            }
-          }
-
-          const hasForwardGap = !!room
-            .getThread(threadId)
-            ?.getUnfilteredTimelineSet()
-            .getLiveTimeline()
-            .getPaginationToken(Direction.Forward);
-          if (!hasForwardGap) {
-            setThreadTailLoaded(true);
-          }
-          logTimelineDebug(threadDebugTraceId, 'thread-open-forward-gap-check', {
-            hasForwardGap,
-            threadId,
-          });
-        }
+        const shouldContinueAfterPostBootstrapRefresh = await runThreadOpenPostBootstrapRefresh({
+          debugTraceId: threadDebugTraceId,
+          isCurrentThreadOpen: () => mounted && threadIdRef.current === threadId,
+          mx,
+          persistThreadEventCache,
+          refreshLatestThreadSlice,
+          room,
+          setSupplementalThreadEvents,
+          setThreadHasMoreCachedBack,
+          setThreadTailLoaded,
+          shouldScrollToLatestOnOpen,
+          threadId,
+        });
+        if (!shouldContinueAfterPostBootstrapRefresh) return;
 
         setTimeline((ct) => ({ ...ct }));
         setThreadTimelineTick((val) => val + 1);

@@ -761,6 +761,15 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline (`75` warnings, `0` errors)
     - `git diff --check` passes
+- `CINNY-075` implementation step 24 / Phase 5 thread-open post-bootstrap refresh (2026-04-24):
+  - added `src/app/mindroom/threads/threadOpenPostBootstrapRefresh.ts` as the fork-owned owner for post-bootstrap thread refresh.
+  - `RoomTimeline` no longer owns the untargeted latest-slice dispatch, targeted permalink/search relation refresh, fetched-slice thread-cache write-through, targeted backward-token reconciliation, or forward-gap/tail-loaded decision.
+  - final route event-context loading and pending scroll target setup remain local because they are directly coupled to URL focus behavior.
+  - validation:
+    - focused Vitest passes for `threadOpenPostBootstrapRefresh.test.ts`, `threadOpenSdkBootstrap.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.architecture.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`75` warnings, `0` errors)
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
