@@ -1179,6 +1179,16 @@
     - `npm run build` passes
     - `npm test` passes (`181/181` files, `1553/1553` tests)
     - `git diff --check` passes
+- `CINNY-075` implementation step 76 / Phase 6 room timeline navigation controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/roomTimelineNavigationController.ts` as the fork-owned owner for jump-to-latest, jump-to-unread, thread badge opens, compact-card opens, and recent-thread bumping.
+  - `RoomTimeline` now consumes `useRoomTimelineNavigationController` instead of directly owning those route/paginator navigation handlers and no longer imports `bumpRecentThread`.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+    - `npm test` passes (`181/181` files, `1554/1554` tests)
+    - `git diff --check` passes
 - `CINNY-075` implementation step 74 / Phase 6 room event open controller ownership (2026-04-25):
   - added `src/app/mindroom/threads/roomEventOpenController.ts` as the fork-owned owner for room-event deep-link redirects, focused-event timeline loading, pending thread-open focus handoff, and route event-id dedupe.
   - `RoomTimeline` now consumes `useRoomEventOpenController` and `useRoomEventRouteOpenController` instead of directly sequencing room event focus targets, unloaded-event timeline loading, thread-event pending scroll state, and route open guards inline.
