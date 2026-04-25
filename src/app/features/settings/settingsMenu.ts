@@ -1,15 +1,16 @@
 import { Icons, IconSrc } from 'folds';
 import { ScreenSize } from '../../hooks/useScreenSize';
-import { SettingsPages } from './settingsPages';
-import { getLocalMindroomSettingsMenuItem } from '../../mindroom/local-mindroom/settingsMenu';
+import { SettingsPage, SettingsPages } from './settingsPages';
+import { getLocalMindroomSettingsMenuItems } from '../../mindroom/local-mindroom/settingsMenu';
+import { resolveLocalMindroomInitialSettingsPage } from '../../mindroom/local-mindroom/settingsPage';
 
 export type SettingsMenuItem = {
-  page: SettingsPages;
+  page: SettingsPage;
   name: string;
   icon: IconSrc;
 };
 
-const baseSettingsMenuItems: SettingsMenuItem[] = [
+const getBaseSettingsMenuItems = (showLocalMindRoom: boolean): SettingsMenuItem[] => [
   {
     page: SettingsPages.GeneralPage,
     name: 'General',
@@ -35,7 +36,7 @@ const baseSettingsMenuItems: SettingsMenuItem[] = [
     name: 'Emojis & Stickers',
     icon: Icons.Smile,
   },
-  getLocalMindroomSettingsMenuItem(),
+  ...getLocalMindroomSettingsMenuItems(showLocalMindRoom),
   {
     page: SettingsPages.DeveloperToolsPage,
     name: 'Developer Tools',
@@ -49,22 +50,18 @@ const baseSettingsMenuItems: SettingsMenuItem[] = [
 ];
 
 export const getSettingsMenuItems = (showLocalMindRoom: boolean): SettingsMenuItem[] =>
-  baseSettingsMenuItems.filter(
-    (item) => showLocalMindRoom || item.page !== SettingsPages.LocalMindroomPage
-  );
+  getBaseSettingsMenuItems(showLocalMindRoom);
 
 export const resolveSettingsInitialPage = (
-  initialPage: SettingsPages | undefined,
+  initialPage: SettingsPage | undefined,
   screenSize: ScreenSize,
   showLocalMindRoom: boolean
-): SettingsPages | undefined => {
-  if (initialPage !== undefined) {
-    if (!showLocalMindRoom && initialPage === SettingsPages.LocalMindroomPage) {
-      return SettingsPages.GeneralPage;
-    }
-
-    return initialPage;
-  }
+): SettingsPage | undefined => {
+  const resolvedInitialPage = resolveLocalMindroomInitialSettingsPage(
+    initialPage,
+    showLocalMindRoom
+  );
+  if (resolvedInitialPage !== undefined) return resolvedInitialPage;
 
   return screenSize === ScreenSize.Mobile ? undefined : SettingsPages.GeneralPage;
 };

@@ -21,7 +21,7 @@ vi.mock('./Settings', () => ({
     initialPage,
     requestClose,
   }: {
-    initialPage?: SettingsPages;
+    initialPage?: import('./settingsPages').SettingsPage;
     requestClose: () => void;
   }) =>
     React.createElement('div', {

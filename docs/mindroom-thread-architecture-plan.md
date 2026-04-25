@@ -739,6 +739,10 @@ Acceptance:
   generic settings modules only expose route/menu seams.
 - The Local MindRoom settings menu item lives in `src/app/mindroom/local-mindroom/settingsMenu.ts`;
   generic settings code only filters and places it.
+- The Local MindRoom settings page id and renderer live in
+  `src/app/mindroom/local-mindroom/settingsPage.ts` and
+  `src/app/mindroom/local-mindroom/settingsRenderer.tsx`; the generic `SettingsPages` enum does not
+  own MindRoom page identity.
 - The Local MindRoom sidebar shortcut lives in `src/app/mindroom/sidebar`; generic sidebar modules only
   expose the existing navigation seam.
 - The Recent Threads UI and summary helper implementation lives in `src/app/mindroom/recent-threads`;

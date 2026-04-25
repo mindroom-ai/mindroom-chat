@@ -8,7 +8,8 @@ import {
 } from '../../components/sidebar';
 import MindRoomLogo from '../../../../public/res/branding/mindroom-logo.png';
 import { Modal500 } from '../../components/Modal500';
-import { Settings, SettingsPages } from '../../features/settings';
+import { Settings } from '../../features/settings';
+import { LOCAL_MINDROOM_SETTINGS_PAGE } from '../local-mindroom/settingsPage';
 import * as css from './MindroomTab.css';
 
 export function MindroomTab() {
@@ -39,7 +40,7 @@ export function MindroomTab() {
       {settings && (
         <Modal500 requestClose={() => setSettings(false)}>
           <Settings
-            initialPage={SettingsPages.LocalMindroomPage}
+            initialPage={LOCAL_MINDROOM_SETTINGS_PAGE}
             requestClose={() => setSettings(false)}
           />
         </Modal500>

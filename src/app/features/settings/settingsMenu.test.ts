@@ -2,18 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { ScreenSize } from '../../hooks/useScreenSize';
 import { SettingsPages } from './settingsPages';
 import { getSettingsMenuItems, resolveSettingsInitialPage } from './settingsMenu';
+import { LOCAL_MINDROOM_SETTINGS_PAGE } from '../../mindroom/local-mindroom/settingsPage';
 
 describe('getSettingsMenuItems', () => {
   it('omits the Local MindRoom entry when disabled', () => {
     const items = getSettingsMenuItems(false);
 
-    expect(items.some((item) => item.page === SettingsPages.LocalMindroomPage)).toBe(false);
+    expect(items.some((item) => item.page === LOCAL_MINDROOM_SETTINGS_PAGE)).toBe(false);
   });
 
   it('keeps the Local MindRoom entry when enabled', () => {
     const items = getSettingsMenuItems(true);
 
-    expect(items.find((item) => item.page === SettingsPages.LocalMindroomPage)).toMatchObject({
+    expect(items.find((item) => item.page === LOCAL_MINDROOM_SETTINGS_PAGE)).toMatchObject({
       name: 'Local MindRoom',
     });
   });
@@ -29,7 +30,7 @@ describe('resolveSettingsInitialPage', () => {
   it('falls back to General when Local MindRoom is requested but disabled', () => {
     expect(
       resolveSettingsInitialPage(
-        SettingsPages.LocalMindroomPage,
+        LOCAL_MINDROOM_SETTINGS_PAGE,
         ScreenSize.Desktop,
         false
       )

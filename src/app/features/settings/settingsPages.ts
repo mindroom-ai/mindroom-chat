@@ -4,7 +4,8 @@ export enum SettingsPages {
   NotificationPage,
   DevicesPage,
   EmojisStickersPage,
-  LocalMindroomPage,
   DeveloperToolsPage,
   AboutPage,
 }
+
+export type SettingsPage = SettingsPages | string;
