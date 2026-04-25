@@ -3,7 +3,7 @@ import React, { ReactNode } from 'react';
 import classNames from 'classnames';
 import * as patternsCSS from '../../styles/Patterns.css';
 import * as css from './SplashScreen.css';
-import { MINDROOM_APP_NAME } from '../../mindroom/branding/branding';
+import { MINDROOM_CLIENT_BRANDING } from '../../mindroom/branding/clientBranding';
 
 type SplashScreenProps = {
   children: ReactNode;
@@ -22,7 +22,7 @@ export function SplashScreen({ children }: SplashScreenProps) {
         justifyContent="Center"
       >
         <Text size="H2" align="Center">
-          {MINDROOM_APP_NAME}
+          {MINDROOM_CLIENT_BRANDING.appName}
         </Text>
       </Box>
     </Box>

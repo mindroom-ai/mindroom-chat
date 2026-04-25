@@ -1401,6 +1401,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/branding/branding.ts', import.meta.url),
       'utf8'
     );
+    const clientBrandingSource = readFileSync(
+      new URL('../../mindroom/branding/clientBranding.ts', import.meta.url),
+      'utf8'
+    );
     const authPolicySource = readFileSync(
       new URL('../../mindroom/auth/authPolicy.ts', import.meta.url),
       'utf8'
@@ -1441,9 +1445,23 @@ describe('RoomTimeline architecture', () => {
       new URL('../../pages/auth/register/PasswordRegisterForm.tsx', import.meta.url),
       'utf8'
     );
+    const welcomePageSource = readFileSync(
+      new URL('../../pages/client/WelcomePage.tsx', import.meta.url),
+      'utf8'
+    );
+    const splashScreenSource = readFileSync(
+      new URL('../../components/splash-screen/SplashScreen.tsx', import.meta.url),
+      'utf8'
+    );
+    const aboutSource = readFileSync(
+      new URL('../settings/about/About.tsx', import.meta.url),
+      'utf8'
+    );
 
     expect(brandingSource).toContain('MINDROOM_DEVICE_DISPLAY_NAME');
     expect(brandingSource).toContain('MINDROOM_CINNY_SOURCE_URL');
+    expect(clientBrandingSource).toContain('MINDROOM_CLIENT_BRANDING');
+    expect(clientBrandingSource).toContain('getMindroomWelcomePageContent');
     expect(authPolicySource).toContain('MINDROOM_HOMESERVER');
     expect(authUiSource).toContain('MINDROOM_AUTH_BRANDING');
     expect(authUiSource).toContain('getMindroomAuthSsoRedirectUrl');
@@ -1467,6 +1485,12 @@ describe('RoomTimeline architecture', () => {
     expect(passwordLoginSource).not.toContain("from '../../../mindroom/branding/branding'");
     expect(tokenLoginSource).not.toContain("from '../../../mindroom/branding/branding'");
     expect(passwordRegisterSource).not.toContain("from '../../../mindroom/branding/branding'");
+    expect(welcomePageSource).toContain("from '../../mindroom/branding/clientBranding'");
+    expect(welcomePageSource).not.toContain("from '../../mindroom/branding/branding'");
+    expect(splashScreenSource).toContain("from '../../mindroom/branding/clientBranding'");
+    expect(splashScreenSource).not.toContain("from '../../mindroom/branding/branding'");
+    expect(aboutSource).toContain("from '../../../mindroom/branding/clientBranding'");
+    expect(aboutSource).not.toContain("from '../../../mindroom/branding/branding'");
     expect(loginSource).not.toContain("=== 'mindroom.chat'");
     expect(registerSource).not.toContain("=== 'mindroom.chat'");
   });
