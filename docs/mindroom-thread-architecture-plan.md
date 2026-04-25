@@ -396,6 +396,8 @@ Thread-aware compose relation helpers and automatic room-input send-session sequ
 `features/room` paths are only compatibility re-exports.
 MindRoom slash-bang command definitions, query parsing, and autocomplete UI now live in
 `src/app/mindroom/commands/`; the old `features/room` paths are only compatibility re-exports.
+MindRoom bridge detection helpers now live in `src/app/mindroom/bridges/`; the old `features/room`
+path is only a compatibility re-export.
 Thread summary cache/state/selection now lives in `src/app/mindroom/threads/threadSummaryCache.ts`,
 `threadSummaryState.ts`, `threadSummarySelection.ts`, and `useRoomThreadSummaryState.ts`; the old
 `features/room` paths are only compatibility re-exports.

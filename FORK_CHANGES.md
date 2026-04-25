@@ -1038,6 +1038,14 @@
     - `npm run typecheck` passes
     - `npm run lint -- --quiet` passes with the branch warning-only baseline
     - `git diff --check` passes
+- `CINNY-075` implementation step 55 / MindRoom bridge detection ownership (2026-04-24):
+  - moved Signal bridge room/user detection helpers to `src/app/mindroom/bridges/bridgeDetection.ts` with their regression tests.
+  - the old `src/app/features/room/bridgeDetection.ts` path is now a compatibility re-export; `RoomInput` imports the MindRoom bridge implementation directly.
+  - validation:
+    - focused Vitest passes for `bridgeDetection.test.ts` and `RoomInput.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
 - `CINNY-065` planning note (2026-04-06):
   - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
   - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
