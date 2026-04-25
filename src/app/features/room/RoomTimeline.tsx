@@ -157,12 +157,10 @@ import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import {
-  buildVisibleThreadParticipantMap,
   buildVisibleThreadReplyCountMap,
   eventBelongsToThread,
 } from '../../mindroom/threads/threadUtils';
 import {
-  buildThreadSummaryMap,
   getLatestThreadSummaryInfoFromEventSources,
   isMindroomThreadSummaryEvent,
   MindroomThreadSummaryInfo,
@@ -182,17 +180,9 @@ import {
 import { useThreadRenderState } from '../../mindroom/threads/useThreadRenderState';
 import { createTimelineDebugTrace, logTimelineDebug } from '../../mindroom/threads/timelineDebug';
 import { shouldUseSurfacePreloadTarget } from '../../mindroom/threads/roomPreloadTarget';
-import {
-  buildCompactZeroReplyRootData,
-  buildCompactThreadRootData,
-  getCompactThreadRootBodyPreviewText,
-  mergeCompactThreadRootData,
-} from '../../mindroom/threads/compactThreadRootData';
 import { CompactRoomView } from '../../mindroom/threads/CompactRoomView';
 import { RoomThreadOverview } from '../../mindroom/threads/RoomThreadOverview';
 import {
-  buildRoomSurfaceEventEntries,
-  getLinkedTimelineEvents,
   getRenderableEventEntries,
   getRenderableEvents,
   isRenderableEvent,
@@ -226,8 +216,6 @@ import {
   type ThreadFilterState,
   type ThreadSortFreezeState,
   type FilterPreset,
-  getRoomScheduledTaskCounts,
-  collectAvailableRoomTags,
 } from '../../mindroom/threads/roomThreadOverviewModel';
 import {
   applyParsedThreadFilterQuery,
@@ -235,8 +223,6 @@ import {
 } from '../../mindroom/threads/threadFilterDsl';
 import { resolveRoomEventThreadRedirect } from '../../mindroom/threads/roomDeepLink';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
-import { useRoomThreadList } from '../../mindroom/threads/useRoomThreadList';
-import { useStateEvents } from '../../hooks/useStateEvents';
 import {
   getThreadCacheTargetId,
 } from '../../mindroom/threads/eventRepository';
@@ -940,35 +926,6 @@ export function RoomTimeline({
     () => renderableEventEntries.map(({ event }) => event),
     [renderableEventEntries]
   );
-  const loadedTimelineEvents = useMemo(() => {
-    if (threadId) return [] as MatrixEvent[];
-    return getLinkedTimelineEvents(timeline.linkedTimelines);
-  }, [threadId, timeline]);
-  const threadReplyCountMap = useMemo(
-    () =>
-      threadId ? new Map<string, number>() : buildVisibleThreadReplyCountMap(loadedTimelineEvents),
-    [threadId, loadedTimelineEvents]
-  );
-  const threadParticipantMap = useMemo(
-    () =>
-      threadId
-        ? new Map<string, string[]>()
-        : buildVisibleThreadParticipantMap(loadedTimelineEvents),
-    [threadId, loadedTimelineEvents]
-  );
-  const threadSummaryInfoMap = useMemo(
-    () =>
-      threadId
-        ? new Map<string, MindroomThreadSummaryInfo>()
-        : buildThreadSummaryMap(loadedTimelineEvents),
-    [threadId, loadedTimelineEvents]
-  );
-  // ── Scheduled task state events (batch) ──
-  const scheduledTaskEvents = useStateEvents(room, StateEvent.MindRoomScheduledTask);
-  const scheduledTaskCounts = useMemo(
-    () => (threadId ? new Map<string, number>() : getRoomScheduledTaskCounts(scheduledTaskEvents)),
-    [threadId, scheduledTaskEvents]
-  );
 
   // ── Batch metadata reactivity ──
   // Bump a refresh counter on room-level events that affect overview metadata
@@ -1006,110 +963,23 @@ export function RoomTimeline({
     };
   }, [room, threadId]);
 
-  // ── Visible thread root IDs + absoluteIndex map ──
-  const roomSurfaceEventEntries = useMemo(() => {
-    if (threadId) return renderableEventEntries;
-    return buildRoomSurfaceEventEntries({
-      renderableEventEntries,
-      linkedTimelines: timeline.linkedTimelines,
-      room,
-      ignoredUsersSet,
-      showHiddenEvents,
-      hideMembershipEvents,
-      hideNickAvatarEvents,
-      threadReplyCountMap,
-      threadResolutionMap,
-    });
-  }, [
-    threadId,
-    renderableEventEntries,
-    timeline.linkedTimelines,
-    room,
-    ignoredUsersSet,
-    showHiddenEvents,
-    hideMembershipEvents,
-    hideNickAvatarEvents,
-    threadReplyCountMap,
-    threadResolutionMap,
-    overviewRefreshCounter,
-  ]);
-
-  const visibleThreadRootData = useMemo(() => {
-    const ids: string[] = [];
-    const indexMap = new Map<string, number>();
-    const bodyMap = new Map<string, string>();
-    roomSurfaceEventEntries.forEach(({ event, absoluteIndex }) => {
-      const evtId = event.getId();
-      if (!evtId) return;
-      if (isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)) {
-        ids.push(evtId);
-        indexMap.set(evtId, absoluteIndex);
-        const body = getCompactThreadRootBodyPreviewText(event, {
-          eventId: evtId,
-          room,
-        });
-        if (body) bodyMap.set(evtId, body);
-      }
-    });
-    return { ids, indexMap, bodyMap };
-  }, [roomSurfaceEventEntries, room, threadResolutionMap, threadReplyCountMap]);
   const compactViewRequested = !threadId && effectiveViewMode === 'compact';
-  const { threads: roomThreadListThreads, retry: refreshRoomThreadList } = useRoomThreadList(
-    room,
-    compactViewRequested
-  );
-  const compactThreadRootData = useMemo(() => {
-    if (threadId || !compactViewRequested) {
-      return visibleThreadRootData;
-    }
-
-    const baseCompactThreadRootData = buildCompactThreadRootData({
-      room,
-      visibleIds: visibleThreadRootData.ids,
-      visibleIndexMap: visibleThreadRootData.indexMap,
-      visibleBodyMap: visibleThreadRootData.bodyMap,
-      threads: roomThreadListThreads,
-    });
-    const compactZeroReplyRootData = buildCompactZeroReplyRootData({
-      room,
-      roomSurfaceEntries: roomSurfaceEventEntries,
-      knownThreadRootIds: baseCompactThreadRootData.ids,
-    });
-
-    return mergeCompactThreadRootData(baseCompactThreadRootData, compactZeroReplyRootData);
-  }, [
-    threadId,
-    compactViewRequested,
-    room,
-    roomSurfaceEventEntries,
-    visibleThreadRootData,
-    roomThreadListThreads,
-  ]);
-  const roomInitialCacheHydrationKey = !threadId && !eventId ? room.roomId : undefined;
-  const roomInitialCacheHydrated =
-    !roomInitialCacheHydrationKey || roomInitialCacheHydratedKey === roomInitialCacheHydrationKey;
-  const deferEmptyRoomOverview =
-    !threadId &&
-    (!roomInitialCacheHydrated || initialClientCatchupInProgress) &&
-    visibleThreadRootData.ids.length === 0 &&
-    compactThreadRootData.ids.length === 0;
-  const shouldShowRoomThreadOverviewControls =
-    showRoomThreadOverviewControls && !deferEmptyRoomOverview;
-
-  // ── Read-up-to timestamp for unread heuristic ──
-  const readUpToTs = useMemo(() => {
-    if (threadId) return undefined;
-    const readUpToId = room.getEventReadUpTo(mx.getSafeUserId());
-    if (!readUpToId) return undefined;
-    const readUpToEvent = room.findEventById(readUpToId);
-    return readUpToEvent?.getTs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threadId, room, mx, overviewRefreshCounter]);
 
   const {
     showCompactRoomView,
+    roomSurfaceEventEntries,
+    visibleThreadRootData,
+    compactThreadRootData,
     normalThreadRecordMap,
     threadRecordMap,
+    threadReplyCountMap,
+    threadParticipantMap,
+    threadSummaryInfoMap,
+    scheduledTaskCounts,
+    availableRoomTags,
+    readUpToTs,
+    roomThreadListThreads,
+    refreshRoomThreadList,
     effectiveThreadFilterState,
     roomThreadFilterActive,
     filteredThreadRootIds,
@@ -1128,23 +998,19 @@ export function RoomTimeline({
     focusedRoomOverviewRequested,
     compactViewRequested,
     effectiveViewMode,
-    roomSurfaceEventEntries,
-    visibleThreadRootData,
-    compactThreadRootData,
+    linkedTimelines: timeline.linkedTimelines,
+    renderableEventEntries,
+    ignoredUsersSet,
+    showHiddenEvents,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
     summaryMap,
-    fallbackSummaryMap: threadSummaryInfoMap,
-    fallbackReplyCountMap: threadReplyCountMap,
-    fallbackParticipantMap: threadParticipantMap,
     threadResolutionMap,
     currentUserId: mx.getSafeUserId(),
-    readUpToTs,
-    scheduledTaskEvents,
-    scheduledTaskCounts,
     requestedThreadFilterState,
     liveThreadFilterState,
     fallbackThreadFilterState: DIRECT_ROOM_TIMELINE_FILTER_STATE,
     threadSortFreezeState,
-    roomThreadListThreads,
     overviewRefreshCounter,
     overviewThreadMetadataCacheLimit: OVERVIEW_THREAD_METADATA_CACHE_LIMIT,
     sessionId,
@@ -1152,6 +1018,16 @@ export function RoomTimeline({
     onStoreThreadSummary,
   });
   threadFilterStateRef.current = effectiveThreadFilterState;
+  const roomInitialCacheHydrationKey = !threadId && !eventId ? room.roomId : undefined;
+  const roomInitialCacheHydrated =
+    !roomInitialCacheHydrationKey || roomInitialCacheHydratedKey === roomInitialCacheHydrationKey;
+  const deferEmptyRoomOverview =
+    !threadId &&
+    (!roomInitialCacheHydrated || initialClientCatchupInProgress) &&
+    visibleThreadRootData.ids.length === 0 &&
+    compactThreadRootData.ids.length === 0;
+  const shouldShowRoomThreadOverviewControls =
+    showRoomThreadOverviewControls && !deferEmptyRoomOverview;
 
   useEffect(() => {
     if (threadId || !threadSortFreezeState) return;
@@ -1181,12 +1057,6 @@ export function RoomTimeline({
     roomThreadFilterActive,
     viewMode: effectiveViewMode,
   });
-
-  // Available tags from resolution map
-  const availableRoomTags = useMemo(
-    () => collectAvailableRoomTags(threadResolutionMap),
-    [threadResolutionMap]
-  );
 
   const threadFilteredEvents = useMemo(() => {
     if (threadId) return renderableEvents;

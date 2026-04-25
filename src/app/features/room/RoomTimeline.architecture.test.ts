@@ -298,11 +298,16 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/compactThreadRootData.ts', import.meta.url),
       'utf8'
     );
+    const indexSource = readFileSync(
+      new URL('../../mindroom/threads/useMindroomThreadIndex.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain("from '../../mindroom/threads/compactThreadRootData'");
+    expect(source).not.toContain("from '../../mindroom/threads/compactThreadRootData'");
     expect(compatibilitySource).toContain("from '../../mindroom/threads/compactThreadRootData'");
     expect(implementationSource).toContain('buildCompactThreadRootData');
     expect(implementationSource).toContain('isZeroReplyStandaloneThreadRootEvent');
+    expect(indexSource).toContain("from './compactThreadRootData'");
     expect(compatibilitySource).not.toContain('getThreadRelationTargetId');
   });
 
@@ -626,13 +631,18 @@ describe('RoomTimeline architecture', () => {
       new URL('../../mindroom/threads/useRoomThreadList.ts', import.meta.url),
       'utf8'
     );
+    const indexSource = readFileSync(
+      new URL('../../mindroom/threads/useMindroomThreadIndex.ts', import.meta.url),
+      'utf8'
+    );
 
-    expect(source).toContain("from '../../mindroom/threads/useRoomThreadList'");
+    expect(source).not.toContain("from '../../mindroom/threads/useRoomThreadList'");
     expect(listCompatibilitySource).toContain("from '../../mindroom/threads/roomThreadList'");
     expect(hookCompatibilitySource).toContain("from '../../mindroom/threads/useRoomThreadList'");
     expect(listSource).toContain('loadRoomThreads');
     expect(listSource).toContain('getThreadUnread');
     expect(hookSource).toContain('useRoomThreadList');
+    expect(indexSource).toContain("from './useRoomThreadList'");
     expect(listCompatibilitySource).not.toContain('fetchRoomThreads');
     expect(hookCompatibilitySource).not.toContain('ThreadEvent.NewReply');
   });

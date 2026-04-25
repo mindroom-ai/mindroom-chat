@@ -1,17 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
-import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
+import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
+import {
+  buildThreadSummaryMap,
+  type MindroomThreadSummaryInfo,
+} from '../../components/message/mindroomThreadSummary';
 import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,
 } from './threadFilterDsl';
 import { getRoomEventThreadOpenTarget } from './roomDeepLink';
 import {
+  buildRoomSurfaceEventEntries,
+  getLinkedTimelineEvents,
   isVisibleThreadRootEvent,
   type TimelineEventEntry,
 } from './roomTimelineEvents';
 import {
   createThreadSortControlSignature,
+  collectAvailableRoomTags,
+  getRoomScheduledTaskCounts,
   isRoomThreadOverviewActive,
   type StatusCounts,
   type ThreadFilterState,
@@ -27,10 +34,23 @@ import {
 } from './threadRecordOverview';
 import { useThreadOverviewCacheHydration } from './threadOverviewCacheHydration';
 import type { ThreadRecord } from './types';
+import {
+  buildVisibleThreadParticipantMap,
+  buildVisibleThreadReplyCountMap,
+} from './threadUtils';
+import {
+  buildCompactThreadRootData,
+  buildCompactZeroReplyRootData,
+  getCompactThreadRootBodyPreviewText,
+  mergeCompactThreadRootData,
+} from './compactThreadRootData';
+import { useStateEvents } from '../../hooks/useStateEvents';
+import { StateEvent } from '../../../types/matrix/room';
+import { useRoomThreadList } from './useRoomThreadList';
 
 type ThreadResolutionLike = {
   isResolved: boolean;
-  tags?: Record<string, unknown> | null;
+  tags: Record<string, unknown> | null;
 };
 
 type ThreadIndexOrdering = {
@@ -66,6 +86,20 @@ export type MindroomThreadIndexSnapshot = {
   tagCounts: Record<string, number>;
   searchQuery: string;
   threadSortControlSignature: string;
+};
+
+export type UseMindroomThreadIndexResult = MindroomThreadIndexSnapshot & {
+  roomSurfaceEventEntries: TimelineEventEntry[];
+  visibleThreadRootData: VisibleThreadRootData;
+  compactThreadRootData: VisibleThreadRootData;
+  threadReplyCountMap: Map<string, number>;
+  threadParticipantMap: Map<string, string[]>;
+  threadSummaryInfoMap: Map<string, MindroomThreadSummaryInfo>;
+  scheduledTaskCounts: Map<string, number>;
+  availableRoomTags: string[];
+  readUpToTs: number | undefined;
+  roomThreadListThreads: Thread[];
+  refreshRoomThreadList: () => Promise<void>;
 };
 
 export type ResolveMindroomThreadIndexSnapshotOptions = {
@@ -229,23 +263,19 @@ export type UseMindroomThreadIndexOptions = {
   focusedRoomOverviewRequested: boolean;
   compactViewRequested: boolean;
   effectiveViewMode: RoomViewMode;
-  roomSurfaceEventEntries: TimelineEventEntry[];
-  visibleThreadRootData: VisibleThreadRootData;
-  compactThreadRootData: VisibleThreadRootData;
+  linkedTimelines: EventTimeline[];
+  renderableEventEntries: TimelineEventEntry[];
+  ignoredUsersSet: Set<string>;
+  showHiddenEvents: boolean;
+  hideMembershipEvents: boolean;
+  hideNickAvatarEvents: boolean;
   summaryMap: ReadonlyMap<string, MindroomThreadSummaryInfo>;
-  fallbackSummaryMap: ReadonlyMap<string, MindroomThreadSummaryInfo>;
-  fallbackReplyCountMap: Map<string, number>;
-  fallbackParticipantMap: ReadonlyMap<string, string[]>;
   threadResolutionMap: Map<string, ThreadResolutionLike>;
   currentUserId: string | undefined;
-  readUpToTs: number | null | undefined;
-  scheduledTaskEvents: MatrixEvent[];
-  scheduledTaskCounts: ReadonlyMap<string, number>;
   requestedThreadFilterState: ThreadFilterState;
   liveThreadFilterState: ThreadFilterState;
   fallbackThreadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
-  roomThreadListThreads: Array<Pick<Thread, 'id' | 'rootEvent'>>;
   overviewRefreshCounter: number;
   overviewThreadMetadataCacheLimit: number;
   sessionId: string;
@@ -263,29 +293,144 @@ export const useMindroomThreadIndex = ({
   focusedRoomOverviewRequested,
   compactViewRequested,
   effectiveViewMode,
-  roomSurfaceEventEntries,
-  visibleThreadRootData,
-  compactThreadRootData,
+  linkedTimelines,
+  renderableEventEntries,
+  ignoredUsersSet,
+  showHiddenEvents,
+  hideMembershipEvents,
+  hideNickAvatarEvents,
   summaryMap,
-  fallbackSummaryMap,
-  fallbackReplyCountMap,
-  fallbackParticipantMap,
   threadResolutionMap,
   currentUserId,
-  readUpToTs,
-  scheduledTaskEvents,
-  scheduledTaskCounts,
   requestedThreadFilterState,
   liveThreadFilterState,
   fallbackThreadFilterState,
   threadSortFreezeState,
-  roomThreadListThreads,
   overviewRefreshCounter,
   overviewThreadMetadataCacheLimit,
   sessionId,
   mx,
   onStoreThreadSummary,
-}: UseMindroomThreadIndexOptions): MindroomThreadIndexSnapshot => {
+}: UseMindroomThreadIndexOptions): UseMindroomThreadIndexResult => {
+  const loadedTimelineEvents = useMemo(() => {
+    if (threadId) return [] as MatrixEvent[];
+    return getLinkedTimelineEvents(linkedTimelines);
+  }, [threadId, linkedTimelines]);
+  const threadReplyCountMap = useMemo(
+    () =>
+      threadId ? new Map<string, number>() : buildVisibleThreadReplyCountMap(loadedTimelineEvents),
+    [threadId, loadedTimelineEvents]
+  );
+  const threadParticipantMap = useMemo(
+    () =>
+      threadId
+        ? new Map<string, string[]>()
+        : buildVisibleThreadParticipantMap(loadedTimelineEvents),
+    [threadId, loadedTimelineEvents]
+  );
+  const threadSummaryInfoMap = useMemo(
+    () =>
+      threadId
+        ? new Map<string, MindroomThreadSummaryInfo>()
+        : buildThreadSummaryMap(loadedTimelineEvents),
+    [threadId, loadedTimelineEvents]
+  );
+  const scheduledTaskEvents = useStateEvents(room, StateEvent.MindRoomScheduledTask);
+  const scheduledTaskCounts = useMemo(
+    () => (threadId ? new Map<string, number>() : getRoomScheduledTaskCounts(scheduledTaskEvents)),
+    [threadId, scheduledTaskEvents]
+  );
+  const availableRoomTags = useMemo(
+    () => collectAvailableRoomTags(threadResolutionMap),
+    [threadResolutionMap]
+  );
+  const roomSurfaceEventEntries = useMemo(() => {
+    // Mutable SDK/event metadata can change without changing the timeline array identity.
+    void overviewRefreshCounter;
+    if (threadId) return renderableEventEntries;
+    return buildRoomSurfaceEventEntries({
+      renderableEventEntries,
+      linkedTimelines,
+      room,
+      ignoredUsersSet,
+      showHiddenEvents,
+      hideMembershipEvents,
+      hideNickAvatarEvents,
+      threadReplyCountMap,
+      threadResolutionMap,
+    });
+  }, [
+    threadId,
+    renderableEventEntries,
+    linkedTimelines,
+    room,
+    ignoredUsersSet,
+    showHiddenEvents,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+    threadReplyCountMap,
+    threadResolutionMap,
+    overviewRefreshCounter,
+  ]);
+  const visibleThreadRootData = useMemo(() => {
+    const ids: string[] = [];
+    const indexMap = new Map<string, number>();
+    const bodyMap = new Map<string, string>();
+    roomSurfaceEventEntries.forEach(({ event, absoluteIndex }) => {
+      const evtId = event.getId();
+      if (!evtId) return;
+      if (isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)) {
+        ids.push(evtId);
+        indexMap.set(evtId, absoluteIndex);
+        const body = getCompactThreadRootBodyPreviewText(event, {
+          eventId: evtId,
+          room,
+        });
+        if (body) bodyMap.set(evtId, body);
+      }
+    });
+    return { ids, indexMap, bodyMap };
+  }, [roomSurfaceEventEntries, room, threadResolutionMap, threadReplyCountMap]);
+  const { threads: roomThreadListThreads, retry: refreshRoomThreadList } = useRoomThreadList(
+    room,
+    compactViewRequested
+  );
+  const compactThreadRootData = useMemo(() => {
+    if (threadId || !compactViewRequested) {
+      return visibleThreadRootData;
+    }
+
+    const baseCompactThreadRootData = buildCompactThreadRootData({
+      room,
+      visibleIds: visibleThreadRootData.ids,
+      visibleIndexMap: visibleThreadRootData.indexMap,
+      visibleBodyMap: visibleThreadRootData.bodyMap,
+      threads: roomThreadListThreads,
+    });
+    const compactZeroReplyRootData = buildCompactZeroReplyRootData({
+      room,
+      roomSurfaceEntries: roomSurfaceEventEntries,
+      knownThreadRootIds: baseCompactThreadRootData.ids,
+    });
+
+    return mergeCompactThreadRootData(baseCompactThreadRootData, compactZeroReplyRootData);
+  }, [
+    threadId,
+    compactViewRequested,
+    room,
+    roomSurfaceEventEntries,
+    visibleThreadRootData,
+    roomThreadListThreads,
+  ]);
+  const readUpToTs = useMemo(() => {
+    // Receipts mutate on the room object, so the overview refresh tick is intentional.
+    void overviewRefreshCounter;
+    if (threadId || !currentUserId) return undefined;
+    const readUpToId = room.getEventReadUpTo(currentUserId);
+    if (!readUpToId) return undefined;
+    const readUpToEvent = room.findEventById(readUpToId);
+    return readUpToEvent?.getTs();
+  }, [threadId, room, currentUserId, overviewRefreshCounter]);
   const [compactCachedThreadRootBodyMap, setCompactCachedThreadRootBodyMap] = useState(
     () => new Map<string, string>()
   );
@@ -367,14 +512,14 @@ export const useMindroomThreadIndex = ({
       threadRootIds: visibleThreadRootData.ids,
       threadRootEventMap: visibleThreadRootEventMap,
       summaryMap,
-      fallbackSummaryMap,
-      fallbackReplyCountMap,
+      fallbackSummaryMap: threadSummaryInfoMap,
+      fallbackReplyCountMap: threadReplyCountMap,
       rootPreviewTextMap: visibleThreadRootData.bodyMap,
       fallbackLatestReplyPreviewMap: cachedThreadLatestReplyPreviewMap,
       fallbackLastSenderIdMap: cachedThreadLastSenderIdMap,
       fallbackMessageCountMap: cachedThreadMessageCountMap,
       fallbackLastActivityTsMap: cachedThreadLastActivityTsMap,
-      fallbackParticipantMap,
+      fallbackParticipantMap: threadParticipantMap,
       threadResolutionMap,
       currentUserId,
       readUpToTs: readUpToTs ?? null,
@@ -390,13 +535,13 @@ export const useMindroomThreadIndex = ({
     visibleThreadRootData.bodyMap,
     visibleThreadRootEventMap,
     summaryMap,
-    fallbackSummaryMap,
-    fallbackReplyCountMap,
+    threadSummaryInfoMap,
+    threadReplyCountMap,
     cachedThreadLatestReplyPreviewMap,
     cachedThreadLastSenderIdMap,
     cachedThreadMessageCountMap,
     cachedThreadLastActivityTsMap,
-    fallbackParticipantMap,
+    threadParticipantMap,
     threadResolutionMap,
     currentUserId,
     readUpToTs,
@@ -415,14 +560,14 @@ export const useMindroomThreadIndex = ({
       threadRootIds: compactThreadRootData.ids,
       threadRootEventMap: compactThreadRootEventMap,
       summaryMap,
-      fallbackSummaryMap,
-      fallbackReplyCountMap,
+      fallbackSummaryMap: threadSummaryInfoMap,
+      fallbackReplyCountMap: threadReplyCountMap,
       rootPreviewTextMap: compactThreadRootBodyMap,
       fallbackLatestReplyPreviewMap: cachedThreadLatestReplyPreviewMap,
       fallbackLastSenderIdMap: cachedThreadLastSenderIdMap,
       fallbackMessageCountMap: cachedThreadMessageCountMap,
       fallbackLastActivityTsMap: cachedThreadLastActivityTsMap,
-      fallbackParticipantMap,
+      fallbackParticipantMap: threadParticipantMap,
       threadResolutionMap,
       currentUserId,
       readUpToTs: readUpToTs ?? null,
@@ -440,13 +585,13 @@ export const useMindroomThreadIndex = ({
     compactThreadRootEventMap,
     compactThreadRootBodyMap,
     summaryMap,
-    fallbackSummaryMap,
-    fallbackReplyCountMap,
+    threadSummaryInfoMap,
+    threadReplyCountMap,
     cachedThreadLatestReplyPreviewMap,
     cachedThreadLastSenderIdMap,
     cachedThreadMessageCountMap,
     cachedThreadLastActivityTsMap,
-    fallbackParticipantMap,
+    threadParticipantMap,
     threadResolutionMap,
     currentUserId,
     readUpToTs,
@@ -462,12 +607,12 @@ export const useMindroomThreadIndex = ({
             room,
             roomThreads: roomThreadListThreads,
             threadResolutionMap,
-            threadReplyCountMap: fallbackReplyCountMap,
+            threadReplyCountMap,
           })
         : undefined,
     [
       eventId,
-      fallbackReplyCountMap,
+      threadReplyCountMap,
       focusedRoomOverviewRequested,
       room,
       roomThreadListThreads,
@@ -534,5 +679,18 @@ export const useMindroomThreadIndex = ({
     onStoreThreadSummary,
   });
 
-  return snapshot;
+  return {
+    ...snapshot,
+    roomSurfaceEventEntries,
+    visibleThreadRootData,
+    compactThreadRootData,
+    threadReplyCountMap,
+    threadParticipantMap,
+    threadSummaryInfoMap,
+    scheduledTaskCounts,
+    availableRoomTags,
+    readUpToTs,
+    roomThreadListThreads,
+    refreshRoomThreadList,
+  };
 };
