@@ -122,9 +122,9 @@ import {
   isMindroomRoomInputAutocompleteQuery,
   MindroomRoomInputAutocomplete,
   MindroomVoiceRecorderComposer,
+  useRoomInputSendSessionController,
   type MindroomRoomInputAutocompletePrefix,
 } from '../../mindroom/room-input/RoomInputMindroomExtensions';
-import { useRoomInputSendSessionController } from '../../mindroom/threads/useRoomInputSendSessionController';
 
 type RoomInputAutocompletePrefix = AutocompletePrefix | MindroomRoomInputAutocompletePrefix;
 

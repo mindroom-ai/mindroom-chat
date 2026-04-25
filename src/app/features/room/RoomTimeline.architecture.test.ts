@@ -240,6 +240,7 @@ describe('RoomTimeline architecture', () => {
 
     expect(source).toContain('useRoomInputSendSessionController');
     expect(source).toContain("from '../../mindroom/room-input/RoomInputMindroomExtensions'");
+    expect(source).not.toContain("from '../../mindroom/threads/useRoomInputSendSessionController'");
     expect(source).not.toContain("from '../../mindroom/commands/");
     expect(source).not.toContain("from '../../mindroom/voice/");
     expect(source).not.toContain("from '../../mindroom/threads/composeMessageRelation'");
@@ -251,6 +252,9 @@ describe('RoomTimeline architecture', () => {
     expect(roomInputExtensionsSource).toContain("from '../commands/mindroomCommandQuery'");
     expect(roomInputExtensionsSource).toContain("from '../commands/MindroomCommandAutocomplete'");
     expect(roomInputExtensionsSource).toContain("from '../voice/VoiceRecorderDialog'");
+    expect(roomInputExtensionsSource).toContain(
+      "from '../threads/useRoomInputSendSessionController'"
+    );
     expect(controllerSource).toContain('createRoomInputSendSessionState');
     expect(controllerSource).toContain('resolveRoomInputSendStep');
     expect(controllerSource).toContain('isSignalBridgeRoom');

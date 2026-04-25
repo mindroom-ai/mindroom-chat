@@ -96,6 +96,10 @@
 - `CINNY-133`
   - Client-facing MindRoom branding defaults for welcome, splash, and About screens now live in `src/app/mindroom/branding/clientBranding.ts`.
   - Generic client/about/splash surfaces no longer import the low-level MindRoom branding constants directly.
+- `CINNY-134`
+  - Room-input auto-thread send-session orchestration now routes through `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`.
+  - Generic `RoomInput` consumes one MindRoom room-input seam instead of importing the low-level thread controller directly.
+  - MindRoom room-input helpers use narrow editor utility/type imports so tests do not load the full editor/autocomplete UI barrel unnecessarily.
 
 ### Current Feature Set On `dev`
 

@@ -10,6 +10,8 @@ import {
 import { getMessageRelation } from '../threads/composeMessageRelation';
 import { VoiceRecorderComposer } from '../voice/VoiceRecorderDialog';
 
+export { useRoomInputSendSessionController } from '../threads/useRoomInputSendSessionController';
+
 export type MindroomRoomInputAutocompletePrefix = typeof MINDROOM_COMMAND_PREFIX;
 export type MindroomRoomInputAutocompleteQuery =
   AutocompleteQuery<MindroomRoomInputAutocompletePrefix>;
