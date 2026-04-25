@@ -580,7 +580,7 @@ vi.mock('./threadSummaryCache', () => ({
   saveCachedThreadSummary: vi.fn(async () => undefined),
 }));
 
-vi.mock('./eventCacheEditUtils', () => ({
+vi.mock('../../mindroom/threads/eventCacheEditUtils', () => ({
   aggregateCachedRelationEvents: vi.fn(),
   hydrateCachedEvents: vi.fn(),
   serializeEventsForCache: () => [],

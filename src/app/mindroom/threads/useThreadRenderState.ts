@@ -3,7 +3,7 @@ import { EventTimelineSet, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import {
   aggregateCachedRelationEvents,
   hydrateCachedEvents,
-} from '../../features/room/eventCacheEditUtils';
+} from './eventCacheEditUtils';
 import {
   buildResolveConfirmedEventId,
   getThreadInitialRenderMode,

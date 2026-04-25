@@ -24,7 +24,7 @@ import {
   type CachedThreadEventPage,
 } from '../../features/room/threadEventCache';
 import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
-import { serializeEventsForCache } from '../../features/room/eventCacheEditUtils';
+import { serializeEventsForCache } from './eventCacheEditUtils';
 import { isThreadOnlyRoomActivity } from './threadRenderUtils';
 import { buildThreadReplyCountMap } from './threadUtils';
 import { getKnownThreadReplyCount } from './threadRecord';

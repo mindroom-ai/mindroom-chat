@@ -14,7 +14,7 @@ import { getLinkedTimelines } from './timelinePagination';
 import {
   collectRedactedRelationTargetsFromLookup,
   reconcileRelationEventsWithAggregation,
-} from '../../features/room/eventCacheEditUtils';
+} from './eventCacheEditUtils';
 import { reconcileThreadBackwardPagination } from './threadPaginationUtils';
 import { loadThreadCachedSnapshot, mapCachedThreadPageEvents } from './eventRepository';
 import { fetchAllThreadRelations, MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
