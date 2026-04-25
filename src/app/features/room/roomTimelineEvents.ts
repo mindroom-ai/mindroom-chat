@@ -10,7 +10,7 @@ import {
   isNestedThreadReplyEvent,
   isZeroReplyStandaloneThreadRootEvent,
 } from './compactThreadRootData';
-import { isThreadOnlyRoomActivity } from './threadRenderUtils';
+import { isThreadOnlyRoomActivity } from '../../mindroom/threads/threadRenderUtils';
 
 export type TimelineEventEntry = {
   event: MatrixEvent;

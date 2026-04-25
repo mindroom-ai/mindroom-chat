@@ -419,6 +419,25 @@ describe('RoomTimeline architecture', () => {
     expect(routeCompatibilitySource).not.toContain('resolveCanonicalThreadRootId');
   });
 
+  it('keeps thread render identity utilities in MindRoom threads', () => {
+    const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
+    const compatibilitySource = readFileSync(
+      new URL('./threadRenderUtils.ts', import.meta.url),
+      'utf8'
+    );
+    const implementationSource = readFileSync(
+      new URL('../../mindroom/threads/threadRenderUtils.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(source).toContain("from '../../mindroom/threads/threadRenderUtils'");
+    expect(compatibilitySource).toContain("from '../../mindroom/threads/threadRenderUtils'");
+    expect(implementationSource).toContain('mergeThreadRenderEvents');
+    expect(implementationSource).toContain('buildResolveConfirmedEventId');
+    expect(implementationSource).toContain('isThreadOnlyRoomActivity');
+    expect(compatibilitySource).not.toContain('getEffectiveReplacementEvent');
+  });
+
   it('keeps thread tag state and hooks in MindRoom threads', () => {
     const source = readFileSync(new URL('./RoomTimeline.tsx', import.meta.url), 'utf8');
     const tagsCompatibilitySource = readFileSync(
