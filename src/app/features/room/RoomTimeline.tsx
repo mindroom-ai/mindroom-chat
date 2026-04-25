@@ -128,7 +128,6 @@ import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { GetContentCallback, MessageEvent, StateEvent } from '../../../types/matrix/room';
 import { useKeyDown } from '../../hooks/useKeyDown';
 import { useDocumentFocusChange } from '../../hooks/useDocumentFocusChange';
-import { usePageResume } from '../../hooks/usePageResume';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
 import {
   CollapsibleMessage,
@@ -212,10 +211,7 @@ import {
   type RecalibrateFilterOpts,
   type Timeline,
 } from './timelinePagination';
-import {
-  buildThreadBadgeViewModelFromRecord,
-  getKnownThreadReplyCount,
-} from '../../mindroom/threads/threadBadgeViewModel';
+import { buildThreadBadgeViewModelFromRecord } from '../../mindroom/threads/threadBadgeViewModel';
 import { ThreadBadgeRenderer } from '../../mindroom/threads/ThreadBadgeRenderer';
 import {
   getRoomEventFocusTarget,
@@ -225,7 +221,6 @@ import {
 import { useMindroomThreadIndex } from '../../mindroom/threads/useMindroomThreadIndex';
 import type { ThreadBadgeViewModel, ThreadRecord } from '../../mindroom/threads/types';
 import type { ThreadFilterKey } from './RoomThreadOverview';
-import { loadRoomThreads } from './roomThreadList';
 import {
   type ThreadFilterState,
   type ThreadSortFreezeState,
@@ -283,17 +278,11 @@ import {
   shouldFetchThreadEditBackfill,
 } from './threadEditBackfillUtils';
 import { useRoomThreadResolutionMap } from './useRoomThreadTags';
-import {
-  getThreadOpenSeedSnapshot,
-  saveThreadOpenSeedSnapshot,
-} from '../../mindroom/threads/threadOpenSeedCache';
+import { getThreadOpenSeedSnapshot } from '../../mindroom/threads/threadOpenSeedCache';
 import { isPendingLocalEchoThreadRoot } from './threadRouteUtils';
 import { useRoomEagerPreload } from '../../mindroom/threads/preloadController';
 import { useThreadBackPaginationController } from '../../mindroom/threads/threadBackPaginationController';
-import {
-  isCompleteCachedThreadSnapshot,
-  mergeThreadBackfillEvents,
-} from '../../mindroom/threads/threadCacheSnapshot';
+import { mergeThreadBackfillEvents } from '../../mindroom/threads/threadCacheSnapshot';
 import {
   buildThreadCacheCoverage,
   hasUsableThreadCacheSnapshot,
@@ -316,6 +305,7 @@ import {
 } from '../../mindroom/threads/threadBootstrap';
 import { useThreadSeedPrewarmController } from '../../mindroom/threads/threadSeedPrewarmController';
 import { useThreadOpenCacheController } from '../../mindroom/threads/threadOpenCacheController';
+import { useThreadOverviewResumeController } from '../../mindroom/threads/threadOverviewResumeController';
 
 export { getRoomEventThreadOpenTarget } from './roomDeepLink';
 export { getRoomEventFocusTarget, getThreadFilteredEvents };
@@ -4645,158 +4635,21 @@ export function RoomTimeline({
     visibleThreadSummaryRefreshIds,
   ]);
 
-  const overviewResumeRefreshInFlightRef = useRef(false);
-  const pendingOverviewResumeRefreshRef = useRef(false);
-  const lastOverviewResumeRefreshTsRef = useRef(0);
-
-  useEffect(() => {
-    overviewResumeRefreshInFlightRef.current = false;
-    pendingOverviewResumeRefreshRef.current = false;
-    lastOverviewResumeRefreshTsRef.current = 0;
-  }, [room.roomId]);
-
-  const refreshOverviewThreadCacheFromRelations = useCallback(
-    async (expectedThreadId: string): Promise<void> => {
-      const rootEvent =
-        room.getThread(expectedThreadId)?.rootEvent ?? room.findEventById(expectedThreadId);
-      if (!rootEvent) return;
-
-      const relationPageResult = await fetchAllThreadRelations(
-        mx,
-        room.roomId,
-        expectedThreadId,
-        THREAD_BATCH_SIZE,
-        () => !alive() || (!!threadIdRef.current && threadIdRef.current !== expectedThreadId)
-      );
-      if (
-        !relationPageResult ||
-        !alive() ||
-        (!!threadIdRef.current && threadIdRef.current !== expectedThreadId)
-      ) {
-        return;
-      }
-
-      const relationEvents = relationPageResult.events;
-      const relationSnapshotComplete = typeof relationPageResult.nextBatchToken !== 'string';
-      const expectedReplyCount = getKnownThreadReplyCount(rootEvent);
-      const snapshotComplete = isCompleteCachedThreadSnapshot({
-        room,
-        threadId: expectedThreadId,
-        rootEvent,
-        cachedRootEvent: rootEvent,
-        cachedEvents: rootEvent ? [rootEvent, ...relationEvents] : relationEvents,
-        beforeToken: relationPageResult.nextBatchToken ?? null,
-        hasMoreBefore: typeof relationPageResult.nextBatchToken === 'string',
-        expectedReplyCount,
-        snapshotComplete: relationSnapshotComplete,
-        tailLoaded: true,
-      });
-
-      if (relationEvents.length > 0) {
-        setSupplementalThreadEvents(expectedThreadId, relationEvents);
-        saveThreadOpenSeedSnapshot(room, expectedThreadId, relationEvents);
-      }
-
-      persistThreadEventCache(
-        expectedThreadId,
-        relationEvents,
-        rootEvent,
-        relationPageResult.nextBatchToken ?? null,
-        true,
-        snapshotComplete,
-        expectedReplyCount,
-        relationSnapshotComplete
-      );
-
-      const summaryInfo = getLatestThreadSummaryInfoFromEventSources(relationEvents);
-      if (summaryInfo?.summaryText) {
-        onStoreThreadSummary(expectedThreadId, summaryInfo);
-      }
-    },
-    [alive, mx, onStoreThreadSummary, persistThreadEventCache, room, setSupplementalThreadEvents]
-  );
-
-  const refreshOverviewThreadsOnResume = useCallback(
-    (reason: 'focus' | 'online' | 'pageshow' | 'visibility') => {
-      if (threadId) return;
-      if (!compactViewRequested && overviewResumeRefreshIds.length === 0) return;
-
-      const now = Date.now();
-      if (
-        !overviewResumeRefreshInFlightRef.current &&
-        now - lastOverviewResumeRefreshTsRef.current < 1_000
-      ) {
-        return;
-      }
-      lastOverviewResumeRefreshTsRef.current = now;
-
-      if (overviewResumeRefreshInFlightRef.current) {
-        pendingOverviewResumeRefreshRef.current = true;
-        return;
-      }
-
-      const runRefresh = async () => {
-        overviewResumeRefreshInFlightRef.current = true;
-        pendingOverviewResumeRefreshRef.current = false;
-        logTimelineDebug(roomDebugTraceId, 'overview-thread-resume-refresh-start', {
-          compactViewRequested,
-          reason,
-          targetCount: overviewResumeRefreshIds.length,
-        });
-
-        try {
-          if (compactViewRequested) {
-            await refreshRoomThreadList();
-          } else {
-            await loadRoomThreads(room);
-          }
-
-          if (!alive() || threadIdRef.current) return;
-
-          for (const expectedThreadId of overviewResumeRefreshIds) {
-            if (!alive() || threadIdRef.current) return;
-            await refreshOverviewThreadCacheFromRelations(expectedThreadId);
-          }
-
-          setOverviewRefreshCounter((value) => value + 1);
-          logTimelineDebug(roomDebugTraceId, 'overview-thread-resume-refresh-complete', {
-            compactViewRequested,
-            reason,
-            targetCount: overviewResumeRefreshIds.length,
-          });
-        } catch (error) {
-          logTimelineDebug(roomDebugTraceId, 'overview-thread-resume-refresh-error', {
-            compactViewRequested,
-            error: error instanceof Error ? error.message : String(error),
-            reason,
-            targetCount: overviewResumeRefreshIds.length,
-          });
-        } finally {
-          overviewResumeRefreshInFlightRef.current = false;
-
-          if (pendingOverviewResumeRefreshRef.current && !threadIdRef.current) {
-            queueMicrotask(() => {
-              refreshOverviewThreadsOnResume(reason);
-            });
-          }
-        }
-      };
-
-      void runRefresh();
-    },
-    [
-      alive,
-      compactViewRequested,
-      overviewResumeRefreshIds,
-      refreshOverviewThreadCacheFromRelations,
-      refreshRoomThreadList,
-      room,
-      roomDebugTraceId,
-      threadId,
-    ]
-  );
-
-  usePageResume(refreshOverviewThreadsOnResume);
+  useThreadOverviewResumeController({
+    alive,
+    compactViewRequested,
+    debugTraceId: roomDebugTraceId,
+    mx,
+    onStoreThreadSummary,
+    persistThreadEventCache,
+    refreshCompactThreadList: refreshRoomThreadList,
+    room,
+    setOverviewRefreshCounter,
+    setSupplementalThreadEvents,
+    targetThreadIds: overviewResumeRefreshIds,
+    threadId,
+    threadIdRef,
+  });
 
   const getTimelineThreadBadgeModel = (
     mEventId: string,
