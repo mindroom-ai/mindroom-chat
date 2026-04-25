@@ -145,7 +145,6 @@ import {
 import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
-  shouldPinThreadToBottomOnOpen,
 } from '../../mindroom/threads/threadRenderUtils';
 import { useThreadRenderState } from '../../mindroom/threads/useThreadRenderState';
 import {
@@ -158,7 +157,6 @@ import { getRenderableEventEntries } from '../../mindroom/threads/roomTimelineEv
 import {
   getLinkedTimelines,
   getEmptyTimeline,
-  getFocusedRoomEventIndex,
   getInitialTimeline,
   getLiveTimeline,
   getRoomUnreadInfo,
@@ -188,14 +186,7 @@ import {
 } from '../../mindroom/threads/threadFilterDsl';
 import type { RoomViewMode } from '../../state/room/roomViewMode';
 import {
-  getEventElementById,
-  getRoomFocusScrollOptions,
-  getRoomFocusScrollToItemOptions,
-  isAnchorVisibleInScroll,
   isTimelineAtLiveEnd,
-  ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS,
-  ROOM_FOCUS_OBSERVER_IDLE_MS,
-  setupFocusObserver,
   shouldRenderUnreadDividerAt,
 } from '../../mindroom/threads/timelineScrollUtils';
 import { useRoomThreadResolutionMap } from '../../mindroom/threads/useRoomThreadTags';
@@ -230,6 +221,10 @@ import {
   useRoomEventOpenController,
   useRoomEventRouteOpenController,
 } from '../../mindroom/threads/roomEventOpenController';
+import {
+  useRoomFocusScrollController,
+  type RoomTimelineFocusItem,
+} from '../../mindroom/threads/roomFocusScrollController';
 
 export { getRoomEventThreadOpenTarget } from '../../mindroom/threads/roomDeepLink';
 export { getRoomEventFocusTarget, getThreadFilteredEvents } from '../../mindroom/threads/threadRoomFocus';
@@ -290,10 +285,6 @@ type RoomTimelineProps = {
   onThreadLoadError?: (threadId: string) => void;
   roomInputRef: RefObject<HTMLElement>;
   editor: Editor;
-};
-
-type PendingRoomFocus = {
-  eventId: string;
 };
 
 const DIRECT_ROOM_TIMELINE_FILTER_STATE: ThreadFilterState = {
@@ -430,15 +421,7 @@ export function RoomTimeline({
     smooth: true,
   });
 
-  const [focusItem, setFocusItem] = useState<
-    | {
-        eventId?: string;
-        index: number;
-        scrollTo: boolean;
-        highlight: boolean;
-      }
-    | undefined
-  >();
+  const [focusItem, setFocusItem] = useState<RoomTimelineFocusItem | undefined>();
   const [threadLoadError, setThreadLoadError] = useState(false);
   const [roomHasMoreCachedBack, setRoomHasMoreCachedBack] = useState(false);
   const [eagerPreloading, setEagerPreloading] = useState(!threadId && !eventId);
@@ -469,7 +452,6 @@ export function RoomTimeline({
     new WeakMap<MatrixEvent, number>()
   );
   const pendingThreadOpenRef = useRef<PendingThreadOpen | undefined>();
-  const pendingRoomFocusRef = useRef<PendingRoomFocus | undefined>();
   const suppressFocusPaginationRef = useRef(false);
   const alive = useAlive();
   roomIdRef.current = room.roomId;
@@ -1210,269 +1192,37 @@ export function RoomTimeline({
     threadIdRef,
   });
 
-  // Scroll to bottom on initial timeline load
-  useLayoutEffect(() => {
-    const scrollEl = scrollRef.current;
-    if (scrollEl) {
-      scrollToBottom(scrollEl);
-    }
-  }, []);
-
-  // if live timeline is linked and unreadInfo change
-  // Scroll to last read message
-  useLayoutEffect(() => {
-    if (threadId) return;
-    const { readUptoEventId, inLiveTimeline, scrollTo } = unreadInfo ?? {};
-    if (readUptoEventId && inLiveTimeline && scrollTo && unreadScrollAnchorIndex !== undefined) {
-      scrollToItem(unreadScrollAnchorIndex, {
-        behavior: 'instant',
-        align: 'start',
-        stopInView: true,
-      });
-    }
-  }, [room, unreadInfo, unreadScrollAnchorIndex, scrollToItem, threadId]);
-
-  useEffect(() => {
-    if (threadId || !focusItem?.eventId) return;
-
-    const nextIndex = threadFilteredEventsRef.current.findIndex(
-      (event) => event.getId() === focusItem.eventId
-    );
-    if (nextIndex === -1 || nextIndex === focusItem.index) return;
-
-    setFocusItem((currentItem) => {
-      if (
-        !currentItem ||
-        currentItem.eventId !== focusItem.eventId ||
-        currentItem.index === nextIndex
-      ) {
-        return currentItem;
-      }
-
-      return {
-        ...currentItem,
-        index: nextIndex,
-      };
-    });
-  }, [focusItem, threadFilteredEvents, threadId]);
-
-  // scroll to focused message
-  useLayoutEffect(() => {
-    let clearFocusTimeoutId: ReturnType<typeof setTimeout> | undefined;
-    let roomFocusObserver: MutationObserver | undefined;
-    let roomFocusObserverTimeoutId: ReturnType<typeof setTimeout> | undefined;
-    let roomFocusResizeCleanup: (() => void) | undefined;
-    let allowObserverPaginationHandoff = true;
-    const focusEventId = focusItem?.eventId;
-    const focusIndex =
-      !threadId && focusItem
-        ? getFocusedRoomEventIndex(threadFilteredEventsRef.current, focusEventId, focusItem.index)
-        : focusItem?.index ?? 0;
-    const focusItemCount = threadFilteredEventsRef.current.length;
-    const focusScrollToItemOptions = getRoomFocusScrollToItemOptions(focusIndex, focusItemCount);
-    const focusScrollOptions = getRoomFocusScrollOptions(focusIndex, focusItemCount);
-
-    const clearPendingRoomFocus = (resumePagination: boolean) => {
-      roomFocusObserver?.disconnect();
-      roomFocusObserver = undefined;
-
-      if (roomFocusObserverTimeoutId !== undefined) {
-        clearTimeout(roomFocusObserverTimeoutId);
-        roomFocusObserverTimeoutId = undefined;
-      }
-
-      if (pendingRoomFocusRef.current?.eventId === focusEventId) {
-        pendingRoomFocusRef.current = undefined;
-      }
-
-      suppressFocusPaginationRef.current = false;
-
-      if (resumePagination) {
-        retryPagination({
-          preserveAnchorIndex: focusIndex,
-        });
-      }
-    };
-
-    const startRoomFocusObserver = (target: HTMLElement) => {
-      const scrollContainer = scrollRef.current;
-      if (!scrollContainer) {
-        clearPendingRoomFocus(true);
-        return;
-      }
-
-      roomFocusResizeCleanup = setupFocusObserver({
-        scrollContainer,
-        target,
-        onRecenter: () => {
-          scrollToElement(target, focusScrollOptions);
-        },
-        onDone: () => {
-          roomFocusResizeCleanup = undefined;
-          if (!allowObserverPaginationHandoff) return;
-          clearPendingRoomFocus(true);
-        },
-        idleMs: ROOM_FOCUS_OBSERVER_IDLE_MS,
-        hardMs: ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS,
-      });
-    };
-
-    if (!threadId && focusItem && focusItem.scrollTo) {
-      suppressFocusPaginationRef.current = true;
-
-      scrollToItem(focusIndex, focusScrollToItemOptions);
-      const target = focusEventId ? getEventElementById(scrollRef.current, focusEventId) : null;
-
-      if (target) {
-        scrollToElement(target, focusScrollOptions);
-        startRoomFocusObserver(target);
-      } else if (focusEventId && scrollRef.current && typeof MutationObserver !== 'undefined') {
-        pendingRoomFocusRef.current = {
-          eventId: focusEventId,
-        };
-        roomFocusObserver = new MutationObserver(() => {
-          if (!alive()) {
-            clearPendingRoomFocus(false);
-            return;
-          }
-
-          if (pendingRoomFocusRef.current?.eventId !== focusEventId) return;
-
-          const observedTarget = getEventElementById(scrollRef.current, focusEventId);
-          if (!observedTarget) return;
-
-          scrollToElement(observedTarget, focusScrollOptions);
-          roomFocusObserver?.disconnect();
-          roomFocusObserver = undefined;
-          if (roomFocusObserverTimeoutId !== undefined) {
-            clearTimeout(roomFocusObserverTimeoutId);
-            roomFocusObserverTimeoutId = undefined;
-          }
-          startRoomFocusObserver(observedTarget);
-        });
-        roomFocusObserver.observe(scrollRef.current, {
-          childList: true,
-          subtree: true,
-        });
-        roomFocusObserverTimeoutId = setTimeout(() => {
-          if (pendingRoomFocusRef.current?.eventId !== focusEventId) return;
-          clearPendingRoomFocus(false);
-        }, ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS);
-      } else {
-        pendingRoomFocusRef.current = undefined;
-        suppressFocusPaginationRef.current = false;
-      }
-    } else {
-      pendingRoomFocusRef.current = undefined;
-      suppressFocusPaginationRef.current = false;
-    }
-
-    if (focusItem) {
-      clearFocusTimeoutId = setTimeout(() => {
-        if (!alive()) return;
-        setFocusItem((currentItem) => {
-          if (currentItem === focusItem) return undefined;
-          return currentItem;
-        });
-      }, 2000);
-    }
-
-    return () => {
-      allowObserverPaginationHandoff = false;
-      roomFocusResizeCleanup?.();
-      roomFocusResizeCleanup = undefined;
-      clearPendingRoomFocus(false);
-      if (clearFocusTimeoutId !== undefined) {
-        clearTimeout(clearFocusTimeoutId);
-      }
-    };
-  }, [
+  useRoomFocusScrollController({
     alive,
+    atBottomAnchorRef,
+    editId,
     focusItem,
+    focusScrollResetToken: effectiveThreadFilterState,
+    pendingThreadOpenRef,
+    pendingThreadOpenTick,
+    restorePendingThreadBackPaginationAnchor,
     retryPagination,
+    roomId: room.roomId,
+    scrollRef,
+    scrollToBottomRef,
     scrollToElement,
     scrollToItem,
-    effectiveThreadFilterState,
+    setAtBottom,
+    setFocusItem,
+    setPendingThreadOpenTick,
+    suppressFocusPaginationRef,
+    threadEventIndexMapRef,
+    threadEventsLength: threadEvents.length,
+    threadFilteredEvents,
+    threadFilteredEventsRef,
     threadId,
-  ]);
-
-  useLayoutEffect(() => {
-    if (!threadId) return;
-    if (
-      !shouldPinThreadToBottomOnOpen({
-        threadId,
-        threadLatestOpenPending,
-        threadInitialRenderMode,
-        threadEventCount: threadEvents.length,
-      })
-    ) {
-      return;
-    }
-    const scrollEl = scrollRef.current;
-    if (!scrollEl) return;
-    scrollToBottom(scrollEl, 'instant');
-    setAtBottom(true);
-  }, [threadEvents.length, threadId, threadInitialRenderMode, threadLatestOpenPending]);
-
-  useLayoutEffect(() => {
-    if (!threadId) return;
-    const pendingOpen = pendingThreadOpenRef.current;
-    if (!pendingOpen) return;
-    if (pendingOpen.threadId !== threadId) {
-      pendingThreadOpenRef.current = undefined;
-      return;
-    }
-
-    const nextItemIndex = threadEventIndexMapRef.current.get(pendingOpen.eventId);
-    if (typeof nextItemIndex === 'number') {
-      setFocusItem({
-        eventId: pendingOpen.eventId,
-        index: nextItemIndex,
-        scrollTo: false,
-        highlight: pendingOpen.highlight,
-      });
-    }
-    const target = getEventElementById(scrollRef.current, pendingOpen.eventId);
-    if (target) {
-      scrollToElement(target, {
-        behavior: 'smooth',
-        align: 'center',
-        stopInView: true,
-      });
-      if (pendingOpen.onScroll) pendingOpen.onScroll(true);
-      pendingThreadOpenRef.current = undefined;
-      return;
-    }
-
-    if (pendingOpen.attempts >= 2) {
-      if (pendingOpen.onScroll) pendingOpen.onScroll(false);
-      pendingThreadOpenRef.current = undefined;
-      return;
-    }
-
-    pendingThreadOpenRef.current = {
-      ...pendingOpen,
-      attempts: pendingOpen.attempts + 1,
-    };
-    requestAnimationFrame(() => {
-      if (!pendingThreadOpenRef.current) return;
-      setPendingThreadOpenTick((val) => val + 1);
-    });
-  }, [threadId, threadTimelineTick, pendingThreadOpenTick, scrollToElement]);
-
-  // scroll to bottom of timeline
-  const scrollToBottomCount = scrollToBottomRef.current.count;
-  useLayoutEffect(() => {
-    if (scrollToBottomCount > 0) {
-      const scrollEl = scrollRef.current;
-      if (scrollEl)
-        scrollToBottom(scrollEl, scrollToBottomRef.current.smooth ? 'smooth' : 'instant');
-    }
-  }, [scrollToBottomCount]);
-
-  useLayoutEffect(() => {
-    restorePendingThreadBackPaginationAnchor(scrollRef.current, threadId);
-  }, [restorePendingThreadBackPaginationAnchor, threadEvents.length, threadId, threadTimelineTick]);
+    threadInitialRenderMode,
+    threadLatestOpenPending,
+    threadTimelineTick,
+    timelineAtLiveEnd,
+    unreadInfo,
+    unreadScrollAnchorIndex,
+  });
 
   // Remove unreadInfo on mark as read
   useEffect(() => {
@@ -1480,34 +1230,6 @@ export function RoomTimeline({
       setUnreadInfo(undefined);
     }
   }, [unread]);
-
-  // scroll out of view msg editor in view.
-  useEffect(() => {
-    if (editId) {
-      const editMsgElement = getEventElementById(scrollRef.current, editId) ?? undefined;
-      if (editMsgElement) {
-        scrollToElement(editMsgElement, {
-          align: 'center',
-          behavior: 'smooth',
-          stopInView: true,
-        });
-      }
-    }
-  }, [scrollToElement, editId]);
-
-  useEffect(() => {
-    if (!timelineAtLiveEnd) {
-      setAtBottom(false);
-    } else {
-      // Recovery: when timelineAtLiveEnd becomes true and the bottom anchor
-      // is already visible, restore atBottom so the jump-to-latest button hides.
-      const anchor = atBottomAnchorRef.current;
-      const scroll = scrollRef.current;
-      if (anchor && scroll && isAnchorVisibleInScroll(anchor, scroll)) {
-        setAtBottom(true);
-      }
-    }
-  }, [timelineAtLiveEnd]);
 
   const handleJumpToLatest = useCallback(async () => {
     if (threadId) {
