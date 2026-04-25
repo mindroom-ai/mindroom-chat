@@ -131,6 +131,10 @@ Completed in the 2026-04-25 cleanup pass:
   `src/app/features/room/RoomInput.tsx` path is now only a compatibility re-export, so command
   autocomplete, thread reply context, voice recording, and auto-thread send-session work stays in
   the MindRoom room-input namespace.
+- Room-view implementation lives under `src/app/mindroom/threads/MindroomRoomView.tsx`. The old
+  generic `src/app/features/room/RoomView.tsx` path is now only a compatibility re-export, so
+  thread state, banner/timeline/composer wiring, and room-level iOS keyboard handling stay in the
+  MindRoom thread namespace.
 
 Remaining queue:
 
