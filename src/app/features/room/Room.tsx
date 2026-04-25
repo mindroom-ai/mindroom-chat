@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Box, Line } from 'folds';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { isKeyHotkey } from 'is-hotkey';
@@ -19,13 +19,7 @@ import { RoomViewHeader } from './RoomViewHeader';
 import { callChatAtom } from '../../state/callEmbed';
 import { CallChatView } from './CallChatView';
 import { getRoomSearchParams } from '../../pages/pathSearchParam';
-import {
-  clearLastOpenThread,
-  getLastOpenThread,
-  setLastOpenThread,
-} from '../../mindroom/threads/lastOpenThread';
-import { removeRecentThread } from '../../mindroom/recent-threads/recentThreads';
-import { useRoomNavigate } from '../../hooks/useRoomNavigate';
+import { useRoomThreadRouteRestore } from '../../mindroom/threads/useRoomThreadRouteRestore';
 
 export function Room() {
   const { eventId } = useParams();
@@ -41,11 +35,11 @@ export function Room() {
   const powerLevels = usePowerLevels(room);
   const members = useRoomMembers(mx, room.roomId);
   const chat = useAtomValue(callChatAtom);
-  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
-  const previousRoomIdRef = useRef(room.roomId);
-  const previousThreadIdRef = useRef<string | undefined>(threadId);
-  const attemptedRestoreRef = useRef<string>();
-  const autoRestoredThreadIdRef = useRef<string>();
+  const handleThreadLoadError = useRoomThreadRouteRestore({
+    eventId,
+    roomId: room.roomId,
+    threadId,
+  });
 
   useKeyDown(
     window,
@@ -64,54 +58,6 @@ export function Room() {
   );
 
   const callView = room.isCallRoom();
-
-  useEffect(() => {
-    if (!threadId) return;
-    setLastOpenThread(room.roomId, threadId);
-  }, [room.roomId, threadId]);
-
-  useEffect(() => {
-    const previousRoomId = previousRoomIdRef.current;
-    const previousThreadId = previousThreadIdRef.current;
-
-    if (previousRoomId === room.roomId && previousThreadId && !threadId) {
-      clearLastOpenThread(room.roomId);
-      if (autoRestoredThreadIdRef.current === previousThreadId) {
-        autoRestoredThreadIdRef.current = undefined;
-      }
-    }
-
-    previousRoomIdRef.current = room.roomId;
-    previousThreadIdRef.current = threadId;
-  }, [room.roomId, threadId]);
-
-  useEffect(() => {
-    if (threadId || eventId) return;
-
-    const savedThreadId = getLastOpenThread(room.roomId);
-    if (!savedThreadId) return;
-
-    const restoreKey = `${room.roomId}|${savedThreadId}`;
-    if (attemptedRestoreRef.current === restoreKey) return;
-
-    attemptedRestoreRef.current = restoreKey;
-    autoRestoredThreadIdRef.current = savedThreadId;
-    navigateRoomThread(room.roomId, savedThreadId, undefined, { replace: true });
-  }, [eventId, navigateRoomThread, room.roomId, threadId]);
-
-  const handleThreadLoadError = useCallback(
-    (failedThreadId: string) => {
-      if (getLastOpenThread(room.roomId) === failedThreadId) {
-        clearLastOpenThread(room.roomId);
-      }
-      removeRecentThread(room.roomId, failedThreadId);
-      if (autoRestoredThreadIdRef.current !== failedThreadId) return;
-
-      autoRestoredThreadIdRef.current = undefined;
-      navigateRoom(room.roomId, undefined, { replace: true });
-    },
-    [navigateRoom, room.roomId]
-  );
 
   return (
     <PowerLevelsContextProvider value={powerLevels}>

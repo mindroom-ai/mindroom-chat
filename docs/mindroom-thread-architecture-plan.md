@@ -334,7 +334,9 @@ Jump-to-latest, jump-to-unread, thread badge opens, compact-card opens, and rece
 live in `src/app/mindroom/threads/roomTimelineNavigationController.ts`. Startup restore target
 selection for last-open-thread state now lives in
 `src/app/mindroom/routing/clientRouteRestore.ts`, so generic client layout code no longer reads
-last-open-thread storage directly.
+last-open-thread storage directly. Room-route last-open-thread persistence, auto-restore, and
+failed-thread cleanup live in `src/app/mindroom/threads/useRoomThreadRouteRestore.ts`, so generic
+room routing no longer mutates last-open-thread or recent-thread storage directly.
 The room-visible seed-prewarm queue, generation guard, and in-flight promise tracking now live in
 `src/app/mindroom/threads/threadSeedPrewarmController.ts`.
 The cached thread snapshot read used to prewarm thread-open seeds also lives in that controller now,
