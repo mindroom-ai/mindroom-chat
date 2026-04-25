@@ -187,6 +187,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../pages/client/ClientLayout.tsx', import.meta.url),
       'utf8'
     );
+    const routeRestoreSource = readFileSync(
+      new URL('../../mindroom/routing/clientRouteRestore.ts', import.meta.url),
+      'utf8'
+    );
     const sessionCleanupSource = readFileSync(
       new URL('../../mindroom/cache/sessionCleanup.ts', import.meta.url),
       'utf8'
@@ -203,7 +207,10 @@ describe('RoomTimeline architecture', () => {
     expect(clientStorageImplementationSource).toContain('registerLastOpenThreadAtom');
     expect(clientStorageImplementationSource).toContain('registerRecentThreadsAtom');
     expect(roomSource).toContain("from '../../mindroom/threads/lastOpenThread'");
-    expect(clientLayoutSource).toContain("from '../../mindroom/threads/lastOpenThread'");
+    expect(clientLayoutSource).not.toContain("from '../../mindroom/threads/lastOpenThread'");
+    expect(clientLayoutSource).toContain('getLastOpenThreadRestoreTarget');
+    expect(routeRestoreSource).toContain("from '../threads/lastOpenThread'");
+    expect(routeRestoreSource).toContain('getLastOpenThreadRestoreTarget');
     expect(sessionCleanupSource).toContain("from '../threads/lastOpenThread'");
     expect(initMatrixSource).not.toContain("from '../app/state/lastOpenThread'");
   });
