@@ -316,9 +316,12 @@ and SDK backward-token reconciliation now live in
 Thread-open post-bootstrap refresh, including untargeted latest-slice refresh and targeted
 permalink/search relation refresh, now lives in
 `src/app/mindroom/threads/threadOpenPostBootstrapRefresh.ts`.
+Thread-open cache-first flow, including cache hydrate fallback, complete-cache short-circuit,
+relation-backfill dispatch, and initial untargeted seed fallback, now lives in
+`src/app/mindroom/threads/threadOpenCacheFirst.ts`.
 Thread-open cache hydration, latest-slice refresh, relation backfill, and cached relation-tail
 refresh now live in `src/app/mindroom/threads/threadOpenCacheController.ts`; `RoomTimeline` decides
-when to dispatch these commands but no longer owns their cache/network policy.
+when to open a thread route but no longer owns their cache/network policy.
 Overview resume refresh throttling, compact/expanded thread-list refresh, relation-cache refresh,
 summary write-through, and `usePageResume` hookup now live in
 `src/app/mindroom/threads/threadOverviewResumeController.ts`.
@@ -340,9 +343,9 @@ Thread-message edit backfill now lives in
 a compatibility re-export for existing tests/importers.
 Thread cache coverage now includes backward-gap, snapshot-complete, relation-complete, and tail-loaded
 facts, and `RoomTimeline` consumes fork-owned coverage decisions for "Load Older Messages",
-complete cached opens, and relation backfill. The remaining ownership gap is that the thread-open
-effect still coordinates route-specific render/scroll state in `RoomTimeline`, even though the cache
-and network commands have moved behind fork-owned helpers.
+complete cached opens, and relation backfill. The remaining ownership gap is route-specific
+target-event context loading and pending scroll setup, which still belongs to `RoomTimeline` until
+the route/scroll seam is extracted.
 Thread back/front pagination commands now live in
 `src/app/mindroom/threads/threadPaginationCommandController.ts`; `RoomTimeline` only wires the
 returned handlers into the load-older/load-newer buttons.
