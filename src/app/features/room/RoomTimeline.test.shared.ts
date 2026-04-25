@@ -19,7 +19,7 @@ import {
   clearThreadOpenSeedSnapshotsForTests,
   getThreadOpenSeedSnapshot,
   saveThreadOpenSeedSnapshot,
-} from './threadOpenSeedCache';
+} from '../../mindroom/threads/threadOpenSeedCache';
 
 const {
   passthrough,
