@@ -244,7 +244,6 @@ import {
   findEarliestLoadedThreadReplyByCacheOrder,
   reconcileThreadBackwardPagination,
 } from './threadPaginationUtils';
-import { hydrateCachedEvents } from './eventCacheEditUtils';
 import {
   getEventElementById,
   isScrollNearBottom,
@@ -253,11 +252,9 @@ import {
   shouldAutoScrollThreadOnLiveEvent,
 } from './timelineScrollUtils';
 import { useRoomThreadResolutionMap } from './useRoomThreadTags';
-import { getThreadOpenSeedSnapshot } from '../../mindroom/threads/threadOpenSeedCache';
 import { isPendingLocalEchoThreadRoot } from './threadRouteUtils';
 import { useRoomEagerPreload } from '../../mindroom/threads/preloadController';
 import { useThreadBackPaginationController } from '../../mindroom/threads/threadBackPaginationController';
-import { mergeThreadBackfillEvents } from '../../mindroom/threads/threadCacheSnapshot';
 import {
   buildThreadCacheCoverage,
   hasUsableThreadCacheSnapshot,
@@ -270,12 +267,11 @@ import {
   fetchAllThreadRelations,
   getLoadedRoomThreadEvents,
   getLoadedRoomThreadSeedEvents,
-  getLoadedThreadModelSeedEvents,
   isThreadNotFoundError,
   MAX_THREAD_FETCH_EVENTS,
   shouldRefreshOverviewForTimelineEvent,
-  THREAD_OPEN_PREWARM_WAIT_MS,
 } from '../../mindroom/threads/threadBootstrap';
+import { createThreadOpenSeedSession } from '../../mindroom/threads/threadOpenSeedController';
 import { useThreadSeedPrewarmController } from '../../mindroom/threads/threadSeedPrewarmController';
 import { useThreadOpenCacheController } from '../../mindroom/threads/threadOpenCacheController';
 import { useThreadOverviewResumeController } from '../../mindroom/threads/threadOverviewResumeController';
@@ -2922,134 +2918,25 @@ export function RoomTimeline({
     resetThreadBackPagination();
     resetThreadRenderState(threadId);
     const shouldScrollToLatestOnOpen = !eventId;
-    const initialRoomThreadEvents = getLoadedRoomThreadEvents(room, threadId);
-    const hasInitialRoomThreadVisibleEvents = initialRoomThreadEvents.length > 0;
-    const initialThreadMemorySeedEvents = shouldScrollToLatestOnOpen
-      ? getThreadOpenSeedSnapshot(room, threadId)
-      : [];
-    const initialThreadModelSeedEvents = shouldScrollToLatestOnOpen
-      ? getLoadedThreadModelSeedEvents(room, threadId)
-      : [];
-    const initialRoomThreadSeedEvents = hasInitialRoomThreadVisibleEvents
-      ? getLoadedRoomThreadSeedEvents(room, threadId)
-      : [];
-    const buildUntargetedThreadSeedEvents = (memorySeedEvents: MatrixEvent[]) =>
-      shouldScrollToLatestOnOpen
-        ? mergeThreadBackfillEvents(
-            memorySeedEvents,
-            mergeThreadBackfillEvents(initialThreadModelSeedEvents, initialRoomThreadSeedEvents)
-          )
-        : [];
-    const initialUntargetedThreadSeedEvents = buildUntargetedThreadSeedEvents(
-      initialThreadMemorySeedEvents
-    );
-    logTimelineDebug(threadDebugTraceId, 'thread-open-seed-scan', {
-      localThreadMemorySeedCount: initialThreadMemorySeedEvents.length,
-      localThreadModelSeedCount: initialThreadModelSeedEvents.length,
-      mergedSeedVisibleCount: initialUntargetedThreadSeedEvents.filter(
-        (mEvent) => !reactionOrEditEvent(mEvent) && !mEvent.isRedaction()
-      ).length,
-      mergedSeedCount: initialUntargetedThreadSeedEvents.length,
-      seedRelationCount: Math.max(
-        0,
-        initialRoomThreadSeedEvents.length - initialRoomThreadEvents.length
-      ),
-      seedVisibleCount: initialRoomThreadEvents.length,
+    const threadOpenSeedSession = createThreadOpenSeedSession({
+      debugTraceId: threadDebugTraceId,
+      ensureThreadSeedPrewarm,
+      prewarmedThreadSeedIdsRef,
+      prewarmingThreadSeedIdsRef,
+      queuedThreadSeedIdsRef,
+      prewarmingThreadSeedPromisesRef,
+      room,
+      roomTimelineSet,
+      setSupplementalThreadEvents,
+      shouldScrollToLatestOnOpen,
       threadId,
     });
-    let untargetedThreadSeedApplied = false;
-    let untargetedThreadSeedFallbackTimeout: ReturnType<typeof setTimeout> | undefined;
-    const shouldAwaitRoomPrewarm =
-      shouldScrollToLatestOnOpen &&
-      (prewarmedThreadSeedIdsRef.current.has(threadId) ||
-        prewarmingThreadSeedIdsRef.current.has(threadId) ||
-        queuedThreadSeedIdsRef.current.has(threadId));
-    const threadSeedPrewarmPromise = shouldAwaitRoomPrewarm
-      ? prewarmingThreadSeedPromisesRef.current.get(threadId) ??
-        ensureThreadSeedPrewarm(threadId, {
-          allowWhileThreadOpen: true,
-          logPrefix: 'thread-open-room-prewarm',
-          traceId: threadDebugTraceId,
-        })
-      : undefined;
-    const applyInitialUntargetedThreadSeed = (
-      memorySeedEvents: MatrixEvent[],
-      source: 'initial' | 'room-prewarm'
-    ): boolean => {
-      if (untargetedThreadSeedApplied) return true;
-      if (hasInitialRoomThreadVisibleEvents) {
-        hydrateCachedEvents({
-          room,
-          events: initialRoomThreadSeedEvents,
-          timelineSets: [roomTimelineSet],
-        });
-      }
-      const nextUntargetedThreadSeedEvents = buildUntargetedThreadSeedEvents(memorySeedEvents);
-      if (nextUntargetedThreadSeedEvents.length === 0) return false;
-      untargetedThreadSeedApplied = true;
-      setSupplementalThreadEvents(threadId, nextUntargetedThreadSeedEvents);
-      logTimelineDebug(threadDebugTraceId, 'thread-open-live-seed-applied', {
-        memorySeedCount: memorySeedEvents.length,
-        modelSeedVisibleCount: initialThreadModelSeedEvents.length,
-        roomSeedVisibleCount: initialRoomThreadEvents.length,
-        seedCount: nextUntargetedThreadSeedEvents.length,
-        source,
-        threadId,
-      });
-      return true;
-    };
-    const applyInitialRoomThreadSeed = () => {
-      if (!hasInitialRoomThreadVisibleEvents) return;
-      hydrateCachedEvents({
-        room,
-        events: initialRoomThreadSeedEvents,
-        timelineSets: [roomTimelineSet],
-      });
-      setSupplementalThreadEvents(threadId, initialRoomThreadEvents);
-      logTimelineDebug(threadDebugTraceId, 'thread-open-seed-applied', {
-        seedRelationCount: Math.max(
-          0,
-          initialRoomThreadSeedEvents.length - initialRoomThreadEvents.length
-        ),
-        seedVisibleCount: initialRoomThreadEvents.length,
-        threadId,
-      });
-    };
     let mounted = true;
-    if (shouldScrollToLatestOnOpen) {
-      const maybeApplyPrewarmedUntargetedThreadSeed = () => {
-        const prewarmedMemorySeedEvents = getThreadOpenSeedSnapshot(room, threadId);
-        if (prewarmedMemorySeedEvents.length > initialThreadMemorySeedEvents.length) {
-          return applyInitialUntargetedThreadSeed(prewarmedMemorySeedEvents, 'room-prewarm');
-        }
-        return false;
-      };
-      if (threadSeedPrewarmPromise) {
-        logTimelineDebug(threadDebugTraceId, 'thread-open-awaiting-room-prewarm', {
-          threadId,
-        });
-        untargetedThreadSeedFallbackTimeout = setTimeout(() => {
-          if (!mounted || threadIdRef.current !== threadId) return;
-          if (maybeApplyPrewarmedUntargetedThreadSeed()) return;
-          applyInitialUntargetedThreadSeed(initialThreadMemorySeedEvents, 'initial');
-        }, THREAD_OPEN_PREWARM_WAIT_MS);
-        void threadSeedPrewarmPromise.finally(() => {
-          if (untargetedThreadSeedFallbackTimeout !== undefined) {
-            clearTimeout(untargetedThreadSeedFallbackTimeout);
-            untargetedThreadSeedFallbackTimeout = undefined;
-          }
-          if (!mounted || threadIdRef.current !== threadId) return;
-          if (maybeApplyPrewarmedUntargetedThreadSeed()) return;
-          applyInitialUntargetedThreadSeed(initialThreadMemorySeedEvents, 'initial');
-        });
-      } else {
-        if (!maybeApplyPrewarmedUntargetedThreadSeed()) {
-          applyInitialUntargetedThreadSeed(initialThreadMemorySeedEvents, 'initial');
-        }
-      }
-    }
+    threadOpenSeedSession.startUntargetedSeedPrewarmWait(
+      () => mounted && threadIdRef.current === threadId
+    );
     if (!shouldScrollToLatestOnOpen) {
-      applyInitialRoomThreadSeed();
+      threadOpenSeedSession.applyInitialRoomThreadSeed();
     }
     setThreadLatestOpenPending(shouldScrollToLatestOnOpen);
     const loadThreadTimeline = async () => {
@@ -3082,7 +2969,7 @@ export function RoomTimeline({
             rootPresent: !!hydratedCachedPage.rootEvent,
           });
         if (shouldScrollToLatestOnOpen && !cachedThreadHasLocalSnapshot) {
-          applyInitialUntargetedThreadSeed(initialThreadMemorySeedEvents, 'initial');
+          threadOpenSeedSession.applyInitialUntargetedThreadSeed();
         }
         setThreadInitialCacheHydrated(true);
         const hasCompleteCachedThreadSnapshot =
@@ -3137,9 +3024,7 @@ export function RoomTimeline({
             mapEvent: (rawEvent) => mapper(rawEvent),
           });
           const baselineBackfillEvents =
-            initialRoomThreadSeedEvents.length > 0
-              ? mergeThreadBackfillEvents(cachedSnapshotEvents, initialRoomThreadSeedEvents)
-              : cachedSnapshotEvents;
+            threadOpenSeedSession.mergeWithInitialRoomThreadSeedEvents(cachedSnapshotEvents);
           const relationBackfill = await backfillThreadRelationsIntoCache(
             threadId,
             hydratedCachedPage.rootEvent,
@@ -3476,9 +3361,7 @@ export function RoomTimeline({
 
     return () => {
       mounted = false;
-      if (untargetedThreadSeedFallbackTimeout !== undefined) {
-        clearTimeout(untargetedThreadSeedFallbackTimeout);
-      }
+      threadOpenSeedSession.cleanup();
     };
   }, [
     ensureThreadSeedPrewarm,
