@@ -11,7 +11,7 @@ import {
 import {
   clearThreadSummarySharedState,
   useThreadSummaryStateMap,
-} from './threadSummaryState';
+} from './threadSummaryStore';
 import { useRoomName } from '../../hooks/useRoomMeta';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { buildThreadRecord } from './threadRecord';

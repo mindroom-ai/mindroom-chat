@@ -103,6 +103,9 @@
 - `CINNY-135`
   - Timeline-specific MindRoom message policy now lives behind `src/app/mindroom/threads/roomTimelineMessageExtensions.tsx`.
   - Generic `RoomTimeline` no longer imports low-level tool-approval render helpers or thread-badge record builders directly.
+- `CINNY-136`
+  - Added `src/app/mindroom/threads/threadSummaryStore.ts` as the public summary cache/state boundary.
+  - Production callers now consume summary cache deletion, shared summary state, and room-view summary hooks through that store instead of selecting individual cache/state modules directly.
 
 ### Current Feature Set On `dev`
 

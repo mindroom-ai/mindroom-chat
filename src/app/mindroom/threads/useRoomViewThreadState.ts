@@ -35,7 +35,7 @@ import {
   parseThreadFilterQuery,
   serializeThreadFilterQuery,
 } from './threadFilterDsl';
-import { useRoomThreadSummaryState } from './useRoomThreadSummaryState';
+import { useRoomThreadSummaryState } from './threadSummaryStore';
 import { useThreadRootEvent } from './useThreadRootEvent';
 
 type UseRoomViewThreadStateOptions = {

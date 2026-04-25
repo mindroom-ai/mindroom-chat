@@ -10,7 +10,7 @@ import { clearRecentThreadViewModelSharedState } from '../threads/recentThreadVi
 import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
 import { deleteRoomEventCache, getRoomEventCacheDbName } from '../threads/roomEventCache';
 import { deleteThreadEventCache, getThreadEventCacheDbName } from '../threads/threadEventCache';
-import { deleteThreadSummaryCache } from '../threads/threadSummaryCache';
+import { deleteThreadSummaryCache } from '../threads/threadSummaryStore';
 import {
   MINDROOM_OWNED_LOCAL_STORAGE_KEYS,
   MINDROOM_OWNED_LOCAL_STORAGE_PREFIXES,
@@ -67,7 +67,7 @@ vi.mock('../threads/threadEventCache', () => ({
   getThreadEventCacheDbName: vi.fn((sessionId: string) => `thread-cache::${sessionId}`),
 }));
 
-vi.mock('../threads/threadSummaryCache', () => ({
+vi.mock('../threads/threadSummaryStore', () => ({
   deleteThreadSummaryCache: vi.fn().mockResolvedValue(undefined),
 }));
 
