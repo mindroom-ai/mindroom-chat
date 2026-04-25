@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 describe('RoomTimeline architecture', () => {
@@ -953,42 +953,19 @@ describe('RoomTimeline architecture', () => {
       new URL('../../components/message/MsgTypeRenderers.tsx', import.meta.url),
       'utf8'
     );
-    const threadSummaryCompatibilitySource = readFileSync(
-      new URL('../../components/message/mindroomThreadSummary.ts', import.meta.url),
-      'utf8'
-    );
-    const toolApprovalCompatibilitySource = readFileSync(
-      new URL('../../components/message/mindroomToolApproval.ts', import.meta.url),
-      'utf8'
-    );
-    const toolApprovalCardCompatibilitySource = readFileSync(
-      new URL('../../components/message/MindroomToolApprovalCard.tsx', import.meta.url),
-      'utf8'
-    );
-    const aiRunCompatibilitySource = readFileSync(
-      new URL('../../components/message/mindroomAiRun.ts', import.meta.url),
-      'utf8'
-    );
-    const aiRunDisplayCompatibilitySource = readFileSync(
-      new URL('../../components/message/mindroomAiRunDisplay.ts', import.meta.url),
-      'utf8'
-    );
-    const blocksCompatibilitySource = readFileSync(
-      new URL('../../components/message/mindroomBlocks.ts', import.meta.url),
-      'utf8'
-    );
-    const longTextCompatibilitySource = readFileSync(
-      new URL('../../components/message/mindroomLongText.ts', import.meta.url),
-      'utf8'
-    );
-    const longTextTextCompatibilitySource = readFileSync(
-      new URL('../../components/message/MindroomLongTextText.tsx', import.meta.url),
-      'utf8'
-    );
-    const toolTraceCompatibilitySource = readFileSync(
-      new URL('../../components/message/mindroomToolTrace.ts', import.meta.url),
-      'utf8'
-    );
+    const removedMessageCompatibilityPaths = [
+      '../../components/message/mindroomThreadSummary.ts',
+      '../../components/message/mindroomToolApproval.ts',
+      '../../components/message/MindroomToolApprovalCard.tsx',
+      '../../components/message/MindroomToolApprovalCard.css.ts',
+      '../../components/message/mindroomAiRun.ts',
+      '../../components/message/mindroomAiRunDisplay.ts',
+      '../../components/message/mindroomBlocks.ts',
+      '../../components/message/mindroomLongText.ts',
+      '../../components/message/MindroomLongTextText.tsx',
+      '../../components/message/mindroomThreadSummaryCard.css.ts',
+      '../../components/message/mindroomToolTrace.ts',
+    ];
     const roomMessageSource = readFileSync(
       new URL('./message/Message.tsx', import.meta.url),
       'utf8'
@@ -1139,33 +1116,9 @@ describe('RoomTimeline architecture', () => {
       "from '../../mindroom/messages/MindroomThreadSummaryCard'"
     );
     expect(msgTypeRenderersSource).not.toContain('function MindroomThreadSummaryCard');
-    expect(threadSummaryCompatibilitySource.trim()).toBe(
-      "export * from '../../mindroom/messages/threadSummary';"
-    );
-    expect(toolApprovalCompatibilitySource.trim()).toBe(
-      "export * from '../../mindroom/messages/toolApproval';"
-    );
-    expect(toolApprovalCardCompatibilitySource.trim()).toBe(
-      "export { MindroomToolApprovalCard } from '../../mindroom/messages/MindroomToolApprovalCard';"
-    );
-    expect(aiRunCompatibilitySource.trim()).toBe(
-      "export * from '../../mindroom/messages/aiRun';"
-    );
-    expect(aiRunDisplayCompatibilitySource.trim()).toBe(
-      "export * from '../../mindroom/messages/aiRunDisplay';"
-    );
-    expect(blocksCompatibilitySource.trim()).toBe(
-      "export * from '../../mindroom/messages/blocks';"
-    );
-    expect(longTextCompatibilitySource.trim()).toBe(
-      "export * from '../../mindroom/messages/longText';"
-    );
-    expect(longTextTextCompatibilitySource.trim()).toBe(
-      "export * from '../../mindroom/messages/MindroomLongTextText';"
-    );
-    expect(toolTraceCompatibilitySource.trim()).toBe(
-      "export * from '../../mindroom/messages/toolTrace';"
-    );
+    removedMessageCompatibilityPaths.forEach((path) => {
+      expect(existsSync(new URL(path, import.meta.url))).toBe(false);
+    });
     expect(threadSummarySource).toContain('THREAD_SUMMARY_METADATA_KEY');
     expect(toolApprovalSource).toContain('MINDROOM_TOOL_APPROVAL_EVENT');
     expect(aiRunSource).toContain('AI_RUN_METADATA_KEY');

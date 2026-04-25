@@ -109,6 +109,9 @@
 - `CINNY-137`
   - Added `src/app/mindroom/messages/editResolution.ts` as the public MindRoom edit-resolution boundary.
   - Generic room edit resolution now imports one MindRoom edit seam instead of individual debug and metadata helpers.
+- `CINNY-138`
+  - Removed obsolete `src/app/components/message/mindroom*` compatibility wrappers after production callers moved to MindRoom-owned message modules.
+  - Pinned-message tool approval rendering now imports the MindRoom message owner directly instead of through a generic message wrapper.
 
 ### Current Feature Set On `dev`
 
