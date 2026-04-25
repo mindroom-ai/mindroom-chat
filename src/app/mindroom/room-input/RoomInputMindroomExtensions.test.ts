@@ -20,6 +20,10 @@ vi.mock('../threads/ThreadIndicator', () => ({
   ThreadIndicator: () => null,
 }));
 
+vi.mock('../voice/VoiceRecorderDialog', () => ({
+  VoiceRecorderComposer: () => null,
+}));
+
 const range = {
   anchor: { path: [0, 0], offset: 0 },
   focus: { path: [0, 0], offset: 1 },
