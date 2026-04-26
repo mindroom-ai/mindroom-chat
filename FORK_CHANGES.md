@@ -309,6 +309,10 @@
   - Cleaned low-risk lint noise after the architecture pass without changing product behavior.
   - Removed unused imports, fixed safe hook dependency declarations, made intentional MindRoom debug logging explicit, and dropped no-op missing-attribute warnings from timeline click handlers.
   - Left behavior-sensitive long-text and voice-recorder hook warnings for a dedicated follow-up instead of hiding them with broad disables.
+- `CINNY-200`
+  - Thread resolution writes now use `src/app/mindroom/threads/threadResolvableRoot.ts` to accept SDK thread roots and stable standalone zero-reply roots.
+  - Normal tag add/remove writes remain restricted to SDK-recognized thread roots.
+  - Focused tests cover resolving standalone zero-reply roots through both the thread banner mutation hook and the command-palette current-thread action.
 
 ### Current Feature Set On `dev`
 
