@@ -11,49 +11,59 @@ const resolveKnownRoomId = (
   return getCanonicalAliasRoomId(mx, roomIdOrAlias);
 };
 
+type AsyncRoomResolution = {
+  isResolving: boolean;
+  roomId?: string;
+  roomIdOrAlias: string;
+};
+
 export const useResolvedRoomIdOrAlias = (roomIdOrAlias: string | undefined) => {
   const mx = useMatrixClient();
   const knownRoomId = resolveKnownRoomId(mx, roomIdOrAlias);
-  const [resolvedRoomId, setResolvedRoomId] = useState<string | undefined>(knownRoomId);
-  const [isResolvingAlias, setIsResolvingAlias] = useState(
-    !!roomIdOrAlias && isRoomAlias(roomIdOrAlias) && !knownRoomId
-  );
+  const [asyncResolution, setAsyncResolution] = useState<AsyncRoomResolution>();
+  const currentAsyncResolution =
+    asyncResolution?.roomIdOrAlias === roomIdOrAlias ? asyncResolution : undefined;
+  const resolvedRoomId = knownRoomId ?? currentAsyncResolution?.roomId;
+  const isResolvingAlias =
+    !!roomIdOrAlias &&
+    isRoomAlias(roomIdOrAlias) &&
+    !knownRoomId &&
+    (currentAsyncResolution?.isResolving ?? true);
 
   useEffect(() => {
     if (!roomIdOrAlias) {
-      setResolvedRoomId(undefined);
-      setIsResolvingAlias(false);
+      setAsyncResolution((currentResolution) => (currentResolution ? undefined : currentResolution));
       return;
     }
 
-    if (!isRoomAlias(roomIdOrAlias)) {
-      setResolvedRoomId(roomIdOrAlias);
-      setIsResolvingAlias(false);
-      return;
-    }
-
-    if (knownRoomId) {
-      setResolvedRoomId(knownRoomId);
-      setIsResolvingAlias(false);
+    if (!isRoomAlias(roomIdOrAlias) || knownRoomId) {
+      setAsyncResolution((currentResolution) => (currentResolution ? undefined : currentResolution));
       return;
     }
 
     let disposed = false;
-    setResolvedRoomId(undefined);
-    setIsResolvingAlias(true);
+    setAsyncResolution({
+      isResolving: true,
+      roomId: undefined,
+      roomIdOrAlias,
+    });
 
     mx.getRoomIdForAlias(roomIdOrAlias)
       .then((aliasResponse) => {
         if (disposed) return;
-        setResolvedRoomId(aliasResponse.room_id);
+        setAsyncResolution({
+          isResolving: false,
+          roomId: aliasResponse.room_id,
+          roomIdOrAlias,
+        });
       })
       .catch(() => {
         if (disposed) return;
-        setResolvedRoomId(undefined);
-      })
-      .finally(() => {
-        if (disposed) return;
-        setIsResolvingAlias(false);
+        setAsyncResolution({
+          isResolving: false,
+          roomId: undefined,
+          roomIdOrAlias,
+        });
       });
 
     return () => {
