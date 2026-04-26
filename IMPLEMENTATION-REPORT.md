@@ -1,132 +1,135 @@
-# CINNY-089 Implementation Report
+# CINNY-094 Implementation Report
 
 ## Summary
 
-Implemented the compact ChatGPT/OpenAI-style voice note UI for recording and playback.
+Implemented rendering-only support for `com.mindroom.message_extras` on text-family room timeline messages. Normal body rendering stays on the existing Cinny paths, with optional extras inserted after the body and before URL previews. Invalid extras parse to `null` and do not affect body rendering.
 
-Recording now uses a composer capsule with only discard, live SVG waveform, active timer, pause/resume, and send. Playback now branches voice `m.audio` into a compact capsule with only play/pause, waveform progress/seek, and time. Generic non-voice audio stays on the existing player.
+## Rebase onto current dev
 
-R1 review fixes were committed in `4ddf61cedfea00db9cb002a8aadc21095d65ff90`.
-R2 cross-room lifecycle fixes were committed in `be6ca8cb3a949e0e7aa83bf23dd48507084e539f`.
-R3 compact voice race fixes were committed in `5cee523b736bd41c1dcc3ce69fb62d7c23542bf1`.
-
-The branch was rebased on 2026-04-25 onto current local `dev` at `87873f1c` (`Hide React Query Devtools by default`). The replayed conflict resolution kept the current MindRoom room-input extension and send-session controller seams, then reapplied compact voice context capture, direct voice auto-send, early pending ownership, keyed cross-room completion, and regular composer/upload-board duplicate guards through those seams.
-
-## Files Changed
-
-- Waveform utilities/UI:
-  - `src/app/utils/audioWaveform.ts`
-  - `src/app/utils/audioWaveform.test.ts`
-  - `src/app/components/voice/VoiceWaveform.tsx`
-  - `src/app/components/voice/VoiceWaveform.css.ts`
-  - `src/app/components/voice/VoiceWaveform.test.ts`
-- Recorder:
-  - `src/app/features/room/useVoiceRecorder.ts`
-  - `src/app/features/room/useVoiceRecorder.test.ts`
-  - `src/app/features/room/VoiceRecordingCapsule.tsx`
-  - `src/app/features/room/VoiceRecordingCapsule.css.ts`
-  - `src/app/features/room/VoiceRecordingCapsule.test.ts`
-  - `src/app/features/room/VoiceRecorderDialog.tsx`
-- Send/metadata:
-  - `src/app/features/room/RoomInput.tsx`
-  - `src/app/features/room/RoomInput.test.ts`
-  - `src/app/features/room/msgContent.test.ts`
-  - `src/app/state/room/roomInputDrafts.ts`
-  - `src/app/utils/voiceMessage.ts`
-  - `src/app/utils/voiceMessage.test.ts`
-- Playback:
-  - `src/app/components/message/content/useAudioContentSource.ts`
-  - `src/app/components/message/content/AudioContent.tsx`
-  - `src/app/components/message/content/VoiceAudioContent.tsx`
-  - `src/app/components/message/content/VoiceAudioContent.css.ts`
-  - `src/app/components/message/content/VoiceAudioContent.test.ts`
-  - `src/app/components/message/MsgTypeRenderers.tsx`
-  - `src/app/components/message/MsgTypeRenderers.audio.test.ts`
-  - `src/app/components/message/content/index.ts`
-- Test discovery/docs:
-  - `vitest.config.ts`
-  - `FORK_CHANGES.md`
-
-## Deviations From FINAL-PLAN.md
-
-- Added a tiny shared `useAudioContentSource` hook for the lazy media/decrypt/blob URL path. This avoids duplicating the existing `AudioContent` loading logic while keeping generic audio UI unchanged.
-- Added `src/app/components/message/content/AudioContent.test.tsx` to Vitest discovery so the existing generic audio regression test runs in full-suite discovery.
-- Did not add decoded waveform peaks or any runtime dependency. Playback uses Matrix waveform metadata first and deterministic fallback rendering second.
-
-## CINNY-052 Preservation
-
-Voice send context is captured when recording starts and stored in `RoomInput`.
-
-Tests cover:
-- thread A -> thread B -> send -> thread C upload completion sends to thread A,
-- room overview recording stays room-level after opening a thread,
-- pause/navigation/resume/send stays on the original thread,
-- cross-room navigation still sends to the recording-start room/thread,
-- waveform metadata passes through to upload metadata and Matrix voice details,
-- deferred voice send does not clear a newer reply draft.
-
-## R1 Review Fixes
-
-- Locked the recording-start voice send context so later mic/open attempts and repeated `onRecordingStart` calls cannot retarget an active recording.
-- Guarded the recorder state machine and UI so discard cannot clear a pending Send while MediaRecorder is still in `processing`.
-- Made waveform seek on unloaded voice messages load media, retain the pending seek, and apply it before first playback.
-- Preserved Matrix `m.audio.duration` when browser media duration is `NaN`, `Infinity`, or otherwise invalid.
-- Stopped an acquired mic stream when the `MediaRecorder` constructor throws.
-- Gated voice sending strictly on an explicit Send action; unexpected recorder stops now clean up and show an error without sending captured chunks.
-- Kept the recorder error dialog mounted in room overview until the user dismisses it.
-- Retained active send-session upload files/items so voice sends still complete to the captured room/thread after Send followed by cross-room navigation before upload completion.
-
-## R2 Review Fixes
-
-- Verified the production room provider remounts the room subtree on cross-room navigation with `RoomProvider key={room.roomId}`.
-- Moved compact voice auto-send lifetime out of local upload-board rendering after explicit Send:
-  - direct voice upload starts from the captured source room context,
-  - upload atom progress remains available while the source composer is still mounted,
-  - `mx.sendMessage` targets the captured room/thread/reply context after upload completion,
-  - source room upload-board items are removed after completion/error even if the source room unmounted.
-- Preserved safe pre-Send cross-room behavior: active recordings unmounted before Send are discarded without sending, without upload items, and with recorder cleanup.
-- Added a shared pending compact voice-send guard so a second compact voice send is visibly blocked/disabled while the first auto-send is pending.
-- Added keyed room-subtree regressions that unmount/remount `RoomInput`, plus recorder coverage for Send followed by unmount before the `MediaRecorder.stop` event.
-
-## R3 Review Fixes
-
-- Moved compact voice auto-send pending ownership to the explicit Send stop request, before the delayed `MediaRecorder.stop` callback constructs the voice file.
-- Kept the captured first voice send authorized through keyed room unmount/remount while blocking unrelated room instances from claiming or sending another compact voice note in the pre-stop gap.
-- Guarded the regular composer submit and upload-board Send/session path while compact voice auto-send is pending, so the visible auto-send upload item cannot be submitted a second time through the generic send pipeline.
-- Added regressions for delayed-stop ownership, cross-room second-send blocking, and regular composer/upload-board duplicate prevention.
-
-## Validation
-
-- Rebase-on-current-dev validation:
-  - focused voice suite passed:
-    - `npm test -- src/app/utils/audioWaveform.test.ts src/app/components/voice/VoiceWaveform.test.ts src/app/features/room/useVoiceRecorder.test.ts src/app/features/room/VoiceRecordingCapsule.test.ts src/app/features/room/VoiceRecorderDialog.test.ts src/app/features/room/RoomInput.test.ts src/app/features/room/msgContent.test.ts src/app/utils/voiceMessage.test.ts src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/message/MsgTypeRenderers.audio.test.ts src/app/components/message/content/AudioContent.test.tsx`
-    - Result: `11/11` files, `59/59` tests passed.
+- Safety branch: `cinny-089-message-extras-pre-rebase-b24f5598` preserves reviewed SHA `b24f5598`.
+- Rebase method: conflict-repair squash onto current local `dev` at `5f9f326a` (`Fix mounted thread streaming completion refresh`). The originally supplied `dev` SHA was `0ac0b7d2`, but local `dev` advanced before the clean replay was built.
+- New final SHA: recorded in the final handoff after commit creation (`git rev-parse HEAD`); a commit cannot embed its own final hash.
+- Clean diff sanity result: `dev...HEAD` is limited to message-extras parser/renderer/tests, MindRoom render seam integration, long-text sidecar metadata/extras handling, room/thread collapse behavior, focused tests, and docs/reports. It does not include unrelated ThemeManager, nativeSso, React Query devtools, iOS edge-swipe, or theme bootstrap files.
+- Validation after conflict-repair replay:
+  - `npm test -- src/app/components/message/mindroomMessageExtras.test.ts src/app/components/message/MindroomMessageExtras.test.ts src/app/mindroom/messages/longText.test.ts src/app/mindroom/messages/MindroomLongTextText.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts src/app/mindroom/messages/__tests__/RenderMessageContent.test.ts src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts src/app/utils/room.test.ts` passed (`8/8` files, `88/88` tests).
   - `npm run typecheck` passed.
-  - `npm run build` passed. Vite emitted the existing runtime-config, dependency sourcemap, and chunk-size warnings.
-  - `npm test` passed: `218/218` files, `1757/1757` tests.
-  - `npm run lint` passed with warnings only: `35` warnings, `0` errors.
-  - `git diff --check dev...HEAD` passed.
-- R3 focused voice suite passed:
-  - `npm test -- src/app/utils/audioWaveform.test.ts src/app/components/voice/VoiceWaveform.test.ts src/app/features/room/useVoiceRecorder.test.ts src/app/features/room/VoiceRecordingCapsule.test.ts src/app/features/room/VoiceRecorderDialog.test.ts src/app/features/room/RoomInput.test.ts src/app/features/room/msgContent.test.ts src/app/utils/voiceMessage.test.ts src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/message/MsgTypeRenderers.audio.test.ts src/app/components/message/content/AudioContent.test.tsx`
-  - Result: `11/11` files, `59/59` tests passed.
-- `npm test` passed:
-  - Result: `183/183` files, `1590/1590` tests passed.
+  - `npm run build` passed with the existing Vite CJS/runtime-config/sourcemap and chunk-size warnings.
+  - `git diff --check` passed.
+  - `npm test` and `npm test -- --no-file-parallelism` both failed only in current-dev baseline `src/app/mindroom/threads/compactThreadCardViewModel.test.ts`, expecting `scheduledTaskLabel` to be `2 pending scheduled tasks` while receiving `undefined`. The same isolated file fails on `/var/www/cinny` `dev` at `5f9f326a`, so this is not introduced by CINNY-095.
+
+## Review round 1 fix
+
+- Fixed `MindroomMessageExtras` disclosure keys so they use section index, parsed title, and content type only. Keys no longer include mutable section content or the collapsed/default-open value, so streaming `m.replace` edits do not remount the same logical native `<details>` node.
+- Added a regression test that toggles the native disclosure, rerenders with changed content and changed collapsed defaults, and verifies the same DOM node preserves the user-toggled open/closed state while its content updates.
+- Removed the accidental untracked `REVIEW.md` from the implementation worktree.
+
+## Review round 2 fix
+
+- Fixed the long-text post-body extras precedence so live event content is the preferred extras source, with hydrated sidecar content used only as fallback. Hydrated body rendering still uses `resolvedContent`.
+- Added a regression test for the stale-cache case: hydrated/resolved long-text extras E1 remain cached, the event rerenders with live extras E2 and unchanged long-text identity, hydration does not restart, and E2 renders.
+
+## Review round 3 fix
+
+- Fixed the remaining long-text edit gap by giving the post-body extras renderer the merged top-level event content before hydrated sidecar fallback. Raw `m.new_content` still wins when it explicitly carries extras, but edits that omit extras now see the metadata preserved by `getLatestMessageContent`.
+- Disabled the generic outer long-message collapse for messages with valid MindRoom extras by routing those messages through the existing `always-expanded` collapse mode. This keeps extras summaries discoverable and expanded details usable without a timeline refactor.
+- Added focused regressions for a long-text edit whose raw `m.new_content` omits extras while merged content preserves them, and for the collapse-mode behavior on messages with valid extras.
+
+## Review round 4 fix
+
+- Added a narrow hydrated-sidecar extras signal from `RenderMessageContent` to `RoomTimeline` for long-text messages whose extras render only from the hydrated fallback source.
+- `RoomTimeline` now tracks the current event id plus long-text `mxc://` URI for those hydrated extras and folds that key into `getCollapsibleMessageMode`, so the outer `CollapsibleMessage` upgrades to `always-expanded` after hydration instead of staying default-clamped.
+- Added regressions for the sidecar-only source: one verifies the render-content callback fires only when hydrated fallback extras render, and one verifies the timeline collapse mode upgrades to `always-expanded`.
+
+## Review round 5 fix
+
+- Fixed hydrated long-text sidecar edit wrappers so `m.new_content` normalization preserves missing wrapper metadata under the same `m.mentions` / `io.mindroom.*` / `com.mindroom.*` policy used by normal edit resolution.
+- Added a hydration regression proving wrapper-level `com.mindroom.message_extras` survives when hydrated `m.new_content` omits it.
+- Added sidecar-only edit-wrapper render/collapse coverage proving extras render from the hydrated fallback and the outer timeline collapse mode upgrades to `always-expanded`.
+
+## Files changed
+
+- `src/app/components/message/mindroomMessageExtras.ts`
+- `src/app/components/message/MindroomMessageExtras.tsx`
+- `src/app/components/message/MindroomMessageExtras.css.ts`
+- `src/app/components/message/MsgTypeRenderers.tsx`
+- `src/app/mindroom/messages/longText.ts`
+- `src/app/mindroom/messages/longText.test.ts`
+- `src/app/mindroom/messages/MindroomLongTextText.tsx`
+- `src/app/mindroom/messages/MindroomLongTextText.test.ts`
+- `src/app/mindroom/messages/renderMindroomMessageContent.tsx`
+- `src/app/mindroom/messages/renderMindroomMessageContent.test.ts`
+- `src/app/components/RenderMessageContent.tsx`
+- `src/app/features/room/RoomTimeline.tsx`
+- `src/app/components/message/mindroomMessageExtras.test.ts`
+- `src/app/components/message/MindroomMessageExtras.test.ts`
+- `src/app/mindroom/threads/threadCollapsibleMessages.ts`
+- `src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts`
+- `src/app/mindroom/messages/__tests__/RenderMessageContent.test.ts`
+- `src/app/utils/room.test.ts`
+- `FORK_CHANGES.md`
+- `IMPLEMENTATION-REPORT.md`
+
+## Tests run and results
+
+- Review round 5 fix validation:
+  - `npm test -- src/app/components/message/mindroomMessageExtras.test.ts src/app/components/message/MindroomMessageExtras.test.ts src/app/components/message/mindroomLongText.test.ts src/app/components/message/MindroomLongTextText.test.ts src/app/components/RenderMessageContent.test.ts src/app/features/room/RoomTimelineCollapsible.test.ts src/app/utils/room.test.ts` passed (`84/84` tests).
+  - `npm run typecheck` passed.
+  - `npm run build` passed with the existing Vite CJS/runtime-config/sourcemap and chunk-size warnings.
+  - `npm test -- --no-file-parallelism` passed (`177/177` files, `1576/1576` tests).
+  - Default parallel `npm test` was attempted twice and hit unrelated long React renderer suite timeouts under worker load; the failed files passed when isolated or in the serial full-suite run above.
+  - Targeted `npx eslint` on touched source/test files passed with no output.
+  - `git diff --check` passed.
+- Review round 4 fix validation:
+  - `npm test -- src/app/components/RenderMessageContent.test.ts src/app/features/room/RoomTimelineCollapsible.test.ts` passed (`19/19` tests).
+  - `npm test -- src/app/components/message/mindroomMessageExtras.test.ts src/app/components/message/MindroomMessageExtras.test.ts src/app/components/message/MindroomLongTextText.test.ts src/app/components/RenderMessageContent.test.ts src/app/features/room/RoomTimelineCollapsible.test.ts src/app/utils/room.test.ts` passed (`66/66` tests).
+  - `npm run typecheck` passed.
+  - `npm run build` passed with the existing Vite CJS/runtime-config/sourcemap and chunk-size warnings.
+  - `npm test` passed (`177/177` files, `1573/1573` tests).
+  - Targeted `npx eslint` on touched files passed with `0` errors and the existing `RoomTimeline.tsx` warning baseline (`9` warnings).
+  - `git diff --check` passed.
+- Review round 3 fix validation:
+  - `npm test -- src/app/components/RenderMessageContent.test.ts src/app/features/room/RoomTimelineCollapsible.test.ts` passed (`17/17` tests).
+  - `npm test -- src/app/components/message/mindroomMessageExtras.test.ts` passed (`21/21` tests across parser and renderer tests loaded by Vitest).
+  - `npm run typecheck` passed.
+  - `npm run build` passed with the existing Vite CJS/runtime-config and chunk-size warnings.
+  - `npm test` passed (`177/177` files, `1571/1571` tests).
+  - `git diff --check` passed.
+  - Targeted `npx eslint` on touched files passed with `0` errors and the existing `RoomTimeline.tsx` warning baseline (`9` warnings).
+- Review round 2 fix validation:
+  - `npm test -- src/app/components/message/MindroomLongTextText.test.ts` passed (`14/14` tests).
+  - `npm test -- src/app/components/message/mindroomMessageExtras.test.ts src/app/components/message/MindroomMessageExtras.test.ts src/app/components/message/MindroomLongTextText.test.ts src/app/components/RenderMessageContent.test.ts src/app/utils/room.test.ts` passed (`54/54` tests).
+  - `npm run typecheck` passed.
+  - `npm run build` passed.
+  - `npm test` passed (`177/177` files, `1569/1569` tests).
+  - `npx eslint src/app/components/message/MindroomLongTextText.tsx src/app/components/message/MindroomLongTextText.test.ts` passed with the existing `react-hooks/exhaustive-deps` warning in `MindroomLongTextText.tsx`.
+  - `git diff --check` passed.
+- Review round 1 fix validation:
+  - `npm test -- src/app/components/message/MindroomMessageExtras.test.ts` passed (`21/21` tests across `MindroomMessageExtras.test.ts` and the parser test loaded by Vitest).
+  - `npm run typecheck` passed.
+  - `npm run build` passed.
+  - `npm test` passed (`177/177` files, `1568/1568` tests).
+  - `npx eslint src/app/components/message/MindroomMessageExtras.tsx src/app/components/message/MindroomMessageExtras.test.ts` passed with no output.
+  - `git diff --check` passed.
+- `npm test -- src/app/components/message/mindroomMessageExtras.test.ts src/app/components/message/MindroomMessageExtras.test.ts src/app/components/message/MindroomLongTextText.test.ts src/app/components/RenderMessageContent.test.ts src/app/utils/room.test.ts` passed (`52/52` tests).
 - `npm run typecheck` passed.
-- `npm run build` passed. Vite emitted the existing runtime-config, dependency sourcemap, and chunk-size warnings.
-- `npm run lint` passed with warnings only: `71` warnings, `0` errors.
+- `npm run build` passed.
+- `npm test` passed (`177/177` files, `1567/1567` tests).
+- Targeted `npx eslint ...` on touched files passed with no errors; existing warnings remain in `MindroomLongTextText.tsx` and `RoomTimeline.tsx`.
 - `git diff --check` passed.
 
-## Live-Test Recommendations / Blockers
+## Deviations from FINAL-PLAN
 
-- Recommended live checks:
-  - desktop and iPhone-width recording active/paused/resumed states,
-  - discard from active and paused states sends nothing,
-  - send creates a voice message with waveform playback,
-  - waveform seek updates playback position,
-  - legacy/malformed voice messages render fallback waveform,
-  - non-voice audio still renders the generic player,
-  - CINNY-052 thread targeting across navigation and upload completion.
-- Not completed in this implementation session:
-  - real microphone/browser permission testing,
-  - iOS Safari/PWA microphone and playback testing,
-  - Playwright screenshot evidence.
+- React 18 does not support passing `defaultOpen` through to native `<details>` and emits a runtime warning. The renderer uses a no-state ref shim that sets native `open` only when the element mounts, then leaves the disclosure uncontrolled after mount.
+- Explicit surface gating is enabled only for full room/thread timeline `RenderMessageContent` calls. Pinned-message and inbox/notification preview surfaces remain quiet for v1.
+- Long-text rendering now prefers live/raw event content for extras, checks merged top-level event content for preserved metadata, and falls back to hydrated sidecar content only when both live sources omit `com.mindroom.message_extras`.
+- Room/thread timeline messages with valid extras opt out of the outer generic long-message collapse by using the existing `always-expanded` mode.
+- Sidecar-only hydrated long-text extras also opt out after hydration by marking the event id plus current long-text `mxc://` URI as `always-expanded`.
+
+## Live-test recommendations for DevAgent
+
+- Inject or send an `m.room.message` with normal body plus one `text/plain` and one `text/markdown` section.
+- Verify body, collapsed titles, expansion behavior, markdown code blocks, and literal plain-text escaping in room and thread timelines.
+- Verify malformed extras beside a valid body render no extras and produce no console errors.
+- Verify an `m.replace` edit that omits `com.mindroom.message_extras` preserves the original extras, and an edit that includes updated extras replaces them.
+- Check one long body with multiple extra sections in room and thread timelines to confirm the outer long-message overlay does not cover the summaries or expanded content.
+- Check a long-text event whose top-level content has no `com.mindroom.message_extras` but whose hydrated sidecar does; after hydration, the outer message should not show the generic "Show more" clamp over the extras.

@@ -83,6 +83,7 @@ type MTextProps = {
   renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   renderBody: (props: RenderBodyProps) => ReactNode;
+  renderAfterBody?: ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
   style?: CSSProperties;
 };
@@ -91,6 +92,7 @@ export function MText({
   renderStateSuffix,
   content,
   renderBody,
+  renderAfterBody,
   renderUrlsPreview,
   style,
 }: MTextProps) {
@@ -114,6 +116,7 @@ export function MText({
         })}
         {renderMessageStateSuffix({ edited, renderStateSuffix })}
       </MessageTextBody>
+      {renderAfterBody}
       {renderUrlsPreview && urls && urls.length > 0 && renderUrlsPreview(urls)}
     </>
   );
@@ -125,6 +128,7 @@ type MEmoteProps = {
   renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   renderBody: (props: RenderBodyProps) => ReactNode;
+  renderAfterBody?: ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
 };
 export function MEmote({
@@ -133,6 +137,7 @@ export function MEmote({
   renderStateSuffix,
   content,
   renderBody,
+  renderAfterBody,
   renderUrlsPreview,
 }: MEmoteProps) {
   const { body, formatted_body: customBody } = content;
@@ -156,6 +161,7 @@ export function MEmote({
         })}
         {renderMessageStateSuffix({ edited, renderStateSuffix })}
       </MessageTextBody>
+      {renderAfterBody}
       {renderUrlsPreview && urls && urls.length > 0 && renderUrlsPreview(urls)}
     </>
   );
@@ -166,6 +172,7 @@ type MNoticeProps = {
   renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   renderBody: (props: RenderBodyProps) => ReactNode;
+  renderAfterBody?: ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
 };
 export function MNotice({
@@ -173,6 +180,7 @@ export function MNotice({
   renderStateSuffix,
   content,
   renderBody,
+  renderAfterBody,
   renderUrlsPreview,
 }: MNoticeProps) {
   const { body, formatted_body: customBody } = content;
@@ -195,6 +203,7 @@ export function MNotice({
         })}
         {renderMessageStateSuffix({ edited, renderStateSuffix })}
       </MessageTextBody>
+      {renderAfterBody}
       {renderUrlsPreview && urls && urls.length > 0 && renderUrlsPreview(urls)}
     </>
   );

@@ -6,6 +6,7 @@ import {
   hydrateMindroomLongTextSource,
   parseMindroomLongTextJsonSidecar,
 } from './longText';
+import { MINDROOM_MESSAGE_EXTRAS_KEY } from '../../components/message/mindroomMessageExtras';
 
 beforeEach(() => {
   clearMindroomLongTextHydrationCache();
@@ -292,6 +293,47 @@ describe('hydrateMindroomLongTextSource', () => {
       status: 'cached',
       usage: { total_tokens: 42 },
     });
+  });
+
+  it('preserves wrapper MindRoom extras when hydrated m.new_content omits them', async () => {
+    const source = expectDefined(
+      getMindroomLongTextSource({
+        msgtype: 'm.file',
+        body: 'preview',
+        url: 'mxc://server/edit-wrapper-extras',
+        'io.mindroom.long_text': {
+          version: 2,
+          encoding: 'matrix_event_content_json',
+        },
+      })
+    );
+    const extras = {
+      version: 1,
+      sections: [
+        {
+          title: 'Hydrated evidence',
+          content_type: 'text/plain',
+          content: 'wrapper sidecar extra',
+        },
+      ],
+    };
+
+    const resolved = await hydrateMindroomLongTextSource(source, async () =>
+      JSON.stringify({
+        msgtype: 'm.text',
+        body: '* fallback edit body',
+        [MINDROOM_MESSAGE_EXTRAS_KEY]: extras,
+        'm.new_content': {
+          msgtype: 'm.text',
+          body: 'final edited body',
+          formatted_body: '<p>final edited body</p>',
+        },
+      })
+    );
+
+    expect(resolved.body).toBe('final edited body');
+    expect(resolved.formatted_body).toBe('<p>final edited body</p>');
+    expect(resolved[MINDROOM_MESSAGE_EXTRAS_KEY]).toEqual(extras);
   });
 
   it('falls back to wrapper body when m.new_content body is missing', async () => {

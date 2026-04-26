@@ -2744,3 +2744,24 @@
   - `npm test -- src/app/mindroom/threads/useThreadStreamingState.test.ts src/app/mindroom/threads/eventCacheEditUtils.test.ts` passes (`25/25` tests)
   - `npm run build` passes; Vite emitted the existing runtime-config, dependency sourcemap, and chunk-size warnings
   - `npm run lint` passes with the current branch warning-only baseline (`35` warnings, `0` errors)
+
+## CINNY-095 — Message extras rebase onto current dev (2026-04-25)
+
+- Created safety branch `cinny-089-message-extras-pre-rebase-b24f5598` at reviewed SHA `b24f5598`.
+- Current local `dev` advanced from the sanity note's `0ac0b7d2` to `5f9f326a` before the replay was rebuilt, so the clean feature state is based on `5f9f326a`.
+- The original seven CINNY-095 commits did not rebase cleanly because current `dev` moved MindRoom message rendering into `src/app/mindroom/messages` and owns collapse behavior through `src/app/mindroom/threads/threadCollapsibleMessages.ts`.
+- Used the allowed conflict-repair squash path:
+  - kept the feature parser/renderer under `src/app/components/message`,
+  - wired extras through the current `renderMindroomMessageContent` seam,
+  - preserved the current `renderStateSuffix` streaming indicator path,
+  - adapted long-text extras fallback/preservation to `src/app/mindroom/messages/longText.ts` and `MindroomLongTextText.tsx`,
+  - and adapted outer collapse opt-out/sidecar hydration signaling to the current thread collapse helper.
+- Clean diff sanity after replay:
+  - scope is limited to message-extras parser/renderer/tests, MindRoom render seam integration, long-text metadata/extras handling, room/thread collapse behavior, focused tests, `FINAL-PLAN.md`, `IMPLEMENTATION-REPORT.md`, and this runbook.
+  - no unrelated ThemeManager, nativeSso, React Query devtools, iOS edge-swipe, or theme bootstrap files are included.
+- validation:
+  - focused CINNY-095 suite passes (`8/8` files, `88/88` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes with the existing Vite CJS/runtime-config/sourcemap/chunk-size warnings
+  - `git diff --check` passes
+  - default `npm test` and serial `npm test -- --no-file-parallelism` both fail only in current-dev baseline `src/app/mindroom/threads/compactThreadCardViewModel.test.ts` (`scheduledTaskLabel` expected `2 pending scheduled tasks`, received `undefined`); the same isolated failure reproduces on `/var/www/cinny` `dev` at `5f9f326a`.

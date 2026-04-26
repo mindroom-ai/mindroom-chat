@@ -127,6 +127,7 @@ import {
   consumeLiveExpandOnceId,
   getCollapsibleMessageMeasurementKey,
   getCollapsibleMessageMode,
+  getHydratedLongTextExtrasCollapseKey,
 } from './threadCollapsibleMessages';
 import {
   buildResolveConfirmedEventId,
@@ -363,6 +364,9 @@ export function RoomTimeline({
   const [allExpanded, setAllExpanded] = useState(false);
   const atBottomRef = useRef(atBottom);
   const liveExpandOnceIds = useRef(new Set<string>());
+  const [hydratedLongTextExtrasCollapseKeys, setHydratedLongTextExtrasCollapseKeys] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
   atBottomRef.current = atBottom;
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -448,7 +452,19 @@ export function RoomTimeline({
   const threadResolutionMap = useRoomThreadResolutionMap(room);
   useEffect(() => {
     liveExpandOnceIds.current.clear();
+    setHydratedLongTextExtrasCollapseKeys((current) =>
+      current.size === 0 ? current : new Set()
+    );
   }, [room.roomId, threadId]);
+  const markHydratedLongTextExtrasCollapsedExempt = useCallback((collapseKey: string) => {
+    setHydratedLongTextExtrasCollapseKeys((current) => {
+      if (current.has(collapseKey)) return current;
+
+      const next = new Set(current);
+      next.add(collapseKey);
+      return next;
+    });
+  }, []);
   // Reset eagerPreloading when transitioning from event-focused view back to room
   // (component is reused since key is roomId:threadId, so useState initializer won't re-run)
   // useLayoutEffect so the reset fires before paint, preventing a single-frame skeleton flash
@@ -1321,7 +1337,12 @@ export function RoomTimeline({
         const collapseMode = getCollapsibleMessageMode(
           mEventId,
           resolvedContent,
-          liveExpandOnceIds.current
+          liveExpandOnceIds.current,
+          hydratedLongTextExtrasCollapseKeys
+        );
+        const hydratedLongTextExtrasCollapseKey = getHydratedLongTextExtrasCollapseKey(
+          mEventId,
+          resolvedContent
         );
         const onInitialExpandConsumed =
           collapseMode === 'initially-expanded'
@@ -1430,9 +1451,18 @@ export function RoomTimeline({
                   getContent={getContent}
                   mediaAutoLoad={mediaAutoLoad}
                   urlPreview={showUrlPreview}
+                  showMessageExtras
                   htmlReactParserOptions={htmlReactParserOptions}
                   linkifyOpts={linkifyOpts}
                   outlineAttachment={messageLayout === MessageLayout.Bubble}
+                  onLongTextHydratedMessageExtrasRendered={
+                    hydratedLongTextExtrasCollapseKey
+                      ? () =>
+                          markHydratedLongTextExtrasCollapsedExempt(
+                            hydratedLongTextExtrasCollapseKey
+                          )
+                      : undefined
+                  }
                 />
               );
               const measurementKey = getCollapsibleMessageMeasurementKey(
@@ -1708,7 +1738,12 @@ export function RoomTimeline({
                   const collapseMode = getCollapsibleMessageMode(
                     mEventId,
                     resolvedContent,
-                    liveExpandOnceIds.current
+                    liveExpandOnceIds.current,
+                    hydratedLongTextExtrasCollapseKeys
+                  );
+                  const hydratedLongTextExtrasCollapseKey = getHydratedLongTextExtrasCollapseKey(
+                    mEventId,
+                    resolvedContent
                   );
                   const measurementKey = getCollapsibleMessageMeasurementKey(
                     mEvent,
@@ -1735,9 +1770,18 @@ export function RoomTimeline({
                       getContent={getContent}
                       mediaAutoLoad={mediaAutoLoad}
                       urlPreview={showUrlPreview}
+                      showMessageExtras
                       htmlReactParserOptions={htmlReactParserOptions}
                       linkifyOpts={linkifyOpts}
                       outlineAttachment={messageLayout === MessageLayout.Bubble}
+                      onLongTextHydratedMessageExtrasRendered={
+                        hydratedLongTextExtrasCollapseKey
+                          ? () =>
+                              markHydratedLongTextExtrasCollapsedExempt(
+                                hydratedLongTextExtrasCollapseKey
+                              )
+                          : undefined
+                      }
                     />
                   );
 
