@@ -3,6 +3,11 @@ import { MsgType } from 'matrix-js-sdk';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts } from 'linkifyjs';
 import { BrokenContent, MEmote, MNotice, MText, RenderBody } from '../../components/message';
+import { MindroomMessageExtras } from '../../components/message/MindroomMessageExtras';
+import {
+  MINDROOM_MESSAGE_EXTRAS_KEY,
+  parseMindroomMessageExtras,
+} from '../../components/message/mindroomMessageExtras';
 import { withMindroomToolTraceMarkerParserOptions } from '../../plugins/react-custom-html-parser';
 import { isMindroomAiRunStreaming } from './aiRun';
 import { getMindroomLongTextSource } from './longText';
@@ -26,7 +31,25 @@ export type RenderMindroomMessageContentOptions = {
   highlightRegex?: RegExp;
   htmlReactParserOptions: HTMLReactParserOptions;
   linkifyOpts: Opts;
+  showMessageExtras?: boolean;
+  onLongTextHydratedMessageExtrasRendered?: () => void;
 };
+
+type MindroomMessageExtrasRenderNoticeProps = {
+  children: React.ReactNode;
+  onRendered?: () => void;
+};
+
+function MindroomMessageExtrasRenderNotice({
+  children,
+  onRendered,
+}: MindroomMessageExtrasRenderNoticeProps) {
+  React.useEffect(() => {
+    onRendered?.();
+  }, [onRendered]);
+
+  return <>{children}</>;
+}
 
 export const renderMindroomMessageContent = ({
   displayName,
@@ -41,6 +64,8 @@ export const renderMindroomMessageContent = ({
   highlightRegex,
   htmlReactParserOptions,
   linkifyOpts,
+  showMessageExtras = false,
+  onLongTextHydratedMessageExtrasRendered,
 }: RenderMindroomMessageContentOptions): ReactNode | undefined => {
   const getMindroomAwareHtmlReactParserOptions = (bodyContent: Record<string, unknown>) =>
     withMindroomToolTraceMarkerParserOptions(htmlReactParserOptions, bodyContent);
@@ -56,6 +81,62 @@ export const renderMindroomMessageContent = ({
       linkifyOpts={linkifyOpts}
     />
   );
+
+  const renderMessageExtras = (
+    extrasContent: Record<string, unknown>,
+    fallbackContents: Record<string, unknown>[] = [],
+    onFallbackExtrasRendered?: (fallbackIndex: number) => void
+  ) => {
+    if (!showMessageExtras) return undefined;
+
+    const getExtrasRenderSource = () => {
+      if (MINDROOM_MESSAGE_EXTRAS_KEY in extrasContent) {
+        return {
+          content: extrasContent,
+          extras: parseMindroomMessageExtras(extrasContent),
+          fallbackIndex: undefined,
+        };
+      }
+
+      const fallbackIndex = fallbackContents.findIndex(
+        (candidate) => MINDROOM_MESSAGE_EXTRAS_KEY in candidate
+      );
+      if (fallbackIndex >= 0) {
+        const fallbackContent = fallbackContents[fallbackIndex];
+        return {
+          content: fallbackContent,
+          extras: parseMindroomMessageExtras(fallbackContent),
+          fallbackIndex,
+        };
+      }
+
+      return { content: extrasContent, extras: null, fallbackIndex: undefined };
+    };
+
+    const { content: parserOptionsContent, extras, fallbackIndex } = getExtrasRenderSource();
+    if (!extras) return undefined;
+
+    return (
+      <MindroomMessageExtrasRenderNotice
+        onRendered={
+          fallbackIndex === undefined
+            ? undefined
+            : () => onFallbackExtrasRendered?.(fallbackIndex)
+        }
+      >
+        <MindroomMessageExtras
+          extras={extras}
+          htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(parserOptionsContent)}
+        />
+      </MindroomMessageExtrasRenderNotice>
+    );
+  };
+
+  const handleLongTextFallbackExtrasRendered = (fallbackIndex: number) => {
+    if (fallbackIndex === 1) {
+      onLongTextHydratedMessageExtrasRendered?.();
+    }
+  };
 
   const threadSummaryInfo = getMindroomThreadSummaryInfo(content);
   if (threadSummaryInfo) {
@@ -101,6 +182,13 @@ export const renderMindroomMessageContent = ({
               linkifyOpts={linkifyOpts}
             />
           )}
+          renderAfterBody={(extrasContent, fallbackContent) =>
+            renderMessageExtras(
+              extrasContent,
+              [content, fallbackContent],
+              handleLongTextFallbackExtrasRendered
+            )
+          }
           renderUrlsPreview={renderUrlsPreview}
         />
       );
@@ -113,6 +201,7 @@ export const renderMindroomMessageContent = ({
           renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
           content={content}
           renderBody={renderBody(content)}
+          renderAfterBody={renderMessageExtras(content)}
           renderUrlsPreview={renderUrlsPreview}
         />
       );
@@ -139,6 +228,13 @@ export const renderMindroomMessageContent = ({
               linkifyOpts={linkifyOpts}
             />
           )}
+          renderAfterBody={(extrasContent, fallbackContent) =>
+            renderMessageExtras(
+              extrasContent,
+              [content, fallbackContent],
+              handleLongTextFallbackExtrasRendered
+            )
+          }
           renderUrlsPreview={renderUrlsPreview}
         />
       );
@@ -148,12 +244,13 @@ export const renderMindroomMessageContent = ({
       <MEmote
         displayName={displayName}
         edited={edited}
-        renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
-        content={content}
-        renderBody={renderBody(content)}
-        renderUrlsPreview={renderUrlsPreview}
-      />
-    );
+      renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
+      content={content}
+      renderBody={renderBody(content)}
+      renderAfterBody={renderMessageExtras(content)}
+      renderUrlsPreview={renderUrlsPreview}
+    />
+  );
   }
 
   if (msgType === MsgType.Notice) {
@@ -175,6 +272,13 @@ export const renderMindroomMessageContent = ({
               linkifyOpts={linkifyOpts}
             />
           )}
+          renderAfterBody={(extrasContent, fallbackContent) =>
+            renderMessageExtras(
+              extrasContent,
+              [content, fallbackContent],
+              handleLongTextFallbackExtrasRendered
+            )
+          }
           renderUrlsPreview={renderUrlsPreview}
         />
       );
@@ -183,12 +287,13 @@ export const renderMindroomMessageContent = ({
     return (
       <MNotice
         edited={edited}
-        renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
-        content={content}
-        renderBody={renderBody(content)}
-        renderUrlsPreview={renderUrlsPreview}
-      />
-    );
+      renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
+      content={content}
+      renderBody={renderBody(content)}
+      renderAfterBody={renderMessageExtras(content)}
+      renderUrlsPreview={renderUrlsPreview}
+    />
+  );
   }
 
   return undefined;

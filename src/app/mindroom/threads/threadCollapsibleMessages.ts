@@ -1,4 +1,6 @@
 import { type IContent, type MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
+import { hasMindroomMessageExtras } from '../../components/message/mindroomMessageExtras';
+import { getMindroomLongTextMxcUri } from '../messages/longText';
 import { hasMindroomThreadSummary } from '../messages/threadSummary';
 import type { ThreadFilterState } from './roomThreadOverviewModel';
 import { isRenderableEvent } from './roomTimelineEvents';
@@ -103,16 +105,35 @@ export const getLiveCollapsibleMessageExpandId = (
   return shouldTrackLiveCollapsibleMessage(opts) ? mEventId : undefined;
 };
 
+export const getHydratedLongTextExtrasCollapseKey = (
+  mEventId: string,
+  resolvedContent: IContent
+): string | undefined => {
+  const mxcUri = getMindroomLongTextMxcUri(resolvedContent as Record<string, unknown>);
+  return mxcUri ? JSON.stringify([mEventId, mxcUri]) : undefined;
+};
+
 export const getCollapsibleMessageMode = (
   mEventId: string,
   resolvedContent: IContent,
-  liveExpandOnceIds: Set<string>
-) =>
-  hasMindroomThreadSummary(resolvedContent as Record<string, unknown>)
-    ? 'always-expanded'
-    : liveExpandOnceIds.has(mEventId)
-      ? 'initially-expanded'
-      : 'default';
+  liveExpandOnceIds: Set<string>,
+  hydratedLongTextExtrasCollapseKeys?: ReadonlySet<string>
+) => {
+  const hydratedLongTextExtrasCollapseKey = getHydratedLongTextExtrasCollapseKey(
+    mEventId,
+    resolvedContent
+  );
+  if (
+    hasMindroomThreadSummary(resolvedContent as Record<string, unknown>) ||
+    hasMindroomMessageExtras(resolvedContent as Record<string, unknown>) ||
+    (hydratedLongTextExtrasCollapseKey &&
+      hydratedLongTextExtrasCollapseKeys?.has(hydratedLongTextExtrasCollapseKey))
+  ) {
+    return 'always-expanded';
+  }
+
+  return liveExpandOnceIds.has(mEventId) ? 'initially-expanded' : 'default';
+};
 
 export const getCollapsibleMessageMeasurementKey = (
   mEvent: MatrixEvent,

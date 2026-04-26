@@ -1,6 +1,7 @@
 import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
+import { MINDROOM_MESSAGE_EXTRAS_KEY } from '../../components/message/mindroomMessageExtras';
 
 const toolApprovalCardMock = vi.hoisted(() => vi.fn());
 const longTextTextMock = vi.hoisted(() => vi.fn());
@@ -8,9 +9,29 @@ const toolTraceParserOptionsMock = vi.hoisted(() => vi.fn((options: unknown) => 
 
 vi.mock('../../components/message', () => ({
   BrokenContent: () => React.createElement('div', { 'data-renderer': 'broken' }),
-  MEmote: () => React.createElement('div', { 'data-renderer': 'emote' }),
-  MNotice: () => React.createElement('div', { 'data-renderer': 'notice' }),
-  MText: () => React.createElement('div', { 'data-renderer': 'text' }),
+  MEmote: ({ content, displayName, renderAfterBody, renderBody }: any) =>
+    React.createElement(
+      'div',
+      { 'data-renderer': 'emote' },
+      displayName,
+      ' ',
+      renderBody({ body: typeof content.body === 'string' ? content.body : '' }),
+      renderAfterBody
+    ),
+  MNotice: ({ content, renderAfterBody, renderBody }: any) =>
+    React.createElement(
+      'div',
+      { 'data-renderer': 'notice' },
+      renderBody({ body: typeof content.body === 'string' ? content.body : '' }),
+      renderAfterBody
+    ),
+  MText: ({ content, renderAfterBody, renderBody }: any) =>
+    React.createElement(
+      'div',
+      { 'data-renderer': 'text' },
+      renderBody({ body: typeof content.body === 'string' ? content.body : '' }),
+      renderAfterBody
+    ),
   RenderBody: ({ body }: { body: string }) => React.createElement('span', null, body),
 }));
 
@@ -46,9 +67,15 @@ vi.mock('./MindroomLongTextText', () => ({
     Emote: 'emote',
     Notice: 'notice',
   },
-  MindroomLongTextText: ({ kind }: { kind: string }) => {
+  MindroomLongTextText: ({ content, kind, renderAfterBody, renderBody }: any) => {
     longTextTextMock({ kind });
-    return React.createElement('div', { 'data-renderer': 'long-text' }, kind);
+    return React.createElement(
+      'div',
+      { 'data-renderer': 'long-text' },
+      kind,
+      renderBody(content, { body: typeof content.body === 'string' ? content.body : '' }),
+      renderAfterBody?.(content, content)
+    );
   },
 }));
 
@@ -56,6 +83,26 @@ vi.mock('./StreamingIndicator', () => ({
   renderMindroomStreamingIndicator: () =>
     React.createElement('span', { 'data-renderer': 'streaming' }),
 }));
+
+vi.mock('../../components/message/MindroomMessageExtras.css.ts', () => ({
+  Extras: 'Extras',
+  Section: 'Section',
+  Summary: 'Summary',
+  Content: 'Content',
+  PlainText: 'PlainText',
+  Markdown: 'Markdown',
+}));
+
+const messageExtras = {
+  version: 1,
+  sections: [
+    {
+      title: 'Evidence',
+      content_type: 'text/plain',
+      content: 'extra payload',
+    },
+  ],
+};
 
 const renderNode = async (
   options: Partial<
@@ -83,9 +130,102 @@ const renderNode = async (
 };
 
 describe('renderMindroomMessageContent', () => {
+  it('renders normal text body unchanged when extras are disabled', async () => {
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      content: {
+        msgtype: 'm.text',
+        body: 'Normal body',
+        [MINDROOM_MESSAGE_EXTRAS_KEY]: messageExtras,
+      },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('Normal body');
+    expect(rendered).not.toContain('Evidence');
+    expect(rendered).not.toContain('extra payload');
+
+    renderer.unmount();
+  });
+
+  it('renders text body and extras when extras are enabled', async () => {
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      showMessageExtras: true,
+      content: {
+        msgtype: 'm.text',
+        body: 'Normal body',
+        [MINDROOM_MESSAGE_EXTRAS_KEY]: messageExtras,
+      },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('Normal body');
+    expect(rendered).toContain('Evidence');
+    expect(rendered).toContain('extra payload');
+
+    renderer.unmount();
+  });
+
+  it('ignores malformed extras without affecting body rendering', async () => {
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      showMessageExtras: true,
+      content: {
+        msgtype: 'm.text',
+        body: 'Body survives',
+        [MINDROOM_MESSAGE_EXTRAS_KEY]: {
+          version: 2,
+          sections: [messageExtras.sections[0]],
+        },
+      },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('Body survives');
+    expect(rendered).not.toContain('Evidence');
+
+    renderer.unmount();
+  });
+
+  it('renders extras for MindRoom long-text text paths', async () => {
+    longTextTextMock.mockReset();
+
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      showMessageExtras: true,
+      content: {
+        msgtype: 'm.text',
+        body: 'Long text preview',
+        url: 'mxc://example.org/long-text',
+        'io.mindroom.long_text': {
+          version: 2,
+          encoding: 'matrix_event_content_json',
+        },
+        [MINDROOM_MESSAGE_EXTRAS_KEY]: messageExtras,
+      },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('long-text');
+    expect(rendered).toContain('Long text preview');
+    expect(rendered).toContain('Evidence');
+    expect(rendered).toContain('extra payload');
+    expect(longTextTextMock).toHaveBeenCalledWith({
+      kind: 'text',
+    });
+
+    renderer.unmount();
+  });
+
   it('renders thread summary metadata through the MindRoom summary card', async () => {
     const renderer = await renderNode({
       msgType: 'm.notice',
+      showMessageExtras: true,
       content: {
         msgtype: 'm.notice',
         body: 'Summary body',
@@ -93,6 +233,7 @@ describe('renderMindroomMessageContent', () => {
           version: 1,
           summary: 'Rendered summary text',
         },
+        [MINDROOM_MESSAGE_EXTRAS_KEY]: messageExtras,
       },
     });
 
@@ -100,6 +241,7 @@ describe('renderMindroomMessageContent', () => {
 
     expect(rendered).toContain('summary-card');
     expect(rendered).toContain('Rendered summary text');
+    expect(rendered).not.toContain('Evidence');
     expect(rendered).not.toContain('notice');
 
     renderer.unmount();
@@ -114,6 +256,7 @@ describe('renderMindroomMessageContent', () => {
       eventId: '$approval',
       threadId: '$thread-root',
       msgType: '',
+      showMessageExtras: true,
       content: {
         approval_id: 'approval-1',
         tool_name: 'web_search',
@@ -125,6 +268,7 @@ describe('renderMindroomMessageContent', () => {
         resolved_at: null,
         resolved_by: null,
         resolution_reason: null,
+        [MINDROOM_MESSAGE_EXTRAS_KEY]: messageExtras,
       },
     });
 
@@ -132,6 +276,7 @@ describe('renderMindroomMessageContent', () => {
 
     expect(rendered).toContain('tool-approval');
     expect(rendered).toContain('web_search');
+    expect(rendered).not.toContain('Evidence');
     expect(toolApprovalCardMock).toHaveBeenCalledWith({
       approval: expect.objectContaining({
         toolName: 'web_search',
