@@ -415,6 +415,55 @@ vi.mock('../../../features/room/message', async () => {
   };
 });
 
+vi.mock('../../../features/room/message/Reactions', () => ({
+  Reactions: passthrough,
+}));
+
+vi.mock('../../../features/room/message/EncryptedContent', () => ({
+  EncryptedContent: ({
+    mEvent,
+    children,
+  }: {
+    mEvent: {
+      __renderInsideEncryptedContentAs?: string;
+      getType: () => string;
+    };
+    children: (() => React.ReactNode) | React.ReactNode;
+  }) => {
+    if (typeof children !== 'function') return children;
+
+    const renderType = mEvent.__renderInsideEncryptedContentAs;
+    if (!renderType) return children();
+
+    const getType = mEvent.getType;
+    mEvent.getType = () => renderType;
+    try {
+      return children();
+    } finally {
+      mEvent.getType = getType;
+    }
+  },
+}));
+
+vi.mock('../../messages/MindroomMessage', async () => {
+  const ReactImport = await import('react');
+
+  return {
+    Message: ({ children, reactions, reply, ...props }: Record<string, unknown>) =>
+      ReactImport.createElement(
+        messageType,
+        {
+          ...props,
+          'data-testid': messageTestId,
+        },
+        reply as never,
+        children as never,
+        reactions as never
+      ),
+    Event: passthrough,
+  };
+});
+
 vi.mock('../../../components/room-intro', () => ({
   RoomIntro: passthrough,
 }));

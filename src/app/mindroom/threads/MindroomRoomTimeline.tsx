@@ -80,7 +80,8 @@ import {
 import { useSetting } from '../../state/hooks/settings';
 import { MessageLayout, sanitizePaginationLimit, settingsAtom } from '../../state/settings';
 import { useMatrixEventRenderer } from '../../hooks/useMatrixEventRenderer';
-import { Reactions, Message, Event, EncryptedContent } from '../../features/room/message';
+import { EncryptedContent } from '../../features/room/message/EncryptedContent';
+import { Reactions } from '../../features/room/message/Reactions';
 import { useMemberEventParser } from '../../hooks/useMemberEventParser';
 import * as customHtmlCss from '../../styles/CustomHtml.css';
 import { RoomIntro } from '../../components/room-intro';
@@ -120,6 +121,7 @@ import { useAccessiblePowerTagColors, useGetMemberPowerTag } from '../../hooks/u
 import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
+import { Event, Message } from '../messages/MindroomMessage';
 import type { MindroomThreadSummaryInfo } from './threadSummaryStore';
 import {
   consumeLiveExpandOnceId,

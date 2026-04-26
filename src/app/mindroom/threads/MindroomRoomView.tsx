@@ -9,14 +9,14 @@ import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useEditor } from '../../components/editor';
 import { RoomInputPlaceholder } from '../../features/room/RoomInputPlaceholder';
-import { RoomTimeline } from '../../features/room/RoomTimeline';
 import { RoomViewTyping } from '../../features/room/RoomViewTyping';
 import { RoomTombstone } from '../../features/room/RoomTombstone';
-import { RoomInput } from '../../features/room/RoomInput';
 import {
   RoomViewFollowing,
   RoomViewFollowingPlaceholder,
 } from '../../features/room/RoomViewFollowing';
+import { RoomInput } from '../room-input/MindroomRoomInput';
+import { RoomTimeline } from './MindroomRoomTimeline';
 import { Page } from '../../components/page';
 import { RoomViewHeader } from './MindroomRoomViewHeader';
 import { useKeyDown } from '../../hooks/useKeyDown';

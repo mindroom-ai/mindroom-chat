@@ -70,6 +70,33 @@ describe('RoomTimeline architecture', () => {
     expect(source.split('\n').length).toBeLessThan(5);
   });
 
+  it('keeps MindRoom-owned room modules off their compatibility re-export seams', () => {
+    const roomViewSource = readFileSync(
+      new URL('../MindroomRoomView.tsx', import.meta.url),
+      'utf8'
+    );
+    const timelineSource = readFileSync(
+      new URL('../MindroomRoomTimeline.tsx', import.meta.url),
+      'utf8'
+    );
+    const pinMenuSource = readFileSync(
+      new URL('../../messages/MindroomRoomPinMenu.tsx', import.meta.url),
+      'utf8'
+    );
+    const routerSource = readFileSync(new URL('../../../pages/Router.tsx', import.meta.url), 'utf8');
+
+    expect(roomViewSource).toContain("from '../room-input/MindroomRoomInput'");
+    expect(roomViewSource).toContain("from './MindroomRoomTimeline'");
+    expect(roomViewSource).not.toContain("from '../../features/room/RoomInput'");
+    expect(roomViewSource).not.toContain("from '../../features/room/RoomTimeline'");
+    expect(timelineSource).toContain("from '../messages/MindroomMessage'");
+    expect(timelineSource).not.toContain("from '../../features/room/message'");
+    expect(pinMenuSource).toContain("from '../../features/room/message/EncryptedContent'");
+    expect(pinMenuSource).not.toContain("from '../../features/room/message'");
+    expect(routerSource).toContain("from '../mindroom/threads/MindroomRoom'");
+    expect(routerSource).not.toContain("from '../features/room'");
+  });
+
   it('delegates thread badge JSX rendering to the MindRoom badge seam', () => {
     const source = readRoomTimelineSource();
 

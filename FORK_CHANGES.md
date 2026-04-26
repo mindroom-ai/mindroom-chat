@@ -298,6 +298,10 @@
 - `CINNY-196`
   - Fetched relation overview updates now go through `useThreadOverviewRelationUpdates` in `src/app/mindroom/threads/threadOverviewCacheHydration.ts`.
   - `useMindroomThreadIndex` no longer mutates cached overview metadata inline; it wires the cache-update controller and keeps index snapshot assembly separate from cache mutation policy.
+- `CINNY-197`
+  - MindRoom-owned room modules now import moved MindRoom implementations directly instead of routing through their old `features/room` compatibility re-export paths.
+  - Production routing imports `MindroomRoom`, `MindroomRoomView` imports `MindroomRoomTimeline` and `MindroomRoomInput`, and MindRoom timeline rendering imports `MindroomMessage` directly.
+  - The old feature paths remain as narrow compatibility seams, but fork-owned production code no longer depends on them internally.
 
 ### Current Feature Set On `dev`
 

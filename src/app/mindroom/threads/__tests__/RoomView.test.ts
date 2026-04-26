@@ -172,7 +172,7 @@ vi.mock('../../../features/room/RoomInputPlaceholder', () => ({
   RoomInputPlaceholder: passthrough,
 }));
 
-vi.mock('../../../features/room/RoomTimeline', () => ({
+vi.mock('../MindroomRoomTimeline', () => ({
   RoomTimeline: roomTimelineType,
 }));
 
@@ -184,7 +184,7 @@ vi.mock('../../../features/room/RoomTombstone', () => ({
   RoomTombstone: passthrough,
 }));
 
-vi.mock('../../../features/room/RoomInput', () => ({
+vi.mock('../../room-input/MindroomRoomInput', () => ({
   RoomInput: passthrough,
 }));
 

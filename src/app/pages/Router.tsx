@@ -42,7 +42,6 @@ import { RouteSpaceProvider, Space, SpaceRouteRoomProvider, SpaceSearch } from '
 import { Explore, FeaturedRooms, PublicRooms } from './client/explore';
 import { Notifications, Inbox, Invites } from './client/inbox';
 import { setAfterLoginRedirectPath } from './afterLoginRedirectPath';
-import { Room } from '../features/room';
 import { Lobby } from '../features/lobby';
 import { WelcomePage } from './client/WelcomePage';
 import { SidebarNav } from './client/SidebarNav';
@@ -63,6 +62,7 @@ import { HomeCreateRoom } from './client/home/CreateRoom';
 import { Create } from './client/create';
 import { CreateSpaceModalRenderer } from '../features/create-space';
 import { CommandPaletteRenderer } from '../mindroom/command-palette';
+import { Room } from '../mindroom/threads/MindroomRoom';
 import { SettingsModalRenderer } from '../features/settings';
 import { CallStatusRenderer } from './CallStatusRenderer';
 import { CallEmbedProvider } from '../components/CallEmbedProvider';

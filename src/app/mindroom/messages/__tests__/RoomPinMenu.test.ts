@@ -224,6 +224,11 @@ vi.mock('../../../features/room/message', () => ({
     React.createElement(React.Fragment, null, children()),
 }));
 
+vi.mock('../../../features/room/message/EncryptedContent', () => ({
+  EncryptedContent: ({ children }: { children: () => React.ReactNode }) =>
+    React.createElement(React.Fragment, null, children()),
+}));
+
 vi.mock('../../../components/media', () => ({
   Image: () => null,
 }));
