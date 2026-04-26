@@ -153,6 +153,10 @@ Completed in the 2026-04-25 cleanup pass:
   `src/app/mindroom/threads/threadIndexRecords.ts`. `useMindroomThreadIndex` still owns the
   current-room index snapshot, but the repeated normal/compact record-building fallback policy is
   now one selector boundary.
+- Fetched relation overview updates now go through
+  `src/app/mindroom/threads/threadOverviewCacheHydration.ts`. `useMindroomThreadIndex` wires the
+  controller and consumes the resulting metadata, but the cache metadata mutation and summary-store
+  upgrade policy are owned by the overview-cache module.
 
 Remaining queue:
 

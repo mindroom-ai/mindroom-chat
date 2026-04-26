@@ -220,11 +220,20 @@ describe('RoomTimeline architecture', () => {
       new URL('../useMindroomThreadIndex.ts', import.meta.url),
       'utf8'
     );
+    const overviewCacheHydrationSource = readFileSync(
+      new URL('../threadOverviewCacheHydration.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).not.toContain("from './useThreadOverviewCacheHydration'");
     expect(source).not.toContain('useThreadOverviewCacheHydration');
     expect(source).toContain('useMindroomThreadIndex');
     expect(indexSource).toContain('useThreadOverviewCachedMetadata');
+    expect(indexSource).toContain('useThreadOverviewRelationUpdates');
+    expect(indexSource).not.toContain('cachedMetadata.applyUpdate');
+    expect(indexSource).not.toContain('resolveFetchedRelationOverviewUpdate');
+    expect(overviewCacheHydrationSource).toContain('useThreadOverviewRelationUpdates');
+    expect(overviewCacheHydrationSource).toContain('resolveFetchedRelationOverviewUpdate');
     expect(indexSource).not.toContain('setCachedThreadLastActivityTsMap');
     expect(indexSource).not.toContain('setCachedThreadLatestReplyPreviewMap');
     expect(indexSource).not.toContain('setCachedThreadLastSenderIdMap');
