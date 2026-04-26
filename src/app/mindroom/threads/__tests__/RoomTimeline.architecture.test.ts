@@ -234,12 +234,23 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates per-room thread index assembly to the MindRoom thread namespace', () => {
     const source = readRoomTimelineSource();
+    const indexSource = readFileSync(
+      new URL('../useMindroomThreadIndex.ts', import.meta.url),
+      'utf8'
+    );
+    const recordMapSource = readFileSync(
+      new URL('../threadIndexRecords.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).toContain('useMindroomThreadIndex');
     expect(source).not.toContain('const normalThreadRecordMap = useMemo');
     expect(source).not.toContain('const compactThreadRecordMap = useMemo');
     expect(source).not.toContain('computeThreadRecordStatusCounts');
     expect(source).not.toContain('computeThreadRecordTagCounts');
+    expect(indexSource).toContain('buildMindroomThreadIndexRecordMaps');
+    expect(indexSource).not.toContain('buildThreadRecordMap');
+    expect(recordMapSource).toContain('buildThreadRecordMap');
   });
 
   it('delegates thread timeline render state to the MindRoom thread namespace', () => {

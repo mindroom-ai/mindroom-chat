@@ -19,7 +19,6 @@ import {
   type VisibleThreadRootData,
 } from './roomThreadOverviewModel';
 import type { RoomViewMode } from './roomViewMode';
-import { buildThreadRecordMap } from './threadRecord';
 import {
   computeThreadRecordStatusCounts,
   computeThreadRecordTagCounts,
@@ -53,6 +52,7 @@ import {
   mergeCompactThreadRootBodyMaps,
   useThreadOverviewCachedMetadata,
 } from './threadOverviewCacheMetadata';
+import { buildMindroomThreadIndexRecordMaps } from './threadIndexRecords';
 
 type ThreadResolutionLike = {
   isResolved: boolean;
@@ -489,96 +489,41 @@ export const useMindroomThreadIndex = ({
     () => buildThreadRootEventMap(roomSurfaceEventEntries, compactThreadRootData.indexMap),
     [roomSurfaceEventEntries, compactThreadRootData.indexMap]
   );
-  const normalThreadRecordMap = useMemo(() => {
+  const { normalThreadRecordMap, compactThreadRecordMap } = useMemo(() => {
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;
-    if (threadId) return new Map<string, ThreadRecord>();
-
-    return buildThreadRecordMap({
+    return buildMindroomThreadIndexRecordMaps({
+      threadId,
+      compactViewRequested,
       room,
-      threadRootIds: visibleThreadRootData.ids,
-      threadRootEventMap: visibleThreadRootEventMap,
+      visibleThreadRootData,
+      compactThreadRootData,
+      visibleThreadRootEventMap,
+      compactThreadRootEventMap,
+      compactThreadRootBodyMap,
       summaryMap,
       fallbackSummaryMap: threadSummaryInfoMap,
       fallbackReplyCountMap: threadReplyCountMap,
-      rootPreviewTextMap: visibleThreadRootData.bodyMap,
-      fallbackLatestReplyPreviewMap: cachedMetadata.latestReplyPreviewMap,
-      fallbackLastSenderIdMap: cachedMetadata.lastSenderIdMap,
-      fallbackMessageCountMap: cachedMetadata.messageCountMap,
-      fallbackLastActivityTsMap: cachedMetadata.lastActivityTsMap,
+      cachedMetadata,
       fallbackParticipantMap: threadParticipantMap,
       threadResolutionMap,
       currentUserId,
-      readUpToTs: readUpToTs ?? null,
+      readUpToTs,
       scheduledStatusMap,
-      cacheCoverageMap: cachedMetadata.coverageMap,
-      absoluteIndexMap: visibleThreadRootData.indexMap,
-    });
-  }, [
-    threadId,
-    room,
-    visibleThreadRootData.ids,
-    visibleThreadRootData.indexMap,
-    visibleThreadRootData.bodyMap,
-    visibleThreadRootEventMap,
-    summaryMap,
-    threadSummaryInfoMap,
-    threadReplyCountMap,
-    cachedMetadata.latestReplyPreviewMap,
-    cachedMetadata.lastSenderIdMap,
-    cachedMetadata.messageCountMap,
-    cachedMetadata.lastActivityTsMap,
-    cachedMetadata.coverageMap,
-    threadParticipantMap,
-    threadResolutionMap,
-    currentUserId,
-    readUpToTs,
-    scheduledStatusMap,
-    overviewRefreshCounter,
-  ]);
-  const compactThreadRecordMap = useMemo(() => {
-    // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
-    void overviewRefreshCounter;
-    if (threadId) return new Map<string, ThreadRecord>();
-    if (!compactViewRequested) return normalThreadRecordMap;
-
-    return buildThreadRecordMap({
-      room,
-      threadRootIds: compactThreadRootData.ids,
-      threadRootEventMap: compactThreadRootEventMap,
-      summaryMap,
-      fallbackSummaryMap: threadSummaryInfoMap,
-      fallbackReplyCountMap: threadReplyCountMap,
-      rootPreviewTextMap: compactThreadRootBodyMap,
-      fallbackLatestReplyPreviewMap: cachedMetadata.latestReplyPreviewMap,
-      fallbackLastSenderIdMap: cachedMetadata.lastSenderIdMap,
-      fallbackMessageCountMap: cachedMetadata.messageCountMap,
-      fallbackLastActivityTsMap: cachedMetadata.lastActivityTsMap,
-      fallbackParticipantMap: threadParticipantMap,
-      threadResolutionMap,
-      currentUserId,
-      readUpToTs: readUpToTs ?? null,
-      scheduledStatusMap,
-      cacheCoverageMap: cachedMetadata.coverageMap,
-      absoluteIndexMap: compactThreadRootData.indexMap,
     });
   }, [
     threadId,
     compactViewRequested,
-    normalThreadRecordMap,
     room,
-    compactThreadRootData.ids,
-    compactThreadRootData.indexMap,
+    visibleThreadRootData,
+    compactThreadRootData,
+    visibleThreadRootEventMap,
     compactThreadRootEventMap,
     compactThreadRootBodyMap,
     summaryMap,
     threadSummaryInfoMap,
     threadReplyCountMap,
-    cachedMetadata.latestReplyPreviewMap,
-    cachedMetadata.lastSenderIdMap,
-    cachedMetadata.messageCountMap,
-    cachedMetadata.lastActivityTsMap,
-    cachedMetadata.coverageMap,
+    cachedMetadata,
     threadParticipantMap,
     threadResolutionMap,
     currentUserId,
