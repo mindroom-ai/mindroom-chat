@@ -163,49 +163,43 @@ Completed in the 2026-04-25 cleanup pass:
   imports the MindRoom message implementation directly. The old feature files remain only as
   upstream compatibility seams.
 
-Remaining queue:
+Pass closure status:
 
-1. Re-check the upstream diff after each ownership slice.
-   - Run `git diff --stat v4.11.1 src` and inspect non-`src/app/mindroom/**` changes.
-   - Keep generic files only when they are true upstream compatibility fixes, generic reusable
-     improvements, or narrow seams into MindRoom owners.
-   - Acceptance: every large non-MindRoom diff has an explicit reason in this document or
-     `FORK_CHANGES.md`.
-   - Latest audit, 2026-04-25 after the edge-swipe, settings, tag snapshot, and scheduled-status
-     seams: `git diff --name-only v4.11.1 -- src | grep -v '^src/app/mindroom/' | wc -l`
-     reports 270 non-MindRoom paths. Large remaining categories are historical generic
-     compatibility/page seams, core message/timeline integration seams, auth/session/iOS support,
-     and reusable hooks/components. Keep shrinking this count by moving fork-owned behavior behind
-     MindRoom wrappers instead of pushing more policy into generic files.
-   - Follow-up audit, 2026-04-25 after moving message search into `src/app/mindroom/message-search`:
-     the command reports 257 non-MindRoom paths.
-   - Follow-up audit, 2026-04-25 after moving room/timeline/message/input/header/shell/pin-menu
-     implementation owners and retargeting MindRoom-owned production imports away from their
-     compatibility seams: the command still reports 257 non-MindRoom paths. This count now mostly
-     reflects compatibility seams, generic integration points, generic fixes/tests, and unchanged
-     upstream-owned features, not duplicated MindRoom implementation owners.
+1. Upstream-diff ownership audit is complete for this pass.
+   - Command:
+     `git diff --name-only v4.11.1 -- src | grep -v '^src/app/mindroom/' | wc -l`
+     reports 257 non-MindRoom paths.
+   - Earlier in the pass this count was 270. The remaining count did not drop after later room
+     moves because the old upstream paths are intentionally retained as narrow compatibility seams
+     or are generic integration/fix/test files.
+   - The largest old room files (`RoomTimeline`, `Message`, `RoomInput`, `RoomViewHeader`, `Room`,
+     `RoomView`, and `RoomPinMenu`) are no longer implementation owners; they are tiny re-export
+     seams. MindRoom-owned production code imports the moved implementations directly.
+   - Remaining non-MindRoom categories are deliberate: compatibility seams, generic auth/session/iOS
+     integration, generic settings/page/sidebar mount points, generic rendering/parser hooks, and
+     reusable upstream-style fixes/tests.
 
-2. Continue cache/preload cleanup only after the index boundary is clean.
-   - Cache hydrate/persist orchestration should sit behind controller/repository seams.
-   - Cache coverage must drive load-older, tail-loaded, relation-complete, and no-more-history
-     decisions.
-   - Acceptance: pagination and preload decisions consume `ThreadRecord.cache` or a lower cache
-     coverage selector, not component-local fallback maps.
-   - Latest audit, 2026-04-25: coverage helpers/controllers already own the key decisions through
-     `ThreadCacheCoverage`, `threadCacheCoverage.ts`, `threadOpenCacheController.ts`,
-     `threadOpenCacheFirst.ts`, and `threadOverviewCacheHydration.ts`. Remaining cleanup should be
-     incremental: keep moving cache/preload orchestration out of the index only when the replacement
-     makes the index API clearer and keeps tests behavior-first.
+2. Cache/preload acceptance is complete for this pass.
+   - Cache hydrate/persist orchestration sits behind repository/controller seams:
+     `eventRepository.ts`, `roomCacheHydrationController.ts`, `roomCacheLifecycleController.ts`,
+     `threadCachePersistenceController.ts`, `threadOpenCacheController.ts`,
+     `threadOpenCacheFirst.ts`, and `threadOverviewCacheHydration.ts`.
+   - Coverage decisions flow through `ThreadCacheCoverage` and `threadCacheCoverage.ts`, and
+     pagination/window decisions consume that lower coverage selector rather than render-path cache
+     reads.
+   - `ThreadRecord.cache` is populated for records with conservative live/cache coverage. The only
+     remaining cached map read in `useMindroomThreadIndex` is the compact-root body map used as an
+     input to record construction, not a per-row render fallback.
+   - `RoomTimeline` no longer imports raw room/thread cache stores or cached summary loaders.
 
-Latest upstream-diff audit:
+Follow-up queue:
 
-- `git diff --stat v4.11.1 src` still shows large upstream-adjacent changes from earlier fork
-  features. The 2026-04-25 cleanup did not add new generic ownership; it kept generic edits to
-  narrow seams:
-  `RoomTimeline` now passes `scheduledStatusMap`, message search receives a result-body renderer,
-  and test harness mocks parse scheduled-task state consistently.
-- The remaining large non-`mindroom` diffs are historical feature seams or generic compatibility
-  fixes. They should be reviewed in later cleanup passes, but this pass did not make them worse.
+- Do not continue broad architecture refactors without a concrete behavior, performance, or rebase
+  win. The next changes should be bug/perf-driven and should keep the same rule: new MindRoom policy
+  goes into `src/app/mindroom/**`, generic files stay as narrow seams.
+- Source-string architecture tests are still intentionally present as import-boundary guardrails.
+  If they become noisy during history rewrite, replace only brittle string checks with behavior/API
+  tests that prove the same owner boundary.
 
 ## Rebase Constraint
 
