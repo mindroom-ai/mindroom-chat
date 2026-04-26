@@ -226,6 +226,10 @@ vi.mock('../../../features/room/room-pin-menu', () => ({
   RoomPinMenu: () => React.createElement('div'),
 }));
 
+vi.mock('../../messages/MindroomRoomPinMenu', () => ({
+  RoomPinMenu: () => React.createElement('div'),
+}));
+
 vi.mock('../../../state/hooks/roomSettings', () => ({
   useOpenRoomSettings: () => vi.fn(),
 }));

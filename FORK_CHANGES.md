@@ -287,6 +287,10 @@
   - Room shell implementation now lives in `src/app/mindroom/threads/MindroomRoom.tsx`.
   - `src/app/features/room/Room.tsx` is a narrow compatibility seam that re-exports the MindRoom room shell.
   - Last-open-thread route restore and escape-read-receipt handling stay in the MindRoom thread namespace.
+- `CINNY-194`
+  - Pinned-message menu implementation now lives in `src/app/mindroom/messages/MindroomRoomPinMenu.tsx`.
+  - `src/app/features/room/room-pin-menu/RoomPinMenu.tsx` is a narrow compatibility seam that re-exports the MindRoom pinned-message menu.
+  - Cache-aware pinned event lookup, MindRoom approval rendering, and pinned-menu styling now stay in the MindRoom message namespace.
 
 ### Current Feature Set On `dev`
 

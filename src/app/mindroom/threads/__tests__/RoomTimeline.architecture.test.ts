@@ -929,6 +929,10 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
     const pinMenuSource = readFileSync(
+      new URL('../../messages/MindroomRoomPinMenu.tsx', import.meta.url),
+      'utf8'
+    );
+    const pinMenuSeamSource = readFileSync(
       new URL('../../../features/room/room-pin-menu/RoomPinMenu.tsx', import.meta.url),
       'utf8'
     );
@@ -944,9 +948,11 @@ describe('RoomTimeline architecture', () => {
     expect(hookImplementationSource).toContain('loadCachedThreadEvent');
     expect(hookImplementationSource).toContain("from './eventRepository'");
     expect(replySource).toContain("from '../../mindroom/messages/replyExtensions'");
-    expect(pinMenuSource).toContain("from '../../../mindroom/messages/pinnedMessageExtensions'");
+    expect(pinMenuSource).toContain("from './pinnedMessageExtensions'");
+    expect(pinMenuSeamSource).toContain("from '../../../mindroom/messages/MindroomRoomPinMenu'");
+    expect(pinMenuSeamSource).not.toContain('useMindroomPinnedEvent');
     expect(replySource).not.toContain("from '../../mindroom/threads/useRoomEvent'");
-    expect(pinMenuSource).not.toContain("from '../../../mindroom/threads/useRoomEvent'");
+    expect(pinMenuSource).not.toContain("from '../threads/useRoomEvent'");
     expect(pinMenuSource).not.toContain('MINDROOM_PINNED_TOOL_APPROVAL_EVENT');
     expect(pinMenuSource).not.toContain('isMindroomPinnedToolApprovalEvent');
     expect(pinMenuSource).not.toContain('renderMindroomPinnedToolApprovalEvent');

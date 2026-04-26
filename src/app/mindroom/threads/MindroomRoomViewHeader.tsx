@@ -51,7 +51,7 @@ import { getViaServers } from '../../plugins/via-servers';
 import { MindroomBackRouteHandler as BackRouteHandler } from '../native/MindroomBackRouteHandler';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
-import { RoomPinMenu } from '../../features/room/room-pin-menu';
+import { RoomPinMenu } from '../messages/MindroomRoomPinMenu';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
 import {
   MindroomCommandPaletteHeaderButton,
