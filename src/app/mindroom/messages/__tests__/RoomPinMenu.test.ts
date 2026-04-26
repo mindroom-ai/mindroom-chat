@@ -111,7 +111,7 @@ vi.mock('../../../components/sequence-card', () => ({
     React.createElement('div', props, children),
 }));
 
-vi.mock('../../../features/room/room-pin-menu/RoomPinMenu.css', () => ({
+vi.mock('../MindroomRoomPinMenu.css', () => ({
   PinMenu: 'PinMenu',
   PinMenuHeader: 'PinMenuHeader',
   PinMenuContent: 'PinMenuContent',
@@ -318,7 +318,7 @@ vi.mock('../../../hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
 
-import { RoomPinMenu } from '../../../features/room/room-pin-menu/RoomPinMenu';
+import { RoomPinMenu } from '../MindroomRoomPinMenu';
 
 describe('RoomPinMenu', () => {
   let renderer: ReactTestRenderer | undefined;

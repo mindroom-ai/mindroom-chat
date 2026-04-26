@@ -143,6 +143,12 @@ Completed in the 2026-04-25 cleanup pass:
 - Room shell implementation lives under `src/app/mindroom/threads/MindroomRoom.tsx`. The old
   generic `src/app/features/room/Room.tsx` path is now only a compatibility re-export, so
   last-open-thread restore and escape-read-receipt policy stay in the MindRoom thread namespace.
+- Pinned-message menu implementation and styles live under
+  `src/app/mindroom/messages/MindroomRoomPinMenu.tsx` and
+  `src/app/mindroom/messages/MindroomRoomPinMenu.css.ts`. The old generic
+  `src/app/features/room/room-pin-menu/RoomPinMenu.tsx` path is now only a compatibility
+  re-export, so cache-aware pinned event lookup and approval rendering stay in the MindRoom message
+  namespace.
 
 Remaining queue:
 
