@@ -149,6 +149,10 @@ Completed in the 2026-04-25 cleanup pass:
   `src/app/features/room/room-pin-menu/RoomPinMenu.tsx` path is now only a compatibility
   re-export, so cache-aware pinned event lookup and approval rendering stay in the MindRoom message
   namespace.
+- Normal and compact room overview `ThreadRecord` map construction is centralized in
+  `src/app/mindroom/threads/threadIndexRecords.ts`. `useMindroomThreadIndex` still owns the
+  current-room index snapshot, but the repeated normal/compact record-building fallback policy is
+  now one selector boundary.
 
 Remaining queue:
 

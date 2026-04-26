@@ -291,6 +291,10 @@
   - Pinned-message menu implementation now lives in `src/app/mindroom/messages/MindroomRoomPinMenu.tsx`.
   - `src/app/features/room/room-pin-menu/RoomPinMenu.tsx` is a narrow compatibility seam that re-exports the MindRoom pinned-message menu.
   - Cache-aware pinned event lookup, MindRoom approval rendering, and pinned-menu styling now stay in the MindRoom message namespace.
+- `CINNY-195`
+  - Normal and compact room overview `ThreadRecord` map construction now goes through `src/app/mindroom/threads/threadIndexRecords.ts`.
+  - `useMindroomThreadIndex` consumes the shared record-map builder instead of duplicating summary, preview, count, status, and cache fallback wiring for each room surface.
+  - Focused selector tests cover shared normal/compact fallback precedence and the no-record thread-route case.
 
 ### Current Feature Set On `dev`
 
