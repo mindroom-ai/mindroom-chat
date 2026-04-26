@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+
 const TIMELINE_DEBUG_STORAGE_KEY = 'mindroom.debug.timeline';
 
 let traceCounter = 0;

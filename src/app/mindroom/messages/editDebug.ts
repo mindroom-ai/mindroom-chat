@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+
 export const MINDROOM_EDIT_DEBUG_STORAGE_KEY = 'mindroom.debug.edits';
 
 export const isMindroomEditDebugEnabled = (): boolean => {

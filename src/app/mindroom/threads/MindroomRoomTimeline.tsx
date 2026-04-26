@@ -1189,7 +1189,6 @@ export function RoomTimeline({
       evt.stopPropagation();
       const userId = evt.currentTarget.getAttribute('data-user-id');
       if (!userId) {
-        console.warn('Button should have "data-user-id" attribute!');
         return;
       }
       openUserRoomProfile(
@@ -1206,7 +1205,6 @@ export function RoomTimeline({
       evt.preventDefault();
       const userId = evt.currentTarget.getAttribute('data-user-id');
       if (!userId) {
-        console.warn('Button should have "data-user-id" attribute!');
         return;
       }
       const name = getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId;
@@ -1227,7 +1225,6 @@ export function RoomTimeline({
     (evt, startThread = false) => {
       const replyId = evt.currentTarget.getAttribute('data-event-id');
       if (!replyId) {
-        console.warn('Button should have "data-event-id" attribute!');
         return;
       }
       const replyDraft = buildMindroomRoomTimelineReplyDraft(room, replyId, startThread);

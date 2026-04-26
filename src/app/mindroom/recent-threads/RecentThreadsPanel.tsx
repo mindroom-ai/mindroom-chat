@@ -128,10 +128,11 @@ export function RecentThreadsPageNav({ children }: RecentThreadsPageNavProps) {
 
   const maxPanelHeight = resolvedLayout.maxHeight;
 
-  const visibleEntries = useMemo(
-    () => buildVisibleRecentThreadEntries((roomId) => mx.getRoom(roomId), recentThreads),
-    [allRoomIds, mx, recentThreads]
-  );
+  const visibleEntries = useMemo(() => {
+    // allRoomsAtom changes when joined-room membership changes; mx.getRoom alone is not reactive.
+    void allRoomIds;
+    return buildVisibleRecentThreadEntries((roomId) => mx.getRoom(roomId), recentThreads);
+  }, [allRoomIds, mx, recentThreads]);
 
   return (
     <div className={css.PageNavSection}>

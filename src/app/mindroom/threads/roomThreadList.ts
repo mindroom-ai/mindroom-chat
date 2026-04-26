@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+
 import { Direction } from 'matrix-js-sdk/lib/models/event-timeline';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
@@ -113,7 +115,7 @@ export const loadRoomThreads = async (room: Room, onProgress?: () => void): Prom
   const allThreadsLiveTimeline = getAllThreadsLiveTimeline(room);
   if (!allThreadsLiveTimeline) return;
 
-  while (true) {
+  for (;;) {
     const currentToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
     if (currentToken === null) return;
 

@@ -37,17 +37,18 @@ export const useHomeSearchRooms = () => {
   const allRooms = useAtomValue(allRoomsAtom);
   const mDirects = useAtomValue(mDirectAtom);
   const roomToParents = useAtomValue(roomToParentsAtom);
-  const sdkRoomIds = mx.getRooms().map((room) => room.roomId);
-  const sdkRoomIdsKey = sdkRoomIds.join('\n');
+  const sdkRoomIdsKey = mx
+    .getRooms()
+    .map((room) => room.roomId)
+    .join('\n');
 
-  return useMemo(
-    () =>
-      getHomeSearchRooms(
-        mx,
-        mergeHomeSearchRoomSources(sdkRoomIds, allRooms),
-        mDirects,
-        roomToParents
-      ),
-    [allRooms, mDirects, mx, roomToParents, sdkRoomIdsKey]
-  );
+  return useMemo(() => {
+    const sdkRoomIds = sdkRoomIdsKey ? sdkRoomIdsKey.split('\n') : [];
+    return getHomeSearchRooms(
+      mx,
+      mergeHomeSearchRoomSources(sdkRoomIds, allRooms),
+      mDirects,
+      roomToParents
+    );
+  }, [allRooms, mDirects, mx, roomToParents, sdkRoomIdsKey]);
 };
