@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
@@ -425,3 +425,66 @@ export const useThreadOverviewCacheHydration = ({
     threadRecordMap,
   ]);
 };
+
+export type UseThreadOverviewRelationUpdatesOptions = {
+  threadId?: string;
+  showCompactRoomView: boolean;
+  compactThreadRecordMap: ReadonlyMap<string, ThreadRecord>;
+  normalThreadRecordMap: ReadonlyMap<string, ThreadRecord>;
+  cachedMetadata: ThreadOverviewCachedMetadataController;
+  room: Room;
+  roomThreadListThreads: ThreadLikeRoot[];
+  onStoreThreadSummary: (rootId: string, info: MindroomThreadSummaryInfo) => void;
+};
+
+export const useThreadOverviewRelationUpdates = ({
+  threadId,
+  showCompactRoomView,
+  compactThreadRecordMap,
+  normalThreadRecordMap,
+  cachedMetadata,
+  room,
+  roomThreadListThreads,
+  onStoreThreadSummary,
+}: UseThreadOverviewRelationUpdatesOptions): ((
+  options: FetchedRelationOverviewUpdateOptions
+) => void) =>
+  useCallback(
+    (options: FetchedRelationOverviewUpdateOptions) => {
+      if (threadId) return;
+
+      const rootId = options.rootId;
+      const currentRecord = (showCompactRoomView ? compactThreadRecordMap : normalThreadRecordMap).get(
+        rootId
+      );
+      const rootEvent =
+        options.rootEvent ??
+        room.findEventById(rootId) ??
+        room.getThread(rootId)?.rootEvent ??
+        roomThreadListThreads.find((thread) => thread.id === rootId)?.rootEvent ??
+        undefined;
+      const update = resolveFetchedRelationOverviewUpdate({
+        ...options,
+        currentRecord,
+        rootEvent,
+        room,
+      });
+      if (!update) return;
+
+      cachedMetadata.applyUpdate(update, { includeCompactRootBody: false });
+
+      if (update.nextSummaryInfo?.summaryText) {
+        onStoreThreadSummary(rootId, update.nextSummaryInfo);
+      }
+    },
+    [
+      compactThreadRecordMap,
+      cachedMetadata,
+      normalThreadRecordMap,
+      onStoreThreadSummary,
+      room,
+      roomThreadListThreads,
+      showCompactRoomView,
+      threadId,
+    ]
+  );

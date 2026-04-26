@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { buildThreadSummaryMap, type MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
@@ -24,9 +24,9 @@ import {
   computeThreadRecordTagCounts,
   resolveThreadRecordOverviewRootIds,
 } from './threadRecordOverview';
-import { useThreadOverviewCacheHydration } from './threadOverviewCacheHydration';
 import {
-  resolveFetchedRelationOverviewUpdate,
+  useThreadOverviewCacheHydration,
+  useThreadOverviewRelationUpdates,
   type FetchedRelationOverviewUpdateOptions,
 } from './threadOverviewCacheHydration';
 import type { ThreadRecord } from './types';
@@ -603,45 +603,16 @@ export const useMindroomThreadIndex = ({
     onStoreThreadSummary,
   });
 
-  const applyThreadOverviewRelationEvents = useCallback(
-    (options: FetchedRelationOverviewUpdateOptions) => {
-      if (threadId) return;
-
-      const rootId = options.rootId;
-      const currentRecord = (
-        snapshot.showCompactRoomView ? compactThreadRecordMap : normalThreadRecordMap
-      ).get(rootId);
-      const rootEvent =
-        options.rootEvent ??
-        room.findEventById(rootId) ??
-        room.getThread(rootId)?.rootEvent ??
-        roomThreadListThreads.find((thread) => thread.id === rootId)?.rootEvent ??
-        undefined;
-      const update = resolveFetchedRelationOverviewUpdate({
-        ...options,
-        currentRecord,
-        rootEvent,
-        room,
-      });
-      if (!update) return;
-
-      cachedMetadata.applyUpdate(update, { includeCompactRootBody: false });
-
-      if (update.nextSummaryInfo?.summaryText) {
-        onStoreThreadSummary(rootId, update.nextSummaryInfo);
-      }
-    },
-    [
-      compactThreadRecordMap,
-      cachedMetadata,
-      normalThreadRecordMap,
-      onStoreThreadSummary,
-      room,
-      roomThreadListThreads,
-      snapshot.showCompactRoomView,
-      threadId,
-    ]
-  );
+  const applyThreadOverviewRelationEvents = useThreadOverviewRelationUpdates({
+    threadId,
+    showCompactRoomView: snapshot.showCompactRoomView,
+    compactThreadRecordMap,
+    normalThreadRecordMap,
+    cachedMetadata,
+    room,
+    roomThreadListThreads,
+    onStoreThreadSummary,
+  });
 
   return {
     ...snapshot,

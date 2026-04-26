@@ -295,6 +295,9 @@
   - Normal and compact room overview `ThreadRecord` map construction now goes through `src/app/mindroom/threads/threadIndexRecords.ts`.
   - `useMindroomThreadIndex` consumes the shared record-map builder instead of duplicating summary, preview, count, status, and cache fallback wiring for each room surface.
   - Focused selector tests cover shared normal/compact fallback precedence and the no-record thread-route case.
+- `CINNY-196`
+  - Fetched relation overview updates now go through `useThreadOverviewRelationUpdates` in `src/app/mindroom/threads/threadOverviewCacheHydration.ts`.
+  - `useMindroomThreadIndex` no longer mutates cached overview metadata inline; it wires the cache-update controller and keeps index snapshot assembly separate from cache mutation policy.
 
 ### Current Feature Set On `dev`
 
