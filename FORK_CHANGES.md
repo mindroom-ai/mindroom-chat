@@ -302,6 +302,9 @@
   - MindRoom-owned room modules now import moved MindRoom implementations directly instead of routing through their old `features/room` compatibility re-export paths.
   - Production routing imports `MindroomRoom`, `MindroomRoomView` imports `MindroomRoomTimeline` and `MindroomRoomInput`, and MindRoom timeline rendering imports `MindroomMessage` directly.
   - The old feature paths remain as narrow compatibility seams, but fork-owned production code no longer depends on them internally.
+- `CINNY-198`
+  - Updated the living architecture plan with the pass-closure audit.
+  - The refactor plan now records that the remaining non-MindRoom diffs are deliberate seams/generic fixes and that cache/preload ownership satisfies the current acceptance criteria through repository/controller/coverage boundaries.
 
 ### Current Feature Set On `dev`
 
