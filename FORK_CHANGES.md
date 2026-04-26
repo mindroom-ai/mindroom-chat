@@ -317,6 +317,19 @@
   - Added `docs/mindroom-cache-strategy.md` as the compact cache/preload runbook.
   - The runbook defines cache layers, write/read owners, `ThreadCacheCoverage` semantics, merge rules, room/thread open flows, forbidden fallback patterns, and review checks.
   - Linked the cache runbook from the longer thread architecture plan so future cache changes have a single operational checklist.
+- `CINNY-202`
+  - Moved MindRoom message-extras parsing, rendering, styles, and tests into `src/app/mindroom/messages`.
+  - Moved the compact voice recorder lifecycle, capsule UI, and tests into `src/app/mindroom/voice`.
+  - Removed stale `features/room` thread-preview compatibility and transient root implementation-report artifacts after folding the relevant ownership state back into this runbook.
+  - Theme bootstrap TypeScript now imports the MindRoom session-store key from `src/app/mindroom/cache/sessionStoreConfig.ts` instead of duplicating the raw localStorage string.
+  - Extended the architecture guard to lock message-extras ownership, compact voice ownership, stale compatibility removals, transient artifact removal, and the shared session-store-key import.
+  - Validation:
+    - `npm test` passes (`234/234` files, `1748/1748` tests)
+    - `npm run typecheck` passes
+    - `npm run lint` passes with the repo warning-only baseline (`17` warnings, `0` errors)
+    - `npm run build` passes
+    - `git diff --check` passes
+    - targeted Prettier check on touched files passes
 
 ### Current Feature Set On `dev`
 
@@ -2257,7 +2270,7 @@
 
 ## CINNY-082 — Attach file input to DOM for iOS WKWebView uploads (2026-04-21)
 
-- Replaced `src/app/utils/dom.ts` `selectFile()` with the attached off-screen input shape from `FINAL-PLAN.md`:
+- Replaced `src/app/utils/dom.ts` `selectFile()` with the attached off-screen input shape from the implementation plan:
   - mounts the transient `<input type="file">` on `document.body`,
   - keeps it inert via off-screen positioning plus `aria-hidden="true"` / `tabIndex=-1`,
   - resolves successful selections through `change`,
@@ -2454,7 +2467,7 @@
 
 - Root cause: compact zero-reply root selection already accepted `m.room.message` voice/audio events, but root preview helpers were body-only. Voice roots therefore surfaced as filename-like bodies such as `voice-message-*.m4a` or fell through to generic compact-card labels when the body was absent.
 - Fix: added a shared msgtype-aware preview helper for compact/thread presentation paths. Voice `m.audio` roots with stable `m.voice` or unstable `org.matrix.msc3245.voice` now resolve to the existing app wording `Voice message` before body normalization, while ordinary text roots keep their body preview behavior. The zero-reply candidate predicates, `m.notice` exclusion, nested-thread exclusion, and edit exclusion were left unchanged.
-- Rebase-on-refactor note: the shared preview helper now lives in `src/app/mindroom/threads/threadMessagePreview.ts`; `src/app/features/room/threadMessagePreview.ts` is only a compatibility export.
+- Rebase-on-refactor note: the shared preview helper now lives in `src/app/mindroom/threads/threadMessagePreview.ts`; the stale `src/app/features/room/threadMessagePreview.ts` compatibility export has been removed.
 - Added focused regression coverage in:
   - `src/app/features/room/compactThreadRootData.test.ts` for stable voice filename bodies, unstable/no-body voice roots, zero-reply body-map hydration, and unchanged text previews.
   - `src/app/features/room/threadPresentation.test.ts` for zero-reply voice root presentation/primary summary text.
@@ -2484,7 +2497,7 @@
 - review:
   - independent second self-review completed via fresh source/test reads, scoped `git diff`, `git diff --check`, and targeted eslint; scope stayed limited to the devtools visibility gate, focused test, `App.tsx` mount swap, and this runbook update.
 - validation:
-  - resume pass confirmed the uncommitted implementation against `FINAL-PLAN.md`; no additional implementation fixes were needed.
+  - resume pass confirmed the uncommitted implementation against the requested behavior; no additional implementation fixes were needed.
   - `git diff --check` passes
   - `npx vitest run src/app/components/ReactQueryDevtoolsToggle.test.ts` passes (`9/9` tests)
   - `npm run typecheck` passes
@@ -2660,7 +2673,7 @@
 - review:
   - independent Codex review found three issues; follow-up fixed active-recorder cleanup, tightened malformed optional waveform metadata, and added cross-room recording-start targeting coverage.
 - validation:
-  - focused voice suite passed: `npm test -- src/app/utils/audioWaveform.test.ts src/app/components/voice/VoiceWaveform.test.ts src/app/features/room/useVoiceRecorder.test.ts src/app/features/room/VoiceRecordingCapsule.test.ts src/app/features/room/RoomInput.test.ts src/app/features/room/msgContent.test.ts src/app/utils/voiceMessage.test.ts src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/message/MsgTypeRenderers.audio.test.ts src/app/components/message/content/AudioContent.test.tsx` (`10/10` files, `42/42` tests)
+  - focused voice suite passed: `npm test -- src/app/utils/audioWaveform.test.ts src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/mindroom/voice/VoiceRecordingCapsule.test.ts src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/features/room/msgContent.test.ts src/app/utils/voiceMessage.test.ts src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/message/MsgTypeRenderers.audio.test.ts src/app/components/message/content/AudioContent.test.tsx`
   - `npm run typecheck` passes
   - `npm run build` passes
   - `npm run lint` passes with the branch warning-only baseline (`71` warnings, `0` errors)
@@ -2751,13 +2764,13 @@
 - Current local `dev` advanced from the sanity note's `0ac0b7d2` to `5f9f326a` before the replay was rebuilt, so the clean feature state is based on `5f9f326a`.
 - The original seven CINNY-095 commits did not rebase cleanly because current `dev` moved MindRoom message rendering into `src/app/mindroom/messages` and owns collapse behavior through `src/app/mindroom/threads/threadCollapsibleMessages.ts`.
 - Used the allowed conflict-repair squash path:
-  - kept the feature parser/renderer under `src/app/components/message`,
+  - moved the feature parser/renderer under `src/app/mindroom/messages`,
   - wired extras through the current `renderMindroomMessageContent` seam,
   - preserved the current `renderStateSuffix` streaming indicator path,
   - adapted long-text extras fallback/preservation to `src/app/mindroom/messages/longText.ts` and `MindroomLongTextText.tsx`,
   - and adapted outer collapse opt-out/sidecar hydration signaling to the current thread collapse helper.
 - Clean diff sanity after replay:
-  - scope is limited to message-extras parser/renderer/tests, MindRoom render seam integration, long-text metadata/extras handling, room/thread collapse behavior, focused tests, `FINAL-PLAN.md`, `IMPLEMENTATION-REPORT.md`, and this runbook.
+  - scope is limited to message-extras parser/renderer/tests, MindRoom render seam integration, long-text metadata/extras handling, room/thread collapse behavior, focused tests, and this runbook.
   - no unrelated ThemeManager, nativeSso, React Query devtools, iOS edge-swipe, or theme bootstrap files are included.
 - validation:
   - focused CINNY-095 suite passes (`8/8` files, `88/88` tests)

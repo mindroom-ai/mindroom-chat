@@ -10,7 +10,7 @@ import {
   DEFAULT_VOICE_RECORDER_MIME_TYPE,
   getAudioFileExtension,
   getSupportedRecorderMimeType,
-} from '../../mindroom/voice/voiceRecorderMime';
+} from './voiceRecorderMime';
 
 export type VoiceRecorderPhase =
   | 'idle'

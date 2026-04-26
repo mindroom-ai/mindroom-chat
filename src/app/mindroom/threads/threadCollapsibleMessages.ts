@@ -1,5 +1,5 @@
 import { type IContent, type MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
-import { hasMindroomMessageExtras } from '../../components/message/mindroomMessageExtras';
+import { hasMindroomMessageExtras } from '../messages/mindroomMessageExtras';
 import { getMindroomLongTextMxcUri } from '../messages/longText';
 import { hasMindroomThreadSummary } from '../messages/threadSummary';
 import type { ThreadFilterState } from './roomThreadOverviewModel';

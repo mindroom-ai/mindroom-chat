@@ -3,11 +3,8 @@ import { MsgType } from 'matrix-js-sdk';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts } from 'linkifyjs';
 import { BrokenContent, MEmote, MNotice, MText, RenderBody } from '../../components/message';
-import { MindroomMessageExtras } from '../../components/message/MindroomMessageExtras';
-import {
-  MINDROOM_MESSAGE_EXTRAS_KEY,
-  parseMindroomMessageExtras,
-} from '../../components/message/mindroomMessageExtras';
+import { MindroomMessageExtras } from './MindroomMessageExtras';
+import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from './mindroomMessageExtras';
 import { withMindroomToolTraceMarkerParserOptions } from '../../plugins/react-custom-html-parser';
 import { isMindroomAiRunStreaming } from './aiRun';
 import { getMindroomLongTextSource } from './longText';
@@ -70,17 +67,16 @@ export const renderMindroomMessageContent = ({
   const getMindroomAwareHtmlReactParserOptions = (bodyContent: Record<string, unknown>) =>
     withMindroomToolTraceMarkerParserOptions(htmlReactParserOptions, bodyContent);
 
-  const renderBody = (bodyContent: Record<string, unknown>) => (props: {
-    body: string;
-    customBody?: string;
-  }) => (
-    <RenderBody
-      {...props}
-      highlightRegex={highlightRegex}
-      htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(bodyContent)}
-      linkifyOpts={linkifyOpts}
-    />
-  );
+  const renderBody =
+    (bodyContent: Record<string, unknown>) => (props: { body: string; customBody?: string }) =>
+      (
+        <RenderBody
+          {...props}
+          highlightRegex={highlightRegex}
+          htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(bodyContent)}
+          linkifyOpts={linkifyOpts}
+        />
+      );
 
   const renderMessageExtras = (
     extrasContent: Record<string, unknown>,
@@ -119,9 +115,7 @@ export const renderMindroomMessageContent = ({
     return (
       <MindroomMessageExtrasRenderNotice
         onRendered={
-          fallbackIndex === undefined
-            ? undefined
-            : () => onFallbackExtrasRendered?.(fallbackIndex)
+          fallbackIndex === undefined ? undefined : () => onFallbackExtrasRendered?.(fallbackIndex)
         }
       >
         <MindroomMessageExtras
@@ -244,13 +238,13 @@ export const renderMindroomMessageContent = ({
       <MEmote
         displayName={displayName}
         edited={edited}
-      renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
-      content={content}
-      renderBody={renderBody(content)}
-      renderAfterBody={renderMessageExtras(content)}
-      renderUrlsPreview={renderUrlsPreview}
-    />
-  );
+        renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
+        content={content}
+        renderBody={renderBody(content)}
+        renderAfterBody={renderMessageExtras(content)}
+        renderUrlsPreview={renderUrlsPreview}
+      />
+    );
   }
 
   if (msgType === MsgType.Notice) {
@@ -287,13 +281,13 @@ export const renderMindroomMessageContent = ({
     return (
       <MNotice
         edited={edited}
-      renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
-      content={content}
-      renderBody={renderBody(content)}
-      renderAfterBody={renderMessageExtras(content)}
-      renderUrlsPreview={renderUrlsPreview}
-    />
-  );
+        renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
+        content={content}
+        renderBody={renderBody(content)}
+        renderAfterBody={renderMessageExtras(content)}
+        renderUrlsPreview={renderUrlsPreview}
+      />
+    );
   }
 
   return undefined;
