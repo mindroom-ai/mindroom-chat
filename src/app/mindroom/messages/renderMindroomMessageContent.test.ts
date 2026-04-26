@@ -1,7 +1,7 @@
 import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { MINDROOM_MESSAGE_EXTRAS_KEY } from '../../components/message/mindroomMessageExtras';
+import { MINDROOM_MESSAGE_EXTRAS_KEY } from './mindroomMessageExtras';
 
 const toolApprovalCardMock = vi.hoisted(() => vi.fn());
 const longTextTextMock = vi.hoisted(() => vi.fn());
@@ -84,7 +84,7 @@ vi.mock('./StreamingIndicator', () => ({
     React.createElement('span', { 'data-renderer': 'streaming' }),
 }));
 
-vi.mock('../../components/message/MindroomMessageExtras.css.ts', () => ({
+vi.mock('./MindroomMessageExtras.css.ts', () => ({
   Extras: 'Extras',
   Section: 'Section',
   Summary: 'Summary',

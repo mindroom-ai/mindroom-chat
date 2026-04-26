@@ -6,7 +6,7 @@ import {
   hydrateMindroomLongTextSource,
   parseMindroomLongTextJsonSidecar,
 } from './longText';
-import { MINDROOM_MESSAGE_EXTRAS_KEY } from '../../components/message/mindroomMessageExtras';
+import { MINDROOM_MESSAGE_EXTRAS_KEY } from './mindroomMessageExtras';
 
 beforeEach(() => {
   clearMindroomLongTextHydrationCache();

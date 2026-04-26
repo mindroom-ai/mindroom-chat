@@ -3,10 +3,7 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { IEncryptedFile } from '../../../types/matrix/common';
-import {
-  MINDROOM_MESSAGE_EXTRAS_KEY,
-  parseMindroomMessageExtras,
-} from '../../components/message/mindroomMessageExtras';
+import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from './mindroomMessageExtras';
 import { clearMindroomLongTextHydrationCache, MindroomLongTextSource } from './longText';
 
 const matrixMocks = vi.hoisted(() => ({
@@ -105,7 +102,7 @@ const createMessageExtras = (content: string) => ({
   sections: [{ title: 'Evidence', content_type: 'text/plain', content }],
 });
 
-const createDeferred = <T,>() => {
+const createDeferred = <T>() => {
   let resolve!: (value: T | PromiseLike<T>) => void;
   const promise = new Promise<T>((res) => {
     resolve = res;
@@ -558,18 +555,14 @@ describe('useMindroomLongTextResolvedContent', () => {
       'https://example.org/_matrix/media/v3/download/server/content'
     );
 
-    const actualMindroomLongText = await vi.importActual<typeof import('./longText')>(
-      './longText'
-    );
+    const actualMindroomLongText = await vi.importActual<typeof import('./longText')>('./longText');
     longTextMocks.hydrateMindroomLongTextSource.mockImplementation(
       actualMindroomLongText.hydrateMindroomLongTextSource
     );
   });
 
   it('returns cached content synchronously without fetching again', async () => {
-    const actualMindroomLongText = await vi.importActual<typeof import('./longText')>(
-      './longText'
-    );
+    const actualMindroomLongText = await vi.importActual<typeof import('./longText')>('./longText');
     const source = createLongTextSource({
       previewContent: {
         ...createPreviewContent(),
@@ -692,9 +685,7 @@ describe('useMindroomLongTextResolvedContent', () => {
   });
 
   it('does not return stale resolved content when the source mxcUri changes', async () => {
-    const actualMindroomLongText = await vi.importActual<typeof import('./longText')>(
-      './longText'
-    );
+    const actualMindroomLongText = await vi.importActual<typeof import('./longText')>('./longText');
     const sourceA = createLongTextSource({
       previewContent: {
         ...createPreviewContent(),

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { VoiceRecorderComposer } from '../../mindroom/voice/VoiceRecorderDialog';
+import { VoiceRecorderComposer } from './VoiceRecorderDialog';
 
 vi.mock('folds', () => {
   const Wrapper = ({ children, ...props }: { children?: React.ReactNode }) =>
