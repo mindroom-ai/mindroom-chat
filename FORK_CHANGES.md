@@ -305,6 +305,10 @@
 - `CINNY-198`
   - Updated the living architecture plan with the pass-closure audit.
   - The refactor plan now records that the remaining non-MindRoom diffs are deliberate seams/generic fixes and that cache/preload ownership satisfies the current acceptance criteria through repository/controller/coverage boundaries.
+- `CINNY-199`
+  - Cleaned low-risk lint noise after the architecture pass without changing product behavior.
+  - Removed unused imports, fixed safe hook dependency declarations, made intentional MindRoom debug logging explicit, and dropped no-op missing-attribute warnings from timeline click handlers.
+  - Left behavior-sensitive long-text and voice-recorder hook warnings for a dedicated follow-up instead of hiding them with broad disables.
 
 ### Current Feature Set On `dev`
 

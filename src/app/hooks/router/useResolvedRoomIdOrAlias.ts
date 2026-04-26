@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMatrixClient } from '../useMatrixClient';
 import { getCanonicalAliasRoomId, isRoomAlias } from '../../utils/matrix';
 
@@ -13,11 +13,7 @@ const resolveKnownRoomId = (
 
 export const useResolvedRoomIdOrAlias = (roomIdOrAlias: string | undefined) => {
   const mx = useMatrixClient();
-  const knownRoomCount = mx.getRooms().length;
-  const knownRoomId = useMemo(
-    () => resolveKnownRoomId(mx, roomIdOrAlias),
-    [mx, roomIdOrAlias, knownRoomCount]
-  );
+  const knownRoomId = resolveKnownRoomId(mx, roomIdOrAlias);
   const [resolvedRoomId, setResolvedRoomId] = useState<string | undefined>(knownRoomId);
   const [isResolvingAlias, setIsResolvingAlias] = useState(
     !!roomIdOrAlias && isRoomAlias(roomIdOrAlias) && !knownRoomId

@@ -47,10 +47,13 @@ export const useSpaceSearchRooms = (spaceId: string) => {
   const allRooms = useAtomValue(allRoomsAtom);
   const mDirects = useAtomValue(mDirectAtom);
   const roomToParents = useAtomValue(roomToParentsAtom);
-  const sdkRoomIds = mx.getRooms().map((room) => room.roomId);
-  const sdkRoomIdsKey = sdkRoomIds.join('\n');
+  const sdkRoomIdsKey = mx
+    .getRooms()
+    .map((room) => room.roomId)
+    .join('\n');
 
   return useMemo(() => {
+    const sdkRoomIds = sdkRoomIdsKey ? sdkRoomIdsKey.split('\n') : [];
     const mergedRoomToParents = mergeRoomToParentsSources(roomToParents, getRoomToParents(mx));
 
     return getSpaceSearchRooms(
