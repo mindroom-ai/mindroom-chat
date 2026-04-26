@@ -496,6 +496,57 @@ vi.mock('../../../features/room/message', () => ({
   },
 }));
 
+vi.mock('../../../features/room/message/Reactions', () => ({
+  Reactions: passthrough,
+}));
+
+vi.mock('../../../features/room/message/EncryptedContent', () => ({
+  EncryptedContent: ({
+    mEvent,
+    children,
+  }: {
+    mEvent: {
+      __renderInsideEncryptedContentAs?: string;
+      getType: () => string;
+    };
+    children: (() => React.ReactNode) | React.ReactNode;
+  }) => {
+    if (typeof children !== 'function') return React.createElement(React.Fragment, null, children);
+
+    const renderType = mEvent.__renderInsideEncryptedContentAs;
+    if (!renderType) return React.createElement(React.Fragment, null, children());
+
+    const getType = mEvent.getType;
+    mEvent.getType = () => renderType;
+
+    try {
+      return React.createElement(React.Fragment, null, children());
+    } finally {
+      mEvent.getType = getType;
+    }
+  },
+}));
+
+vi.mock('../../messages/MindroomMessage', () => ({
+  Message: ({
+    children,
+    ...props
+  }: {
+    children?: React.ReactNode;
+    [key: string]: unknown;
+  }) =>
+    React.createElement(
+      passthrough,
+      {
+        ...props,
+        eventId:
+          typeof props['data-message-id'] === 'string' ? props['data-message-id'] : props.eventId,
+      },
+      children
+    ),
+  Event: passthrough,
+}));
+
 vi.mock('../../../components/room-intro', () => ({
   RoomIntro: roomIntroType,
 }));

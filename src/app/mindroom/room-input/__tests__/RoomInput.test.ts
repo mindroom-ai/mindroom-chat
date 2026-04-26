@@ -3,7 +3,7 @@ import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RelationType } from 'matrix-js-sdk';
-import { RoomInput } from '../../../features/room/RoomInput';
+import { RoomInput } from '../MindroomRoomInput';
 import {
   IReplyDraft,
   roomIdToReplyDraftAtomFamily,

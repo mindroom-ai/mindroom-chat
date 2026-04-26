@@ -109,7 +109,7 @@ vi.mock('../../../features/room/RoomInputPlaceholder', () => ({
   RoomInputPlaceholder: passthrough,
 }));
 
-vi.mock('../../../features/room/RoomTimeline', () => ({
+vi.mock('../MindroomRoomTimeline', () => ({
   RoomTimeline: (props: MockRoomTimelineProps) => {
     roomTimelineState.props = props;
     return React.createElement('div');
@@ -124,7 +124,7 @@ vi.mock('../../../features/room/RoomTombstone', () => ({
   RoomTombstone: passthrough,
 }));
 
-vi.mock('../../../features/room/RoomInput', () => ({
+vi.mock('../../room-input/MindroomRoomInput', () => ({
   RoomInput: passthrough,
 }));
 

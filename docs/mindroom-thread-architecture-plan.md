@@ -157,6 +157,11 @@ Completed in the 2026-04-25 cleanup pass:
   `src/app/mindroom/threads/threadOverviewCacheHydration.ts`. `useMindroomThreadIndex` wires the
   controller and consumes the resulting metadata, but the cache metadata mutation and summary-store
   upgrade policy are owned by the overview-cache module.
+- MindRoom-owned room modules now bypass their old `features/room` compatibility re-exports when
+  importing moved implementations. Production routing imports the MindRoom room shell directly,
+  `MindroomRoomView` imports the MindRoom timeline/composer directly, and `MindroomRoomTimeline`
+  imports the MindRoom message implementation directly. The old feature files remain only as
+  upstream compatibility seams.
 
 Remaining queue:
 
@@ -174,6 +179,11 @@ Remaining queue:
      MindRoom wrappers instead of pushing more policy into generic files.
    - Follow-up audit, 2026-04-25 after moving message search into `src/app/mindroom/message-search`:
      the command reports 257 non-MindRoom paths.
+   - Follow-up audit, 2026-04-25 after moving room/timeline/message/input/header/shell/pin-menu
+     implementation owners and retargeting MindRoom-owned production imports away from their
+     compatibility seams: the command still reports 257 non-MindRoom paths. This count now mostly
+     reflects compatibility seams, generic integration points, generic fixes/tests, and unchanged
+     upstream-owned features, not duplicated MindRoom implementation owners.
 
 2. Continue cache/preload cleanup only after the index boundary is clean.
    - Cache hydrate/persist orchestration should sit behind controller/repository seams.
