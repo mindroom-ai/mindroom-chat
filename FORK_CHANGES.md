@@ -313,6 +313,10 @@
   - Thread resolution writes now use `src/app/mindroom/threads/threadResolvableRoot.ts` to accept SDK thread roots and stable standalone zero-reply roots.
   - Normal tag add/remove writes remain restricted to SDK-recognized thread roots.
   - Focused tests cover resolving standalone zero-reply roots through both the thread banner mutation hook and the command-palette current-thread action.
+- `CINNY-201`
+  - Added `docs/mindroom-cache-strategy.md` as the compact cache/preload runbook.
+  - The runbook defines cache layers, write/read owners, `ThreadCacheCoverage` semantics, merge rules, room/thread open flows, forbidden fallback patterns, and review checks.
+  - Linked the cache runbook from the longer thread architecture plan so future cache changes have a single operational checklist.
 
 ### Current Feature Set On `dev`
 

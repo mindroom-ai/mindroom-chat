@@ -10,6 +10,11 @@ Cinny fork. The goals are:
 - Keep upstream Cinny file diffs small so future rebases are predictable.
 - Make each refactor step behavior-preserving and independently testable.
 
+For the cache-specific operational rules, use
+[`docs/mindroom-cache-strategy.md`](/Users/basnijholt/Code/dev/mindroom-cinny/docs/mindroom-cache-strategy.md).
+That runbook defines cache layers, allowed owners, coverage semantics, merge rules, and review
+checks for future cache/preload changes.
+
 ## Current Problem
 
 MindRoom thread behavior is currently spread across large upstream-adjacent files and multiple
