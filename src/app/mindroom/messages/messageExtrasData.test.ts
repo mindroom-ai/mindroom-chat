@@ -5,7 +5,7 @@ import {
   MINDROOM_MESSAGE_EXTRAS_MAX_SECTIONS,
   MINDROOM_MESSAGE_EXTRAS_MAX_TITLE_CHARS,
   parseMindroomMessageExtras,
-} from './mindroomMessageExtras';
+} from './messageExtrasData';
 
 const createContent = (sections: unknown[], overrides: Record<string, unknown> = {}) => ({
   [MINDROOM_MESSAGE_EXTRAS_KEY]: {

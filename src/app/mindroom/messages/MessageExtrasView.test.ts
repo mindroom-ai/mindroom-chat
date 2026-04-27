@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   MindroomMessageExtras as MindroomMessageExtrasData,
   MindroomMessageExtrasSection,
-} from './mindroomMessageExtras';
+} from './messageExtrasData';
 import { MindroomMessageExtras } from './MindroomMessageExtras';
 
 vi.mock('./MindroomMessageExtras.css.ts', () => ({

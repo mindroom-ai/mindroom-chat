@@ -4,7 +4,7 @@ import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts } from 'linkifyjs';
 import { BrokenContent, MEmote, MNotice, MText, RenderBody } from '../../components/message';
 import { MindroomMessageExtras } from './MindroomMessageExtras';
-import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from './mindroomMessageExtras';
+import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from './messageExtrasData';
 import { withMindroomToolTraceMarkerParserOptions } from '../../plugins/react-custom-html-parser';
 import { isMindroomAiRunStreaming } from './aiRun';
 import { getMindroomLongTextSource } from './longText';
