@@ -2790,3 +2790,18 @@
   - `npm run build` passes with the existing Vite CJS/runtime-config/sourcemap/chunk-size warnings
   - `git diff --check` passes
   - default `npm test` and serial `npm test -- --no-file-parallelism` both fail only in current-dev baseline `src/app/mindroom/threads/compactThreadCardViewModel.test.ts` (`scheduledTaskLabel` expected `2 pending scheduled tasks`, received `undefined`); the same isolated failure reproduces on `/var/www/cinny` `dev` at `5f9f326a`.
+
+## CINNY-096 — Long-text streaming tool trace hydration flash (2026-04-27)
+
+- Preserved the last known `io.mindroom.tool_trace` while a refreshed oversized streaming sidecar hydrates.
+- `getMindroomLongTextSource` now carries wrapper-level tool trace fallback metadata into `m.new_content` long-text previews, so edit-resolution metadata fallback is still visible to the long-text renderer.
+- `MindroomLongTextText` now merges the previous hydrated tool trace into a new rich preview only while waiting for that preview's sidecar; the hydrated sidecar remains authoritative once it resolves.
+- Added focused regressions for initial `m.new_content` long-text preview source fallback and for avoiding a tool-dropdown flash during refreshed sidecar hydration.
+- validation:
+  - `npm test -- src/app/mindroom/messages/longText.test.ts src/app/mindroom/messages/MindroomLongTextText.test.ts` passes
+  - `npm run typecheck` passes
+  - `npm test` passes: 234 files / 1755 tests
+  - `npm run build` passes with existing Vite/runtime-config/sourcemap/chunk-size warnings
+  - `npm run lint` passes with existing warnings only
+  - `git diff --check` passes
+- review: second self-review completed; the fallback is limited to `io.mindroom.tool_trace`, only applies when the current preview lacks that key, and hydrated sidecar content still replaces the preview once available.

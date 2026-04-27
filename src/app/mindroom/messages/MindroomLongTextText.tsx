@@ -14,6 +14,7 @@ import {
   MindroomLongTextSource,
   getCachedMindroomLongTextContent,
   hydrateMindroomLongTextSource,
+  withMindroomToolTraceFallback,
 } from './longText';
 
 export enum MindroomLongTextKind {
@@ -218,7 +219,7 @@ export function MindroomLongTextText({
       setLoading(true);
       setResolvedContent((currentResolvedContent) =>
         shouldResetResolvedContentToPreview(content, currentResolvedContent)
-          ? content
+          ? withMindroomToolTraceFallback(content, currentResolvedContent)
           : currentResolvedContent
       );
 
