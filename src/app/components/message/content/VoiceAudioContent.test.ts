@@ -42,7 +42,9 @@ vi.mock('../../voice/VoiceWaveform.css', () => ({
   Bar: 'Bar',
   BarActive: 'BarActive',
   Svg: 'Svg',
+  SvgCompact: 'SvgCompact',
   Waveform: 'Waveform',
+  WaveformCompact: 'WaveformCompact',
   WaveformDimmed: 'WaveformDimmed',
   WaveformSeek: 'WaveformSeek',
 }));
