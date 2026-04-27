@@ -341,6 +341,77 @@ describe('room edit helpers', () => {
 
     expect(resolvedContent['com.mindroom.message_extras']).toEqual(extras);
   });
+
+  it('uses newer replacement events as MindRoom metadata fallbacks for streaming edits', () => {
+    const targetEvent = makeMessageEvent('$target', 1000, '@alice:example.org', 'Thinking...  ⋯');
+    const traceMetadata = {
+      version: 2,
+      events: [
+        {
+          type: 'tool_call_completed',
+          tool_name: 'run_shell_command',
+          result_preview: 'Done',
+        },
+      ],
+    };
+    const priorReplacementEvent = new MatrixEvent({
+      content: {
+        body: '* Prior',
+        'm.new_content': {
+          body: 'Prior\n\n🔧 `run_shell_command` [1]',
+          'io.mindroom.tool_trace': traceMetadata,
+          msgtype: 'm.text',
+        },
+        'm.relates_to': {
+          event_id: '$target',
+          rel_type: 'm.replace',
+        },
+        msgtype: 'm.text',
+      },
+      event_id: '$edit-prior',
+      origin_server_ts: 2000,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    const latestReplacementEvent = new MatrixEvent({
+      content: {
+        body: '* Latest',
+        'm.new_content': {
+          body: 'Latest\n\n🔧 `run_shell_command` [1]\n\n🔧 `run_shell_command` [2] ⏳',
+          'io.mindroom.stream_status': 'streaming',
+          msgtype: 'm.text',
+        },
+        'm.relates_to': {
+          event_id: '$target',
+          rel_type: 'm.replace',
+        },
+        msgtype: 'm.text',
+      },
+      event_id: '$edit-latest',
+      origin_server_ts: 3000,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+
+    const timelineSet = {
+      relations: {
+        getChildEventsForEvent: vi.fn().mockReturnValue({
+          getRelations: () => [priorReplacementEvent, latestReplacementEvent],
+        }),
+      },
+    } as any;
+
+    const editedEvent = getEditedEvent('$target', targetEvent, timelineSet);
+    const resolvedContent = getLatestMessageContent(targetEvent, editedEvent);
+
+    expect(resolvedContent.body).toBe(
+      'Latest\n\n🔧 `run_shell_command` [1]\n\n🔧 `run_shell_command` [2] ⏳'
+    );
+    expect(resolvedContent['io.mindroom.stream_status']).toBe('streaming');
+    expect(resolvedContent['io.mindroom.tool_trace']).toEqual(traceMetadata);
+  });
 });
 
 describe('roomHaveUnread', () => {
