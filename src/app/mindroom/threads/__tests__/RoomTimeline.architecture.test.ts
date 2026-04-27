@@ -1249,7 +1249,7 @@ describe('RoomTimeline architecture', () => {
       '../../components/message/mindroomToolTrace.ts',
     ];
     const removedGenericMessageOwnershipPaths = [
-      '../../../components/message/mindroomMessageExtras.ts',
+      '../../../components/message/messageExtrasData.ts',
       '../../../components/message/MindroomMessageExtras.tsx',
       '../../../components/message/MindroomMessageExtras.css.ts',
     ];
@@ -1352,7 +1352,7 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
     const messageExtrasSource = readFileSync(
-      new URL('../../messages/mindroomMessageExtras.ts', import.meta.url),
+      new URL('../../messages/messageExtrasData.ts', import.meta.url),
       'utf8'
     );
     const messageExtrasComponentSource = readFileSync(
@@ -1380,11 +1380,9 @@ describe('RoomTimeline architecture', () => {
     expect(mindroomRenderContentSource).toContain('./MindroomLongTextText');
     expect(mindroomRenderContentSource).toContain('./aiRun');
     expect(mindroomRenderContentSource).toContain('./StreamingIndicator');
-    expect(mindroomRenderContentSource).toContain('./mindroomMessageExtras');
+    expect(mindroomRenderContentSource).toContain('./messageExtrasData');
     expect(mindroomRenderContentSource).toContain('./MindroomMessageExtras');
-    expect(mindroomRenderContentSource).not.toContain(
-      '../../components/message/mindroomMessageExtras'
-    );
+    expect(mindroomRenderContentSource).not.toContain('../../components/message/messageExtrasData');
     expect(mindroomRenderContentSource).not.toContain(
       '../../components/message/MindroomMessageExtras'
     );

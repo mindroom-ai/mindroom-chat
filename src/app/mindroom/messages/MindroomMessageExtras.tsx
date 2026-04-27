@@ -7,7 +7,7 @@ import {
   MINDROOM_MESSAGE_EXTRAS_TEXT_PLAIN,
   MindroomMessageExtras as MindroomMessageExtrasData,
   MindroomMessageExtrasSection,
-} from './mindroomMessageExtras';
+} from './messageExtrasData';
 import * as css from './MindroomMessageExtras.css';
 
 type MindroomMessageExtraDetailsProps = React.DetailedHTMLProps<
