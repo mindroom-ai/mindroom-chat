@@ -12,6 +12,12 @@ describe('copyMindroomResolvedEditMetadata', () => {
 
     copyMindroomResolvedEditMetadata(resolvedContent, [
       {
+        'm.new_content': {
+          'io.mindroom.tool_trace': {
+            version: 2,
+            events: [{ type: 'tool_call_completed', tool_name: 'run_shell_command' }],
+          },
+        },
         'io.mindroom.ai_run': { version: 1, status: 'completed' },
         'io.mindroom.stream_status': 'completed',
         'm.mentions': { user_ids: ['@alice:example.org'] },
@@ -27,6 +33,10 @@ describe('copyMindroomResolvedEditMetadata', () => {
       body: 'Final answer',
       msgtype: 'm.text',
       'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [{ type: 'tool_call_completed', tool_name: 'run_shell_command' }],
+      },
       'io.mindroom.stream_status': 'completed',
       'com.mindroom.skip_mentions': true,
     });

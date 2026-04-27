@@ -7,6 +7,7 @@ import { MindroomMessageExtras } from './MindroomMessageExtras';
 import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from './messageExtrasData';
 import { withMindroomToolTraceMarkerParserOptions } from '../../plugins/react-custom-html-parser';
 import { isMindroomAiRunStreaming } from './aiRun';
+import { formatMindroomToolRefTextBodyAsHtml } from './blocks';
 import { getMindroomLongTextSource } from './longText';
 import { MindroomLongTextKind, MindroomLongTextText } from './MindroomLongTextText';
 import { MindroomThreadSummaryCard } from './MindroomThreadSummaryCard';
@@ -64,19 +65,46 @@ export const renderMindroomMessageContent = ({
   showMessageExtras = false,
   onLongTextHydratedMessageExtrasRendered,
 }: RenderMindroomMessageContentOptions): ReactNode | undefined => {
+  const withToolRefFormattedBodyFallback = (bodyContent: Record<string, unknown>) => {
+    if (typeof bodyContent.formatted_body === 'string') return bodyContent;
+    if (typeof bodyContent.body !== 'string') return bodyContent;
+
+    const formattedBody = formatMindroomToolRefTextBodyAsHtml(bodyContent.body);
+    if (!formattedBody) return bodyContent;
+
+    return {
+      ...bodyContent,
+      format: 'org.matrix.custom.html',
+      formatted_body: formattedBody,
+    };
+  };
+
   const getMindroomAwareHtmlReactParserOptions = (bodyContent: Record<string, unknown>) =>
     withMindroomToolTraceMarkerParserOptions(htmlReactParserOptions, bodyContent);
 
   const renderBody =
-    (bodyContent: Record<string, unknown>) => (props: { body: string; customBody?: string }) =>
-      (
+    (bodyContent: Record<string, unknown>) => (props: { body: string; customBody?: string }) => {
+      const { body, customBody: providedCustomBody } = props;
+      const renderableContent =
+        providedCustomBody === undefined
+          ? withToolRefFormattedBodyFallback({ ...bodyContent, body })
+          : bodyContent;
+      const customBody =
+        providedCustomBody ??
+        (typeof renderableContent.formatted_body === 'string'
+          ? renderableContent.formatted_body
+          : undefined);
+
+      return (
         <RenderBody
           {...props}
+          customBody={customBody}
           highlightRegex={highlightRegex}
-          htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(bodyContent)}
+          htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(renderableContent)}
           linkifyOpts={linkifyOpts}
         />
       );
+    };
 
   const renderMessageExtras = (
     extrasContent: Record<string, unknown>,
@@ -189,13 +217,14 @@ export const renderMindroomMessageContent = ({
     }
 
     if (msgType === MsgType.Text) {
+      const renderableContent = withToolRefFormattedBodyFallback(content);
       return (
         <MText
           edited={edited}
           renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
-          content={content}
-          renderBody={renderBody(content)}
-          renderAfterBody={renderMessageExtras(content)}
+          content={renderableContent}
+          renderBody={renderBody(renderableContent)}
+          renderAfterBody={renderMessageExtras(renderableContent, [content])}
           renderUrlsPreview={renderUrlsPreview}
         />
       );
@@ -234,14 +263,15 @@ export const renderMindroomMessageContent = ({
       );
     }
 
+    const renderableContent = withToolRefFormattedBodyFallback(content);
     return (
       <MEmote
         displayName={displayName}
         edited={edited}
         renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
-        content={content}
-        renderBody={renderBody(content)}
-        renderAfterBody={renderMessageExtras(content)}
+        content={renderableContent}
+        renderBody={renderBody(renderableContent)}
+        renderAfterBody={renderMessageExtras(renderableContent, [content])}
         renderUrlsPreview={renderUrlsPreview}
       />
     );
@@ -278,13 +308,14 @@ export const renderMindroomMessageContent = ({
       );
     }
 
+    const renderableContent = withToolRefFormattedBodyFallback(content);
     return (
       <MNotice
         edited={edited}
         renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
-        content={content}
-        renderBody={renderBody(content)}
-        renderAfterBody={renderMessageExtras(content)}
+        content={renderableContent}
+        renderBody={renderBody(renderableContent)}
+        renderAfterBody={renderMessageExtras(renderableContent, [content])}
         renderUrlsPreview={renderUrlsPreview}
       />
     );

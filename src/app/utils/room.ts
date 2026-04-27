@@ -29,10 +29,7 @@ import {
   StateEvent,
   UnreadInfo,
 } from '../../types/matrix/room';
-import {
-  getSerializedReplacementEvent,
-  isSameSenderEditEvent,
-} from './editEvent';
+import { getSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
 import { mxcUrlToHttp } from './mediaUrl';
 import {
   copyMindroomResolvedEditMetadata,
@@ -230,7 +227,8 @@ const isThreadOnlyRoomActivity = (room: Room, mEvent: MatrixEvent): boolean => {
   const relationTargetId = mEvent.getRelation()?.event_id;
   const relatedEvent = relationTargetId ? room.findEventById(relationTargetId) : undefined;
   const relatedEventId = relatedEvent?.getId();
-  const isThreadReplyMessage = !!mEventId && !!mEvent.threadRootId && mEvent.threadRootId !== mEventId;
+  const isThreadReplyMessage =
+    !!mEventId && !!mEvent.threadRootId && mEvent.threadRootId !== mEventId;
   const isThreadReplyRelatedEvent =
     !!relatedEventId &&
     !!relatedEvent?.threadRootId &&
@@ -335,7 +333,9 @@ export const getRoomAvatarUrl = (
   useAuthentication = false
 ): string | undefined => {
   const mxcUrl = room.getMxcAvatarUrl();
-  return mxcUrl ? mxcUrlToHttp(mx, mxcUrl, useAuthentication, size, size, 'crop') ?? undefined : undefined;
+  return mxcUrl
+    ? mxcUrlToHttp(mx, mxcUrl, useAuthentication, size, size, 'crop') ?? undefined
+    : undefined;
 };
 
 export const getDirectRoomAvatarUrl = (
@@ -475,6 +475,31 @@ const copyResolvedMessageMetadata = (
   copyMindroomResolvedEditMetadata(resolvedContent, sources);
 };
 
+const copyEditMetadataFallbacksToLatestEdit = (
+  latestEdit: MatrixEvent,
+  candidateEdits: MatrixEvent[]
+): void => {
+  const latestContent = latestEdit.getContent() as Record<string, unknown>;
+  const latestNewContent = latestContent['m.new_content'];
+  if (
+    !latestNewContent ||
+    typeof latestNewContent !== 'object' ||
+    Array.isArray(latestNewContent)
+  ) {
+    return;
+  }
+
+  const fallbackSources = candidateEdits
+    .filter((event) => event !== latestEdit)
+    .sort((a, b) => b.getTs() - a.getTs())
+    .map((event) => event.getContent() as Record<string, unknown>);
+
+  copyResolvedMessageMetadata(latestNewContent as Record<string, unknown>, [
+    latestContent,
+    ...fallbackSources,
+  ]);
+};
+
 export const getEditedEvent = (
   mEventId: string,
   mEvent: MatrixEvent,
@@ -510,11 +535,9 @@ export const getEditedEvent = (
 
   const edits = getEventEdits(timelineSet, mEventId, mEvent.getType());
   const relations = edits?.getRelations() ?? [];
-  const candidateEdits = [
-    ...relations,
-    replacingEvent,
-    serializedReplacement,
-  ].filter((editEvent): editEvent is MatrixEvent => !!editEvent);
+  const candidateEdits = [...relations, replacingEvent, serializedReplacement].filter(
+    (editEvent): editEvent is MatrixEvent => !!editEvent
+  );
   const latestEdit = getLatestEdit(mEvent, candidateEdits);
   logEditDebug('getEditedEvent:resolved', {
     eventId: mEventId,
@@ -529,17 +552,21 @@ export const getEditedEvent = (
       latestEdit === replacingEvent
         ? 'sdk'
         : latestEdit === serializedReplacement
-          ? 'serialized'
-          : latestEdit
-            ? 'relations'
-            : 'none',
+        ? 'serialized'
+        : latestEdit
+        ? 'relations'
+        : 'none',
   });
+  if (latestEdit) {
+    copyEditMetadataFallbacksToLatestEdit(latestEdit, candidateEdits);
+  }
   return latestEdit;
 };
 
 export const getLatestMessageContent = (
   mEvent: MatrixEvent,
-  editedEvent?: MatrixEvent
+  editedEvent?: MatrixEvent,
+  metadataFallbackEvents: MatrixEvent[] = []
 ): Record<string, unknown> => {
   const originalContent = mEvent.getContent() as Record<string, unknown>;
   const editedContent = editedEvent?.getContent() as Record<string, unknown> | undefined;
@@ -553,8 +580,16 @@ export const getLatestMessageContent = (
     ...(newContent as Record<string, unknown>),
     'm.new_content': newContent as Record<string, unknown>,
   };
+  const metadataFallbackSources = metadataFallbackEvents
+    .filter((event) => event !== editedEvent)
+    .sort((a, b) => b.getTs() - a.getTs())
+    .map((event) => event.getContent() as Record<string, unknown>);
 
-  copyResolvedMessageMetadata(resolvedContent, [editedContent, originalContent]);
+  copyResolvedMessageMetadata(resolvedContent, [
+    editedContent,
+    ...metadataFallbackSources,
+    originalContent,
+  ]);
 
   return resolvedContent;
 };

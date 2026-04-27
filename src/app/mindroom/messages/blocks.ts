@@ -37,3 +37,49 @@ export const parseMindroomToolRefText = (text: string): MindroomToolRefParseResu
   if (!match) return undefined;
   return parseToolRefMatch(match);
 };
+
+const escapeHtmlText = (text: string): string =>
+  text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+export const formatMindroomToolRefTextBodyAsHtml = (body: string): string | undefined => {
+  const lines = body.replace(/\r\n?/g, '\n').split('\n');
+  const htmlParts: string[] = [];
+  let paragraphLines: string[] = [];
+  let hasToolRef = false;
+
+  const flushParagraph = () => {
+    if (paragraphLines.length === 0) return;
+    htmlParts.push(`<p>${paragraphLines.map(escapeHtmlText).join('<br/>')}</p>`);
+    paragraphLines = [];
+  };
+
+  lines.forEach((line) => {
+    const toolRef = parseMindroomToolRefText(line);
+    if (toolRef) {
+      flushParagraph();
+      hasToolRef = true;
+      htmlParts.push(
+        `<p>🔧 <code>${escapeHtmlText(toolRef.toolName)}</code> [${toolRef.index}]${
+          toolRef.pending ? ' ⏳' : ''
+        }</p>`
+      );
+      return;
+    }
+
+    if (line.trim() === '') {
+      flushParagraph();
+      return;
+    }
+
+    paragraphLines.push(line);
+  });
+
+  flushParagraph();
+
+  return hasToolRef ? htmlParts.join('') : undefined;
+};

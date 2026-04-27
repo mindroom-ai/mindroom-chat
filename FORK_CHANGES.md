@@ -330,6 +330,18 @@
     - `npm run build` passes
     - `git diff --check` passes
     - targeted Prettier check on touched files passes
+- `CINNY-203`
+  - Fixed MindRoom tool-call marker rendering for streaming edit updates that omit `formatted_body` and/or `io.mindroom.tool_trace` metadata.
+  - Plain-text tool marker lines such as `` 🔧 `run_shell_command` [1] `` are now converted to the existing safe formatted marker contract before rendering, so the tool-call card parser can consume them instead of leaking raw markers into the timeline.
+  - Edit resolution now carries forward missing MindRoom metadata from older replacement events before resolving the latest edit, preserving previous tool-trace details when a newer streaming update only sends body text and stream status.
+  - The tool marker parser now renders marker-only formatted bodies as tool-call blocks, while enriching them with trace details whenever versioned trace metadata is available.
+  - Renamed the message-extras data/parser module to `messageExtrasData.ts` and the component test to `MessageExtrasView.test.ts` to avoid case-only module collisions with `MindroomMessageExtras.tsx` on case-insensitive filesystems.
+  - Added a Vitest setup guard for Node 25/jsdom runs where Node exposes an incomplete global web-storage object before jsdom installs `window.localStorage`.
+  - Validation:
+    - `npm test` passes (`234/234` files, `1753/1753` tests)
+    - `npm run typecheck` passes
+    - `npm run lint` passes with the repo warning-only baseline (`17` warnings, `0` errors)
+    - `npm run build` passes
 
 ### Current Feature Set On `dev`
 
