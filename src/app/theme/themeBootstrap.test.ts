@@ -197,9 +197,19 @@ describe('themeBootstrap', () => {
   });
 
   it.each([
-    { label: 'null', useSystemTheme: null, themeId: 'silver-theme', expectedThemeId: 'silver-theme' },
+    {
+      label: 'null',
+      useSystemTheme: null,
+      themeId: 'silver-theme',
+      expectedThemeId: 'silver-theme',
+    },
     { label: '0', useSystemTheme: 0, themeId: 'butter-theme', expectedThemeId: 'butter-theme' },
-    { label: 'empty string', useSystemTheme: '', themeId: 'dark-theme', expectedThemeId: 'dark-theme' },
+    {
+      label: 'empty string',
+      useSystemTheme: '',
+      themeId: 'dark-theme',
+      expectedThemeId: 'dark-theme',
+    },
   ])(
     'treats falsey useSystemTheme=$label as explicit theme mode on authenticated launch',
     ({ useSystemTheme, themeId, expectedThemeId }) => {
@@ -318,22 +328,21 @@ describe('themeBootstrap', () => {
     expect(resolveInitialTheme('/').themeId).toBe('light-theme');
   });
 
-  it.each([
-    { hash: '#/login' },
-    { hash: '#/cinny/register' },
-    { hash: '#/reset-password' },
-  ])('ignores stored custom themes on hash-router unauth route $hash', ({ hash }) => {
-    setStoredSettings({
-      useSystemTheme: false,
-      themeId: 'silver-theme',
-    });
+  it.each([{ hash: '#/login' }, { hash: '#/cinny/register' }, { hash: '#/reset-password' }])(
+    'ignores stored custom themes on hash-router unauth route $hash',
+    ({ hash }) => {
+      setStoredSettings({
+        useSystemTheme: false,
+        themeId: 'silver-theme',
+      });
 
-    window.location.hash = hash;
-    expect(resolveInitialTheme().themeId).toBe('light-theme');
+      window.location.hash = hash;
+      expect(resolveInitialTheme().themeId).toBe('light-theme');
 
-    setMatchMedia(true);
-    expect(resolveInitialTheme().themeId).toBe('dark-theme');
-  });
+      setMatchMedia(true);
+      expect(resolveInitialTheme().themeId).toBe('dark-theme');
+    }
+  );
 
   it.each([
     { pathname: '/', hash: '#/login?addAccount=1' },
@@ -358,7 +367,7 @@ describe('themeBootstrap', () => {
   );
 
   it('uses window.__INITIAL_THEME__ as a fast path before localStorage', () => {
-    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+    const getItemSpy = vi.spyOn(window.localStorage, 'getItem');
     setStoredSessionStore(ACTIVE_SESSION_STORE);
     window.__INITIAL_THEME__ = 'silver-theme';
 
@@ -375,7 +384,9 @@ describe('themeBootstrap', () => {
     expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe(
       '#DEDEDE'
     );
-    expect(document.querySelector('meta[name="color-scheme"]')?.getAttribute('content')).toBe('light');
+    expect(document.querySelector('meta[name="color-scheme"]')?.getAttribute('content')).toBe(
+      'light'
+    );
 
     [configClass, varsClass, ...SilverTheme.classNames].forEach((className) => {
       expect(document.body.classList.contains(className)).toBe(true);
@@ -388,6 +399,8 @@ describe('themeBootstrap', () => {
     expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe(
       '#1A1A1A'
     );
-    expect(document.querySelector('meta[name="color-scheme"]')?.getAttribute('content')).toBe('dark');
+    expect(document.querySelector('meta[name="color-scheme"]')?.getAttribute('content')).toBe(
+      'dark'
+    );
   });
 });
