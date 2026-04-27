@@ -18,6 +18,7 @@ type VoiceWaveformProps = {
   waveform?: number[];
   progress?: number;
   dimmed?: boolean;
+  compact?: boolean;
   label?: string;
   onSeekProgress?: (progress: number) => void;
 };
@@ -26,6 +27,7 @@ export function VoiceWaveform({
   waveform,
   progress = 0,
   dimmed,
+  compact,
   label,
   onSeekProgress,
 }: VoiceWaveformProps) {
@@ -68,9 +70,17 @@ export function VoiceWaveform({
 
   const content = (
     <svg
-      className={css.Svg}
+      className={classNames(css.Svg, compact && css.SvgCompact)}
       viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
-      preserveAspectRatio="none"
+      {...(compact
+        ? {
+            width: SVG_WIDTH,
+            height: SVG_HEIGHT,
+            preserveAspectRatio: 'xMaxYMid meet',
+          }
+        : {
+            preserveAspectRatio: 'none',
+          })}
       aria-hidden="true"
       focusable="false"
     >
@@ -97,7 +107,12 @@ export function VoiceWaveform({
   if (onSeekProgress) {
     return (
       <button
-        className={classNames(css.Waveform, css.WaveformSeek, dimmed && css.WaveformDimmed)}
+        className={classNames(
+          css.Waveform,
+          compact && css.WaveformCompact,
+          css.WaveformSeek,
+          dimmed && css.WaveformDimmed
+        )}
         type="button"
         aria-label={label ?? 'Seek voice message'}
         onClick={handleClick}
@@ -110,7 +125,11 @@ export function VoiceWaveform({
 
   return (
     <div
-      className={classNames(css.Waveform, dimmed && css.WaveformDimmed)}
+      className={classNames(
+        css.Waveform,
+        compact && css.WaveformCompact,
+        dimmed && css.WaveformDimmed
+      )}
       aria-hidden={label ? undefined : true}
       aria-label={label}
     >

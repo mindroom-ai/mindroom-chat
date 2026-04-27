@@ -8,7 +8,9 @@ vi.mock('./VoiceWaveform.css', () => ({
   Bar: 'Bar',
   BarActive: 'BarActive',
   Svg: 'Svg',
+  SvgCompact: 'SvgCompact',
   Waveform: 'Waveform',
+  WaveformCompact: 'WaveformCompact',
   WaveformDimmed: 'WaveformDimmed',
   WaveformSeek: 'WaveformSeek',
 }));
@@ -23,11 +25,18 @@ describe('VoiceWaveform', () => {
     );
 
     const rects = renderer.root.findAllByType('rect');
+    const svg = renderer.root.findByType('svg');
+    const container = renderer.root.findByType('div');
 
     expect(rects).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
     expect(rects.filter((rect) => String(rect.props.className).includes('BarActive')).length).toBe(
       24
     );
+    expect(container.props.className).toBe('Waveform');
+    expect(svg.props.className).toBe('Svg');
+    expect(svg.props.preserveAspectRatio).toBe('none');
+    expect(svg.props.width).toBeUndefined();
+    expect(svg.props.height).toBeUndefined();
 
     renderer.unmount();
   });
@@ -68,6 +77,26 @@ describe('VoiceWaveform', () => {
     expect(onSeekProgress).toHaveBeenNthCalledWith(1, 0.25);
     expect(onSeekProgress).toHaveBeenNthCalledWith(2, 0.55);
     expect(onSeekProgress).toHaveBeenNthCalledWith(3, 0);
+
+    renderer.unmount();
+  });
+
+  it('bounds and right-anchors the SVG in compact recording mode', () => {
+    const renderer = create(
+      React.createElement(VoiceWaveform, {
+        waveform: [100, 200],
+        compact: true,
+      })
+    );
+
+    const container = renderer.root.findByType('div');
+    const svg = renderer.root.findByType('svg');
+
+    expect(container.props.className).toContain('WaveformCompact');
+    expect(svg.props.className).toContain('SvgCompact');
+    expect(svg.props.width).toBe(143);
+    expect(svg.props.height).toBe(32);
+    expect(svg.props.preserveAspectRatio).toBe('xMaxYMid meet');
 
     renderer.unmount();
   });

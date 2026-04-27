@@ -1,7 +1,11 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { VOICE_WAVEFORM_BAR_COUNT } from '../../utils/audioWaveform';
+import {
+  normalizeMatrixWaveform,
+  timeDomainDataToWaveformPoint,
+  VOICE_WAVEFORM_BAR_COUNT,
+} from '../../utils/audioWaveform';
 import { useVoiceRecorder } from './useVoiceRecorder';
 
 type Listener = (event: Event) => void;
@@ -77,10 +81,13 @@ class MockMediaRecorder {
 }
 
 class MockAnalyser {
+  static sampleIndex = 0;
+
   fftSize = 4;
 
   getByteTimeDomainData(data: Uint8Array) {
-    data.set([0, 64, 192, 255]);
+    MockAnalyser.sampleIndex += 1;
+    data.fill(128 + MockAnalyser.sampleIndex);
   }
 }
 
@@ -130,6 +137,14 @@ const secureWindow = {
   AudioContext: MockAudioContext,
 };
 
+const expectedAnalyserSample = (index: number): number =>
+  timeDomainDataToWaveformPoint(new Uint8Array(2048).fill(128 + index));
+
+const expectedAnalyserSamples = (start: number, end: number): number[] =>
+  Array.from({ length: end - start + 1 }, (_value, index) =>
+    expectedAnalyserSample(start + index)
+  );
+
 describe('useVoiceRecorder', () => {
   let stream: MockMediaStream;
   let getUserMedia: ReturnType<typeof vi.fn>;
@@ -141,6 +156,7 @@ describe('useVoiceRecorder', () => {
     MockMediaRecorder.instances = [];
     MockMediaRecorder.autoStop = true;
     MockMediaRecorder.isTypeSupported.mockReturnValue(true);
+    MockAnalyser.sampleIndex = 0;
 
     vi.stubGlobal('window', secureWindow);
     vi.stubGlobal('navigator', {
@@ -179,6 +195,71 @@ describe('useVoiceRecorder', () => {
     expect(onSendRecording.mock.calls[0][1]).toBe(1200);
     expect(onSendRecording.mock.calls[0][2]).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
     expect(stream.track.stop).toHaveBeenCalledOnce();
+
+    renderer.unmount();
+  });
+
+  it('left-pads the live display waveform until the fixed recording window is full', async () => {
+    const renderer = await renderHarness();
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(3 * 80);
+    });
+
+    const waveform = recorderState.current?.waveform;
+    expect(waveform).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
+    expect(waveform?.slice(0, 44)).toEqual(Array.from({ length: 44 }, () => 0));
+    expect(waveform?.slice(-4)).toEqual(expectedAnalyserSamples(1, 4));
+
+    renderer.unmount();
+  });
+
+  it('keeps the live display waveform as a rolling 48-sample tick window', async () => {
+    const renderer = await renderHarness();
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(60 * 80);
+    });
+
+    const previousWaveform = recorderState.current?.waveform ?? [];
+    expect(previousWaveform).toEqual(expectedAnalyserSamples(14, 61));
+
+    await act(async () => {
+      vi.advanceTimersByTime(80);
+    });
+
+    const nextWaveform = recorderState.current?.waveform ?? [];
+    expect(nextWaveform).toEqual(expectedAnalyserSamples(15, 62));
+    expect(nextWaveform.slice(0, -1)).toEqual(previousWaveform.slice(1));
+    expect(nextWaveform.at(-1)).toBe(expectedAnalyserSample(62));
+
+    renderer.unmount();
+  });
+
+  it('sends a normalized Matrix waveform from full metadata samples', async () => {
+    const onSendRecording = vi.fn();
+    const renderer = await renderHarness({ onSendRecording });
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(60 * 80);
+    });
+    await act(async () => {
+      await recorderState.current?.send();
+    });
+
+    const metadataSamples = expectedAnalyserSamples(1, 61);
+    expect(onSendRecording).toHaveBeenCalledOnce();
+    expect(onSendRecording.mock.calls[0][2]).toEqual(normalizeMatrixWaveform(metadataSamples));
+    expect(onSendRecording.mock.calls[0][2]).not.toEqual(metadataSamples.slice(-48));
 
     renderer.unmount();
   });

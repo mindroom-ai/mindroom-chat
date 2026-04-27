@@ -8,6 +8,41 @@
 - Old recovery/debugging branches were intentionally squashed out of mainline history.
 - Use [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) for future room/thread/search investigations instead of rebuilding long transient notes here.
 
+### CINNY-097 Recording Waveform Implementation Report (2026-04-27)
+
+- Summary:
+  - Split live recorder samples into full-history/capped Matrix metadata samples and a separate fixed 48-point live display buffer.
+  - Live recording display now left-pads zeros until full, shifts older bars left one slot per 80ms sample tick, and inserts the newest sample on the right without calling `resampleWaveform`.
+  - Sent voice-message metadata still uses `normalizeMatrixWaveform` over the full metadata sample history.
+  - Added opt-in compact `VoiceWaveform` rendering for recording capsules only; playback/default seekable rendering keeps the existing full-width stretched SVG behavior.
+- Files changed:
+  - `src/app/mindroom/voice/useVoiceRecorder.ts`
+  - `src/app/mindroom/voice/useVoiceRecorder.test.ts`
+  - `src/app/mindroom/voice/VoiceRecordingCapsule.tsx`
+  - `src/app/mindroom/voice/VoiceRecordingCapsule.test.ts`
+  - `src/app/mindroom/voice/VoiceRecorderDialog.test.ts`
+  - `src/app/components/voice/VoiceWaveform.tsx`
+  - `src/app/components/voice/VoiceWaveform.css.ts`
+  - `src/app/components/voice/VoiceWaveform.test.ts`
+  - `src/app/components/message/content/VoiceAudioContent.test.ts`
+  - Removed transient root `FINAL-PLAN.md` after implementation, matching the architecture guard against root plan/report artifacts.
+- Tests and validation:
+  - `npm test -- src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/components/voice/VoiceWaveform.test.ts`
+  - `npm test -- src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/VoiceRecordingCapsule.test.ts src/app/mindroom/voice/VoiceRecorderDialog.test.ts src/app/components/message/content/VoiceAudioContent.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm run check:eslint -- ...` completed with the repo warning-only baseline (`17` warnings, `0` errors)
+  - `npx eslint` on touched source/test files
+  - `git diff --check`
+  - `npm test`
+  - Independent second self-review completed against the final diff; scope stayed limited to recording waveform buffering/rendering, focused tests, runbook reporting, and removal of the transient root plan artifact.
+- Deviations:
+  - No root `IMPLEMENTATION-REPORT.md` is committed because `RoomTimeline.architecture.test.ts` explicitly forbids transient root implementation reports. This runbook entry is the implementation report for this worktree.
+  - The prompt's reference report path `skills/mindroom-dev/references/reports/CINNY-097.md` was absent in this worktree.
+- Live-test recommendations:
+  - Record for 60-90 seconds and compare roughly 5s, 30s, 60s, and 90s.
+  - Verify a stable right-edge sample cadence, leftward one-slot shifts, no left-side compression or slowdown, narrower live bars in wide composers, pause/resume freezing and continuing cadence, and unchanged sent-message playback seeking.
+
 ### Refactor Slices
 
 - `CINNY-108`
