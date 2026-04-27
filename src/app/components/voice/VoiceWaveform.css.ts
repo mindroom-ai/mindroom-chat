@@ -25,10 +25,22 @@ export const WaveformDimmed = style({
   opacity: config.opacity.P500,
 });
 
+export const WaveformCompact = style({
+  display: 'flex',
+  justifyContent: 'flex-end',
+  overflow: 'hidden',
+});
+
 export const Svg = style({
   display: 'block',
   width: '100%',
   height: '100%',
+});
+
+export const SvgCompact = style({
+  flex: '0 0 auto',
+  width: toRem(143),
+  maxWidth: '100%',
 });
 
 export const Bar = style({
