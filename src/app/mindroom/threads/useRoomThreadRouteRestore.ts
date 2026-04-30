@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { removeRecentThread } from '../recent-threads/recentThreads';
 import { clearLastOpenThread, getLastOpenThread, setLastOpenThread } from './lastOpenThread';
+import { isConfirmedMatrixEventId } from './threadRouteUtils';
 
 type UseRoomThreadRouteRestoreOptions = {
   eventId?: string;
@@ -21,7 +22,7 @@ export const useRoomThreadRouteRestore = ({
   const autoRestoredThreadIdRef = useRef<string>();
 
   useEffect(() => {
-    if (!threadId) return;
+    if (!isConfirmedMatrixEventId(threadId)) return;
     setLastOpenThread(roomId, threadId);
   }, [roomId, threadId]);
 
