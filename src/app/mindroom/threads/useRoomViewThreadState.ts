@@ -38,6 +38,7 @@ import {
 } from './threadFilterDsl';
 import { useRoomThreadSummaryState } from './threadSummaryStore';
 import { useThreadRootEvent } from './useThreadRootEvent';
+import { isConfirmedMatrixEventId } from './threadRouteUtils';
 
 type UseRoomViewThreadStateOptions = {
   eventId?: string;
@@ -235,7 +236,7 @@ export const useRoomViewThreadState = ({
   }, [effectiveThreadId, eventId, navigateRoomThread, room.roomId, threadId]);
 
   useEffect(() => {
-    if (!effectiveThreadId) return;
+    if (!isConfirmedMatrixEventId(effectiveThreadId)) return;
 
     bumpRecentThread(room.roomId, effectiveThreadId, undefined, recentThreadSummaryText);
   }, [effectiveThreadId, recentThreadSummaryText, room.roomId]);
