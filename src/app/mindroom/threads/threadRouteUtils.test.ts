@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getEffectiveThreadRootActivityTs,
+  isConfirmedMatrixEventId,
   isPendingLocalEchoThreadRoot,
   isPendingLocalEchoThreadRootEvent,
   resolveCanonicalThreadRootId,
@@ -51,6 +52,13 @@ const makeRoom = ({
   }) as never;
 
 describe('threadRouteUtils', () => {
+  it('recognizes only confirmed Matrix event ids as persistable ids', () => {
+    expect(isConfirmedMatrixEventId('$confirmed')).toBe(true);
+    expect(isConfirmedMatrixEventId('~pending')).toBe(false);
+    expect(isConfirmedMatrixEventId('!room:example.org')).toBe(false);
+    expect(isConfirmedMatrixEventId(undefined)).toBe(false);
+  });
+
   it('resolves reply event ids back to their thread root ids', () => {
     const replyEvent = makeEvent('$reply', { threadRootId: '$root' });
     const room = makeRoom({
