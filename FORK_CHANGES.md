@@ -355,6 +355,21 @@
   - Review:
     - independent Codex review found no issues in the tracked diff.
     - residual risk: coverage is focused on the mark-read components, not a browser-level Home/Direct menu reproduction with zero unread rooms.
+- `CINNY-205`
+  - Fixed the visible notifications refresh heartbeat where blank ghost notification boxes could appear while existing notifications were already rendered.
+  - Notification loading placeholders now render only for the initial empty load, not for pagination/refresh loading states with existing notification groups on screen.
+  - Added `notificationTimelineView.ts` as a focused view-policy helper with regression coverage for initial-empty versus existing-data loading states.
+  - Validation:
+    - `npm test -- src/app/pages/client/inbox/notificationTimelineView.test.ts` passes.
+    - `npm test` passes.
+    - `npm run typecheck` passes.
+    - `npm run lint` passes with the repo's warning-only baseline.
+    - `npm run build` passes with existing Vite/runtime-config/sourcemap/chunk-size warnings.
+    - `git diff --check` passes.
+    - targeted Prettier check passes.
+  - Review:
+    - independent second self-review found no issues in the tracked diff.
+    - residual risk: coverage is focused on the loading view policy, not a browser-level visual reproduction of the notification heartbeat.
 
 ### Current Feature Set On `dev`
 

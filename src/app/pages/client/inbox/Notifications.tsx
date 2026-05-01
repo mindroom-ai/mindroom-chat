@@ -97,6 +97,7 @@ import {
 import { useRoomCreatorsTag } from '../../../hooks/useRoomCreatorsTag';
 import { useRoomCreators } from '../../../hooks/useRoomCreators';
 import { MindroomMarkRoomReadChip } from '../../../mindroom/notifications/MindroomMarkRoomReadChip';
+import { shouldRenderNotificationLoadingPlaceholders } from './notificationTimelineView';
 
 type RoomNotificationsGroup = {
   roomId: string;
@@ -425,9 +426,7 @@ function RoomNotificationsGroupComp({
             {room.name}
           </Text>
         </Box>
-        <Box shrink="No">
-          {unread && <MindroomMarkRoomReadChip roomId={room.roomId} />}
-        </Box>
+        <Box shrink="No">{unread && <MindroomMarkRoomReadChip roomId={room.roomId} />}</Box>
       </Header>
       <Box direction="Column" gap="100">
         {notifications.map((notification) => {
@@ -743,7 +742,10 @@ export function Notifications() {
                     </Box>
                   )}
 
-                {timelineState.status === AsyncStatus.Loading && (
+                {shouldRenderNotificationLoadingPlaceholders(
+                  timelineState.status,
+                  notificationTimeline.groups.length
+                ) && (
                   <Box direction="Column" gap="100">
                     {[...Array(8).keys()].map((key) => (
                       <SequenceCard
