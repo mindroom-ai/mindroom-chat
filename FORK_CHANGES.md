@@ -342,6 +342,19 @@
     - `npm run typecheck` passes
     - `npm run lint` passes with the repo warning-only baseline (`17` warnings, `0` errors)
     - `npm run build` passes
+- `CINNY-204`
+  - Fixed the Home/Direct mark-read-only menus crashing `focus-trap` when no listed room is unread.
+  - `MindroomMarkRoomsReadMenuItem` and `MindroomMarkRoomReadMenuItem` now keep unavailable Mark as Read actions in the tab order via `aria-disabled` instead of native `disabled`, preserving Folds disabled styling while giving focus-trap a tabbable menu item.
+  - Guarded both unavailable click paths so keyboard or pointer activation still no-ops and does not close the menu or send read receipts.
+  - Validation:
+    - focused notification menu tests pass for `MindroomMarkRoomsReadMenuItem` and `MindroomMarkRoomReadMenuItem`.
+    - `npm test` passes (`234/234` files, `1764/1764` tests)
+    - `npm run typecheck` passes
+    - `npm run lint` passes with the repo warning-only baseline (`17` warnings, `0` errors)
+    - `npm run build` passes with the existing Vite/runtime-config/sourcemap/chunk-size warnings
+  - Review:
+    - independent Codex review found no issues in the tracked diff.
+    - residual risk: coverage is focused on the mark-read components, not a browser-level Home/Direct menu reproduction with zero unread rooms.
 
 ### Current Feature Set On `dev`
 

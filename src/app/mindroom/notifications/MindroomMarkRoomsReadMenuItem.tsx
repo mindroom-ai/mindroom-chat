@@ -35,7 +35,6 @@ export function MindroomMarkRoomsReadMenuItem({
       after={<Icon size="100" src={Icons.CheckTwice} />}
       radii="300"
       aria-disabled={!unread}
-      disabled={!unread}
     >
       <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
         Mark as Read
