@@ -5,6 +5,7 @@ import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
 
 const toolApprovalCardMock = vi.hoisted(() => vi.fn());
 const longTextTextMock = vi.hoisted(() => vi.fn());
+const pasteAttachmentContentMock = vi.hoisted(() => vi.fn());
 const toolTraceParserOptionsMock = vi.hoisted(() => vi.fn((options: unknown) => options));
 
 vi.mock('../../components/message', () => ({
@@ -76,6 +77,13 @@ vi.mock('./MindroomLongTextText', () => ({
       renderBody(content, { body: typeof content.body === 'string' ? content.body : '' }),
       renderAfterBody?.(content, content)
     );
+  },
+}));
+
+vi.mock('./MindroomPasteAttachmentContent', () => ({
+  MindroomPasteAttachmentContent: ({ attachment }: any) => {
+    pasteAttachmentContentMock(attachment);
+    return React.createElement('div', { 'data-renderer': 'paste-attachment' }, attachment.fileName);
   },
 }));
 
@@ -227,6 +235,35 @@ describe('renderMindroomMessageContent', () => {
     renderer.unmount();
   });
 
+  it('synthesizes safe formatted body for plain text paste markers', async () => {
+    toolTraceParserOptionsMock.mockClear();
+
+    const marker =
+      '[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":11,"file":"mindroom-paste-a3f19c.txt"}]]';
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      content: {
+        msgtype: 'm.text',
+        body: `Before <unsafe> ${marker} after`,
+      },
+    });
+
+    expect(toolTraceParserOptionsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        formatted_body: [
+          '<p>Before &lt;unsafe&gt; ',
+          '<span data-mindroom-paste-marker="true" data-mindroom-paste-id="paste-a3f19c" data-mindroom-paste-chars="11" data-mindroom-paste-file="mindroom-paste-a3f19c.txt">',
+          '[[mindroom-paste:{&quot;v&quot;:1,&quot;id&quot;:&quot;paste-a3f19c&quot;,&quot;chars&quot;:11,&quot;file&quot;:&quot;mindroom-paste-a3f19c.txt&quot;}]]',
+          '</span>',
+          ' after</p>',
+        ].join(''),
+      })
+    );
+
+    renderer.unmount();
+  });
+
   it('ignores malformed extras without affecting body rendering', async () => {
     const renderer = await renderNode({
       msgType: 'm.text',
@@ -369,6 +406,45 @@ describe('renderMindroomMessageContent', () => {
     expect(longTextTextMock).toHaveBeenCalledWith({
       kind: 'text',
     });
+
+    renderer.unmount();
+  });
+
+  it('renders paste text attachments through an inspectable MindRoom file card', async () => {
+    pasteAttachmentContentMock.mockReset();
+
+    const renderer = await renderNode({
+      msgType: 'm.file',
+      content: {
+        msgtype: 'm.file',
+        body: 'mindroom-paste-a3f19c.txt',
+        filename: 'mindroom-paste-a3f19c.txt',
+        url: 'mxc://example.org/pasted-text',
+        info: {
+          mimetype: 'text/plain',
+          size: 11,
+        },
+        'io.mindroom.paste_attachment': {
+          version: 1,
+          id: 'paste-a3f19c',
+          chars: 11,
+          file: 'mindroom-paste-a3f19c.txt',
+        },
+      },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('paste-attachment');
+    expect(rendered).toContain('mindroom-paste-a3f19c.txt');
+    expect(pasteAttachmentContentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'paste-a3f19c',
+        chars: 11,
+        fileName: 'mindroom-paste-a3f19c.txt',
+        mxcUri: 'mxc://example.org/pasted-text',
+      })
+    );
 
     renderer.unmount();
   });

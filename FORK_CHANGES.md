@@ -370,6 +370,30 @@
   - Review:
     - independent second self-review found no issues in the tracked diff.
     - residual risk: coverage is focused on the loading view policy, not a browser-level visual reproduction of the notification heartbeat.
+- `CINNY-206`
+  - Oversized text pasted into the MindRoom composer now converts into a normal `m.file` text attachment when the estimated `m.text` content would exceed the conservative Matrix event-size budget.
+  - The composer inserts a JSON marker at the paste point, e.g. `[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":18421,"file":"mindroom-paste-a3f19c.txt"}]]`, so downstream MindRoom processing can parse it with delimiter scanning plus `JSON.parse`.
+  - Paste marker creation/parsing lives in `src/app/mindroom/messages/pasteAttachmentMarker.ts`; composer size policy lives in `src/app/mindroom/room-input/pasteAttachment.ts`; `MindroomRoomInput` reuses the existing upload board and send-session path for attachments.
+  - The composer renders paste markers as Slate inline-void badges, so clicking the badge selects it as one unit and Backspace/Delete removes the whole marker instead of corrupting the marker text.
+  - Staged paste attachments are linked to their marker: deleting the composer badge removes the staged upload, and canceling/removing the staged upload removes the corresponding badge.
+  - MindRoom message rendering turns paste markers into compact badges through the existing `renderMindroomMessageContent`/HTML-block parser boundary while preserving the underlying sent message body for old-client compatibility.
+  - Generated paste file events now carry `io.mindroom.paste_attachment` metadata with the paste id, character count, and generated file name, so the sent attachment remains machine-resolvable without parsing the display label.
+  - Sending a text message with paste attachments now keeps paste uploads claimed by the active send session even after the text-send editor reset clears the marker, so the attachment upload cannot be orphan-cleaned before the `m.file` event is sent.
+  - Sent paste file events render as a compact MindRoom "Pasted text" attachment card with character/file details plus short `Open` and `Download` actions; opening the card loads the original uploaded text.
+  - Validation:
+    - focused paste attachment suite passes (`4/4` files, `38/38` tests).
+    - `npm test` passes (`240/240` files, `1790/1790` tests).
+    - `npm run typecheck` passes.
+    - `npm run build` passes with existing Vite/runtime-config/sourcemap/chunk-size warnings.
+    - `npm run lint` passes with the repo warning-only baseline (`17` warnings, `0` errors).
+    - `git diff --check` passes.
+    - targeted Prettier check passes for the touched files.
+    - Chrome MCP plus desktop browser check verified oversized paste creates one composer badge plus one staged text file, Backspace just after the badge removes both, clicking the badge then pressing Delete removes both, and the earlier Slate DOM-point crash no longer appears in current console errors.
+    - Chrome MCP live Finance-room send verified a 1.2 MB paste produced both the root `m.text` marker event and the generated `m.file` event, with `io.mindroom.paste_attachment` metadata on the file event.
+    - Chrome MCP visual check verified the sent attachment renders as a compact card of roughly `383x72` px in the current desktop viewport, and `Open` displays the uploaded text containing the E2E unique marker.
+  - Review:
+    - independent second self-review found stale plan/spec marker examples from the earlier draft syntax; those docs are included here with the final JSON marker shape.
+    - no remaining issues found in the focused source/test diff.
 
 ### Current Feature Set On `dev`
 
