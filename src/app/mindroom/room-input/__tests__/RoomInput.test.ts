@@ -19,52 +19,52 @@ const THIRD_ROOM_ID = '!third:example.org';
 
 const { customEditorState, editorMocks, editorOutputState, mxState, voiceRecorderState } =
   vi.hoisted(() => ({
-  editorMocks: {
-    insertNode: vi.fn(),
-    moveCursor: vi.fn(),
-    resetEditor: vi.fn(),
-    resetEditorHistory: vi.fn(),
-  },
-  customEditorState: {
-    editor: undefined as
-      | {
-          children: Array<any>;
-        }
-      | undefined,
-    props: undefined as
-      | {
-          onPaste?: (evt: {
-            clipboardData: DataTransfer;
-            preventDefault: () => void;
-          }) => void | Promise<void>;
-          onChange?: () => void;
-        }
-      | undefined,
-  },
-  editorOutputState: {
-    plainText: '',
-    customHtml: '',
-    htmlEqualsPlainText: true,
-  },
-  mxState: {
-    cancelUpload: vi.fn(),
-    getUserId: vi.fn(() => '@me:example.org'),
-    sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
-    uploadContent: vi.fn(async () => ({ content_uri: 'mxc://mindroom/voice' })),
-  },
-  voiceRecorderState: {
-    props: undefined as
-      | {
-          active?: boolean;
-          sendDisabled?: boolean;
-          onClose: () => void;
-          onRecordingStart?: () => void;
-          onSendStopRequest?: () => boolean | void;
-          onSendStopFailure?: () => void;
-          onSendRecording: (file: File, duration: number, waveform?: number[]) => Promise<void>;
-        }
-      | undefined,
-  },
+    editorMocks: {
+      insertNode: vi.fn(),
+      moveCursor: vi.fn(),
+      resetEditor: vi.fn(),
+      resetEditorHistory: vi.fn(),
+    },
+    customEditorState: {
+      editor: undefined as
+        | {
+            children: Array<any>;
+          }
+        | undefined,
+      props: undefined as
+        | {
+            onPaste?: (evt: {
+              clipboardData: DataTransfer;
+              preventDefault: () => void;
+            }) => void | Promise<void>;
+            onChange?: () => void;
+          }
+        | undefined,
+    },
+    editorOutputState: {
+      plainText: '',
+      customHtml: '',
+      htmlEqualsPlainText: true,
+    },
+    mxState: {
+      cancelUpload: vi.fn(),
+      getUserId: vi.fn(() => '@me:example.org'),
+      sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
+      uploadContent: vi.fn(async () => ({ content_uri: 'mxc://mindroom/voice' })),
+    },
+    voiceRecorderState: {
+      props: undefined as
+        | {
+            active?: boolean;
+            sendDisabled?: boolean;
+            onClose: () => void;
+            onRecordingStart?: () => void;
+            onSendStopRequest?: () => boolean | void;
+            onSendStopFailure?: () => void;
+            onSendRecording: (file: File, duration: number, waveform?: number[]) => Promise<void>;
+          }
+        | undefined,
+    },
   }));
 
 vi.mock('slate', () => ({
@@ -188,13 +188,8 @@ vi.mock('../../../components/upload-card', () => ({
 }));
 
 vi.mock('../../../components/upload-board', () => ({
-  UploadBoard: ({
-    header,
-    children,
-  }: {
-    header?: React.ReactNode;
-    children?: React.ReactNode;
-  }) => React.createElement('div', null, header, children),
+  UploadBoard: ({ header, children }: { header?: React.ReactNode; children?: React.ReactNode }) =>
+    React.createElement('div', null, header, children),
   UploadBoardContent: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('div', null, children),
   UploadBoardHeader: ({ onSend }: { onSend: () => Promise<void> }) =>
@@ -340,7 +335,10 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
       nodes.forEach(visit);
       return fileNames;
     },
-    removeMindroomRoomInputPasteMarkerElements: (editor: { children?: Array<any> }, fileNames: Set<string>) => {
+    removeMindroomRoomInputPasteMarkerElements: (
+      editor: { children?: Array<any> },
+      fileNames: Set<string>
+    ) => {
       if (!Array.isArray(editor.children)) return;
       editor.children = editor.children.map((node) =>
         Array.isArray(node?.children)
@@ -683,6 +681,48 @@ describe('RoomInput', () => {
     });
 
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+
+    renderer.unmount();
+  });
+
+  it('keeps a paste upload claimed by send after the text-send editor reset clears the marker', async () => {
+    const { store, renderer } = await renderRoomInput();
+    const pastedText = 'large paste\n'.repeat(6000);
+
+    editorOutputState.plainText = 'Before ';
+    editorOutputState.customHtml = 'Before ';
+    editorOutputState.htmlEqualsPlainText = true;
+
+    await act(async () => {
+      await customEditorState.props!.onPaste?.(createTextPasteEvent(pastedText));
+    });
+
+    const pasteMarkerNode = editorMocks.insertNode.mock.calls[0]?.[0] as {
+      marker: string;
+    };
+    const marker = pasteMarkerNode.marker;
+
+    editorOutputState.plainText = `${marker}\n\ntest testing`;
+    editorOutputState.customHtml = editorOutputState.plainText;
+    editorOutputState.htmlEqualsPlainText = true;
+    editorMocks.resetEditor.mockImplementationOnce(() => {
+      customEditorState.editor!.children = [{ type: 'paragraph', children: [{ text: '' }] }];
+      customEditorState.props!.onChange?.();
+    });
+
+    const uploadBoardSend = renderer.root.findByProps({ 'aria-label': 'Upload board Send' });
+    await act(async () => {
+      await uploadBoardSend.props.onClick();
+    });
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toHaveLength(1);
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+      msgtype: 'm.text',
+      body: `${marker}\n\ntest testing`,
+    });
 
     renderer.unmount();
   });

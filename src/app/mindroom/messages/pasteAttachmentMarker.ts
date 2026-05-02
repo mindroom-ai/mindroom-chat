@@ -1,3 +1,5 @@
+import type { IEncryptedFile } from '../../../types/matrix/common';
+
 export type MindroomPasteMarker = {
   id: string;
   chars: number;
@@ -5,10 +7,27 @@ export type MindroomPasteMarker = {
   raw: string;
 };
 
+export type MindroomPasteAttachmentMetadata = {
+  version: 1;
+  id: string;
+  chars: number;
+  file: string;
+};
+
 export type MindroomPasteAttachment = {
   id: string;
   marker: string;
   file: File;
+};
+
+export type MindroomPasteAttachmentFile = {
+  id: string;
+  chars?: number;
+  fileName: string;
+  mxcUri: string;
+  mimeType: string;
+  size?: number;
+  encryptedFile?: IEncryptedFile;
 };
 
 export type MindroomPasteMarkerMatch = {
@@ -23,12 +42,16 @@ type CreateMindroomPasteAttachmentOptions = {
 
 const PASTE_ID_BYTE_LENGTH = 3;
 const PASTE_ID_REG = /^paste-[a-f0-9]{6}$/;
-const PASTE_FILE_NAME_REG = /^mindroom-paste-[a-f0-9]{6}\.txt$/;
+const PASTE_FILE_NAME_REG = /^mindroom-(paste-[a-f0-9]{6})\.txt$/;
 const MINDROOM_PASTE_TEXT_MIME_TYPE = 'text/plain;charset=utf-8';
 const MINDROOM_PASTE_MARKER_VERSION = 1;
 
 export const MINDROOM_PASTE_MARKER_START = '[[mindroom-paste:';
 export const MINDROOM_PASTE_MARKER_END = ']]';
+export const MINDROOM_PASTE_ATTACHMENT_CONTENT_KEY = 'io.mindroom.paste_attachment';
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
 
 const escapeHtmlText = (text: string): string =>
   text
@@ -54,9 +77,8 @@ const getRandomBytes = (): Uint8Array => {
   return bytes;
 };
 
-export const createMindroomPasteId = (
-  randomBytes: () => Uint8Array = getRandomBytes
-): string => `paste-${bytesToLowercaseHex(randomBytes()).slice(0, PASTE_ID_BYTE_LENGTH * 2)}`;
+export const createMindroomPasteId = (randomBytes: () => Uint8Array = getRandomBytes): string =>
+  `paste-${bytesToLowercaseHex(randomBytes()).slice(0, PASTE_ID_BYTE_LENGTH * 2)}`;
 
 export const getMindroomPasteFileName = (id: string): string => {
   if (!PASTE_ID_REG.test(id)) {
@@ -67,6 +89,9 @@ export const getMindroomPasteFileName = (id: string): string => {
 
 export const isMindroomPasteFileName = (fileName: string): boolean =>
   PASTE_FILE_NAME_REG.test(fileName);
+
+export const getMindroomPasteIdFromFileName = (fileName: string): string | undefined =>
+  fileName.match(PASTE_FILE_NAME_REG)?.[1];
 
 export const createMindroomPasteMarker = ({
   id,
@@ -119,6 +144,109 @@ const markerFromParts = ({
   };
 };
 
+export const createMindroomPasteAttachmentMetadata = ({
+  id,
+  chars,
+  fileName,
+}: {
+  id: string;
+  chars: number;
+  fileName: string;
+}): MindroomPasteAttachmentMetadata => {
+  const marker = markerFromParts({
+    id,
+    chars,
+    fileName,
+    raw: '',
+  });
+  if (!marker) {
+    throw new Error('Invalid MindRoom paste attachment metadata.');
+  }
+
+  return {
+    version: MINDROOM_PASTE_MARKER_VERSION,
+    id,
+    chars,
+    file: fileName,
+  };
+};
+
+export const parseMindroomPasteAttachmentMetadata = (
+  value: unknown
+): MindroomPasteAttachmentMetadata | undefined => {
+  if (!isRecord(value)) return undefined;
+  if (value.version !== MINDROOM_PASTE_MARKER_VERSION) return undefined;
+
+  const marker = markerFromParts({
+    id: value.id,
+    chars: value.chars,
+    fileName: value.file,
+    raw: '',
+  });
+  if (!marker) return undefined;
+
+  return {
+    version: MINDROOM_PASTE_MARKER_VERSION,
+    id: marker.id,
+    chars: marker.chars,
+    file: marker.fileName,
+  };
+};
+
+export const withMindroomPasteAttachmentMetadata = (
+  content: Record<string, unknown>,
+  metadata: { id: string; chars: number; fileName: string } | undefined
+): Record<string, unknown> => {
+  if (!metadata) return content;
+
+  return {
+    ...content,
+    [MINDROOM_PASTE_ATTACHMENT_CONTENT_KEY]: createMindroomPasteAttachmentMetadata(metadata),
+  };
+};
+
+export const getMindroomPasteAttachmentFile = (
+  content: Record<string, unknown>
+): MindroomPasteAttachmentFile | undefined => {
+  const metadata = parseMindroomPasteAttachmentMetadata(
+    content[MINDROOM_PASTE_ATTACHMENT_CONTENT_KEY]
+  );
+  const contentFileName =
+    typeof content.filename === 'string'
+      ? content.filename
+      : typeof content.body === 'string'
+      ? content.body
+      : undefined;
+  const fileName = metadata?.file ?? contentFileName;
+  if (!fileName || !isMindroomPasteFileName(fileName)) return undefined;
+  if (metadata && contentFileName && contentFileName !== metadata.file) return undefined;
+
+  const encryptedFile = isRecord(content.file)
+    ? (content.file as unknown as IEncryptedFile)
+    : undefined;
+  const mxcUri =
+    typeof encryptedFile?.url === 'string'
+      ? encryptedFile.url
+      : typeof content.url === 'string'
+      ? content.url
+      : undefined;
+  if (!mxcUri) return undefined;
+
+  const info = isRecord(content.info) ? content.info : undefined;
+  const id = metadata?.id ?? getMindroomPasteIdFromFileName(fileName);
+  if (!id) return undefined;
+
+  return {
+    id,
+    chars: metadata?.chars,
+    fileName,
+    mxcUri,
+    mimeType: typeof info?.mimetype === 'string' ? info.mimetype : MINDROOM_PASTE_TEXT_MIME_TYPE,
+    size: typeof info?.size === 'number' ? info.size : undefined,
+    encryptedFile,
+  };
+};
+
 export const parseMindroomPasteMarker = (text: string): MindroomPasteMarker | undefined => {
   const trimmed = text.trim();
   if (
@@ -128,10 +256,7 @@ export const parseMindroomPasteMarker = (text: string): MindroomPasteMarker | un
     return undefined;
   }
 
-  const json = trimmed.slice(
-    MINDROOM_PASTE_MARKER_START.length,
-    -MINDROOM_PASTE_MARKER_END.length
-  );
+  const json = trimmed.slice(MINDROOM_PASTE_MARKER_START.length, -MINDROOM_PASTE_MARKER_END.length);
 
   try {
     const payload = JSON.parse(json) as {

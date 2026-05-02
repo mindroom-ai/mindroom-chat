@@ -5,6 +5,7 @@ import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
 
 const toolApprovalCardMock = vi.hoisted(() => vi.fn());
 const longTextTextMock = vi.hoisted(() => vi.fn());
+const pasteAttachmentContentMock = vi.hoisted(() => vi.fn());
 const toolTraceParserOptionsMock = vi.hoisted(() => vi.fn((options: unknown) => options));
 
 vi.mock('../../components/message', () => ({
@@ -76,6 +77,13 @@ vi.mock('./MindroomLongTextText', () => ({
       renderBody(content, { body: typeof content.body === 'string' ? content.body : '' }),
       renderAfterBody?.(content, content)
     );
+  },
+}));
+
+vi.mock('./MindroomPasteAttachmentContent', () => ({
+  MindroomPasteAttachmentContent: ({ attachment }: any) => {
+    pasteAttachmentContentMock(attachment);
+    return React.createElement('div', { 'data-renderer': 'paste-attachment' }, attachment.fileName);
   },
 }));
 
@@ -398,6 +406,45 @@ describe('renderMindroomMessageContent', () => {
     expect(longTextTextMock).toHaveBeenCalledWith({
       kind: 'text',
     });
+
+    renderer.unmount();
+  });
+
+  it('renders paste text attachments through an inspectable MindRoom file card', async () => {
+    pasteAttachmentContentMock.mockReset();
+
+    const renderer = await renderNode({
+      msgType: 'm.file',
+      content: {
+        msgtype: 'm.file',
+        body: 'mindroom-paste-a3f19c.txt',
+        filename: 'mindroom-paste-a3f19c.txt',
+        url: 'mxc://example.org/pasted-text',
+        info: {
+          mimetype: 'text/plain',
+          size: 11,
+        },
+        'io.mindroom.paste_attachment': {
+          version: 1,
+          id: 'paste-a3f19c',
+          chars: 11,
+          file: 'mindroom-paste-a3f19c.txt',
+        },
+      },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('paste-attachment');
+    expect(rendered).toContain('mindroom-paste-a3f19c.txt');
+    expect(pasteAttachmentContentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'paste-a3f19c',
+        chars: 11,
+        fileName: 'mindroom-paste-a3f19c.txt',
+        mxcUri: 'mxc://example.org/pasted-text',
+      })
+    );
 
     renderer.unmount();
   });

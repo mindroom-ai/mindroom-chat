@@ -135,6 +135,7 @@ import {
   createMindroomPasteAttachment,
   isMindroomPasteFileName,
   parseMindroomPasteMarker,
+  withMindroomPasteAttachmentMetadata,
 } from '../messages/pasteAttachmentMarker';
 import { shouldConvertPasteToAttachment } from './pasteAttachment';
 
@@ -349,7 +350,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         const pasteMarker = parseMindroomPasteMarker(pasteAttachment.marker);
         if (!pasteMarker) return;
 
-        appendUploadItems(await createUploadItems([pasteAttachment.file]));
+        appendUploadItems(
+          await createUploadItems([pasteAttachment.file], () => ({
+            markedAsSpoiler: false,
+            mindroomPasteAttachment: {
+              id: pasteMarker.id,
+              chars: pasteMarker.chars,
+              fileName: pasteMarker.fileName,
+            },
+          }))
+        );
         editor.insertNode(createMindroomRoomInputPasteMarkerElement(pasteMarker));
         moveCursor(editor);
       },
@@ -501,7 +511,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       const markerFileNames = getMindroomRoomInputPasteMarkerFileNames(editor.children);
       const orphanPasteUploads = selectedFilesRef.current.filter((fileItem) => {
         const fileName = getPasteUploadFileName(fileItem);
-        return fileName !== undefined && !markerFileNames.has(fileName);
+        if (fileName === undefined || markerFileNames.has(fileName)) return false;
+        return (
+          !sendSessionFilesRef.current.includes(fileItem.file) &&
+          !sendSessionUploadItemsRef.current.some((sendItem) => sendItem.file === fileItem.file)
+        );
       });
 
       if (orphanPasteUploads.length > 0) {
@@ -522,7 +536,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             voiceMessageMimeTypeOverride: signalBridgedRoom ? 'audio/aac' : undefined,
           });
         }
-        return getFileMsgContent(fileItem, mxc);
+        return withMindroomPasteAttachmentMetadata(
+          getFileMsgContent(fileItem, mxc),
+          fileItem.metadata.mindroomPasteAttachment
+        );
       },
       [mx]
     );

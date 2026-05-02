@@ -10,9 +10,11 @@ import { isMindroomAiRunStreaming } from './aiRun';
 import { formatMindroomMessageTextBodyAsHtml } from './blocks';
 import { getMindroomLongTextSource } from './longText';
 import { MindroomLongTextKind, MindroomLongTextText } from './MindroomLongTextText';
+import { MindroomPasteAttachmentContent } from './MindroomPasteAttachmentContent';
 import { MindroomThreadSummaryCard } from './MindroomThreadSummaryCard';
 import { MindroomToolApprovalCard } from './MindroomToolApprovalCard';
 import { renderMindroomStreamingIndicator } from './StreamingIndicator';
+import { getMindroomPasteAttachmentFile } from './pasteAttachmentMarker';
 import { MINDROOM_TOOL_APPROVAL_EVENT, parseToolApprovalContent } from './toolApproval';
 import { getMindroomThreadSummaryInfo } from './threadSummary';
 
@@ -214,6 +216,13 @@ export const renderMindroomMessageContent = ({
           renderUrlsPreview={renderUrlsPreview}
         />
       );
+    }
+
+    if (msgType === MsgType.File) {
+      const pasteAttachment = getMindroomPasteAttachmentFile(content);
+      if (pasteAttachment) {
+        return <MindroomPasteAttachmentContent attachment={pasteAttachment} />;
+      }
     }
 
     if (msgType === MsgType.Text) {

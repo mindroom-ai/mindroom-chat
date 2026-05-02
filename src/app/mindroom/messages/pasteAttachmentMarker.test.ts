@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  MINDROOM_PASTE_ATTACHMENT_CONTENT_KEY,
   createMindroomPasteAttachment,
   createMindroomPasteId,
   formatMindroomPasteMarkerTextAsHtml,
+  getMindroomPasteAttachmentFile,
   parseMindroomPasteMarker,
+  withMindroomPasteAttachmentMetadata,
 } from './pasteAttachmentMarker';
 
 describe('pasteAttachmentMarker', () => {
@@ -63,6 +66,42 @@ describe('pasteAttachmentMarker', () => {
 
   it('returns undefined when text has no paste marker', () => {
     expect(formatMindroomPasteMarkerTextAsHtml('ordinary message')).toBeUndefined();
+  });
+
+  it('adds parseable metadata to generated paste file events', () => {
+    const content = withMindroomPasteAttachmentMetadata(
+      {
+        msgtype: 'm.file',
+        body: 'mindroom-paste-a3f19c.txt',
+        filename: 'mindroom-paste-a3f19c.txt',
+        url: 'mxc://example.org/pasted-text',
+        info: {
+          mimetype: 'text/plain',
+          size: 11,
+        },
+      },
+      {
+        id: 'paste-a3f19c',
+        chars: 11,
+        fileName: 'mindroom-paste-a3f19c.txt',
+      }
+    );
+
+    expect(content[MINDROOM_PASTE_ATTACHMENT_CONTENT_KEY]).toEqual({
+      version: 1,
+      id: 'paste-a3f19c',
+      chars: 11,
+      file: 'mindroom-paste-a3f19c.txt',
+    });
+    expect(getMindroomPasteAttachmentFile(content)).toEqual({
+      id: 'paste-a3f19c',
+      chars: 11,
+      fileName: 'mindroom-paste-a3f19c.txt',
+      mxcUri: 'mxc://example.org/pasted-text',
+      mimeType: 'text/plain',
+      size: 11,
+      encryptedFile: undefined,
+    });
   });
 
   it('uses cryptographic random bytes when available', () => {
