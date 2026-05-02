@@ -2892,3 +2892,20 @@
   - `npm run lint` passes with existing warnings only
   - `git diff --check` passes
 - review: second self-review completed; the fallback is limited to `io.mindroom.tool_trace`, only applies when the current preview lacks that key, and hydrated sidecar content still replaces the preview once available.
+
+## CINNY-057 v2 — Voice message playback speed control (2026-05-01)
+
+- Added a voice-only global playback-rate setting with sanitized localStorage hydration/persistence, formatting helpers, rate cycling, and an iOS Safari belt-and-braces `applyVoicePlaybackRate` helper.
+- Added `VoicePlaybackRateButton` plus hidden placeholder geometry so compact voice messages reserve the playback-speed column before interaction and reveal a 44px touch-target pill after play or waveform seek.
+- Updated `VoiceAudioContent` to apply the persisted rate to every mounted voice audio element, including hidden-pill players, on rate/source changes, `onPlay`, and `loadedmetadata`.
+- Preserved the generic audio routing boundary: non-voice `m.audio` remains on `AudioContent`; voice `m.audio` remains on `VoiceAudioContent`.
+- Tightened `themeBootstrap` storage access to `window.localStorage` and made its jsdom spy target `Storage.prototype` so the existing fast-path test observes the session-store read consistently.
+- review:
+  - independent second self-review completed via source/test diff inspection, scope check against `AudioContent.tsx`, `MsgTypeRenderers.tsx`, and `useMediaPlaybackRate.ts`, label grep for `×`, and validation review.
+- validation:
+  - focused CINNY-057 suite passes (`4/4` files, `31/31` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes with existing Vite/runtime-config/sourcemap/chunk-size warnings
+  - `npm test` passes (`237/237` files, `1788/1788` tests)
+  - `npm run lint` passes with the current warning-only baseline (`17` warnings, `0` errors)
+  - `git diff --check` passes
