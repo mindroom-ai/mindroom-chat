@@ -105,7 +105,52 @@ function serverRuntimeConfig(runtimeConfigPath) {
   };
 }
 
-const appBasePath = buildConfig.base === '/' ? '' : buildConfig.base.replace(/\/+$/g, '');
+const staleServiceWorkerCleanupScript = `
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    if ('caches' in self) {
+      const cacheNames = await self.caches.keys();
+      await Promise.all(cacheNames.map((cacheName) => self.caches.delete(cacheName)));
+    }
+
+    await self.registration.unregister();
+
+    const clients = await self.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true,
+    });
+    await Promise.all(clients.map((client) => client.navigate(client.url)));
+  })());
+});
+`;
+
+function serverStaleServiceWorkerCleanup(serviceWorkerPath) {
+  return {
+    name: 'vite-plugin-serve-stale-service-worker-cleanup',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const requestPath = req.url?.split('?')[0];
+        if (requestPath === serviceWorkerPath) {
+          res.setHeader('Content-Type', 'application/javascript');
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(staleServiceWorkerCleanupScript);
+        } else {
+          next();
+        }
+      });
+    },
+  };
+}
+
+const appBasePath =
+  buildConfig.base === '/' || buildConfig.base === './' || buildConfig.base === '.'
+    ? ''
+    : buildConfig.base.replace(/\/+$/g, '');
 const matrixCryptoWasmPath =
   appBasePath && appBasePath !== '.'
     ? `${appBasePath}/node_modules/.vite/deps/pkg/matrix_sdk_crypto_wasm_bg.wasm`
@@ -137,6 +182,7 @@ export default defineConfig({
   },
   plugins: [
     serverRuntimeConfig('/runtime-config.js'),
+    serverStaleServiceWorkerCleanup(`${appBasePath}/sw.js`),
     serverMatrixSdkCryptoWasm(matrixCryptoWasmPath),
     topLevelAwait({
       // The export name of top-level await promise for each chunk module
