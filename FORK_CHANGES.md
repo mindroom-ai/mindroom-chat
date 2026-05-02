@@ -8,6 +8,21 @@
 - Old recovery/debugging branches were intentionally squashed out of mainline history.
 - Use [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) for future room/thread/search investigations instead of rebuilding long transient notes here.
 
+### CINNY-098 Dev server stale service worker cleanup (2026-05-02)
+
+- Root cause:
+  - `mindroom-cinny.service` serves the app through Vite dev on `127.0.0.1:8090`.
+  - Existing browsers could still have an older `/sw.js` registration for `chat.lab.mindroom.chat`.
+  - In Vite dev, `/sw.js` fell through to the SPA HTML shell, so browser service-worker update checks received `text/html` instead of JavaScript and could leave stale cached assets in control.
+- Fix:
+  - `vite.config.js` now serves a dev-only `/sw.js` cleanup worker.
+  - The cleanup worker uses `skipWaiting()`, clears origin caches, unregisters itself on activation, and reloads window clients.
+  - The production PWA build is unchanged; the middleware is `apply: 'serve'` and only affects Vite dev.
+- Validation:
+  - `curl http://127.0.0.1:8090/sw.js` returns `Content-Type: application/javascript` with the cleanup worker after restarting `mindroom-cinny.service`.
+  - Fresh Chromium smoke against `https://chat.lab.mindroom.chat/` loads the MindRoom login page with no page crash.
+  - `npm run build` passes.
+
 ### CINNY-097 Recording Waveform Implementation Report (2026-04-27)
 
 - Summary:
