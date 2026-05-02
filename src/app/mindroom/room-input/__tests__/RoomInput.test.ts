@@ -17,10 +17,34 @@ const ROOM_ID = '!room:example.org';
 const OTHER_ROOM_ID = '!other:example.org';
 const THIRD_ROOM_ID = '!third:example.org';
 
-const { editorMocks, mxState, voiceRecorderState } = vi.hoisted(() => ({
+const { customEditorState, editorMocks, editorOutputState, mxState, voiceRecorderState } =
+  vi.hoisted(() => ({
   editorMocks: {
+    insertNode: vi.fn(),
+    moveCursor: vi.fn(),
     resetEditor: vi.fn(),
     resetEditorHistory: vi.fn(),
+  },
+  customEditorState: {
+    editor: undefined as
+      | {
+          children: Array<any>;
+        }
+      | undefined,
+    props: undefined as
+      | {
+          onPaste?: (evt: {
+            clipboardData: DataTransfer;
+            preventDefault: () => void;
+          }) => void | Promise<void>;
+          onChange?: () => void;
+        }
+      | undefined,
+  },
+  editorOutputState: {
+    plainText: '',
+    customHtml: '',
+    htmlEqualsPlainText: true,
   },
   mxState: {
     cancelUpload: vi.fn(),
@@ -41,10 +65,13 @@ const { editorMocks, mxState, voiceRecorderState } = vi.hoisted(() => ({
         }
       | undefined,
   },
-}));
+  }));
 
 vi.mock('slate', () => ({
   Editor: {},
+  Text: {
+    isText: (node: { text?: unknown }) => typeof node?.text === 'string',
+  },
   Transforms: {
     insertFragment: vi.fn(),
   },
@@ -108,28 +135,35 @@ vi.mock('../../../components/editor', () => ({
     top,
     before,
     after,
+    onChange,
+    onPaste,
   }: {
     style?: React.CSSProperties;
     top?: React.ReactNode;
     before?: React.ReactNode;
     after?: React.ReactNode;
-  }) => React.createElement('div', { style }, top, before, after),
+    onChange?: () => void;
+    onPaste?: (evt: { clipboardData: DataTransfer; preventDefault: () => void }) => void;
+  }) => {
+    customEditorState.props = { onChange, onPaste };
+    return React.createElement('div', { style }, top, before, after);
+  },
   EmoticonAutocomplete: () => null,
   RoomMentionAutocomplete: () => null,
   Toolbar: () => null,
   UserMentionAutocomplete: () => null,
   createEmoticonElement: vi.fn(),
-  customHtmlEqualsPlainText: () => true,
+  customHtmlEqualsPlainText: () => editorOutputState.htmlEqualsPlainText,
   getAutocompleteQuery: () => undefined,
   getBeginCommand: () => undefined,
   getMentions: () => ({ users: new Set<string>(), room: false }),
   getPrevWorldRange: () => undefined,
   isEmptyEditor: () => true,
-  moveCursor: vi.fn(),
+  moveCursor: editorMocks.moveCursor,
   resetEditor: editorMocks.resetEditor,
   resetEditorHistory: editorMocks.resetEditorHistory,
-  toMatrixCustomHTML: () => '',
-  toPlainText: () => '',
+  toMatrixCustomHTML: () => editorOutputState.customHtml,
+  toPlainText: () => editorOutputState.plainText,
   trimCommand: (_command: string, value: string) => value,
   trimCustomHtml: (value: string) => value,
 }));
@@ -196,6 +230,10 @@ vi.mock('../../../state/settings', () => ({
 }));
 
 vi.mock('../../../utils/dom', () => ({
+  getDataTransferFiles: (dataTransfer: DataTransfer) => {
+    const files = Array.from(dataTransfer.files ?? []);
+    return files.length > 0 ? files : undefined;
+  },
   getImageUrlBlob: vi.fn(),
   loadImageElement: vi.fn(),
   pauseAllMediaElements: vi.fn(),
@@ -277,6 +315,44 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
   );
 
   return {
+    createMindroomRoomInputPasteMarkerElement: (marker: {
+      id: string;
+      chars: number;
+      fileName: string;
+      raw: string;
+    }) => ({
+      type: 'paste-marker',
+      id: marker.id,
+      chars: marker.chars,
+      fileName: marker.fileName,
+      marker: marker.raw,
+      children: [{ text: '' }],
+    }),
+    getMindroomRoomInputPasteMarkerFileNames: (nodes: Array<any>) => {
+      const fileNames = new Set<string>();
+      const visit = (node: any) => {
+        if (node?.type === 'paste-marker' && typeof node.fileName === 'string') {
+          fileNames.add(node.fileName);
+          return;
+        }
+        if (Array.isArray(node?.children)) node.children.forEach(visit);
+      };
+      nodes.forEach(visit);
+      return fileNames;
+    },
+    removeMindroomRoomInputPasteMarkerElements: (editor: { children?: Array<any> }, fileNames: Set<string>) => {
+      if (!Array.isArray(editor.children)) return;
+      editor.children = editor.children.map((node) =>
+        Array.isArray(node?.children)
+          ? {
+              ...node,
+              children: node.children.filter(
+                (child: any) => child?.type !== 'paste-marker' || !fileNames.has(child.fileName)
+              ),
+            }
+          : node
+      );
+    },
     getMindroomRoomInputAutocompleteQuery: () => undefined,
     getMindroomRoomInputVoiceSendContext: ({
       roomId,
@@ -389,10 +465,32 @@ const createRoom = (roomId = ROOM_ID) =>
     getMembers: () => [],
   } as never);
 
-const createEditor = () =>
+const createEditor = () => {
+  const editor = {
+    children: [{ type: 'paragraph', children: [] }] as Array<any>,
+    insertNode: (node: unknown) => {
+      editorMocks.insertNode(node);
+      editor.children[0]?.children.push(node);
+      return node;
+    },
+  };
+  customEditorState.editor = editor;
+  return editor as never;
+};
+
+const createTextPasteEvent = (text: string) =>
   ({
-    children: [],
-  } as never);
+    clipboardData: {
+      files: {
+        length: 0,
+      },
+      getData: (type: string) => (type === 'text/plain' ? text : ''),
+    },
+    preventDefault: vi.fn(),
+  } as never as {
+    clipboardData: DataTransfer;
+    preventDefault: ReturnType<typeof vi.fn>;
+  });
 
 const createDeferred = <T>() => {
   let resolve!: (value: T) => void;
@@ -459,6 +557,11 @@ const updateRoomInput = async (
 
 afterEach(() => {
   voiceRecorderState.props = undefined;
+  customEditorState.editor = undefined;
+  customEditorState.props = undefined;
+  editorOutputState.plainText = '';
+  editorOutputState.customHtml = '';
+  editorOutputState.htmlEqualsPlainText = true;
   mxState.cancelUpload.mockReset();
   mxState.getUserId.mockReset();
   mxState.getUserId.mockReturnValue('@me:example.org');
@@ -466,6 +569,8 @@ afterEach(() => {
   mxState.sendMessage.mockResolvedValue({ event_id: '$sent' });
   mxState.uploadContent.mockReset();
   mxState.uploadContent.mockResolvedValue({ content_uri: 'mxc://mindroom/voice' });
+  editorMocks.insertNode.mockReset();
+  editorMocks.moveCursor.mockReset();
   editorMocks.resetEditor.mockReset();
   editorMocks.resetEditorHistory.mockReset();
 });
@@ -481,6 +586,103 @@ describe('RoomInput', () => {
     );
 
     expect(editorSurface).toBeTruthy();
+
+    renderer.unmount();
+  });
+
+  it('turns oversized pasted text into an upload and inserts a parseable marker', async () => {
+    const { store, renderer } = await renderRoomInput();
+    const pastedText = 'large paste\n'.repeat(6000);
+    const pasteEvent = createTextPasteEvent(pastedText);
+
+    editorOutputState.plainText = 'Before ';
+    editorOutputState.customHtml = 'Before ';
+    editorOutputState.htmlEqualsPlainText = true;
+
+    await act(async () => {
+      await customEditorState.props!.onPaste?.(pasteEvent);
+    });
+
+    const [fileItem] = store.get(roomIdToUploadItemsAtomFamily(ROOM_ID));
+    const pasteMarkerNode = editorMocks.insertNode.mock.calls[0]?.[0] as {
+      chars: number;
+      fileName: string;
+      id: string;
+      marker: string;
+      type: string;
+    };
+    const marker = pasteMarkerNode.marker;
+
+    expect(pasteEvent.preventDefault).toHaveBeenCalledTimes(1);
+    expect(fileItem?.file).toBeInstanceOf(File);
+    expect(fileItem?.file.name).toMatch(/^mindroom-paste-[a-f0-9]{6}\.txt$/);
+    expect(fileItem?.file.type).toBe('text/plain');
+    expect(await (fileItem!.file as File).text()).toBe(pastedText);
+    expect(marker).toMatch(
+      /^\[\[mindroom-paste:\{"v":1,"id":"paste-[a-f0-9]{6}","chars":\d+,"file":"mindroom-paste-[a-f0-9]{6}\.txt"\}\]\]$/
+    );
+
+    const markerPayload = JSON.parse(marker.slice('[[mindroom-paste:'.length, -2)) as {
+      chars: number;
+      file: string;
+      id: string;
+    };
+    expect(markerPayload.chars).toBe(pastedText.length);
+    expect(fileItem?.file.name).toBe(markerPayload.file);
+    expect(fileItem?.file.name).toBe(`mindroom-${markerPayload.id}.txt`);
+    expect(pasteMarkerNode).toEqual(
+      expect.objectContaining({
+        type: 'paste-marker',
+        id: markerPayload.id,
+        chars: pastedText.length,
+        fileName: markerPayload.file,
+        marker,
+      })
+    );
+    expect(editorMocks.moveCursor).toHaveBeenCalledTimes(1);
+
+    renderer.unmount();
+  });
+
+  it('leaves small text pastes to the editor default behavior', async () => {
+    const { store, renderer } = await renderRoomInput();
+    const pasteEvent = createTextPasteEvent('small paste');
+
+    editorOutputState.plainText = 'Before ';
+    editorOutputState.customHtml = 'Before ';
+    editorOutputState.htmlEqualsPlainText = true;
+
+    await act(async () => {
+      await customEditorState.props!.onPaste?.(pasteEvent);
+    });
+
+    expect(pasteEvent.preventDefault).not.toHaveBeenCalled();
+    expect(editorMocks.insertNode).not.toHaveBeenCalled();
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+
+    renderer.unmount();
+  });
+
+  it('removes the staged paste upload when its composer badge is deleted', async () => {
+    const { store, renderer } = await renderRoomInput();
+    const pastedText = 'large paste\n'.repeat(6000);
+
+    editorOutputState.plainText = 'Before ';
+    editorOutputState.customHtml = 'Before ';
+    editorOutputState.htmlEqualsPlainText = true;
+
+    await act(async () => {
+      await customEditorState.props!.onPaste?.(createTextPasteEvent(pastedText));
+    });
+
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toHaveLength(1);
+
+    customEditorState.editor!.children = [{ type: 'paragraph', children: [{ text: 'Before ' }] }];
+    await act(async () => {
+      customEditorState.props!.onChange?.();
+    });
+
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
 
     renderer.unmount();
   });

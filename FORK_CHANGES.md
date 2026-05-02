@@ -370,6 +370,25 @@
   - Review:
     - independent second self-review found no issues in the tracked diff.
     - residual risk: coverage is focused on the loading view policy, not a browser-level visual reproduction of the notification heartbeat.
+- `CINNY-206`
+  - Oversized text pasted into the MindRoom composer now converts into a normal `m.file` text attachment when the estimated `m.text` content would exceed the conservative Matrix event-size budget.
+  - The composer inserts a JSON marker at the paste point, e.g. `[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":18421,"file":"mindroom-paste-a3f19c.txt"}]]`, so downstream MindRoom processing can parse it with delimiter scanning plus `JSON.parse`.
+  - Paste marker creation/parsing lives in `src/app/mindroom/messages/pasteAttachmentMarker.ts`; composer size policy lives in `src/app/mindroom/room-input/pasteAttachment.ts`; `MindroomRoomInput` reuses the existing upload board and send-session path for attachments.
+  - The composer renders paste markers as Slate inline-void badges, so clicking the badge selects it as one unit and Backspace/Delete removes the whole marker instead of corrupting the marker text.
+  - Staged paste attachments are linked to their marker: deleting the composer badge removes the staged upload, and canceling/removing the staged upload removes the corresponding badge.
+  - MindRoom message rendering turns paste markers into compact badges through the existing `renderMindroomMessageContent`/HTML-block parser boundary while preserving the underlying sent message body for old-client compatibility.
+  - Validation:
+    - focused paste marker suite passes (`6/6` files, `52/52` tests).
+    - `npm test` passes (`239/239` files, `1786/1786` tests).
+    - `npm run typecheck` passes.
+    - `npm run build` passes with existing Vite/runtime-config/sourcemap/chunk-size warnings.
+    - `npm run lint` passes with the repo warning-only baseline (`17` warnings, `0` errors).
+    - `git diff --check` passes.
+    - Chrome MCP plus desktop browser check verified oversized paste creates one composer badge plus one staged text file, Backspace just after the badge removes both, clicking the badge then pressing Delete removes both, and the earlier Slate DOM-point crash no longer appears in current console errors.
+    - Live send/upload to a real Matrix room was not executed because it would transmit test content; keep that as a manual/confirmed final smoke test.
+  - Review:
+    - independent second self-review found stale plan/spec marker examples from the earlier draft syntax; those docs are included here with the final JSON marker shape.
+    - no remaining issues found in the focused source/test diff.
 
 ### Current Feature Set On `dev`
 

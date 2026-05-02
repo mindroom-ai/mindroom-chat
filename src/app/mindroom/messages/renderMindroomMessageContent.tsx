@@ -7,7 +7,7 @@ import { MindroomMessageExtras } from './MindroomMessageExtras';
 import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from './messageExtrasData';
 import { withMindroomToolTraceMarkerParserOptions } from '../../plugins/react-custom-html-parser';
 import { isMindroomAiRunStreaming } from './aiRun';
-import { formatMindroomToolRefTextBodyAsHtml } from './blocks';
+import { formatMindroomMessageTextBodyAsHtml } from './blocks';
 import { getMindroomLongTextSource } from './longText';
 import { MindroomLongTextKind, MindroomLongTextText } from './MindroomLongTextText';
 import { MindroomThreadSummaryCard } from './MindroomThreadSummaryCard';
@@ -69,7 +69,7 @@ export const renderMindroomMessageContent = ({
     if (typeof bodyContent.formatted_body === 'string') return bodyContent;
     if (typeof bodyContent.body !== 'string') return bodyContent;
 
-    const formattedBody = formatMindroomToolRefTextBodyAsHtml(bodyContent.body);
+    const formattedBody = formatMindroomMessageTextBodyAsHtml(bodyContent.body);
     if (!formattedBody) return bodyContent;
 
     return {

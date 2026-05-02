@@ -227,6 +227,35 @@ describe('renderMindroomMessageContent', () => {
     renderer.unmount();
   });
 
+  it('synthesizes safe formatted body for plain text paste markers', async () => {
+    toolTraceParserOptionsMock.mockClear();
+
+    const marker =
+      '[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":11,"file":"mindroom-paste-a3f19c.txt"}]]';
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      content: {
+        msgtype: 'm.text',
+        body: `Before <unsafe> ${marker} after`,
+      },
+    });
+
+    expect(toolTraceParserOptionsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        formatted_body: [
+          '<p>Before &lt;unsafe&gt; ',
+          '<span data-mindroom-paste-marker="true" data-mindroom-paste-id="paste-a3f19c" data-mindroom-paste-chars="11" data-mindroom-paste-file="mindroom-paste-a3f19c.txt">',
+          '[[mindroom-paste:{&quot;v&quot;:1,&quot;id&quot;:&quot;paste-a3f19c&quot;,&quot;chars&quot;:11,&quot;file&quot;:&quot;mindroom-paste-a3f19c.txt&quot;}]]',
+          '</span>',
+          ' after</p>',
+        ].join(''),
+      })
+    );
+
+    renderer.unmount();
+  });
+
   it('ignores malformed extras without affecting body rendering', async () => {
     const renderer = await renderNode({
       msgType: 'm.text',
