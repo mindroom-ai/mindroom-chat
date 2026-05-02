@@ -16,6 +16,7 @@ import {
   MentionElement,
   OrderedListElement,
   ParagraphElement,
+  PasteMarkerElement,
   UnorderedListElement,
 } from './slate';
 import { createEmoticonElement, createMentionElement } from './utils';
@@ -30,6 +31,7 @@ import {
   escapeMarkdownInlineSequences,
   escapeMarkdownBlockSequences,
 } from '../../plugins/markdown';
+import { parseMindroomPasteMarker } from '../../mindroom/messages/pasteAttachmentMarker';
 
 type ProcessTextCallback = (text: string) => string;
 
@@ -146,6 +148,24 @@ const getInlineNonMarkElement = (node: Element): MentionElement | EmoticonElemen
   return undefined;
 };
 
+const getPasteMarkerElement = (node: Element): PasteMarkerElement | undefined => {
+  if (node.name !== 'span' || node.attribs['data-mindroom-paste-marker'] !== 'true') {
+    return undefined;
+  }
+
+  const marker = parseMindroomPasteMarker(getText(node));
+  if (!marker) return undefined;
+
+  return {
+    type: BlockType.PasteMarker,
+    id: marker.id,
+    chars: marker.chars,
+    fileName: marker.fileName,
+    marker: marker.raw,
+    children: [{ text: '' }],
+  };
+};
+
 const getInlineElement = (
   node: ChildNode,
   processText: ProcessTextCallback,
@@ -164,6 +184,9 @@ const getInlineElement = (
       const displayMode = node.name === 'div';
       return [{ text: markdown ? formatMathMarkdown(mathLatex, displayMode) : mathLatex }];
     }
+
+    const pasteMarker = getPasteMarkerElement(node);
+    if (pasteMarker) return [pasteMarker];
 
     const markType = getInlineNodeMarkType(node);
     if (markType) {

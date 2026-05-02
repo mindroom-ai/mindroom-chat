@@ -1,4 +1,4 @@
-import React, { ReactNode, useCallback, useState } from 'react';
+import React, { ComponentProps, ReactNode, useCallback, useState } from 'react';
 import {
   Box,
   Button,
@@ -73,14 +73,27 @@ type RenderTextViewerProps = {
   langName: string;
   requestClose: () => void;
 };
+type FileActionButtonSize = ComponentProps<typeof Button>['size'];
 type ReadTextFileProps = {
   body: string;
   mimeType: string;
   url: string;
   encInfo?: EncryptedAttachmentInfo;
   renderViewer: (props: RenderTextViewerProps) => ReactNode;
+  buttonText?: string;
+  errorButtonText?: string;
+  buttonSize?: FileActionButtonSize;
 };
-export function ReadTextFile({ body, mimeType, url, encInfo, renderViewer }: ReadTextFileProps) {
+export function ReadTextFile({
+  body,
+  mimeType,
+  url,
+  encInfo,
+  renderViewer,
+  buttonText = 'Open File',
+  errorButtonText = buttonText,
+  buttonSize = '400',
+}: ReadTextFileProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const [textViewer, setTextViewer] = useState(false);
@@ -131,13 +144,13 @@ export function ReadTextFile({ body, mimeType, url, encInfo, renderViewer }: Rea
         </Overlay>
       )}
       {textState.status === AsyncStatus.Error ? (
-        renderErrorButton(loadText, 'Open File')
+        renderErrorButton(loadText, errorButtonText)
       ) : (
         <Button
           variant="Secondary"
           fill="Solid"
           radii="300"
-          size="400"
+          size={buttonSize}
           onClick={() =>
             textState.status === AsyncStatus.Success ? setTextViewer(true) : loadText()
           }
@@ -151,7 +164,7 @@ export function ReadTextFile({ body, mimeType, url, encInfo, renderViewer }: Rea
           }
         >
           <Text size="B400" truncate>
-            Open File
+            {buttonText}
           </Text>
         </Button>
       )}
@@ -250,8 +263,20 @@ export type DownloadFileProps = {
   url: string;
   info: IFileInfo;
   encInfo?: EncryptedAttachmentInfo;
+  buttonText?: string;
+  errorButtonText?: string;
+  buttonSize?: FileActionButtonSize;
 };
-export function DownloadFile({ body, mimeType, url, info, encInfo }: DownloadFileProps) {
+export function DownloadFile({
+  body,
+  mimeType,
+  url,
+  info,
+  encInfo,
+  buttonText,
+  errorButtonText,
+  buttonSize = '400',
+}: DownloadFileProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
 
@@ -271,13 +296,16 @@ export function DownloadFile({ body, mimeType, url, info, encInfo }: DownloadFil
   useBlobUrlCleanup(downloadState);
 
   return downloadState.status === AsyncStatus.Error ? (
-    renderErrorButton(download, `Retry Download (${bytesToSize(info.size ?? 0)})`)
+    renderErrorButton(
+      download,
+      errorButtonText ?? `Retry Download (${bytesToSize(info.size ?? 0)})`
+    )
   ) : (
     <Button
       variant="Secondary"
       fill="Soft"
       radii="300"
-      size="400"
+      size={buttonSize}
       onClick={() =>
         downloadState.status === AsyncStatus.Success
           ? FileSaver.saveAs(downloadState.data, body)
@@ -292,7 +320,9 @@ export function DownloadFile({ body, mimeType, url, info, encInfo }: DownloadFil
         )
       }
     >
-      <Text size="B400" truncate>{`Download (${bytesToSize(info.size ?? 0)})`}</Text>
+      <Text size="B400" truncate>
+        {buttonText ?? `Download (${bytesToSize(info.size ?? 0)})`}
+      </Text>
     </Button>
   );
 }

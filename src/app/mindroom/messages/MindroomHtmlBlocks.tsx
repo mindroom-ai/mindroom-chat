@@ -3,6 +3,7 @@ import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'ht
 import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Spinner, Text } from 'folds';
 import { MindroomToolRefParseResult, parseMindroomToolRefHtml } from './blocks';
+import { MindroomPasteMarker, parseMindroomPasteMarker } from './pasteAttachmentMarker';
 import {
   MindroomToolTraceEvent,
   getMindroomToolTraceEvents,
@@ -70,6 +71,35 @@ function ToolStatusBadge({ pending }: { pending: boolean }) {
     <Spinner size="100" variant="Secondary" />
   ) : (
     <Icon size="50" src={Icons.Check} />
+  );
+}
+
+const pasteCharCountFormatter = new Intl.NumberFormat('en-US');
+
+function MindroomPasteMarkerBadge({ marker }: { marker: MindroomPasteMarker }) {
+  return (
+    <span
+      className={css.PasteMarkerBadge}
+      data-mindroom-paste-badge
+      title={marker.raw}
+      contentEditable={false}
+    >
+      <Icon size="50" src={Icons.File} />
+      <Text as="span" size="L400" truncate>
+        Pasted text
+      </Text>
+      <span className={css.PasteMarkerBadgeMeta}>
+        <Text as="span" size="T200" truncate>
+          {marker.id}
+        </Text>
+        <Text as="span" size="T200" truncate>
+          {`${pasteCharCountFormatter.format(marker.chars)} chars`}
+        </Text>
+        <Text as="span" size="T200" truncate>
+          {marker.fileName}
+        </Text>
+      </span>
+    </span>
   );
 }
 
@@ -377,6 +407,21 @@ const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | u
   return buildPrefixResult(bestMatch);
 };
 
+const getPasteMarkerFromElement = (element: Element): MindroomPasteMarker | undefined => {
+  if (element.name !== 'span' || element.attribs['data-mindroom-paste-marker'] !== 'true') {
+    return undefined;
+  }
+
+  const marker = parseMindroomPasteMarker(extractTextFromChildren(element.children));
+  if (!marker) return undefined;
+
+  if (element.attribs['data-mindroom-paste-id'] !== marker.id) return undefined;
+  if (element.attribs['data-mindroom-paste-chars'] !== String(marker.chars)) return undefined;
+  if (element.attribs['data-mindroom-paste-file'] !== marker.fileName) return undefined;
+
+  return marker;
+};
+
 export const withMindroomToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
   content: Record<string, unknown>
@@ -405,6 +450,11 @@ export const withMindroomToolTraceMarkerParserOptions = (
       }
 
       if (isDomElementNode(domNode)) {
+        const pasteMarker = getPasteMarkerFromElement(domNode);
+        if (pasteMarker) {
+          return <MindroomPasteMarkerBadge marker={pasteMarker} />;
+        }
+
         type ToolRefItem = {
           data: MindroomToolBlockRenderData;
           trailingElement?: Element;
