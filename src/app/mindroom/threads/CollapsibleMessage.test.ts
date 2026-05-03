@@ -6,7 +6,8 @@ vi.mock('./CollapsibleMessage.css', () => ({
   CollapsibleContent: () => 'collapsible-content',
   CollapsibleGradientOverlay: 'collapsible-gradient-overlay',
   CollapsibleShowMore: 'collapsible-show-more',
-  CollapsibleCloseButton: 'collapsible-close-button',
+  CollapsibleStickyFooter: 'collapsible-sticky-footer',
+  CollapsiblePill: 'collapsible-pill',
 }));
 
 import {
@@ -65,12 +66,12 @@ const findExpandZones = (renderer: ReactTestRenderer) =>
 
 const getCloseButton = (renderer: ReactTestRenderer) =>
   renderer.root.find(
-    (node) => node.type === 'button' && node.props['aria-label'] === 'Collapse message'
+    (node) => node.type === 'button' && node.props['aria-label'] === 'Show less'
   );
 
 const findCloseButtons = (renderer: ReactTestRenderer) =>
   renderer.root.findAll(
-    (node) => node.type === 'button' && node.props['aria-label'] === 'Collapse message'
+    (node) => node.type === 'button' && node.props['aria-label'] === 'Show less'
   );
 
 const findGradientOverlays = (renderer: ReactTestRenderer) =>
@@ -111,7 +112,7 @@ const renderCollapsibleMessage = (
           if (
             element.type === 'div' &&
             element.props.role === 'button' &&
-            element.props['aria-label'] === 'Expand message'
+            element.props['aria-label'] === 'Show more'
           ) {
             return gradientElement;
           }
@@ -164,7 +165,7 @@ describe('CollapsibleMessage', () => {
     expect(content.props.style.overflow).toBe('hidden');
     expect(content.props['aria-expanded']).toBe(false);
     expect(content.props.role).toBeUndefined();
-    expect(expandZone.props['aria-label']).toBe('Expand message');
+    expect(expandZone.props['aria-label']).toBe('Show more');
     expect(resizeObserverConstructed).toHaveBeenCalledTimes(1);
     expect(findCloseButtons(renderer)).toHaveLength(0);
 
@@ -207,7 +208,7 @@ describe('CollapsibleMessage', () => {
     expect(onInitialExpandConsumed).toHaveBeenCalledTimes(1);
     expect(getContentContainer(renderer).props.style.maxHeight).toBeUndefined();
     expect(getContentContainer(renderer).props['aria-expanded']).toBe(true);
-    expect(getCloseButton(renderer).props['aria-label']).toBe('Collapse message');
+    expect(getCloseButton(renderer).props['aria-label']).toBe('Show less');
 
     act(() => {
       renderer.update(
@@ -232,7 +233,7 @@ describe('CollapsibleMessage', () => {
     expect(content.props.style.maxHeight).toBe('4.5em');
     expect(content.props.style.overflow).toBe('hidden');
     expect(content.props['aria-expanded']).toBe(false);
-    expect(getExpandZone(renderer).props['aria-label']).toBe('Expand message');
+    expect(getExpandZone(renderer).props['aria-label']).toBe('Show more');
 
     act(() => {
       renderer.unmount();
@@ -263,7 +264,7 @@ describe('CollapsibleMessage', () => {
 
     expect(onInitialExpandConsumed).toHaveBeenCalledTimes(1);
     expect(getContentContainer(renderer).props.style.maxHeight).toBeUndefined();
-    expect(getCloseButton(renderer).props['aria-label']).toBe('Collapse message');
+    expect(getCloseButton(renderer).props['aria-label']).toBe('Show less');
 
     act(() => {
       renderer.unmount();
@@ -281,7 +282,7 @@ describe('CollapsibleMessage', () => {
     const content = getContentContainer(renderer);
     expect(content.props.style.maxHeight).toBeUndefined();
     expect(content.props['aria-expanded']).toBe(true);
-    expect(getCloseButton(renderer).props['aria-label']).toBe('Collapse message');
+    expect(getCloseButton(renderer).props['aria-label']).toBe('Show less');
 
     act(() => {
       renderer.unmount();
@@ -440,7 +441,7 @@ describe('CollapsibleMessage', () => {
     const content = getContentContainer(renderer);
     expect(content.props.style.maxHeight).toBeUndefined();
     expect(content.props['aria-expanded']).toBe(true);
-    expect(getCloseButton(renderer).props['aria-label']).toBe('Collapse message');
+    expect(getCloseButton(renderer).props['aria-label']).toBe('Show less');
 
     act(() => {
       renderer.unmount();
@@ -484,7 +485,7 @@ describe('CollapsibleMessage', () => {
     expect(content.props.style.maxHeight).toBe('4.5em');
     expect(content.props.style.overflow).toBe('hidden');
     expect(findExpandZones(renderer)).toHaveLength(1);
-    expect(getExpandZone(renderer).props['aria-label']).toBe('Expand message');
+    expect(getExpandZone(renderer).props['aria-label']).toBe('Show more');
 
     act(() => {
       renderer.unmount();
@@ -622,6 +623,109 @@ describe('CollapsibleMessage', () => {
 
     act(() => {
       renderer.unmount();
+    });
+  });
+
+  it('collapsed gradient renders a non-interactive Show more pill child', () => {
+    const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
+    const expandZone = getExpandZone(renderer);
+
+    // The gradient remains the single tab stop.
+    expect(expandZone.props.tabIndex).toBe(0);
+    expect(expandZone.props.role).toBe('button');
+
+    // The pill child labels the action with "Show more" text.
+    const pill = renderer.root.find(
+      (node) => node.type === 'span' && node.props.className === 'collapsible-show-more'
+    );
+    const pillTextNode = pill.find(
+      (node) =>
+        node.type === 'span' &&
+        typeof node.children?.[0] === 'string' &&
+        node.children[0] === 'Show more'
+    );
+    expect(pillTextNode).toBeDefined();
+
+    // The pill child must not be a button or a second tab stop.
+    expect(pill.type).not.toBe('button');
+    const buttonsInsideGradient = expandZone.findAll(
+      (node) => node.type === 'button' || node.props.role === 'button',
+      { deep: true }
+    );
+    // Only the outer gradient itself qualifies, so no extra interactive descendants.
+    const nestedInteractive = buttonsInsideGradient.filter((node) => node !== expandZone);
+    expect(nestedInteractive).toHaveLength(0);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('expanded close control renders a sticky footer wrapper containing a Show less pill', () => {
+    const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
+
+    act(() => {
+      getExpandZone(renderer).props.onClick();
+    });
+
+    const closeButton = getCloseButton(renderer);
+    expect(closeButton.props.className).toBe('collapsible-pill');
+
+    // The button has visible "Show less" text.
+    const labelNode = closeButton.find(
+      (node) =>
+        node.type === 'span' &&
+        typeof node.children?.[0] === 'string' &&
+        node.children[0] === 'Show less'
+    );
+    expect(labelNode).toBeDefined();
+
+    // The button is wrapped by the sticky footer container.
+    const stickyFooters = renderer.root.findAll(
+      (node) =>
+        node.type === 'div' &&
+        typeof node.props.className === 'string' &&
+        node.props.className === 'collapsible-sticky-footer'
+    );
+    expect(stickyFooters).toHaveLength(1);
+    const stickyFooter = stickyFooters[0];
+    const buttonInsideFooter = stickyFooter.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Show less'
+    );
+    expect(buttonInsideFooter).toBe(closeButton);
+
+    // The legacy absolute close-button style class is no longer used.
+    const legacy = renderer.root.findAll(
+      (node) =>
+        typeof node.props?.className === 'string' &&
+        node.props.className === 'collapsible-close-button'
+    );
+    expect(legacy).toHaveLength(0);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('does not render the sticky footer when collapsed or for always-expanded mode', () => {
+    const collapsedRenderer = renderCollapsibleMessage({ collapseMode: 'default' });
+    expect(
+      collapsedRenderer.root.findAll(
+        (node) => node.props?.className === 'collapsible-sticky-footer'
+      )
+    ).toHaveLength(0);
+    act(() => {
+      collapsedRenderer.unmount();
+    });
+
+    const exemptRenderer = renderCollapsibleMessage({ collapseMode: 'always-expanded' });
+    expect(
+      exemptRenderer.root.findAll(
+        (node) => node.props?.className === 'collapsible-sticky-footer'
+      )
+    ).toHaveLength(0);
+    act(() => {
+      exemptRenderer.unmount();
     });
   });
 });
