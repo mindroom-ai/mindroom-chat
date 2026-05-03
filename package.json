@@ -26,6 +26,10 @@
     "test:e2e:mindroom": "./scripts/test-e2e-mindroom.sh",
     "test:e2e:mindroom:headed": "./scripts/test-e2e-mindroom.sh --headed",
     "postinstall": "patch-package",
+    "ios:phone": "node scripts/ios-phone.mjs",
+    "ios:phone:watch": "node scripts/ios-phone.mjs --watch",
+    "ios:phone:bg": "node scripts/ios-phone.mjs --background",
+    "ios:phone:stop": "node scripts/ios-phone.mjs --stop",
     "ios:icons": "bash scripts/generate-ios-icons.sh",
     "appstore:preflight": "node scripts/appstore-preflight.mjs",
     "release:next-tag": "python3 scripts/fork_release_tag.py"
