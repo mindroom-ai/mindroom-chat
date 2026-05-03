@@ -430,11 +430,13 @@ describe('RoomTimeline architecture', () => {
     const removedCompatibilityPaths = [
       '../../hooks/useIOSPushEnabled.ts',
       '../../hooks/useEdgeSwipeBack.ts',
+      '../../hooks/useEdgeSwipeForward.ts',
       '../../hooks/useRoomEvent.ts',
       '../../hooks/useThreadScheduledTasks.ts',
       '../../hooks/useThreadStreamingState.ts',
       '../../components/message/ThreadIndicator.ts',
       '../../state/lastOpenThread.ts',
+      '../../state/lastExitedThread.ts',
       '../../state/recentThreads.ts',
       '../../state/recentThreadsPanelHeight.ts',
       '../../state/recentThreadsPanelMobileExpanded.ts',
@@ -1669,8 +1671,11 @@ describe('RoomTimeline architecture', () => {
     expect(mindroomBackRouteHandlerSource).toContain("from './useEdgeSwipeBack'");
     expect(mindroomBackRouteHandlerSource).toContain("from '../../components/BackRouteHandler'");
     expect(roomViewSource).not.toContain("from '../../mindroom/native/useEdgeSwipeBack'");
+    expect(roomViewSource).not.toContain("from '../../mindroom/native/useEdgeSwipeForward'");
     expect(roomViewThreadStateSource).toContain("from '../native/useEdgeSwipeBack'");
+    expect(roomViewThreadStateSource).toContain("from '../native/useEdgeSwipeForward'");
     expect(roomViewThreadStateSource).toContain('useEdgeSwipeBack(handleExitThread');
+    expect(roomViewThreadStateSource).toContain('useEdgeSwipeForward(');
     expect(nativeSsoSource).toContain('buildNativeSsoRedirectUrl');
     expect(iosPushSource).toContain('resolveIOSPushConfig');
     expect(systemNotificationSource).toContain(

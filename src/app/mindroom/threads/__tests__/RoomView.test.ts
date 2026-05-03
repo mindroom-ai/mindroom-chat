@@ -1,4 +1,5 @@
 import React from 'react';
+import { Provider, createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -15,7 +16,9 @@ type MockPageProps = React.ComponentProps<'div'>;
 
 const {
   bumpRecentThreadMock,
+  edgeSwipeForwardState,
   historyBackMock,
+  historyForwardMock,
   isIOSStandaloneWebAppMock,
   isNativeIOSMock,
   navigatePathMock,
@@ -28,7 +31,12 @@ const {
   useThreadRootEventMock,
 } = vi.hoisted(() => ({
   bumpRecentThreadMock: vi.fn(),
+  edgeSwipeForwardState: {
+    enabled: undefined as boolean | undefined,
+    onForward: undefined as (() => void) | undefined,
+  },
   historyBackMock: vi.fn(),
+  historyForwardMock: vi.fn(),
   isIOSStandaloneWebAppMock: vi.fn(() => false),
   isNativeIOSMock: vi.fn(() => false),
   navigatePathMock: vi.fn(),
@@ -83,6 +91,7 @@ vi.stubGlobal('window', {
   addEventListener: () => undefined,
   history: {
     back: historyBackMock,
+    forward: historyForwardMock,
     state: null,
   },
   localStorage,
@@ -260,6 +269,13 @@ vi.mock('../../native/useEdgeSwipeBack', () => ({
   useEdgeSwipeBack: vi.fn(),
 }));
 
+vi.mock('../../native/useEdgeSwipeForward', () => ({
+  useEdgeSwipeForward: vi.fn((onForward: () => void, enabled: boolean) => {
+    edgeSwipeForwardState.onForward = onForward;
+    edgeSwipeForwardState.enabled = enabled;
+  }),
+}));
+
 vi.mock('../useRoomThreadTags', () => ({
   useThreadResolution: () => ({ isResolved: false, isPending: false, tags: null }),
   useToggleThreadResolution: () => ({
@@ -293,8 +309,24 @@ const makeRoom = (roomId: string) => ({
 let roomIdSeed = 0;
 const nextRoomId = (label: string) => `!${label}-${roomIdSeed++}:example.org`;
 
+type ThreadStateHarnessProps = {
+  eventId?: string;
+  onState: (state: import('../useRoomViewThreadState').RoomViewThreadState) => void;
+  room: ReturnType<typeof makeRoom>;
+  threadId?: string;
+};
+
+const createThreadStateHarness =
+  (
+    useRoomViewThreadState: typeof import('../useRoomViewThreadState').useRoomViewThreadState
+  ) =>
+  ({ eventId, onState, room, threadId }: ThreadStateHarnessProps) => {
+    onState(useRoomViewThreadState({ eventId, room: room as never, threadId }));
+    return null;
+  };
+
 const getTimeline = (renderer: ReturnType<typeof create>) =>
-  (renderer.root.findByType(roomTimelineType as never) as unknown) as {
+  renderer.root.findByType(roomTimelineType as never) as unknown as {
     props: {
       onToggle: (key: string) => void;
       onSortDirectionChange: () => void;
@@ -322,7 +354,10 @@ describe('RoomView', () => {
     vi.useRealTimers();
     storageState.clear();
     bumpRecentThreadMock.mockReset();
+    edgeSwipeForwardState.enabled = undefined;
+    edgeSwipeForwardState.onForward = undefined;
     historyBackMock.mockReset();
+    historyForwardMock.mockReset();
     isIOSStandaloneWebAppMock.mockReset();
     isIOSStandaloneWebAppMock.mockReturnValue(false);
     isNativeIOSMock.mockReset();
@@ -578,6 +613,62 @@ describe('RoomView', () => {
     expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
   });
 
+  it('sets the last exited thread before taking the history back exit branch', async () => {
+    const { lastExitedThreadAtom } = await import('../lastExitedThread');
+    const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
+    const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
+    const store = createStore();
+    const room = makeRoom(nextRoomId('room-a'));
+    let renderer: ReturnType<typeof create> | undefined;
+    let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
+    window.history.state = {
+      key: `thread-entry-key:${room.roomId}`,
+    };
+    setRoomThreadExitTargetForHistoryState(window.history.state, {
+      roomId: room.roomId,
+      threadId: '$thread',
+      useHistoryBack: true,
+    });
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(ThreadStateHarness, {
+            onState: (state) => {
+              threadState = state;
+            },
+            room,
+            threadId: '$thread',
+          })
+        )
+      );
+    });
+
+    await act(async () => {
+      threadState?.handleExitThread();
+      renderer?.update(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(ThreadStateHarness, {
+            onState: (state) => {
+              threadState = state;
+            },
+            room,
+          })
+        )
+      );
+    });
+
+    expect(historyBackMock).toHaveBeenCalledOnce();
+    expect(store.get(lastExitedThreadAtom)).toEqual({
+      roomId: room.roomId,
+      threadId: '$thread',
+    });
+  });
+
   it('exits a thread with replace navigation instead of history back in standalone iOS web apps', async () => {
     isIOSStandaloneWebAppMock.mockReturnValue(true);
     const room = makeRoom(nextRoomId('room-a'));
@@ -608,6 +699,64 @@ describe('RoomView', () => {
       replace: true,
     });
     expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+  });
+
+  it('sets the last exited thread before taking the exit path replace branch', async () => {
+    const { lastExitedThreadAtom } = await import('../lastExitedThread');
+    const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
+    const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
+    const store = createStore();
+    const room = makeRoom(nextRoomId('room-a'));
+    const exitPath = `/home/${encodeURIComponent(room.roomId)}`;
+    let renderer: ReturnType<typeof create> | undefined;
+    let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
+    window.history.state = {
+      key: `thread-entry-key:${room.roomId}`,
+    };
+    setRoomThreadExitTargetForHistoryState(window.history.state, {
+      exitPath,
+      roomId: room.roomId,
+      threadId: '$thread',
+      useHistoryBack: false,
+    });
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(ThreadStateHarness, {
+            onState: (state) => {
+              threadState = state;
+            },
+            room,
+            threadId: '$thread',
+          })
+        )
+      );
+    });
+
+    await act(async () => {
+      threadState?.handleExitThread();
+      renderer?.update(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(ThreadStateHarness, {
+            onState: (state) => {
+              threadState = state;
+            },
+            room,
+          })
+        )
+      );
+    });
+
+    expect(navigatePathMock).toHaveBeenCalledWith(exitPath, { replace: true });
+    expect(store.get(lastExitedThreadAtom)).toEqual({
+      roomId: room.roomId,
+      threadId: '$thread',
+    });
   });
 
   it('exits a thread by navigating to the stored exit path on native iOS', async () => {
@@ -657,11 +806,163 @@ describe('RoomView', () => {
     });
 
     expect(historyBackMock).not.toHaveBeenCalled();
-    expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(
-      room.roomId,
-      '$thread',
-      { replace: true }
-    );
+    expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(room.roomId, '$thread', {
+      replace: true,
+    });
+  });
+
+  it('F1: preserves the last exited thread across same-instance exit rerender and reopens it on swipe-forward', async () => {
+    const { lastExitedThreadAtom } = await import('../lastExitedThread');
+    const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
+    const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
+    const store = createStore();
+    const room = makeRoom(nextRoomId('room-a'));
+    let renderer: ReturnType<typeof create> | undefined;
+    let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(ThreadStateHarness, {
+            onState: (state) => {
+              threadState = state;
+            },
+            room,
+            threadId: '$thread',
+          })
+        )
+      );
+    });
+
+    expect(threadState?.handleExitThread).toBeTypeOf('function');
+
+    await act(async () => {
+      threadState?.handleExitThread();
+      renderer?.update(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(ThreadStateHarness, {
+            onState: (state) => {
+              threadState = state;
+            },
+            room,
+          })
+        )
+      );
+    });
+
+    expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(room.roomId, '$thread', {
+      replace: true,
+    });
+    expect(store.get(lastExitedThreadAtom)).toEqual({
+      roomId: room.roomId,
+      threadId: '$thread',
+    });
+    expect(edgeSwipeForwardState.enabled).toBe(true);
+    expect(edgeSwipeForwardState.onForward).toBeTypeOf('function');
+
+    await act(async () => {
+      edgeSwipeForwardState.onForward?.();
+    });
+
+    expect(store.get(lastExitedThreadAtom)).toBeNull();
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith(room.roomId, '$thread');
+    expect(historyForwardMock).not.toHaveBeenCalled();
+  });
+
+  it('clears the last exited thread when a thread is mounted', async () => {
+    const { lastExitedThreadAtom } = await import('../lastExitedThread');
+    const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
+    const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
+    const store = createStore();
+    const room = makeRoom(nextRoomId('room-a'));
+    store.set(lastExitedThreadAtom, {
+      roomId: room.roomId,
+      threadId: '$previous',
+    });
+
+    await act(async () => {
+      create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(ThreadStateHarness, {
+            onState: () => undefined,
+            room,
+            threadId: '$current',
+          })
+        )
+      );
+    });
+
+    expect(store.get(lastExitedThreadAtom)).toBeNull();
+  });
+
+  it('clears the last exited thread when switching rooms', async () => {
+    const { lastExitedThreadAtom } = await import('../lastExitedThread');
+    const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
+    const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
+    const store = createStore();
+    const room = makeRoom(nextRoomId('room-a'));
+    store.set(lastExitedThreadAtom, {
+      roomId: '!other:example.org',
+      threadId: '$previous',
+    });
+
+    await act(async () => {
+      create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(ThreadStateHarness, {
+            onState: () => undefined,
+            room,
+          })
+        )
+      );
+    });
+
+    expect(store.get(lastExitedThreadAtom)).toBeNull();
+  });
+
+  it('clears the last exited thread on true unmount', async () => {
+    const { lastExitedThreadAtom } = await import('../lastExitedThread');
+    const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
+    const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
+    const store = createStore();
+    const room = makeRoom(nextRoomId('room-a'));
+    let renderer: ReturnType<typeof create> | undefined;
+    store.set(lastExitedThreadAtom, {
+      roomId: room.roomId,
+      threadId: '$previous',
+    });
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(ThreadStateHarness, {
+            onState: () => undefined,
+            room,
+          })
+        )
+      );
+    });
+
+    expect(store.get(lastExitedThreadAtom)).toEqual({
+      roomId: room.roomId,
+      threadId: '$previous',
+    });
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+
+    expect(store.get(lastExitedThreadAtom)).toBeNull();
   });
 
   it('renders the room page with the app-height lock style', async () => {
