@@ -81,22 +81,25 @@ describe('VoiceWaveform', () => {
     renderer.unmount();
   });
 
-  it('bounds and right-anchors the SVG in compact recording mode', () => {
+  it('right-anchors compact recording bars without resampling them to Matrix width', () => {
     const renderer = create(
       React.createElement(VoiceWaveform, {
-        waveform: [100, 200],
+        waveform: Array.from({ length: 96 }, (_value, index) => index),
         compact: true,
       })
     );
 
     const container = renderer.root.findByType('div');
     const svg = renderer.root.findByType('svg');
+    const rects = renderer.root.findAllByType('rect');
 
     expect(container.props.className).toContain('WaveformCompact');
     expect(svg.props.className).toContain('SvgCompact');
-    expect(svg.props.width).toBe(143);
+    expect(rects).toHaveLength(96);
+    expect(svg.props.viewBox).toBe('0 0 287 32');
+    expect(svg.props.width).toBe(287);
     expect(svg.props.height).toBe(32);
-    expect(svg.props.preserveAspectRatio).toBe('xMaxYMid meet');
+    expect(svg.props.preserveAspectRatio).toBe('none');
 
     renderer.unmount();
   });
