@@ -3,7 +3,7 @@ import { Box, Chip, Icon, IconButton, Icons, Text, color, config, toRem } from '
 import { UploadCard, UploadCardError, UploadCardProgress } from './UploadCard';
 import { UploadStatus, UploadSuccess, useBindUploadAtom } from '../../state/upload';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { TUploadContent } from '../../utils/matrix';
+import { TUploadContent, getMatrixUploadErrorMessage } from '../../utils/matrix';
 import { bytesToSize, getFileTypeIcon } from '../../utils/common';
 import {
   roomUploadAtomFamily,
@@ -190,7 +190,7 @@ export function UploadCardRenderer({
           )}
           {upload.status === UploadStatus.Error && (
             <UploadCardError>
-              <Text size="T200">{upload.error.message}</Text>
+              <Text size="T200">{getMatrixUploadErrorMessage(upload.error, 'upload')}</Text>
             </UploadCardError>
           )}
           {upload.status === UploadStatus.Idle && fileSizeExceeded && (

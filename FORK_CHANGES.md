@@ -37,6 +37,30 @@
   - `npm run build` passes.
   - Independent review found no implementation correctness issues; the pre-existing untracked `.envrc` remains uncommitted.
 
+### CINNY-099 Upload abort diagnostics and friendly errors (2026-05-02)
+
+- Summary:
+  - Added Matrix upload error classification, normalization, and display-message helpers in `src/app/utils/matrix.ts`.
+  - Fixed the upload wrapper bug that copied a human message into `errcode` for non-Matrix upload failures.
+  - Voice auto-send now logs stage-tagged `[mr-upload]` payloads for create/upload/send failures and rethrows normalized Matrix errors.
+  - Voice recorder and upload-card error UI now render friendly transient upload text instead of raw `MatrixError: Unknown message`.
+  - Removed transient root `FINAL-PLAN.md` after implementation because the architecture guard forbids root planning/report artifacts.
+- Validation:
+  - Red phase confirmed targeted tests failed before implementation.
+  - Targeted suite passes: `npm run test -- --run src/app/utils/matrix.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/mindroom/room-input/__tests__/RoomInput.test.ts` (`3` files, `39` tests).
+  - `npm run test -- --run` passes (`245` files, `1835` tests).
+  - `npm run typecheck` passes.
+  - `npm run build` passes with existing Vite/runtime-config/sourcemap/chunk-size warnings.
+  - `npm run lint` passes with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `git diff --check` passes.
+- Review round 1 fixes:
+  - Voice-recorder send failures now preserve plain `Error.message` text instead of replacing it with the generic Matrix upload fallback.
+  - Upload diagnostics now log the original error class name before Matrix normalization.
+  - Create-stage normalized upload failures render neutral prepare-failure text instead of transient network copy.
+  - Removed root `CINNY-099-REPORT.md`; this runbook remains the source of truth.
+- Review round 2 fix:
+  - Image upload-card renderers now pass the `'upload'` stage explicitly so SDK-thrown `MatrixError({errcode:'M_UNKNOWN'})` upload failures render the friendly transient text instead of raw `M_UNKNOWN: Unknown message`.
+
 ### CINNY-098 Dev server stale service worker cleanup (2026-05-02)
 
 - Root cause:

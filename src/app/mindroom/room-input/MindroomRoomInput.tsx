@@ -59,10 +59,13 @@ import { EmojiBoard, EmojiBoardTab } from '../../components/emoji-board';
 import { UseStateProvider } from '../../components/UseStateProvider';
 import {
   TUploadContent,
+  MatrixUploadErrorStage,
   encryptFile,
   getImageInfo,
+  getMatrixUploadOriginalName,
   getMxIdLocalPart,
   mxcUrlToHttp,
+  toMatrixUploadError,
   uploadContent,
 } from '../../utils/matrix';
 import { useTypingStatusUpdater } from '../../hooks/useTypingStatusUpdater';
@@ -670,14 +673,43 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             replyDraft: replyDraftRef.current,
           });
         let fileItems: TUploadItem[] = [];
+        const logAndThrowUploadError = (err: unknown, stage: MatrixUploadErrorStage): never => {
+          const originalName =
+            getMatrixUploadOriginalName(err) ?? (err instanceof Error ? err.name : typeof err);
+          const error = toMatrixUploadError(err, stage);
+          // eslint-disable-next-line no-console
+          console.error('[mr-upload]', {
+            stage,
+            originalName,
+            name: error.name,
+            errcode: error.errcode,
+            httpStatus: error.httpStatus,
+            message: error.message,
+          });
+          throw error;
+        };
+
         try {
-          fileItems = await createVoiceUploadItems(file, duration, waveform, context.room);
+          try {
+            fileItems = await createVoiceUploadItems(file, duration, waveform, context.room);
+          } catch (err) {
+            return logAndThrowUploadError(err, 'create');
+          }
           appendUploadItemsToRoomBoard(context.roomId, fileItems);
           const [fileItem] = fileItems;
           if (!fileItem) return;
 
-          const mxc = await uploadVoiceItem(fileItem);
-          await sendVoiceItem(context, fileItem, mxc);
+          let mxc: string;
+          try {
+            mxc = await uploadVoiceItem(fileItem);
+          } catch (err) {
+            return logAndThrowUploadError(err, 'upload');
+          }
+          try {
+            await sendVoiceItem(context, fileItem, mxc);
+          } catch (err) {
+            return logAndThrowUploadError(err, 'send');
+          }
           clearReplyDraftForVoiceContext(context);
         } finally {
           if (fileItems.length > 0) {
