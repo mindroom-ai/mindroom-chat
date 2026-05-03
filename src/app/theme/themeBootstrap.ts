@@ -8,6 +8,7 @@ import {
   ThemeKind,
 } from '../hooks/useTheme';
 import { MINDROOM_SESSION_STORE_KEY } from '../mindroom/cache/sessionStoreConfig';
+import { syncNativeStatusBarBackground } from '../mindroom/native/statusBarTheme';
 import { getSettings } from '../state/settings';
 
 const UNAUTH_ROUTE_PATH_PATTERN = /(?:^|\/)(login|register|reset-password)(?:\/[^/]+)?\/?$/;
@@ -189,4 +190,5 @@ export const applyThemeToDom = (theme: ThemeLike | ResolvedTheme): void => {
 
   setMetaContent('theme-color', resolvedTheme.bgColor);
   setMetaContent('color-scheme', resolvedTheme.scheme);
+  syncNativeStatusBarBackground(resolvedTheme.bgColor);
 };
