@@ -24,8 +24,10 @@ import { stopPropagation } from '../../utils/keyboard';
 import { assignElementRef } from '../../utils/react';
 import { MindroomAiRunInfo, getMindroomAiRunInfo } from './aiRun';
 import {
+  MindroomAiRunContextBarSegment,
   formatMindroomAiRunNumber,
   formatMindroomAiRunTimeToFirstToken,
+  getMindroomAiRunContextBarSegments,
   getMindroomAiRunContextCacheLabel,
   getMindroomAiRunContextLabel,
   getMindroomAiRunModelLabel,
@@ -60,6 +62,37 @@ function MindroomAiRunDetail({ label, value }: { label: string; value?: string }
     <Text size="T200">
       {label}: {value}
     </Text>
+  );
+}
+
+const getMindroomAiRunContextBarSegmentClassName = (
+  key: MindroomAiRunContextBarSegment['key']
+): string => {
+  if (key === 'cacheRead') {
+    return `${css.AiRunContextBarSegment} ${css.AiRunContextBarSegmentCacheRead}`;
+  }
+  if (key === 'newInput') {
+    return `${css.AiRunContextBarSegment} ${css.AiRunContextBarSegmentNewInput}`;
+  }
+  return `${css.AiRunContextBarSegment} ${css.AiRunContextBarSegmentReserve}`;
+};
+
+function MindroomAiRunContextBar({ info }: { info: MindroomAiRunInfo }) {
+  const segments = getMindroomAiRunContextBarSegments(info);
+  if (!segments) return null;
+
+  return (
+    <div className={css.AiRunContextBar} aria-label="Request context window">
+      {segments.map((segment) => (
+        <div
+          key={segment.key}
+          className={getMindroomAiRunContextBarSegmentClassName(segment.key)}
+          style={{ width: `${segment.percentage}%` }}
+          title={segment.title}
+          aria-label={`${segment.label}: ${formatMindroomAiRunNumber(segment.tokens)} tokens`}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -120,6 +153,7 @@ function MindroomAiRunInfoDialog({
               <MindroomAiRunDetail label="Tokens" value={usageLabel} />
               <MindroomAiRunDetail label="Run Cache" value={usageCacheLabel} />
               <MindroomAiRunDetail label="Request Context" value={contextLabel} />
+              <MindroomAiRunContextBar info={info} />
               <MindroomAiRunDetail label="Request Cache" value={contextCacheLabel} />
               <MindroomAiRunDetail label="Tools" value={toolsLabel} />
               <MindroomAiRunDetail label="TTFT" value={ttftLabel} />
