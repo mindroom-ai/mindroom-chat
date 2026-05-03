@@ -23,6 +23,18 @@
   - Fresh Chromium smoke against `https://chat.lab.mindroom.chat/` loads the MindRoom login page with no page crash.
   - `npm run build` passes.
 
+### iOS phone install helpers (2026-05-02)
+
+- Added `scripts/ios-phone.mjs` as the repeatable local iPhone deploy path:
+  - `npm run ios:phone` builds the Vite app, syncs Capacitor iOS assets, builds a signed Debug iOS app in dedicated `/tmp` DerivedData, installs it to the connected or available paired iPhone, and attempts to launch `chat.mindroom.app`.
+  - `npm run ios:phone:watch` keeps a foreground watcher running and repeats the same deploy path after app/native config changes.
+  - `npm run ios:phone:bg` starts the watcher as a background process without an initial rebuild, writing its PID/log under `/tmp`.
+  - `npm run ios:phone:stop` stops the background watcher.
+- The helper accepts `IOS_DEVICE_ID`, `IOS_DERIVED_DATA`, and `IOS_LAUNCH=0` overrides, accepts both `available (paired)` and Xcode IP-connected `connected` device states, and avoids Xcode's default DerivedData build database so CLI pushes do not collide with the Xcode UI.
+- Current Xcode IP-connect note: `bas-iphone-15-pro` was reachable through Tailscale at `100.64.0.19`; re-check with `tailscale status` if reconnecting later.
+- Watch mode suppresses deploy-generated Podfile events while a push is running/settling and terminates active child build processes when the watcher is stopped, so background deploys do not loop after their own Capacitor sync.
+- `justfile` exposes the same phone deploy flow through `just ios-phone`, `just ios-phone-watch`, `just ios-phone-bg`, `just ios-phone-stop`, and `just ios-phone-log`.
+
 ### iOS native edge-swipe restore (2026-05-02)
 
 - Root cause:
