@@ -49,3 +49,23 @@ ios-sync:
 
 ios-open:
   npx cap open ios
+
+# Build, install, and launch the iOS app on the paired phone
+ios-phone:
+  npm run ios:phone
+
+# Start the iOS phone auto-push watcher in the foreground
+ios-phone-watch:
+  npm run ios:phone:watch
+
+# Start the iOS phone auto-push watcher in the background
+ios-phone-bg:
+  npm run ios:phone:bg
+
+# Stop the background iOS phone auto-push watcher
+ios-phone-stop:
+  npm run ios:phone:stop
+
+# Follow the background iOS phone watcher log
+ios-phone-log:
+  tail -f /tmp/mindroom-cinny-ios-phone-watch.log
