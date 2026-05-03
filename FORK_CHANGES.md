@@ -31,6 +31,152 @@
 - Old recovery/debugging branches were intentionally squashed out of mainline history.
 - Use [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) for future room/thread/search investigations instead of rebuilding long transient notes here.
 
+### CINNY-102 interactive room/thread swipe planning (2026-05-02)
+
+- Synthesized the final implementation plan from PLAN-A, PLAN-B, and both critiques.
+- Decision: use Plan B's five-commit implementation skeleton, chrome-only passive preview, explicit controller state machine, canonical-route deferral, separate interactive-owned gesture flag, and mobile-only shell.
+- Adopted Plan A's corrections: place the controller under `src/app/mindroom/native/`, use prefixed swipe CSS variables, add stale-path/history architecture guards, and commit interactive left-edge exit through a same-room focused-overview helper instead of the existing history-aware `handleExitThread`.
+- `FINAL-PLAN.md` is the first implementation-branch commit artifact; it intentionally contains no production code.
+
+### CINNY-102 interactive room/thread swipe implementation (2026-05-02)
+
+- Commit 1 completed: added the orthogonal interactive swipe ownership event flag under `src/app/mindroom/native/`, and made threshold back/forward swipe hooks reset/ignore events owned by the interactive room/thread controller without mutating their existing handled flags.
+- Focused validation: `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts` passed.
+- Environment note: initial test run failed because dependencies were not installed in this worktree; `npm ci` completed with Node 20 engine warnings for packages that request Node 22.
+- Commit 2 completed: added `useInteractiveRoomThreadSwipe` under `src/app/mindroom/native/` with an explicit idle/armed/dragging/settling/canceling state machine, shell-scoped touch listeners, interactive-owned event marking after horizontal intent, RAF-backed CSS variable updates, commit/cancel settle ordering, reduced-motion snap timing, suppression checks, and teardown cleanup.
+- Focused validation: `npm test -- src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts` passed.
+- Commit 3 completed: added the mobile room/thread swipe shell styles with prefixed CSS variables and a chrome-only `RoomThreadSwipePreview` that is `aria-hidden`, inert, pointer-passive by shell styling, and free of live timeline/input/navigation ownership.
+- Focused validation: `npm test -- src/app/mindroom/threads/RoomThreadSwipePreview.test.ts` passed.
+- Commit 4 completed: wired the mobile-only shell into `MindroomRoomView`, disabled legacy threshold hooks on mobile while the interactive shell owns the surface, deferred canonical thread route replacement while the controller is non-idle, added an interactive-only same-room focused-overview exit path, and kept right-edge re-entry on the existing same-room `lastExitedThreadAtom` flow without `history.forward()`.
+- Focused validation: `npm test -- src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts` passed.
+- Type validation after wiring: `npm run typecheck` passed.
+- Commit 5 completed: extended architecture guards for current MindRoom interactive-swipe ownership paths, chrome-only preview imports, and the ban on `history.forward()`/module-level forward prediction flags; removed root `FINAL-PLAN.md` from the final tree while preserving it as the first branch
+  commit.
+- Focused validation: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts` passed, and the full focused CINNY-102 test set passed (`7` files, `152`
+  tests).
+- Final validation: `npm test` passed (`251` files, `1901` tests); `npm run typecheck` passed; `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings; `npm run lint` passed with the existing warning-only baseline (`17` warnings, `0` errors).
+- Independent second self-review completed against the final diff; the implementation stayed on the current `src/app/mindroom/native/` and `src/app/mindroom/threads/` paths, with no `history.forward()`, browser-history prediction tags, or module-level forward flags.
+
+### CINNY-102 round 1 review fixes (2026-05-03)
+
+- Scope is limited to the interactive room/thread swipe controller interruption findings from `/tmp/CINNY-102-R1-TRIAGE.md`; unrelated voice-player duration findings remain dropped for CINNY-102.
+- Summary:
+  - Split `touchcancel` from release handling so OS/browser-cancelled touch streams always rollback and never evaluate commit thresholds.
+  - Preserve pending settle/cancel timers against new `touchstart` events so a committed swipe cannot be dropped during the 180ms settle window.
+  - Added focused regression coverage for over-threshold `touchcancel`, velocity-threshold `touchcancel`, and new-touchstart-during-settle behavior.
+- Validation:
+  - `npm test -- src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm test`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npx eslint src/app/mindroom/native/useInteractiveRoomThreadSwipe.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts`
+  - `git diff --check`
+  - Independent second self-review completed against the round 1 fix diff; scope stayed limited to the swipe controller, focused tests, and this runbook entry.
+
+### CINNY-102 round 3 scope-corrected swipe fixes (2026-05-03)
+
+- Scope is limited to the actionable swipe issues from `/tmp/CINNY-102-R3-TRIAGE.md`; unrelated full-suite review noise remains dropped because DevAgent reran `npm test` successfully.
+- Summary:
+  - Release velocity now expires if the last movement sample is stale before `touchend`, so a quick below-distance swipe followed by a long finger-down pause cancels instead of committing.
+  - Right-edge interactive commit now carries the controller's frozen target room/thread through settle and navigates to that target even if `lastExitedThreadAtom` changes or clears before commit; the atom is consumed without selecting a newer target.
+  - Removed full-shell `touch-action: pan-y`; non-edge horizontal panning is no longer CSS-suppressed, and the controller still prevents default only after edge horizontal intent is claimed by its non-passive `touchmove`.
+  - Edge arming now uses `shell.getBoundingClientRect()` and shell-local `clientX - rect.left` coordinates while preserving viewport deltas for travel.
+- Validation:
+  - `npm test -- src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts`
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm test` passed (`251` files, `1908` tests).
+  - `git diff --check`
+  - Independent second self-review completed against the round 3 fix diff; scope stayed limited to the triaged interactive swipe issues and this runbook entry.
+
+### CINNY-102 round 4 review fixes (2026-05-03)
+
+- Scope is limited to DevAgent-triaged round 4 findings from `REVIEW-D.md`, `REVIEW-F.md`, and `REVIEW-H.md`; broad concurrent full-suite timeout reports remain non-blocking because a normal sequential `npm test` passed in this worktree.
+- Summary:
+  - `touchend` now samples `changedTouches[0]` when present and recomputes final directional travel, progress, and release velocity before deciding commit vs. cancel.
+  - Committed settles now keep a pending commit target and flush it exactly once if hook cleanup interrupts the settle timer, so dependency cleanup cannot silently drop navigation.
+  - Non-gesture idle cancellations now clear immediately instead of scheduling a pointless settle timer/input lockout, and the dead `cleanupTimer()` after the touchstart timer guard was removed.
+  - `MindroomRoomView` now assigns `interactiveCommitRef.current` from an effect after commit rather than mutating it during render.
+- Validation:
+  - `npm test -- src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts`
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - `npm run typecheck`
+  - `npm test` passed (`251` files, `1910` tests).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm run lint` passed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `git diff --check`
+
+### CINNY-102 round 5 pane-capture triage fixes (2026-05-03)
+
+- Scope is limited to `/tmp/CINNY-102-R5-TRIAGE.md`; accidental unqualified review files and out-of-scope voice/upload/H-minor findings remain dropped.
+- Summary:
+  - Left-edge interactive exits now carry the frozen controller `roomId`/`threadId` through commit, and `handleInteractiveExitThread` records/navigates with that frozen same-room target instead of rereading the current/effective thread at settle time.
+  - Added a regression where a left-edge commit starts from thread A, the current thread changes to B before commit flush, and the atom/navigation still use thread A.
+  - Ground-truthed reviewer H's transition-ordering concern as valid: settle/cancel final CSS variables were written in the same event turn as the phase change. Final settle/cancel variables now apply on the next RAF after the phase flip, while the release/cancel start transform is written before the transition class can apply.
+  - Added controller assertions that lock the ordering: release transform is visible before the transitioned settle frame, then the final transform lands after RAF.
+- Validation:
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts` passed (`7` files, `163` tests).
+  - `npm run typecheck`
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`251` files, `1912` tests).
+  - `npm run lint` passed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `git diff --check`
+  - Independent second self-review completed against the final R5 net diff; out-of-scope H/voice/upload hunks were excluded from final state.
+
+### CINNY-102 round 6 canonical pending-route regression (2026-05-03)
+
+- Scope is limited to the corrected R6 regression: a route `threadId="~pending-thread"` resolves to the literal canonical id `"$confirmed-thread"` while interactive swipe is non-idle.
+- Summary:
+  - Corrected the focused RoomView regression to use `"$confirmed-thread"` instead of the shell-mangled `"-thread"` id.
+  - The regression proves a committed left-edge swipe freezes the raw route target but stores, focuses, and navigates with the canonical `"$confirmed-thread"` id once committed.
+  - Confirmed the existing `handleInteractiveExitThread` canonicalization path already satisfies the corrected case; no production change was required.
+- Validation:
+  - `npm test -- src/app/mindroom/threads/__tests__/RoomView.test.ts` passed (`30` tests).
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts` passed (`7` files, `164` tests).
+  - `npm run typecheck` passed.
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`251` files, `1913` tests).
+  - `npm run lint` passed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `git diff --check`
+
+### CINNY-102 round 7 F canonical regression triage (2026-05-03)
+
+- Scope is limited to reviewer F/G reports that the focused canonical pending-thread swipe regression sometimes navigated with `~pending-thread` instead of `"$confirmed-thread"` at `11fce679c253`.
+- No production or test code issue reproduced in this clean worktree; no code was changed.
+- Summary:
+  - Confirmed `HEAD` was `11fce679c253` and tracked status was clean before validation.
+  - Rechecked the canonical commit path: a frozen pending route id matching the current `threadId` is replaced with `effectiveThreadId`, which comes from `useThreadRootEvent`.
+  - The R7 regression's mocked `"$confirmed-thread"` path consistently navigated and stored the canonical id locally.
+- Validation:
+  - `npm test -- src/app/mindroom/threads/__tests__/RoomView.test.ts` passed (`1` file, `30` tests).
+  - `npm test -- src/app/mindroom/threads/__tests__/RoomView.test.ts -t "commits left-edge exit with the canonical thread id"` passed (`1` test, `29` skipped).
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts` passed (`7` files, `164` tests).
+  - Stress: focused canonical regression passed `20/20`; full `RoomView.test.ts` passed `10/10`; seven-file focused suite passed `5/5`; shuffled `RoomView.test.ts` passed with seeds `10201` through `10205`.
+
+### CINNY-102 root artifact cleanup follow-up (2026-05-03)
+
+- Removed tracked root report artifacts from the feature branch diff: `IMPLEMENT-R5-FIX.md`, `IMPLEMENT-R6-FIX.md`, and `IMPLEMENT-R7-F-TRIAGE.md`.
+- Useful R5/R6/R7 summaries remain in this runbook; unrelated untracked local review artifacts were left untouched.
+- Validation:
+  - `git diff --check`
+  - `npm run typecheck`
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+
+### CINNY-102 dev merge conflict resolution (2026-05-03)
+
+- Merged local `dev` into `cinny-102-interactive-swipe-dev` and resolved conflicts in this runbook, `RoomView.test.ts`, and `useRoomViewThreadState.ts`.
+- Preserved CINNY-102 interactive swipe behavior: mobile threshold disabling, canonical-route deferral while swipe is non-idle, frozen left/right commit targets, and interactive same-room focused-overview exit.
+- Preserved current-dev CINNY-075/CINNY-088 navigation behavior: swipe-forward re-entry now calls `navigateRoomThread` before clearing `lastExitedThreadAtom`, so seeded thread-exit history is still available during re-entry.
+- Validation:
+  - `git diff --check`
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts` passed (`7` files, `165` tests).
+  - `npm run typecheck` passed.
+  - `npm test` passed (`251` files, `1917` tests).
+  - `npm run build` passed with existing Vite runtime-config, sourcemap, and chunk-size warnings.
+  - `npm run lint` passed with the existing warning-only baseline (`17` warnings, `0` errors).
+
 ### CINNY-075 follow-up swipe-forward re-entry history seed (2026-05-02)
 
 - Investigation:
@@ -584,7 +730,7 @@
     - targeted Prettier check on touched files passes
 - `CINNY-203`
   - Fixed MindRoom tool-call marker rendering for streaming edit updates that omit `formatted_body` and/or `io.mindroom.tool_trace` metadata.
-  - Plain-text tool marker lines such as `` 🔧 `run_shell_command` [1] `` are now converted to the existing safe formatted marker contract before rendering, so the tool-call card parser can consume them instead of leaking raw markers into the timeline.
+  - Plain-text tool marker lines such as ``🔧 `run_shell_command` [1]`` are now converted to the existing safe formatted marker contract before rendering, so the tool-call card parser can consume them instead of leaking raw markers into the timeline.
   - Edit resolution now carries forward missing MindRoom metadata from older replacement events before resolving the latest edit, preserving previous tool-trace details when a newer streaming update only sends body text and stream status.
   - The tool marker parser now renders marker-only formatted bodies as tool-call blocks, while enriching them with trace details whenever versioned trace metadata is available.
   - Renamed the message-extras data/parser module to `messageExtrasData.ts` and the component test to `MessageExtrasView.test.ts` to avoid case-only module collisions with `MindroomMessageExtras.tsx` on case-insensitive filesystems.
@@ -2223,7 +2369,6 @@
   - `src/app/features/recent-threads/RecentThreadEntry.tsx` now restores a stable `aria-label` in the form `Open thread: …`
   - added focused regressions in `src/app/features/room/Room.test.ts` and `src/app/features/recent-threads/RecentThreadEntry.test.ts`
 - Live E2E harness follow-up:
-
   - `e2e/live/cinny073-recent-threads-mobile.spec.ts` now clears the targeted room's bare-home thread-restore entry before the `480px` landscape rotation check, because the rebased client intentionally restores the last open thread from bare `/home/`
   - `e2e/live/threads.spec.ts` now matches recent-thread buttons by `Open thread:` plus both room name and summary/root preview, without assuming a fixed accessible-name field order
 
