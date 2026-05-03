@@ -16,6 +16,7 @@ type MockPageProps = React.ComponentProps<'div'>;
 
 const {
   bumpRecentThreadMock,
+  edgeSwipeBackState,
   edgeSwipeForwardState,
   historyBackMock,
   historyForwardMock,
@@ -31,6 +32,10 @@ const {
   useThreadRootEventMock,
 } = vi.hoisted(() => ({
   bumpRecentThreadMock: vi.fn(),
+  edgeSwipeBackState: {
+    enabled: undefined as boolean | undefined,
+    onBack: undefined as (() => void) | undefined,
+  },
   edgeSwipeForwardState: {
     enabled: undefined as boolean | undefined,
     onForward: undefined as (() => void) | undefined,
@@ -266,7 +271,10 @@ vi.mock('../../native/nativeSso', () => ({
 }));
 
 vi.mock('../../native/useEdgeSwipeBack', () => ({
-  useEdgeSwipeBack: vi.fn(),
+  useEdgeSwipeBack: vi.fn((onBack: () => void, enabled: boolean) => {
+    edgeSwipeBackState.onBack = onBack;
+    edgeSwipeBackState.enabled = enabled;
+  }),
 }));
 
 vi.mock('../../native/useEdgeSwipeForward', () => ({
@@ -317,9 +325,7 @@ type ThreadStateHarnessProps = {
 };
 
 const createThreadStateHarness =
-  (
-    useRoomViewThreadState: typeof import('../useRoomViewThreadState').useRoomViewThreadState
-  ) =>
+  (useRoomViewThreadState: typeof import('../useRoomViewThreadState').useRoomViewThreadState) =>
   ({ eventId, onState, room, threadId }: ThreadStateHarnessProps) => {
     onState(useRoomViewThreadState({ eventId, room: room as never, threadId }));
     return null;
@@ -354,6 +360,8 @@ describe('RoomView', () => {
     vi.useRealTimers();
     storageState.clear();
     bumpRecentThreadMock.mockReset();
+    edgeSwipeBackState.enabled = undefined;
+    edgeSwipeBackState.onBack = undefined;
     edgeSwipeForwardState.enabled = undefined;
     edgeSwipeForwardState.onForward = undefined;
     historyBackMock.mockReset();
@@ -871,6 +879,78 @@ describe('RoomView', () => {
     expect(store.get(lastExitedThreadAtom)).toBeNull();
     expect(navigateRoomThreadMock).toHaveBeenCalledWith(room.roomId, '$thread');
     expect(historyForwardMock).not.toHaveBeenCalled();
+  });
+
+  it('seeds thread exit history before clearing swipe-forward state', async () => {
+    const { lastExitedThreadAtom } = await import('../lastExitedThread');
+    const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
+    const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
+    const store = createStore();
+    const room = makeRoom(nextRoomId('room-a'));
+    let renderer: ReturnType<typeof create> | undefined;
+    let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
+
+    store.set(lastExitedThreadAtom, {
+      roomId: room.roomId,
+      threadId: '$thread',
+    });
+    navigateRoomThreadMock.mockImplementation((navigatedRoomId, navigatedThreadId) => {
+      if (store.get(lastExitedThreadAtom)?.threadId !== navigatedThreadId) return;
+
+      window.history.state = {
+        usr: {
+          [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+            roomId: navigatedRoomId,
+            threadId: navigatedThreadId,
+          },
+        },
+      };
+    });
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(ThreadStateHarness, {
+            onState: (state) => {
+              threadState = state;
+            },
+            room,
+          })
+        )
+      );
+    });
+
+    expect(edgeSwipeForwardState.enabled).toBe(true);
+
+    await act(async () => {
+      edgeSwipeForwardState.onForward?.();
+      renderer?.update(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(ThreadStateHarness, {
+            onState: (state) => {
+              threadState = state;
+            },
+            room,
+            threadId: '$thread',
+          })
+        )
+      );
+    });
+
+    expect(threadState?.effectiveThreadId).toBe('$thread');
+    expect(store.get(lastExitedThreadAtom)).toBeNull();
+    expect(edgeSwipeBackState.enabled).toBe(true);
+
+    await act(async () => {
+      edgeSwipeBackState.onBack?.();
+    });
+
+    expect(historyBackMock).toHaveBeenCalledOnce();
+    expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
   });
 
   it('clears the last exited thread when a thread is mounted', async () => {

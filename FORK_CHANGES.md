@@ -31,6 +31,27 @@
 - Old recovery/debugging branches were intentionally squashed out of mainline history.
 - Use [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) for future room/thread/search investigations instead of rebuilding long transient notes here.
 
+### CINNY-075 follow-up swipe-forward re-entry history seed (2026-05-02)
+
+- Investigation:
+  - `useRoomViewThreadState` did call `navigateRoomThread` for swipe-forward re-entry.
+  - `useRoomNavigate().navigateRoomThread` already routes through `navigateMindroomRoomThread`, so the direct-call part of the prompt hypothesis was stale.
+  - The real gap was ordering: swipe-forward cleared `lastExitedThreadAtom` before invoking the seeded navigation path.
+- Fix:
+  - `handleSwipeForwardToThread` now invokes `navigateRoomThread` before clearing `lastExitedThreadAtom`, so re-entry navigation gets the same pending exited-thread context as a normal thread open before the forward state is cleared.
+  - Added a RoomView regression that fails with the old ordering, then verifies a left-edge back swipe after swipe-forward re-entry uses `history.back()` instead of the focus-event fallback.
+- Tests and validation:
+  - Old ordering confirmed red with `npm test -- src/app/mindroom/threads/__tests__/RoomView.test.ts -t "seeds thread exit history before clearing swipe-forward state"`.
+  - Fixed ordering passes the same focused regression.
+  - `npm test -- src/app/hooks/useRoomNavigate.test.ts src/app/mindroom/threads/threadNavigation.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts`
+  - `npm run lint` passes with the repo warning baseline (`17` warnings, `0` errors).
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm test -- --no-file-parallelism` passes (`246` files, `1849` tests).
+  - Exact parallel `npm test` was attempted twice and hit unrelated timing/act flakiness in existing `RoomTimeline*`, `RoomView`, and settings tests; the failed files passed when rerun directly.
+  - `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/useRoomViewThreadState.ts src/app/mindroom/threads/__tests__/RoomView.test.ts`
+  - `git diff --check`
+
 ### CINNY-089 Recording waveform fill and scale follow-up (2026-05-03)
 
 - Summary:
