@@ -2,6 +2,29 @@
 
 ## Runbook
 
+### CINNY-103 Sticky prominent expand/collapse pills (2026-05-02)
+
+- Summary:
+  - Replaced the low-prominence collapsed `Show more` label with a prominent non-focusable pill rendered inside the existing clickable gradient overlay; the gradient remains the single tab stop for expansion.
+  - Replaced the absolute top-right chevron close button with a sticky `Show less` pill: a CSS-only `position: sticky` wrapper centered at the bottom of the expanded content, holding an inner button that the user can press while scrolling through long expanded messages.
+  - Wrapper uses `pointer-events: none`; the inner pill restores `pointer-events: auto` so message text/selection beneath the pill is undisturbed.
+  - Existing measurement, focus management, `expandAllMessages` / `collapseAllMessages` event bus, `ResizeObserver`, and `IntersectionObserver` behaviors are preserved. `MAX_HEIGHT`, overflow threshold, media exemption policy, and timeline render tree are intentionally untouched.
+- Files changed:
+  - `src/app/mindroom/threads/CollapsibleMessage.tsx`
+  - `src/app/mindroom/threads/CollapsibleMessage.css.ts`
+  - `src/app/mindroom/threads/CollapsibleMessage.test.ts`
+- Tests and validation:
+  - `npm test -- src/app/mindroom/threads/CollapsibleMessage.test.ts` (23 passed).
+  - `npm test -- src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts` (10 passed).
+  - `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts` passes after removing the transient root docs introduced by earlier branch commits.
+  - `npm run typecheck` clean.
+  - `npm run build` clean.
+  - `npm run lint` 0 errors, 17 pre-existing warnings.
+- Review round 1 follow-ups (FIX-1, FIX-2):
+  - Removed the transient root `FINAL-PLAN.md` and `IMPLEMENTATION-REPORT.md` files this branch had introduced; `RoomTimeline.architecture.test.ts` forbids them. The earlier "pre-existing on the branch tip" note was incorrect relative to the merge target and has been removed.
+  - Updated the gradient and collapse-pill `aria-label`s to match their visible text (`Show more` / `Show less`) so screen readers no longer announce names that diverge from the rendered label.
+- Browser screenshot gate remains required before merge.
+
 ### Scope
 
 - `dev` now keeps issue-backed history only.
