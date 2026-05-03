@@ -27,6 +27,11 @@ const normalizeRecordingWaveform = (waveform: number[] | undefined): number[] =>
   return [...Array<number>(VOICE_WAVEFORM_BAR_COUNT - bars.length).fill(0), ...bars];
 };
 
+const getCompactUnrecordedBarCount = (waveform: number[] | undefined): number => {
+  if (!Array.isArray(waveform) || waveform.length === 0) return 0;
+  return Math.max(0, VOICE_WAVEFORM_BAR_COUNT - waveform.length);
+};
+
 type VoiceWaveformProps = {
   waveform?: number[];
   progress?: number;
@@ -45,6 +50,7 @@ export function VoiceWaveform({
   onSeekProgress,
 }: VoiceWaveformProps) {
   const bars = compact ? normalizeRecordingWaveform(waveform) : normalizeMatrixWaveform(waveform);
+  const compactUnrecordedBarCount = compact ? getCompactUnrecordedBarCount(waveform) : 0;
   const svgWidth = getSvgWidth(bars.length || VOICE_WAVEFORM_BAR_COUNT);
   const normalizedProgress = clampProgress(progress);
   const activeBars = Math.round(normalizedProgress * bars.length);
@@ -91,6 +97,7 @@ export function VoiceWaveform({
             width: svgWidth,
             height: SVG_HEIGHT,
             preserveAspectRatio: 'none',
+            shapeRendering: 'crispEdges',
           }
         : {
             preserveAspectRatio: 'none',
@@ -116,7 +123,8 @@ export function VoiceWaveform({
             key={index}
             className={classNames(
               index < activeBars ? css.BarActive : css.Bar,
-              compact && css.BarCompact
+              compact && css.BarCompact,
+              compact && index < compactUnrecordedBarCount && css.BarCompactUnrecorded
             )}
             x={index * (BAR_WIDTH + BAR_GAP)}
             y={y}

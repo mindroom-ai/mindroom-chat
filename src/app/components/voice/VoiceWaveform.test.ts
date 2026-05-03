@@ -8,6 +8,7 @@ vi.mock('./VoiceWaveform.css', () => ({
   Bar: 'Bar',
   BarActive: 'BarActive',
   BarCompact: 'BarCompact',
+  BarCompactUnrecorded: 'BarCompactUnrecorded',
   Svg: 'Svg',
   SvgCompact: 'SvgCompact',
   Waveform: 'Waveform',
@@ -101,6 +102,7 @@ describe('VoiceWaveform', () => {
     expect(svg.props.width).toBe(287);
     expect(svg.props.height).toBe(32);
     expect(svg.props.preserveAspectRatio).toBe('none');
+    expect(svg.props.shapeRendering).toBe('crispEdges');
 
     renderer.unmount();
   });
@@ -120,6 +122,9 @@ describe('VoiceWaveform', () => {
     expect(svg.props.viewBox).toBe('0 0 143 32');
     expect(rects.slice(0, -1).every((rect) => rect.props.height === 3)).toBe(true);
     expect(rects[0].props.className).toContain('BarCompact');
+    expect(rects[0].props.className).toContain('BarCompactUnrecorded');
+    expect(rects[45].props.className).toContain('BarCompactUnrecorded');
+    expect(rects[46].props.className).not.toContain('BarCompactUnrecorded');
     expect(rects[47].props.height).toBeCloseTo(18.88);
     expect(rects[47].props.y).toBeCloseTo(6.56);
 
