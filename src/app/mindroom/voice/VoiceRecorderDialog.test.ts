@@ -54,6 +54,7 @@ vi.mock('./VoiceRecordingCapsule.css', () => ({
 vi.mock('../../components/voice/VoiceWaveform.css', () => ({
   Bar: 'Bar',
   BarActive: 'BarActive',
+  BarCompact: 'BarCompact',
   Svg: 'Svg',
   SvgCompact: 'SvgCompact',
   Waveform: 'Waveform',

@@ -6,7 +6,7 @@ export const Waveform = style([
   {
     display: 'block',
     width: '100%',
-    minWidth: toRem(96),
+    minWidth: `min(${toRem(96)}, 100%)`,
     height: toRem(32),
     color: color.SurfaceVariant.OnContainer,
   },
@@ -30,6 +30,12 @@ export const WaveformCompact = style({
   justifyContent: 'flex-end',
   overflow: 'hidden',
   position: 'relative',
+  backgroundImage: `linear-gradient(to right, transparent 0 ${toRem(1)}, ${
+    color.SurfaceVariant.ContainerLine
+  } ${toRem(1)} ${toRem(3)})`,
+  backgroundPosition: 'right center',
+  backgroundRepeat: 'repeat-x',
+  backgroundSize: `${toRem(3)} ${toRem(3)}`,
 });
 
 export const Svg = style({
@@ -52,7 +58,17 @@ export const Bar = style({
   opacity: config.opacity.P400,
 });
 
+export const BarCompact = style({
+  fill: color.Surface.OnContainer,
+  opacity: 1,
+});
+
 export const BarActive = style({
   fill: color.Primary.Main,
+  opacity: 1,
+});
+
+export const BarCompactUnrecorded = style({
+  fill: color.SurfaceVariant.ContainerLine,
   opacity: 1,
 });

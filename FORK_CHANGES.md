@@ -8,6 +8,24 @@
 - Old recovery/debugging branches were intentionally squashed out of mainline history.
 - Use [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) for future room/thread/search investigations instead of rebuilding long transient notes here.
 
+### CINNY-089 Recording waveform fill and scale follow-up (2026-05-03)
+
+- Summary:
+  - Compact recording waveform rendering now left-pads early live samples with silence-height bars so the recording capsule remains visually filled before enough samples arrive.
+  - The compact recording waveform container also paints a full-width inactive silence-bar strip behind live samples, preventing wide composers from showing a blank lead-in.
+  - Follow-up: padded not-yet-recorded compact bars now carry an explicit inactive theme-color class instead of inheriting the recorded compact bar color, so the unrecorded lead-in stays visually muted while actual recorded samples remain in the normal recorded style across light and dark themes.
+  - Follow-up: the inactive compact background strip is tiled from the same right edge as the live SVG bars, and compact SVG bars request crisp edge rendering to avoid uneven one/two-pixel visual gaps.
+  - Compact recording bars use a darker bar style and a gated recording-only speech boost curve, leaving near-silence restrained while mildly lifting midrange speech and preserving the existing peak cap.
+  - Playback/default waveform rendering remains on the existing normalized Matrix path without the compact amplitude curve.
+- Tests and validation:
+  - `npm test -- src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/mindroom/voice/VoiceRecordingCapsule.test.ts src/app/mindroom/voice/VoiceRecorderDialog.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npx eslint src/app/components/voice/VoiceWaveform.tsx src/app/components/voice/VoiceWaveform.css.ts src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/VoiceRecordingCapsule.test.ts src/app/mindroom/voice/VoiceRecorderDialog.test.ts`
+  - `npx prettier --check FORK_CHANGES.md src/app/components/voice/VoiceWaveform.tsx src/app/components/voice/VoiceWaveform.css.ts src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/VoiceRecordingCapsule.test.ts src/app/mindroom/voice/VoiceRecorderDialog.test.ts`
+  - `git diff --check`
+  - Independent second self-review completed against the final diff; scope stayed limited to recording waveform rendering/tests and this runbook entry.
+
 ### CINNY-075 v3 atom-based swipe-forward navigation (2026-05-02)
 
 - Added the in-memory `lastExitedThreadAtom` under the MindRoom thread namespace.

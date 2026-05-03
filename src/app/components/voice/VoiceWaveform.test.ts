@@ -7,6 +7,7 @@ import { VoiceWaveform } from './VoiceWaveform';
 vi.mock('./VoiceWaveform.css', () => ({
   Bar: 'Bar',
   BarActive: 'BarActive',
+  BarCompact: 'BarCompact',
   Svg: 'Svg',
   SvgCompact: 'SvgCompact',
   Waveform: 'Waveform',
@@ -100,6 +101,65 @@ describe('VoiceWaveform', () => {
     expect(svg.props.width).toBe(287);
     expect(svg.props.height).toBe(32);
     expect(svg.props.preserveAspectRatio).toBe('none');
+    expect(svg.props.shapeRendering).toBe('crispEdges');
+
+    renderer.unmount();
+  });
+
+  it('left-pads early compact recording samples with visible silence bars', () => {
+    const renderer = create(
+      React.createElement(VoiceWaveform, {
+        waveform: [0, 512],
+        compact: true,
+      })
+    );
+
+    const svg = renderer.root.findByType('svg');
+    const rects = renderer.root.findAllByType('rect');
+
+    expect(rects).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
+    expect(svg.props.viewBox).toBe('0 0 143 32');
+    expect(rects.slice(0, -1).every((rect) => rect.props.height === 3)).toBe(true);
+    expect(rects[0].props.className).toContain('BarCompact');
+    expect(rects[0].props.className).toContain('BarCompactUnrecorded');
+    expect(rects[45].props.className).toContain('BarCompactUnrecorded');
+    expect(rects[46].props.className).not.toContain('BarCompactUnrecorded');
+    expect(rects[47].props.height).toBeCloseTo(19.109);
+    expect(rects[47].props.y).toBeCloseTo(6.445);
+
+    renderer.unmount();
+  });
+
+  it('keeps quiet compact recording samples restrained while preserving the peak cap', () => {
+    const renderer = create(
+      React.createElement(VoiceWaveform, {
+        waveform: [64, 256, 1024],
+        compact: true,
+      })
+    );
+
+    const rects = renderer.root.findAllByType('rect');
+
+    expect(rects[45].props.height).toBe(3);
+    expect(rects[46].props.height).toBeCloseTo(8.798);
+    expect(rects[47].props.height).toBe(32);
+    expect(rects[47].props.y).toBe(0);
+
+    renderer.unmount();
+  });
+
+  it('keeps non-compact playback waveform amplitude unchanged', () => {
+    const renderer = create(
+      React.createElement(VoiceWaveform, {
+        waveform: [512],
+      })
+    );
+
+    const rects = renderer.root.findAllByType('rect');
+
+    expect(rects).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
+    expect(rects[0].props.height).toBe(16);
+    expect(rects[0].props.className).not.toContain('BarCompact');
 
     renderer.unmount();
   });
