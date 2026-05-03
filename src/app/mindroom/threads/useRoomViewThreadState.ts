@@ -12,6 +12,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { createSessionId } from '../../state/sessions';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
+import { isIOSStandaloneWebApp } from '../native/nativeSso';
 import { useEdgeSwipeBack } from '../native/useEdgeSwipeBack';
 import { bumpRecentThread } from '../recent-threads/recentThreads';
 import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
@@ -118,11 +119,15 @@ export const useRoomViewThreadState = ({
       historyExitTarget?.roomId === room.roomId &&
       historyExitTarget.threadId === effectiveThreadId
     ) {
-      if (!historyExitTarget.useHistoryBack && historyExitTarget.exitPath) {
+      const standaloneWebApp = isIOSStandaloneWebApp();
+      if (
+        historyExitTarget.exitPath &&
+        (!historyExitTarget.useHistoryBack || standaloneWebApp)
+      ) {
         navigatePath(historyExitTarget.exitPath, { replace: true });
         return;
       }
-      if (historyExitTarget.useHistoryBack) {
+      if (historyExitTarget.useHistoryBack && !standaloneWebApp) {
         window.history.back();
         return;
       }
