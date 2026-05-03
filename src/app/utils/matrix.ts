@@ -136,6 +136,85 @@ export const decryptFile = async (
 };
 
 export type TUploadContent = File | Blob;
+export type MatrixUploadErrorStage = 'upload' | 'send' | 'create';
+
+const TRANSIENT_UPLOAD_ERROR_MESSAGE = "Couldn't send — your connection dropped. Try again.";
+const FALLBACK_UPLOAD_ERROR_MESSAGE = "Couldn't send. Try again.";
+const PREPARE_UPLOAD_ERROR_MESSAGE = "Couldn't prepare voice message.";
+const MATRIX_UPLOAD_ERROR_STAGE_KEY = 'mindroom_upload_stage';
+const MATRIX_UPLOAD_ORIGINAL_NAME_KEY = 'mindroom_original_name';
+
+const getErrorName = (err: unknown): string | undefined =>
+  typeof err === 'object' && err !== null && 'name' in err && typeof err.name === 'string'
+    ? err.name
+    : undefined;
+
+const stripMatrixErrorPrefix = (message: string): string =>
+  message.replace(/^MatrixError:\s*/, '').trim();
+
+const nonEmptyMessage = (err: unknown): string => {
+  if (err instanceof MatrixError) {
+    const dataError = err.data?.error;
+    if (typeof dataError === 'string' && dataError.trim() !== '') return dataError.trim();
+  }
+  if (err instanceof Error && err.message.trim() !== '') {
+    return stripMatrixErrorPrefix(err.message);
+  }
+  if (typeof err === 'string' && err.trim() !== '') return err.trim();
+  return 'Unknown message';
+};
+
+export const isTransientMatrixError = (err: unknown): boolean => {
+  if (getErrorName(err) === 'AbortError') return true;
+
+  if (err instanceof MatrixError) {
+    return err.errcode == null || err.errcode === 'M_UNKNOWN';
+  }
+
+  return false;
+};
+
+export const toMatrixUploadError = (err: unknown, stage: MatrixUploadErrorStage): MatrixError => {
+  if (err instanceof MatrixError) return err;
+
+  return new MatrixError({
+    errcode: 'M_UNKNOWN',
+    error: nonEmptyMessage(err),
+    [MATRIX_UPLOAD_ERROR_STAGE_KEY]: stage,
+    [MATRIX_UPLOAD_ORIGINAL_NAME_KEY]: getErrorName(err) ?? typeof err,
+  });
+};
+
+export const getMatrixUploadErrorStage = (err: unknown): MatrixUploadErrorStage | undefined => {
+  if (!(err instanceof MatrixError)) return undefined;
+
+  const stage = err.data?.[MATRIX_UPLOAD_ERROR_STAGE_KEY];
+  if (stage === 'upload' || stage === 'send' || stage === 'create') return stage;
+  return undefined;
+};
+
+export const getMatrixUploadOriginalName = (err: unknown): string | undefined => {
+  if (!(err instanceof MatrixError)) return undefined;
+
+  const originalName = err.data?.[MATRIX_UPLOAD_ORIGINAL_NAME_KEY];
+  return typeof originalName === 'string' && originalName.trim() !== '' ? originalName : undefined;
+};
+
+export const getMatrixUploadErrorMessage = (
+  err: unknown,
+  stage = getMatrixUploadErrorStage(err)
+): string => {
+  if (isTransientMatrixError(err)) {
+    if (stage === 'upload' || stage === 'send') return TRANSIENT_UPLOAD_ERROR_MESSAGE;
+    if (stage === 'create') return PREPARE_UPLOAD_ERROR_MESSAGE;
+  }
+
+  if (err instanceof MatrixError && err.errcode) {
+    return `${err.errcode}: ${nonEmptyMessage(err)}`;
+  }
+
+  return FALLBACK_UPLOAD_ERROR_MESSAGE;
+};
 
 export type ContentUploadOptions = {
   name?: string;
@@ -167,9 +246,7 @@ export const uploadContent = async (
     if (mxc) onSuccess(mxc);
     else onError(new MatrixError(data));
   } catch (e: any) {
-    const error = typeof e?.message === 'string' ? e.message : undefined;
-    const errcode = typeof e?.name === 'string' ? e.message : undefined;
-    onError(new MatrixError({ error, errcode }));
+    onError(toMatrixUploadError(e, 'upload'));
   }
 };
 

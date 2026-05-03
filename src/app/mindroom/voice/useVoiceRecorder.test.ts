@@ -1,5 +1,6 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
+import { MatrixError } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   normalizeMatrixWaveform,
@@ -440,6 +441,50 @@ describe('useVoiceRecorder', () => {
 
     expect(initialSend).toHaveBeenCalledOnce();
     expect(laterSend).not.toHaveBeenCalled();
+
+    renderer.unmount();
+  });
+
+  it('shows a friendly transient message when voice send rejects with an unknown MatrixError', async () => {
+    const onSendRecording = vi.fn(async () => {
+      throw new MatrixError({ errcode: 'M_UNKNOWN', error: '' });
+    });
+    const renderer = await renderHarness({ onSendRecording });
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+      await recorderState.current?.send();
+    });
+
+    expect(recorderState.current?.errorMessage).toBe(
+      "Couldn't send — your connection dropped. Try again."
+    );
+    expect(recorderState.current?.errorMessage).not.toBe('MatrixError: Unknown message');
+
+    renderer.unmount();
+  });
+
+  it('preserves plain voice send Error messages', async () => {
+    const busyMessage =
+      'Another voice message is still sending. Please wait before recording again.';
+    const onSendRecording = vi.fn(async () => {
+      throw new Error(busyMessage);
+    });
+    const renderer = await renderHarness({ onSendRecording });
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+      await recorderState.current?.send();
+    });
+
+    expect(recorderState.current?.errorMessage).toBe(busyMessage);
+    expect(recorderState.current?.errorMessage).not.toBe("Couldn't send. Try again.");
 
     renderer.unmount();
   });
