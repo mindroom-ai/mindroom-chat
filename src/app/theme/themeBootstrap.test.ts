@@ -3,6 +3,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { configClass, varsClass } from 'folds';
 
+const statusBarTheme = vi.hoisted(() => ({
+  syncNativeStatusBarBackground: vi.fn(),
+}));
+
 vi.mock('../hooks/useTheme', () => {
   const ThemeKind = {
     Light: 'light',
@@ -33,6 +37,8 @@ vi.mock('../hooks/useTheme', () => {
     },
   };
 });
+
+vi.mock('../mindroom/native/statusBarTheme', () => statusBarTheme);
 
 import { DarkTheme, SilverTheme } from '../hooks/useTheme';
 import { SESSION_STORE_KEY } from '../state/sessions';
@@ -92,6 +98,7 @@ describe('themeBootstrap', () => {
     window.localStorage.clear();
     delete window.__INITIAL_THEME__;
     setMatchMedia(false);
+    statusBarTheme.syncNativeStatusBarBackground.mockClear();
   });
 
   afterEach(() => {
@@ -376,7 +383,7 @@ describe('themeBootstrap', () => {
     expect(getItemSpy).not.toHaveBeenCalledWith('settings');
   });
 
-  it('applies the full class stack, syncs the html theme id, and updates meta tags conditionally', () => {
+  it('applies the full class stack, syncs the html theme id, and updates meta/native status bar colors conditionally', () => {
     applyThemeToDom(SilverTheme);
 
     expect(document.documentElement.classList.contains('silver-theme')).toBe(true);
@@ -387,6 +394,7 @@ describe('themeBootstrap', () => {
     expect(document.querySelector('meta[name="color-scheme"]')?.getAttribute('content')).toBe(
       'light'
     );
+    expect(statusBarTheme.syncNativeStatusBarBackground).toHaveBeenLastCalledWith('#DEDEDE');
 
     [configClass, varsClass, ...SilverTheme.classNames].forEach((className) => {
       expect(document.body.classList.contains(className)).toBe(true);
@@ -402,5 +410,6 @@ describe('themeBootstrap', () => {
     expect(document.querySelector('meta[name="color-scheme"]')?.getAttribute('content')).toBe(
       'dark'
     );
+    expect(statusBarTheme.syncNativeStatusBarBackground).toHaveBeenLastCalledWith('#1A1A1A');
   });
 });
