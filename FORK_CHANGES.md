@@ -8,6 +8,19 @@
 - Old recovery/debugging branches were intentionally squashed out of mainline history.
 - Use [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) for future room/thread/search investigations instead of rebuilding long transient notes here.
 
+### CINNY-075 v3 atom-based swipe-forward navigation (2026-05-02)
+
+- Added the in-memory `lastExitedThreadAtom` under the MindRoom thread namespace.
+- Added a MindRoom-native `useEdgeSwipeForward` right-edge mirror hook.
+- Wired `useRoomViewThreadState` to record fallback thread exits, enable swipe-forward from matching room overview state, navigate with `navigateRoomThread`, and clear the atom through the required two-effect split.
+- Added focused atom, gesture, RoomView F1 regression-lock, auto-clear, and architecture-path coverage.
+- Validation:
+  - `npm run lint` passes with the repo warning baseline (`17` warnings, `0` errors).
+  - `npm run typecheck` passes.
+  - `npm test` passes (`246` files, `1843` tests).
+  - `npm run build` passes.
+  - Independent review found no implementation correctness issues; the pre-existing untracked `.envrc` remains uncommitted.
+
 ### CINNY-098 Dev server stale service worker cleanup (2026-05-02)
 
 - Root cause:
