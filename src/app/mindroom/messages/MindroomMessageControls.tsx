@@ -26,14 +26,13 @@ import { MindroomAiRunInfo, getMindroomAiRunInfo } from './aiRun';
 import {
   formatMindroomAiRunNumber,
   formatMindroomAiRunTimeToFirstToken,
+  getMindroomAiRunContextCacheLabel,
   getMindroomAiRunContextLabel,
   getMindroomAiRunModelLabel,
+  getMindroomAiRunUsageCacheLabel,
   getMindroomAiRunUsageLabel,
 } from './aiRunDisplay';
-import {
-  MindroomLongTextSource,
-  getMindroomLongTextSource,
-} from './longText';
+import { MindroomLongTextSource, getMindroomLongTextSource } from './longText';
 import { getMindroomLongTextDownloadName } from './longTextDownload';
 import {
   downloadMindroomLongTextSidecarBlob,
@@ -41,10 +40,7 @@ import {
 } from './MindroomLongTextText';
 import * as css from './MindroomMessageControls.css';
 
-export function useMindroomMessageControls(
-  content: Record<string, unknown>,
-  menuOpen: boolean
-) {
+export function useMindroomMessageControls(content: Record<string, unknown>, menuOpen: boolean) {
   const longTextSource = useMemo(() => getMindroomLongTextSource(content), [content]);
   const resolvedLongTextContent = useMindroomLongTextResolvedContent(longTextSource, menuOpen);
   const longTextLoading = longTextSource !== undefined && resolvedLongTextContent === undefined;
@@ -80,7 +76,9 @@ function MindroomAiRunInfoDialog({
 }) {
   const modelLabel = getMindroomAiRunModelLabel(info);
   const usageLabel = getMindroomAiRunUsageLabel(info);
+  const usageCacheLabel = getMindroomAiRunUsageCacheLabel(info);
   const contextLabel = getMindroomAiRunContextLabel(info);
+  const contextCacheLabel = getMindroomAiRunContextCacheLabel(info);
   const toolsLabel = formatMindroomAiRunNumber(info.toolCount);
   const ttftLabel = formatMindroomAiRunTimeToFirstToken(info.timeToFirstToken);
 
@@ -120,7 +118,9 @@ function MindroomAiRunInfoDialog({
               <MindroomAiRunDetail label="Status" value={info.status} />
               <MindroomAiRunDetail label="Model" value={modelLabel} />
               <MindroomAiRunDetail label="Tokens" value={usageLabel} />
+              <MindroomAiRunDetail label="Run Cache" value={usageCacheLabel} />
               <MindroomAiRunDetail label="Request Context" value={contextLabel} />
+              <MindroomAiRunDetail label="Request Cache" value={contextCacheLabel} />
               <MindroomAiRunDetail label="Tools" value={toolsLabel} />
               <MindroomAiRunDetail label="TTFT" value={ttftLabel} />
               <MindroomAiRunDetail label="Run" value={info.runId} />
@@ -133,13 +133,7 @@ function MindroomAiRunInfoDialog({
   );
 }
 
-export function MindroomAiRunInfoButton({
-  open,
-  onOpen,
-}: {
-  open: boolean;
-  onOpen: () => void;
-}) {
+export function MindroomAiRunInfoButton({ open, onOpen }: { open: boolean; onOpen: () => void }) {
   return (
     <button
       type="button"
