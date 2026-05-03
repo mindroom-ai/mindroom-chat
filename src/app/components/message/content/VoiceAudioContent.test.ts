@@ -3,7 +3,10 @@ import { Provider, createStore, type Store } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AsyncStatus } from '../../../hooks/useAsyncCallback';
-import { voiceMessagePlaybackRateAtom } from '../../../state/voiceMessageSettings';
+import {
+  voiceMessagePlaybackRateAtom,
+  voiceMessageVolumeAtom,
+} from '../../../state/voiceMessageSettings';
 import { VoiceAudioContent } from './VoiceAudioContent';
 
 const mocks = vi.hoisted(() => ({
@@ -28,7 +31,13 @@ vi.mock('folds', () => ({
   Icons: {
     Pause: 'pause',
     Play: 'play',
+    VolumeHigh: 'volume-high',
+    VolumeMute: 'volume-mute',
   },
+  Menu: ({ children, ...props }: { children?: React.ReactNode }) =>
+    React.createElement('div', props, children),
+  PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
+    anchor ? React.createElement('div', { 'data-popout': 'true' }, content) : null,
   Spinner: (props: Record<string, unknown>) => React.createElement('span', props),
   Text: ({ children, ...props }: { children?: React.ReactNode }) =>
     React.createElement('span', props, children),
@@ -37,7 +46,17 @@ vi.mock('folds', () => ({
 vi.mock('./VoiceAudioContent.css', () => ({
   Audio: 'Audio',
   Capsule: 'Capsule',
+  Controls: 'Controls',
   Time: 'Time',
+  WaveformSlot: 'WaveformSlot',
+}));
+
+vi.mock('../../voice/VoiceVolumeButton.css', () => ({
+  Button: 'Button',
+  Menu: 'Menu',
+  Thumb: 'Thumb',
+  Track: 'Track',
+  TrackLine: 'TrackLine',
 }));
 
 vi.mock('../../voice/VoicePlaybackRateButton.css', () => ({
@@ -49,12 +68,60 @@ vi.mock('../../voice/VoicePlaybackRateButton.css', () => ({
 vi.mock('../../voice/VoiceWaveform.css', () => ({
   Bar: 'Bar',
   BarActive: 'BarActive',
+  BarCompactUnrecorded: 'BarCompactUnrecorded',
   Svg: 'Svg',
-  SvgCompact: 'SvgCompact',
   Waveform: 'Waveform',
-  WaveformCompact: 'WaveformCompact',
   WaveformDimmed: 'WaveformDimmed',
   WaveformSeek: 'WaveformSeek',
+}));
+
+vi.mock('focus-trap-react', () => ({
+  default: ({
+    children,
+    focusTrapOptions,
+  }: {
+    children?: React.ReactNode;
+    focusTrapOptions?: Record<string, unknown>;
+  }) => React.createElement('div', { 'data-focus-trap': true, focusTrapOptions }, children),
+}));
+
+vi.mock('react-range', () => ({
+  Range: ({
+    values,
+    onChange,
+    renderTrack,
+    renderThumb,
+  }: {
+    values: number[];
+    onChange: (values: number[]) => void;
+    renderTrack: (params: {
+      props: Record<string, unknown>;
+      children: React.ReactNode;
+    }) => React.ReactNode;
+    renderThumb: (params: { props: Record<string, unknown> }) => React.ReactNode;
+  }) =>
+    React.createElement(
+      'div',
+      { 'data-range': 'true' },
+      renderTrack({
+        props: {},
+        children: renderThumb({
+          props: {
+            style: {
+              position: 'absolute',
+              transform: 'translate(118px, 8px)',
+            },
+          },
+        }),
+      }),
+      React.createElement('input', {
+        'aria-label': 'Voice volume slider',
+        type: 'range',
+        value: values[0],
+        onChange: (event: { currentTarget: { value: string } }) =>
+          onChange([Number(event.currentTarget.value)]),
+      })
+    ),
 }));
 
 vi.mock('./useAudioContentSource', () => ({
@@ -87,8 +154,11 @@ type AudioMock = HTMLAudioElement & {
 const createAudioMock = (): AudioMock =>
   ({
     currentTime: 0,
+    duration: 10,
+    muted: false,
     playbackRate: 1,
     preservesPitch: false,
+    volume: 1,
     mozPreservesPitch: false,
     webkitPreservesPitch: false,
   } as AudioMock);
@@ -109,12 +179,7 @@ const renderVoiceAudioContent = (props?: Partial<React.ComponentProps<typeof Voi
 const renderVoiceAudio = (
   store: Store = createStore(),
   props?: Partial<React.ComponentProps<typeof VoiceAudioContent>>
-) =>
-  React.createElement(
-    Provider,
-    { store },
-    renderVoiceAudioContent(props)
-  );
+) => React.createElement(Provider, { store }, renderVoiceAudioContent(props));
 
 describe('VoiceAudioContent', () => {
   let renderer: ReactTestRenderer;
@@ -144,18 +209,19 @@ describe('VoiceAudioContent', () => {
     storageListeners.clear();
   });
 
-  it('renders only play, waveform seek, and time controls', () => {
+  it('renders play, waveform seek, timer, and volume controls before interaction', () => {
     renderer = create(renderVoiceAudio());
 
     const buttons = renderer.root.findAllByType('button');
     expect(buttons.map((button) => button.props['aria-label'])).toEqual([
       'Play voice message',
       'Seek voice message',
+      'Voice volume, currently 100%',
     ]);
     expect(renderer.root.findAllByType('rect')).toHaveLength(48);
     const rendered = JSON.stringify(renderer.toJSON());
-    expect(rendered).toContain('0:10');
-    expect(rendered).not.toMatch(/download|volume|mute|speed/i);
+    expect(rendered).toContain('0:00 / 0:10');
+    expect(rendered).not.toMatch(/download|mute|speed/i);
 
     act(() => {
       renderer.unmount();
@@ -286,7 +352,7 @@ describe('VoiceAudioContent', () => {
     });
 
     expect(mocks.loadSrc).toHaveBeenCalledOnce();
-    expect(JSON.stringify(renderer.toJSON())).toContain('0:05');
+    expect(JSON.stringify(renderer.toJSON())).toContain('0:05 / 0:10');
 
     mocks.srcState = {
       status: AsyncStatus.Success,
@@ -303,6 +369,52 @@ describe('VoiceAudioContent', () => {
     });
 
     expect(mocks.setPlaying).toHaveBeenCalledWith(true);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('clears current time and pending seek when the media identity changes', async () => {
+    const store = createStore();
+    renderer = create(renderVoiceAudio(store, { url: 'mxc://mindroom/voice-a' }));
+
+    await act(async () => {
+      renderer.root.findByProps({ 'aria-label': 'Seek voice message' }).props.onClick({
+        clientX: 50,
+        currentTarget: {
+          getBoundingClientRect: () => ({ left: 0, width: 100 }),
+        },
+      });
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('0:05 / 0:10');
+
+    await act(async () => {
+      renderer.update(
+        renderVoiceAudio(store, {
+          url: 'mxc://mindroom/voice-b',
+          info: { mimetype: 'audio/ogg', duration: 4000 },
+        })
+      );
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('0:00 / 0:04');
+
+    mocks.srcState = {
+      status: AsyncStatus.Success,
+      data: 'blob:voice-b',
+    };
+    await act(async () => {
+      renderer.update(
+        renderVoiceAudio(store, {
+          url: 'mxc://mindroom/voice-b',
+          info: { mimetype: 'audio/ogg', duration: 4000 },
+        })
+      );
+    });
+
+    expect(mocks.seek).not.toHaveBeenCalled();
 
     act(() => {
       renderer.unmount();
@@ -331,6 +443,220 @@ describe('VoiceAudioContent', () => {
     expect(audio.preservesPitch).toBe(true);
     expect(audio.webkitPreservesPitch).toBe(true);
     expect(audio.mozPreservesPitch).toBe(true);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('applies volume changes to the audio element and unmutes non-zero volume', () => {
+    const store = createStore();
+    const audio = createAudioMock();
+    audio.muted = true;
+    mocks.srcState = {
+      status: AsyncStatus.Success,
+      data: 'blob:voice',
+    };
+
+    act(() => {
+      renderer = create(renderVoiceAudio(store), {
+        createNodeMock: (element) => (element.type === 'audio' ? audio : null),
+      });
+    });
+
+    act(() => {
+      store.set(voiceMessageVolumeAtom, 0.4);
+    });
+
+    expect(audio.volume).toBe(0.4);
+    expect(audio.muted).toBe(false);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('mutes the audio element when volume is set to zero', () => {
+    const store = createStore();
+    const audio = createAudioMock();
+    mocks.srcState = {
+      status: AsyncStatus.Success,
+      data: 'blob:voice',
+    };
+
+    act(() => {
+      renderer = create(renderVoiceAudio(store), {
+        createNodeMock: (element) => (element.type === 'audio' ? audio : null),
+      });
+    });
+
+    act(() => {
+      store.set(voiceMessageVolumeAtom, 0);
+    });
+
+    expect(audio.volume).toBe(0);
+    expect(audio.muted).toBe(true);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('updates all mounted voice players and audio elements when one volume slider changes', () => {
+    const store = createStore();
+    const audioA = createAudioMock();
+    const audioB = createAudioMock();
+    const audioMocks = [audioA, audioB];
+    let audioIndex = 0;
+    mocks.srcState = {
+      status: AsyncStatus.Success,
+      data: 'blob:voice',
+    };
+
+    act(() => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(React.Fragment, null, [
+            React.cloneElement(renderVoiceAudioContent({ url: 'mxc://mindroom/voice-a' }), {
+              key: 'voice-a',
+            }),
+            React.cloneElement(renderVoiceAudioContent({ url: 'mxc://mindroom/voice-b' }), {
+              key: 'voice-b',
+            }),
+          ])
+        ),
+        {
+          createNodeMock: (element) => {
+            if (element.type !== 'audio') return null;
+            const audio = audioMocks[audioIndex];
+            audioIndex += 1;
+            return audio;
+          },
+        }
+      );
+    });
+
+    act(() => {
+      renderer.root
+        .findAllByProps({ 'aria-label': 'Voice volume, currently 100%' })[0]
+        .props.onClick({
+          currentTarget: {
+            getBoundingClientRect: () => ({ left: 0, top: 0, width: 44, height: 44 }),
+          },
+        });
+    });
+    act(() => {
+      renderer.root.findByProps({ 'aria-label': 'Voice volume slider' }).props.onChange({
+        currentTarget: { value: '0.25' },
+      });
+    });
+
+    expect(store.get(voiceMessageVolumeAtom)).toBe(0.25);
+    expect(audioA.volume).toBe(0.25);
+    expect(audioB.volume).toBe(0.25);
+    expect(
+      renderer.root.findAllByProps({ 'aria-label': 'Voice volume, currently 25%' })
+    ).toHaveLength(2);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('closes the volume popover when the trigger is clicked again', () => {
+    class TestNode {
+      contains(target: unknown) {
+        return target === this;
+      }
+
+      getBoundingClientRect() {
+        return { left: 0, top: 0, width: 44, height: 44 } as DOMRect;
+      }
+    }
+    vi.stubGlobal('Node', TestNode);
+    const volumeTriggerNode = new TestNode() as unknown as HTMLButtonElement;
+
+    renderer = create(renderVoiceAudio(), {
+      createNodeMock: (element) => {
+        if (
+          element.type === 'button' &&
+          typeof element.props['aria-label'] === 'string' &&
+          element.props['aria-label'].startsWith('Voice volume')
+        ) {
+          return volumeTriggerNode;
+        }
+        return null;
+      },
+    });
+
+    act(() => {
+      renderer.root.findByProps({ 'aria-label': 'Voice volume, currently 100%' }).props.onClick({
+        currentTarget: volumeTriggerNode,
+      });
+    });
+
+    expect(renderer.root.findAllByProps({ 'data-popout': 'true' })).toHaveLength(1);
+    const focusTrapOptions = renderer.root.findByProps({ 'data-focus-trap': true }).props
+      .focusTrapOptions as {
+      clickOutsideDeactivates: (event: Pick<MouseEvent, 'target'>) => boolean;
+      allowOutsideClick: (event: Pick<MouseEvent, 'target'>) => boolean;
+    };
+    expect(focusTrapOptions.clickOutsideDeactivates({ target: volumeTriggerNode })).toBe(false);
+    expect(focusTrapOptions.allowOutsideClick({ target: volumeTriggerNode })).toBe(true);
+
+    act(() => {
+      renderer.root.findByProps({ 'aria-label': 'Voice volume, currently 100%' }).props.onClick({
+        currentTarget: volumeTriggerNode,
+      });
+    });
+
+    expect(renderer.root.findAllByProps({ 'data-popout': 'true' })).toHaveLength(0);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('centers the volume slider thumb on the track centerline', () => {
+    renderer = create(renderVoiceAudio());
+
+    act(() => {
+      renderer.root.findByProps({ 'aria-label': 'Voice volume, currently 100%' }).props.onClick({
+        currentTarget: {
+          getBoundingClientRect: () => ({ left: 0, top: 0, width: 44, height: 44 }),
+        },
+      });
+    });
+
+    const thumb = renderer.root.findByProps({ 'aria-label': 'Voice volume' });
+    const thumbStyle = thumb.props.style as React.CSSProperties;
+    expect(thumbStyle.marginTop).toBe(-16);
+    expect(thumbStyle.transform).toBe('translate(118px, 8px)');
+
+    const trackNode = {
+      getBoundingClientRect: () => ({ top: 615, bottom: 621 }),
+    };
+    const thumbNode = {
+      getBoundingClientRect: () => {
+        const uncenteredThumbTop = 626;
+        const thumbHeight = 16;
+        const marginTop =
+          typeof thumbStyle.marginTop === 'number'
+            ? thumbStyle.marginTop
+            : Number.parseFloat(String(thumbStyle.marginTop ?? 0));
+        const top = uncenteredThumbTop + marginTop;
+
+        return { top, bottom: top + thumbHeight };
+      },
+    };
+    const getYCenter = (node: { getBoundingClientRect: () => { top: number; bottom: number } }) => {
+      const rect = node.getBoundingClientRect();
+      return rect.top + (rect.bottom - rect.top) / 2;
+    };
+
+    expect(Math.abs(getYCenter(thumbNode) - getYCenter(trackNode))).toBeLessThanOrEqual(1);
 
     act(() => {
       renderer.unmount();
@@ -371,7 +697,7 @@ describe('VoiceAudioContent', () => {
     });
   });
 
-  it('applies playback rate in the onPlay handler', () => {
+  it('applies playback rate and volume in the onPlay handler', () => {
     const store = createStore();
     const audio = createAudioMock();
     mocks.srcState = {
@@ -386,13 +712,17 @@ describe('VoiceAudioContent', () => {
 
     act(() => {
       store.set(voiceMessagePlaybackRateAtom, 2);
+      store.set(voiceMessageVolumeAtom, 0);
     });
     audio.playbackRate = 1;
+    audio.volume = 1;
     act(() => {
       renderer.root.findByType('audio').props.onPlay();
     });
 
     expect(audio.playbackRate).toBe(2);
+    expect(audio.volume).toBe(0);
+    expect(audio.muted).toBe(true);
     expect(audio.webkitPreservesPitch).toBe(true);
     expect(
       renderer.root.findByProps({ 'aria-label': 'Playback speed, currently 2×, click to cycle' })
@@ -403,7 +733,7 @@ describe('VoiceAudioContent', () => {
     });
   });
 
-  it('applies playback rate on loadedmetadata before pending seek handling', () => {
+  it('applies playback rate, volume, and play time on loadedmetadata before pending seek handling', () => {
     const store = createStore();
     const audio = createAudioMock();
     mocks.srcState = {
@@ -418,16 +748,21 @@ describe('VoiceAudioContent', () => {
 
     act(() => {
       store.set(voiceMessagePlaybackRateAtom, 1.5);
+      store.set(voiceMessageVolumeAtom, 0.5);
     });
     audio.playbackRate = 1;
+    audio.volume = 1;
+    audio.currentTime = 3;
     act(() => {
       renderer.root.findByType('audio').props.onLoadedMetadata();
     });
 
     expect(audio.playbackRate).toBe(1.5);
+    expect(audio.volume).toBe(0.5);
     expect(audio.preservesPitch).toBe(true);
     expect(audio.webkitPreservesPitch).toBe(true);
     expect(audio.mozPreservesPitch).toBe(true);
+    expect(JSON.stringify(renderer.toJSON())).toContain('0:03 / 0:10');
 
     act(() => {
       renderer.unmount();
@@ -504,7 +839,7 @@ describe('VoiceAudioContent', () => {
             audioIndex += 1;
             return audio;
           },
-        },
+        }
       );
     });
 
@@ -555,7 +890,7 @@ describe('VoiceAudioContent', () => {
       mocks.playTimeCallback?.(Number.POSITIVE_INFINITY, 0);
     });
 
-    expect(JSON.stringify(renderer.toJSON())).toContain('0:10');
+    expect(JSON.stringify(renderer.toJSON())).toContain('0:00 / 0:10');
 
     act(() => {
       renderer.root.findByProps({ 'aria-label': 'Seek voice message' }).props.onClick({
@@ -567,6 +902,116 @@ describe('VoiceAudioContent', () => {
     });
 
     expect(mocks.seek).toHaveBeenCalledWith(5);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('falls back to browser duration when Matrix duration is missing', () => {
+    const audio = createAudioMock();
+    audio.duration = 8;
+    audio.currentTime = 2;
+    mocks.srcState = {
+      status: AsyncStatus.Success,
+      data: 'blob:voice',
+    };
+    renderer = create(
+      renderVoiceAudio(createStore(), { info: { mimetype: 'audio/ogg', duration: undefined } }),
+      {
+        createNodeMock: (element) => (element.type === 'audio' ? audio : null),
+      }
+    );
+
+    act(() => {
+      renderer.root.findByType('audio').props.onLoadedMetadata();
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('0:02 / 0:08');
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('syncs Matrix duration when metadata arrives after the initial render', () => {
+    const store = createStore();
+    renderer = create(
+      renderVoiceAudio(store, { info: { mimetype: 'audio/ogg', duration: undefined } })
+    );
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('0:00 / 0:00');
+
+    act(() => {
+      renderer.update(renderVoiceAudio(store, { info: { mimetype: 'audio/ogg', duration: 7000 } }));
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('0:00 / 0:07');
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('keeps browser duration when Matrix duration arrives after loaded metadata', () => {
+    const store = createStore();
+    const audio = createAudioMock();
+    audio.duration = 8.52;
+    audio.currentTime = 0;
+    mocks.srcState = {
+      status: AsyncStatus.Success,
+      data: 'blob:voice',
+    };
+    renderer = create(
+      renderVoiceAudio(store, { info: { mimetype: 'audio/ogg', duration: undefined } }),
+      {
+        createNodeMock: (element) => (element.type === 'audio' ? audio : null),
+      }
+    );
+
+    act(() => {
+      renderer.root.findByType('audio').props.onLoadedMetadata();
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('0:00 / 0:08');
+
+    act(() => {
+      renderer.update(renderVoiceAudio(store, { info: { mimetype: 'audio/ogg', duration: 7000 } }));
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('0:00 / 0:08');
+    act(() => {
+      renderer.root.findByProps({ 'aria-label': 'Seek voice message' }).props.onClick({
+        clientX: 100,
+        currentTarget: {
+          getBoundingClientRect: () => ({ left: 0, width: 100 }),
+        },
+      });
+    });
+
+    expect(mocks.seek).toHaveBeenCalledWith(8.52);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('clears the previous duration when media changes to an item without Matrix duration', async () => {
+    const store = createStore();
+    renderer = create(renderVoiceAudio(store, { url: 'mxc://mindroom/voice-a' }));
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('0:00 / 0:10');
+
+    await act(async () => {
+      renderer.update(
+        renderVoiceAudio(store, {
+          url: 'mxc://mindroom/voice-b',
+          info: { mimetype: 'audio/ogg', duration: undefined },
+        })
+      );
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('0:00 / 0:00');
 
     act(() => {
       renderer.unmount();

@@ -26,6 +26,29 @@
   - `git diff --check`
   - Independent second self-review completed against the final diff; scope stayed limited to recording waveform rendering/tests and this runbook entry.
 
+### CINNY-100 Posted voice-message player polish (2026-05-02)
+
+- Summary:
+  - Posted voice-player capsules now stretch to the message-bubble width via a five-column grid, with a new volume column placed before the existing playback-rate pill; the previous `min(100%, 320px)` cap is dropped.
+  - Follow-up: the posted voice-player grid now lets the waveform shrink with `minmax(0, 1fr)` and moves the volume/rate controls onto a second row below narrow 360px lanes, avoiding mobile message-bubble overflow while preserving the full-width layout on wider lanes.
+  - Posted voice-player time now renders as `mm:ss / mm:ss`, syncs the audio element duration on `loadedmetadata` and `play`, and prefers a browser-measured duration once metadata has loaded so a late `m.replace` carrying a stale Matrix `info.duration` cannot overwrite a more accurate value.
+  - Added persisted `voiceMessageVolumeAtom` plus `applyVoiceMessageVolume`, and a `VoiceVolumeButton` popover-slider that mirrors the existing playback-rate-atom pattern; `volume = 0` also sets `audio.muted = true` so iOS Safari (which ignores `volume = 0`) actually mutes.
+  - The `react-range` slider thumb is vertically centered on the 6px track via a stable `marginTop: -16px` so the thumb's center aligns with the track centerline regardless of the library's transform.
+  - `secondsToMinutesAndSeconds` now floors the seconds remainder so fractional readings near a minute boundary (e.g. 59.6s) no longer render as `0:60`.
+  - Volume popover toggle keeps trigger clicks out of FocusTrap outside-click deactivation so a second click on the trigger reliably closes the menu instead of immediately reopening it.
+- Files changed:
+  - `src/app/components/message/content/VoiceAudioContent.tsx`
+  - `src/app/components/message/content/VoiceAudioContent.css.ts`
+  - `src/app/components/message/content/VoiceAudioContent.test.ts`
+  - `src/app/components/voice/VoiceVolumeButton.tsx` (new)
+  - `src/app/components/voice/VoiceVolumeButton.css.ts` (new)
+  - `src/app/state/voiceMessageSettings.ts`
+  - `src/app/state/voiceMessageSettings.test.ts`
+  - `src/app/utils/common.ts`
+  - `src/app/utils/common.test.ts`
+- Notes:
+  - Recorder-side waveform fill behavior is owned by the CINNY-089 follow-up commits on `dev`; the recorder bits originally drafted on `cinny-100` were dropped during the carve so the canonical recorder fix is preserved.
+
 ### CINNY-075 v3 atom-based swipe-forward navigation (2026-05-02)
 
 - Added the in-memory `lastExitedThreadAtom` under the MindRoom thread namespace.
