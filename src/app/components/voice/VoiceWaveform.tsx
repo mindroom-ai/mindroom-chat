@@ -12,6 +12,7 @@ import * as css from './VoiceWaveform.css';
 const SVG_HEIGHT = 32;
 const BAR_WIDTH = 2;
 const BAR_GAP = 1;
+const RECORDING_WAVEFORM_AMPLITUDE_SCALE = 1.18;
 const getSvgWidth = (barCount: number): number =>
   Math.max(BAR_WIDTH, barCount * (BAR_WIDTH + BAR_GAP) - BAR_GAP);
 
@@ -20,7 +21,10 @@ const clampProgress = (value: number): number => Math.min(1, Math.max(0, value))
 const normalizeRecordingWaveform = (waveform: number[] | undefined): number[] => {
   if (!Array.isArray(waveform) || waveform.length === 0) return createFallbackWaveform();
 
-  return waveform.map(clampWaveformPoint);
+  const bars = waveform.map(clampWaveformPoint);
+  if (bars.length >= VOICE_WAVEFORM_BAR_COUNT) return bars;
+
+  return [...Array<number>(VOICE_WAVEFORM_BAR_COUNT - bars.length).fill(0), ...bars];
 };
 
 type VoiceWaveformProps = {
@@ -95,14 +99,25 @@ export function VoiceWaveform({
       focusable="false"
     >
       {bars.map((point, index) => {
-        const height = Math.max(3, (point / VOICE_WAVEFORM_MAX) * SVG_HEIGHT);
+        const height = Math.max(
+          3,
+          Math.min(
+            SVG_HEIGHT,
+            (point / VOICE_WAVEFORM_MAX) *
+              SVG_HEIGHT *
+              (compact ? RECORDING_WAVEFORM_AMPLITUDE_SCALE : 1)
+          )
+        );
         const y = (SVG_HEIGHT - height) / 2;
 
         return (
           <rect
             // eslint-disable-next-line react/no-array-index-key
             key={index}
-            className={index < activeBars ? css.BarActive : css.Bar}
+            className={classNames(
+              index < activeBars ? css.BarActive : css.Bar,
+              compact && css.BarCompact
+            )}
             x={index * (BAR_WIDTH + BAR_GAP)}
             y={y}
             width={BAR_WIDTH}

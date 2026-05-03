@@ -30,6 +30,12 @@ export const WaveformCompact = style({
   justifyContent: 'flex-end',
   overflow: 'hidden',
   position: 'relative',
+  backgroundImage: `repeating-linear-gradient(to right, ${color.Surface.OnContainer} 0 ${toRem(
+    2
+  )}, transparent ${toRem(2)} ${toRem(3)})`,
+  backgroundPosition: 'right center',
+  backgroundRepeat: 'no-repeat',
+  backgroundSize: `100% ${toRem(3)}`,
 });
 
 export const Svg = style({
@@ -50,6 +56,11 @@ export const SvgCompact = style({
 export const Bar = style({
   fill: color.SurfaceVariant.OnContainer,
   opacity: config.opacity.P400,
+});
+
+export const BarCompact = style({
+  fill: color.Surface.OnContainer,
+  opacity: 1,
 });
 
 export const BarActive = style({

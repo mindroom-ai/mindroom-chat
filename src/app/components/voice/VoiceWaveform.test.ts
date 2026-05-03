@@ -7,6 +7,7 @@ import { VoiceWaveform } from './VoiceWaveform';
 vi.mock('./VoiceWaveform.css', () => ({
   Bar: 'Bar',
   BarActive: 'BarActive',
+  BarCompact: 'BarCompact',
   Svg: 'Svg',
   SvgCompact: 'SvgCompact',
   Waveform: 'Waveform',
@@ -100,6 +101,43 @@ describe('VoiceWaveform', () => {
     expect(svg.props.width).toBe(287);
     expect(svg.props.height).toBe(32);
     expect(svg.props.preserveAspectRatio).toBe('none');
+
+    renderer.unmount();
+  });
+
+  it('left-pads early compact recording samples with visible silence bars', () => {
+    const renderer = create(
+      React.createElement(VoiceWaveform, {
+        waveform: [0, 512],
+        compact: true,
+      })
+    );
+
+    const svg = renderer.root.findByType('svg');
+    const rects = renderer.root.findAllByType('rect');
+
+    expect(rects).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
+    expect(svg.props.viewBox).toBe('0 0 143 32');
+    expect(rects.slice(0, -1).every((rect) => rect.props.height === 3)).toBe(true);
+    expect(rects[0].props.className).toContain('BarCompact');
+    expect(rects[47].props.height).toBeCloseTo(18.88);
+    expect(rects[47].props.y).toBeCloseTo(6.56);
+
+    renderer.unmount();
+  });
+
+  it('keeps non-compact playback waveform amplitude unchanged', () => {
+    const renderer = create(
+      React.createElement(VoiceWaveform, {
+        waveform: [512],
+      })
+    );
+
+    const rects = renderer.root.findAllByType('rect');
+
+    expect(rects).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
+    expect(rects[0].props.height).toBe(16);
+    expect(rects[0].props.className).not.toContain('BarCompact');
 
     renderer.unmount();
   });
