@@ -123,10 +123,10 @@ export const getMindroomAiRunContextBarSegments = (
   }
 
   const reserveTokens = windowTokens - inputTokens;
-  const cacheWriteSuffix =
-    info.contextCacheWriteInputTokens !== undefined
-      ? `cache write: ${formatMindroomAiRunNumber(info.contextCacheWriteInputTokens)} tokens`
-      : undefined;
+  const cacheWriteTokens = info.contextCacheWriteInputTokens;
+  const cacheWriteSuffix = isValidContextBarTokenCount(cacheWriteTokens)
+    ? `cache write: ${formatMindroomAiRunNumber(cacheWriteTokens)} tokens`
+    : undefined;
 
   return [
     {

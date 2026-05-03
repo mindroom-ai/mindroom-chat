@@ -91,9 +91,11 @@
   - The full bar represents `context.window_tokens`.
   - Bar segments represent latest-request cache-read context, latest-request new or non-cache-read context, and remaining reserve.
   - Segment hover titles expose the exact token counts and window percentages; the new-input segment also includes `context.cache_write_input_tokens` when reported.
+  - Invalid negative cache-write counts are omitted from the new-input hover title instead of rendering misleading token text.
   - The existing text rows remain available for scanability, while the detailed cache/new/reserve breakdown is attached to the visual bar.
 - Tests and validation:
   - `npm test -- src/app/mindroom/messages/aiRunDisplay.test.ts src/app/mindroom/messages/__tests__/Message.test.ts`
+  - `npm test -- src/app/mindroom/messages/aiRunDisplay.test.ts`
   - `npm run typecheck`
   - `npm test` passed (`244` files, `1829` tests).
   - `npm run lint` completed with the repo warning-only baseline (`17` warnings, `0` errors).

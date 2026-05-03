@@ -146,6 +146,20 @@ describe('getMindroomAiRunContextBarSegments', () => {
       })
     ).toBeUndefined();
   });
+
+  it('omits invalid cache-write counts from the new-input segment title', () => {
+    const segments = getMindroomAiRunContextBarSegments({
+      contextInputTokens: 65,
+      contextWindowTokens: 100,
+      contextCacheReadInputTokens: 20,
+      contextCacheWriteInputTokens: -5,
+      contextUncachedInputTokens: 45,
+    });
+
+    expect(segments?.find((segment) => segment.key === 'newInput')?.title).toBe(
+      'New input: 45 tokens (45.0% of window)'
+    );
+  });
 });
 
 describe('formatMindroomAiRunTimeToFirstToken', () => {
