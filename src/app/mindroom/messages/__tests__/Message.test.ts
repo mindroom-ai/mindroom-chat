@@ -34,6 +34,11 @@ vi.mock('../../../features/room/message/styles.css', () => ({
 
 vi.mock('../MindroomMessageControls.css', () => ({
   AiRunInfoButton: 'AiRunInfoButton',
+  AiRunContextBar: 'AiRunContextBar',
+  AiRunContextBarSegment: 'AiRunContextBarSegment',
+  AiRunContextBarSegmentCacheRead: 'AiRunContextBarSegmentCacheRead',
+  AiRunContextBarSegmentNewInput: 'AiRunContextBarSegmentNewInput',
+  AiRunContextBarSegmentReserve: 'AiRunContextBarSegmentReserve',
   MenuItemText: 'MenuItemText',
 }));
 
@@ -433,6 +438,9 @@ const getDialogFocusTrapOptions = (renderer: ReactTestRenderer): Record<string, 
   return dialogFocusTrap.props.focusTrapOptions;
 };
 
+const hasNodeTitle = (renderer: ReactTestRenderer, title: string): boolean =>
+  renderer.root.findAll((node) => node.props.title === title).length > 0;
+
 const openContextMenu = async (renderer: ReactTestRenderer) => {
   const menuButton = getButtonByIcon(renderer, 'VerticalDots');
 
@@ -547,6 +555,11 @@ describe('Message token usage menu item', () => {
     expect(hasSpanText(renderer, 'Model: fast (openai / gpt-5-mini)')).toBe(true);
     expect(hasSpanText(renderer, 'Request Context: 65 / 100 (65.0%)')).toBe(true);
     expect(hasSpanText(renderer, 'Request Cache: read 20 • write 5 • not read 45')).toBe(true);
+    expect(hasNodeTitle(renderer, 'Cache read: 20 tokens (20.0% of window)')).toBe(true);
+    expect(
+      hasNodeTitle(renderer, 'New input: 45 tokens (45.0% of window); cache write: 5 tokens')
+    ).toBe(true);
+    expect(hasNodeTitle(renderer, 'Reserve: 35 tokens (35.0% of window)')).toBe(true);
     expect(hasSpanText(renderer, 'Tools: 3')).toBe(true);
     expect(hasSpanText(renderer, 'TTFT: 42 ms')).toBe(true);
     expect(hasSpanText(renderer, 'Run: run-123')).toBe(true);
