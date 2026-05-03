@@ -4,6 +4,7 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { imageViewerOpenAtom } from '../../state/imageViewer';
 import { isIOSStandaloneWebApp, isNativeIOS } from './nativeSso';
+import { markInteractiveSwipeOwned } from './swipeGestureFlag';
 import { useEdgeSwipeBack } from './useEdgeSwipeBack';
 
 vi.mock('./nativeSso', () => ({
@@ -68,19 +69,13 @@ describe('useEdgeSwipeBack', () => {
 
   const swipeFromLeftEdge = (preventDefault = vi.fn()) => {
     act(() => {
-      mockWindow.dispatch(
-        'touchstart',
-        {
-          touches: createTouchList([{ clientX: 12, clientY: 20 }]),
-        } as unknown as TouchEvent
-      );
-      mockWindow.dispatch(
-        'touchmove',
-        {
-          preventDefault,
-          touches: createTouchList([{ clientX: 96, clientY: 24 }]),
-        } as unknown as TouchEvent
-      );
+      mockWindow.dispatch('touchstart', {
+        touches: createTouchList([{ clientX: 12, clientY: 20 }]),
+      } as unknown as TouchEvent);
+      mockWindow.dispatch('touchmove', {
+        preventDefault,
+        touches: createTouchList([{ clientX: 96, clientY: 24 }]),
+      } as unknown as TouchEvent);
     });
 
     return preventDefault;
@@ -228,5 +223,38 @@ describe('useEdgeSwipeBack', () => {
 
     expect(preventDefault).toHaveBeenCalledOnce();
     expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it('cooperates with the interactive room/thread swipe owner without setting the threshold flag', () => {
+    const onBack = vi.fn();
+    const store = createStore();
+    const touchMove = {
+      preventDefault: vi.fn(),
+      touches: createTouchList([{ clientX: 96, clientY: 24 }]),
+    } as unknown as TouchEvent & { __mindroomEdgeSwipeBackHandled?: boolean };
+
+    act(() => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(HookHarness, {
+            onBack,
+          })
+        )
+      );
+    });
+
+    act(() => {
+      mockWindow.dispatch('touchstart', {
+        touches: createTouchList([{ clientX: 12, clientY: 20 }]),
+      } as unknown as TouchEvent);
+      markInteractiveSwipeOwned(touchMove);
+      mockWindow.dispatch('touchmove', touchMove);
+    });
+
+    expect(touchMove.preventDefault).not.toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
+    expect(touchMove.__mindroomEdgeSwipeBackHandled).toBeUndefined();
   });
 });

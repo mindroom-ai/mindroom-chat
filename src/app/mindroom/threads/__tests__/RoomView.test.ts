@@ -20,6 +20,7 @@ const {
   edgeSwipeForwardState,
   historyBackMock,
   historyForwardMock,
+  interactiveSwipeState,
   isIOSStandaloneWebAppMock,
   isNativeIOSMock,
   navigatePathMock,
@@ -28,6 +29,7 @@ const {
   roomTimelineType,
   navigateRoomFocusEventMock,
   navigateRoomThreadMock,
+  screenSizeState,
   threadContextBannerState,
   useThreadRootEventMock,
 } = vi.hoisted(() => ({
@@ -42,6 +44,32 @@ const {
   },
   historyBackMock: vi.fn(),
   historyForwardMock: vi.fn(),
+  interactiveSwipeState: {
+    options: undefined as
+      | {
+          enabled: boolean;
+          leftTarget?: { label?: string; roomId?: string; threadId?: string };
+          onCommit: (target: {
+            direction: 'left' | 'right';
+            roomId?: string;
+            threadId?: string;
+          }) => void;
+          onPreviewFreeze: (target: {
+            direction: 'left' | 'right';
+            label?: string;
+            roomId?: string;
+            threadId?: string;
+          }) => void;
+          rightTarget?: { label?: string; roomId?: string; threadId?: string };
+        }
+      | undefined,
+    snapshot: {
+      phase: 'idle' as 'idle' | 'armed' | 'dragging' | 'settling' | 'canceling',
+      target: undefined as
+        | { direction: 'left' | 'right'; roomId?: string; threadId?: string }
+        | undefined,
+    },
+  },
   isIOSStandaloneWebAppMock: vi.fn(() => false),
   isNativeIOSMock: vi.fn(() => false),
   navigatePathMock: vi.fn(),
@@ -52,6 +80,9 @@ const {
   roomTimelineType: 'room-timeline',
   navigateRoomFocusEventMock: vi.fn(),
   navigateRoomThreadMock: vi.fn(),
+  screenSizeState: {
+    current: 'Desktop',
+  },
   threadContextBannerState: {
     props: undefined as MockThreadContextBannerProps | undefined,
   },
@@ -265,6 +296,15 @@ vi.mock('../../../hooks/useRoomNavigate', () => ({
   }),
 }));
 
+vi.mock('../../../hooks/useScreenSize', () => ({
+  ScreenSize: {
+    Desktop: 'Desktop',
+    Mobile: 'Mobile',
+    Tablet: 'Tablet',
+  },
+  useScreenSizeContext: () => screenSizeState.current,
+}));
+
 vi.mock('../../native/nativeSso', () => ({
   isIOSStandaloneWebApp: isIOSStandaloneWebAppMock,
   isNativeIOS: isNativeIOSMock,
@@ -282,6 +322,32 @@ vi.mock('../../native/useEdgeSwipeForward', () => ({
     edgeSwipeForwardState.onForward = onForward;
     edgeSwipeForwardState.enabled = enabled;
   }),
+}));
+
+vi.mock('../../native/useInteractiveRoomThreadSwipe', () => ({
+  useInteractiveRoomThreadSwipe: vi.fn((options) => {
+    interactiveSwipeState.options = options;
+    return interactiveSwipeState.snapshot;
+  }),
+}));
+
+vi.mock('../MindroomRoomViewSwipe.css', () => ({
+  ActivePane: 'ActivePane',
+  PreviewPane: 'PreviewPane',
+  PreviewPaneLeft: 'PreviewPaneLeft',
+  PreviewPaneRight: 'PreviewPaneRight',
+  SwipePane: 'SwipePane',
+  SwipePaneTransition: 'SwipePaneTransition',
+  SwipeShell: 'SwipeShell',
+  PreviewAvatar: 'PreviewAvatar',
+  PreviewBody: 'PreviewBody',
+  PreviewChrome: 'PreviewChrome',
+  PreviewHeader: 'PreviewHeader',
+  PreviewLine: 'PreviewLine',
+  PreviewLineLong: 'PreviewLineLong',
+  PreviewLineMedium: 'PreviewLineMedium',
+  PreviewLineShort: 'PreviewLineShort',
+  PreviewTitleColumn: 'PreviewTitleColumn',
 }));
 
 vi.mock('../useRoomThreadTags', () => ({
@@ -311,6 +377,8 @@ vi.mock('../../recent-threads/recentThreads', () => ({
 
 const makeRoom = (roomId: string) => ({
   roomId,
+  name: 'Room',
+  getCanonicalAlias: () => undefined,
   getThread: () => undefined,
   findEventById: () => undefined,
 });
@@ -321,13 +389,30 @@ type ThreadStateHarnessProps = {
   eventId?: string;
   onState: (state: import('../useRoomViewThreadState').RoomViewThreadState) => void;
   room: ReturnType<typeof makeRoom>;
+  swipeIdle?: boolean;
+  thresholdSwipeEnabled?: boolean;
   threadId?: string;
 };
 
 const createThreadStateHarness =
   (useRoomViewThreadState: typeof import('../useRoomViewThreadState').useRoomViewThreadState) =>
-  ({ eventId, onState, room, threadId }: ThreadStateHarnessProps) => {
-    onState(useRoomViewThreadState({ eventId, room: room as never, threadId }));
+  ({
+    eventId,
+    onState,
+    room,
+    swipeIdle,
+    thresholdSwipeEnabled,
+    threadId,
+  }: ThreadStateHarnessProps) => {
+    onState(
+      useRoomViewThreadState({
+        eventId,
+        room: room as never,
+        swipeIdle,
+        thresholdSwipeEnabled,
+        threadId,
+      })
+    );
     return null;
   };
 
@@ -366,6 +451,11 @@ describe('RoomView', () => {
     edgeSwipeForwardState.onForward = undefined;
     historyBackMock.mockReset();
     historyForwardMock.mockReset();
+    interactiveSwipeState.options = undefined;
+    interactiveSwipeState.snapshot = {
+      phase: 'idle',
+      target: undefined,
+    };
     isIOSStandaloneWebAppMock.mockReset();
     isIOSStandaloneWebAppMock.mockReturnValue(false);
     isNativeIOSMock.mockReset();
@@ -374,6 +464,7 @@ describe('RoomView', () => {
     navigateRoomFocusEventMock.mockReset();
     navigateRoomThreadMock.mockReset();
     pageState.props = undefined;
+    screenSizeState.current = 'Desktop';
     threadContextBannerState.props = undefined;
     useThreadRootEventMock.mockReset();
     useThreadRootEventMock.mockReturnValue(undefined);
@@ -1056,6 +1147,341 @@ describe('RoomView', () => {
     expect(pageState.props?.style).toMatchObject({ height: 'var(--app-height, 100%)' });
   });
 
+  it('mounts the interactive swipe shell only on mobile and disables threshold hooks there', async () => {
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(RoomView, { room: room as never, threadId: '$thread' })
+      );
+    });
+
+    expect(renderer!.root.findAllByProps({ 'data-room-thread-swipe-shell': 'true' })).toHaveLength(
+      0
+    );
+    expect(edgeSwipeBackState.enabled).toBe(true);
+
+    screenSizeState.current = 'Mobile';
+    await act(async () => {
+      renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+
+    expect(renderer!.root.findAllByProps({ 'data-room-thread-swipe-shell': 'true' })).toHaveLength(
+      1
+    );
+    expect(edgeSwipeBackState.enabled).toBe(false);
+    expect(interactiveSwipeState.options?.enabled).toBe(true);
+    expect(interactiveSwipeState.options?.leftTarget).toMatchObject({
+      label: 'Room overview',
+      roomId: room.roomId,
+      threadId: '$thread',
+    });
+  });
+
+  it('renders an inert passive preview only while the interactive controller has a target', async () => {
+    screenSizeState.current = 'Mobile';
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(RoomView, { room: room as never, threadId: '$thread' })
+      );
+    });
+
+    expect(
+      renderer!.root.findAllByProps({ 'data-room-thread-swipe-preview': 'true' })
+    ).toHaveLength(0);
+
+    interactiveSwipeState.snapshot = {
+      phase: 'dragging',
+      target: { direction: 'left', threadId: '$thread' },
+    };
+    await act(async () => {
+      interactiveSwipeState.options?.onPreviewFreeze({
+        direction: 'left',
+        label: 'Room overview',
+        threadId: '$thread',
+      });
+      renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+
+    const previews = renderer!.root.findAllByProps({ 'data-room-thread-swipe-preview': 'true' });
+    expect(previews).toHaveLength(1);
+    expect(previews[0].props['aria-hidden']).toBe('true');
+    expect(previews[0].props.inert).toBe('');
+  });
+
+  it('commits interactive left-edge exit to same-room focused overview without history back', async () => {
+    screenSizeState.current = 'Mobile';
+    const { lastExitedThreadAtom } = await import('../lastExitedThread');
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    const store = createStore();
+
+    await act(async () => {
+      create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(RoomView, { room: room as never, threadId: '$thread' })
+        )
+      );
+    });
+
+    await act(async () => {
+      interactiveSwipeState.options?.onCommit({ direction: 'left', threadId: '$thread' });
+    });
+
+    expect(historyBackMock).not.toHaveBeenCalled();
+    expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(room.roomId, '$thread', {
+      replace: true,
+    });
+    expect(store.get(lastExitedThreadAtom)).toEqual({
+      roomId: room.roomId,
+      threadId: '$thread',
+    });
+  });
+
+  it('commits left-edge exit with the frozen target if the current thread changes before settle', async () => {
+    screenSizeState.current = 'Mobile';
+    const { lastExitedThreadAtom } = await import('../lastExitedThread');
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    const store = createStore();
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(RoomView, { room: room as never, threadId: '$thread-a' })
+        )
+      );
+    });
+
+    const frozenTarget = interactiveSwipeState.options?.leftTarget;
+    expect(frozenTarget).toMatchObject({
+      roomId: room.roomId,
+      threadId: '$thread-a',
+    });
+
+    await act(async () => {
+      renderer?.update(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(RoomView, { room: room as never, threadId: '$thread-b' })
+        )
+      );
+    });
+
+    await act(async () => {
+      interactiveSwipeState.options?.onCommit({ direction: 'left', ...frozenTarget! });
+    });
+
+    expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(room.roomId, '$thread-a', {
+      replace: true,
+    });
+    expect(navigateRoomFocusEventMock).not.toHaveBeenCalledWith(room.roomId, '$thread-b', {
+      replace: true,
+    });
+    expect(store.get(lastExitedThreadAtom)).toEqual({
+      roomId: room.roomId,
+      threadId: '$thread-a',
+    });
+  });
+
+  it('commits left-edge exit with the canonical thread id while route replacement is deferred by swipe', async () => {
+    screenSizeState.current = 'Mobile';
+    interactiveSwipeState.snapshot = {
+      phase: 'dragging',
+      target: {
+        direction: 'left',
+        roomId: undefined,
+        threadId: '~pending-thread',
+      },
+    };
+    const confirmedThreadId = ['$', 'confirmed-thread'].join('');
+    useThreadRootEventMock.mockReturnValue(confirmedThreadId);
+    const { lastExitedThreadAtom } = await import('../lastExitedThread');
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    const store = createStore();
+
+    await act(async () => {
+      create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(RoomView, { room: room as never, threadId: '~pending-thread' })
+        )
+      );
+    });
+
+    expect(interactiveSwipeState.options?.leftTarget).toMatchObject({
+      roomId: room.roomId,
+      threadId: '~pending-thread',
+    });
+    expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      interactiveSwipeState.options?.onCommit({
+        direction: 'left',
+        roomId: room.roomId,
+        threadId: '~pending-thread',
+      });
+    });
+
+    expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(room.roomId, confirmedThreadId, {
+      replace: true,
+    });
+    expect(navigateRoomFocusEventMock).not.toHaveBeenCalledWith(room.roomId, '~pending-thread', {
+      replace: true,
+    });
+    expect(store.get(lastExitedThreadAtom)).toEqual({
+      roomId: room.roomId,
+      threadId: confirmedThreadId,
+    });
+  });
+
+  it('commits right-edge re-entry only for the same-room last exited thread and consumes it', async () => {
+    screenSizeState.current = 'Mobile';
+    const { lastExitedThreadAtom } = await import('../lastExitedThread');
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    const store = createStore();
+    store.set(lastExitedThreadAtom, {
+      roomId: room.roomId,
+      threadId: '$previous',
+    });
+
+    await act(async () => {
+      create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(RoomView, { room: room as never })
+        )
+      );
+    });
+
+    expect(interactiveSwipeState.options?.rightTarget).toMatchObject({
+      label: 'Thread',
+      threadId: '$previous',
+    });
+
+    await act(async () => {
+      interactiveSwipeState.options?.onCommit({ direction: 'right', threadId: '$previous' });
+    });
+
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith(room.roomId, '$previous');
+    expect(historyForwardMock).not.toHaveBeenCalled();
+    expect(store.get(lastExitedThreadAtom)).toBeNull();
+  });
+
+  it('commits right-edge re-entry with the frozen target if the atom changes before settle', async () => {
+    screenSizeState.current = 'Mobile';
+    const { lastExitedThreadAtom } = await import('../lastExitedThread');
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    const store = createStore();
+    store.set(lastExitedThreadAtom, {
+      roomId: room.roomId,
+      threadId: '$previous',
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(RoomView, { room: room as never })
+        )
+      );
+    });
+
+    const frozenTarget = interactiveSwipeState.options?.rightTarget;
+    expect(frozenTarget).toMatchObject({
+      roomId: room.roomId,
+      threadId: '$previous',
+    });
+
+    await act(async () => {
+      store.set(lastExitedThreadAtom, {
+        roomId: room.roomId,
+        threadId: '$changed',
+      });
+      renderer?.update(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(RoomView, { room: room as never })
+        )
+      );
+    });
+
+    await act(async () => {
+      interactiveSwipeState.options?.onCommit({ direction: 'right', ...frozenTarget! });
+    });
+
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith(room.roomId, '$previous');
+    expect(navigateRoomThreadMock).not.toHaveBeenCalledWith(room.roomId, '$changed');
+    expect(store.get(lastExitedThreadAtom)).toBeNull();
+  });
+
+  it('commits right-edge re-entry with the frozen target if the atom clears before settle', async () => {
+    screenSizeState.current = 'Mobile';
+    const { lastExitedThreadAtom } = await import('../lastExitedThread');
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    const store = createStore();
+    store.set(lastExitedThreadAtom, {
+      roomId: room.roomId,
+      threadId: '$previous',
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(RoomView, { room: room as never })
+        )
+      );
+    });
+
+    const frozenTarget = interactiveSwipeState.options?.rightTarget;
+    expect(frozenTarget).toMatchObject({
+      roomId: room.roomId,
+      threadId: '$previous',
+    });
+
+    await act(async () => {
+      store.set(lastExitedThreadAtom, null);
+      renderer?.update(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(RoomView, { room: room as never })
+        )
+      );
+    });
+
+    await act(async () => {
+      interactiveSwipeState.options?.onCommit({ direction: 'right', ...frozenTarget! });
+    });
+
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith(room.roomId, '$previous');
+    expect(store.get(lastExitedThreadAtom)).toBeNull();
+  });
+
   it('canonicalizes resolved thread ids and passes them through the thread view', async () => {
     const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom(nextRoomId('room-a'));
@@ -1080,6 +1506,47 @@ describe('RoomView', () => {
       { replace: true }
     );
     expect(getTimeline(renderer!).props.threadId).toBe('$confirmed-thread');
+  });
+
+  it('defers canonical thread route replacement while interactive swipe is non-idle', async () => {
+    const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
+    const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
+    const room = makeRoom(nextRoomId('room-a'));
+    useThreadRootEventMock.mockReturnValue('$confirmed-thread');
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ThreadStateHarness, {
+          onState: () => undefined,
+          room,
+          threadId: '~pending-thread',
+          eventId: '$focus',
+          swipeIdle: false,
+        })
+      );
+    });
+
+    expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer?.update(
+        React.createElement(ThreadStateHarness, {
+          onState: () => undefined,
+          room,
+          threadId: '~pending-thread',
+          eventId: '$focus',
+          swipeIdle: true,
+        })
+      );
+    });
+
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith(
+      room.roomId,
+      '$confirmed-thread',
+      '$focus',
+      { replace: true }
+    );
   });
 
   it('bumps the recent-thread list from the canonical open thread id', async () => {
