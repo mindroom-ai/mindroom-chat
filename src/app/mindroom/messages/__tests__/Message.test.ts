@@ -327,7 +327,8 @@ vi.mock('../../../state/settings', () => ({
   },
 }));
 
-const getMessageComponent = async () => (await import('../../../features/room/message/Message')).Message;
+const getMessageComponent = async () =>
+  (await import('../../../features/room/message/Message')).Message;
 
 beforeEach(() => {
   lastMessageBaseNode = undefined;
@@ -472,11 +473,16 @@ const mindroomAiRunContent = {
       input_tokens: 40,
       output_tokens: 2,
       total_tokens: 42,
+      cache_read_tokens: 20,
+      cache_write_tokens: 5,
       time_to_first_token: 0.042,
     },
     context: {
-      input_tokens: 40,
+      input_tokens: 65,
       window_tokens: 100,
+      cache_read_input_tokens: 20,
+      cache_write_input_tokens: 5,
+      uncached_input_tokens: 45,
     },
     tools: {
       count: 3,
@@ -485,20 +491,16 @@ const mindroomAiRunContent = {
 } as const;
 
 describe('Message token usage menu item', () => {
-  it(
-    'does not render Token usage in the context menu for messages without ai_run metadata',
-    async () => {
-      const { renderer } = await renderMessage({
-        msgtype: 'm.text',
-        body: 'hello',
-      });
+  it('does not render Token usage in the context menu for messages without ai_run metadata', async () => {
+    const { renderer } = await renderMessage({
+      msgtype: 'm.text',
+      body: 'hello',
+    });
 
-      await openContextMenu(renderer);
+    await openContextMenu(renderer);
 
-      expect(hasSpanText(renderer, 'Token usage')).toBe(false);
-    },
-    10000
-  );
+    expect(hasSpanText(renderer, 'Token usage')).toBe(false);
+  }, 10000);
 
   it('opens the AI run dialog from the context menu and configures explicit return focus', async () => {
     const { renderer, messageBaseNode } = await renderMessage(mindroomAiRunContent);
@@ -522,6 +524,7 @@ describe('Message token usage menu item', () => {
     expect(hasSpanText(renderer, 'AI Run Metadata')).toBe(true);
     expect(hasSpanText(renderer, 'Status: completed')).toBe(true);
     expect(hasSpanText(renderer, 'Tokens: in 40 • out 2 • total 42')).toBe(true);
+    expect(hasSpanText(renderer, 'Run Cache: read 20 • write 5')).toBe(true);
     const setReturnFocus = getDialogFocusTrapOptions(renderer).setReturnFocus as () =>
       | HostNodeMock
       | false;
@@ -542,7 +545,8 @@ describe('Message token usage menu item', () => {
 
     expect(hasSpanText(renderer, 'AI Run Metadata')).toBe(true);
     expect(hasSpanText(renderer, 'Model: fast (openai / gpt-5-mini)')).toBe(true);
-    expect(hasSpanText(renderer, 'Request Context: 40 / 100 (40.0%)')).toBe(true);
+    expect(hasSpanText(renderer, 'Request Context: 65 / 100 (65.0%)')).toBe(true);
+    expect(hasSpanText(renderer, 'Request Cache: read 20 • write 5 • not read 45')).toBe(true);
     expect(hasSpanText(renderer, 'Tools: 3')).toBe(true);
     expect(hasSpanText(renderer, 'TTFT: 42 ms')).toBe(true);
     expect(hasSpanText(renderer, 'Run: run-123')).toBe(true);
@@ -572,9 +576,9 @@ describe('Message copy text overflow integration', () => {
 
     longTextMocks.getMindroomLongTextSource.mockReturnValue(longTextSource);
     longTextMocks.useMindroomLongTextResolvedContent.mockImplementation((source, enabled) => {
-      const [resolvedContent, setResolvedContent] = React.useState<Record<string, unknown> | undefined>(
-        () => undefined
-      );
+      const [resolvedContent, setResolvedContent] = React.useState<
+        Record<string, unknown> | undefined
+      >(() => undefined);
 
       React.useEffect(() => {
         if (!source || !enabled) {

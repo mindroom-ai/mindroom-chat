@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   formatMindroomAiRunNumber,
   formatMindroomAiRunTimeToFirstToken,
+  getMindroomAiRunContextCacheLabel,
   getMindroomAiRunContextLabel,
+  getMindroomAiRunUsageCacheLabel,
   getMindroomAiRunModelLabel,
   getMindroomAiRunUsageLabel,
 } from './aiRunDisplay';
@@ -45,6 +47,21 @@ describe('getMindroomAiRunUsageLabel', () => {
   });
 });
 
+describe('getMindroomAiRunUsageCacheLabel', () => {
+  it('formats cumulative run cache counters separately from token totals', () => {
+    expect(
+      getMindroomAiRunUsageCacheLabel({
+        cacheReadTokens: 20000,
+        cacheWriteTokens: 500,
+      })
+    ).toBe('read 20,000 • write 500');
+  });
+
+  it('returns undefined when no cumulative cache counters are present', () => {
+    expect(getMindroomAiRunUsageCacheLabel({})).toBeUndefined();
+  });
+});
+
 describe('getMindroomAiRunContextLabel', () => {
   it('formats context usage with a percentage', () => {
     expect(
@@ -63,6 +80,22 @@ describe('getMindroomAiRunContextLabel', () => {
         contextWindowTokens: 0,
       })
     ).toBeUndefined();
+  });
+});
+
+describe('getMindroomAiRunContextCacheLabel', () => {
+  it('formats latest-request cache and non-cache-read context counters', () => {
+    expect(
+      getMindroomAiRunContextCacheLabel({
+        contextCacheReadInputTokens: 9000,
+        contextCacheWriteInputTokens: 10,
+        contextUncachedInputTokens: 130,
+      })
+    ).toBe('read 9,000 • write 10 • not read 130');
+  });
+
+  it('returns undefined when no latest-request cache counters are present', () => {
+    expect(getMindroomAiRunContextCacheLabel({})).toBeUndefined();
   });
 });
 

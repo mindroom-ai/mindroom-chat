@@ -67,6 +67,23 @@
   - `git diff --check`
   - `just ios-phone` synced Capacitor, built the signed Debug app, installed it on `basnijholt-iphone-15-pro`, and launched `chat.mindroom.app`.
 
+### AI run cache token metadata display (2026-05-03)
+
+- Summary:
+  - AI run metadata parsing now includes cumulative `usage.cache_read_tokens` and `usage.cache_write_tokens` from final backend responses.
+  - The token-usage dialog shows those cumulative counters as `Run Cache`, separate from `Tokens`.
+  - Latest-request context parsing now includes `context.cache_read_input_tokens`, `context.cache_write_input_tokens`, and `context.uncached_input_tokens`.
+  - The same dialog shows those latest-request counters as `Request Cache`, separate from `Request Context`.
+  - This keeps full run usage, current context-window occupancy, cached request context, and non-cache-read request context visually distinct.
+- Tests and validation:
+  - `npm test -- src/app/mindroom/messages/aiRun.test.ts src/app/mindroom/messages/aiRunDisplay.test.ts src/app/mindroom/messages/__tests__/Message.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm run lint` completed with the repo warning-only baseline (`17` warnings, `0` errors).
+  - `npx prettier --check FORK_CHANGES.md src/app/mindroom/messages/MindroomMessageControls.tsx src/app/mindroom/messages/__tests__/Message.test.ts src/app/mindroom/messages/aiRun.test.ts src/app/mindroom/messages/aiRun.ts src/app/mindroom/messages/aiRunDisplay.test.ts src/app/mindroom/messages/aiRunDisplay.ts`
+  - `git diff --check`
+  - `npm test` passed (`244` files, `1827` tests).
+
 ### CINNY-097 Recording Waveform Implementation Report (2026-04-27)
 
 - Summary:
