@@ -367,7 +367,7 @@ describe('themeBootstrap', () => {
   );
 
   it('uses window.__INITIAL_THEME__ as a fast path before localStorage', () => {
-    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+    const getItemSpy = vi.spyOn(window.localStorage, 'getItem');
     setStoredSessionStore(ACTIVE_SESSION_STORE);
     window.__INITIAL_THEME__ = 'silver-theme';
 
