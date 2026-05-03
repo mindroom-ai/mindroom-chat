@@ -84,6 +84,23 @@
   - `git diff --check`
   - `npm test` passed (`244` files, `1827` tests).
 
+### AI run context-window usage bar (2026-05-03)
+
+- Summary:
+  - The AI run metadata dialog now includes a visual `Request context window` bar after the `Request Context` row.
+  - The full bar represents `context.window_tokens`.
+  - Bar segments represent latest-request cache-read context, latest-request new or non-cache-read context, and remaining reserve.
+  - Segment hover titles expose the exact token counts and window percentages; the new-input segment also includes `context.cache_write_input_tokens` when reported.
+  - The existing text rows remain available for scanability, while the detailed cache/new/reserve breakdown is attached to the visual bar.
+- Tests and validation:
+  - `npm test -- src/app/mindroom/messages/aiRunDisplay.test.ts src/app/mindroom/messages/__tests__/Message.test.ts`
+  - `npm run typecheck`
+  - `npm test` passed (`244` files, `1829` tests).
+  - `npm run lint` completed with the repo warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build`
+  - `npx prettier --check FORK_CHANGES.md src/app/mindroom/messages/MindroomMessageControls.tsx src/app/mindroom/messages/MindroomMessageControls.css.ts src/app/mindroom/messages/__tests__/Message.test.ts src/app/mindroom/messages/aiRunDisplay.test.ts src/app/mindroom/messages/aiRunDisplay.ts`
+  - `git diff --check`
+
 ### CINNY-097 Recording Waveform Implementation Report (2026-04-27)
 
 - Summary:
