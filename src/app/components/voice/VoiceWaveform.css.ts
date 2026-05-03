@@ -29,6 +29,7 @@ export const WaveformCompact = style({
   display: 'flex',
   justifyContent: 'flex-end',
   overflow: 'hidden',
+  position: 'relative',
 });
 
 export const Svg = style({
@@ -38,9 +39,12 @@ export const Svg = style({
 });
 
 export const SvgCompact = style({
+  position: 'absolute',
+  insetBlockStart: 0,
+  insetInlineEnd: 0,
   flex: '0 0 auto',
-  width: toRem(143),
-  maxWidth: '100%',
+  width: 'auto',
+  maxWidth: 'none',
 });
 
 export const Bar = style({

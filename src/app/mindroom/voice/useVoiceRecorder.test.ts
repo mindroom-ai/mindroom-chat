@@ -141,9 +141,7 @@ const expectedAnalyserSample = (index: number): number =>
   timeDomainDataToWaveformPoint(new Uint8Array(2048).fill(128 + index));
 
 const expectedAnalyserSamples = (start: number, end: number): number[] =>
-  Array.from({ length: end - start + 1 }, (_value, index) =>
-    expectedAnalyserSample(start + index)
-  );
+  Array.from({ length: end - start + 1 }, (_value, index) => expectedAnalyserSample(start + index));
 
 describe('useVoiceRecorder', () => {
   let stream: MockMediaStream;
@@ -199,7 +197,7 @@ describe('useVoiceRecorder', () => {
     renderer.unmount();
   });
 
-  it('left-pads the live display waveform until the fixed recording window is full', async () => {
+  it('accumulates raw live display samples as the recording grows', async () => {
     const renderer = await renderHarness();
 
     await act(async () => {
@@ -210,14 +208,12 @@ describe('useVoiceRecorder', () => {
     });
 
     const waveform = recorderState.current?.waveform;
-    expect(waveform).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
-    expect(waveform?.slice(0, 44)).toEqual(Array.from({ length: 44 }, () => 0));
-    expect(waveform?.slice(-4)).toEqual(expectedAnalyserSamples(1, 4));
+    expect(waveform).toEqual(expectedAnalyserSamples(1, 4));
 
     renderer.unmount();
   });
 
-  it('keeps the live display waveform as a rolling 48-sample tick window', async () => {
+  it('appends one live display sample per waveform tick', async () => {
     const renderer = await renderHarness();
 
     await act(async () => {
@@ -228,15 +224,15 @@ describe('useVoiceRecorder', () => {
     });
 
     const previousWaveform = recorderState.current?.waveform ?? [];
-    expect(previousWaveform).toEqual(expectedAnalyserSamples(14, 61));
+    expect(previousWaveform).toEqual(expectedAnalyserSamples(1, 61));
 
     await act(async () => {
       vi.advanceTimersByTime(80);
     });
 
     const nextWaveform = recorderState.current?.waveform ?? [];
-    expect(nextWaveform).toEqual(expectedAnalyserSamples(15, 62));
-    expect(nextWaveform.slice(0, -1)).toEqual(previousWaveform.slice(1));
+    expect(nextWaveform).toEqual(expectedAnalyserSamples(1, 62));
+    expect(nextWaveform.slice(0, -1)).toEqual(previousWaveform);
     expect(nextWaveform.at(-1)).toBe(expectedAnalyserSample(62));
 
     renderer.unmount();

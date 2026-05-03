@@ -1,6 +1,8 @@
 import React, { KeyboardEventHandler, MouseEventHandler } from 'react';
 import classNames from 'classnames';
 import {
+  clampWaveformPoint,
+  createFallbackWaveform,
   VOICE_WAVEFORM_BAR_COUNT,
   VOICE_WAVEFORM_MAX,
   normalizeMatrixWaveform,
@@ -10,9 +12,16 @@ import * as css from './VoiceWaveform.css';
 const SVG_HEIGHT = 32;
 const BAR_WIDTH = 2;
 const BAR_GAP = 1;
-const SVG_WIDTH = VOICE_WAVEFORM_BAR_COUNT * (BAR_WIDTH + BAR_GAP) - BAR_GAP;
+const getSvgWidth = (barCount: number): number =>
+  Math.max(BAR_WIDTH, barCount * (BAR_WIDTH + BAR_GAP) - BAR_GAP);
 
 const clampProgress = (value: number): number => Math.min(1, Math.max(0, value));
+
+const normalizeRecordingWaveform = (waveform: number[] | undefined): number[] => {
+  if (!Array.isArray(waveform) || waveform.length === 0) return createFallbackWaveform();
+
+  return waveform.map(clampWaveformPoint);
+};
 
 type VoiceWaveformProps = {
   waveform?: number[];
@@ -31,7 +40,8 @@ export function VoiceWaveform({
   label,
   onSeekProgress,
 }: VoiceWaveformProps) {
-  const bars = normalizeMatrixWaveform(waveform);
+  const bars = compact ? normalizeRecordingWaveform(waveform) : normalizeMatrixWaveform(waveform);
+  const svgWidth = getSvgWidth(bars.length || VOICE_WAVEFORM_BAR_COUNT);
   const normalizedProgress = clampProgress(progress);
   const activeBars = Math.round(normalizedProgress * bars.length);
 
@@ -71,12 +81,12 @@ export function VoiceWaveform({
   const content = (
     <svg
       className={classNames(css.Svg, compact && css.SvgCompact)}
-      viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
+      viewBox={`0 0 ${svgWidth} ${SVG_HEIGHT}`}
       {...(compact
         ? {
-            width: SVG_WIDTH,
+            width: svgWidth,
             height: SVG_HEIGHT,
-            preserveAspectRatio: 'xMaxYMid meet',
+            preserveAspectRatio: 'none',
           }
         : {
             preserveAspectRatio: 'none',

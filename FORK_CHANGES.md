@@ -2949,6 +2949,21 @@
   - `npm run build` passes; Vite emitted the existing runtime-config, dependency sourcemap, and chunk-size warnings
   - `npm run lint` passes with the current branch warning-only baseline (`35` warnings, `0` errors)
   - `git diff --check dev...HEAD` passes
+- recording waveform width follow-up (2026-05-03):
+  - live recording waveform samples now accumulate as raw display samples instead of being capped to a fixed 48-bar Matrix-width window.
+  - compact recording waveform rendering preserves that raw sample count, keeps fixed pixel bar spacing, and clips an absolutely right-anchored SVG inside the full-width waveform box.
+  - the visible recording time span can therefore grow to fill the available composer box while the perceived right-edge sample cadence stays constant; sent voice metadata still normalizes from the full metadata sample history to Matrix's 48-bar waveform.
+  - focused coverage now verifies raw live sample accumulation and compact rendering without 48-bar resampling.
+- validation recording waveform width follow-up:
+  - `npm test -- src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/VoiceRecordingCapsule.test.ts src/app/mindroom/voice/VoiceRecorderDialog.test.ts src/app/components/message/content/VoiceAudioContent.test.ts` passes (`5/5` files, `36/36` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes; Vite emitted the existing CJS/runtime-config/dependency sourcemap/chunk-size warnings
+  - `npx eslint src/app/components/voice/VoiceWaveform.tsx src/app/components/voice/VoiceWaveform.css.ts src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/useVoiceRecorder.ts src/app/mindroom/voice/useVoiceRecorder.test.ts` passes
+  - `npx prettier --check FORK_CHANGES.md src/app/components/voice/VoiceWaveform.tsx src/app/components/voice/VoiceWaveform.css.ts src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/useVoiceRecorder.ts src/app/mindroom/voice/useVoiceRecorder.test.ts` passes
+  - `git diff --check` passes
+  - `npm test` was attempted during the resume and did not pass: `236/244` files and `1814/1827` tests passed, with `13` timeout-only failures in unrelated RoomTimeline/thread suites.
+  - Retrying the failed RoomTimeline/thread files reduced the unrelated timeout failures to `3`; selecting those `3` timeout tests directly passed (`3/3` tests).
+  - independent second self-review completed after validation; scope stayed limited to live recording waveform width/scrolling velocity, focused tests, and runbook reporting.
 
 ## CINNY-094 — Mounted thread replacement refresh merge (2026-04-25)
 
