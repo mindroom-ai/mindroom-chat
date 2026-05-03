@@ -1,7 +1,7 @@
 import { useAtomValue } from 'jotai';
 import { useEffect, useRef } from 'react';
 import { imageViewerOpenAtom } from '../../state/imageViewer';
-import { isIOSStandaloneWebApp, isNativeIOS } from './nativeSso';
+import { isIOSStandaloneWebApp } from './nativeSso';
 
 const EDGE_START_MAX_X = 28;
 const MIN_SWIPE_DISTANCE_X = 72;
@@ -12,10 +12,15 @@ type TouchEventWithFlag = TouchEvent & {
   [HANDLED_EVENT_FLAG]?: boolean;
 };
 
-export const useEdgeSwipeBack = (onBack: () => void, enabled: boolean = true): void => {
+export const useEdgeSwipeBack = (
+  onBack: () => void,
+  enabled: boolean = true,
+  options: { blockStandaloneWebApp?: boolean } = {}
+): void => {
   const onBackRef = useRef(onBack);
   const imageViewerOpen = useAtomValue(imageViewerOpenAtom);
-  const swipeBackBlocked = enabled && (isNativeIOS() || isIOSStandaloneWebApp());
+  const swipeBackBlocked =
+    enabled && options.blockStandaloneWebApp === true && isIOSStandaloneWebApp();
 
   useEffect(() => {
     onBackRef.current = onBack;

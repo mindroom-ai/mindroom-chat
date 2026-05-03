@@ -23,6 +23,35 @@
   - Fresh Chromium smoke against `https://chat.lab.mindroom.chat/` loads the MindRoom login page with no page crash.
   - `npm run build` passes.
 
+### iOS native edge-swipe restore (2026-05-02)
+
+- Root cause:
+  - `useEdgeSwipeBack` still treated native Capacitor iOS as a blocked surface after the standalone-PWA collision fix, so neither the thread-exit hook nor the room back-route hook registered touch listeners in the installed app.
+  - The recent standalone fix restored thread swipes for installed web PWAs, but not for the native iOS wrapper.
+- Fix:
+  - Removed the unconditional `isNativeIOS()` block from `src/app/mindroom/native/useEdgeSwipeBack.ts`.
+  - Kept the opt-in `blockStandaloneWebApp` guard for route-level standalone PWA handling.
+  - Added a focused regression test proving native iOS wrappers keep the custom edge swipe enabled.
+
+### iOS native status-bar inset restore (2026-05-02)
+
+- Root cause:
+  - The Capacitor StatusBar plugin defaults `overlaysWebView` to `true`.
+  - The iOS app config only set the status-bar text style, so the WKWebView could still be laid out underneath the native status bar/Dynamic Island.
+  - The existing web safe-area padding was not enough to make the native top navigation controls reliably visible and tappable on rounded iPhone displays.
+- Fix:
+  - `capacitor.config.ts` now sets `plugins.StatusBar.overlaysWebView = false`.
+  - This lets the native Capacitor iOS plugin resize the WKWebView below the status bar cutout while keeping the existing web safe-area CSS in place for browser/PWA surfaces.
+- Validation:
+  - Added `src/app/mindroom/native/capacitorStatusBarConfig.test.ts` as a focused regression guard.
+  - `npm test -- src/app/mindroom/native/capacitorStatusBarConfig.test.ts`
+  - `npm run typecheck`
+  - `npm test`
+  - `npm run build`
+  - `npx eslint src/app/mindroom/native/capacitorStatusBarConfig.test.ts`
+  - `git diff --check`
+  - `just ios-phone` synced Capacitor, built the signed Debug app, installed it on `basnijholt-iphone-15-pro`, and launched `chat.mindroom.app`.
+
 ### CINNY-097 Recording Waveform Implementation Report (2026-04-27)
 
 - Summary:

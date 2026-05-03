@@ -30,6 +30,9 @@ const config: CapacitorConfig = {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
     StatusBar: {
+      // Keep the WKWebView below the iOS status bar/Dynamic Island so top
+      // navigation controls remain visible and tappable on real devices.
+      overlaysWebView: false,
       style: 'dark',
     },
   },
