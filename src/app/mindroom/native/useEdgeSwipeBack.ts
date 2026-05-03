@@ -12,10 +12,16 @@ type TouchEventWithFlag = TouchEvent & {
   [HANDLED_EVENT_FLAG]?: boolean;
 };
 
-export const useEdgeSwipeBack = (onBack: () => void, enabled: boolean = true): void => {
+export const useEdgeSwipeBack = (
+  onBack: () => void,
+  enabled: boolean = true,
+  options: { blockStandaloneWebApp?: boolean } = {}
+): void => {
   const onBackRef = useRef(onBack);
   const imageViewerOpen = useAtomValue(imageViewerOpenAtom);
-  const swipeBackBlocked = enabled && (isNativeIOS() || isIOSStandaloneWebApp());
+  const swipeBackBlocked =
+    enabled &&
+    (isNativeIOS() || (options.blockStandaloneWebApp === true && isIOSStandaloneWebApp()));
 
   useEffect(() => {
     onBackRef.current = onBack;
