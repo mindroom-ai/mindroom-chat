@@ -12,7 +12,8 @@ import * as css from './VoiceWaveform.css';
 const SVG_HEIGHT = 32;
 const BAR_WIDTH = 2;
 const BAR_GAP = 1;
-const RECORDING_WAVEFORM_QUIET_INPUT_CURVE = 0.5;
+const RECORDING_WAVEFORM_SPEECH_BOOST_START = 0.12;
+const RECORDING_WAVEFORM_SPEECH_BOOST = 0.9;
 const getSvgWidth = (barCount: number): number =>
   Math.max(BAR_WIDTH, barCount * (BAR_WIDTH + BAR_GAP) - BAR_GAP);
 
@@ -34,9 +35,15 @@ const getCompactUnrecordedBarCount = (waveform: number[] | undefined): number =>
 
 const getBarHeight = (point: number, compact?: boolean): number => {
   const normalizedPoint = point / VOICE_WAVEFORM_MAX;
-  const scaledPoint = compact
-    ? normalizedPoint ** RECORDING_WAVEFORM_QUIET_INPUT_CURVE
-    : normalizedPoint;
+  const speechProgress = compact
+    ? clampProgress(
+        (normalizedPoint - RECORDING_WAVEFORM_SPEECH_BOOST_START) /
+          (1 - RECORDING_WAVEFORM_SPEECH_BOOST_START)
+      )
+    : 0;
+  const speechBoost =
+    normalizedPoint * (1 - normalizedPoint) * RECORDING_WAVEFORM_SPEECH_BOOST * speechProgress;
+  const scaledPoint = normalizedPoint + speechBoost;
 
   return Math.max(3, Math.min(SVG_HEIGHT, scaledPoint * SVG_HEIGHT));
 };

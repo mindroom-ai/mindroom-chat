@@ -222,7 +222,7 @@
   - The compact recording waveform container also paints a full-width inactive silence-bar strip behind live samples, preventing wide composers from showing a blank lead-in.
   - Follow-up: padded not-yet-recorded compact bars now carry an explicit inactive theme-color class instead of inheriting the recorded compact bar color, so the unrecorded lead-in stays visually muted while actual recorded samples remain in the normal recorded style across light and dark themes.
   - Follow-up: the inactive compact background strip is tiled from the same right edge as the live SVG bars, and compact SVG bars request crisp edge rendering to avoid uneven one/two-pixel visual gaps.
-  - Compact recording bars use a darker bar style and a recording-only square-root amplitude curve, making quiet microphone input visibly larger while preserving the existing peak cap.
+  - Compact recording bars use a darker bar style and a gated recording-only speech boost curve, leaving near-silence restrained while mildly lifting midrange speech and preserving the existing peak cap.
   - Playback/default waveform rendering remains on the existing normalized Matrix path without the compact amplitude curve.
 - Tests and validation:
   - `npm test -- src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/mindroom/voice/VoiceRecordingCapsule.test.ts src/app/mindroom/voice/VoiceRecorderDialog.test.ts`

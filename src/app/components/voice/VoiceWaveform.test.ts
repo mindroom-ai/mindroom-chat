@@ -125,23 +125,24 @@ describe('VoiceWaveform', () => {
     expect(rects[0].props.className).toContain('BarCompactUnrecorded');
     expect(rects[45].props.className).toContain('BarCompactUnrecorded');
     expect(rects[46].props.className).not.toContain('BarCompactUnrecorded');
-    expect(rects[47].props.height).toBeCloseTo(22.627);
-    expect(rects[47].props.y).toBeCloseTo(4.686);
+    expect(rects[47].props.height).toBeCloseTo(19.109);
+    expect(rects[47].props.y).toBeCloseTo(6.445);
 
     renderer.unmount();
   });
 
-  it('boosts quiet compact recording samples without expanding peak samples past the viewbox', () => {
+  it('keeps quiet compact recording samples restrained while preserving the peak cap', () => {
     const renderer = create(
       React.createElement(VoiceWaveform, {
-        waveform: [256, 1024],
+        waveform: [64, 256, 1024],
         compact: true,
       })
     );
 
     const rects = renderer.root.findAllByType('rect');
 
-    expect(rects[46].props.height).toBeCloseTo(16);
+    expect(rects[45].props.height).toBe(3);
+    expect(rects[46].props.height).toBeCloseTo(8.798);
     expect(rects[47].props.height).toBe(32);
     expect(rects[47].props.y).toBe(0);
 
