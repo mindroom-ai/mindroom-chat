@@ -30,9 +30,9 @@ export const WaveformCompact = style({
   justifyContent: 'flex-end',
   overflow: 'hidden',
   position: 'relative',
-  backgroundImage: `linear-gradient(to right, transparent 0 ${toRem(1)}, black ${toRem(1)} ${toRem(
-    3
-  )})`,
+  backgroundImage: `linear-gradient(to right, transparent 0 ${toRem(1)}, ${
+    color.SurfaceVariant.ContainerLine
+  } ${toRem(1)} ${toRem(3)})`,
   backgroundPosition: 'right center',
   backgroundRepeat: 'repeat-x',
   backgroundSize: `${toRem(3)} ${toRem(3)}`,
@@ -69,6 +69,6 @@ export const BarActive = style({
 });
 
 export const BarCompactUnrecorded = style({
-  fill: 'black',
+  fill: color.SurfaceVariant.ContainerLine,
   opacity: 1,
 });

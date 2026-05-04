@@ -219,11 +219,11 @@
 
 - Summary:
   - Compact recording waveform rendering now left-pads early live samples with silence-height bars so the recording capsule remains visually filled before enough samples arrive.
-  - The compact recording waveform container also paints a full-width dark silence-bar strip behind live samples, preventing wide composers from showing a blank lead-in.
-  - Follow-up: padded not-yet-recorded compact bars now carry an explicit dark class instead of inheriting the recorded compact bar color, so the unrecorded lead-in renders black while actual recorded samples remain in the normal recorded style.
-  - Follow-up: the dark compact background strip is tiled from the same right edge as the live SVG bars, and compact SVG bars request crisp edge rendering to avoid uneven one/two-pixel visual gaps.
-  - Compact recording bars use a darker bar style and a small rendering-only amplitude scale.
-  - Playback/default waveform rendering remains on the existing normalized Matrix path without the compact amplitude scale.
+  - The compact recording waveform container also paints a full-width inactive silence-bar strip behind live samples, preventing wide composers from showing a blank lead-in.
+  - Follow-up: padded not-yet-recorded compact bars now carry an explicit inactive theme-color class instead of inheriting the recorded compact bar color, so the unrecorded lead-in stays visually muted while actual recorded samples remain in the normal recorded style across light and dark themes.
+  - Follow-up: the inactive compact background strip is tiled from the same right edge as the live SVG bars, and compact SVG bars request crisp edge rendering to avoid uneven one/two-pixel visual gaps.
+  - Compact recording bars use a darker bar style and a recording-only square-root amplitude curve, making quiet microphone input visibly larger while preserving the existing peak cap.
+  - Playback/default waveform rendering remains on the existing normalized Matrix path without the compact amplitude curve.
 - Tests and validation:
   - `npm test -- src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/mindroom/voice/VoiceRecordingCapsule.test.ts src/app/mindroom/voice/VoiceRecorderDialog.test.ts`
   - `npm run typecheck`
@@ -747,7 +747,7 @@
     - targeted Prettier check on touched files passes
 - `CINNY-203`
   - Fixed MindRoom tool-call marker rendering for streaming edit updates that omit `formatted_body` and/or `io.mindroom.tool_trace` metadata.
-  - Plain-text tool marker lines such as ``🔧 `run_shell_command` [1]`` are now converted to the existing safe formatted marker contract before rendering, so the tool-call card parser can consume them instead of leaking raw markers into the timeline.
+  - Plain-text tool marker lines such as `` 🔧 `run_shell_command` [1] `` are now converted to the existing safe formatted marker contract before rendering, so the tool-call card parser can consume them instead of leaking raw markers into the timeline.
   - Edit resolution now carries forward missing MindRoom metadata from older replacement events before resolving the latest edit, preserving previous tool-trace details when a newer streaming update only sends body text and stream status.
   - The tool marker parser now renders marker-only formatted bodies as tool-call blocks, while enriching them with trace details whenever versioned trace metadata is available.
   - Renamed the message-extras data/parser module to `messageExtrasData.ts` and the component test to `MessageExtrasView.test.ts` to avoid case-only module collisions with `MindroomMessageExtras.tsx` on case-insensitive filesystems.
@@ -2386,6 +2386,7 @@
   - `src/app/features/recent-threads/RecentThreadEntry.tsx` now restores a stable `aria-label` in the form `Open thread: …`
   - added focused regressions in `src/app/features/room/Room.test.ts` and `src/app/features/recent-threads/RecentThreadEntry.test.ts`
 - Live E2E harness follow-up:
+
   - `e2e/live/cinny073-recent-threads-mobile.spec.ts` now clears the targeted room's bare-home thread-restore entry before the `480px` landscape rotation check, because the rebased client intentionally restores the last open thread from bare `/home/`
   - `e2e/live/threads.spec.ts` now matches recent-thread buttons by `Open thread:` plus both room name and summary/root preview, without assuming a fixed accessible-name field order
 

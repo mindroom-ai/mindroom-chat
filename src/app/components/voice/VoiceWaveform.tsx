@@ -12,7 +12,7 @@ import * as css from './VoiceWaveform.css';
 const SVG_HEIGHT = 32;
 const BAR_WIDTH = 2;
 const BAR_GAP = 1;
-const RECORDING_WAVEFORM_AMPLITUDE_SCALE = 1.18;
+const RECORDING_WAVEFORM_QUIET_INPUT_CURVE = 0.5;
 const getSvgWidth = (barCount: number): number =>
   Math.max(BAR_WIDTH, barCount * (BAR_WIDTH + BAR_GAP) - BAR_GAP);
 
@@ -30,6 +30,15 @@ const normalizeRecordingWaveform = (waveform: number[] | undefined): number[] =>
 const getCompactUnrecordedBarCount = (waveform: number[] | undefined): number => {
   if (!Array.isArray(waveform) || waveform.length === 0) return 0;
   return Math.max(0, VOICE_WAVEFORM_BAR_COUNT - waveform.length);
+};
+
+const getBarHeight = (point: number, compact?: boolean): number => {
+  const normalizedPoint = point / VOICE_WAVEFORM_MAX;
+  const scaledPoint = compact
+    ? normalizedPoint ** RECORDING_WAVEFORM_QUIET_INPUT_CURVE
+    : normalizedPoint;
+
+  return Math.max(3, Math.min(SVG_HEIGHT, scaledPoint * SVG_HEIGHT));
 };
 
 type VoiceWaveformProps = {
@@ -106,15 +115,7 @@ export function VoiceWaveform({
       focusable="false"
     >
       {bars.map((point, index) => {
-        const height = Math.max(
-          3,
-          Math.min(
-            SVG_HEIGHT,
-            (point / VOICE_WAVEFORM_MAX) *
-              SVG_HEIGHT *
-              (compact ? RECORDING_WAVEFORM_AMPLITUDE_SCALE : 1)
-          )
-        );
+        const height = getBarHeight(point, compact);
         const y = (SVG_HEIGHT - height) / 2;
 
         return (
