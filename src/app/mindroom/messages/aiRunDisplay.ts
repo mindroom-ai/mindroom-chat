@@ -102,6 +102,16 @@ const getMindroomAiRunContextBarTitle = (
   }`;
 };
 
+const getDisplayedCacheReadTokens = (cacheReadTokens: number | undefined, inputTokens: number) =>
+  isValidContextBarTokenCount(cacheReadTokens) ? Math.min(cacheReadTokens, inputTokens) : 0;
+
+const getCacheReadTitleSuffix = (reportedTokens: number | undefined, displayedTokens: number) => {
+  if (!isValidContextBarTokenCount(reportedTokens) || reportedTokens <= displayedTokens) {
+    return undefined;
+  }
+  return `reported cache read: ${formatMindroomAiRunNumber(reportedTokens)} tokens`;
+};
+
 export const getMindroomAiRunContextBarSegments = (
   info: MindroomAiRunInfo
 ): MindroomAiRunContextBarSegment[] | undefined => {
@@ -114,36 +124,46 @@ export const getMindroomAiRunContextBarSegments = (
     !isValidContextBarTokenCount(inputTokens) ||
     !isValidContextBarTokenCount(windowTokens) ||
     windowTokens <= 0 ||
-    !isValidContextBarTokenCount(cacheReadTokens) ||
-    !isValidContextBarTokenCount(uncachedTokens) ||
-    inputTokens > windowTokens ||
-    cacheReadTokens + uncachedTokens !== inputTokens
+    inputTokens > windowTokens
   ) {
     return undefined;
   }
 
+  const displayedCacheReadTokens = getDisplayedCacheReadTokens(cacheReadTokens, inputTokens);
+  const displayedUncachedTokens =
+    isValidContextBarTokenCount(cacheReadTokens) &&
+    isValidContextBarTokenCount(uncachedTokens) &&
+    cacheReadTokens + uncachedTokens === inputTokens
+      ? uncachedTokens
+      : inputTokens - displayedCacheReadTokens;
   const reserveTokens = windowTokens - inputTokens;
   const cacheWriteTokens = info.contextCacheWriteInputTokens;
   const cacheWriteSuffix = isValidContextBarTokenCount(cacheWriteTokens)
     ? `cache write: ${formatMindroomAiRunNumber(cacheWriteTokens)} tokens`
     : undefined;
+  const cacheReadTitleSuffix = getCacheReadTitleSuffix(cacheReadTokens, displayedCacheReadTokens);
 
   return [
     {
       key: 'cacheRead',
       label: 'Cache read',
-      tokens: cacheReadTokens,
-      percentage: (cacheReadTokens / windowTokens) * 100,
-      title: getMindroomAiRunContextBarTitle('Cache read', cacheReadTokens, windowTokens),
+      tokens: displayedCacheReadTokens,
+      percentage: (displayedCacheReadTokens / windowTokens) * 100,
+      title: getMindroomAiRunContextBarTitle(
+        'Cache read',
+        displayedCacheReadTokens,
+        windowTokens,
+        cacheReadTitleSuffix
+      ),
     },
     {
       key: 'newInput',
       label: 'New input',
-      tokens: uncachedTokens,
-      percentage: (uncachedTokens / windowTokens) * 100,
+      tokens: displayedUncachedTokens,
+      percentage: (displayedUncachedTokens / windowTokens) * 100,
       title: getMindroomAiRunContextBarTitle(
         'New input',
-        uncachedTokens,
+        displayedUncachedTokens,
         windowTokens,
         cacheWriteSuffix
       ),
