@@ -147,6 +147,69 @@ describe('getMindroomAiRunContextBarSegments', () => {
     ).toBeUndefined();
   });
 
+  it('still renders malformed cache-read metadata by clipping it to the displayed context', () => {
+    const segments = getMindroomAiRunContextBarSegments({
+      contextInputTokens: 153294,
+      contextWindowTokens: 200000,
+      contextCacheReadInputTokens: 281264,
+    });
+
+    expect(segments).toEqual([
+      expect.objectContaining({
+        key: 'cacheRead',
+        label: 'Cache read',
+        tokens: 153294,
+        title: 'Cache read: 153,294 tokens (76.6% of window); reported cache read: 281,264 tokens',
+      }),
+      expect.objectContaining({
+        key: 'newInput',
+        label: 'New input',
+        tokens: 0,
+        percentage: 0,
+        title: 'New input: 0 tokens (0.0% of window)',
+      }),
+      expect.objectContaining({
+        key: 'reserve',
+        label: 'Reserve',
+        tokens: 46706,
+        title: 'Reserve: 46,706 tokens (23.4% of window)',
+      }),
+    ]);
+    expect(segments?.[0]?.percentage).toBeCloseTo(76.647);
+    expect(segments?.[2]?.percentage).toBeCloseTo(23.353);
+  });
+
+  it('renders a context usage bar even when cache counters are absent', () => {
+    expect(
+      getMindroomAiRunContextBarSegments({
+        contextInputTokens: 65,
+        contextWindowTokens: 100,
+      })
+    ).toEqual([
+      {
+        key: 'cacheRead',
+        label: 'Cache read',
+        tokens: 0,
+        percentage: 0,
+        title: 'Cache read: 0 tokens (0.0% of window)',
+      },
+      {
+        key: 'newInput',
+        label: 'New input',
+        tokens: 65,
+        percentage: 65,
+        title: 'New input: 65 tokens (65.0% of window)',
+      },
+      {
+        key: 'reserve',
+        label: 'Reserve',
+        tokens: 35,
+        percentage: 35,
+        title: 'Reserve: 35 tokens (35.0% of window)',
+      },
+    ]);
+  });
+
   it('omits invalid cache-write counts from the new-input segment title', () => {
     const segments = getMindroomAiRunContextBarSegments({
       contextInputTokens: 65,

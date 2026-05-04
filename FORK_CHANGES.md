@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### AI run context cache bar recovery (2026-05-03)
+
+- Summary:
+  - The Matrix-visible context window bar now renders whenever `context.input_tokens` and `context.window_tokens` are valid, even if older backend events omitted cache split fields or reported an impossible cache-read value larger than the displayed context.
+  - Oversized cache-read values are clipped to the displayed context for the visual bar, while the tooltip still preserves the original reported cache-read count for diagnostics.
+  - Future backend events are being normalized in `/srv/mindroom` so `context.cache_read_input_tokens + context.uncached_input_tokens` cannot exceed the Matrix-facing `context.input_tokens`; raw provider totals remain available under `usage`.
+- Files changed:
+  - `src/app/mindroom/messages/aiRunDisplay.ts`
+  - `src/app/mindroom/messages/aiRunDisplay.test.ts`
+- Tests and validation:
+  - `npm test -- src/app/mindroom/messages/aiRunDisplay.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npx prettier --check src/app/mindroom/messages/aiRunDisplay.ts src/app/mindroom/messages/aiRunDisplay.test.ts`
+  - `git diff --check`
+
 ### CINNY-103 Sticky prominent expand/collapse pills (2026-05-02)
 
 - Summary:
