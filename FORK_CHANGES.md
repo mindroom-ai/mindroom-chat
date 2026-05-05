@@ -2,6 +2,30 @@
 
 ## Runbook
 
+### Configurable room creation encryption/federation defaults (2026-05-05)
+
+- Summary:
+  - Added `createRoom` client config options for room creation policy:
+    `showEncryptionOption`, `defaultEncryption`, `showFederationOption`, and `defaultFederation`.
+  - `CreateRoomForm` now hides the end-to-end encryption and federation switches when configured while still passing the configured defaults into the existing Matrix room creation path.
+  - Public rooms continue to force encryption off even if `defaultEncryption` is enabled.
+  - The shipped `config.json` does not opt into this policy, so the existing default UI remains unchanged: both controls are visible, encryption defaults off, and federation defaults on.
+- Files changed:
+  - `src/app/hooks/useClientConfig.ts`
+  - `src/app/features/create-room/CreateRoom.tsx`
+  - `src/app/features/create-room/CreateRoom.test.ts`
+  - `src/vitest.setup.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/features/create-room/CreateRoom.test.ts` initially failed because the controls remained visible and federation still submitted `true`.
+  - Green check: `npm test -- src/app/features/create-room/CreateRoom.test.ts`
+  - Full-suite follow-up found `themeBootstrap.test.ts` failing because the Vitest localStorage fallback used own methods instead of Storage-like prototype methods; `src/vitest.setup.ts` now uses a small `StorageMock` class.
+  - `npm test -- src/app/features/create-room/CreateRoom.test.ts src/app/theme/themeBootstrap.test.ts`
+  - `npm run typecheck`
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`252` files, `1922` tests).
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npx prettier --check FORK_CHANGES.md src/app/hooks/useClientConfig.ts src/app/features/create-room/CreateRoom.tsx src/app/features/create-room/CreateRoom.test.ts src/vitest.setup.ts`
+
 ### AI run context cache bar recovery (2026-05-03)
 
 - Summary:
