@@ -2,6 +2,33 @@
 
 ## Runbook
 
+### Avatar upload 413 error handling (2026-05-06)
+
+- Summary:
+  - Investigated account avatar upload failures where the UI showed transient connection-drop copy while the browser reported an HTTP 413 response from the Matrix media upload POST.
+  - Browser repro confirmed this was not a client preflight rejection: media config was unavailable in the browser context, the upload was attempted, and the failed POST returned 413. A later Retry used a stale local file handle and failed separately before reaching the server.
+  - Root cause in the client: non-JSON Matrix SDK upload failures can arrive as HTTP errors with `httpStatus=413`; the upload normalization collapsed them to `M_UNKNOWN`, and the renderer treated `M_UNKNOWN` upload errors as transient network loss.
+  - Media config still controls preflight when `m.upload.size` is available. If config is unavailable, 413 responses are now handled explicitly after the upload attempt.
+  - Deployment/config review found the standard ingress template allows larger request bodies than the default Matrix media limit, while the homeserver config does not set an explicit media `max_upload_size`. The exact live prefixed route source should be confirmed with server/proxy logs before changing infrastructure limits.
+- Files changed:
+  - `src/app/utils/matrix.ts`
+  - `src/app/utils/matrix.test.ts`
+  - `src/app/components/upload-card/UploadCardRenderer.tsx`
+  - `src/app/components/upload-card/CompactUploadCardRenderer.tsx`
+  - `src/app/components/upload-card/UploadCardRenderer.test.ts`
+  - `src/app/features/settings/account/Profile.tsx`
+  - `src/app/features/common-settings/general/RoomProfile.tsx`
+  - `src/app/components/image-pack-view/PackMeta.tsx`
+- Tests and validation:
+  - Red check: `npm test -- src/app/utils/matrix.test.ts src/app/components/upload-card/UploadCardRenderer.test.ts` failed because HTTP 413 still rendered as transient connection loss and known-size avatar preflight still used generic copy.
+  - Green check: `npm test -- src/app/utils/matrix.test.ts src/app/components/upload-card/UploadCardRenderer.test.ts`
+  - `npm run typecheck`
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm test` passed (`252` files, `1928` tests).
+  - `npx prettier --check FORK_CHANGES.md src/app/utils/matrix.ts src/app/utils/matrix.test.ts src/app/components/upload-card/UploadCardRenderer.tsx src/app/components/upload-card/CompactUploadCardRenderer.tsx src/app/components/upload-card/UploadCardRenderer.test.ts src/app/features/settings/account/Profile.tsx src/app/features/common-settings/general/RoomProfile.tsx src/app/components/image-pack-view/PackMeta.tsx`
+  - `git diff --check`
+
 ### Room cache local-echo zero-reply cleanup (2026-05-06)
 
 - Summary:

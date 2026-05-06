@@ -11,13 +11,13 @@ const uploadMock = vi.hoisted(() => ({
   startUpload: vi.fn(),
   cancelUpload: vi.fn(),
   roomUploadAtomFamily: vi.fn(() => 'room-upload-atom'),
+  mediaConfig: {} as Record<string, number>,
 }));
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');
 
-  const forwardTag =
-    (tag: string) =>
+  const forwardTag = (tag: string) =>
     React.forwardRef<HTMLElement, Record<string, unknown>>(({ children, ...props }, ref) =>
       reactModule.createElement(tag, { ...props, ref }, children)
     );
@@ -68,7 +68,7 @@ vi.mock('../../hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('../../hooks/useMediaConfig', () => ({
-  useMediaConfig: () => ({}),
+  useMediaConfig: () => uploadMock.mediaConfig,
 }));
 
 vi.mock('../../hooks/useObjectURL', () => ({
@@ -95,18 +95,22 @@ vi.mock('../../state/room/roomInputDrafts', () => ({
 
 const friendlyTransientMessage = "Couldn't send — your connection dropped. Try again.";
 
-const createFile = (): TUploadContent =>
+const createFile = (overrides: Partial<TUploadContent> = {}): TUploadContent =>
   ({
     name: 'image.png',
     size: 1024,
     type: 'image/png',
-  }) as TUploadContent;
+    ...overrides,
+  } as TUploadContent);
 
-const setUploadError = (file: TUploadContent) => {
+const setUploadError = (
+  file: TUploadContent,
+  error = new MatrixError({ errcode: 'M_UNKNOWN', error: '' })
+) => {
   uploadMock.upload = {
     file,
     status: 'error',
-    error: new MatrixError({ errcode: 'M_UNKNOWN', error: '' }),
+    error,
   };
 };
 
@@ -121,6 +125,7 @@ const renderText = (node: React.ReactElement): string => {
 describe('upload card renderers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    uploadMock.mediaConfig = {};
   });
 
   it('renders friendly transient MatrixError text in the full upload card', () => {
@@ -159,5 +164,51 @@ describe('upload card renderers', () => {
 
     expect(output).toContain(friendlyTransientMessage);
     expect(output).not.toContain('M_UNKNOWN: Unknown message');
+  });
+
+  it('prevents compact avatar uploads that exceed media config with precise size copy', () => {
+    const file = createFile({
+      name: 'avatar.png',
+      size: 2_500_000,
+    });
+    uploadMock.mediaConfig = {
+      'm.upload.size': 1_000_000,
+    };
+    uploadMock.upload = {
+      file,
+      status: 'idle',
+    };
+
+    const output = renderText(
+      React.createElement(CompactUploadCardRenderer, {
+        uploadAtom: 'upload-atom',
+        uploadKind: 'avatar',
+        onRemove: vi.fn(),
+      })
+    );
+
+    expect(output).toContain(
+      'Avatar image is too large. Maximum upload size is 1.0 MB; selected file is 2.5 MB.'
+    );
+    expect(uploadMock.startUpload).not.toHaveBeenCalled();
+  });
+
+  it('renders compact avatar HTTP 413 errors as too-large instead of connection dropped', () => {
+    const file = createFile({
+      name: 'avatar.png',
+      size: 2_500_000,
+    });
+    setUploadError(file, new MatrixError({ errcode: 'M_UNKNOWN', error: '' }, 413));
+
+    const output = renderText(
+      React.createElement(CompactUploadCardRenderer, {
+        uploadAtom: 'upload-atom',
+        uploadKind: 'avatar',
+        onRemove: vi.fn(),
+      })
+    );
+
+    expect(output).toContain('Avatar image is too large for this server. Choose a smaller image.');
+    expect(output).not.toContain(friendlyTransientMessage);
   });
 });

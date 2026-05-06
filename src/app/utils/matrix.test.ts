@@ -20,6 +20,9 @@ describe('matrix upload errors', () => {
     expect(
       isTransientMatrixError(new MatrixError({ errcode: 'M_LIMIT_EXCEEDED', error: '' }))
     ).toBe(false);
+    expect(isTransientMatrixError(new MatrixError({ errcode: 'M_UNKNOWN', error: '' }, 413))).toBe(
+      false
+    );
     expect(isTransientMatrixError(new Error('Load failed'))).toBe(false);
   });
 
@@ -38,6 +41,19 @@ describe('matrix upload errors', () => {
     expect(getMatrixUploadOriginalName(normalized)).toBe('AbortError');
   });
 
+  it('preserves HTTP 413 status when normalizing non-JSON upload errors', () => {
+    const httpTooLarge = Object.assign(new Error('Server returned 413 error'), {
+      httpStatus: 413,
+    });
+
+    const normalized = toMatrixUploadError(httpTooLarge, 'upload');
+
+    expect(normalized).toBeInstanceOf(MatrixError);
+    expect(normalized.errcode).toBe('M_TOO_LARGE');
+    expect(normalized.httpStatus).toBe(413);
+    expect(normalized.message).toContain('Server returned 413 error');
+  });
+
   it('returns friendly upload display messages', () => {
     expect(
       getMatrixUploadErrorMessage(new MatrixError({ errcode: 'M_UNKNOWN', error: '' }), 'upload')
@@ -48,6 +64,27 @@ describe('matrix upload errors', () => {
       )
     ).toBe('M_LIMIT_EXCEEDED: Too many uploads');
     expect(getMatrixUploadErrorMessage(undefined)).toBe("Couldn't send. Try again.");
+  });
+
+  it('returns precise avatar too-large upload messages', () => {
+    const matrixTooLarge = new MatrixError({ errcode: 'M_UNKNOWN', error: '' }, 413);
+    const rawHttpTooLarge = Object.assign(new Error('Server returned 413 error'), {
+      httpStatus: 413,
+    });
+
+    expect(
+      getMatrixUploadErrorMessage(matrixTooLarge, 'upload', {
+        uploadKind: 'avatar',
+        fileSize: 2_500_000,
+        maxUploadSize: 1_000_000,
+      })
+    ).toBe('Avatar image is too large. Maximum upload size is 1.0 MB; selected file is 2.5 MB.');
+    expect(
+      getMatrixUploadErrorMessage(rawHttpTooLarge, 'upload', {
+        uploadKind: 'avatar',
+      })
+    ).toBe('Avatar image is too large for this server. Choose a smaller image.');
+    expect(getMatrixUploadErrorMessage(matrixTooLarge, 'upload')).not.toBe(transientMessage);
   });
 
   it('does not use transient network copy for create-stage normalized errors', () => {
