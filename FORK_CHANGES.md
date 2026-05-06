@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Direct message encryption policy config (2026-05-06)
+
+- Summary:
+  - Applied the existing `createRoom.showEncryptionOption` and `createRoom.defaultEncryption` policy to direct-message room creation.
+  - `CreateChat` now hides the end-to-end encryption switch when configured, while still using the configured default to decide whether the DM room creation request includes `m.room.encryption` initial state.
+  - The default DM behavior remains unchanged when no policy is configured: the encryption option is visible and enabled by default.
+- Files changed:
+  - `src/app/features/create-chat/CreateChat.tsx`
+  - `src/app/features/create-chat/CreateChat.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/features/create-chat/CreateChat.test.ts` failed because the DM form still rendered `End-to-End Encryption` while policy hid it.
+  - Green check: `npm test -- src/app/features/create-chat/CreateChat.test.ts`
+  - `npm test -- src/app/features/create-chat/CreateChat.test.ts src/app/features/create-room/CreateRoom.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`253` files, `1930` tests).
+
 ### Avatar upload 413 error handling (2026-05-06)
 
 - Summary:
