@@ -2,6 +2,27 @@
 
 ## Runbook
 
+### Room cache local-echo zero-reply cleanup (2026-05-06)
+
+- Summary:
+  - Investigated stale/unresolvable `0 replies` entries that appear across rooms after cache hydration.
+  - Root cause: the prior local-echo fix only protected recent/open-thread persistence, while the room-event IndexedDB cache could still persist and rehydrate `~...` local echo room events.
+  - Rehydrated local echoes can satisfy the standalone zero-reply display path but are intentionally rejected by resolution writes because their ids are not stable Matrix event ids.
+  - `roomEventCache` now excludes local echo events during normalization, cursor reads, direct cached-event reads, and new cache writes through the existing normalization path.
+- Files changed:
+  - `src/app/mindroom/threads/roomEventCache.ts`
+  - `src/app/mindroom/threads/roomEventCache.test.ts`
+  - `src/app/mindroom/threads/eventRepository.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/threads/roomEventCache.test.ts src/app/mindroom/threads/eventRepository.test.ts` failed because cached local echoes were still normalized/hydrated.
+  - Green check: `npm test -- src/app/mindroom/threads/roomEventCache.test.ts src/app/mindroom/threads/eventRepository.test.ts`
+  - `npm run typecheck`
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm test` passed (`252` files, `1924` tests).
+  - `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/roomEventCache.ts src/app/mindroom/threads/roomEventCache.test.ts src/app/mindroom/threads/eventRepository.test.ts`
+  - `git diff --check`
+
 ### Configurable room creation encryption/federation defaults (2026-05-05)
 
 - Summary:

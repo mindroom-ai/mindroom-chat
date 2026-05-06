@@ -196,10 +196,7 @@ describe('eventRepository cache persistence snapshots', () => {
 
     expect(snapshots).toHaveLength(1);
     expect(snapshots[0].threadId).toBe('$root');
-    expect(snapshots[0].nextSeedEvents.map((event) => event.getId())).toEqual([
-      '$root',
-      '$reply',
-    ]);
+    expect(snapshots[0].nextSeedEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
     expect(snapshots[0].roomDerivedSnapshot).toMatchObject({
       beforeTokenForEarliest: null,
       expectedReplyCount: 1,
@@ -279,9 +276,10 @@ describe('eventRepository cached thread snapshots', () => {
       threadId: '$root',
       limit: 50,
       maxPages: 5,
-      mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing', {
-        ts: rawEvent.origin_server_ts,
-      }),
+      mapEvent: (rawEvent) =>
+        makeEvent(rawEvent.event_id ?? '$missing', {
+          ts: rawEvent.origin_server_ts,
+        }),
       loadLatest: async () => ({
         rootEvent: { event_id: '$root', origin_server_ts: 100 },
         events: [{ event_id: '$reply', origin_server_ts: 200 }],
@@ -314,9 +312,10 @@ describe('eventRepository cached thread snapshots', () => {
       threadId: '$root',
       earliestLoadedReply: earliestLoadedReply as never,
       limit: 50,
-      mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing', {
-        ts: rawEvent.origin_server_ts,
-      }),
+      mapEvent: (rawEvent) =>
+        makeEvent(rawEvent.event_id ?? '$missing', {
+          ts: rawEvent.origin_server_ts,
+        }),
       loadBefore: async (_sessionId, _roomId, threadId, anchor, limit) => {
         expect(threadId).toBe('$root');
         expect(anchor).toEqual({ eventId: '$loaded', ts: 300 });
@@ -366,9 +365,10 @@ describe('eventRepository latest room cache hydration snapshots', () => {
       roomId: '!room:example.org',
       limit: 32,
       loadedEvents: [loadedEvent] as never,
-      mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing', {
-        ts: rawEvent.origin_server_ts,
-      }),
+      mapEvent: (rawEvent) =>
+        makeEvent(rawEvent.event_id ?? '$missing', {
+          ts: rawEvent.origin_server_ts,
+        }),
       loadLatest: async () => ({
         events: [
           { event_id: '$loaded', origin_server_ts: 100 },
@@ -380,6 +380,33 @@ describe('eventRepository latest room cache hydration snapshots', () => {
 
     expect(snapshot.status).toBe('hydrate');
     expect(snapshot.events.map((event) => event.getId())).toEqual(['$cached-new']);
+    expect(snapshot.cachedPage.events).toHaveLength(2);
+    expect(snapshot.loadedRoomCount).toBe(1);
+  });
+
+  it('does not hydrate cached local echo room events', async () => {
+    const loadedEvent = makeEvent('$loaded', { ts: 100 });
+
+    const snapshot = await loadLatestRoomCacheHydrationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      limit: 32,
+      loadedEvents: [loadedEvent] as never,
+      mapEvent: (rawEvent) =>
+        makeEvent(rawEvent.event_id ?? '$missing', {
+          ts: rawEvent.origin_server_ts,
+        }),
+      loadLatest: async () => ({
+        events: [
+          { event_id: '$loaded', origin_server_ts: 100 },
+          { event_id: '~!room:example.org:txn-1', origin_server_ts: 200 },
+        ],
+        hasMoreBefore: false,
+      }),
+    });
+
+    expect(snapshot.status).toBe('empty-after-filter');
+    expect(snapshot.events).toEqual([]);
     expect(snapshot.cachedPage.events).toHaveLength(2);
     expect(snapshot.loadedRoomCount).toBe(1);
   });
@@ -443,9 +470,10 @@ describe('eventRepository room cached pagination snapshots', () => {
       roomId: '!room:example.org',
       earliestLoadedEvent: earliestLoadedEvent as never,
       limit: 50,
-      mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing', {
-        ts: rawEvent.origin_server_ts,
-      }),
+      mapEvent: (rawEvent) =>
+        makeEvent(rawEvent.event_id ?? '$missing', {
+          ts: rawEvent.origin_server_ts,
+        }),
       loadPaginationToken: async () => undefined,
       loadBefore: async (_sessionId, _roomId, anchor, limit) => {
         expect(anchor).toEqual({ eventId: '$loaded', ts: 300 });
