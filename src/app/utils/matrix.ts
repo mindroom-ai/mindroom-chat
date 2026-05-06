@@ -18,6 +18,7 @@ import { IImageInfo, IThumbnailContent, IVideoInfo } from '../../types/matrix/co
 import { AccountDataEvent } from '../../types/matrix/accountData';
 import { getStateEvent } from './room';
 import { Membership, StateEvent } from '../../types/matrix/room';
+import { bytesToSize } from './common';
 
 export { mxcUrlToHttp } from './mediaUrl';
 
@@ -137,6 +138,12 @@ export const decryptFile = async (
 
 export type TUploadContent = File | Blob;
 export type MatrixUploadErrorStage = 'upload' | 'send' | 'create';
+export type MatrixUploadKind = 'file' | 'avatar';
+export type MatrixUploadErrorMessageOptions = {
+  uploadKind?: MatrixUploadKind;
+  fileSize?: number;
+  maxUploadSize?: number;
+};
 
 const TRANSIENT_UPLOAD_ERROR_MESSAGE = "Couldn't send — your connection dropped. Try again.";
 const FALLBACK_UPLOAD_ERROR_MESSAGE = "Couldn't send. Try again.";
@@ -148,6 +155,16 @@ const getErrorName = (err: unknown): string | undefined =>
   typeof err === 'object' && err !== null && 'name' in err && typeof err.name === 'string'
     ? err.name
     : undefined;
+
+const getHttpStatus = (err: unknown): number | undefined => {
+  if (typeof err !== 'object' || err === null || !('httpStatus' in err)) return undefined;
+
+  const httpStatus = (err as { httpStatus?: unknown }).httpStatus;
+  return typeof httpStatus === 'number' ? httpStatus : undefined;
+};
+
+const isKnownUploadSize = (size: number | undefined): size is number =>
+  typeof size === 'number' && Number.isFinite(size) && size >= 0;
 
 const stripMatrixErrorPrefix = (message: string): string =>
   message.replace(/^MatrixError:\s*/, '').trim();
@@ -164,8 +181,16 @@ const nonEmptyMessage = (err: unknown): string => {
   return 'Unknown message';
 };
 
+export const isMatrixUploadTooLargeError = (err: unknown): boolean => {
+  if (getHttpStatus(err) === 413) return true;
+
+  return err instanceof MatrixError && err.errcode === 'M_TOO_LARGE';
+};
+
 export const isTransientMatrixError = (err: unknown): boolean => {
   if (getErrorName(err) === 'AbortError') return true;
+
+  if (isMatrixUploadTooLargeError(err)) return false;
 
   if (err instanceof MatrixError) {
     return err.errcode == null || err.errcode === 'M_UNKNOWN';
@@ -177,12 +202,17 @@ export const isTransientMatrixError = (err: unknown): boolean => {
 export const toMatrixUploadError = (err: unknown, stage: MatrixUploadErrorStage): MatrixError => {
   if (err instanceof MatrixError) return err;
 
-  return new MatrixError({
-    errcode: 'M_UNKNOWN',
-    error: nonEmptyMessage(err),
-    [MATRIX_UPLOAD_ERROR_STAGE_KEY]: stage,
-    [MATRIX_UPLOAD_ORIGINAL_NAME_KEY]: getErrorName(err) ?? typeof err,
-  });
+  const httpStatus = getHttpStatus(err);
+
+  return new MatrixError(
+    {
+      errcode: httpStatus === 413 ? 'M_TOO_LARGE' : 'M_UNKNOWN',
+      error: nonEmptyMessage(err),
+      [MATRIX_UPLOAD_ERROR_STAGE_KEY]: stage,
+      [MATRIX_UPLOAD_ORIGINAL_NAME_KEY]: getErrorName(err) ?? typeof err,
+    },
+    httpStatus
+  );
 };
 
 export const getMatrixUploadErrorStage = (err: unknown): MatrixUploadErrorStage | undefined => {
@@ -200,10 +230,35 @@ export const getMatrixUploadOriginalName = (err: unknown): string | undefined =>
   return typeof originalName === 'string' && originalName.trim() !== '' ? originalName : undefined;
 };
 
+export const getMatrixUploadTooLargeMessage = (
+  options: MatrixUploadErrorMessageOptions = {}
+): string => {
+  const { uploadKind = 'file', fileSize, maxUploadSize } = options;
+
+  if (isKnownUploadSize(fileSize) && isKnownUploadSize(maxUploadSize)) {
+    const subject = uploadKind === 'avatar' ? 'Avatar image' : 'File';
+
+    return `${subject} is too large. Maximum upload size is ${bytesToSize(
+      maxUploadSize
+    )}; selected file is ${bytesToSize(fileSize)}.`;
+  }
+
+  if (uploadKind === 'avatar') {
+    return 'Avatar image is too large for this server. Choose a smaller image.';
+  }
+
+  return 'File is too large for this server. Choose a smaller file.';
+};
+
 export const getMatrixUploadErrorMessage = (
   err: unknown,
-  stage = getMatrixUploadErrorStage(err)
+  stage = getMatrixUploadErrorStage(err),
+  options: MatrixUploadErrorMessageOptions = {}
 ): string => {
+  if (isMatrixUploadTooLargeError(err)) {
+    return getMatrixUploadTooLargeMessage(options);
+  }
+
   if (isTransientMatrixError(err)) {
     if (stage === 'upload' || stage === 'send') return TRANSIENT_UPLOAD_ERROR_MESSAGE;
     if (stage === 'create') return PREPARE_UPLOAD_ERROR_MESSAGE;

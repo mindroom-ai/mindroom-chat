@@ -3,8 +3,12 @@ import { Box, Chip, Icon, IconButton, Icons, Text, color, config, toRem } from '
 import { UploadCard, UploadCardError, UploadCardProgress } from './UploadCard';
 import { UploadStatus, UploadSuccess, useBindUploadAtom } from '../../state/upload';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { TUploadContent, getMatrixUploadErrorMessage } from '../../utils/matrix';
-import { bytesToSize, getFileTypeIcon } from '../../utils/common';
+import {
+  TUploadContent,
+  getMatrixUploadErrorMessage,
+  getMatrixUploadTooLargeMessage,
+} from '../../utils/matrix';
+import { getFileTypeIcon } from '../../utils/common';
 import {
   roomUploadAtomFamily,
   TUploadItem,
@@ -114,7 +118,8 @@ export function UploadCardRenderer({
 }: UploadCardRendererProps) {
   const mx = useMatrixClient();
   const mediaConfig = useMediaConfig();
-  const allowSize = mediaConfig['m.upload.size'] || Infinity;
+  const allowSize = mediaConfig['m.upload.size'] ?? Infinity;
+  const maxUploadSize = Number.isFinite(allowSize) ? allowSize : undefined;
 
   const uploadAtom = roomUploadAtomFamily(fileItem.file);
   const { metadata } = fileItem;
@@ -190,15 +195,21 @@ export function UploadCardRenderer({
           )}
           {upload.status === UploadStatus.Error && (
             <UploadCardError>
-              <Text size="T200">{getMatrixUploadErrorMessage(upload.error, 'upload')}</Text>
+              <Text size="T200">
+                {getMatrixUploadErrorMessage(upload.error, 'upload', {
+                  fileSize: file.size,
+                  maxUploadSize,
+                })}
+              </Text>
             </UploadCardError>
           )}
           {upload.status === UploadStatus.Idle && fileSizeExceeded && (
             <UploadCardError>
               <Text size="T200">
-                The file size exceeds the limit. Maximum allowed size is{' '}
-                <b>{bytesToSize(allowSize)}</b>, but the uploaded file is{' '}
-                <b>{bytesToSize(file.size)}</b>.
+                {getMatrixUploadTooLargeMessage({
+                  fileSize: file.size,
+                  maxUploadSize: allowSize,
+                })}
               </Text>
             </UploadCardError>
           )}
