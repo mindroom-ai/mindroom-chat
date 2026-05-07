@@ -2,24 +2,31 @@
 
 ## Runbook
 
-### Composer duplicate Enter send guard (2026-05-07)
+### Composer Enter autocomplete and duplicate send guard (2026-05-07)
 
 - Summary:
-  - Investigated duplicate text messages when Enter is pressed twice quickly while trying to autocomplete a mention.
+  - Investigated duplicate text messages when Enter is pressed twice quickly while trying to autocomplete a mention, and the underlying mismatch where Tab accepted the default autocomplete item but Enter still submitted the composer.
   - Root cause: text-only composer sends called `mx.sendMessage` directly and reset the editor only after the send promise resolved. A second Enter before the first promise settled read the same editor contents and sent the same message again.
+  - Autocomplete's shared keyboard helper now treats Enter like Tab, so pressing Enter while the autocomplete menu is open selects the first/default item even when the user has not arrowed into the menu.
+  - `RoomInput` now prevents Enter from submitting while an autocomplete query is active, leaving the autocomplete menu's key handler to accept the default item.
   - Added an in-flight guard around the unified `submit` path so rapid repeated Enter presses or send-button clicks cannot start a second submit while the first one is still pending.
   - Upload-backed sends keep using the existing send-session duplicate guard; this change covers the text-only direct-send path that bypassed that session controller.
 - Files changed:
   - `src/app/mindroom/room-input/MindroomRoomInput.tsx`
   - `src/app/mindroom/room-input/__tests__/RoomInput.test.ts`
+  - `src/app/utils/keyboard.ts`
+  - `src/app/utils/keyboard.test.ts`
 - Tests and validation:
   - Red check: `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts` failed because two rapid Enter keydowns called `sendMessage` twice before the first send resolved.
+  - Red check: `npm test -- src/app/utils/keyboard.test.ts` failed because Enter did not run the autocomplete accept helper.
+  - Red check: `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts` failed because Enter still submitted while an autocomplete menu was open.
   - Green check: `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts`
-  - `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/roomInputSendSession.test.ts`
+  - Green check: `npm test -- src/app/utils/keyboard.test.ts`
+  - `npm test -- src/app/utils/keyboard.test.ts src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/roomInputSendSession.test.ts`
   - `npm run typecheck`
   - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
   - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
-  - `npm test` passed (`253` files, `1931` tests).
+  - `npm test` passed (`254` files, `1934` tests).
 
 ### Direct message encryption policy config (2026-05-06)
 
