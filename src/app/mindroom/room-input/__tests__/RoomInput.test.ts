@@ -26,6 +26,7 @@ const { customEditorState, editorMocks, editorOutputState, mxState, voiceRecorde
       resetEditorHistory: vi.fn(),
     },
     customEditorState: {
+      autocompleteQuery: undefined as { prefix: string; range: unknown; text: string } | undefined,
       editor: undefined as
         | {
             children: Array<any>;
@@ -39,6 +40,7 @@ const { customEditorState, editorMocks, editorOutputState, mxState, voiceRecorde
             }) => void | Promise<void>;
             onChange?: () => void;
             onKeyDown?: (evt: { key: string; preventDefault: () => void }) => void;
+            onKeyUp?: (evt: { key: string; preventDefault: () => void }) => void;
           }
         | undefined,
     },
@@ -128,8 +130,8 @@ vi.mock('folds', () => {
 });
 
 vi.mock('../../../components/editor', () => ({
-  AUTOCOMPLETE_PREFIXES: [],
-  AutocompletePrefix: {},
+  AUTOCOMPLETE_PREFIXES: ['user'],
+  AutocompletePrefix: { UserMention: 'user' },
   AutocompleteQuery: {},
   CustomEditor: ({
     style,
@@ -138,6 +140,7 @@ vi.mock('../../../components/editor', () => ({
     after,
     onChange,
     onKeyDown,
+    onKeyUp,
     onPaste,
   }: {
     style?: React.CSSProperties;
@@ -146,9 +149,10 @@ vi.mock('../../../components/editor', () => ({
     after?: React.ReactNode;
     onChange?: () => void;
     onKeyDown?: (evt: { key: string; preventDefault: () => void }) => void;
+    onKeyUp?: (evt: { key: string; preventDefault: () => void }) => void;
     onPaste?: (evt: { clipboardData: DataTransfer; preventDefault: () => void }) => void;
   }) => {
-    customEditorState.props = { onChange, onKeyDown, onPaste };
+    customEditorState.props = { onChange, onKeyDown, onKeyUp, onPaste };
     return React.createElement('div', { style }, top, before, after);
   },
   EmoticonAutocomplete: () => null,
@@ -157,10 +161,10 @@ vi.mock('../../../components/editor', () => ({
   UserMentionAutocomplete: () => null,
   createEmoticonElement: vi.fn(),
   customHtmlEqualsPlainText: () => editorOutputState.htmlEqualsPlainText,
-  getAutocompleteQuery: () => undefined,
+  getAutocompleteQuery: () => customEditorState.autocompleteQuery,
   getBeginCommand: () => undefined,
   getMentions: () => ({ users: new Set<string>(), room: false }),
-  getPrevWorldRange: () => undefined,
+  getPrevWorldRange: () => (customEditorState.autocompleteQuery ? {} : undefined),
   isEmptyEditor: () => true,
   moveCursor: editorMocks.moveCursor,
   resetEditor: editorMocks.resetEditor,
@@ -559,6 +563,7 @@ const updateRoomInput = async (
 
 afterEach(() => {
   voiceRecorderState.props = undefined;
+  customEditorState.autocompleteQuery = undefined;
   customEditorState.editor = undefined;
   customEditorState.props = undefined;
   editorOutputState.plainText = '';
@@ -764,6 +769,33 @@ describe('RoomInput', () => {
       send.resolve({ event_id: '$sent' });
       await Promise.resolve();
     });
+
+    renderer.unmount();
+  });
+
+  it('does not submit when Enter is pressed with an autocomplete menu open', async () => {
+    const { renderer } = await renderRoomInput();
+    customEditorState.autocompleteQuery = {
+      prefix: 'user',
+      range: {},
+      text: '',
+    };
+    editorOutputState.plainText = '@';
+    editorOutputState.customHtml = '@';
+    editorOutputState.htmlEqualsPlainText = true;
+
+    await act(async () => {
+      customEditorState.props!.onKeyUp?.({ key: '@', preventDefault: vi.fn() });
+    });
+
+    const enter = { key: 'Enter', preventDefault: vi.fn() };
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.(enter);
+      await Promise.resolve();
+    });
+
+    expect(enter.preventDefault).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
 
     renderer.unmount();
   });
