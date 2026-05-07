@@ -2,6 +2,54 @@
 
 ## Runbook
 
+### Sidebar drag drop animation and long-drag reload follow-up (2026-05-07)
+
+- Summary:
+  - Re-evaluated the sidebar drag reorder behavior after confirming the drop no longer always reloads, but long drags could still sometimes trigger a full-page navigation and the dropped item animated oddly.
+  - Source review of `@dnd-kit/core` confirmed the reload guard was armed too early: the prior listener was installed at drag start and expired after 750 ms, so a drag held longer than that could still allow the post-drop anchor click default.
+  - Source review of `@dnd-kit/sortable` confirmed the visual artifact came from its default post-drop layout animation path. With no real drag overlay, the active source remains semi-transparent and can run a derived transform after the item order changes, creating the apparent return trip before settling.
+  - Added `sortableDrag` helpers to arm native click-default suppression from `onDragEnd`/`onDragCancel` for mouse/touch/pointer activators only, avoiding the long-drag timeout hole and avoiding keyboard-drag click suppression.
+  - Added a shared sortable layout animation policy that preserves in-drag movement but disables only the post-drop layout animation.
+  - Live Chrome verification was not possible in this environment because the Chrome executable expected by the DevTools MCP is missing.
+- Files changed:
+  - `src/app/utils/sortableDrag.ts`
+  - `src/app/utils/sortableDrag.test.ts`
+  - `src/app/features/room-nav/SortableRoomNavItem.tsx`
+  - `src/app/pages/client/sidebar/SpaceTabs.tsx`
+  - `src/app/pages/client/space/Space.tsx`
+- Tests and validation:
+  - `npm test -- src/app/utils/sortableDrag.test.ts src/app/utils/suppressNextClickDefault.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx src/app/pages/client/sidebar/SpaceTabs.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts`
+  - Red check: `npm run typecheck` initially failed on a nullable `ownerDocument` handoff in `sortableDrag.ts`.
+  - Green check: `npm run typecheck`
+  - `npm test -- src/app/utils/sortableDrag.test.ts src/app/utils/suppressNextClickDefault.test.ts src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx src/app/pages/client/sidebar/SpaceTabs.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`260` files, `1961` tests).
+
+### Sidebar drag drop reload guard (2026-05-07)
+
+- Summary:
+  - Investigated a regression where sidebar/room-list drag previews moved smoothly, but releasing the drag could reload the entire page.
+  - Root cause: `dnd-kit` suppresses post-drag click propagation after activation, but it does not prevent the native click default. When the release target is a room `NavLink`, React Router never receives the click and the browser follows the raw anchor `href`, producing a full-page navigation/reload.
+  - Added `suppressNextClickDefault`, a short-lived native capture listener so the next post-drag click has its default action prevented while normal clicks after the timeout still work.
+  - The first version armed the guard at drag start; the follow-up above moves arming to drag end/cancel.
+- Files changed:
+  - `src/app/utils/suppressNextClickDefault.ts`
+  - `src/app/utils/suppressNextClickDefault.test.ts`
+  - `src/app/pages/client/sidebar/SpaceTabs.tsx`
+  - `src/app/pages/client/space/Space.tsx`
+- Tests and validation:
+  - Red check: `npm test -- src/app/utils/suppressNextClickDefault.test.ts src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx src/app/pages/client/sidebar/SpaceTabs.test.ts` initially failed because the new DOM utility test needed the jsdom environment.
+  - Green check: `npm test -- src/app/utils/suppressNextClickDefault.test.ts src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx src/app/pages/client/sidebar/SpaceTabs.test.ts`
+  - `npm test -- src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx src/app/pages/client/sidebar/SpaceTabs.test.ts src/app/utils/suppressNextClickDefault.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` full-suite attempt failed in existing timing-sensitive RoomTimeline files: `RoomTimeline.cache.test.ts` and `RoomTimeline.permalink-refresh.test.ts`.
+  - Green retry for failed full-suite files: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.permalink-refresh.test.ts`
+  - `npx prettier --check FORK_CHANGES.md src/app/utils/suppressNextClickDefault.ts src/app/utils/suppressNextClickDefault.test.ts src/app/pages/client/sidebar/SpaceTabs.tsx src/app/pages/client/space/Space.tsx`
+  - `git diff --check`
+
 ### Composer Enter autocomplete and duplicate send guard (2026-05-07)
 
 - Summary:
@@ -163,6 +211,69 @@
 - `dev` now keeps issue-backed history only.
 - Old recovery/debugging branches were intentionally squashed out of mainline history.
 - Use [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) for future room/thread/search investigations instead of rebuilding long transient notes here.
+
+### CINNY-101 Sidebar Drag-Reorder (2026-05-02)
+
+- Phase 1 complete:
+  - Added scoped `@dnd-kit` dependencies for sidebar and room-list drag surfaces.
+  - Added `applyOrderOverride(defaultIds, override)` for local presentation-order layering over existing Matrix/Cinny ordering.
+  - Added user-scoped localStorage atoms for top-level space order and per-parent-space room order.
+  - Added focused unit coverage for merge behavior, reducer actions, localStorage round-trip, user isolation, and storage-event refresh.
+- Phase 1 validation:
+  - `npm test -- src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm run lint` completed with the existing repo baseline of 17 warnings and 0 errors.
+- Phase 2 complete:
+  - Replaced `SpaceTabs.tsx` Atlaskit pdnd hooks with scoped dnd-kit sensors for pointer, touch, and keyboard dragging.
+  - Applied `SidebarDragSource` touch-callout/user-select suppression only to space/folder drag handles.
+  - Layered `applyOrderOverride` over top-level orphan space slots and persisted reordered top-level space ids in the per-user local atom after reducer commits.
+  - Kept the existing `m.cinny.spaces` account-data rebuild/persist reducer path intact.
+- Phase 2 validation:
+  - `npm test -- src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm run lint` completed with the existing repo baseline of 17 warnings and 0 errors.
+- Phase 3 complete:
+  - Added `SortableRoomNavItem` as a sibling wrapper around `RoomNavItem`; `RoomNavItem.tsx` itself remains untouched.
+  - Added dnd-kit room sorting in `Space.tsx` with pointer, touch, and keyboard sensors.
+  - Applied local room order per parent-space bucket only when that category is expanded; collapsed categories keep activity sorting.
+  - Passed all room ids from the ordered hierarchy into `SortableContext.items` while keeping virtualized rendering.
+  - Wired room-order cleanup for space leave and tombstone paths.
+  - Added a focused keyboard reorder component test for the sortable room wrapper.
+- Phase 3 validation:
+  - `npm test -- src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm run lint` completed with the existing repo baseline of 17 warnings and 0 errors.
+  - `npm test` passed: 246 files, 1833 tests.
+- Round 1 review follow-up complete:
+  - Plain space reorders now persist only through the per-user local order atom; `m.cinny.spaces` account-data writes are limited to folder-shape mutations and existing pin/unpin paths.
+  - Room row drag touch behavior uses vertical-pan-safe row styling and MouseSensor/TouchSensor/KeyboardSensor activation, preserving iOS room-list scrolling while keeping the touch delay.
+  - Room sortable ids are composite `${parentSpaceId}::${roomId}` ids, parsed on drag end, and rendered under per-parent-space `SortableContext` item buckets.
+  - Theme bootstrap test churn was reduced to the original no-argument fast-path assertion shape while retaining the MindRoom session-store ownership required by architecture guards.
+- Round 1 validation:
+  - `npx vitest run src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx src/app/pages/client/sidebar/SpaceTabs.test.ts src/app/theme/themeBootstrap.test.ts`
+  - `npm test` passed: 247 files, 1836 tests.
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm run lint` completed with the existing repo baseline of 17 warnings and 0 errors.
+- Round 2 review follow-up complete:
+  - Folder-involving sidebar reorders now persist through `m.cinny.spaces` again; only pure top-level space-to-space reorders remain local-only.
+  - Account-data writes for folder-shape changes are rebuilt from the account-data sidebar baseline, preventing prior local-only orphan-space order from leaking into the next persisted `m.cinny.spaces` value.
+  - Restored `themeBootstrap.ts`, `themeBootstrap.test.ts`, and the native `statusBarTheme` helper/test to match `dev` for the incomplete Round 1 revert.
+  - Verified H Issue 5 as benign by inspection: room links still use the nested `NavLink`; dnd-kit activation is gated by mouse distance/touch delay and the sortable wrapper only suppresses menu-button activation.
+- Round 2 validation:
+  - `npx vitest run src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx src/app/pages/client/sidebar/SpaceTabs.test.ts src/app/theme/themeBootstrap.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm test` passed: 248 files, 1842 tests. Two earlier full-suite retries hit a single unrelated 5s timeout in `src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts`; that file passed standalone immediately afterward and the final full-suite retry passed cleanly.
+  - Independent review completed with no blocking findings.
+- Cleanup:
+  - Removed root `FINAL-PLAN.md` after implementation because architecture tests forbid transient root plan/report files.
+  - Theme bootstrap remains under the existing MindRoom session-store architecture guard; round 1 restored the fast-path test to assert the session-store read without forcing route arguments.
+- Next:
+  - Manual iOS/desktop drag matrix remains for device review.
 
 ### CINNY-102 interactive room/thread swipe planning (2026-05-02)
 
