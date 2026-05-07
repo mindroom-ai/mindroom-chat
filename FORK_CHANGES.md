@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### Thread card stale summary message count (2026-05-07)
+
+- Summary:
+  - Manual browser repro showed a compact thread-list row displaying a stale low message count even after opening the thread showed newer visible replies after the summary card.
+  - Root cause: `resolveThreadPresentationSnapshot` trusted `summaryInfo.messageCount` before checking the loaded visible thread replies. A generated MindRoom summary event can legitimately describe the thread at generation time, then become stale as later replies arrive.
+  - Presentation snapshots now keep using summary metadata to fill cache gaps, but loaded visible thread replies can raise the displayed count via `Math.max(summary message_count, visible loaded count)`.
+- Files changed:
+  - `src/app/mindroom/threads/threadPresentation.ts`
+  - `src/app/mindroom/threads/threadPresentation.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/threads/threadPresentation.test.ts` failed because stale summary metadata still returned `3` instead of the `5` loaded visible replies.
+  - Green check: `npm test -- src/app/mindroom/threads/threadPresentation.test.ts`
+  - `npm test -- src/app/mindroom/threads/threadPresentation.test.ts src/app/mindroom/threads/threadRecord.test.ts src/app/mindroom/threads/compactThreadCardViewModel.test.ts src/app/mindroom/threads/threadSummarySelection.test.ts src/app/mindroom/messages/threadSummary.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`260` files, `1962` tests).
+  - `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/threadPresentation.ts src/app/mindroom/threads/threadPresentation.test.ts`
+  - `git diff --check`
+
 ### Sidebar drag drop animation and long-drag reload follow-up (2026-05-07)
 
 - Summary:

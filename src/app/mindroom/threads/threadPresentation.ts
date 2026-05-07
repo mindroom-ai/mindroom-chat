@@ -105,6 +105,7 @@ export const resolveThreadPresentationSnapshot = ({
     preferredSummaryInfo,
     thread,
   });
+  const visibleMessageCount = getVisibleThreadMessageCount(thread, fallbackMessageCount);
 
   return {
     summaryInfo,
@@ -120,7 +121,9 @@ export const resolveThreadPresentationSnapshot = ({
     lastSenderId,
     lastSenderDisplayName,
     messageCount:
-      summaryInfo?.messageCount ?? getVisibleThreadMessageCount(thread, fallbackMessageCount),
+      typeof summaryInfo?.messageCount === 'number'
+        ? Math.max(summaryInfo.messageCount, visibleMessageCount)
+        : visibleMessageCount,
   };
 };
 
