@@ -230,6 +230,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const voiceSendContextRef = useRef<MindroomVoiceSendContext>();
     const voiceAutoSendClaimedRef = useRef(false);
     const voiceAutoSendInFlightRef = useRef(false);
+    const submitInFlightRef = useRef(false);
 
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId);
 
@@ -735,94 +736,101 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
 
     const submit = useCallback(async () => {
-      if (store.get(voiceAutoSendPendingAtom)) return;
+      if (submitInFlightRef.current) return;
+      submitInFlightRef.current = true;
 
-      const commandName = getBeginCommand(editor);
-      let plainText = toPlainText(editor.children, isMarkdown).trim();
-      let customHtml = trimCustomHtml(
-        toMatrixCustomHTML(editor.children, {
-          allowTextFormatting: true,
-          allowBlockMarkdown: isMarkdown,
-          allowInlineMarkdown: isMarkdown,
-        })
-      );
-      let msgType = MsgType.Text;
+      try {
+        if (store.get(voiceAutoSendPendingAtom)) return;
 
-      if (commandName) {
-        plainText = trimCommand(commandName, plainText);
-        customHtml = trimCommand(commandName, customHtml);
-      }
-      if (commandName === Command.Me) {
-        msgType = MsgType.Emote;
-      } else if (commandName === Command.Notice) {
-        msgType = MsgType.Notice;
-      } else if (commandName === Command.Shrug) {
-        plainText = `${SHRUG} ${plainText}`;
-        customHtml = `${SHRUG} ${customHtml}`;
-      } else if (commandName === Command.TableFlip) {
-        plainText = `${TABLEFLIP} ${plainText}`;
-        customHtml = `${TABLEFLIP} ${customHtml}`;
-      } else if (commandName === Command.UnFlip) {
-        plainText = `${UNFLIP} ${plainText}`;
-        customHtml = `${UNFLIP} ${customHtml}`;
-      } else if (commandName) {
-        const commandContent = commands[commandName as Command];
-        if (commandContent) {
-          commandContent.exe(plainText);
+        const commandName = getBeginCommand(editor);
+        let plainText = toPlainText(editor.children, isMarkdown).trim();
+        let customHtml = trimCustomHtml(
+          toMatrixCustomHTML(editor.children, {
+            allowTextFormatting: true,
+            allowBlockMarkdown: isMarkdown,
+            allowInlineMarkdown: isMarkdown,
+          })
+        );
+        let msgType = MsgType.Text;
+
+        if (commandName) {
+          plainText = trimCommand(commandName, plainText);
+          customHtml = trimCommand(commandName, customHtml);
         }
+        if (commandName === Command.Me) {
+          msgType = MsgType.Emote;
+        } else if (commandName === Command.Notice) {
+          msgType = MsgType.Notice;
+        } else if (commandName === Command.Shrug) {
+          plainText = `${SHRUG} ${plainText}`;
+          customHtml = `${SHRUG} ${customHtml}`;
+        } else if (commandName === Command.TableFlip) {
+          plainText = `${TABLEFLIP} ${plainText}`;
+          customHtml = `${TABLEFLIP} ${customHtml}`;
+        } else if (commandName === Command.UnFlip) {
+          plainText = `${UNFLIP} ${plainText}`;
+          customHtml = `${UNFLIP} ${customHtml}`;
+        } else if (commandName) {
+          const commandContent = commands[commandName as Command];
+          if (commandContent) {
+            commandContent.exe(plainText);
+          }
+          resetEditor(editor);
+          resetEditorHistory(editor);
+          sendTypingStatus(false);
+          if (selectedFilesRef.current.length > 0) {
+            await startSendSession();
+          }
+          return;
+        }
+
+        const hasText = plainText !== '';
+        const hasUploads = selectedFilesRef.current.length > 0;
+        if (!hasText && !hasUploads) return;
+
+        let content: IContent | undefined;
+        if (hasText) {
+          const body = plainText;
+          const formattedBody = customHtml;
+          const mentionData = getMentions(mx, roomId, editor);
+
+          content = {
+            msgtype: msgType,
+            body,
+          };
+
+          if (replyDraft && replyDraft.userId !== mx.getUserId()) {
+            mentionData.users.add(replyDraft.userId);
+          }
+
+          const mMentions = getMentionContent(Array.from(mentionData.users), mentionData.room);
+          content['m.mentions'] = mMentions;
+
+          if (replyDraft || !customHtmlEqualsPlainText(formattedBody, body)) {
+            content.format = 'org.matrix.custom.html';
+            content.formatted_body = formattedBody;
+          }
+        }
+
+        if (hasUploads) {
+          await startSendSession({ textContent: content });
+          return;
+        }
+
+        if (!content) return;
+
+        const relation = getMindroomRoomInputMessageRelation(replyDraft, threadId);
+        if (relation) {
+          content['m.relates_to'] = relation;
+        }
+        await mx.sendMessage(roomId, content as any);
         resetEditor(editor);
         resetEditorHistory(editor);
+        setReplyDraft(undefined);
         sendTypingStatus(false);
-        if (selectedFilesRef.current.length > 0) {
-          await startSendSession();
-        }
-        return;
+      } finally {
+        submitInFlightRef.current = false;
       }
-
-      const hasText = plainText !== '';
-      const hasUploads = selectedFilesRef.current.length > 0;
-      if (!hasText && !hasUploads) return;
-
-      let content: IContent | undefined;
-      if (hasText) {
-        const body = plainText;
-        const formattedBody = customHtml;
-        const mentionData = getMentions(mx, roomId, editor);
-
-        content = {
-          msgtype: msgType,
-          body,
-        };
-
-        if (replyDraft && replyDraft.userId !== mx.getUserId()) {
-          mentionData.users.add(replyDraft.userId);
-        }
-
-        const mMentions = getMentionContent(Array.from(mentionData.users), mentionData.room);
-        content['m.mentions'] = mMentions;
-
-        if (replyDraft || !customHtmlEqualsPlainText(formattedBody, body)) {
-          content.format = 'org.matrix.custom.html';
-          content.formatted_body = formattedBody;
-        }
-      }
-
-      if (hasUploads) {
-        await startSendSession({ textContent: content });
-        return;
-      }
-
-      if (!content) return;
-
-      const relation = getMindroomRoomInputMessageRelation(replyDraft, threadId);
-      if (relation) {
-        content['m.relates_to'] = relation;
-      }
-      await mx.sendMessage(roomId, content as any);
-      resetEditor(editor);
-      resetEditorHistory(editor);
-      setReplyDraft(undefined);
-      sendTypingStatus(false);
     }, [
       mx,
       roomId,

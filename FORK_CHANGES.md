@@ -2,6 +2,25 @@
 
 ## Runbook
 
+### Composer duplicate Enter send guard (2026-05-07)
+
+- Summary:
+  - Investigated duplicate text messages when Enter is pressed twice quickly while trying to autocomplete a mention.
+  - Root cause: text-only composer sends called `mx.sendMessage` directly and reset the editor only after the send promise resolved. A second Enter before the first promise settled read the same editor contents and sent the same message again.
+  - Added an in-flight guard around the unified `submit` path so rapid repeated Enter presses or send-button clicks cannot start a second submit while the first one is still pending.
+  - Upload-backed sends keep using the existing send-session duplicate guard; this change covers the text-only direct-send path that bypassed that session controller.
+- Files changed:
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx`
+  - `src/app/mindroom/room-input/__tests__/RoomInput.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts` failed because two rapid Enter keydowns called `sendMessage` twice before the first send resolved.
+  - Green check: `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts`
+  - `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/roomInputSendSession.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`253` files, `1931` tests).
+
 ### Direct message encryption policy config (2026-05-06)
 
 - Summary:
