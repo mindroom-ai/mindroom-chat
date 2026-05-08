@@ -147,9 +147,15 @@ export type MatrixUploadErrorMessageOptions = {
 
 const TRANSIENT_UPLOAD_ERROR_MESSAGE = "Couldn't send — your connection dropped. Try again.";
 const FALLBACK_UPLOAD_ERROR_MESSAGE = "Couldn't send. Try again.";
-const PREPARE_UPLOAD_ERROR_MESSAGE = "Couldn't prepare voice message.";
-const MATRIX_UPLOAD_ERROR_STAGE_KEY = 'mindroom_upload_stage';
-const MATRIX_UPLOAD_ORIGINAL_NAME_KEY = 'mindroom_original_name';
+const PREPARE_UPLOAD_ERROR_MESSAGE = "Couldn't prepare file for upload.";
+const UNKNOWN_MESSAGE = 'Unknown message';
+
+type MatrixUploadErrorMetadata = {
+  stage?: MatrixUploadErrorStage;
+  originalName?: string;
+};
+
+const matrixUploadErrorMetadata = new WeakMap<MatrixError, MatrixUploadErrorMetadata>();
 
 const getErrorName = (err: unknown): string | undefined =>
   typeof err === 'object' && err !== null && 'name' in err && typeof err.name === 'string'
@@ -166,8 +172,38 @@ const getHttpStatus = (err: unknown): number | undefined => {
 const isKnownUploadSize = (size: number | undefined): size is number =>
   typeof size === 'number' && Number.isFinite(size) && size >= 0;
 
+const getMatrixUploadOriginalNameValue = (err: MatrixError): string | undefined => {
+  const originalName = matrixUploadErrorMetadata.get(err)?.originalName;
+  return typeof originalName === 'string' && originalName.trim() !== '' ? originalName : undefined;
+};
+
+const setMatrixUploadErrorMetadata = (
+  err: MatrixError,
+  metadata: MatrixUploadErrorMetadata
+): void => {
+  matrixUploadErrorMetadata.set(err, {
+    ...matrixUploadErrorMetadata.get(err),
+    ...metadata,
+  });
+};
+
 const stripMatrixErrorPrefix = (message: string): string =>
   message.replace(/^MatrixError:\s*/, '').trim();
+
+const hasHttpStatus = (err: MatrixError): boolean =>
+  typeof err.httpStatus === 'number' && err.httpStatus > 0;
+
+const isMeaningfulErrorMessage = (message: string | undefined): boolean =>
+  typeof message === 'string' && message.trim() !== '' && message.trim() !== UNKNOWN_MESSAGE;
+
+const hasMeaningfulMatrixErrorDetails = (err: MatrixError): boolean => {
+  if (hasHttpStatus(err)) return true;
+
+  const dataError = err.data?.error;
+  if (isMeaningfulErrorMessage(dataError)) return true;
+
+  return isMeaningfulErrorMessage(stripMatrixErrorPrefix(err.message));
+};
 
 const nonEmptyMessage = (err: unknown): string => {
   if (err instanceof MatrixError) {
@@ -178,7 +214,7 @@ const nonEmptyMessage = (err: unknown): string => {
     return stripMatrixErrorPrefix(err.message);
   }
   if (typeof err === 'string' && err.trim() !== '') return err.trim();
-  return 'Unknown message';
+  return UNKNOWN_MESSAGE;
 };
 
 export const isMatrixUploadTooLargeError = (err: unknown): boolean => {
@@ -193,32 +229,43 @@ export const isTransientMatrixError = (err: unknown): boolean => {
   if (isMatrixUploadTooLargeError(err)) return false;
 
   if (err instanceof MatrixError) {
-    return err.errcode == null || err.errcode === 'M_UNKNOWN';
+    if (getMatrixUploadOriginalNameValue(err) === 'AbortError') return true;
+    if (err.errcode != null && err.errcode !== 'M_UNKNOWN') return false;
+
+    return !hasMeaningfulMatrixErrorDetails(err);
   }
 
   return false;
 };
 
 export const toMatrixUploadError = (err: unknown, stage: MatrixUploadErrorStage): MatrixError => {
-  if (err instanceof MatrixError) return err;
+  if (err instanceof MatrixError) {
+    if (!getMatrixUploadErrorStage(err)) {
+      setMatrixUploadErrorMetadata(err, { stage });
+    }
+    return err;
+  }
 
   const httpStatus = getHttpStatus(err);
 
-  return new MatrixError(
+  const matrixError = new MatrixError(
     {
       errcode: httpStatus === 413 ? 'M_TOO_LARGE' : 'M_UNKNOWN',
       error: nonEmptyMessage(err),
-      [MATRIX_UPLOAD_ERROR_STAGE_KEY]: stage,
-      [MATRIX_UPLOAD_ORIGINAL_NAME_KEY]: getErrorName(err) ?? typeof err,
     },
     httpStatus
   );
+  setMatrixUploadErrorMetadata(matrixError, {
+    stage,
+    originalName: getErrorName(err) ?? typeof err,
+  });
+  return matrixError;
 };
 
 export const getMatrixUploadErrorStage = (err: unknown): MatrixUploadErrorStage | undefined => {
   if (!(err instanceof MatrixError)) return undefined;
 
-  const stage = err.data?.[MATRIX_UPLOAD_ERROR_STAGE_KEY];
+  const stage = matrixUploadErrorMetadata.get(err)?.stage;
   if (stage === 'upload' || stage === 'send' || stage === 'create') return stage;
   return undefined;
 };
@@ -226,8 +273,7 @@ export const getMatrixUploadErrorStage = (err: unknown): MatrixUploadErrorStage 
 export const getMatrixUploadOriginalName = (err: unknown): string | undefined => {
   if (!(err instanceof MatrixError)) return undefined;
 
-  const originalName = err.data?.[MATRIX_UPLOAD_ORIGINAL_NAME_KEY];
-  return typeof originalName === 'string' && originalName.trim() !== '' ? originalName : undefined;
+  return getMatrixUploadOriginalNameValue(err);
 };
 
 export const getMatrixUploadTooLargeMessage = (
@@ -259,13 +305,18 @@ export const getMatrixUploadErrorMessage = (
     return getMatrixUploadTooLargeMessage(options);
   }
 
+  if (stage === 'create') return PREPARE_UPLOAD_ERROR_MESSAGE;
+
   if (isTransientMatrixError(err)) {
     if (stage === 'upload' || stage === 'send') return TRANSIENT_UPLOAD_ERROR_MESSAGE;
-    if (stage === 'create') return PREPARE_UPLOAD_ERROR_MESSAGE;
   }
 
   if (err instanceof MatrixError && err.errcode) {
     return `${err.errcode}: ${nonEmptyMessage(err)}`;
+  }
+
+  if (err instanceof MatrixError && hasMeaningfulMatrixErrorDetails(err)) {
+    return nonEmptyMessage(err);
   }
 
   return FALLBACK_UPLOAD_ERROR_MESSAGE;

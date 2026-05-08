@@ -24,6 +24,48 @@
   - `npx prettier --check FORK_CHANGES.md src/app/plugins/matrix-to.ts src/app/plugins/matrix-to.test.ts src/app/mindroom/command-palette/commandPaletteActions.ts` exposed existing non-Prettier formatting in `FORK_CHANGES.md` and `commandPaletteActions.ts`; unrelated formatter churn was reverted.
   - `git diff --check`
 
+### Voice player collapsed layout fix (2026-05-08)
+
+- Summary:
+  - Fixed the posted voice-message player collapsing into a compact/square shape after the safe MindRoom message extras change.
+  - Root cause: `VoiceAudioContent` became an inline-size query container and globally removed the waveform minimum width; inside shrink-wrapped message bubbles, inline-size containment let the player lose its intrinsic width.
+  - Removed the voice-player container query, restored viewport-based narrow fallbacks, and kept a real `96px` waveform minimum in the normal grid.
+- Files changed:
+  - `src/app/components/message/content/VoiceAudioContent.css.ts`
+  - `src/app/components/message/content/VoiceAudioContent.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts -t "keeps the posted voice-player CSS"` failed while the CSS still used `createContainer`, `containerType`, and the global waveform min-width override.
+  - Green check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts -t "keeps the posted voice-player CSS"`
+  - `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/voice/VoiceWaveform.test.ts src/app/components/message/content/AudioContent.test.tsx src/app/components/message/MsgTypeRenderers.audio.test.ts`
+  - `npm run typecheck`
+  - Red check: `npm run lint` initially failed because the new regression assertion used a literal `${...}` string.
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`271` files, `2020` tests).
+  - `npx prettier --check FORK_CHANGES.md src/app/components/message/content/VoiceAudioContent.css.ts src/app/components/message/content/VoiceAudioContent.test.ts`
+  - `git diff --check`
+  - Independent second self-review completed against the final diff; scope stayed limited to voice-player layout and the regression test.
+  - Manual browser check: user confirmed the voice player layout was instantly fixed after the CSS change.
+
+### CINNY-102 R14 failed paste prep card retention (2026-05-07)
+
+- Summary:
+  - Addressed the R14 A/F blocker where encrypted oversized paste-prep failures could disappear immediately after fallback text insertion.
+  - Root cause: `handleEditorChange` treated every MindRoom paste upload without a matching composer marker as orphaned, but the failed paste-prep path intentionally inserts the original pasted text and does not insert a marker.
+  - The orphan cleanup now retains paste upload items whose paste metadata has a create-stage `prepError`; successful paste uploads without markers are still removed when their composer badge is deleted.
+  - Extended the failed encrypted paste-prep regression test to fire the editor change after fallback text insertion and assert the create-stage prep-error item remains with `Couldn't prepare file for upload.`
+  - R14 E timeout watch: the focused changed-area batch including `renderMindroomMessageContent.test.ts` passed; the timeout was not reproduced in this run.
+- Files changed:
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx`
+  - `src/app/mindroom/room-input/__tests__/RoomInput.test.ts`
+- Tests and validation:
+  - `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts`
+  - `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/useRoomInputSendSessionController.test.ts src/app/components/upload-board/UploadBoard.test.ts src/app/components/upload-card/UploadCardRenderer.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts src/app/mindroom/messages/messageExtrasData.test.ts src/app/mindroom/messages/messageExtrasHtml.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `git diff --check`
+
 ### CINNY-106 invite chime + iOS PWA audio session (2026-05-08)
 
 - Status:
@@ -207,6 +249,7 @@
   - Green retry for failed full-suite files: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.permalink-refresh.test.ts`
   - `npx prettier --check FORK_CHANGES.md src/app/utils/suppressNextClickDefault.ts src/app/utils/suppressNextClickDefault.test.ts src/app/pages/client/sidebar/SpaceTabs.tsx src/app/pages/client/space/Space.tsx`
   - `git diff --check`
+
 ### Composer Enter autocomplete and duplicate send guard (2026-05-07)
 
 - Summary:

@@ -7,6 +7,7 @@ import { IReplyDraft, TUploadItem } from '../../state/room/roomInputDrafts';
 import { Upload } from '../../state/upload';
 import { TUploadContent } from '../../utils/matrix';
 import { isSignalBridgeRoom } from '../bridges/bridgeDetection';
+import { createMindroomPasteMarker } from '../messages/pasteAttachmentMarker';
 import {
   createRoomInputSendSessionState,
   getTextRelationForSendSession,
@@ -62,6 +63,41 @@ type UseRoomInputSendSessionControllerOptions = {
   ) => Promise<IContent>;
   removeUploadsFromBoard: (upload: TUploadContent | TUploadContent[]) => void;
   shouldBlockStartSendSession?: () => boolean;
+};
+
+const getTextContentStrings = (content: IContent | undefined): string[] => {
+  if (!content) return [];
+
+  return [content.body, content.formatted_body].filter(
+    (value): value is string => typeof value === 'string'
+  );
+};
+
+const hasFailedPasteMarkerInText = (
+  textContent: IContent | undefined,
+  fileItems: TUploadItem[]
+): boolean => {
+  const textValues = getTextContentStrings(textContent);
+  if (textValues.length === 0) return false;
+
+  return fileItems.some((fileItem) => {
+    const pasteMetadata = fileItem.prepError
+      ? fileItem.metadata.mindroomPasteAttachment
+      : undefined;
+    if (!pasteMetadata) return false;
+
+    let marker: string;
+    try {
+      marker = createMindroomPasteMarker({
+        id: pasteMetadata.id,
+        chars: pasteMetadata.chars,
+        fileName: pasteMetadata.fileName,
+      });
+    } catch {
+      return false;
+    }
+    return textValues.some((text) => text.includes(marker));
+  });
 };
 
 export const useRoomInputSendSessionController = ({
@@ -271,10 +307,19 @@ export const useRoomInputSendSessionController = ({
         return;
       }
 
-      const sendFiles = files ?? selectedFilesRef.current.map((fileItem) => fileItem.file);
-      if (sendFiles.length === 0) return;
+      const selectedSendItems = selectedFilesRef.current.filter((fileItem) => !fileItem.prepError);
+      const prepErrorFiles = new Set(
+        selectedFilesRef.current
+          .filter((fileItem) => fileItem.prepError)
+          .map((fileItem) => fileItem.file)
+      );
+      const sendFiles = files
+        ? files.filter((file) => !prepErrorFiles.has(file))
+        : selectedSendItems.map((fileItem) => fileItem.file);
+      if (sendFiles.length === 0 && !textContent) return;
+      if (hasFailedPasteMarkerInText(textContent, selectedFilesRef.current)) return;
       if (sendSessionUploadItemsRef) {
-        sendSessionUploadItemsRef.current = selectedFilesRef.current.filter((item) =>
+        sendSessionUploadItemsRef.current = selectedSendItems.filter((item) =>
           sendFiles.includes(item.file)
         );
       }

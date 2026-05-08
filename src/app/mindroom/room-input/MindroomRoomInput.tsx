@@ -63,6 +63,7 @@ import {
   encryptFile,
   getImageInfo,
   getMatrixUploadOriginalName,
+  getMatrixUploadErrorStage,
   getMxIdLocalPart,
   mxcUrlToHttp,
   toMatrixUploadError,
@@ -90,7 +91,6 @@ import {
   pauseAllMediaElements,
 } from '../../utils/dom';
 import { safeFile } from '../../utils/mimeTypes';
-import { fulfilledPromiseSettledResult } from '../../utils/common';
 import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
 import {
@@ -143,6 +143,55 @@ import {
 import { shouldConvertPasteToAttachment } from './pasteAttachment';
 
 type RoomInputAutocompletePrefix = AutocompletePrefix | MindroomRoomInputAutocompletePrefix;
+
+export const createMindroomRoomUploadItems = async (
+  files: File[],
+  targetRoom: Room,
+  getMetadata: (file: File, index: number) => TUploadMetadata = () => ({
+    markedAsSpoiler: false,
+  })
+): Promise<TUploadItem[]> => {
+  const safeFiles = files.map(safeFile);
+
+  if (targetRoom.hasEncryptionStateEvent()) {
+    const encryptedFiles = await Promise.allSettled(
+      safeFiles.map(async (file, index) => ({
+        encryptedFile: await encryptFile(file),
+        index,
+      }))
+    );
+
+    return encryptedFiles.reduce<TUploadItem[]>((items, result, settledIndex) => {
+      if (result.status === 'rejected') {
+        const file = safeFiles[settledIndex];
+        if (!file) return items;
+
+        items.push({
+          file,
+          originalFile: file,
+          encInfo: undefined,
+          metadata: getMetadata(file, settledIndex),
+          prepError: toMatrixUploadError(result.reason, 'create'),
+        });
+        return items;
+      }
+
+      const { encryptedFile, index } = result.value;
+      items.push({
+        ...encryptedFile,
+        metadata: getMetadata(safeFiles[index], index),
+      });
+      return items;
+    }, []);
+  }
+
+  return safeFiles.map((file, index) => ({
+    file,
+    originalFile: file,
+    encInfo: undefined,
+    metadata: getMetadata(file, index),
+  }));
+};
 
 export interface RoomInputProps {
   editor: Editor;
@@ -249,25 +298,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         }),
         targetRoom = room
       ): Promise<TUploadItem[]> => {
-        const safeFiles = files.map(safeFile);
-
-        if (targetRoom.hasEncryptionStateEvent()) {
-          const encryptFiles = fulfilledPromiseSettledResult(
-            await Promise.allSettled(safeFiles.map((f) => encryptFile(f)))
-          );
-
-          return encryptFiles.map((ef, index) => ({
-            ...ef,
-            metadata: getMetadata(safeFiles[index], index),
-          }));
-        }
-
-        return safeFiles.map((file, index) => ({
-          file,
-          originalFile: file,
-          encInfo: undefined,
-          metadata: getMetadata(file, index),
-        }));
+        return createMindroomRoomUploadItems(files, targetRoom, getMetadata);
       },
       [room]
     );
@@ -285,6 +316,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         store.set(roomIdToUploadItemsAtomFamily(ownerRoomId), {
           type: 'PUT',
           item: fileItems,
+        });
+        fileItems.forEach((fileItem) => {
+          if (fileItem.prepError) {
+            store.set(roomUploadAtomFamily(fileItem.file), { error: fileItem.prepError });
+          }
         });
       },
       [store]
@@ -305,19 +341,42 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
 
     const createVoiceUploadItems = useCallback(
-      async (file: File, duration: number, waveform?: number[], targetRoom = room) =>
-        createUploadItems(
-          [file],
-          () => ({
-            markedAsSpoiler: false,
-            voiceMessage: {
-              duration,
-              ...(waveform ? { waveform } : {}),
+      async (
+        file: File,
+        duration: number,
+        waveform?: number[],
+        targetRoom = room
+      ): Promise<TUploadItem[]> => {
+        const safeVoiceFile = safeFile(file);
+        const metadata: TUploadMetadata = {
+          markedAsSpoiler: false,
+          voiceMessage: {
+            duration,
+            ...(waveform ? { waveform } : {}),
+          },
+        };
+
+        if (targetRoom.hasEncryptionStateEvent()) {
+          const encryptedFile = await encryptFile(safeVoiceFile);
+
+          return [
+            {
+              ...encryptedFile,
+              metadata,
             },
-          }),
-          targetRoom
-        ),
-      [createUploadItems, room]
+          ];
+        }
+
+        return [
+          {
+            file: safeVoiceFile,
+            originalFile: safeVoiceFile,
+            encInfo: undefined,
+            metadata,
+          },
+        ];
+      },
+      [room]
     );
     const pickFile = useFilePicker(handleFiles, true);
     const handlePaste: ClipboardEventHandler = useCallback(
@@ -354,16 +413,20 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         const pasteMarker = parseMindroomPasteMarker(pasteAttachment.marker);
         if (!pasteMarker) return;
 
-        appendUploadItems(
-          await createUploadItems([pasteAttachment.file], () => ({
-            markedAsSpoiler: false,
-            mindroomPasteAttachment: {
-              id: pasteMarker.id,
-              chars: pasteMarker.chars,
-              fileName: pasteMarker.fileName,
-            },
-          }))
-        );
+        const pasteUploadItems = await createUploadItems([pasteAttachment.file], () => ({
+          markedAsSpoiler: false,
+          mindroomPasteAttachment: {
+            id: pasteMarker.id,
+            chars: pasteMarker.chars,
+            fileName: pasteMarker.fileName,
+          },
+        }));
+        appendUploadItems(pasteUploadItems);
+        if (pasteUploadItems.some((item) => item.prepError)) {
+          editor.insertText(pastedText);
+          return;
+        }
+
         editor.insertNode(createMindroomRoomInputPasteMarkerElement(pasteMarker));
         moveCursor(editor);
       },
@@ -516,6 +579,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       const orphanPasteUploads = selectedFilesRef.current.filter((fileItem) => {
         const fileName = getPasteUploadFileName(fileItem);
         if (fileName === undefined || markerFileNames.has(fileName)) return false;
+        if (fileItem.prepError && getMatrixUploadErrorStage(fileItem.prepError) === 'create') {
+          return false;
+        }
         return (
           !sendSessionFilesRef.current.includes(fileItem.file) &&
           !sendSessionUploadItemsRef.current.some((sendItem) => sendItem.file === fileItem.file)
@@ -696,9 +762,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           } catch (err) {
             return logAndThrowUploadError(err, 'create');
           }
-          appendUploadItemsToRoomBoard(context.roomId, fileItems);
           const [fileItem] = fileItems;
-          if (!fileItem) return;
+          if (fileItems.length !== 1 || !fileItem) {
+            return logAndThrowUploadError(
+              new Error(`Voice message preparation returned ${fileItems.length} upload items.`),
+              'create'
+            );
+          }
+          appendUploadItemsToRoomBoard(context.roomId, fileItems);
 
           let mxc: string;
           try {
@@ -959,7 +1030,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                       <UploadCardRenderer
                         // eslint-disable-next-line react/no-array-index-key
                         key={index}
-                        isEncrypted={!!fileItem.encInfo}
+                        isEncrypted={room.hasEncryptionStateEvent()}
                         fileItem={fileItem}
                         setMetadata={handleFileMetadata}
                         onRemove={handleRemoveUpload}

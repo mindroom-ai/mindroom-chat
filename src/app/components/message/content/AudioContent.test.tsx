@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   seek: vi.fn(),
   setMute: vi.fn(),
   setVolume: vi.fn(),
+  playTimeCallback: undefined as ((duration: number, currentTime: number) => void) | undefined,
 }));
 
 vi.mock('folds', () => ({
@@ -55,9 +56,29 @@ vi.mock('../../../hooks/useAsyncCallback', async () => {
 
   return {
     ...actual,
-    useAsyncCallback: () => [mocks.srcState, mocks.loadSrc],
   };
 });
+
+vi.mock('./useAudioContentSource', () => ({
+  getAudioContentSourceIdentity: ({
+    mimeType,
+    url,
+    encInfo,
+  }: {
+    mimeType: string;
+    url: string;
+    encInfo?: { v?: string; iv?: string; hashes?: { sha256?: string }; key?: { k?: string } };
+  }) =>
+    JSON.stringify([
+      mimeType,
+      url,
+      encInfo?.v ?? '',
+      encInfo?.iv ?? '',
+      encInfo?.hashes?.sha256 ?? '',
+      encInfo?.key?.k ?? '',
+    ]),
+  useAudioContentSource: () => [mocks.srcState, mocks.loadSrc],
+}));
 
 vi.mock('../../../hooks/useBlobUrlCleanup', () => ({
   useBlobUrlCleanup: () => undefined,
@@ -66,7 +87,12 @@ vi.mock('../../../hooks/useBlobUrlCleanup', () => ({
 vi.mock('../../../hooks/media', () => ({
   useMediaLoading: () => ({ loading: false }),
   useMediaPlay: () => ({ playing: false, setPlaying: mocks.setPlaying }),
-  useMediaPlayTimeCallback: () => undefined,
+  useMediaPlayTimeCallback: (
+    _getAudio: unknown,
+    callback: (duration: number, currentTime: number) => void
+  ) => {
+    mocks.playTimeCallback = callback;
+  },
   useMediaSeek: () => ({ seek: mocks.seek }),
   useMediaVolume: () => ({
     volume: 1,
@@ -74,6 +100,10 @@ vi.mock('../../../hooks/media', () => ({
     setMute: mocks.setMute,
     setVolume: mocks.setVolume,
   }),
+}));
+
+vi.mock('../../../hooks/useThrottle', () => ({
+  useThrottle: (callback: unknown) => callback,
 }));
 
 vi.mock('../../../utils/matrix', () => ({
@@ -99,16 +129,35 @@ const renderMediaControl = ({
   children: React.ReactNode;
 }) => React.createElement('div', null, children, leftControl, rightControl, after);
 
-const renderAudioContent = () =>
+const renderAudioContent = (url = 'mxc://mindroom/audio') =>
   React.createElement(AudioContent, {
     mimeType: 'audio/ogg',
-    url: 'mxc://mindroom/audio',
+    url,
     info: {
       mimetype: 'audio/ogg',
       duration: 5000,
     },
     renderMediaControl,
   });
+
+const createDeferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, resolve, reject };
+};
+
+const expectRenderedText = (renderer: ReactTestRenderer, text: string) => {
+  expect(
+    renderer.root
+      .findAllByType('span')
+      .some((node) => node.children.filter((child) => typeof child === 'string').join('') === text)
+  ).toBe(true);
+};
 
 describe('AudioContent', () => {
   let renderer: ReactTestRenderer;
@@ -121,6 +170,7 @@ describe('AudioContent', () => {
     mocks.seek.mockReset();
     mocks.setMute.mockReset();
     mocks.setVolume.mockReset();
+    mocks.playTimeCallback = undefined;
   });
 
   it('clears autoplay after the initial user-requested playback starts', () => {
@@ -177,5 +227,72 @@ describe('AudioContent', () => {
 
     expect(mocks.setPlaying).toHaveBeenCalledWith(true);
     expect(renderer.root.findByType('audio').props.autoPlay).toBe(false);
+  });
+
+  it('keeps a newer autoplay intent when a stale source load rejects', async () => {
+    const firstLoad = createDeferred<string>();
+    const secondLoad = createDeferred<string>();
+    mocks.loadSrc
+      .mockImplementationOnce(() => firstLoad.promise)
+      .mockImplementationOnce(() => secondLoad.promise);
+
+    act(() => {
+      renderer = create(renderAudioContent('mxc://mindroom/audio-a'));
+    });
+
+    const getPlayButton = () =>
+      renderer.root.findAll((node) => node.props?.['data-chip'] === 'true')[0];
+
+    act(() => {
+      getPlayButton().props.onClick();
+    });
+    expect(renderer.root.findByType('audio').props.autoPlay).toBe(true);
+
+    await act(async () => {
+      renderer.update(renderAudioContent('mxc://mindroom/audio-b'));
+    });
+
+    act(() => {
+      getPlayButton().props.onClick();
+    });
+
+    await act(async () => {
+      firstLoad.reject(new Error('AudioContentSource: Request replaced!'));
+      await Promise.resolve();
+    });
+
+    expect(mocks.loadSrc).toHaveBeenCalledTimes(2);
+    expect(renderer.root.findByType('audio').props.autoPlay).toBe(true);
+
+    await act(async () => {
+      secondLoad.reject(new Error('active load failed'));
+      await Promise.resolve();
+    });
+
+    expect(renderer.root.findByType('audio').props.autoPlay).toBe(false);
+  });
+
+  it('resets autoplay and displayed play time when media identity changes', async () => {
+    act(() => {
+      renderer = create(renderAudioContent('mxc://mindroom/audio-a'));
+    });
+
+    act(() => {
+      mocks.playTimeCallback?.(42, 9);
+    });
+    expectRenderedText(renderer, '0:09 / 0:42');
+
+    const playButton = renderer.root.findAll((node) => node.props?.['data-chip'] === 'true')[0];
+    act(() => {
+      playButton.props.onClick();
+    });
+    expect(renderer.root.findByType('audio').props.autoPlay).toBe(true);
+
+    await act(async () => {
+      renderer.update(renderAudioContent('mxc://mindroom/audio-b'));
+    });
+
+    expect(renderer.root.findByType('audio').props.autoPlay).toBe(false);
+    expectRenderedText(renderer, '0:00 / 0:05');
   });
 });

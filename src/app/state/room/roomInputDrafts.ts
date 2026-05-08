@@ -2,7 +2,7 @@ import { atom } from 'jotai';
 import { atomFamily } from 'jotai/utils';
 import { Descendant } from 'slate';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
-import { IEventRelation } from 'matrix-js-sdk';
+import type { IEventRelation, MatrixError } from 'matrix-js-sdk';
 import { createUploadAtomFamily } from '../upload';
 import { TUploadContent } from '../../utils/matrix';
 import { createListAtom } from '../list';
@@ -25,6 +25,7 @@ export type TUploadItem = {
   originalFile: TUploadContent;
   metadata: TUploadMetadata;
   encInfo: EncryptedAttachmentInfo | undefined;
+  prepError?: MatrixError;
 };
 
 export type TUploadListAtom = ReturnType<typeof createListAtom<TUploadItem>>;

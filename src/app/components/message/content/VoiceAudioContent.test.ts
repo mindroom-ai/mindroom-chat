@@ -1,4 +1,5 @@
 import React from 'react';
+import { readFileSync } from 'node:fs';
 import { Provider, createStore, type Store } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -46,9 +47,12 @@ vi.mock('folds', () => ({
 vi.mock('./VoiceAudioContent.css', () => ({
   Audio: 'Audio',
   Capsule: 'Capsule',
-  Controls: 'Controls',
+  PlayCell: 'PlayCell',
+  RateCell: 'RateCell',
+  Root: 'Root',
   Time: 'Time',
-  WaveformSlot: 'WaveformSlot',
+  VolumeCell: 'VolumeCell',
+  WaveformCell: 'WaveformCell',
 }));
 
 vi.mock('../../voice/VoiceVolumeButton.css', () => ({
@@ -125,6 +129,23 @@ vi.mock('react-range', () => ({
 }));
 
 vi.mock('./useAudioContentSource', () => ({
+  getAudioContentSourceIdentity: ({
+    mimeType,
+    url,
+    encInfo,
+  }: {
+    mimeType: string;
+    url: string;
+    encInfo?: { v?: string; iv?: string; hashes?: { sha256?: string }; key?: { k?: string } };
+  }) =>
+    JSON.stringify([
+      mimeType,
+      url,
+      encInfo?.v ?? '',
+      encInfo?.iv ?? '',
+      encInfo?.hashes?.sha256 ?? '',
+      encInfo?.key?.k ?? '',
+    ]),
   useAudioContentSource: () => [mocks.srcState, mocks.loadSrc],
 }));
 
@@ -212,6 +233,8 @@ describe('VoiceAudioContent', () => {
   it('renders play, waveform seek, timer, and volume controls before interaction', () => {
     renderer = create(renderVoiceAudio());
 
+    expect(renderer.root.findByProps({ className: 'Root' })).toBeTruthy();
+    expect(renderer.root.findByProps({ className: 'WaveformCell' })).toBeTruthy();
     const buttons = renderer.root.findAllByType('button');
     expect(buttons.map((button) => button.props['aria-label'])).toEqual([
       'Play voice message',
@@ -226,6 +249,18 @@ describe('VoiceAudioContent', () => {
     act(() => {
       renderer.unmount();
     });
+  });
+
+  it('keeps the posted voice-player CSS from collapsing in shrink-wrapped bubbles', () => {
+    const cssSource = readFileSync(new URL('./VoiceAudioContent.css.ts', import.meta.url), 'utf8');
+
+    expect(cssSource).not.toContain('createContainer');
+    expect(cssSource).not.toContain('containerType');
+    expect(cssSource).not.toContain('globalStyle');
+    expect(cssSource).toMatch(/minmax\(\$\{toRem\(96\)\}, 1fr\)/);
+    expect(cssSource).toContain('gridTemplateAreas');
+    expect(cssSource).toContain('max-width');
+    expect(cssSource).not.toContain('toRem(112)');
   });
 
   it('hides the playback speed pill initially with a placeholder occupying the rate column', () => {
@@ -928,6 +963,40 @@ describe('VoiceAudioContent', () => {
     });
 
     expect(JSON.stringify(renderer.toJSON())).toContain('0:02 / 0:08');
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('uses browser-measured duration over an initial Matrix duration', () => {
+    const audio = createAudioMock();
+    audio.duration = 8.52;
+    audio.currentTime = 2;
+    mocks.srcState = {
+      status: AsyncStatus.Success,
+      data: 'blob:voice',
+    };
+    renderer = create(renderVoiceAudio(), {
+      createNodeMock: (element) => (element.type === 'audio' ? audio : null),
+    });
+
+    act(() => {
+      renderer.root.findByType('audio').props.onLoadedMetadata();
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('0:02 / 0:08');
+
+    act(() => {
+      renderer.root.findByProps({ 'aria-label': 'Seek voice message' }).props.onClick({
+        clientX: 100,
+        currentTarget: {
+          getBoundingClientRect: () => ({ left: 0, width: 100 }),
+        },
+      });
+    });
+
+    expect(mocks.seek).toHaveBeenCalledWith(8.52);
 
     act(() => {
       renderer.unmount();

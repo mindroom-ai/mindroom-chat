@@ -4,7 +4,7 @@ import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UploadCardRenderer } from './UploadCardRenderer';
 import { CompactUploadCardRenderer } from './CompactUploadCardRenderer';
-import { TUploadContent } from '../../utils/matrix';
+import { TUploadContent, toMatrixUploadError } from '../../utils/matrix';
 
 const uploadMock = vi.hoisted(() => ({
   upload: undefined as unknown,
@@ -12,6 +12,7 @@ const uploadMock = vi.hoisted(() => ({
   cancelUpload: vi.fn(),
   roomUploadAtomFamily: vi.fn(() => 'room-upload-atom'),
   mediaConfig: {} as Record<string, number>,
+  useBindUploadAtom: vi.fn(),
 }));
 
 vi.mock('folds', async () => {
@@ -82,11 +83,14 @@ vi.mock('../../state/upload', () => ({
     Success: 'success',
     Error: 'error',
   },
-  useBindUploadAtom: () => ({
-    upload: uploadMock.upload,
-    startUpload: uploadMock.startUpload,
-    cancelUpload: uploadMock.cancelUpload,
-  }),
+  useBindUploadAtom: (...args: unknown[]) => {
+    uploadMock.useBindUploadAtom(...args);
+    return {
+      upload: uploadMock.upload,
+      startUpload: uploadMock.startUpload,
+      cancelUpload: uploadMock.cancelUpload,
+    };
+  },
 }));
 
 vi.mock('../../state/room/roomInputDrafts', () => ({
@@ -94,6 +98,7 @@ vi.mock('../../state/room/roomInputDrafts', () => ({
 }));
 
 const friendlyTransientMessage = "Couldn't send — your connection dropped. Try again.";
+const prepareUploadMessage = "Couldn't prepare file for upload.";
 
 const createFile = (overrides: Partial<TUploadContent> = {}): TUploadContent =>
   ({
@@ -151,6 +156,69 @@ describe('upload card renderers', () => {
     expect(output).not.toContain('M_UNKNOWN: Unknown message');
   });
 
+  it('renders local prep errors without retrying an unsafe upload', () => {
+    const file = createFile();
+    uploadMock.upload = {
+      file,
+      status: 'idle',
+    };
+
+    const output = renderText(
+      React.createElement(UploadCardRenderer, {
+        fileItem: {
+          file,
+          originalFile: file,
+          metadata: {
+            markedAsSpoiler: false,
+          },
+          encInfo: undefined,
+          prepError: toMatrixUploadError(new Error('encryption failed'), 'create'),
+        },
+        setMetadata: vi.fn(),
+        onRemove: vi.fn(),
+      })
+    );
+
+    expect(uploadMock.startUpload).not.toHaveBeenCalled();
+    expect(output).toContain(prepareUploadMessage);
+    expect(output).not.toContain('Retry');
+  });
+
+  it('binds encrypted-room prep-error items with a plaintext upload block', () => {
+    const file = createFile();
+    const prepError = toMatrixUploadError(new Error('encryption failed'), 'create');
+    uploadMock.upload = {
+      file,
+      status: 'idle',
+    };
+
+    renderText(
+      React.createElement(UploadCardRenderer, {
+        isEncrypted: true,
+        fileItem: {
+          file,
+          originalFile: file,
+          metadata: {
+            markedAsSpoiler: false,
+          },
+          encInfo: undefined,
+          prepError,
+        },
+        setMetadata: vi.fn(),
+        onRemove: vi.fn(),
+      })
+    );
+
+    expect(uploadMock.useBindUploadAtom).toHaveBeenCalledWith(
+      expect.anything(),
+      'room-upload-atom',
+      expect.objectContaining({
+        hideFilename: false,
+        blockUploadError: prepError,
+      })
+    );
+  });
+
   it('renders friendly transient MatrixError text in the compact upload card', () => {
     const file = createFile();
     setUploadError(file);
@@ -191,6 +259,25 @@ describe('upload card renderers', () => {
       'Avatar image is too large. Maximum upload size is 1.0 MB; selected file is 2.5 MB.'
     );
     expect(uploadMock.startUpload).not.toHaveBeenCalled();
+  });
+
+  it('preserves create-stage prep error text in the compact upload card', () => {
+    const file = createFile();
+    uploadMock.upload = {
+      file,
+      status: 'error',
+      error: toMatrixUploadError(new Error('encryption failed'), 'create'),
+    };
+
+    const output = renderText(
+      React.createElement(CompactUploadCardRenderer, {
+        uploadAtom: 'upload-atom',
+        onRemove: vi.fn(),
+      })
+    );
+
+    expect(output).toContain(prepareUploadMessage);
+    expect(output).not.toContain(friendlyTransientMessage);
   });
 
   it('renders compact avatar HTTP 413 errors as too-large instead of connection dropped', () => {

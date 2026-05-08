@@ -99,40 +99,8 @@ vi.mock('./MindroomMessageExtras.css.ts', () => ({
   Content: 'Content',
   PlainText: 'PlainText',
   Markdown: 'Markdown',
+  Html: 'Html',
 }));
-
-vi.mock('./MindroomMessageExtras', () => {
-  const extrasKey = 'com.mindroom.message_extras';
-
-  return {
-    MINDROOM_MESSAGE_EXTRAS_KEY: extrasKey,
-    parseMindroomMessageExtras: (content: Record<string, any>) => {
-      const rawExtras = content[extrasKey];
-      if (rawExtras?.version !== 1 || !Array.isArray(rawExtras.sections)) return null;
-      return {
-        sections: rawExtras.sections.map((section: any) => ({
-          title: section.title,
-          contentType: section.content_type,
-          content: section.content,
-          collapsed: section.collapsed,
-        })),
-      };
-    },
-    MindroomMessageExtras: ({ extras }: any) =>
-      React.createElement(
-        'div',
-        { 'data-renderer': 'extras' },
-        extras.sections.map((section: any) =>
-          React.createElement(
-            'section',
-            { key: `${section.title}:${section.contentType}` },
-            section.title,
-            section.content
-          )
-        )
-      ),
-  };
-});
 
 const messageExtras = {
   version: 1,
@@ -272,7 +240,7 @@ describe('renderMindroomMessageContent', () => {
         msgtype: 'm.text',
         body: 'Body survives',
         [MINDROOM_MESSAGE_EXTRAS_KEY]: {
-          version: 2,
+          version: 3,
           sections: [messageExtras.sections[0]],
         },
       },
@@ -282,6 +250,102 @@ describe('renderMindroomMessageContent', () => {
 
     expect(rendered).toContain('Body survives');
     expect(rendered).not.toContain('Evidence');
+
+    renderer.unmount();
+  });
+
+  it('renders v2 html extras when extras are enabled', async () => {
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      showMessageExtras: true,
+      content: {
+        msgtype: 'm.text',
+        body: 'Normal body',
+        [MINDROOM_MESSAGE_EXTRAS_KEY]: {
+          version: 2,
+          sections: [
+            {
+              title: 'HTML',
+              content_type: 'text/html',
+              content:
+                '<p><strong>safe html</strong></p><a href="https://example.test">safe link</a>',
+            },
+          ],
+        },
+      },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('Normal body');
+    expect(rendered).toContain('HTML');
+    expect(rendered).toContain('safe html');
+    expect(rendered).toContain('https://example.test');
+    expect(rendered).toContain('noreferrer noopener');
+
+    renderer.unmount();
+  });
+
+  it('keeps v2 html extras hidden when extras are disabled', async () => {
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      showMessageExtras: false,
+      content: {
+        msgtype: 'm.text',
+        body: 'Normal body',
+        [MINDROOM_MESSAGE_EXTRAS_KEY]: {
+          version: 2,
+          sections: [
+            {
+              title: 'HTML',
+              content_type: 'text/html',
+              content: '<p>hidden html</p>',
+            },
+          ],
+        },
+      },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('Normal body');
+    expect(rendered).not.toContain('hidden html');
+
+    renderer.unmount();
+  });
+
+  it('sanitizes malicious v2 html extras without breaking the normal body', async () => {
+    const scriptHref = `${'java'}script:alert(1)`;
+    const renderer = await renderNode({
+      msgType: 'm.notice',
+      showMessageExtras: true,
+      content: {
+        msgtype: 'm.notice',
+        body: 'Notice body survives',
+        [MINDROOM_MESSAGE_EXTRAS_KEY]: {
+          version: 2,
+          sections: [
+            {
+              title: 'Malicious',
+              content_type: 'text/html',
+              content:
+                `<p onclick="alert(1)">safe text</p><script>alert(1)</script><iframe src="https://example.test"></iframe><img src="https://example.test/x.png"><a href="${scriptHref}">bad link</a>`,
+            },
+          ],
+        },
+      },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('Notice body survives');
+    expect(rendered).toContain('safe text');
+    expect(rendered).toContain('bad link');
+    expect(rendered).not.toContain('onclick');
+    expect(rendered).not.toContain('script');
+    expect(rendered).not.toContain('iframe');
+    expect(rendered).not.toContain('img');
+    expect(rendered).not.toContain(scriptHref);
 
     renderer.unmount();
   });

@@ -26,7 +26,7 @@ import {
 } from '../../voice/VoicePlaybackRateButton';
 import { VoiceVolumeButton } from '../../voice/VoiceVolumeButton';
 import { VoiceWaveform } from '../../voice/VoiceWaveform';
-import { useAudioContentSource } from './useAudioContentSource';
+import { getAudioContentSourceIdentity, useAudioContentSource } from './useAudioContentSource';
 import * as css from './VoiceAudioContent.css';
 
 const PLAY_TIME_THROTTLE_OPS = {
@@ -54,6 +54,7 @@ export function VoiceAudioContent({
 }: VoiceAudioContentProps) {
   const [srcState, loadSrc] = useAudioContentSource({ mimeType, url, encInfo });
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const pendingSeekTimeRef = useRef<number>();
   const [autoPlayOnLoad, setAutoPlayOnLoad] = useState(false);
   const [interacted, setInteracted] = useState(false);
@@ -64,27 +65,28 @@ export function VoiceAudioContent({
     Number.isFinite(info.duration) && info.duration && info.duration > 0 ? info.duration : 0;
   const hasInfoDuration = infoDuration > 0;
   const [duration, setDuration] = useState(infoDuration / 1000);
-  const mediaIdentity = `${mimeType}\n${url}\n${encInfo?.iv ?? ''}\n${
-    encInfo?.hashes?.sha256 ?? ''
-  }`;
+  const mediaIdentity = getAudioContentSourceIdentity({ mimeType, url, encInfo });
   const mediaIdentityRef = useRef(mediaIdentity);
-  const audioMetadataLoadedRef = useRef(false);
+  const loadIntentRef = useRef(0);
+  const browserMeasuredDurationRef = useRef(false);
 
-  const getAudioRef = useCallback(() => audioRef.current, []);
+  const setAudioRef = useCallback((element: HTMLAudioElement | null) => {
+    audioRef.current = element;
+    setAudioElement(element);
+  }, []);
+  const getAudioRef = useCallback(() => audioElement, [audioElement]);
   const { loading } = useMediaLoading(getAudioRef);
   const { playing, setPlaying } = useMediaPlay(getAudioRef);
   const { seek } = useMediaSeek(getAudioRef);
-  const handlePlayTimeCallback: PlayTimeCallback = useCallback(
-    (d, ct) => {
-      if (!hasInfoDuration && Number.isFinite(d) && d > 0) {
-        setDuration((currentDuration) =>
-          Math.abs(currentDuration - d) > 0.01 ? d : currentDuration
-        );
-      }
-      setCurrentTime(Number.isFinite(ct) && ct > 0 ? ct : 0);
-    },
-    [hasInfoDuration]
-  );
+  const handlePlayTimeCallback: PlayTimeCallback = useCallback((d, ct) => {
+    if (Number.isFinite(d) && d > 0) {
+      browserMeasuredDurationRef.current = true;
+      setDuration((currentDuration) =>
+        Math.abs(currentDuration - d) > 0.01 ? d : currentDuration
+      );
+    }
+    setCurrentTime(Number.isFinite(ct) && ct > 0 ? ct : 0);
+  }, []);
   useMediaPlayTimeCallback(
     getAudioRef,
     useThrottle(handlePlayTimeCallback, PLAY_TIME_THROTTLE_OPS)
@@ -94,7 +96,7 @@ export function VoiceAudioContent({
     if (!hasInfoDuration) return;
 
     setDuration((currentDuration) =>
-      currentDuration === 0 || !audioMetadataLoadedRef.current
+      currentDuration === 0 || !browserMeasuredDurationRef.current
         ? infoDuration / 1000
         : currentDuration
     );
@@ -104,11 +106,28 @@ export function VoiceAudioContent({
     if (mediaIdentityRef.current === mediaIdentity) return;
 
     mediaIdentityRef.current = mediaIdentity;
-    audioMetadataLoadedRef.current = false;
+    loadIntentRef.current += 1;
+    browserMeasuredDurationRef.current = false;
     pendingSeekTimeRef.current = undefined;
+    setAutoPlayOnLoad(false);
     setCurrentTime(0);
     setDuration(infoDuration / 1000);
   }, [infoDuration, mediaIdentity]);
+
+  const createLoadIntent = useCallback(() => {
+    const intent = {
+      id: loadIntentRef.current + 1,
+      mediaIdentity,
+    };
+    loadIntentRef.current = intent.id;
+    return intent;
+  }, [mediaIdentity]);
+
+  const isCurrentLoadIntent = useCallback(
+    (intent: { id: number; mediaIdentity: string }) =>
+      loadIntentRef.current === intent.id && mediaIdentityRef.current === intent.mediaIdentity,
+    []
+  );
 
   const updatePlayTimeFromAudio = useCallback(() => {
     const audio = audioRef.current;
@@ -138,6 +157,7 @@ export function VoiceAudioContent({
   }, [applyPendingSeek, srcState.status]);
 
   const sourceValue = srcState.status === AsyncStatus.Success ? srcState.data : undefined;
+  const audioMediaKey = `${mediaIdentity}:${sourceValue ?? ''}`;
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -145,7 +165,7 @@ export function VoiceAudioContent({
 
     applyVoicePlaybackRate(audio, playbackRate);
     applyVoiceMessageVolume(audio, volume);
-  }, [playbackRate, sourceValue, volume]);
+  }, [audioElement, playbackRate, sourceValue, volume]);
 
   const applyCurrentVoiceSettings = useCallback(() => {
     const audio = audioRef.current;
@@ -156,7 +176,6 @@ export function VoiceAudioContent({
   }, [playbackRate, volume]);
 
   const handleLoadedMetadata = useCallback(() => {
-    audioMetadataLoadedRef.current = true;
     applyCurrentVoiceSettings();
     updatePlayTimeFromAudio();
     applyPendingSeek();
@@ -170,8 +189,10 @@ export function VoiceAudioContent({
       setAutoPlayOnLoad(false);
       setPlaying(!playing);
     } else if (srcState.status !== AsyncStatus.Loading) {
+      const loadIntent = createLoadIntent();
       setAutoPlayOnLoad(true);
       void loadSrc().catch(() => {
+        if (!isCurrentLoadIntent(loadIntent)) return;
         setAutoPlayOnLoad(false);
       });
     }
@@ -191,7 +212,9 @@ export function VoiceAudioContent({
 
     pendingSeekTimeRef.current = nextTime;
     if (srcState.status !== AsyncStatus.Loading) {
+      const loadIntent = createLoadIntent();
       void loadSrc().catch(() => {
+        if (!isCurrentLoadIntent(loadIntent)) return;
         pendingSeekTimeRef.current = undefined;
       });
     }
@@ -202,53 +225,62 @@ export function VoiceAudioContent({
   const displayDuration = duration;
 
   return (
-    <div className={css.Capsule}>
-      <IconButton
-        variant="SurfaceVariant"
-        size="300"
-        radii="300"
-        onClick={handlePlay}
-        disabled={srcState.status === AsyncStatus.Loading}
-        aria-label={playing ? 'Pause voice message' : 'Play voice message'}
-        aria-pressed={playing}
-      >
-        {srcState.status === AsyncStatus.Loading || loading ? (
-          <Spinner variant="Secondary" size="50" />
-        ) : (
-          <Icon src={playing ? Icons.Pause : Icons.Play} size="50" filled={playing} />
-        )}
-      </IconButton>
-      <div className={css.WaveformSlot}>
-        <VoiceWaveform
-          waveform={waveform}
-          progress={progress}
-          label="Seek voice message"
-          onSeekProgress={handleSeekProgress}
-        />
+    <div className={css.Root}>
+      <div className={css.Capsule}>
+        <div className={css.PlayCell}>
+          <IconButton
+            variant="SurfaceVariant"
+            size="300"
+            radii="300"
+            onClick={handlePlay}
+            disabled={srcState.status === AsyncStatus.Loading}
+            aria-label={playing ? 'Pause voice message' : 'Play voice message'}
+            aria-pressed={playing}
+          >
+            {srcState.status === AsyncStatus.Loading || loading ? (
+              <Spinner variant="Secondary" size="50" />
+            ) : (
+              <Icon src={playing ? Icons.Pause : Icons.Play} size="50" filled={playing} />
+            )}
+          </IconButton>
+        </div>
+        <div className={css.WaveformCell}>
+          <VoiceWaveform
+            waveform={waveform}
+            progress={progress}
+            label="Seek voice message"
+            onSeekProgress={handleSeekProgress}
+          />
+        </div>
+        <Text className={css.Time} size="B300">
+          {`${formatVoiceTime(displayCurrentTime)} / ${formatVoiceTime(displayDuration)}`}
+        </Text>
+        <div className={css.VolumeCell}>
+          <VoiceVolumeButton />
+        </div>
+        <div className={css.RateCell}>
+          {interacted ? <VoicePlaybackRateButton /> : <VoicePlaybackRatePlaceholder />}
+        </div>
+        <audio
+          key={audioMediaKey}
+          className={css.Audio}
+          controls={false}
+          autoPlay={autoPlayOnLoad}
+          ref={setAudioRef}
+          onLoadedMetadata={handleLoadedMetadata}
+          onPlay={() => {
+            setInteracted(true);
+            applyCurrentVoiceSettings();
+            updatePlayTimeFromAudio();
+            applyPendingSeek();
+            setAutoPlayOnLoad(false);
+          }}
+        >
+          {srcState.status === AsyncStatus.Success && (
+            <source src={srcState.data} type={mimeType} />
+          )}
+        </audio>
       </div>
-      <Text className={css.Time} size="B300">
-        {`${formatVoiceTime(displayCurrentTime)} / ${formatVoiceTime(displayDuration)}`}
-      </Text>
-      <div className={css.Controls}>
-        <VoiceVolumeButton />
-        {interacted ? <VoicePlaybackRateButton /> : <VoicePlaybackRatePlaceholder />}
-      </div>
-      <audio
-        className={css.Audio}
-        controls={false}
-        autoPlay={autoPlayOnLoad}
-        ref={audioRef}
-        onLoadedMetadata={handleLoadedMetadata}
-        onPlay={() => {
-          setInteracted(true);
-          applyCurrentVoiceSettings();
-          updatePlayTimeFromAudio();
-          applyPendingSeek();
-          setAutoPlayOnLoad(false);
-        }}
-      >
-        {srcState.status === AsyncStatus.Success && <source src={srcState.data} type={mimeType} />}
-      </audio>
     </div>
   );
 }
