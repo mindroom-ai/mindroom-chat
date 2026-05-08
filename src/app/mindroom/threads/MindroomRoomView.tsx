@@ -1,6 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import classNames from 'classnames';
-import { useAtomValue } from 'jotai';
+import React, { useCallback, useRef } from 'react';
 import { Box, Text, config } from 'folds';
 import { EventType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
@@ -30,14 +28,6 @@ import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useIOSKeyboardFix } from '../../hooks/useIOSKeyboardFix';
 import { ThreadContextBanner } from './ThreadContextBanner';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
-import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
-import {
-  type InteractiveRoomThreadSwipeTarget,
-  useInteractiveRoomThreadSwipe,
-} from '../native/useInteractiveRoomThreadSwipe';
-import { RoomThreadSwipePreview, type RoomThreadSwipePreviewProps } from './RoomThreadSwipePreview';
-import * as swipeCss from './MindroomRoomViewSwipe.css';
-import { lastExitedThreadAtom } from './lastExitedThread';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -85,20 +75,12 @@ export function RoomView({
 }) {
   const roomInputRef = useRef<HTMLDivElement>(null);
   const roomViewRef = useRef<HTMLDivElement>(null);
-  const swipeShellRef = useRef<HTMLDivElement>(null);
-  const interactiveCommitRef = useRef<((target: InteractiveRoomThreadSwipeTarget) => void) | null>(
-    null
-  );
-  const [preview, setPreview] = useState<RoomThreadSwipePreviewProps | undefined>(undefined);
 
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
 
   const { roomId } = room;
   const mx = useMatrixClient();
   const editor = useEditor();
-  const screenSize = useScreenSizeContext();
-  const mobileSwipeEnabled = screenSize === ScreenSize.Mobile;
-  const lastExitedThreadForSwipe = useAtomValue(lastExitedThreadAtom);
 
   const tombstoneEvent = useStateEvent(room, StateEvent.RoomTombstone);
   const powerLevels = usePowerLevelsContext();
@@ -106,48 +88,12 @@ export function RoomView({
 
   const permissions = useRoomPermissions(creators, powerLevels);
   const canMessage = permissions.event(EventType.RoomMessage, mx.getSafeUserId());
-
-  const interactiveSwipe = useInteractiveRoomThreadSwipe({
-    enabled: mobileSwipeEnabled,
-    leftTarget: threadId
-      ? {
-          label: 'Room overview',
-          roomId,
-          threadId,
-        }
-      : undefined,
-    onCommit: (target) => interactiveCommitRef.current?.(target),
-    onPreviewFreeze: (target) => {
-      setPreview({
-        direction: target.direction,
-        roomName: room.name || room.getCanonicalAlias() || room.roomId,
-        targetLabel: target.label,
-        targetThreadId: target.threadId,
-      });
-    },
-    rightTarget:
-      !threadId && lastExitedThreadForSwipe?.roomId === roomId
-        ? {
-            label: 'Thread',
-            roomId,
-            threadId: lastExitedThreadForSwipe.threadId,
-          }
-        : undefined,
-    shellRef: swipeShellRef,
-    isPortalOpen: () => {
-      const portalContainer = document.getElementById('portalContainer');
-      return !!portalContainer && portalContainer.children.length > 0;
-    },
-  });
-
   const {
     effectiveThreadId,
     handleAddTag,
     handleApplyPreset,
     handleCycleTag,
     handleExitThread,
-    handleInteractiveExitThread,
-    handleSwipeForwardToThread,
     handleRemoveTag,
     handleReset,
     handleSearchQueryChange,
@@ -162,29 +108,7 @@ export function RoomView({
     threadSortFreezeState,
     threadSummaryInfo,
     viewMode,
-  } = useRoomViewThreadState({
-    eventId,
-    room,
-    swipeIdle: interactiveSwipe.phase === 'idle',
-    thresholdSwipeEnabled: !mobileSwipeEnabled,
-    threadId,
-  });
-
-  useEffect(() => {
-    interactiveCommitRef.current = (target) => {
-      if (target.direction === 'left') {
-        handleInteractiveExitThread(target.threadId, target.roomId);
-        return;
-      }
-      handleSwipeForwardToThread(target.threadId, target.roomId);
-    };
-  }, [handleInteractiveExitThread, handleSwipeForwardToThread]);
-
-  useEffect(() => {
-    if (interactiveSwipe.phase === 'idle') {
-      setPreview(undefined);
-    }
-  }, [interactiveSwipe.phase]);
+  } = useRoomViewThreadState({ eventId, room, threadId });
 
   useIOSKeyboardFix();
 
@@ -205,7 +129,7 @@ export function RoomView({
     )
   );
 
-  const roomViewPage = (
+  return (
     <Page ref={roomViewRef} style={{ height: 'var(--app-height, 100%)' }}>
       <RoomViewHeader threadId={effectiveThreadId} />
       {effectiveThreadId && (
@@ -283,39 +207,5 @@ export function RoomView({
         {hideActivity ? <RoomViewFollowingPlaceholder /> : <RoomViewFollowing room={room} />}
       </Box>
     </Page>
-  );
-
-  if (!mobileSwipeEnabled) {
-    return roomViewPage;
-  }
-
-  const transitionClassName =
-    interactiveSwipe.phase === 'settling' || interactiveSwipe.phase === 'canceling'
-      ? swipeCss.SwipePaneTransition
-      : undefined;
-
-  return (
-    <div
-      ref={swipeShellRef}
-      className={swipeCss.SwipeShell}
-      data-room-thread-swipe-shell="true"
-      data-swipe-phase={interactiveSwipe.phase}
-    >
-      {preview && interactiveSwipe.target && (
-        <div
-          className={classNames(
-            swipeCss.SwipePane,
-            swipeCss.PreviewPane,
-            preview.direction === 'left' ? swipeCss.PreviewPaneLeft : swipeCss.PreviewPaneRight,
-            transitionClassName
-          )}
-        >
-          <RoomThreadSwipePreview {...preview} />
-        </div>
-      )}
-      <div className={classNames(swipeCss.SwipePane, swipeCss.ActivePane, transitionClassName)}>
-        {roomViewPage}
-      </div>
-    </div>
   );
 }

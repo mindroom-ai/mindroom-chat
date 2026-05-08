@@ -2,7 +2,6 @@ import { useAtomValue } from 'jotai';
 import { useEffect, useRef } from 'react';
 import { imageViewerOpenAtom } from '../../state/imageViewer';
 import { isIOSStandaloneWebApp } from './nativeSso';
-import { hasInteractiveSwipeOwnership } from './swipeGestureFlag';
 
 const EDGE_START_MAX_X = 28;
 const MIN_SWIPE_DISTANCE_X = 72;
@@ -46,7 +45,6 @@ export const useEdgeSwipeBack = (
     };
 
     const handleTouchStart = (evt: TouchEventWithFlag) => {
-      if (hasInteractiveSwipeOwnership(evt)) return;
       if (evt[HANDLED_EVENT_FLAG]) return;
       if (evt.touches.length !== 1) {
         reset();
@@ -66,10 +64,6 @@ export const useEdgeSwipeBack = (
     };
 
     const handleTouchMove = (evt: TouchEventWithFlag) => {
-      if (hasInteractiveSwipeOwnership(evt)) {
-        reset();
-        return;
-      }
       if (!tracking || triggered || evt[HANDLED_EVENT_FLAG]) return;
       if (evt.touches.length !== 1) {
         reset();

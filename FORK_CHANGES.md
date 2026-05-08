@@ -24,6 +24,29 @@
   - `npx prettier --check FORK_CHANGES.md src/app/plugins/matrix-to.ts src/app/plugins/matrix-to.test.ts src/app/mindroom/command-palette/commandPaletteActions.ts` exposed existing non-Prettier formatting in `FORK_CHANGES.md` and `commandPaletteActions.ts`; unrelated formatter churn was reverted.
   - `git diff --check`
 
+### Interactive room/thread swipe animation revert (2026-05-07)
+
+- Summary:
+  - Reverted the mobile interactive room/thread swipe-back animation added by CINNY-102.
+  - Removed the interactive swipe controller, gesture ownership flag, swipe shell styles, and passive preview chrome.
+  - Restored `MindroomRoomView` to render the normal room page directly and restored `useRoomViewThreadState` to the threshold edge-swipe hooks without interactive-swipe deferral.
+  - Sidebar drag-reorder code is intentionally untouched by this revert.
+- Files changed:
+  - `src/app/mindroom/native/useEdgeSwipeBack.ts`
+  - `src/app/mindroom/native/useEdgeSwipeForward.ts`
+  - `src/app/mindroom/threads/MindroomRoomView.tsx`
+  - `src/app/mindroom/threads/useRoomViewThreadState.ts`
+  - Removed interactive swipe controller, preview, styles, and related tests.
+- Tests and validation:
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/__tests__/RoomView.threadSummary.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/lastExitedThread.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`258` files, `1925` tests).
+  - `npx prettier --check FORK_CHANGES.md src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeBack.ts src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useEdgeSwipeForward.ts src/app/mindroom/threads/MindroomRoomView.tsx src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/__tests__/RoomView.threadSummary.test.ts src/app/mindroom/threads/useRoomViewThreadState.ts`
+  - `git diff --cached --check`
+  - Independent second self-review completed against the staged revert; scope stayed limited to interactive swipe-back animation files and the runbook entry.
+
 ### Thread card stale summary message count (2026-05-07)
 
 - Summary:
@@ -1016,7 +1039,7 @@
     - targeted Prettier check on touched files passes
 - `CINNY-203`
   - Fixed MindRoom tool-call marker rendering for streaming edit updates that omit `formatted_body` and/or `io.mindroom.tool_trace` metadata.
-  - Plain-text tool marker lines such as ``🔧 `run_shell_command` [1]`` are now converted to the existing safe formatted marker contract before rendering, so the tool-call card parser can consume them instead of leaking raw markers into the timeline.
+  - Plain-text tool marker lines such as `` 🔧 `run_shell_command` [1] `` are now converted to the existing safe formatted marker contract before rendering, so the tool-call card parser can consume them instead of leaking raw markers into the timeline.
   - Edit resolution now carries forward missing MindRoom metadata from older replacement events before resolving the latest edit, preserving previous tool-trace details when a newer streaming update only sends body text and stream status.
   - The tool marker parser now renders marker-only formatted bodies as tool-call blocks, while enriching them with trace details whenever versioned trace metadata is available.
   - Renamed the message-extras data/parser module to `messageExtrasData.ts` and the component test to `MessageExtrasView.test.ts` to avoid case-only module collisions with `MindroomMessageExtras.tsx` on case-insensitive filesystems.
@@ -2655,6 +2678,7 @@
   - `src/app/features/recent-threads/RecentThreadEntry.tsx` now restores a stable `aria-label` in the form `Open thread: …`
   - added focused regressions in `src/app/features/room/Room.test.ts` and `src/app/features/recent-threads/RecentThreadEntry.test.ts`
 - Live E2E harness follow-up:
+
   - `e2e/live/cinny073-recent-threads-mobile.spec.ts` now clears the targeted room's bare-home thread-restore entry before the `480px` landscape rotation check, because the rebased client intentionally restores the last open thread from bare `/home/`
   - `e2e/live/threads.spec.ts` now matches recent-thread buttons by `Open thread:` plus both room name and summary/root preview, without assuming a fixed accessible-name field order
 

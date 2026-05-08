@@ -17,7 +17,7 @@ import { useEdgeSwipeBack } from '../native/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../native/useEdgeSwipeForward';
 import { bumpRecentThread } from '../recent-threads/recentThreads';
 import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
-import { lastExitedThreadAtom, type LastExitedThread } from './lastExitedThread';
+import { lastExitedThreadAtom } from './lastExitedThread';
 import { getRoomThreadExitTargetFromHistoryState } from './roomNavigateState';
 import {
   addTagFilter,
@@ -46,8 +46,6 @@ import { isConfirmedMatrixEventId } from './threadRouteUtils';
 type UseRoomViewThreadStateOptions = {
   eventId?: string;
   room: Room;
-  swipeIdle?: boolean;
-  thresholdSwipeEnabled?: boolean;
   threadId?: string;
 };
 
@@ -57,8 +55,6 @@ export type RoomViewThreadState = {
   handleApplyPreset: (preset: FilterPreset) => void;
   handleCycleTag: (tag: string) => void;
   handleExitThread: () => void;
-  handleInteractiveExitThread: (targetThreadId?: string, targetRoomId?: string) => void;
-  handleSwipeForwardToThread: (targetThreadId?: string, targetRoomId?: string) => void;
   handleRemoveTag: (tag: string) => void;
   handleReset: () => void;
   handleSearchQueryChange: (query: string) => void;
@@ -68,7 +64,6 @@ export type RoomViewThreadState = {
   handleViewModeChange: (mode: RoomViewMode) => void;
   setThreadSortFreezeState: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
   storeThreadSummary: ReturnType<typeof useRoomThreadSummaryState>['storeThreadSummary'];
-  lastExitedThread: LastExitedThread | null;
   summaryMap: Map<string, MindroomThreadSummaryInfo>;
   threadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
@@ -79,8 +74,6 @@ export type RoomViewThreadState = {
 export const useRoomViewThreadState = ({
   eventId,
   room,
-  swipeIdle = true,
-  thresholdSwipeEnabled = true,
   threadId,
 }: UseRoomViewThreadStateOptions): RoomViewThreadState => {
   const { roomId } = room;
@@ -145,41 +138,19 @@ export const useRoomViewThreadState = ({
     navigateRoomFocusEvent(room.roomId, effectiveThreadId, { replace: true });
   }, [effectiveThreadId, navigatePath, navigateRoomFocusEvent, room.roomId, setLastExitedThread]);
 
-  const handleInteractiveExitThread = useCallback(
-    (frozenThreadId?: string, frozenRoomId?: string) => {
-      const targetRoomId = frozenRoomId ?? room.roomId;
-      const targetThreadId =
-        frozenThreadId && frozenThreadId === threadId
-          ? effectiveThreadId
-          : frozenThreadId ?? effectiveThreadId;
-      if (!targetThreadId || targetRoomId !== room.roomId) return;
+  const handleSwipeForwardToThread = useCallback(() => {
+    if (threadId) return;
+    if (!lastExitedThread || lastExitedThread.roomId !== room.roomId) return;
 
-      setLastExitedThread({ roomId: room.roomId, threadId: targetThreadId });
-      navigateRoomFocusEvent(room.roomId, targetThreadId, { replace: true });
-    },
-    [effectiveThreadId, navigateRoomFocusEvent, room.roomId, setLastExitedThread, threadId]
-  );
+    const targetThreadId = lastExitedThread.threadId;
+    navigateRoomThread(room.roomId, targetThreadId);
+    setLastExitedThread(null);
+  }, [lastExitedThread, navigateRoomThread, room.roomId, setLastExitedThread, threadId]);
 
-  const handleSwipeForwardToThread = useCallback(
-    (frozenThreadId?: string, frozenRoomId?: string) => {
-      if (threadId) return;
-
-      const targetRoomId = frozenRoomId ?? lastExitedThread?.roomId;
-      const targetThreadId =
-        frozenThreadId ??
-        (lastExitedThread?.roomId === room.roomId ? lastExitedThread.threadId : undefined);
-      if (!targetThreadId || targetRoomId !== room.roomId) return;
-
-      navigateRoomThread(room.roomId, targetThreadId);
-      setLastExitedThread(null);
-    },
-    [lastExitedThread, navigateRoomThread, room.roomId, setLastExitedThread, threadId]
-  );
-
-  useEdgeSwipeBack(handleExitThread, thresholdSwipeEnabled && !!threadId);
+  useEdgeSwipeBack(handleExitThread, !!threadId);
   useEdgeSwipeForward(
     handleSwipeForwardToThread,
-    thresholdSwipeEnabled && !threadId && lastExitedThread?.roomId === room.roomId
+    !threadId && lastExitedThread?.roomId === room.roomId
   );
 
   const updateFromEffectiveQueryState = useCallback(
@@ -277,11 +248,9 @@ export const useRoomViewThreadState = ({
   useEffect(() => {
     if (threadId) {
       setLastExitedThread(null);
+      return;
     }
-  }, [setLastExitedThread, threadId]);
 
-  useEffect(() => {
-    if (threadId) return;
     if (lastExitedThread && lastExitedThread.roomId !== roomId) {
       setLastExitedThread(null);
     }
@@ -296,11 +265,10 @@ export const useRoomViewThreadState = ({
   }, [threadFilterState.sortBy]);
 
   useEffect(() => {
-    if (!swipeIdle) return;
     if (!threadId || !effectiveThreadId || threadId === effectiveThreadId) return;
 
     navigateRoomThread(room.roomId, effectiveThreadId, eventId, { replace: true });
-  }, [effectiveThreadId, eventId, navigateRoomThread, room.roomId, swipeIdle, threadId]);
+  }, [effectiveThreadId, eventId, navigateRoomThread, room.roomId, threadId]);
 
   useEffect(() => {
     if (!isConfirmedMatrixEventId(effectiveThreadId)) return;
@@ -314,8 +282,6 @@ export const useRoomViewThreadState = ({
     handleApplyPreset,
     handleCycleTag,
     handleExitThread,
-    handleInteractiveExitThread,
-    handleSwipeForwardToThread,
     handleRemoveTag,
     handleReset,
     handleSearchQueryChange,
@@ -325,7 +291,6 @@ export const useRoomViewThreadState = ({
     handleViewModeChange,
     setThreadSortFreezeState,
     storeThreadSummary,
-    lastExitedThread,
     summaryMap,
     threadFilterState,
     threadSortFreezeState,

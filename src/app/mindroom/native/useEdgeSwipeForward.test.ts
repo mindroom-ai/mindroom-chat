@@ -3,7 +3,6 @@ import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { imageViewerOpenAtom } from '../../state/imageViewer';
-import { markInteractiveSwipeOwned } from './swipeGestureFlag';
 import { useEdgeSwipeForward } from './useEdgeSwipeForward';
 
 type Listener = (event: Event) => void;
@@ -204,26 +203,5 @@ describe('useEdgeSwipeForward', () => {
     });
 
     expect(onForward).not.toHaveBeenCalled();
-  });
-
-  it('cooperates with the interactive room/thread swipe owner without setting the threshold flag', () => {
-    const onForward = vi.fn();
-    const touchMove = {
-      preventDefault: vi.fn(),
-      touches: createTouchList([{ clientX: 315, clientY: 104 }]),
-    } as unknown as TouchEvent & { __mindroomEdgeSwipeForwardHandled?: boolean };
-    renderHook(onForward);
-
-    act(() => {
-      mockWindow.dispatch('touchstart', {
-        touches: createTouchList([{ clientX: 395, clientY: 100 }]),
-      } as unknown as TouchEvent);
-      markInteractiveSwipeOwned(touchMove);
-      mockWindow.dispatch('touchmove', touchMove);
-    });
-
-    expect(touchMove.preventDefault).not.toHaveBeenCalled();
-    expect(onForward).not.toHaveBeenCalled();
-    expect(touchMove.__mindroomEdgeSwipeForwardHandled).toBeUndefined();
   });
 });

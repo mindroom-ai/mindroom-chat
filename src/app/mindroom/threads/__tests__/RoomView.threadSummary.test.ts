@@ -181,45 +181,11 @@ vi.mock('../../../hooks/useRoomCreators', () => ({
 vi.mock('../../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
     navigateRoomFocusEvent: vi.fn(),
-    navigateRoomThread: vi.fn(),
-    navigatePath: vi.fn(),
   }),
-}));
-
-vi.mock('../../../hooks/useScreenSize', () => ({
-  ScreenSize: {
-    Desktop: 'Desktop',
-    Mobile: 'Mobile',
-    Tablet: 'Tablet',
-  },
-  useScreenSizeContext: () => 'Desktop',
 }));
 
 vi.mock('../../native/useEdgeSwipeBack', () => ({
   useEdgeSwipeBack: vi.fn(),
-}));
-
-vi.mock('../../native/useEdgeSwipeForward', () => ({
-  useEdgeSwipeForward: vi.fn(),
-}));
-
-vi.mock('../MindroomRoomViewSwipe.css', () => ({
-  ActivePane: 'ActivePane',
-  PreviewPane: 'PreviewPane',
-  PreviewPaneLeft: 'PreviewPaneLeft',
-  PreviewPaneRight: 'PreviewPaneRight',
-  SwipePane: 'SwipePane',
-  SwipePaneTransition: 'SwipePaneTransition',
-  SwipeShell: 'SwipeShell',
-  PreviewAvatar: 'PreviewAvatar',
-  PreviewBody: 'PreviewBody',
-  PreviewChrome: 'PreviewChrome',
-  PreviewHeader: 'PreviewHeader',
-  PreviewLine: 'PreviewLine',
-  PreviewLineLong: 'PreviewLineLong',
-  PreviewLineMedium: 'PreviewLineMedium',
-  PreviewLineShort: 'PreviewLineShort',
-  PreviewTitleColumn: 'PreviewTitleColumn',
 }));
 
 vi.mock('../useThreadRootEvent', () => ({

@@ -16,9 +16,6 @@ const readRoomViewSource = (): string =>
     "from '../../mindroom/threads/"
   );
 
-const readRoomThreadSwipePreviewSource = (): string =>
-  readFileSync(new URL('../RoomThreadSwipePreview.tsx', import.meta.url), 'utf8');
-
 const readRoomViewSeamSource = (): string =>
   readFileSync(new URL('../../../features/room/RoomView.tsx', import.meta.url), 'utf8');
 
@@ -463,76 +460,6 @@ describe('RoomTimeline architecture', () => {
     removedTransientRootPaths.forEach((path) => {
       expect(existsSync(new URL(path, import.meta.url))).toBe(false);
     });
-  });
-
-  it('keeps interactive room/thread swipe ownership in current MindRoom paths', () => {
-    const removedInteractiveSwipeCompatibilityPaths = [
-      '../../../hooks/useInteractiveRoomThreadSwipe.ts',
-      '../../../hooks/useInteractiveRoomThreadSwipe.test.ts',
-      '../../../features/room/useInteractiveRoomThreadSwipe.ts',
-      '../../../features/room/RoomThreadSwipePreview.tsx',
-      '../../../features/room/RoomThreadSwipePreview.test.ts',
-      '../../../features/room/MindroomRoomViewSwipe.css.ts',
-    ];
-    const roomViewSource = readRoomViewSource();
-    const nativeControllerSource = readFileSync(
-      new URL('../../native/useInteractiveRoomThreadSwipe.ts', import.meta.url),
-      'utf8'
-    );
-    const swipeFlagSource = readFileSync(
-      new URL('../../native/swipeGestureFlag.ts', import.meta.url),
-      'utf8'
-    );
-
-    removedInteractiveSwipeCompatibilityPaths.forEach((path) => {
-      expect(existsSync(new URL(path, import.meta.url))).toBe(false);
-    });
-    expect(roomViewSource).toContain("from '../native/useInteractiveRoomThreadSwipe'");
-    expect(roomViewSource).toContain("from '../../mindroom/threads/RoomThreadSwipePreview'");
-    expect(nativeControllerSource).toContain('useInteractiveRoomThreadSwipe');
-    expect(swipeFlagSource).toContain('__mindroomInteractiveSwipeOwned');
-  });
-
-  it('keeps the room/thread swipe preview chrome-only and side-effect free', () => {
-    const source = readRoomThreadSwipePreviewSource();
-    const forbiddenImports = [
-      'useAtom',
-      'useAtomValue',
-      'useSetAtom',
-      'useRoomNavigate',
-      'useRoomViewThreadState',
-      'MindroomRoomTimeline',
-      'RoomTimeline',
-      'MindroomRoomInput',
-      'RoomInput',
-      'useRoomThreadRouteRestore',
-      'useRoomThreadSummaryState',
-      'useThreadRootEvent',
-    ];
-
-    expect(source).toContain('aria-hidden="true"');
-    expect(source).toContain('inert');
-    forbiddenImports.forEach((forbidden) => {
-      expect(source).not.toContain(forbidden);
-    });
-  });
-
-  it('does not use browser-history forward prediction for interactive swipe re-entry', () => {
-    const source = [
-      readRoomViewSource(),
-      readFileSync(new URL('../useRoomViewThreadState.ts', import.meta.url), 'utf8'),
-      readFileSync(new URL('../../native/useEdgeSwipeForward.ts', import.meta.url), 'utf8'),
-      readFileSync(
-        new URL('../../native/useInteractiveRoomThreadSwipe.ts', import.meta.url),
-        'utf8'
-      ),
-    ].join('\n');
-
-    expect(source).not.toContain('history.forward(');
-    expect(source).not.toContain('window.history.forward');
-    expect(source).not.toContain('__mindroomSwipeForward');
-    expect(source).not.toContain('__mindroomForward');
-    expect(source).not.toContain('let forward');
   });
 
   it('keeps room input auto-thread send sessions in MindRoom threads', () => {
