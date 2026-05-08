@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### App-local copy links bypass matrix.to resolver (2026-05-08)
+
+- Summary:
+  - Investigated message and room context-menu `Copy Link` behavior after copied links opened the `matrix.to` preview card first, requiring an extra `View` click before reaching the actual message.
+  - Root cause: shared outbound room/event link helpers always generated `https://matrix.to/#/...` permalinks. Those helpers are used by message `Copy Link`, room/space context menus, and the command palette.
+  - Room and room-event copy links now use the current app origin plus configured base path, e.g. `https://chat.lab.mindroom.chat/!room:server/$event?via=server` or `https://chat.example.com/mindroom/!room:server/$event?via=server`, bypassing the Matrix resolver interstitial.
+  - Incoming `matrix.to` parsing remains unchanged so pasted Matrix links and rendered Matrix links still resolve inside the client.
+- Files changed:
+  - `src/app/plugins/matrix-to.ts`
+  - `src/app/plugins/matrix-to.test.ts`
+  - `src/app/mindroom/command-palette/commandPaletteActions.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/plugins/matrix-to.test.ts` failed because room and event copy helpers still returned `https://matrix.to/#/...`.
+  - Green check: `npm test -- src/app/plugins/matrix-to.test.ts`
+  - `npm test -- src/app/plugins/matrix-to.test.ts src/app/mindroom/messages/__tests__/Message.test.ts src/app/mindroom/command-palette/__tests__/RoomViewHeader.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`261` files, `1965` tests).
+  - `npx prettier --check FORK_CHANGES.md src/app/plugins/matrix-to.ts src/app/plugins/matrix-to.test.ts src/app/mindroom/command-palette/commandPaletteActions.ts` exposed existing non-Prettier formatting in `FORK_CHANGES.md` and `commandPaletteActions.ts`; unrelated formatter churn was reverted.
+  - `git diff --check`
+
 ### Thread card stale summary message count (2026-05-07)
 
 - Summary:

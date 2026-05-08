@@ -124,7 +124,7 @@ export const getCommandPaletteQuickActions = ({
         keywords: ['read', 'unread'],
       }),
       actionItem('copy-current-room-link', 'Copy Current Room Link', 60, {
-        description: `Copy a matrix.to link for ${roomLabel}`,
+        description: `Copy an app link for ${roomLabel}`,
         keywords: ['share', 'link'],
       }),
       actionItem('open-current-room-settings', 'Open Current Room Settings', 50, {
