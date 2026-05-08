@@ -47,6 +47,14 @@
   - `git diff --cached --check`
   - Independent second self-review completed against the staged revert; scope stayed limited to interactive swipe-back animation files and the runbook entry.
 
+### CINNY-105 invite-user dialog autocomplete (2026-05-07)
+
+- Adds member autocomplete to the invite-user dialog backed by a per-MatrixClient `searchUserDirectory` cache, the existing direct-users set, and a debounced server-side search fallback.
+- Suggestions render with avatar + display name + MXID via the existing `UserAvatar` primitive; keyboard nav, direct-paste MXID submit, and per-room invite filtering are preserved.
+- Introduces an invite-only `InviteAutocompleteMenu` adapter that reuses `FocusTrap`, folds `Menu`/`Scroll`/`MenuItem`, and `useAlive` from the composer mention primitive but owns invite-specific concerns: downward placement, input rendered inside the focus trap so input clicks are not outside-clicks, parent-owned arrow-key navigation, and a ref-stable `requestClose`.
+- Ranking uses Fuse weighted across `displayName | localpart | userId` with deterministic exact > prefix > contains > Fuse > userId.localeCompare buckets running over all matches before the visible-limit slice, so an exact MXID is never truncated away.
+- The shared `AutocompleteMenu` from `src/app/components/editor/autocomplete/` was deliberately not modified; the duplication is a known follow-up if a third caller appears.
+
 ### Thread card stale summary message count (2026-05-07)
 
 - Summary:
@@ -114,7 +122,6 @@
   - Green retry for failed full-suite files: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.permalink-refresh.test.ts`
   - `npx prettier --check FORK_CHANGES.md src/app/utils/suppressNextClickDefault.ts src/app/utils/suppressNextClickDefault.test.ts src/app/pages/client/sidebar/SpaceTabs.tsx src/app/pages/client/space/Space.tsx`
   - `git diff --check`
-
 ### Composer Enter autocomplete and duplicate send guard (2026-05-07)
 
 - Summary:
@@ -158,6 +165,37 @@
   - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
   - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
   - `npm test` passed (`253` files, `1930` tests).
+
+### CINNY-105 round 2 review fixes (2026-05-06)
+
+- Scope is limited to the two convergent MAJOR findings from `ROUND2-FIX-BRIEF.md`.
+- Summary:
+  - Preserved the Matrix user-directory bootstrap `limited` flag in `UserDirectoryCacheState` and the cache hook return value.
+  - Forced debounced per-keystroke server fallback for fresh-but-limited bootstrap caches on queries of length at least 2, even when local cache suggestions meet the normal minimum threshold.
+  - Let Enter bubble to the invite form when the typed value is already a valid Matrix user ID, while keeping Tab as the explicit suggestion-commit key.
+  - Added regressions for limited-bootstrap fallback merging server-only users and valid-MXID Enter submit through `InviteUserPrompt`.
+- Validation:
+  - Focused: `npm test -- src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx src/app/components/invite-user-prompt/InviteUserPrompt.test.tsx src/app/state/userDirectoryCache.test.ts` passed (`3` files, `16` tests).
+  - Required chain: `npm run lint && npm run typecheck && npm run test -- --run && npm run build` passed.
+  - Full tests passed (`256` files, `1951` tests).
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `git diff --check`
+  - Independent second self-review completed against the final round 2 fix diff; scope stayed limited to the two documented major fixes, focused tests, Vitest discovery for the new `.tsx` test, and this runbook entry.
+
+### CINNY-105 hybrid invite-user autocomplete (2026-05-06)
+
+- Scope:
+  - Implementing the planned hybrid invite-user autocomplete: in-memory user directory bootstrap cache plus debounced per-keystroke Matrix server fallback.
+  - The invite prompt prop interface remains `{ room, requestClose }`, and direct-paste MXID invites continue to derive validity with `isUserId(inputValue.trim())` before submitting through `mx.invite()`.
+- Progress:
+  - Step 1 committed state/search primitives: user directory cache atom, freshness predicate, merge helper, deterministic ranking, invite candidate filtering, stable option id sanitization, and focused unit tests.
+  - Step 2 committed cache/search hooks: lazy deduped bootstrap using `searchUserDirectory({ term: ' ', limit: 5000 })`, cache refresh state, debounced server fallback, stale response guards, and server-result merge/rerank.
+  - Step 3 committed the standalone combobox/listbox component with render-time MXC avatar resolution, stable `aria-activedescendant`, keyboard commit behavior, Escape listbox close, and RTR tests.
+  - Step 4 committed `InviteUserPrompt` wiring to the new autocomplete while preserving the direct invite submit path.
+  - Step 5 documented the delivery and removed root `FINAL-PLAN.md` from the final tree while preserving it in branch history as the first implementation-branch commit.
+- Validation so far:
+  - Per-step gates have passed with the existing lint warning baseline (`17` warnings, `0` errors): `npm run lint`, `npm run typecheck`, and focused Vitest runs for the new test files.
 
 ### Avatar upload 413 error handling (2026-05-06)
 
