@@ -100,7 +100,7 @@ function MessageNotifications() {
 
   const playSound = useCallback(() => {
     const audioElement = audioRef.current;
-    audioElement?.play();
+    void audioElement?.play().catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -173,7 +173,7 @@ function MessageNotifications() {
 
   return (
     // eslint-disable-next-line jsx-a11y/media-has-caption
-    <audio ref={audioRef} style={{ display: 'none' }}>
+    <audio ref={audioRef} preload="none" style={{ display: 'none' }}>
       <source src={NotificationSound} type="audio/ogg" />
     </audio>
   );

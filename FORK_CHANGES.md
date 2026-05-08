@@ -24,6 +24,91 @@
   - `npx prettier --check FORK_CHANGES.md src/app/plugins/matrix-to.ts src/app/plugins/matrix-to.test.ts src/app/mindroom/command-palette/commandPaletteActions.ts` exposed existing non-Prettier formatting in `FORK_CHANGES.md` and `commandPaletteActions.ts`; unrelated formatter churn was reverted.
   - `git diff --check`
 
+### CINNY-106 invite chime + iOS PWA audio session (2026-05-08)
+
+- Status:
+  - Complete. Final R6 fix at f1419f38 with unanimous 8/8 reviewer approval.
+- Summary:
+  - Opening Cinny on iOS as a PWA was killing background audio (Spotify, podcasts, audiobooks) on cold open even when no chime played, because mounting `<audio>` elements with a real `src` makes WebKit allocate a playback-category audio session at first paint that preempts other apps.
+  - Marked both notification audio elements with `preload="none"` so WebKit defers media loading and audio-session allocation until something actually triggers playback.
+  - The eager-preload removal exposed a brittle invite-chime heuristic that inferred startup hydration from render order, broken further by the module-global `allInvitesAtom` surviving account switches.
+  - Replaced the heuristic with an explicit known-invite-room-ID set seeded from the active Matrix client snapshot at mount/client-change and synced (PUT adds, DELETE removes) on every invite update. Chime fires only when a room ID newly enters the set, so hydration is silent, stale account-switch atom IDs cannot poison the new client baseline, and same-room re-invites (`PUT → DELETE → PUT`) re-chime correctly.
+- Files changed:
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.tsx`
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts`
+  - `src/app/pages/client/ClientNonUIFeatures.tsx`
+  - `FORK_CHANGES.md`
+- Validation:
+  - Targeted invite-chime regression suite (7 tests) passes covering hydration silence, cold-open live invite, same-room re-invite, account-switch baseline, and stale-atom non-poisoning.
+  - `npx vitest run` passes without retry (261 files, 1968 tests).
+  - `npm run typecheck`, `npm run lint`, `npm run build` all pass.
+  - Production bundle verified to ship `preload="none"` on both audio elements and the invite-ID baseline invariant.
+- Review:
+  - 6 review rounds total (R1–R6) by 8 parallel reviewers each; final R6 unanimous 8/8 APPROVE.
+
+### CINNY-106 invite chime R5 reviewer follow-up (2026-05-08)
+
+- Status:
+  - Complete. R5 removed stale `allInvitesAtom` IDs from the new Matrix client's known invite baseline.
+- Summary:
+  - R4 still seeded known invite IDs from both the current Matrix client snapshot and the module-global invite atom. On account switch, stale atom IDs from the previous client could poison the new client's known baseline.
+  - R5 seeds known IDs only from `mx.getRooms()` invite membership for the active Matrix client. The current atom value is tracked separately as current/suppressed presence so stale first-observation IDs do not chime and do not become known.
+  - A later atom emission for a suppressed unknown ID, including a same-room live `PUT` after account switch, is treated as a new live invite and can chime.
+- Files changed:
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.tsx`
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts`
+  - `FORK_CHANGES.md`
+- Validation:
+  - `npx vitest run src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts` passed: 7 tests.
+  - `npx eslint src/app/mindroom/client/MindroomClientNonUIFeatures.tsx src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts` passed.
+  - `npm run typecheck` passed.
+  - `npm run lint -- --quiet` passed with the existing warning-only baseline still printed by the nested npm script (`17` warnings, `0` errors).
+  - `npx vitest run` passed without retry: 261 files, 1968 tests.
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+
+### CINNY-106 invite chime R4 reviewer follow-up (2026-05-08)
+
+- Status:
+  - Complete. R4 fixed same-room re-invite suppression from the R3 append-only known invite Set.
+- Summary:
+  - R3 correctly removed render-order hydration inference, but reviewers found the known invite room-id Set stayed append-only after invite acceptance/rejection/removal.
+  - The R4 direction is to keep the startup/current-client hydration baseline while also tracking the last observed current invite IDs. When a room ID disappears from the current invite atom after observation, it is pruned from the known Set so a later `PUT` for the same room ID is treated as a new live invite.
+  - The test import for the Jotai store type now uses a type-only `jotai/vanilla` import so the runtime import surface resolves cleanly.
+- Files changed:
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.tsx`
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts`
+  - `FORK_CHANGES.md`
+- Validation:
+  - `npx vitest run src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts` passed: 5 tests.
+  - `npx eslint src/app/mindroom/client/MindroomClientNonUIFeatures.tsx src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts` passed.
+  - `npm run typecheck` passed.
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+
+### CINNY-106 invite chime R3 reviewer follow-up (2026-05-08)
+
+- Status:
+  - Complete. R3 replaced the R2 render-order invite notification sentinel with a Set-based invite room-id baseline.
+- Summary:
+  - R2 reviewers converged on the same correctness risk: the previous `initial` / `awaiting-hydration` / `ready` ref inferred invite hydration from render/effect ordering, so stale module-level invite atom state could still make current-client hydration look like a live invite, and the first real invite after an empty mount could be swallowed.
+  - The R3 direction is to track known invite room IDs instead of invite counts or render phases. The baseline includes the current Matrix client's invite-room snapshot, so stale `allInvitesAtom` values from a previous session do not make the first current-client bind look live.
+  - Only invite room IDs absent from that baseline are treated as new live invites. Known IDs are retained after removal so startup/hydration replacement does not replay old invite chimes.
+  - Low-risk R2/H cleanup: hidden chime audio still uses `preload="none"`, and media `play()` promise rejections are caught for invite and message chimes.
+- Files changed:
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.tsx`
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts`
+  - `src/app/pages/client/ClientNonUIFeatures.tsx`
+  - `FORK_CHANGES.md`
+- Validation:
+  - `npx vitest run src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts` passed.
+  - `npx prettier --check src/app/mindroom/client/MindroomClientNonUIFeatures.tsx src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts src/app/pages/client/ClientNonUIFeatures.tsx FORK_CHANGES.md` passed.
+  - `git diff --check` passed.
+  - Final `npx vitest run` passed: 261 files, 1964 tests.
+  - Final `npm run typecheck` passed.
+  - Final `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm run lint` passed with the existing warning-only baseline (`17` warnings, `0` errors).
+- Review:
+  - Independent second self-review completed locally because subagent delegation is unavailable under the current tool policy. Review focus: stale module atom hydration, empty cold-open first live invite, account switch/client swap, and media `play()` rejection handling.
+
 ### Interactive room/thread swipe animation revert (2026-05-07)
 
 - Summary:
