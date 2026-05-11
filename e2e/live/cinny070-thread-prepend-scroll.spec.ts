@@ -31,15 +31,24 @@ type VisibleAnchor = {
   text: string;
 };
 
-const scrollThreadTimelineToTop = async (
-  page: import('@playwright/test').Page
-): Promise<boolean> =>
+type LoadOlderClickAnchor = VisibleAnchor & {
+  clicked: boolean;
+};
+
+const scrollThreadTimelineToTop = async (page: import('@playwright/test').Page): Promise<boolean> =>
   page.evaluate(() => {
     const firstMessage = document.querySelector<HTMLElement>('[data-message-id]');
     if (!firstMessage) return false;
 
     let scrollContainer: HTMLElement | null = firstMessage.parentElement;
-    while (scrollContainer && scrollContainer.scrollHeight <= scrollContainer.clientHeight) {
+    while (scrollContainer) {
+      const { overflowY } = window.getComputedStyle(scrollContainer);
+      if (
+        (overflowY === 'auto' || overflowY === 'scroll') &&
+        scrollContainer.scrollHeight > scrollContainer.clientHeight
+      ) {
+        break;
+      }
       scrollContainer = scrollContainer.parentElement;
     }
     if (!scrollContainer) return false;
@@ -48,15 +57,22 @@ const scrollThreadTimelineToTop = async (
     return true;
   });
 
-const getVisibleThreadAnchor = async (
+const clickLoadOlderWithVisibleThreadAnchor = async (
   page: import('@playwright/test').Page
-): Promise<VisibleAnchor | null> =>
+): Promise<LoadOlderClickAnchor | null> =>
   page.evaluate(() => {
     const firstMessage = document.querySelector<HTMLElement>('[data-message-id]');
     if (!firstMessage) return null;
 
     let scrollContainer: HTMLElement | null = firstMessage.parentElement;
-    while (scrollContainer && scrollContainer.scrollHeight <= scrollContainer.clientHeight) {
+    while (scrollContainer) {
+      const { overflowY } = window.getComputedStyle(scrollContainer);
+      if (
+        (overflowY === 'auto' || overflowY === 'scroll') &&
+        scrollContainer.scrollHeight > scrollContainer.clientHeight
+      ) {
+        break;
+      }
       scrollContainer = scrollContainer.parentElement;
     }
     if (!scrollContainer) return null;
@@ -65,11 +81,19 @@ const getVisibleThreadAnchor = async (
     const messageItems = Array.from(
       scrollContainer.querySelectorAll<HTMLElement>('[data-message-id]')
     );
-    const anchor = messageItems.find((item) => item.getBoundingClientRect().bottom > scrollRect.top);
+    const anchor = messageItems.find(
+      (item) => item.getBoundingClientRect().bottom > scrollRect.top
+    );
     const eventId = anchor?.getAttribute('data-message-id');
     if (!anchor || !eventId) return null;
 
+    const loadOlderButton = Array.from(
+      document.querySelectorAll<HTMLElement>('button, [role="button"]')
+    ).find((button) => button.textContent?.includes('Load Older Messages'));
+    loadOlderButton?.click();
+
     return {
+      clicked: !!loadOlderButton,
       eventId,
       top: anchor.getBoundingClientRect().top,
       text: anchor.textContent ?? '',
@@ -170,11 +194,10 @@ test.describe('CINNY-070: thread prepend pagination preserves scroll anchor', ()
     expect(await scrollThreadTimelineToTop(page)).toBe(true);
     await expect(loadOlderButton).toBeVisible({ timeout: 30_000 });
 
-    const anchor = await getVisibleThreadAnchor(page);
+    const anchor = await clickLoadOlderWithVisibleThreadAnchor(page);
     expect(anchor).not.toBeNull();
     if (!anchor) return;
-
-    await loadOlderButton.evaluate((button: HTMLButtonElement) => button.click());
+    expect(anchor.clicked).toBe(true);
 
     await expect(loadOlderButton).toHaveCount(0, { timeout: 30_000 });
 

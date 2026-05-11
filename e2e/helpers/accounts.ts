@@ -107,9 +107,9 @@ export const removeInactiveStoredUsername = async (page: Page, username: string)
   const session = await getStoredSessionByUsername(page, username);
   await openAccountSwitcher(page);
 
-  await expect(page.getByText(session.userId)).toBeVisible();
+  await expect(page.getByText(session.userId, { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Remove from Device' }).click();
-  await expect(page.getByText(session.userId)).toHaveCount(0);
+  await expect(page.getByText(session.userId, { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Close' }).click();
 };
 
@@ -137,7 +137,9 @@ export const deactivateActiveAccount = async (
   await expect(page.getByText('Delete / Deactivate Account')).toBeVisible();
 
   await page.getByRole('button', { name: 'Delete / Deactivate' }).first().click();
-  await expect(page.getByText('This will request account deactivation on your Matrix homeserver.')).toBeVisible();
+  await expect(
+    page.getByText('This will request account deactivation on your Matrix homeserver.')
+  ).toBeVisible();
 
   if (options.eraseData) {
     await page.getByRole('switch', { name: 'Erase account data (if supported)' }).click();

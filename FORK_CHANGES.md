@@ -2,6 +2,52 @@
 
 ## Runbook
 
+### E2E account locator and thread prepend scroll fixes (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Followed up on the two failures from the full e2e run after the thread local-echo fix.
+  - `e2e/account-switching.spec.ts` was a test bug: the inactive-account removal helper searched `page.getByText(session.userId)`, which also matched the `Switch to ...` label. The helper now uses exact user-id text for the visible and removed assertions.
+  - `e2e/live/cinny070-thread-prepend-scroll.spec.ts` exposed real app scroll bugs and test fragility:
+    - The test's scroll-root helper could select an overflowing content wrapper instead of the actual scroll viewport. It now requires an `overflow-y: auto|scroll` ancestor.
+    - Thread prepend anchoring measured/restored against inferred inner containers. It now captures visibility and restores scroll position against the timeline scroll root.
+    - Pending prepend anchors could be cleared before prepended events rendered. The back-pagination controller now records the event count at capture time and restores only after the thread event count increases.
+    - A pending "open thread at latest" bottom pin could fire after the user had already scrolled to the top to load older messages. Thread-open bottom pinning is now suppressed after a scroll during the pending open window, and the open-bottom pin helper honors that suppression.
+    - The CINNY-070 spec now captures the visible anchor and clicks the current load-older button in one browser evaluation so a detached locator cannot wait until the full test timeout.
+    - Thread view disables native `overflow-anchor` while manual prepend anchoring owns the scroll position.
+- Files changed:
+  - `e2e/helpers/accounts.ts`
+  - `e2e/live/cinny070-thread-prepend-scroll.spec.ts`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/roomFocusScrollController.ts`
+  - `src/app/mindroom/threads/roomFocusScrollController.test.ts`
+  - `src/app/mindroom/threads/threadBackPaginationController.ts`
+  - `src/app/mindroom/threads/threadBackPaginationController.test.ts`
+  - `src/app/mindroom/threads/threadPaginationCommandController.ts`
+  - `src/app/mindroom/threads/threadRenderUtils.ts`
+  - `src/app/mindroom/threads/threadRenderUtils.test.ts`
+  - `src/app/mindroom/threads/timelineScrollUtils.ts`
+  - `src/app/mindroom/threads/timelineScrollUtils.test.ts`
+- Tests and validation:
+  - Red checks:
+    - `npm test -- src/app/mindroom/threads/timelineScrollUtils.test.ts -t "restores thread prepend position on the timeline scroll root"` failed while restore adjusted the overflowing anchor element instead of the scroll root.
+    - `npm test -- src/app/mindroom/threads/timelineScrollUtils.test.ts -t "captures visibility against the timeline scroll root"` failed while capture measured against an overflowing content wrapper.
+    - `npm test -- src/app/mindroom/threads/threadBackPaginationController.test.ts -t "keeps the pending anchor when restore runs before prepended events are rendered"` failed while restore cleared the pending anchor before event count increased.
+    - `npm test -- src/app/mindroom/threads/threadRenderUtils.test.ts -t "does not pin while thread back-pagination suppresses open-bottom pinning"` failed while open-bottom pin ignored suppression.
+    - `npm test -- src/app/mindroom/threads/roomFocusScrollController.test.ts -t "cancels a pending thread-open bottom pin"` failed while a scroll during pending thread open did not suppress the later bottom pin.
+  - Green focused unit batch: `npm test -- src/app/mindroom/threads/timelineScrollUtils.test.ts src/app/mindroom/threads/threadBackPaginationController.test.ts src/app/mindroom/threads/threadRenderUtils.test.ts src/app/mindroom/threads/roomFocusScrollController.test.ts`
+  - Focused e2e:
+    - `npm run test:e2e:docker-matrix -- e2e/account-switching.spec.ts`
+    - `npm run test:e2e:docker-matrix -- e2e/live/cinny070-thread-prepend-scroll.spec.ts --repeat-each=5`
+  - Full validation:
+    - `npm run typecheck`
+    - `npx prettier --check FORK_CHANGES.md e2e/helpers/accounts.ts e2e/live/cinny070-thread-prepend-scroll.spec.ts src/app/mindroom/threads/MindroomRoomTimeline.tsx src/app/mindroom/threads/roomFocusScrollController.ts src/app/mindroom/threads/roomFocusScrollController.test.ts src/app/mindroom/threads/threadBackPaginationController.ts src/app/mindroom/threads/threadBackPaginationController.test.ts src/app/mindroom/threads/threadPaginationCommandController.ts src/app/mindroom/threads/threadRenderUtils.ts src/app/mindroom/threads/threadRenderUtils.test.ts src/app/mindroom/threads/timelineScrollUtils.ts src/app/mindroom/threads/timelineScrollUtils.test.ts`
+    - `npm run lint` passed with the existing warning-only baseline (`17` warnings, `0` errors).
+    - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+    - `npm test` passed (`273` files, `2029` tests).
+    - `npm run test:e2e:docker-matrix` passed (`65` passed, `2` skipped).
+
 ### Thread local echo NewReply visibility (2026-05-11)
 
 - Status:

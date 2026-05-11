@@ -109,7 +109,7 @@ describe('shouldAutoScrollThreadOnLiveEvent', () => {
 
 describe('shouldAutoScrollRoomOnLiveEvent', () => {
   const makeScrollElement = (scrollHeight: number, scrollTop: number, clientHeight: number) =>
-    ({ scrollHeight, scrollTop, clientHeight }) as unknown as HTMLElement;
+    ({ scrollHeight, scrollTop, clientHeight } as unknown as HTMLElement);
 
   it('returns true when at live end and scroll is near bottom (within 100px threshold)', () => {
     // scrollHeight 1000, clientHeight 400 → max scrollTop = 600
@@ -216,6 +216,48 @@ describe('thread prepend scroll anchors', () => {
     });
   });
 
+  it('captures visibility against the timeline scroll root, not an overflowing content wrapper', () => {
+    const overflowWrapper = {
+      getBoundingClientRect: () => ({
+        top: -1000,
+        bottom: 2000,
+      }),
+      scrollHeight: 3000,
+      clientHeight: 400,
+      parentElement: null as HTMLElement | null,
+    };
+    const aboveViewport = {
+      getAttribute: () => '$above',
+      getBoundingClientRect: () => ({
+        top: -100,
+        bottom: 50,
+      }),
+      parentElement: overflowWrapper,
+    };
+    const anchor = {
+      getAttribute: () => '$anchor',
+      getBoundingClientRect: () => ({
+        top: 140,
+        bottom: 180,
+      }),
+      parentElement: overflowWrapper,
+    };
+    const scroll = {
+      getBoundingClientRect: () => ({
+        top: 100,
+        bottom: 500,
+      }),
+      querySelector: () => aboveViewport,
+      querySelectorAll: () => [aboveViewport, anchor],
+    } as unknown as HTMLElement;
+    overflowWrapper.parentElement = scroll;
+
+    expect(captureThreadPrependScrollAnchor(scroll)).toEqual({
+      eventId: '$anchor',
+      top: 140,
+    });
+  });
+
   it('restores the captured thread prepend anchor position after older messages are prepended', () => {
     const anchor = {
       getAttribute: () => '$anchor',
@@ -244,5 +286,39 @@ describe('thread prepend scroll anchors', () => {
       })
     ).toBe(true);
     expect(scroll.scrollTop).toBe(320);
+  });
+
+  it('restores thread prepend position on the timeline scroll root when the anchor element overflows', () => {
+    const anchor = {
+      getAttribute: () => '$anchor',
+      getBoundingClientRect: () => ({
+        top: 420,
+        bottom: 460,
+      }),
+      parentElement: null,
+      scrollHeight: 100,
+      clientHeight: 40,
+      scrollTop: 0,
+    };
+    const scroll = {
+      getBoundingClientRect: () => ({
+        top: 100,
+        bottom: 500,
+      }),
+      querySelector: () => anchor,
+      querySelectorAll: () => [anchor],
+      scrollHeight: 1000,
+      clientHeight: 400,
+      scrollTop: 40,
+    } as unknown as HTMLElement;
+
+    expect(
+      restoreThreadPrependScrollAnchor(scroll, {
+        eventId: '$anchor',
+        top: 140,
+      })
+    ).toBe(true);
+    expect(scroll.scrollTop).toBe(320);
+    expect(anchor.scrollTop).toBe(0);
   });
 });

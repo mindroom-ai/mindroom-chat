@@ -6,6 +6,7 @@ import {
 } from './timelineScrollUtils';
 
 type PendingThreadBackPaginationAnchor = ThreadPrependScrollAnchor & {
+  eventCount?: number;
   threadId: string;
 };
 
@@ -14,11 +15,16 @@ export type ThreadBackPaginationController = {
   isPaginatingBackRef: MutableRefObject<boolean>;
   suppressOpenBottomPinRef: MutableRefObject<boolean>;
   reset: () => void;
-  begin: (threadId: string | undefined, scrollRoot: HTMLElement | null | undefined) => boolean;
+  begin: (
+    threadId: string | undefined,
+    scrollRoot: HTMLElement | null | undefined,
+    eventCount?: number
+  ) => boolean;
   finish: (opts: { didPaginateBack: boolean; threadId: string; currentThreadId?: string }) => void;
   restorePendingAnchor: (
     scrollRoot: HTMLElement | null | undefined,
-    threadId: string | undefined
+    threadId: string | undefined,
+    eventCount?: number
   ) => boolean;
 };
 
@@ -40,7 +46,11 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
   }, []);
 
   const begin = useCallback(
-    (threadId: string | undefined, scrollRoot: HTMLElement | null | undefined): boolean => {
+    (
+      threadId: string | undefined,
+      scrollRoot: HTMLElement | null | undefined,
+      eventCount?: number
+    ): boolean => {
       if (!threadId || isPaginatingBackRef.current) return false;
 
       suppressOpenBottomPinRef.current = true;
@@ -48,6 +58,7 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
       pendingAnchorRef.current = capturedAnchor
         ? {
             ...capturedAnchor,
+            eventCount,
             threadId,
           }
         : undefined;
@@ -78,7 +89,11 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
   );
 
   const restorePendingAnchor = useCallback(
-    (scrollRoot: HTMLElement | null | undefined, threadId: string | undefined): boolean => {
+    (
+      scrollRoot: HTMLElement | null | undefined,
+      threadId: string | undefined,
+      eventCount = 0
+    ): boolean => {
       if (!threadId) {
         pendingAnchorRef.current = undefined;
         return false;
@@ -86,6 +101,13 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
 
       const pendingAnchor = pendingAnchorRef.current;
       if (!pendingAnchor || pendingAnchor.threadId !== threadId) return false;
+      if (
+        typeof eventCount === 'number' &&
+        typeof pendingAnchor.eventCount === 'number' &&
+        eventCount <= pendingAnchor.eventCount
+      ) {
+        return false;
+      }
 
       const restored = restoreThreadPrependScrollAnchor(scrollRoot, pendingAnchor);
       if (restored) {

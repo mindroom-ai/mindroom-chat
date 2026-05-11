@@ -1,8 +1,5 @@
 import { MatrixEvent, Room } from 'matrix-js-sdk';
-import {
-  getSerializedReplacementEvent,
-  isSameSenderEditEvent,
-} from '../../utils/editEvent';
+import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getLatestEdit } from '../../utils/room';
 
 export type ThreadInitialRenderMode = 'loading' | 'cached' | 'live';
@@ -11,6 +8,7 @@ export type ThreadRenderEventEntry<TEvent extends MatrixEvent = MatrixEvent> = {
   absoluteIndex: number;
 };
 type ThreadOpenBottomPinOpts = {
+  suppressOpenBottomPin?: boolean;
   threadId?: string;
   threadLatestOpenPending: boolean;
   threadInitialRenderMode: ThreadInitialRenderMode;
@@ -32,12 +30,14 @@ export const getThreadInitialRenderMode = ({
 };
 
 export const shouldPinThreadToBottomOnOpen = ({
+  suppressOpenBottomPin,
   threadId,
   threadLatestOpenPending,
   threadInitialRenderMode,
   threadEventCount,
 }: ThreadOpenBottomPinOpts): boolean =>
   !!threadId &&
+  !suppressOpenBottomPin &&
   threadLatestOpenPending &&
   threadInitialRenderMode !== 'loading' &&
   threadEventCount > 0;
@@ -177,10 +177,16 @@ export const pickPreferredThreadRenderEvent = (
         (replacement): replacement is MatrixEvent => !!replacement
       )
     );
-    if (preferredReplacement === existingReplacement && preferredReplacement !== incomingReplacement) {
+    if (
+      preferredReplacement === existingReplacement &&
+      preferredReplacement !== incomingReplacement
+    ) {
       return existingEvent;
     }
-    if (preferredReplacement === incomingReplacement && preferredReplacement !== existingReplacement) {
+    if (
+      preferredReplacement === incomingReplacement &&
+      preferredReplacement !== existingReplacement
+    ) {
       return incomingEvent;
     }
   }
@@ -220,12 +226,13 @@ export const mergeThreadRenderEvents = (
       return;
     }
 
-    const preferredEvent = pickPreferredThreadRenderEvent(existingEvent, mEvent, resolveConfirmedId);
+    const preferredEvent = pickPreferredThreadRenderEvent(
+      existingEvent,
+      mEvent,
+      resolveConfirmedId
+    );
     const mergedKeys = Array.from(
-      new Set([
-        ...getThreadRenderEventKeys(existingEvent, resolveConfirmedId),
-        ...incomingKeys,
-      ])
+      new Set([...getThreadRenderEventKeys(existingEvent, resolveConfirmedId), ...incomingKeys])
     );
     setEventForKeys(mergedKeys, preferredEvent);
   });
@@ -239,7 +246,7 @@ export const mergeThreadRenderEvents = (
 
 export const dedupeThreadRenderEventEntries = <
   TEvent extends MatrixEvent,
-  TEntry extends ThreadRenderEventEntry<TEvent>,
+  TEntry extends ThreadRenderEventEntry<TEvent>
 >(
   entries: TEntry[],
   resolveConfirmedId?: (txnId: string) => string | undefined
@@ -271,10 +278,7 @@ export const dedupeThreadRenderEventEntries = <
       resolveConfirmedId
     ) as TEvent;
     const mergedKeys = Array.from(
-      new Set([
-        ...getThreadRenderEventKeys(existingEntry.event, resolveConfirmedId),
-        ...entryKeys,
-      ])
+      new Set([...getThreadRenderEventKeys(existingEntry.event, resolveConfirmedId), ...entryKeys])
     );
 
     dedupedEntries[existingEntryIndex] =
