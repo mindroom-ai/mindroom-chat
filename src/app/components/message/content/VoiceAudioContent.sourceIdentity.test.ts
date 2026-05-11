@@ -17,18 +17,21 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('folds', () => ({
   Icon: (props: Record<string, unknown>) => React.createElement('span', props),
-  IconButton: ({
-    children,
-    onClick,
-    ...props
-  }: {
-    children?: React.ReactNode;
-    onClick?: () => void;
-  }) => React.createElement('button', { ...props, onClick }, children),
+  IconButton: React.forwardRef<
+    HTMLButtonElement,
+    { children?: React.ReactNode; onClick?: () => void }
+  >(({ children, onClick, ...props }, ref) =>
+    React.createElement('button', { ...props, onClick, ref }, children)
+  ),
   Icons: {
     Pause: 'pause',
     Play: 'play',
+    VerticalDots: 'vertical-dots',
   },
+  Menu: ({ children, ...props }: { children?: React.ReactNode }) =>
+    React.createElement('div', props, children),
+  PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
+    anchor ? React.createElement('div', { 'data-popout': 'true' }, content) : null,
   Spinner: (props: Record<string, unknown>) => React.createElement('span', props),
   Text: ({ children, ...props }: { children?: React.ReactNode }) =>
     React.createElement('span', props, children),
@@ -37,6 +40,12 @@ vi.mock('folds', () => ({
 vi.mock('./VoiceAudioContent.css', () => ({
   Audio: 'Audio',
   Capsule: 'Capsule',
+  MoreCell: 'MoreCell',
+  MoreMenu: 'MoreMenu',
+  MoreMenuAction: 'MoreMenuAction',
+  MoreMenuMeta: 'MoreMenuMeta',
+  MoreMenuMetaLabel: 'MoreMenuMetaLabel',
+  MoreMenuMetaValue: 'MoreMenuMetaValue',
   PlayCell: 'PlayCell',
   RateCell: 'RateCell',
   Root: 'Root',
@@ -85,6 +94,10 @@ vi.mock('../../../hooks/media', () => ({
 
 vi.mock('../../../hooks/useThrottle', () => ({
   useThrottle: (callback: unknown) => callback,
+}));
+
+vi.mock('../FileHeader', () => ({
+  FileDownloadButton: () => React.createElement('button', { 'aria-label': 'Download audio' }),
 }));
 
 vi.mock('../../../utils/matrix', async () => {

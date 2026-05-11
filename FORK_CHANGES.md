@@ -2,6 +2,53 @@
 
 ## Runbook
 
+### Canonical compact audio player with More menu (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigated the report that audio files could render through different visual layers.
+  - Root cause: `MAudio` branched playable `m.audio` events by voice metadata. Voice messages used `VoiceAudioContent`, while normal audio attachments used the older generic `AudioContent` card.
+  - Direction: make the voice-style waveform player the canonical playable audio surface, and move attachment affordances into a compact More menu so the row does not become crowded.
+  - `VoiceAudioContent` now accepts filename/label metadata, keeps waveform seeking/volume/speed, and exposes a More menu with download, name, type, size, and duration.
+  - `MAudio` now routes all valid playable `m.audio` events through `VoiceAudioContent`, using voice labels only for Matrix voice-message metadata and a generic audio label for normal audio files.
+  - Follow-up crash fix: opening the More menu after pressing Play could read `event.currentTarget` inside a queued React state updater, after React had cleared the synthetic event target. The More handler now captures the button rect synchronously before scheduling the anchor state update.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/components/message/FileHeader.tsx`
+  - `src/app/components/message/MsgTypeRenderers.tsx`
+  - `src/app/components/message/MsgTypeRenderers.audio.test.ts`
+  - `src/app/components/message/content/VoiceAudioContent.tsx`
+  - `src/app/components/message/content/VoiceAudioContent.css.ts`
+  - `src/app/components/message/content/VoiceAudioContent.test.ts`
+  - `src/app/components/message/content/VoiceAudioContent.sourceIdentity.test.ts`
+  - `src/app/components/message/content/VoiceAudioContent.mediaElement.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/components/message/MsgTypeRenderers.audio.test.ts` failed while non-voice `m.audio` still rendered the old generic audio UI.
+  - Red check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts -t "More menu"` failed while the compact player had no More menu/download affordance.
+  - Green check: `npm test -- src/app/components/message/MsgTypeRenderers.audio.test.ts`.
+  - Green check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts -t "More menu"`.
+  - Green check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts`.
+  - Green check: `npm test -- src/app/components/message/content/VoiceAudioContent.sourceIdentity.test.ts src/app/components/message/content/VoiceAudioContent.mediaElement.test.ts`.
+  - Green check: `npm test -- src/app/components/message/MsgTypeRenderers.audio.test.ts src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/message/content/VoiceAudioContent.sourceIdentity.test.ts src/app/components/message/content/VoiceAudioContent.mediaElement.test.ts src/app/components/message/content/AudioContent.test.tsx`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm test` passed (`276` files, `2053` tests).
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npm run build` passed with existing Vite/runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npx prettier --check src/app/components/message/MsgTypeRenderers.tsx src/app/components/message/MsgTypeRenderers.audio.test.ts src/app/components/message/content/VoiceAudioContent.tsx src/app/components/message/content/VoiceAudioContent.css.ts src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/message/content/VoiceAudioContent.sourceIdentity.test.ts src/app/components/message/content/VoiceAudioContent.mediaElement.test.ts src/app/components/message/FileHeader.tsx`.
+  - Green check: `npx prettier --check FORK_CHANGES.md src/app/components/message/MsgTypeRenderers.tsx src/app/components/message/MsgTypeRenderers.audio.test.ts src/app/components/message/content/VoiceAudioContent.tsx src/app/components/message/content/VoiceAudioContent.css.ts src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/message/content/VoiceAudioContent.sourceIdentity.test.ts src/app/components/message/content/VoiceAudioContent.mediaElement.test.ts src/app/components/message/FileHeader.tsx`.
+  - Green check: `git diff --check`.
+  - Follow-up red check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts -t "opens More after play"` failed with `Cannot read properties of null (reading 'getBoundingClientRect')`.
+  - Follow-up green check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts -t "opens More after play"`.
+  - Follow-up green check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/message/content/VoiceAudioContent.sourceIdentity.test.ts src/app/components/message/content/VoiceAudioContent.mediaElement.test.ts src/app/components/message/MsgTypeRenderers.audio.test.ts`.
+  - Follow-up green check: `npm run typecheck`.
+  - Follow-up green check: `npm test` passed (`276` files, `2054` tests).
+  - Follow-up green check: `npx prettier --check FORK_CHANGES.md src/app/components/message/content/VoiceAudioContent.tsx src/app/components/message/content/VoiceAudioContent.test.ts`.
+  - Follow-up green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Follow-up green check: `npm run build` passed with existing Vite/runtime-config/sourcemap/chunk-size warnings.
+  - Follow-up green check: `git diff --check`.
+  - Independent second self-review completed against the final diff; scope stayed limited to audio rendering, compact menu affordances, and related tests.
+
 ### Service worker navigation fallback route guard (2026-05-11)
 
 - Status:
