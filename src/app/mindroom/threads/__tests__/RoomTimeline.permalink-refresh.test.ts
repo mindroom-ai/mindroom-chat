@@ -13,8 +13,8 @@ import {
   makeEvent,
   makeRoom,
   navigateRoomThreadMock,
+  roomTimelineVirtualizerState,
   roomThreadOverviewType,
-  scrollToItemMock,
   scrollType,
   setThreadAwareTimelineRefreshHook,
   TEST_DEFAULT_THREAD_FILTER_STATE,
@@ -290,7 +290,10 @@ describe('RoomTimeline', () => {
     });
 
     expect(navigateRoomThreadMock).not.toHaveBeenCalled();
-    expect(scrollToItemMock).toHaveBeenCalled();
+    expect(roomTimelineVirtualizerState.scrollToIndexMock).toHaveBeenCalledWith(0, {
+      align: 'center',
+      behavior: 'smooth',
+    });
   });
 
   it('bypasses room overview filters for synthetic room-focus routes when the focused root is hidden', async () => {

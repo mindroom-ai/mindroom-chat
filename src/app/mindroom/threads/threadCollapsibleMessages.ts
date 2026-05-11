@@ -12,6 +12,23 @@ import { eventBelongsToThread, isVisibleThreadTextMessageEventType } from './thr
 const isCollapsibleTextMessageEvent = (mEvent: MatrixEvent): boolean =>
   isVisibleThreadTextMessageEventType(mEvent.getType());
 
+const FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH = 1200;
+
+export const shouldForceCollapsibleMessageOverflow = (content: IContent): boolean => {
+  if (getMindroomLongTextMxcUri(content as Record<string, unknown>)) return true;
+
+  const body = content.body;
+  if (typeof body === 'string' && body.length >= FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH) {
+    return true;
+  }
+
+  const formattedBody = content.formatted_body;
+  return (
+    typeof formattedBody === 'string' &&
+    formattedBody.length >= FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH
+  );
+};
+
 export type ShouldTrackLiveCollapsibleMessage = {
   mEvent: MatrixEvent;
   room: Room;

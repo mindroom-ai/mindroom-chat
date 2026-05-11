@@ -18,6 +18,7 @@ import classNames from 'classnames';
 import { ReactEditor } from 'slate-react';
 import { Editor } from 'slate';
 import { SessionMembershipData } from 'matrix-js-sdk/lib/matrixrtc/CallMembership';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAtomValue, useSetAtom } from 'jotai';
 import {
   Badge,
@@ -94,6 +95,7 @@ import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { GetContentCallback, MessageEvent, StateEvent } from '../../../types/matrix/room';
 import { useKeyDown } from '../../hooks/useKeyDown';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
+import { VirtualTile } from '../../components/virtualizer';
 import { CollapsibleMessage, expandAllMessages, collapseAllMessages } from './CollapsibleMessage';
 import { Image } from '../../components/media';
 import { ImageViewer } from '../../components/image-viewer';
@@ -124,6 +126,7 @@ import {
   getCollapsibleMessageMeasurementKey,
   getCollapsibleMessageMode,
   getHydratedLongTextExtrasCollapseKey,
+  shouldForceCollapsibleMessageOverflow,
 } from './threadCollapsibleMessages';
 import { buildResolveConfirmedEventId, dedupeThreadRenderEventEntries } from './threadRenderUtils';
 import {
@@ -169,6 +172,7 @@ import {
 } from './roomTimelineViewState';
 import { useRoomThreadResolutionMap } from './useRoomThreadTags';
 import { useRoomEagerPreload } from './preloadController';
+import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from './preloadSettings';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
 import { type PendingThreadOpen } from './threadOpenTargetEvent';
 import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
@@ -305,6 +309,10 @@ export function RoomTimeline({
   const [showDeveloperTools] = useSetting(settingsAtom, 'developerTools');
   const [paginationLimitSetting] = useSetting(settingsAtom, 'paginationLimit');
   const safePaginationLimit = sanitizePaginationLimit(paginationLimitSetting);
+  const interactivePaginationLimit = Math.min(
+    safePaginationLimit,
+    ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE
+  );
   const safePaginationLimitRef = useRef(safePaginationLimit);
   safePaginationLimitRef.current = safePaginationLimit;
 
@@ -783,7 +791,7 @@ export function RoomTimeline({
     mx,
     timeline,
     setTimeline,
-    safePaginationLimit,
+    interactivePaginationLimit,
     recalibrateFilterOptsRef
   );
 
@@ -904,6 +912,41 @@ export function RoomTimeline({
   });
 
   const getScrollElement = useCallback(() => scrollRef.current, []);
+  const getTimelineItemElement = useCallback(
+    (index: number) =>
+      (scrollRef.current?.querySelector(`[data-message-item="${index}"]`) as HTMLElement) ??
+      undefined,
+    []
+  );
+  const roomVirtualPrependAnchorRef = useRef<{
+    item: number;
+    viewportOffset: number;
+  }>();
+  const captureRoomVirtualPrependAnchor = useCallback(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement) return;
+
+    const scrollRect = scrollElement.getBoundingClientRect();
+    const messageItems = Array.from(
+      scrollElement.querySelectorAll<HTMLElement>('[data-message-item]')
+    );
+    const anchorElement = messageItems.find((element) => {
+      const item = Number.parseInt(element.getAttribute('data-message-item') ?? '', 10);
+      if (!Number.isFinite(item)) return false;
+
+      const rect = element.getBoundingClientRect();
+      return rect.bottom > scrollRect.top && rect.top < scrollRect.bottom;
+    });
+    if (!anchorElement) return;
+
+    const item = Number.parseInt(anchorElement.getAttribute('data-message-item') ?? '', 10);
+    if (!Number.isFinite(item)) return;
+
+    roomVirtualPrependAnchorRef.current = {
+      item,
+      viewportOffset: anchorElement.getBoundingClientRect().top - scrollRect.top,
+    };
+  }, []);
 
   const {
     getItems,
@@ -914,25 +957,130 @@ export function RoomTimeline({
     observeFrontAnchor,
   } = useVirtualPaginator({
     count: threadId ? 0 : filteredLength,
-    limit: safePaginationLimit,
+    limit: interactivePaginationLimit,
     range: activeTimelineRange,
     onRangeChange: useCallback(
       (r) => {
         if (threadId || roomThreadFilterActive) return;
+        if (r.start < activeTimelineRange.start) {
+          captureRoomVirtualPrependAnchor();
+        }
         setTimeline((cs) => ({ ...cs, range: r }));
       },
-      [threadId, roomThreadFilterActive]
+      [activeTimelineRange.start, captureRoomVirtualPrependAnchor, roomThreadFilterActive, threadId]
     ),
     getScrollElement,
-    getItemElement: useCallback(
-      (index: number) =>
-        (scrollRef.current?.querySelector(`[data-message-item="${index}"]`) as HTMLElement) ??
-        undefined,
-      []
-    ),
+    getItemElement: getTimelineItemElement,
     onEnd: handleRoomTimelinePagination,
     shouldSuppressPagination: useCallback(() => suppressFocusPaginationRef.current, []),
   });
+  const timelineItems = getItems();
+  const estimateRoomTimelineItemSize = useCallback(
+    () => (messageLayout === MessageLayout.Compact ? 96 : 144),
+    [messageLayout]
+  );
+  const roomTimelineVirtualizer = useVirtualizer({
+    count: threadId ? 0 : timelineItems.length,
+    getScrollElement,
+    estimateSize: estimateRoomTimelineItemSize,
+    overscan: 10,
+    getItemKey: (index) => {
+      const item = timelineItems[index];
+      return threadFilteredEventEntries[item]?.event.getId() ?? item ?? index;
+    },
+  });
+  useLayoutEffect(() => {
+    const anchor = roomVirtualPrependAnchorRef.current;
+    if (!anchor || threadId) return;
+
+    if (anchor.item < activeTimelineRange.start || anchor.item >= activeTimelineRange.end) {
+      roomVirtualPrependAnchorRef.current = undefined;
+      return;
+    }
+
+    const virtualIndex = anchor.item - activeTimelineRange.start;
+    const offset = Math.max(virtualIndex * estimateRoomTimelineItemSize() - anchor.viewportOffset, 0);
+    roomTimelineVirtualizer.scrollToOffset(offset, { behavior: 'auto' });
+    roomVirtualPrependAnchorRef.current = undefined;
+
+    requestAnimationFrame(() => {
+      const scrollElement = scrollRef.current;
+      const anchorElement = getTimelineItemElement(anchor.item);
+      if (!scrollElement || !anchorElement) return;
+
+      const expectedTop = scrollElement.getBoundingClientRect().top + anchor.viewportOffset;
+      const delta = anchorElement.getBoundingClientRect().top - expectedTop;
+      if (Math.abs(delta) <= 1) return;
+
+      scrollElement.scrollBy({ top: delta, behavior: 'instant' });
+    });
+  }, [
+    activeTimelineRange.end,
+    activeTimelineRange.start,
+    estimateRoomTimelineItemSize,
+    getTimelineItemElement,
+    roomTimelineVirtualizer,
+    threadId,
+  ]);
+  const roomTimelineLatestVirtualIndex = useMemo(() => {
+    if (timelineItems.length === 0) return -1;
+    if (!roomOverviewOrderActive) return timelineItems.length - 1;
+
+    let latestVirtualIndex = 0;
+    let latestAbsoluteIndex = Number.NEGATIVE_INFINITY;
+    timelineItems.forEach((item, virtualIndex) => {
+      const absoluteIndex = threadFilteredEventEntries[item]?.absoluteIndex ?? item;
+      if (absoluteIndex >= latestAbsoluteIndex) {
+        latestAbsoluteIndex = absoluteIndex;
+        latestVirtualIndex = virtualIndex;
+      }
+    });
+
+    return latestVirtualIndex;
+  }, [roomOverviewOrderActive, threadFilteredEventEntries, timelineItems]);
+  const roomScrollToBottomCount = scrollToBottomRef.current.count;
+  useLayoutEffect(() => {
+    if (threadId || roomScrollToBottomCount <= 0 || roomTimelineLatestVirtualIndex < 0) return;
+
+    roomTimelineVirtualizer.scrollToIndex(roomTimelineLatestVirtualIndex, {
+      align: roomOverviewOrderActive ? 'start' : 'end',
+      behavior: scrollToBottomRef.current.smooth ? 'smooth' : 'auto',
+    });
+    setAtBottom(true);
+  }, [
+    roomOverviewOrderActive,
+    roomScrollToBottomCount,
+    roomTimelineLatestVirtualIndex,
+    roomTimelineVirtualizer,
+    scrollToBottomRef,
+    setAtBottom,
+    threadId,
+  ]);
+  const scrollToTimelineItem = useCallback(
+    (index: number, opts?: Parameters<typeof scrollToItem>[1]) => {
+      if (threadId || index < activeTimelineRange.start || index >= activeTimelineRange.end) {
+        return scrollToItem(index, opts);
+      }
+
+      if (getTimelineItemElement(index)) {
+        return scrollToItem(index, opts);
+      }
+
+      roomTimelineVirtualizer.scrollToIndex(index - activeTimelineRange.start, {
+        align: opts?.align ?? 'start',
+        behavior: opts?.behavior === 'smooth' ? 'smooth' : 'auto',
+      });
+      return true;
+    },
+    [
+      activeTimelineRange.end,
+      activeTimelineRange.start,
+      getTimelineItemElement,
+      roomTimelineVirtualizer,
+      scrollToItem,
+      threadId,
+    ]
+  );
 
   const { handleOpenEvent, redirectRoomEventDeepLink } = useRoomEventOpenController({
     alive,
@@ -957,7 +1105,7 @@ export function RoomTimeline({
     scrollRef,
     scrollToBottomRef,
     scrollToElement,
-    scrollToItem,
+    scrollToItem: scrollToTimelineItem,
     searchQuery: threadIndexSearchQuery,
     setFocusItem,
     setPendingThreadOpenTick,
@@ -1203,7 +1351,7 @@ export function RoomTimeline({
     scrollRef,
     scrollToBottomRef,
     scrollToElement,
-    scrollToItem,
+    scrollToItem: scrollToTimelineItem,
     setAtBottom,
     setFocusItem,
     setPendingThreadOpenTick,
@@ -1399,6 +1547,7 @@ export function RoomTimeline({
           mEventId,
           resolvedContent
         );
+        const forceCollapsibleOverflow = shouldForceCollapsibleMessageOverflow(resolvedContent);
         const onInitialExpandConsumed =
           collapseMode === 'initially-expanded'
             ? () => {
@@ -1533,7 +1682,7 @@ export function RoomTimeline({
               return (
                 <CollapsibleMessage
                   collapseMode={collapseMode}
-                  forceOverflowing={!!hydratedLongTextExtrasCollapseKey}
+                  forceOverflowing={forceCollapsibleOverflow}
                   measurementKey={measurementKey}
                   onInitialExpandConsumed={onInitialExpandConsumed}
                 >
@@ -1809,6 +1958,8 @@ export function RoomTimeline({
                     mEventId,
                     resolvedContent
                   );
+                  const forceCollapsibleOverflow =
+                    shouldForceCollapsibleMessageOverflow(resolvedContent);
                   const measurementKey = getCollapsibleMessageMeasurementKey(
                     mEvent,
                     collapseMode,
@@ -1858,7 +2009,7 @@ export function RoomTimeline({
                   return (
                     <CollapsibleMessage
                       collapseMode={collapseMode}
-                      forceOverflowing={!!hydratedLongTextExtrasCollapseKey}
+                      forceOverflowing={forceCollapsibleOverflow}
                       measurementKey={measurementKey}
                       onInitialExpandConsumed={onInitialExpandConsumed}
                     >
@@ -2268,8 +2419,6 @@ export function RoomTimeline({
       );
     }
   );
-  const timelineItems = getItems();
-
   useThreadEditBackfillController({
     atLiveEndRef,
     eventId,
@@ -2434,6 +2583,63 @@ export function RoomTimeline({
     const timelineSet = evtTimeline?.getTimelineSet() ?? room.getUnfilteredTimelineSet();
 
     return renderResolvedEvent(mEvent, item, timelineSet, eventEntry.absoluteIndex);
+  };
+
+  const primeRoomTimelineRenderContextBefore = (item: number) => {
+    for (let previousItem = item - 1; previousItem >= 0; previousItem -= 1) {
+      const eventEntry = threadFilteredEventEntries[previousItem];
+      const mEvent = eventEntry?.event;
+      const mEventId = mEvent?.getId();
+      if (!mEvent || !mEventId) continue;
+
+      const eventSender = mEvent.getSender();
+      if (eventSender && ignoredUsersSet.has(eventSender)) continue;
+      if (!showThreadRepliesInRoom && mEvent.threadRootId && mEvent.threadRootId !== mEventId) {
+        continue;
+      }
+      if (mEvent.isRedacted() && !showHiddenEvents) continue;
+      if (reactionOrEditEvent(mEvent)) continue;
+
+      prevEvent = mEvent;
+      prevRenderedEventAbsoluteIndex = eventEntry.absoluteIndex;
+      isPrevRendered = true;
+      return;
+    }
+  };
+
+  const renderVirtualRoomTimelineItems = () => {
+    const virtualItems = roomTimelineVirtualizer.getVirtualItems();
+    const firstVirtualItem = virtualItems[0];
+    const firstItem =
+      firstVirtualItem !== undefined ? timelineItems[firstVirtualItem.index] : undefined;
+    if (firstItem !== undefined) {
+      primeRoomTimelineRenderContextBefore(firstItem);
+    }
+
+    return (
+      <div
+        style={{
+          height: roomTimelineVirtualizer.getTotalSize(),
+          position: 'relative',
+          width: '100%',
+        }}
+      >
+        {virtualItems.map((virtualItem) => {
+          const item = timelineItems[virtualItem.index];
+          if (item === undefined) return null;
+
+          return (
+            <VirtualTile
+              key={virtualItem.key}
+              ref={roomTimelineVirtualizer.measureElement}
+              virtualItem={virtualItem}
+            >
+              {eventRenderer(item)}
+            </VirtualTile>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -2656,7 +2862,7 @@ export function RoomTimeline({
                         roomTimelineSet;
                       return renderResolvedEvent(mEvent, index, timelineSet);
                     })
-                  : timelineItems.map(eventRenderer)}
+                  : renderVirtualRoomTimelineItems()}
                 {threadId && canPaginateThreadFront && (
                   <MessageBase space={messageSpacing}>
                     <TimelineDivider variant="Surface">

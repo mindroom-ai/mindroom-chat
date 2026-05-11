@@ -241,6 +241,41 @@ vi.mock('../../../hooks/useVirtualPaginator', () => ({
   }),
 }));
 
+vi.mock('../../../components/virtualizer', () => ({
+  VirtualTile: React.forwardRef<
+    HTMLDivElement,
+    {
+      children?: React.ReactNode;
+      virtualItem?: {
+        index: number;
+      };
+    }
+  >(({ children, virtualItem }, ref) =>
+    React.createElement('div', { ref, 'data-virtual-index': virtualItem?.index }, children)
+  ),
+}));
+
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: (options: { count: number; estimateSize?: () => number }) => {
+    const estimatedSize = options.estimateSize?.() ?? 100;
+    return {
+      getTotalSize: () => options.count * estimatedSize,
+      getVirtualItems: () =>
+        Array.from({ length: options.count }, (_value, index) => ({
+          end: (index + 1) * estimatedSize,
+          index,
+          key: index,
+          lane: 0,
+          size: estimatedSize,
+          start: index * estimatedSize,
+        })),
+      measureElement: vi.fn(),
+      scrollToIndex: vi.fn(),
+      scrollToOffset: vi.fn(),
+    };
+  },
+}));
+
 vi.mock('../../../hooks/useMatrixEventRenderer', () => ({
   useMatrixEventRenderer:
     (
@@ -1091,6 +1126,31 @@ describe('RoomTimeline collapsible wiring', () => {
     expect(findRenderMessageContentPropsForEvent(renderer, '$long-text').hydrateLongText).toBe(
       false
     );
+  });
+
+  it('forces overflow for very long plain text without measuring the collapsed row', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const longPlainTextEvent = makeEvent('$long-plain-text', {
+      content: {
+        body: Array.from({ length: 120 }, (_value, index) => `long line ${index}`).join('\n'),
+        msgtype: 'm.text',
+      },
+    });
+    const room = makeRoom({ liveEvents: [longPlainTextEvent] });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = createTrackedRenderer(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(2);
+    });
+
+    expect(findCollapseModeForEvent(renderer, '$long-plain-text')).toBe('default');
+    expect(findCollapsibleForEvent(renderer, '$long-plain-text').props.forceOverflowing).toBe(true);
   });
 
   it('uses initially-expanded mode for visible live messages and consumes it after mount', async () => {

@@ -28,6 +28,7 @@ import {
   resolveHydratedRoomBeforeToken,
 } from './eventRepository';
 import { hydrateCachedEvents, reconcileRelationEventsWithAggregation } from './eventCacheEditUtils';
+import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from './preloadSettings';
 
 type RoomTimelineState = Timeline;
 
@@ -96,11 +97,15 @@ export const useRoomPaginationCommandController = ({
           : undefined;
         const earliestLoadedEvent = getEarliestLoadedRoomEvent(room, currentLinkedTimelines);
         const mapper = mx.getEventMapper();
+        const cachePageLimit = Math.min(
+          safePaginationLimitRef.current,
+          ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE
+        );
         const cachedPaginationSnapshot = await loadRoomCachedPaginationSnapshot({
           sessionId,
           roomId: room.roomId,
           earliestLoadedEvent,
-          limit: safePaginationLimitRef.current,
+          limit: cachePageLimit,
           mapEvent: (rawEvent) => mapper(rawEvent),
         });
 

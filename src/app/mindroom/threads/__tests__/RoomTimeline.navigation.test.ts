@@ -12,6 +12,7 @@ import {
   makeTimeline,
   matrixClientMock,
   reactionOrEditEventMock,
+  roomTimelineVirtualizerState,
   roomThreadOverviewType,
   roomUnreadState,
   scrollToItemMock,
@@ -284,10 +285,9 @@ describe('RoomTimeline', () => {
       await flushAsyncWork(1);
     });
 
-    expect(scrollToItemMock).toHaveBeenCalledWith(1, {
-      behavior: 'instant',
+    expect(roomTimelineVirtualizerState.scrollToIndexMock).toHaveBeenCalledWith(1, {
       align: 'start',
-      stopInView: true,
+      behavior: 'auto',
     });
   });
 
@@ -798,10 +798,9 @@ describe('RoomTimeline', () => {
       await flushAsyncWork(1);
     });
 
-    expect(scrollToItemMock).toHaveBeenCalledWith(1, {
-      behavior: 'instant',
+    expect(roomTimelineVirtualizerState.scrollToIndexMock).toHaveBeenCalledWith(1, {
       align: 'start',
-      stopInView: true,
+      behavior: 'auto',
     });
   });
 

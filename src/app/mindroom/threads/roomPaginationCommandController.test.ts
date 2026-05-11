@@ -56,6 +56,78 @@ const makeTimeline = (events: unknown[]) =>
   } as never);
 
 describe('useRoomPaginationCommandController', () => {
+  it('uses a bounded interactive cache page size when the preload target is large', async () => {
+    const loaded = makeRoomEvent('$loaded');
+    const timeline = makeTimeline([loaded]);
+    const initialTimeline: Timeline = {
+      linkedTimelines: [timeline],
+      range: { start: 0, end: 1 },
+    };
+    let callback: ((backwards: boolean) => Promise<void>) | undefined;
+    let renderer: ReactTestRenderer | undefined;
+
+    loadRoomCachedPaginationSnapshotMock.mockResolvedValue({
+      status: 'start-known',
+    });
+
+    const room = {
+      roomId: '!room:server',
+      partitionThreadedEvents: vi.fn((events) => [events, [], []]),
+      addEventsToTimeline: vi.fn(),
+      processThreadRoots: vi.fn(),
+      hasEncryptionStateEvent: () => false,
+      relations: {},
+    } as never;
+    const mx = {
+      getEventMapper: () => (rawEvent: unknown) => rawEvent,
+      processAggregatedTimelineEvents: vi.fn(),
+    } as never;
+
+    function Harness() {
+      callback = useRoomPaginationCommandController({
+        alive: () => true,
+        handleTimelinePagination: vi.fn(),
+        mx,
+        recalibrateFilterOptsRef: {
+          current: {
+            room,
+            threadId: undefined,
+            ignoredUsersSet: new Set(),
+            showHiddenEvents: false,
+            hideMembershipEvents: false,
+            hideNickAvatarEvents: false,
+            showThreadRepliesInRoom: true,
+          },
+        },
+        room,
+        roomIdRef: { current: '!room:server' },
+        roomPaginatingBackRef: { current: false },
+        safePaginationLimitRef: { current: 10000 },
+        sessionId: 'session',
+        setRoomHasMoreCachedBack: vi.fn(),
+        setTimeline: vi.fn(),
+        threadId: undefined,
+        threadIdRef: { current: undefined },
+        timeline: initialTimeline,
+      });
+      return null;
+    }
+
+    await act(async () => {
+      renderer = create(React.createElement(Harness));
+    });
+
+    await act(async () => {
+      await callback?.(true);
+    });
+
+    renderer?.unmount();
+
+    expect(loadRoomCachedPaginationSnapshotMock).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 200 })
+    );
+  });
+
   it('preserves classic thread-reply filtering when recalibrating cached prepend range', async () => {
     const root = makeRoomEvent('$root');
     const reply = makeRoomEvent('$reply', '$root');

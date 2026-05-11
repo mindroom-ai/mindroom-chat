@@ -9,6 +9,7 @@ const STORAGE_KEY = 'settings';
 export {
   DEFAULT_PAGINATION_LIMIT,
   MIN_PAGINATION_LIMIT,
+  ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
   THREAD_BATCH_SIZE,
   sanitizePaginationLimit,
 } from '../mindroom/threads/preloadSettings';

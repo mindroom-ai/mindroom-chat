@@ -2,6 +2,53 @@
 
 ## Runbook
 
+### Classic room timeline virtualized render window (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Reproduced the remaining large-room classic timeline performance issue with Chrome DevTools MCP on the live Personal room.
+  - Root cause: the user-facing preload/cache limit of `10000` was also driving interactive cached pagination and the set of mounted room rows. In a large cached room, classic mode could keep thousands of message rows in the DOM.
+  - Added a TanStack row virtualizer around the room timeline render slice, keeping the logical loaded range available while mounting only the visible rows plus a small overscan.
+  - Split scroll-driven room pagination from the high preload target: cached prepend pages now use a bounded interactive batch, while eager preload/cache can still target the user's high setting.
+  - Added a second small performance guard for very long plain-text rows: obvious long collapsed messages force the Show more affordance without synchronously measuring full `scrollHeight` on mount.
+  - Fixed the follow-up classic-view prepend jump: before expanding the room range backward, the first visible absolute message is captured and the row virtualizer is compensated to keep that message anchored after the virtual index space shifts.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/preloadSettings.ts`
+  - `src/app/mindroom/threads/roomPaginationCommandController.ts`
+  - `src/app/mindroom/threads/roomPaginationCommandController.test.ts`
+  - `src/app/mindroom/threads/threadCollapsibleMessages.ts`
+  - `src/app/state/settings.ts`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.navigation.test.ts`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.permalink-refresh.test.ts`
+  - `src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts`
+  - `src/app/mindroom/threads/test-utils/RoomTimeline.test.shared.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts -t "visible virtual slice"` failed because `MindroomRoomTimeline` did not use a room row virtualizer and rendered the full range.
+  - Red check: `npm test -- src/app/mindroom/threads/roomPaginationCommandController.test.ts -t "bounded interactive cache page size"` failed because cached room pagination still requested `limit: 10000`.
+  - Red check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts -t "very long plain text"` failed because long plain text rows still relied on collapsed DOM measurement.
+  - Follow-up red check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts -t "keeps the first visible classic room message anchored"` failed because older-range prepends did not compensate the row virtualizer after virtual indexes shifted.
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts -t "visible virtual slice" && npm test -- src/app/mindroom/threads/roomPaginationCommandController.test.ts -t "bounded interactive cache page size"`.
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts -t "very long plain text"`.
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts -t "keeps the first visible classic room message anchored"`.
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.navigation.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.permalink-refresh.test.ts src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts src/app/mindroom/threads/roomPaginationCommandController.test.ts` passed (`5` files, `135` tests).
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts src/app/mindroom/threads/roomPaginationCommandController.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/roomTimelineEvents.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Follow-up red e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix` failed `e2e/live/cinny033-jump-to-latest.spec.ts` because Jump to Latest still used the old DOM bottom-scroll path and did not render the latest virtual row.
+  - Green focused e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix -- e2e/live/cinny033-jump-to-latest.spec.ts`.
+  - Green focused e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix -- e2e/account-multitab.spec.ts` after the first full run had an unrelated account setup failure that did not reproduce.
+  - Green final check: `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/MindroomRoomTimeline.tsx src/app/mindroom/threads/preloadSettings.ts src/app/mindroom/threads/roomPaginationCommandController.ts src/app/mindroom/threads/roomPaginationCommandController.test.ts src/app/mindroom/threads/threadCollapsibleMessages.ts src/app/state/settings.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts src/app/mindroom/threads/test-utils/RoomTimeline.test.shared.ts src/app/mindroom/threads/__tests__/RoomTimeline.permalink-refresh.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.navigation.test.ts`.
+  - Green final check: `npm run typecheck`.
+  - Green final check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green final check: `npm test` passed (`276` files, `2050` tests).
+  - Green final check: `npm run build` passed with existing Vite/runtime-config/sourcemap/chunk-size warnings.
+  - Green final check: `git diff --check`.
+  - Green final e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix` passed (`65` passed, `3` skipped).
+  - Runtime check: Chrome DevTools MCP on the live Personal room showed mounted `[data-message-item]` rows bounded to roughly `14..31` during forced scroll jumps instead of the earlier thousands of mounted rows.
+
 ### Classic room timeline collapsed long-text performance (2026-05-11)
 
 - Status:

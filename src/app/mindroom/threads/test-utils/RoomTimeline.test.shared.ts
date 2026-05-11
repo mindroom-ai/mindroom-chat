@@ -56,6 +56,7 @@ const {
   saveCachedThreadSummaryMock,
   isTimelineAtLiveEndMock,
   virtualPaginatorState,
+  roomTimelineVirtualizerState,
   settingsState,
 } = vi.hoisted(() => ({
   passthrough: 'div',
@@ -125,6 +126,20 @@ const {
       | undefined,
     callCount: 0,
     renderItems: true,
+  },
+  roomTimelineVirtualizerState: {
+    lastOptions: undefined as
+      | {
+          count: number;
+          estimateSize?: () => number;
+          getItemKey?: (index: number) => unknown;
+        }
+      | undefined,
+    virtualIndexes: undefined as number[] | undefined,
+    totalSize: undefined as number | undefined,
+    measureElementMock: vi.fn(),
+    scrollToIndexMock: vi.fn(),
+    scrollToOffsetMock: vi.fn(),
   },
 }));
 
@@ -330,6 +345,52 @@ vi.mock('../../../hooks/useVirtualPaginator', () => ({
       retryPagination: retryPaginationMock,
       observeBackAnchor: vi.fn(),
       observeFrontAnchor: vi.fn(),
+    };
+  },
+}));
+
+vi.mock('../../../components/virtualizer', () => ({
+  VirtualTile: React.forwardRef<
+    HTMLDivElement,
+    {
+      children?: React.ReactNode;
+      virtualItem?: {
+        index: number;
+      };
+    }
+  >(({ children, virtualItem }, ref) =>
+    React.createElement('div', { ref, 'data-virtual-index': virtualItem?.index }, children)
+  ),
+}));
+
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: (options: {
+    count: number;
+    estimateSize?: () => number;
+    getItemKey?: (index: number) => unknown;
+  }) => {
+    roomTimelineVirtualizerState.lastOptions = options;
+    const estimatedSize = options.estimateSize?.() ?? 100;
+    const virtualIndexes =
+      roomTimelineVirtualizerState.virtualIndexes ??
+      Array.from({ length: options.count }, (_value, index) => index);
+
+    return {
+      getTotalSize: () => roomTimelineVirtualizerState.totalSize ?? options.count * estimatedSize,
+      getVirtualItems: () =>
+        virtualIndexes
+          .filter((index) => index >= 0 && index < options.count)
+          .map((index) => ({
+            end: (index + 1) * estimatedSize,
+            index,
+            key: options.getItemKey?.(index) ?? index,
+            lane: 0,
+            size: estimatedSize,
+            start: index * estimatedSize,
+          })),
+      measureElement: roomTimelineVirtualizerState.measureElementMock,
+      scrollToIndex: roomTimelineVirtualizerState.scrollToIndexMock,
+      scrollToOffset: roomTimelineVirtualizerState.scrollToOffsetMock,
     };
   },
 }));
@@ -1313,6 +1374,12 @@ beforeEach(() => {
   virtualPaginatorState.lastOptions = undefined;
   virtualPaginatorState.callCount = 0;
   virtualPaginatorState.renderItems = true;
+  roomTimelineVirtualizerState.lastOptions = undefined;
+  roomTimelineVirtualizerState.virtualIndexes = undefined;
+  roomTimelineVirtualizerState.totalSize = undefined;
+  roomTimelineVirtualizerState.measureElementMock.mockClear();
+  roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
+  roomTimelineVirtualizerState.scrollToOffsetMock.mockClear();
   isTimelineAtLiveEndMock.mockReturnValue(true);
   reactionOrEditEventMock.mockImplementation(() => false);
   isMembershipChangedMock.mockImplementation(() => false);
@@ -1612,6 +1679,7 @@ export {
   threadRenderStateMock,
   threadResolutionMapMock,
   TimelineRefreshHarness,
+  roomTimelineVirtualizerState,
   virtualPaginatorState,
   waitForCondition,
   isTimelineAtLiveEndMock,
