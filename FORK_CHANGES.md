@@ -2,6 +2,30 @@
 
 ## Runbook
 
+### Thread local echo NewReply visibility (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigated reports that sending a message from an open thread sometimes did not render immediately until reload or returning from the room overview.
+  - Root cause: `matrix-js-sdk` can emit `ThreadEvent.NewReply` for a threaded local echo before the event is present in `thread.events` or the room live timeline. `useThreadRenderState` listened for `NewReply`, but only recomputed from `thread.events`, so the payload event was dropped from the mounted render state.
+  - `useThreadEventRefresh` now exposes the `NewReply` payload to `useThreadRenderState`, which adds it through the existing supplemental thread-event merge path. This preserves current dedupe/replacement hydration and lets the later confirmed event replace the local echo by transaction ID.
+- Files changed:
+  - `src/app/mindroom/threads/useThreadEventRefresh.ts`
+  - `src/app/mindroom/threads/useThreadRenderState.ts`
+  - `src/app/mindroom/threads/useThreadRenderState.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/threads/useThreadRenderState.test.ts -t "adds a post-mount NewReply payload"` failed because the mounted thread stayed at `["$root"]` after `ThreadEvent.NewReply`.
+  - Green check: `npm test -- src/app/mindroom/threads/useThreadRenderState.test.ts -t "adds a post-mount NewReply payload"`
+  - `npm test -- src/app/mindroom/threads/useThreadRenderState.test.ts src/app/mindroom/threads/threadRenderUtils.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.permalink-refresh.test.ts src/app/mindroom/threads/useThreadStreamingState.test.ts src/app/mindroom/threads/eventCacheEditUtils.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`272` files, `2024` tests).
+  - `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/useThreadEventRefresh.ts src/app/mindroom/threads/useThreadRenderState.ts src/app/mindroom/threads/useThreadRenderState.test.ts`
+  - `git diff --check`
+  - Independent second self-review completed against the final diff; scope stayed limited to mounted thread local-echo visibility and the regression test.
+
 ### App-local copy links bypass matrix.to resolver (2026-05-08)
 
 - Summary:

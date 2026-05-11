@@ -79,12 +79,7 @@ const attachSerializedReplacement = (
   };
 };
 
-const makeAiRunEditEvent = (
-  eventId: string,
-  ts: number,
-  targetEventId: string,
-  status: string
-) =>
+const makeAiRunEditEvent = (eventId: string, ts: number, targetEventId: string, status: string) =>
   new MatrixEvent({
     content: {
       body: `* ${eventId}`,
@@ -139,10 +134,7 @@ const makeTimelineSet = (): EventTimelineSet =>
     },
   } as unknown as EventTimelineSet);
 
-const makeRoom = (
-  rootEvent?: MatrixEvent,
-  txnMap?: Map<string, MatrixEvent>
-): Room =>
+const makeRoom = (rootEvent?: MatrixEvent, txnMap?: Map<string, MatrixEvent>): Room =>
   ({
     findEventById: vi.fn((eventId: string) =>
       rootEvent?.getId() === eventId ? rootEvent : undefined
@@ -156,7 +148,9 @@ const makeThread = (rootEvent: MatrixEvent, events: MatrixEvent[]): MockThread =
     events,
   }) as MockThread;
 
-const renderHookHarness = (props: Omit<HarnessProps, 'onRender'>): {
+const renderHookHarness = (
+  props: Omit<HarnessProps, 'onRender'>
+): {
   getSnapshot: () => HookSnapshot;
   getRenderCount: () => number;
   update: (nextProps: Omit<HarnessProps, 'onRender'>) => void;
@@ -253,10 +247,7 @@ describe('useThreadRenderState', () => {
     });
 
     expect(getSnapshot().threadInitialRenderMode).toBe('live');
-    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual([
-      '$root',
-      '$reply',
-    ]);
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
     expect(getSnapshot().threadEvents[1]).toBe(correctedFallbackReply);
     expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$edit-2');
 
@@ -295,10 +286,7 @@ describe('useThreadRenderState', () => {
       threadInitialCacheHydrated: true,
     });
 
-    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual([
-      '$root',
-      '$reply',
-    ]);
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
     expect(getSnapshot().threadEvents[1]).toBe(refetchedFallbackReply);
     expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$edit-13');
 
@@ -472,10 +460,7 @@ describe('useThreadRenderState', () => {
       thread.emit(ThreadEvent.NewReply, thread, replyEvent);
     });
 
-    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual([
-      '$root',
-      '$reply',
-    ]);
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
     expect(getRenderCount()).toBeGreaterThan(initialRenderCount);
     const afterReplyRenderCount = getRenderCount();
 
@@ -502,6 +487,38 @@ describe('useThreadRenderState', () => {
         }
       )?.['io.mindroom.ai_run']?.status
     ).toBe('completed');
+
+    renderer.unmount();
+  });
+
+  it('adds a post-mount NewReply payload when the SDK has not inserted it into thread events yet', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+    const localEchoReply = makeMessageEvent('~local-reply', 2);
+    localEchoReply.setTxnId('txn-local-reply');
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+    const thread = makeThread(rootEvent, []);
+
+    const { getSnapshot, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: true,
+    });
+
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root']);
+
+    act(() => {
+      thread.emit(ThreadEvent.NewReply, thread, localEchoReply);
+    });
+
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual([
+      '$root',
+      '~local-reply',
+    ]);
+    expect(getSnapshot().threadEventIndexMapRef.current.get('~local-reply')).toBe(1);
 
     renderer.unmount();
   });

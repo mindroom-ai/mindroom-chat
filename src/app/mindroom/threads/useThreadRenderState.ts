@@ -1,9 +1,6 @@
 import { MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EventTimelineSet, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
-import {
-  aggregateCachedRelationEvents,
-  hydrateCachedEvents,
-} from './eventCacheEditUtils';
+import { aggregateCachedRelationEvents, hydrateCachedEvents } from './eventCacheEditUtils';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 import {
   buildResolveConfirmedEventId,
@@ -63,7 +60,8 @@ const buildThreadEvents = ({
     if (!mEvent) return;
     const eventId = mEvent.getId();
     if (!eventId) return;
-    if (requireThreadMatch && eventId !== threadId && !eventBelongsToThread(mEvent, threadId)) return;
+    if (requireThreadMatch && eventId !== threadId && !eventBelongsToThread(mEvent, threadId))
+      return;
     collectedEvents.push(mEvent);
   };
 
@@ -214,7 +212,20 @@ export const useThreadRenderState = ({
     return nextState.events;
   }, [fallbackEvents, room, thread, threadEventRefreshTick, threadId, threadInitialCacheHydrated]);
 
-  useThreadEventRefresh(thread ?? undefined, threadEvents, refreshThreadEvents);
+  const handleThreadNewReply = useCallback(
+    (mEvent: MatrixEvent) => {
+      if (!threadId) return;
+      setSupplementalThreadEvents(threadId, [mEvent]);
+    },
+    [setSupplementalThreadEvents, threadId]
+  );
+
+  useThreadEventRefresh(
+    thread ?? undefined,
+    threadEvents,
+    refreshThreadEvents,
+    handleThreadNewReply
+  );
 
   const threadInitialRenderMode = getThreadInitialRenderMode({
     threadId,

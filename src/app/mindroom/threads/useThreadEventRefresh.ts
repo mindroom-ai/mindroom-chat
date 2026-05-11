@@ -5,7 +5,8 @@ import { type Thread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 export const useThreadEventRefresh = (
   thread: Thread | undefined,
   trackedEvents: readonly (MatrixEvent | null | undefined)[],
-  refresh: () => void
+  refresh: () => void,
+  onNewReply?: (event: MatrixEvent) => void
 ): void => {
   useEffect(() => {
     refresh();
@@ -14,14 +15,19 @@ export const useThreadEventRefresh = (
   useEffect(() => {
     if (!thread) return undefined;
 
+    const handleNewReply = (_thread: Thread, event: MatrixEvent) => {
+      onNewReply?.(event);
+      refresh();
+    };
+
     thread.on(ThreadEvent.Update, refresh);
-    thread.on(ThreadEvent.NewReply, refresh);
+    thread.on(ThreadEvent.NewReply, handleNewReply);
 
     return () => {
       thread.removeListener(ThreadEvent.Update, refresh);
-      thread.removeListener(ThreadEvent.NewReply, refresh);
+      thread.removeListener(ThreadEvent.NewReply, handleNewReply);
     };
-  }, [refresh, thread]);
+  }, [onNewReply, refresh, thread]);
 
   useEffect(() => {
     const uniqueEvents = trackedEvents.reduce<MatrixEvent[]>((events, event) => {
