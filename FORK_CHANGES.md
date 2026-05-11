@@ -22,6 +22,7 @@
   - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
   - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
   - `npm test` passed (`272` files, `2024` tests).
+  - `npm run test:e2e:docker-matrix` completed after starting Docker Desktop and local Matrix: `63` passed, `2` skipped, `2` failed. Failure 1 is deterministic in `e2e/account-switching.spec.ts`/`e2e/helpers/accounts.ts` because `page.getByText(session.userId)` now matches both the switch label and exact user-id text. Failure 2 in `e2e/live/cinny070-thread-prepend-scroll.spec.ts` did not reproduce when rerunning the failed subset.
   - `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/useThreadEventRefresh.ts src/app/mindroom/threads/useThreadRenderState.ts src/app/mindroom/threads/useThreadRenderState.test.ts`
   - `git diff --check`
   - Independent second self-review completed against the final diff; scope stayed limited to mounted thread local-echo visibility and the regression test.
