@@ -2,6 +2,38 @@
 
 ## Runbook
 
+### Classic room timeline cache and scroll stability (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigated the large-room classic timeline jump/crash report with Chrome DevTools MCP on a mobile viewport.
+  - DevTools reproduced the core failure in a real large room: while sitting at `scrollTop=0`, the rendered message window advanced from indexes `0..29` to `13..42` over roughly four seconds and `scrollHeight` changed repeatedly without user input.
+  - Network evidence showed many `/relations/...` and `/threads?...` requests during classic rendering, confirming that background thread hydration could affect the visible room timeline.
+  - Root cause 1: cached room prepend recalibration measured old renderable counts without `showThreadRepliesInRoom`, while the new count included classic replies. In classic mode this over-applied the range offset and could jump the virtual window forward during cached pagination.
+  - Root cause 2: cached room pages were always passed through `room.partitionThreadedEvents`, which removed thread replies from classic cached pagination even though classic is supposed to render a normal room timeline.
+  - Root cause 3: classic mode additionally merged every loaded `room.getThreads()` reply into the virtualized room list and re-numbered the entire list. That made the classic room viewport depend on asynchronous thread-model hydration rather than the stable linked room timelines/cache.
+  - Classic now keeps virtualized renderables tied to linked room timelines/cache only. Cached room pagination preserves thread replies in classic and uses matching classic renderability for offset recalibration.
+- Files changed:
+  - `e2e/live/cinny076-classic-view-thread-bubbles.spec.ts`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - `src/app/mindroom/threads/roomPaginationCommandController.ts`
+  - `src/app/mindroom/threads/roomPaginationCommandController.test.ts`
+  - `src/app/mindroom/threads/roomTimelineEvents.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/threads/roomPaginationCommandController.test.ts` failed because classic cached prepend shifted `{ start: 10, end: 20 }` to `{ start: 12, end: 22 }` instead of `{ start: 11, end: 21 }`.
+  - Red check: `npm test -- src/app/mindroom/threads/roomPaginationCommandController.test.ts` then failed because classic cached pagination passed only the non-thread root to `addEventsToTimeline`, dropping the cached thread reply.
+  - Red check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts -t "keeps classic room virtualization"` failed while `MindroomRoomTimeline` still imported and called `mergeClassicRoomThreadReplyEntries`.
+  - Green check: `npm test -- src/app/mindroom/threads/roomPaginationCommandController.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/roomTimelineViewState.test.ts`
+  - Green check: `npm run typecheck`
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - Green check: `npm test` passed (`275` files, `2038` tests).
+  - Green check: `npm run test:e2e:docker-matrix -- e2e/live/cinny076-classic-view-thread-bubbles.spec.ts` with `E2E_ENABLE_DEPLOYED_FIXTURE=0`
+  - Green check: `npm run test:e2e:docker-matrix` with `E2E_ENABLE_DEPLOYED_FIXTURE=0` passed (`65` passed, `3` skipped).
+  - Green check: `npx prettier --check FORK_CHANGES.md e2e/live/cinny076-classic-view-thread-bubbles.spec.ts src/app/mindroom/threads/MindroomRoomTimeline.tsx src/app/mindroom/threads/roomPaginationCommandController.ts src/app/mindroom/threads/roomPaginationCommandController.test.ts src/app/mindroom/threads/roomTimelineEvents.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - Green check: `git diff --check`
+
 ### Installed PWA app-shell cache for iOS cold starts (2026-05-11)
 
 - Status:
