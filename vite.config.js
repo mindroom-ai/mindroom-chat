@@ -201,7 +201,9 @@ export default defineConfig({
       injectRegister: false,
       manifest: false,
       injectManifest: {
-        injectionPoint: undefined,
+        injectionPoint: 'self.__WB_MANIFEST',
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        globIgnores: ['public/element-call/**', 'runtime-config.js'],
       },
       devOptions: {
         enabled: true,

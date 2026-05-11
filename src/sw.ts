@@ -1,10 +1,23 @@
 /// <reference lib="WebWorker" />
 
+import {
+  cleanupOutdatedCaches,
+  createHandlerBoundToURL,
+  precacheAndRoute,
+  type PrecacheEntry,
+} from 'workbox-precaching';
+import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { looksLikeMediaRequest, validMediaRequest } from './swMediaAuth';
 import { buildAuthenticatedMediaRequestInit } from './swMediaFetch';
 
 export type {};
-declare const self: ServiceWorkerGlobalScope;
+declare const self: ServiceWorkerGlobalScope & {
+  __WB_MANIFEST: Array<PrecacheEntry | string>;
+};
+
+precacheAndRoute(self.__WB_MANIFEST);
+cleanupOutdatedCaches();
+registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html')));
 
 type SessionInfo = {
   accessToken: string;

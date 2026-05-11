@@ -2,6 +2,35 @@
 
 ## Runbook
 
+### Installed PWA app-shell cache for iOS cold starts (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigated the report that the Safari "Add to Home Screen" MindRoom app reloads the full page after switching away and returning on iPhone.
+  - Exact iOS process eviction was not reproducible in this local environment, but the deployed and local service worker behavior was reproduced: `sw.js` only handled authenticated Matrix media requests and did not precache the SPA shell or provide a navigation fallback.
+  - Root cause for the expensive reload path: when iOS cold-starts the standalone web app, the current service worker cannot serve the app shell from cache, so the document, main bundle, and Matrix crypto WASM must be fetched again before the client can boot.
+  - Enabled Workbox manifest injection for the existing `injectManifest` service worker, precached the SPA shell, registered an `index.html` navigation fallback, and kept the existing authenticated Matrix media request handling.
+  - Raised Workbox's precache file-size limit enough for the main app bundle and Matrix crypto WASM, while excluding copied `public/element-call/**` assets from the startup app-shell cache and keeping `runtime-config.js` network-resolved to avoid stale deployment-time settings.
+  - Note: this cannot prevent WebKit/iOS from killing the standalone web app process or preserve live JavaScript memory after such a kill. It makes the forced cold start cache-backed instead of network-only.
+- Files changed:
+  - `src/sw.ts`
+  - `src/sw.test.ts`
+  - `vite.config.js`
+  - `package.json`
+  - `package-lock.json`
+- Tests and validation:
+  - Red check: `npm test -- src/sw.test.ts` failed while Workbox manifest injection and app-shell routing were absent.
+  - Red check: `npm run build` failed after enabling injection because Workbox's default `2 MiB` precache limit excluded the main app bundle and Matrix crypto WASM.
+  - Green check: `npm test -- src/sw.test.ts` passed.
+  - Red check: `npm test -- src/sw.test.ts` failed while `runtime-config.js` was not explicitly excluded from the app-shell precache.
+  - Green check: `npm run build` passed and generated `dist/sw.js` with `precache 13 entries`, including `index.html`, the main app bundle, and `matrix_sdk_crypto_wasm_bg`, while excluding `runtime-config.js`.
+  - `npm run typecheck` passed.
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm test` passed (`274` files, `2035` tests).
+  - `npx prettier --check FORK_CHANGES.md src/sw.ts src/sw.test.ts vite.config.js package.json package-lock.json` passed.
+  - `git diff --check` passed.
+
 ### Startup loading splash footer stability (2026-05-11)
 
 - Status:
