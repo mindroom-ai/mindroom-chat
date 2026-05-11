@@ -2,6 +2,30 @@
 
 ## Runbook
 
+### Startup loading splash footer stability (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Reproduced the loading footer jump before changing code by opening the app with a stored session against a mocked homeserver and holding `/sync` pending.
+  - Before the fix, the startup transition rendered `Catching up...` above the full-height `SplashScreen`; on a `390x844` viewport this pushed the `MindRoom` footer text from `798..828` to `826..856`, clipping the bottom of the text.
+  - Root cause: `ClientRoot` rendered the startup sync-status strip as soon as a Matrix client object existed, even while the ready/cached client shell was still hidden behind the full-height loading splash.
+  - `ClientRoot` now renders the sync-status strip only when ready or cached client content is renderable, leaving the splash as the sole full-height loading surface during initial startup.
+- Files changed:
+  - `src/app/pages/client/ClientRoot.tsx`
+  - `src/app/pages/client/ClientRoot.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/pages/client/ClientRoot.test.ts -t "keeps the loading screen unobstructed until the first sync arrives"` failed while `Catching up...` rendered with the loading splash.
+  - Green check: `npm test -- src/app/pages/client/ClientRoot.test.ts` passed.
+  - Browser reproduction after fix: same mocked pending-sync setup kept the footer at `798..828` in a `844px` viewport and no longer rendered `Catching up...` over the loading splash.
+  - `npm run typecheck` passed.
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npx prettier --check FORK_CHANGES.md src/app/pages/client/ClientRoot.tsx src/app/pages/client/ClientRoot.test.ts` passed after formatting the edited files.
+  - `git diff --check` passed.
+  - `npm test` passed (`273` files, `2034` tests).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - Independent second self-review completed against the final diff; scope stayed limited to startup loading/sync-status rendering and its regression coverage.
+
 ### Classic room mode thread-bubble suppression (2026-05-11)
 
 - Status:

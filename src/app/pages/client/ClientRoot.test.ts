@@ -51,7 +51,8 @@ vi.mock('matrix-js-sdk/lib/http-api/interface', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
+  default: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', null, children),
 }));
 
 vi.mock('../../../client/initMatrix', () => ({
@@ -65,7 +66,8 @@ vi.mock('../../../client/initMatrix', () => ({
 }));
 
 vi.mock('../../components/splash-screen', () => ({
-  SplashScreen: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
+  SplashScreen: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', null, children),
 }));
 
 vi.mock('../../components/ServerConfigsLoader', () => ({
@@ -104,7 +106,8 @@ vi.mock('../../hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('./SpecVersions', () => ({
-  SpecVersions: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
+  SpecVersions: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', null, children),
 }));
 
 vi.mock('./SyncStatus', () => ({
@@ -135,24 +138,35 @@ type MockClient = {
   emitSync: (current?: SyncState | null, previous?: SyncState | null | undefined) => void;
 };
 
-const createMockClient = (options: { cachedRooms?: number; syncToken?: string | null } = {}): MockClient => {
-  let syncHandler: ((current?: SyncState | null, previous?: SyncState | null | undefined) => void) | undefined;
+const createMockClient = (
+  options: { cachedRooms?: number; syncToken?: string | null } = {}
+): MockClient => {
+  let syncHandler:
+    | ((current?: SyncState | null, previous?: SyncState | null | undefined) => void)
+    | undefined;
   const cachedRooms = options.cachedRooms ?? 0;
   const syncToken = options.syncToken ?? null;
   let syncState: SyncState | null = null;
 
   return {
     stopClient: vi.fn(),
-    on: vi.fn((event: string, handler: (current?: SyncState | null, previous?: SyncState | null | undefined) => void) => {
-      if (event === ClientEvent.Sync) syncHandler = handler;
-    }),
+    on: vi.fn(
+      (
+        event: string,
+        handler: (current?: SyncState | null, previous?: SyncState | null | undefined) => void
+      ) => {
+        if (event === ClientEvent.Sync) syncHandler = handler;
+      }
+    ),
     once: vi.fn(),
     removeListener: vi.fn((event: string, handler: () => void) => {
       if (event === ClientEvent.Sync && syncHandler === handler) {
         syncHandler = undefined;
       }
     }),
-    getRooms: vi.fn(() => Array.from({ length: cachedRooms }, (_, index) => ({ roomId: `!room${index}` }))),
+    getRooms: vi.fn(() =>
+      Array.from({ length: cachedRooms }, (_, index) => ({ roomId: `!room${index}` }))
+    ),
     getSyncState: vi.fn(() => syncState),
     store: {
       getSyncToken: vi.fn(() => syncToken),
@@ -198,22 +212,14 @@ const renderClientRoot = () =>
       }),
       React.createElement(Route, {
         path: '*',
-        element: React.createElement(
-          ClientRoot,
-          null,
-          React.createElement('div', null, 'child')
-        ),
+        element: React.createElement(ClientRoot, null, React.createElement('div', null, 'child')),
       })
     )
   );
 
-const hasRenderedText = (
-  renderer: ReactTestRenderer | undefined,
-  text: string
-): boolean =>
-  !!renderer?.root.findAll(
-    (node) => typeof node.type === 'string' && node.children.includes(text)
-  ).length;
+const hasRenderedText = (renderer: ReactTestRenderer | undefined, text: string): boolean =>
+  !!renderer?.root.findAll((node) => typeof node.type === 'string' && node.children.includes(text))
+    .length;
 
 describe('ClientRoot', () => {
   let renderer: ReactTestRenderer | undefined;
@@ -262,9 +268,7 @@ describe('ClientRoot', () => {
     };
 
     await act(async () => {
-      renderer?.update(
-        renderClientRoot()
-      );
+      renderer?.update(renderClientRoot());
       await flushEffects();
     });
 
@@ -305,9 +309,7 @@ describe('ClientRoot', () => {
     };
 
     await act(async () => {
-      renderer?.update(
-        renderClientRoot()
-      );
+      renderer?.update(renderClientRoot());
       await flushEffects();
     });
 
@@ -330,9 +332,7 @@ describe('ClientRoot', () => {
   });
 
   it('uses the session-aware cleanup helper when the server logs the client out', async () => {
-    let logoutHandler:
-      | (() => Promise<void>)
-      | undefined;
+    let logoutHandler: (() => Promise<void>) | undefined;
     const client = {
       stopClient: vi.fn(),
       on: vi.fn((event: string, handler: () => Promise<void>) => {
@@ -405,7 +405,7 @@ describe('ClientRoot', () => {
     expect(renderer?.toJSON()).toEqual('login page');
   });
 
-  it('keeps the loading screen rendered until the first sync arrives', async () => {
+  it('keeps the loading screen unobstructed until the first sync arrives', async () => {
     const client = createMockClient();
 
     currentSession = {
@@ -433,7 +433,7 @@ describe('ClientRoot', () => {
     });
 
     expect(hasRenderedText(renderer, 'child')).toBe(false);
-    expect(hasRenderedText(renderer, 'Catching up...')).toBe(true);
+    expect(hasRenderedText(renderer, 'Catching up...')).toBe(false);
     expect(hasRenderedText(renderer, 'sync')).toBe(false);
 
     await act(async () => {
@@ -442,7 +442,7 @@ describe('ClientRoot', () => {
     });
 
     expect(hasRenderedText(renderer, 'child')).toBe(false);
-    expect(hasRenderedText(renderer, 'Catching up...')).toBe(true);
+    expect(hasRenderedText(renderer, 'Catching up...')).toBe(false);
   });
 
   it('renders cached UI immediately after startup when cached rooms are restored from the store', async () => {
@@ -499,7 +499,7 @@ describe('ClientRoot', () => {
     });
 
     expect(hasRenderedText(renderer, 'child')).toBe(false);
-    expect(hasRenderedText(renderer, 'Catching up...')).toBe(true);
+    expect(hasRenderedText(renderer, 'Catching up...')).toBe(false);
 
     await act(async () => {
       client.emitSync();
