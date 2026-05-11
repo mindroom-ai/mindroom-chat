@@ -132,7 +132,10 @@ import {
 } from './timelineDebugController';
 import { CompactRoomView } from './CompactRoomView';
 import { RoomThreadOverview } from './RoomThreadOverview';
-import { getRenderableEventEntries } from './roomTimelineEvents';
+import {
+  getRenderableEventEntries,
+  mergeClassicRoomThreadReplyEntries,
+} from './roomTimelineEvents';
 import {
   getEmptyTimeline,
   getInitialTimeline,
@@ -527,8 +530,32 @@ export function RoomTimeline({
   const renderableEventEntries = useMemo(() => {
     if (threadId) return rawRenderableEventEntries;
 
-    return dedupeThreadRenderEventEntries(rawRenderableEventEntries, resolveConfirmedRoomEventId);
-  }, [threadId, rawRenderableEventEntries, resolveConfirmedRoomEventId]);
+    const classicRenderableEventEntries = showThreadRepliesInRoom
+      ? mergeClassicRoomThreadReplyEntries({
+          renderableEventEntries: rawRenderableEventEntries,
+          room,
+          ignoredUsersSet,
+          showHiddenEvents,
+          hideMembershipEvents,
+          hideNickAvatarEvents,
+        })
+      : rawRenderableEventEntries;
+
+    return dedupeThreadRenderEventEntries(
+      classicRenderableEventEntries,
+      resolveConfirmedRoomEventId
+    );
+  }, [
+    threadId,
+    rawRenderableEventEntries,
+    showThreadRepliesInRoom,
+    room,
+    ignoredUsersSet,
+    showHiddenEvents,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+    resolveConfirmedRoomEventId,
+  ]);
   const renderableEvents = useMemo(
     () => renderableEventEntries.map(({ event }) => event),
     [renderableEventEntries]

@@ -12,7 +12,9 @@ const hasCredentials = !!process.env.E2E_USERNAME;
 test.describe('live cinny-076 classic room timeline', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
-  test('switching to classic mode removes MindRoom thread bubbles', async ({ page }) => {
+  test('switching to classic mode removes MindRoom thread bubbles and shows replies', async ({
+    page,
+  }) => {
     test.slow();
 
     const diagnostics = attachBrowserDiagnostics(page);
@@ -51,6 +53,7 @@ test.describe('live cinny-076 classic room timeline', () => {
 
     await expect(page.locator('[data-room-thread-overview="true"]')).toHaveCount(0);
     await expect(page.locator(`[data-thread-root-id="${fixture.rootId}"]`)).toHaveCount(0);
+    await expect(page.getByText(fixture.replyBody)).toBeVisible({ timeout: 30_000 });
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-076-classic-thread-bubbles');
   });

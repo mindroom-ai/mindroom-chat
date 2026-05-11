@@ -105,6 +105,102 @@ export const getRenderableEventEntries = (
   return entries;
 };
 
+export const mergeClassicRoomThreadReplyEntries = ({
+  renderableEventEntries,
+  room,
+  ignoredUsersSet,
+  showHiddenEvents,
+  hideMembershipEvents,
+  hideNickAvatarEvents,
+}: {
+  renderableEventEntries: TimelineEventEntry[];
+  room: Room;
+  ignoredUsersSet: Set<string>;
+  showHiddenEvents: boolean;
+  hideMembershipEvents: boolean;
+  hideNickAvatarEvents: boolean;
+}): TimelineEventEntry[] => {
+  if (renderableEventEntries.length === 0) return renderableEventEntries;
+
+  const loadedEventIds = new Set<string>();
+  const loadedRootEntries = new Map<string, TimelineEventEntry>();
+
+  renderableEventEntries.forEach((entry) => {
+    const eventId = entry.event.getId();
+    if (!eventId) return;
+
+    loadedEventIds.add(eventId);
+    loadedRootEntries.set(eventId, entry);
+  });
+
+  const replyEventsByRootId = new Map<string, MatrixEvent[]>();
+
+  loadedRootEntries.forEach((_rootEntry, rootId) => {
+    const thread = room.getThread(rootId);
+    if (!thread) return;
+
+    thread.events.forEach((mEvent) => {
+      const eventId = mEvent.getId();
+      if (
+        !eventId ||
+        loadedEventIds.has(eventId) ||
+        mEvent.threadRootId !== rootId ||
+        !isThreadReplyEvent(eventId, mEvent.threadRootId) ||
+        !isRenderableEvent(
+          mEvent,
+          room,
+          undefined,
+          ignoredUsersSet,
+          showHiddenEvents,
+          hideMembershipEvents,
+          hideNickAvatarEvents,
+          true
+        )
+      ) {
+        return;
+      }
+
+      const replyEvents = replyEventsByRootId.get(rootId);
+      if (replyEvents) {
+        replyEvents.push(mEvent);
+      } else {
+        replyEventsByRootId.set(rootId, [mEvent]);
+      }
+      loadedEventIds.add(eventId);
+    });
+  });
+
+  if (replyEventsByRootId.size === 0) return renderableEventEntries;
+
+  const replyEntries: TimelineEventEntry[] = [];
+  replyEventsByRootId.forEach((replyEvents, rootId) => {
+    const rootEntry = loadedRootEntries.get(rootId);
+    if (!rootEntry) return;
+
+    replyEvents
+      .sort((eventA, eventB) => {
+        const tsDiff = eventA.getTs() - eventB.getTs();
+        if (tsDiff !== 0) return tsDiff;
+        return (eventA.getId() ?? '').localeCompare(eventB.getId() ?? '');
+      })
+      .forEach((mEvent, index) => {
+        replyEntries.push({
+          event: mEvent,
+          absoluteIndex: rootEntry.absoluteIndex + (index + 1) / (replyEvents.length + 1),
+        });
+      });
+  });
+
+  return [...renderableEventEntries, ...replyEntries].sort((entryA, entryB) => {
+    const absoluteIndexDiff = entryA.absoluteIndex - entryB.absoluteIndex;
+    if (absoluteIndexDiff !== 0) return absoluteIndexDiff;
+
+    const tsDiff = entryA.event.getTs() - entryB.event.getTs();
+    if (tsDiff !== 0) return tsDiff;
+    return (entryA.event.getId() ?? '').localeCompare(entryB.event.getId() ?? '');
+  });
+};
+
 export const getRenderableEvents = (
   linkedTimelines: EventTimeline[],
   room: Room,

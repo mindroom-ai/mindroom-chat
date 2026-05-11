@@ -2,6 +2,34 @@
 
 ## Runbook
 
+### Classic room timeline original Cinny parity correction (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Re-checked original Cinny at `app.cinny.in` with Chrome DevTools MCP. Its normal room timeline shows thread replies inline as ordinary message rows, with Cinny's normal `Thread` button but without MindRoom thread overview/bubble UI.
+  - The previous scroll-stability fix over-corrected by removing the only source of inline thread replies in this fork. With Matrix JS SDK thread support enabled, SDK room timelines filter thread replies into thread models, so classic mode can end up showing only thread roots/proof messages instead of the complete classic room transcript.
+  - Restoring classic parity with a constrained merge: classic mode synthesizes loaded thread replies only for roots already present in the loaded room timeline, dedupes replies already present from cached pages, and keeps existing room entry absolute indexes stable instead of re-numbering the whole virtualized list.
+  - Follow-up performance check on the large `Personal` room confirmed classic mode was active and showed no MindRoom thread bubbles, but the initial constrained merge still scanned every `room.getThreads()` model. The merge now looks up `room.getThread(eventId)` only for roots already present in the loaded room entries.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `e2e/live/cinny076-classic-view-thread-bubbles.spec.ts`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - `src/app/mindroom/threads/roomTimelineEvents.test.ts`
+  - `src/app/mindroom/threads/roomTimelineEvents.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/threads/roomTimelineEvents.test.ts` failed because `mergeClassicRoomThreadReplyEntries` was missing.
+  - Red check: `npm test -- src/app/mindroom/threads/roomTimelineEvents.test.ts` failed while the merge still called `room.getThreads()` instead of doing root-driven `room.getThread(rootId)` lookups.
+  - Green check: `npm test -- src/app/mindroom/threads/roomTimelineEvents.test.ts`
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - Green check: `npm test -- src/app/mindroom/threads/roomTimelineEvents.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/roomTimelineViewState.test.ts`
+  - Green check: `npm run typecheck`
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - Green check: `npm test` passed (`276` files, `2041` tests).
+  - Green check: `npm run test:e2e:docker-matrix -- e2e/live/cinny076-classic-view-thread-bubbles.spec.ts` with `E2E_ENABLE_DEPLOYED_FIXTURE=0`
+  - Partial full e2e check before interruption: `npm run test:e2e:docker-matrix` with `E2E_ENABLE_DEPLOYED_FIXTURE=0` passed through the first `47` specs, then was stopped to investigate the large-room performance report.
+
 ### Classic room timeline cache and scroll stability (2026-05-11)
 
 - Status:

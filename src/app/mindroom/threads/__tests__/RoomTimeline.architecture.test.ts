@@ -159,15 +159,17 @@ describe('RoomTimeline architecture', () => {
     expect(implementationSource).toContain('buildRoomSurfaceEventEntries');
   });
 
-  it('keeps classic room virtualization tied to room timelines instead of thread models', () => {
+  it('keeps classic thread reply merging outside RoomTimeline', () => {
     const source = readRoomTimelineSource();
     const implementationSource = readFileSync(
       new URL('../roomTimelineEvents.ts', import.meta.url),
       'utf8'
     );
 
-    expect(source).not.toContain('mergeClassicRoomThreadReplyEntries');
-    expect(implementationSource).not.toContain('mergeClassicRoomThreadReplyEntries');
+    expect(source).toContain('mergeClassicRoomThreadReplyEntries');
+    expect(source).not.toContain('room.getThreads().forEach');
+    expect(implementationSource).toContain('mergeClassicRoomThreadReplyEntries');
+    expect(implementationSource).toContain('loadedRootEntries');
   });
 
   it('delegates eager room preload orchestration outside RoomTimeline', () => {
