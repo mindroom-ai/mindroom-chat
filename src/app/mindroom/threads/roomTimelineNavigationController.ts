@@ -39,7 +39,7 @@ export type RoomTimelineNavigationControllerOptions = {
   navigateRoomThread: NavigateRoomThread;
   refreshLatestThreadSlice: RefreshLatestThreadSlice;
   room: Room;
-  safePaginationLimit: number;
+  roomRenderLimit: number;
   scrollRef: MutableRefObject<HTMLDivElement | null>;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
@@ -62,7 +62,7 @@ export const useRoomTimelineNavigationController = ({
   navigateRoomThread,
   refreshLatestThreadSlice,
   room,
-  safePaginationLimit,
+  roomRenderLimit,
   scrollRef,
   scrollToBottomRef,
   setAtBottom,
@@ -100,7 +100,7 @@ export const useRoomTimelineNavigationController = ({
       navigateRoom(room.roomId, undefined, { replace: true });
     }
     setTimeline(
-      getInitialTimeline(room, safePaginationLimit, {
+      getInitialTimeline(room, roomRenderLimit, {
         threadId,
         ignoredUsersSet,
         showHiddenEvents,
@@ -120,7 +120,7 @@ export const useRoomTimelineNavigationController = ({
     navigateRoomThread,
     refreshLatestThreadSlice,
     room,
-    safePaginationLimit,
+    roomRenderLimit,
     scrollRef,
     scrollToBottomRef,
     setAtBottom,

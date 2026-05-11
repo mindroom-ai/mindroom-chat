@@ -8,6 +8,11 @@ export type Timeline = {
   range: ItemRange;
 };
 
+export const ROOM_TIMELINE_RENDER_LIMIT = 80;
+
+export const getRoomTimelineRenderLimit = (paginationLimit: number): number =>
+  Math.min(paginationLimit, ROOM_TIMELINE_RENDER_LIMIT);
+
 export type RecalibrateFilterOpts = {
   room: Room;
   threadId: string | undefined;
@@ -155,7 +160,7 @@ export const recalibrateTimelinePagination = (
             start: currentTimeline.range.start + offsetRange,
             end: currentTimeline.range.end + offsetRange,
           }
-      : { ...currentTimeline.range },
+        : { ...currentTimeline.range },
   }));
 };
 
@@ -218,6 +223,12 @@ export const getVisibleTimelineRange = (
 
   const start = Math.max(range.start, 0);
   const end = Math.min(Math.max(range.end, start + 1), count);
+  if (end - start > paginationLimit) {
+    return {
+      start: Math.max(end - paginationLimit, 0),
+      end,
+    };
+  }
 
   return { start, end };
 };

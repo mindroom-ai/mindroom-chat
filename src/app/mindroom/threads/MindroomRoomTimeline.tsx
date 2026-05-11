@@ -141,6 +141,7 @@ import {
   getInitialTimeline,
   getLiveTimeline,
   getRoomUnreadInfo,
+  getRoomTimelineRenderLimit,
   getTimelinesEventsCount,
   type RecalibrateFilterOpts,
   type Timeline,
@@ -307,6 +308,9 @@ export function RoomTimeline({
   const safePaginationLimit = sanitizePaginationLimit(paginationLimitSetting);
   const safePaginationLimitRef = useRef(safePaginationLimit);
   safePaginationLimitRef.current = safePaginationLimit;
+  const roomRenderLimit = getRoomTimelineRenderLimit(safePaginationLimit);
+  const roomRenderLimitRef = useRef(roomRenderLimit);
+  roomRenderLimitRef.current = roomRenderLimit;
 
   const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
   const [dateFormatString] = useSetting(settingsAtom, 'dateFormatString');
@@ -434,7 +438,7 @@ export function RoomTimeline({
   const [timeline, setTimeline] = useState<Timeline>(() =>
     eventId
       ? getEmptyTimeline()
-      : getInitialTimeline(room, safePaginationLimit, {
+      : getInitialTimeline(room, roomRenderLimit, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -473,7 +477,7 @@ export function RoomTimeline({
     if (eventId || threadId) return;
 
     setTimeline(
-      getInitialTimeline(room, safePaginationLimit, {
+      getInitialTimeline(room, roomRenderLimit, {
         threadId,
         ignoredUsersSet,
         showHiddenEvents,
@@ -486,7 +490,7 @@ export function RoomTimeline({
     eventId,
     threadId,
     room,
-    safePaginationLimit,
+    roomRenderLimit,
     ignoredUsersSet,
     showHiddenEvents,
     hideMembershipEvents,
@@ -687,7 +691,7 @@ export function RoomTimeline({
     room,
     roomSurfaceEventEntries,
     roomThreadListThreads,
-    safePaginationLimit,
+    roomRenderLimit,
     threadEventsLength: threadEvents.length,
     threadHasMoreCachedBack,
     threadId,
@@ -728,7 +732,7 @@ export function RoomTimeline({
 
     if (wasActive && !roomThreadFilterActive && !threadId) {
       setTimeline(
-        getInitialTimeline(room, safePaginationLimit, {
+        getInitialTimeline(room, roomRenderLimit, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -747,7 +751,7 @@ export function RoomTimeline({
     hideMembershipEvents,
     hideNickAvatarEvents,
     showThreadRepliesInRoom,
-    safePaginationLimit,
+    roomRenderLimit,
   ]);
 
   const timelineAtLiveEnd = isTimelineAtLiveEnd({
@@ -783,7 +787,7 @@ export function RoomTimeline({
     mx,
     timeline,
     setTimeline,
-    safePaginationLimit,
+    roomRenderLimit,
     recalibrateFilterOptsRef
   );
 
@@ -914,7 +918,7 @@ export function RoomTimeline({
     observeFrontAnchor,
   } = useVirtualPaginator({
     count: threadId ? 0 : filteredLength,
-    limit: safePaginationLimit,
+    limit: roomRenderLimit,
     range: activeTimelineRange,
     onRangeChange: useCallback(
       (r) => {
@@ -951,8 +955,8 @@ export function RoomTimeline({
     recalibrateFilterOptsRef,
     roomOverviewOrderActive,
     roomThreadListThreads,
-    safePaginationLimit,
-    safePaginationLimitRef,
+    roomRenderLimit,
+    roomRenderLimitRef,
     scheduledStatusMap,
     scrollRef,
     scrollToBottomRef,
@@ -1012,7 +1016,7 @@ export function RoomTimeline({
 
   const buildRoomCacheHydratedTimeline = useCallback(
     () =>
-      getInitialTimeline(room, safePaginationLimitRef.current, {
+      getInitialTimeline(room, roomRenderLimitRef.current, {
         threadId: undefined,
         ignoredUsersSet: recalibrateFilterOptsRef.current?.ignoredUsersSet ?? new Set(),
         showHiddenEvents: recalibrateFilterOptsRef.current?.showHiddenEvents ?? false,
@@ -1050,7 +1054,7 @@ export function RoomTimeline({
     refreshLatestThreadSlice,
     onRoomRefresh: useCallback(() => {
       setTimeline(
-        getInitialTimeline(room, safePaginationLimit, {
+        getInitialTimeline(room, roomRenderLimit, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -1067,7 +1071,7 @@ export function RoomTimeline({
       hideMembershipEvents,
       hideNickAvatarEvents,
       showThreadRepliesInRoom,
-      safePaginationLimit,
+      roomRenderLimit,
     ]),
   });
 
@@ -1241,7 +1245,7 @@ export function RoomTimeline({
       navigateRoomThread,
       refreshLatestThreadSlice,
       room,
-      safePaginationLimit,
+      roomRenderLimit,
       scrollRef,
       scrollToBottomRef,
       setAtBottom,

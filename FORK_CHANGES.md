@@ -2,6 +2,32 @@
 
 ## Runbook
 
+### Classic room timeline render-window performance (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigated the report that scrolling the large `Personal` room in classic mode still felt sluggish with the user account on `localhost:8080`.
+  - Runtime probe confirmed classic mode was active with no MindRoom thread bubbles or compact overview, but the room had `294` message rows mounted at once because the user-facing message preload limit was set to `10,000`.
+  - The same probe showed `289` collapsible message bodies and about `139k px` of hidden measured content in the DOM, explaining poor scroll performance on mobile-sized viewports.
+  - Kept the high preload/cache limit intact, but split it from the chronological DOM render window. Room timeline preload/pagination controllers still receive the sanitized preload limit, while the visible room timeline mounts at most `80` chronological message rows at once.
+  - Follow-up probe on the same room showed the mounted message count drop from `294` to `80`, the scroll surface drop from about `41,000px` to `11,190px`, and classic mode still had zero MindRoom thread bubbles.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/roomEventOpenController.ts`
+  - `src/app/mindroom/threads/roomTimelineNavigationController.ts`
+  - `src/app/mindroom/threads/roomTimelineWindowController.ts`
+  - `src/app/mindroom/threads/timelinePagination.test.ts`
+  - `src/app/mindroom/threads/timelinePagination.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/threads/timelinePagination.test.ts` failed while an oversized valid range `{ start: 0, end: 294 }` still rendered all `294` rows instead of capping to the visible render window.
+  - Green check: `npm test -- src/app/mindroom/threads/timelinePagination.test.ts`
+  - Green check: `npm test -- src/app/mindroom/threads/timelinePagination.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.navigation.test.ts`
+  - Green check: `npm run typecheck`
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - Green check: `npm run test:e2e:docker-matrix -- e2e/live/cinny076-classic-view-thread-bubbles.spec.ts e2e/live/cinny033-jump-to-latest.spec.ts e2e/live/cinny070-thread-prepend-scroll.spec.ts` with `E2E_ENABLE_DEPLOYED_FIXTURE=0`
+
 ### Classic room timeline original Cinny parity correction (2026-05-11)
 
 - Status:

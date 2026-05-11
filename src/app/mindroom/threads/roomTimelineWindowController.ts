@@ -2,16 +2,10 @@ import { useMemo } from 'react';
 import type { MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import type { RoomViewMode } from './roomViewMode';
 import type { Timeline } from './timelinePagination';
-import {
-  getActiveTimelineRange,
-  getLinkedTimelinesEventAbsoluteIndex,
-} from './timelinePagination';
+import { getActiveTimelineRange, getLinkedTimelinesEventAbsoluteIndex } from './timelinePagination';
 import type { TimelineEventEntry } from './roomTimelineEvents';
 import { resolveOrderedRoomOverviewEvents } from './threadRoomFocus';
-import {
-  getEventEntryIndex,
-  getNextRenderableEntryIndex,
-} from './timelineScrollUtils';
+import { getEventEntryIndex, getNextRenderableEntryIndex } from './timelineScrollUtils';
 import { collectPriorityThreadSeedPrewarmRoots } from './threadBootstrap';
 import {
   buildThreadCacheCoverage,
@@ -36,7 +30,7 @@ export type RoomTimelineWindowControllerOptions = {
   room: Room;
   roomSurfaceEventEntries: TimelineEventEntry[];
   roomThreadListThreads: Thread[];
-  safePaginationLimit: number;
+  roomRenderLimit: number;
   threadEventsLength: number;
   threadHasMoreCachedBack: boolean;
   threadId?: string;
@@ -72,7 +66,7 @@ export const useRoomTimelineWindowController = ({
   room,
   roomSurfaceEventEntries,
   roomThreadListThreads,
-  safePaginationLimit,
+  roomRenderLimit,
   threadEventsLength,
   threadHasMoreCachedBack,
   threadId,
@@ -163,9 +157,9 @@ export const useRoomTimelineWindowController = ({
         filteredRoomThreadActive,
         timeline.range,
         filteredLength,
-        safePaginationLimit
+        roomRenderLimit
       ),
-    [threadId, filteredRoomThreadActive, timeline.range, filteredLength, safePaginationLimit]
+    [threadId, filteredRoomThreadActive, timeline.range, filteredLength, roomRenderLimit]
   );
 
   const priorityThreadSeedPrewarmRoots = useMemo(() => {
