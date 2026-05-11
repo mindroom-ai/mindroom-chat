@@ -172,7 +172,7 @@ test.describe('CINNY-070: thread prepend pagination preserves scroll anchor', ()
       page,
       roomId,
       userId: session.userId,
-      viewMode: 'normal',
+      viewMode: 'threaded',
       filterState: createDefaultThreadFilterState(),
     });
 

@@ -71,7 +71,7 @@ test.describe('live cinny-033 message permalink open target', () => {
       page,
       roomId: sourceRoomId,
       userId: session.userId,
-      viewMode: 'normal',
+      viewMode: 'threaded',
       filterState: createDefaultThreadFilterState(),
     });
 

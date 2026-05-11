@@ -132,7 +132,10 @@ import {
 } from './timelineDebugController';
 import { CompactRoomView } from './CompactRoomView';
 import { RoomThreadOverview } from './RoomThreadOverview';
-import { getRenderableEventEntries } from './roomTimelineEvents';
+import {
+  getRenderableEventEntries,
+  mergeClassicRoomThreadReplyEntries,
+} from './roomTimelineEvents';
 import {
   getEmptyTimeline,
   getInitialTimeline,
@@ -263,7 +266,7 @@ export function RoomTimeline({
   onReset,
   onApplyPreset,
   onSearchQueryChange,
-  viewMode = 'normal',
+  viewMode = 'threaded',
   onViewModeChange,
   onThreadLoadError,
   roomInputRef,
@@ -284,13 +287,14 @@ export function RoomTimeline({
     requestedThreadFilterState,
     showRoomThreadOverviewControls,
   } = resolveRoomTimelineViewState({
-    direct,
     eventId,
     focusEventInRoom,
     threadFilterState,
     threadId,
     viewMode,
   });
+  const showThreadRepliesInRoom = effectiveViewMode === 'classic';
+  const showThreadBadgesInRoom = effectiveViewMode !== 'classic';
   const [hideMembershipEvents] = useSetting(settingsAtom, 'hideMembershipEvents');
   const [hideNickAvatarEvents] = useSetting(settingsAtom, 'hideNickAvatarEvents');
   const [mediaAutoLoad] = useSetting(settingsAtom, 'mediaAutoLoad');
@@ -436,8 +440,10 @@ export function RoomTimeline({
           showHiddenEvents,
           hideMembershipEvents,
           hideNickAvatarEvents,
+          showThreadRepliesInRoom,
         })
   );
+  const prevShowThreadRepliesInRoomRef = useRef(showThreadRepliesInRoom);
   const eventsLength = getTimelinesEventsCount(timeline.linkedTimelines);
   const threadResolutionMap = useRoomThreadResolutionMap(room);
   useEffect(() => {
@@ -461,6 +467,32 @@ export function RoomTimeline({
       setEagerPreloading(true);
     }
   }, [eventId, threadId]);
+  useLayoutEffect(() => {
+    if (prevShowThreadRepliesInRoomRef.current === showThreadRepliesInRoom) return;
+    prevShowThreadRepliesInRoomRef.current = showThreadRepliesInRoom;
+    if (eventId || threadId) return;
+
+    setTimeline(
+      getInitialTimeline(room, safePaginationLimit, {
+        threadId,
+        ignoredUsersSet,
+        showHiddenEvents,
+        hideMembershipEvents,
+        hideNickAvatarEvents,
+        showThreadRepliesInRoom,
+      })
+    );
+  }, [
+    eventId,
+    threadId,
+    room,
+    safePaginationLimit,
+    ignoredUsersSet,
+    showHiddenEvents,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+    showThreadRepliesInRoom,
+  ]);
   const rawRenderableEventEntries = useMemo(
     () =>
       getRenderableEventEntries(
@@ -470,7 +502,8 @@ export function RoomTimeline({
         ignoredUsersSet,
         showHiddenEvents,
         hideMembershipEvents,
-        hideNickAvatarEvents
+        hideNickAvatarEvents,
+        showThreadRepliesInRoom
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
@@ -481,6 +514,7 @@ export function RoomTimeline({
       showHiddenEvents,
       hideMembershipEvents,
       hideNickAvatarEvents,
+      showThreadRepliesInRoom,
     ]
   );
   const resolveConfirmedRoomEventId = useMemo(
@@ -493,13 +527,34 @@ export function RoomTimeline({
           ),
     [threadId, room, rawRenderableEventEntries]
   );
-  const renderableEventEntries = useMemo(
-    () =>
-      threadId
-        ? rawRenderableEventEntries
-        : dedupeThreadRenderEventEntries(rawRenderableEventEntries, resolveConfirmedRoomEventId),
-    [threadId, rawRenderableEventEntries, resolveConfirmedRoomEventId]
-  );
+  const renderableEventEntries = useMemo(() => {
+    if (threadId) return rawRenderableEventEntries;
+
+    const dedupedEntries = dedupeThreadRenderEventEntries(
+      rawRenderableEventEntries,
+      resolveConfirmedRoomEventId
+    );
+    if (!showThreadRepliesInRoom) return dedupedEntries;
+
+    return mergeClassicRoomThreadReplyEntries({
+      renderableEventEntries: dedupedEntries,
+      room,
+      ignoredUsersSet,
+      showHiddenEvents,
+      hideMembershipEvents,
+      hideNickAvatarEvents,
+    });
+  }, [
+    threadId,
+    rawRenderableEventEntries,
+    resolveConfirmedRoomEventId,
+    showThreadRepliesInRoom,
+    room,
+    ignoredUsersSet,
+    showHiddenEvents,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+  ]);
   const renderableEvents = useMemo(
     () => renderableEventEntries.map(({ event }) => event),
     [renderableEventEntries]
@@ -678,6 +733,7 @@ export function RoomTimeline({
           showHiddenEvents,
           hideMembershipEvents,
           hideNickAvatarEvents,
+          showThreadRepliesInRoom,
         })
       );
     }
@@ -689,6 +745,7 @@ export function RoomTimeline({
     showHiddenEvents,
     hideMembershipEvents,
     hideNickAvatarEvents,
+    showThreadRepliesInRoom,
     safePaginationLimit,
   ]);
 
@@ -709,6 +766,7 @@ export function RoomTimeline({
     showHiddenEvents,
     hideMembershipEvents,
     hideNickAvatarEvents,
+    showThreadRepliesInRoom,
   });
   recalibrateFilterOptsRef.current = {
     room,
@@ -717,6 +775,7 @@ export function RoomTimeline({
     showHiddenEvents,
     hideMembershipEvents,
     hideNickAvatarEvents,
+    showThreadRepliesInRoom,
   };
 
   const handleTimelinePagination = useTimelinePagination(
@@ -958,6 +1017,7 @@ export function RoomTimeline({
         showHiddenEvents: recalibrateFilterOptsRef.current?.showHiddenEvents ?? false,
         hideMembershipEvents: recalibrateFilterOptsRef.current?.hideMembershipEvents ?? false,
         hideNickAvatarEvents: recalibrateFilterOptsRef.current?.hideNickAvatarEvents ?? false,
+        showThreadRepliesInRoom: recalibrateFilterOptsRef.current?.showThreadRepliesInRoom,
       }),
     [room]
   );
@@ -995,6 +1055,7 @@ export function RoomTimeline({
           showHiddenEvents,
           hideMembershipEvents,
           hideNickAvatarEvents,
+          showThreadRepliesInRoom,
         })
       );
     }, [
@@ -1004,6 +1065,7 @@ export function RoomTimeline({
       showHiddenEvents,
       hideMembershipEvents,
       hideNickAvatarEvents,
+      showThreadRepliesInRoom,
       safePaginationLimit,
     ]),
   });
@@ -1168,6 +1230,7 @@ export function RoomTimeline({
 
   const { handleJumpToLatest, handleJumpToUnread, handleOpenCompactThread, handleOpenReply } =
     useRoomTimelineNavigationController({
+      classicRoomTimeline: showThreadRepliesInRoom,
       eventId,
       handleOpenEvent,
       hideMembershipEvents,
@@ -1183,6 +1246,7 @@ export function RoomTimeline({
       setAtBottom,
       setTimeline,
       showHiddenEvents,
+      showThreadRepliesInRoom,
       threadId,
       threadIdRef,
       unreadInfo,
@@ -1232,16 +1296,17 @@ export function RoomTimeline({
       if (!replyId) {
         return;
       }
-      const replyDraft = buildMindroomRoomTimelineReplyDraft(room, replyId, startThread);
+      const shouldStartThread = startThread && !showThreadRepliesInRoom;
+      const replyDraft = buildMindroomRoomTimelineReplyDraft(room, replyId, shouldStartThread);
       if (replyDraft) {
         setReplyDraft(replyDraft.draft);
-        if (startThread) {
+        if (shouldStartThread) {
           navigateRoomThread(room.roomId, replyDraft.threadRootId);
         }
         setTimeout(() => ReactEditor.focus(editor), 100);
       }
     },
-    [room, setReplyDraft, editor, navigateRoomThread]
+    [room, showThreadRepliesInRoom, setReplyDraft, editor, navigateRoomThread]
   );
 
   const handleReactionToggle = useCallback(
@@ -1343,15 +1408,17 @@ export function RoomTimeline({
         const senderId = mEvent.getSender() ?? '';
         const senderDisplayName =
           getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-        const threadSummary = renderMindroomRoomTimelineThreadBadge({
-          eventId: mEventId,
-          event: mEvent,
-          threadRecordMap,
-          activeThreadId: threadId,
-          room,
-          onClick: handleOpenReply,
-          includeRecentSummaryData: true,
-        });
+        const threadSummary = showThreadBadgesInRoom
+          ? renderMindroomRoomTimelineThreadBadge({
+              eventId: mEventId,
+              event: mEvent,
+              threadRecordMap,
+              activeThreadId: threadId,
+              room,
+              onClick: handleOpenReply,
+              includeRecentSummaryData: true,
+            })
+          : null;
 
         return (
           <Message
@@ -1389,7 +1456,7 @@ export function RoomTimeline({
                   replyEventId={replyEventId}
                   threadRootId={threadRootId}
                   getLocally={threadId ? () => threadEventMap.get(replyEventId) : undefined}
-                  hideThreadIndicator={!!threadId}
+                  hideThreadIndicator={!!threadId || showThreadRepliesInRoom}
                   onClick={handleOpenReply}
                   getMemberPowerTag={getMemberPowerTag}
                   accessibleTagColors={accessiblePowerTagColors}
@@ -1487,14 +1554,16 @@ export function RoomTimeline({
           const senderId = mEvent.getSender() ?? '';
           const senderDisplayName =
             getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-          const threadSummary = renderMindroomRoomTimelineThreadBadge({
-            eventId: mEventId,
-            event: mEvent,
-            threadRecordMap,
-            activeThreadId: threadId,
-            room,
-            onClick: handleOpenReply,
-          });
+          const threadSummary = showThreadBadgesInRoom
+            ? renderMindroomRoomTimelineThreadBadge({
+                eventId: mEventId,
+                event: mEvent,
+                threadRecordMap,
+                activeThreadId: threadId,
+                room,
+                onClick: handleOpenReply,
+              })
+            : null;
 
           return (
             <Message
@@ -1530,7 +1599,7 @@ export function RoomTimeline({
                     replyEventId={replyEventId}
                     threadRootId={threadRootId}
                     getLocally={threadId ? () => threadEventMap.get(replyEventId) : undefined}
-                    hideThreadIndicator={!!threadId}
+                    hideThreadIndicator={!!threadId || showThreadRepliesInRoom}
                     onClick={handleOpenReply}
                     getMemberPowerTag={getMemberPowerTag}
                     accessibleTagColors={accessiblePowerTagColors}
@@ -1596,14 +1665,16 @@ export function RoomTimeline({
         const highlighted = focusItem?.index === item && focusItem.highlight;
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
         const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
-        const threadSummary = renderMindroomRoomTimelineThreadBadge({
-          eventId: mEventId,
-          event: mEvent,
-          threadRecordMap,
-          activeThreadId: threadId,
-          room,
-          onClick: handleOpenReply,
-        });
+        const threadSummary = showThreadBadgesInRoom
+          ? renderMindroomRoomTimelineThreadBadge({
+              eventId: mEventId,
+              event: mEvent,
+              threadRecordMap,
+              activeThreadId: threadId,
+              room,
+              onClick: handleOpenReply,
+            })
+          : null;
 
         return (
           <Message
@@ -1641,7 +1712,7 @@ export function RoomTimeline({
                   replyEventId={replyEventId}
                   threadRootId={threadRootId}
                   getLocally={threadId ? () => threadEventMap.get(replyEventId) : undefined}
-                  hideThreadIndicator={!!threadId}
+                  hideThreadIndicator={!!threadId || showThreadRepliesInRoom}
                   onClick={handleOpenReply}
                   getMemberPowerTag={getMemberPowerTag}
                   accessibleTagColors={accessiblePowerTagColors}
@@ -2250,7 +2321,12 @@ export function RoomTimeline({
     if (eventSender && ignoredUsersSet.has(eventSender)) {
       return null;
     }
-    if (!threadId && mEvent.threadRootId && mEvent.threadRootId !== mEventId) {
+    if (
+      !threadId &&
+      !showThreadRepliesInRoom &&
+      mEvent.threadRootId &&
+      mEvent.threadRootId !== mEventId
+    ) {
       return null;
     }
     if (mEvent.isRedacted() && !showHiddenEvents) {

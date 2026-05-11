@@ -1,4 +1,5 @@
 import React, { MouseEventHandler, forwardRef, useState } from 'react';
+import { useAtom } from 'jotai';
 import FocusTrap from 'focus-trap-react';
 import {
   Box,
@@ -69,6 +70,7 @@ import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import { RoomSettingsPage } from '../../state/roomSettings';
+import { roomViewModeAtomFamily, type RoomViewMode } from './roomViewMode';
 
 type RoomMenuProps = {
   room: Room;
@@ -84,6 +86,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const notificationMode = getRoomNotificationMode(notificationPreferences, room.roomId);
   const { navigateRoom } = useRoomNavigate();
+  const [viewMode, setViewMode] = useAtom(roomViewModeAtomFamily(room.roomId));
 
   const [invitePrompt, setInvitePrompt] = useState(false);
 
@@ -102,6 +105,11 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
   const parentSpace = useSpaceOptionally();
   const handleOpenSettings = () => {
     openSettings(room.roomId, parentSpace?.roomId);
+    requestClose();
+  };
+
+  const handleViewMode = (mode: RoomViewMode) => {
+    setViewMode(mode);
     requestClose();
   };
 
@@ -139,6 +147,42 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
             </MenuItem>
           )}
         </RoomNotificationModeSwitcher>
+      </Box>
+      <Line variant="Surface" size="300" />
+      <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+        <MenuItem
+          onClick={() => handleViewMode('compact')}
+          size="300"
+          after={<Icon size="100" src={Icons.Category} />}
+          radii="300"
+          aria-pressed={viewMode === 'compact'}
+        >
+          <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+            Compact
+          </Text>
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleViewMode('threaded')}
+          size="300"
+          after={<Icon size="100" src={Icons.Thread} />}
+          radii="300"
+          aria-pressed={viewMode === 'threaded'}
+        >
+          <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+            Threads
+          </Text>
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleViewMode('classic')}
+          size="300"
+          after={<Icon size="100" src={Icons.Message} />}
+          radii="300"
+          aria-pressed={viewMode === 'classic'}
+        >
+          <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+            Classic
+          </Text>
+        </MenuItem>
       </Box>
       <Line variant="Surface" size="300" />
       <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>

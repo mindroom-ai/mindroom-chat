@@ -120,7 +120,7 @@ const defaultProps = {
   onRemoveTag: vi.fn(),
   onApplyPreset: vi.fn(),
   onSearchQueryChange: vi.fn(),
-  viewMode: 'normal' as const,
+  viewMode: 'threaded' as const,
   onViewModeChange: vi.fn(),
 };
 
@@ -387,53 +387,49 @@ describe('RoomThreadOverview', () => {
     renderer.unmount();
   });
 
-  it('renders an icon-only expanded view toggle with the shared toolbar button styling', () => {
+  it('renders three room view mode buttons with threaded mode active', () => {
     const renderer = create(
       React.createElement(RoomThreadOverview, defaultProps)
     );
 
-    const viewToggle = renderer.root.find(
+    const viewToggles = renderer.root.findAll(
       (node) => node.props['data-view-mode-toggle'] === 'true'
     );
-    expect(viewToggle.props.className).toBe('ToggleButton');
-    expect(viewToggle.props['aria-label']).toBe('Expanded view');
-    expect(viewToggle.props['aria-pressed']).toBe(false);
-    expect(viewToggle.props['data-view-mode']).toBe('normal');
-    expect(viewToggle.findAllByType('icon-layout-list')).toHaveLength(1);
-    expect(viewToggle.findAllByType('icon-layout-rows')).toHaveLength(0);
-
-    const compactText = renderer.root.findAll(
-      (node) => typeof node.children[0] === 'string' && node.children[0] === 'Compact'
-    );
-    expect(compactText).toHaveLength(0);
+    expect(viewToggles.map((button) => button.props['data-view-mode'])).toEqual([
+      'compact',
+      'threaded',
+      'classic',
+    ]);
+    expect(viewToggles.map((button) => button.props['aria-pressed'])).toEqual([
+      false,
+      true,
+      false,
+    ]);
+    expect(viewToggles[1].props.className).toContain('SortButtonActive');
 
     renderer.unmount();
   });
 
-  it('renders the compact icon and toggles back to expanded mode on click', () => {
+  it('selects compact mode from the view mode buttons', () => {
     const onViewModeChange = vi.fn();
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
-        viewMode: 'compact',
         onViewModeChange,
       })
     );
 
-    const viewToggle = renderer.root.find(
-      (node) => node.props['data-view-mode-toggle'] === 'true'
+    const compactToggle = renderer.root.find(
+      (node) =>
+        node.props['data-view-mode-toggle'] === 'true' &&
+        node.props['data-view-mode'] === 'compact'
     );
-    expect(viewToggle.props['aria-label']).toBe('Compact view');
-    expect(viewToggle.props['aria-pressed']).toBe(true);
-    expect(viewToggle.props['data-view-mode']).toBe('compact');
-    expect(viewToggle.findAllByType('icon-layout-rows')).toHaveLength(1);
-    expect(viewToggle.findAllByType('icon-layout-list')).toHaveLength(0);
 
     act(() => {
-      viewToggle.props.onClick();
+      compactToggle.props.onClick();
     });
 
-    expect(onViewModeChange).toHaveBeenCalledWith('normal');
+    expect(onViewModeChange).toHaveBeenCalledWith('compact');
 
     renderer.unmount();
   });

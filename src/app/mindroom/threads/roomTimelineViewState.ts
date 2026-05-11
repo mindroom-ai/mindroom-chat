@@ -24,24 +24,23 @@ export type RoomTimelineViewState = {
 };
 
 export const resolveRoomTimelineViewState = ({
-  direct,
   eventId,
   focusEventInRoom,
   threadFilterState,
   threadId,
   viewMode,
 }: {
-  direct: boolean;
   eventId?: string;
   focusEventInRoom?: boolean;
   threadFilterState: ThreadFilterState;
   threadId?: string;
   viewMode: RoomViewMode;
 }): RoomTimelineViewState => ({
-  effectiveViewMode: direct ? 'normal' : viewMode,
+  effectiveViewMode: viewMode,
   focusedRoomOverviewRequested: Boolean(
-    !direct && !threadId && focusEventInRoom && viewMode !== 'compact' && eventId
+    !threadId && focusEventInRoom && viewMode === 'threaded' && eventId
   ),
-  requestedThreadFilterState: direct ? DIRECT_ROOM_TIMELINE_FILTER_STATE : threadFilterState,
-  showRoomThreadOverviewControls: !threadId && !direct,
+  requestedThreadFilterState:
+    viewMode === 'classic' ? DIRECT_ROOM_TIMELINE_FILTER_STATE : threadFilterState,
+  showRoomThreadOverviewControls: !threadId && viewMode !== 'classic',
 });
