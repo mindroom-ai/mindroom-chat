@@ -89,7 +89,11 @@ const clickLoadOlderWithVisibleThreadAnchor = async (
 
     const loadOlderButton = Array.from(
       document.querySelectorAll<HTMLElement>('button, [role="button"]')
-    ).find((button) => button.textContent?.includes('Load Older Messages'));
+    ).find((button) => {
+      const label =
+        button.getAttribute('aria-label') ?? button.getAttribute('title') ?? button.textContent;
+      return label?.includes('Load Older Messages');
+    });
     loadOlderButton?.click();
 
     return {

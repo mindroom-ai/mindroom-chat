@@ -32,6 +32,7 @@ export type RenderMindroomMessageContentOptions = {
   htmlReactParserOptions: HTMLReactParserOptions;
   linkifyOpts: Opts;
   showMessageExtras?: boolean;
+  hydrateLongText?: boolean;
   onLongTextHydratedMessageExtrasRendered?: () => void;
 };
 
@@ -65,6 +66,7 @@ export const renderMindroomMessageContent = ({
   htmlReactParserOptions,
   linkifyOpts,
   showMessageExtras = false,
+  hydrateLongText = true,
   onLongTextHydratedMessageExtrasRendered,
 }: RenderMindroomMessageContentOptions): ReactNode | undefined => {
   const withToolRefFormattedBodyFallback = (bodyContent: Record<string, unknown>) => {
@@ -198,6 +200,7 @@ export const renderMindroomMessageContent = ({
           renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
+          hydrate={hydrateLongText}
           renderBody={(resolvedContent, props) => (
             <RenderBody
               {...props}
@@ -252,6 +255,7 @@ export const renderMindroomMessageContent = ({
           renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
+          hydrate={hydrateLongText}
           renderBody={(resolvedContent, props) => (
             <RenderBody
               {...props}
@@ -297,6 +301,7 @@ export const renderMindroomMessageContent = ({
           renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
+          hydrate={hydrateLongText}
           renderBody={(resolvedContent, props) => (
             <RenderBody
               {...props}

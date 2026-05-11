@@ -141,7 +141,6 @@ import {
   getInitialTimeline,
   getLiveTimeline,
   getRoomUnreadInfo,
-  getRoomTimelineRenderLimit,
   getTimelinesEventsCount,
   type RecalibrateFilterOpts,
   type Timeline,
@@ -308,9 +307,6 @@ export function RoomTimeline({
   const safePaginationLimit = sanitizePaginationLimit(paginationLimitSetting);
   const safePaginationLimitRef = useRef(safePaginationLimit);
   safePaginationLimitRef.current = safePaginationLimit;
-  const roomRenderLimit = getRoomTimelineRenderLimit(safePaginationLimit);
-  const roomRenderLimitRef = useRef(roomRenderLimit);
-  roomRenderLimitRef.current = roomRenderLimit;
 
   const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
   const [dateFormatString] = useSetting(settingsAtom, 'dateFormatString');
@@ -438,7 +434,7 @@ export function RoomTimeline({
   const [timeline, setTimeline] = useState<Timeline>(() =>
     eventId
       ? getEmptyTimeline()
-      : getInitialTimeline(room, roomRenderLimit, {
+      : getInitialTimeline(room, safePaginationLimit, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -477,7 +473,7 @@ export function RoomTimeline({
     if (eventId || threadId) return;
 
     setTimeline(
-      getInitialTimeline(room, roomRenderLimit, {
+      getInitialTimeline(room, safePaginationLimit, {
         threadId,
         ignoredUsersSet,
         showHiddenEvents,
@@ -490,7 +486,7 @@ export function RoomTimeline({
     eventId,
     threadId,
     room,
-    roomRenderLimit,
+    safePaginationLimit,
     ignoredUsersSet,
     showHiddenEvents,
     hideMembershipEvents,
@@ -691,7 +687,7 @@ export function RoomTimeline({
     room,
     roomSurfaceEventEntries,
     roomThreadListThreads,
-    roomRenderLimit,
+    safePaginationLimit,
     threadEventsLength: threadEvents.length,
     threadHasMoreCachedBack,
     threadId,
@@ -732,7 +728,7 @@ export function RoomTimeline({
 
     if (wasActive && !roomThreadFilterActive && !threadId) {
       setTimeline(
-        getInitialTimeline(room, roomRenderLimit, {
+        getInitialTimeline(room, safePaginationLimit, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -751,7 +747,7 @@ export function RoomTimeline({
     hideMembershipEvents,
     hideNickAvatarEvents,
     showThreadRepliesInRoom,
-    roomRenderLimit,
+    safePaginationLimit,
   ]);
 
   const timelineAtLiveEnd = isTimelineAtLiveEnd({
@@ -787,7 +783,7 @@ export function RoomTimeline({
     mx,
     timeline,
     setTimeline,
-    roomRenderLimit,
+    safePaginationLimit,
     recalibrateFilterOptsRef
   );
 
@@ -918,7 +914,7 @@ export function RoomTimeline({
     observeFrontAnchor,
   } = useVirtualPaginator({
     count: threadId ? 0 : filteredLength,
-    limit: roomRenderLimit,
+    limit: safePaginationLimit,
     range: activeTimelineRange,
     onRangeChange: useCallback(
       (r) => {
@@ -955,8 +951,8 @@ export function RoomTimeline({
     recalibrateFilterOptsRef,
     roomOverviewOrderActive,
     roomThreadListThreads,
-    roomRenderLimit,
-    roomRenderLimitRef,
+    safePaginationLimit,
+    safePaginationLimitRef,
     scheduledStatusMap,
     scrollRef,
     scrollToBottomRef,
@@ -1016,7 +1012,7 @@ export function RoomTimeline({
 
   const buildRoomCacheHydratedTimeline = useCallback(
     () =>
-      getInitialTimeline(room, roomRenderLimitRef.current, {
+      getInitialTimeline(room, safePaginationLimitRef.current, {
         threadId: undefined,
         ignoredUsersSet: recalibrateFilterOptsRef.current?.ignoredUsersSet ?? new Set(),
         showHiddenEvents: recalibrateFilterOptsRef.current?.showHiddenEvents ?? false,
@@ -1054,7 +1050,7 @@ export function RoomTimeline({
     refreshLatestThreadSlice,
     onRoomRefresh: useCallback(() => {
       setTimeline(
-        getInitialTimeline(room, roomRenderLimit, {
+        getInitialTimeline(room, safePaginationLimit, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -1071,7 +1067,7 @@ export function RoomTimeline({
       hideMembershipEvents,
       hideNickAvatarEvents,
       showThreadRepliesInRoom,
-      roomRenderLimit,
+      safePaginationLimit,
     ]),
   });
 
@@ -1245,7 +1241,7 @@ export function RoomTimeline({
       navigateRoomThread,
       refreshLatestThreadSlice,
       room,
-      roomRenderLimit,
+      safePaginationLimit,
       scrollRef,
       scrollToBottomRef,
       setAtBottom,
@@ -1502,7 +1498,7 @@ export function RoomTimeline({
               }
               const msgType = mEvent.getContent().msgtype;
               const isVisualMedia = msgType === MsgType.Image || msgType === MsgType.Video;
-              const content = (
+              const renderContent = (hydrateLongText = true) => (
                 <RenderMessageContent
                   displayName={senderDisplayName}
                   eventType={mEvent.getType()}
@@ -1516,6 +1512,7 @@ export function RoomTimeline({
                   htmlReactParserOptions={htmlReactParserOptions}
                   linkifyOpts={linkifyOpts}
                   outlineAttachment={messageLayout === MessageLayout.Bubble}
+                  hydrateLongText={hydrateLongText}
                   onLongTextHydratedMessageExtrasRendered={
                     hydratedLongTextExtrasCollapseKey
                       ? () =>
@@ -1526,6 +1523,7 @@ export function RoomTimeline({
                   }
                 />
               );
+              const content = renderContent();
               const measurementKey = getCollapsibleMessageMeasurementKey(
                 mEvent,
                 collapseMode,
@@ -1535,10 +1533,11 @@ export function RoomTimeline({
               return (
                 <CollapsibleMessage
                   collapseMode={collapseMode}
+                  forceOverflowing={!!hydratedLongTextExtrasCollapseKey}
                   measurementKey={measurementKey}
                   onInitialExpandConsumed={onInitialExpandConsumed}
                 >
-                  {content}
+                  {({ expanded }) => renderContent(expanded)}
                 </CollapsibleMessage>
               );
             })()}
@@ -1825,7 +1824,7 @@ export function RoomTimeline({
                   const senderId = mEvent.getSender() ?? '';
                   const senderDisplayName =
                     getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-                  const messageContent = (
+                  const renderMessageContent = (hydrateLongText = true) => (
                     <RenderMessageContent
                       displayName={senderDisplayName}
                       eventType={mEvent.getType()}
@@ -1839,6 +1838,7 @@ export function RoomTimeline({
                       htmlReactParserOptions={htmlReactParserOptions}
                       linkifyOpts={linkifyOpts}
                       outlineAttachment={messageLayout === MessageLayout.Bubble}
+                      hydrateLongText={hydrateLongText}
                       onLongTextHydratedMessageExtrasRendered={
                         hydratedLongTextExtrasCollapseKey
                           ? () =>
@@ -1849,6 +1849,7 @@ export function RoomTimeline({
                       }
                     />
                   );
+                  const messageContent = renderMessageContent();
 
                   const encMsgType = mEvent.getContent().msgtype;
                   const isEncVisualMedia =
@@ -1857,10 +1858,11 @@ export function RoomTimeline({
                   return (
                     <CollapsibleMessage
                       collapseMode={collapseMode}
+                      forceOverflowing={!!hydratedLongTextExtrasCollapseKey}
                       measurementKey={measurementKey}
                       onInitialExpandConsumed={onInitialExpandConsumed}
                     >
-                      {messageContent}
+                      {({ expanded }) => renderMessageContent(expanded)}
                     </CollapsibleMessage>
                   );
                 }

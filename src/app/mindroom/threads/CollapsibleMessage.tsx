@@ -20,7 +20,9 @@ function useExpandAllListener(onToggle: (expand: boolean) => void, enabled: bool
   useEffect(() => {
     if (!enabled) return undefined;
     listeners.add(onToggle);
-    return () => { listeners.delete(onToggle); };
+    return () => {
+      listeners.delete(onToggle);
+    };
   }, [enabled, onToggle]);
 }
 
@@ -57,21 +59,24 @@ const isContentOverflowing = (el: HTMLDivElement, expanded: boolean): boolean | 
   return !expanded && el.scrollHeight > el.clientHeight + 1;
 };
 
-export type CollapsibleMessageCollapseMode =
-  | 'default'
-  | 'always-expanded'
-  | 'initially-expanded';
+export type CollapsibleMessageCollapseMode = 'default' | 'always-expanded' | 'initially-expanded';
 
 type CollapsibleMessageProps = {
-  children: ReactNode;
+  children: ReactNode | ((state: CollapsibleMessageRenderState) => ReactNode);
   collapseMode?: CollapsibleMessageCollapseMode;
+  forceOverflowing?: boolean;
   measurementKey?: string;
   onInitialExpandConsumed?: () => void;
+};
+
+export type CollapsibleMessageRenderState = {
+  expanded: boolean;
 };
 
 export function CollapsibleMessage({
   children,
   collapseMode = 'default',
+  forceOverflowing = false,
   measurementKey,
   onInitialExpandConsumed,
 }: CollapsibleMessageProps) {
@@ -88,13 +93,17 @@ export function CollapsibleMessage({
 
   const checkOverflow = useCallback(() => {
     if (isExempt) return;
+    if (forceOverflowing) {
+      setOverflowing(true);
+      return;
+    }
     const el = contentRef.current;
     if (!el) return;
     const result = isContentOverflowing(el, expanded);
     if (result !== null) {
       setOverflowing(result);
     }
-  }, [expanded, isExempt]);
+  }, [expanded, forceOverflowing, isExempt]);
 
   useEffect(() => {
     if (
@@ -113,7 +122,8 @@ export function CollapsibleMessage({
   // ResizeObserver for async layout shifts (lazy images, font loading, etc.)
   useEffect(() => {
     const el = contentRef.current;
-    if (isExempt || !el || expanded || typeof ResizeObserver === 'undefined') return undefined;
+    if (isExempt || forceOverflowing || !el || expanded || typeof ResizeObserver === 'undefined')
+      return undefined;
     const observer = new ResizeObserver(() => {
       const result = isContentOverflowing(el, expanded);
       if (result !== null) {
@@ -122,13 +132,20 @@ export function CollapsibleMessage({
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [expanded, isExempt]);
+  }, [expanded, forceOverflowing, isExempt]);
 
   // IntersectionObserver: re-check overflow when element enters the viewport.
   // Catches elements that had zero scrollHeight when first measured off-screen.
   useEffect(() => {
     const el = contentRef.current;
-    if (isExempt || !el || expanded || typeof IntersectionObserver === 'undefined') return undefined;
+    if (
+      isExempt ||
+      forceOverflowing ||
+      !el ||
+      expanded ||
+      typeof IntersectionObserver === 'undefined'
+    )
+      return undefined;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) {
@@ -142,7 +159,7 @@ export function CollapsibleMessage({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [expanded, isExempt]);
+  }, [expanded, forceOverflowing, isExempt]);
 
   // Subscribe to global expand/collapse events
   const handleGlobalToggle = useCallback((expand: boolean) => {
@@ -191,6 +208,9 @@ export function CollapsibleMessage({
 
   const showCloseButton = !isExempt && expanded && overflowing;
   const showGradient = !isExempt && !expanded && overflowing;
+  const effectiveExpanded = isExempt || expanded;
+  const renderedChildren =
+    typeof children === 'function' ? children({ expanded: effectiveExpanded }) : children;
 
   return (
     <div>
@@ -199,11 +219,11 @@ export function CollapsibleMessage({
         className={css.CollapsibleContent()}
         aria-expanded={isExempt ? undefined : expanded}
         style={{
-          maxHeight: isExempt || expanded ? undefined : MAX_HEIGHT,
-          overflow: isExempt || expanded ? undefined : 'hidden',
+          maxHeight: effectiveExpanded ? undefined : MAX_HEIGHT,
+          overflow: effectiveExpanded ? undefined : 'hidden',
         }}
       >
-        {children}
+        {renderedChildren}
         {showGradient && (
           <div
             ref={gradientRef}

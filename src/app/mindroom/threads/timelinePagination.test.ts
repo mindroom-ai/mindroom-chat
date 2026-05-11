@@ -4,15 +4,13 @@ import {
   getEmptyTimeline,
   getFocusedRoomEventIndex,
   getLatestTimelineRange,
-  getRoomTimelineRenderLimit,
   getVisibleTimelineRange,
-  ROOM_TIMELINE_RENDER_LIMIT,
 } from './timelinePagination';
 
 const makeEvent = (eventId: string) =>
   ({
     getId: () => eventId,
-  } as never);
+  }) as never;
 
 describe('timeline pagination helpers', () => {
   it('selects the latest range for fresh room timelines', () => {
@@ -20,19 +18,10 @@ describe('timeline pagination helpers', () => {
     expect(getLatestTimelineRange(20, 50)).toEqual({ start: 0, end: 20 });
   });
 
-  it('caps the DOM render window independently of the preload limit', () => {
-    expect(getRoomTimelineRenderLimit(10_000)).toBe(ROOM_TIMELINE_RENDER_LIMIT);
-    expect(getRoomTimelineRenderLimit(50)).toBe(50);
-  });
-
   it('keeps a valid visible range and repairs out-of-bounds ranges', () => {
     expect(getVisibleTimelineRange({ start: 10, end: 20 }, 100, 50)).toEqual({
       start: 10,
       end: 20,
-    });
-    expect(getVisibleTimelineRange({ start: 0, end: 294 }, 294, 50)).toEqual({
-      start: 244,
-      end: 294,
     });
     expect(getVisibleTimelineRange({ start: 120, end: 140 }, 100, 50)).toEqual({
       start: 50,

@@ -10,11 +10,7 @@ vi.mock('./CollapsibleMessage.css', () => ({
   CollapsiblePill: 'collapsible-pill',
 }));
 
-import {
-  collapseAllMessages,
-  expandAllMessages,
-  CollapsibleMessage,
-} from './CollapsibleMessage';
+import { collapseAllMessages, expandAllMessages, CollapsibleMessage } from './CollapsibleMessage';
 
 type MockContentElement = Pick<HTMLDivElement, 'clientHeight' | 'scrollHeight'>;
 type MockGradientElement = { focus: ReturnType<typeof vi.fn> };
@@ -55,19 +51,13 @@ const getContentContainer = (renderer: ReactTestRenderer) =>
   );
 
 const getExpandZone = (renderer: ReactTestRenderer) =>
-  renderer.root.find(
-    (node) => node.type === 'div' && node.props.role === 'button'
-  );
+  renderer.root.find((node) => node.type === 'div' && node.props.role === 'button');
 
 const findExpandZones = (renderer: ReactTestRenderer) =>
-  renderer.root.findAll(
-    (node) => node.type === 'div' && node.props.role === 'button'
-  );
+  renderer.root.findAll((node) => node.type === 'div' && node.props.role === 'button');
 
 const getCloseButton = (renderer: ReactTestRenderer) =>
-  renderer.root.find(
-    (node) => node.type === 'button' && node.props['aria-label'] === 'Show less'
-  );
+  renderer.root.find((node) => node.type === 'button' && node.props['aria-label'] === 'Show less');
 
 const findCloseButtons = (renderer: ReactTestRenderer) =>
   renderer.root.findAll(
@@ -89,38 +79,32 @@ const renderCollapsibleMessage = (
     scrollHeight: 160,
   },
   gradientElement: MockGradientElement = { focus: vi.fn() },
+  children: React.ReactNode = React.createElement('span', undefined, 'message')
 ) => {
   let renderer!: ReactTestRenderer;
 
   act(() => {
-    renderer = create(
-      React.createElement(
-        CollapsibleMessage as never,
-        props as never,
-        React.createElement('span', undefined, 'message')
-      ),
-      {
-        createNodeMock: (element) => {
-          if (
-            element.type === 'div' &&
-            typeof element.props.className === 'string' &&
-            element.props.className.startsWith('collapsible-content')
-          ) {
-            return contentElement;
-          }
+    renderer = create(React.createElement(CollapsibleMessage as never, props as never, children), {
+      createNodeMock: (element) => {
+        if (
+          element.type === 'div' &&
+          typeof element.props.className === 'string' &&
+          element.props.className.startsWith('collapsible-content')
+        ) {
+          return contentElement;
+        }
 
-          if (
-            element.type === 'div' &&
-            element.props.role === 'button' &&
-            element.props['aria-label'] === 'Show more'
-          ) {
-            return gradientElement;
-          }
+        if (
+          element.type === 'div' &&
+          element.props.role === 'button' &&
+          element.props['aria-label'] === 'Show more'
+        ) {
+          return gradientElement;
+        }
 
-          return null;
-        },
-      }
-    );
+        return null;
+      },
+    });
   });
 
   return renderer;
@@ -156,6 +140,47 @@ afterEach(() => {
 });
 
 describe('CollapsibleMessage', () => {
+  it('passes collapsed and expanded state to render-prop children', () => {
+    const states: boolean[] = [];
+    const renderer = renderCollapsibleMessage(
+      { collapseMode: 'default' },
+      { clientHeight: 72, scrollHeight: 160 },
+      { focus: vi.fn() },
+      ({ expanded }: { expanded: boolean }) => {
+        states.push(expanded);
+        return React.createElement('span', undefined, expanded ? 'expanded' : 'collapsed');
+      }
+    );
+
+    expect(states[states.length - 1]).toBe(false);
+
+    act(() => {
+      getExpandZone(renderer).props.onClick();
+    });
+
+    expect(states[states.length - 1]).toBe(true);
+    expect(JSON.stringify(renderer.toJSON())).toContain('expanded');
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('can force the overflow affordance for lazily hydrated collapsed content', () => {
+    const renderer = renderCollapsibleMessage(
+      { collapseMode: 'default', forceOverflowing: true },
+      { clientHeight: 72, scrollHeight: 24 }
+    );
+
+    expect(findExpandZones(renderer)).toHaveLength(1);
+    expect(resizeObserverConstructed).not.toHaveBeenCalled();
+    expect(intersectionObserverConstructed).not.toHaveBeenCalled();
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
   it('starts collapsed in default mode with gradient expand zone when overflowing', () => {
     const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
     const content = getContentContainer(renderer);
@@ -413,7 +438,7 @@ describe('CollapsibleMessage', () => {
   it('non-overflowing content shows no expand controls, gradient, or close button', () => {
     const renderer = renderCollapsibleMessage(
       { collapseMode: 'default' },
-      { clientHeight: 40, scrollHeight: 40 },
+      { clientHeight: 40, scrollHeight: 40 }
     );
 
     const content = getContentContainer(renderer);
@@ -453,7 +478,7 @@ describe('CollapsibleMessage', () => {
     const renderer = renderCollapsibleMessage(
       { collapseMode: 'default' },
       { clientHeight: 72, scrollHeight: 160 },
-      gradientMock,
+      gradientMock
     );
 
     // Expand via gradient click
@@ -476,7 +501,7 @@ describe('CollapsibleMessage', () => {
   it('preserves overflowing=true when scrollHeight is 0 (off-screen element)', () => {
     const renderer = renderCollapsibleMessage(
       { collapseMode: 'default' },
-      { clientHeight: 0, scrollHeight: 0 },
+      { clientHeight: 0, scrollHeight: 0 }
     );
 
     // overflowing defaults to true; scrollHeight=0 guard prevents checkOverflow
@@ -495,10 +520,7 @@ describe('CollapsibleMessage', () => {
   it('IntersectionObserver re-checks overflow when element enters viewport', () => {
     // Start with scrollHeight=0 (simulates off-screen element with unknown layout)
     const contentElement = { clientHeight: 0, scrollHeight: 0 };
-    const renderer = renderCollapsibleMessage(
-      { collapseMode: 'default' },
-      contentElement,
-    );
+    const renderer = renderCollapsibleMessage({ collapseMode: 'default' }, contentElement);
 
     // Gradient is shown (overflowing defaults to true, scrollHeight=0 guard preserves it)
     expect(findExpandZones(renderer)).toHaveLength(1);
@@ -510,7 +532,7 @@ describe('CollapsibleMessage', () => {
     act(() => {
       lastIntersectionCallback!(
         [{ isIntersecting: true } as IntersectionObserverEntry],
-        {} as IntersectionObserver,
+        {} as IntersectionObserver
       );
     });
 
@@ -526,10 +548,7 @@ describe('CollapsibleMessage', () => {
   it('IntersectionObserver clears overflowing for short content entering viewport', () => {
     // Start with scrollHeight=0
     const contentElement = { clientHeight: 0, scrollHeight: 0 };
-    const renderer = renderCollapsibleMessage(
-      { collapseMode: 'default' },
-      contentElement,
-    );
+    const renderer = renderCollapsibleMessage({ collapseMode: 'default' }, contentElement);
 
     expect(findExpandZones(renderer)).toHaveLength(1);
 
@@ -539,7 +558,7 @@ describe('CollapsibleMessage', () => {
     act(() => {
       lastIntersectionCallback!(
         [{ isIntersecting: true } as IntersectionObserverEntry],
-        {} as IntersectionObserver,
+        {} as IntersectionObserver
       );
     });
 
@@ -560,7 +579,7 @@ describe('CollapsibleMessage', () => {
         collapseMode: 'default',
         measurementKey: '$message|active||default',
       },
-      contentElement,
+      contentElement
     );
     const readsAfterMount = getScrollHeightReads();
 
@@ -591,7 +610,7 @@ describe('CollapsibleMessage', () => {
         collapseMode: 'default',
         measurementKey: '$message|active||default',
       },
-      contentElement,
+      contentElement
     );
     const readsAfterMount = getScrollHeightReads();
 
@@ -720,9 +739,7 @@ describe('CollapsibleMessage', () => {
 
     const exemptRenderer = renderCollapsibleMessage({ collapseMode: 'always-expanded' });
     expect(
-      exemptRenderer.root.findAll(
-        (node) => node.props?.className === 'collapsible-sticky-footer'
-      )
+      exemptRenderer.root.findAll((node) => node.props?.className === 'collapsible-sticky-footer')
     ).toHaveLength(0);
     act(() => {
       exemptRenderer.unmount();

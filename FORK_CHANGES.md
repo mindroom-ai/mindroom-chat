@@ -2,31 +2,50 @@
 
 ## Runbook
 
-### Classic room timeline render-window performance (2026-05-11)
+### Classic room timeline collapsed long-text performance (2026-05-11)
 
 - Status:
   - Complete.
 - Summary:
-  - Investigated the report that scrolling the large `Personal` room in classic mode still felt sluggish with the user account on `localhost:8080`.
-  - Runtime probe confirmed classic mode was active with no MindRoom thread bubbles or compact overview, but the room had `294` message rows mounted at once because the user-facing message preload limit was set to `10,000`.
-  - The same probe showed `289` collapsible message bodies and about `139k px` of hidden measured content in the DOM, explaining poor scroll performance on mobile-sized viewports.
-  - Kept the high preload/cache limit intact, but split it from the chronological DOM render window. Room timeline preload/pagination controllers still receive the sanitized preload limit, while the visible room timeline mounts at most `80` chronological message rows at once.
-  - Follow-up probe on the same room showed the mounted message count drop from `294` to `80`, the scroll surface drop from about `41,000px` to `11,190px`, and classic mode still had zero MindRoom thread bubbles.
+  - Investigated the follow-up report that the render-window cap made large classic rooms jump while scrolling and increase CPU.
+  - Runtime probe confirmed the capped window was unstable with variable-height rows: the rendered range jumped forward in large chunks, `scrollHeight` changed repeatedly, and scroll position could reset. That fix is being reverted.
+  - The replacement keeps the user's high preload/cache limit intact and targets the expensive hidden work instead: collapsed long-text sidecars now render their preview only and hydrate the full sidecar content when the message is expanded.
+  - `CollapsibleMessage` now supports render-prop children so room rows can pass their effective expanded state into `RenderMessageContent`, and long-text rows force a Show more affordance even when the preview itself is short.
 - Files changed:
   - `FORK_CHANGES.md`
+  - `src/app/components/RenderMessageContent.tsx`
+  - `e2e/live/cinny070-thread-prepend-scroll.spec.ts`
+  - `src/app/mindroom/messages/MindroomLongTextText.tsx`
+  - `src/app/mindroom/messages/MindroomLongTextText.test.ts`
+  - `src/app/mindroom/messages/renderMindroomMessageContent.tsx`
+  - `src/app/mindroom/messages/renderMindroomMessageContent.test.ts`
+  - `src/app/mindroom/threads/CollapsibleMessage.tsx`
+  - `src/app/mindroom/threads/CollapsibleMessage.test.ts`
   - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts`
+  - `src/app/mindroom/threads/test-utils/RoomTimeline.test.shared.ts`
   - `src/app/mindroom/threads/roomEventOpenController.ts`
   - `src/app/mindroom/threads/roomTimelineNavigationController.ts`
   - `src/app/mindroom/threads/roomTimelineWindowController.ts`
   - `src/app/mindroom/threads/timelinePagination.test.ts`
   - `src/app/mindroom/threads/timelinePagination.ts`
 - Tests and validation:
-  - Red check: `npm test -- src/app/mindroom/threads/timelinePagination.test.ts` failed while an oversized valid range `{ start: 0, end: 294 }` still rendered all `294` rows instead of capping to the visible render window.
-  - Green check: `npm test -- src/app/mindroom/threads/timelinePagination.test.ts`
-  - Green check: `npm test -- src/app/mindroom/threads/timelinePagination.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.navigation.test.ts`
+  - Red check: `npm test -- src/app/mindroom/messages/MindroomLongTextText.test.ts -t "defers sidecar hydration"` failed while `MindroomLongTextText` still hydrated on mount with `hydrate={false}`.
+  - Red check: `npm test -- src/app/mindroom/threads/CollapsibleMessage.test.ts -t "passes collapsed|force the overflow"` failed while collapsed state and forced overflow were not supported.
+  - Red check: `npm test -- src/app/mindroom/messages/renderMindroomMessageContent.test.ts -t "passes long-text hydration preference"` failed while `hydrateLongText` did not reach the long-text renderer.
+  - Red check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts -t "defers long-text hydration"` failed while timeline rows did not force long-text overflow or pass `hydrateLongText={false}` when collapsed.
+  - Green check: `npm test -- src/app/mindroom/messages/MindroomLongTextText.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`
+  - Green check: `npm test -- src/app/mindroom/threads/CollapsibleMessage.test.ts src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts`
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts`
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/roomTimelineEvents.test.ts src/app/mindroom/threads/roomPaginationCommandController.test.ts`
   - Green check: `npm run typecheck`
-  - Green check: `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
-  - Green check: `npm run test:e2e:docker-matrix -- e2e/live/cinny076-classic-view-thread-bubbles.spec.ts e2e/live/cinny033-jump-to-latest.spec.ts e2e/live/cinny070-thread-prepend-scroll.spec.ts` with `E2E_ENABLE_DEPLOYED_FIXTURE=0`
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npx prettier --check FORK_CHANGES.md src/app/components/RenderMessageContent.tsx src/app/mindroom/messages/MindroomLongTextText.tsx src/app/mindroom/messages/MindroomLongTextText.test.ts src/app/mindroom/messages/renderMindroomMessageContent.tsx src/app/mindroom/messages/renderMindroomMessageContent.test.ts src/app/mindroom/threads/CollapsibleMessage.tsx src/app/mindroom/threads/CollapsibleMessage.test.ts src/app/mindroom/threads/MindroomRoomTimeline.tsx src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts src/app/mindroom/threads/test-utils/RoomTimeline.test.shared.ts`
+  - Green check: `npm run build` passed with existing Vite/runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npm test` passed (`276` files, `2047` tests).
+  - Follow-up red e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix -- e2e/live/cinny076-classic-view-thread-bubbles.spec.ts e2e/live/cinny033-jump-to-latest.spec.ts e2e/live/cinny070-thread-prepend-scroll.spec.ts` initially failed because the CINNY-070 helper searched only button `textContent` even though the Load Older control was exposed by accessible name.
+  - Green focused e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix -- e2e/live/cinny076-classic-view-thread-bubbles.spec.ts e2e/live/cinny033-jump-to-latest.spec.ts e2e/live/cinny070-thread-prepend-scroll.spec.ts` passed.
+  - Green full e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix` passed (`65` passed, `3` skipped).
 
 ### Classic room timeline original Cinny parity correction (2026-05-11)
 

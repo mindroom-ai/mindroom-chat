@@ -1,4 +1,4 @@
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import { MatrixClient } from 'matrix-js-sdk';
 import { Box, Spinner, Text as FText, config } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -43,15 +43,13 @@ type MindroomLongTextTextProps = {
     fallbackContent: Record<string, unknown>
   ) => ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
+  hydrate?: boolean;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
-const getStringValue = (
-  record: Record<string, unknown>,
-  key: string
-): string | undefined => {
+const getStringValue = (record: Record<string, unknown>, key: string): string | undefined => {
   const value = record[key];
   return typeof value === 'string' ? value : undefined;
 };
@@ -204,31 +202,57 @@ export function MindroomLongTextText({
   renderBody,
   renderAfterBody,
   renderUrlsPreview,
+  hydrate = true,
 }: MindroomLongTextTextProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const { encryptedFile, isV2ContentJson, mxcUri } = longTextSource;
   const hydrationIdentity = getMindroomLongTextHydrationIdentity(content, longTextSource);
+  const hydrationInputRef = useRef({
+    content,
+    encryptedFile,
+    isV2ContentJson,
+    mxcUri,
+  });
   const [loading, setLoading] = useState(false);
   const [showLoadingIndicator, setShowLoadingIndicator] = useState(false);
   const [resolvedContent, setResolvedContent] = useState<Record<string, unknown>>(content);
 
+  hydrationInputRef.current = {
+    content,
+    encryptedFile,
+    isV2ContentJson,
+    mxcUri,
+  };
+
   useEffect(() => {
     let cancelled = false;
     const hydrateContent = async () => {
-      setLoading(true);
+      const {
+        content: currentContent,
+        encryptedFile: currentEncryptedFile,
+        isV2ContentJson: currentIsV2ContentJson,
+        mxcUri: currentMxcUri,
+      } = hydrationInputRef.current;
+
       setResolvedContent((currentResolvedContent) =>
-        shouldResetResolvedContentToPreview(content, currentResolvedContent)
-          ? withMindroomToolTraceFallback(content, currentResolvedContent)
+        !hydrate || shouldResetResolvedContentToPreview(currentContent, currentResolvedContent)
+          ? withMindroomToolTraceFallback(currentContent, currentResolvedContent)
           : currentResolvedContent
       );
 
+      if (!hydrate) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
       const nextContent = await hydrateMindroomLongTextSource(
         {
-          previewContent: content,
-          encryptedFile,
-          isV2ContentJson,
-          mxcUri,
+          previewContent: currentContent,
+          encryptedFile: currentEncryptedFile,
+          isV2ContentJson: currentIsV2ContentJson,
+          mxcUri: currentMxcUri,
         },
         (source) => downloadMindroomLongTextSidecarText(mx, source, useAuthentication)
       );
@@ -244,7 +268,7 @@ export function MindroomLongTextText({
     return () => {
       cancelled = true;
     };
-  }, [hydrationIdentity, mx, useAuthentication]);
+  }, [hydrate, hydrationIdentity, mx, useAuthentication]);
 
   useEffect(() => {
     if (!loading) {

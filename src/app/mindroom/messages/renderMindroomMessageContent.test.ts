@@ -68,8 +68,8 @@ vi.mock('./MindroomLongTextText', () => ({
     Emote: 'emote',
     Notice: 'notice',
   },
-  MindroomLongTextText: ({ content, kind, renderAfterBody, renderBody }: any) => {
-    longTextTextMock({ kind });
+  MindroomLongTextText: ({ content, hydrate, kind, renderAfterBody, renderBody }: any) => {
+    longTextTextMock({ hydrate, kind });
     return React.createElement(
       'div',
       { 'data-renderer': 'long-text' },
@@ -328,8 +328,7 @@ describe('renderMindroomMessageContent', () => {
             {
               title: 'Malicious',
               content_type: 'text/html',
-              content:
-                `<p onclick="alert(1)">safe text</p><script>alert(1)</script><iframe src="https://example.test"></iframe><img src="https://example.test/x.png"><a href="${scriptHref}">bad link</a>`,
+              content: `<p onclick="alert(1)">safe text</p><script>alert(1)</script><iframe src="https://example.test"></iframe><img src="https://example.test/x.png"><a href="${scriptHref}">bad link</a>`,
             },
           ],
         },
@@ -375,6 +374,32 @@ describe('renderMindroomMessageContent', () => {
     expect(rendered).toContain('Evidence');
     expect(rendered).toContain('extra payload');
     expect(longTextTextMock).toHaveBeenCalledWith({
+      hydrate: true,
+      kind: 'text',
+    });
+
+    renderer.unmount();
+  });
+
+  it('passes long-text hydration preference to deferred long-text renderers', async () => {
+    longTextTextMock.mockReset();
+
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      hydrateLongText: false,
+      content: {
+        msgtype: 'm.text',
+        body: 'Long text preview',
+        url: 'mxc://example.org/long-text',
+        'io.mindroom.long_text': {
+          version: 2,
+          encoding: 'matrix_event_content_json',
+        },
+      },
+    });
+
+    expect(longTextTextMock).toHaveBeenCalledWith({
+      hydrate: false,
       kind: 'text',
     });
 
@@ -468,6 +493,7 @@ describe('renderMindroomMessageContent', () => {
 
     expect(rendered).toContain('long-text');
     expect(longTextTextMock).toHaveBeenCalledWith({
+      hydrate: true,
       kind: 'text',
     });
 

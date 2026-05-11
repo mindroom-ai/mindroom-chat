@@ -8,13 +8,24 @@ import {
   type SetStateAction,
 } from 'react';
 import type { NavigateOptions } from 'react-router-dom';
-import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
+import type {
+  EventTimeline,
+  MatrixClient,
+  MatrixEvent,
+  Room,
+  Thread,
+} from 'matrix-js-sdk';
 import to from 'await-to-js';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import type { ScrollToElement, ScrollToItem } from '../../hooks/useVirtualPaginator';
 import type { RoomViewMode } from './roomViewMode';
-import type { ThreadFilterState, ThreadSortFreezeState } from './roomThreadOverviewModel';
-import { getRenderableEventEntries } from './roomTimelineEvents';
+import type {
+  ThreadFilterState,
+  ThreadSortFreezeState,
+} from './roomThreadOverviewModel';
+import {
+  getRenderableEventEntries,
+} from './roomTimelineEvents';
 import {
   getEmptyTimeline,
   getInitialTimeline,
@@ -29,7 +40,10 @@ import {
 import { useEventTimelineLoader } from './timelinePaginationController';
 import { resolveRoomEventThreadRedirect } from './roomDeepLink';
 import { getRoomEventFocusTarget } from './threadRoomFocus';
-import { buildVisibleThreadReplyCountMap, eventBelongsToThread } from './threadUtils';
+import {
+  buildVisibleThreadReplyCountMap,
+  eventBelongsToThread,
+} from './threadUtils';
 import type { PendingThreadOpen } from './threadOpenTargetEvent';
 import type { ThreadScheduledStatus } from './threadScheduledStatus';
 import type { ThreadResolutionState } from './useRoomThreadTags';
@@ -64,8 +78,8 @@ export const useRoomEventOpenController = ({
   room,
   roomOverviewOrderActive,
   roomThreadListThreads,
-  roomRenderLimit,
-  roomRenderLimitRef,
+  safePaginationLimit,
+  safePaginationLimitRef,
   scheduledStatusMap,
   scrollRef,
   scrollToBottomRef,
@@ -109,8 +123,8 @@ export const useRoomEventOpenController = ({
   room: Room;
   roomOverviewOrderActive: boolean;
   roomThreadListThreads: Thread[];
-  roomRenderLimit: number;
-  roomRenderLimitRef: MutableRefObject<number>;
+  safePaginationLimit: number;
+  safePaginationLimitRef: MutableRefObject<number>;
   scheduledStatusMap: Map<string, ThreadScheduledStatus>;
   scrollRef: RefObject<HTMLElement>;
   scrollToBottomRef: MutableRefObject<{ count: number; smooth: boolean }>;
@@ -255,8 +269,8 @@ export const useRoomEventOpenController = ({
         setTimeline({
           linkedTimelines,
           range: {
-            start: Math.max(focusIndex - roomRenderLimitRef.current, 0),
-            end: Math.min(focusIndex + roomRenderLimitRef.current, count),
+            start: Math.max(focusIndex - safePaginationLimitRef.current, 0),
+            end: Math.min(focusIndex + safePaginationLimitRef.current, count),
           },
         });
       },
@@ -275,7 +289,7 @@ export const useRoomEventOpenController = ({
         room,
         roomOverviewOrderActive,
         roomThreadListThreads,
-        roomRenderLimitRef,
+        safePaginationLimitRef,
         searchQuery,
         scheduledStatusMap,
         setFocusItem,
@@ -295,7 +309,7 @@ export const useRoomEventOpenController = ({
       if (!alive()) return;
       const filterOpts = recalibrateFilterOptsRef.current;
       setTimeline(
-        getInitialTimeline(room, roomRenderLimit, {
+        getInitialTimeline(room, safePaginationLimit, {
           threadId,
           ignoredUsersSet: filterOpts?.ignoredUsersSet ?? ignoredUsersSet,
           showHiddenEvents: filterOpts?.showHiddenEvents ?? showHiddenEvents,
@@ -315,7 +329,7 @@ export const useRoomEventOpenController = ({
       ignoredUsersSet,
       recalibrateFilterOptsRef,
       room,
-      roomRenderLimit,
+      safePaginationLimit,
       scrollToBottomRef,
       setTimeline,
       showHiddenEvents,
