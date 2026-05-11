@@ -19,10 +19,7 @@ const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]
 const getMessageComposer = (page: import('@playwright/test').Page) =>
   page.getByRole('textbox').first();
 
-const getZeroReplyThreadButton = (
-  page: import('@playwright/test').Page,
-  rootBody: string
-) =>
+const getZeroReplyThreadButton = (page: import('@playwright/test').Page, rootBody: string) =>
   page.getByRole('button', {
     name: new RegExp(`${escapeRegex(rootBody)}[\\s\\S]*0 replies`, 'i'),
   });
@@ -48,7 +45,9 @@ const delayNextUiMessageSend = async (
   roomId: string,
   delayMs = 4_000
 ): Promise<DelayedUiSend> => {
-  const pattern = `${homeserver}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/send/m.room.message/**`;
+  const pattern = `${homeserver}/_matrix/client/v3/rooms/${encodeURIComponent(
+    roomId
+  )}/send/m.room.message/**`;
   let released = false;
   let handled = false;
   let interceptedResolver: (() => void) | undefined;
@@ -85,9 +84,7 @@ const delayNextUiMessageSend = async (
   };
 };
 
-const expectPendingThenConfirmedThreadRoute = async (
-  page: import('@playwright/test').Page
-) => {
+const expectPendingThenConfirmedThreadRoute = async (page: import('@playwright/test').Page) => {
   await expect
     .poll(() => new URL(page.url()).searchParams.get('threadId'), {
       timeout: 30_000,
@@ -103,7 +100,7 @@ const expectPendingThenConfirmedThreadRoute = async (
     .toMatch(/^\$/);
 };
 
-const prepareFreshRoom = async (viewMode: 'compact' | 'normal') => {
+const prepareFreshRoom = async (viewMode: 'compact' | 'threaded') => {
   const homeserver = getHomeserver();
   const { username, password } = getPrimaryCredentials();
   const session = await loginToMatrix(homeserver, username, password);
@@ -131,8 +128,9 @@ test.describe('live cinny-068 fresh zero-reply open', () => {
     page,
   }) => {
     const diagnostics = attachBrowserDiagnostics(page);
-    const { homeserver, username, password, userId, roomId, rootBody } =
-      await prepareFreshRoom('compact');
+    const { homeserver, username, password, userId, roomId, rootBody } = await prepareFreshRoom(
+      'compact'
+    );
 
     await loginWithPassword(page, { homeserver, username, password });
     await seedRoomOverviewState({
@@ -176,15 +174,16 @@ test.describe('live cinny-068 fresh zero-reply open', () => {
     page,
   }) => {
     const diagnostics = attachBrowserDiagnostics(page);
-    const { homeserver, username, password, userId, roomId, rootBody } =
-      await prepareFreshRoom('normal');
+    const { homeserver, username, password, userId, roomId, rootBody } = await prepareFreshRoom(
+      'threaded'
+    );
 
     await loginWithPassword(page, { homeserver, username, password });
     await seedRoomOverviewState({
       page,
       roomId,
       userId,
-      viewMode: 'normal',
+      viewMode: 'threaded',
       filterState: createDefaultThreadFilterState(),
     });
 

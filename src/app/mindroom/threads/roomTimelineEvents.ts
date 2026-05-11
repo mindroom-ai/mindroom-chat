@@ -41,13 +41,16 @@ export const isRenderableEvent = (
   ignoredUsersSet: Set<string>,
   showHiddenEvents: boolean,
   hideMembershipEvents: boolean,
-  hideNickAvatarEvents: boolean
+  hideNickAvatarEvents: boolean,
+  showThreadRepliesInRoom = false
 ): boolean => {
   const mEventId = mEvent.getId();
   if (!mEvent || !mEventId) return false;
   const eventSender = mEvent.getSender();
   if (eventSender && ignoredUsersSet.has(eventSender)) return false;
-  if (!threadId && isThreadReplyEvent(mEventId, mEvent.threadRootId)) return false;
+  if (!threadId && !showThreadRepliesInRoom && isThreadReplyEvent(mEventId, mEvent.threadRootId)) {
+    return false;
+  }
   if (mEvent.isRedacted() && !showHiddenEvents) return false;
   if (reactionOrEditEvent(mEvent)) return false;
   if (mEvent.isRedaction()) return false;
@@ -75,7 +78,8 @@ export const getRenderableEventEntries = (
   ignoredUsersSet: Set<string>,
   showHiddenEvents: boolean,
   hideMembershipEvents: boolean,
-  hideNickAvatarEvents: boolean
+  hideNickAvatarEvents: boolean,
+  showThreadRepliesInRoom = false
 ): TimelineEventEntry[] => {
   const entries: TimelineEventEntry[] = [];
   let absoluteIndex = 0;
@@ -90,7 +94,8 @@ export const getRenderableEventEntries = (
           ignoredUsersSet,
           showHiddenEvents,
           hideMembershipEvents,
-          hideNickAvatarEvents
+          hideNickAvatarEvents,
+          showThreadRepliesInRoom
         )
       ) {
         entries.push({ event: mEvent, absoluteIndex });
@@ -110,7 +115,8 @@ export const getRenderableEvents = (
   ignoredUsersSet: Set<string>,
   showHiddenEvents: boolean,
   hideMembershipEvents: boolean,
-  hideNickAvatarEvents: boolean
+  hideNickAvatarEvents: boolean,
+  showThreadRepliesInRoom = false
 ): MatrixEvent[] =>
   getRenderableEventEntries(
     linkedTimelines,
@@ -119,7 +125,8 @@ export const getRenderableEvents = (
     ignoredUsersSet,
     showHiddenEvents,
     hideMembershipEvents,
-    hideNickAvatarEvents
+    hideNickAvatarEvents,
+    showThreadRepliesInRoom
   ).map(({ event }) => event);
 
 export const getLinkedTimelineEvents = (linkedTimelines: EventTimeline[]): MatrixEvent[] =>

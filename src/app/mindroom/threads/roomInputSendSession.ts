@@ -71,8 +71,10 @@ export const hasMatchingReplyDraftContext = (
 
 export const hasExplicitThreadContext = (
   threadId?: string,
-  replyDraft?: IReplyDraft
+  replyDraft?: IReplyDraft,
+  threadingEnabled = true
 ): boolean =>
+  threadingEnabled &&
   Boolean(
     threadId ||
       (replyDraft?.relation?.rel_type === RelationType.Thread &&
@@ -85,15 +87,18 @@ export const getRoomInputSendMode = ({
   hasText,
   threadId,
   replyDraft,
+  threadingEnabled = true,
 }: {
   attachmentCount: number;
   hasText: boolean;
   threadId?: string;
   replyDraft?: IReplyDraft;
+  threadingEnabled?: boolean;
 }): RoomInputSendMode => {
-  if (hasExplicitThreadContext(threadId, replyDraft)) {
+  if (hasExplicitThreadContext(threadId, replyDraft, threadingEnabled)) {
     return 'existing-thread';
   }
+  if (!threadingEnabled) return 'room';
   if (hasText) {
     return 'auto-thread-text-root';
   }
@@ -108,17 +113,20 @@ export const createRoomInputSendSessionState = ({
   hasText,
   threadId,
   replyDraft,
+  threadingEnabled = true,
 }: {
   files: TUploadContent[];
   hasText: boolean;
   threadId?: string;
   replyDraft?: IReplyDraft;
+  threadingEnabled?: boolean;
 }): RoomInputSendSessionState => ({
   mode: getRoomInputSendMode({
     attachmentCount: files.length,
     hasText,
     threadId,
     replyDraft,
+    threadingEnabled,
   }),
   orderedFiles: files,
   textPending: hasText,
@@ -201,18 +209,25 @@ export const hasRoomInputSendFailures = (session: RoomInputSendSessionState): bo
 type RelationSession = Pick<RoomInputSendSessionState, 'mode' | 'rootEventId'> & {
   replyDraft?: IReplyDraft;
   threadId?: string;
+  threadingEnabled?: boolean;
 };
+
+const allowThreadRelation = (session: RelationSession): boolean =>
+  session.threadingEnabled ?? true;
 
 export const getTextRelationForSendSession = (session: RelationSession) => {
   if (session.mode === 'existing-thread') {
     return getMessageRelation(
       session.replyDraft?.eventId,
       session.replyDraft?.relation,
-      session.threadId
+      session.threadId,
+      { allowThreadRelation: allowThreadRelation(session) }
     );
   }
 
-  return getMessageRelation(session.replyDraft?.eventId, session.replyDraft?.relation, undefined);
+  return getMessageRelation(session.replyDraft?.eventId, session.replyDraft?.relation, undefined, {
+    allowThreadRelation: allowThreadRelation(session),
+  });
 };
 
 export const getUploadRelationForSendSession = (
@@ -223,14 +238,25 @@ export const getUploadRelationForSendSession = (
     return getMessageRelation(
       session.replyDraft?.eventId,
       session.replyDraft?.relation,
-      session.threadId
+      session.threadId,
+      { allowThreadRelation: allowThreadRelation(session) }
     );
   }
   if (session.mode === 'room') {
-    return getMessageRelation(session.replyDraft?.eventId, session.replyDraft?.relation, undefined);
+    return getMessageRelation(
+      session.replyDraft?.eventId,
+      session.replyDraft?.relation,
+      undefined,
+      { allowThreadRelation: allowThreadRelation(session) }
+    );
   }
   if (session.mode === 'auto-thread-upload-root' && isRoot && !session.rootEventId) {
-    return getMessageRelation(session.replyDraft?.eventId, session.replyDraft?.relation, undefined);
+    return getMessageRelation(
+      session.replyDraft?.eventId,
+      session.replyDraft?.relation,
+      undefined,
+      { allowThreadRelation: allowThreadRelation(session) }
+    );
   }
   if (!session.rootEventId) {
     return undefined;

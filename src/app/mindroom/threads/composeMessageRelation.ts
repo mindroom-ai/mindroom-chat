@@ -12,8 +12,10 @@ type MessageRelation = {
 export const getMessageRelation = (
   replyEventId?: string,
   replyRelation?: IEventRelation,
-  threadId?: string
+  threadId?: string,
+  options: { allowThreadRelation?: boolean } = {}
 ): MessageRelation | undefined => {
+  const allowThreadRelation = options.allowThreadRelation ?? true;
   const relation: MessageRelation = {};
   const hasExplicitReply = typeof replyEventId === 'string' && replyEventId.length > 0;
 
@@ -23,12 +25,15 @@ export const getMessageRelation = (
     };
   }
 
-  const threadRootId =
-    replyRelation?.rel_type === RelationType.Thread &&
-    typeof replyRelation.event_id === 'string' &&
-    replyRelation.event_id.length > 0
-      ? replyRelation.event_id
-      : threadId;
+  let threadRootId: string | undefined;
+  if (allowThreadRelation) {
+    threadRootId =
+      replyRelation?.rel_type === RelationType.Thread &&
+      typeof replyRelation.event_id === 'string' &&
+      replyRelation.event_id.length > 0
+        ? replyRelation.event_id
+        : threadId;
+  }
 
   if (threadRootId) {
     relation.event_id = threadRootId;

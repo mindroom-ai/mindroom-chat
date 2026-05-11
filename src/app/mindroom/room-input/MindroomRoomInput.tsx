@@ -199,9 +199,10 @@ export interface RoomInputProps {
   roomId: string;
   room: Room;
   threadId?: string;
+  threadingEnabled?: boolean;
 }
 export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
-  ({ editor, fileDropContainerRef, roomId, room, threadId }, ref) => {
+  ({ editor, fileDropContainerRef, roomId, room, threadId, threadingEnabled = true }, ref) => {
     const mx = useMatrixClient();
     const store = useStore();
     const useAuthentication = useMediaAuthentication();
@@ -668,6 +669,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       roomId,
       threadId,
       replyDraft,
+      threadingEnabled,
       setReplyDraft,
       editor,
       sendTypingStatus,
@@ -690,8 +692,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         room,
         threadId,
         replyDraft,
+        threadingEnabled,
       });
-    }, [roomId, room, threadId, replyDraft, store]);
+    }, [roomId, room, threadId, replyDraft, threadingEnabled, store]);
 
     const handleCloseVoiceRecorder = useCallback(() => {
       voiceSendContextRef.current = undefined;
@@ -738,6 +741,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             room: roomRef.current,
             threadId: threadIdRef.current,
             replyDraft: replyDraftRef.current,
+            threadingEnabled,
           });
         let fileItems: TUploadItem[] = [];
         const logAndThrowUploadError = (err: unknown, stage: MatrixUploadErrorStage): never => {
@@ -802,6 +806,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         releaseVoiceAutoSend,
         sendVoiceItem,
         store,
+        threadingEnabled,
         uploadVoiceItem,
       ]
     );
@@ -890,7 +895,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
         if (!content) return;
 
-        const relation = getMindroomRoomInputMessageRelation(replyDraft, threadId);
+        const relation = getMindroomRoomInputMessageRelation(
+          replyDraft,
+          threadId,
+          threadingEnabled
+        );
         if (relation) {
           content['m.relates_to'] = relation;
         }
@@ -912,6 +921,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       isMarkdown,
       commands,
       threadId,
+      threadingEnabled,
       startSendSession,
       store,
     ]);

@@ -185,6 +185,7 @@ export function RoomView({
                   editor={editor}
                   roomId={roomId}
                   threadId={effectiveThreadId}
+                  threadingEnabled={viewMode !== 'classic'}
                   fileDropContainerRef={roomViewRef}
                   ref={roomInputRef}
                 />

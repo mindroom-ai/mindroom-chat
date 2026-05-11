@@ -108,7 +108,7 @@ describe('RoomTimeline', () => {
     const threadSortControlSignature = createThreadSortControlSignature({
       state: threadFilterState,
       searchQuery: '',
-      viewMode: 'normal',
+      viewMode: 'threaded',
     });
     threadLastActivityTsMapMock.set(firstThread.getId(), 100);
     threadLastActivityTsMapMock.set(secondThread.getId(), 200);
@@ -310,7 +310,7 @@ describe('RoomTimeline', () => {
           room,
           eventId: threadRoot.getId(),
           focusEventInRoom: true,
-          initialViewMode: 'normal',
+          initialViewMode: 'threaded',
           initialThreadFilterState: {
             ...DEFAULT_THREAD_FILTER_STATE,
             searchQuery: 'does-not-match-hidden-root',
@@ -348,7 +348,7 @@ describe('RoomTimeline', () => {
           room,
           eventId: secondThreadRoot.getId(),
           focusEventInRoom: true,
-          initialViewMode: 'normal',
+          initialViewMode: 'threaded',
           initialThreadFilterState: {
             ...DEFAULT_THREAD_FILTER_STATE,
             sortBy: 'natural',
@@ -384,7 +384,7 @@ describe('RoomTimeline', () => {
           room,
           eventId: threadRoot.getId(),
           focusEventInRoom: true,
-          initialViewMode: 'normal',
+          initialViewMode: 'threaded',
           initialThreadFilterState: {
             ...DEFAULT_THREAD_FILTER_STATE,
             resolved: 'exclude',
@@ -411,11 +411,11 @@ describe('RoomTimeline', () => {
     ]);
 
     await act(async () => {
-      renderer?.root.findByType(roomThreadOverviewType).props.onViewModeChange('normal');
+      renderer?.root.findByType(roomThreadOverviewType).props.onViewModeChange('threaded');
       await flushAsyncWork(2);
     });
 
-    expect(renderer?.root.findByType(roomThreadOverviewType).props.viewMode).toBe('normal');
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.viewMode).toBe('threaded');
     expect(getRenderedEventIds(renderer!)).toEqual([threadRoot.getId()]);
     expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
   });

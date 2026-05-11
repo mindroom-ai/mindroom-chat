@@ -95,7 +95,7 @@ const getFilteredRoomOverviewEvents = (
   searchQuery: string,
   threadSortFreezeState: ThreadSortFreezeState | null,
   threadSortControlSignature: string,
-  viewMode: RoomViewMode = 'normal',
+  viewMode: RoomViewMode = 'threaded',
   roomThreads: Thread[] = []
 ): MatrixEvent[] => {
   const compactViewRequested = viewMode === 'compact';

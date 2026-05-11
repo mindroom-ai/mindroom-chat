@@ -15,6 +15,7 @@ export type RecalibrateFilterOpts = {
   showHiddenEvents: boolean;
   hideMembershipEvents: boolean;
   hideNickAvatarEvents: boolean;
+  showThreadRepliesInRoom?: boolean;
 };
 
 export const getLiveTimeline = (room: Room): EventTimeline =>
@@ -131,7 +132,8 @@ export const recalibrateTimelinePagination = (
         filterOpts.ignoredUsersSet,
         filterOpts.showHiddenEvents,
         filterOpts.hideMembershipEvents,
-        filterOpts.hideNickAvatarEvents
+        filterOpts.hideNickAvatarEvents,
+        filterOpts.showThreadRepliesInRoom
       ).length;
     const oldTopRenderableCount =
       timelinesRenderableCounts?.[0] ?? countRenderable([linkedTimelines[0]]);
@@ -166,6 +168,7 @@ export const getInitialTimeline = (
     showHiddenEvents: boolean;
     hideMembershipEvents: boolean;
     hideNickAvatarEvents: boolean;
+    showThreadRepliesInRoom?: boolean;
   }
 ): Timeline => {
   const linkedTimelines = getLinkedTimelines(getLiveTimeline(room));
@@ -177,7 +180,8 @@ export const getInitialTimeline = (
         filterOpts.ignoredUsersSet,
         filterOpts.showHiddenEvents,
         filterOpts.hideMembershipEvents,
-        filterOpts.hideNickAvatarEvents
+        filterOpts.hideNickAvatarEvents,
+        filterOpts.showThreadRepliesInRoom
       ).length
     : getTimelinesEventsCount(linkedTimelines);
   return {

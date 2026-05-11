@@ -354,11 +354,11 @@ export const useRoomFocusScrollController = ({
   }, [
     scrollRef,
     setAtBottom,
+    suppressThreadOpenBottomPinRef,
     threadEventsLength,
     threadId,
     threadInitialRenderMode,
     threadLatestOpenPending,
-    suppressThreadOpenBottomPinRef,
   ]);
 
   useLayoutEffect(() => {

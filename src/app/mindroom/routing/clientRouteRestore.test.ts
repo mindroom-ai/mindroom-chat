@@ -90,6 +90,25 @@ describe('clientRouteRestore', () => {
     expect(getLastOpenThreadRestoreTarget(mx, '/settings/', getThreadForRoom)).toBeUndefined();
   });
 
+  it('skips last-open-thread startup restore for classic room mode', () => {
+    const mx = makeMatrixClient({
+      rooms: [makeRoom('!room:mindroom.chat', '#room:mindroom.chat')],
+    });
+    const getThreadForRoom = vi.fn(() => '$thread');
+    const getViewModeForRoom = vi.fn(() => 'classic');
+
+    expect(
+      getLastOpenThreadRestoreTarget(
+        mx,
+        '/home/%23room%3Amindroom.chat/',
+        getThreadForRoom,
+        getViewModeForRoom
+      )
+    ).toBeUndefined();
+    expect(getViewModeForRoom).toHaveBeenCalledWith('!room:mindroom.chat');
+    expect(getThreadForRoom).not.toHaveBeenCalled();
+  });
+
   it('detects alias routes before rendering children that would flash join fallbacks', () => {
     expect(pathnameContainsAliasRoute('/home/%23room%3Amindroom.chat/')).toBe(true);
     expect(pathnameContainsAliasRoute('/%23space%3Amindroom.chat/%21room%3Amindroom.chat/')).toBe(

@@ -2,6 +2,48 @@
 
 ## Runbook
 
+### Three-way room timeline mode and DM parity (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Replaced the two-way compact/expanded room surface preference with a three-way per-room mode: compact MindRoom overview, threaded MindRoom timeline, and classic Cinny-style timeline.
+  - DMs now use the same mode pipeline and controls as normal rooms instead of being forced into a different direct-room-only timeline behavior.
+  - Classic mode avoids entering/restoring thread routes, shows thread replies in the room timeline, and avoids adding automatic thread relations from the room composer.
+  - Rebased on the upstream thread prepend scroll e2e fix (`5a0412f8`) and dropped the earlier local timing-style scroll-anchor patch in favor of the upstream root-cause fix.
+- Files changed:
+  - `src/app/mindroom/threads/roomViewMode.ts`
+  - `src/app/mindroom/threads/roomTimelineViewState.ts`
+  - `src/app/mindroom/threads/RoomThreadOverview.tsx`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/MindroomRoom.tsx`
+  - `src/app/mindroom/threads/MindroomRoomView.tsx`
+  - `src/app/mindroom/threads/MindroomRoomViewHeader.tsx`
+  - `src/app/mindroom/threads/useRoomThreadRouteRestore.ts`
+  - `src/app/mindroom/threads/useRoomViewThreadState.ts`
+  - `src/app/mindroom/threads/roomTimelineEvents.ts`
+  - `src/app/mindroom/threads/timelinePagination.ts`
+  - `src/app/mindroom/threads/roomEventOpenController.ts`
+  - `src/app/mindroom/threads/roomTimelineNavigationController.ts`
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx`
+  - `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`
+  - `src/app/mindroom/threads/composeMessageRelation.ts`
+  - `src/app/mindroom/threads/roomInputSendSession.ts`
+  - `src/app/mindroom/routing/clientRouteRestore.ts`
+  - `src/app/mindroom/recent-threads/RecentThreadEntry.tsx`
+  - `src/app/features/room-settings/general/General.tsx`
+  - Focused unit and e2e tests under `src/app/mindroom/**` and `e2e/**`.
+- Tests and validation:
+  - Pre-rebase validation:
+    - `npm run typecheck`
+    - `npm test` passed (`272` files, `2030` tests).
+    - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+    - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+    - `npm run test:e2e:docker-matrix -- e2e/live/cinny069-room-resume-thread-preload.spec.ts e2e/live/cinny070-thread-prepend-scroll.spec.ts`
+    - `npm run test:e2e:docker-matrix -- e2e/live/cinny015-thread-exit-scroll.spec.ts e2e/live/cinny033-jump-to-latest.spec.ts e2e/live/cinny068-fresh-zero-reply-open.spec.ts`
+    - `npm run test:e2e:docker-matrix` passed (`65` passed, `2` skipped).
+  - Independent second self-review completed against the final diff; scope stayed limited to per-room timeline mode, DM parity, classic-thread suppression, and preserving the upstream thread prepend scroll fix during rebase.
+
 ### E2E account locator and thread prepend scroll fixes (2026-05-11)
 
 - Status:
