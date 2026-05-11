@@ -2,6 +2,27 @@
 
 ## Runbook
 
+### Service worker navigation fallback route guard (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Tightened the PWA app-shell navigation fallback so it only handles appropriate client-side app navigations.
+  - Root cause: the Workbox navigation fallback served `index.html` for every same-origin navigation in the service worker scope. If the worker scope is broader than the app mount path, sibling server routes can be answered by the SPA shell instead of reaching the server.
+  - Added an explicit `NavigationRoute` denylist for common same-origin backend/control paths so the app-shell fallback does not handle API, Matrix API, or well-known routes.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/sw.ts`
+  - `src/sw.test.ts`
+- Tests and validation:
+  - Green check: `npm test -- src/sw.test.ts`
+  - Green check: `npm run typecheck`
+  - Green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npx prettier --check FORK_CHANGES.md src/sw.ts src/sw.test.ts`
+  - Green check: `git diff --check`
+  - Leak check: changed diff contains no environment-specific hostnames, company names, provider names, or edge-provider names.
+
 ### Classic room timeline virtualized render window (2026-05-11)
 
 - Status:
