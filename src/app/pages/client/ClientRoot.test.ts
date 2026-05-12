@@ -75,7 +75,7 @@ vi.mock('../../components/splash-screen', () => ({
   }: {
     children?: React.ReactNode;
     loadingMessages?: string[];
-  }) => React.createElement('div', null, loadingMessages?.[0] ?? 'Heating up', children),
+  }) => React.createElement('div', null, loadingMessages?.[0] ?? 'Loading MindRoom', children),
 }));
 
 vi.mock('../../components/ServerConfigsLoader', () => ({
@@ -510,7 +510,7 @@ describe('ClientRoot', () => {
 
     expect(hasRenderedText(renderer, 'child')).toBe(true);
     expect(hasRenderedText(renderer, 'Catching up...')).toBe(true);
-    expect(hasRenderedText(renderer, 'Heating up')).toBe(false);
+    expect(hasRenderedText(renderer, 'Loading MindRoom')).toBe(false);
   });
 
   it('keeps the particle loading screen when only a saved sync token is restored', async () => {
@@ -536,7 +536,7 @@ describe('ClientRoot', () => {
 
     expect(hasRenderedText(renderer, 'child')).toBe(false);
     expect(hasRenderedText(renderer, 'Catching up...')).toBe(false);
-    expect(hasRenderedText(renderer, 'Heating up')).toBe(true);
+    expect(hasRenderedText(renderer, 'Loading MindRoom')).toBe(true);
   });
 
   it('does not treat a saved sync token as a renderable cached shell without loaded rooms', () => {

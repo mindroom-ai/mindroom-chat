@@ -35,9 +35,11 @@
     `config.json` as `splash.loadingMessages`.
   - `MindRoomSplashScreen` now owns the shared particle-backed loading layout,
     chooses one non-empty configured message at random on mount, and falls back
-    to `Heating up` when no usable deployment messages exist.
+    to `Loading MindRoom` when no usable deployment messages exist.
   - The pre-config loading screen keeps the default fallback because
     `config.json` is not available until after that screen completes.
+  - Follow-up: replaced the built-in fallback string so the pre-config screen no
+    longer flashes `Heating up` before deployment settings are loaded.
 - Files changed:
   - `FORK_CHANGES.md`
   - `README.md`
@@ -59,6 +61,14 @@
   - Green check: `npm test` passed (`277` files, `2061` tests).
   - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
   - Green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - Follow-up green check: `rg -n "Heating up" src config.json public ios README.md` returned no matches.
+  - Follow-up green check: `npm test -- src/app/components/splash-screen/MindRoomSplashScreen.test.ts src/app/pages/client/ClientRoot.test.ts` passed (`15` tests).
+  - Follow-up green check: `npm run typecheck`.
+  - Follow-up green check: `npx prettier --check FORK_CHANGES.md src/app/components/splash-screen/MindRoomSplashScreen.tsx src/app/pages/client/ClientRoot.test.ts`.
+  - Follow-up green check: `git diff --check`.
+  - Follow-up green check: `npm test` passed (`277` files, `2061` tests).
+  - Follow-up green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Follow-up green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
 
 ### SpecVersions connecting particle splash (2026-05-12)
 

@@ -3,7 +3,7 @@ import React, { ReactNode, useMemo } from 'react';
 import { MindRoomParticleBackground } from '../particle-background';
 import { SplashScreen } from './SplashScreen';
 
-export const DEFAULT_MINDROOM_SPLASH_MESSAGES = ['Heating up'] as const;
+export const DEFAULT_MINDROOM_SPLASH_MESSAGES = ['Loading MindRoom'] as const;
 
 export const pickMindRoomSplashMessage = (
   messages: readonly string[] | undefined,
