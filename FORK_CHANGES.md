@@ -14,6 +14,7 @@
   - Follow-up fix: the particle layer now sits above the auth layout background, the auth card uses a lighter translucent fill without heavy backdrop blur, and the particle styling is strong enough to remain visible through the card.
   - Review follow-up: moved the MindRoom particle background into a shared component, made startup splash screens accept a generic background node, reduced the default app particle load, and disabled pointer interaction on coarse/touch pointers.
   - Review follow-up: particle density now adapts across low-end, balanced, and desktop tiers using pointer type, CPU core count, DPR, and effective pixel area.
+  - Follow-up packaging fix: MindRoom now consumes published `@basnijholt/particular-drift@0.1.0` from the npm registry instead of a GitHub commit pin, restoring npm lockfile integrity metadata.
   - The existing auth card, server picker, login/loading states, and footer remain unchanged; reduced-motion users get the static radial background without the animated canvas.
 - Decisions:
   - Use the `basnijholt/particular-drift` package as the integration boundary, with Bun kept to that package and npm kept for MindRoom Cinny.
@@ -24,10 +25,9 @@
   - WebGL2 can be unavailable or fail during startup; the renderer must fail without breaking auth/loading screens.
   - Particle density can still cost GPU and battery on some devices despite adaptive caps.
   - Reduced-motion behavior depends on CSS media-query support and should keep the static fallback legible.
-  - The Git-pinned dependency lacks npm registry integrity metadata until the package is published.
 - Next steps:
   - Owner: frontend maintainer verifies reduced-motion and low-end/touch behavior on representative desktop and mobile browsers.
-  - Owner: package maintainer publishes `@basnijholt/particular-drift` to npm if this becomes a long-lived shipping dependency.
+  - Owner: package maintainer keeps `@basnijholt/particular-drift` releases aligned with package README attribution and committed build artifacts.
   - Owner: QA adds a visual regression check for the auth and startup particle background once the visual baseline is stable.
   - Owner: product/design decides whether the hardcoded logo should remain fixed or move into runtime branding configuration.
 - Files changed:
