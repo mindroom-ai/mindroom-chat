@@ -5,7 +5,34 @@ import { MINDROOM_CLIENT_BRANDING } from '../../mindroom/branding/clientBranding
 import * as css from './MindRoomParticleBackground.css';
 import { PARTICLE_BACKGROUND_COLOR, PARTICLE_COLOR } from './particleBackgroundTheme';
 
+const DESKTOP_PARTICLE_COUNT = 80000;
+const BALANCED_PARTICLE_COUNT = 52000;
+const LOW_END_PARTICLE_COUNT = 28000;
+
+export function resolveMindRoomParticleCount() {
+  if (typeof window === 'undefined') {
+    return BALANCED_PARTICLE_COUNT;
+  }
+
+  const coarsePointer = window.matchMedia?.('(hover: none), (pointer: coarse)').matches ?? false;
+  const hardwareConcurrency = window.navigator.hardwareConcurrency ?? 4;
+  const devicePixelRatio = window.devicePixelRatio || 1;
+  const effectivePixelArea = window.innerWidth * window.innerHeight * devicePixelRatio ** 2;
+
+  if (coarsePointer || hardwareConcurrency <= 4) {
+    return LOW_END_PARTICLE_COUNT;
+  }
+
+  if (hardwareConcurrency <= 8 || devicePixelRatio > 1.5 || effectivePixelArea > 4_000_000) {
+    return BALANCED_PARTICLE_COUNT;
+  }
+
+  return DESKTOP_PARTICLE_COUNT;
+}
+
 export function MindRoomParticleBackground() {
+  const particleCount = React.useMemo(resolveMindRoomParticleCount, []);
+
   return (
     <div className={css.ParticleBackground} aria-hidden="true">
       <ParticularDriftCanvas
@@ -19,7 +46,7 @@ export function MindRoomParticleBackground() {
           cursorStrength: 1.25,
           backgroundColor: PARTICLE_BACKGROUND_COLOR,
           particleColor: PARTICLE_COLOR,
-          particleCount: 80000,
+          particleCount,
           particleOpacity: 0.46,
           particleSize: 1.15,
           particleSpeed: 10,

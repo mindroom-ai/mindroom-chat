@@ -1830,8 +1830,11 @@ describe('RoomTimeline architecture', () => {
     expect(particleBackgroundSource).toContain("from '../../mindroom/branding/clientBranding'");
     expect(particleBackgroundSource).toContain('@basnijholt/particular-drift/react');
     expect(particleBackgroundSource).toContain('imageUrl={MINDROOM_CLIENT_BRANDING.logoSrc}');
+    expect(particleBackgroundSource).toContain('resolveMindRoomParticleCount');
     expect(particleBackgroundSource).toContain("cursorMode: 'repel'");
-    expect(particleBackgroundSource).toContain('particleCount: 80000');
+    expect(particleBackgroundSource).toContain('DESKTOP_PARTICLE_COUNT = 80000');
+    expect(particleBackgroundSource).toContain('LOW_END_PARTICLE_COUNT = 28000');
+    expect(particleBackgroundSource).toContain('particleCount,');
     expect(ssoLoginSource).toContain("from '../../mindroom/auth/authUi'");
     expect(loginSource).toContain("from '../../../mindroom/auth/authUi'");
     expect(passwordLoginSource).toContain("from '../../../mindroom/auth/authUi'");
