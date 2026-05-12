@@ -2,6 +2,35 @@
 
 ## Runbook
 
+### Classic large-room loading scroll stability (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Reproduced the classic large-room jump in a real browser before changing source code.
+  - Browser reproduction seeded a 2600-message room, opened it in Classic view, and delayed room `/messages` pagination; while idle, the timeline scroll root jumped from `scrollTop=0` to roughly `25502` and the first visible message changed from `message 2593` to `message 2578`.
+  - Added a full Docker Matrix e2e regression that seeds a 700-message room, opens Classic view, slows only room back-pagination, and samples the timeline scroll root while the user is idle.
+  - Root cause: Classic view still ran the high-target room eager-preload loop on open. The virtualized transcript grew in backward-pagination batches under the visible viewport, causing the scroll root and first visible message to jump during loading.
+  - Classic view now skips room eager preload and behaves like a normal transcript: it renders the latest window and loads older history only through the existing user-driven pagination path.
+  - Independent second self-review completed against the final diff; scope stayed limited to Classic-view passive preload, the e2e regression, and runbook updates.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `e2e/live/cinny077-classic-large-room-scroll.spec.ts`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/preloadController.ts`
+- Tests and validation:
+  - Red browser reproduction: seeded a 2600-message room and observed idle scroll movement from `message 2593` to `message 2578` while delayed `/messages` back-pagination ran.
+  - Red check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix -- e2e/live/cinny077-classic-large-room-scroll.spec.ts` failed because the first visible message changed across samples.
+  - Green check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix -- e2e/live/cinny077-classic-large-room-scroll.spec.ts`.
+  - Green check: `npm test -- src/app/mindroom/threads/roomPreloadTarget.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npx prettier --check FORK_CHANGES.md e2e/live/cinny077-classic-large-room-scroll.spec.ts src/app/mindroom/threads/MindroomRoomTimeline.tsx src/app/mindroom/threads/preloadController.ts`.
+  - Green check: `git diff --check`.
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npm test` passed (`276` files, `2054` tests).
+  - Green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - Green final e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix -- e2e/live/cinny077-classic-large-room-scroll.spec.ts`.
+
 ### Xcode Cloud TestFlight build setup (2026-05-11)
 
 - Status:

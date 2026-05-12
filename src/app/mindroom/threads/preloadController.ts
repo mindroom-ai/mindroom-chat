@@ -2,10 +2,7 @@ import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } 
 import { Direction, type MatrixClient, type Room } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import { decryptAllTimelineEvent } from '../../utils/room';
-import {
-  getRoomPreloadCounts,
-  getRenderableEvents,
-} from './roomTimelineEvents';
+import { getRoomPreloadCounts, getRenderableEvents } from './roomTimelineEvents';
 import { logTimelineDebug } from './timelineDebug';
 import {
   getLinkedTimelines,
@@ -19,6 +16,7 @@ import {
 
 type RoomEagerPreloadOptions = {
   alive: () => boolean;
+  enabled: boolean;
   eventId?: string;
   eagerPreloadDoneForRoomRef: MutableRefObject<string | null>;
   mx: MatrixClient;
@@ -37,6 +35,7 @@ type RoomEagerPreloadOptions = {
 
 export const useRoomEagerPreload = ({
   alive,
+  enabled,
   eventId,
   eagerPreloadDoneForRoomRef,
   mx,
@@ -53,6 +52,10 @@ export const useRoomEagerPreload = ({
   useSurfacePreloadTarget,
 }: RoomEagerPreloadOptions): void => {
   useEffect(() => {
+    if (!enabled) {
+      setEagerPreloading(false);
+      return undefined;
+    }
     if (threadId || eventId) return undefined;
     if (eagerPreloadDoneForRoomRef.current === room.roomId) {
       // Cache hydration still needs to reset timeline.range before the loading flag clears.
@@ -292,6 +295,7 @@ export const useRoomEagerPreload = ({
     };
   }, [
     alive,
+    enabled,
     eventId,
     eagerPreloadDoneForRoomRef,
     mx,
