@@ -68,10 +68,8 @@ vi.mock('../../../client/initMatrix', () => ({
 vi.mock('../../components/splash-screen', () => ({
   SplashScreen: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
-}));
-
-vi.mock('../../components/particle-background', () => ({
-  MindRoomParticleBackground: () => React.createElement('div', null),
+  MindRoomSplashScreen: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', null, children),
 }));
 
 vi.mock('../../components/ServerConfigsLoader', () => ({

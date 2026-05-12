@@ -38,8 +38,15 @@ vi.mock('folds', async () => {
 });
 
 vi.mock('../../components/splash-screen', () => ({
-  SplashScreen: ({ children }: { children: React.ReactNode }) =>
-    React.createElement('div', null, children),
+  SplashScreen: ({
+    children,
+    background,
+  }: {
+    children: React.ReactNode;
+    background?: React.ReactNode;
+  }) => React.createElement('div', { 'data-has-background': Boolean(background) }, children),
+  MindRoomSplashScreen: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', { 'data-mindroom-splash': true }, children),
 }));
 
 vi.mock('../../components/SpecVersionsLoader', () => ({
@@ -128,6 +135,23 @@ describe('SpecVersions', () => {
     });
 
     expect(vi.mocked(removeSessionAndReload)).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the particle background while connecting to the server', () => {
+    specVersionsLoaderMode = 'fallback';
+    vi.mocked(useActiveSession).mockReturnValue(undefined);
+
+    const renderer = create(
+      React.createElement(
+        SpecVersions,
+        {
+          baseUrl: 'https://example.com',
+        },
+        React.createElement('div', null, 'child')
+      )
+    );
+
+    expect(renderer.root.findByProps({ 'data-mindroom-splash': true })).toBeDefined();
   });
 
   it('shows clear-cache recovery on connection error', async () => {

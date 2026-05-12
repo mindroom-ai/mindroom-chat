@@ -2,6 +2,40 @@
 
 ## Runbook
 
+### SpecVersions connecting particle splash (2026-05-12)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigating the web and iOS "Connecting to server" / "Cancel and return
+    to sign in" screen not showing the MindRoom particle background.
+  - Root cause found: this screen is rendered by `SpecVersions`, which still
+    used the plain `SplashScreen` fallback instead of passing the shared
+    `MindRoomParticleBackground` node used by auth and startup loading screens.
+  - Fix: added a single `MindRoomSplashScreen` wrapper that composes
+    `SplashScreen` with `MindRoomParticleBackground`, then reused it for client
+    startup, client config loading, and the SpecVersions connecting fallback.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/components/splash-screen/MindRoomSplashScreen.tsx`
+  - `src/app/components/splash-screen/index.ts`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - `src/app/pages/ConfigConfig.tsx`
+  - `src/app/pages/client/ClientRoot.test.ts`
+  - `src/app/pages/client/ClientRoot.tsx`
+  - `src/app/pages/client/SpecVersions.tsx`
+  - `src/app/pages/client/SpecVersions.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/pages/client/SpecVersions.test.ts` failed
+    while the connecting fallback had no splash background prop.
+  - Green check: `npm test -- src/app/pages/client/SpecVersions.test.ts src/app/pages/client/ClientRoot.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npx prettier --check FORK_CHANGES.md src/app/components/splash-screen/MindRoomSplashScreen.tsx src/app/components/splash-screen/index.ts src/app/pages/ConfigConfig.tsx src/app/pages/client/ClientRoot.tsx src/app/pages/client/ClientRoot.test.ts src/app/pages/client/SpecVersions.tsx src/app/pages/client/SpecVersions.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green check: `git diff --check`.
+  - Green check: `npm test` passed (`276` files, `2057` tests).
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+
 ### iOS saved-token startup blank shell guard (2026-05-12)
 
 - Status:

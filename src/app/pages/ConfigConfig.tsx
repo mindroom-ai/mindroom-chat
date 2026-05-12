@@ -1,16 +1,15 @@
 import { Box, Button, Dialog, Spinner, Text, color, config } from 'folds';
 import React from 'react';
-import { MindRoomParticleBackground } from '../components/particle-background';
-import { SplashScreen } from '../components/splash-screen';
+import { MindRoomSplashScreen, SplashScreen } from '../components/splash-screen';
 
 export function ConfigConfigLoading() {
   return (
-    <SplashScreen background={<MindRoomParticleBackground />}>
+    <MindRoomSplashScreen>
       <Box grow="Yes" direction="Column" gap="400" alignItems="Center" justifyContent="Center">
         <Spinner variant="Secondary" size="600" />
         <Text>Heating up</Text>
       </Box>
-    </SplashScreen>
+    </MindRoomSplashScreen>
   );
 }
 

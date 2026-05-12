@@ -2,7 +2,7 @@ import React, { ReactNode } from 'react';
 import { Box, Dialog, config, Text, Button, Spinner } from 'folds';
 import { SpecVersionsLoader } from '../../components/SpecVersionsLoader';
 import { SpecVersionsProvider } from '../../hooks/useSpecVersions';
-import { SplashScreen } from '../../components/splash-screen';
+import { MindRoomSplashScreen, SplashScreen } from '../../components/splash-screen';
 import { clearAllCacheAndReload, removeSessionAndReload } from '../../../client/initMatrix';
 import { useActiveSession } from '../../hooks/useSessionStore';
 
@@ -26,7 +26,7 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
     <SpecVersionsLoader
       baseUrl={baseUrl}
       fallback={() => (
-        <SplashScreen>
+        <MindRoomSplashScreen>
           <Box direction="Column" grow="Yes" alignItems="Center" justifyContent="Center" gap="400">
             <Spinner variant="Secondary" size="600" />
             <Text>Connecting to server</Text>
@@ -46,7 +46,7 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
               </Text>
             </Button>
           </Box>
-        </SplashScreen>
+        </MindRoomSplashScreen>
       )}
       error={(err, retry, ignore) => (
         <SplashScreen>
