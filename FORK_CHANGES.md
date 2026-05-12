@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### Xcode Cloud TestFlight build setup (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigating the failing Xcode Cloud workflow created from Xcode.
+  - Local clean-worktree reproduction failed before compilation because `ios/App/Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig` was absent.
+  - Root cause: the repository intentionally ignores `ios/App/Pods`, `ios/App/App/public`, and the workspace depends on `node_modules` for Capacitor pods, so a clean Xcode Cloud machine needs explicit setup scripts before `xcodebuild`.
+  - Added Xcode Cloud scripts next to `ios/App/App.xcworkspace` to install Node/CocoaPods when missing, run `npm ci`, build the Vite web app, run `npx cap sync ios`, and then run the App Store preflight.
+  - Xcode Cloud builds now rewrite the transient Xcode project version from `package.json` and `CI_BUILD_NUMBER` before building, while the checked-in project is aligned to `4.11.1` build `3` for local archives.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `ios/App/App.xcodeproj/project.pbxproj`
+  - `ios/App/ci_scripts/ci_post_clone.sh`
+  - `ios/App/ci_scripts/ci_pre_xcodebuild.sh`
+- Tests and validation:
+  - Red check: `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -destination 'generic/platform=iOS' -configuration Release CODE_SIGNING_ALLOWED=NO build` failed in the clean worktree because the CocoaPods xcconfig was missing.
+  - Green check: `ios/App/ci_scripts/ci_post_clone.sh` passed, installing npm dependencies with `npm ci` after confirming Node, npm, and CocoaPods are available.
+  - Green check: `ios/App/ci_scripts/ci_pre_xcodebuild.sh` passed, including `npm run build`, `npx cap sync ios`, CocoaPods install, and `npm run appstore:preflight`.
+  - Green check: `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -destination 'generic/platform=iOS' -configuration Release CODE_SIGNING_ALLOWED=NO build` passed after the scripts prepared the Capacitor workspace.
+  - Green check: built app `Info.plist` reported `CFBundleShortVersionString` `4.11.1` and `CFBundleVersion` `3`.
+
 ### Canonical compact audio player with More menu (2026-05-11)
 
 - Status:
