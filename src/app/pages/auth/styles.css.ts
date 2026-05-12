@@ -44,7 +44,7 @@ export const AuthCard = style({
   marginTop: '1vh',
   maxWidth: toRem(460),
   width: '100%',
-  backgroundColor: 'rgba(18, 16, 42, 0.36)',
+  backgroundColor: 'rgba(18, 16, 42, 0.28)',
   backdropFilter: 'blur(6px) saturate(1.18)',
   WebkitBackdropFilter: 'blur(6px) saturate(1.18)',
   color: '#f8f5ff',
