@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
+import { PARTICLE_BACKGROUND_COLOR } from '../particle-background/particleBackgroundTheme';
 
 export const SplashScreen = style({
   minHeight: '100%',
@@ -8,6 +9,10 @@ export const SplashScreen = style({
   position: 'relative',
   isolation: 'isolate',
   overflow: 'hidden',
+});
+
+export const SplashScreenParticle = style({
+  backgroundColor: PARTICLE_BACKGROUND_COLOR,
 });
 
 export const SplashScreenContent = style({

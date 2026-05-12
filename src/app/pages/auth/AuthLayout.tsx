@@ -3,7 +3,6 @@ import { Box, Button, Header, Scroll, Spinner, Text, color } from 'folds';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { AuthFooter } from './AuthFooter';
-import { AuthParticleBackground } from './AuthParticleBackground';
 import * as css from './styles.css';
 import {
   clientAllowedServer,
@@ -24,6 +23,7 @@ import { tryDecodeURIComponent } from '../../utils/dom';
 import { buildAuthRoutePath } from './authRouteUtils';
 import { resolveAddAccountReturnPath } from './addAccount';
 import { MINDROOM_AUTH_BRANDING } from '../../mindroom/auth/authUi';
+import { MindRoomParticleBackground } from '../../components/particle-background';
 
 function AuthLayoutLoading({ message }: { message: string }) {
   return (
@@ -131,7 +131,7 @@ export function AuthLayout() {
         justifyContent="SpaceBetween"
         gap="400"
       >
-        <AuthParticleBackground />
+        <MindRoomParticleBackground />
         <Box direction="Column" className={css.AuthCard}>
           <Header className={css.AuthHeader} size="600" variant="Surface">
             <Box grow="Yes" direction="Row" gap="300" alignItems="Center">

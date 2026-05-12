@@ -28,6 +28,7 @@ import {
   removeSessionAndReload,
   startClient,
 } from '../../../client/initMatrix';
+import { MindRoomParticleBackground } from '../../components/particle-background';
 import { SplashScreen } from '../../components/splash-screen';
 import { ServerConfigsLoader } from '../../components/ServerConfigsLoader';
 import { CapabilitiesProvider } from '../../hooks/useCapabilities';
@@ -76,7 +77,7 @@ export const hasCachedClientShell = (mx: ClientMatrixClient): boolean => {
 
 function ClientRootLoading() {
   return (
-    <SplashScreen particleBackground>
+    <SplashScreen background={<MindRoomParticleBackground />}>
       <Box direction="Column" grow="Yes" alignItems="Center" justifyContent="Center" gap="400">
         <Spinner variant="Secondary" size="600" />
         <Text>Heating up</Text>

@@ -12,16 +12,21 @@
   - MindRoom auth now replaces the dotted login/loading background with a decorative Particular Drift canvas using the hardcoded MindRoom logo image.
   - The same particle background is also used for the "Heating up" startup/loading splash screens.
   - Follow-up fix: the particle layer now sits above the auth layout background, the auth card uses a lighter translucent fill without heavy backdrop blur, and the particle styling is strong enough to remain visible through the card.
+  - Review follow-up: moved the MindRoom particle background into a shared component, made startup splash screens accept a generic background node, reduced the default app particle load, and disabled pointer interaction on coarse/touch pointers.
   - The existing auth card, server picker, login/loading states, and footer remain unchanged; reduced-motion users get the static radial background without the animated canvas.
 - Files changed:
   - `FORK_CHANGES.md`
   - `package.json`
   - `package-lock.json`
-  - `src/app/pages/auth/AuthLayout.tsx`
-  - `src/app/pages/auth/AuthParticleBackground.tsx`
-  - `src/app/components/splash-screen/SplashScreen.tsx`
+  - `src/app/components/particle-background/MindRoomParticleBackground.css.ts`
+  - `src/app/components/particle-background/MindRoomParticleBackground.tsx`
+  - `src/app/components/particle-background/index.ts`
+  - `src/app/components/particle-background/particleBackgroundTheme.ts`
   - `src/app/components/splash-screen/SplashScreen.css.ts`
+  - `src/app/components/splash-screen/SplashScreen.tsx`
+  - `src/app/pages/auth/AuthLayout.tsx`
   - `src/app/pages/client/ClientRoot.tsx`
+  - `src/app/pages/client/ClientRoot.test.ts`
   - `src/app/pages/ConfigConfig.tsx`
   - `src/app/pages/auth/styles.css.ts`
   - `src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
@@ -34,15 +39,19 @@
   - `basnijholt/particular-drift@a346613` pins particle shader attribute locations so browser-assigned attribute order cannot leave the particle buffers connected to the wrong shader inputs.
   - `basnijholt/particular-drift@ea216eb` preserves source image aspect ratio during edge extraction, with `imageFit: 'contain'` as the default.
   - `basnijholt/particular-drift@0ded45d` adds cursor interaction uniforms and pointer-event handling so auth/startup particles repel from the pointer.
+  - `basnijholt/particular-drift@1b50124` returns particles to their image positions after cursor interaction.
 - Tests and validation:
   - Package green check: `bun test`.
   - Package green check: `bun run typecheck`.
   - Package green check: `bun run build`.
   - Package green check: `bun pm pack --dry-run`.
   - MindRoom green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts -t "keeps MindRoom branding"`.
+  - MindRoom green check: `npm test -- src/app/pages/client/ClientRoot.test.ts`.
   - MindRoom green check: `npm run typecheck`.
-  - MindRoom green check: `npx prettier --check src/app/pages/auth/AuthParticleBackground.tsx src/app/pages/auth/AuthLayout.tsx src/app/pages/auth/styles.css.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts package.json package-lock.json`.
+  - MindRoom green check: `npx prettier --check src/app/components/particle-background/MindRoomParticleBackground.css.ts src/app/components/particle-background/MindRoomParticleBackground.tsx src/app/components/particle-background/index.ts src/app/components/particle-background/particleBackgroundTheme.ts src/app/components/splash-screen/SplashScreen.css.ts src/app/components/splash-screen/SplashScreen.tsx src/app/pages/auth/AuthLayout.tsx src/app/pages/auth/styles.css.ts src/app/pages/client/ClientRoot.tsx src/app/pages/client/ClientRoot.test.ts src/app/pages/ConfigConfig.tsx src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts package.json package-lock.json`.
   - MindRoom green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - MindRoom green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - MindRoom green check: `npm test` passed (`276` files, `2054` tests).
   - MindRoom green check: `git diff --check`.
   - Follow-up runtime check: Playwright opened `http://127.0.0.1:5173/login`, confirmed the auth particle canvas mounted with no page errors after clearing Vite's optimized dependency cache, confirmed the served optimized package contains the fixed shader attribute locations, and confirmed WebGL readback includes non-background particle pixels.
 

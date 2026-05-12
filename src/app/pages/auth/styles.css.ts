@@ -1,9 +1,16 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
+import {
+  PARTICLE_BACKGROUND_COLOR,
+  PARTICLE_CARD_BACKGROUND,
+  PARTICLE_CARD_BORDER,
+  PARTICLE_CARD_HIGHLIGHT,
+  PARTICLE_CARD_TEXT,
+} from '../../components/particle-background/particleBackgroundTheme';
 
 export const AuthLayout = style({
   minHeight: '100%',
-  backgroundColor: '#0f0d2e',
+  backgroundColor: PARTICLE_BACKGROUND_COLOR,
   color: color.Background.OnContainer,
   padding: config.space.S400,
   paddingRight: config.space.S200,
@@ -13,45 +20,19 @@ export const AuthLayout = style({
   overflow: 'hidden',
 });
 
-export const AuthParticleBackground = style({
-  position: 'absolute',
-  inset: 0,
-  zIndex: 0,
-  pointerEvents: 'none',
-  background:
-    'radial-gradient(circle at 50% 45%, rgba(221, 162, 144, 0.18), rgba(15, 13, 46, 0.12) 30%, rgba(15, 13, 46, 1) 72%)',
-  '@media': {
-    '(prefers-reduced-motion: reduce)': {
-      opacity: 0.75,
-    },
-  },
-});
-
-export const AuthParticleCanvas = style({
-  width: '100%',
-  height: '100%',
-  opacity: 1,
-  pointerEvents: 'auto',
-  '@media': {
-    '(prefers-reduced-motion: reduce)': {
-      display: 'none',
-    },
-  },
-});
-
 export const AuthCard = style({
   position: 'relative',
   zIndex: 1,
   marginTop: '1vh',
   maxWidth: toRem(460),
   width: '100%',
-  backgroundColor: 'rgba(18, 16, 42, 0.28)',
+  backgroundColor: PARTICLE_CARD_BACKGROUND,
   backdropFilter: 'blur(6px) saturate(1.18)',
   WebkitBackdropFilter: 'blur(6px) saturate(1.18)',
-  color: '#f8f5ff',
+  color: PARTICLE_CARD_TEXT,
   borderRadius: config.radii.R400,
-  boxShadow: `${config.shadow.E100}, inset 0 1px 0 rgba(255, 255, 255, 0.16)`,
-  border: `${config.borderWidth.B300} solid rgba(255, 255, 255, 0.22)`,
+  boxShadow: `${config.shadow.E100}, inset 0 1px 0 ${PARTICLE_CARD_HIGHLIGHT}`,
+  border: `${config.borderWidth.B300} solid ${PARTICLE_CARD_BORDER}`,
   overflow: 'hidden',
 });
 

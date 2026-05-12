@@ -4,24 +4,23 @@ import classNames from 'classnames';
 import * as patternsCSS from '../../styles/Patterns.css';
 import * as css from './SplashScreen.css';
 import { MINDROOM_CLIENT_BRANDING } from '../../mindroom/branding/clientBranding';
-import { AuthParticleBackground } from '../../pages/auth/AuthParticleBackground';
 
 type SplashScreenProps = {
   children: ReactNode;
-  particleBackground?: boolean;
+  background?: ReactNode;
 };
 
-export function SplashScreen({ children, particleBackground = false }: SplashScreenProps) {
+export function SplashScreen({ children, background }: SplashScreenProps) {
   return (
     <Box
       className={classNames(
         css.SplashScreen,
-        !particleBackground && patternsCSS.BackgroundDotPattern
+        background ? css.SplashScreenParticle : patternsCSS.BackgroundDotPattern
       )}
       direction="Column"
     >
-      {particleBackground && <AuthParticleBackground />}
-      {particleBackground ? (
+      {background}
+      {background ? (
         <Box className={css.SplashScreenContent} direction="Column" grow="Yes">
           {children}
         </Box>
