@@ -8,6 +8,7 @@ describe('clientBranding', () => {
     expect(MINDROOM_CLIENT_BRANDING.docsUrl).toBe('https://docs.mindroom.chat/');
     expect(MINDROOM_CLIENT_BRANDING.sourceUrl).toBe('https://github.com/mindroom-ai/mindroom');
     expect(MINDROOM_CLIENT_BRANDING.logoAlt).toBe('MindRoom Logo');
+    expect(MINDROOM_CLIENT_BRANDING.subtitle).toBe('Your AI is trapped in apps. We set it free.');
   });
 
   it('merges configured welcome content with MindRoom defaults', () => {
@@ -23,7 +24,7 @@ describe('clientBranding', () => {
       poweredBy: [{ label: 'Custom', url: 'https://example.test' }],
       sourceLabel: 'Source Code',
       sourceUrl: 'https://github.com/mindroom-ai/mindroom',
-      subtitle: 'Yet another matrix client.',
+      subtitle: 'Your AI is trapped in apps. We set it free.',
       title: 'Custom title',
     });
   });

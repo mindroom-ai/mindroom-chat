@@ -6,13 +6,19 @@ import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';
 import { clearAllCacheAndReload } from '../../../../client/initMatrix';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
-import { MINDROOM_CLIENT_BRANDING } from '../../../mindroom/branding/clientBranding';
+import { useClientConfig } from '../../../hooks/useClientConfig';
+import {
+  MINDROOM_CLIENT_BRANDING,
+  getMindroomWelcomePageContent,
+} from '../../../mindroom/branding/clientBranding';
 
 type AboutProps = {
   requestClose: () => void;
 };
 export function About({ requestClose }: AboutProps) {
   const mx = useMatrixClient();
+  const clientConfig = useClientConfig();
+  const { subtitle } = getMindroomWelcomePageContent(clientConfig.welcome);
   const [clearing, setClearing] = React.useState(false);
 
   const handleClearCache = async () => {
@@ -61,7 +67,7 @@ export function About({ requestClose }: AboutProps) {
                       <Text size="H3">{MINDROOM_CLIENT_BRANDING.appName}</Text>
                       <Text size="T200">v4.10.5</Text>
                     </Box>
-                    <Text>Yet another matrix client.</Text>
+                    <Text>{subtitle}</Text>
                   </Box>
 
                   <Box gap="200" wrap="Wrap">

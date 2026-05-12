@@ -2,10 +2,34 @@
 
 ## Runbook
 
+### MindRoom default subtitle replacement (2026-05-12)
+
+- Status:
+  - Complete.
+- Summary:
+  - Replaced the remaining default `Yet another matrix client.` copy with
+    `Your AI is trapped in apps. We set it free.`
+  - The welcome page was already configurable through `config.json`
+    `welcome.subtitle`; the About page now uses the same configured welcome
+    subtitle path, falling back to the shared MindRoom branding default.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/features/settings/about/About.tsx`
+  - `src/app/mindroom/branding/clientBranding.ts`
+  - `src/app/mindroom/branding/clientBranding.test.ts`
+- Tests and validation:
+  - Green check: `npm test -- src/app/mindroom/branding/clientBranding.test.ts`.
+  - Green check: `npm test -- src/app/mindroom/branding/clientBranding.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green check: `rg -n "Yet another matrix client" src public config.json README.md ios` returned no matches.
+  - Green check: `npm run typecheck`.
+  - Green check: `npx prettier --check FORK_CHANGES.md src/app/features/settings/about/About.tsx src/app/mindroom/branding/clientBranding.ts src/app/mindroom/branding/clientBranding.test.ts`.
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+
 ### Configurable MindRoom splash loading messages (2026-05-12)
 
 - Status:
-  - In progress.
+  - Complete.
 - Summary:
   - Added deployment-configurable startup splash copy through
     `config.json` as `splash.loadingMessages`.
