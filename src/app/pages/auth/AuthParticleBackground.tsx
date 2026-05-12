@@ -11,6 +11,7 @@ export function AuthParticleBackground() {
         className={css.AuthParticleCanvas}
         imageUrl={MINDROOM_AUTH_BRANDING.logoSrc}
         options={{
+          imageFit: 'contain',
           backgroundColor: '#0f0d2e',
           particleColor: '#dda290',
           particleCount: 120000,
