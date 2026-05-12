@@ -16,6 +16,7 @@
   - Review follow-up: particle density now adapts across low-end, balanced, and desktop tiers using pointer type, CPU core count, DPR, and effective pixel area.
   - Follow-up packaging fix: MindRoom now consumes published `@basnijholt/particular-drift@0.1.0` from the npm registry instead of a GitHub commit pin, restoring npm lockfile integrity metadata.
   - Follow-up CI fix: the inherited CLA Assistant workflow is disabled for PR events, and the lockfile workflow now validates `package-lock.json` with `npm ci --ignore-scripts` instead of the crashing third-party lockfile comment action.
+  - Final review cleanup: the particle renderer options are memoized, and the lockfile workflow now runs for dependency manifest, lockfile, and workflow changes.
   - The existing auth card, server picker, login/loading states, and footer remain unchanged; reduced-motion users get the static radial background without the animated canvas.
 - Decisions:
   - Use the `basnijholt/particular-drift` package as the integration boundary, with Bun kept to that package and npm kept for MindRoom Cinny.
@@ -72,6 +73,7 @@
   - MindRoom green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
   - MindRoom green check: `npm test` passed (`276` files, `2054` tests).
   - MindRoom green check: `git diff --check`.
+  - MindRoom green check: `npm ci --ignore-scripts`.
   - Follow-up runtime check: Playwright opened `http://127.0.0.1:5173/login`, confirmed the auth particle canvas mounted with no page errors after clearing Vite's optimized dependency cache, confirmed the served optimized package contains the fixed shader attribute locations, and confirmed WebGL readback includes non-background particle pixels.
 
 ### Classic large-room loading scroll stability (2026-05-11)
