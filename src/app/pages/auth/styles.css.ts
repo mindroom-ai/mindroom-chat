@@ -16,7 +16,8 @@ export const AuthLayout = style({
 export const AuthParticleBackground = style({
   position: 'absolute',
   inset: 0,
-  zIndex: -1,
+  zIndex: 0,
+  pointerEvents: 'none',
   background:
     'radial-gradient(circle at 50% 45%, rgba(221, 162, 144, 0.18), rgba(15, 13, 46, 0.12) 30%, rgba(15, 13, 46, 1) 72%)',
   '@media': {
@@ -29,7 +30,7 @@ export const AuthParticleBackground = style({
 export const AuthParticleCanvas = style({
   width: '100%',
   height: '100%',
-  opacity: 0.92,
+  opacity: 1,
   '@media': {
     '(prefers-reduced-motion: reduce)': {
       display: 'none',
@@ -38,14 +39,18 @@ export const AuthParticleCanvas = style({
 });
 
 export const AuthCard = style({
+  position: 'relative',
+  zIndex: 1,
   marginTop: '1vh',
   maxWidth: toRem(460),
   width: '100%',
-  backgroundColor: color.Surface.Container,
-  color: color.Surface.OnContainer,
+  backgroundColor: 'rgba(18, 16, 42, 0.36)',
+  backdropFilter: 'blur(6px) saturate(1.18)',
+  WebkitBackdropFilter: 'blur(6px) saturate(1.18)',
+  color: '#f8f5ff',
   borderRadius: config.radii.R400,
-  boxShadow: config.shadow.E100,
-  border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  boxShadow: `${config.shadow.E100}, inset 0 1px 0 rgba(255, 255, 255, 0.16)`,
+  border: `${config.borderWidth.B300} solid rgba(255, 255, 255, 0.22)`,
   overflow: 'hidden',
 });
 

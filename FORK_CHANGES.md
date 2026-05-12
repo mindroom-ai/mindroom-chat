@@ -10,6 +10,7 @@
   - Created a reusable package from `basnijholt/particular-drift`, preserving prominent attribution to the original `collidingScopes/particular-drift` author and Buy Me a Coffee link.
   - The package removes the original demo UI, upload controls, and MP4 export stack, uses Bun for development, ships built ESM/type artifacts, and exposes a no-controls WebGL renderer plus React wrapper.
   - MindRoom auth now replaces the dotted login/loading background with a decorative Particular Drift canvas using the hardcoded MindRoom logo image.
+  - Follow-up fix: the particle layer now sits above the auth layout background, the auth card uses a lighter translucent fill without heavy backdrop blur, and the particle styling is strong enough to remain visible through the card.
   - The existing auth card, server picker, login/loading states, and footer remain unchanged; reduced-motion users get the static radial background without the animated canvas.
 - Files changed:
   - `FORK_CHANGES.md`
@@ -24,6 +25,8 @@
   - `basnijholt/particular-drift@077e437` documents package usage and removes obsolete root scripts.
   - `basnijholt/particular-drift@8763237` commits built package artifacts for GitHub install consumption.
   - `basnijholt/particular-drift@1f2abae` credits the original author prominently and restores the Buy Me a Coffee link in the README.
+  - `basnijholt/particular-drift@71ec7b2` handles renderer startup failures without unhandled page errors, allowing apps to fall back to static backgrounds when WebGL2 is unavailable.
+  - `basnijholt/particular-drift@a346613` pins particle shader attribute locations so browser-assigned attribute order cannot leave the particle buffers connected to the wrong shader inputs.
 - Tests and validation:
   - Package green check: `bun test`.
   - Package green check: `bun run typecheck`.
@@ -34,6 +37,7 @@
   - MindRoom green check: `npx prettier --check src/app/pages/auth/AuthParticleBackground.tsx src/app/pages/auth/AuthLayout.tsx src/app/pages/auth/styles.css.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts package.json package-lock.json`.
   - MindRoom green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
   - MindRoom green check: `git diff --check`.
+  - Follow-up runtime check: Playwright opened `http://127.0.0.1:5173/login`, confirmed the auth particle canvas mounted with no page errors after clearing Vite's optimized dependency cache, confirmed the served optimized package contains the fixed shader attribute locations, and confirmed WebGL readback includes non-background particle pixels.
 
 ### Classic large-room loading scroll stability (2026-05-11)
 
