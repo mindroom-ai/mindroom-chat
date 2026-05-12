@@ -118,7 +118,7 @@ describe('MAudio voice branch', () => {
     renderer.unmount();
   });
 
-  it('keeps non-voice m.audio on the existing generic audio UI', () => {
+  it('renders non-voice m.audio with the canonical voice-style audio UI', () => {
     const renderer = create(
       React.createElement(MAudio, {
         content: {
@@ -137,9 +137,10 @@ describe('MAudio voice branch', () => {
     );
 
     const rendered = JSON.stringify(renderer.toJSON());
-    expect(rendered).toContain('generic-audio');
-    expect(rendered).toContain('Download file');
-    expect(rendered).not.toContain('voice-audio');
+    expect(rendered).toContain('voice-audio');
+    expect(rendered).toContain('clip.ogg');
+    expect(rendered).not.toContain('generic-audio');
+    expect(rendered).not.toContain('Download file');
 
     renderer.unmount();
   });

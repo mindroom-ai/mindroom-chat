@@ -331,7 +331,7 @@ type MAudioProps = {
   renderAudioContent: (props: RenderAudioContentProps) => ReactNode;
   outlined?: boolean;
 };
-export function MAudio({ content, renderAsFile, renderAudioContent, outlined }: MAudioProps) {
+export function MAudio({ content, renderAsFile }: MAudioProps) {
   const voiceMessage = isVoiceMessageContent(content as Record<string, unknown>);
   const voiceAudioDetails = getVoiceMessageAudioDetails(content as Record<string, unknown>);
   const audioInfo: IAudioInfo | undefined =
@@ -354,53 +354,16 @@ export function MAudio({ content, renderAsFile, renderAudioContent, outlined }: 
   }
 
   const downloadFilename = content.filename ?? content.body ?? 'Audio';
-  if (voiceMessage) {
-    return (
-      <VoiceAudioContent
-        info={audioInfo}
-        mimeType={safeMimeType}
-        url={mxcUrl}
-        encInfo={content.file}
-        waveform={voiceAudioDetails?.waveform}
-      />
-    );
-  }
-
-  const displayName = downloadFilename;
   return (
-    <Attachment outlined={outlined}>
-      <AttachmentHeader>
-        <FileHeader
-          body={displayName}
-          mimeType={safeMimeType}
-          after={
-            <Box alignItems="Center" gap="200">
-              {voiceMessage && (
-                <Chip variant="SurfaceVariant" radii="Pill">
-                  <Text size="B300">Voice</Text>
-                </Chip>
-              )}
-              <FileDownloadButton
-                filename={downloadFilename}
-                url={mxcUrl}
-                mimeType={safeMimeType}
-                encInfo={content.file}
-              />
-            </Box>
-          }
-        />
-      </AttachmentHeader>
-      <AttachmentBox>
-        <AttachmentContent>
-          {renderAudioContent({
-            info: audioInfo,
-            mimeType: safeMimeType,
-            url: mxcUrl,
-            encInfo: content.file,
-          })}
-        </AttachmentContent>
-      </AttachmentBox>
-    </Attachment>
+    <VoiceAudioContent
+      info={audioInfo}
+      mimeType={safeMimeType}
+      url={mxcUrl}
+      encInfo={content.file}
+      filename={downloadFilename}
+      waveform={voiceAudioDetails?.waveform}
+      label={voiceMessage ? 'voice message' : 'audio'}
+    />
   );
 }
 

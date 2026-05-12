@@ -21,17 +21,17 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('folds', () => ({
   Icon: (props: Record<string, unknown>) => React.createElement('span', props),
-  IconButton: ({
-    children,
-    onClick,
-    ...props
-  }: {
-    children?: React.ReactNode;
-    onClick?: () => void;
-  }) => React.createElement('button', { ...props, onClick }, children),
+  IconButton: React.forwardRef<
+    HTMLButtonElement,
+    { children?: React.ReactNode; onClick?: () => void }
+  >(({ children, onClick, ...props }, ref) =>
+    React.createElement('button', { ...props, onClick, ref }, children)
+  ),
   Icons: {
+    Download: 'download',
     Pause: 'pause',
     Play: 'play',
+    VerticalDots: 'vertical-dots',
     VolumeHigh: 'volume-high',
     VolumeMute: 'volume-mute',
   },
@@ -47,6 +47,12 @@ vi.mock('folds', () => ({
 vi.mock('./VoiceAudioContent.css', () => ({
   Audio: 'Audio',
   Capsule: 'Capsule',
+  MoreCell: 'MoreCell',
+  MoreMenu: 'MoreMenu',
+  MoreMenuAction: 'MoreMenuAction',
+  MoreMenuMeta: 'MoreMenuMeta',
+  MoreMenuMetaLabel: 'MoreMenuMetaLabel',
+  MoreMenuMetaValue: 'MoreMenuMetaValue',
   PlayCell: 'PlayCell',
   RateCell: 'RateCell',
   Root: 'Root',
@@ -149,6 +155,15 @@ vi.mock('./useAudioContentSource', () => ({
   useAudioContentSource: () => [mocks.srcState, mocks.loadSrc],
 }));
 
+vi.mock('../FileHeader', () => ({
+  FileDownloadButton: ({ filename, mimeType }: { filename: string; mimeType: string }) =>
+    React.createElement('button', {
+      'aria-label': `Download ${filename}`,
+      'data-download-filename': filename,
+      'data-download-mime': mimeType,
+    }),
+}));
+
 vi.mock('../../../hooks/media', () => ({
   useMediaLoading: () => ({ loading: false }),
   useMediaPlay: () => ({ playing: mocks.playing, setPlaying: mocks.setPlaying }),
@@ -191,8 +206,10 @@ const renderVoiceAudioContent = (props?: Partial<React.ComponentProps<typeof Voi
     info: {
       mimetype: 'audio/ogg',
       duration: 10000,
+      size: 12000,
       ...props?.info,
     },
+    filename: (props as { filename?: string } | undefined)?.filename ?? 'voice.ogg',
     waveform: props?.waveform ?? [0, 512, 1024],
     encInfo: props?.encInfo,
   });
@@ -240,11 +257,64 @@ describe('VoiceAudioContent', () => {
       'Play voice message',
       'Seek voice message',
       'Voice volume, currently 100%',
+      'More audio options',
     ]);
     expect(renderer.root.findAllByType('rect')).toHaveLength(48);
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain('0:00 / 0:10');
     expect(rendered).not.toMatch(/download|mute|speed/i);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('keeps download and attachment metadata in the More menu', () => {
+    renderer = create(renderVoiceAudio(createStore(), { filename: 'clip.ogg' }));
+
+    act(() => {
+      renderer.root.findByProps({ 'aria-label': 'More audio options' }).props.onClick({
+        currentTarget: {
+          getBoundingClientRect: () => ({ left: 0, top: 0, width: 44, height: 44 }),
+        },
+      });
+    });
+
+    expect(renderer.root.findByProps({ 'data-download-filename': 'clip.ogg' })).toBeTruthy();
+    expect(JSON.stringify(renderer.toJSON())).toContain('clip.ogg');
+    expect(JSON.stringify(renderer.toJSON())).toContain('audio/ogg');
+    expect(JSON.stringify(renderer.toJSON())).toContain('12.0 KB');
+    expect(JSON.stringify(renderer.toJSON())).toContain('0:10');
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('opens More after play without reading a cleared event target from the state updater', () => {
+    renderer = create(renderVoiceAudio(createStore(), { filename: 'clip.ogg' }));
+
+    const moreTriggerTarget = {
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 44, height: 44 }),
+    };
+    let currentTarget: typeof moreTriggerTarget | null = moreTriggerTarget;
+    const moreClickEvent = {
+      get currentTarget() {
+        return currentTarget;
+      },
+    };
+
+    expect(() => {
+      act(() => {
+        renderer.root.findByProps({ 'aria-label': 'Play voice message' }).props.onClick();
+        renderer.root
+          .findByProps({ 'aria-label': 'More audio options' })
+          .props.onClick(moreClickEvent);
+        currentTarget = null;
+      });
+    }).not.toThrow();
+
+    expect(renderer.root.findByProps({ 'data-download-filename': 'clip.ogg' })).toBeTruthy();
 
     act(() => {
       renderer.unmount();
