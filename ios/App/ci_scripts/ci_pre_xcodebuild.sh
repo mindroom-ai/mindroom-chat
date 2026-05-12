@@ -3,14 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${CI_PRIMARY_REPOSITORY_PATH:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
+source "$SCRIPT_DIR/ci_common.sh"
 
-if ! command -v brew >/dev/null 2>&1; then
-  if [[ -x /opt/homebrew/bin/brew ]]; then
-    eval "$(/opt/homebrew/bin/brew shellenv)"
-  elif [[ -x /usr/local/bin/brew ]]; then
-    eval "$(/usr/local/bin/brew shellenv)"
-  fi
-fi
+init_homebrew
 
 cd "$REPO_ROOT"
 
@@ -31,6 +26,8 @@ if [[ -n "${CI_BUILD_NUMBER:-}" ]]; then
     const marketingVersion = process.env.MARKETING_VERSION;
     const buildNumber = process.env.CURRENT_PROJECT_VERSION;
     const original = fs.readFileSync(projectPath, 'utf8');
+    // The App target has Debug and Release build settings.
+    const appBuildConfigurationCount = 2;
 
     const replaceExpectedOccurrences = (text, pattern, replacement, expectedCount) => {
       const matches = text.match(pattern) ?? [];
@@ -46,13 +43,13 @@ if [[ -n "${CI_BUILD_NUMBER:-}" ]]; then
       original,
       /MARKETING_VERSION = [^;]+;/g,
       'MARKETING_VERSION = ' + marketingVersion + ';',
-      2
+      appBuildConfigurationCount
     );
     updated = replaceExpectedOccurrences(
       updated,
       /CURRENT_PROJECT_VERSION = [^;]+;/g,
       'CURRENT_PROJECT_VERSION = ' + buildNumber + ';',
-      2
+      appBuildConfigurationCount
     );
 
     fs.writeFileSync(projectPath, updated);

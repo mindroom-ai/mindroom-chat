@@ -12,11 +12,21 @@
   - Root cause: the repository intentionally ignores `ios/App/Pods`, `ios/App/App/public`, and the workspace depends on `node_modules` for Capacitor pods, so a clean Xcode Cloud machine needs explicit setup scripts before `xcodebuild`.
   - Added Xcode Cloud scripts next to `ios/App/App.xcworkspace` to install Node/CocoaPods when missing, run `npm ci`, build the Vite web app, run `npx cap sync ios`, and then run the App Store preflight.
   - Xcode Cloud builds now rewrite the transient Xcode project version from `package.json` and `CI_BUILD_NUMBER` before building, while the checked-in project is aligned to `4.11.1` build `3` for local archives.
-  - Review follow-up: `ci_post_clone.sh` now fails with a clear message if a missing tool cannot be installed because Homebrew is unavailable.
+  - Review follow-up: `ci_post_clone.sh` now fails with a clear message if a missing tool cannot be installed because Homebrew is unavailable, with shared Homebrew initialization kept in `ci_common.sh`.
   - Review follow-up: `ci_pre_xcodebuild.sh` initializes the Homebrew shell environment in its own process, verifies all required commands are available, reads the package version with `node -p`, and passes version values through environment variables instead of Node argv.
-  - Review follow-up: the transient project-file rewrite now asserts the expected number of version-setting occurrences before replacing them, so future target/configuration changes fail clearly instead of silently rewriting unexpected entries.
+  - Review follow-up: the transient project-file rewrite now asserts the expected App Debug and Release build-setting occurrence count before replacing version settings, so future target/configuration changes fail clearly instead of silently rewriting unexpected entries.
+- Risks:
+  - Homebrew may be absent or installed outside standard paths on a future Xcode Cloud image, causing the scripts to fail before dependency installation.
+  - Xcode project structure changes can increase the version-setting occurrence count and intentionally stop the build until the rewrite guard is updated.
+  - Fresh CI machines can still expose npm, CocoaPods, or Xcode Cloud network flakiness during install and sync steps.
+- Next steps:
+  - Owner: release engineer monitors the next automated Xcode Cloud and GitHub CI runs for the merged branch.
+  - Owner: iOS maintainer uses the same script validation and `xcodebuild` commands as the rollback check before changing CI scripts again.
+  - Owner: release engineer rolls back the follow-up commit if Xcode Cloud fails before dependency installation or rewrites unexpected project settings.
+  - Owner: iOS maintainer updates this runbook whenever Xcode targets, build configurations, or CI ownership changes.
 - Files changed:
   - `FORK_CHANGES.md`
+  - `ios/App/ci_scripts/ci_common.sh`
   - `ios/App/App.xcodeproj/project.pbxproj`
   - `ios/App/ci_scripts/ci_post_clone.sh`
   - `ios/App/ci_scripts/ci_pre_xcodebuild.sh`
@@ -27,7 +37,7 @@
   - Green check: `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -destination 'generic/platform=iOS' -configuration Release CODE_SIGNING_ALLOWED=NO build` passed after the scripts prepared the Capacitor workspace.
   - Green check: built app `Info.plist` reported `CFBundleShortVersionString` `4.11.1` and `CFBundleVersion` `3`.
   - Review check: `node -e "console.log(JSON.stringify(process.argv))" marketing build` confirmed this Node runtime passes the first argument at `process.argv[1]`, but the script now uses environment variables to avoid Node CLI argv ambiguity.
-  - Review green check: `bash -n ios/App/ci_scripts/ci_post_clone.sh ios/App/ci_scripts/ci_pre_xcodebuild.sh`.
+  - Review green check: `bash -n ios/App/ci_scripts/ci_common.sh ios/App/ci_scripts/ci_post_clone.sh ios/App/ci_scripts/ci_pre_xcodebuild.sh`.
   - Review green check: `CI_BUILD_NUMBER=3 ios/App/ci_scripts/ci_pre_xcodebuild.sh` passed, including the CI version rewrite path.
   - Review green check: `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -destination 'generic/platform=iOS' -configuration Release CODE_SIGNING_ALLOWED=NO build`.
 
