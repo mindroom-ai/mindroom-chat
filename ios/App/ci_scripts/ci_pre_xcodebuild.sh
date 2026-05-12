@@ -4,22 +4,59 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${CI_PRIMARY_REPOSITORY_PATH:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 
+if ! command -v brew >/dev/null 2>&1; then
+  if [[ -x /opt/homebrew/bin/brew ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  elif [[ -x /usr/local/bin/brew ]]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+  fi
+fi
+
 cd "$REPO_ROOT"
 
-PACKAGE_VERSION="$(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version)")"
+for command_name in node npm npx pod; do
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    echo "Error: $command_name is not available before xcodebuild." >&2
+    echo "ci_post_clone.sh should install dependencies and initialize CocoaPods before this script runs." >&2
+    exit 1
+  fi
+done
+
+PACKAGE_VERSION="$(node -p "require('./package.json').version")"
 
 if [[ -n "${CI_BUILD_NUMBER:-}" ]]; then
-  node -e "
+  MARKETING_VERSION="$PACKAGE_VERSION" CURRENT_PROJECT_VERSION="$CI_BUILD_NUMBER" node <<'NODE'
     const fs = require('fs');
     const projectPath = 'ios/App/App.xcodeproj/project.pbxproj';
-    const marketingVersion = process.argv[1];
-    const buildNumber = process.argv[2];
+    const marketingVersion = process.env.MARKETING_VERSION;
+    const buildNumber = process.env.CURRENT_PROJECT_VERSION;
     const original = fs.readFileSync(projectPath, 'utf8');
-    const updated = original
-      .replace(/MARKETING_VERSION = [^;]+;/g, 'MARKETING_VERSION = ' + marketingVersion + ';')
-      .replace(/CURRENT_PROJECT_VERSION = [^;]+;/g, 'CURRENT_PROJECT_VERSION = ' + buildNumber + ';');
+
+    const replaceExpectedOccurrences = (text, pattern, replacement, expectedCount) => {
+      const matches = text.match(pattern) ?? [];
+      if (matches.length !== expectedCount) {
+        throw new Error(
+          `Expected ${expectedCount} occurrences of ${pattern}, found ${matches.length}.`
+        );
+      }
+      return text.replace(pattern, replacement);
+    };
+
+    let updated = replaceExpectedOccurrences(
+      original,
+      /MARKETING_VERSION = [^;]+;/g,
+      'MARKETING_VERSION = ' + marketingVersion + ';',
+      2
+    );
+    updated = replaceExpectedOccurrences(
+      updated,
+      /CURRENT_PROJECT_VERSION = [^;]+;/g,
+      'CURRENT_PROJECT_VERSION = ' + buildNumber + ';',
+      2
+    );
+
     fs.writeFileSync(projectPath, updated);
-  " "$PACKAGE_VERSION" "$CI_BUILD_NUMBER"
+NODE
 fi
 
 npm run build
