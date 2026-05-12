@@ -13,8 +13,9 @@
   - Added Xcode Cloud scripts next to `ios/App/App.xcworkspace` to install Node/CocoaPods when missing, run `npm ci`, build the Vite web app, run `npx cap sync ios`, and then run the App Store preflight.
   - Xcode Cloud builds now rewrite the transient Xcode project version from `package.json` and `CI_BUILD_NUMBER` before building, while the checked-in project is aligned to `4.11.1` build `3` for local archives.
   - Review follow-up: `ci_post_clone.sh` now fails with a clear message if a missing tool cannot be installed because Homebrew is unavailable, with shared Homebrew initialization kept in `ci_common.sh`.
-  - Review follow-up: `ci_pre_xcodebuild.sh` initializes the Homebrew shell environment in its own process, verifies all required commands are available, reads the package version with `node -p`, and passes version values through environment variables instead of Node argv.
-  - Review follow-up: the transient project-file rewrite now asserts the expected App Debug and Release build-setting occurrence count before replacing version settings, so future target/configuration changes fail clearly instead of silently rewriting unexpected entries.
+  - Review follow-up: `ci_post_clone.sh` verifies `npm` after confirming `node` exists, without trying to install a second Node formula for nonstandard Node installs.
+  - Review follow-up: `ci_pre_xcodebuild.sh` initializes the Homebrew shell environment in its own process, verifies all required commands are available, reads and validates the package version with `node -p`, and passes version values through environment variables instead of Node argv.
+  - Review follow-up: the transient project-file rewrite now asserts the expected App Debug and Release build-setting occurrence count before replacing version settings and uses function replacers so version strings are written literally.
 - Risks:
   - Homebrew may be absent or installed outside standard paths on a future Xcode Cloud image, causing the scripts to fail before dependency installation.
   - Xcode project structure changes can increase the version-setting occurrence count and intentionally stop the build until the rewrite guard is updated.

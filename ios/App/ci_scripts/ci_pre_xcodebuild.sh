@@ -18,6 +18,10 @@ for command_name in node npm npx pod; do
 done
 
 PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+if [[ -z "$PACKAGE_VERSION" || "$PACKAGE_VERSION" == "undefined" ]]; then
+  echo "Error: Could not determine version from package.json." >&2
+  exit 1
+fi
 
 if [[ -n "${CI_BUILD_NUMBER:-}" ]]; then
   MARKETING_VERSION="$PACKAGE_VERSION" CURRENT_PROJECT_VERSION="$CI_BUILD_NUMBER" node <<'NODE'
@@ -29,26 +33,26 @@ if [[ -n "${CI_BUILD_NUMBER:-}" ]]; then
     // The App target has Debug and Release build settings.
     const appBuildConfigurationCount = 2;
 
-    const replaceExpectedOccurrences = (text, pattern, replacement, expectedCount) => {
+    const replaceExpectedOccurrences = (text, pattern, replacer, expectedCount) => {
       const matches = text.match(pattern) ?? [];
       if (matches.length !== expectedCount) {
         throw new Error(
           `Expected ${expectedCount} occurrences of ${pattern}, found ${matches.length}.`
         );
       }
-      return text.replace(pattern, replacement);
+      return text.replace(pattern, replacer);
     };
 
     let updated = replaceExpectedOccurrences(
       original,
       /MARKETING_VERSION = [^;]+;/g,
-      'MARKETING_VERSION = ' + marketingVersion + ';',
+      () => 'MARKETING_VERSION = ' + marketingVersion + ';',
       appBuildConfigurationCount
     );
     updated = replaceExpectedOccurrences(
       updated,
       /CURRENT_PROJECT_VERSION = [^;]+;/g,
-      'CURRENT_PROJECT_VERSION = ' + buildNumber + ';',
+      () => 'CURRENT_PROJECT_VERSION = ' + buildNumber + ';',
       appBuildConfigurationCount
     );
 

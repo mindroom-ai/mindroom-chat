@@ -27,7 +27,11 @@ init_homebrew
 cd "$REPO_ROOT"
 
 install_if_missing node node
-install_if_missing npm node
+if ! command -v npm >/dev/null 2>&1; then
+  echo "Error: npm is not available after confirming node is installed." >&2
+  echo "Install a Node distribution that includes npm before running this script." >&2
+  exit 1
+fi
 install_if_missing pod cocoapods
 
 node --version
