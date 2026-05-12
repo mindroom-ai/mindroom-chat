@@ -2,6 +2,40 @@
 
 ## Runbook
 
+### Configurable MindRoom splash loading messages (2026-05-12)
+
+- Status:
+  - In progress.
+- Summary:
+  - Added deployment-configurable startup splash copy through
+    `config.json` as `splash.loadingMessages`.
+  - `MindRoomSplashScreen` now owns the shared particle-backed loading layout,
+    chooses one non-empty configured message at random on mount, and falls back
+    to `Heating up` when no usable deployment messages exist.
+  - The pre-config loading screen keeps the default fallback because
+    `config.json` is not available until after that screen completes.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `README.md`
+  - `config.json`
+  - `src/app/components/splash-screen/MindRoomSplashScreen.test.ts`
+  - `src/app/components/splash-screen/MindRoomSplashScreen.tsx`
+  - `src/app/hooks/useClientConfig.ts`
+  - `src/app/pages/ConfigConfig.tsx`
+  - `src/app/pages/client/ClientRoot.test.ts`
+  - `src/app/pages/client/ClientRoot.tsx`
+  - `src/app/pages/client/SpecVersions.tsx`
+- Tests and validation:
+  - Red check: `npm test -- src/app/components/splash-screen/MindRoomSplashScreen.test.ts` failed before the splash message picker and configured rendering behavior existed.
+  - Red check: `npm test -- src/app/pages/client/ClientRoot.test.ts -t "deployment-configured loading messages"` failed while `ClientRoot` did not pass deployment-configured loading messages to the splash.
+  - Green check: `npm test -- src/app/components/splash-screen/MindRoomSplashScreen.test.ts src/app/pages/client/ClientRoot.test.ts src/app/pages/client/SpecVersions.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npx prettier --check FORK_CHANGES.md README.md config.json src/app/components/splash-screen/MindRoomSplashScreen.tsx src/app/components/splash-screen/MindRoomSplashScreen.test.ts src/app/hooks/useClientConfig.ts src/app/pages/ConfigConfig.tsx src/app/pages/client/ClientRoot.tsx src/app/pages/client/ClientRoot.test.ts src/app/pages/client/SpecVersions.tsx src/app/pages/client/SpecVersions.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green check: `git diff --check`.
+  - Green check: `npm test` passed (`277` files, `2061` tests).
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+
 ### SpecVersions connecting particle splash (2026-05-12)
 
 - Status:

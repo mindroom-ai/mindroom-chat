@@ -39,6 +39,7 @@ import { SyncStatus } from './SyncStatus';
 import { AuthMetadataProvider } from '../../hooks/useAuthMetadata';
 import { StoredSession } from '../../state/sessions';
 import { useActiveSession } from '../../hooks/useSessionStore';
+import { useClientConfig } from '../../hooks/useClientConfig';
 import { getLoginPath } from '../pathUtils';
 import { ClientStartupProvider } from './ClientStartupContext';
 import { useSyncState } from '../../hooks/useSyncState';
@@ -63,15 +64,8 @@ export const hasCachedClientShell = (mx: ClientMatrixClient): boolean => {
   return mx.getRooms().length > 0;
 };
 
-function ClientRootLoading() {
-  return (
-    <MindRoomSplashScreen>
-      <Box direction="Column" grow="Yes" alignItems="Center" justifyContent="Center" gap="400">
-        <Spinner variant="Secondary" size="600" />
-        <Text>Heating up</Text>
-      </Box>
-    </MindRoomSplashScreen>
-  );
+function ClientRootLoading({ loadingMessages }: { loadingMessages?: readonly string[] }) {
+  return <MindRoomSplashScreen loadingMessages={loadingMessages} />;
 }
 
 function ClientRootSyncingStatus() {
@@ -236,6 +230,7 @@ type ClientRootProps = {
   children: ReactNode;
 };
 export function ClientRoot({ children }: ClientRootProps) {
+  const clientConfig = useClientConfig();
   const activeSession = useActiveSession();
   const [retryCount, setRetryCount] = useState(0);
   const [clientState, setClientState] = useState<ClientState>({ status: 'idle' });
@@ -463,7 +458,7 @@ export function ClientRoot({ children }: ClientRootProps) {
         </SplashScreen>
       )}
       {clientState.status !== 'error' && !canRenderReadyContent ? (
-        <ClientRootLoading />
+        <ClientRootLoading loadingMessages={clientConfig.splash?.loadingMessages} />
       ) : (
         readyContent
       )}

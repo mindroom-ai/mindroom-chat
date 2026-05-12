@@ -27,6 +27,16 @@
     "basename": "/"
   },
 
+  "splash": {
+    "loadingMessages": [
+      "Loading MindRoom",
+      "Booting the agents",
+      "Warming the agents",
+      "Assembling context",
+      "Opening the room"
+    ]
+  },
+
   "sidebar": {
     "showExploreCommunity": false,
     "showAddSpace": false,

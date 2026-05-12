@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ClientEvent, SyncState } from 'matrix-js-sdk';
 import { ClientRoot, hasCachedClientShell } from './ClientRoot';
 import { useActiveSession } from '../../hooks/useSessionStore';
+import { useClientConfig } from '../../hooks/useClientConfig';
 import { StoredSession } from '../../state/sessions';
 import {
   initClient,
@@ -68,8 +69,13 @@ vi.mock('../../../client/initMatrix', () => ({
 vi.mock('../../components/splash-screen', () => ({
   SplashScreen: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
-  MindRoomSplashScreen: ({ children }: { children: React.ReactNode }) =>
-    React.createElement('div', null, children),
+  MindRoomSplashScreen: ({
+    children,
+    loadingMessages,
+  }: {
+    children?: React.ReactNode;
+    loadingMessages?: string[];
+  }) => React.createElement('div', null, loadingMessages?.[0] ?? 'Heating up', children),
 }));
 
 vi.mock('../../components/ServerConfigsLoader', () => ({
@@ -123,6 +129,10 @@ vi.mock('../../hooks/useAuthMetadata', () => ({
 
 vi.mock('../../hooks/useSessionStore', () => ({
   useActiveSession: vi.fn(),
+}));
+
+vi.mock('../../hooks/useClientConfig', () => ({
+  useClientConfig: vi.fn(() => ({})),
 }));
 
 let currentSession: StoredSession | undefined;
@@ -231,6 +241,7 @@ describe('ClientRoot', () => {
     renderer = undefined;
     currentSession = undefined;
     vi.restoreAllMocks();
+    vi.mocked(useClientConfig).mockReturnValue({});
   });
 
   it('switches clients when the active session changes', async () => {
@@ -445,6 +456,35 @@ describe('ClientRoot', () => {
 
     expect(hasRenderedText(renderer, 'child')).toBe(false);
     expect(hasRenderedText(renderer, 'Catching up...')).toBe(false);
+  });
+
+  it('uses deployment-configured loading messages on the startup splash', async () => {
+    const client = createMockClient();
+
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+    };
+
+    vi.mocked(useClientConfig).mockReturnValue({
+      splash: {
+        loadingMessages: ['Warming the agents'],
+      },
+    });
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(initClient).mockResolvedValue(client as never);
+    vi.mocked(startClient).mockResolvedValue(undefined);
+
+    await act(async () => {
+      renderer = create(renderClientRoot());
+      await flushEffects();
+    });
+
+    expect(hasRenderedText(renderer, 'Warming the agents')).toBe(true);
   });
 
   it('renders cached UI immediately after startup when cached rooms are restored from the store', async () => {

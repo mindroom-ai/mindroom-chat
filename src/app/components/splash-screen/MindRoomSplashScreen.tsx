@@ -1,11 +1,52 @@
-import React, { ReactNode } from 'react';
+import { Box, Spinner, Text } from 'folds';
+import React, { ReactNode, useMemo } from 'react';
 import { MindRoomParticleBackground } from '../particle-background';
 import { SplashScreen } from './SplashScreen';
 
-type MindRoomSplashScreenProps = {
-  children: ReactNode;
+export const DEFAULT_MINDROOM_SPLASH_MESSAGES = ['Heating up'] as const;
+
+export const pickMindRoomSplashMessage = (
+  messages: readonly string[] | undefined,
+  random: () => number = Math.random
+): string => {
+  const candidates =
+    messages
+      ?.map((message) => message.trim())
+      .filter((message): message is string => message.length > 0) ?? [];
+  const resolvedMessages =
+    candidates.length > 0 ? candidates : [...DEFAULT_MINDROOM_SPLASH_MESSAGES];
+  const index = Math.min(
+    Math.floor(random() * resolvedMessages.length),
+    resolvedMessages.length - 1
+  );
+  return resolvedMessages[index];
 };
 
-export function MindRoomSplashScreen({ children }: MindRoomSplashScreenProps) {
-  return <SplashScreen background={<MindRoomParticleBackground />}>{children}</SplashScreen>;
+type MindRoomSplashScreenProps = {
+  children?: ReactNode;
+  loadingMessages?: readonly string[];
+  message?: ReactNode;
+  random?: () => number;
+};
+
+export function MindRoomSplashScreen({
+  children,
+  loadingMessages,
+  message,
+  random,
+}: MindRoomSplashScreenProps) {
+  const selectedMessage = useMemo(
+    () => message ?? pickMindRoomSplashMessage(loadingMessages, random),
+    [loadingMessages, message, random]
+  );
+
+  return (
+    <SplashScreen background={<MindRoomParticleBackground />}>
+      <Box direction="Column" grow="Yes" alignItems="Center" justifyContent="Center" gap="400">
+        <Spinner variant="Secondary" size="600" />
+        <Text>{selectedMessage}</Text>
+        {children}
+      </Box>
+    </SplashScreen>
+  );
 }

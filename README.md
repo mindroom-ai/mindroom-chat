@@ -63,6 +63,7 @@ Notable options:
 
 - homeserver defaults and allowed-server policy,
 - auth behavior (including `allowRegistration`, support/privacy/terms links),
+- splash loading copy via `splash.loadingMessages`,
 - sidebar and welcome-page behavior.
 
 ## Self-Hosting
