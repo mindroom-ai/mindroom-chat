@@ -15,6 +15,7 @@
   - Review follow-up: moved the MindRoom particle background into a shared component, made startup splash screens accept a generic background node, reduced the default app particle load, and disabled pointer interaction on coarse/touch pointers.
   - Review follow-up: particle density now adapts across low-end, balanced, and desktop tiers using pointer type, CPU core count, DPR, and effective pixel area.
   - Follow-up packaging fix: MindRoom now consumes published `@basnijholt/particular-drift@0.1.0` from the npm registry instead of a GitHub commit pin, restoring npm lockfile integrity metadata.
+  - Follow-up CI fix: the inherited CLA Assistant workflow is disabled for PR events, and the lockfile workflow now validates `package-lock.json` with `npm ci --ignore-scripts` instead of the crashing third-party lockfile comment action.
   - The existing auth card, server picker, login/loading states, and footer remain unchanged; reduced-motion users get the static radial background without the animated canvas.
 - Decisions:
   - Use the `basnijholt/particular-drift` package as the integration boundary, with Bun kept to that package and npm kept for MindRoom Cinny.
@@ -34,6 +35,8 @@
   - `FORK_CHANGES.md`
   - `package.json`
   - `package-lock.json`
+  - `.github/workflows/cla.yml`
+  - `.github/workflows/lockfile.yml`
   - `src/app/components/particle-background/MindRoomParticleBackground.css.ts`
   - `src/app/components/particle-background/MindRoomParticleBackground.tsx`
   - `src/app/components/particle-background/index.ts`
