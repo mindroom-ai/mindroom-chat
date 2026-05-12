@@ -21,8 +21,16 @@ describe('service worker app shell caching', () => {
     const swSource = readFileSync(new URL('./sw.ts', import.meta.url), 'utf8');
 
     expect(swSource).toContain('/^\\/api(?:\\/|$)/');
-    expect(swSource).toContain('/^\\/_matrix(?:\\/|$)/');
-    expect(swSource).toContain('/^\\/_synapse(?:\\/|$)/');
-    expect(swSource).toContain('/^\\/\\.well-known(?:\\/|$)/');
+    expect(swSource).toContain('/^\\/(?:[^/]+\\/)?_matrix(?:\\/|$)/');
+    expect(swSource).toContain('/^\\/(?:[^/]+\\/)?_synapse(?:\\/|$)/');
+    expect(swSource).toContain('/^\\/(?:[^/]+\\/)?\\.well-known(?:\\/|$)/');
+  });
+
+  it('does not use the SPA fallback for path-based Matrix homeserver routes', () => {
+    const swSource = readFileSync(new URL('./sw.ts', import.meta.url), 'utf8');
+
+    expect(swSource).toContain('/^\\/(?:[^/]+\\/)?_matrix(?:\\/|$)/');
+    expect(swSource).toContain('/^\\/(?:[^/]+\\/)?_synapse(?:\\/|$)/');
+    expect(swSource).toContain('/^\\/(?:[^/]+\\/)?\\.well-known(?:\\/|$)/');
   });
 });

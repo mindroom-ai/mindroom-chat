@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### Path-based Matrix service worker denylist (2026-05-12)
+
+- Status:
+  - Complete.
+- Summary:
+  - Updated the service worker navigation fallback denylist so path-based
+    homeserver routes such as `/mindroom/_matrix/...`,
+    `/mindroom/_synapse/...`, and `/mindroom/.well-known/...` are not answered
+    with the SPA shell.
+  - This prevents Matrix SSO redirect navigations from rendering the client-side
+    `Page not found` route when the app is deployed under a base path.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/sw.ts`
+  - `src/sw.test.ts`
+- Tests and validation:
+  - Red check: `npx vitest run src/sw.test.ts` failed before the denylist
+    update because path-based Matrix routes were not covered.
+  - Green check: `npx vitest run src/sw.test.ts`.
+
 ### Auth page Particular Drift background (2026-05-12)
 
 - Status:
