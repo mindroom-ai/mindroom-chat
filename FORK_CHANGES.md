@@ -33,6 +33,7 @@
   - `basnijholt/particular-drift@71ec7b2` handles renderer startup failures without unhandled page errors, allowing apps to fall back to static backgrounds when WebGL2 is unavailable.
   - `basnijholt/particular-drift@a346613` pins particle shader attribute locations so browser-assigned attribute order cannot leave the particle buffers connected to the wrong shader inputs.
   - `basnijholt/particular-drift@ea216eb` preserves source image aspect ratio during edge extraction, with `imageFit: 'contain'` as the default.
+  - `basnijholt/particular-drift@0ded45d` adds cursor interaction uniforms and pointer-event handling so auth/startup particles repel from the pointer.
 - Tests and validation:
   - Package green check: `bun test`.
   - Package green check: `bun run typecheck`.

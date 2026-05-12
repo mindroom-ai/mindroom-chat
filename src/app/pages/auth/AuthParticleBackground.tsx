@@ -12,6 +12,10 @@ export function AuthParticleBackground() {
         imageUrl={MINDROOM_AUTH_BRANDING.logoSrc}
         options={{
           imageFit: 'contain',
+          interactive: true,
+          cursorMode: 'repel',
+          cursorRadius: 0.14,
+          cursorStrength: 1.25,
           backgroundColor: '#0f0d2e',
           particleColor: '#dda290',
           particleCount: 120000,

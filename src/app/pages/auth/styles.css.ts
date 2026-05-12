@@ -31,6 +31,7 @@ export const AuthParticleCanvas = style({
   width: '100%',
   height: '100%',
   opacity: 1,
+  pointerEvents: 'auto',
   '@media': {
     '(prefers-reduced-motion: reduce)': {
       display: 'none',
