@@ -1758,6 +1758,10 @@ describe('RoomTimeline architecture', () => {
       new URL('../../../pages/auth/AuthLayout.tsx', import.meta.url),
       'utf8'
     );
+    const authParticleBackgroundSource = readFileSync(
+      new URL('../../../pages/auth/AuthParticleBackground.tsx', import.meta.url),
+      'utf8'
+    );
     const ssoLoginSource = readFileSync(
       new URL('../../../pages/auth/SSOLogin.tsx', import.meta.url),
       'utf8'
@@ -1806,6 +1810,8 @@ describe('RoomTimeline architecture', () => {
     expect(authUiSource).toContain('shouldUseSsoOnlyRegistration');
     expect(authFooterSource).toContain("from '../../mindroom/auth/authUi'");
     expect(authLayoutSource).toContain("from '../../mindroom/auth/authUi'");
+    expect(authParticleBackgroundSource).toContain("from '../../mindroom/auth/authUi'");
+    expect(authParticleBackgroundSource).toContain('@basnijholt/particular-drift/react');
     expect(ssoLoginSource).toContain("from '../../mindroom/auth/authUi'");
     expect(loginSource).toContain("from '../../../mindroom/auth/authUi'");
     expect(passwordLoginSource).toContain("from '../../../mindroom/auth/authUi'");

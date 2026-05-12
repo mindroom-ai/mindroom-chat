@@ -3,12 +3,38 @@ import { DefaultReset, color, config, toRem } from 'folds';
 
 export const AuthLayout = style({
   minHeight: '100%',
-  backgroundColor: color.Background.Container,
+  backgroundColor: '#0f0d2e',
   color: color.Background.OnContainer,
   padding: config.space.S400,
   paddingRight: config.space.S200,
   paddingBottom: 0,
   position: 'relative',
+  isolation: 'isolate',
+  overflow: 'hidden',
+});
+
+export const AuthParticleBackground = style({
+  position: 'absolute',
+  inset: 0,
+  zIndex: -1,
+  background:
+    'radial-gradient(circle at 50% 45%, rgba(221, 162, 144, 0.18), rgba(15, 13, 46, 0.12) 30%, rgba(15, 13, 46, 1) 72%)',
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      opacity: 0.75,
+    },
+  },
+});
+
+export const AuthParticleCanvas = style({
+  width: '100%',
+  height: '100%',
+  opacity: 0.92,
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      display: 'none',
+    },
+  },
 });
 
 export const AuthCard = style({

@@ -2,6 +2,39 @@
 
 ## Runbook
 
+### Auth page Particular Drift background (2026-05-12)
+
+- Status:
+  - Complete.
+- Summary:
+  - Created a reusable package from `basnijholt/particular-drift`, preserving prominent attribution to the original `collidingScopes/particular-drift` author and Buy Me a Coffee link.
+  - The package removes the original demo UI, upload controls, and MP4 export stack, uses Bun for development, ships built ESM/type artifacts, and exposes a no-controls WebGL renderer plus React wrapper.
+  - MindRoom auth now replaces the dotted login/loading background with a decorative Particular Drift canvas using the hardcoded MindRoom logo image.
+  - The existing auth card, server picker, login/loading states, and footer remain unchanged; reduced-motion users get the static radial background without the animated canvas.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `package.json`
+  - `package-lock.json`
+  - `src/app/pages/auth/AuthLayout.tsx`
+  - `src/app/pages/auth/AuthParticleBackground.tsx`
+  - `src/app/pages/auth/styles.css.ts`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+- Related package commits:
+  - `basnijholt/particular-drift@73f4620` packages the embeddable renderer and removes demo/export files.
+  - `basnijholt/particular-drift@077e437` documents package usage and removes obsolete root scripts.
+  - `basnijholt/particular-drift@8763237` commits built package artifacts for GitHub install consumption.
+  - `basnijholt/particular-drift@1f2abae` credits the original author prominently and restores the Buy Me a Coffee link in the README.
+- Tests and validation:
+  - Package green check: `bun test`.
+  - Package green check: `bun run typecheck`.
+  - Package green check: `bun run build`.
+  - Package green check: `bun pm pack --dry-run`.
+  - MindRoom green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts -t "keeps MindRoom branding"`.
+  - MindRoom green check: `npm run typecheck`.
+  - MindRoom green check: `npx prettier --check src/app/pages/auth/AuthParticleBackground.tsx src/app/pages/auth/AuthLayout.tsx src/app/pages/auth/styles.css.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts package.json package-lock.json`.
+  - MindRoom green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - MindRoom green check: `git diff --check`.
+
 ### Classic large-room loading scroll stability (2026-05-11)
 
 - Status:

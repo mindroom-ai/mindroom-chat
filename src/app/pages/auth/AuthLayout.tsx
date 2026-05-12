@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect } from 'react';
 import { Box, Button, Header, Scroll, Spinner, Text, color } from 'folds';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
-import classNames from 'classnames';
 
 import { AuthFooter } from './AuthFooter';
+import { AuthParticleBackground } from './AuthParticleBackground';
 import * as css from './styles.css';
-import * as PatternsCss from '../../styles/Patterns.css';
 import {
   clientAllowedServer,
   clientDefaultServer,
@@ -126,12 +125,13 @@ export function AuthLayout() {
   return (
     <Scroll variant="Background" visibility="Hover" size="300" hideTrack>
       <Box
-        className={classNames(css.AuthLayout, PatternsCss.BackgroundDotPattern)}
+        className={css.AuthLayout}
         direction="Column"
         alignItems="Center"
         justifyContent="SpaceBetween"
         gap="400"
       >
+        <AuthParticleBackground />
         <Box direction="Column" className={css.AuthCard}>
           <Header className={css.AuthHeader} size="600" variant="Surface">
             <Box grow="Yes" direction="Row" gap="300" alignItems="Center">
