@@ -2,6 +2,52 @@
 
 ## Runbook
 
+### Safe SVG in message extras HTML (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigated both requested sides. `/srv/mindroom` and `/var/www/cinny` are
+    not mounted in this environment; the available MindRoom server checkout is
+    `/Users/basnijholt/dev/mindroom`, and this Cinny worktree is
+    `/Users/basnijholt/.codex/worktrees/bb45/mindroom-cinny`.
+  - MindRoom server search found no `message_extras` writer/sanitizer in
+    `/Users/basnijholt/dev/mindroom`; its only relevant HTML sanitizer is the
+    general Matrix `formatted_body` sanitizer in
+    `src/mindroom/matrix/message_builder.py`, so the server side did not need a
+    message-extras-specific change in the available checkout.
+  - Cinny message extras HTML sanitization lives in
+    `src/app/mindroom/messages/messageExtrasHtml.ts`; it previously listed
+    `svg` as a non-text tag, so all inline SVG content was discarded before
+    render.
+  - Added a labeled SVG allowlist for geometry/text primitives and direct
+    presentation attributes while keeping SVG script vectors out: script,
+    foreignObject, use, image, animation tags, `href`/`xlink:href`, `style`,
+    and all event handlers remain stripped.
+  - Added sanitizer and render tests covering sparkline/status/diagram SVG plus
+    adversarial SVG payloads.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/messages/messageExtrasHtml.ts`
+  - `src/app/mindroom/messages/messageExtrasHtml.test.ts`
+  - `src/app/mindroom/messages/MessageExtrasView.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`
+    failed while `svg` remained stripped.
+  - Green check: `npm test -- src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm run lint` completed with the existing warning-only
+    baseline (`16` warnings, `0` errors).
+  - Green check: `npm test` passed (`276` files, `2057` tests).
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/messages/messageExtrasHtml.ts src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`.
+  - Green check: `git diff --check`.
+  - Live browser evidence was not captured in this chat-thread worktree; the
+    sanitizer/render unit tests verify the production render path used by
+    message extras.
+
 ### CINNY-128 - Remove transient planning and completion docs (2026-05-29)
 
 - Status:

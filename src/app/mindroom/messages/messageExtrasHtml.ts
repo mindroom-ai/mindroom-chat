@@ -42,6 +42,92 @@ const allowedTags = [
   'a',
 ];
 
+const svgTags = [
+  'svg',
+  'g',
+  'defs',
+  'marker',
+  'path',
+  'rect',
+  'circle',
+  'ellipse',
+  'line',
+  'polyline',
+  'polygon',
+  'text',
+  'tspan',
+  'title',
+  'desc',
+];
+
+const svgAttributes = [
+  'viewBox',
+  'width',
+  'height',
+  'x',
+  'y',
+  'x1',
+  'y1',
+  'x2',
+  'y2',
+  'cx',
+  'cy',
+  'r',
+  'rx',
+  'ry',
+  'd',
+  'points',
+  'fill',
+  'stroke',
+  'stroke-width',
+  'stroke-linecap',
+  'stroke-linejoin',
+  'stroke-dasharray',
+  'opacity',
+  'fill-opacity',
+  'stroke-opacity',
+  'transform',
+  'text-anchor',
+  'dominant-baseline',
+  'font-size',
+  'font-family',
+  'font-weight',
+  'marker-end',
+  'marker-start',
+  'marker-mid',
+  'id',
+  'class',
+];
+
+const allowedSvgAttributes = Object.fromEntries(
+  svgTags.map((tag) => [tag, svgAttributes])
+) as Record<string, string[]>;
+
+const allowedSvgClasses = Object.fromEntries(svgTags.map((tag) => [tag, [/.+/]])) as Record<
+  string,
+  RegExp[]
+>;
+
+const svgTransformTags = Object.fromEntries(svgTags.map((tag) => [tag, transformSvgTag])) as Record<
+  string,
+  Transformer
+>;
+
+const forbiddenSvgTags = [
+  'foreignObject',
+  'foreignobject',
+  'use',
+  'image',
+  'animate',
+  'animateTransform',
+  'animatetransform',
+  'animateMotion',
+  'animatemotion',
+  'set',
+];
+
+const forbiddenSvgAttributes = new Set(['href', 'xlink:href', 'style']);
+
 const nonTextTags = [
   'script',
   'style',
@@ -54,7 +140,6 @@ const nonTextTags = [
   'select',
   'textarea',
   'option',
-  'svg',
   'math',
   'canvas',
   'audio',
@@ -75,6 +160,7 @@ const nonTextTags = [
   'plan',
   'analysis',
   'research',
+  ...forbiddenSvgTags,
 ];
 
 const hasRawWhitespace = (value: string): boolean => /\s/.test(value);
@@ -112,14 +198,31 @@ const transformAnchorTag: Transformer = (tagName, attribs) => {
   };
 };
 
+function transformSvgTag(tagName: string, attribs: Attributes) {
+  const sanitizedAttributes = Object.fromEntries(
+    Object.entries(attribs).filter(([attrName]) => {
+      const normalizedAttrName = attrName.toLowerCase();
+      return (
+        !normalizedAttrName.startsWith('on') && !forbiddenSvgAttributes.has(normalizedAttrName)
+      );
+    })
+  );
+
+  return {
+    tagName,
+    attribs: sanitizedAttributes as Attributes,
+  };
+}
+
 export const sanitizeMindroomMessageExtraHtml = (html: string): string =>
   sanitizeHtml(html, {
-    allowedTags,
+    allowedTags: [...allowedTags, ...svgTags],
     allowedAttributes: {
       a: ['href', 'target', 'rel'],
       ol: ['start', 'type'],
       code: ['class'],
       pre: ['class'],
+      ...allowedSvgAttributes,
     },
     disallowedTagsMode: 'discard',
     allowedSchemes: ['http', 'https', 'mailto'],
@@ -131,10 +234,15 @@ export const sanitizeMindroomMessageExtraHtml = (html: string): string =>
     allowedClasses: {
       code: ['language-*'],
       pre: ['language-*'],
+      ...allowedSvgClasses,
     },
     transformTags: {
       a: transformAnchorTag,
+      ...svgTransformTags,
     },
     nonTextTags,
     nestingLimit: MAX_TAG_NESTING,
+    parser: {
+      lowerCaseAttributeNames: false,
+    },
   });
