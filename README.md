@@ -39,6 +39,12 @@ For detailed implementation and rationale, see:
 - Submission metadata/review notes packet: [`APP_STORE_SUBMISSION_PACKET.md`](./.docs/APP_STORE_SUBMISSION_PACKET.md)
 - Build guide: [`ios-build.md`](./.docs/ios-build.md)
 
+### TestFlight via Xcode Cloud
+
+The Xcode Cloud workflow should archive the iOS app with the `Archive - iOS` action.
+Set that action's `Distribution Preparation` to `TestFlight (Internal Testing Only)` so successful archives are prepared for TestFlight.
+If that setting changes after a successful archive, rerun the workflow because existing archives are not prepared for TestFlight retroactively.
+
 ## Quick Start
 
 ```bash
