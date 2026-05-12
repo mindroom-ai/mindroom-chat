@@ -2,6 +2,34 @@
 
 ## Runbook
 
+### iOS saved-token startup blank shell guard (2026-05-12)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigating an iOS startup state where the particle "Heating up" splash is
+    followed by a grey client surface showing only "Catching up..." at the top.
+  - Root cause found: `ClientRoot` treated a persisted Matrix sync token as a
+    renderable cached shell even when no rooms had been restored, allowing the
+    app chrome to replace the particle splash before real room content existed.
+  - Fix: only restored rooms count as a cached shell for pre-sync rendering; a
+    bare sync token stays on the particle loading screen until the first sync
+    event arrives.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/pages/client/ClientRoot.tsx`
+  - `src/app/pages/client/ClientRoot.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/pages/client/ClientRoot.test.ts` failed
+    while a saved sync token without rooms rendered the child route before sync.
+  - Green check: `npm test -- src/app/pages/client/ClientRoot.test.ts`.
+  - Green check: `npx prettier --check FORK_CHANGES.md src/app/pages/client/ClientRoot.tsx src/app/pages/client/ClientRoot.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm test` passed (`276` files, `2056` tests).
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `git diff --check`.
+
 ### Path-based Matrix service worker denylist (2026-05-12)
 
 - Status:

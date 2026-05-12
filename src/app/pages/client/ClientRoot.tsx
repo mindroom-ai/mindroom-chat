@@ -60,19 +60,8 @@ type ClientMatrixClient = Awaited<ReturnType<typeof initClient>> & {
   ) => unknown;
 };
 
-type ClientMatrixClientWithCacheState = ClientMatrixClient & {
-  store?: {
-    getSyncToken?: () => string | null;
-  };
-};
-
 export const hasCachedClientShell = (mx: ClientMatrixClient): boolean => {
-  if (mx.getRooms().length > 0) {
-    return true;
-  }
-
-  const syncToken = (mx as ClientMatrixClientWithCacheState).store?.getSyncToken?.();
-  return typeof syncToken === 'string' && syncToken.length > 0;
+  return mx.getRooms().length > 0;
 };
 
 function ClientRootLoading() {

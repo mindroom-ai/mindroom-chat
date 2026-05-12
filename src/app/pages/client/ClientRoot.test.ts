@@ -475,10 +475,36 @@ describe('ClientRoot', () => {
     expect(hasRenderedText(renderer, 'Heating up')).toBe(false);
   });
 
-  it('treats a saved sync token as resumable cached state even without loaded rooms', () => {
+  it('keeps the particle loading screen when only a saved sync token is restored', async () => {
     const client = createMockClient({ syncToken: 's123' });
 
-    expect(hasCachedClientShell(client as never)).toBe(true);
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+    };
+
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(initClient).mockResolvedValue(client as never);
+    vi.mocked(startClient).mockResolvedValue(undefined);
+
+    await act(async () => {
+      renderer = create(renderClientRoot());
+      await flushEffects();
+    });
+
+    expect(hasRenderedText(renderer, 'child')).toBe(false);
+    expect(hasRenderedText(renderer, 'Catching up...')).toBe(false);
+    expect(hasRenderedText(renderer, 'Heating up')).toBe(true);
+  });
+
+  it('does not treat a saved sync token as a renderable cached shell without loaded rooms', () => {
+    const client = createMockClient({ syncToken: 's123' });
+
+    expect(hasCachedClientShell(client as never)).toBe(false);
   });
 
   it('renders cached UI after the first sync event arrives', async () => {
