@@ -1758,6 +1758,13 @@ describe('RoomTimeline architecture', () => {
       new URL('../../../pages/auth/AuthLayout.tsx', import.meta.url),
       'utf8'
     );
+    const particleBackgroundSource = readFileSync(
+      new URL(
+        '../../../components/particle-background/MindRoomParticleBackground.tsx',
+        import.meta.url
+      ),
+      'utf8'
+    );
     const ssoLoginSource = readFileSync(
       new URL('../../../pages/auth/SSOLogin.tsx', import.meta.url),
       'utf8'
@@ -1786,8 +1793,20 @@ describe('RoomTimeline architecture', () => {
       new URL('../../../pages/client/WelcomePage.tsx', import.meta.url),
       'utf8'
     );
+    const clientRootSource = readFileSync(
+      new URL('../../../pages/client/ClientRoot.tsx', import.meta.url),
+      'utf8'
+    );
+    const configConfigSource = readFileSync(
+      new URL('../../../pages/ConfigConfig.tsx', import.meta.url),
+      'utf8'
+    );
     const splashScreenSource = readFileSync(
       new URL('../../../components/splash-screen/SplashScreen.tsx', import.meta.url),
+      'utf8'
+    );
+    const featureCheckSource = readFileSync(
+      new URL('../../../pages/FeatureCheck.tsx', import.meta.url),
       'utf8'
     );
     const aboutSource = readFileSync(
@@ -1806,6 +1825,16 @@ describe('RoomTimeline architecture', () => {
     expect(authUiSource).toContain('shouldUseSsoOnlyRegistration');
     expect(authFooterSource).toContain("from '../../mindroom/auth/authUi'");
     expect(authLayoutSource).toContain("from '../../mindroom/auth/authUi'");
+    expect(authLayoutSource).toContain("from '../../components/particle-background'");
+    expect(authLayoutSource).toContain('<MindRoomParticleBackground />');
+    expect(particleBackgroundSource).toContain("from '../../mindroom/branding/clientBranding'");
+    expect(particleBackgroundSource).toContain('@basnijholt/particular-drift/react');
+    expect(particleBackgroundSource).toContain('imageUrl={MINDROOM_CLIENT_BRANDING.logoSrc}');
+    expect(particleBackgroundSource).toContain('resolveMindRoomParticleCount');
+    expect(particleBackgroundSource).toContain("cursorMode: 'repel'");
+    expect(particleBackgroundSource).toContain('DESKTOP_PARTICLE_COUNT = 80000');
+    expect(particleBackgroundSource).toContain('LOW_END_PARTICLE_COUNT = 28000');
+    expect(particleBackgroundSource).toContain('particleCount,');
     expect(ssoLoginSource).toContain("from '../../mindroom/auth/authUi'");
     expect(loginSource).toContain("from '../../../mindroom/auth/authUi'");
     expect(passwordLoginSource).toContain("from '../../../mindroom/auth/authUi'");
@@ -1825,6 +1854,15 @@ describe('RoomTimeline architecture', () => {
     expect(welcomePageSource).toContain("from '../../mindroom/branding/clientBranding'");
     expect(welcomePageSource).not.toContain("from '../../mindroom/branding/branding'");
     expect(splashScreenSource).toContain("from '../../mindroom/branding/clientBranding'");
+    expect(splashScreenSource).toContain('background?: ReactNode');
+    expect(splashScreenSource).toContain('background ? css.SplashScreenParticle');
+    expect(splashScreenSource).toContain('patternsCSS.BackgroundDotPattern');
+    expect(splashScreenSource).not.toContain("from '../../pages/auth/AuthParticleBackground'");
+    expect(clientRootSource).toContain("from '../../components/particle-background'");
+    expect(configConfigSource).toContain("from '../components/particle-background'");
+    expect(clientRootSource).toMatch(/<SplashScreen\b[^>]*\bbackground=/);
+    expect(configConfigSource).toMatch(/<SplashScreen\b[^>]*\bbackground=/);
+    expect(featureCheckSource).toContain('<SplashScreen>');
     expect(splashScreenSource).not.toContain("from '../../mindroom/branding/branding'");
     expect(aboutSource).toContain("from '../../../mindroom/branding/clientBranding'");
     expect(aboutSource).not.toContain("from '../../../mindroom/branding/branding'");

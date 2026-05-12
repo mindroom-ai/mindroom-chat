@@ -2,6 +2,80 @@
 
 ## Runbook
 
+### Auth page Particular Drift background (2026-05-12)
+
+- Status:
+  - Complete.
+- Summary:
+  - Created a reusable package from `basnijholt/particular-drift`, preserving prominent attribution to the original `collidingScopes/particular-drift` author and Buy Me a Coffee link.
+  - The package removes the original demo UI, upload controls, and MP4 export stack, uses Bun for development, ships built ESM/type artifacts, and exposes a no-controls WebGL renderer plus React wrapper.
+  - MindRoom auth now replaces the dotted login/loading background with a decorative Particular Drift canvas using the hardcoded MindRoom logo image.
+  - The same particle background is also used for the "Heating up" startup/loading splash screens.
+  - Follow-up fix: the particle layer now sits above the auth layout background, the auth card uses a lighter translucent fill without heavy backdrop blur, and the particle styling is strong enough to remain visible through the card.
+  - Review follow-up: moved the MindRoom particle background into a shared component, made startup splash screens accept a generic background node, reduced the default app particle load, and disabled pointer interaction on coarse/touch pointers.
+  - Review follow-up: particle density now adapts across low-end, balanced, and desktop tiers using pointer type, CPU core count, DPR, and effective pixel area.
+  - Follow-up packaging fix: MindRoom now consumes published `@basnijholt/particular-drift@0.1.0` from the npm registry instead of a GitHub commit pin, restoring npm lockfile integrity metadata.
+  - Follow-up CI fix: the inherited CLA Assistant workflow is disabled for PR events, and the lockfile workflow now validates `package-lock.json` with `npm ci --ignore-scripts` instead of the crashing third-party lockfile comment action.
+  - Final review cleanup: the particle renderer options are memoized, and the lockfile workflow now runs for dependency manifest, lockfile, and workflow changes.
+  - The existing auth card, server picker, login/loading states, and footer remain unchanged; reduced-motion users get the static radial background without the animated canvas.
+- Decisions:
+  - Use the `basnijholt/particular-drift` package as the integration boundary, with Bun kept to that package and npm kept for MindRoom Cinny.
+  - Hardcode the MindRoom logo image through the existing MindRoom client branding constants so auth and startup screens share one source.
+  - Keep the particle layer decorative and behind auth/startup content, with the card and splash content explicitly layered above it.
+  - Preserve the original author attribution and Buy Me a Coffee link in the package README.
+- Risks:
+  - WebGL2 can be unavailable or fail during startup; the renderer must fail without breaking auth/loading screens.
+  - Particle density can still cost GPU and battery on some devices despite adaptive caps.
+  - Reduced-motion behavior depends on CSS media-query support and should keep the static fallback legible.
+- Next steps:
+  - Owner: frontend maintainer verifies reduced-motion and low-end/touch behavior on representative desktop and mobile browsers.
+  - Owner: package maintainer keeps `@basnijholt/particular-drift` releases aligned with package README attribution and committed build artifacts.
+  - Owner: QA adds a visual regression check for the auth and startup particle background once the visual baseline is stable.
+  - Owner: product/design decides whether the hardcoded logo should remain fixed or move into runtime branding configuration.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `package.json`
+  - `package-lock.json`
+  - `.github/workflows/cla.yml`
+  - `.github/workflows/lockfile.yml`
+  - `src/app/components/particle-background/MindRoomParticleBackground.css.ts`
+  - `src/app/components/particle-background/MindRoomParticleBackground.tsx`
+  - `src/app/components/particle-background/index.ts`
+  - `src/app/components/particle-background/particleBackgroundTheme.ts`
+  - `src/app/components/splash-screen/SplashScreen.css.ts`
+  - `src/app/components/splash-screen/SplashScreen.tsx`
+  - `src/app/pages/auth/AuthLayout.tsx`
+  - `src/app/pages/client/ClientRoot.tsx`
+  - `src/app/pages/client/ClientRoot.test.ts`
+  - `src/app/pages/ConfigConfig.tsx`
+  - `src/app/pages/auth/styles.css.ts`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+- Related package commits:
+  - `basnijholt/particular-drift@73f4620` packages the embeddable renderer and removes demo/export files.
+  - `basnijholt/particular-drift@077e437` documents package usage and removes obsolete root scripts.
+  - `basnijholt/particular-drift@8763237` commits built package artifacts for GitHub install consumption.
+  - `basnijholt/particular-drift@1f2abae` credits the original author prominently and restores the Buy Me a Coffee link in the README.
+  - `basnijholt/particular-drift@71ec7b2` handles renderer startup failures without unhandled page errors, allowing apps to fall back to static backgrounds when WebGL2 is unavailable.
+  - `basnijholt/particular-drift@a346613` pins particle shader attribute locations so browser-assigned attribute order cannot leave the particle buffers connected to the wrong shader inputs.
+  - `basnijholt/particular-drift@ea216eb` preserves source image aspect ratio during edge extraction, with `imageFit: 'contain'` as the default.
+  - `basnijholt/particular-drift@0ded45d` adds cursor interaction uniforms and pointer-event handling so auth/startup particles repel from the pointer.
+  - `basnijholt/particular-drift@1b50124` returns particles to their image positions after cursor interaction.
+- Tests and validation:
+  - Package green check: `bun test`.
+  - Package green check: `bun run typecheck`.
+  - Package green check: `bun run build`.
+  - Package green check: `bun pm pack --dry-run`.
+  - MindRoom green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts -t "keeps MindRoom branding"`.
+  - MindRoom green check: `npm test -- src/app/pages/client/ClientRoot.test.ts`.
+  - MindRoom green check: `npm run typecheck`.
+  - MindRoom green check: `npx prettier --check src/app/components/particle-background/MindRoomParticleBackground.css.ts src/app/components/particle-background/MindRoomParticleBackground.tsx src/app/components/particle-background/index.ts src/app/components/particle-background/particleBackgroundTheme.ts src/app/components/splash-screen/SplashScreen.css.ts src/app/components/splash-screen/SplashScreen.tsx src/app/pages/auth/AuthLayout.tsx src/app/pages/auth/styles.css.ts src/app/pages/client/ClientRoot.tsx src/app/pages/client/ClientRoot.test.ts src/app/pages/ConfigConfig.tsx src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts package.json package-lock.json`.
+  - MindRoom green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - MindRoom green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - MindRoom green check: `npm test` passed (`276` files, `2054` tests).
+  - MindRoom green check: `git diff --check`.
+  - MindRoom green check: `npm ci --ignore-scripts`.
+  - Follow-up runtime check: Playwright opened `http://127.0.0.1:5173/login`, confirmed the auth particle canvas mounted with no page errors after clearing Vite's optimized dependency cache, confirmed the served optimized package contains the fixed shader attribute locations, and confirmed WebGL readback includes non-background particle pixels.
+
 ### Classic large-room loading scroll stability (2026-05-11)
 
 - Status:
