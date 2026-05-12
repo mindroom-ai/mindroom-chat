@@ -10,6 +10,7 @@
   - Created a reusable package from `basnijholt/particular-drift`, preserving prominent attribution to the original `collidingScopes/particular-drift` author and Buy Me a Coffee link.
   - The package removes the original demo UI, upload controls, and MP4 export stack, uses Bun for development, ships built ESM/type artifacts, and exposes a no-controls WebGL renderer plus React wrapper.
   - MindRoom auth now replaces the dotted login/loading background with a decorative Particular Drift canvas using the hardcoded MindRoom logo image.
+  - The same particle background is also used for the "Heating up" startup/loading splash screens.
   - Follow-up fix: the particle layer now sits above the auth layout background, the auth card uses a lighter translucent fill without heavy backdrop blur, and the particle styling is strong enough to remain visible through the card.
   - The existing auth card, server picker, login/loading states, and footer remain unchanged; reduced-motion users get the static radial background without the animated canvas.
 - Files changed:
@@ -18,6 +19,10 @@
   - `package-lock.json`
   - `src/app/pages/auth/AuthLayout.tsx`
   - `src/app/pages/auth/AuthParticleBackground.tsx`
+  - `src/app/components/splash-screen/SplashScreen.tsx`
+  - `src/app/components/splash-screen/SplashScreen.css.ts`
+  - `src/app/pages/client/ClientRoot.tsx`
+  - `src/app/pages/ConfigConfig.tsx`
   - `src/app/pages/auth/styles.css.ts`
   - `src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
 - Related package commits:

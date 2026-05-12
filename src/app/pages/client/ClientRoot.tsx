@@ -76,7 +76,7 @@ export const hasCachedClientShell = (mx: ClientMatrixClient): boolean => {
 
 function ClientRootLoading() {
   return (
-    <SplashScreen>
+    <SplashScreen particleBackground>
       <Box direction="Column" grow="Yes" alignItems="Center" justifyContent="Center" gap="400">
         <Spinner variant="Secondary" size="600" />
         <Text>Heating up</Text>

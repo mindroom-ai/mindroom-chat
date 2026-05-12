@@ -1790,6 +1790,14 @@ describe('RoomTimeline architecture', () => {
       new URL('../../../pages/client/WelcomePage.tsx', import.meta.url),
       'utf8'
     );
+    const clientRootSource = readFileSync(
+      new URL('../../../pages/client/ClientRoot.tsx', import.meta.url),
+      'utf8'
+    );
+    const configConfigSource = readFileSync(
+      new URL('../../../pages/ConfigConfig.tsx', import.meta.url),
+      'utf8'
+    );
     const splashScreenSource = readFileSync(
       new URL('../../../components/splash-screen/SplashScreen.tsx', import.meta.url),
       'utf8'
@@ -1831,6 +1839,9 @@ describe('RoomTimeline architecture', () => {
     expect(welcomePageSource).toContain("from '../../mindroom/branding/clientBranding'");
     expect(welcomePageSource).not.toContain("from '../../mindroom/branding/branding'");
     expect(splashScreenSource).toContain("from '../../mindroom/branding/clientBranding'");
+    expect(splashScreenSource).toContain("from '../../pages/auth/AuthParticleBackground'");
+    expect(clientRootSource).toContain('<SplashScreen particleBackground>');
+    expect(configConfigSource).toContain('<SplashScreen particleBackground>');
     expect(splashScreenSource).not.toContain("from '../../mindroom/branding/branding'");
     expect(aboutSource).toContain("from '../../../mindroom/branding/clientBranding'");
     expect(aboutSource).not.toContain("from '../../../mindroom/branding/branding'");
