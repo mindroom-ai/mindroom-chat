@@ -66,6 +66,7 @@ const svgMixedCaseAttributeNames: Record<string, string> = {
   markerheight: 'markerHeight',
   markerunits: 'markerUnits',
   markerwidth: 'markerWidth',
+  preserveaspectratio: 'preserveAspectRatio',
   refx: 'refX',
   refy: 'refY',
   viewbox: 'viewBox',
@@ -112,6 +113,7 @@ const svgAttributes = [
   'refY',
   'orient',
   'markerUnits',
+  'preserveAspectRatio',
   'id',
   'class',
 ];

@@ -35,6 +35,8 @@
     only the SVG camelCase attributes needed for `viewBox` and marker geometry.
   - SVG class allowlisting now accepts only simple identifier-like class tokens
     instead of any class string.
+  - `preserveAspectRatio` is now preserved with explicit camelCase restoration
+    so safe charts and diagrams can control viewport scaling.
 - Risks:
   - `title` and `desc` are allowed as inert text labels because sanitize-html
     does not enforce SVG-only parent context; they may also survive outside SVG,
@@ -86,6 +88,13 @@
   - Review green check: `npm run build` passed with existing Vite
     runtime-config/sourcemap/chunk-size warnings.
   - Review green check: `git diff --check`.
+  - Final review green check: `npm test -- src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`.
+  - Final review green check:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/messages/messageExtrasHtml.ts src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`.
+  - Final review green check: `npm run typecheck`.
+  - Final review green check: `npm run lint` completed with the existing
+    warning-only baseline (`16` warnings, `0` errors).
+  - Final review green check: `git diff --check`.
 
 ### CINNY-128 - Remove transient planning and completion docs (2026-05-29)
 

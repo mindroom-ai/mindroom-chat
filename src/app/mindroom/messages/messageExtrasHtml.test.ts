@@ -36,7 +36,7 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
 
   it('keeps safe inline SVG primitives for charts, badges, and diagrams', () => {
     const sanitized = sanitizeMindroomMessageExtraHtml(`
-      <svg viewBox="0 0 200 40" class="sparkline">
+      <svg viewBox="0 0 200 40" preserveAspectRatio="none" class="sparkline">
         <title>Sparkline</title>
         <desc>Recent status trend</desc>
         <polyline fill="none" stroke="#7d5fff" points="0,30 50,10 100,20 150,5 200,15"></polyline>
@@ -58,7 +58,9 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
       </svg>
     `);
 
-    expect(sanitized).toContain('<svg viewBox="0 0 200 40" class="sparkline">');
+    expect(sanitized).toContain(
+      '<svg viewBox="0 0 200 40" preserveAspectRatio="none" class="sparkline">'
+    );
     expect(sanitized).toContain(
       '<polyline fill="none" stroke="#7d5fff" points="0,30 50,10 100,20 150,5 200,15"></polyline>'
     );
