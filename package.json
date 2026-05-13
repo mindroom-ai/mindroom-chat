@@ -42,6 +42,7 @@
     "@atlaskit/pragmatic-drag-and-drop-auto-scroll": "1.3.0",
     "@atlaskit/pragmatic-drag-and-drop-hitbox": "1.0.3",
     "@basnijholt/particular-drift": "0.1.0",
+    "@capacitor/android": "8.1.0",
     "@capacitor/app": "8.0.1",
     "@capacitor/app-launcher": "8.0.1",
     "@capacitor/browser": "8.0.1",

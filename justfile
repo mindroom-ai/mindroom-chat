@@ -69,3 +69,24 @@ ios-phone-stop:
 # Follow the background iOS phone watcher log
 ios-phone-log:
   tail -f /tmp/mindroom-cinny-ios-phone-watch.log
+
+# Reinstall Node deps and rebuild + sync the Android project (full refresh)
+android-rebuild:
+  npm install
+  npm run build
+  npx cap sync android
+
+# Faster Android refresh when node_modules is already up to date
+android-sync:
+  npm run build
+  npx cap sync android
+
+# Open the Android Studio project
+android-open:
+  npx cap open android
+
+# Build a local debug APK (artifact at android/app/build/outputs/apk/debug/app-debug.apk)
+android-debug:
+  npm run build
+  npx cap sync android
+  cd android && ./gradlew --no-daemon assembleDebug
