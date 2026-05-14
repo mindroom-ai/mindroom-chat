@@ -50,6 +50,16 @@ export const eventBelongsToThread = (event: ThreadEventLike, threadId: string): 
 export const isThreadReplyEvent = (eventId: string, threadRootId?: string): boolean =>
   !!threadRootId && threadRootId !== eventId;
 
+/**
+ * @returns true if the Matrix event TYPE is a renderable message envelope.
+ *
+ * NOTE: this gates on event TYPE (`m.room.message` / `m.room.encrypted`), NOT
+ * on `content.msgtype`. Voice (`m.audio` + `m.voice`), image, video, file,
+ * emote, location, and custom MindRoom msgtypes all pass — they are normal
+ * `m.room.message` envelopes. The "TextMessage" suffix in this function name
+ * is historical and misleading; do NOT introduce a `content.msgtype` allowlist
+ * here. See CINNY-088 for the regression that motivated this clarification.
+ */
 export const isVisibleThreadTextMessageEventType = (eventType: string | undefined): boolean =>
   !!eventType && VISIBLE_THREAD_TEXT_MESSAGE_EVENT_TYPES.has(eventType);
 

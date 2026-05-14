@@ -558,3 +558,121 @@ describe('buildCompactThreadRootData', () => {
     expect(activityTs).toBe(6);
   });
 });
+
+describe('isZeroReplyStandaloneThreadRootEvent — parametric msgtype regression locks (CINNY-088)', () => {
+  const NOW = 10_000_000;
+
+  it.each([
+    ['m.text', { body: 'Hello world', msgtype: 'm.text' }],
+    [
+      'm.audio (voice)',
+      {
+        body: 'voice-2026-05-13.m4a',
+        filename: 'voice-2026-05-13.m4a',
+        msgtype: 'm.audio',
+        'm.voice': {},
+        'm.audio': { duration: 1200 },
+      },
+    ],
+    [
+      'm.audio (no m.voice marker)',
+      {
+        body: 'audio.mp3',
+        filename: 'audio.mp3',
+        msgtype: 'm.audio',
+      },
+    ],
+    [
+      'm.image',
+      {
+        body: 'image.png',
+        filename: 'image.png',
+        msgtype: 'm.image',
+      },
+    ],
+    [
+      'm.video',
+      {
+        body: 'video.mp4',
+        filename: 'video.mp4',
+        msgtype: 'm.video',
+      },
+    ],
+    [
+      'm.file',
+      {
+        body: 'document.pdf',
+        filename: 'document.pdf',
+        msgtype: 'm.file',
+      },
+    ],
+    ['m.emote', { body: 'waves', msgtype: 'm.emote' }],
+    [
+      'm.location',
+      {
+        body: 'Pin drop',
+        msgtype: 'm.location',
+        geo_uri: 'geo:37.7749,-122.4194',
+      },
+    ],
+    // Regression lock: future or custom MindRoom msgtypes must remain eligible.
+    // The selector gates on event TYPE, not content.msgtype, so any new msgtype
+    // added by MindRoom (or any other future Matrix client) must pass through.
+    [
+      'custom io.mindroom.custom_demo msgtype',
+      { body: 'Custom payload', msgtype: 'io.mindroom.custom_demo' },
+    ],
+  ])(
+    'returns true for standalone room-level %s events',
+    (_label, content: Record<string, unknown>) => {
+      const event = makeEvent('$root', undefined, undefined, undefined, {
+        ts: NOW - 1_000,
+        content,
+      });
+
+      expect(isZeroReplyStandaloneThreadRootEvent(event, NOW)).toBe(true);
+    }
+  );
+
+  it('returns false for m.notice (silent/system messages)', () => {
+    const noticeEvent = makeEvent('$notice', 'Notice body', undefined, undefined, {
+      ts: NOW - 1_000,
+      msgtype: 'm.notice',
+    });
+    expect(isZeroReplyStandaloneThreadRootEvent(noticeEvent, NOW)).toBe(false);
+  });
+
+  it('returns false for an m.replace edit relation', () => {
+    const editEvent = makeEvent(
+      '$edit',
+      '* edited',
+      undefined,
+      { event_id: '$target', rel_type: 'm.replace' },
+      { ts: NOW - 1_000 }
+    );
+    expect(isZeroReplyStandaloneThreadRootEvent(editEvent, NOW)).toBe(false);
+  });
+
+  it('returns false for a redacted event', () => {
+    const redacted = makeEvent('$redacted', 'gone', undefined, undefined, {
+      ts: NOW - 1_000,
+      isRedacted: true,
+    });
+    expect(isZeroReplyStandaloneThreadRootEvent(redacted, NOW)).toBe(false);
+  });
+
+  it('returns false for a nested thread reply', () => {
+    const nestedReply = makeEvent(
+      '$nested-reply',
+      'Nested reply body',
+      undefined,
+      {
+        event_id: '$parent-root',
+        rel_type: 'm.thread',
+        'm.in_reply_to': { event_id: '$parent-reply' },
+      },
+      { ts: NOW - 1_000, threadRootId: '$parent-root' }
+    );
+    expect(isZeroReplyStandaloneThreadRootEvent(nestedReply, NOW)).toBe(false);
+  });
+});

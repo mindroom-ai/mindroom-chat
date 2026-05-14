@@ -1068,6 +1068,195 @@ describe('RoomTimeline', () => {
     }
   });
 
+  // CINNY-088 Phase 1a: regression lock for media-typed standalone roots
+  // appearing in the compact view immediately on a `liveEvent: true` arrival.
+  // Reported by Bas 2026-04-24 / re-confirmed live 2026-05-12 — voice messages
+  // do not appear instantly as zero-reply compact cards. The compact-vs-classic
+  // A/B (2026-05-13) confirms `setTimeline` IS being called (classic shows it),
+  // so the question is whether the predicate + selector chain accepts the live
+  // arrival. These tests lock that contract for every msgtype that uploads
+  // through the room input.
+  it.each([
+    [
+      'voice audio',
+      {
+        body: 'voice-2026-05-13.m4a',
+        filename: 'voice-2026-05-13.m4a',
+        msgtype: 'm.audio',
+        'm.voice': {},
+        'm.audio': { duration: 1200 },
+      },
+      'm.room.message',
+    ],
+    [
+      'image',
+      {
+        body: 'image.png',
+        filename: 'image.png',
+        msgtype: 'm.image',
+      },
+      'm.room.message',
+    ],
+    [
+      'video',
+      {
+        body: 'video.mp4',
+        filename: 'video.mp4',
+        msgtype: 'm.video',
+      },
+      'm.room.message',
+    ],
+    [
+      'file',
+      {
+        body: 'document.pdf',
+        filename: 'document.pdf',
+        msgtype: 'm.file',
+      },
+      'm.room.message',
+    ],
+    [
+      'encrypted-room voice',
+      {
+        body: 'voice-encrypted-2026-05-13.m4a',
+      },
+      'm.room.encrypted',
+    ],
+  ])(
+    'renders a live room-level %s event as a compact zero-reply root immediately',
+    async (_label, content, eventType) => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+      const seedThread = makeEvent('$seed-thread', {
+        isThreadRoot: true,
+        ts: 100,
+      });
+      const liveEvents = [seedThread];
+      const room = makeRoom({ liveEvents });
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      roomThreadListThreadsMock.push({ id: seedThread.getId(), rootEvent: seedThread });
+      threadLastActivityTsMapMock.set(seedThread.getId(), 100);
+
+      let renderer: ReturnType<typeof create> | undefined;
+
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              initialViewMode: 'compact',
+              initialThreadFilterState: {
+                ...DEFAULT_THREAD_FILTER_STATE,
+                tags: new Map(),
+              },
+            })
+          );
+          await flushAsyncWork(2);
+        });
+
+        const newMediaRoot = makeEvent('$media-root', {
+          content,
+          ts: 999_000,
+          type: eventType,
+        });
+        liveEvents.push(newMediaRoot);
+
+        await act(async () => {
+          room.__listeners.get(RoomEvent.Timeline)?.(newMediaRoot, room, false, false, {
+            liveEvent: true,
+          });
+          await flushAsyncWork(2);
+        });
+
+        expect(renderer?.root.findByType(compactPlaceholderType).props.threadRootIds).toContain(
+          newMediaRoot.getId()
+        );
+      } finally {
+        nowSpy.mockRestore();
+      }
+    }
+  );
+
+  // CINNY-088 Phase 1b: discriminator test — what happens if the SDK first fires
+  // Room.timeline with `liveEvent: false` (e.g. for a sent local echo before
+  // server confirmation) and then `liveEvent: true`? If the compact card only
+  // appears after the SECOND dispatch, the bug is in
+  // `roomLiveEventController.ts:140` short-circuiting on `liveEvent: false`.
+  it('shows a media zero-reply root in compact view after a liveEvent:false → liveEvent:true sequence', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    const seedThread = makeEvent('$seed-thread', {
+      isThreadRoot: true,
+      ts: 100,
+    });
+    const liveEvents = [seedThread];
+    const room = makeRoom({ liveEvents });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    roomThreadListThreadsMock.push({ id: seedThread.getId(), rootEvent: seedThread });
+    threadLastActivityTsMapMock.set(seedThread.getId(), 100);
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            initialViewMode: 'compact',
+            initialThreadFilterState: {
+              ...DEFAULT_THREAD_FILTER_STATE,
+              tags: new Map(),
+            },
+          })
+        );
+        await flushAsyncWork(2);
+      });
+
+      const voiceRoot = makeEvent('~voice-pending', {
+        content: {
+          body: 'voice-pending.m4a',
+          filename: 'voice-pending.m4a',
+          msgtype: 'm.audio',
+          'm.voice': {},
+          'm.audio': { duration: 1500 },
+        },
+        isSending: true,
+        ts: 0,
+        type: 'm.room.message',
+      });
+      liveEvents.push(voiceRoot);
+
+      // First dispatch: SDK signals local echo with `liveEvent: false`.
+      await act(async () => {
+        room.__listeners.get(RoomEvent.Timeline)?.(voiceRoot, room, false, false, {
+          liveEvent: false,
+        });
+        await flushAsyncWork(2);
+      });
+
+      const idsAfterLocalEcho =
+        renderer?.root.findByType(compactPlaceholderType).props.threadRootIds ?? [];
+
+      // Second dispatch: server confirmation arrives with `liveEvent: true`.
+      await act(async () => {
+        room.__listeners.get(RoomEvent.Timeline)?.(voiceRoot, room, false, false, {
+          liveEvent: true,
+        });
+        await flushAsyncWork(2);
+      });
+
+      const idsAfterServerConfirm =
+        renderer?.root.findByType(compactPlaceholderType).props.threadRootIds ?? [];
+
+      // The contract: compact card appears AFTER THE FIRST DISPATCH. If only the
+      // second dispatch surfaces it, Path A in roomLiveEventController is the bug.
+      expect(idsAfterLocalEcho).toContain(voiceRoot.getId());
+      expect(idsAfterServerConfirm).toContain(voiceRoot.getId());
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   it('preserves zero replies for recent standalone roots in the regular timeline thread badge logic', async () => {
     const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } = await import(
       '../threadBadgeViewModel'

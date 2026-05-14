@@ -2,6 +2,45 @@
 
 ## Runbook
 
+### CINNY-088 — Voice messages don't appear instantly in compact view (2026-05-13)
+
+- Status:
+  - Phase 0 SKIPPED. Bas's classic-vs-compact A/B (2026-05-13) replaced the timing diagnostic — voice appears instantly in classic view but not compact view, proving the Matrix event lands in the room timeline immediately and upload latency is not the dominant factor.
+  - Phase 1 COMPLETE. Three new tests written; outcomes recorded in `PHASE-1-RESULTS.md`.
+  - Phase 2 COMPLETE. Path A applied: `roomLiveEventController.ts:140-150` now drives a `setTimeline((ct) => ({ ...ct }))` re-render for `liveEvent: false` arrivals that are sent-but-not-yet-confirmed standalone-root candidates in the room view. The Phase 1b sequence test now PASSES and is the regression lock.
+- Phase 1 results (see `PHASE-1-RESULTS.md` for full interpretation):
+  - 1a (parametric `liveEvent: true` for `m.audio` + `m.voice`, `m.image`, `m.video`, `m.file`, encrypted-room voice): **PASS (5/5)**. Selector chain is healthy when `liveEvent: true` arrives.
+  - 1b (`liveEvent: false → liveEvent: true` sequence): **FAIL (1/1, expected)**. Compact card does NOT appear after the first dispatch — the `roomLiveEventController.ts:140` short-circuit drops local echoes.
+  - 1c (parametric predicate test for `m.text/m.audio/m.image/m.video/m.file/m.emote/m.location/io.mindroom.custom_demo`, plus `m.notice`/edit/redacted/nested-reply rejections): **PASS (13/13)**. Custom-msgtype case is the regression lock against future narrowing.
+  - JSDoc added to `isVisibleThreadTextMessageEventType` clarifying it gates on event TYPE, not `content.msgtype`. Explicitly forbids re-introducing a content-msgtype allowlist.
+- Files changed (Phase 1 commit):
+  - `FORK_CHANGES.md`
+  - `PHASE-1-RESULTS.md` (new)
+  - `src/app/mindroom/threads/threadUtils.ts` (JSDoc only)
+  - `src/app/mindroom/threads/compactThreadRootData.test.ts` (parametric predicate locks)
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts` (1a parametric, 1b sequence test)
+- Files changed (Phase 2 commit):
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/threads/roomLiveEventController.ts` (Path A fix: route compact-relevant local-echo arrivals through `setTimeline`)
+- Phase 2 fix scope (intentionally narrow):
+  - Only fires when ALL of: `!threadId` (room view, not thread view), `mEvt.isSending()` (genuine local echo, never paginated history), `isZeroReplyStandaloneThreadRootEvent(mEvt)` (compact-relevant standalone root that the predicate already accepts).
+  - Existing thread-cache persistence path (`threadCacheTargetId` branch at lines 141-148) is unchanged.
+  - Effect: forces a cheap `setTimeline((ct) => ({ ...ct }))` so the `useMindroomThreadIndex` memo chain recomputes and the compact "0 replies" card surfaces immediately on the local echo, instead of waiting for the server-confirmation `liveEvent: true` arrival.
+- Tests and validation (Phase 2):
+  - Red check: Phase 1b test (`shows a media zero-reply root in compact view after a liveEvent:false → liveEvent:true sequence`) failed before the controller fix.
+  - Green check: same test passes after the fix.
+  - Green check: full validation set passes (`compactThreadRootData.test.ts`, `compactThreadCardViewModel.test.ts`, `threadPresentation.test.ts`, `RoomTimeline.cache.test.ts`, `threadBootstrap.test.ts` — 126/126).
+  - Green check: `npm run typecheck`.
+  - Green check: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green check: `npm run build`.
+  - Pre-existing failure (out of scope, not caused by this change): `RoomTimeline.architecture.test.ts > does not keep transient implementation report files in the repo root` fails because `FINAL-PLAN.md` (and `PHASE-1-RESULTS.md`) live at the repo root for the duration of this work. Both are transient; DevAgent should remove them at squash-merge time.
+- Hard rules followed:
+  - No `STANDALONE_ROOT_MSGTYPE_ALLOWLIST` introduced.
+  - No rename of `isVisibleThreadTextMessageEventType` (JSDoc only).
+  - No change to existing `m.notice` exclusion.
+  - No change to existing CINNY-059 / `9b77c93d` test fixtures.
+  - No Phase 0 `console.time` markers shipped (Phase 0 was skipped before any instrumentation was written).
+
 ### Android build (Capacitor wrapper)
 
 Cinny ships an Android wrapper alongside the iOS one. The Android project lives
