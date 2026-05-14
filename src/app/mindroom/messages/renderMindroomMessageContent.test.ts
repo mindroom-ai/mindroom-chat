@@ -26,11 +26,12 @@ vi.mock('../../components/message', () => ({
       renderBody({ body: typeof content.body === 'string' ? content.body : '' }),
       renderAfterBody
     ),
-  MText: ({ content, renderAfterBody, renderBody }: any) =>
+  MText: ({ content, renderAfterBody, renderBody, renderStateSuffix }: any) =>
     React.createElement(
       'div',
       { 'data-renderer': 'text' },
       renderBody({ body: typeof content.body === 'string' ? content.body : '' }),
+      renderStateSuffix?.(),
       renderAfterBody
     ),
   RenderBody: ({ body }: { body: string }) => React.createElement('span', null, body),
@@ -92,6 +93,11 @@ vi.mock('./StreamingIndicator', () => ({
     React.createElement('span', { 'data-renderer': 'streaming' }),
 }));
 
+vi.mock('./MindroomThinkingPlaceholder', () => ({
+  MindroomThinkingPlaceholder: () =>
+    React.createElement('span', { 'data-renderer': 'thinking-placeholder' }, 'Making progress'),
+}));
+
 vi.mock('./MindroomMessageExtras.css.ts', () => ({
   Extras: 'Extras',
   Section: 'Section',
@@ -139,6 +145,67 @@ const renderNode = async (
 };
 
 describe('renderMindroomMessageContent', () => {
+  it('renders the animated MindRoom thinking placeholder for exact active Thinking... messages', async () => {
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      content: {
+        msgtype: 'm.text',
+        body: 'Thinking...',
+        'io.mindroom.stream_status': 'streaming',
+      },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('thinking-placeholder');
+    expect(rendered).toContain('Making progress');
+    expect(rendered).not.toContain('Thinking...');
+    expect(rendered).not.toContain('streaming');
+
+    renderer.unmount();
+  });
+
+  it('keeps terminal Thinking... messages on the normal text renderer', async () => {
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      content: {
+        msgtype: 'm.text',
+        body: 'Thinking...',
+        'io.mindroom.stream_status': 'completed',
+      },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('data-renderer');
+    expect(rendered).toContain('text');
+    expect(rendered).toContain('Thinking...');
+    expect(rendered).not.toContain('thinking-placeholder');
+    expect(rendered).not.toContain('streaming');
+
+    renderer.unmount();
+  });
+
+  it('keeps non-placeholder streaming text on the normal text renderer with the streaming suffix', async () => {
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      content: {
+        msgtype: 'm.text',
+        body: 'The actual answer has started',
+        'io.mindroom.stream_status': 'streaming',
+      },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('text');
+    expect(rendered).toContain('The actual answer has started');
+    expect(rendered).toContain('streaming');
+    expect(rendered).not.toContain('thinking-placeholder');
+
+    renderer.unmount();
+  });
+
   it('renders normal text body unchanged when extras are disabled', async () => {
     const renderer = await renderNode({
       msgType: 'm.text',
