@@ -2,6 +2,38 @@
 
 ## Runbook
 
+### CINNY-091 - Members drawer invite entry point (2026-05-14)
+
+- Status:
+  - Complete.
+- Summary:
+  - Added a members-drawer header invite icon for wide room layouts.
+  - The icon opens the existing `InviteUserPrompt`, matching the current room
+    menu invite dialogue path.
+  - The button uses the room invite permission gate and is disabled when the
+    current user cannot invite.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/features/room/MembersDrawer.tsx`
+  - `src/app/features/room/MembersDrawer.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/features/room/MembersDrawer.test.ts`
+    failed while the member drawer had no `aria-label="Invite people"` button.
+  - Green check: `npm test -- src/app/features/room/MembersDrawer.test.ts`.
+  - Green check:
+    `npx prettier --check FORK_CHANGES.md src/app/features/room/MembersDrawer.tsx src/app/features/room/MembersDrawer.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm run lint` (16 warnings, 0 errors - pre-existing
+    baseline).
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npm test` passed (`292` files, `2153` tests) with existing
+    `--localstorage-file` and React Router future-flag warnings.
+  - Green check: `git diff --check`.
+  - Independent review: second self-review of the final diff found no issues;
+    subagent review was not used because this session was not explicitly
+    authorized to spawn agents.
+
 ### CINNY-090 - Configurable Threads sidebar entry point (2026-05-14)
 
 - Status:
