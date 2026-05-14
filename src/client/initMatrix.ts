@@ -8,7 +8,12 @@ import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import { clearSecretStorageKeys, cryptoCallbacks } from './secretStorageKeys';
 import { clearNavToActivePathStore } from '../app/state/navToActivePath';
 import { createMatrixClient } from '../app/mindroom/matrix/matrixClientFactory';
-import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
+import {
+  appUrl,
+  ensureBasePathTrailingSlash,
+  getAppBasePath,
+  normalizeBasePath,
+} from '../app/utils/basePath';
 import {
   MINDROOM_SINGLETON_INDEXED_DB_NAMES,
   clearMindroomInMemoryCaches,
@@ -150,6 +155,7 @@ const deleteNamedDatabases = async (names: string[]): Promise<void> => {
 
 const getCacheBustedAppReloadTarget = (appBasePath: string): string => {
   const reloadUrl = new URL(appBasePath, window.location.origin);
+  reloadUrl.pathname = ensureBasePathTrailingSlash(normalizeBasePath(reloadUrl.pathname));
   reloadUrl.searchParams.set('clear_cache', `${Date.now()}`);
   return `${reloadUrl.pathname}${reloadUrl.search}${reloadUrl.hash}`;
 };

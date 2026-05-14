@@ -2,6 +2,41 @@
 
 ## Runbook
 
+### CINNY-089 - Logout cache-bust reload keeps hosted subpath slash (2026-05-14)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigated a hosted logout/exported-error case where React Router raised
+    `No route matches URL "/mindroom"` after browser storage cleanup.
+  - Root cause: cache-busted reloads used the normalized app base path directly,
+    so a hosted `/mindroom` runtime base produced `/mindroom?clear_cache=...`
+    instead of `/mindroom/?clear_cache=...`.
+  - The edge normally redirects `/mindroom` to `/mindroom/`, but cleanup flows can
+    expose the bare path to client routing or stale browser state before the
+    network redirect protects it.
+  - Fix: `getCacheBustedAppReloadTarget` now normalizes the URL pathname and
+    forces the app-base trailing slash before adding `clear_cache`, while
+    preserving query params and root deployments.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/client/initMatrix.ts`
+  - `src/client/initMatrix.test.ts`
+- Tests and validation:
+  - Red check:
+    `npm test -- src/client/initMatrix.test.ts -t "cache-busted app base path|existing app-base query"`
+    failed while reloads still targeted `/mindroom?...`.
+  - Green check:
+    `npm test -- src/client/initMatrix.test.ts -t "cache-busted app base path|existing app-base query"`.
+  - Green check: `npm test -- src/client/initMatrix.test.ts`.
+  - Green check:
+    `npx prettier --check FORK_CHANGES.md src/client/initMatrix.ts src/client/initMatrix.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm run lint` (16 warnings, 0 errors - pre-existing
+    baseline).
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+
 ### MindRoom streaming thinking placeholder (2026-05-14)
 
 - Status:
