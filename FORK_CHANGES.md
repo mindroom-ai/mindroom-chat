@@ -2,6 +2,81 @@
 
 ## Runbook
 
+### MindRoom streaming thinking placeholder (2026-05-14)
+
+- Status:
+  - Complete.
+- Summary:
+  - Replaced only active MindRoom streaming messages whose effective text body is
+    exactly `Thinking...` with a dedicated animated placeholder.
+  - The placeholder rotates through short progress messages (`Making progress`,
+    `Almost there`, `Boosting the GPUs`, `Checking the thread`,
+    `Composing the reply`) and applies a moving text glow with a reduced-motion
+    fallback.
+  - Follow-up: placeholder messages are now runtime-configurable through
+    `config.json` as `mindroom.thinkingPlaceholderMessages`; blank/non-string
+    entries are ignored and the built-in messages are used when no configured
+    copy remains.
+  - Follow-up: expanded the default configured placeholder copy with additional
+    playful token/GPU/context messages and Matrix-specific room, event,
+    homeserver, federation, and timeline messages.
+  - Follow-up: the animated placeholder now renders through the normal `MText`
+    message body path, inherits standard message typography, keeps only bold
+    weight plus shimmer styling, and rotates configured copy every 3.6 seconds.
+  - Follow-up: MindRoom's real initial placeholder metadata uses
+    `io.mindroom.stream_status: "pending"`, so Cinny now treats `pending` as an
+    active stream status instead of leaving the initial `Thinking...` as plain
+    text.
+  - Non-placeholder streaming text keeps the normal message renderer plus the
+    existing streaming suffix, and terminal `Thinking...` messages remain plain
+    text.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `README.md`
+  - `config.json`
+  - `src/app/hooks/useClientConfig.ts`
+  - `src/app/mindroom/messages/aiRun.ts`
+  - `src/app/mindroom/messages/aiRun.test.ts`
+  - `src/app/mindroom/messages/MindroomThinkingPlaceholder.css.ts`
+  - `src/app/mindroom/messages/MindroomThinkingPlaceholder.tsx`
+  - `src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts`
+  - `src/app/mindroom/messages/thinkingPlaceholder.ts`
+  - `src/app/mindroom/messages/thinkingPlaceholder.test.ts`
+  - `src/app/mindroom/messages/renderMindroomMessageContent.tsx`
+  - `src/app/mindroom/messages/renderMindroomMessageContent.test.ts`
+- Tests and validation:
+  - Red check:
+    `npm test -- src/app/mindroom/messages/renderMindroomMessageContent.test.ts`
+    failed while active `Thinking...` still rendered as normal text with the old
+    streaming dots.
+  - Follow-up red check:
+    `npm test -- src/app/mindroom/messages/aiRun.test.ts src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`
+    failed while `pending` stream status was inactive, the configurable message
+    resolver did not exist, and the placeholder ignored runtime config.
+  - Green check:
+    `npm test -- src/app/mindroom/messages/aiRun.test.ts src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts src/app/mindroom/messages/thinkingPlaceholder.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check:
+    `npx prettier --check FORK_CHANGES.md README.md config.json src/app/hooks/useClientConfig.ts src/app/mindroom/messages/aiRun.ts src/app/mindroom/messages/aiRun.test.ts src/app/mindroom/messages/MindroomThinkingPlaceholder.tsx src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts src/app/mindroom/messages/thinkingPlaceholder.ts src/app/mindroom/messages/thinkingPlaceholder.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`.
+  - Green check: `npm run lint` (16 warnings, 0 errors — pre-existing
+    baseline).
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npm test` passed (`290` files, `2149` tests) with existing
+    `--localstorage-file` and React Router future-flag warnings.
+  - Local dev-server check: `curl -fsS http://localhost:8081/config.json`
+    served the new `mindroom.thinkingPlaceholderMessages` block.
+  - Follow-up green check:
+    `npm test -- src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`.
+  - Follow-up green check:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/messages/MindroomThinkingPlaceholder.css.ts src/app/mindroom/messages/MindroomThinkingPlaceholder.tsx src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts src/app/mindroom/messages/renderMindroomMessageContent.tsx src/app/mindroom/messages/renderMindroomMessageContent.test.ts`.
+  - Follow-up green check: `npm run typecheck`.
+  - Follow-up green check: `npm run lint` (16 warnings, 0 errors -
+    pre-existing baseline).
+  - Follow-up green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `git diff --check`.
+
 ### CINNY-088 — Voice messages don't appear instantly in compact view (2026-05-13)
 
 - Status:
@@ -172,6 +247,7 @@ uploads it as the `cinny-android-debug-apk` workflow artifact (14-day retention)
   - Green check: `npm test` passed (`276` files, `2057` tests).
   - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
   - Green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+
 ### iOS saved-token startup blank shell guard (2026-05-12)
 
 - Status:
@@ -385,6 +461,7 @@ uploads it as the `cinny-android-debug-apk` workflow artifact (14-day retention)
   - `src/app/components/message/content/VoiceAudioContent.sourceIdentity.test.ts`
   - `src/app/components/message/content/VoiceAudioContent.mediaElement.test.ts`
 - Tests and validation:
+
   - Red check: `npm test -- src/app/components/message/MsgTypeRenderers.audio.test.ts` failed while non-voice `m.audio` still rendered the old generic audio UI.
   - Red check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts -t "More menu"` failed while the compact player had no More menu/download affordance.
   - Green check: `npm test -- src/app/components/message/MsgTypeRenderers.audio.test.ts`.
