@@ -1,8 +1,5 @@
 import { useLayoutEffect, useMemo } from 'react';
-import {
-  makeRecentThreadsAtom,
-  registerRecentThreadsAtom,
-} from '../recent-threads/recentThreads';
+import { makeRecentThreadsAtom, registerRecentThreadsAtom } from '../recent-threads/recentThreads';
 import {
   makeRecentThreadsPanelHeightAtom,
   registerRecentThreadsPanelHeightAtom,
@@ -11,15 +8,18 @@ import {
   makeRecentThreadsPanelMobileExpandedAtom,
   registerRecentThreadsPanelMobileExpandedAtom,
 } from '../recent-threads/recentThreadsPanelMobileExpanded';
+import {
+  makeCrossRoomThreadFiltersAtom,
+  registerCrossRoomThreadFiltersAtom,
+} from '../cross-room-threads/crossRoomThreadFilters';
 import { makeLastOpenThreadAtom, registerLastOpenThreadAtom } from '../threads/lastOpenThread';
 
 export type MindroomClientStorageAtoms = {
   lastOpenThreadAtom: ReturnType<typeof makeLastOpenThreadAtom>;
   recentThreadsAtom: ReturnType<typeof makeRecentThreadsAtom>;
   recentThreadsPanelHeightAtom: ReturnType<typeof makeRecentThreadsPanelHeightAtom>;
-  recentThreadsPanelMobileExpandedAtom: ReturnType<
-    typeof makeRecentThreadsPanelMobileExpandedAtom
-  >;
+  recentThreadsPanelMobileExpandedAtom: ReturnType<typeof makeRecentThreadsPanelMobileExpandedAtom>;
+  crossRoomThreadFiltersAtom: ReturnType<typeof makeCrossRoomThreadFiltersAtom>;
 };
 
 export const makeMindroomClientStorageAtoms = (userId: string): MindroomClientStorageAtoms => ({
@@ -27,6 +27,7 @@ export const makeMindroomClientStorageAtoms = (userId: string): MindroomClientSt
   recentThreadsAtom: makeRecentThreadsAtom(userId),
   recentThreadsPanelHeightAtom: makeRecentThreadsPanelHeightAtom(userId),
   recentThreadsPanelMobileExpandedAtom: makeRecentThreadsPanelMobileExpandedAtom(userId),
+  crossRoomThreadFiltersAtom: makeCrossRoomThreadFiltersAtom(userId),
 });
 
 export const registerMindroomClientStorageAtoms = ({
@@ -34,6 +35,7 @@ export const registerMindroomClientStorageAtoms = ({
   recentThreadsAtom,
   recentThreadsPanelHeightAtom,
   recentThreadsPanelMobileExpandedAtom,
+  crossRoomThreadFiltersAtom,
 }: MindroomClientStorageAtoms): (() => void) => {
   const unregisterLastOpenThreadAtom = registerLastOpenThreadAtom(lastOpenThreadAtom);
   const unregisterRecentThreadsAtom = registerRecentThreadsAtom(recentThreadsAtom);
@@ -42,8 +44,12 @@ export const registerMindroomClientStorageAtoms = ({
   );
   const unregisterRecentThreadsPanelMobileExpandedAtom =
     registerRecentThreadsPanelMobileExpandedAtom(recentThreadsPanelMobileExpandedAtom);
+  const unregisterCrossRoomThreadFiltersAtom = registerCrossRoomThreadFiltersAtom(
+    crossRoomThreadFiltersAtom
+  );
 
   return () => {
+    unregisterCrossRoomThreadFiltersAtom();
     unregisterRecentThreadsPanelMobileExpandedAtom();
     unregisterRecentThreadsPanelHeightAtom();
     unregisterRecentThreadsAtom();

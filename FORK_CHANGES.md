@@ -910,6 +910,54 @@ uploads it as the `cinny-android-debug-apk` workflow artifact (14-day retention)
 - Ranking uses Fuse weighted across `displayName | localpart | userId` with deterministic exact > prefix > contains > Fuse > userId.localeCompare buckets running over all matches before the visible-limit slice, so an exact MXID is never truncated away.
 - The shared `AutocompleteMenu` from `src/app/components/editor/autocomplete/` was deliberately not modified; the duplication is a known follow-up if a third caller appears.
 
+### CINNY-102 Round 9 fix cycle (2026-05-07)
+
+- Summary:
+  - Kept `ThreadsView` in the loading state until the cross-room index bootstrap is complete, even when dirty thread events have already inserted partial rows.
+  - Routed cross-room thread filter changes through functional updates, including the persisted filter atom, so debounced CSV/search commits merge with the latest filters instead of overwriting each other from stale render closures.
+  - Made replacement mention extraction explicit for `m.replace` wrappers, preferring `m.new_content.m.mentions` for root and visible-reply involvement checks.
+  - Added a 250-entry eviction slack band so the cross-room index batch-evicts back to `MAX_CROSS_ROOM_INDEX_ENTRIES` only after the cap plus slack is exceeded.
+- Files changed:
+  - `src/app/pages/client/threads/ThreadsView.tsx`
+  - `src/app/pages/client/threads/__tests__/ThreadsView.test.ts`
+  - `src/app/pages/client/threads/FilterBar.tsx`
+  - `src/app/pages/client/threads/__tests__/FilterBar.test.ts`
+  - `src/app/mindroom/cross-room-threads/crossRoomThreadFilters.ts`
+  - `src/app/mindroom/cross-room-threads/crossRoomThreadIndex.ts`
+  - `src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts`
+  - `src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts`
+- Tests and validation:
+  - `npm test -- --run src/app/pages/client/threads/__tests__/ThreadsView.test.ts`
+  - `npm test -- --run src/app/pages/client/threads/__tests__/FilterBar.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/ src/app/pages/client/threads/` passed (`10` files, `59` tests).
+  - `npm test -- --run` passed (`271` files, `2022` tests).
+  - `npm run typecheck && npm run lint && npm run build` passed; lint still reports the existing warning-only baseline (`17` warnings, `0` errors), and build still reports the existing Vite/runtime-config/sourcemap/chunk-size warnings.
+
+### CINNY-102 Round 8 fix cycle (2026-05-07)
+
+- Summary:
+  - Fixed cross-room thread CSV filter inputs so room IDs, space IDs, included tags, and excluded tags keep raw local draft text while typing. Parsed, deduped arrays now commit only on blur or after the existing 250 ms debounce, and parent rerenders with the parsed value no longer strip a trailing comma/space from the active draft.
+  - Kept cross-room thread index `bootstrapped` strictly tied to lazy bootstrap queue completion. Dirty thread flushes can update entries before bootstrap completes, but they no longer switch the Threads view out of the loading state early.
+  - Added a per-room event-id reverse index to cross-room thread snapshots. Upserts index each entry by root and visible reply event ids; removes, room cleanup, and cap eviction clean the reverse index. Decrypted events and reply-targeted edit fan-out now resolve affected thread roots through that reverse index instead of scanning every tracked entry in the room.
+- Files changed:
+  - `src/app/pages/client/threads/FilterBar.tsx`
+  - `src/app/pages/client/threads/__tests__/FilterBar.test.ts`
+  - `src/app/mindroom/cross-room-threads/crossRoomThreadIndex.ts`
+  - `src/app/mindroom/cross-room-threads/useCrossRoomThreadIndex.ts`
+  - `src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts`
+  - `src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts`
+  - `src/app/pages/client/threads/__tests__/Threads.test.ts`
+  - `src/app/pages/client/threads/__tests__/ThreadsView.test.ts`
+- Tests and validation:
+  - `npm test -- --run src/app/pages/client/threads/__tests__/FilterBar.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/ src/app/pages/client/threads/`
+  - `npm test -- --run` passed (`271` files, `2018` tests).
+  - `npm run typecheck && npm run lint && npm run build` passed; lint still reports the existing warning-only baseline (`17` warnings, `0` errors), and build still reports the existing Vite/runtime-config/sourcemap/chunk-size warnings.
+  - Independent explorer review initially caught the CSV parent-rerender clobber path; follow-up fixed it and re-review reported no remaining blocker/major findings.
+
 ### Thread card stale summary message count (2026-05-07)
 
 - Summary:
@@ -1052,6 +1100,94 @@ uploads it as the `cinny-android-debug-apk` workflow artifact (14-day retention)
   - Step 5 documented the delivery and removed root `FINAL-PLAN.md` from the final tree while preserving it in branch history as the first implementation-branch commit.
 - Validation so far:
   - Per-step gates have passed with the existing lint warning baseline (`17` warnings, `0` errors): `npm run lint`, `npm run typecheck`, and focused Vitest runs for the new test files.
+
+### CINNY-102 cross-room Threads tab implementation (2026-05-07)
+
+- Summary:
+  - Added a protected top-level `/threads/` route registered before the `SPACE_PATH` catch-all, plus a primary sidebar `ThreadsTab` after `DirectTab` and mobile top-level route recognition.
+  - Added a route-mounted cross-room thread index under `src/app/mindroom/cross-room-threads/`. The index lazily scans already-loaded joined room threads while the Threads view is mounted, prioritizes recent-thread rooms, batches dirty thread updates with a microtask coalescer, recomputes involvement on decrypt events, and caps entries at `MAX_CROSS_ROOM_INDEX_ENTRIES = 5000` by oldest activity.
+  - Added versioned per-user filter persistence at `crossRoomThreadFilters:${userId}` with storage registration and logout cleanup through the existing MindRoom cache/session cleanup paths.
+  - Added the Threads page, filter bar, mobile bottom sheet, virtualized list, and row wrapper around unchanged `CompactThreadCard`. Row clicks call `navigateRoomThread(roomId, threadRootId)`.
+  - Free-text filtering uses each entry's precomputed root-preview + summary haystack only; reply bodies are not scanned.
+  - Added an architecture gate for the new cross-room threads surface that blocks PWA reload hazards, service-worker/file-input/back-handler regressions, accidental hook-based card model use, and reply/body search drift.
+  - Removed the transient root `FINAL-PLAN.md` artifact after implementation so the existing repository architecture guard remains green.
+- Files changed:
+  - `src/app/pages/paths.ts`
+  - `src/app/pages/pathUtils.ts`
+  - `src/app/pages/Router.tsx`
+  - `src/app/pages/MobileFriendly.tsx`
+  - `src/app/pages/client/SidebarNav.tsx`
+  - `src/app/pages/client/sidebar/index.ts`
+  - `src/app/pages/client/sidebar/ThreadsTab.tsx`
+  - `src/app/pages/client/threads/*`
+  - `src/app/hooks/router/useThreadsSelected.ts`
+  - `src/app/mindroom/cross-room-threads/*`
+  - `src/app/mindroom/cache/clientStorageAtoms.ts`
+  - `src/app/mindroom/cache/sessionCleanup.ts`
+- Tests and validation:
+  - `npm test -- --run src/app/pages/client/threads/__tests__/Threads.route.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadFilters.test.ts src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadFilterPipeline.test.ts`
+  - `npm test -- --run src/app/pages/client/threads/__tests__/FilterBar.test.ts src/app/pages/client/threads/__tests__/ThreadsView.test.ts src/app/pages/client/threads/__tests__/ThreadsViewRow.test.ts`
+  - `npm test -- --run src/app/hooks/router/useThreadsSelected.test.ts src/app/pages/client/threads/__tests__/Threads.route.test.ts`
+  - `npm test -- --run src/app/mindroom/cache/clientStorageAtoms.test.ts src/app/mindroom/cache/sessionCleanup.test.ts src/app/mindroom/cross-room-threads/__tests__/crossRoomThreads.architecture.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` (passes with existing warnings outside CINNY-102)
+  - `npm run build`
+  - `npm test -- --run`
+- Round 1 fix cycle:
+  - Removed the live `RoomEvent.Timeline` listener from the cross-room thread index so plain room messages cannot be indexed as fake cross-room thread rows; thread updates now rely on Matrix `ThreadEvent.*`, while decrypt handling only dirties real thread relations.
+  - Subscribed indexed joined rooms to `threadSummaryState` so cached or later-arriving summaries dirty the room's thread rows and immediately refresh `summaryText` and free-text search haystacks.
+  - Routed `ThreadEvent.Delete` through row removal instead of the upsert path, and made dirty flushes remove existing rows when a thread root can no longer be rebuilt.
+  - Added cleanup guards for queued dirty microtasks: hook cleanup marks the effect disposed, clears queued dirty keys, and drops writes if the mounted session/user no longer matches the Matrix client user.
+  - Decoupled listener registration from `recentThreads` changes by keeping recent-thread bootstrap ordering in a ref.
+  - Added focused regressions for plain live messages, async summary-state refresh, thread deletion, stale dirty rebuild removal, queued writes after unmount/account switch, and recent-thread listener churn.
+- Round 1 validation:
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts`
+  - `npm test -- --run` passed (`262` files, `1963` tests).
+  - `npm run typecheck && npm run lint && npm run build` passed; lint still reports the existing warning-only baseline (`17` warnings, `0` errors), and build still reports the existing Vite/runtime-config/sourcemap/chunk-size warnings.
+  - `git diff --check`
+- Round 2 fix cycle:
+  - Decrypted thread roots now dirty tracked cross-room entries whose root event id matches the decrypted event, and decrypted visible replies dirty their containing tracked thread entries so rebuilt root previews, summaries, searchable text, and involvement state reflect decrypted content.
+  - Reintroduced a filtered `RoomEvent.Timeline` listener only for true thread relations and `m.replace` edits targeting already tracked thread roots; root preview/search text now reads effective replacement content through `replacingEvent()`.
+  - Joined-room diff handling now owns per-room listener disposers in a ref, attaches/detaches only added/removed rooms, removes index rows when rooms leave the joined set, and prevents queued/global dirty paths from resurrecting detached rooms.
+  - Cross-room index snapshots are cleared in a layout effect on mount/session/user/client changes so previous-account entries are gone before the next account bootstrap can paint.
+  - Empty/initializing user ids now receive fresh ephemeral cross-room filter atoms instead of a shared cached storage atom.
+  - Added focused regressions for decrypted root content/search, decrypted visible-reply involvement refresh, root `m.replace` edits, joined-room removal cleanup and resurrection prevention, account-switch reset, diffed listener registration, and empty-user filter atom isolation.
+- Round 2 validation:
+  - Independent explorer review found two initial gaps (removed-room dirty resurrection and edit tests mutating the root instead of using `replacingEvent()`); both were fixed before final validation.
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadFilters.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadFilters.test.ts`
+  - `npm test -- --run` passed (`262` files, `1971` tests).
+  - `npm run typecheck && npm run lint && npm run build` passed; lint still reports the existing warning-only baseline (`17` warnings, `0` errors), and build still reports the existing Vite/runtime-config/sourcemap/chunk-size warnings.
+- Round 3 fix cycle:
+  - Involvement checks now use effective replacement content for roots and visible replies, so `m.replace` edits that add or remove `m.mentions.user_ids` update `isInvolved`.
+  - Direct `user_ids` mentions now count even when `m.mentions.room` is also true.
+  - Reply-targeted `m.replace` timeline events now dirty the containing tracked thread entry instead of only supporting root-targeted edits.
+  - Newly added joined rooms are scanned for existing threads immediately after bootstrap has completed, so their existing threads appear without waiting for a later `ThreadEvent.New`.
+  - Cross-room thread search `query` is now local in memory and excluded from persisted filter storage, preventing cross-tab `storage` events from replacing in-progress typing.
+  - V2 follow-up: consider transitive space filtering and index refreshes when space membership changes; direct parent-space matching remains the v1 behavior.
+- Round 3 validation:
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadFilters.test.ts`
+  - `npm test -- --run src/app/mindroom/cache/clientStorageAtoms.test.ts src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadFilters.test.ts`
+  - `npm test -- --run` passed (`262` files, `1975` tests).
+  - `npm run typecheck && npm run lint && npm run build` passed; lint still reports the existing warning-only baseline (`17` warnings, `0` errors), and build still reports the existing Vite/runtime-config/sourcemap/chunk-size warnings.
+- Round 4 fix cycle:
+  - Decrypted encrypted `m.replace` events now inspect decrypted `m.relates_to` content and dirty tracked thread-root rows, so root preview/search text updates after decrypt.
+  - Cross-room thread filter clearing now resets the debounced local search input together with persisted filter axes; the empty-state Clear filters path is covered end to end.
+  - Pending local-echo thread roots are rejected before dirty enqueue/build, preventing phantom `~...` root ids from entering the cross-room index before the server event id arrives.
+  - Space-membership filtering behavior remains untouched pending Bas's scope decision.
+- Round 4 validation:
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts src/app/pages/client/threads/__tests__/FilterBar.test.ts src/app/pages/client/threads/__tests__/Threads.test.ts`
+  - `npm test -- --run` passed (`263` files, `1979` tests).
+  - `npm run typecheck && npm run lint && npm run build` passed; lint still reports the existing warning-only baseline (`17` warnings, `0` errors), and build still reports the existing Vite/runtime-config/sourcemap/chunk-size warnings.
+- Round 7 fix cycle:
+  - Decrypted encrypted `m.replace` events targeting visible replies now dirty the tracked cross-room thread row containing that reply, matching the plaintext timeline replacement path. Root-targeted encrypted edits still enqueue the root row directly.
+  - Added a focused regression covering an encrypted replacement that targets a visible summary reply, adds a direct mention of the current user, and changes the indexed search haystack after decrypt.
+- Round 7 validation:
+  - `npm test -- --run src/app/mindroom/cross-room-threads/` passed (`5` files, `39` tests).
+  - `npm test -- --run` passed (`271` files, `2014` tests).
+  - `npm run typecheck && npm run lint && npm run build` passed; lint still reports the existing warning-only baseline (`17` warnings, `0` errors), and build still reports the existing Vite/runtime-config/sourcemap/chunk-size warnings.
 
 ### Avatar upload 413 error handling (2026-05-06)
 

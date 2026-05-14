@@ -19,6 +19,7 @@ import {
   REGISTER_PATH,
   RESET_PASSWORD_PATH,
   SPACE_PATH,
+  THREADS_PATH,
   _CREATE_PATH,
   _FEATURED_PATH,
   _INVITES_PATH,
@@ -30,17 +31,14 @@ import {
   _SERVER_PATH,
   CREATE_PATH,
 } from './paths';
-import {
-  getExploreFeaturedPath,
-  getInboxNotificationsPath,
-  getSpaceLobbyPath,
-} from './pathUtils';
+import { getExploreFeaturedPath, getInboxNotificationsPath, getSpaceLobbyPath } from './pathUtils';
 import { ClientBindAtoms, ClientLayout, ClientRoot } from './client';
 import { Home, HomeRouteRoomProvider, HomeSearch } from './client/home';
 import { Direct, DirectCreate, DirectRouteRoomProvider } from './client/direct';
 import { RouteSpaceProvider, Space, SpaceRouteRoomProvider, SpaceSearch } from './client/space';
 import { Explore, FeaturedRooms, PublicRooms } from './client/explore';
 import { Notifications, Inbox, Invites } from './client/inbox';
+import { Threads } from './client/threads';
 import { setAfterLoginRedirectPath } from './afterLoginRedirectPath';
 import { Lobby } from '../features/lobby';
 import { WelcomePage } from './client/WelcomePage';
@@ -210,6 +208,7 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
             }
           />
         </Route>
+        <Route path={THREADS_PATH} element={<Threads />} />
         <Route
           path={SPACE_PATH}
           element={

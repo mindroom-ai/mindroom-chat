@@ -16,6 +16,7 @@ import {
   SettingsTab,
   UnverifiedTab,
   SearchTab,
+  ThreadsTab,
 } from './sidebar';
 import { CreateTab } from './sidebar/CreateTab';
 import { useClientConfig } from '../../hooks/useClientConfig';
@@ -37,6 +38,7 @@ export function SidebarNav() {
             <SidebarStack>
               <HomeTab />
               <DirectTab />
+              <ThreadsTab />
             </SidebarStack>
             <SpaceTabs scrollRef={scrollRef} />
             <SidebarStackSeparator />

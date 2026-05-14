@@ -22,6 +22,7 @@ import {
   SPACE_PATH,
   SPACE_ROOM_PATH,
   SPACE_SEARCH_PATH,
+  THREADS_PATH,
   CREATE_PATH,
 } from './paths';
 import { trimLeadingSlash, trimTrailingSlash } from '../utils/common';
@@ -113,6 +114,8 @@ export const getDirectRoomPath = (roomIdOrAlias: string, eventId?: string): stri
 
   return generatePath(DIRECT_ROOM_PATH, params);
 };
+
+export const getThreadsPath = (): string => THREADS_PATH;
 
 export const getSpacePath = (spaceIdOrAlias: string): string => {
   const params = {
