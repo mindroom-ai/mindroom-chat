@@ -42,6 +42,7 @@ export type ClientConfig = {
   };
 
   sidebar?: {
+    showThreads?: boolean;
     showExploreCommunity?: boolean;
     showAddSpace?: boolean;
     showMindRoom?: boolean;

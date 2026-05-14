@@ -65,7 +65,8 @@ Notable options:
 - auth behavior (including `allowRegistration`, support/privacy/terms links),
 - splash loading copy via `splash.loadingMessages`,
 - MindRoom placeholder copy via `mindroom.thinkingPlaceholderMessages`,
-- sidebar and welcome-page behavior.
+- sidebar entry points including `sidebar.showThreads`,
+- welcome-page behavior.
 
 ## Self-Hosting
 

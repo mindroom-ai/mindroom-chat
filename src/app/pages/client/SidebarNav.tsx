@@ -26,6 +26,7 @@ export function SidebarNav() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { sidebar } = useClientConfig();
   // Allow deployments to hide optional sidebar entry points.
+  const showThreads = sidebar?.showThreads ?? true;
   const showExploreCommunity = sidebar?.showExploreCommunity ?? true;
   const showAddSpace = sidebar?.showAddSpace ?? true;
   const showMindRoom = sidebar?.showMindRoom ?? true;
@@ -38,7 +39,7 @@ export function SidebarNav() {
             <SidebarStack>
               <HomeTab />
               <DirectTab />
-              <ThreadsTab />
+              {showThreads && <ThreadsTab />}
             </SidebarStack>
             <SpaceTabs scrollRef={scrollRef} />
             <SidebarStackSeparator />

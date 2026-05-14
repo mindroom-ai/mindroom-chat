@@ -2,6 +2,44 @@
 
 ## Runbook
 
+### CINNY-090 - Configurable Threads sidebar entry point (2026-05-14)
+
+- Status:
+  - Complete.
+- Summary:
+  - Added deployment config `sidebar.showThreads` to control whether the
+    top-level Threads sidebar button is shown.
+  - The flag defaults to `true`, preserving current behavior unless a deployment
+    explicitly sets it to `false`.
+  - The `/threads/` route remains registered; this only hides the primary
+    sidebar entry point, matching the requested lightweight disable behavior.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `README.md`
+  - `config.json`
+  - `src/app/hooks/useClientConfig.ts`
+  - `src/app/pages/client/SidebarNav.tsx`
+  - `src/app/pages/client/SidebarNav.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/pages/client/SidebarNav.test.ts` failed
+    while `sidebar.showThreads: false` still rendered the Threads tab.
+  - Green check: `npm test -- src/app/pages/client/SidebarNav.test.ts`.
+  - Green check:
+    `npm test -- src/app/pages/client/SidebarNav.test.ts src/app/pages/client/threads/__tests__/Threads.route.test.ts`.
+  - Green check: `node -e "JSON.parse(require('fs').readFileSync('config.json','utf8')); console.log('config ok')"`.
+  - Green check: `npm run typecheck`.
+  - Green check:
+    `npx prettier --check FORK_CHANGES.md README.md config.json src/app/hooks/useClientConfig.ts src/app/pages/client/SidebarNav.tsx src/app/pages/client/SidebarNav.test.ts`.
+  - Green check: `git diff --check`.
+  - Green check: `npm test` passed (`291` files, `2151` tests) with existing
+    `--localstorage-file` and React Router future-flag warnings.
+  - Green check: `npm run lint` (16 warnings, 0 errors - pre-existing
+    baseline).
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Local dev-server check: `curl -fsS http://localhost:8081/config.json | rg 'showThreads'`
+    served `"showThreads": true`.
+
 ### CINNY-089 - Logout cache-bust reload keeps hosted subpath slash (2026-05-14)
 
 - Status:
