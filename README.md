@@ -64,6 +64,7 @@ Notable options:
 - homeserver defaults and allowed-server policy,
 - auth behavior (including `allowRegistration`, support/privacy/terms links),
 - splash loading copy via `splash.loadingMessages`,
+- MindRoom placeholder copy via `mindroom.thinkingPlaceholderMessages`,
 - sidebar and welcome-page behavior.
 
 ## Self-Hosting

@@ -2,6 +2,35 @@
 
 ## Runbook
 
+### CINNY-089 - Logout cache-bust reload keeps hosted subpath slash (2026-05-14)
+
+- Status:
+  - In progress.
+- Summary:
+  - Investigated a hosted logout/exported-error case where React Router raised
+    `No route matches URL "/mindroom"` after browser storage cleanup.
+  - Root cause: cache-busted reloads used the normalized app base path directly,
+    so a hosted `/mindroom` runtime base produced `/mindroom?clear_cache=...`
+    instead of `/mindroom/?clear_cache=...`.
+  - The edge normally redirects `/mindroom` to `/mindroom/`, but cleanup flows can
+    expose the bare path to client routing or stale browser state before the
+    network redirect protects it.
+  - Fix: `getCacheBustedAppReloadTarget` now normalizes the URL pathname and
+    forces the app-base trailing slash before adding `clear_cache`, while
+    preserving query params and root deployments.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/client/initMatrix.ts`
+  - `src/client/initMatrix.test.ts`
+- Tests and validation:
+  - Red check:
+    `npm test -- src/client/initMatrix.test.ts -t "cache-busted app base path|existing app-base query"`
+    failed while reloads still targeted `/mindroom?...`.
+  - Green check:
+    `npm test -- src/client/initMatrix.test.ts -t "cache-busted app base path|existing app-base query"`.
+  - Green check: `npm test -- src/client/initMatrix.test.ts`.
+  - Pending: `npm run typecheck`, `npm run lint`, and `npm run build`.
+
 ### MindRoom streaming thinking placeholder (2026-05-14)
 
 - Status:
@@ -13,13 +42,27 @@
     `Almost there`, `Boosting the GPUs`, `Checking the thread`,
     `Composing the reply`) and applies a moving text glow with a reduced-motion
     fallback.
+  - Follow-up: placeholder messages are now runtime-configurable through
+    `config.json` as `mindroom.thinkingPlaceholderMessages`; blank/non-string
+    entries are ignored and the built-in messages are used when no configured
+    copy remains.
+  - Follow-up: MindRoom's real initial placeholder metadata uses
+    `io.mindroom.stream_status: "pending"`, so Cinny now treats `pending` as an
+    active stream status instead of leaving the initial `Thinking...` as plain
+    text.
   - Non-placeholder streaming text keeps the normal message renderer plus the
     existing streaming suffix, and terminal `Thinking...` messages remain plain
     text.
 - Files changed:
   - `FORK_CHANGES.md`
+  - `README.md`
+  - `config.json`
+  - `src/app/hooks/useClientConfig.ts`
+  - `src/app/mindroom/messages/aiRun.ts`
+  - `src/app/mindroom/messages/aiRun.test.ts`
   - `src/app/mindroom/messages/MindroomThinkingPlaceholder.css.ts`
   - `src/app/mindroom/messages/MindroomThinkingPlaceholder.tsx`
+  - `src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts`
   - `src/app/mindroom/messages/thinkingPlaceholder.ts`
   - `src/app/mindroom/messages/thinkingPlaceholder.test.ts`
   - `src/app/mindroom/messages/renderMindroomMessageContent.tsx`
@@ -29,17 +72,23 @@
     `npm test -- src/app/mindroom/messages/renderMindroomMessageContent.test.ts`
     failed while active `Thinking...` still rendered as normal text with the old
     streaming dots.
+  - Follow-up red check:
+    `npm test -- src/app/mindroom/messages/aiRun.test.ts src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`
+    failed while `pending` stream status was inactive, the configurable message
+    resolver did not exist, and the placeholder ignored runtime config.
   - Green check:
-    `npm test -- src/app/mindroom/messages/thinkingPlaceholder.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`.
+    `npm test -- src/app/mindroom/messages/aiRun.test.ts src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts src/app/mindroom/messages/thinkingPlaceholder.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`.
   - Green check: `npm run typecheck`.
   - Green check:
-    `npx prettier --check FORK_CHANGES.md src/app/mindroom/messages/MindroomThinkingPlaceholder.css.ts src/app/mindroom/messages/MindroomThinkingPlaceholder.tsx src/app/mindroom/messages/thinkingPlaceholder.ts src/app/mindroom/messages/thinkingPlaceholder.test.ts src/app/mindroom/messages/renderMindroomMessageContent.tsx src/app/mindroom/messages/renderMindroomMessageContent.test.ts`.
+    `npx prettier --check FORK_CHANGES.md README.md config.json src/app/hooks/useClientConfig.ts src/app/mindroom/messages/aiRun.ts src/app/mindroom/messages/aiRun.test.ts src/app/mindroom/messages/MindroomThinkingPlaceholder.tsx src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts src/app/mindroom/messages/thinkingPlaceholder.ts src/app/mindroom/messages/thinkingPlaceholder.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`.
   - Green check: `npm run lint` (16 warnings, 0 errors — pre-existing
     baseline).
   - Green check: `npm run build` passed with existing Vite
     runtime-config/sourcemap/chunk-size warnings.
-  - Green check: `npm test` passed (`289` files, `2145` tests) with existing
+  - Green check: `npm test` passed (`290` files, `2149` tests) with existing
     `--localstorage-file` and React Router future-flag warnings.
+  - Local dev-server check: `curl -fsS http://localhost:8081/config.json`
+    served the new `mindroom.thinkingPlaceholderMessages` block.
   - Green check: `git diff --check`.
 
 ### CINNY-088 — Voice messages don't appear instantly in compact view (2026-05-13)

@@ -37,6 +37,16 @@
     ]
   },
 
+  "mindroom": {
+    "thinkingPlaceholderMessages": [
+      "Making progress",
+      "Almost there",
+      "Boosting the GPUs",
+      "Checking the thread",
+      "Composing the reply"
+    ]
+  },
+
   "sidebar": {
     "showExploreCommunity": false,
     "showAddSpace": false,

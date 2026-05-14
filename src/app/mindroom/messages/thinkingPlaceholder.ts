@@ -1,6 +1,6 @@
 export const MINDROOM_THINKING_PLACEHOLDER_BODY = 'Thinking...';
 
-export const MINDROOM_THINKING_PLACEHOLDER_MESSAGES = [
+export const DEFAULT_MINDROOM_THINKING_PLACEHOLDER_MESSAGES = [
   'Making progress',
   'Almost there',
   'Boosting the GPUs',
@@ -23,3 +23,16 @@ export const getMindroomThinkingPlaceholderBody = (
 
 export const isMindroomThinkingPlaceholderBody = (content: Record<string, unknown>): boolean =>
   getMindroomThinkingPlaceholderBody(content) === MINDROOM_THINKING_PLACEHOLDER_BODY;
+
+export const resolveMindroomThinkingPlaceholderMessages = (
+  configuredMessages: unknown
+): readonly string[] => {
+  if (!Array.isArray(configuredMessages)) return DEFAULT_MINDROOM_THINKING_PLACEHOLDER_MESSAGES;
+
+  const messages = configuredMessages
+    .filter((message): message is string => typeof message === 'string')
+    .map((message) => message.trim())
+    .filter((message) => message.length > 0);
+
+  return messages.length > 0 ? messages : DEFAULT_MINDROOM_THINKING_PLACEHOLDER_MESSAGES;
+};

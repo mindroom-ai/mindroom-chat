@@ -136,7 +136,7 @@ export const hasMindroomAiRunMetadata = (content: Record<string, unknown>): bool
 const TERMINAL_AI_RUN_STATUSES = new Set(['completed', 'cached', 'error', 'cancelled']);
 
 const STREAM_STATUS_KEY = 'io.mindroom.stream_status';
-const ACTIVE_STREAM_STATUSES = new Set(['active', 'running', 'streaming']);
+const ACTIVE_STREAM_STATUSES = new Set(['active', 'pending', 'running', 'streaming']);
 const TERMINAL_STREAM_STATUSES = new Set([
   'complete',
   'completed',

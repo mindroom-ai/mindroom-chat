@@ -151,7 +151,7 @@ describe('renderMindroomMessageContent', () => {
       content: {
         msgtype: 'm.text',
         body: 'Thinking...',
-        'io.mindroom.stream_status': 'streaming',
+        'io.mindroom.stream_status': 'pending',
       },
     });
 

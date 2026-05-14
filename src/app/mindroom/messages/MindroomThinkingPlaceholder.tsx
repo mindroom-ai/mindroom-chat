@@ -1,21 +1,30 @@
 import React from 'react';
+import { useClientConfig } from '../../hooks/useClientConfig';
 import * as css from './MindroomThinkingPlaceholder.css';
-import { MINDROOM_THINKING_PLACEHOLDER_MESSAGES } from './thinkingPlaceholder';
+import { resolveMindroomThinkingPlaceholderMessages } from './thinkingPlaceholder';
 
 const ROTATION_INTERVAL_MS = 2400;
 
 export function MindroomThinkingPlaceholder() {
+  const clientConfig = useClientConfig();
+  const messages = React.useMemo(
+    () =>
+      resolveMindroomThinkingPlaceholderMessages(
+        clientConfig.mindroom?.thinkingPlaceholderMessages
+      ),
+    [clientConfig.mindroom?.thinkingPlaceholderMessages]
+  );
   const [messageIndex, setMessageIndex] = React.useState(0);
 
   React.useEffect(() => {
     const intervalId = globalThis.setInterval(() => {
-      setMessageIndex((current) => (current + 1) % MINDROOM_THINKING_PLACEHOLDER_MESSAGES.length);
+      setMessageIndex((current) => (current + 1) % messages.length);
     }, ROTATION_INTERVAL_MS);
 
     return () => globalThis.clearInterval(intervalId);
-  }, []);
+  }, [messages.length]);
 
-  const message = MINDROOM_THINKING_PLACEHOLDER_MESSAGES[messageIndex];
+  const message = messages[messageIndex % messages.length];
 
   return (
     <span className={css.Placeholder} role="status" aria-label="AI is responding">

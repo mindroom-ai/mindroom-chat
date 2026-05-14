@@ -1,0 +1,80 @@
+import React from 'react';
+import { act, create } from 'react-test-renderer';
+import { describe, expect, it, vi } from 'vitest';
+import { ClientConfigProvider } from '../../hooks/useClientConfig';
+import { MindroomThinkingPlaceholder } from './MindroomThinkingPlaceholder';
+import {
+  DEFAULT_MINDROOM_THINKING_PLACEHOLDER_MESSAGES,
+  resolveMindroomThinkingPlaceholderMessages,
+} from './thinkingPlaceholder';
+
+vi.mock('./MindroomThinkingPlaceholder.css', () => ({
+  Ellipsis: 'Ellipsis',
+  Placeholder: 'Placeholder',
+  Text: 'Text',
+}));
+
+const renderPlaceholder = (messages?: string[]) =>
+  create(
+    React.createElement(
+      ClientConfigProvider,
+      {
+        value: {
+          mindroom: {
+            thinkingPlaceholderMessages: messages,
+          },
+        },
+      },
+      React.createElement(MindroomThinkingPlaceholder)
+    )
+  );
+
+describe('resolveMindroomThinkingPlaceholderMessages', () => {
+  it('uses non-empty configured messages', () => {
+    expect(
+      resolveMindroomThinkingPlaceholderMessages([' Configured ', '', 'Also configured'])
+    ).toEqual(['Configured', 'Also configured']);
+  });
+
+  it('falls back to built-in messages when config has no usable messages', () => {
+    expect(resolveMindroomThinkingPlaceholderMessages(undefined)).toBe(
+      DEFAULT_MINDROOM_THINKING_PLACEHOLDER_MESSAGES
+    );
+    expect(resolveMindroomThinkingPlaceholderMessages(['', '   ', 42])).toBe(
+      DEFAULT_MINDROOM_THINKING_PLACEHOLDER_MESSAGES
+    );
+  });
+});
+
+describe('MindroomThinkingPlaceholder', () => {
+  it('renders configured placeholder messages and rotates through them', () => {
+    vi.useFakeTimers();
+
+    let renderer: ReturnType<typeof renderPlaceholder> | undefined;
+    act(() => {
+      renderer = renderPlaceholder(['Configured one', 'Configured two']);
+    });
+
+    expect(JSON.stringify(renderer?.toJSON())).toContain('Configured one');
+    expect(JSON.stringify(renderer?.toJSON())).not.toContain('Making progress');
+
+    act(() => {
+      vi.advanceTimersByTime(2400);
+    });
+
+    expect(JSON.stringify(renderer?.toJSON())).toContain('Configured two');
+
+    renderer?.unmount();
+    vi.useRealTimers();
+  });
+
+  it('renders the built-in messages when config is empty', () => {
+    const renderer = renderPlaceholder([]);
+
+    expect(JSON.stringify(renderer.toJSON())).toContain(
+      DEFAULT_MINDROOM_THINKING_PLACEHOLDER_MESSAGES[0]
+    );
+
+    renderer.unmount();
+  });
+});
