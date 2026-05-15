@@ -134,4 +134,44 @@ describe('VoiceRecordingCapsule', () => {
 
     renderer.unmount();
   });
+
+  it('reuses the capsule controls for a pending recording ready to retry', () => {
+    const onDiscard = vi.fn();
+    const onPause = vi.fn();
+    const onSend = vi.fn();
+    const renderer = create(
+      React.createElement(VoiceRecordingCapsule, {
+        phase: 'idle',
+        elapsedMs: 4200,
+        waveform: createFallbackWaveform(),
+        canPause: true,
+        hasPendingSend: true,
+        onDiscard,
+        onPause,
+        onResume: vi.fn(),
+        onSend,
+      })
+    );
+
+    const buttons = renderer.root.findAllByType('button');
+    expect(buttons.map((button) => button.props['aria-label'])).toEqual([
+      'Discard voice recording',
+      'Pause voice recording',
+      'Retry sending voice recording',
+    ]);
+    expect(buttons[1].props.disabled).toBe(true);
+    expect(buttons[2].props.disabled).toBeFalsy();
+    expect(JSON.stringify(renderer.toJSON())).toContain('Voice recording ready to retry');
+
+    act(() => {
+      buttons[0].props.onClick();
+      buttons[2].props.onClick();
+    });
+
+    expect(onDiscard).toHaveBeenCalledOnce();
+    expect(onPause).not.toHaveBeenCalled();
+    expect(onSend).toHaveBeenCalledOnce();
+
+    renderer.unmount();
+  });
 });

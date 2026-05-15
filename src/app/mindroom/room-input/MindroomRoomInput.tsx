@@ -9,7 +9,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useAtom, useAtomValue, useStore } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
 import { EventType, IContent, MsgType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
@@ -75,6 +75,7 @@ import { useFileDropZone } from '../../hooks/useFileDrop';
 import {
   TUploadItem,
   TUploadMetadata,
+  pendingVoiceSendDraftAtom,
   roomIdToMsgDraftAtomFamily,
   roomIdToReplyDraftAtomFamily,
   roomIdToUploadItemsAtomFamily,
@@ -117,6 +118,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { useComposingCheck } from '../../hooks/useComposingCheck';
+import { Membership } from '../../../types/matrix/room';
 import {
   createMindroomRoomInputPasteMarkerElement,
   getMindroomRoomInputAutocompleteQuery,
@@ -130,6 +132,7 @@ import {
   getMindroomRoomInputVoiceSendContext,
   getMindroomRoomInputVoiceUploadRelation,
   hasMatchingMindroomRoomInputVoiceReplyContext,
+  refreshMindroomRoomInputVoiceSendContext,
   useRoomInputSendSessionController,
   type MindroomRoomInputAutocompletePrefix,
   type MindroomVoiceSendContext,
@@ -277,10 +280,84 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       useState<AutocompleteQuery<RoomInputAutocompletePrefix>>();
     const [voiceRecorderOpen, setVoiceRecorderOpen] = useState(false);
     const voiceAutoSendPending = useAtomValue(voiceAutoSendPendingAtom);
-    const voiceSendContextRef = useRef<MindroomVoiceSendContext>();
+    const pendingVoiceSendDraft = useAtomValue(pendingVoiceSendDraftAtom);
+    const setPendingVoiceSendDraft = useSetAtom(pendingVoiceSendDraftAtom);
+    // Drafts are stamped with the matrix userId of the session that captured
+    // them. The global atom is one slot for the whole router, so an account
+    // switch in the sidebar leaves yesterday's draft visible to a new
+    // account; ignore (and clean up) any draft that does not belong to us.
+    const currentSessionId = mx.getUserId() ?? undefined;
+    const draftBelongsToCurrentSession =
+      !!pendingVoiceSendDraft &&
+      pendingVoiceSendDraft.context.ownerSessionId === currentSessionId;
+    const ownsPendingVoiceDraft =
+      draftBelongsToCurrentSession && pendingVoiceSendDraft?.context.roomId === roomId;
+    const otherRoomOwnsPendingVoiceDraft =
+      draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
+    const otherPendingVoiceRoomName =
+      otherRoomOwnsPendingVoiceDraft && pendingVoiceSendDraft
+        ? pendingVoiceSendDraft.context.room.name ?? pendingVoiceSendDraft.context.roomId
+        : undefined;
     const voiceAutoSendClaimedRef = useRef(false);
     const voiceAutoSendInFlightRef = useRef(false);
     const submitInFlightRef = useRef(false);
+
+    // When this room owns a pending failed-send draft (e.g. survived a
+    // RoomProvider key remount on real navigation), surface the recorder so
+    // the user can see the retry/discard controls.
+    useEffect(() => {
+      if (ownsPendingVoiceDraft) {
+        setVoiceRecorderOpen(true);
+      }
+    }, [ownsPendingVoiceDraft]);
+
+    // Close the auto-opened recorder when the parked draft transitions
+    // away. This covers two cases the hook can't observe locally:
+    //   1. A previous mount started a retry, the user navigated away, the
+    //      retry settled remotely, and we're now back in the source room
+    //      with phase synced to 'sending' from the atom.
+    //   2. Some other surface discarded the draft (e.g. a future global
+    //      discard action).
+    // Without this effect, voiceRecorderOpen stays true and the capsule
+    // would render with stale local state.
+    const previousPendingDraftRef = useRef(pendingVoiceSendDraft);
+    useEffect(() => {
+      const previous = previousPendingDraftRef.current;
+      previousPendingDraftRef.current = pendingVoiceSendDraft;
+      if (
+        previous &&
+        previous.context.roomId === roomId &&
+        !pendingVoiceSendDraft &&
+        voiceRecorderOpen
+      ) {
+        setVoiceRecorderOpen(false);
+      }
+    }, [pendingVoiceSendDraft, roomId, voiceRecorderOpen]);
+
+    // Discard any orphaned draft. Three cases:
+    //   1. Account-switch leak: the atom is module-level and survives
+    //      logout/login since the router store is shared across sessions.
+    //      A draft from account A must not block voice recording in B.
+    //   2. Same-session room loss (rev-A R4 Issue 2): if the user was
+    //      kicked from / left / forgot the parked-draft room, the
+    //      otherRoomOwnsPendingVoiceDraft gate would lock the mic in
+    //      every other room with no in-app surface to discard.
+    //   3. Same-session non-joinable room (rev-B / rev-G R5): a Room
+    //      object can survive in mx.getRoom() after the user is no longer
+    //      Joined (Leave/Ban/etc), in which case the source room composer
+    //      cannot render and the user has no way to retry/discard. Treat
+    //      "not joined" the same as "not present".
+    useEffect(() => {
+      if (!pendingVoiceSendDraft) return;
+      if (!draftBelongsToCurrentSession) {
+        setPendingVoiceSendDraft(undefined);
+        return;
+      }
+      const sourceRoom = mx.getRoom(pendingVoiceSendDraft.context.roomId);
+      if (!sourceRoom || sourceRoom.getMyMembership() !== Membership.Join) {
+        setPendingVoiceSendDraft(undefined);
+      }
+    }, [draftBelongsToCurrentSession, mx, pendingVoiceSendDraft, setPendingVoiceSendDraft]);
 
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId);
 
@@ -684,20 +761,31 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       shouldBlockStartSendSession: () => store.get(voiceAutoSendPendingAtom),
     });
 
-    const captureVoiceSendContext = useCallback(() => {
-      if (voiceSendContextRef.current || store.get(voiceAutoSendPendingAtom)) return;
+    // Snapshot the room/thread/reply context for the next start(). The hook
+    // calls this synchronously inside start() and persists the result on the
+    // pending draft, so a failed send can be retried against the original
+    // destination even after a RoomProvider key remount. The session id is
+    // stamped here so an account switch with a parked draft cannot leak
+    // audio across users (see draftBelongsToCurrentSession above).
+    const getVoiceSendContext = useCallback(
+      (): MindroomVoiceSendContext =>
+        getMindroomRoomInputVoiceSendContext({
+          ownerSessionId: mx.getUserId() ?? '',
+          roomId: roomIdRef.current,
+          room: roomRef.current,
+          threadId: threadIdRef.current,
+          replyDraft: replyDraftRef.current,
+          threadingEnabled,
+        }),
+      [mx, threadingEnabled]
+    );
 
-      voiceSendContextRef.current = getMindroomRoomInputVoiceSendContext({
-        roomId,
-        room,
-        threadId,
-        replyDraft,
-        threadingEnabled,
-      });
-    }, [roomId, room, threadId, replyDraft, threadingEnabled, store]);
-
+    // The hook is the canonical owner of pendingVoiceSendDraftAtom — it
+    // writes the draft on failure and clears it on successful send / explicit
+    // discard. onClose must NOT clear the draft, or any future caller (a
+    // backdrop/Escape dismissal, a click-outside, etc.) would silently lose
+    // the parked recording the rest of this PR exists to preserve.
     const handleCloseVoiceRecorder = useCallback(() => {
-      voiceSendContextRef.current = undefined;
       setVoiceRecorderOpen(false);
     }, []);
 
@@ -718,32 +806,22 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     }, [store]);
 
     const handleVoiceSend = useCallback(
-      async (file: File, duration: number, waveform?: number[]) => {
-        if (
-          store.get(voiceAutoSendPendingAtom) &&
-          (!voiceAutoSendClaimedRef.current || voiceAutoSendInFlightRef.current)
-        ) {
-          voiceSendContextRef.current = undefined;
-          throw new Error(
-            'Another voice message is still sending. Please wait before recording again.'
-          );
-        }
-        if (!voiceAutoSendClaimedRef.current) {
-          voiceAutoSendClaimedRef.current = true;
-          store.set(voiceAutoSendPendingAtom, true);
-        }
-        voiceAutoSendInFlightRef.current = true;
-
-        const context: MindroomVoiceSendContext =
-          voiceSendContextRef.current ??
-          getMindroomRoomInputVoiceSendContext({
-            roomId: roomIdRef.current,
-            room: roomRef.current,
-            threadId: threadIdRef.current,
-            replyDraft: replyDraftRef.current,
-            threadingEnabled,
-          });
+      async (
+        file: File,
+        duration: number,
+        waveform: number[] | undefined,
+        context: MindroomVoiceSendContext
+      ) => {
+        // Wrap the ENTIRE body in try/finally. The voice auto-send slot is
+        // claimed by claimVoiceAutoSend() in onSendStopRequest BEFORE this
+        // function is invoked, so any early throw here (live-room refresh
+        // failure, "another send pending" guard) MUST still release the
+        // slot — otherwise voiceAutoSendPendingAtom stays true forever and
+        // text submit + voice recording are globally locked until reload.
+        // releaseVoiceAutoSend() short-circuits when no claim is held, so
+        // calling it unconditionally is safe even on the un-claimed path.
         let fileItems: TUploadItem[] = [];
+        let liveContext: MindroomVoiceSendContext | null = null;
         const logAndThrowUploadError = (err: unknown, stage: MatrixUploadErrorStage): never => {
           const originalName =
             getMatrixUploadOriginalName(err) ?? (err instanceof Error ? err.name : typeof err);
@@ -761,8 +839,37 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         };
 
         try {
+          // Re-resolve the live Room from the matrix client at send/retry
+          // time. context.room is a snapshot from start(); it may be stale
+          // by retry time (encryption upgrade, membership change,
+          // signal-bridge member added/removed). Using the live room also
+          // closes a plaintext-leak window: a room that gained encryption
+          // between original failure and retry would otherwise be sent
+          // unencrypted because context.room.hasEncryptionStateEvent()
+          // returns the cached value.
+          liveContext = refreshMindroomRoomInputVoiceSendContext(mx, context);
+          if (!liveContext) {
+            throw new Error(
+              'This room is no longer available. Discard the unsent voice message and try again later.'
+            );
+          }
+
+          if (
+            store.get(voiceAutoSendPendingAtom) &&
+            (!voiceAutoSendClaimedRef.current || voiceAutoSendInFlightRef.current)
+          ) {
+            throw new Error(
+              'Another voice message is still sending. Please wait before recording again.'
+            );
+          }
+          if (!voiceAutoSendClaimedRef.current) {
+            voiceAutoSendClaimedRef.current = true;
+            store.set(voiceAutoSendPendingAtom, true);
+          }
+          voiceAutoSendInFlightRef.current = true;
+
           try {
-            fileItems = await createVoiceUploadItems(file, duration, waveform, context.room);
+            fileItems = await createVoiceUploadItems(file, duration, waveform, liveContext.room);
           } catch (err) {
             return logAndThrowUploadError(err, 'create');
           }
@@ -773,7 +880,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               'create'
             );
           }
-          appendUploadItemsToRoomBoard(context.roomId, fileItems);
+          appendUploadItemsToRoomBoard(liveContext.roomId, fileItems);
 
           let mxc: string;
           try {
@@ -782,31 +889,30 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             return logAndThrowUploadError(err, 'upload');
           }
           try {
-            await sendVoiceItem(context, fileItem, mxc);
+            await sendVoiceItem(liveContext, fileItem, mxc);
           } catch (err) {
             return logAndThrowUploadError(err, 'send');
           }
-          clearReplyDraftForVoiceContext(context);
+          clearReplyDraftForVoiceContext(liveContext);
         } finally {
-          if (fileItems.length > 0) {
+          if (liveContext && fileItems.length > 0) {
             removeUploadsFromBoard(
               fileItems.map((fileItem) => fileItem.file),
-              context.roomId
+              liveContext.roomId
             );
           }
           releaseVoiceAutoSend();
-          voiceSendContextRef.current = undefined;
         }
       },
       [
         appendUploadItemsToRoomBoard,
         clearReplyDraftForVoiceContext,
         createVoiceUploadItems,
+        mx,
         removeUploadsFromBoard,
         releaseVoiceAutoSend,
         sendVoiceItem,
         store,
-        threadingEnabled,
         uploadVoiceItem,
       ]
     );
@@ -1123,7 +1229,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           onKeyUp={handleKeyUp}
           onPaste={handlePaste}
           top={
-            (replyDraft || threadId || voiceRecorderOpen) && (
+            (replyDraft || threadId || voiceRecorderOpen || ownsPendingVoiceDraft) && (
               <div>
                 {(replyDraft || threadId) && (
                   <MindroomRoomInputReplyContext
@@ -1163,15 +1269,17 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                     )}
                   </MindroomRoomInputReplyContext>
                 )}
-                <MindroomVoiceRecorderComposer
-                  active={voiceRecorderOpen}
-                  sendDisabled={voiceAutoSendPending}
-                  onClose={handleCloseVoiceRecorder}
-                  onRecordingStart={captureVoiceSendContext}
-                  onSendStopRequest={claimVoiceAutoSend}
-                  onSendStopFailure={releaseVoiceAutoSend}
-                  onSendRecording={handleVoiceSend}
-                />
+                {(voiceRecorderOpen || ownsPendingVoiceDraft) && (
+                  <MindroomVoiceRecorderComposer
+                    active={voiceRecorderOpen}
+                    sendDisabled={voiceAutoSendPending}
+                    onClose={handleCloseVoiceRecorder}
+                    onSendStopRequest={claimVoiceAutoSend}
+                    onSendStopFailure={releaseVoiceAutoSend}
+                    onSendRecording={handleVoiceSend}
+                    getSendContext={getVoiceSendContext}
+                  />
+                )}
               </div>
             )
           }
@@ -1187,16 +1295,22 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               </IconButton>
               <IconButton
                 onClick={() => {
-                  if (voiceRecorderOpen || voiceAutoSendPending) return;
+                  if (voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft)
+                    return;
                   pauseAllMediaElements();
-                  captureVoiceSendContext();
                   setVoiceRecorderOpen(true);
                 }}
                 variant="SurfaceVariant"
                 size="300"
                 radii="300"
-                disabled={voiceRecorderOpen || voiceAutoSendPending}
-                aria-label="Record voice message"
+                disabled={
+                  voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft
+                }
+                aria-label={
+                  otherPendingVoiceRoomName
+                    ? `Voice recording paused — finish or discard your unsent recording in ${otherPendingVoiceRoomName}`
+                    : 'Record voice message'
+                }
               >
                 <Icon src={Icons.Mic} />
               </IconButton>

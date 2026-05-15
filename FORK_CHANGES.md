@@ -2,6 +2,500 @@
 
 ## Runbook
 
+### CINNY-109 - Retry-first failed voice send UX (2026-05-14 → R7 2026-05-15)
+
+- Status:
+  - Complete (round-7 fix applied on top of round-6).
+- Summary:
+  - Implemented retry-first failed compact voice-send handling, re-architected
+    after round-2 review surfaced two convergent BLOCKERs in the round-1 wiring.
+  - **Round-2 BLOCKERs fixed:**
+    - **B1 — `pendingVoiceSendDraftAtom` was dead code.** The hook only owned
+      a hook-local atom unless the parent forwarded a `pendingDraftAtom` prop.
+      The parent gated that forward on `ownsPendingVoiceDraft = !!draft &&
+      contextAtom?.roomId === roomId`, but the draft atom was never positively
+      written, so the gate was always false and the draft never survived a
+      keyed remount. Fixed by making `useVoiceRecorder` write
+      `pendingVoiceSendDraftAtom` directly via `useAtom` — the prop ceremony
+      and `localDraftAtom` fallback are deleted.
+    - **B2 — Stale-context wrong-room sends.** `pendingVoiceSendContextAtom`
+      was a global slot that `captureVoiceSendContext` early-returned on, so
+      after a failed send in room A the context lingered. Fresh recordings in
+      room B silently routed to room A. Fixed by merging the context INTO the
+      draft (`PendingVoiceSendDraft.context: PendingVoiceSendContext`).
+      `pendingVoiceSendContextAtom` and the entire `pendingVoiceSendContext.ts`
+      file are deleted. One atom, one lifecycle.
+  - **Hook contract change:** `useVoiceRecorder` takes a `getSendContext: () =>
+    PendingVoiceSendContext` callback and snapshots the context inside
+    `start()`. The captured context flows through every `onSendRecording` call
+    (new 4th parameter) and is persisted on the draft on failure, so the retry
+    always targets the original room/thread/reply even if the parent has
+    navigated.
+  - **Mic-disabled gate (rev-H Issue 7):** When another room owns the parked
+    draft, the mic button in this room is `disabled` with an aria-label
+    "Voice recording paused — finish or discard your unsent recording in
+    `<room>`" so the user understands why voice recording is locked.
+  - **Cleanups from R2 kept items:**
+    - rev-H Issue 5: `retry()`'s catch path now re-reads `pendingDraftRef`
+      and skips the failure-state restore if the user has discarded mid-retry.
+      Defends against future global discard surfaces.
+    - rev-H Issue 6: `reset()` now goes through `safeSetCanPause` instead of a
+      direct `setCanPause(true)`, fixing a "set state on unmounted component"
+      warning when reset settles after navigation.
+- Files changed (round 2):
+  - `FORK_CHANGES.md`
+  - `src/app/state/room/roomInputDrafts.ts` — added `PendingVoiceSendContext`,
+    embedded into `PendingVoiceSendDraft`.
+  - `src/app/mindroom/voice/pendingVoiceSendContext.ts` — **deleted** (merged
+    into draft atom).
+  - `src/app/mindroom/voice/useVoiceRecorder.ts` — owns the global atom
+    directly; `getSendContext` callback; passes context through
+    `onSendRecording`; rev-H Issues 5 and 6 applied.
+  - `src/app/mindroom/voice/useVoiceRecorder.test.ts` — test rewritten to
+    drive the global atom; new tests prove the hook persists draft+context
+    even with no caller-provided atom; new test covers discard-mid-retry.
+  - `src/app/mindroom/voice/VoiceRecorderDialog.tsx` — `pendingDraftAtom` prop
+    deleted; `getSendContext` plumbed through.
+  - `src/app/mindroom/voice/VoiceRecorderDialog.test.ts` — provides
+    `getSendContext` and wraps in a fresh Jotai Provider per test.
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx` — drops the
+    ownership ternary; `captureVoiceSendContext` and the
+    `pendingVoiceSendContextAtom` reads/writes are deleted; `handleVoiceSend`
+    receives context as 4th arg from the hook; mic-button aria-label
+    disambiguates when another room owns the draft.
+  - `src/app/mindroom/room-input/__tests__/RoomInput.test.ts` — bypass tests
+    that called `voiceRecorderState.props!.onSendRecording` directly to
+    simulate persistence are replaced with a real-path "auto-surfaces the
+    recorder when returning to a room that owns a parked failed-send draft"
+    test plus a new "disables the mic button in another room while a
+    failed-send draft is parked" test. Other handleVoiceSend unit tests are
+    updated to capture context via `getSendContext()` and pass it explicitly.
+- Regression tests (round 2):
+  - `useVoiceRecorder` "persists the failed-send draft (with context) to the
+    global atom across remounts" — proves the hook owns the persistence path.
+  - `useVoiceRecorder` "persists the failed-send draft to the global atom
+    even when no atom is forwarded by the caller" — positive control for the
+    wiring fix; would have caught BLOCKER 1.
+  - `useVoiceRecorder` "retries against the originally-captured room even
+    after the parent reports a different room" — covers BLOCKER 2.
+  - `useVoiceRecorder` "does not resurrect a discarded draft when an in-flight
+    retry fails" — covers rev-H Issue 5.
+  - `useVoiceRecorder` "drops a same-tick second retry instead of
+    double-submitting the draft" — kept from round 1 (concurrency guard).
+  - `RoomInput` "auto-surfaces the recorder when returning to a room that
+    owns a parked failed-send draft" — proves the parent's auto-open
+    `useEffect` and mic-disabled gate fire end-to-end after a keyed remount.
+  - `RoomInput` "disables the mic button in another room while a failed-send
+    draft is parked" — proves the descriptive aria-label is rendered.
+- Tests and validation (round 2):
+  - Green: `npx tsc --noEmit`.
+  - Green: `npx vitest run src/app/mindroom/voice/ src/app/mindroom/room-input/`
+    (7 files, 74 tests).
+  - Green: `npx vitest run` (full sweep: 292 files, 2167 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (Vite chunk-size warnings only).
+
+- **Round-3 second-layer fixes (2 convergent MAJOR clusters + 3 KEEP items):**
+  - **CLUSTER 1 — composer leak across rooms (5/8 R3 reviewers).** The hook
+    read `pendingVoiceSendDraftAtom` unconditionally, so any composer that
+    mounted (e.g. when an unrelated room had a `replyDraft` or `threadId`
+    triggering the banner) would render room A's retry/discard capsule in
+    room B and let a discard from B destroy A's draft. Root cause was at the
+    parent boundary: the composer was being mounted for banner reasons, not
+    voice reasons. Fix: gate the composer mount in `MindroomRoomInput.tsx`
+    on `voiceRecorderOpen || ownsPendingVoiceDraft` only. The reply/thread
+    banner mounts independently for `replyDraft || threadId` and never
+    forces the composer to render.
+  - **CLUSTER 1b — global atom leaks across accounts (R3 reviewer C
+    Issue 2).** The router store is shared across sessions; without scoping,
+    a parked draft from account A would block voice recording everywhere in
+    account B and keep account A's audio bytes in memory. Fix: stamp every
+    `PendingVoiceSendContext` with `ownerSessionId: string` (the matrix
+    userId at start time). `MindroomRoomInput` derives
+    `draftBelongsToCurrentSession` and gates `ownsPendingVoiceDraft` /
+    `otherRoomOwnsPendingVoiceDraft` on it. A `useEffect` cleans up any
+    orphaned draft as soon as a RoomInput mounts under the new session.
+  - **CLUSTER 2 — unmount no longer cancelled in-flight `getUserMedia` (R3
+    reviewers C Issue 1, E Issue 1).** The round-2 unmount path stopped
+    calling `reset()` to preserve the draft, but `reset()` was the only
+    site that incremented `sessionIdRef`. A permission prompt resolved
+    after unmount could pass the post-await session check, build a
+    `MediaRecorder`, and start capture/timers no one would ever clean up
+    (mic stream leak). Fix: increment `sessionIdRef.current` inside the
+    non-send unmount path before `cleanupCapture()`, and use
+    `safeSetCanPause` inside `start()` so a late async resolution cannot
+    set state on the unmounted hook.
+  - **rev-H Issue 1 — `retry()` catch's discard-detection was timing-fragile.**
+    The catch read `pendingDraftRef.current` (synced via a useEffect that
+    only fires after a React commit), so an external mid-retry discard
+    that wrote the atom directly was not visible until commit time. Today
+    no production caller does that, but the test added in round 2 to
+    defend against future global-discard surfaces was passing only by
+    lucky React-commit interleaving. Fix: read the atom synchronously via
+    `useStore()` + `store.get(pendingVoiceSendDraftAtom)` in the catch.
+  - **rev-H Issue 2 — `handleCloseVoiceRecorder` unconditionally cleared
+    the draft.** Currently a no-op (every onClose path runs after the hook
+    has already cleared it), but a footgun for any future caller — exactly
+    what Issue 6 below is. Fix: drop the `setPendingVoiceSendDraft(undefined)`
+    call. The hook is the canonical owner.
+  - **rev-H Issue 6 — retry overlay had no defer path.** With the new mic-
+    disabled-in-other-rooms gate, the user was trapped between Retry and
+    Discard — they couldn't switch contexts to look something up before
+    deciding. Fix: wrap the failure overlay in a `FocusTrap` with
+    `clickOutsideDeactivates: true` and `escapeDeactivates: stopPropagation`,
+    so backdrop click and Escape key dismiss the overlay without
+    discarding the draft. The capsule + parked draft remain visible; the
+    user can re-open the overlay by clicking Retry on the capsule, and a
+    *fresh* failure (different errorMessage) re-surfaces the overlay
+    automatically because deferral is keyed on the specific message value.
+- Files changed (round 3):
+  - `FORK_CHANGES.md`
+  - `src/app/state/room/roomInputDrafts.ts` — added `ownerSessionId` to
+    `PendingVoiceSendContext`.
+  - `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx` —
+    decoupled `MindroomVoiceSendContext` from the broader
+    `RoomInputSendContext` (the latter is for synchronous sessions that
+    don't need account stamping); `getMindroomRoomInputVoiceSendContext`
+    takes `ownerSessionId`.
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx` — gates composer
+    mount on ownership; derives `draftBelongsToCurrentSession`; cleanup
+    `useEffect` for orphan drafts; `handleCloseVoiceRecorder` no longer
+    clears the draft.
+  - `src/app/mindroom/voice/useVoiceRecorder.ts` — sessionId bumped on
+    unmount; `safeSetCanPause` in `start()`; retry catch reads the atom
+    via `store.get` directly.
+  - `src/app/mindroom/voice/VoiceRecorderDialog.tsx` — `FocusTrap` around
+    the failure overlay for backdrop/Escape defer; `deferredErrorMessage`
+    state keyed on the specific failure message so a fresh failure
+    re-opens the overlay automatically.
+  - Test files updated to inject `ownerSessionId`, open the recorder
+    before driving handleVoiceSend (the composer no longer auto-mounts in
+    rooms where it shouldn't), and add regression coverage.
+- Regression tests (round 3):
+  - `useVoiceRecorder` "does not resurrect a discarded draft when an
+    in-flight retry fails (production discard path)" — exercises the real
+    `discardPending()` path; previously failed only by React-commit timing.
+  - `useVoiceRecorder` "also defends discard-mid-retry when discard
+    happens via a direct atom write" — forward-looking guarantee for any
+    future global discard surface.
+  - `useVoiceRecorder` "cancels an in-flight `getUserMedia` after unmount
+    so no recorder/timers start" — would FAIL under the round-2 unmount
+    cleanup; CLUSTER 2 regression.
+  - `RoomInput` "does not mount the composer in another room with a
+    thread/reply banner while another room owns the parked draft" — would
+    FAIL under round-2 wiring; CLUSTER 1 regression.
+  - `RoomInput` "discards a parked draft that belongs to a different
+    session (account switch)" — CLUSTER 1b regression.
+  - `RoomInput` "does not clear the global pending draft when the dialog
+    closes for non-discard reasons" — rev-H Issue 2 regression.
+  - `VoiceRecorderDialog` "defers (hides) the failure overlay on
+    backdrop/Escape without discarding the draft" — rev-H Issue 6
+    regression; uses a `focus-trap-react` mock that exposes the captured
+    `onDeactivate` for the test to invoke.
+- Tests and validation (round 3):
+  - Green: `npx tsc --noEmit`.
+  - Green: `npx vitest run src/app/mindroom/voice/ src/app/mindroom/room-input/`
+    (7 files, 80 tests).
+  - Green: `npx vitest run` (full sweep: 292 files, 2173 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (Vite chunk-size warnings only).
+- Out-of-scope follow-ups (R3 noted, not implemented this round):
+  - rev-H Issue 4 (R3): the `Room` reference held in
+    `PendingVoiceSendContext` can go stale on logout/kick/room delete;
+    partially mitigated by the account-switch cleanup but a separate
+    membership-loss surface is still a follow-up. **R4 update: now
+    covered — see "membership-loss cleanup" below.**
+  - rev-H Issues 3, 5, 7, 8, 9, 10 (R3): copy/style/test-realism/refactor
+    items dropped per SOUL #1b (NIT/speculative/style).
+  - Phase 1 ticket: investigate the underlying upload-timeout / "connection
+    dropped" root cause separately from this UX work.
+
+- **Round-4 fixes (3 MAJORs from 0/8 R4 verdicts):**
+  - **MAJOR 1 — FocusTrap defer closure bug (R4 8/8 reviewers).** R3's
+    defer-dismissal feature wired the defer signal through
+    `FocusTrap.onDeactivate`. `focus-trap-react` snapshots `onDeactivate`
+    at first mount and invokes it on every trap teardown — including the
+    teardown caused by Retry/Discard flipping `showPendingSendError` to
+    false. The captured `discardConfirmationOpen` check in the original
+    closure always saw `false`, so clicking Discard inside the failure
+    overlay would mis-defer the message; the user clicking Cancel from the
+    discard confirmation could not get the failure overlay back. A retry
+    that failed with the same canonical message would also be silently
+    hidden. R3's regression test passed only because the FocusTrap mock
+    omitted the unmount-time onDeactivate semantics that the real library
+    has. Fix: drop `onDeactivate` entirely; route defer through the
+    per-event `clickOutsideDeactivates` and `escapeDeactivates`
+    predicates, which `focus-trap` calls live per event (no closure
+    capture problem). The predicates read live `errorMessage` via a
+    `useRef` synced through a `useEffect`. Improved the FocusTrap test
+    mock to invoke the snapshot-time `onDeactivate` on unmount, which
+    would have caught the original bug.
+  - **MAJOR 2 — `deferredErrorMessage` persisted across recording
+    sessions (R4 rev-H Issue 2).** When the composer goes idle (`!active
+    && !hasPendingSend`), it returns `null` but useState is preserved
+    across null renders. After a successful retry → fresh recording →
+    same canonical "Couldn't send" message, the failure overlay stayed
+    hidden because the previous-session deferred value still matched.
+    Fix: clear `deferredErrorMessage` in the same `useEffect` that runs
+    `reset()` on the idle transition. Also clear in a new `beginRetry`
+    helper so an explicit user Retry never silently hides a same-message
+    follow-up failure (the common case).
+  - **MAJOR 3 / membership-loss cleanup (R4 rev-A Issue 2).** Drafts
+    parked in a room the user no longer has access to (kicked, left,
+    forgot, sync drift) would otherwise lock the mic in every other room
+    with no in-app surface to discard. Fix: extend
+    `MindroomRoomInput`'s cleanup `useEffect` to verify
+    `mx.getRoom(draft.context.roomId)` is still resolvable; clear the
+    orphan if not. The next room navigation triggers cleanup and
+    re-enables voice recording app-wide.
+  - **KEEP — test helpers stamped with `ownerSessionId`** (R4 rev-B/D/E):
+    `createTestSendContext` in both voice test files now includes
+    `ownerSessionId` so the `PendingVoiceSendContext` type contract is
+    honored even though `tsconfig` excludes test files from typecheck.
+- Files changed (round 4):
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/voice/VoiceRecorderDialog.tsx` — `errorMessageRef`
+    via `useRef`+`useEffect`; `beginRetry` helper resets defer; defer
+    signal moved to `clickOutsideDeactivates` + `escapeDeactivates`
+    predicates; `onDeactivate` removed; cross-session reset added to the
+    idle `useEffect`.
+  - `src/app/mindroom/voice/VoiceRecorderDialog.test.ts` — improved
+    `focus-trap-react` mock to model snapshot-at-mount + unmount-time
+    deactivation; `createTestSendContext` includes `ownerSessionId`;
+    new regression tests for the three R4 MAJORs.
+  - `src/app/mindroom/voice/useVoiceRecorder.test.ts` —
+    `createTestSendContext` includes `ownerSessionId`.
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx` — orphan
+    membership-loss cleanup added to the existing `useEffect`.
+  - `src/app/mindroom/room-input/__tests__/RoomInput.test.ts` — `mxState`
+    gains a default `getRoom` mock; new "discards a parked draft when
+    the source room is no longer reachable" test.
+- Regression tests (round 4):
+  - `VoiceRecorderDialog` "defers (hides) the failure overlay on
+    backdrop click without discarding the draft" — exercises the new
+    per-event predicate path.
+  - `VoiceRecorderDialog` "does NOT mark the error as deferred when
+    FocusTrap unmounts for Discard / Retry transitions" — would FAIL
+    under the R3 wiring with the new mock that models real
+    snapshot-at-mount + unmount-time deactivation.
+  - `VoiceRecorderDialog` "re-shows the failure overlay when an
+    explicit Retry fails again with the same message" — covers the
+    `beginRetry` defer reset.
+  - `RoomInput` "discards a parked draft when the source room is no
+    longer reachable (kicked/left/forgot)" — covers MAJOR 3.
+- Tests and validation (round 4):
+  - Green: `npx tsc --noEmit`.
+  - Green: `npx vitest run src/app/mindroom/voice/ src/app/mindroom/room-input/`
+    (7 files, 83 tests).
+  - Green: `npx vitest run` (full sweep: 292 files, 2176 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (Vite chunk-size warnings only).
+- R4 NIT/style items not implemented per SOUL #1b:
+  - rev-H Issue 3 (`ownerSessionId` empty-string fallback consistency):
+    theoretical mid-logout race; existing comparison cleans up safely.
+  - rev-H Issue 4 (`discardPending` doesn't clear `sendContextAtStartRef`):
+    no current foot-gun; `start()` overwrites both refs.
+  - rev-H Issue 6 (clarify `cleanupUnmountDuringSend` comment): pure
+    documentation polish.
+  - rev-H Issue 7 (WeakRef + `--expose-gc` audio file release test):
+    speculative; contradicts simple-test doctrine.
+
+- **Round-5 fixes (3 MAJORs from 4 CHANGES-REQUIRED reviewers):**
+  - **FIX 1 — In-flight retry state lost across remounts (rev-D Issue 1
+    MAJOR).** `retry()` only recorded the in-flight signal in hook-local
+    refs (`retryInFlightRef` + `phase==='sending'`). On a keyed remount
+    mid-retry, the new hook woke up with `phase='idle'` and a parked
+    draft → capsule rendered "ready to retry" with Discard enabled →
+    user could discard a draft whose matrix message was still uploading,
+    and the message would land AFTER the explicit discard. Fix: persist
+    the in-flight signal in the global atom by adding
+    `inFlight: { token, startedAt }` to `PendingVoiceSendDraft`.
+    `retry()` writes a fresh token before `await`, clears it on
+    completion. The hook initializes its `phase` from the atom on first
+    render (so a remounted hook sees `'sending'` immediately) and
+    additionally syncs phase when the atom's `inFlight` transitions.
+    `retry()`'s success and failure paths both check the live atom's
+    token before touching state — a stale resolution can no longer
+    clobber a draft that the user (or another caller) has since
+    discarded or replaced. The parent (`MindroomRoomInput`) also closes
+    its auto-opened recorder when the parked draft transitions away
+    while no local action initiated the change, so a remote retry
+    settling after the user already navigated back doesn't leave the
+    capsule lingering with stale state.
+  - **FIX 2 — Orphan cleanup missed left/kicked rooms that still
+    resolved via `mx.getRoom` (rev-B Issue 1, rev-G Issue 1 MAJOR).**
+    R4 cleared the parked draft only when `mx.getRoom(roomId)` returned
+    falsy, but a `Room` object can survive in the SDK store after the
+    user is no longer Joined. In that state the source room composer
+    refuses to render and the user has no recovery surface, while every
+    other room's mic stays globally locked. Fix: tighten the predicate
+    to `mx.getRoom(roomId)?.getMyMembership() === Membership.Join`. Same
+    cleanup also handles the missing-room case from R4.
+  - **FIX 3 — Stale `Room` reference reused at retry time
+    (rev-H Issue 2 MAJOR — encryption angle).** `handleVoiceSend` used
+    `context.room` directly (a snapshot from `start()`). If the room
+    state changed between original failure and retry — most concerning,
+    an encryption upgrade — the retry would use the cached value and
+    could send PLAINTEXT into a room that gained encryption. Fix:
+    re-resolve the live `Room` from `mx.getRoom(context.roomId)` at
+    every retry; refuse to send if missing or non-Joined; re-derive
+    `signalBridgedRoom` from the live room. The membership and
+    bridge-detection predicates stay isolated to
+    `RoomInputMindroomExtensions` via a new
+    `refreshMindroomRoomInputVoiceSendContext(mx, context)` helper, so
+    the `RoomTimeline.architecture.test.ts` boundary (no
+    `isSignalBridgeRoom` import in `MindroomRoomInput`) is preserved.
+- Files changed (round 5):
+  - `FORK_CHANGES.md`
+  - `src/app/state/room/roomInputDrafts.ts` — added
+    `PendingVoiceSendInFlight` type and `inFlight?` field on the draft.
+  - `src/app/mindroom/voice/useVoiceRecorder.ts` — initial `phase` from
+    atom; sync `useEffect` for inFlight transitions; `retry()` writes
+    /clears token, token-checks on resolution, refuses fresh retry when
+    atom already has inFlight.
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx` — orphan cleanup
+    uses `Membership.Join`; `handleVoiceSend` re-resolves live context
+    via the new helper before any state mutation; recorder auto-closes
+    when the parked draft transitions away outside this mount's
+    actions.
+  - `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx` — new
+    `refreshMindroomRoomInputVoiceSendContext(mx, context)` helper;
+    `MatrixClient` and `Membership` imports added.
+  - Test files — mock matrix client gains a default `getRoom` that
+    returns a Joined room; new R5 regression tests added.
+- Regression tests (round 5):
+  - `useVoiceRecorder` "persists an inFlight token while a retry is
+    awaiting and surfaces sending state on a remounted hook" — would
+    FAIL under R4 wiring (covers FIX 1).
+  - `useVoiceRecorder` "refuses a fresh retry while the atom already
+    carries an inFlight token" — defense-in-depth for FIX 1.
+  - `RoomInput` "discards a parked draft when the source room exists
+    but the user is no longer Joined" — would FAIL under R4 (covers
+    FIX 2).
+  - `RoomInput` "rejects retry when the source room is no longer
+    reachable (re-resolves at retry time)" — would FAIL under R4
+    (covers FIX 3 / encryption-leak window).
+- Tests and validation (round 5):
+  - Green: `npx tsc --noEmit`.
+  - Green: `npx vitest run src/app/mindroom/voice/ src/app/mindroom/room-input/`
+    (7 files, 87 tests).
+  - Green: `npx vitest run` (full sweep: 292 files, 2180 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (Vite chunk-size warnings only).
+- R5 NIT items dropped per SOUL #1b (per the brief's explicit triage):
+  rev-H Issues 1, 3, 4, 5, 6, 7, 8, 9, 10; rev-G Issue 2.
+
+- **Round-6 fix (1 EXTREME-CONVERGENCE MAJOR — 5/8 R6 reviewers):**
+  - **Retry success path defeated the inFlight token guard
+    (rev-A/B/C/D-1/F).** R5's `retry()` correctly token-checked the
+    live atom before clearing it, but then unconditionally called
+    `reset()`, and `reset()` unconditionally wrote
+    `pendingVoiceSendDraftAtom = undefined`. A stale retry whose
+    `await sendRecording` resolved AFTER the atom was replaced with
+    a different draft (account-switch + new failed recording, or any
+    other replacement) would still erase the newer draft via the
+    reset's atom write. Real data-loss race.
+  - **Root-cause fix at the boundary:** the invariant is "writes to
+    `pendingVoiceSendDraftAtom` must be ownership-scoped". `reset()`
+    conflated local recorder cleanup with global atom mutation; the
+    two concerns must be separable so each caller can pick the right
+    cleanup. Split:
+    - New `resetLocalRecorderState()` — refs, timers, capture, React
+      UI state. Touches NO global state.
+    - `reset()` becomes `resetLocalRecorderState() +
+      writePendingDraft(undefined)`. Reserved for callers that have
+      already verified ownership.
+  - Updated callers:
+    - `retry()` success path uses `resetLocalRecorderState()` after
+      the token-checked clear, so a stale tail can never clobber a
+      newer draft.
+    - `finishStop` initial-send success path uses
+      `resetLocalRecorderState()` after its explicit clear (the
+      explicit clear is the authoritative ownership transition).
+    - `stopWithAction` discard branch uses `resetLocalRecorderState()`
+      so a discard of a non-existent live recording cannot collide
+      with `discardPending()`'s atom ownership.
+    - VoiceRecorderDialog's idle-transition `useEffect` keeps using
+      `reset()` — it only fires when `!hasPendingSend` (atom already
+      undefined), so the atom write is a guaranteed no-op.
+- Files changed (round 6):
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/voice/useVoiceRecorder.ts` — `reset()` split into
+    `resetLocalRecorderState()` + thin `reset()` wrapper; three call
+    sites updated; deps refreshed.
+  - `src/app/mindroom/voice/useVoiceRecorder.test.ts` — new regression
+    test for the stale-retry-success scenario.
+- Regression test (would FAIL under R5 wiring):
+  - `useVoiceRecorder` "does not clobber a different draft when a stale
+    retry resolves successfully" — kicks off a retry, externally
+    replaces the atom with a different draft (no inFlight, different
+    token), resolves the stale retry successfully, asserts the
+    replacement draft is preserved.
+- Tests and validation (round 6):
+  - Green: `npx tsc --noEmit`.
+  - Green: `npx vitest run src/app/mindroom/voice/ src/app/mindroom/room-input/`
+    (7 files, 88 tests).
+  - Green: `npx vitest run` (full sweep: 292 files, 2181 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build`.
+- R6 items dropped per SOUL #1b (per the brief's explicit triage):
+  - rev-D Issue 2 (full vitest red): pre-existing flakes in unrelated
+    files; 7/8 reviewers reported full green; not from this PR.
+  - All 8 of rev-H's NIT/MINOR items: rev-H APPROVED with all items
+    classified as deferrable.
+
+- **Round-7 fix (1 convergent MAJOR — rev-E + rev-F):**
+  - **`voiceAutoSendPendingAtom` leak when live-room refresh fails.**
+    R5 introduced `refreshMindroomRoomInputVoiceSendContext` to close
+    the stale-snapshot / encryption-upgrade window, but placed the
+    refresh BEFORE `handleVoiceSend`'s `try/finally`. The auto-send
+    slot is claimed by `claimVoiceAutoSend()` in `onSendStopRequest`
+    BEFORE `handleVoiceSend` runs. If the source room had become
+    unreachable / non-Joined, the refresh-failure throw bypassed the
+    finally → `voiceAutoSendPendingAtom` stayed `true` → text submit
+    and voice recording were globally locked across the entire app
+    until reload.
+  - **Root-cause fix at the boundary:** `handleVoiceSend` is the
+    function that owns release of any auto-send claim it sees. The
+    invariant "every claimed slot must release on every exit path"
+    must hold for ALL throws inside this function, not just throws
+    from inside the upload pipeline. Moved the entire body
+    (live-room refresh, "another send pending" guard, claim, upload,
+    send) into a single outer `try`, with the existing finally
+    (already calling `releaseVoiceAutoSend()`) now covering every
+    exit path. `releaseVoiceAutoSend()` short-circuits when no claim
+    is held, so calling it on the no-claim path is a no-op. Same
+    structural fix also closes rev-H's MINOR Issue 1 (the
+    retry()-catch-skips-onSendStopFailure race) for free, because
+    the parent now releases unconditionally regardless of what the
+    hook does in its catch.
+- Files changed (round 7):
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx` —
+    `handleVoiceSend` restructured: live-room refresh and
+    "another send pending" guard moved inside the outer try; finally
+    block now runs on every exit path.
+  - `src/app/mindroom/room-input/__tests__/RoomInput.test.ts` — new
+    regression test that goes through the production claim path
+    (`onSendStopRequest` → `onSendRecording`) so the leak path is
+    actually exercised.
+- Regression test (would FAIL under R6 wiring):
+  - `RoomInput` "releases voiceAutoSendPendingAtom when refresh fails
+    AFTER the slot has been claimed" — `onSendStopRequest()` claims
+    the slot, then a leave-membership room makes the live-room
+    refresh fail, then asserts `voiceAutoSendPendingAtom === false`.
+- Tests and validation (round 7):
+  - Green: `npx tsc --noEmit`.
+  - Green: `npx vitest run src/app/mindroom/voice/ src/app/mindroom/room-input/`
+    (7 files, 89 tests).
+  - Green: `npx vitest run` (full sweep: 292 files, 2182 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build`.
+- R7 items dropped per SOUL #1b (per the brief's explicit triage):
+  - rev-H 2 MINOR items + 5 NITs: rev-H APPROVED with all items
+    classified as deferrable. (Issue 1 specifically is now fixed
+    incidentally by the parent-side restructure above.)
+
 ### CINNY-096 - Xcode target Apple Sign In capability (2026-05-17)
 
 - Status:

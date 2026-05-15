@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MatrixError } from 'matrix-js-sdk';
+import { useAtom, useStore } from 'jotai';
 import {
   createFallbackWaveform,
   normalizeMatrixWaveform,
@@ -12,6 +13,14 @@ import {
   getAudioFileExtension,
   getSupportedRecorderMimeType,
 } from './voiceRecorderMime';
+import {
+  pendingVoiceSendDraftAtom,
+  type PendingVoiceSendContext,
+  type PendingVoiceSendDraft,
+  type PendingVoiceSendInFlight,
+} from '../../state/room/roomInputDrafts';
+
+const RETRY_BUSY_MESSAGE = 'Another voice message is still sending. Please wait.';
 
 export type VoiceRecorderPhase =
   | 'idle'
@@ -26,7 +35,8 @@ type PendingStopAction = 'send' | 'discard';
 type SendRecordingCallback = (
   file: File,
   duration: number,
-  waveform?: number[]
+  waveform: number[] | undefined,
+  context: PendingVoiceSendContext
 ) => Promise<void> | void;
 
 type UseVoiceRecorderOptions = {
@@ -34,6 +44,13 @@ type UseVoiceRecorderOptions = {
   onSendStopRequest?: () => boolean | void;
   onSendStopFailure?: () => void;
   onSendRecording?: SendRecordingCallback;
+  /**
+   * Snapshot of the room/thread/reply context to attach to the next send.
+   * Captured fresh at start() time so a failure persists the original
+   * destination across the RoomProvider key remount that real navigation
+   * triggers, even though the hook itself unmounts with the keyed subtree.
+   */
+  getSendContext: () => PendingVoiceSendContext;
 };
 
 type StopResolver = (sent: boolean) => void;
@@ -85,12 +102,29 @@ export function useVoiceRecorder({
   onSendStopRequest,
   onSendStopFailure,
   onSendRecording,
+  getSendContext,
 }: UseVoiceRecorderOptions) {
-  const [phase, setPhase] = useState<VoiceRecorderPhase>('idle');
+  const store = useStore();
+  // Initialize phase from the atom on first render. If a previous mount's
+  // retry is still in flight (atom.inFlight set), we MUST surface 'sending'
+  // immediately so the capsule's Discard / Send buttons stay disabled until
+  // that request settles — otherwise the user can discard a draft whose
+  // matrix message is still uploading and end up with the message landing
+  // after the explicit discard.
+  const [phase, setPhase] = useState<VoiceRecorderPhase>(() =>
+    store.get(pendingVoiceSendDraftAtom)?.inFlight ? 'sending' : 'idle'
+  );
   const [elapsedMs, setElapsedMs] = useState(0);
   const [waveform, setWaveform] = useState(() => createFallbackWaveform());
-  const [errorMessage, setErrorMessage] = useState<string>();
+  const [transientErrorMessage, setTransientErrorMessage] = useState<string>();
   const [canPause, setCanPause] = useState(true);
+
+  const [pendingDraft, setPendingDraft] = useAtom(pendingVoiceSendDraftAtom);
+
+  const hasPendingSend = !!pendingDraft;
+  const pendingDuration = pendingDraft?.duration ?? 0;
+  const pendingWaveform = pendingDraft?.waveform ?? createFallbackWaveform();
+  const errorMessage = pendingDraft?.errorMessage ?? transientErrorMessage;
 
   const recorderRef = useRef<MediaRecorder>();
   const streamRef = useRef<MediaStream>();
@@ -110,7 +144,42 @@ export function useVoiceRecorder({
   const latestOnSendStopRequestRef = useRef(onSendStopRequest);
   const latestOnSendStopFailureRef = useRef(onSendStopFailure);
   const latestOnSendRecordingRef = useRef(onSendRecording);
+  const latestGetSendContextRef = useRef(getSendContext);
   const sendRecordingAtStartRef = useRef<SendRecordingCallback>();
+  const sendContextAtStartRef = useRef<PendingVoiceSendContext>();
+  const pendingDraftRef = useRef<PendingVoiceSendDraft>();
+  const setPendingDraftRef = useRef(setPendingDraft);
+  const retryInFlightRef = useRef(false);
+
+  useEffect(() => {
+    pendingDraftRef.current = pendingDraft;
+  }, [pendingDraft]);
+
+  useEffect(() => {
+    setPendingDraftRef.current = setPendingDraft;
+  }, [setPendingDraft]);
+
+  // Sync local phase with the atom's inFlight marker. Two transitions to
+  // handle without disturbing in-progress local recording state:
+  //   1. atom gains inFlight (e.g. another component triggered a retry,
+  //      or — more commonly — this hook just wrote it from retry()).
+  //      → ensure phase='sending'.
+  //   2. atom loses inFlight while we're still showing 'sending' from a
+  //      previous mount's retry that just settled remotely.
+  //      → reset phase to 'idle' so the capsule (if still mounted) tears
+  //      down cleanly. Skip if a live recorder exists; the local
+  //      retry/finishStop paths manage phase themselves there.
+  useEffect(() => {
+    const inFlight = pendingDraft?.inFlight;
+    if (inFlight && phase !== 'sending') {
+      safeSetPhase('sending');
+    } else if (!inFlight && phase === 'sending' && !recorderRef.current) {
+      safeSetPhase('idle');
+    }
+    // safeSetPhase is stable; phase is a state value (re-runs on change is
+    // intentional); pendingDraft?.inFlight drives the sync.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingDraft?.inFlight]);
 
   const audioContextRef = useRef<AudioContext>();
   const analyserRef = useRef<AnalyserNode>();
@@ -133,6 +202,10 @@ export function useVoiceRecorder({
     latestOnSendRecordingRef.current = onSendRecording;
   }, [onSendRecording]);
 
+  useEffect(() => {
+    latestGetSendContextRef.current = getSendContext;
+  }, [getSendContext]);
+
   const safeSetPhase = useCallback((nextPhase: VoiceRecorderPhase) => {
     if (mountedRef.current) setPhase(nextPhase);
   }, []);
@@ -145,8 +218,23 @@ export function useVoiceRecorder({
     if (mountedRef.current) setWaveform(value);
   }, []);
 
-  const safeSetErrorMessage = useCallback((value: string | undefined) => {
-    if (mountedRef.current) setErrorMessage(value);
+  const safeSetTransientErrorMessage = useCallback((value: string | undefined) => {
+    if (mountedRef.current) setTransientErrorMessage(value);
+  }, []);
+
+  const safeSetCanPause = useCallback((value: boolean) => {
+    if (mountedRef.current) setCanPause(value);
+  }, []);
+
+  /**
+   * Persist the pending draft via the global atom. Always allowed: the atom
+   * outlives this hook so the parent can still read it after a keyed remount.
+   * pendingDraftRef is the synchronous read path used inside the hook; the
+   * atom is the persistence + cross-component-visibility surface.
+   */
+  const writePendingDraft = useCallback((draft: PendingVoiceSendDraft | undefined) => {
+    pendingDraftRef.current = draft;
+    setPendingDraftRef.current(draft);
   }, []);
 
   const clearTimer = useCallback(() => {
@@ -224,7 +312,14 @@ export function useVoiceRecorder({
     return stoppedRecorder;
   }, [clearSampleTimer, clearTimer, closeAudioContext, stopActiveRecorderForCleanup, stopStream]);
 
-  const reset = useCallback(() => {
+  /**
+   * Reset all hook-local recorder state — refs, timers, capture
+   * resources, React-managed UI state — WITHOUT touching the global
+   * pendingVoiceSendDraftAtom. Use this from any path where another caller
+   * may legitimately own the atom value (retry resolutions that lost the
+   * token race, stale finishStop tails after the user has discarded, etc).
+   */
+  const resetLocalRecorderState = useCallback(() => {
     sessionIdRef.current += 1;
     const stoppedRecorder = cleanupCapture();
     chunksRef.current = [];
@@ -238,11 +333,34 @@ export function useVoiceRecorder({
     stopResolverRef.current?.(false);
     stopResolverRef.current = undefined;
     sendRecordingAtStartRef.current = undefined;
-    setCanPause(true);
+    sendContextAtStartRef.current = undefined;
+    retryInFlightRef.current = false;
+    safeSetTransientErrorMessage(undefined);
+    safeSetCanPause(true);
     safeSetElapsedMs(0);
     safeSetWaveform(createFallbackWaveform());
     safeSetPhase('idle');
-  }, [cleanupCapture, safeSetElapsedMs, safeSetPhase, safeSetWaveform]);
+  }, [
+    cleanupCapture,
+    safeSetCanPause,
+    safeSetElapsedMs,
+    safeSetPhase,
+    safeSetTransientErrorMessage,
+    safeSetWaveform,
+  ]);
+
+  /**
+   * Full reset: local state PLUS clear the global pending-draft atom. Only
+   * use this from a code path that has already verified ownership of the
+   * atom value (e.g. the composer's idle-transition useEffect calls reset()
+   * because hasPendingSend is already false; finishStop's success path has
+   * just written undefined explicitly). Never use this from a stale async
+   * tail — it will defeat the inFlight token guard.
+   */
+  const reset = useCallback(() => {
+    resetLocalRecorderState();
+    writePendingDraft(undefined);
+  }, [resetLocalRecorderState, writePendingDraft]);
 
   const cleanupUnmountDuringSend = useCallback(() => {
     clearTimer();
@@ -346,14 +464,14 @@ export function useVoiceRecorder({
         safeSetElapsedMs(0);
         safeSetWaveform(createFallbackWaveform());
         safeSetPhase('idle');
-        safeSetErrorMessage('Voice recording stopped unexpectedly. Please record again.');
+        safeSetTransientErrorMessage('Voice recording stopped unexpectedly. Please record again.');
         resolveStop?.(false);
         return;
       }
 
       if (chunks.length === 0) {
         safeSetPhase('idle');
-        safeSetErrorMessage('No audio data was captured.');
+        safeSetTransientErrorMessage('No audio data was captured.');
         latestOnSendStopFailureRef.current?.();
         resolveStop?.(false);
         return;
@@ -372,7 +490,8 @@ export function useVoiceRecorder({
       );
 
       const sendRecording = sendRecordingAtStartRef.current;
-      if (!sendRecording) {
+      const sendContext = sendContextAtStartRef.current;
+      if (!sendRecording || !sendContext) {
         safeSetPhase('idle');
         latestOnSendStopFailureRef.current?.();
         resolveStop?.(false);
@@ -381,8 +500,13 @@ export function useVoiceRecorder({
 
       safeSetPhase('sending');
       try {
-        await sendRecording(file, duration, sampleWaveformData);
-        reset();
+        await sendRecording(file, duration, sampleWaveformData, sendContext);
+        // Initial send: this hook is the only writer of the atom for this
+        // recording, so the explicit clear above is the authoritative
+        // ownership transition. The local-state cleanup must NOT also write
+        // the atom — see reset() comment for the stale-tail race.
+        writePendingDraft(undefined);
+        resetLocalRecorderState();
         resolveStop?.(true);
       } catch (err) {
         safeSetPhase('idle');
@@ -392,7 +516,13 @@ export function useVoiceRecorder({
             : err instanceof Error
             ? err.message
             : 'Failed to send voice message.';
-        safeSetErrorMessage(friendlyMessage);
+        writePendingDraft({
+          file,
+          duration,
+          waveform: sampleWaveformData,
+          errorMessage: friendlyMessage,
+          context: sendContext,
+        });
         latestOnSendStopFailureRef.current?.();
         resolveStop?.(false);
       }
@@ -401,12 +531,13 @@ export function useVoiceRecorder({
       clearSampleTimer,
       clearTimer,
       closeAudioContext,
-      reset,
+      resetLocalRecorderState,
       safeSetElapsedMs,
-      safeSetErrorMessage,
       safeSetPhase,
+      safeSetTransientErrorMessage,
       safeSetWaveform,
       stopStream,
+      writePendingDraft,
     ]
   );
 
@@ -416,21 +547,23 @@ export function useVoiceRecorder({
       phase === 'recording' ||
       phase === 'paused' ||
       phase === 'processing' ||
-      phase === 'sending'
+      phase === 'sending' ||
+      hasPendingSend
     ) {
       return false;
     }
 
     latestOnRecordingStartRef.current?.();
     sendRecordingAtStartRef.current = latestOnSendRecordingRef.current;
-    safeSetErrorMessage(undefined);
+    sendContextAtStartRef.current = latestGetSendContextRef.current();
+    safeSetTransientErrorMessage(undefined);
 
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      safeSetErrorMessage('Voice recording is not supported in this browser.');
+      safeSetTransientErrorMessage('Voice recording is not supported in this browser.');
       return false;
     }
     if (typeof window !== 'undefined' && !window.isSecureContext) {
-      safeSetErrorMessage(
+      safeSetTransientErrorMessage(
         'Voice recording requires HTTPS on iPhone Safari/Brave (or localhost). Open MindRoom over HTTPS.'
       );
       return false;
@@ -467,7 +600,7 @@ export function useVoiceRecorder({
         typeof recorder.pause === 'function' && typeof recorder.resume === 'function';
 
       recorderRef.current = recorder;
-      setCanPause(pauseSupported);
+      safeSetCanPause(pauseSupported);
       setupAnalyser(stream);
 
       recorder.addEventListener('dataavailable', (event) => {
@@ -495,17 +628,19 @@ export function useVoiceRecorder({
         elapsedAtStopRef.current = 0;
         safeSetElapsedMs(0);
         safeSetPhase('idle');
-        safeSetErrorMessage(getVoiceRecorderErrorMessage(err));
+        safeSetTransientErrorMessage(getVoiceRecorderErrorMessage(err));
       }
       return false;
     }
   }, [
     cleanupCapture,
     finishStop,
+    hasPendingSend,
     phase,
+    safeSetCanPause,
     safeSetElapsedMs,
-    safeSetErrorMessage,
     safeSetPhase,
+    safeSetTransientErrorMessage,
     safeSetWaveform,
     setupAnalyser,
     startSampleTimer,
@@ -567,7 +702,10 @@ export function useVoiceRecorder({
       const recorder = recorderRef.current;
       if (!recorder || (recorder.state !== 'recording' && recorder.state !== 'paused')) {
         if (action === 'discard') {
-          reset();
+          // Discarding when there's no live recorder: clear local UI state
+          // only. Parked-draft discard goes through discardPending() instead;
+          // this path must not collide with that ownership.
+          resetLocalRecorderState();
         }
         return Promise.resolve(false);
       }
@@ -593,7 +731,7 @@ export function useVoiceRecorder({
           pendingStopActionRef.current = undefined;
           stopResolverRef.current = undefined;
           safeSetPhase('idle');
-          safeSetErrorMessage(getVoiceRecorderErrorMessage(err));
+          safeSetTransientErrorMessage(getVoiceRecorderErrorMessage(err));
           if (action === 'send') {
             latestOnSendStopFailureRef.current?.();
           }
@@ -605,17 +743,119 @@ export function useVoiceRecorder({
       clearSampleTimer,
       clearTimer,
       getActiveElapsedMs,
-      reset,
+      resetLocalRecorderState,
       safeSetElapsedMs,
-      safeSetErrorMessage,
       safeSetPhase,
+      safeSetTransientErrorMessage,
     ]
   );
 
   const send = useCallback(() => stopWithAction('send'), [stopWithAction]);
   const discard = useCallback(() => stopWithAction('discard'), [stopWithAction]);
 
-  const clearError = useCallback(() => safeSetErrorMessage(undefined), [safeSetErrorMessage]);
+  /**
+   * clearError dismisses transient errors only (mic permission, no-blob, etc).
+   * Persisted send-failure errors live on the pending draft and are cleared
+   * only by retry() success or discardPending().
+   */
+  const clearError = useCallback(
+    () => safeSetTransientErrorMessage(undefined),
+    [safeSetTransientErrorMessage]
+  );
+
+  const retry = useCallback(async (): Promise<boolean> => {
+    if (retryInFlightRef.current) {
+      return false;
+    }
+    const draft = pendingDraftRef.current;
+    const sendRecording = sendRecordingAtStartRef.current ?? latestOnSendRecordingRef.current;
+    // Refuse a fresh retry if the atom already has an inFlight marker — a
+    // previous mount's retry is still racing the network. The capsule's
+    // Discard / Send buttons are disabled by the synced phase='sending'
+    // state above, but a programmatic call into retry() must also bail.
+    if (
+      !draft ||
+      !sendRecording ||
+      phase === 'sending' ||
+      draft.inFlight ||
+      store.get(pendingVoiceSendDraftAtom)?.inFlight
+    ) {
+      return false;
+    }
+
+    if (latestOnSendStopRequestRef.current?.() === false) {
+      // Surface a dedicated message instead of silently failing the click.
+      writePendingDraft({ ...draft, errorMessage: RETRY_BUSY_MESSAGE });
+      return false;
+    }
+
+    retryInFlightRef.current = true;
+    safeSetPhase('sending');
+    // Stamp this attempt with a token. The token survives a keyed remount
+    // via the atom; a freshly mounted hook reads it and surfaces 'sending'
+    // so the user cannot discard a draft whose request is still in flight.
+    // The token also lets us recognize "another caller took over" on the
+    // resolution paths below.
+    const token = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const inFlight: PendingVoiceSendInFlight = { token, startedAt: Date.now() };
+    // Optimistically clear the error while the retry is in flight; failure
+    // path below restores it together with the draft.
+    writePendingDraft({ ...draft, errorMessage: undefined, inFlight });
+    try {
+      await sendRecording(draft.file, draft.duration, draft.waveform, draft.context);
+      // Only clear if this is still our attempt. If a discard or another
+      // operation overwrote the atom, leave that state alone. Note: must
+      // use resetLocalRecorderState() — NOT reset() — below so the local
+      // cleanup never clobbers a newer draft that the token guard just
+      // declined to touch.
+      const liveDraft = store.get(pendingVoiceSendDraftAtom);
+      if (!liveDraft || liveDraft.inFlight?.token === token) {
+        writePendingDraft(undefined);
+      }
+      resetLocalRecorderState();
+      return true;
+    } catch (err) {
+      safeSetPhase('idle');
+      // Re-read the live atom directly: pendingDraftRef is synced via a
+      // useEffect (post-commit) and won't reflect a discard that happened
+      // during this same await microtask. Also refuse to clobber a draft
+      // whose token has changed since we started.
+      const liveDraft = store.get(pendingVoiceSendDraftAtom);
+      if (!liveDraft || liveDraft.inFlight?.token !== token) {
+        return false;
+      }
+      const friendlyMessage =
+        err instanceof MatrixError
+          ? getMatrixUploadErrorMessage(err, getMatrixUploadErrorStage(err) ?? 'send')
+          : err instanceof Error
+          ? err.message
+          : 'Failed to send voice message.';
+      writePendingDraft({
+        ...liveDraft,
+        errorMessage: friendlyMessage,
+        inFlight: undefined,
+      });
+      latestOnSendStopFailureRef.current?.();
+      return false;
+    } finally {
+      retryInFlightRef.current = false;
+    }
+  }, [phase, resetLocalRecorderState, safeSetPhase, store, writePendingDraft]);
+
+  const discardPending = useCallback(() => {
+    sendRecordingAtStartRef.current = undefined;
+    writePendingDraft(undefined);
+    safeSetTransientErrorMessage(undefined);
+    safeSetElapsedMs(0);
+    safeSetWaveform(createFallbackWaveform());
+    safeSetPhase('idle');
+  }, [
+    safeSetElapsedMs,
+    safeSetPhase,
+    safeSetTransientErrorMessage,
+    safeSetWaveform,
+    writePendingDraft,
+  ]);
 
   useEffect(
     () => () => {
@@ -624,9 +864,30 @@ export function useVoiceRecorder({
         cleanupUnmountDuringSend();
         return;
       }
-      reset();
+      // Invalidate any in-flight start() that is still awaiting
+      // getUserMedia. Without this bump, a permission prompt resolved after
+      // unmount would pass the post-await session check, construct a
+      // MediaRecorder, and start capture/timers with no surviving owner —
+      // leaking the mic stream. reset() used to do this; we no longer call
+      // reset() on unmount because it would also clear the parked draft.
+      sessionIdRef.current += 1;
+      // Tear down live-recording resources only. Pending draft state lives in
+      // the global atom and must outlive this hook so a RoomProvider key
+      // remount on real navigation does not lose retry state.
+      cleanupCapture();
+      chunksRef.current = [];
+      metadataSampleRef.current = [];
+      displaySampleRef.current = [];
+      activeElapsedMsRef.current = 0;
+      elapsedAtStopRef.current = 0;
+      pendingStopActionRef.current = undefined;
+      stopResolverRef.current?.(false);
+      stopResolverRef.current = undefined;
+      sendRecordingAtStartRef.current = undefined;
+      sendContextAtStartRef.current = undefined;
+      retryInFlightRef.current = false;
     },
-    [cleanupUnmountDuringSend, reset]
+    [cleanupCapture, cleanupUnmountDuringSend]
   );
 
   return {
@@ -635,11 +896,16 @@ export function useVoiceRecorder({
     waveform,
     errorMessage,
     canPause,
+    hasPendingSend,
+    pendingDuration,
+    pendingWaveform,
     start,
     pause,
     resume,
     send,
     discard,
+    retry,
+    discardPending,
     reset,
     clearError,
   };
