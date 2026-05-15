@@ -3,7 +3,6 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { enableMapSet } from 'immer';
 import { App as CapacitorApp } from '@capacitor/app';
-import { Browser } from '@capacitor/browser';
 import '@fontsource/inter/variable.css';
 import 'folds/dist/style.css';
 import 'katex/dist/katex.min.css';
@@ -13,7 +12,7 @@ enableMapSet();
 import './index.css';
 
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
-import { getAppPathFromNativeSsoUrl, isNativeIOS } from './app/mindroom/native/nativeSso';
+import { isNativeIOS, routeNativeSsoCallback } from './app/mindroom/native/nativeSso';
 import { isServiceWorkerEnabled } from './app/utils/runtimeConfig';
 import { pushSessionToSW, waitForServiceWorkerControl } from './sw-session';
 import { getActiveSession, subscribeToSessionStore } from './app/state/sessions';
@@ -26,18 +25,7 @@ import './app/i18n';
 applyThemeToDom(resolveInitialTheme());
 
 const handleNativeSSOCallback = (url: string) => {
-  const appPath = getAppPathFromNativeSsoUrl(url);
-  if (!appPath) return;
-  // Dismiss the in-app SSO browser once the OAuth callback returns control.
-  Browser.close().catch(() => undefined);
-  try {
-    // Handle SSO callback as an SPA route transition (no full WebView reload),
-    // preventing iOS from treating path params like `mindroom.chat` as file paths.
-    window.history.replaceState(null, '', appPath);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  } catch {
-    window.location.replace(appPath);
-  }
+  routeNativeSsoCallback(url);
 };
 
 if (isNativeIOS()) {
