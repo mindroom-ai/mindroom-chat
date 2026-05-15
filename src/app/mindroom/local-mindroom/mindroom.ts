@@ -1,6 +1,7 @@
 import { LocalMindroomConnection } from './api';
 
 export const DEFAULT_MINDROOM_DOCS_URL = 'https://docs.mindroom.chat/';
+const WELCOME_SETUP_PROMPT_DELAY_MS = 24 * 60 * 60 * 1000;
 
 export const getMindroomDocsUrl = (url?: string): string =>
   url?.trim() || DEFAULT_MINDROOM_DOCS_URL;
@@ -40,9 +41,7 @@ export const resolveMindroomProvisioningRequest = ({
   if (!provisioningBaseUrl) return {};
 
   const isCrossOriginOverride =
-    overrideOrigin !== undefined &&
-    sessionOrigin !== undefined &&
-    overrideOrigin !== sessionOrigin;
+    overrideOrigin !== undefined && sessionOrigin !== undefined && overrideOrigin !== sessionOrigin;
 
   if (isCrossOriginOverride) {
     return {
@@ -60,6 +59,24 @@ export const resolveMindroomProvisioningRequest = ({
 
 export const getMindroomPairingCommand = (pairCode: string): string =>
   `uvx mindroom connect --pair-code ${pairCode}`;
+
+export const getWelcomeSetupFirstSeenStorageKey = (userId: string): string =>
+  `mindroom_welcome_setup_first_seen_at::${userId}`;
+
+export type WelcomeSetupPromptState = {
+  activeConnectionCount: number;
+  firstSeenAtMs: number | undefined;
+  nowMs?: number;
+};
+
+export const shouldShowWelcomeSetupPrompt = ({
+  activeConnectionCount,
+  firstSeenAtMs,
+  nowMs = Date.now(),
+}: WelcomeSetupPromptState): boolean =>
+  activeConnectionCount === 0 &&
+  firstSeenAtMs !== undefined &&
+  nowMs - firstSeenAtMs >= WELCOME_SETUP_PROMPT_DELAY_MS;
 
 export const getPairingSecondsRemaining = (
   expiresAt: string,
@@ -82,10 +99,7 @@ export const getConnectionId = (connection: LocalMindroomConnection): string | u
   return undefined;
 };
 
-export const getConnectionName = (
-  connection: LocalMindroomConnection,
-  index: number
-): string => {
+export const getConnectionName = (connection: LocalMindroomConnection, index: number): string => {
   if (typeof connection.client_name === 'string' && connection.client_name.trim()) {
     return connection.client_name;
   }
@@ -97,7 +111,8 @@ export const getConnectionName = (
 };
 
 export const getConnectionCreatedAt = (connection: LocalMindroomConnection): string | undefined => {
-  if (typeof connection.created_at === 'string' && connection.created_at) return connection.created_at;
+  if (typeof connection.created_at === 'string' && connection.created_at)
+    return connection.created_at;
 
   const alt = connection.createdAt;
   if (typeof alt === 'string' && alt) return alt;
@@ -105,7 +120,9 @@ export const getConnectionCreatedAt = (connection: LocalMindroomConnection): str
   return undefined;
 };
 
-export const getConnectionLastSeenAt = (connection: LocalMindroomConnection): string | undefined => {
+export const getConnectionLastSeenAt = (
+  connection: LocalMindroomConnection
+): string | undefined => {
   if (typeof connection.last_seen_at === 'string' && connection.last_seen_at) {
     return connection.last_seen_at;
   }
@@ -116,9 +133,7 @@ export const getConnectionLastSeenAt = (connection: LocalMindroomConnection): st
   return undefined;
 };
 
-export const getConnectionRevokedAt = (
-  connection: LocalMindroomConnection
-): string | undefined => {
+export const getConnectionRevokedAt = (connection: LocalMindroomConnection): string | undefined => {
   const direct = connection.revoked_at;
   if (typeof direct === 'string' && direct) return direct;
 

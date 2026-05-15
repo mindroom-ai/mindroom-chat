@@ -1,23 +1,31 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Browser } from '@capacitor/browser';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import {
   buildNativeSsoRedirectUrl,
   getAppPathFromNativeSsoUrl,
   isIOSStandaloneWebApp,
   isNativeIOS,
   openNativeSsoBrowser,
+  routeNativeSsoCallback,
 } from './nativeSso';
+
+const authenticate = vi.fn();
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
+    isPluginAvailable: vi.fn(),
     isNativePlatform: vi.fn(),
     getPlatform: vi.fn(),
   },
+  registerPlugin: vi.fn(() => ({
+    authenticate,
+  })),
 }));
 
 vi.mock('@capacitor/browser', () => ({
   Browser: {
+    close: vi.fn(),
     open: vi.fn(),
   },
 }));
@@ -43,8 +51,11 @@ describe('nativeSso', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    authenticate.mockReset();
+    vi.mocked(Capacitor.isPluginAvailable).mockReset();
     vi.mocked(Capacitor.isNativePlatform).mockReset();
     vi.mocked(Capacitor.getPlatform).mockReset();
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(false);
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
     Object.defineProperty(globalThis, 'window', {
@@ -74,9 +85,9 @@ describe('nativeSso', () => {
   });
 
   it('extracts app path from hostless native callback url', () => {
-    expect(
-      getAppPathFromNativeSsoUrl('mindroom:/auth/login/mindroom.chat?loginToken=abc123')
-    ).toBe('/login/mindroom.chat?loginToken=abc123');
+    expect(getAppPathFromNativeSsoUrl('mindroom:/auth/login/mindroom.chat?loginToken=abc123')).toBe(
+      '/login/mindroom.chat?loginToken=abc123'
+    );
   });
 
   it('extracts app path from triple-slash hostless native callback url', () => {
@@ -86,9 +97,9 @@ describe('nativeSso', () => {
   });
 
   it('extracts app path from compact hostless native callback url', () => {
-    expect(
-      getAppPathFromNativeSsoUrl('mindroom:auth/login/mindroom.chat?loginToken=abc123')
-    ).toBe('/login/mindroom.chat?loginToken=abc123');
+    expect(getAppPathFromNativeSsoUrl('mindroom:auth/login/mindroom.chat?loginToken=abc123')).toBe(
+      '/login/mindroom.chat?loginToken=abc123'
+    );
   });
 
   it('normalizes extra slashes in native callback path', () => {
@@ -159,5 +170,71 @@ describe('nativeSso', () => {
       url: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
       presentationStyle: 'fullscreen',
     });
+  });
+
+  it('uses the native iOS web authentication session when available', async () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    authenticate.mockResolvedValue({
+      url: 'mindroom://auth/login/mindroom.chat?loginToken=abc123',
+    });
+    const replaceState = vi.fn();
+    const dispatchEvent = vi.fn();
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        dispatchEvent,
+        history: { replaceState },
+        location: { replace: vi.fn() },
+      },
+    });
+
+    await openNativeSsoBrowser('https://mindroom.chat/_matrix/client/v3/login/sso/redirect');
+
+    expect(registerPlugin).toHaveBeenCalledWith('MindRoomAuth');
+    expect(authenticate).toHaveBeenCalledWith({
+      callbackScheme: 'mindroom',
+      url: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
+    });
+    expect(replaceState).toHaveBeenCalledWith(null, '', '/login/mindroom.chat?loginToken=abc123');
+    expect(dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'popstate' }));
+    expect(Browser.open).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the Capacitor browser when the native auth plugin is unavailable', async () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(false);
+    vi.mocked(Browser.open).mockResolvedValue();
+
+    await openNativeSsoBrowser('https://mindroom.chat/_matrix/client/v3/login/sso/redirect');
+
+    expect(authenticate).not.toHaveBeenCalled();
+    expect(Browser.open).toHaveBeenCalledWith({
+      url: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
+      presentationStyle: 'fullscreen',
+    });
+  });
+
+  it('routes native SSO callbacks through the SPA router', () => {
+    const replaceState = vi.fn();
+    const dispatchEvent = vi.fn();
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        dispatchEvent,
+        history: { replaceState },
+        location: { replace: vi.fn() },
+      },
+    });
+
+    expect(routeNativeSsoCallback('mindroom://auth/login/mindroom.chat?loginToken=abc123')).toBe(
+      true
+    );
+
+    expect(Browser.close).toHaveBeenCalled();
+    expect(replaceState).toHaveBeenCalledWith(null, '', '/login/mindroom.chat?loginToken=abc123');
+    expect(dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'popstate' }));
   });
 });

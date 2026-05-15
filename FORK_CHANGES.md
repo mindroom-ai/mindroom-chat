@@ -2,6 +2,107 @@
 
 ## Runbook
 
+### CINNY-093 - Native iOS web-auth session for Apple SSO (2026-05-15)
+
+- Status:
+  - In progress.
+- Summary:
+  - Investigating App Review rejection for build `4.11.1 (27)`: Sign in with
+    Apple through the default `mindroom.chat` server did not complete for the
+    reviewer.
+  - Verified `mindroom.chat` advertises Apple SSO and redirects to
+    `appleid.apple.com`, and downloaded the App Review screenshot showing the
+    reviewer remained inside the Apple web auth page.
+  - Added a native Capacitor bridge that uses `ASWebAuthenticationSession` for
+    iOS SSO and returns the `mindroom://auth/...` callback URL directly to the
+    SPA route handler, with the existing SafariViewController path left as a
+    fallback if the native plugin is unavailable.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `ios/App/App/Base.lproj/Main.storyboard`
+  - `ios/App/App/MindRoomAuthPlugin.swift`
+  - `ios/App/App/MindRoomBridgeViewController.swift`
+  - `ios/App/App.xcodeproj/project.pbxproj`
+  - `src/app/pages/auth/SSOLogin.test.ts`
+  - `src/app/mindroom/native/nativeSso.ts`
+  - `src/app/mindroom/native/nativeSso.test.ts`
+  - `src/index.tsx`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/native/nativeSso.test.ts` failed
+    while the native auth plugin path and reusable callback router did not
+    exist.
+  - Green check: `npm test -- src/app/mindroom/native/nativeSso.test.ts`.
+  - Green check:
+    `npm test -- src/app/pages/auth/SSOLogin.test.ts src/app/mindroom/native/nativeSso.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npx cap sync ios`.
+  - Green check: `npm run appstore:preflight`.
+  - Green check: `npm run lint` (16 warnings, 0 errors - pre-existing
+    baseline).
+  - Green check: `npm test` passed (`292` files, `2161` tests) with existing
+    `--localstorage-file` and React Router future-flag warnings.
+  - Green check: `git diff --check`.
+  - Syntax check:
+    `xcrun swiftc -parse ios/App/App/MindRoomAuthPlugin.swift ios/App/App/MindRoomBridgeViewController.swift`.
+  - Local iOS compile check:
+    `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`
+    could not run because the local Xcode/CoreSimulator install is out of sync
+    and reports no eligible iOS destinations. Xcode Cloud validation is needed
+    after pushing.
+
+### CINNY-092 - Welcome setup prompt for unpaired Local MindRoom (2026-05-15)
+
+- Status:
+  - Complete.
+- Summary:
+  - Added a delayed setup prompt to the welcome page for users with no active
+    Local MindRoom connection after the first-seen grace period reaches one day.
+  - The prompt uses the hosted getting-started flow: initialize config, add
+    provider credentials or Codex auth, generate a Local MindRoom pair code,
+    connect with `uvx mindroom connect`, and run `uvx mindroom run`.
+  - The config init step lists the supported `--provider` presets directly in
+    the welcome instructions.
+  - The pair-code step now includes a direct Local MindRoom settings button
+    instead of telling users to open Settings manually.
+  - WelcomePage queries the existing Local MindRoom connections endpoint and
+    hides the prompt for active linked installations, revoked-only states before
+    the one-day threshold, and provisioning failures.
+  - The one-day timer starts only after the welcome page observes zero active
+    connections, and it resets when an active connection exists.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/local-mindroom/mindroom.ts`
+  - `src/app/mindroom/local-mindroom/mindroom.test.ts`
+  - `src/app/pages/client/WelcomePage.tsx`
+  - `src/app/pages/client/WelcomePage.test.ts`
+- Tests and validation:
+  - Red check:
+    `npm test -- src/app/mindroom/local-mindroom/mindroom.test.ts src/app/pages/client/WelcomePage.test.ts`
+    failed while the welcome setup prompt gate and storage key helper did not
+    exist.
+  - Green check:
+    `npm test -- src/app/mindroom/local-mindroom/mindroom.test.ts src/app/pages/client/WelcomePage.test.ts`
+    passed (`15` tests).
+  - Green check: `npm run typecheck`.
+  - Green check:
+    `npx prettier --check src/app/pages/client/WelcomePage.tsx src/app/pages/client/WelcomePage.test.ts src/app/mindroom/local-mindroom/mindroom.ts src/app/mindroom/local-mindroom/mindroom.test.ts`.
+  - Green check: `git diff --check`.
+  - Green check: `npm run lint` (16 warnings, 0 errors - pre-existing
+    baseline).
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npm test` passed (`292` files, `2157` tests) with existing
+    `--localstorage-file` and React Router future-flag warnings.
+  - Local dev-server check: `npm start -- --host 127.0.0.1 --port 5174` served
+    `HTTP/1.1 200 OK` via `curl -I`; browser screenshot capture was skipped
+    because the available DevTools browser profile was already locked by another
+    session.
+  - Independent review: second self-review of the final diff found no issues;
+    subagent review was not used because this session was not explicitly
+    authorized to spawn agents.
+
 ### CINNY-091 - Members drawer invite entry point (2026-05-14)
 
 - Status:
