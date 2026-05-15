@@ -10,6 +10,7 @@ export const View = style({
   minWidth: 0,
   padding: `0 ${config.space.S300} ${config.space.S300}`,
   overflowY: 'auto',
+  overflowX: 'hidden',
   width: '100%',
 });
 
@@ -75,6 +76,7 @@ export const TitleLead = style({
 export const TitleText = style({
   minWidth: 0,
   flex: 1,
+  overflowWrap: 'anywhere',
 });
 
 export const TimeText = style({

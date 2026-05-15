@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### CINNY-111 - Thread list horizontal scroll + long-string overflow (2026-05-15)
+
+- Applied scoped compact room view x-overflow clipping and long unbreakable title wrapping with live Playwright coverage for 360/480/768/1440 viewport widths; Bas iPhone PWA verification remains pending.
+- Review round 1 cleanup: removed the transient root `FINAL-PLAN.md` artifact. Durable CINNY-111 status remains in this runbook; `RoomTimeline.architecture.test.ts` owns the guard that forbids root implementation report files.
+- Review round 2 triage:
+  - FIX Issue 1: live coverage now separately proves the rendered title text wraps to multiple lines on narrow viewports, so `overflow-x: hidden` cannot mask a deleted title-wrap rule.
+  - FIX Issue 2: the fixture title token was shortened and guarded below the 160-character compact title limit with buffer, avoiding truncation collisions in the regression assertion.
+  - FIX Issue 4: removed redundant `wordBreak: 'break-word'`; `overflowWrap: 'anywhere'` is the owning title-wrap rule.
+  - IGNORE Issues 3, 5, 6, 7 per SOUL #1b: perf/style/platform/cosmetic comments that do not violate the CINNY-111 invariant.
+- Review round 2 validation:
+  - Green: `npx tsc --noEmit`.
+  - Green: `npx vitest run src/app/mindroom/threads/CompactRoomView.test.ts src/app/mindroom/threads/compactThreadCardViewModel.test.ts` (2 files, 7 tests).
+  - Green: `npm test` (292 files, 2182 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (Vite source-map/chunk-size warnings only).
+  - Skipped by environment: `npx playwright test e2e/live/cinny111-thread-list-overflow.spec.ts` (4 skipped; `E2E_USERNAME` / `E2E_PASSWORD` unset).
+
 ### CINNY-110 - Splash extends under iPhone Dynamic Island (2026-05-15)
 
 - Status:
@@ -65,7 +82,6 @@
   - Independent review: second self-review of the final diff found no issues;
     subagent review was not used because this session was not explicitly
     authorized to spawn agents.
-
 ### CINNY-109 - Retry-first failed voice send UX (2026-05-14 → R7 2026-05-15)
 
 - Status:
@@ -957,7 +973,7 @@
   - Green check: `npm run typecheck`.
   - Green check: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
   - Green check: `npm run build`.
-  - Pre-existing failure (out of scope, not caused by this change): `RoomTimeline.architecture.test.ts > does not keep transient implementation report files in the repo root` fails because `FINAL-PLAN.md` (and `PHASE-1-RESULTS.md`) live at the repo root for the duration of this work. Both are transient; DevAgent should remove them at squash-merge time.
+  - Historical note: later cleanup removed transient root implementation artifacts so `RoomTimeline.architecture.test.ts > does not keep transient implementation report files in the repo root` remains the enforced repository boundary.
 - Hard rules followed:
   - No `STANDALONE_ROOT_MSGTYPE_ALLOWLIST` introduced.
   - No rename of `isVisibleThreadTextMessageEventType` (JSDoc only).
@@ -5582,6 +5598,16 @@ uploads it as the `cinny-android-debug-apk` workflow artifact (14-day retention)
 - Updated `VoiceAudioContent` to apply the persisted rate to every mounted voice audio element, including hidden-pill players, on rate/source changes, `onPlay`, and `loadedmetadata`.
 - Preserved the generic audio routing boundary: non-voice `m.audio` remains on `AudioContent`; voice `m.audio` remains on `VoiceAudioContent`.
 - Tightened `themeBootstrap` storage access to `window.localStorage` and made its jsdom spy target `Storage.prototype` so the existing fast-path test observes the session-store read consistently.
+- review:
+  - independent second self-review completed via source/test diff inspection, scope check against `AudioContent.tsx`, `MsgTypeRenderers.tsx`, and `useMediaPlaybackRate.ts`, label grep for `×`, and validation review.
+- validation:
+  - focused CINNY-057 suite passes (`4/4` files, `31/31` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes with existing Vite/runtime-config/sourcemap/chunk-size warnings
+  - `npm test` passes (`237/237` files, `1788/1788` tests)
+  - `npm run lint` passes with the current warning-only baseline (`17` warnings, `0` errors)
+  - `git diff --check` passes
+ng fast-path test observes the session-store read consistently.
 - review:
   - independent second self-review completed via source/test diff inspection, scope check against `AudioContent.tsx`, `MsgTypeRenderers.tsx`, and `useMediaPlaybackRate.ts`, label grep for `×`, and validation review.
 - validation:
