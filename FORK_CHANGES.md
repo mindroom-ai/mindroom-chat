@@ -2,6 +2,70 @@
 
 ## Runbook
 
+### CINNY-110 - Splash extends under iPhone Dynamic Island (2026-05-15)
+
+- Status:
+  - Complete.
+- Summary:
+  - Applied the `FINAL-PLAN.md` three-layer splash-only fullscreen fix:
+    `viewport-fit=cover`, a native iOS splash overlay counter/hook, and fixed
+    particle background positioning for the WebGL splash.
+  - `MindRoomSplashScreen` now acquires the native iOS WebView overlay only while
+    the particle splash is mounted; plain `SplashScreen` consumers keep the
+    existing non-immersive status-bar behavior.
+  - Removed the transient root `FINAL-PLAN.md` planning artifact after reading it
+    so the architecture guard and full test suite pass.
+  - Guardrails: keep static Capacitor `overlaysWebView: false`, do not change
+    plain `SplashScreen`, `src/index.css`, keyboard/app-height code, or
+    `apple-mobile-web-app-status-bar-style`.
+  - Review round 1 triage: fixed the real AuthLayout particle clipping
+    regression by restoring `MindRoomParticleBackground` to `absolute` by default
+    and making only the splash instance opt into `fixed`; added architecture
+    pins for `viewport-fit=cover` and the room `var(--app-height, 100%)` lock.
+    Ignored the remaining review comments as speculative isolation,
+    intentionally documented native-overlay timing, unnecessary direct hook
+    coverage, and an already tracked first-paint risk.
+- Files changed:
+  - `FINAL-PLAN.md` (removed transient planning artifact)
+  - `FORK_CHANGES.md`
+  - `index.html`
+  - `src/app/components/particle-background/MindRoomParticleBackground.css.ts`
+  - `src/app/components/particle-background/MindRoomParticleBackground.tsx`
+  - `src/app/components/splash-screen/MindRoomSplashScreen.test.ts`
+  - `src/app/components/splash-screen/MindRoomSplashScreen.tsx`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - `src/app/mindroom/native/statusBarOverlay.test.ts`
+  - `src/app/mindroom/native/statusBarOverlay.ts`
+  - `src/app/mindroom/native/useNativeSplashOverlay.ts`
+- Validation:
+  - Review round 1 green check:
+    `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/components/splash-screen/MindRoomSplashScreen.test.ts`.
+  - Review round 1 green check:
+    `npx prettier --check FORK_CHANGES.md src/app/components/particle-background/MindRoomParticleBackground.css.ts src/app/components/particle-background/MindRoomParticleBackground.tsx src/app/components/splash-screen/MindRoomSplashScreen.tsx src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Review round 1 green check: `npm run typecheck`.
+  - Review round 1 green check: `npm test` passed (`293` files, `2161`
+    tests) with existing React Router future-flag warnings.
+  - Review round 1 green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Review round 1 green check: `npm run lint` completed with the existing
+    warning-only baseline (`16` warnings, `0` errors).
+  - Review round 1 green check: `git diff --check`.
+  - Review round 1 independent review: second self-review confirmed AuthLayout
+    remains on the clipped default particle background, splash is the only
+    fixed-position caller, and no half-refactor traces remain.
+  - Green check: `npm test -- src/app/mindroom/native/statusBarOverlay.test.ts src/app/components/splash-screen/MindRoomSplashScreen.test.ts src/app/mindroom/native/statusBarTheme.test.ts src/app/mindroom/native/capacitorStatusBarConfig.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm test` passed (`293` files, `2160` tests) with existing
+    React Router future-flag warnings.
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npm run lint` completed with the existing warning-only
+    baseline (`16` warnings, `0` errors).
+  - Green check: `git diff --check`.
+  - Independent review: second self-review of the final diff found no issues;
+    subagent review was not used because this session was not explicitly
+    authorized to spawn agents.
+
 ### CINNY-109 - Retry-first failed voice send UX (2026-05-14 → R7 2026-05-15)
 
 - Status:
