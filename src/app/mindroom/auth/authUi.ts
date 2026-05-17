@@ -13,6 +13,7 @@ import {
 import {
   isMindroomHomeserver,
   shouldDisablePasswordLogin,
+  shouldRequireAppleProvider,
   shouldUseSsoOnlyRegistration,
 } from './authPolicy';
 
@@ -32,5 +33,6 @@ export {
   isNativeIOS,
   openNativeSsoBrowser,
   shouldDisablePasswordLogin,
+  shouldRequireAppleProvider,
   shouldUseSsoOnlyRegistration,
 };
