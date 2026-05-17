@@ -17,6 +17,7 @@ import { hasAppleIdentityProvider } from '../ssoProviders';
 import { isAddAccountSearch, withAddAccountSearch } from '../addAccount';
 import {
   getMindroomAuthSsoRedirectUrl,
+  shouldRequireAppleProvider,
   shouldUseSsoOnlyRegistration,
 } from '../../../mindroom/auth/authUi';
 
@@ -39,7 +40,7 @@ export function Register() {
   const addAccount = isAddAccountSearch(searchParams);
   const { sso } = useParsedLoginFlows(loginFlows.flows);
   const registrationAllowed = auth?.allowRegistration !== false;
-  const requireAppleProvider = auth?.requireAppleProvider === true;
+  const requireAppleProvider = shouldRequireAppleProvider(server, auth);
   const appleProviderAvailable = hasAppleIdentityProvider(sso?.identity_providers);
   const ssoOnlyRegistration = shouldUseSsoOnlyRegistration(server);
   const showPasswordRegistration =
