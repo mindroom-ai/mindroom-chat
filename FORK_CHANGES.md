@@ -18,6 +18,24 @@
   - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
   - Green: `npm run build` (Vite source-map/chunk-size warnings only).
   - Skipped by environment: `npx playwright test e2e/live/cinny111-thread-list-overflow.spec.ts` (4 skipped; `E2E_USERNAME` / `E2E_PASSWORD` unset).
+- Rebase-on-origin/dev follow-up (2026-05-17):
+  - Rebased CINNY-109/CINNY-110/CINNY-111 onto `origin/dev` at `f9499496`
+    (`fix(ios): declare Apple sign-in capability (#22)`).
+  - Resolved the only replay conflict in `FORK_CHANGES.md` by preserving the
+    rebased CINNY-109 entry and the upstream CINNY-096 through CINNY-092 iOS /
+    welcome entries.
+  - Green: focused post-rebase suite
+    `npm test -- src/app/mindroom/voice/ src/app/mindroom/room-input/ src/app/mindroom/splash-screen/MindRoomSplashScreen.test.ts src/app/mindroom/native/statusBarOverlay.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    (9 files, 187 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (293 files, 2202 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green: `git diff --check`.
+  - Skipped by environment:
+    `E2E_NO_WEB_SERVER=1 npm run test:e2e -- e2e/live/cinny111-thread-list-overflow.spec.ts`
+    (4 skipped; `E2E_USERNAME` / `E2E_PASSWORD` unset).
 
 ### CINNY-110 - Splash extends under iPhone Dynamic Island (2026-05-15)
 
@@ -82,6 +100,7 @@
   - Independent review: second self-review of the final diff found no issues;
     subagent review was not used because this session was not explicitly
     authorized to spawn agents.
+
 ### CINNY-109 - Retry-first failed voice send UX (2026-05-14 → R7 2026-05-15)
 
 - Status:
