@@ -8,9 +8,11 @@ import {
   isNativeIOS,
   openNativeSsoBrowser,
   routeNativeSsoCallback,
+  signInWithNativeApple,
 } from './nativeSso';
 
 const authenticate = vi.fn();
+const signInWithApple = vi.fn();
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
@@ -20,6 +22,7 @@ vi.mock('@capacitor/core', () => ({
   },
   registerPlugin: vi.fn(() => ({
     authenticate,
+    signInWithApple,
   })),
 }));
 
@@ -52,6 +55,7 @@ describe('nativeSso', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authenticate.mockReset();
+    signInWithApple.mockReset();
     vi.mocked(Capacitor.isPluginAvailable).mockReset();
     vi.mocked(Capacitor.isNativePlatform).mockReset();
     vi.mocked(Capacitor.getPlatform).mockReset();
@@ -236,5 +240,87 @@ describe('nativeSso', () => {
     expect(Browser.close).toHaveBeenCalled();
     expect(replaceState).toHaveBeenCalledWith(null, '', '/login/mindroom.chat?loginToken=abc123');
     expect(dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'popstate' }));
+  });
+
+  it('exchanges native Apple credentials for a Matrix login token and routes it', async () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    signInWithApple.mockResolvedValue({
+      authorizationCode: 'apple-code',
+      identityToken: 'apple-id-token',
+      nonce: 'native-nonce',
+      user: 'apple-user',
+    });
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ loginToken: 'matrix-login-token' }),
+    });
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      value: fetch,
+    });
+    const replaceState = vi.fn();
+    const dispatchEvent = vi.fn();
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        dispatchEvent,
+        history: { replaceState },
+        location: { replace: vi.fn() },
+      },
+    });
+
+    await signInWithNativeApple({
+      baseUrl: 'https://mindroom.chat/',
+      providerId: 'chat.mindroom.matrix.apple',
+      redirectUrl: 'mindroom://auth/login/mindroom.chat',
+    });
+
+    expect(signInWithApple).toHaveBeenCalledWith({});
+    expect(fetch).toHaveBeenCalledWith(
+      'https://mindroom.chat/_matrix/client/unstable/org.mindroom.login/apple',
+      {
+        body: JSON.stringify({
+          authorizationCode: 'apple-code',
+          identityToken: 'apple-id-token',
+          nonce: 'native-nonce',
+          providerId: 'chat.mindroom.matrix.apple',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      }
+    );
+    expect(replaceState).toHaveBeenCalledWith(
+      null,
+      '',
+      '/login/mindroom.chat?loginToken=matrix-login-token'
+    );
+    expect(dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'popstate' }));
+  });
+
+  it('rejects native Apple sign-in when the Matrix exchange does not return a login token', async () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    signInWithApple.mockResolvedValue({
+      identityToken: 'apple-id-token',
+      nonce: 'native-nonce',
+    });
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({}),
+      }),
+    });
+
+    await expect(
+      signInWithNativeApple({
+        baseUrl: 'https://mindroom.chat',
+        providerId: 'chat.mindroom.matrix.apple',
+        redirectUrl: 'mindroom://auth/login/mindroom.chat',
+      })
+    ).rejects.toThrow('login token');
   });
 });

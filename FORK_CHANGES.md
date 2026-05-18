@@ -2,6 +2,47 @@
 
 ## Runbook
 
+### CINNY-094 - Native Sign in with Apple exchange (2026-05-17)
+
+- Status:
+  - Implemented locally; pending Tuwunel release/deploy and App Store build.
+- Summary:
+  - Replaced the native iOS Apple provider path with
+    `ASAuthorizationAppleIDProvider` so Sign in with Apple uses the device
+    account sheet instead of the Apple web login page.
+  - The native plugin now returns the Apple identity token, authorization code,
+    user identifier, and raw nonce to the web layer.
+  - The web layer posts the native Apple credential to
+    `/_matrix/client/unstable/org.mindroom.login/apple` and routes the returned
+    Matrix `loginToken` through the existing token-login path.
+  - Enabled the iOS Sign in with Apple entitlement in `App.entitlements`.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `ios/App/App/App.entitlements`
+  - `ios/App/App/MindRoomAuthPlugin.swift`
+  - `src/app/mindroom/auth/authUi.ts`
+  - `src/app/mindroom/native/nativeSso.ts`
+  - `src/app/mindroom/native/nativeSso.test.ts`
+  - `src/app/pages/auth/SSOLogin.tsx`
+  - `src/app/pages/auth/SSOLogin.test.ts`
+- Tests and validation:
+  - Red check:
+    `npm test -- src/app/mindroom/native/nativeSso.test.ts src/app/pages/auth/SSOLogin.test.ts`
+    failed while `signInWithNativeApple` and the Apple-provider intercept did
+    not exist.
+  - Green check:
+    `npm test -- src/app/mindroom/native/nativeSso.test.ts src/app/pages/auth/SSOLogin.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `xcrun swiftc -parse ios/App/App/MindRoomAuthPlugin.swift`.
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npx cap sync ios`.
+  - Green check: `npm run appstore:preflight`.
+  - Local iOS compile check:
+    `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`
+    could not run because this Mac's CoreSimulator is older than the installed
+    Xcode support files and no eligible iOS 26.5 destination is installed.
+
 ### CINNY-093 - Native iOS web-auth session for Apple SSO (2026-05-15)
 
 - Status:
