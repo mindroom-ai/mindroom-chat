@@ -2,6 +2,31 @@
 
 ## Runbook
 
+### CINNY-096 - Xcode target Apple Sign In capability (2026-05-17)
+
+- Status:
+  - Complete.
+- Summary:
+  - Xcode Cloud passed the Swift compile step after CINNY-095, then failed
+    during export for distribution.
+  - Added the `com.apple.SignInWithApple` system capability to the Xcode target
+    attributes so automatic signing/export sees the target capability as well as
+    the entitlement file.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `ios/App/App.xcodeproj/project.pbxproj`
+- Tests and validation:
+  - Green check:
+    `plutil -lint ios/App/App.xcodeproj/project.pbxproj ios/App/App/App.entitlements`.
+  - Green check: `xcodebuild -list -workspace ios/App/App.xcworkspace`
+    listed the `App` scheme; it still prints the local CoreSimulator mismatch
+    warning from this Mac.
+  - Green check: `xcrun swiftc -parse ios/App/App/MindRoomAuthPlugin.swift`.
+  - Green check: `npm run appstore:preflight`.
+  - Green check: `git diff --check`.
+  - Green check:
+    `npm test -- src/app/mindroom/native/nativeSso.test.ts src/app/pages/auth/SSOLogin.test.ts`.
+
 ### CINNY-095 - Xcode Cloud native Apple nonce compile fix (2026-05-17)
 
 - Status:
