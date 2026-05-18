@@ -2,6 +2,25 @@
 
 ## Runbook
 
+### CINNY-095 - Xcode Cloud native Apple nonce compile fix (2026-05-17)
+
+- Status:
+  - Complete.
+- Summary:
+  - Fixed the Xcode Cloud Swift exclusivity error in native Apple nonce
+    generation by using the mutable byte buffer's own count and base address
+    inside `withUnsafeMutableBytes`.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `ios/App/App/MindRoomAuthPlugin.swift`
+- Tests and validation:
+  - Green check: `xcrun swiftc -parse ios/App/App/MindRoomAuthPlugin.swift`.
+  - Green check:
+    `npm test -- src/app/mindroom/native/nativeSso.test.ts src/app/pages/auth/SSOLogin.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm run appstore:preflight`.
+  - Green check: `git diff --check`.
+
 ### CINNY-094 - Native Sign in with Apple exchange (2026-05-17)
 
 - Status:

@@ -189,7 +189,11 @@ public class MindRoomAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticatio
         while remainingLength > 0 {
             var randomBytes = [UInt8](repeating: 0, count: 16)
             let status = randomBytes.withUnsafeMutableBytes { buffer in
-                SecRandomCopyBytes(kSecRandomDefault, randomBytes.count, buffer.baseAddress!)
+                guard let baseAddress = buffer.baseAddress else {
+                    return errSecParam
+                }
+
+                return SecRandomCopyBytes(kSecRandomDefault, buffer.count, baseAddress)
             }
 
             if status != errSecSuccess {
