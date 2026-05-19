@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import React, { useState } from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
@@ -38,6 +39,10 @@ vi.mock('./InviteAutocompleteMenu.css', () => ({
   InviteAutocompleteMenuContainer: 'InviteAutocompleteMenuContainer',
   InviteAutocompleteMenu: 'InviteAutocompleteMenu',
   InviteAutocompleteMenuHeader: 'InviteAutocompleteMenuHeader',
+  InviteAutocompleteOption: 'InviteAutocompleteOption',
+  InviteAutocompleteIdentity: 'InviteAutocompleteIdentity',
+  InviteAutocompleteDisplayName: 'InviteAutocompleteDisplayName',
+  InviteAutocompleteUserId: 'InviteAutocompleteUserId',
 }));
 
 vi.mock('../../hooks/useMediaAuthentication', () => ({
@@ -320,6 +325,41 @@ describe('InviteUserAutocomplete', () => {
       undefined,
       false
     );
+  });
+
+  it('keeps long matching user identities readable inside each suggestion row', () => {
+    const userId = '@mindroom_assistant_829sujms:mindroom.example.org';
+    const displayName = 'MindRoom Assistant 829';
+    const { renderer } = renderAutocomplete({
+      cacheState: readyCache([
+        {
+          userId,
+          displayName,
+        },
+      ]),
+      initialValue: 'mind',
+    });
+
+    const [option] = getOptions(renderer);
+    const displayNameNode = renderer.root.findByProps({ title: displayName });
+    const userIdNode = renderer.root.findByProps({ title: userId });
+
+    expect(option.props['aria-label']).toBe(`${displayName}, ${userId}`);
+    expect(option.props['data-ui-after']).toBeUndefined();
+    expect(displayNameNode.props.children).toBe(displayName);
+    expect(userIdNode.props.children).toBe(userId);
+    expect(userIdNode.props.truncate).toBeUndefined();
+  });
+
+  it('keeps the suggestion popup anchored inside the input bounds', () => {
+    const cssSource = readFileSync(new URL('./InviteAutocompleteMenu.css.ts', import.meta.url), {
+      encoding: 'utf8',
+    });
+
+    expect(cssSource).toContain('left: 0');
+    expect(cssSource).toContain('right: 0');
+    expect(cssSource).not.toContain("left: '50%'");
+    expect(cssSource).not.toContain('translateX(-50%)');
   });
 
   it('moves the active row with arrows and commits it with Enter', () => {

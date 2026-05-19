@@ -2,6 +2,60 @@
 
 ## Runbook
 
+### CINNY-112 - Invite autocomplete readable agent identities (2026-05-19)
+
+- Status:
+  - Complete.
+- Summary:
+  - Reworked invite autocomplete suggestions so agent/user search results show
+    display name and full MXID in the main row body instead of truncating the
+    MXID in the trailing slot.
+  - PR follow-up: kept the suggestion popup anchored inside the input/dialog
+    bounds after screenshot review showed the widened centered popup being
+    clipped by the dialog; widened the Invite dialog itself modestly on desktop
+    so the two-line identities have more room without escaping the modal.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/components/invite-user-prompt/InviteAutocompleteMenu.css.ts`
+  - `src/app/components/invite-user-prompt/InviteUserPrompt.tsx`
+  - `src/app/components/invite-user-prompt/InviteUserPrompt.test.tsx`
+  - `src/app/components/invite-user-prompt/InviteUserAutocomplete.tsx`
+  - `src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+- Regression tests:
+  - Added `InviteUserAutocomplete` coverage proving a long MindRoom-style match
+    exposes the display name and full MXID in the suggestion row without using
+    the narrow trailing `after` slot.
+  - Added guards proving the suggestion popup stays input-bounded and the Invite
+    dialog uses the wider responsive width cap.
+- Validation:
+  - RED observed:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+    failed because the old row had no full-identity text nodes.
+  - Green focused check:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+    (1 file, 12 tests).
+  - Green prompt/autocomplete check:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx src/app/components/invite-user-prompt/InviteUserPrompt.test.tsx`
+    (2 files, 14 tests).
+  - PR follow-up RED checks:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+    failed on the escaping centered popup rule, and
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserPrompt.test.tsx`
+    failed before the wider responsive dialog style existed.
+  - PR follow-up green focused check:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx src/app/components/invite-user-prompt/InviteUserPrompt.test.tsx`
+    (2 files, 16 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (293 files, 2205 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green:
+    `npx prettier --check src/app/components/invite-user-prompt/InviteAutocompleteMenu.css.ts src/app/components/invite-user-prompt/InviteUserAutocomplete.tsx src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx src/app/components/invite-user-prompt/InviteUserPrompt.test.tsx`.
+  - Green: `git diff --check`.
+  - Independent review: second self-review found no issues; subagent review was
+    not used because this session was not explicitly authorized to spawn agents.
+
 ### CINNY-111 - Thread list horizontal scroll + long-string overflow (2026-05-15)
 
 - Applied scoped compact room view x-overflow clipping and long unbreakable title wrapping with live Playwright coverage for 360/480/768/1440 viewport widths; Bas iPhone PWA verification remains pending.
