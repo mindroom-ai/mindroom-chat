@@ -3,6 +3,7 @@ import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { config, toRem } from 'folds';
 
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import {
@@ -43,6 +44,10 @@ vi.mock('./InviteAutocompleteMenu.css', () => ({
   InviteAutocompleteMenuContainer: 'InviteAutocompleteMenuContainer',
   InviteAutocompleteMenu: 'InviteAutocompleteMenu',
   InviteAutocompleteMenuHeader: 'InviteAutocompleteMenuHeader',
+  InviteAutocompleteOption: 'InviteAutocompleteOption',
+  InviteAutocompleteIdentity: 'InviteAutocompleteIdentity',
+  InviteAutocompleteDisplayName: 'InviteAutocompleteDisplayName',
+  InviteAutocompleteUserId: 'InviteAutocompleteUserId',
 }));
 
 vi.mock('../../hooks/useMediaAuthentication', () => ({
@@ -131,6 +136,14 @@ const getInput = (renderer: ReactTestRenderer) => renderer.root.findByProps({ ro
 
 const getForm = (renderer: ReactTestRenderer) => renderer.root.find((node) => node.type === 'form');
 
+const getDialog = (renderer: ReactTestRenderer) =>
+  renderer.root.find(
+    (node) =>
+      node.type === 'div' &&
+      node.props.style?.width === '100%' &&
+      typeof node.props.style?.maxWidth === 'string'
+  );
+
 const getOptions = (renderer: ReactTestRenderer) =>
   renderer.root.findAll((node) => node.type === 'button' && node.props.role === 'option');
 
@@ -216,6 +229,15 @@ afterEach(() => {
 });
 
 describe('InviteUserPrompt', () => {
+  it('uses a wider responsive dialog so invite matches have room to breathe', () => {
+    const { renderer } = renderPrompt();
+
+    expect(getDialog(renderer).props.style).toMatchObject({
+      width: '100%',
+      maxWidth: `min(calc(100vw - 2 * ${config.space.S400}), ${toRem(680)})`,
+    });
+  });
+
   it.each([
     { key: 'Enter', closesSuggestions: false },
     { key: 'Tab', closesSuggestions: true },

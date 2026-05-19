@@ -22,6 +22,7 @@ import { sanitizeInviteAutocompleteOptionId } from '../../utils/userDirectorySea
 import { onTabPress } from '../../utils/keyboard';
 import { UserAvatar } from '../user-avatar';
 import { InviteAutocompleteMenu } from './InviteAutocompleteMenu';
+import * as css from './InviteAutocompleteMenu.css';
 
 type InviteUserAutocompleteProps = {
   room: Room;
@@ -201,7 +202,9 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
                     id={getOptionId(user.userId)}
                     role="option"
                     aria-selected={active}
+                    aria-label={`${displayName}, ${user.userId}`}
                     data-focus={active || undefined}
+                    className={css.InviteAutocompleteOption}
                     type="button"
                     radii="300"
                     disabled={disabled}
@@ -225,15 +228,26 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
                         />
                       </Avatar>
                     }
-                    after={
-                      <Text size="T200" priority="300" truncate>
+                  >
+                    <span className={css.InviteAutocompleteIdentity}>
+                      <Text
+                        as="span"
+                        className={css.InviteAutocompleteDisplayName}
+                        size="B400"
+                        title={displayName}
+                      >
+                        {displayName}
+                      </Text>
+                      <Text
+                        as="span"
+                        className={css.InviteAutocompleteUserId}
+                        size="T200"
+                        priority="300"
+                        title={user.userId}
+                      >
                         {user.userId}
                       </Text>
-                    }
-                  >
-                    <Text style={{ flexGrow: 1 }} size="B400" truncate>
-                      {displayName}
-                    </Text>
+                    </span>
                   </MenuItem>
                 );
               })}
