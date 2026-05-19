@@ -351,6 +351,42 @@ describe('InviteUserAutocomplete', () => {
     expect(userIdNode.props.truncate).toBeUndefined();
   });
 
+  it('does not duplicate the MXID in the option label when it is also the display name', () => {
+    const userId = '@mindroom_assistant:mindroom.chat';
+    const { renderer } = renderAutocomplete({
+      cacheState: readyCache([
+        {
+          userId,
+          displayName: userId,
+        },
+      ]),
+      initialValue: 'mind',
+    });
+
+    const [option] = getOptions(renderer);
+
+    expect(option.props['aria-label']).toBe(userId);
+  });
+
+  it('falls back from a whitespace-only display name before labeling the option', () => {
+    const userId = '@space:example.org';
+    const { renderer } = renderAutocomplete({
+      cacheState: readyCache([
+        {
+          userId,
+          displayName: '   ',
+        },
+      ]),
+      initialValue: 'space',
+    });
+
+    const [option] = getOptions(renderer);
+    const displayNameNode = renderer.root.findByProps({ title: 'space' });
+
+    expect(option.props['aria-label']).toBe(`space, ${userId}`);
+    expect(displayNameNode.props.children).toBe('space');
+  });
+
   it('keeps the suggestion popup anchored inside the input bounds', () => {
     const cssSource = readFileSync(new URL('./InviteAutocompleteMenu.css.ts', import.meta.url), {
       encoding: 'utf8',
