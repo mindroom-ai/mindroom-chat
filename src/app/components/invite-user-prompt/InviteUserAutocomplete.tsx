@@ -38,7 +38,10 @@ const getOptionId = (userId: string): string =>
   `invite-autocomplete-option-${sanitizeInviteAutocompleteOptionId(userId)}`;
 
 const getDisplayName = (user: ServerUserDirectoryUser): string =>
-  user.displayName || getMxIdLocalPart(user.userId) || user.userId;
+  user.displayName?.trim() || getMxIdLocalPart(user.userId) || user.userId;
+
+const getOptionLabel = (displayName: string, userId: string): string =>
+  displayName && displayName !== userId ? `${displayName}, ${userId}` : userId;
 
 const setForwardedRef = (
   ref: ForwardedRef<HTMLInputElement>,
@@ -202,7 +205,7 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
                     id={getOptionId(user.userId)}
                     role="option"
                     aria-selected={active}
-                    aria-label={`${displayName}, ${user.userId}`}
+                    aria-label={getOptionLabel(displayName, user.userId)}
                     data-focus={active || undefined}
                     className={css.InviteAutocompleteOption}
                     type="button"

@@ -2,6 +2,50 @@
 
 ## Runbook
 
+### CINNY-113 - Invite autocomplete non-duplicative option labels (2026-05-19)
+
+- Status:
+  - Complete.
+- Summary:
+  - Followed up on PR #23 accessibility review feedback by making invite
+    autocomplete option labels avoid repeating the MXID when the display name
+    already equals the user ID.
+  - PR #24 review follow-up: trim display names at the invite option render
+    boundary so whitespace-only names behave like missing names and fall back to
+    the MXID localpart/userId identity. Did not add case-insensitive MXID
+    dedupe because Matrix IDs should remain exact identifiers.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/components/invite-user-prompt/InviteUserAutocomplete.tsx`
+  - `src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+- Regression tests:
+  - Added coverage proving a suggestion whose display name is the same as its
+    MXID announces just the MXID instead of `<mxid>, <mxid>`.
+  - Added coverage proving a whitespace-only display name renders and announces
+    via the existing localpart/userId fallback rather than as a blank name.
+- Validation:
+  - RED observed:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+    failed because the old `aria-label` duplicated the MXID.
+  - PR #24 review RED observed:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+    failed because the whitespace-only display name was preserved instead of
+    falling back to the localpart.
+  - Green focused check:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+    (1 file, 15 tests).
+  - Green prompt/autocomplete check:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx src/app/components/invite-user-prompt/InviteUserPrompt.test.tsx`
+    (2 files, 18 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (293 files, 2207 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green:
+    `npx prettier --check src/app/components/invite-user-prompt/InviteUserAutocomplete.tsx src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`.
+  - Green: `git diff --check`.
+
 ### CINNY-112 - Invite autocomplete readable agent identities (2026-05-19)
 
 - Status:
