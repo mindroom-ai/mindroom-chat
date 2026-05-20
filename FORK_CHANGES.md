@@ -7,6 +7,8 @@
 - Status:
   - Internal testing release `4.11.1 (28)` is active and available to internal
     testers in Google Play Console.
+  - Follow-up fix prepared as Android `versionCode 29` after tester feedback
+    showed voice recording was blocked in the Android app.
 - Summary:
   - Fixed Android SSO callbacks so native Android builds use
     `mindroom://auth/...` instead of the WebView `localhost/login/mindroom...`
@@ -17,6 +19,11 @@
     routing Android SSO through the Capacitor browser.
   - Bumped Android release metadata to `versionName "4.11.1"` and
     `versionCode 28`, with optional upload-keystore signing for release AABs.
+  - Follow-up Android voice fix: added the required Android
+    `RECORD_AUDIO` permission and made microphone-blocked errors use
+    Android-specific app settings copy instead of the iPhone settings message.
+  - Bumped the follow-up Android build to `versionCode 29` so it can replace
+    the already-uploaded internal testing bundle.
 - Files changed:
   - `FORK_CHANGES.md`
   - `android/app/build.gradle`
@@ -27,6 +34,8 @@
   - `src/app/mindroom/native/nativeSso.test.ts`
   - `src/app/pages/auth/SSOLogin.tsx`
   - `src/app/pages/auth/SSOLogin.test.ts`
+  - `src/app/mindroom/voice/useVoiceRecorder.ts`
+  - `src/app/mindroom/voice/useVoiceRecorder.test.ts`
   - `src/index.tsx`
 - Regression tests:
   - Added coverage proving Android native auth builds generate
@@ -35,21 +44,33 @@
     anchor fallback.
   - Added source guards for the Android `mindroom://auth` intent filter and
     native app URL callback registration.
+  - Added coverage proving native Android microphone permission failures show
+    Android app settings guidance.
+  - Added a source guard proving Android declares `RECORD_AUDIO` for native
+    voice recording.
 - Validation:
   - Green focused check:
     `npm test -- src/app/mindroom/auth/authUi.test.ts src/app/pages/auth/SSOLogin.test.ts src/app/mindroom/native/nativeSso.test.ts`
     (3 files, 29 tests).
+  - Green focused Android SSO + voice check:
+    `npm test -- src/app/mindroom/auth/authUi.test.ts src/app/pages/auth/SSOLogin.test.ts src/app/mindroom/native/nativeSso.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts`
+    (4 files, 62 tests).
   - Green: `npm run typecheck`.
-  - Green: `npm test` (293 files, 2212 tests).
+  - Green: `npm test` (293 files, 2214 tests).
   - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
     warnings only).
   - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green focused voice check:
+    `npm test -- src/app/mindroom/voice/useVoiceRecorder.test.ts` (1 file, 33
+    tests).
   - Green: `npx cap sync android`.
+  - Green follow-up packaging step: `npx cap copy android`.
   - Green: `./gradlew --no-daemon :app:bundleRelease` using JDK 21 and the
     Android SDK from `/opt/homebrew/share/android-commandlinetools`.
   - Green: verified the generated release bundle manifest reports package
-    `com.mindroom_ai.app`, version code `28`, version name `4.11.1`, and the
-    `mindroom://auth` activity intent filter.
+    `com.mindroom_ai.app`, version code `29`, version name `4.11.1`, the
+    `mindroom://auth` activity intent filter, and
+    `android.permission.RECORD_AUDIO`.
   - Green: `git diff --check`.
 
 ### CINNY-113 - Invite autocomplete non-duplicative option labels (2026-05-19)

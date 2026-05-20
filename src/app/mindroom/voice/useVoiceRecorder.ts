@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MatrixError } from 'matrix-js-sdk';
+import { Capacitor } from '@capacitor/core';
 import { useAtom, useStore } from 'jotai';
 import {
   createFallbackWaveform,
@@ -70,14 +71,36 @@ const getAudioContextConstructor = (): typeof AudioContext | undefined => {
   );
 };
 
+const isNativeApp = (): boolean => Capacitor.isNativePlatform();
+
+const getNativePlatform = (): string | undefined =>
+  isNativeApp() ? Capacitor.getPlatform() : undefined;
+
+const getInsecureContextVoiceRecorderMessage = (): string =>
+  'Voice recording requires HTTPS (or localhost). Open MindRoom over HTTPS.';
+
+const getBlockedMicrophoneMessage = (): string => {
+  const nativePlatform = getNativePlatform();
+
+  if (nativePlatform === 'android') {
+    return 'Microphone access is blocked. Allow microphone access for MindRoom in Android app settings and try again.';
+  }
+
+  if (nativePlatform === 'ios') {
+    return 'Microphone access is blocked. Allow microphone access for MindRoom in iPhone settings and try again.';
+  }
+
+  return 'Microphone access is blocked. Allow microphone access for this site/app in your browser or system settings and try again.';
+};
+
 export const getVoiceRecorderErrorMessage = (err: unknown): string => {
-  if (typeof window !== 'undefined' && !window.isSecureContext) {
-    return 'Voice recording requires HTTPS on iPhone Safari (or localhost). Open MindRoom over HTTPS.';
+  if (typeof window !== 'undefined' && !window.isSecureContext && !isNativeApp()) {
+    return getInsecureContextVoiceRecorderMessage();
   }
 
   if (err instanceof DOMException) {
     if (err.name === 'NotAllowedError') {
-      return 'Microphone access is blocked. Allow microphone access for this site/app in iPhone settings and try again.';
+      return getBlockedMicrophoneMessage();
     }
     if (err.name === 'NotFoundError') {
       return 'No microphone was found on this device.';
@@ -89,7 +112,7 @@ export const getVoiceRecorderErrorMessage = (err: unknown): string => {
 
   if (err instanceof Error) {
     if (/not allowed by the user agent|current context/i.test(err.message)) {
-      return 'Microphone access is blocked in this context. On iPhone Safari/Brave, use HTTPS and allow microphone permission.';
+      return getBlockedMicrophoneMessage();
     }
     return err.message;
   }
@@ -562,10 +585,8 @@ export function useVoiceRecorder({
       safeSetTransientErrorMessage('Voice recording is not supported in this browser.');
       return false;
     }
-    if (typeof window !== 'undefined' && !window.isSecureContext) {
-      safeSetTransientErrorMessage(
-        'Voice recording requires HTTPS on iPhone Safari/Brave (or localhost). Open MindRoom over HTTPS.'
-      );
+    if (typeof window !== 'undefined' && !window.isSecureContext && !isNativeApp()) {
+      safeSetTransientErrorMessage(getInsecureContextVoiceRecorderMessage());
       return false;
     }
 
