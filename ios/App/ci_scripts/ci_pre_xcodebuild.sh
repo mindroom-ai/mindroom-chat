@@ -17,47 +17,69 @@ for command_name in node npm npx pod; do
   fi
 done
 
-PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-if [[ -z "$PACKAGE_VERSION" || "$PACKAGE_VERSION" == "undefined" ]]; then
-  echo "Error: Could not determine version from package.json." >&2
+resolve_ios_build_number() {
+  if [[ -n "${IOS_BUILD_NUMBER:-}" ]]; then
+    echo "$IOS_BUILD_NUMBER"
+    return 0
+  fi
+
+  local candidate
+  for candidate in "${CI_TAG:-}" "${GITHUB_REF_NAME:-}" "${RELEASE_TAG:-}" "${GITHUB_REF:-}"; do
+    candidate="${candidate#refs/tags/}"
+    if [[ "$candidate" =~ -mindroom\.([0-9]+)$ ]]; then
+      echo "${BASH_REMATCH[1]}"
+      return 0
+    fi
+  done
+}
+
+read_checked_in_build_setting() {
+  local setting_name="$1"
+
+  SETTING_NAME="$setting_name" node --input-type=module <<'NODE'
+    import fs from 'node:fs';
+    import { getSingleAppTargetBuildSettingValue } from './scripts/ios-xcode-project.mjs';
+
+    const projectPath = 'ios/App/App.xcodeproj/project.pbxproj';
+    const xcodeProject = fs.readFileSync(projectPath, 'utf8');
+    process.stdout.write(getSingleAppTargetBuildSettingValue(xcodeProject, process.env.SETTING_NAME));
+NODE
+}
+
+APPLE_MARKETING_VERSION="${IOS_MARKETING_VERSION:-${APP_STORE_MARKETING_VERSION:-$(read_checked_in_build_setting MARKETING_VERSION)}}"
+CURRENT_PROJECT_VERSION="$(resolve_ios_build_number)"
+if [[ -z "$CURRENT_PROJECT_VERSION" ]]; then
+  CURRENT_PROJECT_VERSION="$(read_checked_in_build_setting CURRENT_PROJECT_VERSION)"
+fi
+
+if [[ ! "$APPLE_MARKETING_VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]; then
+  echo "Error: iOS MARKETING_VERSION must use Apple's three-integer format, got '$APPLE_MARKETING_VERSION'." >&2
   exit 1
 fi
 
-if [[ -n "${CI_BUILD_NUMBER:-}" ]]; then
-  MARKETING_VERSION="$PACKAGE_VERSION" CURRENT_PROJECT_VERSION="$CI_BUILD_NUMBER" node <<'NODE'
-    const fs = require('fs');
+if [[ -n "$CURRENT_PROJECT_VERSION" && ! "$CURRENT_PROJECT_VERSION" =~ ^[0-9]+$ ]]; then
+  echo "Error: iOS CURRENT_PROJECT_VERSION must be an integer build number, got '$CURRENT_PROJECT_VERSION'." >&2
+  exit 1
+fi
+
+if [[ -n "$CURRENT_PROJECT_VERSION" ]]; then
+  echo "Setting iOS MARKETING_VERSION=$APPLE_MARKETING_VERSION CURRENT_PROJECT_VERSION=$CURRENT_PROJECT_VERSION"
+  MARKETING_VERSION="$APPLE_MARKETING_VERSION" CURRENT_PROJECT_VERSION="$CURRENT_PROJECT_VERSION" node --input-type=module <<'NODE'
+    import fs from 'node:fs';
+    import { replaceAppTargetBuildSetting } from './scripts/ios-xcode-project.mjs';
+
     const projectPath = 'ios/App/App.xcodeproj/project.pbxproj';
     const marketingVersion = process.env.MARKETING_VERSION;
     const buildNumber = process.env.CURRENT_PROJECT_VERSION;
     const original = fs.readFileSync(projectPath, 'utf8');
-    // The App target has Debug and Release build settings.
-    const appBuildConfigurationCount = 2;
-
-    const replaceExpectedOccurrences = (text, pattern, replacer, expectedCount) => {
-      const matches = text.match(pattern) ?? [];
-      if (matches.length !== expectedCount) {
-        throw new Error(
-          `Expected ${expectedCount} occurrences of ${pattern}, found ${matches.length}.`
-        );
-      }
-      return text.replace(pattern, replacer);
-    };
-
-    let updated = replaceExpectedOccurrences(
-      original,
-      /MARKETING_VERSION = [^;]+;/g,
-      () => 'MARKETING_VERSION = ' + marketingVersion + ';',
-      appBuildConfigurationCount
-    );
-    updated = replaceExpectedOccurrences(
-      updated,
-      /CURRENT_PROJECT_VERSION = [^;]+;/g,
-      () => 'CURRENT_PROJECT_VERSION = ' + buildNumber + ';',
-      appBuildConfigurationCount
-    );
+    let updated = replaceAppTargetBuildSetting(original, 'MARKETING_VERSION', marketingVersion);
+    updated = replaceAppTargetBuildSetting(updated, 'CURRENT_PROJECT_VERSION', buildNumber);
 
     fs.writeFileSync(projectPath, updated);
 NODE
+elif [[ -n "${CI:-}" || -n "${CI_BUILD_NUMBER:-}" || -n "${CI_XCODEBUILD_ACTION:-}" ]]; then
+  echo "Error: Could not determine iOS build number from IOS_BUILD_NUMBER, release tag, or the checked-in Xcode project." >&2
+  exit 1
 fi
 
 npm run build

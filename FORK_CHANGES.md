@@ -2,6 +2,71 @@
 
 ## Runbook
 
+### CINNY-116 - iOS App Store closed-train version bump (2026-05-20)
+
+- Status:
+  - Complete locally; pending new App Store upload/review submission.
+- Summary:
+  - Apple rejected a new upload on the already-approved `4.11.1` train with
+    `ITMS-90186` and `ITMS-90062`; App Store submissions now need an Apple
+    marketing version greater than `4.11.1`.
+  - Kept the fork/source release identity tied to upstream Cinny as
+    `v4.11.1-mindroom.80`, while publishing the iOS binary to Apple as
+    `4.11.2 (80)`.
+  - Updated Xcode Cloud version rewriting so `IOS_MARKETING_VERSION` can
+    override Apple's marketing version, release tags ending in
+    `-mindroom.<n>` become the App Store build number, and the default Apple
+    marketing version comes from the checked-in Xcode project.
+  - Added App Store preflight guards for Apple's version/build formats and for
+    the Sign in with Apple capability/entitlement that the previous review
+    depended on.
+  - Review follow-up: scoped Xcode project reads/writes to the App target build
+    configurations, made CI fail when it cannot derive a build number, and made
+    entitlement checks match plist keys rather than arbitrary substrings.
+  - Release determinism follow-up: branch-triggered Xcode Cloud builds now fall
+    back to the checked-in Xcode build number so the immediate upload remains
+    `4.11.2 (80)` even without a tag-triggered build.
+- Decisions:
+  - Keep `package.json` at upstream Cinny version `4.11.1`; use the checked-in
+    Xcode project or explicit CI env vars as the App Store marketing-version
+    source of truth.
+  - Publish this iOS train as Apple version `4.11.2 (80)` to satisfy Apple's
+    closed-train rule after `4.11.1` was approved.
+  - Derive Xcode Cloud build numbers from `IOS_BUILD_NUMBER`, then
+    `-mindroom.<n>` release tags, then the checked-in Xcode project value; fail
+    in CI if none is available.
+  - Keep App Store preflight responsible for version/build format checks and
+    Sign in with Apple capability/entitlement checks before archive upload.
+- Risks:
+  - Apple will reject the next upload again if the archived binary does not
+    contain `CFBundleShortVersionString=4.11.2` and an integer
+    `CFBundleVersion`.
+  - Xcode Cloud tag/env drift can produce the wrong build number unless the
+    prebuild script resolves the expected release tag, checked-in value, or
+    explicit override.
+  - Missing Sign in with Apple entitlement/capability would reopen the previous
+    App Review rejection path even if the demo account remains available.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `README.md`
+  - `ios/App/App.xcodeproj/project.pbxproj`
+  - `ios/App/ci_scripts/ci_pre_xcodebuild.sh`
+  - `scripts/appstore-preflight.mjs`
+  - `scripts/ios-xcode-project.mjs`
+- Tests and validation:
+  - Green check: `bash -n ios/App/ci_scripts/ci_pre_xcodebuild.sh`.
+  - Green check: `npm run appstore:preflight`.
+  - Green check: `node --input-type=module -e "import fs from 'node:fs'; import { getSingleAppTargetBuildSettingValue } from './scripts/ios-xcode-project.mjs'; const p=fs.readFileSync('ios/App/App.xcodeproj/project.pbxproj','utf8'); console.log(getSingleAppTargetBuildSettingValue(p, 'MARKETING_VERSION')); console.log(getSingleAppTargetBuildSettingValue(p, 'CURRENT_PROJECT_VERSION'));"` prints `4.11.2` and `80`.
+  - Green check: `plutil -lint ios/App/App/App.entitlements`.
+  - Green check: `git diff --check`.
+  - Green check: verified the checked-in project declares
+    `MARKETING_VERSION = 4.11.2`, `CURRENT_PROJECT_VERSION = 80`, the
+    `com.apple.SignInWithApple` capability, and the
+    `com.apple.developer.applesignin` entitlement.
+- Next steps:
+  - Trigger/upload a new App Store build from this change so Apple receives
+    `CFBundleShortVersionString=4.11.2` and `CFBundleVersion=80`.
+
 ### CINNY-115 - Android Play auto-publish CI (2026-05-20)
 
 - Status:
