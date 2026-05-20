@@ -17,6 +17,7 @@ import GitHubLogo from '../../../../public/res/svg/sso-github.svg';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
 import {
   isMindroomHomeserver,
+  isNativeApp,
   isNativeIOS,
   openNativeSsoBrowser,
   signInWithNativeApple,
@@ -34,19 +35,25 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
   const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
   const orderedProviders = sortIdentityProviders(providers);
   const appleProviderAvailable = hasAppleIdentityProvider(orderedProviders);
+  const nativeApp = isNativeApp();
   const nativeIOS = isNativeIOS();
   const openingNativeSSORef = useRef(false);
 
   const handleSSONavigate =
     (url: string, provider?: IIdentityProvider) =>
     async (evt: React.MouseEvent<HTMLElement>): Promise<void> => {
-      if (!nativeIOS) return;
+      if (!nativeApp) return;
 
       evt.preventDefault();
       if (openingNativeSSORef.current) return;
       openingNativeSSORef.current = true;
       try {
-        if (provider && isAppleIdentityProvider(provider) && isMindroomHomeserver(baseUrl)) {
+        if (
+          nativeIOS &&
+          provider &&
+          isAppleIdentityProvider(provider) &&
+          isMindroomHomeserver(baseUrl)
+        ) {
           await signInWithNativeApple({
             baseUrl,
             providerId: provider.id,
@@ -56,7 +63,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
           await openNativeSsoBrowser(url);
         }
       } catch (error) {
-        console.error('[SSO] Failed to open native iOS in-app browser', error);
+        console.error('[SSO] Failed to open native browser', error);
       } finally {
         // Avoid multiple rapid taps creating overlapping SSO sessions/states.
         window.setTimeout(() => {
@@ -96,7 +103,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
           const iconUrl = getProviderIconUrl(provider);
           const appleProvider = isAppleIdentityProvider(provider);
           const buttonTitle = getSSOProviderButtonTitle(provider, action);
-          const navigationProps = nativeIOS ? {} : { as: 'a' as const, href: ssoUrl };
+          const navigationProps = nativeApp ? {} : { as: 'a' as const, href: ssoUrl };
 
           if (renderAsIcons) {
             return (
@@ -148,7 +155,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
       ) : (
         <Button
           style={{ width: '100%' }}
-          {...(nativeIOS ? {} : { as: 'a' as const, href: getSSOIdUrl() })}
+          {...(nativeApp ? {} : { as: 'a' as const, href: getSSOIdUrl() })}
           onClick={handleSSONavigate(getSSOIdUrl())}
           size="500"
           variant="Secondary"

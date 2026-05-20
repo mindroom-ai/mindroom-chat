@@ -1,12 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Browser } from '@capacitor/browser';
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { readFileSync } from 'fs';
 import {
   buildNativeSsoRedirectUrl,
   getAppPathFromNativeSsoUrl,
   isIOSStandaloneWebApp,
+  isNativeApp,
   isNativeIOS,
   openNativeSsoBrowser,
+  registerNativeSsoCallbacks,
   routeNativeSsoCallback,
   signInWithNativeApple,
 } from './nativeSso';
@@ -127,6 +130,20 @@ describe('nativeSso', () => {
     expect(isNativeIOS()).toBe(true);
   });
 
+  it('detects native Android platform as a native app', () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
+
+    expect(isNativeApp()).toBe(true);
+  });
+
+  it('ignores unsupported native platforms', () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('electron');
+
+    expect(isNativeApp()).toBe(false);
+  });
+
   it('detects iOS standalone web apps from display mode and navigator.standalone', () => {
     setWindow(
       {
@@ -242,6 +259,49 @@ describe('nativeSso', () => {
     expect(dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'popstate' }));
   });
 
+  it('registers native SSO callbacks through the native app plugin', async () => {
+    const replaceState = vi.fn();
+    const dispatchEvent = vi.fn();
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        dispatchEvent,
+        history: { replaceState },
+        location: { replace: vi.fn() },
+      },
+    });
+    let appUrlOpenListener: ((event: { url?: string }) => void) | undefined;
+    const nativeAppPlugin = {
+      getLaunchUrl: vi.fn().mockResolvedValue({
+        url: 'mindroom://auth/login/mindroom.chat?loginToken=launch-token',
+      }),
+      addListener: vi.fn((eventName: string, listener: (event: { url?: string }) => void) => {
+        appUrlOpenListener = listener;
+        return Promise.resolve();
+      }),
+    };
+
+    registerNativeSsoCallbacks(nativeAppPlugin);
+    await nativeAppPlugin.getLaunchUrl.mock.results[0]?.value;
+
+    expect(nativeAppPlugin.addListener).toHaveBeenCalledWith('appUrlOpen', expect.any(Function));
+    expect(replaceState).toHaveBeenCalledWith(
+      null,
+      '',
+      '/login/mindroom.chat?loginToken=launch-token'
+    );
+
+    appUrlOpenListener?.({
+      url: 'mindroom://auth/login/mindroom.chat?loginToken=open-token',
+    });
+
+    expect(replaceState).toHaveBeenLastCalledWith(
+      null,
+      '',
+      '/login/mindroom.chat?loginToken=open-token'
+    );
+  });
+
   it('exchanges native Apple credentials for a Matrix login token and routes it', async () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
@@ -322,5 +382,21 @@ describe('nativeSso', () => {
         redirectUrl: 'mindroom://auth/login/mindroom.chat',
       })
     ).rejects.toThrow('login token');
+  });
+
+  it('registers the Android native SSO callback intent filter', () => {
+    const manifestSource = readFileSync(
+      new URL('../../../../android/app/src/main/AndroidManifest.xml', import.meta.url),
+      'utf8'
+    );
+
+    expect(manifestSource).toContain('<action android:name="android.intent.action.VIEW" />');
+    expect(manifestSource).toContain('<category android:name="android.intent.category.DEFAULT" />');
+    expect(manifestSource).toContain(
+      '<category android:name="android.intent.category.BROWSABLE" />'
+    );
+    expect(manifestSource).toContain('android:scheme="mindroom"');
+    expect(manifestSource).toContain('android:host="auth"');
+    expect(manifestSource).toContain('android:pathPrefix="/login"');
   });
 });

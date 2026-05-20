@@ -2,6 +2,201 @@
 
 ## Runbook
 
+### CINNY-115 - Android Play auto-publish CI (2026-05-20)
+
+- Status:
+  - Complete.
+- Summary:
+  - Extended the existing `dev` push release workflow so a newly created
+    MindRoom GitHub release automatically builds a signed Android App Bundle and
+    publishes it to the Google Play `internal` track.
+  - The Android publish job runs in the same workflow as release creation rather
+    than relying on a second `release` event, so it still runs when the GitHub
+    release is created by CI.
+  - The job fails early if required signing or Play service-account secrets are
+    missing.
+- Files changed:
+  - `.github/workflows/auto-mindroom-release.yml`
+  - `FORK_CHANGES.md`
+  - `README.md`
+- Regression tests:
+  - No unit regression test retained for the workflow YAML. Removed the
+    source-text workflow guard because it asserted implementation strings rather
+    than user-visible behavior.
+- Validation:
+  - Green: `npx prettier --check .github/workflows/auto-mindroom-release.yml README.md FORK_CHANGES.md`.
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green: `npm test` (293 files, 2214 tests).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green: `git diff --check`.
+
+### CINNY-114 - Android native SSO callback and Play internal release (2026-05-19)
+
+- Status:
+  - Internal testing release `4.11.1 (29)` is active and available to internal
+    testers in Google Play Console.
+  - Follow-up fix was published as Android `versionCode 29` after tester
+    feedback showed voice recording was blocked in the Android app.
+  - Second follow-up in progress for Android `versionCode 30` after real device
+    testing showed the WebView audio permission still failed after the runtime
+    microphone prompt was allowed.
+- Summary:
+  - Fixed Android SSO callbacks so native Android builds use
+    `mindroom://auth/...` instead of the WebView `localhost/login/mindroom...`
+    redirect.
+  - Added the Android `mindroom://auth` activity intent filter and registered
+    native URL callback listeners for every Capacitor native platform.
+  - Kept the existing native iOS Apple sign-in exchange path intact while
+    routing Android SSO through the Capacitor browser.
+  - Bumped Android release metadata to `versionName "4.11.1"` and
+    `versionCode 28`, with optional upload-keystore signing for release AABs.
+  - Follow-up Android voice fix: added the required Android
+    `RECORD_AUDIO` permission and made microphone-blocked errors use
+    Android-specific app settings copy instead of the iPhone settings message.
+  - Bumped the follow-up Android build to `versionCode 29` so it can replace
+    the already-uploaded internal testing bundle.
+  - Second follow-up Android voice fix: declared
+    `android.permission.MODIFY_AUDIO_SETTINGS`, which Capacitor requests
+    together with `RECORD_AUDIO` when WebView audio capture calls
+    `getUserMedia`.
+  - Bumped the second follow-up Android build to `versionCode 30`.
+  - PR review follow-up: tightened the Android native SSO intent filter to
+    `/login` callbacks, limited supported native app detection to Android/iOS,
+    centralized native app callback registration, reused that helper in voice
+    recording, and made local Gradle signing properties load defensively only
+    when complete.
+- Decisions:
+  - Android native SSO uses `mindroom://auth/login...` callbacks so the native
+    app receives the same SPA login path that the web client already handles.
+  - iOS keeps the native Apple sign-in exchange path; Android and non-Apple SSO
+    providers use the Capacitor browser flow.
+  - Android release signing stays opt-in via the local upload-keystore
+    properties file and GitHub Actions secrets.
+  - Native voice recording declares both Android permissions Capacitor requests:
+    `RECORD_AUDIO` and `MODIFY_AUDIO_SETTINGS`.
+- Risks:
+  - Android WebView microphone permission behavior can still vary by device and
+    WebView version, so internal tester feedback remains important.
+  - Native redirect handling now covers Android and iOS; unsupported native
+    wrappers should not be treated as supported SSO targets.
+  - Google Play internal releases require monotonically increasing
+    `versionCode` values and valid upload signing credentials.
+- Next steps:
+  - Monitor internal tester feedback for Android SSO and voice recording on real
+    devices.
+  - Keep publishing follow-up Android bundles with incremented `versionCode`
+    values until the internal build is stable.
+  - Complete Google Play service-account setup before relying on the
+    auto-publish workflow.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `android/app/build.gradle`
+  - `android/app/src/main/AndroidManifest.xml`
+  - `src/app/mindroom/auth/authUi.ts`
+  - `src/app/mindroom/auth/authUi.test.ts`
+  - `src/app/mindroom/native/nativeSso.ts`
+  - `src/app/mindroom/native/nativeSso.test.ts`
+  - `src/app/pages/auth/SSOLogin.tsx`
+  - `src/app/pages/auth/SSOLogin.test.ts`
+  - `src/app/mindroom/voice/useVoiceRecorder.ts`
+  - `src/app/mindroom/voice/useVoiceRecorder.test.ts`
+  - `src/index.tsx`
+- Regression tests:
+  - Added coverage proving Android native auth builds generate
+    `mindroom://auth/...` redirect URLs.
+  - Added coverage proving Android SSO buttons open the native browser without
+    anchor fallback.
+  - Added a manifest guard for the Android `mindroom://auth/login...` intent
+    filter and behavioral coverage for native app URL callback registration.
+  - Added coverage proving unsupported native platforms are not treated as
+    supported native app targets.
+  - Added coverage proving native Android microphone permission failures show
+    Android app settings guidance.
+  - Added a source guard proving Android declares both permissions Capacitor
+    requests for native voice recording: `RECORD_AUDIO` and
+    `MODIFY_AUDIO_SETTINGS`.
+- Validation:
+  - Green focused check:
+    `npm test -- src/app/mindroom/auth/authUi.test.ts src/app/pages/auth/SSOLogin.test.ts src/app/mindroom/native/nativeSso.test.ts`
+    (3 files, 29 tests).
+  - Green focused Android SSO + voice check:
+    `npm test -- src/app/mindroom/auth/authUi.test.ts src/app/pages/auth/SSOLogin.test.ts src/app/mindroom/native/nativeSso.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts`
+    (4 files, 62 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (293 files, 2214 tests).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green focused voice check:
+    `npm test -- src/app/mindroom/voice/useVoiceRecorder.test.ts` (1 file, 33
+    tests).
+  - Green: `npx cap sync android`.
+  - Green follow-up packaging step: `npx cap copy android`.
+  - Green: `./gradlew --no-daemon :app:bundleRelease` using JDK 21 and the
+    Android SDK from `/opt/homebrew/share/android-commandlinetools`.
+  - Green: verified the generated release bundle manifest reports package
+    `com.mindroom_ai.app`, version code `29`, version name `4.11.1`, the
+    `mindroom://auth` activity intent filter, and
+    `android.permission.RECORD_AUDIO`.
+  - Green: `git diff --check`.
+  - RED follow-up check:
+    `npm test -- src/app/mindroom/voice/useVoiceRecorder.test.ts` failed
+    because the Android manifest lacked
+    `android.permission.MODIFY_AUDIO_SETTINGS`.
+  - Green follow-up focused voice check:
+    `npm test -- src/app/mindroom/voice/useVoiceRecorder.test.ts` (1 file, 33
+    tests).
+  - Green follow-up Android SSO + voice check:
+    `npm test -- src/app/mindroom/auth/authUi.test.ts src/app/pages/auth/SSOLogin.test.ts src/app/mindroom/native/nativeSso.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts`
+    (4 files, 62 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (293 files, 2214 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green follow-up packaging step: `npx cap copy android`.
+  - Green: `./gradlew --no-daemon :app:bundleRelease` using JDK 21 and the
+    Android SDK from `/opt/homebrew/share/android-commandlinetools`.
+  - Green: verified the generated release bundle manifest reports package
+    `com.mindroom_ai.app`, version code `30`, version name `4.11.1`, the
+    `mindroom://auth/login...` activity intent filter,
+    `android.permission.RECORD_AUDIO`, and
+    `android.permission.MODIFY_AUDIO_SETTINGS`.
+  - Green: `jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab`.
+  - Green: `git diff --check`.
+  - Release bundle: `android/app/build/outputs/bundle/release/app-release.aab`,
+    sha256 `435e19d396cefef491c8ea0f0a14ff5baa93f5739b9aa389b83a80ce1d02db8b`.
+  - RED PR review check:
+    `npm test -- src/app/mindroom/native/nativeSso.test.ts` failed before the
+    fixes for unsupported native platform detection, native callback helper
+    registration, and the missing Android `/login` path prefix.
+  - Green PR review focused check:
+    `npm test -- src/app/mindroom/native/nativeSso.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/mindroom/auth/authUi.test.ts src/app/pages/auth/SSOLogin.test.ts`
+    (4 files, 63 tests).
+  - Green: `npx prettier --check src/app/mindroom/native/nativeSso.ts src/app/mindroom/native/nativeSso.test.ts src/app/mindroom/voice/useVoiceRecorder.ts src/index.tsx FORK_CHANGES.md`.
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (293 files, 2215 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green: `npx cap sync android`.
+  - Green: partial-keystore Gradle configuration check with only
+    `storePassword` present.
+  - Green: `./gradlew --no-daemon :app:bundleRelease` using JDK 21 and the
+    Android SDK from `/opt/homebrew/share/android-commandlinetools`.
+  - Green: verified the generated release bundle manifest reports package
+    `com.mindroom_ai.app`, version code `30`, version name `4.11.1`, the
+    `mindroom://auth/login...` activity intent filter,
+    `android.permission.RECORD_AUDIO`, and
+    `android.permission.MODIFY_AUDIO_SETTINGS`.
+  - Green: `jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab`.
+  - Green: `git diff --check`.
+  - Current release bundle:
+    `android/app/build/outputs/bundle/release/app-release.aab`, sha256
+    `f2f6c0cc63f058eef409ae95ff06fb2c8f099c1ce3ea424ec46c2d39d0405a0b`.
+
 ### CINNY-113 - Invite autocomplete non-duplicative option labels (2026-05-19)
 
 - Status:
@@ -209,10 +404,10 @@
   - **Round-2 BLOCKERs fixed:**
     - **B1 — `pendingVoiceSendDraftAtom` was dead code.** The hook only owned
       a hook-local atom unless the parent forwarded a `pendingDraftAtom` prop.
-      The parent gated that forward on `ownsPendingVoiceDraft = !!draft &&
-      contextAtom?.roomId === roomId`, but the draft atom was never positively
-      written, so the gate was always false and the draft never survived a
-      keyed remount. Fixed by making `useVoiceRecorder` write
+      The parent gated that forward on `ownsPendingVoiceDraft = !!draft && contextAtom?.roomId === roomId`,
+      but the draft atom was never positively written, so the gate was always
+      false and the draft never survived a keyed remount. Fixed by making
+      `useVoiceRecorder` write
       `pendingVoiceSendDraftAtom` directly via `useAtom` — the prop ceremony
       and `localDraftAtom` fallback are deleted.
     - **B2 — Stale-context wrong-room sends.** `pendingVoiceSendContextAtom`
@@ -222,12 +417,12 @@
       draft (`PendingVoiceSendDraft.context: PendingVoiceSendContext`).
       `pendingVoiceSendContextAtom` and the entire `pendingVoiceSendContext.ts`
       file are deleted. One atom, one lifecycle.
-  - **Hook contract change:** `useVoiceRecorder` takes a `getSendContext: () =>
-    PendingVoiceSendContext` callback and snapshots the context inside
-    `start()`. The captured context flows through every `onSendRecording` call
-    (new 4th parameter) and is persisted on the draft on failure, so the retry
-    always targets the original room/thread/reply even if the parent has
-    navigated.
+  - **Hook contract change:** `useVoiceRecorder` takes a
+    `getSendContext: () => PendingVoiceSendContext` callback and snapshots the
+    context inside `start()`. The captured context flows through every
+    `onSendRecording` call (new 4th parameter) and is persisted on the draft on
+    failure, so the retry always targets the original room/thread/reply even if
+    the parent has navigated.
   - **Mic-disabled gate (rev-H Issue 7):** When another room owns the parked
     draft, the mic button in this room is `disabled` with an aria-label
     "Voice recording paused — finish or discard your unsent recording in
@@ -285,6 +480,7 @@
   - `RoomInput` "disables the mic button in another room while a failed-send
     draft is parked" — proves the descriptive aria-label is rendered.
 - Tests and validation (round 2):
+
   - Green: `npx tsc --noEmit`.
   - Green: `npx vitest run src/app/mindroom/voice/ src/app/mindroom/room-input/`
     (7 files, 74 tests).
@@ -343,7 +539,7 @@
     so backdrop click and Escape key dismiss the overlay without
     discarding the draft. The capsule + parked draft remain visible; the
     user can re-open the overlay by clicking Retry on the capsule, and a
-    *fresh* failure (different errorMessage) re-surfaces the overlay
+    _fresh_ failure (different errorMessage) re-surfaces the overlay
     automatically because deferral is keyed on the specific message value.
 - Files changed (round 3):
   - `FORK_CHANGES.md`
@@ -397,6 +593,7 @@
   - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
   - Green: `npm run build` (Vite chunk-size warnings only).
 - Out-of-scope follow-ups (R3 noted, not implemented this round):
+
   - rev-H Issue 4 (R3): the `Room` reference held in
     `PendingVoiceSendContext` can go stale on logout/kick/room delete;
     partially mitigated by the account-switch cleanup but a separate
@@ -429,7 +626,7 @@
     would have caught the original bug.
   - **MAJOR 2 — `deferredErrorMessage` persisted across recording
     sessions (R4 rev-H Issue 2).** When the composer goes idle (`!active
-    && !hasPendingSend`), it returns `null` but useState is preserved
+&& !hasPendingSend`), it returns `null` but useState is preserved
     across null renders. After a successful retry → fresh recording →
     same canonical "Couldn't send" message, the failure overlay stayed
     hidden because the previous-session deferred value still matched.
@@ -488,6 +685,7 @@
   - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
   - Green: `npm run build` (Vite chunk-size warnings only).
 - R4 NIT/style items not implemented per SOUL #1b:
+
   - rev-H Issue 3 (`ownerSessionId` empty-string fallback consistency):
     theoretical mid-logout race; existing comparison cleans up safely.
   - rev-H Issue 4 (`discardPending` doesn't clear `sendContextAtStartRef`):
@@ -597,11 +795,10 @@
     conflated local recorder cleanup with global atom mutation; the
     two concerns must be separable so each caller can pick the right
     cleanup. Split:
-    - New `resetLocalRecorderState()` — refs, timers, capture, React
-      UI state. Touches NO global state.
-    - `reset()` becomes `resetLocalRecorderState() +
-      writePendingDraft(undefined)`. Reserved for callers that have
-      already verified ownership.
+    - New `resetLocalRecorderState()` — refs, timers, capture, React UI state.
+      Touches NO global state.
+    - `reset()` becomes `resetLocalRecorderState() + writePendingDraft(undefined)`.
+      Reserved for callers that have already verified ownership.
   - Updated callers:
     - `retry()` success path uses `resetLocalRecorderState()` after
       the token-checked clear, so a stale tail can never clobber a
@@ -636,6 +833,7 @@
   - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
   - Green: `npm run build`.
 - R6 items dropped per SOUL #1b (per the brief's explicit triage):
+
   - rev-D Issue 2 (full vitest red): pre-existing flakes in unrelated
     files; 7/8 reviewers reported full green; not from this PR.
   - All 8 of rev-H's NIT/MINOR items: rev-H APPROVED with all items
@@ -5715,16 +5913,6 @@ uploads it as the `cinny-android-debug-apk` workflow artifact (14-day retention)
 - Updated `VoiceAudioContent` to apply the persisted rate to every mounted voice audio element, including hidden-pill players, on rate/source changes, `onPlay`, and `loadedmetadata`.
 - Preserved the generic audio routing boundary: non-voice `m.audio` remains on `AudioContent`; voice `m.audio` remains on `VoiceAudioContent`.
 - Tightened `themeBootstrap` storage access to `window.localStorage` and made its jsdom spy target `Storage.prototype` so the existing fast-path test observes the session-store read consistently.
-- review:
-  - independent second self-review completed via source/test diff inspection, scope check against `AudioContent.tsx`, `MsgTypeRenderers.tsx`, and `useMediaPlaybackRate.ts`, label grep for `×`, and validation review.
-- validation:
-  - focused CINNY-057 suite passes (`4/4` files, `31/31` tests)
-  - `npm run typecheck` passes
-  - `npm run build` passes with existing Vite/runtime-config/sourcemap/chunk-size warnings
-  - `npm test` passes (`237/237` files, `1788/1788` tests)
-  - `npm run lint` passes with the current warning-only baseline (`17` warnings, `0` errors)
-  - `git diff --check` passes
-ng fast-path test observes the session-store read consistently.
 - review:
   - independent second self-review completed via source/test diff inspection, scope check against `AudioContent.tsx`, `MsgTypeRenderers.tsx`, and `useMediaPlaybackRate.ts`, label grep for `×`, and validation review.
 - validation:

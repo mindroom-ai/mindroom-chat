@@ -204,6 +204,20 @@ Notes:
 npm run release:next-tag
 ```
 
+### Android Play internal releases
+
+- The same `dev` push release workflow builds a signed Android App Bundle and
+  publishes it to the Google Play `internal` track when it creates a new
+  MindRoom GitHub release.
+- Required GitHub secrets:
+  `ANDROID_UPLOAD_KEYSTORE_BASE64`,
+  `ANDROID_UPLOAD_KEYSTORE_PASSWORD`,
+  `ANDROID_UPLOAD_KEY_ALIAS`,
+  `ANDROID_UPLOAD_KEY_PASSWORD`,
+  and `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`.
+- The keystore secret should be the base64-encoded upload keystore file. The
+  Play service account must have permission to release `com.mindroom_ai.app`.
+
 ## Upstream Attribution
 
 This project is built on top of Cinny and Matrix ecosystem libraries.

@@ -12,7 +12,7 @@ enableMapSet();
 import './index.css';
 
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
-import { isNativeIOS, routeNativeSsoCallback } from './app/mindroom/native/nativeSso';
+import { isNativeApp, registerNativeSsoCallbacks } from './app/mindroom/native/nativeSso';
 import { isServiceWorkerEnabled } from './app/utils/runtimeConfig';
 import { pushSessionToSW, waitForServiceWorkerControl } from './sw-session';
 import { getActiveSession, subscribeToSessionStore } from './app/state/sessions';
@@ -24,21 +24,8 @@ import './app/i18n';
 
 applyThemeToDom(resolveInitialTheme());
 
-const handleNativeSSOCallback = (url: string) => {
-  routeNativeSsoCallback(url);
-};
-
-if (isNativeIOS()) {
-  CapacitorApp.getLaunchUrl()
-    .then((launchUrl) => {
-      const url = launchUrl?.url;
-      if (url) handleNativeSSOCallback(url);
-    })
-    .catch(() => undefined);
-
-  CapacitorApp.addListener('appUrlOpen', (event) => {
-    if (event.url) handleNativeSSOCallback(event.url);
-  }).catch(() => undefined);
+if (isNativeApp()) {
+  registerNativeSsoCallbacks(CapacitorApp);
 }
 
 const mountApp = () => {
