@@ -12,7 +12,7 @@ enableMapSet();
 import './index.css';
 
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
-import { isNativeIOS, routeNativeSsoCallback } from './app/mindroom/native/nativeSso';
+import { isNativeApp, routeNativeSsoCallback } from './app/mindroom/native/nativeSso';
 import { isServiceWorkerEnabled } from './app/utils/runtimeConfig';
 import { pushSessionToSW, waitForServiceWorkerControl } from './sw-session';
 import { getActiveSession, subscribeToSessionStore } from './app/state/sessions';
@@ -28,7 +28,7 @@ const handleNativeSSOCallback = (url: string) => {
   routeNativeSsoCallback(url);
 };
 
-if (isNativeIOS()) {
+if (isNativeApp()) {
   CapacitorApp.getLaunchUrl()
     .then((launchUrl) => {
       const url = launchUrl?.url;

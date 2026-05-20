@@ -7,6 +7,7 @@ import {
 } from '../branding/branding';
 import {
   buildNativeSsoRedirectUrl,
+  isNativeApp,
   isNativeIOS,
   openNativeSsoBrowser,
   signInWithNativeApple,
@@ -27,9 +28,10 @@ export const MINDROOM_AUTH_BRANDING = {
 } as const;
 
 export const getMindroomAuthSsoRedirectUrl = (webRedirectUrl: string): string =>
-  isNativeIOS() ? buildNativeSsoRedirectUrl(webRedirectUrl) : webRedirectUrl;
+  isNativeApp() ? buildNativeSsoRedirectUrl(webRedirectUrl) : webRedirectUrl;
 
 export {
+  isNativeApp,
   isMindroomHomeserver,
   isNativeIOS,
   openNativeSsoBrowser,

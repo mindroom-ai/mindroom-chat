@@ -65,6 +65,8 @@ const getPathFromHostlessNativeUrl = (pathname: string): string | undefined => {
 export const isNativeIOS = (): boolean =>
   Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 
+export const isNativeApp = (): boolean => Capacitor.isNativePlatform();
+
 const isIOSWebPlatform = (): boolean => {
   if (typeof window === 'undefined') return false;
 

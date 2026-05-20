@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Browser } from '@capacitor/browser';
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { readFileSync } from 'fs';
 import {
   buildNativeSsoRedirectUrl,
   getAppPathFromNativeSsoUrl,
   isIOSStandaloneWebApp,
+  isNativeApp,
   isNativeIOS,
   openNativeSsoBrowser,
   routeNativeSsoCallback,
@@ -125,6 +127,13 @@ describe('nativeSso', () => {
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
 
     expect(isNativeIOS()).toBe(true);
+  });
+
+  it('detects native Android platform as a native app', () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
+
+    expect(isNativeApp()).toBe(true);
   });
 
   it('detects iOS standalone web apps from display mode and navigator.standalone', () => {
@@ -322,5 +331,26 @@ describe('nativeSso', () => {
         redirectUrl: 'mindroom://auth/login/mindroom.chat',
       })
     ).rejects.toThrow('login token');
+  });
+
+  it('registers the Android native SSO callback intent filter', () => {
+    const manifestSource = readFileSync(
+      new URL('../../../../android/app/src/main/AndroidManifest.xml', import.meta.url),
+      'utf8'
+    );
+
+    expect(manifestSource).toContain('<action android:name="android.intent.action.VIEW" />');
+    expect(manifestSource).toContain('<category android:name="android.intent.category.DEFAULT" />');
+    expect(manifestSource).toContain(
+      '<category android:name="android.intent.category.BROWSABLE" />'
+    );
+    expect(manifestSource).toContain('<data android:scheme="mindroom" android:host="auth" />');
+  });
+
+  it('registers native SSO callback listeners for every native app platform', () => {
+    const indexSource = readFileSync(new URL('../../../index.tsx', import.meta.url), 'utf8');
+
+    expect(indexSource).toContain('import { isNativeApp, routeNativeSsoCallback }');
+    expect(indexSource).toContain('if (isNativeApp())');
   });
 });
