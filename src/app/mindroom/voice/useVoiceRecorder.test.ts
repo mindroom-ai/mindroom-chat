@@ -628,7 +628,7 @@ describe('useVoiceRecorder', () => {
     );
   });
 
-  it('declares the Android microphone permission for native voice recording', () => {
+  it('declares the Android permissions Capacitor requests for native voice recording', () => {
     const manifestSource = readFileSync(
       new URL('../../../../android/app/src/main/AndroidManifest.xml', import.meta.url),
       'utf8'
@@ -636,6 +636,9 @@ describe('useVoiceRecorder', () => {
 
     expect(manifestSource).toContain(
       '<uses-permission android:name="android.permission.RECORD_AUDIO" />'
+    );
+    expect(manifestSource).toContain(
+      '<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />'
     );
   });
 

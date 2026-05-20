@@ -9,6 +9,9 @@
     testers in Google Play Console.
   - Follow-up fix was published as Android `versionCode 29` after tester
     feedback showed voice recording was blocked in the Android app.
+  - Second follow-up in progress for Android `versionCode 30` after real device
+    testing showed the WebView audio permission still failed after the runtime
+    microphone prompt was allowed.
 - Summary:
   - Fixed Android SSO callbacks so native Android builds use
     `mindroom://auth/...` instead of the WebView `localhost/login/mindroom...`
@@ -24,6 +27,11 @@
     Android-specific app settings copy instead of the iPhone settings message.
   - Bumped the follow-up Android build to `versionCode 29` so it can replace
     the already-uploaded internal testing bundle.
+  - Second follow-up Android voice fix: declared
+    `android.permission.MODIFY_AUDIO_SETTINGS`, which Capacitor requests
+    together with `RECORD_AUDIO` when WebView audio capture calls
+    `getUserMedia`.
+  - Bumped the second follow-up Android build to `versionCode 30`.
 - Files changed:
   - `FORK_CHANGES.md`
   - `android/app/build.gradle`
@@ -46,8 +54,9 @@
     native app URL callback registration.
   - Added coverage proving native Android microphone permission failures show
     Android app settings guidance.
-  - Added a source guard proving Android declares `RECORD_AUDIO` for native
-    voice recording.
+  - Added a source guard proving Android declares both permissions Capacitor
+    requests for native voice recording: `RECORD_AUDIO` and
+    `MODIFY_AUDIO_SETTINGS`.
 - Validation:
   - Green focused check:
     `npm test -- src/app/mindroom/auth/authUi.test.ts src/app/pages/auth/SSOLogin.test.ts src/app/mindroom/native/nativeSso.test.ts`
@@ -72,6 +81,33 @@
     `mindroom://auth` activity intent filter, and
     `android.permission.RECORD_AUDIO`.
   - Green: `git diff --check`.
+  - RED follow-up check:
+    `npm test -- src/app/mindroom/voice/useVoiceRecorder.test.ts` failed
+    because the Android manifest lacked
+    `android.permission.MODIFY_AUDIO_SETTINGS`.
+  - Green follow-up focused voice check:
+    `npm test -- src/app/mindroom/voice/useVoiceRecorder.test.ts` (1 file, 33
+    tests).
+  - Green follow-up Android SSO + voice check:
+    `npm test -- src/app/mindroom/auth/authUi.test.ts src/app/pages/auth/SSOLogin.test.ts src/app/mindroom/native/nativeSso.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts`
+    (4 files, 62 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (293 files, 2214 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green follow-up packaging step: `npx cap copy android`.
+  - Green: `./gradlew --no-daemon :app:bundleRelease` using JDK 21 and the
+    Android SDK from `/opt/homebrew/share/android-commandlinetools`.
+  - Green: verified the generated release bundle manifest reports package
+    `com.mindroom_ai.app`, version code `30`, version name `4.11.1`, the
+    `mindroom://auth` activity intent filter,
+    `android.permission.RECORD_AUDIO`, and
+    `android.permission.MODIFY_AUDIO_SETTINGS`.
+  - Green: `jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab`.
+  - Green: `git diff --check`.
+  - Release bundle: `android/app/build/outputs/bundle/release/app-release.aab`,
+    sha256 `435e19d396cefef491c8ea0f0a14ff5baa93f5739b9aa389b83a80ce1d02db8b`.
 
 ### CINNY-113 - Invite autocomplete non-duplicative option labels (2026-05-19)
 
