@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { MatrixError } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
 import { useAtom, useStore } from 'jotai';
+import { isNativeApp } from '../native/nativeSso';
 import {
   createFallbackWaveform,
   normalizeMatrixWaveform,
@@ -70,8 +71,6 @@ const getAudioContextConstructor = (): typeof AudioContext | undefined => {
     (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
   );
 };
-
-const isNativeApp = (): boolean => Capacitor.isNativePlatform();
 
 const getNativePlatform = (): string | undefined =>
   isNativeApp() ? Capacitor.getPlatform() : undefined;

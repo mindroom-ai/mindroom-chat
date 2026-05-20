@@ -3,7 +3,13 @@ apply plugin: 'com.android.application'
 def uploadKeystorePropertiesFile = file("${System.properties['user.home']}/.android/mindroom-upload-keystore.properties")
 def uploadKeystoreProperties = new Properties()
 if (uploadKeystorePropertiesFile.exists()) {
-    uploadKeystoreProperties.load(new FileInputStream(uploadKeystorePropertiesFile))
+    uploadKeystorePropertiesFile.withInputStream { inputStream ->
+        uploadKeystoreProperties.load(inputStream)
+    }
+}
+def requiredUploadKeystoreProperties = ['storeFile', 'storePassword', 'keyAlias', 'keyPassword']
+def hasUploadKeystoreProperties = requiredUploadKeystoreProperties.every { propertyName ->
+    uploadKeystoreProperties[propertyName]?.toString()?.trim()
 }
 
 android {
@@ -24,7 +30,7 @@ android {
     }
     signingConfigs {
         release {
-            if (uploadKeystorePropertiesFile.exists()) {
+            if (hasUploadKeystoreProperties) {
                 storeFile file(uploadKeystoreProperties['storeFile'])
                 storePassword uploadKeystoreProperties['storePassword']
                 keyAlias uploadKeystoreProperties['keyAlias']
@@ -34,7 +40,7 @@ android {
     }
     buildTypes {
         release {
-            if (uploadKeystorePropertiesFile.exists()) {
+            if (hasUploadKeystoreProperties) {
                 signingConfig signingConfigs.release
             }
             minifyEnabled false
