@@ -19,22 +19,15 @@
   - `.github/workflows/auto-mindroom-release.yml`
   - `FORK_CHANGES.md`
   - `README.md`
-  - `src/app/mindroom/androidReleaseWorkflow.test.ts`
 - Regression tests:
-  - Added a workflow contract guard proving the release workflow builds a signed
-    release AAB and uploads it to the Google Play internal track with the pinned
-    Play upload action.
+  - No unit regression test retained for the workflow YAML. Removed the
+    source-text workflow guard because it asserted implementation strings rather
+    than user-visible behavior.
 - Validation:
-  - RED observed:
-    `npm test -- src/app/mindroom/androidReleaseWorkflow.test.ts` failed while
-    the release workflow lacked Android Play publishing.
-  - Green focused check:
-    `npm test -- src/app/mindroom/androidReleaseWorkflow.test.ts` (1 file, 1
-    test).
-  - Green: `npx prettier --check .github/workflows/auto-mindroom-release.yml README.md FORK_CHANGES.md src/app/mindroom/androidReleaseWorkflow.test.ts`.
+  - Green: `npx prettier --check .github/workflows/auto-mindroom-release.yml README.md FORK_CHANGES.md`.
   - Green: `npm run typecheck`.
   - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
-  - Green: `npm test` (294 files, 2215 tests).
+  - Green: `npm test` (293 files, 2214 tests).
   - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
     warnings only).
   - Green: `git diff --check`.
