@@ -5,10 +5,10 @@
 ### CINNY-114 - Android native SSO callback and Play internal release (2026-05-19)
 
 - Status:
-  - Internal testing release `4.11.1 (28)` is active and available to internal
+  - Internal testing release `4.11.1 (29)` is active and available to internal
     testers in Google Play Console.
-  - Follow-up fix prepared as Android `versionCode 29` after tester feedback
-    showed voice recording was blocked in the Android app.
+  - Follow-up fix was published as Android `versionCode 29` after tester
+    feedback showed voice recording was blocked in the Android app.
 - Summary:
   - Fixed Android SSO callbacks so native Android builds use
     `mindroom://auth/...` instead of the WebView `localhost/login/mindroom...`
