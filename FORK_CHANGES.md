@@ -2,6 +2,43 @@
 
 ## Runbook
 
+### CINNY-115 - Android Play auto-publish CI (2026-05-20)
+
+- Status:
+  - Complete.
+- Summary:
+  - Extended the existing `dev` push release workflow so a newly created
+    MindRoom GitHub release automatically builds a signed Android App Bundle and
+    publishes it to the Google Play `internal` track.
+  - The Android publish job runs in the same workflow as release creation rather
+    than relying on a second `release` event, so it still runs when the GitHub
+    release is created by CI.
+  - The job fails early if required signing or Play service-account secrets are
+    missing.
+- Files changed:
+  - `.github/workflows/auto-mindroom-release.yml`
+  - `FORK_CHANGES.md`
+  - `README.md`
+  - `src/app/mindroom/androidReleaseWorkflow.test.ts`
+- Regression tests:
+  - Added a workflow contract guard proving the release workflow builds a signed
+    release AAB and uploads it to the Google Play internal track with the pinned
+    Play upload action.
+- Validation:
+  - RED observed:
+    `npm test -- src/app/mindroom/androidReleaseWorkflow.test.ts` failed while
+    the release workflow lacked Android Play publishing.
+  - Green focused check:
+    `npm test -- src/app/mindroom/androidReleaseWorkflow.test.ts` (1 file, 1
+    test).
+  - Green: `npx prettier --check .github/workflows/auto-mindroom-release.yml README.md FORK_CHANGES.md src/app/mindroom/androidReleaseWorkflow.test.ts`.
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green: `npm test` (294 files, 2215 tests).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green: `git diff --check`.
+
 ### CINNY-114 - Android native SSO callback and Play internal release (2026-05-19)
 
 - Status:
