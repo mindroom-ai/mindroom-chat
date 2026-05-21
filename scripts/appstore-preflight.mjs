@@ -3,12 +3,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getAppTargetBuildSettingValues } from './ios-xcode-project.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 
 const configPath = path.join(repoRoot, 'config.json');
+const xcodeProjectPath = path.join(repoRoot, 'ios', 'App', 'App.xcodeproj', 'project.pbxproj');
 const infoPlistPath = path.join(repoRoot, 'ios', 'App', 'App', 'Info.plist');
 const entitlementsPath = path.join(repoRoot, 'ios', 'App', 'App', 'App.entitlements');
 const appDelegatePath = path.join(repoRoot, 'ios', 'App', 'App', 'AppDelegate.swift');
@@ -31,7 +33,9 @@ const check = (condition, message) => {
 };
 
 const config = JSON.parse(readText(configPath));
+const xcodeProject = readText(xcodeProjectPath);
 const infoPlist = readText(infoPlistPath);
+const entitlements = fs.existsSync(entitlementsPath) ? readText(entitlementsPath) : '';
 const appDelegate = readText(appDelegatePath);
 const appIconContents = JSON.parse(readText(appIconContentsPath));
 
@@ -47,6 +51,23 @@ const isHttpsUrl = (value) => {
     return false;
   }
 };
+const hasPlistKey = (plist, key) =>
+  new RegExp(`<key>\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*</key>`).test(plist);
+const hasSingleValue = (values) => new Set(values).size === 1;
+
+let marketingVersions = [];
+let buildNumbers = [];
+
+try {
+  marketingVersions = getAppTargetBuildSettingValues(xcodeProject, 'MARKETING_VERSION').map(
+    (record) => record.value
+  );
+  buildNumbers = getAppTargetBuildSettingValues(xcodeProject, 'CURRENT_PROJECT_VERSION').map(
+    (record) => record.value
+  );
+} catch (error) {
+  check(false, `Xcode project: ${error.message}`);
+}
 
 check(authConfig.allowRegistration === true, 'config.json: auth.allowRegistration must be true.');
 check(
@@ -63,6 +84,39 @@ check(
 );
 check(isHttpsUrl(authConfig.termsUrl), 'config.json: auth.termsUrl must be a public HTTPS URL.');
 
+check(
+  marketingVersions.length > 0,
+  'Xcode project: missing App target MARKETING_VERSION entries.'
+);
+check(
+  marketingVersions.every((value) => /^[0-9]+[.][0-9]+[.][0-9]+$/.test(value)),
+  'Xcode project: MARKETING_VERSION must use Apple three-integer format such as 4.11.2.'
+);
+check(
+  hasSingleValue(marketingVersions),
+  'Xcode project: App target MARKETING_VERSION values must match across build configurations.'
+);
+check(
+  buildNumbers.length > 0,
+  'Xcode project: missing App target CURRENT_PROJECT_VERSION entries.'
+);
+check(
+  buildNumbers.every((value) => /^[0-9]+$/.test(value)),
+  'Xcode project: CURRENT_PROJECT_VERSION must be an integer App Store build number.'
+);
+check(
+  hasSingleValue(buildNumbers),
+  'Xcode project: App target CURRENT_PROJECT_VERSION values must match across build configurations.'
+);
+check(
+  xcodeProject.includes('com.apple.SignInWithApple'),
+  'Xcode project: missing Sign in with Apple capability.'
+);
+check(
+  hasPlistKey(entitlements, 'com.apple.developer.applesignin'),
+  'App.entitlements: missing Sign in with Apple entitlement.'
+);
+
 if (iosPushConfig.enabled === true) {
   check(
     typeof iosPushConfig.appId === 'string' && iosPushConfig.appId.trim().length > 0,
@@ -77,9 +131,8 @@ if (iosPushConfig.enabled === true) {
     'iOS: App.entitlements must exist when push.ios.enabled is true.'
   );
   if (fs.existsSync(entitlementsPath)) {
-    const entitlements = readText(entitlementsPath);
     check(
-      entitlements.includes('<key>aps-environment</key>'),
+      hasPlistKey(entitlements, 'aps-environment'),
       'App.entitlements: missing aps-environment key.'
     );
   }

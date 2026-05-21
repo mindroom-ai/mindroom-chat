@@ -44,6 +44,10 @@ For detailed implementation and rationale, see:
 The Xcode Cloud workflow should archive the iOS app with the `Archive - iOS` action.
 Set that action's `Distribution Preparation` to `TestFlight (Internal Testing Only)` so successful archives are prepared for TestFlight.
 If that setting changes after a successful archive, rerun the workflow because existing archives are not prepared for TestFlight retroactively.
+The source release tag can stay tied to upstream Cinny, for example `v4.11.1-mindroom.80`, while the App Store marketing version advances independently.
+For the current iOS train, Xcode Cloud publishes Apple version `4.11.2`; release tags ending in `-mindroom.<n>` provide the App Store build number, so `v4.11.1-mindroom.80` uploads as `4.11.2 (80)`.
+Branch-triggered builds fall back to the checked-in Xcode build number, currently `80`.
+Set `IOS_MARKETING_VERSION` or `IOS_BUILD_NUMBER` in Xcode Cloud only when overriding those defaults is intentional.
 
 ## Quick Start
 
