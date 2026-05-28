@@ -2,6 +2,46 @@
 
 ## Runbook
 
+### CINNY-117 - Currency-like dollar text stays out of math rendering (2026-05-28)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigated reports that currency text was failing after dollar-delimited
+    math support.
+  - Root cause: the shared inline math detector only excluded pure numeric
+    content such as `$5+$10$`; formatted amount content such as `$1,000.00$`,
+    `$5 USD$`, and `$19.99/mo$` still matched `$...$` and was sent through
+    KaTeX.
+  - Added a shared currency-like detector for grouped/decimal amounts, common
+    currency words/codes, unit suffixes, and simple ranges before accepting an
+    inline math match.
+  - Independent self-review caught an over-broad first pass that would have
+    missed ungrouped four-digit amounts and rejected numeric-leading math like
+    `$2sin(x)$`; tightened the detector and added coverage for both.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/plugins/math.tsx`
+  - `src/app/components/editor/math.test.ts`
+  - `src/app/plugins/react-custom-html-parser.test.ts`
+- Regression tests:
+  - Added compose and raw-render coverage proving formatted currency-like
+    dollar text remains literal instead of becoming Matrix math HTML or KaTeX.
+  - Added guard coverage proving numeric-leading math expressions still render
+    as math.
+- Validation:
+  - Green focused check:
+    `npm test -- src/app/components/editor/math.test.ts src/app/plugins/react-custom-html-parser.test.ts`
+    (2 files, 27 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green: `npm test` (293 files, 2219 tests).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green:
+    `npx prettier --check FORK_CHANGES.md src/app/plugins/math.tsx src/app/components/editor/math.test.ts src/app/plugins/react-custom-html-parser.test.ts`.
+  - Green: `git diff --check`.
+
 ### CINNY-116 - iOS App Store closed-train version bump (2026-05-20)
 
 - Status:

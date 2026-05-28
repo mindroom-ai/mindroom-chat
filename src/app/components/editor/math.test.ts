@@ -40,6 +40,22 @@ describe('editor math markdown integration', () => {
     expect(customHtml).toBe('$5+$10$');
   });
 
+  it('does not treat formatted currency amounts as math during compose', () => {
+    const customHtml = trimCustomHtml(
+      toMatrixCustomHTML([paragraph('$1234$ and $1,000.00$ and $5 USD$')], markdownOutputOptions)
+    );
+
+    expect(customHtml).toBe('$1234$ and $1,000.00$ and $5 USD$');
+  });
+
+  it('still treats numeric-leading expressions as math during compose', () => {
+    const customHtml = trimCustomHtml(
+      toMatrixCustomHTML([paragraph('$2sin(x)$')], markdownOutputOptions)
+    );
+
+    expect(customHtml).toContain('<span data-mx-maths="2sin(x)">2sin(x)</span>');
+  });
+
   it('preserves escaped dollar delimiters as literal text during compose', () => {
     const customHtml = trimCustomHtml(
       toMatrixCustomHTML([paragraph('\\$escaped\\$')], markdownOutputOptions)
