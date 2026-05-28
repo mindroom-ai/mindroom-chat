@@ -36,20 +36,22 @@ const ALPHANUMERIC_REG = /[0-9A-Za-z]/;
 const isAlphanumeric = (value: string | undefined): boolean =>
   typeof value === 'string' && ALPHANUMERIC_REG.test(value);
 
-const CURRENCY_AMOUNT_REG = /(?:\d{1,3}(?:,\d{3})+|\d+)(?:[.,]\d+)?/;
+const CURRENCY_AMOUNT_REG = /(?:\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,]\d+)?/;
+const CURRENCY_AMOUNT_START_REG = new RegExp(`^${CURRENCY_AMOUNT_REG.source}`);
 const CURRENCY_UNIT_REG =
   /^(?:(?:USD|EUR|GBP|CAD|AUD|JPY|CHF|CNY|INR|BRL|MXN)\b|(?:bucks?|cents?|dollars?)\b|\/[A-Za-z][A-Za-z0-9-]*$)/i;
+const CURRENCY_RANGE_REST_REG = /^[-–]\s*\\?\$?\d/;
 
 const isCurrencyLikeLatex = (latex: string): boolean => {
   const trimmed = latex.trim();
-  const amountMatch = trimmed.match(new RegExp(`^${CURRENCY_AMOUNT_REG.source}`));
+  const amountMatch = trimmed.match(CURRENCY_AMOUNT_START_REG);
   if (!amountMatch) return false;
 
   const rest = trimmed.slice(amountMatch[0].length).trim();
   if (rest.length === 0) return true;
 
   if (CURRENCY_UNIT_REG.test(rest)) return true;
-  if (/^[-–]\s*\d/.test(rest)) return true;
+  if (CURRENCY_RANGE_REST_REG.test(rest)) return true;
 
   return false;
 };

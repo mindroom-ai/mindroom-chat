@@ -42,10 +42,21 @@ describe('editor math markdown integration', () => {
 
   it('does not treat formatted currency amounts as math during compose', () => {
     const customHtml = trimCustomHtml(
-      toMatrixCustomHTML([paragraph('$1234$ and $1,000.00$ and $5 USD$')], markdownOutputOptions)
+      toMatrixCustomHTML(
+        [paragraph('$1234$ and $1,000.00$ and $1.000,00$ and $5 USD$')],
+        markdownOutputOptions
+      )
     );
 
-    expect(customHtml).toBe('$1234$ and $1,000.00$ and $5 USD$');
+    expect(customHtml).toBe('$1234$ and $1,000.00$ and $1.000,00$ and $5 USD$');
+  });
+
+  it('does not treat currency ranges as math during compose', () => {
+    const customHtml = trimCustomHtml(
+      toMatrixCustomHTML([paragraph('$5-10$ and $5–10$ and $5-$10$')], markdownOutputOptions)
+    );
+
+    expect(customHtml).toBe('$5-10$ and $5–10$ and $5-$10$');
   });
 
   it('still treats numeric-leading expressions as math during compose', () => {

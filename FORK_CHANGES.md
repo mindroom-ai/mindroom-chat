@@ -19,6 +19,9 @@
   - Independent self-review caught an over-broad first pass that would have
     missed ungrouped four-digit amounts and rejected numeric-leading math like
     `$2sin(x)$`; tightened the detector and added coverage for both.
+  - PR review follow-up: added support for European-style grouped amounts like
+    `$1.000,00$`, lifted the amount-start regex out of the hot path, and covered
+    currency ranges such as `$5-10$`, `$5–10$`, and `$5-$10$`.
 - Files changed:
   - `FORK_CHANGES.md`
   - `src/app/plugins/math.tsx`
@@ -29,10 +32,12 @@
     dollar text remains literal instead of becoming Matrix math HTML or KaTeX.
   - Added guard coverage proving numeric-leading math expressions still render
     as math.
+  - Added review follow-up coverage for European formatted amounts and currency
+    ranges in both compose and raw-render paths.
 - Validation:
   - Green focused check:
     `npm test -- src/app/components/editor/math.test.ts src/app/plugins/react-custom-html-parser.test.ts`
-    (2 files, 27 tests).
+    (2 files, 29 tests).
   - Green: `npm run typecheck`.
   - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
   - Green: `npm test` (293 files, 2219 tests).

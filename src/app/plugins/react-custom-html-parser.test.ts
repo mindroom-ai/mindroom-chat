@@ -478,12 +478,24 @@ describe('getReactCustomHtmlParser', () => {
   });
 
   it('does not render formatted currency amounts as math in raw text', () => {
-    const markup = renderLatexTextMarkup('$1234$ and $1,000.00$ and $5 USD$ and $19.99/mo$');
+    const markup = renderLatexTextMarkup(
+      '$1234$ and $1,000.00$ and $1.000,00$ and $5 USD$ and $19.99/mo$'
+    );
 
     expect(markup).toContain('$1234$');
     expect(markup).toContain('$1,000.00$');
+    expect(markup).toContain('$1.000,00$');
     expect(markup).toContain('$5 USD$');
     expect(markup).toContain('$19.99/mo$');
+    expect(markup).not.toContain('MathInline');
+  });
+
+  it('does not render currency ranges as math in raw text', () => {
+    const markup = renderLatexTextMarkup('$5-10$ and $5–10$ and $5-$10$');
+
+    expect(markup).toContain('$5-10$');
+    expect(markup).toContain('$5–10$');
+    expect(markup).toContain('$5-$10$');
     expect(markup).not.toContain('MathInline');
   });
 
