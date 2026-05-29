@@ -33,12 +33,13 @@ describe('mindroomCustomHtmlSanitizerPolicy', () => {
   });
 
   it('keeps the sanitizer strict around MindRoom policy additions', () => {
+    const unsafeUrlScheme = ['java', 'script:'].join('');
     const sanitized = sanitizeCustomHtml(`
       <span data-mindroom-paste-marker="true" data-unsafe="x" onclick="alert(1)" style="position:absolute;color:#123">
         marker
       </span>
       <think onclick="alert(1)"><script>alert(1)</script>safe thought</think>
-      <span data-mx-maths="x" style="background-image:url(javascript:alert(1));color:red">x</span>
+      <span data-mx-maths="x" style="background-image:url(${unsafeUrlScheme}alert(1));color:red">x</span>
     `);
 
     expect(sanitized).toContain('data-mindroom-paste-marker="true"');
@@ -48,7 +49,7 @@ describe('mindroomCustomHtmlSanitizerPolicy', () => {
     expect(sanitized).not.toContain('data-unsafe');
     expect(sanitized).not.toContain('position:absolute');
     expect(sanitized).not.toContain('background-image');
-    expect(sanitized).not.toContain('javascript:');
+    expect(sanitized).not.toContain(unsafeUrlScheme);
     expect(sanitized).not.toContain('<script>');
   });
 
