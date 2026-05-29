@@ -21,6 +21,6 @@ export type MindroomPoweredByLink = {
 export const MINDROOM_DEFAULT_POWERED_BY: MindroomPoweredByLink[] = [
   { label: MINDROOM_APP_NAME, url: MINDROOM_SOURCE_URL },
   { label: 'Matrix', url: 'https://matrix.org' },
-  { label: 'Cinny', url: 'https://github.com/cinnyapp/cinny' },
+  { label: 'Cinny', url: 'https://cinny.in' },
   { label: 'MindRoom Cinny Fork', url: MINDROOM_CINNY_SOURCE_URL },
 ];

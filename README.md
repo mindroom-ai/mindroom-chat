@@ -1,7 +1,7 @@
 # MindRoom
 
 MindRoom is a Matrix client focused on AI-agent workflows.
-This repository is a fork of [Cinny](https://github.com/cinnyapp/cinny), with product and UX changes for MindRoom use cases.
+This repository is the [MindRoom Cinny fork](https://github.com/mindroom-ai/mindroom-cinny), with product and UX changes for MindRoom use cases.
 
 ## What MindRoom Is
 
@@ -226,7 +226,8 @@ npm run release:next-tag
 
 This project is built on top of Cinny and Matrix ecosystem libraries.
 
-- Upstream Cinny: <https://github.com/cinnyapp/cinny>
+- MindRoom Cinny fork: <https://github.com/mindroom-ai/mindroom-cinny>
+- Original Cinny project: <https://cinny.in>
 - Matrix: <https://matrix.org>
 
 ## License
