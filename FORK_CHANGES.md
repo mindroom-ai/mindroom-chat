@@ -326,6 +326,8 @@
 
 - Status:
   - Audit complete; no package or lockfile changes made.
+  - Follow-up complete: added a repeatable package dependency diff report for
+    clean-history staging and upstream rebase previews.
 - Scope checked:
   - Compared `package.json` direct dependencies against upstream `v4.11.1` base
     `6a05ff58`, current fork `HEAD`, and upstream `dev` / `v4.12.2`
@@ -333,6 +335,9 @@
   - Checked `package-lock.json` through the root manifest relationship, the
     `patches/**` hook, package-driven scripts, Vite/Vitest/Playwright config,
     and Android/iOS Capacitor generated package references.
+  - Added `scripts/report-package-dependency-diff.mjs` so future agents can
+    rerun the package ownership audit against `v4.11.1`, `v4.12.2`, or another
+    explicit base without touching `package.json` or `package-lock.json`.
 - Dependency ownership buckets:
   | Bucket | Dependencies / scripts | Ownership note |
   | --- | --- | --- |
@@ -365,6 +370,8 @@
   5. Test/tooling harness: keep Vitest, Playwright, jsdom, react-test-renderer,
      TypeScript, and ESLint changes with test/config additions.
 - Validation:
+  - Green: `node scripts/report-package-dependency-diff.mjs v4.11.1 HEAD`.
+  - Green: `node scripts/report-package-dependency-diff.mjs v4.12.2 HEAD`.
   - Green: `npm install --package-lock-only --ignore-scripts --no-audit --no-fund --dry-run`.
   - Green: `npx patch-package --error-on-fail` reapplied
     `matrix-js-sdk@38.2.0`.
