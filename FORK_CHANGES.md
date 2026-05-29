@@ -5,7 +5,7 @@
 ### Safe SVG in message extras HTML (2026-05-11)
 
 - Status:
-  - Complete.
+  - Complete; rebased onto `origin/dev` at `be494836` on 2026-05-29.
 - Summary:
   - Investigated both requested sides. `/srv/mindroom` and `/var/www/cinny` are
     not mounted in this environment; the available MindRoom server checkout is
@@ -37,6 +37,12 @@
     instead of any class string.
   - `preserveAspectRatio` is now preserved with explicit camelCase restoration
     so safe charts and diagrams can control viewport scaling.
+- Rebase follow-up:
+  - Replayed the three PR #15 safe-SVG commits onto the latest `origin/dev`
+    after the v4.12.2 MindRoom history rewrite.
+  - Resolved `FORK_CHANGES.md` conflicts by preserving the newer v4.12.2
+    runbook entries and carrying forward the safe-SVG implementation, review,
+    and validation notes.
 - Risks:
   - `title` and `desc` are allowed as inert text labels because sanitize-html
     does not enforce SVG-only parent context; they may also survive outside SVG,
@@ -95,6 +101,16 @@
   - Final review green check: `npm run lint` completed with the existing
     warning-only baseline (`16` warnings, `0` errors).
   - Final review green check: `git diff --check`.
+  - Rebase green check: `npm ci`.
+  - Rebase green check:
+    `npm test -- src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`
+    (2 files, 22 tests).
+  - Rebase green check: `npm run typecheck`.
+  - Rebase green check: `npm run lint` (18 warnings, 0 errors - existing
+    console/unused-var warning class).
+  - Rebase green check: `npm run build` (existing Vite runtime-config,
+    sourcemap, and chunk-size warnings only).
+  - Rebase green check: `npm test` (299 files, 2233 tests).
 
 ### CINNY-128 - Remove transient planning and completion docs (2026-05-29)
 
