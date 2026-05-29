@@ -6,6 +6,7 @@ import { mimeTypeToExt } from '../../utils/mimeTypes';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
+import { useBlobUrlCleanup } from '../../hooks/useBlobUrlCleanup';
 import {
   decryptFile,
   downloadEncryptedMedia,
@@ -38,6 +39,7 @@ export function FileDownloadButton({ filename, url, mimeType, encInfo }: FileDow
       return fileURL;
     }, [mx, url, useAuthentication, mimeType, encInfo, filename])
   );
+  useBlobUrlCleanup(downloadState);
 
   const downloading = downloadState.status === AsyncStatus.Loading;
   const hasError = downloadState.status === AsyncStatus.Error;
@@ -48,6 +50,7 @@ export function FileDownloadButton({ filename, url, mimeType, encInfo }: FileDow
       variant={hasError ? 'Critical' : 'SurfaceVariant'}
       size="300"
       radii="300"
+      aria-label={`Download ${filename}`}
     >
       {downloading ? (
         <Spinner size="100" variant={hasError ? 'Critical' : 'Secondary'} />

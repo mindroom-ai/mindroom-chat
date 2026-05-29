@@ -18,10 +18,11 @@ import { MatrixClient } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import { Box, Chip, config, Header, Icon, IconButton, Icons, Scroll, Text, toRem } from 'folds';
 import { IntermediateRepresentation, Opts as LinkifyOpts, OptFn } from 'linkifyjs';
-import Linkify from 'linkify-react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ChildNode } from 'domhandler';
 import * as css from '../styles/CustomHtml.css';
+import { renderMindroomCustomHtmlElement } from '../mindroom/html/customHtmlRenderers';
+import { renderTextWithMatrixMath } from '../mindroom/html/matrixMath';
 import {
   getMxIdLocalPart,
   getCanonicalAliasRoomId,
@@ -45,6 +46,7 @@ import { useTimeoutToggle } from '../hooks/useTimeoutToggle';
 const ReactPrism = lazy(() => import('./react-prism/ReactPrism'));
 
 const EMOJI_REG_G = new RegExp(`${URL_NEG_LB}(${EMOJI_PATTERN})`, 'g');
+const TABLE_STRUCTURE_TAGS = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 'colgroup']);
 
 export const LINKIFY_OPTS: LinkifyOpts = {
   attributes: {
@@ -204,6 +206,30 @@ export const highlightText = (
     );
   });
 
+const renderStyledText = (text: string, highlightRegex?: RegExp): (string | JSX.Element)[] => {
+  let jsx = scaleSystemEmoji(text);
+
+  if (highlightRegex) {
+    jsx = highlightText(highlightRegex, jsx);
+  }
+
+  return jsx;
+};
+
+export const renderTextWithLatex = (
+  text: string,
+  params: {
+    linkify?: boolean;
+    linkifyOpts: LinkifyOpts;
+    highlightRegex?: RegExp;
+    keyPrefix?: string;
+  }
+): React.ReactNode =>
+  renderTextWithMatrixMath(text, {
+    ...params,
+    renderStyledText,
+  });
+
 /**
  * Recursively extracts and concatenates all text content from an array of ChildNode objects.
  *
@@ -214,10 +240,10 @@ const extractTextFromChildren = (nodes: ChildNode[]): string => {
   let text = '';
 
   nodes.forEach((node) => {
-    if (node.type === 'text') {
+    if (node.type === 'text' && typeof node.data === 'string') {
       text += node.data;
-    } else if (node instanceof Element && node.children) {
-      text += extractTextFromChildren(node.children);
+    } else if (Array.isArray((node as { children?: unknown }).children)) {
+      text += extractTextFromChildren((node as { children: ChildNode[] }).children);
     }
   });
 
@@ -325,6 +351,9 @@ export const getReactCustomHtmlParser = (
       if (domNode instanceof Element && 'name' in domNode) {
         const { name, attribs, children, parent } = domNode;
         const props = attributesToProps(attribs);
+
+        const mindroomElement = renderMindroomCustomHtmlElement(name, attribs, children, opts);
+        if (mindroomElement) return mindroomElement;
 
         if (name === 'h1') {
           return (
@@ -495,20 +524,35 @@ export const getReactCustomHtmlParser = (
       }
 
       if (domNode instanceof DOMText) {
-        const linkify =
-          !(domNode.parent && 'name' in domNode.parent && domNode.parent.name === 'code') &&
-          !(domNode.parent && 'name' in domNode.parent && domNode.parent.name === 'a');
+        const parentName =
+          domNode.parent && 'name' in domNode.parent ? domNode.parent.name : undefined;
 
-        let jsx = scaleSystemEmoji(domNode.data);
-
-        if (params.highlightRegex) {
-          jsx = highlightText(params.highlightRegex, jsx);
+        // React rejects whitespace text nodes directly under table structure tags.
+        if (
+          parentName &&
+          TABLE_STRUCTURE_TAGS.has(parentName) &&
+          domNode.data.trim().length === 0
+        ) {
+          return null;
         }
 
-        if (linkify) {
-          return <Linkify options={params.linkifyOpts}>{jsx}</Linkify>;
+        const linkify = parentName !== 'code' && parentName !== 'a';
+        const parseMath = parentName !== 'code' && parentName !== 'pre' && parentName !== 'a';
+
+        if (parseMath) {
+          return (
+            <>
+              {renderTextWithLatex(domNode.data, {
+                linkify,
+                linkifyOpts: params.linkifyOpts,
+                highlightRegex: params.highlightRegex,
+                keyPrefix: `${parentName ?? 'text'}-${domNode.startIndex ?? 0}`,
+              })}
+            </>
+          );
         }
-        return jsx;
+
+        return <>{renderStyledText(domNode.data, params.highlightRegex)}</>;
       }
       return undefined;
     },
