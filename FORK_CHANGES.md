@@ -1,0 +1,6550 @@
+# MindRoom Cinny Fork Changes
+
+## Runbook
+
+### CINNY-127 - Clean CI lockfile after v4.12.2 rewrite (2026-05-29)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Regenerated `package-lock.json` from `package.json` in a clean
+    Node 24.13.1/npm 11.8.0 environment after the v4.12.2 history rewrite.
+  - Removed stale `../mindroom-cinny/node_modules/...` package-lock entries
+    that were created from a local install tree and broke clean CI installs.
+  - Restored platform-specific optional package metadata such as
+    `@esbuild/darwin-arm64` so Linux Docker builds do not try to install
+    Darwin-only packages as required dependencies.
+- Validation:
+  - Green: clean `npm ci --ignore-scripts` in `node:24.13.1-alpine` for
+    Linux arm64 and Linux amd64.
+  - Green: local `npm ci`.
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (18 warnings, 0 errors - existing console/unused-var
+    warning class).
+  - Green: `npm test` (299 files, 2230 tests).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green: `docker buildx build --platform linux/amd64 --progress=plain .`.
+  - Green: `npm run test:e2e` (9 passed, 64 skipped).
+
+### CINNY-126 - Post-v4.12.2 rebaseability cleanup (2026-05-29)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Restored upstream `src/app/features/search/` files and
+    `src/app/state/searchModal.ts` so future upstream edits do not produce
+    modify/delete conflicts. MindRoom message search remains wired through the
+    existing home/space search routes; the restored upstream modal is left
+    unused.
+  - Added `.gitattributes` entries for fork-owned room wrapper files that
+    intentionally replace upstream implementations with MindRoom modules.
+  - Added `scripts/git-merge-mindroom-wrapper.mjs` and
+    `scripts/setup-git-merge-drivers.sh`. The merge driver keeps the rebased
+    fork side for these wrapper seams during rebase, and keeps the current side
+    during ordinary merges.
+  - Confirmed `config.json` remains byte-for-byte identical to upstream
+    `v4.12.2`; MindRoom runtime defaults stay in `config.mindroom.json` and are
+    copied to runtime `config.json` by the Vite static-copy target.
+- Decisions:
+  - Do not delete upstream search files just because MindRoom does not use the
+    upstream global search modal. Keeping unused upstream files is cheaper than
+    repeated modify/delete rebase conflicts.
+  - Do not use a plain `merge=ours` driver for wrapper files because during
+    `git rebase`, "ours" is the upstream side. The custom driver detects rebase
+    state and preserves the fork wrapper side only in that mode.
+  - Keep `.gitattributes` limited to files that are pure wrapper seams. Files
+    with mixed upstream/MindRoom behavior should continue to be merged manually.
+- Files changed:
+  - `.gitattributes`
+  - `FORK_CHANGES.md`
+  - `scripts/git-merge-mindroom-wrapper.mjs`
+  - `scripts/setup-git-merge-drivers.sh`
+  - `src/app/features/search/Search.tsx`
+  - `src/app/features/search/index.ts`
+  - `src/app/state/searchModal.ts`
+- Validation:
+  - Green: `node --check scripts/git-merge-mindroom-wrapper.mjs`.
+  - Green: `bash -n scripts/setup-git-merge-drivers.sh`.
+  - Green: manual merge-driver smoke check proving normal mode keeps the current
+    file and `GIT_REFLOG_ACTION='rebase (pick)'` keeps the rebased fork side.
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (299 files, 2230 tests).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green: `npm run lint` (18 warnings, 0 errors - existing console/unused-var
+    warning class).
+
+### CINNY-125 - PR review follow-up for clean-history ownership PR (2026-05-28)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Rebasing `codex/mindroom-clean-history-ownership` onto `origin/dev`
+    required a `FORK_CHANGES.md` runbook conflict resolution. The resolved
+    runbook preserves the newer currency-like dollar text entry from `origin/dev`
+    and the clean-history ownership entries from this PR.
+  - Addressed Gemini review on `scripts/report-non-mindroom-source-diff.mjs` by
+    checking that `.git` is a file before reading worktree gitdir metadata, so
+    standard clones with a `.git` directory do not crash with `EISDIR`.
+  - Addressed Gemini review on `MindroomEditorExtensions.ts` by splitting Matrix
+    math block text with `/\r?\n/` and adding CRLF coverage.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `scripts/report-non-mindroom-source-diff.mjs`
+  - `src/app/mindroom/editor/MindroomEditorExtensions.test.ts`
+  - `src/app/mindroom/editor/MindroomEditorExtensions.ts`
+- Validation:
+  - Green: `npm test -- src/app/mindroom/editor/MindroomEditorExtensions.test.ts`
+    (1 file, 2 tests).
+  - Green: `node --check scripts/report-non-mindroom-source-diff.mjs`.
+  - Green:
+    `node scripts/report-non-mindroom-source-diff.mjs v4.11.1 HEAD`.
+  - Green: standard-clone `.git` directory smoke check:
+    `node /Users/bas.nijholt/.codex/worktrees/pr28-mindroom-clean-history-ownership/scripts/report-non-mindroom-source-diff.mjs HEAD~1 HEAD`
+    from `/tmp/pr28-standard-clone`.
+  - Green: `npm run typecheck`.
+  - Green: `git diff --check`.
+
+### CINNY-124 - MindRoom editor extension boundary (2026-05-28)
+
+- Status:
+  - Complete locally; rebased on `origin/dev` and PR review comments addressed.
+- Summary:
+  - Added a fork-owned editor namespace under `src/app/mindroom/editor/`.
+  - Moved MindRoom paste-marker editor import/export helpers into
+    `MindroomEditorExtensions.ts`.
+  - Moved Matrix math editor markdown reconstruction helpers into
+    `MindroomEditorExtensions.ts`.
+  - Moved the MindRoom paste-marker Slate renderer into
+    `MindroomEditorElements.tsx`.
+  - Reduced generic editor ownership in `input.ts`, `output.ts`, and
+    `Elements.tsx` to small extension call sites.
+  - PR review follow-up: kept `isMindroomEditorMathElement` internal instead of
+    exporting it, added direct tests for exported helper contracts, and
+    documented risks in this runbook entry.
+- Decisions:
+  - Kept the generic editor's `BlockType.PasteMarker` and Slate
+    `PasteMarkerElement` type as unavoidable schema seams because Slate needs to
+    recognize the atomic node shape.
+  - Kept sanitizer/render/CSS files unchanged in this task; the render pipeline
+    remains separate.
+  - Kept Matrix event output stable by delegating the same paste-marker HTML and
+    plain-text serialization through the new extension API.
+- Risks:
+  - Concurrent render-policy work can make validation failures look editor
+    related; isolate failures by running the focused editor/math/paste-marker
+    tests before investigating renderer CSS setup.
+  - `BlockType.PasteMarker` and `PasteMarkerElement` remain exposed in the
+    generic editor schema; keep the atomic paste-marker node shape stable and
+    route policy changes through the MindRoom editor extension.
+  - Thin call sites in `input.ts`, `output.ts`, and `Elements.tsx` can still
+    regress generic editor behavior during upstream rebases; keep focused
+    editor math and paste-marker tests in normal Vitest discovery.
+  - If Matrix event output changes unexpectedly, compare
+    `pasteMarker.test.ts` serializer expectations and roll back the extension
+    delegation before changing paste-marker marker text or HTML attributes.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/components/editor/Elements.tsx`
+  - `src/app/components/editor/input.ts`
+  - `src/app/components/editor/output.ts`
+  - `src/app/mindroom/editor/MindroomEditorElements.tsx`
+  - `src/app/mindroom/editor/MindroomEditorExtensions.test.ts`
+  - `src/app/mindroom/editor/MindroomEditorExtensions.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/editor/MindroomEditorExtensions.test.ts`
+    initially failed because `MindroomEditorExtensions` did not exist.
+  - Green check: `npm test -- src/app/mindroom/editor/MindroomEditorExtensions.test.ts`
+    (2 tests).
+  - Green check: `npm test -- src/app/components/editor/math.test.ts src/app/components/editor/pasteMarker.test.ts src/app/mindroom/messages/pasteAttachmentMarker.test.ts`
+    (3 files, 15 tests).
+  - Green check after rebase/review follow-up: `npm test -- src/app/mindroom/editor/MindroomEditorExtensions.test.ts src/app/components/editor/math.test.ts src/app/components/editor/pasteMarker.test.ts src/app/mindroom/messages/pasteAttachmentMarker.test.ts`
+    (4 files, 20 tests).
+  - Green check: `npm run typecheck`.
+  - Green independent review: no task-specific findings in the inspected diff.
+  - Green check after rebase: `npm test` (294 files, 2223 tests).
+  - Green check: `git diff --check`.
+- Next steps:
+  - Monitor PR review bots for follow-up comments after the force-push.
+
+### CINNY-117 - Currency-like dollar text stays out of math rendering (2026-05-28)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigated reports that currency text was failing after dollar-delimited
+    math support.
+  - Root cause: the shared inline math detector only excluded pure numeric
+    content such as `$5+$10$`; formatted amount content such as `$1,000.00$`,
+    `$5 USD$`, and `$19.99/mo$` still matched `$...$` and was sent through
+    KaTeX.
+  - Added a shared currency-like detector for grouped/decimal amounts, common
+    currency words/codes, unit suffixes, and simple ranges before accepting an
+    inline math match.
+  - Independent self-review caught an over-broad first pass that would have
+    missed ungrouped four-digit amounts and rejected numeric-leading math like
+    `$2sin(x)$`; tightened the detector and added coverage for both.
+  - PR review follow-up: added support for European-style grouped amounts like
+    `$1.000,00$`, lifted the amount-start regex out of the hot path, and covered
+    currency ranges such as `$5-10$`, `$5–10$`, and `$5-$10$`.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/plugins/math.tsx`
+  - `src/app/components/editor/math.test.ts`
+  - `src/app/plugins/react-custom-html-parser.test.ts`
+- Regression tests:
+  - Added compose and raw-render coverage proving formatted currency-like
+    dollar text remains literal instead of becoming Matrix math HTML or KaTeX.
+  - Added guard coverage proving numeric-leading math expressions still render
+    as math.
+  - Added review follow-up coverage for European formatted amounts and currency
+    ranges in both compose and raw-render paths.
+- Validation:
+  - Green focused check:
+    `npm test -- src/app/components/editor/math.test.ts src/app/plugins/react-custom-html-parser.test.ts`
+    (2 files, 29 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green: `npm test` (293 files, 2219 tests).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green:
+    `npx prettier --check FORK_CHANGES.md src/app/plugins/math.tsx src/app/components/editor/math.test.ts src/app/plugins/react-custom-html-parser.test.ts`.
+
+### CINNY-120 - Fork-owned custom HTML sanitizer/render policy (2026-05-28)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Moved MindRoom-specific custom HTML sanitizer additions into
+    `src/app/mindroom/html/customHtmlPolicy.ts`.
+  - Moved Matrix math custom HTML rendering and KaTeX wrapper styles into
+    `src/app/mindroom/html/matrixMath.tsx` and
+    `src/app/mindroom/html/MatrixMath.css.ts`.
+  - Added `src/app/mindroom/html/customHtmlRenderers.tsx` as the narrow render
+    seam consumed by the generic custom HTML parser.
+  - Removed inline MindRoom block/math rendering and policy strings from
+    `src/app/plugins/react-custom-html-parser.tsx`,
+    `src/app/utils/sanitize.ts`, and `src/app/styles/CustomHtml.css.ts`.
+  - PR review follow-up: made sanitizer style policy extension additive for
+    matching selectors/properties and kept base security transformers ahead of
+    policy-provided overrides.
+  - Rebased onto `origin/dev` after the currency-rendering fix landed.
+- Decisions:
+  - Kept `sanitizeCustomHtml()` behavior-compatible by defaulting it to the
+    fork-owned MindRoom policy object; generic sanitizer code now merges a
+    policy object instead of owning those rules inline.
+  - Kept the existing strict sanitizer posture: no expanded URL schemes, no
+    broad style attributes, paste marker attributes are data-only, and message
+    extras keep their separate stricter sanitizer.
+  - Treated Matrix math rendering as fork-owned policy for rebaseability because
+    this fork introduced and maintains that render path, even though the
+    attribute name is Matrix-compatible.
+- Validation:
+  - Green focused check:
+    `npm test -- src/app/mindroom/html/customHtmlPolicy.test.ts` (1 file,
+    4 tests).
+  - Green: `npm test -- src/app/mindroom/html/customHtmlPolicy.test.ts src/app/mindroom/html/customHtmlPolicy.architecture.test.ts src/app/plugins/react-custom-html-parser.test.ts src/app/mindroom/messages/MindroomHtmlBlocks.pasteMarker.test.ts src/app/mindroom/messages/messageExtrasHtml.test.ts`.
+  - Green: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green: `npm test` (295 files, 2226 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/html/customHtmlPolicy.test.ts src/app/utils/sanitize.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`.
+  - Green: `git diff --check`.
+
+### CINNY-123 - MindRoom runtime config overlay (2026-05-28)
+
+- Status:
+  - Complete.
+- Summary:
+  - Moved the fork-branded MindRoom runtime defaults out of the upstream-owned
+    sample `config.json` and into `config.mindroom.json`.
+  - Restored `config.json` to the current upstream sample shape so future upstream
+    sample-config edits should no longer conflict with MindRoom deployment policy.
+  - Updated Vite static copy so MindRoom builds still publish
+    `config.mindroom.json` as runtime `config.json`; `ClientConfigLoader`
+    continues to fetch the same `/config.json` URL.
+  - Updated App Store preflight checks to validate `config.mindroom.json`, and
+    updated the iOS phone watch script to rebuild when the MindRoom config changes.
+  - Review follow-up: updated the E2E homeserver fallback to read
+    `config.mindroom.json` before the upstream sample `config.json`.
+  - Review follow-up: rebased on `origin/dev`, made the iOS phone watcher track
+    `vite.config.js` and drop the runtime-unused sample `config.json`, and
+    loosened runtime-config tests to stable MindRoom invariants plus the exported
+    Vite copy target.
+- Decisions:
+  - Keep the runtime URL stable as `config.json`; only the build source changed.
+  - Keep native packaging tied to `dist/config.json`, which is now generated from
+    `config.mindroom.json` during `npm run build` before Capacitor sync/copy.
+  - Do not change auth/sidebar/welcome behavior; the effective MindRoom config is
+    byte-for-byte the previous fork config after build.
+- Files changed:
+  - `config.json`
+  - `config.mindroom.json`
+  - `e2e/env.ts`
+  - `scripts/appstore-preflight.mjs`
+  - `scripts/ios-phone.mjs`
+  - `src/app/utils/e2eEnv.test.ts`
+  - `src/app/utils/runtimeConfig.test.ts`
+  - `vite.config.js`
+- Regression tests:
+  - Added runtime config coverage proving the MindRoom defaults live in the
+    fork-owned config and Vite maps that file back to runtime `config.json`.
+  - Added E2E env coverage proving tests without `E2E_HOMESERVER` still default
+    to `mindroom.chat` from the MindRoom config overlay.
+- Validation:
+  - Red check: `npm test -- src/app/utils/runtimeConfig.test.ts` failed while
+    `config.mindroom.json` did not exist.
+  - Red check: `npm test -- src/app/utils/e2eEnv.test.ts` failed while the E2E
+    fallback still read upstream sample `config.json` and returned `matrix.org`.
+  - Green check: `npm test -- src/app/utils/runtimeConfig.test.ts`.
+  - Green check:
+    `npm test -- src/app/utils/runtimeConfig.test.ts src/app/utils/e2eEnv.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check:
+    `npx prettier --check config.json config.mindroom.json scripts/appstore-preflight.mjs src/app/utils/runtimeConfig.test.ts vite.config.js`.
+  - Note: `scripts/ios-phone.mjs` has pre-existing Prettier drift; this change
+    kept that file to the watch-target lines only.
+  - Review follow-up green check:
+    `npm test -- src/app/utils/runtimeConfig.test.ts src/app/utils/e2eEnv.test.ts`.
+  - Review follow-up green check: `npm run typecheck`.
+  - Review follow-up green check: `node --check scripts/ios-phone.mjs`.
+  - Green check: `npm run appstore:preflight`.
+  - Green check: `npm run build` passed with existing Vite/runtime-config,
+    sourcemap, and chunk-size warnings.
+  - Review follow-up green check: `npm test` (294 files, 2223 tests).
+  - Green check: `cmp -s config.mindroom.json dist/config.json`.
+  - Green check: `git diff --check`.
+- Review:
+  - Independent second self-review completed via fresh scoped `git diff`, build
+    artifact comparison, and `git diff --check`; scope stayed limited to the
+    sample/runtime config split, native preflight/watch wiring, focused test, and
+    this runbook update.
+
+### CINNY-122 - MindRoom settings ownership split (2026-05-28)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Removed MindRoom pagination/preload constants, defaults, exports, and
+    sanitizer ownership from generic `src/app/state/settings.ts`.
+  - Added `src/app/mindroom/settings/mindroomSettings.ts` as the MindRoom
+    settings atom wrapper. It exposes the fork-owned `paginationLimit` setting,
+    sanitizes it through `src/app/mindroom/threads/preloadSettings.ts`, and
+    writes it back through the existing generic settings object for storage
+    compatibility.
+  - Moved voice playback-rate and voice-message volume settings from
+    `src/app/state/voiceMessageSettings.ts` into
+    `src/app/mindroom/settings/voiceMessageSettings.ts`; voice UI/content
+    consumers now import the MindRoom-owned module directly.
+  - Generalized `src/app/state/hooks/settings.ts` so fork-owned settings atoms
+    can reuse the same typed setting hook without extending the generic
+    `Settings` interface.
+  - Added direct `preloadSettings` sanitizer tests under the MindRoom thread
+    namespace and updated source-ownership coverage for generic settings.
+- Compatibility:
+  - The pagination limit still reads from and writes to the existing
+    `localStorage["settings"].paginationLimit` field. No new key or migration is
+    required for existing users.
+  - Voice playback compatibility is unchanged: the existing
+    `voiceMessagePlaybackRate` and `voiceMessageVolume` localStorage keys are
+    preserved.
+- Validation:
+  - Green: `npm test -- src/app/state/settings.test.ts src/app/mindroom/settings/mindroomSettings.test.ts src/app/mindroom/settings/voiceMessageSettings.test.ts src/app/mindroom/settings/MindroomMessagePreloadLimitSetting.test.ts`.
+  - Green: `npm test -- src/app/mindroom/threads/preloadSettings.test.ts src/app/mindroom/threads/timelinePagination.test.ts src/app/mindroom/threads/threadPaginationUtils.test.ts src/app/mindroom/threads/roomPaginationCommandController.test.ts src/app/mindroom/threads/threadBackPaginationController.test.ts src/app/mindroom/settings/mindroomSettings.test.ts src/app/mindroom/settings/MindroomMessagePreloadLimitSetting.test.ts src/app/mindroom/settings/voiceMessageSettings.test.ts src/app/components/voice/VoicePlaybackRateButton.test.ts src/app/components/message/content/VoiceAudioContent.test.ts`.
+  - Green: `npm run typecheck`.
+  - Green: `git diff --check`.
+
+### CINNY-121 - Room feature re-export ownership reduction (2026-05-28)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Moved the call-chat room shell used by MindRoom production from
+    `src/app/features/room/CallChatView.tsx` into
+    `src/app/mindroom/threads/MindroomCallChatView.tsx`.
+  - `MindroomRoom.tsx` now imports the MindRoom call-chat shell directly, so
+    MindRoom production no longer depends on the `features/room/CallChatView`
+    -> `features/room/RoomView` compatibility path.
+  - Added a focused architecture assertion that MindRoom room production code
+    must import `MindroomCallChatView` directly and must not import the
+    upstream-owned `features/room/CallChatView` wrapper.
+- Rebase notes:
+  - Production imports no longer require the compatibility re-export files
+    `Room.tsx`, `RoomView.tsx`, `RoomTimeline.tsx`, `RoomViewHeader.tsx`,
+    `RoomInput.tsx`, or `CallChatView.tsx` to remain MindRoom-owned.
+  - A clean-history pass can restore those room feature files closer to
+    upstream `v4.11.1`/`v4.12.2` from a production-behavior standpoint.
+    Current MindRoom tests still import the compatibility re-exports heavily;
+    either migrate those tests to direct MindRoom imports or keep temporary
+    test-only compatibility until that migration is complete.
+  - Do not implicitly port upstream `v4.12.2` call-session/header behavior in
+    this pass. If MindRoom production needs parity, explicitly port
+    `useCallEmbed`, `useCallSession`, `useCallMembers`, LiveKit support, and
+    call-start header controls into the MindRoom room shell/header later.
+- Validation:
+  - Red check: dependency-free source assertion failed while `MindroomRoom.tsx`
+    still imported `../../features/room/CallChatView`.
+  - Green: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/__tests__/Room.test.ts`
+    (2 files, 102 tests).
+  - Green: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts -t "keeps MindRoom-owned room modules off their compatibility re-export seams"`.
+  - Green: `npm test -- src/app/mindroom/threads/__tests__/Room.test.ts`
+    (9 tests).
+  - Green: `npm run typecheck`.
+  - Green: `git diff --check`.
+
+### CINNY-119 - Package dependency ownership audit (2026-05-28)
+
+- Status:
+  - Audit complete; no package or lockfile changes made.
+  - Follow-up complete: added a repeatable package dependency diff report for
+    clean-history staging and upstream rebase previews.
+- Scope checked:
+  - Compared `package.json` direct dependencies against upstream `v4.11.1` base
+    `6a05ff58`, current fork `HEAD`, and upstream `dev` / `v4.12.2`
+    `80fd8863`.
+  - Checked `package-lock.json` through the root manifest relationship, the
+    `patches/**` hook, package-driven scripts, Vite/Vitest/Playwright config,
+    and Android/iOS Capacitor generated package references.
+  - Added `scripts/report-package-dependency-diff.mjs` so future agents can
+    rerun the package ownership audit against `v4.11.1`, `v4.12.2`, or another
+    explicit base without touching `package.json` or `package-lock.json`.
+- Dependency ownership buckets:
+  | Bucket | Dependencies / scripts | Ownership note |
+  | --- | --- | --- |
+  | Upstream dependency upgrades to adopt during rebase | `matrix-js-sdk` `38.2.0 -> 41.5.0`, `matrix-widget-api` `1.13.0 -> 1.16.1`, `sanitize-html` `2.12.1 -> 2.17.4`, `@types/sanitize-html` `2.9.0 -> 2.16.1`, `@element-hq/element-call-embedded` `0.16.3 -> 0.19.1`; upstream-only `cz-conventional-changelog`, `husky`, `lint-staged`, `bump`, `commit`, and `prepare` scripts. | Keep these in an upstream-adoption/rebase commit. Re-evaluate `patches/matrix-js-sdk+38.2.0.patch` when adopting the newer SDK because the patch is version-tied to `38.2.0`. |
+  | MindRoom product/runtime dependencies | `@basnijholt/particular-drift`, `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@tabler/icons-react`, `fuse.js`, `katex`, plus `workbox-precaching` and `workbox-routing` for the forked service worker. | These are fork-owned product/runtime choices with direct imports from `src/**` or `src/sw.ts`. |
+  | Native mobile dependencies | `@capacitor/android`, `@capacitor/app`, `@capacitor/browser`, `@capacitor/core`, `@capacitor/ios`, `@capacitor/keyboard`, `@capacitor/push-notifications`, `@capacitor/status-bar`, `@capacitor/cli`; generated native references also include `@capacitor/app-launcher`, `@capacitor/haptics`, and `@capacitor/splash-screen`. | Keep native packaging in a mobile-owned commit together with `capacitor.config.ts`, `android/**`, `ios/**`, and `npx cap sync` output. |
+  | Test/tooling dependencies | `vitest`, `jsdom`, `react-test-renderer`, `@types/react-test-renderer`, `@playwright/test`, `typescript` `5.4.2`, `eslint` `8.57.1`, `@typescript-eslint/eslint-plugin` `6.21.0`, `@typescript-eslint/parser` `6.21.0`, `patch-package`. | Keep Vitest/Playwright/test renderer in a test harness commit. Keep TypeScript/ESLint upgrades either with test/tooling or a separate tooling bump commit. `patch-package` belongs with the Matrix SDK patch commit. |
+  | Obsolete candidates, not removed in this audit | `@capacitor/app-launcher`, `@capacitor/haptics`, `@capacitor/splash-screen`. | No direct JS imports or explicit `capacitor.config.ts` plugin config were found, but they are present in generated Android Gradle files, iOS Podfile, and `Podfile.lock`. Removing them would require deliberate `npx cap sync` churn plus Android/iOS validation, so it is not safe as a lockfile-only cleanup. |
+  | Inherited unchanged dependencies with no current direct references | `@atlaskit/pragmatic-drag-and-drop-hitbox`, `dateformat`. | Present unchanged in base `v4.11.1`, current fork, and upstream `v4.12.2`. They are not fork-added dependency drift, so leave them to an upstream dependency-cleanup commit unless a separate source audit removes them with upstream parity. |
+- Decision:
+  - Do not remove dependencies or regenerate `package-lock.json` in this audit.
+    The fork-added dependencies are either actively imported, part of the native
+    generated package set, or tied to the current Matrix SDK patching strategy.
+    The two unreferenced direct dependencies found in the current manifest are
+    inherited unchanged from upstream/base and are not safe fork-only lockfile
+    cleanup candidates.
+- Recommended clean commit boundaries:
+  1. Upstream dependency adoption: accept upstream `matrix-js-sdk`,
+     `matrix-widget-api`, `sanitize-html`, `@types/sanitize-html`,
+     `@element-hq/element-call-embedded`, and upstream npm workflow scripts.
+  2. Matrix SDK patch strategy: either drop
+     `patches/matrix-js-sdk+38.2.0.patch` if the upstream SDK has the fix, or
+     refresh it as a version-specific patch against the adopted SDK.
+  3. MindRoom runtime UI/search/math/worker dependencies: keep
+     `particular-drift`, `@dnd-kit/*`, `@tabler/icons-react`, `fuse.js`,
+     `katex`, and Workbox imports with their owning feature commits.
+  4. Native mobile packaging: keep all `@capacitor/*` dependencies with
+     `capacitor.config.ts`, `android/**`, `ios/**`, generated Pod/Gradle files,
+     and mobile CI scripts.
+  5. Test/tooling harness: keep Vitest, Playwright, jsdom, react-test-renderer,
+     TypeScript, and ESLint changes with test/config additions.
+- Validation:
+  - Green: `node scripts/report-package-dependency-diff.mjs v4.11.1 HEAD`.
+  - Green: `node scripts/report-package-dependency-diff.mjs v4.12.2 HEAD`.
+  - Green: `npm install --package-lock-only --ignore-scripts --no-audit --no-fund --dry-run`.
+  - Green: `npx patch-package --error-on-fail` reapplied
+    `matrix-js-sdk@38.2.0`.
+  - Green: `npm run typecheck`.
+  - Green: `npm run build` passed with existing Vite runtime-config,
+    sourcemap, and chunk-size warnings.
+  - Red: `npm run lint` failed on the pre-existing
+    `src/app/mindroom/html/customHtmlPolicy.test.ts` `no-script-url` lint
+    error; it also reported existing warnings.
+  - Red: `npm test` failed in unrelated existing tests:
+    `src/app/mindroom/messages/renderMindroomMessageContent.test.ts`
+    (`vanilla-extract` file-scope setup error, 18 failed tests) and
+    `src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts`
+    (one timeout).
+  - Green: independent explorer review found the changed-dependency buckets and
+    no-removal decision sound after adding the inherited-unchanged bucket above.
+  - Green: `git diff --check`.
+
+### CINNY-118 - Soft-reset/recommit preparation plan (2026-05-28)
+
+- Status:
+  - Plan and guardrail prepared; no reset, rebase, squash, or commit performed.
+- Summary:
+  - Added `docs/mindroom-soft-reset-recommit-plan.md` to group the current
+    `v4.11.1..HEAD` tree into clean-history commits by ownership:
+    upstream/dependency adoption, MindRoom namespace core/thread/cache, narrow
+    upstream seams, message rendering/tool calls/long text, composer/commands/paste/voice,
+    native iOS/Android, push/release automation, and tests/docs.
+  - Added `scripts/report-non-mindroom-source-diff.mjs` as a pre-reset guardrail
+    for reporting changed `src/**` files outside `src/app/mindroom/**` relative
+    to a selected base.
+  - The plan preserves the existing CINNY-117 recommendation to handle the
+    upstream `v4.12.2` dependency/call/editor overlap before rewriting history.
+- Validation:
+  - Green: `npx prettier --write docs/mindroom-soft-reset-recommit-plan.md FORK_CHANGES.md scripts/report-non-mindroom-source-diff.mjs`.
+  - Green: `npx prettier --check docs/mindroom-soft-reset-recommit-plan.md FORK_CHANGES.md scripts/report-non-mindroom-source-diff.mjs`.
+  - Green: `node --check scripts/report-non-mindroom-source-diff.mjs`.
+  - Green: `node scripts/report-non-mindroom-source-diff.mjs v4.11.1 HEAD`
+    reports `374` changed non-MindRoom `src/**` files.
+  - Green: `git diff --check`.
+
+### CINNY-117 - Rebaseability audit against upstream v4.12.2 (2026-05-28)
+
+- Status:
+  - Analysis complete; no source behavior changed.
+- Baseline:
+  - Fork base is upstream `v4.11.1` at `6a05ff58`.
+  - Current fork head is `e1d7c390` / `v4.11.1-mindroom.82`.
+  - Current upstream `dev` is `80fd8863` / `v4.12.2`.
+- Measurements:
+  - Fork changes since base: `578` commits, `1074` files, `158765` insertions,
+    `9187` deletions.
+  - Upstream changes since base: `46` commits, `67` files, `3255` insertions,
+    `517` deletions.
+  - Direct file overlap: `32` files.
+  - `git merge-tree --write-tree --messages --merge-base 6a05ff58 upstream/dev HEAD`
+    reports conflicts concentrated in `17` files:
+    `.github/workflows/prod-deploy.yml`, `README.md`, `config.json`,
+    `package-lock.json`, `package.json`, `src/app/components/CallEmbedProvider.tsx`,
+    `src/app/components/editor/input.ts`, `src/app/components/editor/output.ts`,
+    `src/app/features/room/Room.tsx`, `src/app/features/room/RoomTimeline.tsx`,
+    `src/app/features/room/RoomViewHeader.tsx`, `src/app/features/search/Search.tsx`,
+    `src/app/features/settings/about/About.tsx`, `src/app/pages/auth/AuthFooter.tsx`,
+    `src/app/pages/client/WelcomePage.tsx`, `src/app/plugins/markdown/block/parser.ts`,
+    `src/app/state/settings.ts`, and `src/app/styles/CustomHtml.css.ts`.
+  - Most fork code is already isolated under `src/app/mindroom/**` (`466` changed
+    files), but there are still `374` changed non-MindRoom source files.
+- Findings:
+  - History cleanup alone will not make future rebases cheap. The current branch is
+    already much better than the original broad inline thread work because the large
+    room implementations now live under `src/app/mindroom/**`, but upstream-owned
+    integration files still decide the rebase cost.
+  - The highest-risk source divergence is the room/call surface. `Room.tsx`,
+    `RoomTimeline.tsx`, and `RoomViewHeader.tsx` are tiny MindRoom re-export seams,
+    which makes textual resolution simple, but upstream v4.12.2 added call-session
+    behavior in the original `Room` and `RoomViewHeader` files. Keeping the re-export
+    resolution would drop those upstream behaviors unless they are deliberately ported
+    into the MindRoom room shell/header.
+  - The second-highest-risk source divergence is the editor/custom-HTML pipeline:
+    MindRoom paste markers and Matrix math support touch generic parser, serializer,
+    sanitizer, Slate element, CSS, and markdown rule files. Upstream also changed
+    editor parsing and sanitizer dependencies in v4.12.2, so this area should become
+    an explicit extension seam before the next large upstream jump.
+  - Package/config/workflow conflicts are predictable but recurring. `package.json`
+    and `package-lock.json` contain both fork-only mobile/test dependencies and
+    upstream dependency upgrades (`matrix-js-sdk`, `matrix-widget-api`,
+    `@element-hq/element-call-embedded`, `sanitize-html`, `husky`, `lint-staged`).
+    `config.json` is fork-branded runtime policy replacing upstream examples.
+  - Product branding pages (`WelcomePage`, `AuthFooter`, `About`, `README`) are small
+    but still conflict whenever upstream changes copy/version text.
+- Recommended simplification queue:
+  1. Rebase onto upstream `v4.12.2` before rewriting history, then make the cleaned
+     stack start from that verified base. Otherwise the clean commits will still have
+     to absorb the v4.12.2 dependency/call/editor drift later.
+  2. Restore unused upstream room files where production already imports
+     `src/app/mindroom/**` directly. In particular, consider keeping upstream's
+     `features/room/Room*` files as upstream-owned files and remove compatibility
+     re-export tests/imports that force those files to be fork-owned. Port only the
+     upstream behaviors needed by the MindRoom room shell/header/timeline.
+  3. Introduce one generic editor/render extension boundary for paste markers and math
+     so `input.ts`, `output.ts`, markdown parser/rules, sanitizer allowlists, Slate
+     element rendering, and `CustomHtml.css.ts` do not each carry separate MindRoom
+     edits.
+  4. Move default MindRoom runtime policy out of the upstream sample `config.json`
+     where feasible, for example into `config.mindroom.json`, generated native app
+     config, or a MindRoom runtime overlay. Keep `config.json` close to upstream or
+     treat it as a single intentional fork-owned file.
+  5. Split the future clean history by ownership, not by chronology: upstream base
+     adoption/dependency upgrade, MindRoom namespace implementation, narrow upstream
+     seams, native mobile packaging, CI/release automation, and docs/tests. Keep the
+     seam commit small enough that a future rebase can replay or drop it independently.
+- Validation:
+  - Green: `git fetch --all --tags --prune`.
+  - Green: explicit-worktree `git status --short --branch` is clean.
+  - Green: `git merge-tree --write-tree --messages --merge-base 6a05ff58 upstream/dev HEAD`
+    completed as a non-mutating conflict simulation and produced the conflict list
+    above.
+
+### CINNY-116 - iOS App Store closed-train version bump (2026-05-20)
+
+- Status:
+  - Complete locally; pending new App Store upload/review submission.
+- Summary:
+  - Apple rejected a new upload on the already-approved `4.11.1` train with
+    `ITMS-90186` and `ITMS-90062`; App Store submissions now need an Apple
+    marketing version greater than `4.11.1`.
+  - Kept the fork/source release identity tied to upstream Cinny as
+    `v4.11.1-mindroom.80`, while publishing the iOS binary to Apple as
+    `4.11.2 (80)`.
+  - Updated Xcode Cloud version rewriting so `IOS_MARKETING_VERSION` can
+    override Apple's marketing version, release tags ending in
+    `-mindroom.<n>` become the App Store build number, and the default Apple
+    marketing version comes from the checked-in Xcode project.
+  - Added App Store preflight guards for Apple's version/build formats and for
+    the Sign in with Apple capability/entitlement that the previous review
+    depended on.
+  - Review follow-up: scoped Xcode project reads/writes to the App target build
+    configurations, made CI fail when it cannot derive a build number, and made
+    entitlement checks match plist keys rather than arbitrary substrings.
+  - Release determinism follow-up: branch-triggered Xcode Cloud builds now fall
+    back to the checked-in Xcode build number so the immediate upload remains
+    `4.11.2 (80)` even without a tag-triggered build.
+- Decisions:
+  - Keep `package.json` at upstream Cinny version `4.11.1`; use the checked-in
+    Xcode project or explicit CI env vars as the App Store marketing-version
+    source of truth.
+  - Publish this iOS train as Apple version `4.11.2 (80)` to satisfy Apple's
+    closed-train rule after `4.11.1` was approved.
+  - Derive Xcode Cloud build numbers from `IOS_BUILD_NUMBER`, then
+    `-mindroom.<n>` release tags, then the checked-in Xcode project value; fail
+    in CI if none is available.
+  - Keep App Store preflight responsible for version/build format checks and
+    Sign in with Apple capability/entitlement checks before archive upload.
+- Risks:
+  - Apple will reject the next upload again if the archived binary does not
+    contain `CFBundleShortVersionString=4.11.2` and an integer
+    `CFBundleVersion`.
+  - Xcode Cloud tag/env drift can produce the wrong build number unless the
+    prebuild script resolves the expected release tag, checked-in value, or
+    explicit override.
+  - Missing Sign in with Apple entitlement/capability would reopen the previous
+    App Review rejection path even if the demo account remains available.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `README.md`
+  - `ios/App/App.xcodeproj/project.pbxproj`
+  - `ios/App/ci_scripts/ci_pre_xcodebuild.sh`
+  - `scripts/appstore-preflight.mjs`
+  - `scripts/ios-xcode-project.mjs`
+- Tests and validation:
+  - Green check: `bash -n ios/App/ci_scripts/ci_pre_xcodebuild.sh`.
+  - Green check: `npm run appstore:preflight`.
+  - Green check: `node --input-type=module -e "import fs from 'node:fs'; import { getSingleAppTargetBuildSettingValue } from './scripts/ios-xcode-project.mjs'; const p=fs.readFileSync('ios/App/App.xcodeproj/project.pbxproj','utf8'); console.log(getSingleAppTargetBuildSettingValue(p, 'MARKETING_VERSION')); console.log(getSingleAppTargetBuildSettingValue(p, 'CURRENT_PROJECT_VERSION'));"` prints `4.11.2` and `80`.
+  - Green check: `plutil -lint ios/App/App/App.entitlements`.
+  - Green check: `git diff --check`.
+  - Green check: verified the checked-in project declares
+    `MARKETING_VERSION = 4.11.2`, `CURRENT_PROJECT_VERSION = 80`, the
+    `com.apple.SignInWithApple` capability, and the
+    `com.apple.developer.applesignin` entitlement.
+- Next steps:
+  - Trigger/upload a new App Store build from this change so Apple receives
+    `CFBundleShortVersionString=4.11.2` and `CFBundleVersion=80`.
+
+### CINNY-115 - Android Play auto-publish CI (2026-05-20)
+
+- Status:
+  - Complete.
+- Summary:
+  - Extended the existing `dev` push release workflow so a newly created
+    MindRoom GitHub release automatically builds a signed Android App Bundle and
+    publishes it to the Google Play `internal` track.
+  - The Android publish job runs in the same workflow as release creation rather
+    than relying on a second `release` event, so it still runs when the GitHub
+    release is created by CI.
+  - The job fails early if required signing or Play service-account secrets are
+    missing.
+- Files changed:
+  - `.github/workflows/auto-mindroom-release.yml`
+  - `FORK_CHANGES.md`
+  - `README.md`
+- Regression tests:
+  - No unit regression test retained for the workflow YAML. Removed the
+    source-text workflow guard because it asserted implementation strings rather
+    than user-visible behavior.
+- Validation:
+  - Green: `npx prettier --check .github/workflows/auto-mindroom-release.yml README.md FORK_CHANGES.md`.
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green: `npm test` (293 files, 2214 tests).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green: `git diff --check`.
+
+### CINNY-114 - Android native SSO callback and Play internal release (2026-05-19)
+
+- Status:
+  - Internal testing release `4.11.1 (29)` is active and available to internal
+    testers in Google Play Console.
+  - Follow-up fix was published as Android `versionCode 29` after tester
+    feedback showed voice recording was blocked in the Android app.
+  - Second follow-up in progress for Android `versionCode 30` after real device
+    testing showed the WebView audio permission still failed after the runtime
+    microphone prompt was allowed.
+- Summary:
+  - Fixed Android SSO callbacks so native Android builds use
+    `mindroom://auth/...` instead of the WebView `localhost/login/mindroom...`
+    redirect.
+  - Added the Android `mindroom://auth` activity intent filter and registered
+    native URL callback listeners for every Capacitor native platform.
+  - Kept the existing native iOS Apple sign-in exchange path intact while
+    routing Android SSO through the Capacitor browser.
+  - Bumped Android release metadata to `versionName "4.11.1"` and
+    `versionCode 28`, with optional upload-keystore signing for release AABs.
+  - Follow-up Android voice fix: added the required Android
+    `RECORD_AUDIO` permission and made microphone-blocked errors use
+    Android-specific app settings copy instead of the iPhone settings message.
+  - Bumped the follow-up Android build to `versionCode 29` so it can replace
+    the already-uploaded internal testing bundle.
+  - Second follow-up Android voice fix: declared
+    `android.permission.MODIFY_AUDIO_SETTINGS`, which Capacitor requests
+    together with `RECORD_AUDIO` when WebView audio capture calls
+    `getUserMedia`.
+  - Bumped the second follow-up Android build to `versionCode 30`.
+  - PR review follow-up: tightened the Android native SSO intent filter to
+    `/login` callbacks, limited supported native app detection to Android/iOS,
+    centralized native app callback registration, reused that helper in voice
+    recording, and made local Gradle signing properties load defensively only
+    when complete.
+- Decisions:
+  - Android native SSO uses `mindroom://auth/login...` callbacks so the native
+    app receives the same SPA login path that the web client already handles.
+  - iOS keeps the native Apple sign-in exchange path; Android and non-Apple SSO
+    providers use the Capacitor browser flow.
+  - Android release signing stays opt-in via the local upload-keystore
+    properties file and GitHub Actions secrets.
+  - Native voice recording declares both Android permissions Capacitor requests:
+    `RECORD_AUDIO` and `MODIFY_AUDIO_SETTINGS`.
+- Risks:
+  - Android WebView microphone permission behavior can still vary by device and
+    WebView version, so internal tester feedback remains important.
+  - Native redirect handling now covers Android and iOS; unsupported native
+    wrappers should not be treated as supported SSO targets.
+  - Google Play internal releases require monotonically increasing
+    `versionCode` values and valid upload signing credentials.
+- Next steps:
+  - Monitor internal tester feedback for Android SSO and voice recording on real
+    devices.
+  - Keep publishing follow-up Android bundles with incremented `versionCode`
+    values until the internal build is stable.
+  - Complete Google Play service-account setup before relying on the
+    auto-publish workflow.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `android/app/build.gradle`
+  - `android/app/src/main/AndroidManifest.xml`
+  - `src/app/mindroom/auth/authUi.ts`
+  - `src/app/mindroom/auth/authUi.test.ts`
+  - `src/app/mindroom/native/nativeSso.ts`
+  - `src/app/mindroom/native/nativeSso.test.ts`
+  - `src/app/pages/auth/SSOLogin.tsx`
+  - `src/app/pages/auth/SSOLogin.test.ts`
+  - `src/app/mindroom/voice/useVoiceRecorder.ts`
+  - `src/app/mindroom/voice/useVoiceRecorder.test.ts`
+  - `src/index.tsx`
+- Regression tests:
+  - Added coverage proving Android native auth builds generate
+    `mindroom://auth/...` redirect URLs.
+  - Added coverage proving Android SSO buttons open the native browser without
+    anchor fallback.
+  - Added a manifest guard for the Android `mindroom://auth/login...` intent
+    filter and behavioral coverage for native app URL callback registration.
+  - Added coverage proving unsupported native platforms are not treated as
+    supported native app targets.
+  - Added coverage proving native Android microphone permission failures show
+    Android app settings guidance.
+  - Added a source guard proving Android declares both permissions Capacitor
+    requests for native voice recording: `RECORD_AUDIO` and
+    `MODIFY_AUDIO_SETTINGS`.
+- Validation:
+  - Green focused check:
+    `npm test -- src/app/mindroom/auth/authUi.test.ts src/app/pages/auth/SSOLogin.test.ts src/app/mindroom/native/nativeSso.test.ts`
+    (3 files, 29 tests).
+  - Green focused Android SSO + voice check:
+    `npm test -- src/app/mindroom/auth/authUi.test.ts src/app/pages/auth/SSOLogin.test.ts src/app/mindroom/native/nativeSso.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts`
+    (4 files, 62 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (293 files, 2214 tests).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green focused voice check:
+    `npm test -- src/app/mindroom/voice/useVoiceRecorder.test.ts` (1 file, 33
+    tests).
+  - Green: `npx cap sync android`.
+  - Green follow-up packaging step: `npx cap copy android`.
+  - Green: `./gradlew --no-daemon :app:bundleRelease` using JDK 21 and the
+    Android SDK from `/opt/homebrew/share/android-commandlinetools`.
+  - Green: verified the generated release bundle manifest reports package
+    `com.mindroom_ai.app`, version code `29`, version name `4.11.1`, the
+    `mindroom://auth` activity intent filter, and
+    `android.permission.RECORD_AUDIO`.
+  - Green: `git diff --check`.
+  - RED follow-up check:
+    `npm test -- src/app/mindroom/voice/useVoiceRecorder.test.ts` failed
+    because the Android manifest lacked
+    `android.permission.MODIFY_AUDIO_SETTINGS`.
+  - Green follow-up focused voice check:
+    `npm test -- src/app/mindroom/voice/useVoiceRecorder.test.ts` (1 file, 33
+    tests).
+  - Green follow-up Android SSO + voice check:
+    `npm test -- src/app/mindroom/auth/authUi.test.ts src/app/pages/auth/SSOLogin.test.ts src/app/mindroom/native/nativeSso.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts`
+    (4 files, 62 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (293 files, 2214 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green follow-up packaging step: `npx cap copy android`.
+  - Green: `./gradlew --no-daemon :app:bundleRelease` using JDK 21 and the
+    Android SDK from `/opt/homebrew/share/android-commandlinetools`.
+  - Green: verified the generated release bundle manifest reports package
+    `com.mindroom_ai.app`, version code `30`, version name `4.11.1`, the
+    `mindroom://auth/login...` activity intent filter,
+    `android.permission.RECORD_AUDIO`, and
+    `android.permission.MODIFY_AUDIO_SETTINGS`.
+  - Green: `jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab`.
+  - Green: `git diff --check`.
+  - Release bundle: `android/app/build/outputs/bundle/release/app-release.aab`,
+    sha256 `435e19d396cefef491c8ea0f0a14ff5baa93f5739b9aa389b83a80ce1d02db8b`.
+  - RED PR review check:
+    `npm test -- src/app/mindroom/native/nativeSso.test.ts` failed before the
+    fixes for unsupported native platform detection, native callback helper
+    registration, and the missing Android `/login` path prefix.
+  - Green PR review focused check:
+    `npm test -- src/app/mindroom/native/nativeSso.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/mindroom/auth/authUi.test.ts src/app/pages/auth/SSOLogin.test.ts`
+    (4 files, 63 tests).
+  - Green: `npx prettier --check src/app/mindroom/native/nativeSso.ts src/app/mindroom/native/nativeSso.test.ts src/app/mindroom/voice/useVoiceRecorder.ts src/index.tsx FORK_CHANGES.md`.
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (293 files, 2215 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green: `npx cap sync android`.
+  - Green: partial-keystore Gradle configuration check with only
+    `storePassword` present.
+  - Green: `./gradlew --no-daemon :app:bundleRelease` using JDK 21 and the
+    Android SDK from `/opt/homebrew/share/android-commandlinetools`.
+  - Green: verified the generated release bundle manifest reports package
+    `com.mindroom_ai.app`, version code `30`, version name `4.11.1`, the
+    `mindroom://auth/login...` activity intent filter,
+    `android.permission.RECORD_AUDIO`, and
+    `android.permission.MODIFY_AUDIO_SETTINGS`.
+  - Green: `jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab`.
+  - Green: `git diff --check`.
+  - Current release bundle:
+    `android/app/build/outputs/bundle/release/app-release.aab`, sha256
+    `f2f6c0cc63f058eef409ae95ff06fb2c8f099c1ce3ea424ec46c2d39d0405a0b`.
+
+### CINNY-113 - Invite autocomplete non-duplicative option labels (2026-05-19)
+
+- Status:
+  - Complete.
+- Summary:
+  - Followed up on PR #23 accessibility review feedback by making invite
+    autocomplete option labels avoid repeating the MXID when the display name
+    already equals the user ID.
+  - PR #24 review follow-up: trim display names at the invite option render
+    boundary so whitespace-only names behave like missing names and fall back to
+    the MXID localpart/userId identity. Did not add case-insensitive MXID
+    dedupe because Matrix IDs should remain exact identifiers.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/components/invite-user-prompt/InviteUserAutocomplete.tsx`
+  - `src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+- Regression tests:
+  - Added coverage proving a suggestion whose display name is the same as its
+    MXID announces just the MXID instead of `<mxid>, <mxid>`.
+  - Added coverage proving a whitespace-only display name renders and announces
+    via the existing localpart/userId fallback rather than as a blank name.
+- Validation:
+  - RED observed:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+    failed because the old `aria-label` duplicated the MXID.
+  - PR #24 review RED observed:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+    failed because the whitespace-only display name was preserved instead of
+    falling back to the localpart.
+  - Green focused check:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+    (1 file, 15 tests).
+  - Green prompt/autocomplete check:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx src/app/components/invite-user-prompt/InviteUserPrompt.test.tsx`
+    (2 files, 18 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (293 files, 2207 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green:
+    `npx prettier --check src/app/components/invite-user-prompt/InviteUserAutocomplete.tsx src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`.
+  - Green: `git diff --check`.
+
+### CINNY-112 - Invite autocomplete readable agent identities (2026-05-19)
+
+- Status:
+  - Complete.
+- Summary:
+  - Reworked invite autocomplete suggestions so agent/user search results show
+    display name and full MXID in the main row body instead of truncating the
+    MXID in the trailing slot.
+  - PR follow-up: kept the suggestion popup anchored inside the input/dialog
+    bounds after screenshot review showed the widened centered popup being
+    clipped by the dialog; widened the Invite dialog itself modestly on desktop
+    so the two-line identities have more room without escaping the modal.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/components/invite-user-prompt/InviteAutocompleteMenu.css.ts`
+  - `src/app/components/invite-user-prompt/InviteUserPrompt.tsx`
+  - `src/app/components/invite-user-prompt/InviteUserPrompt.test.tsx`
+  - `src/app/components/invite-user-prompt/InviteUserAutocomplete.tsx`
+  - `src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+- Regression tests:
+  - Added `InviteUserAutocomplete` coverage proving a long MindRoom-style match
+    exposes the display name and full MXID in the suggestion row without using
+    the narrow trailing `after` slot.
+  - Added guards proving the suggestion popup stays input-bounded and the Invite
+    dialog uses the wider responsive width cap.
+- Validation:
+  - RED observed:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+    failed because the old row had no full-identity text nodes.
+  - Green focused check:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+    (1 file, 12 tests).
+  - Green prompt/autocomplete check:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx src/app/components/invite-user-prompt/InviteUserPrompt.test.tsx`
+    (2 files, 14 tests).
+  - PR follow-up RED checks:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+    failed on the escaping centered popup rule, and
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserPrompt.test.tsx`
+    failed before the wider responsive dialog style existed.
+  - PR follow-up green focused check:
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx src/app/components/invite-user-prompt/InviteUserPrompt.test.tsx`
+    (2 files, 16 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (293 files, 2205 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green:
+    `npx prettier --check src/app/components/invite-user-prompt/InviteAutocompleteMenu.css.ts src/app/components/invite-user-prompt/InviteUserAutocomplete.tsx src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx src/app/components/invite-user-prompt/InviteUserPrompt.test.tsx`.
+  - Green: `git diff --check`.
+  - Independent review: second self-review found no issues; subagent review was
+    not used because this session was not explicitly authorized to spawn agents.
+
+### CINNY-111 - Thread list horizontal scroll + long-string overflow (2026-05-15)
+
+- Applied scoped compact room view x-overflow clipping and long unbreakable title wrapping with live Playwright coverage for 360/480/768/1440 viewport widths; Bas iPhone PWA verification remains pending.
+- Review round 1 cleanup: removed the transient root `FINAL-PLAN.md` artifact. Durable CINNY-111 status remains in this runbook; `RoomTimeline.architecture.test.ts` owns the guard that forbids root implementation report files.
+- Review round 2 triage:
+  - FIX Issue 1: live coverage now separately proves the rendered title text wraps to multiple lines on narrow viewports, so `overflow-x: hidden` cannot mask a deleted title-wrap rule.
+  - FIX Issue 2: the fixture title token was shortened and guarded below the 160-character compact title limit with buffer, avoiding truncation collisions in the regression assertion.
+  - FIX Issue 4: removed redundant `wordBreak: 'break-word'`; `overflowWrap: 'anywhere'` is the owning title-wrap rule.
+  - IGNORE Issues 3, 5, 6, 7 per SOUL #1b: perf/style/platform/cosmetic comments that do not violate the CINNY-111 invariant.
+- Review round 2 validation:
+  - Green: `npx tsc --noEmit`.
+  - Green: `npx vitest run src/app/mindroom/threads/CompactRoomView.test.ts src/app/mindroom/threads/compactThreadCardViewModel.test.ts` (2 files, 7 tests).
+  - Green: `npm test` (292 files, 2182 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (Vite source-map/chunk-size warnings only).
+  - Skipped by environment: `npx playwright test e2e/live/cinny111-thread-list-overflow.spec.ts` (4 skipped; `E2E_USERNAME` / `E2E_PASSWORD` unset).
+- Rebase-on-origin/dev follow-up (2026-05-17):
+  - Rebased CINNY-109/CINNY-110/CINNY-111 onto `origin/dev` at `f9499496`
+    (`fix(ios): declare Apple sign-in capability (#22)`).
+  - Resolved the only replay conflict in `FORK_CHANGES.md` by preserving the
+    rebased CINNY-109 entry and the upstream CINNY-096 through CINNY-092 iOS /
+    welcome entries.
+  - Green: focused post-rebase suite
+    `npm test -- src/app/mindroom/voice/ src/app/mindroom/room-input/ src/app/mindroom/splash-screen/MindRoomSplashScreen.test.ts src/app/mindroom/native/statusBarOverlay.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    (9 files, 187 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (293 files, 2202 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (existing Vite runtime-config/source-map/chunk-size
+    warnings only).
+  - Green: `git diff --check`.
+  - Skipped by environment:
+    `E2E_NO_WEB_SERVER=1 npm run test:e2e -- e2e/live/cinny111-thread-list-overflow.spec.ts`
+    (4 skipped; `E2E_USERNAME` / `E2E_PASSWORD` unset).
+
+### CINNY-110 - Splash extends under iPhone Dynamic Island (2026-05-15)
+
+- Status:
+  - Complete.
+- Summary:
+  - Applied the `FINAL-PLAN.md` three-layer splash-only fullscreen fix:
+    `viewport-fit=cover`, a native iOS splash overlay counter/hook, and fixed
+    particle background positioning for the WebGL splash.
+  - `MindRoomSplashScreen` now acquires the native iOS WebView overlay only while
+    the particle splash is mounted; plain `SplashScreen` consumers keep the
+    existing non-immersive status-bar behavior.
+  - Removed the transient root `FINAL-PLAN.md` planning artifact after reading it
+    so the architecture guard and full test suite pass.
+  - Guardrails: keep static Capacitor `overlaysWebView: false`, do not change
+    plain `SplashScreen`, `src/index.css`, keyboard/app-height code, or
+    `apple-mobile-web-app-status-bar-style`.
+  - Review round 1 triage: fixed the real AuthLayout particle clipping
+    regression by restoring `MindRoomParticleBackground` to `absolute` by default
+    and making only the splash instance opt into `fixed`; added architecture
+    pins for `viewport-fit=cover` and the room `var(--app-height, 100%)` lock.
+    Ignored the remaining review comments as speculative isolation,
+    intentionally documented native-overlay timing, unnecessary direct hook
+    coverage, and an already tracked first-paint risk.
+- Files changed:
+  - `FINAL-PLAN.md` (removed transient planning artifact)
+  - `FORK_CHANGES.md`
+  - `index.html`
+  - `src/app/components/particle-background/MindRoomParticleBackground.css.ts`
+  - `src/app/components/particle-background/MindRoomParticleBackground.tsx`
+  - `src/app/components/splash-screen/MindRoomSplashScreen.test.ts`
+  - `src/app/components/splash-screen/MindRoomSplashScreen.tsx`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - `src/app/mindroom/native/statusBarOverlay.test.ts`
+  - `src/app/mindroom/native/statusBarOverlay.ts`
+  - `src/app/mindroom/native/useNativeSplashOverlay.ts`
+- Validation:
+  - Review round 1 green check:
+    `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/components/splash-screen/MindRoomSplashScreen.test.ts`.
+  - Review round 1 green check:
+    `npx prettier --check FORK_CHANGES.md src/app/components/particle-background/MindRoomParticleBackground.css.ts src/app/components/particle-background/MindRoomParticleBackground.tsx src/app/components/splash-screen/MindRoomSplashScreen.tsx src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Review round 1 green check: `npm run typecheck`.
+  - Review round 1 green check: `npm test` passed (`293` files, `2161`
+    tests) with existing React Router future-flag warnings.
+  - Review round 1 green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Review round 1 green check: `npm run lint` completed with the existing
+    warning-only baseline (`16` warnings, `0` errors).
+  - Review round 1 green check: `git diff --check`.
+  - Review round 1 independent review: second self-review confirmed AuthLayout
+    remains on the clipped default particle background, splash is the only
+    fixed-position caller, and no half-refactor traces remain.
+  - Green check: `npm test -- src/app/mindroom/native/statusBarOverlay.test.ts src/app/components/splash-screen/MindRoomSplashScreen.test.ts src/app/mindroom/native/statusBarTheme.test.ts src/app/mindroom/native/capacitorStatusBarConfig.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm test` passed (`293` files, `2160` tests) with existing
+    React Router future-flag warnings.
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npm run lint` completed with the existing warning-only
+    baseline (`16` warnings, `0` errors).
+  - Green check: `git diff --check`.
+  - Independent review: second self-review of the final diff found no issues;
+    subagent review was not used because this session was not explicitly
+    authorized to spawn agents.
+
+### CINNY-109 - Retry-first failed voice send UX (2026-05-14 → R7 2026-05-15)
+
+- Status:
+  - Complete (round-7 fix applied on top of round-6).
+- Summary:
+  - Implemented retry-first failed compact voice-send handling, re-architected
+    after round-2 review surfaced two convergent BLOCKERs in the round-1 wiring.
+  - **Round-2 BLOCKERs fixed:**
+    - **B1 — `pendingVoiceSendDraftAtom` was dead code.** The hook only owned
+      a hook-local atom unless the parent forwarded a `pendingDraftAtom` prop.
+      The parent gated that forward on `ownsPendingVoiceDraft = !!draft && contextAtom?.roomId === roomId`,
+      but the draft atom was never positively written, so the gate was always
+      false and the draft never survived a keyed remount. Fixed by making
+      `useVoiceRecorder` write
+      `pendingVoiceSendDraftAtom` directly via `useAtom` — the prop ceremony
+      and `localDraftAtom` fallback are deleted.
+    - **B2 — Stale-context wrong-room sends.** `pendingVoiceSendContextAtom`
+      was a global slot that `captureVoiceSendContext` early-returned on, so
+      after a failed send in room A the context lingered. Fresh recordings in
+      room B silently routed to room A. Fixed by merging the context INTO the
+      draft (`PendingVoiceSendDraft.context: PendingVoiceSendContext`).
+      `pendingVoiceSendContextAtom` and the entire `pendingVoiceSendContext.ts`
+      file are deleted. One atom, one lifecycle.
+  - **Hook contract change:** `useVoiceRecorder` takes a
+    `getSendContext: () => PendingVoiceSendContext` callback and snapshots the
+    context inside `start()`. The captured context flows through every
+    `onSendRecording` call (new 4th parameter) and is persisted on the draft on
+    failure, so the retry always targets the original room/thread/reply even if
+    the parent has navigated.
+  - **Mic-disabled gate (rev-H Issue 7):** When another room owns the parked
+    draft, the mic button in this room is `disabled` with an aria-label
+    "Voice recording paused — finish or discard your unsent recording in
+    `<room>`" so the user understands why voice recording is locked.
+  - **Cleanups from R2 kept items:**
+    - rev-H Issue 5: `retry()`'s catch path now re-reads `pendingDraftRef`
+      and skips the failure-state restore if the user has discarded mid-retry.
+      Defends against future global discard surfaces.
+    - rev-H Issue 6: `reset()` now goes through `safeSetCanPause` instead of a
+      direct `setCanPause(true)`, fixing a "set state on unmounted component"
+      warning when reset settles after navigation.
+- Files changed (round 2):
+  - `FORK_CHANGES.md`
+  - `src/app/state/room/roomInputDrafts.ts` — added `PendingVoiceSendContext`,
+    embedded into `PendingVoiceSendDraft`.
+  - `src/app/mindroom/voice/pendingVoiceSendContext.ts` — **deleted** (merged
+    into draft atom).
+  - `src/app/mindroom/voice/useVoiceRecorder.ts` — owns the global atom
+    directly; `getSendContext` callback; passes context through
+    `onSendRecording`; rev-H Issues 5 and 6 applied.
+  - `src/app/mindroom/voice/useVoiceRecorder.test.ts` — test rewritten to
+    drive the global atom; new tests prove the hook persists draft+context
+    even with no caller-provided atom; new test covers discard-mid-retry.
+  - `src/app/mindroom/voice/VoiceRecorderDialog.tsx` — `pendingDraftAtom` prop
+    deleted; `getSendContext` plumbed through.
+  - `src/app/mindroom/voice/VoiceRecorderDialog.test.ts` — provides
+    `getSendContext` and wraps in a fresh Jotai Provider per test.
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx` — drops the
+    ownership ternary; `captureVoiceSendContext` and the
+    `pendingVoiceSendContextAtom` reads/writes are deleted; `handleVoiceSend`
+    receives context as 4th arg from the hook; mic-button aria-label
+    disambiguates when another room owns the draft.
+  - `src/app/mindroom/room-input/__tests__/RoomInput.test.ts` — bypass tests
+    that called `voiceRecorderState.props!.onSendRecording` directly to
+    simulate persistence are replaced with a real-path "auto-surfaces the
+    recorder when returning to a room that owns a parked failed-send draft"
+    test plus a new "disables the mic button in another room while a
+    failed-send draft is parked" test. Other handleVoiceSend unit tests are
+    updated to capture context via `getSendContext()` and pass it explicitly.
+- Regression tests (round 2):
+  - `useVoiceRecorder` "persists the failed-send draft (with context) to the
+    global atom across remounts" — proves the hook owns the persistence path.
+  - `useVoiceRecorder` "persists the failed-send draft to the global atom
+    even when no atom is forwarded by the caller" — positive control for the
+    wiring fix; would have caught BLOCKER 1.
+  - `useVoiceRecorder` "retries against the originally-captured room even
+    after the parent reports a different room" — covers BLOCKER 2.
+  - `useVoiceRecorder` "does not resurrect a discarded draft when an in-flight
+    retry fails" — covers rev-H Issue 5.
+  - `useVoiceRecorder` "drops a same-tick second retry instead of
+    double-submitting the draft" — kept from round 1 (concurrency guard).
+  - `RoomInput` "auto-surfaces the recorder when returning to a room that
+    owns a parked failed-send draft" — proves the parent's auto-open
+    `useEffect` and mic-disabled gate fire end-to-end after a keyed remount.
+  - `RoomInput` "disables the mic button in another room while a failed-send
+    draft is parked" — proves the descriptive aria-label is rendered.
+- Tests and validation (round 2):
+
+  - Green: `npx tsc --noEmit`.
+  - Green: `npx vitest run src/app/mindroom/voice/ src/app/mindroom/room-input/`
+    (7 files, 74 tests).
+  - Green: `npx vitest run` (full sweep: 292 files, 2167 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (Vite chunk-size warnings only).
+
+- **Round-3 second-layer fixes (2 convergent MAJOR clusters + 3 KEEP items):**
+  - **CLUSTER 1 — composer leak across rooms (5/8 R3 reviewers).** The hook
+    read `pendingVoiceSendDraftAtom` unconditionally, so any composer that
+    mounted (e.g. when an unrelated room had a `replyDraft` or `threadId`
+    triggering the banner) would render room A's retry/discard capsule in
+    room B and let a discard from B destroy A's draft. Root cause was at the
+    parent boundary: the composer was being mounted for banner reasons, not
+    voice reasons. Fix: gate the composer mount in `MindroomRoomInput.tsx`
+    on `voiceRecorderOpen || ownsPendingVoiceDraft` only. The reply/thread
+    banner mounts independently for `replyDraft || threadId` and never
+    forces the composer to render.
+  - **CLUSTER 1b — global atom leaks across accounts (R3 reviewer C
+    Issue 2).** The router store is shared across sessions; without scoping,
+    a parked draft from account A would block voice recording everywhere in
+    account B and keep account A's audio bytes in memory. Fix: stamp every
+    `PendingVoiceSendContext` with `ownerSessionId: string` (the matrix
+    userId at start time). `MindroomRoomInput` derives
+    `draftBelongsToCurrentSession` and gates `ownsPendingVoiceDraft` /
+    `otherRoomOwnsPendingVoiceDraft` on it. A `useEffect` cleans up any
+    orphaned draft as soon as a RoomInput mounts under the new session.
+  - **CLUSTER 2 — unmount no longer cancelled in-flight `getUserMedia` (R3
+    reviewers C Issue 1, E Issue 1).** The round-2 unmount path stopped
+    calling `reset()` to preserve the draft, but `reset()` was the only
+    site that incremented `sessionIdRef`. A permission prompt resolved
+    after unmount could pass the post-await session check, build a
+    `MediaRecorder`, and start capture/timers no one would ever clean up
+    (mic stream leak). Fix: increment `sessionIdRef.current` inside the
+    non-send unmount path before `cleanupCapture()`, and use
+    `safeSetCanPause` inside `start()` so a late async resolution cannot
+    set state on the unmounted hook.
+  - **rev-H Issue 1 — `retry()` catch's discard-detection was timing-fragile.**
+    The catch read `pendingDraftRef.current` (synced via a useEffect that
+    only fires after a React commit), so an external mid-retry discard
+    that wrote the atom directly was not visible until commit time. Today
+    no production caller does that, but the test added in round 2 to
+    defend against future global-discard surfaces was passing only by
+    lucky React-commit interleaving. Fix: read the atom synchronously via
+    `useStore()` + `store.get(pendingVoiceSendDraftAtom)` in the catch.
+  - **rev-H Issue 2 — `handleCloseVoiceRecorder` unconditionally cleared
+    the draft.** Currently a no-op (every onClose path runs after the hook
+    has already cleared it), but a footgun for any future caller — exactly
+    what Issue 6 below is. Fix: drop the `setPendingVoiceSendDraft(undefined)`
+    call. The hook is the canonical owner.
+  - **rev-H Issue 6 — retry overlay had no defer path.** With the new mic-
+    disabled-in-other-rooms gate, the user was trapped between Retry and
+    Discard — they couldn't switch contexts to look something up before
+    deciding. Fix: wrap the failure overlay in a `FocusTrap` with
+    `clickOutsideDeactivates: true` and `escapeDeactivates: stopPropagation`,
+    so backdrop click and Escape key dismiss the overlay without
+    discarding the draft. The capsule + parked draft remain visible; the
+    user can re-open the overlay by clicking Retry on the capsule, and a
+    _fresh_ failure (different errorMessage) re-surfaces the overlay
+    automatically because deferral is keyed on the specific message value.
+- Files changed (round 3):
+  - `FORK_CHANGES.md`
+  - `src/app/state/room/roomInputDrafts.ts` — added `ownerSessionId` to
+    `PendingVoiceSendContext`.
+  - `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx` —
+    decoupled `MindroomVoiceSendContext` from the broader
+    `RoomInputSendContext` (the latter is for synchronous sessions that
+    don't need account stamping); `getMindroomRoomInputVoiceSendContext`
+    takes `ownerSessionId`.
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx` — gates composer
+    mount on ownership; derives `draftBelongsToCurrentSession`; cleanup
+    `useEffect` for orphan drafts; `handleCloseVoiceRecorder` no longer
+    clears the draft.
+  - `src/app/mindroom/voice/useVoiceRecorder.ts` — sessionId bumped on
+    unmount; `safeSetCanPause` in `start()`; retry catch reads the atom
+    via `store.get` directly.
+  - `src/app/mindroom/voice/VoiceRecorderDialog.tsx` — `FocusTrap` around
+    the failure overlay for backdrop/Escape defer; `deferredErrorMessage`
+    state keyed on the specific failure message so a fresh failure
+    re-opens the overlay automatically.
+  - Test files updated to inject `ownerSessionId`, open the recorder
+    before driving handleVoiceSend (the composer no longer auto-mounts in
+    rooms where it shouldn't), and add regression coverage.
+- Regression tests (round 3):
+  - `useVoiceRecorder` "does not resurrect a discarded draft when an
+    in-flight retry fails (production discard path)" — exercises the real
+    `discardPending()` path; previously failed only by React-commit timing.
+  - `useVoiceRecorder` "also defends discard-mid-retry when discard
+    happens via a direct atom write" — forward-looking guarantee for any
+    future global discard surface.
+  - `useVoiceRecorder` "cancels an in-flight `getUserMedia` after unmount
+    so no recorder/timers start" — would FAIL under the round-2 unmount
+    cleanup; CLUSTER 2 regression.
+  - `RoomInput` "does not mount the composer in another room with a
+    thread/reply banner while another room owns the parked draft" — would
+    FAIL under round-2 wiring; CLUSTER 1 regression.
+  - `RoomInput` "discards a parked draft that belongs to a different
+    session (account switch)" — CLUSTER 1b regression.
+  - `RoomInput` "does not clear the global pending draft when the dialog
+    closes for non-discard reasons" — rev-H Issue 2 regression.
+  - `VoiceRecorderDialog` "defers (hides) the failure overlay on
+    backdrop/Escape without discarding the draft" — rev-H Issue 6
+    regression; uses a `focus-trap-react` mock that exposes the captured
+    `onDeactivate` for the test to invoke.
+- Tests and validation (round 3):
+  - Green: `npx tsc --noEmit`.
+  - Green: `npx vitest run src/app/mindroom/voice/ src/app/mindroom/room-input/`
+    (7 files, 80 tests).
+  - Green: `npx vitest run` (full sweep: 292 files, 2173 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (Vite chunk-size warnings only).
+- Out-of-scope follow-ups (R3 noted, not implemented this round):
+
+  - rev-H Issue 4 (R3): the `Room` reference held in
+    `PendingVoiceSendContext` can go stale on logout/kick/room delete;
+    partially mitigated by the account-switch cleanup but a separate
+    membership-loss surface is still a follow-up. **R4 update: now
+    covered — see "membership-loss cleanup" below.**
+  - rev-H Issues 3, 5, 7, 8, 9, 10 (R3): copy/style/test-realism/refactor
+    items dropped per SOUL #1b (NIT/speculative/style).
+  - Phase 1 ticket: investigate the underlying upload-timeout / "connection
+    dropped" root cause separately from this UX work.
+
+- **Round-4 fixes (3 MAJORs from 0/8 R4 verdicts):**
+  - **MAJOR 1 — FocusTrap defer closure bug (R4 8/8 reviewers).** R3's
+    defer-dismissal feature wired the defer signal through
+    `FocusTrap.onDeactivate`. `focus-trap-react` snapshots `onDeactivate`
+    at first mount and invokes it on every trap teardown — including the
+    teardown caused by Retry/Discard flipping `showPendingSendError` to
+    false. The captured `discardConfirmationOpen` check in the original
+    closure always saw `false`, so clicking Discard inside the failure
+    overlay would mis-defer the message; the user clicking Cancel from the
+    discard confirmation could not get the failure overlay back. A retry
+    that failed with the same canonical message would also be silently
+    hidden. R3's regression test passed only because the FocusTrap mock
+    omitted the unmount-time onDeactivate semantics that the real library
+    has. Fix: drop `onDeactivate` entirely; route defer through the
+    per-event `clickOutsideDeactivates` and `escapeDeactivates`
+    predicates, which `focus-trap` calls live per event (no closure
+    capture problem). The predicates read live `errorMessage` via a
+    `useRef` synced through a `useEffect`. Improved the FocusTrap test
+    mock to invoke the snapshot-time `onDeactivate` on unmount, which
+    would have caught the original bug.
+  - **MAJOR 2 — `deferredErrorMessage` persisted across recording
+    sessions (R4 rev-H Issue 2).** When the composer goes idle (`!active
+&& !hasPendingSend`), it returns `null` but useState is preserved
+    across null renders. After a successful retry → fresh recording →
+    same canonical "Couldn't send" message, the failure overlay stayed
+    hidden because the previous-session deferred value still matched.
+    Fix: clear `deferredErrorMessage` in the same `useEffect` that runs
+    `reset()` on the idle transition. Also clear in a new `beginRetry`
+    helper so an explicit user Retry never silently hides a same-message
+    follow-up failure (the common case).
+  - **MAJOR 3 / membership-loss cleanup (R4 rev-A Issue 2).** Drafts
+    parked in a room the user no longer has access to (kicked, left,
+    forgot, sync drift) would otherwise lock the mic in every other room
+    with no in-app surface to discard. Fix: extend
+    `MindroomRoomInput`'s cleanup `useEffect` to verify
+    `mx.getRoom(draft.context.roomId)` is still resolvable; clear the
+    orphan if not. The next room navigation triggers cleanup and
+    re-enables voice recording app-wide.
+  - **KEEP — test helpers stamped with `ownerSessionId`** (R4 rev-B/D/E):
+    `createTestSendContext` in both voice test files now includes
+    `ownerSessionId` so the `PendingVoiceSendContext` type contract is
+    honored even though `tsconfig` excludes test files from typecheck.
+- Files changed (round 4):
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/voice/VoiceRecorderDialog.tsx` — `errorMessageRef`
+    via `useRef`+`useEffect`; `beginRetry` helper resets defer; defer
+    signal moved to `clickOutsideDeactivates` + `escapeDeactivates`
+    predicates; `onDeactivate` removed; cross-session reset added to the
+    idle `useEffect`.
+  - `src/app/mindroom/voice/VoiceRecorderDialog.test.ts` — improved
+    `focus-trap-react` mock to model snapshot-at-mount + unmount-time
+    deactivation; `createTestSendContext` includes `ownerSessionId`;
+    new regression tests for the three R4 MAJORs.
+  - `src/app/mindroom/voice/useVoiceRecorder.test.ts` —
+    `createTestSendContext` includes `ownerSessionId`.
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx` — orphan
+    membership-loss cleanup added to the existing `useEffect`.
+  - `src/app/mindroom/room-input/__tests__/RoomInput.test.ts` — `mxState`
+    gains a default `getRoom` mock; new "discards a parked draft when
+    the source room is no longer reachable" test.
+- Regression tests (round 4):
+  - `VoiceRecorderDialog` "defers (hides) the failure overlay on
+    backdrop click without discarding the draft" — exercises the new
+    per-event predicate path.
+  - `VoiceRecorderDialog` "does NOT mark the error as deferred when
+    FocusTrap unmounts for Discard / Retry transitions" — would FAIL
+    under the R3 wiring with the new mock that models real
+    snapshot-at-mount + unmount-time deactivation.
+  - `VoiceRecorderDialog` "re-shows the failure overlay when an
+    explicit Retry fails again with the same message" — covers the
+    `beginRetry` defer reset.
+  - `RoomInput` "discards a parked draft when the source room is no
+    longer reachable (kicked/left/forgot)" — covers MAJOR 3.
+- Tests and validation (round 4):
+  - Green: `npx tsc --noEmit`.
+  - Green: `npx vitest run src/app/mindroom/voice/ src/app/mindroom/room-input/`
+    (7 files, 83 tests).
+  - Green: `npx vitest run` (full sweep: 292 files, 2176 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (Vite chunk-size warnings only).
+- R4 NIT/style items not implemented per SOUL #1b:
+
+  - rev-H Issue 3 (`ownerSessionId` empty-string fallback consistency):
+    theoretical mid-logout race; existing comparison cleans up safely.
+  - rev-H Issue 4 (`discardPending` doesn't clear `sendContextAtStartRef`):
+    no current foot-gun; `start()` overwrites both refs.
+  - rev-H Issue 6 (clarify `cleanupUnmountDuringSend` comment): pure
+    documentation polish.
+  - rev-H Issue 7 (WeakRef + `--expose-gc` audio file release test):
+    speculative; contradicts simple-test doctrine.
+
+- **Round-5 fixes (3 MAJORs from 4 CHANGES-REQUIRED reviewers):**
+  - **FIX 1 — In-flight retry state lost across remounts (rev-D Issue 1
+    MAJOR).** `retry()` only recorded the in-flight signal in hook-local
+    refs (`retryInFlightRef` + `phase==='sending'`). On a keyed remount
+    mid-retry, the new hook woke up with `phase='idle'` and a parked
+    draft → capsule rendered "ready to retry" with Discard enabled →
+    user could discard a draft whose matrix message was still uploading,
+    and the message would land AFTER the explicit discard. Fix: persist
+    the in-flight signal in the global atom by adding
+    `inFlight: { token, startedAt }` to `PendingVoiceSendDraft`.
+    `retry()` writes a fresh token before `await`, clears it on
+    completion. The hook initializes its `phase` from the atom on first
+    render (so a remounted hook sees `'sending'` immediately) and
+    additionally syncs phase when the atom's `inFlight` transitions.
+    `retry()`'s success and failure paths both check the live atom's
+    token before touching state — a stale resolution can no longer
+    clobber a draft that the user (or another caller) has since
+    discarded or replaced. The parent (`MindroomRoomInput`) also closes
+    its auto-opened recorder when the parked draft transitions away
+    while no local action initiated the change, so a remote retry
+    settling after the user already navigated back doesn't leave the
+    capsule lingering with stale state.
+  - **FIX 2 — Orphan cleanup missed left/kicked rooms that still
+    resolved via `mx.getRoom` (rev-B Issue 1, rev-G Issue 1 MAJOR).**
+    R4 cleared the parked draft only when `mx.getRoom(roomId)` returned
+    falsy, but a `Room` object can survive in the SDK store after the
+    user is no longer Joined. In that state the source room composer
+    refuses to render and the user has no recovery surface, while every
+    other room's mic stays globally locked. Fix: tighten the predicate
+    to `mx.getRoom(roomId)?.getMyMembership() === Membership.Join`. Same
+    cleanup also handles the missing-room case from R4.
+  - **FIX 3 — Stale `Room` reference reused at retry time
+    (rev-H Issue 2 MAJOR — encryption angle).** `handleVoiceSend` used
+    `context.room` directly (a snapshot from `start()`). If the room
+    state changed between original failure and retry — most concerning,
+    an encryption upgrade — the retry would use the cached value and
+    could send PLAINTEXT into a room that gained encryption. Fix:
+    re-resolve the live `Room` from `mx.getRoom(context.roomId)` at
+    every retry; refuse to send if missing or non-Joined; re-derive
+    `signalBridgedRoom` from the live room. The membership and
+    bridge-detection predicates stay isolated to
+    `RoomInputMindroomExtensions` via a new
+    `refreshMindroomRoomInputVoiceSendContext(mx, context)` helper, so
+    the `RoomTimeline.architecture.test.ts` boundary (no
+    `isSignalBridgeRoom` import in `MindroomRoomInput`) is preserved.
+- Files changed (round 5):
+  - `FORK_CHANGES.md`
+  - `src/app/state/room/roomInputDrafts.ts` — added
+    `PendingVoiceSendInFlight` type and `inFlight?` field on the draft.
+  - `src/app/mindroom/voice/useVoiceRecorder.ts` — initial `phase` from
+    atom; sync `useEffect` for inFlight transitions; `retry()` writes
+    /clears token, token-checks on resolution, refuses fresh retry when
+    atom already has inFlight.
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx` — orphan cleanup
+    uses `Membership.Join`; `handleVoiceSend` re-resolves live context
+    via the new helper before any state mutation; recorder auto-closes
+    when the parked draft transitions away outside this mount's
+    actions.
+  - `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx` — new
+    `refreshMindroomRoomInputVoiceSendContext(mx, context)` helper;
+    `MatrixClient` and `Membership` imports added.
+  - Test files — mock matrix client gains a default `getRoom` that
+    returns a Joined room; new R5 regression tests added.
+- Regression tests (round 5):
+  - `useVoiceRecorder` "persists an inFlight token while a retry is
+    awaiting and surfaces sending state on a remounted hook" — would
+    FAIL under R4 wiring (covers FIX 1).
+  - `useVoiceRecorder` "refuses a fresh retry while the atom already
+    carries an inFlight token" — defense-in-depth for FIX 1.
+  - `RoomInput` "discards a parked draft when the source room exists
+    but the user is no longer Joined" — would FAIL under R4 (covers
+    FIX 2).
+  - `RoomInput` "rejects retry when the source room is no longer
+    reachable (re-resolves at retry time)" — would FAIL under R4
+    (covers FIX 3 / encryption-leak window).
+- Tests and validation (round 5):
+  - Green: `npx tsc --noEmit`.
+  - Green: `npx vitest run src/app/mindroom/voice/ src/app/mindroom/room-input/`
+    (7 files, 87 tests).
+  - Green: `npx vitest run` (full sweep: 292 files, 2180 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build` (Vite chunk-size warnings only).
+- R5 NIT items dropped per SOUL #1b (per the brief's explicit triage):
+  rev-H Issues 1, 3, 4, 5, 6, 7, 8, 9, 10; rev-G Issue 2.
+
+- **Round-6 fix (1 EXTREME-CONVERGENCE MAJOR — 5/8 R6 reviewers):**
+  - **Retry success path defeated the inFlight token guard
+    (rev-A/B/C/D-1/F).** R5's `retry()` correctly token-checked the
+    live atom before clearing it, but then unconditionally called
+    `reset()`, and `reset()` unconditionally wrote
+    `pendingVoiceSendDraftAtom = undefined`. A stale retry whose
+    `await sendRecording` resolved AFTER the atom was replaced with
+    a different draft (account-switch + new failed recording, or any
+    other replacement) would still erase the newer draft via the
+    reset's atom write. Real data-loss race.
+  - **Root-cause fix at the boundary:** the invariant is "writes to
+    `pendingVoiceSendDraftAtom` must be ownership-scoped". `reset()`
+    conflated local recorder cleanup with global atom mutation; the
+    two concerns must be separable so each caller can pick the right
+    cleanup. Split:
+    - New `resetLocalRecorderState()` — refs, timers, capture, React UI state.
+      Touches NO global state.
+    - `reset()` becomes `resetLocalRecorderState() + writePendingDraft(undefined)`.
+      Reserved for callers that have already verified ownership.
+  - Updated callers:
+    - `retry()` success path uses `resetLocalRecorderState()` after
+      the token-checked clear, so a stale tail can never clobber a
+      newer draft.
+    - `finishStop` initial-send success path uses
+      `resetLocalRecorderState()` after its explicit clear (the
+      explicit clear is the authoritative ownership transition).
+    - `stopWithAction` discard branch uses `resetLocalRecorderState()`
+      so a discard of a non-existent live recording cannot collide
+      with `discardPending()`'s atom ownership.
+    - VoiceRecorderDialog's idle-transition `useEffect` keeps using
+      `reset()` — it only fires when `!hasPendingSend` (atom already
+      undefined), so the atom write is a guaranteed no-op.
+- Files changed (round 6):
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/voice/useVoiceRecorder.ts` — `reset()` split into
+    `resetLocalRecorderState()` + thin `reset()` wrapper; three call
+    sites updated; deps refreshed.
+  - `src/app/mindroom/voice/useVoiceRecorder.test.ts` — new regression
+    test for the stale-retry-success scenario.
+- Regression test (would FAIL under R5 wiring):
+  - `useVoiceRecorder` "does not clobber a different draft when a stale
+    retry resolves successfully" — kicks off a retry, externally
+    replaces the atom with a different draft (no inFlight, different
+    token), resolves the stale retry successfully, asserts the
+    replacement draft is preserved.
+- Tests and validation (round 6):
+  - Green: `npx tsc --noEmit`.
+  - Green: `npx vitest run src/app/mindroom/voice/ src/app/mindroom/room-input/`
+    (7 files, 88 tests).
+  - Green: `npx vitest run` (full sweep: 292 files, 2181 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build`.
+- R6 items dropped per SOUL #1b (per the brief's explicit triage):
+
+  - rev-D Issue 2 (full vitest red): pre-existing flakes in unrelated
+    files; 7/8 reviewers reported full green; not from this PR.
+  - All 8 of rev-H's NIT/MINOR items: rev-H APPROVED with all items
+    classified as deferrable.
+
+- **Round-7 fix (1 convergent MAJOR — rev-E + rev-F):**
+  - **`voiceAutoSendPendingAtom` leak when live-room refresh fails.**
+    R5 introduced `refreshMindroomRoomInputVoiceSendContext` to close
+    the stale-snapshot / encryption-upgrade window, but placed the
+    refresh BEFORE `handleVoiceSend`'s `try/finally`. The auto-send
+    slot is claimed by `claimVoiceAutoSend()` in `onSendStopRequest`
+    BEFORE `handleVoiceSend` runs. If the source room had become
+    unreachable / non-Joined, the refresh-failure throw bypassed the
+    finally → `voiceAutoSendPendingAtom` stayed `true` → text submit
+    and voice recording were globally locked across the entire app
+    until reload.
+  - **Root-cause fix at the boundary:** `handleVoiceSend` is the
+    function that owns release of any auto-send claim it sees. The
+    invariant "every claimed slot must release on every exit path"
+    must hold for ALL throws inside this function, not just throws
+    from inside the upload pipeline. Moved the entire body
+    (live-room refresh, "another send pending" guard, claim, upload,
+    send) into a single outer `try`, with the existing finally
+    (already calling `releaseVoiceAutoSend()`) now covering every
+    exit path. `releaseVoiceAutoSend()` short-circuits when no claim
+    is held, so calling it on the no-claim path is a no-op. Same
+    structural fix also closes rev-H's MINOR Issue 1 (the
+    retry()-catch-skips-onSendStopFailure race) for free, because
+    the parent now releases unconditionally regardless of what the
+    hook does in its catch.
+- Files changed (round 7):
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx` —
+    `handleVoiceSend` restructured: live-room refresh and
+    "another send pending" guard moved inside the outer try; finally
+    block now runs on every exit path.
+  - `src/app/mindroom/room-input/__tests__/RoomInput.test.ts` — new
+    regression test that goes through the production claim path
+    (`onSendStopRequest` → `onSendRecording`) so the leak path is
+    actually exercised.
+- Regression test (would FAIL under R6 wiring):
+  - `RoomInput` "releases voiceAutoSendPendingAtom when refresh fails
+    AFTER the slot has been claimed" — `onSendStopRequest()` claims
+    the slot, then a leave-membership room makes the live-room
+    refresh fail, then asserts `voiceAutoSendPendingAtom === false`.
+- Tests and validation (round 7):
+  - Green: `npx tsc --noEmit`.
+  - Green: `npx vitest run src/app/mindroom/voice/ src/app/mindroom/room-input/`
+    (7 files, 89 tests).
+  - Green: `npx vitest run` (full sweep: 292 files, 2182 tests).
+  - Green: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green: `npm run build`.
+- R7 items dropped per SOUL #1b (per the brief's explicit triage):
+  - rev-H 2 MINOR items + 5 NITs: rev-H APPROVED with all items
+    classified as deferrable. (Issue 1 specifically is now fixed
+    incidentally by the parent-side restructure above.)
+
+### CINNY-096 - Xcode target Apple Sign In capability (2026-05-17)
+
+- Status:
+  - Complete.
+- Summary:
+  - Xcode Cloud passed the Swift compile step after CINNY-095, then failed
+    during export for distribution.
+  - Added the `com.apple.SignInWithApple` system capability to the Xcode target
+    attributes so automatic signing/export sees the target capability as well as
+    the entitlement file.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `ios/App/App.xcodeproj/project.pbxproj`
+- Tests and validation:
+  - Green check:
+    `plutil -lint ios/App/App.xcodeproj/project.pbxproj ios/App/App/App.entitlements`.
+  - Green check: `xcodebuild -list -workspace ios/App/App.xcworkspace`
+    listed the `App` scheme; it still prints the local CoreSimulator mismatch
+    warning from this Mac.
+  - Green check: `xcrun swiftc -parse ios/App/App/MindRoomAuthPlugin.swift`.
+  - Green check: `npm run appstore:preflight`.
+  - Green check: `git diff --check`.
+  - Green check:
+    `npm test -- src/app/mindroom/native/nativeSso.test.ts src/app/pages/auth/SSOLogin.test.ts`.
+
+### CINNY-095 - Xcode Cloud native Apple nonce compile fix (2026-05-17)
+
+- Status:
+  - Complete.
+- Summary:
+  - Fixed the Xcode Cloud Swift exclusivity error in native Apple nonce
+    generation by using the mutable byte buffer's own count and base address
+    inside `withUnsafeMutableBytes`.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `ios/App/App/MindRoomAuthPlugin.swift`
+- Tests and validation:
+  - Green check: `xcrun swiftc -parse ios/App/App/MindRoomAuthPlugin.swift`.
+  - Green check:
+    `npm test -- src/app/mindroom/native/nativeSso.test.ts src/app/pages/auth/SSOLogin.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm run appstore:preflight`.
+  - Green check: `git diff --check`.
+
+### CINNY-094 - Native Sign in with Apple exchange (2026-05-17)
+
+- Status:
+  - Implemented locally; pending Tuwunel release/deploy and App Store build.
+- Summary:
+  - Replaced the native iOS Apple provider path with
+    `ASAuthorizationAppleIDProvider` so Sign in with Apple uses the device
+    account sheet instead of the Apple web login page.
+  - The native plugin now returns the Apple identity token, authorization code,
+    user identifier, and raw nonce to the web layer.
+  - The web layer posts the native Apple credential to
+    `/_matrix/client/unstable/org.mindroom.login/apple` and routes the returned
+    Matrix `loginToken` through the existing token-login path.
+  - Enabled the iOS Sign in with Apple entitlement in `App.entitlements`.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `ios/App/App/App.entitlements`
+  - `ios/App/App/MindRoomAuthPlugin.swift`
+  - `src/app/mindroom/auth/authUi.ts`
+  - `src/app/mindroom/native/nativeSso.ts`
+  - `src/app/mindroom/native/nativeSso.test.ts`
+  - `src/app/pages/auth/SSOLogin.tsx`
+  - `src/app/pages/auth/SSOLogin.test.ts`
+- Tests and validation:
+  - Red check:
+    `npm test -- src/app/mindroom/native/nativeSso.test.ts src/app/pages/auth/SSOLogin.test.ts`
+    failed while `signInWithNativeApple` and the Apple-provider intercept did
+    not exist.
+  - Green check:
+    `npm test -- src/app/mindroom/native/nativeSso.test.ts src/app/pages/auth/SSOLogin.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `xcrun swiftc -parse ios/App/App/MindRoomAuthPlugin.swift`.
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npx cap sync ios`.
+  - Green check: `npm run appstore:preflight`.
+  - Local iOS compile check:
+    `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`
+    could not run because this Mac's CoreSimulator is older than the installed
+    Xcode support files and no eligible iOS 26.5 destination is installed.
+
+### CINNY-093 - Native iOS web-auth session for Apple SSO (2026-05-15)
+
+- Status:
+  - In progress.
+- Summary:
+  - Investigating App Review rejection for build `4.11.1 (27)`: Sign in with
+    Apple through the default `mindroom.chat` server did not complete for the
+    reviewer.
+  - Verified `mindroom.chat` advertises Apple SSO and redirects to
+    `appleid.apple.com`, and downloaded the App Review screenshot showing the
+    reviewer remained inside the Apple web auth page.
+  - Added a native Capacitor bridge that uses `ASWebAuthenticationSession` for
+    iOS SSO and returns the `mindroom://auth/...` callback URL directly to the
+    SPA route handler, with the existing SafariViewController path left as a
+    fallback if the native plugin is unavailable.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `ios/App/App/Base.lproj/Main.storyboard`
+  - `ios/App/App/MindRoomAuthPlugin.swift`
+  - `ios/App/App/MindRoomBridgeViewController.swift`
+  - `ios/App/App.xcodeproj/project.pbxproj`
+  - `src/app/pages/auth/SSOLogin.test.ts`
+  - `src/app/mindroom/native/nativeSso.ts`
+  - `src/app/mindroom/native/nativeSso.test.ts`
+  - `src/index.tsx`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/native/nativeSso.test.ts` failed
+    while the native auth plugin path and reusable callback router did not
+    exist.
+  - Green check: `npm test -- src/app/mindroom/native/nativeSso.test.ts`.
+  - Green check:
+    `npm test -- src/app/pages/auth/SSOLogin.test.ts src/app/mindroom/native/nativeSso.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npx cap sync ios`.
+  - Green check: `npm run appstore:preflight`.
+  - Green check: `npm run lint` (16 warnings, 0 errors - pre-existing
+    baseline).
+  - Green check: `npm test` passed (`292` files, `2161` tests) with existing
+    `--localstorage-file` and React Router future-flag warnings.
+  - Green check: `git diff --check`.
+  - Syntax check:
+    `xcrun swiftc -parse ios/App/App/MindRoomAuthPlugin.swift ios/App/App/MindRoomBridgeViewController.swift`.
+  - Local iOS compile check:
+    `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`
+    could not run because the local Xcode/CoreSimulator install is out of sync
+    and reports no eligible iOS destinations. Xcode Cloud validation is needed
+    after pushing.
+
+### CINNY-092 - Welcome setup prompt for unpaired Local MindRoom (2026-05-15)
+
+- Status:
+  - Complete.
+- Summary:
+  - Added a delayed setup prompt to the welcome page for users with no active
+    Local MindRoom connection after the first-seen grace period reaches one day.
+  - The prompt uses the hosted getting-started flow: initialize config, add
+    provider credentials or Codex auth, generate a Local MindRoom pair code,
+    connect with `uvx mindroom connect`, and run `uvx mindroom run`.
+  - The config init step lists the supported `--provider` presets directly in
+    the welcome instructions.
+  - The pair-code step now includes a direct Local MindRoom settings button
+    instead of telling users to open Settings manually.
+  - WelcomePage queries the existing Local MindRoom connections endpoint and
+    hides the prompt for active linked installations, revoked-only states before
+    the one-day threshold, and provisioning failures.
+  - The one-day timer starts only after the welcome page observes zero active
+    connections, and it resets when an active connection exists.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/local-mindroom/mindroom.ts`
+  - `src/app/mindroom/local-mindroom/mindroom.test.ts`
+  - `src/app/pages/client/WelcomePage.tsx`
+  - `src/app/pages/client/WelcomePage.test.ts`
+- Tests and validation:
+  - Red check:
+    `npm test -- src/app/mindroom/local-mindroom/mindroom.test.ts src/app/pages/client/WelcomePage.test.ts`
+    failed while the welcome setup prompt gate and storage key helper did not
+    exist.
+  - Green check:
+    `npm test -- src/app/mindroom/local-mindroom/mindroom.test.ts src/app/pages/client/WelcomePage.test.ts`
+    passed (`15` tests).
+  - Green check: `npm run typecheck`.
+  - Green check:
+    `npx prettier --check src/app/pages/client/WelcomePage.tsx src/app/pages/client/WelcomePage.test.ts src/app/mindroom/local-mindroom/mindroom.ts src/app/mindroom/local-mindroom/mindroom.test.ts`.
+  - Green check: `git diff --check`.
+  - Green check: `npm run lint` (16 warnings, 0 errors - pre-existing
+    baseline).
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npm test` passed (`292` files, `2157` tests) with existing
+    `--localstorage-file` and React Router future-flag warnings.
+  - Local dev-server check: `npm start -- --host 127.0.0.1 --port 5174` served
+    `HTTP/1.1 200 OK` via `curl -I`; browser screenshot capture was skipped
+    because the available DevTools browser profile was already locked by another
+    session.
+  - Independent review: second self-review of the final diff found no issues;
+    subagent review was not used because this session was not explicitly
+    authorized to spawn agents.
+
+### CINNY-091 - Members drawer invite entry point (2026-05-14)
+
+- Status:
+  - Complete.
+- Summary:
+  - Added a members-drawer header invite icon for wide room layouts.
+  - The icon opens the existing `InviteUserPrompt`, matching the current room
+    menu invite dialogue path.
+  - The button uses the room invite permission gate and is disabled when the
+    current user cannot invite.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/features/room/MembersDrawer.tsx`
+  - `src/app/features/room/MembersDrawer.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/features/room/MembersDrawer.test.ts`
+    failed while the member drawer had no `aria-label="Invite people"` button.
+  - Green check: `npm test -- src/app/features/room/MembersDrawer.test.ts`.
+  - Green check:
+    `npx prettier --check FORK_CHANGES.md src/app/features/room/MembersDrawer.tsx src/app/features/room/MembersDrawer.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm run lint` (16 warnings, 0 errors - pre-existing
+    baseline).
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npm test` passed (`292` files, `2153` tests) with existing
+    `--localstorage-file` and React Router future-flag warnings.
+  - Green check: `git diff --check`.
+  - Independent review: second self-review of the final diff found no issues;
+    subagent review was not used because this session was not explicitly
+    authorized to spawn agents.
+
+### CINNY-090 - Configurable Threads sidebar entry point (2026-05-14)
+
+- Status:
+  - Complete.
+- Summary:
+  - Added deployment config `sidebar.showThreads` to control whether the
+    top-level Threads sidebar button is shown.
+  - The flag defaults to `true`, preserving current behavior unless a deployment
+    explicitly sets it to `false`.
+  - The `/threads/` route remains registered; this only hides the primary
+    sidebar entry point, matching the requested lightweight disable behavior.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `README.md`
+  - `config.json`
+  - `src/app/hooks/useClientConfig.ts`
+  - `src/app/pages/client/SidebarNav.tsx`
+  - `src/app/pages/client/SidebarNav.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/pages/client/SidebarNav.test.ts` failed
+    while `sidebar.showThreads: false` still rendered the Threads tab.
+  - Green check: `npm test -- src/app/pages/client/SidebarNav.test.ts`.
+  - Green check:
+    `npm test -- src/app/pages/client/SidebarNav.test.ts src/app/pages/client/threads/__tests__/Threads.route.test.ts`.
+  - Green check: `node -e "JSON.parse(require('fs').readFileSync('config.json','utf8')); console.log('config ok')"`.
+  - Green check: `npm run typecheck`.
+  - Green check:
+    `npx prettier --check FORK_CHANGES.md README.md config.json src/app/hooks/useClientConfig.ts src/app/pages/client/SidebarNav.tsx src/app/pages/client/SidebarNav.test.ts`.
+  - Green check: `git diff --check`.
+  - Green check: `npm test` passed (`291` files, `2151` tests) with existing
+    `--localstorage-file` and React Router future-flag warnings.
+  - Green check: `npm run lint` (16 warnings, 0 errors - pre-existing
+    baseline).
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Local dev-server check: `curl -fsS http://localhost:8081/config.json | rg 'showThreads'`
+    served `"showThreads": true`.
+
+### CINNY-089 - Logout cache-bust reload keeps hosted subpath slash (2026-05-14)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigated a hosted logout/exported-error case where React Router raised
+    `No route matches URL "/mindroom"` after browser storage cleanup.
+  - Root cause: cache-busted reloads used the normalized app base path directly,
+    so a hosted `/mindroom` runtime base produced `/mindroom?clear_cache=...`
+    instead of `/mindroom/?clear_cache=...`.
+  - The edge normally redirects `/mindroom` to `/mindroom/`, but cleanup flows can
+    expose the bare path to client routing or stale browser state before the
+    network redirect protects it.
+  - Fix: `getCacheBustedAppReloadTarget` now normalizes the URL pathname and
+    forces the app-base trailing slash before adding `clear_cache`, while
+    preserving query params and root deployments.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/client/initMatrix.ts`
+  - `src/client/initMatrix.test.ts`
+- Tests and validation:
+  - Red check:
+    `npm test -- src/client/initMatrix.test.ts -t "cache-busted app base path|existing app-base query"`
+    failed while reloads still targeted `/mindroom?...`.
+  - Green check:
+    `npm test -- src/client/initMatrix.test.ts -t "cache-busted app base path|existing app-base query"`.
+  - Green check: `npm test -- src/client/initMatrix.test.ts`.
+  - Green check:
+    `npx prettier --check FORK_CHANGES.md src/client/initMatrix.ts src/client/initMatrix.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm run lint` (16 warnings, 0 errors - pre-existing
+    baseline).
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+
+### MindRoom streaming thinking placeholder (2026-05-14)
+
+- Status:
+  - Complete.
+- Summary:
+  - Replaced only active MindRoom streaming messages whose effective text body is
+    exactly `Thinking...` with a dedicated animated placeholder.
+  - The placeholder rotates through short progress messages (`Making progress`,
+    `Almost there`, `Boosting the GPUs`, `Checking the thread`,
+    `Composing the reply`) and applies a moving text glow with a reduced-motion
+    fallback.
+  - Follow-up: placeholder messages are now runtime-configurable through
+    `config.json` as `mindroom.thinkingPlaceholderMessages`; blank/non-string
+    entries are ignored and the built-in messages are used when no configured
+    copy remains.
+  - Follow-up: expanded the default configured placeholder copy with additional
+    playful token/GPU/context messages and Matrix-specific room, event,
+    homeserver, federation, and timeline messages.
+  - Follow-up: the animated placeholder now renders through the normal `MText`
+    message body path, inherits standard message typography, keeps only bold
+    weight plus shimmer styling, and rotates configured copy every 3.6 seconds.
+  - Follow-up: MindRoom's real initial placeholder metadata uses
+    `io.mindroom.stream_status: "pending"`, so Cinny now treats `pending` as an
+    active stream status instead of leaving the initial `Thinking...` as plain
+    text.
+  - Non-placeholder streaming text keeps the normal message renderer plus the
+    existing streaming suffix, and terminal `Thinking...` messages remain plain
+    text.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `README.md`
+  - `config.json`
+  - `src/app/hooks/useClientConfig.ts`
+  - `src/app/mindroom/messages/aiRun.ts`
+  - `src/app/mindroom/messages/aiRun.test.ts`
+  - `src/app/mindroom/messages/MindroomThinkingPlaceholder.css.ts`
+  - `src/app/mindroom/messages/MindroomThinkingPlaceholder.tsx`
+  - `src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts`
+  - `src/app/mindroom/messages/thinkingPlaceholder.ts`
+  - `src/app/mindroom/messages/thinkingPlaceholder.test.ts`
+  - `src/app/mindroom/messages/renderMindroomMessageContent.tsx`
+  - `src/app/mindroom/messages/renderMindroomMessageContent.test.ts`
+- Tests and validation:
+  - Red check:
+    `npm test -- src/app/mindroom/messages/renderMindroomMessageContent.test.ts`
+    failed while active `Thinking...` still rendered as normal text with the old
+    streaming dots.
+  - Follow-up red check:
+    `npm test -- src/app/mindroom/messages/aiRun.test.ts src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`
+    failed while `pending` stream status was inactive, the configurable message
+    resolver did not exist, and the placeholder ignored runtime config.
+  - Green check:
+    `npm test -- src/app/mindroom/messages/aiRun.test.ts src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts src/app/mindroom/messages/thinkingPlaceholder.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check:
+    `npx prettier --check FORK_CHANGES.md README.md config.json src/app/hooks/useClientConfig.ts src/app/mindroom/messages/aiRun.ts src/app/mindroom/messages/aiRun.test.ts src/app/mindroom/messages/MindroomThinkingPlaceholder.tsx src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts src/app/mindroom/messages/thinkingPlaceholder.ts src/app/mindroom/messages/thinkingPlaceholder.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`.
+  - Green check: `npm run lint` (16 warnings, 0 errors — pre-existing
+    baseline).
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npm test` passed (`290` files, `2149` tests) with existing
+    `--localstorage-file` and React Router future-flag warnings.
+  - Local dev-server check: `curl -fsS http://localhost:8081/config.json`
+    served the new `mindroom.thinkingPlaceholderMessages` block.
+  - Follow-up green check:
+    `npm test -- src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`.
+  - Follow-up green check:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/messages/MindroomThinkingPlaceholder.css.ts src/app/mindroom/messages/MindroomThinkingPlaceholder.tsx src/app/mindroom/messages/MindroomThinkingPlaceholder.test.ts src/app/mindroom/messages/renderMindroomMessageContent.tsx src/app/mindroom/messages/renderMindroomMessageContent.test.ts`.
+  - Follow-up green check: `npm run typecheck`.
+  - Follow-up green check: `npm run lint` (16 warnings, 0 errors -
+    pre-existing baseline).
+  - Follow-up green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `git diff --check`.
+
+### CINNY-088 — Voice messages don't appear instantly in compact view (2026-05-13)
+
+- Status:
+  - Phase 0 SKIPPED. Bas's classic-vs-compact A/B (2026-05-13) replaced the timing diagnostic — voice appears instantly in classic view but not compact view, proving the Matrix event lands in the room timeline immediately and upload latency is not the dominant factor.
+  - Phase 1 COMPLETE. Three new tests written; outcomes recorded in `PHASE-1-RESULTS.md`.
+  - Phase 2 COMPLETE. Path A applied: `roomLiveEventController.ts:140-150` now drives a `setTimeline((ct) => ({ ...ct }))` re-render for `liveEvent: false` arrivals that are sent-but-not-yet-confirmed standalone-root candidates in the room view. The Phase 1b sequence test now PASSES and is the regression lock.
+- Phase 1 results (see `PHASE-1-RESULTS.md` for full interpretation):
+  - 1a (parametric `liveEvent: true` for `m.audio` + `m.voice`, `m.image`, `m.video`, `m.file`, encrypted-room voice): **PASS (5/5)**. Selector chain is healthy when `liveEvent: true` arrives.
+  - 1b (`liveEvent: false → liveEvent: true` sequence): **FAIL (1/1, expected)**. Compact card does NOT appear after the first dispatch — the `roomLiveEventController.ts:140` short-circuit drops local echoes.
+  - 1c (parametric predicate test for `m.text/m.audio/m.image/m.video/m.file/m.emote/m.location/io.mindroom.custom_demo`, plus `m.notice`/edit/redacted/nested-reply rejections): **PASS (13/13)**. Custom-msgtype case is the regression lock against future narrowing.
+  - JSDoc added to `isVisibleThreadTextMessageEventType` clarifying it gates on event TYPE, not `content.msgtype`. Explicitly forbids re-introducing a content-msgtype allowlist.
+- Files changed (Phase 1 commit):
+  - `FORK_CHANGES.md`
+  - `PHASE-1-RESULTS.md` (new)
+  - `src/app/mindroom/threads/threadUtils.ts` (JSDoc only)
+  - `src/app/mindroom/threads/compactThreadRootData.test.ts` (parametric predicate locks)
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts` (1a parametric, 1b sequence test)
+- Files changed (Phase 2 commit):
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/threads/roomLiveEventController.ts` (Path A fix: route compact-relevant local-echo arrivals through `setTimeline`)
+- Phase 2 fix scope (intentionally narrow):
+  - Only fires when ALL of: `!threadId` (room view, not thread view), `mEvt.isSending()` (genuine local echo, never paginated history), `isZeroReplyStandaloneThreadRootEvent(mEvt)` (compact-relevant standalone root that the predicate already accepts).
+  - Existing thread-cache persistence path (`threadCacheTargetId` branch at lines 141-148) is unchanged.
+  - Effect: forces a cheap `setTimeline((ct) => ({ ...ct }))` so the `useMindroomThreadIndex` memo chain recomputes and the compact "0 replies" card surfaces immediately on the local echo, instead of waiting for the server-confirmation `liveEvent: true` arrival.
+- Tests and validation (Phase 2):
+  - Red check: Phase 1b test (`shows a media zero-reply root in compact view after a liveEvent:false → liveEvent:true sequence`) failed before the controller fix.
+  - Green check: same test passes after the fix.
+  - Green check: full validation set passes (`compactThreadRootData.test.ts`, `compactThreadCardViewModel.test.ts`, `threadPresentation.test.ts`, `RoomTimeline.cache.test.ts`, `threadBootstrap.test.ts` — 126/126).
+  - Green check: `npm run typecheck`.
+  - Green check: `npm run lint` (16 warnings, 0 errors — pre-existing baseline).
+  - Green check: `npm run build`.
+  - Historical note: later cleanup removed transient root implementation artifacts so `RoomTimeline.architecture.test.ts > does not keep transient implementation report files in the repo root` remains the enforced repository boundary.
+- Hard rules followed:
+  - No `STANDALONE_ROOT_MSGTYPE_ALLOWLIST` introduced.
+  - No rename of `isVisibleThreadTextMessageEventType` (JSDoc only).
+  - No change to existing `m.notice` exclusion.
+  - No change to existing CINNY-059 / `9b77c93d` test fixtures.
+  - No Phase 0 `console.time` markers shipped (Phase 0 was skipped before any instrumentation was written).
+
+### Android build (Capacitor wrapper)
+
+Cinny ships an Android wrapper alongside the iOS one. The Android project lives
+in `android/` and is generated by Capacitor.
+
+#### Prerequisites (local dev only — CI handles its own toolchain)
+
+- JDK 21 (Temurin recommended; matches `@capacitor/*/android/build.gradle`)
+- Android SDK with `platforms;android-36` and `build-tools;36.0.0`
+- Optional: Android Studio for `just android-open`
+
+#### Recipes
+
+- `just android-rebuild` — full refresh (`npm install` + build + `cap sync android`)
+- `just android-sync` — fast path when `node_modules` is current
+- `just android-open` — open the project in Android Studio
+- `just android-debug` — build a local debug APK at
+  `android/app/build/outputs/apk/debug/app-debug.apk`
+
+#### CI
+
+`.github/workflows/build-android-pr.yml` builds a debug APK on every PR and
+uploads it as the `cinny-android-debug-apk` workflow artifact (14-day retention).
+
+#### Identity
+
+- iOS bundle id: `com.mindroom-ai.app` (unchanged)
+- Android `applicationId`: `com.mindroom_ai.app` (Java package id rules forbid
+  hyphens; underscore is the minimum-divergence safe variant)
+
+### MindRoom default subtitle replacement (2026-05-12)
+
+- Status:
+  - Complete.
+- Summary:
+  - Replaced the remaining default `Yet another matrix client.` copy with
+    `Your AI is trapped in apps. We set it free.`
+  - The welcome page was already configurable through `config.json`
+    `welcome.subtitle`; the About page now uses the same configured welcome
+    subtitle path, falling back to the shared MindRoom branding default.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/features/settings/about/About.tsx`
+  - `src/app/mindroom/branding/clientBranding.ts`
+  - `src/app/mindroom/branding/clientBranding.test.ts`
+- Tests and validation:
+  - Green check: `npm test -- src/app/mindroom/branding/clientBranding.test.ts`.
+  - Green check: `npm test -- src/app/mindroom/branding/clientBranding.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green check: `rg -n "Yet another matrix client" src public config.json README.md ios` returned no matches.
+  - Green check: `npm run typecheck`.
+  - Green check: `npx prettier --check FORK_CHANGES.md src/app/features/settings/about/About.tsx src/app/mindroom/branding/clientBranding.ts src/app/mindroom/branding/clientBranding.test.ts`.
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+
+### Configurable MindRoom splash loading messages (2026-05-12)
+
+- Status:
+  - Complete.
+- Summary:
+  - Added deployment-configurable startup splash copy through
+    `config.json` as `splash.loadingMessages`.
+  - `MindRoomSplashScreen` now owns the shared particle-backed loading layout,
+    chooses one non-empty configured message at random on mount, and falls back
+    to `Loading MindRoom` when no usable deployment messages exist.
+  - The pre-config loading screen keeps the default fallback because
+    `config.json` is not available until after that screen completes.
+  - Follow-up: replaced the built-in fallback string so the pre-config screen no
+    longer flashes `Heating up` before deployment settings are loaded.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `README.md`
+  - `config.json`
+  - `src/app/components/splash-screen/MindRoomSplashScreen.test.ts`
+  - `src/app/components/splash-screen/MindRoomSplashScreen.tsx`
+  - `src/app/hooks/useClientConfig.ts`
+  - `src/app/pages/ConfigConfig.tsx`
+  - `src/app/pages/client/ClientRoot.test.ts`
+  - `src/app/pages/client/ClientRoot.tsx`
+  - `src/app/pages/client/SpecVersions.tsx`
+- Tests and validation:
+  - Red check: `npm test -- src/app/components/splash-screen/MindRoomSplashScreen.test.ts` failed before the splash message picker and configured rendering behavior existed.
+  - Red check: `npm test -- src/app/pages/client/ClientRoot.test.ts -t "deployment-configured loading messages"` failed while `ClientRoot` did not pass deployment-configured loading messages to the splash.
+  - Green check: `npm test -- src/app/components/splash-screen/MindRoomSplashScreen.test.ts src/app/pages/client/ClientRoot.test.ts src/app/pages/client/SpecVersions.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npx prettier --check FORK_CHANGES.md README.md config.json src/app/components/splash-screen/MindRoomSplashScreen.tsx src/app/components/splash-screen/MindRoomSplashScreen.test.ts src/app/hooks/useClientConfig.ts src/app/pages/ConfigConfig.tsx src/app/pages/client/ClientRoot.tsx src/app/pages/client/ClientRoot.test.ts src/app/pages/client/SpecVersions.tsx src/app/pages/client/SpecVersions.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green check: `git diff --check`.
+  - Green check: `npm test` passed (`277` files, `2061` tests).
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - Follow-up green check: `rg -n "Heating up" src config.json public ios README.md` returned no matches.
+  - Follow-up green check: `npm test -- src/app/components/splash-screen/MindRoomSplashScreen.test.ts src/app/pages/client/ClientRoot.test.ts` passed (`15` tests).
+  - Follow-up green check: `npm run typecheck`.
+  - Follow-up green check: `npx prettier --check FORK_CHANGES.md src/app/components/splash-screen/MindRoomSplashScreen.tsx src/app/pages/client/ClientRoot.test.ts`.
+  - Follow-up green check: `git diff --check`.
+  - Follow-up green check: `npm test` passed (`277` files, `2061` tests).
+  - Follow-up green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Follow-up green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+
+### SpecVersions connecting particle splash (2026-05-12)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigating the web and iOS "Connecting to server" / "Cancel and return
+    to sign in" screen not showing the MindRoom particle background.
+  - Root cause found: this screen is rendered by `SpecVersions`, which still
+    used the plain `SplashScreen` fallback instead of passing the shared
+    `MindRoomParticleBackground` node used by auth and startup loading screens.
+  - Fix: added a single `MindRoomSplashScreen` wrapper that composes
+    `SplashScreen` with `MindRoomParticleBackground`, then reused it for client
+    startup, client config loading, and the SpecVersions connecting fallback.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/components/splash-screen/MindRoomSplashScreen.tsx`
+  - `src/app/components/splash-screen/index.ts`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - `src/app/pages/ConfigConfig.tsx`
+  - `src/app/pages/client/ClientRoot.test.ts`
+  - `src/app/pages/client/ClientRoot.tsx`
+  - `src/app/pages/client/SpecVersions.tsx`
+  - `src/app/pages/client/SpecVersions.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/pages/client/SpecVersions.test.ts` failed
+    while the connecting fallback had no splash background prop.
+  - Green check: `npm test -- src/app/pages/client/SpecVersions.test.ts src/app/pages/client/ClientRoot.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npx prettier --check FORK_CHANGES.md src/app/components/splash-screen/MindRoomSplashScreen.tsx src/app/components/splash-screen/index.ts src/app/pages/ConfigConfig.tsx src/app/pages/client/ClientRoot.tsx src/app/pages/client/ClientRoot.test.ts src/app/pages/client/SpecVersions.tsx src/app/pages/client/SpecVersions.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green check: `git diff --check`.
+  - Green check: `npm test` passed (`276` files, `2057` tests).
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+
+### iOS saved-token startup blank shell guard (2026-05-12)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigating an iOS startup state where the particle "Heating up" splash is
+    followed by a grey client surface showing only "Catching up..." at the top.
+  - Root cause found: `ClientRoot` treated a persisted Matrix sync token as a
+    renderable cached shell even when no rooms had been restored, allowing the
+    app chrome to replace the particle splash before real room content existed.
+  - Fix: only restored rooms count as a cached shell for pre-sync rendering; a
+    bare sync token stays on the particle loading screen until the first sync
+    event arrives.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/pages/client/ClientRoot.tsx`
+  - `src/app/pages/client/ClientRoot.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/pages/client/ClientRoot.test.ts` failed
+    while a saved sync token without rooms rendered the child route before sync.
+  - Green check: `npm test -- src/app/pages/client/ClientRoot.test.ts`.
+  - Green check: `npx prettier --check FORK_CHANGES.md src/app/pages/client/ClientRoot.tsx src/app/pages/client/ClientRoot.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm test` passed (`276` files, `2056` tests).
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `git diff --check`.
+
+### Path-based Matrix service worker denylist (2026-05-12)
+
+- Status:
+  - Complete.
+- Summary:
+  - Updated the service worker navigation fallback denylist so path-based
+    homeserver routes such as `/mindroom/_matrix/...`,
+    `/mindroom/_synapse/...`, and `/mindroom/.well-known/...` are not answered
+    with the SPA shell.
+  - This prevents Matrix SSO redirect navigations from rendering the client-side
+    `Page not found` route when the app is deployed under a base path.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/sw.ts`
+  - `src/sw.test.ts`
+- Tests and validation:
+  - Red check: `npx vitest run src/sw.test.ts` failed before the denylist
+    update because path-based Matrix routes were not covered.
+  - Green check: `npx vitest run src/sw.test.ts`.
+
+### Auth page Particular Drift background (2026-05-12)
+
+- Status:
+  - Complete.
+- Summary:
+  - Created a reusable package from `basnijholt/particular-drift`, preserving prominent attribution to the original `collidingScopes/particular-drift` author and Buy Me a Coffee link.
+  - The package removes the original demo UI, upload controls, and MP4 export stack, uses Bun for development, ships built ESM/type artifacts, and exposes a no-controls WebGL renderer plus React wrapper.
+  - MindRoom auth now replaces the dotted login/loading background with a decorative Particular Drift canvas using the hardcoded MindRoom logo image.
+  - The same particle background is also used for the "Heating up" startup/loading splash screens.
+  - Follow-up fix: the particle layer now sits above the auth layout background, the auth card uses a lighter translucent fill without heavy backdrop blur, and the particle styling is strong enough to remain visible through the card.
+  - Review follow-up: moved the MindRoom particle background into a shared component, made startup splash screens accept a generic background node, reduced the default app particle load, and disabled pointer interaction on coarse/touch pointers.
+  - Review follow-up: particle density now adapts across low-end, balanced, and desktop tiers using pointer type, CPU core count, DPR, and effective pixel area.
+  - Follow-up packaging fix: MindRoom now consumes published `@basnijholt/particular-drift@0.1.0` from the npm registry instead of a GitHub commit pin, restoring npm lockfile integrity metadata.
+  - Follow-up CI fix: the inherited CLA Assistant workflow is disabled for PR events, and the lockfile workflow now validates `package-lock.json` with `npm ci --ignore-scripts` instead of the crashing third-party lockfile comment action.
+  - Final review cleanup: the particle renderer options are memoized, and the lockfile workflow now runs for dependency manifest, lockfile, and workflow changes.
+  - The existing auth card, server picker, login/loading states, and footer remain unchanged; reduced-motion users get the static radial background without the animated canvas.
+- Decisions:
+  - Use the `basnijholt/particular-drift` package as the integration boundary, with Bun kept to that package and npm kept for MindRoom Cinny.
+  - Hardcode the MindRoom logo image through the existing MindRoom client branding constants so auth and startup screens share one source.
+  - Keep the particle layer decorative and behind auth/startup content, with the card and splash content explicitly layered above it.
+  - Preserve the original author attribution and Buy Me a Coffee link in the package README.
+- Risks:
+  - WebGL2 can be unavailable or fail during startup; the renderer must fail without breaking auth/loading screens.
+  - Particle density can still cost GPU and battery on some devices despite adaptive caps.
+  - Reduced-motion behavior depends on CSS media-query support and should keep the static fallback legible.
+- Next steps:
+  - Owner: frontend maintainer verifies reduced-motion and low-end/touch behavior on representative desktop and mobile browsers.
+  - Owner: package maintainer keeps `@basnijholt/particular-drift` releases aligned with package README attribution and committed build artifacts.
+  - Owner: QA adds a visual regression check for the auth and startup particle background once the visual baseline is stable.
+  - Owner: product/design decides whether the hardcoded logo should remain fixed or move into runtime branding configuration.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `package.json`
+  - `package-lock.json`
+  - `.github/workflows/cla.yml`
+  - `.github/workflows/lockfile.yml`
+  - `src/app/components/particle-background/MindRoomParticleBackground.css.ts`
+  - `src/app/components/particle-background/MindRoomParticleBackground.tsx`
+  - `src/app/components/particle-background/index.ts`
+  - `src/app/components/particle-background/particleBackgroundTheme.ts`
+  - `src/app/components/splash-screen/SplashScreen.css.ts`
+  - `src/app/components/splash-screen/SplashScreen.tsx`
+  - `src/app/pages/auth/AuthLayout.tsx`
+  - `src/app/pages/client/ClientRoot.tsx`
+  - `src/app/pages/client/ClientRoot.test.ts`
+  - `src/app/pages/ConfigConfig.tsx`
+  - `src/app/pages/auth/styles.css.ts`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+- Related package commits:
+  - `basnijholt/particular-drift@73f4620` packages the embeddable renderer and removes demo/export files.
+  - `basnijholt/particular-drift@077e437` documents package usage and removes obsolete root scripts.
+  - `basnijholt/particular-drift@8763237` commits built package artifacts for GitHub install consumption.
+  - `basnijholt/particular-drift@1f2abae` credits the original author prominently and restores the Buy Me a Coffee link in the README.
+  - `basnijholt/particular-drift@71ec7b2` handles renderer startup failures without unhandled page errors, allowing apps to fall back to static backgrounds when WebGL2 is unavailable.
+  - `basnijholt/particular-drift@a346613` pins particle shader attribute locations so browser-assigned attribute order cannot leave the particle buffers connected to the wrong shader inputs.
+  - `basnijholt/particular-drift@ea216eb` preserves source image aspect ratio during edge extraction, with `imageFit: 'contain'` as the default.
+  - `basnijholt/particular-drift@0ded45d` adds cursor interaction uniforms and pointer-event handling so auth/startup particles repel from the pointer.
+  - `basnijholt/particular-drift@1b50124` returns particles to their image positions after cursor interaction.
+- Tests and validation:
+  - Package green check: `bun test`.
+  - Package green check: `bun run typecheck`.
+  - Package green check: `bun run build`.
+  - Package green check: `bun pm pack --dry-run`.
+  - MindRoom green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts -t "keeps MindRoom branding"`.
+  - MindRoom green check: `npm test -- src/app/pages/client/ClientRoot.test.ts`.
+  - MindRoom green check: `npm run typecheck`.
+  - MindRoom green check: `npx prettier --check src/app/components/particle-background/MindRoomParticleBackground.css.ts src/app/components/particle-background/MindRoomParticleBackground.tsx src/app/components/particle-background/index.ts src/app/components/particle-background/particleBackgroundTheme.ts src/app/components/splash-screen/SplashScreen.css.ts src/app/components/splash-screen/SplashScreen.tsx src/app/pages/auth/AuthLayout.tsx src/app/pages/auth/styles.css.ts src/app/pages/client/ClientRoot.tsx src/app/pages/client/ClientRoot.test.ts src/app/pages/ConfigConfig.tsx src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts package.json package-lock.json`.
+  - MindRoom green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - MindRoom green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - MindRoom green check: `npm test` passed (`276` files, `2054` tests).
+  - MindRoom green check: `git diff --check`.
+  - MindRoom green check: `npm ci --ignore-scripts`.
+  - Follow-up runtime check: Playwright opened `http://127.0.0.1:5173/login`, confirmed the auth particle canvas mounted with no page errors after clearing Vite's optimized dependency cache, confirmed the served optimized package contains the fixed shader attribute locations, and confirmed WebGL readback includes non-background particle pixels.
+
+### Classic large-room loading scroll stability (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Reproduced the classic large-room jump in a real browser before changing source code.
+  - Browser reproduction seeded a 2600-message room, opened it in Classic view, and delayed room `/messages` pagination; while idle, the timeline scroll root jumped from `scrollTop=0` to roughly `25502` and the first visible message changed from `message 2593` to `message 2578`.
+  - Added a full Docker Matrix e2e regression that seeds a 700-message room, opens Classic view, slows only room back-pagination, and samples the timeline scroll root while the user is idle.
+  - Root cause: Classic view still ran the high-target room eager-preload loop on open. The virtualized transcript grew in backward-pagination batches under the visible viewport, causing the scroll root and first visible message to jump during loading.
+  - Classic view now skips room eager preload and behaves like a normal transcript: it renders the latest window and loads older history only through the existing user-driven pagination path.
+  - Independent second self-review completed against the final diff; scope stayed limited to Classic-view passive preload, the e2e regression, and runbook updates.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `e2e/live/cinny077-classic-large-room-scroll.spec.ts`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/preloadController.ts`
+- Tests and validation:
+  - Red browser reproduction: seeded a 2600-message room and observed idle scroll movement from `message 2593` to `message 2578` while delayed `/messages` back-pagination ran.
+  - Red check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix -- e2e/live/cinny077-classic-large-room-scroll.spec.ts` failed because the first visible message changed across samples.
+  - Green check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix -- e2e/live/cinny077-classic-large-room-scroll.spec.ts`.
+  - Green check: `npm test -- src/app/mindroom/threads/roomPreloadTarget.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npx prettier --check FORK_CHANGES.md e2e/live/cinny077-classic-large-room-scroll.spec.ts src/app/mindroom/threads/MindroomRoomTimeline.tsx src/app/mindroom/threads/preloadController.ts`.
+  - Green check: `git diff --check`.
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npm test` passed (`276` files, `2054` tests).
+  - Green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - Green final e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix -- e2e/live/cinny077-classic-large-room-scroll.spec.ts`.
+
+### Xcode Cloud TestFlight build setup (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigating the failing Xcode Cloud workflow created from Xcode.
+  - Local clean-worktree reproduction failed before compilation because `ios/App/Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig` was absent.
+  - Root cause: the repository intentionally ignores `ios/App/Pods`, `ios/App/App/public`, and the workspace depends on `node_modules` for Capacitor pods, so a clean Xcode Cloud machine needs explicit setup scripts before `xcodebuild`.
+  - Added Xcode Cloud scripts next to `ios/App/App.xcworkspace` to install Node/CocoaPods when missing, run `npm ci`, build the Vite web app, run `npx cap sync ios`, and then run the App Store preflight.
+  - Xcode Cloud builds now rewrite the transient Xcode project version from `package.json` and `CI_BUILD_NUMBER` before building, while the checked-in project is aligned to `4.11.1` build `3` for local archives.
+  - Review follow-up: `ci_post_clone.sh` now fails with a clear message if a missing tool cannot be installed because Homebrew is unavailable, with shared Homebrew initialization kept in `ci_common.sh`.
+  - Review follow-up: `ci_post_clone.sh` verifies `npm` after confirming `node` exists, without trying to install a second Node formula for nonstandard Node installs.
+  - Review follow-up: `ci_pre_xcodebuild.sh` initializes the Homebrew shell environment in its own process, verifies all required commands are available, reads and validates the package version with `node -p`, and passes version values through environment variables instead of Node argv.
+  - Review follow-up: the transient project-file rewrite now asserts the expected App Debug and Release build-setting occurrence count before replacing version settings and uses function replacers so version strings are written literally.
+- Risks:
+  - Homebrew may be absent or installed outside standard paths on a future Xcode Cloud image, causing the scripts to fail before dependency installation.
+  - Xcode project structure changes can increase the version-setting occurrence count and intentionally stop the build until the rewrite guard is updated.
+  - Fresh CI machines can still expose npm, CocoaPods, or Xcode Cloud network flakiness during install and sync steps.
+- Next steps:
+  - Owner: release engineer monitors the next automated Xcode Cloud and GitHub CI runs for the merged branch.
+  - Owner: iOS maintainer uses the same script validation and `xcodebuild` commands as the rollback check before changing CI scripts again.
+  - Owner: release engineer rolls back the follow-up commit if Xcode Cloud fails before dependency installation or rewrites unexpected project settings.
+  - Owner: iOS maintainer updates this runbook whenever Xcode targets, build configurations, or CI ownership changes.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `ios/App/ci_scripts/ci_common.sh`
+  - `ios/App/App.xcodeproj/project.pbxproj`
+  - `ios/App/ci_scripts/ci_post_clone.sh`
+  - `ios/App/ci_scripts/ci_pre_xcodebuild.sh`
+- Tests and validation:
+  - Red check: `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -destination 'generic/platform=iOS' -configuration Release CODE_SIGNING_ALLOWED=NO build` failed in the clean worktree because the CocoaPods xcconfig was missing.
+  - Green check: `ios/App/ci_scripts/ci_post_clone.sh` passed, installing npm dependencies with `npm ci` after confirming Node, npm, and CocoaPods are available.
+  - Green check: `ios/App/ci_scripts/ci_pre_xcodebuild.sh` passed, including `npm run build`, `npx cap sync ios`, CocoaPods install, and `npm run appstore:preflight`.
+  - Green check: `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -destination 'generic/platform=iOS' -configuration Release CODE_SIGNING_ALLOWED=NO build` passed after the scripts prepared the Capacitor workspace.
+  - Green check: built app `Info.plist` reported `CFBundleShortVersionString` `4.11.1` and `CFBundleVersion` `3`.
+  - Review check: `node -e "console.log(JSON.stringify(process.argv))" marketing build` confirmed this Node runtime passes the first argument at `process.argv[1]`, but the script now uses environment variables to avoid Node CLI argv ambiguity.
+  - Review green check: `bash -n ios/App/ci_scripts/ci_common.sh ios/App/ci_scripts/ci_post_clone.sh ios/App/ci_scripts/ci_pre_xcodebuild.sh`.
+  - Review green check: `CI_BUILD_NUMBER=3 ios/App/ci_scripts/ci_pre_xcodebuild.sh` passed, including the CI version rewrite path.
+  - Review green check: `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -destination 'generic/platform=iOS' -configuration Release CODE_SIGNING_ALLOWED=NO build`.
+
+### Canonical compact audio player with More menu (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigated the report that audio files could render through different visual layers.
+  - Root cause: `MAudio` branched playable `m.audio` events by voice metadata. Voice messages used `VoiceAudioContent`, while normal audio attachments used the older generic `AudioContent` card.
+  - Direction: make the voice-style waveform player the canonical playable audio surface, and move attachment affordances into a compact More menu so the row does not become crowded.
+  - `VoiceAudioContent` now accepts filename/label metadata, keeps waveform seeking/volume/speed, and exposes a More menu with download, name, type, size, and duration.
+  - `MAudio` now routes all valid playable `m.audio` events through `VoiceAudioContent`, using voice labels only for Matrix voice-message metadata and a generic audio label for normal audio files.
+  - Follow-up crash fix: opening the More menu after pressing Play could read `event.currentTarget` inside a queued React state updater, after React had cleared the synthetic event target. The More handler now captures the button rect synchronously before scheduling the anchor state update.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/components/message/FileHeader.tsx`
+  - `src/app/components/message/MsgTypeRenderers.tsx`
+  - `src/app/components/message/MsgTypeRenderers.audio.test.ts`
+  - `src/app/components/message/content/VoiceAudioContent.tsx`
+  - `src/app/components/message/content/VoiceAudioContent.css.ts`
+  - `src/app/components/message/content/VoiceAudioContent.test.ts`
+  - `src/app/components/message/content/VoiceAudioContent.sourceIdentity.test.ts`
+  - `src/app/components/message/content/VoiceAudioContent.mediaElement.test.ts`
+- Tests and validation:
+
+  - Red check: `npm test -- src/app/components/message/MsgTypeRenderers.audio.test.ts` failed while non-voice `m.audio` still rendered the old generic audio UI.
+  - Red check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts -t "More menu"` failed while the compact player had no More menu/download affordance.
+  - Green check: `npm test -- src/app/components/message/MsgTypeRenderers.audio.test.ts`.
+  - Green check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts -t "More menu"`.
+  - Green check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts`.
+  - Green check: `npm test -- src/app/components/message/content/VoiceAudioContent.sourceIdentity.test.ts src/app/components/message/content/VoiceAudioContent.mediaElement.test.ts`.
+  - Green check: `npm test -- src/app/components/message/MsgTypeRenderers.audio.test.ts src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/message/content/VoiceAudioContent.sourceIdentity.test.ts src/app/components/message/content/VoiceAudioContent.mediaElement.test.ts src/app/components/message/content/AudioContent.test.tsx`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm test` passed (`276` files, `2053` tests).
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npm run build` passed with existing Vite/runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npx prettier --check src/app/components/message/MsgTypeRenderers.tsx src/app/components/message/MsgTypeRenderers.audio.test.ts src/app/components/message/content/VoiceAudioContent.tsx src/app/components/message/content/VoiceAudioContent.css.ts src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/message/content/VoiceAudioContent.sourceIdentity.test.ts src/app/components/message/content/VoiceAudioContent.mediaElement.test.ts src/app/components/message/FileHeader.tsx`.
+  - Green check: `npx prettier --check FORK_CHANGES.md src/app/components/message/MsgTypeRenderers.tsx src/app/components/message/MsgTypeRenderers.audio.test.ts src/app/components/message/content/VoiceAudioContent.tsx src/app/components/message/content/VoiceAudioContent.css.ts src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/message/content/VoiceAudioContent.sourceIdentity.test.ts src/app/components/message/content/VoiceAudioContent.mediaElement.test.ts src/app/components/message/FileHeader.tsx`.
+  - Green check: `git diff --check`.
+  - Follow-up red check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts -t "opens More after play"` failed with `Cannot read properties of null (reading 'getBoundingClientRect')`.
+  - Follow-up green check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts -t "opens More after play"`.
+  - Follow-up green check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/message/content/VoiceAudioContent.sourceIdentity.test.ts src/app/components/message/content/VoiceAudioContent.mediaElement.test.ts src/app/components/message/MsgTypeRenderers.audio.test.ts`.
+  - Follow-up green check: `npm run typecheck`.
+  - Follow-up green check: `npm test` passed (`276` files, `2054` tests).
+  - Follow-up green check: `npx prettier --check FORK_CHANGES.md src/app/components/message/content/VoiceAudioContent.tsx src/app/components/message/content/VoiceAudioContent.test.ts`.
+  - Follow-up green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Follow-up green check: `npm run build` passed with existing Vite/runtime-config/sourcemap/chunk-size warnings.
+  - Follow-up green check: `git diff --check`.
+
+  - Independent second self-review completed against the final diff; scope stayed limited to audio rendering, compact menu affordances, and related tests.
+
+### Service worker navigation fallback route guard (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Tightened the PWA app-shell navigation fallback so it only handles appropriate client-side app navigations.
+  - Root cause: the Workbox navigation fallback served `index.html` for every same-origin navigation in the service worker scope. If the worker scope is broader than the app mount path, sibling server routes can be answered by the SPA shell instead of reaching the server.
+  - Added an explicit `NavigationRoute` denylist for common same-origin backend/control paths so the app-shell fallback does not handle API, Matrix API, or well-known routes.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/sw.ts`
+  - `src/sw.test.ts`
+- Tests and validation:
+  - Green check: `npm test -- src/sw.test.ts`
+  - Green check: `npm run typecheck`
+  - Green check: `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npx prettier --check FORK_CHANGES.md src/sw.ts src/sw.test.ts`
+  - Green check: `git diff --check`
+  - Leak check: changed diff contains no environment-specific hostnames, company names, provider names, or edge-provider names.
+
+### Classic room timeline virtualized render window (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Reproduced the remaining large-room classic timeline performance issue with Chrome DevTools MCP on the live Personal room.
+  - Root cause: the user-facing preload/cache limit of `10000` was also driving interactive cached pagination and the set of mounted room rows. In a large cached room, classic mode could keep thousands of message rows in the DOM.
+  - Added a TanStack row virtualizer around the room timeline render slice, keeping the logical loaded range available while mounting only the visible rows plus a small overscan.
+  - Split scroll-driven room pagination from the high preload target: cached prepend pages now use a bounded interactive batch, while eager preload/cache can still target the user's high setting.
+  - Added a second small performance guard for very long plain-text rows: obvious long collapsed messages force the Show more affordance without synchronously measuring full `scrollHeight` on mount.
+  - Fixed the follow-up classic-view prepend jump: before expanding the room range backward, the first visible absolute message is captured and the row virtualizer is compensated to keep that message anchored after the virtual index space shifts.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/preloadSettings.ts`
+  - `src/app/mindroom/threads/roomPaginationCommandController.ts`
+  - `src/app/mindroom/threads/roomPaginationCommandController.test.ts`
+  - `src/app/mindroom/threads/threadCollapsibleMessages.ts`
+  - `src/app/state/settings.ts`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.navigation.test.ts`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.permalink-refresh.test.ts`
+  - `src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts`
+  - `src/app/mindroom/threads/test-utils/RoomTimeline.test.shared.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts -t "visible virtual slice"` failed because `MindroomRoomTimeline` did not use a room row virtualizer and rendered the full range.
+  - Red check: `npm test -- src/app/mindroom/threads/roomPaginationCommandController.test.ts -t "bounded interactive cache page size"` failed because cached room pagination still requested `limit: 10000`.
+  - Red check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts -t "very long plain text"` failed because long plain text rows still relied on collapsed DOM measurement.
+  - Follow-up red check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts -t "keeps the first visible classic room message anchored"` failed because older-range prepends did not compensate the row virtualizer after virtual indexes shifted.
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts -t "visible virtual slice" && npm test -- src/app/mindroom/threads/roomPaginationCommandController.test.ts -t "bounded interactive cache page size"`.
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts -t "very long plain text"`.
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts -t "keeps the first visible classic room message anchored"`.
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.navigation.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.permalink-refresh.test.ts src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts src/app/mindroom/threads/roomPaginationCommandController.test.ts` passed (`5` files, `135` tests).
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts src/app/mindroom/threads/roomPaginationCommandController.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/roomTimelineEvents.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Follow-up red e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix` failed `e2e/live/cinny033-jump-to-latest.spec.ts` because Jump to Latest still used the old DOM bottom-scroll path and did not render the latest virtual row.
+  - Green focused e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix -- e2e/live/cinny033-jump-to-latest.spec.ts`.
+  - Green focused e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix -- e2e/account-multitab.spec.ts` after the first full run had an unrelated account setup failure that did not reproduce.
+  - Green final check: `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/MindroomRoomTimeline.tsx src/app/mindroom/threads/preloadSettings.ts src/app/mindroom/threads/roomPaginationCommandController.ts src/app/mindroom/threads/roomPaginationCommandController.test.ts src/app/mindroom/threads/threadCollapsibleMessages.ts src/app/state/settings.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts src/app/mindroom/threads/test-utils/RoomTimeline.test.shared.ts src/app/mindroom/threads/__tests__/RoomTimeline.permalink-refresh.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.navigation.test.ts`.
+  - Green final check: `npm run typecheck`.
+  - Green final check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green final check: `npm test` passed (`276` files, `2050` tests).
+  - Green final check: `npm run build` passed with existing Vite/runtime-config/sourcemap/chunk-size warnings.
+  - Green final check: `git diff --check`.
+  - Green final e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix` passed (`65` passed, `3` skipped).
+  - Runtime check: Chrome DevTools MCP on the live Personal room showed mounted `[data-message-item]` rows bounded to roughly `14..31` during forced scroll jumps instead of the earlier thousands of mounted rows.
+
+### Classic room timeline collapsed long-text performance (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigated the follow-up report that the render-window cap made large classic rooms jump while scrolling and increase CPU.
+  - Runtime probe confirmed the capped window was unstable with variable-height rows: the rendered range jumped forward in large chunks, `scrollHeight` changed repeatedly, and scroll position could reset. That fix is being reverted.
+  - The replacement keeps the user's high preload/cache limit intact and targets the expensive hidden work instead: collapsed long-text sidecars now render their preview only and hydrate the full sidecar content when the message is expanded.
+  - `CollapsibleMessage` now supports render-prop children so room rows can pass their effective expanded state into `RenderMessageContent`, and long-text rows force a Show more affordance even when the preview itself is short.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/components/RenderMessageContent.tsx`
+  - `e2e/live/cinny070-thread-prepend-scroll.spec.ts`
+  - `src/app/mindroom/messages/MindroomLongTextText.tsx`
+  - `src/app/mindroom/messages/MindroomLongTextText.test.ts`
+  - `src/app/mindroom/messages/renderMindroomMessageContent.tsx`
+  - `src/app/mindroom/messages/renderMindroomMessageContent.test.ts`
+  - `src/app/mindroom/threads/CollapsibleMessage.tsx`
+  - `src/app/mindroom/threads/CollapsibleMessage.test.ts`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts`
+  - `src/app/mindroom/threads/test-utils/RoomTimeline.test.shared.ts`
+  - `src/app/mindroom/threads/roomEventOpenController.ts`
+  - `src/app/mindroom/threads/roomTimelineNavigationController.ts`
+  - `src/app/mindroom/threads/roomTimelineWindowController.ts`
+  - `src/app/mindroom/threads/timelinePagination.test.ts`
+  - `src/app/mindroom/threads/timelinePagination.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/messages/MindroomLongTextText.test.ts -t "defers sidecar hydration"` failed while `MindroomLongTextText` still hydrated on mount with `hydrate={false}`.
+  - Red check: `npm test -- src/app/mindroom/threads/CollapsibleMessage.test.ts -t "passes collapsed|force the overflow"` failed while collapsed state and forced overflow were not supported.
+  - Red check: `npm test -- src/app/mindroom/messages/renderMindroomMessageContent.test.ts -t "passes long-text hydration preference"` failed while `hydrateLongText` did not reach the long-text renderer.
+  - Red check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts -t "defers long-text hydration"` failed while timeline rows did not force long-text overflow or pass `hydrateLongText={false}` when collapsed.
+  - Green check: `npm test -- src/app/mindroom/messages/MindroomLongTextText.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`
+  - Green check: `npm test -- src/app/mindroom/threads/CollapsibleMessage.test.ts src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts`
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts`
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/roomTimelineEvents.test.ts src/app/mindroom/threads/roomPaginationCommandController.test.ts`
+  - Green check: `npm run typecheck`
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`16` warnings, `0` errors).
+  - Green check: `npx prettier --check FORK_CHANGES.md src/app/components/RenderMessageContent.tsx src/app/mindroom/messages/MindroomLongTextText.tsx src/app/mindroom/messages/MindroomLongTextText.test.ts src/app/mindroom/messages/renderMindroomMessageContent.tsx src/app/mindroom/messages/renderMindroomMessageContent.test.ts src/app/mindroom/threads/CollapsibleMessage.tsx src/app/mindroom/threads/CollapsibleMessage.test.ts src/app/mindroom/threads/MindroomRoomTimeline.tsx src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts src/app/mindroom/threads/test-utils/RoomTimeline.test.shared.ts`
+  - Green check: `npm run build` passed with existing Vite/runtime-config/sourcemap/chunk-size warnings.
+  - Green check: `npm test` passed (`276` files, `2047` tests).
+  - Follow-up red e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix -- e2e/live/cinny076-classic-view-thread-bubbles.spec.ts e2e/live/cinny033-jump-to-latest.spec.ts e2e/live/cinny070-thread-prepend-scroll.spec.ts` initially failed because the CINNY-070 helper searched only button `textContent` even though the Load Older control was exposed by accessible name.
+  - Green focused e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix -- e2e/live/cinny076-classic-view-thread-bubbles.spec.ts e2e/live/cinny033-jump-to-latest.spec.ts e2e/live/cinny070-thread-prepend-scroll.spec.ts` passed.
+  - Green full e2e check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix` passed (`65` passed, `3` skipped).
+
+### Classic room timeline original Cinny parity correction (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Re-checked original Cinny at `app.cinny.in` with Chrome DevTools MCP. Its normal room timeline shows thread replies inline as ordinary message rows, with Cinny's normal `Thread` button but without MindRoom thread overview/bubble UI.
+  - The previous scroll-stability fix over-corrected by removing the only source of inline thread replies in this fork. With Matrix JS SDK thread support enabled, SDK room timelines filter thread replies into thread models, so classic mode can end up showing only thread roots/proof messages instead of the complete classic room transcript.
+  - Restoring classic parity with a constrained merge: classic mode synthesizes loaded thread replies only for roots already present in the loaded room timeline, dedupes replies already present from cached pages, and keeps existing room entry absolute indexes stable instead of re-numbering the whole virtualized list.
+  - Follow-up performance check on the large `Personal` room confirmed classic mode was active and showed no MindRoom thread bubbles, but the initial constrained merge still scanned every `room.getThreads()` model. The merge now looks up `room.getThread(eventId)` only for roots already present in the loaded room entries.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `e2e/live/cinny076-classic-view-thread-bubbles.spec.ts`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - `src/app/mindroom/threads/roomTimelineEvents.test.ts`
+  - `src/app/mindroom/threads/roomTimelineEvents.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/threads/roomTimelineEvents.test.ts` failed because `mergeClassicRoomThreadReplyEntries` was missing.
+  - Red check: `npm test -- src/app/mindroom/threads/roomTimelineEvents.test.ts` failed while the merge still called `room.getThreads()` instead of doing root-driven `room.getThread(rootId)` lookups.
+  - Green check: `npm test -- src/app/mindroom/threads/roomTimelineEvents.test.ts`
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - Green check: `npm test -- src/app/mindroom/threads/roomTimelineEvents.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/roomTimelineViewState.test.ts`
+  - Green check: `npm run typecheck`
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - Green check: `npm test` passed (`276` files, `2041` tests).
+  - Green check: `npm run test:e2e:docker-matrix -- e2e/live/cinny076-classic-view-thread-bubbles.spec.ts` with `E2E_ENABLE_DEPLOYED_FIXTURE=0`
+  - Partial full e2e check before interruption: `npm run test:e2e:docker-matrix` with `E2E_ENABLE_DEPLOYED_FIXTURE=0` passed through the first `47` specs, then was stopped to investigate the large-room performance report.
+
+### Classic room timeline cache and scroll stability (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigated the large-room classic timeline jump/crash report with Chrome DevTools MCP on a mobile viewport.
+  - DevTools reproduced the core failure in a real large room: while sitting at `scrollTop=0`, the rendered message window advanced from indexes `0..29` to `13..42` over roughly four seconds and `scrollHeight` changed repeatedly without user input.
+  - Network evidence showed many `/relations/...` and `/threads?...` requests during classic rendering, confirming that background thread hydration could affect the visible room timeline.
+  - Root cause 1: cached room prepend recalibration measured old renderable counts without `showThreadRepliesInRoom`, while the new count included classic replies. In classic mode this over-applied the range offset and could jump the virtual window forward during cached pagination.
+  - Root cause 2: cached room pages were always passed through `room.partitionThreadedEvents`, which removed thread replies from classic cached pagination even though classic is supposed to render a normal room timeline.
+  - Root cause 3: classic mode additionally merged every loaded `room.getThreads()` reply into the virtualized room list and re-numbered the entire list. That made the classic room viewport depend on asynchronous thread-model hydration rather than the stable linked room timelines/cache.
+  - Classic now keeps virtualized renderables tied to linked room timelines/cache only. Cached room pagination preserves thread replies in classic and uses matching classic renderability for offset recalibration.
+- Files changed:
+  - `e2e/live/cinny076-classic-view-thread-bubbles.spec.ts`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - `src/app/mindroom/threads/roomPaginationCommandController.ts`
+  - `src/app/mindroom/threads/roomPaginationCommandController.test.ts`
+  - `src/app/mindroom/threads/roomTimelineEvents.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/threads/roomPaginationCommandController.test.ts` failed because classic cached prepend shifted `{ start: 10, end: 20 }` to `{ start: 12, end: 22 }` instead of `{ start: 11, end: 21 }`.
+  - Red check: `npm test -- src/app/mindroom/threads/roomPaginationCommandController.test.ts` then failed because classic cached pagination passed only the non-thread root to `addEventsToTimeline`, dropping the cached thread reply.
+  - Red check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts -t "keeps classic room virtualization"` failed while `MindroomRoomTimeline` still imported and called `mergeClassicRoomThreadReplyEntries`.
+  - Green check: `npm test -- src/app/mindroom/threads/roomPaginationCommandController.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/roomTimelineViewState.test.ts`
+  - Green check: `npm run typecheck`
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - Green check: `npm test` passed (`275` files, `2038` tests).
+  - Green check: `npm run test:e2e:docker-matrix -- e2e/live/cinny076-classic-view-thread-bubbles.spec.ts` with `E2E_ENABLE_DEPLOYED_FIXTURE=0`
+  - Green check: `npm run test:e2e:docker-matrix` with `E2E_ENABLE_DEPLOYED_FIXTURE=0` passed (`65` passed, `3` skipped).
+  - Green check: `npx prettier --check FORK_CHANGES.md e2e/live/cinny076-classic-view-thread-bubbles.spec.ts src/app/mindroom/threads/MindroomRoomTimeline.tsx src/app/mindroom/threads/roomPaginationCommandController.ts src/app/mindroom/threads/roomPaginationCommandController.test.ts src/app/mindroom/threads/roomTimelineEvents.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - Green check: `git diff --check`
+
+### Installed PWA app-shell cache for iOS cold starts (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigated the report that the Safari "Add to Home Screen" MindRoom app reloads the full page after switching away and returning on iPhone.
+  - Exact iOS process eviction was not reproducible in this local environment, but the deployed and local service worker behavior was reproduced: `sw.js` only handled authenticated Matrix media requests and did not precache the SPA shell or provide a navigation fallback.
+  - Root cause for the expensive reload path: when iOS cold-starts the standalone web app, the current service worker cannot serve the app shell from cache, so the document, main bundle, and Matrix crypto WASM must be fetched again before the client can boot.
+  - Enabled Workbox manifest injection for the existing `injectManifest` service worker, precached the SPA shell, registered an `index.html` navigation fallback, and kept the existing authenticated Matrix media request handling.
+  - Raised Workbox's precache file-size limit enough for the main app bundle and Matrix crypto WASM, while excluding copied `public/element-call/**` assets from the startup app-shell cache and keeping `runtime-config.js` network-resolved to avoid stale deployment-time settings.
+  - Note: this cannot prevent WebKit/iOS from killing the standalone web app process or preserve live JavaScript memory after such a kill. It makes the forced cold start cache-backed instead of network-only.
+- Files changed:
+  - `src/sw.ts`
+  - `src/sw.test.ts`
+  - `vite.config.js`
+  - `package.json`
+  - `package-lock.json`
+- Tests and validation:
+  - Red check: `npm test -- src/sw.test.ts` failed while Workbox manifest injection and app-shell routing were absent.
+  - Red check: `npm run build` failed after enabling injection because Workbox's default `2 MiB` precache limit excluded the main app bundle and Matrix crypto WASM.
+  - Green check: `npm test -- src/sw.test.ts` passed.
+  - Red check: `npm test -- src/sw.test.ts` failed while `runtime-config.js` was not explicitly excluded from the app-shell precache.
+  - Green check: `npm run build` passed and generated `dist/sw.js` with `precache 13 entries`, including `index.html`, the main app bundle, and `matrix_sdk_crypto_wasm_bg`, while excluding `runtime-config.js`.
+  - `npm run typecheck` passed.
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm test` passed (`274` files, `2035` tests).
+  - `npx prettier --check FORK_CHANGES.md src/sw.ts src/sw.test.ts vite.config.js package.json package-lock.json` passed.
+  - `git diff --check` passed.
+
+### Startup loading splash footer stability (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Reproduced the loading footer jump before changing code by opening the app with a stored session against a mocked homeserver and holding `/sync` pending.
+  - Before the fix, the startup transition rendered `Catching up...` above the full-height `SplashScreen`; on a `390x844` viewport this pushed the `MindRoom` footer text from `798..828` to `826..856`, clipping the bottom of the text.
+  - Root cause: `ClientRoot` rendered the startup sync-status strip as soon as a Matrix client object existed, even while the ready/cached client shell was still hidden behind the full-height loading splash.
+  - `ClientRoot` now renders the sync-status strip only when ready or cached client content is renderable, leaving the splash as the sole full-height loading surface during initial startup.
+- Files changed:
+  - `src/app/pages/client/ClientRoot.tsx`
+  - `src/app/pages/client/ClientRoot.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/pages/client/ClientRoot.test.ts -t "keeps the loading screen unobstructed until the first sync arrives"` failed while `Catching up...` rendered with the loading splash.
+  - Green check: `npm test -- src/app/pages/client/ClientRoot.test.ts` passed.
+  - Browser reproduction after fix: same mocked pending-sync setup kept the footer at `798..828` in a `844px` viewport and no longer rendered `Catching up...` over the loading splash.
+  - `npm run typecheck` passed.
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npx prettier --check FORK_CHANGES.md src/app/pages/client/ClientRoot.tsx src/app/pages/client/ClientRoot.test.ts` passed after formatting the edited files.
+  - `git diff --check` passed.
+  - `npm test` passed (`273` files, `2034` tests).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - Independent second self-review completed against the final diff; scope stayed limited to startup loading/sync-status rendering and its regression coverage.
+
+### Classic room mode thread-bubble suppression (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Added a live regression for switching from Threaded view to Classic view.
+  - Classic mode now suppresses MindRoom thread indicators from both room timeline thread roots and reply previews.
+  - Classic mode also merges loaded Matrix thread reply events from thread models into the room timeline so the classic room view shows replies inline instead of keeping the threaded-only room surface.
+- Files changed:
+  - `e2e/live/cinny076-classic-view-thread-bubbles.spec.ts`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/roomTimelineEvents.ts`
+- Tests and validation:
+  - Red check: `npm run test:e2e:docker-matrix -- e2e/live/cinny076-classic-view-thread-bubbles.spec.ts` failed after switching to Classic view because `[data-thread-root-id]` remained visible.
+  - Follow-up red check: the same spec then failed because the classic room timeline did not show the thread reply inline.
+  - Green check: `npm run typecheck`
+  - Green check: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/roomTimelineViewState.test.ts`
+  - Green check: `npm run test:e2e:docker-matrix -- e2e/live/cinny076-classic-view-thread-bubbles.spec.ts`
+
+### Three-way room timeline mode and DM parity (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Replaced the two-way compact/expanded room surface preference with a three-way per-room mode: compact MindRoom overview, threaded MindRoom timeline, and classic Cinny-style timeline.
+  - DMs now use the same mode pipeline and controls as normal rooms instead of being forced into a different direct-room-only timeline behavior.
+  - Classic mode avoids entering/restoring thread routes, shows thread replies in the room timeline, and avoids adding automatic thread relations from the room composer.
+  - Rebased on the upstream thread prepend scroll e2e fix (`5a0412f8`) and dropped the earlier local timing-style scroll-anchor patch in favor of the upstream root-cause fix.
+- Files changed:
+  - `src/app/mindroom/threads/roomViewMode.ts`
+  - `src/app/mindroom/threads/roomTimelineViewState.ts`
+  - `src/app/mindroom/threads/RoomThreadOverview.tsx`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/MindroomRoom.tsx`
+  - `src/app/mindroom/threads/MindroomRoomView.tsx`
+  - `src/app/mindroom/threads/MindroomRoomViewHeader.tsx`
+  - `src/app/mindroom/threads/useRoomThreadRouteRestore.ts`
+  - `src/app/mindroom/threads/useRoomViewThreadState.ts`
+  - `src/app/mindroom/threads/roomTimelineEvents.ts`
+  - `src/app/mindroom/threads/timelinePagination.ts`
+  - `src/app/mindroom/threads/roomEventOpenController.ts`
+  - `src/app/mindroom/threads/roomTimelineNavigationController.ts`
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx`
+  - `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`
+  - `src/app/mindroom/threads/composeMessageRelation.ts`
+  - `src/app/mindroom/threads/roomInputSendSession.ts`
+  - `src/app/mindroom/routing/clientRouteRestore.ts`
+  - `src/app/mindroom/recent-threads/RecentThreadEntry.tsx`
+  - `src/app/features/room-settings/general/General.tsx`
+  - Focused unit and e2e tests under `src/app/mindroom/**` and `e2e/**`.
+- Tests and validation:
+  - Pre-rebase validation:
+    - `npm run typecheck`
+    - `npm test` passed (`272` files, `2030` tests).
+    - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+    - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+    - `npm run test:e2e:docker-matrix -- e2e/live/cinny069-room-resume-thread-preload.spec.ts e2e/live/cinny070-thread-prepend-scroll.spec.ts`
+    - `npm run test:e2e:docker-matrix -- e2e/live/cinny015-thread-exit-scroll.spec.ts e2e/live/cinny033-jump-to-latest.spec.ts e2e/live/cinny068-fresh-zero-reply-open.spec.ts`
+    - `npm run test:e2e:docker-matrix` passed (`65` passed, `2` skipped).
+  - Independent second self-review completed against the final diff; scope stayed limited to per-room timeline mode, DM parity, classic-thread suppression, and preserving the upstream thread prepend scroll fix during rebase.
+
+### E2E account locator and thread prepend scroll fixes (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Followed up on the two failures from the full e2e run after the thread local-echo fix.
+  - `e2e/account-switching.spec.ts` was a test bug: the inactive-account removal helper searched `page.getByText(session.userId)`, which also matched the `Switch to ...` label. The helper now uses exact user-id text for the visible and removed assertions.
+  - `e2e/live/cinny070-thread-prepend-scroll.spec.ts` exposed real app scroll bugs and test fragility:
+    - The test's scroll-root helper could select an overflowing content wrapper instead of the actual scroll viewport. It now requires an `overflow-y: auto|scroll` ancestor.
+    - Thread prepend anchoring measured/restored against inferred inner containers. It now captures visibility and restores scroll position against the timeline scroll root.
+    - Pending prepend anchors could be cleared before prepended events rendered. The back-pagination controller now records the event count at capture time and restores only after the thread event count increases.
+    - A pending "open thread at latest" bottom pin could fire after the user had already scrolled to the top to load older messages. Thread-open bottom pinning is now suppressed after a scroll during the pending open window, and the open-bottom pin helper honors that suppression.
+    - The CINNY-070 spec now captures the visible anchor and clicks the current load-older button in one browser evaluation so a detached locator cannot wait until the full test timeout.
+    - Thread view disables native `overflow-anchor` while manual prepend anchoring owns the scroll position.
+- Files changed:
+  - `e2e/helpers/accounts.ts`
+  - `e2e/live/cinny070-thread-prepend-scroll.spec.ts`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/roomFocusScrollController.ts`
+  - `src/app/mindroom/threads/roomFocusScrollController.test.ts`
+  - `src/app/mindroom/threads/threadBackPaginationController.ts`
+  - `src/app/mindroom/threads/threadBackPaginationController.test.ts`
+  - `src/app/mindroom/threads/threadPaginationCommandController.ts`
+  - `src/app/mindroom/threads/threadRenderUtils.ts`
+  - `src/app/mindroom/threads/threadRenderUtils.test.ts`
+  - `src/app/mindroom/threads/timelineScrollUtils.ts`
+  - `src/app/mindroom/threads/timelineScrollUtils.test.ts`
+- Tests and validation:
+  - Red checks:
+    - `npm test -- src/app/mindroom/threads/timelineScrollUtils.test.ts -t "restores thread prepend position on the timeline scroll root"` failed while restore adjusted the overflowing anchor element instead of the scroll root.
+    - `npm test -- src/app/mindroom/threads/timelineScrollUtils.test.ts -t "captures visibility against the timeline scroll root"` failed while capture measured against an overflowing content wrapper.
+    - `npm test -- src/app/mindroom/threads/threadBackPaginationController.test.ts -t "keeps the pending anchor when restore runs before prepended events are rendered"` failed while restore cleared the pending anchor before event count increased.
+    - `npm test -- src/app/mindroom/threads/threadRenderUtils.test.ts -t "does not pin while thread back-pagination suppresses open-bottom pinning"` failed while open-bottom pin ignored suppression.
+    - `npm test -- src/app/mindroom/threads/roomFocusScrollController.test.ts -t "cancels a pending thread-open bottom pin"` failed while a scroll during pending thread open did not suppress the later bottom pin.
+  - Green focused unit batch: `npm test -- src/app/mindroom/threads/timelineScrollUtils.test.ts src/app/mindroom/threads/threadBackPaginationController.test.ts src/app/mindroom/threads/threadRenderUtils.test.ts src/app/mindroom/threads/roomFocusScrollController.test.ts`
+  - Focused e2e:
+    - `npm run test:e2e:docker-matrix -- e2e/account-switching.spec.ts`
+    - `npm run test:e2e:docker-matrix -- e2e/live/cinny070-thread-prepend-scroll.spec.ts --repeat-each=5`
+  - Full validation:
+    - `npm run typecheck`
+    - `npx prettier --check FORK_CHANGES.md e2e/helpers/accounts.ts e2e/live/cinny070-thread-prepend-scroll.spec.ts src/app/mindroom/threads/MindroomRoomTimeline.tsx src/app/mindroom/threads/roomFocusScrollController.ts src/app/mindroom/threads/roomFocusScrollController.test.ts src/app/mindroom/threads/threadBackPaginationController.ts src/app/mindroom/threads/threadBackPaginationController.test.ts src/app/mindroom/threads/threadPaginationCommandController.ts src/app/mindroom/threads/threadRenderUtils.ts src/app/mindroom/threads/threadRenderUtils.test.ts src/app/mindroom/threads/timelineScrollUtils.ts src/app/mindroom/threads/timelineScrollUtils.test.ts`
+    - `npm run lint` passed with the existing warning-only baseline (`17` warnings, `0` errors).
+    - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+    - `npm test` passed (`273` files, `2029` tests).
+    - `npm run test:e2e:docker-matrix` passed (`65` passed, `2` skipped).
+
+### Thread local echo NewReply visibility (2026-05-11)
+
+- Status:
+  - Complete.
+- Summary:
+  - Investigated reports that sending a message from an open thread sometimes did not render immediately until reload or returning from the room overview.
+  - Root cause: `matrix-js-sdk` can emit `ThreadEvent.NewReply` for a threaded local echo before the event is present in `thread.events` or the room live timeline. `useThreadRenderState` listened for `NewReply`, but only recomputed from `thread.events`, so the payload event was dropped from the mounted render state.
+  - `useThreadEventRefresh` now exposes the `NewReply` payload to `useThreadRenderState`, which adds it through the existing supplemental thread-event merge path. This preserves current dedupe/replacement hydration and lets the later confirmed event replace the local echo by transaction ID.
+- Files changed:
+  - `src/app/mindroom/threads/useThreadEventRefresh.ts`
+  - `src/app/mindroom/threads/useThreadRenderState.ts`
+  - `src/app/mindroom/threads/useThreadRenderState.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/threads/useThreadRenderState.test.ts -t "adds a post-mount NewReply payload"` failed because the mounted thread stayed at `["$root"]` after `ThreadEvent.NewReply`.
+  - Green check: `npm test -- src/app/mindroom/threads/useThreadRenderState.test.ts -t "adds a post-mount NewReply payload"`
+  - `npm test -- src/app/mindroom/threads/useThreadRenderState.test.ts src/app/mindroom/threads/threadRenderUtils.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.permalink-refresh.test.ts src/app/mindroom/threads/useThreadStreamingState.test.ts src/app/mindroom/threads/eventCacheEditUtils.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`272` files, `2024` tests).
+  - `npm run test:e2e:docker-matrix` completed after starting Docker Desktop and local Matrix: `63` passed, `2` skipped, `2` failed. Failure 1 is deterministic in `e2e/account-switching.spec.ts`/`e2e/helpers/accounts.ts` because `page.getByText(session.userId)` now matches both the switch label and exact user-id text. Failure 2 in `e2e/live/cinny070-thread-prepend-scroll.spec.ts` did not reproduce when rerunning the failed subset.
+  - `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/useThreadEventRefresh.ts src/app/mindroom/threads/useThreadRenderState.ts src/app/mindroom/threads/useThreadRenderState.test.ts`
+  - `git diff --check`
+  - Independent second self-review completed against the final diff; scope stayed limited to mounted thread local-echo visibility and the regression test.
+
+### App-local copy links bypass matrix.to resolver (2026-05-08)
+
+- Summary:
+  - Investigated message and room context-menu `Copy Link` behavior after copied links opened the `matrix.to` preview card first, requiring an extra `View` click before reaching the actual message.
+  - Root cause: shared outbound room/event link helpers always generated `https://matrix.to/#/...` permalinks. Those helpers are used by message `Copy Link`, room/space context menus, and the command palette.
+  - Room and room-event copy links now use the current app origin plus configured base path, e.g. `https://chat.lab.mindroom.chat/!room:server/$event?via=server` or `https://chat.example.com/mindroom/!room:server/$event?via=server`, bypassing the Matrix resolver interstitial.
+  - Incoming `matrix.to` parsing remains unchanged so pasted Matrix links and rendered Matrix links still resolve inside the client.
+- Files changed:
+  - `src/app/plugins/matrix-to.ts`
+  - `src/app/plugins/matrix-to.test.ts`
+  - `src/app/mindroom/command-palette/commandPaletteActions.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/plugins/matrix-to.test.ts` failed because room and event copy helpers still returned `https://matrix.to/#/...`.
+  - Green check: `npm test -- src/app/plugins/matrix-to.test.ts`
+  - `npm test -- src/app/plugins/matrix-to.test.ts src/app/mindroom/messages/__tests__/Message.test.ts src/app/mindroom/command-palette/__tests__/RoomViewHeader.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`261` files, `1965` tests).
+  - `npx prettier --check FORK_CHANGES.md src/app/plugins/matrix-to.ts src/app/plugins/matrix-to.test.ts src/app/mindroom/command-palette/commandPaletteActions.ts` exposed existing non-Prettier formatting in `FORK_CHANGES.md` and `commandPaletteActions.ts`; unrelated formatter churn was reverted.
+  - `git diff --check`
+
+### Voice player collapsed layout fix (2026-05-08)
+
+- Summary:
+  - Fixed the posted voice-message player collapsing into a compact/square shape after the safe MindRoom message extras change.
+  - Root cause: `VoiceAudioContent` became an inline-size query container and globally removed the waveform minimum width; inside shrink-wrapped message bubbles, inline-size containment let the player lose its intrinsic width.
+  - Removed the voice-player container query, restored viewport-based narrow fallbacks, and kept a real `96px` waveform minimum in the normal grid.
+- Files changed:
+  - `src/app/components/message/content/VoiceAudioContent.css.ts`
+  - `src/app/components/message/content/VoiceAudioContent.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts -t "keeps the posted voice-player CSS"` failed while the CSS still used `createContainer`, `containerType`, and the global waveform min-width override.
+  - Green check: `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts -t "keeps the posted voice-player CSS"`
+  - `npm test -- src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/voice/VoiceWaveform.test.ts src/app/components/message/content/AudioContent.test.tsx src/app/components/message/MsgTypeRenderers.audio.test.ts`
+  - `npm run typecheck`
+  - Red check: `npm run lint` initially failed because the new regression assertion used a literal `${...}` string.
+  - Green check: `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`271` files, `2020` tests).
+  - `npx prettier --check FORK_CHANGES.md src/app/components/message/content/VoiceAudioContent.css.ts src/app/components/message/content/VoiceAudioContent.test.ts`
+  - `git diff --check`
+  - Independent second self-review completed against the final diff; scope stayed limited to voice-player layout and the regression test.
+  - Manual browser check: user confirmed the voice player layout was instantly fixed after the CSS change.
+
+### CINNY-102 R14 failed paste prep card retention (2026-05-07)
+
+- Summary:
+  - Addressed the R14 A/F blocker where encrypted oversized paste-prep failures could disappear immediately after fallback text insertion.
+  - Root cause: `handleEditorChange` treated every MindRoom paste upload without a matching composer marker as orphaned, but the failed paste-prep path intentionally inserts the original pasted text and does not insert a marker.
+  - The orphan cleanup now retains paste upload items whose paste metadata has a create-stage `prepError`; successful paste uploads without markers are still removed when their composer badge is deleted.
+  - Extended the failed encrypted paste-prep regression test to fire the editor change after fallback text insertion and assert the create-stage prep-error item remains with `Couldn't prepare file for upload.`
+  - R14 E timeout watch: the focused changed-area batch including `renderMindroomMessageContent.test.ts` passed; the timeout was not reproduced in this run.
+- Files changed:
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx`
+  - `src/app/mindroom/room-input/__tests__/RoomInput.test.ts`
+- Tests and validation:
+  - `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts`
+  - `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/useRoomInputSendSessionController.test.ts src/app/components/upload-board/UploadBoard.test.ts src/app/components/upload-card/UploadCardRenderer.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts src/app/mindroom/messages/messageExtrasData.test.ts src/app/mindroom/messages/messageExtrasHtml.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `git diff --check`
+
+### CINNY-106 invite chime + iOS PWA audio session (2026-05-08)
+
+- Status:
+  - Complete. Final R6 fix at f1419f38 with unanimous 8/8 reviewer approval.
+- Summary:
+  - Opening Cinny on iOS as a PWA was killing background audio (Spotify, podcasts, audiobooks) on cold open even when no chime played, because mounting `<audio>` elements with a real `src` makes WebKit allocate a playback-category audio session at first paint that preempts other apps.
+  - Marked both notification audio elements with `preload="none"` so WebKit defers media loading and audio-session allocation until something actually triggers playback.
+  - The eager-preload removal exposed a brittle invite-chime heuristic that inferred startup hydration from render order, broken further by the module-global `allInvitesAtom` surviving account switches.
+  - Replaced the heuristic with an explicit known-invite-room-ID set seeded from the active Matrix client snapshot at mount/client-change and synced (PUT adds, DELETE removes) on every invite update. Chime fires only when a room ID newly enters the set, so hydration is silent, stale account-switch atom IDs cannot poison the new client baseline, and same-room re-invites (`PUT → DELETE → PUT`) re-chime correctly.
+- Files changed:
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.tsx`
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts`
+  - `src/app/pages/client/ClientNonUIFeatures.tsx`
+  - `FORK_CHANGES.md`
+- Validation:
+  - Targeted invite-chime regression suite (7 tests) passes covering hydration silence, cold-open live invite, same-room re-invite, account-switch baseline, and stale-atom non-poisoning.
+  - `npx vitest run` passes without retry (261 files, 1968 tests).
+  - `npm run typecheck`, `npm run lint`, `npm run build` all pass.
+  - Production bundle verified to ship `preload="none"` on both audio elements and the invite-ID baseline invariant.
+- Review:
+  - 6 review rounds total (R1–R6) by 8 parallel reviewers each; final R6 unanimous 8/8 APPROVE.
+
+### CINNY-106 invite chime R5 reviewer follow-up (2026-05-08)
+
+- Status:
+  - Complete. R5 removed stale `allInvitesAtom` IDs from the new Matrix client's known invite baseline.
+- Summary:
+  - R4 still seeded known invite IDs from both the current Matrix client snapshot and the module-global invite atom. On account switch, stale atom IDs from the previous client could poison the new client's known baseline.
+  - R5 seeds known IDs only from `mx.getRooms()` invite membership for the active Matrix client. The current atom value is tracked separately as current/suppressed presence so stale first-observation IDs do not chime and do not become known.
+  - A later atom emission for a suppressed unknown ID, including a same-room live `PUT` after account switch, is treated as a new live invite and can chime.
+- Files changed:
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.tsx`
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts`
+  - `FORK_CHANGES.md`
+- Validation:
+  - `npx vitest run src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts` passed: 7 tests.
+  - `npx eslint src/app/mindroom/client/MindroomClientNonUIFeatures.tsx src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts` passed.
+  - `npm run typecheck` passed.
+  - `npm run lint -- --quiet` passed with the existing warning-only baseline still printed by the nested npm script (`17` warnings, `0` errors).
+  - `npx vitest run` passed without retry: 261 files, 1968 tests.
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+
+### CINNY-106 invite chime R4 reviewer follow-up (2026-05-08)
+
+- Status:
+  - Complete. R4 fixed same-room re-invite suppression from the R3 append-only known invite Set.
+- Summary:
+  - R3 correctly removed render-order hydration inference, but reviewers found the known invite room-id Set stayed append-only after invite acceptance/rejection/removal.
+  - The R4 direction is to keep the startup/current-client hydration baseline while also tracking the last observed current invite IDs. When a room ID disappears from the current invite atom after observation, it is pruned from the known Set so a later `PUT` for the same room ID is treated as a new live invite.
+  - The test import for the Jotai store type now uses a type-only `jotai/vanilla` import so the runtime import surface resolves cleanly.
+- Files changed:
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.tsx`
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts`
+  - `FORK_CHANGES.md`
+- Validation:
+  - `npx vitest run src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts` passed: 5 tests.
+  - `npx eslint src/app/mindroom/client/MindroomClientNonUIFeatures.tsx src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts` passed.
+  - `npm run typecheck` passed.
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+
+### CINNY-106 invite chime R3 reviewer follow-up (2026-05-08)
+
+- Status:
+  - Complete. R3 replaced the R2 render-order invite notification sentinel with a Set-based invite room-id baseline.
+- Summary:
+  - R2 reviewers converged on the same correctness risk: the previous `initial` / `awaiting-hydration` / `ready` ref inferred invite hydration from render/effect ordering, so stale module-level invite atom state could still make current-client hydration look like a live invite, and the first real invite after an empty mount could be swallowed.
+  - The R3 direction is to track known invite room IDs instead of invite counts or render phases. The baseline includes the current Matrix client's invite-room snapshot, so stale `allInvitesAtom` values from a previous session do not make the first current-client bind look live.
+  - Only invite room IDs absent from that baseline are treated as new live invites. Known IDs are retained after removal so startup/hydration replacement does not replay old invite chimes.
+  - Low-risk R2/H cleanup: hidden chime audio still uses `preload="none"`, and media `play()` promise rejections are caught for invite and message chimes.
+- Files changed:
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.tsx`
+  - `src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts`
+  - `src/app/pages/client/ClientNonUIFeatures.tsx`
+  - `FORK_CHANGES.md`
+- Validation:
+  - `npx vitest run src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts` passed.
+  - `npx prettier --check src/app/mindroom/client/MindroomClientNonUIFeatures.tsx src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts src/app/pages/client/ClientNonUIFeatures.tsx FORK_CHANGES.md` passed.
+  - `git diff --check` passed.
+  - Final `npx vitest run` passed: 261 files, 1964 tests.
+  - Final `npm run typecheck` passed.
+  - Final `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm run lint` passed with the existing warning-only baseline (`17` warnings, `0` errors).
+- Review:
+  - Independent second self-review completed locally because subagent delegation is unavailable under the current tool policy. Review focus: stale module atom hydration, empty cold-open first live invite, account switch/client swap, and media `play()` rejection handling.
+
+### Interactive room/thread swipe animation revert (2026-05-07)
+
+- Summary:
+  - Reverted the mobile interactive room/thread swipe-back animation added by CINNY-102.
+  - Removed the interactive swipe controller, gesture ownership flag, swipe shell styles, and passive preview chrome.
+  - Restored `MindroomRoomView` to render the normal room page directly and restored `useRoomViewThreadState` to the threshold edge-swipe hooks without interactive-swipe deferral.
+  - Sidebar drag-reorder code is intentionally untouched by this revert.
+- Files changed:
+  - `src/app/mindroom/native/useEdgeSwipeBack.ts`
+  - `src/app/mindroom/native/useEdgeSwipeForward.ts`
+  - `src/app/mindroom/threads/MindroomRoomView.tsx`
+  - `src/app/mindroom/threads/useRoomViewThreadState.ts`
+  - Removed interactive swipe controller, preview, styles, and related tests.
+- Tests and validation:
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/__tests__/RoomView.threadSummary.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/lastExitedThread.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`258` files, `1925` tests).
+  - `npx prettier --check FORK_CHANGES.md src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeBack.ts src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useEdgeSwipeForward.ts src/app/mindroom/threads/MindroomRoomView.tsx src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/__tests__/RoomView.threadSummary.test.ts src/app/mindroom/threads/useRoomViewThreadState.ts`
+  - `git diff --cached --check`
+  - Independent second self-review completed against the staged revert; scope stayed limited to interactive swipe-back animation files and the runbook entry.
+
+### CINNY-105 invite-user dialog autocomplete (2026-05-07)
+
+- Adds member autocomplete to the invite-user dialog backed by a per-MatrixClient `searchUserDirectory` cache, the existing direct-users set, and a debounced server-side search fallback.
+- Suggestions render with avatar + display name + MXID via the existing `UserAvatar` primitive; keyboard nav, direct-paste MXID submit, and per-room invite filtering are preserved.
+- Introduces an invite-only `InviteAutocompleteMenu` adapter that reuses `FocusTrap`, folds `Menu`/`Scroll`/`MenuItem`, and `useAlive` from the composer mention primitive but owns invite-specific concerns: downward placement, input rendered inside the focus trap so input clicks are not outside-clicks, parent-owned arrow-key navigation, and a ref-stable `requestClose`.
+- Ranking uses Fuse weighted across `displayName | localpart | userId` with deterministic exact > prefix > contains > Fuse > userId.localeCompare buckets running over all matches before the visible-limit slice, so an exact MXID is never truncated away.
+- The shared `AutocompleteMenu` from `src/app/components/editor/autocomplete/` was deliberately not modified; the duplication is a known follow-up if a third caller appears.
+
+### CINNY-102 Round 9 fix cycle (2026-05-07)
+
+- Summary:
+  - Kept `ThreadsView` in the loading state until the cross-room index bootstrap is complete, even when dirty thread events have already inserted partial rows.
+  - Routed cross-room thread filter changes through functional updates, including the persisted filter atom, so debounced CSV/search commits merge with the latest filters instead of overwriting each other from stale render closures.
+  - Made replacement mention extraction explicit for `m.replace` wrappers, preferring `m.new_content.m.mentions` for root and visible-reply involvement checks.
+  - Added a 250-entry eviction slack band so the cross-room index batch-evicts back to `MAX_CROSS_ROOM_INDEX_ENTRIES` only after the cap plus slack is exceeded.
+- Files changed:
+  - `src/app/pages/client/threads/ThreadsView.tsx`
+  - `src/app/pages/client/threads/__tests__/ThreadsView.test.ts`
+  - `src/app/pages/client/threads/FilterBar.tsx`
+  - `src/app/pages/client/threads/__tests__/FilterBar.test.ts`
+  - `src/app/mindroom/cross-room-threads/crossRoomThreadFilters.ts`
+  - `src/app/mindroom/cross-room-threads/crossRoomThreadIndex.ts`
+  - `src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts`
+  - `src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts`
+- Tests and validation:
+  - `npm test -- --run src/app/pages/client/threads/__tests__/ThreadsView.test.ts`
+  - `npm test -- --run src/app/pages/client/threads/__tests__/FilterBar.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/ src/app/pages/client/threads/` passed (`10` files, `59` tests).
+  - `npm test -- --run` passed (`271` files, `2022` tests).
+  - `npm run typecheck && npm run lint && npm run build` passed; lint still reports the existing warning-only baseline (`17` warnings, `0` errors), and build still reports the existing Vite/runtime-config/sourcemap/chunk-size warnings.
+
+### CINNY-102 Round 8 fix cycle (2026-05-07)
+
+- Summary:
+  - Fixed cross-room thread CSV filter inputs so room IDs, space IDs, included tags, and excluded tags keep raw local draft text while typing. Parsed, deduped arrays now commit only on blur or after the existing 250 ms debounce, and parent rerenders with the parsed value no longer strip a trailing comma/space from the active draft.
+  - Kept cross-room thread index `bootstrapped` strictly tied to lazy bootstrap queue completion. Dirty thread flushes can update entries before bootstrap completes, but they no longer switch the Threads view out of the loading state early.
+  - Added a per-room event-id reverse index to cross-room thread snapshots. Upserts index each entry by root and visible reply event ids; removes, room cleanup, and cap eviction clean the reverse index. Decrypted events and reply-targeted edit fan-out now resolve affected thread roots through that reverse index instead of scanning every tracked entry in the room.
+- Files changed:
+  - `src/app/pages/client/threads/FilterBar.tsx`
+  - `src/app/pages/client/threads/__tests__/FilterBar.test.ts`
+  - `src/app/mindroom/cross-room-threads/crossRoomThreadIndex.ts`
+  - `src/app/mindroom/cross-room-threads/useCrossRoomThreadIndex.ts`
+  - `src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts`
+  - `src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts`
+  - `src/app/pages/client/threads/__tests__/Threads.test.ts`
+  - `src/app/pages/client/threads/__tests__/ThreadsView.test.ts`
+- Tests and validation:
+  - `npm test -- --run src/app/pages/client/threads/__tests__/FilterBar.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/ src/app/pages/client/threads/`
+  - `npm test -- --run` passed (`271` files, `2018` tests).
+  - `npm run typecheck && npm run lint && npm run build` passed; lint still reports the existing warning-only baseline (`17` warnings, `0` errors), and build still reports the existing Vite/runtime-config/sourcemap/chunk-size warnings.
+  - Independent explorer review initially caught the CSV parent-rerender clobber path; follow-up fixed it and re-review reported no remaining blocker/major findings.
+
+### Thread card stale summary message count (2026-05-07)
+
+- Summary:
+  - Manual browser repro showed a compact thread-list row displaying a stale low message count even after opening the thread showed newer visible replies after the summary card.
+  - Root cause: `resolveThreadPresentationSnapshot` trusted `summaryInfo.messageCount` before checking the loaded visible thread replies. A generated MindRoom summary event can legitimately describe the thread at generation time, then become stale as later replies arrive.
+  - Presentation snapshots now keep using summary metadata to fill cache gaps, but loaded visible thread replies can raise the displayed count via `Math.max(summary message_count, visible loaded count)`.
+- Files changed:
+  - `src/app/mindroom/threads/threadPresentation.ts`
+  - `src/app/mindroom/threads/threadPresentation.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/threads/threadPresentation.test.ts` failed because stale summary metadata still returned `3` instead of the `5` loaded visible replies.
+  - Green check: `npm test -- src/app/mindroom/threads/threadPresentation.test.ts`
+  - `npm test -- src/app/mindroom/threads/threadPresentation.test.ts src/app/mindroom/threads/threadRecord.test.ts src/app/mindroom/threads/compactThreadCardViewModel.test.ts src/app/mindroom/threads/threadSummarySelection.test.ts src/app/mindroom/messages/threadSummary.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`260` files, `1962` tests).
+  - `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/threadPresentation.ts src/app/mindroom/threads/threadPresentation.test.ts`
+  - `git diff --check`
+
+### Sidebar drag drop animation and long-drag reload follow-up (2026-05-07)
+
+- Summary:
+  - Re-evaluated the sidebar drag reorder behavior after confirming the drop no longer always reloads, but long drags could still sometimes trigger a full-page navigation and the dropped item animated oddly.
+  - Source review of `@dnd-kit/core` confirmed the reload guard was armed too early: the prior listener was installed at drag start and expired after 750 ms, so a drag held longer than that could still allow the post-drop anchor click default.
+  - Source review of `@dnd-kit/sortable` confirmed the visual artifact came from its default post-drop layout animation path. With no real drag overlay, the active source remains semi-transparent and can run a derived transform after the item order changes, creating the apparent return trip before settling.
+  - Added `sortableDrag` helpers to arm native click-default suppression from `onDragEnd`/`onDragCancel` for mouse/touch/pointer activators only, avoiding the long-drag timeout hole and avoiding keyboard-drag click suppression.
+  - Added a shared sortable layout animation policy that preserves in-drag movement but disables only the post-drop layout animation.
+  - Live Chrome verification was not possible in this environment because the Chrome executable expected by the DevTools MCP is missing.
+- Files changed:
+  - `src/app/utils/sortableDrag.ts`
+  - `src/app/utils/sortableDrag.test.ts`
+  - `src/app/features/room-nav/SortableRoomNavItem.tsx`
+  - `src/app/pages/client/sidebar/SpaceTabs.tsx`
+  - `src/app/pages/client/space/Space.tsx`
+- Tests and validation:
+  - `npm test -- src/app/utils/sortableDrag.test.ts src/app/utils/suppressNextClickDefault.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx src/app/pages/client/sidebar/SpaceTabs.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts`
+  - Red check: `npm run typecheck` initially failed on a nullable `ownerDocument` handoff in `sortableDrag.ts`.
+  - Green check: `npm run typecheck`
+  - `npm test -- src/app/utils/sortableDrag.test.ts src/app/utils/suppressNextClickDefault.test.ts src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx src/app/pages/client/sidebar/SpaceTabs.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`260` files, `1961` tests).
+
+### Sidebar drag drop reload guard (2026-05-07)
+
+- Summary:
+  - Investigated a regression where sidebar/room-list drag previews moved smoothly, but releasing the drag could reload the entire page.
+  - Root cause: `dnd-kit` suppresses post-drag click propagation after activation, but it does not prevent the native click default. When the release target is a room `NavLink`, React Router never receives the click and the browser follows the raw anchor `href`, producing a full-page navigation/reload.
+  - Added `suppressNextClickDefault`, a short-lived native capture listener so the next post-drag click has its default action prevented while normal clicks after the timeout still work.
+  - The first version armed the guard at drag start; the follow-up above moves arming to drag end/cancel.
+- Files changed:
+  - `src/app/utils/suppressNextClickDefault.ts`
+  - `src/app/utils/suppressNextClickDefault.test.ts`
+  - `src/app/pages/client/sidebar/SpaceTabs.tsx`
+  - `src/app/pages/client/space/Space.tsx`
+- Tests and validation:
+  - Red check: `npm test -- src/app/utils/suppressNextClickDefault.test.ts src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx src/app/pages/client/sidebar/SpaceTabs.test.ts` initially failed because the new DOM utility test needed the jsdom environment.
+  - Green check: `npm test -- src/app/utils/suppressNextClickDefault.test.ts src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx src/app/pages/client/sidebar/SpaceTabs.test.ts`
+  - `npm test -- src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx src/app/pages/client/sidebar/SpaceTabs.test.ts src/app/utils/suppressNextClickDefault.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` full-suite attempt failed in existing timing-sensitive RoomTimeline files: `RoomTimeline.cache.test.ts` and `RoomTimeline.permalink-refresh.test.ts`.
+  - Green retry for failed full-suite files: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.permalink-refresh.test.ts`
+  - `npx prettier --check FORK_CHANGES.md src/app/utils/suppressNextClickDefault.ts src/app/utils/suppressNextClickDefault.test.ts src/app/pages/client/sidebar/SpaceTabs.tsx src/app/pages/client/space/Space.tsx`
+  - `git diff --check`
+
+### Composer Enter autocomplete and duplicate send guard (2026-05-07)
+
+- Summary:
+  - Investigated duplicate text messages when Enter is pressed twice quickly while trying to autocomplete a mention, and the underlying mismatch where Tab accepted the default autocomplete item but Enter still submitted the composer.
+  - Root cause: text-only composer sends called `mx.sendMessage` directly and reset the editor only after the send promise resolved. A second Enter before the first promise settled read the same editor contents and sent the same message again.
+  - Autocomplete's shared keyboard helper now treats Enter like Tab, so pressing Enter while the autocomplete menu is open selects the first/default item even when the user has not arrowed into the menu.
+  - `RoomInput` now prevents Enter from submitting while an autocomplete query is active, leaving the autocomplete menu's key handler to accept the default item.
+  - Added an in-flight guard around the unified `submit` path so rapid repeated Enter presses or send-button clicks cannot start a second submit while the first one is still pending.
+  - Upload-backed sends keep using the existing send-session duplicate guard; this change covers the text-only direct-send path that bypassed that session controller.
+- Files changed:
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx`
+  - `src/app/mindroom/room-input/__tests__/RoomInput.test.ts`
+  - `src/app/utils/keyboard.ts`
+  - `src/app/utils/keyboard.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts` failed because two rapid Enter keydowns called `sendMessage` twice before the first send resolved.
+  - Red check: `npm test -- src/app/utils/keyboard.test.ts` failed because Enter did not run the autocomplete accept helper.
+  - Red check: `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts` failed because Enter still submitted while an autocomplete menu was open.
+  - Green check: `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts`
+  - Green check: `npm test -- src/app/utils/keyboard.test.ts`
+  - `npm test -- src/app/utils/keyboard.test.ts src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/roomInputSendSession.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`254` files, `1934` tests).
+
+### Direct message encryption policy config (2026-05-06)
+
+- Summary:
+  - Applied the existing `createRoom.showEncryptionOption` and `createRoom.defaultEncryption` policy to direct-message room creation.
+  - `CreateChat` now hides the end-to-end encryption switch when configured, while still using the configured default to decide whether the DM room creation request includes `m.room.encryption` initial state.
+  - The default DM behavior remains unchanged when no policy is configured: the encryption option is visible and enabled by default.
+- Files changed:
+  - `src/app/features/create-chat/CreateChat.tsx`
+  - `src/app/features/create-chat/CreateChat.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/features/create-chat/CreateChat.test.ts` failed because the DM form still rendered `End-to-End Encryption` while policy hid it.
+  - Green check: `npm test -- src/app/features/create-chat/CreateChat.test.ts`
+  - `npm test -- src/app/features/create-chat/CreateChat.test.ts src/app/features/create-room/CreateRoom.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`253` files, `1930` tests).
+
+### CINNY-105 round 2 review fixes (2026-05-06)
+
+- Scope is limited to the two convergent MAJOR findings from `ROUND2-FIX-BRIEF.md`.
+- Summary:
+  - Preserved the Matrix user-directory bootstrap `limited` flag in `UserDirectoryCacheState` and the cache hook return value.
+  - Forced debounced per-keystroke server fallback for fresh-but-limited bootstrap caches on queries of length at least 2, even when local cache suggestions meet the normal minimum threshold.
+  - Let Enter bubble to the invite form when the typed value is already a valid Matrix user ID, while keeping Tab as the explicit suggestion-commit key.
+  - Added regressions for limited-bootstrap fallback merging server-only users and valid-MXID Enter submit through `InviteUserPrompt`.
+- Validation:
+  - Focused: `npm test -- src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx src/app/components/invite-user-prompt/InviteUserPrompt.test.tsx src/app/state/userDirectoryCache.test.ts` passed (`3` files, `16` tests).
+  - Required chain: `npm run lint && npm run typecheck && npm run test -- --run && npm run build` passed.
+  - Full tests passed (`256` files, `1951` tests).
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `git diff --check`
+  - Independent second self-review completed against the final round 2 fix diff; scope stayed limited to the two documented major fixes, focused tests, Vitest discovery for the new `.tsx` test, and this runbook entry.
+
+### CINNY-105 hybrid invite-user autocomplete (2026-05-06)
+
+- Scope:
+  - Implementing the planned hybrid invite-user autocomplete: in-memory user directory bootstrap cache plus debounced per-keystroke Matrix server fallback.
+  - The invite prompt prop interface remains `{ room, requestClose }`, and direct-paste MXID invites continue to derive validity with `isUserId(inputValue.trim())` before submitting through `mx.invite()`.
+- Progress:
+  - Step 1 committed state/search primitives: user directory cache atom, freshness predicate, merge helper, deterministic ranking, invite candidate filtering, stable option id sanitization, and focused unit tests.
+  - Step 2 committed cache/search hooks: lazy deduped bootstrap using `searchUserDirectory({ term: ' ', limit: 5000 })`, cache refresh state, debounced server fallback, stale response guards, and server-result merge/rerank.
+  - Step 3 committed the standalone combobox/listbox component with render-time MXC avatar resolution, stable `aria-activedescendant`, keyboard commit behavior, Escape listbox close, and RTR tests.
+  - Step 4 committed `InviteUserPrompt` wiring to the new autocomplete while preserving the direct invite submit path.
+  - Step 5 documented the delivery and removed root `FINAL-PLAN.md` from the final tree while preserving it in branch history as the first implementation-branch commit.
+- Validation so far:
+  - Per-step gates have passed with the existing lint warning baseline (`17` warnings, `0` errors): `npm run lint`, `npm run typecheck`, and focused Vitest runs for the new test files.
+
+### CINNY-102 cross-room Threads tab implementation (2026-05-07)
+
+- Summary:
+  - Added a protected top-level `/threads/` route registered before the `SPACE_PATH` catch-all, plus a primary sidebar `ThreadsTab` after `DirectTab` and mobile top-level route recognition.
+  - Added a route-mounted cross-room thread index under `src/app/mindroom/cross-room-threads/`. The index lazily scans already-loaded joined room threads while the Threads view is mounted, prioritizes recent-thread rooms, batches dirty thread updates with a microtask coalescer, recomputes involvement on decrypt events, and caps entries at `MAX_CROSS_ROOM_INDEX_ENTRIES = 5000` by oldest activity.
+  - Added versioned per-user filter persistence at `crossRoomThreadFilters:${userId}` with storage registration and logout cleanup through the existing MindRoom cache/session cleanup paths.
+  - Added the Threads page, filter bar, mobile bottom sheet, virtualized list, and row wrapper around unchanged `CompactThreadCard`. Row clicks call `navigateRoomThread(roomId, threadRootId)`.
+  - Free-text filtering uses each entry's precomputed root-preview + summary haystack only; reply bodies are not scanned.
+  - Added an architecture gate for the new cross-room threads surface that blocks PWA reload hazards, service-worker/file-input/back-handler regressions, accidental hook-based card model use, and reply/body search drift.
+  - Removed the transient root `FINAL-PLAN.md` artifact after implementation so the existing repository architecture guard remains green.
+- Files changed:
+  - `src/app/pages/paths.ts`
+  - `src/app/pages/pathUtils.ts`
+  - `src/app/pages/Router.tsx`
+  - `src/app/pages/MobileFriendly.tsx`
+  - `src/app/pages/client/SidebarNav.tsx`
+  - `src/app/pages/client/sidebar/index.ts`
+  - `src/app/pages/client/sidebar/ThreadsTab.tsx`
+  - `src/app/pages/client/threads/*`
+  - `src/app/hooks/router/useThreadsSelected.ts`
+  - `src/app/mindroom/cross-room-threads/*`
+  - `src/app/mindroom/cache/clientStorageAtoms.ts`
+  - `src/app/mindroom/cache/sessionCleanup.ts`
+- Tests and validation:
+  - `npm test -- --run src/app/pages/client/threads/__tests__/Threads.route.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadFilters.test.ts src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadFilterPipeline.test.ts`
+  - `npm test -- --run src/app/pages/client/threads/__tests__/FilterBar.test.ts src/app/pages/client/threads/__tests__/ThreadsView.test.ts src/app/pages/client/threads/__tests__/ThreadsViewRow.test.ts`
+  - `npm test -- --run src/app/hooks/router/useThreadsSelected.test.ts src/app/pages/client/threads/__tests__/Threads.route.test.ts`
+  - `npm test -- --run src/app/mindroom/cache/clientStorageAtoms.test.ts src/app/mindroom/cache/sessionCleanup.test.ts src/app/mindroom/cross-room-threads/__tests__/crossRoomThreads.architecture.test.ts`
+  - `npm run typecheck`
+  - `npm run lint` (passes with existing warnings outside CINNY-102)
+  - `npm run build`
+  - `npm test -- --run`
+- Round 1 fix cycle:
+  - Removed the live `RoomEvent.Timeline` listener from the cross-room thread index so plain room messages cannot be indexed as fake cross-room thread rows; thread updates now rely on Matrix `ThreadEvent.*`, while decrypt handling only dirties real thread relations.
+  - Subscribed indexed joined rooms to `threadSummaryState` so cached or later-arriving summaries dirty the room's thread rows and immediately refresh `summaryText` and free-text search haystacks.
+  - Routed `ThreadEvent.Delete` through row removal instead of the upsert path, and made dirty flushes remove existing rows when a thread root can no longer be rebuilt.
+  - Added cleanup guards for queued dirty microtasks: hook cleanup marks the effect disposed, clears queued dirty keys, and drops writes if the mounted session/user no longer matches the Matrix client user.
+  - Decoupled listener registration from `recentThreads` changes by keeping recent-thread bootstrap ordering in a ref.
+  - Added focused regressions for plain live messages, async summary-state refresh, thread deletion, stale dirty rebuild removal, queued writes after unmount/account switch, and recent-thread listener churn.
+- Round 1 validation:
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts`
+  - `npm test -- --run` passed (`262` files, `1963` tests).
+  - `npm run typecheck && npm run lint && npm run build` passed; lint still reports the existing warning-only baseline (`17` warnings, `0` errors), and build still reports the existing Vite/runtime-config/sourcemap/chunk-size warnings.
+  - `git diff --check`
+- Round 2 fix cycle:
+  - Decrypted thread roots now dirty tracked cross-room entries whose root event id matches the decrypted event, and decrypted visible replies dirty their containing tracked thread entries so rebuilt root previews, summaries, searchable text, and involvement state reflect decrypted content.
+  - Reintroduced a filtered `RoomEvent.Timeline` listener only for true thread relations and `m.replace` edits targeting already tracked thread roots; root preview/search text now reads effective replacement content through `replacingEvent()`.
+  - Joined-room diff handling now owns per-room listener disposers in a ref, attaches/detaches only added/removed rooms, removes index rows when rooms leave the joined set, and prevents queued/global dirty paths from resurrecting detached rooms.
+  - Cross-room index snapshots are cleared in a layout effect on mount/session/user/client changes so previous-account entries are gone before the next account bootstrap can paint.
+  - Empty/initializing user ids now receive fresh ephemeral cross-room filter atoms instead of a shared cached storage atom.
+  - Added focused regressions for decrypted root content/search, decrypted visible-reply involvement refresh, root `m.replace` edits, joined-room removal cleanup and resurrection prevention, account-switch reset, diffed listener registration, and empty-user filter atom isolation.
+- Round 2 validation:
+  - Independent explorer review found two initial gaps (removed-room dirty resurrection and edit tests mutating the root instead of using `replacingEvent()`); both were fixed before final validation.
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadFilters.test.ts`
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadFilters.test.ts`
+  - `npm test -- --run` passed (`262` files, `1971` tests).
+  - `npm run typecheck && npm run lint && npm run build` passed; lint still reports the existing warning-only baseline (`17` warnings, `0` errors), and build still reports the existing Vite/runtime-config/sourcemap/chunk-size warnings.
+- Round 3 fix cycle:
+  - Involvement checks now use effective replacement content for roots and visible replies, so `m.replace` edits that add or remove `m.mentions.user_ids` update `isInvolved`.
+  - Direct `user_ids` mentions now count even when `m.mentions.room` is also true.
+  - Reply-targeted `m.replace` timeline events now dirty the containing tracked thread entry instead of only supporting root-targeted edits.
+  - Newly added joined rooms are scanned for existing threads immediately after bootstrap has completed, so their existing threads appear without waiting for a later `ThreadEvent.New`.
+  - Cross-room thread search `query` is now local in memory and excluded from persisted filter storage, preventing cross-tab `storage` events from replacing in-progress typing.
+  - V2 follow-up: consider transitive space filtering and index refreshes when space membership changes; direct parent-space matching remains the v1 behavior.
+- Round 3 validation:
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadFilters.test.ts`
+  - `npm test -- --run src/app/mindroom/cache/clientStorageAtoms.test.ts src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts src/app/mindroom/cross-room-threads/__tests__/crossRoomThreadFilters.test.ts`
+  - `npm test -- --run` passed (`262` files, `1975` tests).
+  - `npm run typecheck && npm run lint && npm run build` passed; lint still reports the existing warning-only baseline (`17` warnings, `0` errors), and build still reports the existing Vite/runtime-config/sourcemap/chunk-size warnings.
+- Round 4 fix cycle:
+  - Decrypted encrypted `m.replace` events now inspect decrypted `m.relates_to` content and dirty tracked thread-root rows, so root preview/search text updates after decrypt.
+  - Cross-room thread filter clearing now resets the debounced local search input together with persisted filter axes; the empty-state Clear filters path is covered end to end.
+  - Pending local-echo thread roots are rejected before dirty enqueue/build, preventing phantom `~...` root ids from entering the cross-room index before the server event id arrives.
+  - Space-membership filtering behavior remains untouched pending Bas's scope decision.
+- Round 4 validation:
+  - `npm test -- --run src/app/mindroom/cross-room-threads/__tests__/useCrossRoomThreadIndex.test.ts src/app/pages/client/threads/__tests__/FilterBar.test.ts src/app/pages/client/threads/__tests__/Threads.test.ts`
+  - `npm test -- --run` passed (`263` files, `1979` tests).
+  - `npm run typecheck && npm run lint && npm run build` passed; lint still reports the existing warning-only baseline (`17` warnings, `0` errors), and build still reports the existing Vite/runtime-config/sourcemap/chunk-size warnings.
+- Round 7 fix cycle:
+  - Decrypted encrypted `m.replace` events targeting visible replies now dirty the tracked cross-room thread row containing that reply, matching the plaintext timeline replacement path. Root-targeted encrypted edits still enqueue the root row directly.
+  - Added a focused regression covering an encrypted replacement that targets a visible summary reply, adds a direct mention of the current user, and changes the indexed search haystack after decrypt.
+- Round 7 validation:
+  - `npm test -- --run src/app/mindroom/cross-room-threads/` passed (`5` files, `39` tests).
+  - `npm test -- --run` passed (`271` files, `2014` tests).
+  - `npm run typecheck && npm run lint && npm run build` passed; lint still reports the existing warning-only baseline (`17` warnings, `0` errors), and build still reports the existing Vite/runtime-config/sourcemap/chunk-size warnings.
+
+### Avatar upload 413 error handling (2026-05-06)
+
+- Summary:
+  - Investigated account avatar upload failures where the UI showed transient connection-drop copy while the browser reported an HTTP 413 response from the Matrix media upload POST.
+  - Browser repro confirmed this was not a client preflight rejection: media config was unavailable in the browser context, the upload was attempted, and the failed POST returned 413. A later Retry used a stale local file handle and failed separately before reaching the server.
+  - Root cause in the client: non-JSON Matrix SDK upload failures can arrive as HTTP errors with `httpStatus=413`; the upload normalization collapsed them to `M_UNKNOWN`, and the renderer treated `M_UNKNOWN` upload errors as transient network loss.
+  - Media config still controls preflight when `m.upload.size` is available. If config is unavailable, 413 responses are now handled explicitly after the upload attempt.
+  - Deployment/config review found the standard ingress template allows larger request bodies than the default Matrix media limit, while the homeserver config does not set an explicit media `max_upload_size`. The exact live prefixed route source should be confirmed with server/proxy logs before changing infrastructure limits.
+- Files changed:
+  - `src/app/utils/matrix.ts`
+  - `src/app/utils/matrix.test.ts`
+  - `src/app/components/upload-card/UploadCardRenderer.tsx`
+  - `src/app/components/upload-card/CompactUploadCardRenderer.tsx`
+  - `src/app/components/upload-card/UploadCardRenderer.test.ts`
+  - `src/app/features/settings/account/Profile.tsx`
+  - `src/app/features/common-settings/general/RoomProfile.tsx`
+  - `src/app/components/image-pack-view/PackMeta.tsx`
+- Tests and validation:
+  - Red check: `npm test -- src/app/utils/matrix.test.ts src/app/components/upload-card/UploadCardRenderer.test.ts` failed because HTTP 413 still rendered as transient connection loss and known-size avatar preflight still used generic copy.
+  - Green check: `npm test -- src/app/utils/matrix.test.ts src/app/components/upload-card/UploadCardRenderer.test.ts`
+  - `npm run typecheck`
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm test` passed (`252` files, `1928` tests).
+  - `npx prettier --check FORK_CHANGES.md src/app/utils/matrix.ts src/app/utils/matrix.test.ts src/app/components/upload-card/UploadCardRenderer.tsx src/app/components/upload-card/CompactUploadCardRenderer.tsx src/app/components/upload-card/UploadCardRenderer.test.ts src/app/features/settings/account/Profile.tsx src/app/features/common-settings/general/RoomProfile.tsx src/app/components/image-pack-view/PackMeta.tsx`
+  - `git diff --check`
+
+### Room cache local-echo zero-reply cleanup (2026-05-06)
+
+- Summary:
+  - Investigated stale/unresolvable `0 replies` entries that appear across rooms after cache hydration.
+  - Root cause: the prior local-echo fix only protected recent/open-thread persistence, while the room-event IndexedDB cache could still persist and rehydrate `~...` local echo room events.
+  - Rehydrated local echoes can satisfy the standalone zero-reply display path but are intentionally rejected by resolution writes because their ids are not stable Matrix event ids.
+  - `roomEventCache` now excludes local echo events during normalization, cursor reads, direct cached-event reads, and new cache writes through the existing normalization path.
+- Files changed:
+  - `src/app/mindroom/threads/roomEventCache.ts`
+  - `src/app/mindroom/threads/roomEventCache.test.ts`
+  - `src/app/mindroom/threads/eventRepository.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/threads/roomEventCache.test.ts src/app/mindroom/threads/eventRepository.test.ts` failed because cached local echoes were still normalized/hydrated.
+  - Green check: `npm test -- src/app/mindroom/threads/roomEventCache.test.ts src/app/mindroom/threads/eventRepository.test.ts`
+  - `npm run typecheck`
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npm test` passed (`252` files, `1924` tests).
+  - `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/roomEventCache.ts src/app/mindroom/threads/roomEventCache.test.ts src/app/mindroom/threads/eventRepository.test.ts`
+  - `git diff --check`
+
+### Configurable room creation encryption/federation defaults (2026-05-05)
+
+- Summary:
+  - Added `createRoom` client config options for room creation policy:
+    `showEncryptionOption`, `defaultEncryption`, `showFederationOption`, and `defaultFederation`.
+  - `CreateRoomForm` now hides the end-to-end encryption and federation switches when configured while still passing the configured defaults into the existing Matrix room creation path.
+  - Public rooms continue to force encryption off even if `defaultEncryption` is enabled.
+  - The shipped `config.json` does not opt into this policy, so the existing default UI remains unchanged: both controls are visible, encryption defaults off, and federation defaults on.
+- Files changed:
+  - `src/app/hooks/useClientConfig.ts`
+  - `src/app/features/create-room/CreateRoom.tsx`
+  - `src/app/features/create-room/CreateRoom.test.ts`
+  - `src/vitest.setup.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/features/create-room/CreateRoom.test.ts` initially failed because the controls remained visible and federation still submitted `true`.
+  - Green check: `npm test -- src/app/features/create-room/CreateRoom.test.ts`
+  - Full-suite follow-up found `themeBootstrap.test.ts` failing because the Vitest localStorage fallback used own methods instead of Storage-like prototype methods; `src/vitest.setup.ts` now uses a small `StorageMock` class.
+  - `npm test -- src/app/features/create-room/CreateRoom.test.ts src/app/theme/themeBootstrap.test.ts`
+  - `npm run typecheck`
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`252` files, `1922` tests).
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npx prettier --check FORK_CHANGES.md src/app/hooks/useClientConfig.ts src/app/features/create-room/CreateRoom.tsx src/app/features/create-room/CreateRoom.test.ts src/vitest.setup.ts`
+
+### AI run context cache bar recovery (2026-05-03)
+
+- Summary:
+  - The Matrix-visible context window bar now renders whenever `context.input_tokens` and `context.window_tokens` are valid, even if older backend events omitted cache split fields or reported an impossible cache-read value larger than the displayed context.
+  - Oversized cache-read values are clipped to the displayed context for the visual bar, while the tooltip still preserves the original reported cache-read count for diagnostics.
+  - Future backend events are being normalized in `/srv/mindroom` so `context.cache_read_input_tokens + context.uncached_input_tokens` cannot exceed the Matrix-facing `context.input_tokens`; raw provider totals remain available under `usage`.
+- Files changed:
+  - `src/app/mindroom/messages/aiRunDisplay.ts`
+  - `src/app/mindroom/messages/aiRunDisplay.test.ts`
+- Tests and validation:
+  - `npm test -- src/app/mindroom/messages/aiRunDisplay.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npx prettier --check src/app/mindroom/messages/aiRunDisplay.ts src/app/mindroom/messages/aiRunDisplay.test.ts`
+  - `git diff --check`
+
+### CINNY-103 Sticky prominent expand/collapse pills (2026-05-02)
+
+- Summary:
+  - Replaced the low-prominence collapsed `Show more` label with a prominent non-focusable pill rendered inside the existing clickable gradient overlay; the gradient remains the single tab stop for expansion.
+  - Replaced the absolute top-right chevron close button with a sticky `Show less` pill: a CSS-only `position: sticky` wrapper centered at the bottom of the expanded content, holding an inner button that the user can press while scrolling through long expanded messages.
+  - Wrapper uses `pointer-events: none`; the inner pill restores `pointer-events: auto` so message text/selection beneath the pill is undisturbed.
+  - Existing measurement, focus management, `expandAllMessages` / `collapseAllMessages` event bus, `ResizeObserver`, and `IntersectionObserver` behaviors are preserved. `MAX_HEIGHT`, overflow threshold, media exemption policy, and timeline render tree are intentionally untouched.
+- Files changed:
+  - `src/app/mindroom/threads/CollapsibleMessage.tsx`
+  - `src/app/mindroom/threads/CollapsibleMessage.css.ts`
+  - `src/app/mindroom/threads/CollapsibleMessage.test.ts`
+- Tests and validation:
+  - `npm test -- src/app/mindroom/threads/CollapsibleMessage.test.ts` (23 passed).
+  - `npm test -- src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts` (10 passed).
+  - `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts` passes after removing the transient root docs introduced by earlier branch commits.
+  - `npm run typecheck` clean.
+  - `npm run build` clean.
+  - `npm run lint` 0 errors, 17 pre-existing warnings.
+- Review round 1 follow-ups (FIX-1, FIX-2):
+  - Removed the transient root `FINAL-PLAN.md` and `IMPLEMENTATION-REPORT.md` files this branch had introduced; `RoomTimeline.architecture.test.ts` forbids them. The earlier "pre-existing on the branch tip" note was incorrect relative to the merge target and has been removed.
+  - Updated the gradient and collapse-pill `aria-label`s to match their visible text (`Show more` / `Show less`) so screen readers no longer announce names that diverge from the rendered label.
+- Browser screenshot gate remains required before merge.
+
+### Scope
+
+- `dev` now keeps issue-backed history only.
+- Old recovery/debugging branches were intentionally squashed out of mainline history.
+- Use [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) for future room/thread/search investigations instead of rebuilding long transient notes here.
+
+### CINNY-101 Sidebar Drag-Reorder (2026-05-02)
+
+- Phase 1 complete:
+  - Added scoped `@dnd-kit` dependencies for sidebar and room-list drag surfaces.
+  - Added `applyOrderOverride(defaultIds, override)` for local presentation-order layering over existing Matrix/Cinny ordering.
+  - Added user-scoped localStorage atoms for top-level space order and per-parent-space room order.
+  - Added focused unit coverage for merge behavior, reducer actions, localStorage round-trip, user isolation, and storage-event refresh.
+- Phase 1 validation:
+  - `npm test -- src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm run lint` completed with the existing repo baseline of 17 warnings and 0 errors.
+- Phase 2 complete:
+  - Replaced `SpaceTabs.tsx` Atlaskit pdnd hooks with scoped dnd-kit sensors for pointer, touch, and keyboard dragging.
+  - Applied `SidebarDragSource` touch-callout/user-select suppression only to space/folder drag handles.
+  - Layered `applyOrderOverride` over top-level orphan space slots and persisted reordered top-level space ids in the per-user local atom after reducer commits.
+  - Kept the existing `m.cinny.spaces` account-data rebuild/persist reducer path intact.
+- Phase 2 validation:
+  - `npm test -- src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm run lint` completed with the existing repo baseline of 17 warnings and 0 errors.
+- Phase 3 complete:
+  - Added `SortableRoomNavItem` as a sibling wrapper around `RoomNavItem`; `RoomNavItem.tsx` itself remains untouched.
+  - Added dnd-kit room sorting in `Space.tsx` with pointer, touch, and keyboard sensors.
+  - Applied local room order per parent-space bucket only when that category is expanded; collapsed categories keep activity sorting.
+  - Passed all room ids from the ordered hierarchy into `SortableContext.items` while keeping virtualized rendering.
+  - Wired room-order cleanup for space leave and tombstone paths.
+  - Added a focused keyboard reorder component test for the sortable room wrapper.
+- Phase 3 validation:
+  - `npm test -- src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm run lint` completed with the existing repo baseline of 17 warnings and 0 errors.
+  - `npm test` passed: 246 files, 1833 tests.
+- Round 1 review follow-up complete:
+  - Plain space reorders now persist only through the per-user local order atom; `m.cinny.spaces` account-data writes are limited to folder-shape mutations and existing pin/unpin paths.
+  - Room row drag touch behavior uses vertical-pan-safe row styling and MouseSensor/TouchSensor/KeyboardSensor activation, preserving iOS room-list scrolling while keeping the touch delay.
+  - Room sortable ids are composite `${parentSpaceId}::${roomId}` ids, parsed on drag end, and rendered under per-parent-space `SortableContext` item buckets.
+  - Theme bootstrap test churn was reduced to the original no-argument fast-path assertion shape while retaining the MindRoom session-store ownership required by architecture guards.
+- Round 1 validation:
+  - `npx vitest run src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx src/app/pages/client/sidebar/SpaceTabs.test.ts src/app/theme/themeBootstrap.test.ts`
+  - `npm test` passed: 247 files, 1836 tests.
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm run lint` completed with the existing repo baseline of 17 warnings and 0 errors.
+- Round 2 review follow-up complete:
+  - Folder-involving sidebar reorders now persist through `m.cinny.spaces` again; only pure top-level space-to-space reorders remain local-only.
+  - Account-data writes for folder-shape changes are rebuilt from the account-data sidebar baseline, preventing prior local-only orphan-space order from leaking into the next persisted `m.cinny.spaces` value.
+  - Restored `themeBootstrap.ts`, `themeBootstrap.test.ts`, and the native `statusBarTheme` helper/test to match `dev` for the incomplete Round 1 revert.
+  - Verified H Issue 5 as benign by inspection: room links still use the nested `NavLink`; dnd-kit activation is gated by mouse distance/touch delay and the sortable wrapper only suppresses menu-button activation.
+- Round 2 validation:
+  - `npx vitest run src/app/state/utils/applyOrderOverride.test.ts src/app/state/sidebarOrder.test.ts src/app/features/room-nav/SortableRoomNavItem.test.tsx src/app/pages/client/sidebar/SpaceTabs.test.ts src/app/theme/themeBootstrap.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm test` passed: 248 files, 1842 tests. Two earlier full-suite retries hit a single unrelated 5s timeout in `src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts`; that file passed standalone immediately afterward and the final full-suite retry passed cleanly.
+  - Independent review completed with no blocking findings.
+- Cleanup:
+  - Removed root `FINAL-PLAN.md` after implementation because architecture tests forbid transient root plan/report files.
+  - Theme bootstrap remains under the existing MindRoom session-store architecture guard; round 1 restored the fast-path test to assert the session-store read without forcing route arguments.
+- Next:
+  - Manual iOS/desktop drag matrix remains for device review.
+
+### CINNY-102 interactive room/thread swipe planning (2026-05-02)
+
+- Synthesized the final implementation plan from PLAN-A, PLAN-B, and both critiques.
+- Decision: use Plan B's five-commit implementation skeleton, chrome-only passive preview, explicit controller state machine, canonical-route deferral, separate interactive-owned gesture flag, and mobile-only shell.
+- Adopted Plan A's corrections: place the controller under `src/app/mindroom/native/`, use prefixed swipe CSS variables, add stale-path/history architecture guards, and commit interactive left-edge exit through a same-room focused-overview helper instead of the existing history-aware `handleExitThread`.
+- `FINAL-PLAN.md` is the first implementation-branch commit artifact; it intentionally contains no production code.
+
+### CINNY-102 interactive room/thread swipe implementation (2026-05-02)
+
+- Commit 1 completed: added the orthogonal interactive swipe ownership event flag under `src/app/mindroom/native/`, and made threshold back/forward swipe hooks reset/ignore events owned by the interactive room/thread controller without mutating their existing handled flags.
+- Focused validation: `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts` passed.
+- Environment note: initial test run failed because dependencies were not installed in this worktree; `npm ci` completed with Node 20 engine warnings for packages that request Node 22.
+- Commit 2 completed: added `useInteractiveRoomThreadSwipe` under `src/app/mindroom/native/` with an explicit idle/armed/dragging/settling/canceling state machine, shell-scoped touch listeners, interactive-owned event marking after horizontal intent, RAF-backed CSS variable updates, commit/cancel settle ordering, reduced-motion snap timing, suppression checks, and teardown cleanup.
+- Focused validation: `npm test -- src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts` passed.
+- Commit 3 completed: added the mobile room/thread swipe shell styles with prefixed CSS variables and a chrome-only `RoomThreadSwipePreview` that is `aria-hidden`, inert, pointer-passive by shell styling, and free of live timeline/input/navigation ownership.
+- Focused validation: `npm test -- src/app/mindroom/threads/RoomThreadSwipePreview.test.ts` passed.
+- Commit 4 completed: wired the mobile-only shell into `MindroomRoomView`, disabled legacy threshold hooks on mobile while the interactive shell owns the surface, deferred canonical thread route replacement while the controller is non-idle, added an interactive-only same-room focused-overview exit path, and kept right-edge re-entry on the existing same-room `lastExitedThreadAtom` flow without `history.forward()`.
+- Focused validation: `npm test -- src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts` passed.
+- Type validation after wiring: `npm run typecheck` passed.
+- Commit 5 completed: extended architecture guards for current MindRoom interactive-swipe ownership paths, chrome-only preview imports, and the ban on `history.forward()`/module-level forward prediction flags; removed root `FINAL-PLAN.md` from the final tree while preserving it as the first branch
+  commit.
+- Focused validation: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts` passed, and the full focused CINNY-102 test set passed (`7` files, `152`
+  tests).
+- Final validation: `npm test` passed (`251` files, `1901` tests); `npm run typecheck` passed; `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings; `npm run lint` passed with the existing warning-only baseline (`17` warnings, `0` errors).
+- Independent second self-review completed against the final diff; the implementation stayed on the current `src/app/mindroom/native/` and `src/app/mindroom/threads/` paths, with no `history.forward()`, browser-history prediction tags, or module-level forward flags.
+
+### CINNY-102 round 1 review fixes (2026-05-03)
+
+- Scope is limited to the interactive room/thread swipe controller interruption findings from `/tmp/CINNY-102-R1-TRIAGE.md`; unrelated voice-player duration findings remain dropped for CINNY-102.
+- Summary:
+  - Split `touchcancel` from release handling so OS/browser-cancelled touch streams always rollback and never evaluate commit thresholds.
+  - Preserve pending settle/cancel timers against new `touchstart` events so a committed swipe cannot be dropped during the 180ms settle window.
+  - Added focused regression coverage for over-threshold `touchcancel`, velocity-threshold `touchcancel`, and new-touchstart-during-settle behavior.
+- Validation:
+  - `npm test -- src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm test`
+  - `npm run lint` completed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `npx eslint src/app/mindroom/native/useInteractiveRoomThreadSwipe.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts`
+  - `git diff --check`
+  - Independent second self-review completed against the round 1 fix diff; scope stayed limited to the swipe controller, focused tests, and this runbook entry.
+
+### CINNY-102 round 3 scope-corrected swipe fixes (2026-05-03)
+
+- Scope is limited to the actionable swipe issues from `/tmp/CINNY-102-R3-TRIAGE.md`; unrelated full-suite review noise remains dropped because DevAgent reran `npm test` successfully.
+- Summary:
+  - Release velocity now expires if the last movement sample is stale before `touchend`, so a quick below-distance swipe followed by a long finger-down pause cancels instead of committing.
+  - Right-edge interactive commit now carries the controller's frozen target room/thread through settle and navigates to that target even if `lastExitedThreadAtom` changes or clears before commit; the atom is consumed without selecting a newer target.
+  - Removed full-shell `touch-action: pan-y`; non-edge horizontal panning is no longer CSS-suppressed, and the controller still prevents default only after edge horizontal intent is claimed by its non-passive `touchmove`.
+  - Edge arming now uses `shell.getBoundingClientRect()` and shell-local `clientX - rect.left` coordinates while preserving viewport deltas for travel.
+- Validation:
+  - `npm test -- src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts`
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm test` passed (`251` files, `1908` tests).
+  - `git diff --check`
+  - Independent second self-review completed against the round 3 fix diff; scope stayed limited to the triaged interactive swipe issues and this runbook entry.
+
+### CINNY-102 round 4 review fixes (2026-05-03)
+
+- Scope is limited to DevAgent-triaged round 4 findings from `REVIEW-D.md`, `REVIEW-F.md`, and `REVIEW-H.md`; broad concurrent full-suite timeout reports remain non-blocking because a normal sequential `npm test` passed in this worktree.
+- Summary:
+  - `touchend` now samples `changedTouches[0]` when present and recomputes final directional travel, progress, and release velocity before deciding commit vs. cancel.
+  - Committed settles now keep a pending commit target and flush it exactly once if hook cleanup interrupts the settle timer, so dependency cleanup cannot silently drop navigation.
+  - Non-gesture idle cancellations now clear immediately instead of scheduling a pointless settle timer/input lockout, and the dead `cleanupTimer()` after the touchstart timer guard was removed.
+  - `MindroomRoomView` now assigns `interactiveCommitRef.current` from an effect after commit rather than mutating it during render.
+- Validation:
+  - `npm test -- src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts`
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+  - `npm run typecheck`
+  - `npm test` passed (`251` files, `1910` tests).
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm run lint` passed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `git diff --check`
+
+### CINNY-102 round 5 pane-capture triage fixes (2026-05-03)
+
+- Scope is limited to `/tmp/CINNY-102-R5-TRIAGE.md`; accidental unqualified review files and out-of-scope voice/upload/H-minor findings remain dropped.
+- Summary:
+  - Left-edge interactive exits now carry the frozen controller `roomId`/`threadId` through commit, and `handleInteractiveExitThread` records/navigates with that frozen same-room target instead of rereading the current/effective thread at settle time.
+  - Added a regression where a left-edge commit starts from thread A, the current thread changes to B before commit flush, and the atom/navigation still use thread A.
+  - Ground-truthed reviewer H's transition-ordering concern as valid: settle/cancel final CSS variables were written in the same event turn as the phase change. Final settle/cancel variables now apply on the next RAF after the phase flip, while the release/cancel start transform is written before the transition class can apply.
+  - Added controller assertions that lock the ordering: release transform is visible before the transitioned settle frame, then the final transform lands after RAF.
+- Validation:
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts` passed (`7` files, `163` tests).
+  - `npm run typecheck`
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`251` files, `1912` tests).
+  - `npm run lint` passed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `git diff --check`
+  - Independent second self-review completed against the final R5 net diff; out-of-scope H/voice/upload hunks were excluded from final state.
+
+### CINNY-102 round 6 canonical pending-route regression (2026-05-03)
+
+- Scope is limited to the corrected R6 regression: a route `threadId="~pending-thread"` resolves to the literal canonical id `"$confirmed-thread"` while interactive swipe is non-idle.
+- Summary:
+  - Corrected the focused RoomView regression to use `"$confirmed-thread"` instead of the shell-mangled `"-thread"` id.
+  - The regression proves a committed left-edge swipe freezes the raw route target but stores, focuses, and navigates with the canonical `"$confirmed-thread"` id once committed.
+  - Confirmed the existing `handleInteractiveExitThread` canonicalization path already satisfies the corrected case; no production change was required.
+- Validation:
+  - `npm test -- src/app/mindroom/threads/__tests__/RoomView.test.ts` passed (`30` tests).
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts` passed (`7` files, `164` tests).
+  - `npm run typecheck` passed.
+  - `npm run build` passed with existing Vite runtime-config/sourcemap/chunk-size warnings.
+  - `npm test` passed (`251` files, `1913` tests).
+  - `npm run lint` passed with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `git diff --check`
+
+### CINNY-102 round 7 F canonical regression triage (2026-05-03)
+
+- Scope is limited to reviewer F/G reports that the focused canonical pending-thread swipe regression sometimes navigated with `~pending-thread` instead of `"$confirmed-thread"` at `11fce679c253`.
+- No production or test code issue reproduced in this clean worktree; no code was changed.
+- Summary:
+  - Confirmed `HEAD` was `11fce679c253` and tracked status was clean before validation.
+  - Rechecked the canonical commit path: a frozen pending route id matching the current `threadId` is replaced with `effectiveThreadId`, which comes from `useThreadRootEvent`.
+  - The R7 regression's mocked `"$confirmed-thread"` path consistently navigated and stored the canonical id locally.
+- Validation:
+  - `npm test -- src/app/mindroom/threads/__tests__/RoomView.test.ts` passed (`1` file, `30` tests).
+  - `npm test -- src/app/mindroom/threads/__tests__/RoomView.test.ts -t "commits left-edge exit with the canonical thread id"` passed (`1` test, `29` skipped).
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts` passed (`7` files, `164` tests).
+  - Stress: focused canonical regression passed `20/20`; full `RoomView.test.ts` passed `10/10`; seven-file focused suite passed `5/5`; shuffled `RoomView.test.ts` passed with seeds `10201` through `10205`.
+
+### CINNY-102 root artifact cleanup follow-up (2026-05-03)
+
+- Removed tracked root report artifacts from the feature branch diff: `IMPLEMENT-R5-FIX.md`, `IMPLEMENT-R6-FIX.md`, and `IMPLEMENT-R7-F-TRIAGE.md`.
+- Useful R5/R6/R7 summaries remain in this runbook; unrelated untracked local review artifacts were left untouched.
+- Validation:
+  - `git diff --check`
+  - `npm run typecheck`
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+
+### CINNY-102 dev merge conflict resolution (2026-05-03)
+
+- Merged local `dev` into `cinny-102-interactive-swipe-dev` and resolved conflicts in this runbook, `RoomView.test.ts`, and `useRoomViewThreadState.ts`.
+- Preserved CINNY-102 interactive swipe behavior: mobile threshold disabling, canonical-route deferral while swipe is non-idle, frozen left/right commit targets, and interactive same-room focused-overview exit.
+- Preserved current-dev CINNY-075/CINNY-088 navigation behavior: swipe-forward re-entry now calls `navigateRoomThread` before clearing `lastExitedThreadAtom`, so seeded thread-exit history is still available during re-entry.
+- Validation:
+  - `git diff --check`
+  - `npm test -- src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/useEdgeSwipeForward.test.ts src/app/mindroom/native/useInteractiveRoomThreadSwipe.test.ts src/app/mindroom/threads/RoomThreadSwipePreview.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/lastExitedThread.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts` passed (`7` files, `165` tests).
+  - `npm run typecheck` passed.
+  - `npm test` passed (`251` files, `1917` tests).
+  - `npm run build` passed with existing Vite runtime-config, sourcemap, and chunk-size warnings.
+  - `npm run lint` passed with the existing warning-only baseline (`17` warnings, `0` errors).
+
+### CINNY-075 follow-up swipe-forward re-entry history seed (2026-05-02)
+
+- Investigation:
+  - `useRoomViewThreadState` did call `navigateRoomThread` for swipe-forward re-entry.
+  - `useRoomNavigate().navigateRoomThread` already routes through `navigateMindroomRoomThread`, so the direct-call part of the prompt hypothesis was stale.
+  - The real gap was ordering: swipe-forward cleared `lastExitedThreadAtom` before invoking the seeded navigation path.
+- Fix:
+  - `handleSwipeForwardToThread` now invokes `navigateRoomThread` before clearing `lastExitedThreadAtom`, so re-entry navigation gets the same pending exited-thread context as a normal thread open before the forward state is cleared.
+  - Added a RoomView regression that fails with the old ordering, then verifies a left-edge back swipe after swipe-forward re-entry uses `history.back()` instead of the focus-event fallback.
+- Tests and validation:
+  - Old ordering confirmed red with `npm test -- src/app/mindroom/threads/__tests__/RoomView.test.ts -t "seeds thread exit history before clearing swipe-forward state"`.
+  - Fixed ordering passes the same focused regression.
+  - `npm test -- src/app/hooks/useRoomNavigate.test.ts src/app/mindroom/threads/threadNavigation.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts`
+  - `npm run lint` passes with the repo warning baseline (`17` warnings, `0` errors).
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm test -- --no-file-parallelism` passes (`246` files, `1849` tests).
+  - Exact parallel `npm test` was attempted twice and hit unrelated timing/act flakiness in existing `RoomTimeline*`, `RoomView`, and settings tests; the failed files passed when rerun directly.
+  - `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/useRoomViewThreadState.ts src/app/mindroom/threads/__tests__/RoomView.test.ts`
+  - `git diff --check`
+
+### CINNY-089 Recording waveform fill and scale follow-up (2026-05-03)
+
+- Summary:
+  - Compact recording waveform rendering now left-pads early live samples with silence-height bars so the recording capsule remains visually filled before enough samples arrive.
+  - The compact recording waveform container also paints a full-width inactive silence-bar strip behind live samples, preventing wide composers from showing a blank lead-in.
+  - Follow-up: padded not-yet-recorded compact bars now carry an explicit inactive theme-color class instead of inheriting the recorded compact bar color, so the unrecorded lead-in stays visually muted while actual recorded samples remain in the normal recorded style across light and dark themes.
+  - Follow-up: the inactive compact background strip is tiled from the same right edge as the live SVG bars, and compact SVG bars request crisp edge rendering to avoid uneven one/two-pixel visual gaps.
+  - Compact recording bars use a darker bar style and a gated recording-only speech boost curve, leaving near-silence restrained while mildly lifting midrange speech and preserving the existing peak cap.
+  - Playback/default waveform rendering remains on the existing normalized Matrix path without the compact amplitude curve.
+- Tests and validation:
+  - `npm test -- src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/mindroom/voice/VoiceRecordingCapsule.test.ts src/app/mindroom/voice/VoiceRecorderDialog.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npx eslint src/app/components/voice/VoiceWaveform.tsx src/app/components/voice/VoiceWaveform.css.ts src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/VoiceRecordingCapsule.test.ts src/app/mindroom/voice/VoiceRecorderDialog.test.ts`
+  - `npx prettier --check FORK_CHANGES.md src/app/components/voice/VoiceWaveform.tsx src/app/components/voice/VoiceWaveform.css.ts src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/VoiceRecordingCapsule.test.ts src/app/mindroom/voice/VoiceRecorderDialog.test.ts`
+  - `git diff --check`
+  - Independent second self-review completed against the final diff; scope stayed limited to recording waveform rendering/tests and this runbook entry.
+
+### CINNY-100 Posted voice-message player polish (2026-05-02)
+
+- Summary:
+  - Posted voice-player capsules now stretch to the message-bubble width via a five-column grid, with a new volume column placed before the existing playback-rate pill; the previous `min(100%, 320px)` cap is dropped.
+  - Follow-up: the posted voice-player grid now lets the waveform shrink with `minmax(0, 1fr)` and moves the volume/rate controls onto a second row below narrow 360px lanes, avoiding mobile message-bubble overflow while preserving the full-width layout on wider lanes.
+  - Posted voice-player time now renders as `mm:ss / mm:ss`, syncs the audio element duration on `loadedmetadata` and `play`, and prefers a browser-measured duration once metadata has loaded so a late `m.replace` carrying a stale Matrix `info.duration` cannot overwrite a more accurate value.
+  - Added persisted `voiceMessageVolumeAtom` plus `applyVoiceMessageVolume`, and a `VoiceVolumeButton` popover-slider that mirrors the existing playback-rate-atom pattern; `volume = 0` also sets `audio.muted = true` so iOS Safari (which ignores `volume = 0`) actually mutes.
+  - The `react-range` slider thumb is vertically centered on the 6px track via a stable `marginTop: -16px` so the thumb's center aligns with the track centerline regardless of the library's transform.
+  - `secondsToMinutesAndSeconds` now floors the seconds remainder so fractional readings near a minute boundary (e.g. 59.6s) no longer render as `0:60`.
+  - Volume popover toggle keeps trigger clicks out of FocusTrap outside-click deactivation so a second click on the trigger reliably closes the menu instead of immediately reopening it.
+- Files changed:
+  - `src/app/components/message/content/VoiceAudioContent.tsx`
+  - `src/app/components/message/content/VoiceAudioContent.css.ts`
+  - `src/app/components/message/content/VoiceAudioContent.test.ts`
+  - `src/app/components/voice/VoiceVolumeButton.tsx` (new)
+  - `src/app/components/voice/VoiceVolumeButton.css.ts` (new)
+  - `src/app/state/voiceMessageSettings.ts`
+  - `src/app/state/voiceMessageSettings.test.ts`
+  - `src/app/utils/common.ts`
+  - `src/app/utils/common.test.ts`
+- Notes:
+  - Recorder-side waveform fill behavior is owned by the CINNY-089 follow-up commits on `dev`; the recorder bits originally drafted on `cinny-100` were dropped during the carve so the canonical recorder fix is preserved.
+
+### CINNY-075 v3 atom-based swipe-forward navigation (2026-05-02)
+
+- Added the in-memory `lastExitedThreadAtom` under the MindRoom thread namespace.
+- Added a MindRoom-native `useEdgeSwipeForward` right-edge mirror hook.
+- Wired `useRoomViewThreadState` to record fallback thread exits, enable swipe-forward from matching room overview state, navigate with `navigateRoomThread`, and clear the atom through the required two-effect split.
+- Added focused atom, gesture, RoomView F1 regression-lock, auto-clear, and architecture-path coverage.
+- Validation:
+  - `npm run lint` passes with the repo warning baseline (`17` warnings, `0` errors).
+  - `npm run typecheck` passes.
+  - `npm test` passes (`246` files, `1843` tests).
+  - `npm run build` passes.
+  - Independent review found no implementation correctness issues; the pre-existing untracked `.envrc` remains uncommitted.
+
+### CINNY-099 Upload abort diagnostics and friendly errors (2026-05-02)
+
+- Summary:
+  - Added Matrix upload error classification, normalization, and display-message helpers in `src/app/utils/matrix.ts`.
+  - Fixed the upload wrapper bug that copied a human message into `errcode` for non-Matrix upload failures.
+  - Voice auto-send now logs stage-tagged `[mr-upload]` payloads for create/upload/send failures and rethrows normalized Matrix errors.
+  - Voice recorder and upload-card error UI now render friendly transient upload text instead of raw `MatrixError: Unknown message`.
+  - Removed transient root `FINAL-PLAN.md` after implementation because the architecture guard forbids root planning/report artifacts.
+- Validation:
+  - Red phase confirmed targeted tests failed before implementation.
+  - Targeted suite passes: `npm run test -- --run src/app/utils/matrix.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/mindroom/room-input/__tests__/RoomInput.test.ts` (`3` files, `39` tests).
+  - `npm run test -- --run` passes (`245` files, `1835` tests).
+  - `npm run typecheck` passes.
+  - `npm run build` passes with existing Vite/runtime-config/sourcemap/chunk-size warnings.
+  - `npm run lint` passes with the existing warning-only baseline (`17` warnings, `0` errors).
+  - `git diff --check` passes.
+- Review round 1 fixes:
+  - Voice-recorder send failures now preserve plain `Error.message` text instead of replacing it with the generic Matrix upload fallback.
+  - Upload diagnostics now log the original error class name before Matrix normalization.
+  - Create-stage normalized upload failures render neutral prepare-failure text instead of transient network copy.
+  - Removed root `CINNY-099-REPORT.md`; this runbook remains the source of truth.
+- Review round 2 fix:
+  - Image upload-card renderers now pass the `'upload'` stage explicitly so SDK-thrown `MatrixError({errcode:'M_UNKNOWN'})` upload failures render the friendly transient text instead of raw `M_UNKNOWN: Unknown message`.
+
+### CINNY-098 Dev server stale service worker cleanup (2026-05-02)
+
+- Root cause:
+  - `mindroom-cinny.service` serves the app through Vite dev on `127.0.0.1:8090`.
+  - Existing browsers could still have an older `/sw.js` registration for `chat.lab.mindroom.chat`.
+  - In Vite dev, `/sw.js` fell through to the SPA HTML shell, so browser service-worker update checks received `text/html` instead of JavaScript and could leave stale cached assets in control.
+- Fix:
+  - `vite.config.js` now serves a dev-only `/sw.js` cleanup worker.
+  - The cleanup worker uses `skipWaiting()`, clears origin caches, unregisters itself on activation, and reloads window clients.
+  - The production PWA build is unchanged; the middleware is `apply: 'serve'` and only affects Vite dev.
+- Validation:
+  - `curl http://127.0.0.1:8090/sw.js` returns `Content-Type: application/javascript` with the cleanup worker after restarting `mindroom-cinny.service`.
+  - Fresh Chromium smoke against `https://chat.lab.mindroom.chat/` loads the MindRoom login page with no page crash.
+  - `npm run build` passes.
+
+### iOS phone install helpers (2026-05-02)
+
+- Added `scripts/ios-phone.mjs` as the repeatable local iPhone deploy path:
+  - `npm run ios:phone` builds the Vite app, syncs Capacitor iOS assets, builds a signed Debug iOS app in dedicated `/tmp` DerivedData, installs it to the connected or available paired iPhone, and attempts to launch `chat.mindroom.app`.
+  - `npm run ios:phone:watch` keeps a foreground watcher running and repeats the same deploy path after app/native config changes.
+  - `npm run ios:phone:bg` starts the watcher as a background process without an initial rebuild, writing its PID/log under `/tmp`.
+  - `npm run ios:phone:stop` stops the background watcher.
+- The helper accepts `IOS_DEVICE_ID`, `IOS_DERIVED_DATA`, and `IOS_LAUNCH=0` overrides, accepts both `available (paired)` and Xcode IP-connected `connected` device states, and avoids Xcode's default DerivedData build database so CLI pushes do not collide with the Xcode UI.
+- Current Xcode IP-connect note: `bas-iphone-15-pro` was reachable through Tailscale at `100.64.0.19`; re-check with `tailscale status` if reconnecting later.
+- Watch mode suppresses deploy-generated Podfile events while a push is running/settling and terminates active child build processes when the watcher is stopped, so background deploys do not loop after their own Capacitor sync.
+- `justfile` exposes the same phone deploy flow through `just ios-phone`, `just ios-phone-watch`, `just ios-phone-bg`, `just ios-phone-stop`, and `just ios-phone-log`.
+
+### iOS native edge-swipe restore (2026-05-02)
+
+- Root cause:
+  - `useEdgeSwipeBack` still treated native Capacitor iOS as a blocked surface after the standalone-PWA collision fix, so neither the thread-exit hook nor the room back-route hook registered touch listeners in the installed app.
+  - The recent standalone fix restored thread swipes for installed web PWAs, but not for the native iOS wrapper.
+- Fix:
+  - Removed the unconditional `isNativeIOS()` block from `src/app/mindroom/native/useEdgeSwipeBack.ts`.
+  - Kept the opt-in `blockStandaloneWebApp` guard for route-level standalone PWA handling.
+  - Added a focused regression test proving native iOS wrappers keep the custom edge swipe enabled.
+
+### iOS native status-bar inset restore (2026-05-02)
+
+- Root cause:
+  - The Capacitor StatusBar plugin defaults `overlaysWebView` to `true`.
+  - The iOS app config only set the status-bar text style, so the WKWebView could still be laid out underneath the native status bar/Dynamic Island.
+  - The existing web safe-area padding was not enough to make the native top navigation controls reliably visible and tappable on rounded iPhone displays.
+- Fix:
+  - `capacitor.config.ts` now sets `plugins.StatusBar.overlaysWebView = false`.
+  - The same config now seeds `plugins.StatusBar.backgroundColor` with the default app background, so the native status-bar area does not cold-start as black.
+  - `applyThemeToDom` syncs native iOS status-bar background color to the resolved app theme on launch and theme changes.
+  - This lets the native Capacitor iOS plugin resize the WKWebView below the status bar cutout while keeping the existing web safe-area CSS in place for browser/PWA surfaces.
+- Validation:
+  - Added `src/app/mindroom/native/capacitorStatusBarConfig.test.ts` as a focused regression guard.
+  - Added `src/app/mindroom/native/statusBarTheme.test.ts` for native StatusBar background syncing.
+  - `npm test -- src/app/mindroom/native/capacitorStatusBarConfig.test.ts`
+  - `npm run typecheck`
+  - `npm test`
+  - `npm run build`
+  - `npx eslint src/app/mindroom/native/capacitorStatusBarConfig.test.ts`
+  - `git diff --check`
+  - `just ios-phone` synced Capacitor, built the signed Debug app, installed it on `basnijholt-iphone-15-pro`, and launched `chat.mindroom.app`.
+
+### AI run cache token metadata display (2026-05-03)
+
+- Summary:
+  - AI run metadata parsing now includes cumulative `usage.cache_read_tokens` and `usage.cache_write_tokens` from final backend responses.
+  - The token-usage dialog shows those cumulative counters as `Run Cache`, separate from `Tokens`.
+  - Latest-request context parsing now includes `context.cache_read_input_tokens`, `context.cache_write_input_tokens`, and `context.uncached_input_tokens`.
+  - The same dialog shows those latest-request counters as `Request Cache`, separate from `Request Context`.
+  - This keeps full run usage, current context-window occupancy, cached request context, and non-cache-read request context visually distinct.
+- Tests and validation:
+  - `npm test -- src/app/mindroom/messages/aiRun.test.ts src/app/mindroom/messages/aiRunDisplay.test.ts src/app/mindroom/messages/__tests__/Message.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm run lint` completed with the repo warning-only baseline (`17` warnings, `0` errors).
+  - `npx prettier --check FORK_CHANGES.md src/app/mindroom/messages/MindroomMessageControls.tsx src/app/mindroom/messages/__tests__/Message.test.ts src/app/mindroom/messages/aiRun.test.ts src/app/mindroom/messages/aiRun.ts src/app/mindroom/messages/aiRunDisplay.test.ts src/app/mindroom/messages/aiRunDisplay.ts`
+  - `git diff --check`
+  - `npm test` passed (`244` files, `1827` tests).
+
+### AI run context-window usage bar (2026-05-03)
+
+- Summary:
+  - The AI run metadata dialog now includes a visual `Request context window` bar after the `Request Context` row.
+  - The full bar represents `context.window_tokens`.
+  - Bar segments represent latest-request cache-read context, latest-request new or non-cache-read context, and remaining reserve.
+  - Segment hover titles expose the exact token counts and window percentages; the new-input segment also includes `context.cache_write_input_tokens` when reported.
+  - Invalid negative cache-write counts are omitted from the new-input hover title instead of rendering misleading token text.
+  - The existing text rows remain available for scanability, while the detailed cache/new/reserve breakdown is attached to the visual bar.
+- Tests and validation:
+  - `npm test -- src/app/mindroom/messages/aiRunDisplay.test.ts src/app/mindroom/messages/__tests__/Message.test.ts`
+  - `npm test -- src/app/mindroom/messages/aiRunDisplay.test.ts`
+  - `npm run typecheck`
+  - `npm test` passed (`244` files, `1829` tests).
+  - `npm run lint` completed with the repo warning-only baseline (`17` warnings, `0` errors).
+  - `npm run build`
+  - `npx prettier --check FORK_CHANGES.md src/app/mindroom/messages/MindroomMessageControls.tsx src/app/mindroom/messages/MindroomMessageControls.css.ts src/app/mindroom/messages/__tests__/Message.test.ts src/app/mindroom/messages/aiRunDisplay.test.ts src/app/mindroom/messages/aiRunDisplay.ts`
+  - `git diff --check`
+
+### CINNY-097 Recording Waveform Implementation Report (2026-04-27)
+
+- Summary:
+  - Split live recorder samples into full-history/capped Matrix metadata samples and a separate fixed 48-point live display buffer.
+  - Live recording display now left-pads zeros until full, shifts older bars left one slot per 80ms sample tick, and inserts the newest sample on the right without calling `resampleWaveform`.
+  - Sent voice-message metadata still uses `normalizeMatrixWaveform` over the full metadata sample history.
+  - Added opt-in compact `VoiceWaveform` rendering for recording capsules only; playback/default seekable rendering keeps the existing full-width stretched SVG behavior.
+- Files changed:
+  - `src/app/mindroom/voice/useVoiceRecorder.ts`
+  - `src/app/mindroom/voice/useVoiceRecorder.test.ts`
+  - `src/app/mindroom/voice/VoiceRecordingCapsule.tsx`
+  - `src/app/mindroom/voice/VoiceRecordingCapsule.test.ts`
+  - `src/app/mindroom/voice/VoiceRecorderDialog.test.ts`
+  - `src/app/components/voice/VoiceWaveform.tsx`
+  - `src/app/components/voice/VoiceWaveform.css.ts`
+  - `src/app/components/voice/VoiceWaveform.test.ts`
+  - `src/app/components/message/content/VoiceAudioContent.test.ts`
+  - Removed transient root `FINAL-PLAN.md` after implementation, matching the architecture guard against root plan/report artifacts.
+- Tests and validation:
+  - `npm test -- src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/components/voice/VoiceWaveform.test.ts`
+  - `npm test -- src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/VoiceRecordingCapsule.test.ts src/app/mindroom/voice/VoiceRecorderDialog.test.ts src/app/components/message/content/VoiceAudioContent.test.ts`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm run check:eslint -- ...` completed with the repo warning-only baseline (`17` warnings, `0` errors)
+  - `npx eslint` on touched source/test files
+  - `git diff --check`
+  - `npm test`
+  - Independent second self-review completed against the final diff; scope stayed limited to recording waveform buffering/rendering, focused tests, runbook reporting, and removal of the transient root plan artifact.
+- Deviations:
+  - No root `IMPLEMENTATION-REPORT.md` is committed because `RoomTimeline.architecture.test.ts` explicitly forbids transient root implementation reports. This runbook entry is the implementation report for this worktree.
+  - The prompt's reference report path `skills/mindroom-dev/references/reports/CINNY-097.md` was absent in this worktree.
+- Live-test recommendations:
+  - Record for 60-90 seconds and compare roughly 5s, 30s, 60s, and 90s.
+  - Verify a stable right-edge sample cadence, leftward one-slot shifts, no left-side compression or slowdown, narrower live bars in wide composers, pause/resume freezing and continuing cadence, and unchanged sent-message playback seeking.
+
+### Refactor Slices
+
+- `CINNY-108`
+  - `RenderMessageContent` now delegates textual MindRoom rendering policy through `src/app/mindroom/messages/renderMindroomMessageContent.tsx`.
+  - Summary cards, tool approval cards, long-text rendering, AI-run streaming flags, and tool-trace parser options are owned by the MindRoom message namespace instead of the generic message renderer.
+  - Generic message rendering keeps the upstream-style media/attachment fallback path and only imports the MindRoom render seam.
+- `CINNY-109`
+  - Last-open-thread persistence now lives in `src/app/mindroom/threads/lastOpenThread.ts`.
+  - The old `src/app/state/lastOpenThread.ts` path is a compatibility export only.
+  - Session cleanup now clears last-open-thread state through the MindRoom cleanup boundary.
+- `CINNY-110`
+  - The Local MindRoom settings menu item is now built in `src/app/mindroom/local-mindroom/settingsMenu.ts`.
+  - Generic settings menu code only consumes the entry and applies visibility/initial-page rules.
+- `CINNY-111`
+  - Native iOS push notification settings UI now lives in `src/app/mindroom/native/IOSPushNotification.tsx`.
+  - Generic notification settings now mounts the MindRoom native component instead of owning iOS push logic and app-name copy.
+- `CINNY-112`
+  - Matrix client same-origin credentials fetch policy now lives in `src/app/mindroom/matrix/matrixClientFactory.ts`.
+  - The old `src/client/matrixClientFactory.ts` path is compatibility-only.
+- `CINNY-113`
+  - Thread-open navigation seeding now lives in `src/app/mindroom/threads/threadNavigation.ts`.
+  - Generic room navigation remains responsible for room path construction, while the MindRoom owner handles thread-exit state, iOS history-back policy, and post-navigation persistence.
+- `CINNY-114`
+  - Thread indicator rendering now lives in `src/app/mindroom/threads/ThreadIndicator.tsx` with its MindRoom-specific styles.
+  - Generic reply rendering delegates the thread badge to that owner instead of importing activity, resolution, scheduled-task, unread, and participant derivation hooks directly.
+- `CINNY-115`
+  - Command-palette thread sourcing now lives in `src/app/mindroom/threads/commandPaletteThreadItems.ts`.
+  - Command-palette item assembly keeps room/user/action/message sourcing separate, while thread tags, recent-thread entries, SDK thread records, resolved-state mutation, and duplicate thread item merging are owned by the MindRoom thread namespace.
+  - Architecture guards now prevent raw thread tag/recent-thread/thread-record derivation from moving back into `src/app/mindroom/command-palette/commandPaletteItems.ts`.
+- `CINNY-116`
+  - MindRoom client UI storage registration now lives in `src/app/mindroom/cache/clientStorageAtoms.ts`.
+  - Generic client storage initialization now calls one MindRoom hook instead of directly registering last-open-thread, recent-thread list, recent-thread height, and recent-thread mobile-expanded atoms.
+  - Focused coverage verifies the owner registers and unregisters all imperative MindRoom storage atoms for the active user.
+- `CINNY-117`
+  - Last-open-thread startup restore target selection now lives in `src/app/mindroom/routing/clientRouteRestore.ts`.
+  - Generic `ClientLayout` still owns the bare-home startup timing, but no longer imports last-open-thread storage directly.
+  - Focused routing tests cover converting saved room routes plus last-open-thread state into the exact startup restore target.
+- `CINNY-118`
+  - Room-view thread state orchestration now lives in `src/app/mindroom/threads/useRoomViewThreadState.ts`.
+  - Generic `RoomView` now renders the room shell while the MindRoom hook owns view mode, thread filters, sort-freeze state, summary sharing, canonical thread-id redirect, recent-thread bumping, and thread-exit routing.
+  - Architecture guards prevent direct thread-filter/view-mode/recent-thread restore plumbing from moving back into `src/app/features/room/RoomView.tsx`.
+- `CINNY-119`
+  - Room-route last-open-thread persistence, auto-restore, and failed-thread cleanup now live in `src/app/mindroom/threads/useRoomThreadRouteRestore.ts`.
+  - Generic `Room` now passes only the room route inputs and thread-load-error callback through to the MindRoom hook instead of directly mutating last-open-thread or recent-thread stores.
+  - Existing room route tests continue to cover saved-thread auto-restore, explicit-thread suppression, thread-exit clearing, and failed auto-restore fallback.
+- `CINNY-120`
+  - Automatic room-input send-session orchestration now lives in `src/app/mindroom/threads/useRoomInputSendSessionController.ts`.
+  - Generic `RoomInput` still owns editor/upload UI, but the MindRoom controller owns auto-thread root selection, upload/text sequencing, retry state, Signal bridge upload MIME policy, and reply-draft cleanup.
+  - Existing room input tests plus architecture guards keep the controller and pure send-session policy in the MindRoom thread namespace.
+- `CINNY-121`
+  - MindRoom room-input command autocomplete wiring and voice recorder mounting now live behind `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`.
+  - Generic `RoomInput` no longer imports the MindRoom command prefix/autocomplete component or voice recorder implementation directly.
+- `CINNY-122`
+  - Client-level MindRoom favicon updates, invite notification branding, and native iOS push registration now live in `src/app/mindroom/client/MindroomClientNonUIFeatures.tsx`.
+  - Generic `ClientNonUIFeatures` keeps upstream-style page zoom, emoji, and message notification effects, and mounts a single MindRoom non-UI seam.
+- `CINNY-123`
+  - Thread-aware read-receipt policy now lives in `src/app/mindroom/notifications/readReceipts.ts`.
+  - The old `src/app/utils/notifications.ts` path is compatibility-only while MindRoom timeline controllers import the fork-owned owner directly.
+- `CINNY-124`
+  - Text-only room-input thread relation wiring now lives behind `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`.
+  - Generic `RoomInput` still owns editor and upload UI, but no longer imports the low-level MindRoom message-relation builder directly.
+- `CINNY-125`
+  - Command-palette current-thread canonicalization now lives in `src/app/mindroom/threads/commandPaletteThreadItems.ts`.
+  - Command-palette item assembly now passes the route thread id to the MindRoom thread source instead of importing thread-route canonicalization directly.
+- `CINNY-126`
+  - The generic reply renderer now consumes compatibility seams for thread indicators and cache-aware event loading.
+  - MindRoom-specific thread indicator behavior remains owned by `src/app/mindroom/threads/ThreadIndicator.tsx`.
+- `CINNY-127`
+  - The pinned-message menu now uses compatibility seams for cache-aware event loading and MindRoom tool-approval rendering.
+  - Deep MindRoom hook/message imports stay behind the existing hook and message compatibility modules.
+- `CINNY-128`
+  - Search-result lightweight-rendering policy for MindRoom long-text messages now lives in `src/app/mindroom/messages/searchResultPolicy.ts`.
+  - Generic search preview code no longer imports the low-level long-text metadata parser directly.
+- `CINNY-129`
+  - MindRoom edit-wrapper metadata preservation now lives in `src/app/mindroom/messages/editMetadata.ts`.
+  - Generic room edit resolution still preserves standard `m.mentions`, but no longer imports the low-level MindRoom metadata-prefix parser directly.
+- `CINNY-130`
+  - Room back-route and thread-exit swipe handling now consume the existing `src/app/hooks/useEdgeSwipeBack.ts` compatibility hook.
+  - Generic route and room-view components no longer import the MindRoom native edge-swipe implementation directly.
+- `CINNY-131`
+  - System-notification settings now consume `src/app/mindroom/notifications/SystemNotificationMindroomExtensions.tsx` for MindRoom email-pusher branding and native iOS push settings.
+  - Generic notification settings no longer imports MindRoom branding or native push UI directly.
+- `CINNY-132`
+  - Auth screen branding, device display name, hosted-login policy, and native SSO redirect policy now route through `src/app/mindroom/auth/authUi.ts`.
+  - Generic auth pages no longer import MindRoom branding, native SSO, or hosted-auth policy modules directly.
+- `CINNY-133`
+  - Client-facing MindRoom branding defaults for welcome, splash, and About screens now live in `src/app/mindroom/branding/clientBranding.ts`.
+  - Generic client/about/splash surfaces no longer import the low-level MindRoom branding constants directly.
+- `CINNY-134`
+  - Room-input auto-thread send-session orchestration now routes through `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`.
+  - Generic `RoomInput` consumes one MindRoom room-input seam instead of importing the low-level thread controller directly.
+  - MindRoom room-input helpers use narrow editor utility/type imports so tests do not load the full editor/autocomplete UI barrel unnecessarily.
+- `CINNY-135`
+  - Timeline-specific MindRoom message policy now lives behind `src/app/mindroom/threads/roomTimelineMessageExtensions.tsx`.
+  - Generic `RoomTimeline` no longer imports low-level tool-approval render helpers or thread-badge record builders directly.
+- `CINNY-136`
+  - Added `src/app/mindroom/threads/threadSummaryStore.ts` as the public summary cache/state boundary.
+  - Production callers now consume summary cache deletion, shared summary state, and room-view summary hooks through that store instead of selecting individual cache/state modules directly.
+  - The shared `MindroomThreadSummaryInfo` type is also exported through the summary store boundary for timeline integration seams.
+- `CINNY-137`
+  - Added `src/app/mindroom/messages/editResolution.ts` as the public MindRoom edit-resolution boundary.
+  - Generic room edit resolution now imports one MindRoom edit seam instead of individual debug and metadata helpers.
+- `CINNY-138`
+  - Removed obsolete `src/app/components/message/mindroom*` compatibility wrappers after production callers moved to MindRoom-owned message modules.
+  - Pinned-message tool approval rendering now imports the MindRoom message owner directly instead of through a generic message wrapper.
+- `CINNY-139`
+  - Removed the generic `src/app/features/recent-threads` compatibility wrapper folder.
+  - Home, direct, and space page shells now mount the Recent Threads page navigation from the MindRoom-owned module directly.
+- `CINNY-140`
+  - Removed the generic `src/app/features/settings/local-mindroom` compatibility wrapper folder.
+  - The settings modal now mounts the Local MindRoom page from the MindRoom-owned module directly.
+- `CINNY-141`
+  - Removed unused room-input compatibility wrappers for MindRoom commands, voice recording, bridge detection, compose relations, and auto-thread send sessions.
+  - `RoomInput` continues to use the single MindRoom room-input extension seam.
+- `CINNY-142`
+  - Removed unused low-level thread compatibility wrappers for tag colors, pending tag state, tag mutation hooks, thread-summary selection, and room-summary state hooks.
+- `CINNY-143`
+  - Removed architecture-test-only wrappers for room preload target selection, thread deep links, thread render state, summary cache/state, thread-list loading, thread-root lookup, and cache DB migration helpers.
+  - These callers now rely on the MindRoom-owned modules directly or through the higher-level controller seams.
+- `CINNY-144`
+  - Removed the generic raw room/thread event cache wrappers and retargeted cache tests to the MindRoom-owned stores directly.
+- `CINNY-145`
+  - Removed generic one-line wrappers for thread utility, route, tag, tag hook, and timeline-scroll helpers after all callers targeted MindRoom-owned modules.
+- `CINNY-146`
+  - Removed the remaining one-line room-feature wrappers for MindRoom thread overview, banner/tag UI, cache helpers, timeline helpers, filter DSL, and thread presentation.
+  - Retargeted feature tests to the MindRoom-owned thread modules directly so `features/room` no longer pretends to own those helpers.
+- `CINNY-147`
+  - Moved the compact room view test beside the MindRoom implementation and removed the leftover compact room/card wrapper files from `features/room`.
+- `CINNY-148`
+  - Moved remaining MindRoom thread helper tests from `features/room` to `mindroom/threads`.
+- `CINNY-149`
+  - Removed unused top-level hook/state/native wrappers after all active callers used MindRoom-owned modules directly.
+- `CINNY-150`
+  - Removed active edge-swipe, room-event, and thread-indicator adapters by retargeting callers to MindRoom-owned modules directly.
+- `CINNY-151`
+  - Removed the generic notifications read-receipt wrapper and retargeted read-receipt callers to the MindRoom notification module.
+- `CINNY-152`
+  - Overview cache hydration now writes cached thread coverage into `ThreadRecord.cache` through `useMindroomThreadIndex`.
+  - Cached preview/activity/message-count fallbacks and cache coverage now flow through the same per-room record seam instead of leaving coverage as an implicit side effect of thread-open pagination.
+- `CINNY-153`
+  - Removed the remaining unused hook/state/client/sidebar compatibility wrappers after callers moved to MindRoom-owned modules.
+  - Auth/client code now imports the MindRoom Matrix client factory directly, and the sidebar index exports the MindRoom Local MindRoom tab without a wrapper file.
+- `CINNY-154`
+  - Removed `RoomTimeline` compatibility re-exports for thread bootstrap, route-focus, deep-link, and timeline-refresh helpers.
+  - Focused tests now import those helpers from their MindRoom-owned modules directly, leaving `RoomTimeline` as a component export only.
+- `CINNY-155`
+  - Removed the generic message barrel export for `MindroomThreadSummaryCard`; MindRoom message surfaces import the card from `src/app/mindroom/messages` directly.
+  - Removed the sidebar barrel export for `MindroomTab`; `SidebarNav` imports the MindRoom-owned tab directly at the integration point.
+- `CINNY-156`
+  - Pinned-message tool approval rendering now lives in `src/app/mindroom/messages/pinnedToolApproval.tsx`.
+  - Pinned-message cache-aware event lookup now lives behind `src/app/mindroom/messages/pinnedMessageExtensions.ts`.
+  - Generic `RoomPinMenu` keeps only a MindRoom pinned-message seam and no longer merges approval edit content itself.
+- `CINNY-157`
+  - Room-input thread indicator mounting now lives behind `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`.
+  - Generic `RoomInput` no longer imports the MindRoom thread indicator or checks thread relation types directly.
+- `CINNY-158`
+  - Reply-message cache-aware event lookup and thread indicator mounting now live behind `src/app/mindroom/messages/replyExtensions.tsx`.
+  - Generic `Reply` renders the MindRoom reply seam instead of importing thread cache hooks or thread indicator internals directly.
+- `CINNY-159`
+  - Local MindRoom settings page identity now lives in `src/app/mindroom/local-mindroom/settingsPage.ts` instead of the generic `SettingsPages` enum.
+  - Local MindRoom settings rendering now lives behind `src/app/mindroom/local-mindroom/settingsRenderer.tsx`, so generic settings code mounts a narrow render seam instead of importing the page implementation directly.
+  - The sidebar Local MindRoom shortcut opens the MindRoom-owned page id constant instead of depending on a generic MindRoom settings enum member.
+- `CINNY-160`
+  - Pinned-message MindRoom approval event dispatch now lives behind `src/app/mindroom/messages/pinnedMessageExtensions.ts`.
+  - Generic `RoomPinMenu` asks the MindRoom owner for pinned-message renderers and encrypted-event render results instead of switching on MindRoom approval event constants directly.
+- `CINNY-161`
+  - Room-timeline MindRoom approval event dispatch now lives behind `src/app/mindroom/threads/roomTimelineMessageExtensions.tsx`.
+  - Generic `RoomTimeline` asks the MindRoom timeline seam for approval renderers and approval content resolution instead of importing the raw MindRoom approval event constant directly.
+- `CINNY-162`
+  - MindRoom multi-account session store key and change-event names now live in `src/app/mindroom/cache/sessionStoreConfig.ts`.
+  - `src/app/state/sessions.ts` keeps its public exports but no longer owns raw MindRoom session storage strings.
+- `CINNY-163`
+  - Overview resume relation refreshes now apply fetched relation metadata directly through `useMindroomThreadIndex`.
+  - Compact cards no longer depend on an async cache write/read round trip to show latest reply previews, message counts, activity, and cache coverage after page resume.
+  - The resume controller persists fetched relation pages for later thread opens, but the per-room `ThreadRecord` index remains the immediate UI source of truth.
+- `CINNY-164`
+  - Moved the MindRoom thread-bootstrap relation-fetch test and thread-tag migration-script test out of `src/app/features/room`.
+  - Those tests now live beside their MindRoom owners in `src/app/mindroom/threads`, leaving `features/room` focused on generic room component tests.
+- `CINNY-165`
+  - Generic message text renderers now expose a neutral state-suffix seam instead of importing the MindRoom AI streaming indicator directly.
+  - MindRoom message rendering owns `renderMindroomStreamingIndicator`, keeping streaming UI and protocol policy under `src/app/mindroom/messages`.
+- `CINNY-166`
+  - Room-timeline thread badge rendering now goes through `renderMindroomRoomTimelineThreadBadge`.
+  - `RoomTimeline` no longer builds badge view models itself; the MindRoom timeline seam owns model derivation and null rendering for non-thread events.
+- `CINNY-167`
+  - Thread-filter DSL parsing for room overview state now lives inside `useMindroomThreadIndex`.
+  - `RoomTimeline` passes only the requested filter state and renders the index-owned live/effective states, keeping filter parsing/application with the canonical room index.
+- `CINNY-168`
+  - Direct-room thread overview view-state and overview metadata cache limits now live in `src/app/mindroom/threads/roomTimelineViewState.ts`.
+  - `RoomTimeline` consumes the resolved view-state seam instead of owning the direct-room fallback filter and focus/compact-mode policy inline.
+- `CINNY-169`
+  - Thread-view edge-swipe exit mounting now lives in `src/app/mindroom/threads/useRoomViewThreadState.ts` beside the thread-exit routing decision.
+  - Generic `RoomView` no longer imports the native MindRoom edge-swipe hook directly.
+- `CINNY-170`
+  - Room-input reply/thread context rendering now goes through `MindroomRoomInputReplyContext`.
+  - Generic `RoomInput` no longer renders the MindRoom thread-send fallback label or imports the thread-indicator component seam directly.
+- `CINNY-171`
+  - Room-timeline reply/start-thread draft derivation now lives in `src/app/mindroom/threads/roomTimelineReplyDraft.ts`.
+  - Generic `RoomTimeline` no longer builds the MindRoom `m.thread` reply relation inline when starting a thread from a normal message.
+- `CINNY-172`
+  - MindRoom message copy-text policy is now exported through `src/app/mindroom/messages/messageExtensions.tsx`.
+  - Generic room message rendering keeps a single MindRoom message extension import instead of separately importing the copy-text owner.
+- `CINNY-173`
+  - Escape-key room/thread read-receipt handling now lives in `src/app/mindroom/threads/useRoomEscapeReadReceipts.ts`.
+  - Generic `Room` no longer imports MindRoom read-receipt commands directly.
+- `CINNY-174`
+  - Room header and room-nav mark-read menu rendering now lives in `src/app/mindroom/notifications/MindroomMarkRoomReadMenuItem.tsx`.
+  - Generic room menu components no longer import MindRoom room/thread read-receipt commands directly.
+- `CINNY-175`
+  - Command-palette UI, item assembly, search helpers, hotkey handling, tests, and open-state atom now live in `src/app/mindroom/command-palette`.
+  - Generic router/sidebar/header integration points import the MindRoom palette seam instead of owning a fork-only feature folder under `src/app/features`.
+- `CINNY-176`
+  - Home/direct/space page and sidebar mark-read menu items now use `src/app/mindroom/notifications/MindroomMarkRoomsReadMenuItem.tsx`.
+  - Generic page/sidebar navigation code still owns room-list selection, but no longer duplicates thread-aware read-receipt mutation logic.
+- `CINNY-177`
+  - Inbox notification room headers now use `src/app/mindroom/notifications/MindroomMarkRoomReadChip.tsx` for thread-aware mark-read behavior.
+  - The generic notifications page no longer imports the MindRoom read-receipt mutation directly.
+- `CINNY-178`
+  - Room-header and sidebar command-palette opener widgets now live in `src/app/mindroom/command-palette`.
+  - Generic header/sidebar files no longer import the command-palette atom directly; the sidebar search tab is a thin compatibility export.
+- `CINNY-179`
+  - Scheduled thread status now has one selector owner in `src/app/mindroom/threads/threadScheduledStatus.ts`.
+  - `ThreadRecord`, `useMindroomThreadIndex`, thread headers, scheduled-task hooks, and route focus recovery consume scheduled status snapshots instead of separately counting/scanning scheduled-task events.
+  - Focused scheduled-status tests cover future, past, invalid, and missing timestamps while preserving the existing invalid-timestamp count behavior.
+- `CINNY-180`
+  - Removed legacy metadata-map overview selectors from `roomThreadOverviewModel`.
+  - `threadRecordOverview` is now the canonical owner for record-derived overview filtering, search, sorting, status counts, and tag counts.
+  - `roomThreadOverviewModel` now keeps filter state, query/preset helpers, tag helper utilities, and shared filter-key definitions instead of rebuilding `ThreadOverviewMetadata` maps.
+- `CINNY-181`
+  - Generic message-search grouping and item-card rendering now accept a result-body renderer seam.
+  - `src/app/mindroom/message-search/MindroomMessageSearch.tsx` supplies `src/app/mindroom/message-search/searchResultBodyRenderer.tsx`, which mounts `MindroomSearchResultBody`.
+  - `src/app/features/message-search/SearchResultGroup.tsx` and `src/app/features/message-search/MessageSearch.tsx` no longer import MindRoom result-body components directly.
+  - Added a narrow ownership test to keep generic search code unaware of MindRoom result-body components.
+- `CINNY-182`
+  - Route-level edge-swipe back handling now lives in `src/app/mindroom/native/MindroomBackRouteHandler.tsx`.
+  - Generic `BackRouteHandler` owns only route-back calculation; it no longer imports MindRoom native edge-swipe behavior or accepts native-only props.
+  - Page/header integration points consume the MindRoom wrapper where native swipe behavior is needed.
+- `CINNY-183`
+  - Settings integration now goes through `src/app/mindroom/settings/settingsMenuExtensions.ts` and `src/app/mindroom/settings/settingsExtensions.tsx`.
+  - Generic settings menu/page/general-message sections no longer import concrete Local MindRoom page/menu/rendering modules or the preload-limit tile directly.
+  - Local MindRoom settings and the message preload setting remain owned by the MindRoom namespace behind one settings extension seam.
+- `CINNY-184`
+  - Thread tag display/resolved snapshots now live in `src/app/mindroom/threads/threadTagSnapshots.ts`.
+  - Command palette thread items, room-level tag resolution, single-thread tag hooks, and tag mutation reads share the same snapshot derivation instead of aggregating tag state independently.
+- `CINNY-185`
+  - Time-aware scheduled-thread status now lives behind `src/app/mindroom/threads/useThreadScheduledStatus.ts`.
+  - Thread headers and thread indicators consume the shared scheduled-status hook instead of rebuilding scheduled-task maps separately.
+- `CINNY-186`
+  - Cached overview metadata now lives behind `src/app/mindroom/threads/threadOverviewCacheMetadata.ts`.
+  - `useMindroomThreadIndex` consumes one cached metadata snapshot/controller instead of owning separate cached activity, latest-preview, sender, message-count, compact-root-preview, and cache-coverage maps.
+  - Overview cache hydration and fetched relation refreshes update the same cached metadata boundary before `ThreadRecord` derivation consumes it.
+- `CINNY-187`
+  - Message search implementation, helpers, and tests now live under `src/app/mindroom/message-search`.
+  - The old `src/app/features/message-search` feature folder was removed because production callers already route through the MindRoom search wrapper.
+  - Search result body rendering remains a local renderer seam so the search list stays separate from the MindRoom long-text/body component.
+- `CINNY-188`
+  - Room timeline implementation now lives in `src/app/mindroom/threads/MindroomRoomTimeline.tsx`.
+  - `src/app/features/room/RoomTimeline.tsx` is a narrow compatibility seam that re-exports the MindRoom timeline.
+  - Architecture tests now guard both boundaries: the generic file stays small, while timeline/cache/index policy remains under the MindRoom thread namespace.
+- `CINNY-189`
+  - Room message rendering now lives in `src/app/mindroom/messages/MindroomMessage.tsx`.
+  - `src/app/features/room/message/Message.tsx` is a narrow compatibility seam that re-exports the MindRoom message implementation.
+  - Message extension state, AI-run controls, long-text copy/download policy, and MindRoom menu/header slots stay under the MindRoom message namespace instead of the upstream room-message feature path.
+- `CINNY-190`
+  - Room composer implementation now lives in `src/app/mindroom/room-input/MindroomRoomInput.tsx`.
+  - `src/app/features/room/RoomInput.tsx` is a narrow compatibility seam that re-exports the MindRoom composer implementation.
+  - MindRoom command autocomplete, thread reply context, voice recording, and auto-thread send-session orchestration now stay in the fork-owned room-input namespace.
+- `CINNY-191`
+  - Room-view implementation now lives in `src/app/mindroom/threads/MindroomRoomView.tsx`.
+  - `src/app/features/room/RoomView.tsx` is a narrow compatibility seam that re-exports the MindRoom room view.
+  - Thread state, thread banner mounting, timeline wiring, composer wiring, and iOS keyboard fix ownership stay in the MindRoom thread namespace.
+- `CINNY-192`
+  - Room-view header implementation now lives in `src/app/mindroom/threads/MindroomRoomViewHeader.tsx`.
+  - `src/app/features/room/RoomViewHeader.tsx` is a narrow compatibility seam that re-exports the MindRoom room header.
+  - Thread-aware mark-read, native back handling, and command-palette opener wiring stay outside the upstream room feature path.
+- `CINNY-193`
+  - Room shell implementation now lives in `src/app/mindroom/threads/MindroomRoom.tsx`.
+  - `src/app/features/room/Room.tsx` is a narrow compatibility seam that re-exports the MindRoom room shell.
+  - Last-open-thread route restore and escape-read-receipt handling stay in the MindRoom thread namespace.
+- `CINNY-194`
+  - Pinned-message menu implementation now lives in `src/app/mindroom/messages/MindroomRoomPinMenu.tsx`.
+  - `src/app/features/room/room-pin-menu/RoomPinMenu.tsx` is a narrow compatibility seam that re-exports the MindRoom pinned-message menu.
+  - Cache-aware pinned event lookup, MindRoom approval rendering, and pinned-menu styling now stay in the MindRoom message namespace.
+- `CINNY-195`
+  - Normal and compact room overview `ThreadRecord` map construction now goes through `src/app/mindroom/threads/threadIndexRecords.ts`.
+  - `useMindroomThreadIndex` consumes the shared record-map builder instead of duplicating summary, preview, count, status, and cache fallback wiring for each room surface.
+  - Focused selector tests cover shared normal/compact fallback precedence and the no-record thread-route case.
+- `CINNY-196`
+  - Fetched relation overview updates now go through `useThreadOverviewRelationUpdates` in `src/app/mindroom/threads/threadOverviewCacheHydration.ts`.
+  - `useMindroomThreadIndex` no longer mutates cached overview metadata inline; it wires the cache-update controller and keeps index snapshot assembly separate from cache mutation policy.
+- `CINNY-197`
+  - MindRoom-owned room modules now import moved MindRoom implementations directly instead of routing through their old `features/room` compatibility re-export paths.
+  - Production routing imports `MindroomRoom`, `MindroomRoomView` imports `MindroomRoomTimeline` and `MindroomRoomInput`, and MindRoom timeline rendering imports `MindroomMessage` directly.
+  - The old feature paths remain as narrow compatibility seams, but fork-owned production code no longer depends on them internally.
+- `CINNY-198`
+  - Updated the living architecture plan with the pass-closure audit.
+  - The refactor plan now records that the remaining non-MindRoom diffs are deliberate seams/generic fixes and that cache/preload ownership satisfies the current acceptance criteria through repository/controller/coverage boundaries.
+- `CINNY-199`
+  - Cleaned low-risk lint noise after the architecture pass without changing product behavior.
+  - Removed unused imports, fixed safe hook dependency declarations, made intentional MindRoom debug logging explicit, and dropped no-op missing-attribute warnings from timeline click handlers.
+  - Left behavior-sensitive long-text and voice-recorder hook warnings for a dedicated follow-up instead of hiding them with broad disables.
+- `CINNY-200`
+  - Thread resolution writes now use `src/app/mindroom/threads/threadResolvableRoot.ts` to accept SDK thread roots and stable standalone zero-reply roots.
+  - Normal tag add/remove writes remain restricted to SDK-recognized thread roots.
+  - Focused tests cover resolving standalone zero-reply roots through both the thread banner mutation hook and the command-palette current-thread action.
+- `CINNY-201`
+  - Added `docs/mindroom-cache-strategy.md` as the compact cache/preload runbook.
+  - The runbook defines cache layers, write/read owners, `ThreadCacheCoverage` semantics, merge rules, room/thread open flows, forbidden fallback patterns, and review checks.
+  - Linked the cache runbook from the longer thread architecture plan so future cache changes have a single operational checklist.
+- `CINNY-202`
+  - Moved MindRoom message-extras parsing, rendering, styles, and tests into `src/app/mindroom/messages`.
+  - Moved the compact voice recorder lifecycle, capsule UI, and tests into `src/app/mindroom/voice`.
+  - Removed stale `features/room` thread-preview compatibility and transient root implementation-report artifacts after folding the relevant ownership state back into this runbook.
+  - Theme bootstrap TypeScript now imports the MindRoom session-store key from `src/app/mindroom/cache/sessionStoreConfig.ts` instead of duplicating the raw localStorage string.
+  - Extended the architecture guard to lock message-extras ownership, compact voice ownership, stale compatibility removals, transient artifact removal, and the shared session-store-key import.
+  - Validation:
+    - `npm test` passes (`234/234` files, `1748/1748` tests)
+    - `npm run typecheck` passes
+    - `npm run lint` passes with the repo warning-only baseline (`17` warnings, `0` errors)
+    - `npm run build` passes
+    - `git diff --check` passes
+    - targeted Prettier check on touched files passes
+- `CINNY-203`
+  - Fixed MindRoom tool-call marker rendering for streaming edit updates that omit `formatted_body` and/or `io.mindroom.tool_trace` metadata.
+  - Plain-text tool marker lines such as `` 🔧 `run_shell_command` [1] `` are now converted to the existing safe formatted marker contract before rendering, so the tool-call card parser can consume them instead of leaking raw markers into the timeline.
+  - Edit resolution now carries forward missing MindRoom metadata from older replacement events before resolving the latest edit, preserving previous tool-trace details when a newer streaming update only sends body text and stream status.
+  - The tool marker parser now renders marker-only formatted bodies as tool-call blocks, while enriching them with trace details whenever versioned trace metadata is available.
+  - Renamed the message-extras data/parser module to `messageExtrasData.ts` and the component test to `MessageExtrasView.test.ts` to avoid case-only module collisions with `MindroomMessageExtras.tsx` on case-insensitive filesystems.
+  - Added a Vitest setup guard for Node 25/jsdom runs where Node exposes an incomplete global web-storage object before jsdom installs `window.localStorage`.
+  - Validation:
+    - `npm test` passes (`234/234` files, `1753/1753` tests)
+    - `npm run typecheck` passes
+    - `npm run lint` passes with the repo warning-only baseline (`17` warnings, `0` errors)
+    - `npm run build` passes
+- `CINNY-204`
+  - Fixed the Home/Direct mark-read-only menus crashing `focus-trap` when no listed room is unread.
+  - `MindroomMarkRoomsReadMenuItem` and `MindroomMarkRoomReadMenuItem` now keep unavailable Mark as Read actions in the tab order via `aria-disabled` instead of native `disabled`, preserving Folds disabled styling while giving focus-trap a tabbable menu item.
+  - Guarded both unavailable click paths so keyboard or pointer activation still no-ops and does not close the menu or send read receipts.
+  - Validation:
+    - focused notification menu tests pass for `MindroomMarkRoomsReadMenuItem` and `MindroomMarkRoomReadMenuItem`.
+    - `npm test` passes (`234/234` files, `1764/1764` tests)
+    - `npm run typecheck` passes
+    - `npm run lint` passes with the repo warning-only baseline (`17` warnings, `0` errors)
+    - `npm run build` passes with the existing Vite/runtime-config/sourcemap/chunk-size warnings
+  - Review:
+    - independent Codex review found no issues in the tracked diff.
+    - residual risk: coverage is focused on the mark-read components, not a browser-level Home/Direct menu reproduction with zero unread rooms.
+- `CINNY-205`
+  - Fixed the visible notifications refresh heartbeat where blank ghost notification boxes could appear while existing notifications were already rendered.
+  - Notification loading placeholders now render only for the initial empty load, not for pagination/refresh loading states with existing notification groups on screen.
+  - Added `notificationTimelineView.ts` as a focused view-policy helper with regression coverage for initial-empty versus existing-data loading states.
+  - Validation:
+    - `npm test -- src/app/pages/client/inbox/notificationTimelineView.test.ts` passes.
+    - `npm test` passes.
+    - `npm run typecheck` passes.
+    - `npm run lint` passes with the repo's warning-only baseline.
+    - `npm run build` passes with existing Vite/runtime-config/sourcemap/chunk-size warnings.
+    - `git diff --check` passes.
+    - targeted Prettier check passes.
+  - Review:
+    - independent second self-review found no issues in the tracked diff.
+    - residual risk: coverage is focused on the loading view policy, not a browser-level visual reproduction of the notification heartbeat.
+- `CINNY-206`
+  - Oversized text pasted into the MindRoom composer now converts into a normal `m.file` text attachment when the estimated `m.text` content would exceed the conservative Matrix event-size budget.
+  - The composer inserts a JSON marker at the paste point, e.g. `[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":18421,"file":"mindroom-paste-a3f19c.txt"}]]`, so downstream MindRoom processing can parse it with delimiter scanning plus `JSON.parse`.
+  - Paste marker creation/parsing lives in `src/app/mindroom/messages/pasteAttachmentMarker.ts`; composer size policy lives in `src/app/mindroom/room-input/pasteAttachment.ts`; `MindroomRoomInput` reuses the existing upload board and send-session path for attachments.
+  - The composer renders paste markers as Slate inline-void badges, so clicking the badge selects it as one unit and Backspace/Delete removes the whole marker instead of corrupting the marker text.
+  - Staged paste attachments are linked to their marker: deleting the composer badge removes the staged upload, and canceling/removing the staged upload removes the corresponding badge.
+  - MindRoom message rendering turns paste markers into compact badges through the existing `renderMindroomMessageContent`/HTML-block parser boundary while preserving the underlying sent message body for old-client compatibility.
+  - Generated paste file events now carry `io.mindroom.paste_attachment` metadata with the paste id, character count, and generated file name, so the sent attachment remains machine-resolvable without parsing the display label.
+  - Sending a text message with paste attachments now keeps paste uploads claimed by the active send session even after the text-send editor reset clears the marker, so the attachment upload cannot be orphan-cleaned before the `m.file` event is sent.
+  - Sent paste file events render as a compact MindRoom "Pasted text" attachment card with character/file details plus short `Open` and `Download` actions; opening the card loads the original uploaded text.
+  - Validation:
+    - focused paste attachment suite passes (`4/4` files, `38/38` tests).
+    - `npm test` passes (`240/240` files, `1790/1790` tests).
+    - `npm run typecheck` passes.
+    - `npm run build` passes with existing Vite/runtime-config/sourcemap/chunk-size warnings.
+    - `npm run lint` passes with the repo warning-only baseline (`17` warnings, `0` errors).
+    - `git diff --check` passes.
+    - targeted Prettier check passes for the touched files.
+    - Chrome MCP plus desktop browser check verified oversized paste creates one composer badge plus one staged text file, Backspace just after the badge removes both, clicking the badge then pressing Delete removes both, and the earlier Slate DOM-point crash no longer appears in current console errors.
+    - Chrome MCP live Finance-room send verified a 1.2 MB paste produced both the root `m.text` marker event and the generated `m.file` event, with `io.mindroom.paste_attachment` metadata on the file event.
+    - Chrome MCP visual check verified the sent attachment renders as a compact card of roughly `383x72` px in the current desktop viewport, and `Open` displays the uploaded text containing the E2E unique marker.
+  - Review:
+    - independent second self-review found stale plan/spec marker examples from the earlier draft syntax; those docs are included here with the final JSON marker shape.
+    - no remaining issues found in the focused source/test diff.
+
+### Current Feature Set On `dev`
+
+- `CINNY-074`
+  - The lab Caddy deployment now runs the Vite dev server instead of serving a prebuilt `dist/` directory, so `chat.lab.mindroom.chat` surfaces full React development errors and source-mapped stacks during fork debugging.
+  - `mindroom-cinny` now starts `npm start -- --host 127.0.0.1 --port 8090 --strictPort`, and the default Vite allowed-host list now includes the lab/prod chat domains plus loopback hosts for the reverse-proxied setup.
+- `CINNY-037`
+  - Revokes blob URLs across media/file previews and cleans up `usePan` document listeners on unmount to stop client-side leaks during room and media navigation.
+- `CINNY-038`
+  - Recovers cached thread hydration and truncation behavior so cached thread opens prefer complete local thread data instead of thin slices.
+- `CINNY-040`
+  - Drops structural table whitespace parser nodes that polluted rendering.
+- `CINNY-041`
+  - Applies the safe subset only:
+    - `CollapsibleMessage` overflow measurement now re-runs only when the semantic message identity changes, and no longer disables wrapper scroll anchoring.
+    - Room overview refresh ignores non-thread `RoomEvent.Timeline` traffic while still refreshing for thread-targeted events and receipts.
+- `CINNY-028`
+  - Adds tri-state thread filters, tag filtering, natural sort, and `threadTags` migration.
+- `CINNY-028b`
+  - Shows thread status counts on filter/toggle icons.
+- `CINNY-028c`
+  - Adds the compact thread bar with info popover, presets, and search.
+- `CINNY-028d`
+  - Replaces the old compact text toggle with the icon-button version.
+- `CINNY-030`
+  - Persists thread filter state in `localStorage`.
+- `CINNY-035`
+  - Adds compact thread view with AI summaries and rich metadata.
+  - Includes the compact-root follow-up behavior that now:
+    - supplements roots from the server thread list,
+    - hydrates previews from cached/local thread data,
+    - and rejects nested threaded replies as fake top-level compact roots.
+- `CINNY-035a`
+  - Adds colored tag pills to compact thread cards.
+- `CINNY-035b`
+  - Makes the compact room view stretch to full available width.
+- `CINNY-042`
+  - Stabilizes long-text hydration identity.
+- `CINNY-043`
+  - Startup performance optimizations:
+    - parallel IndexedDB + crypto initialization,
+    - cached UI can render while sync catches up,
+    - reduced sync/archive pressure during startup.
+- `CINNY-024/CINNY-023`
+  - Stabilizes search rendering and navigation.
+  - Keeps search responsive while preserving richer message rendering than the earlier plain-preview stopgap.
+- `CINNY-044`
+  - Active avatar opens Settings directly.
+- `CINNY-045`
+  - Adds click-to-expand collapsible messages with floating close affordance.
+- `CINNY-045b`
+  - Improves collapsible-message iconography and close-button UX.
+- `CINNY-045c`
+  - Fixes scroll-into-view timing and overflow behavior for collapsible messages.
+- `CINNY-046`
+  - Waits for service-worker control before mounting the app.
+- `CINNY-047`
+  - Uses `EventTimeline.FORWARDS` instead of string literals in thread code paths.
+- `CINNY-047b`
+  - Preserves `mx.sendStateEvent` binding by calling it directly.
+- `CINNY-048`
+  - Gates UI on first sync to avoid the startup screen flash.
+- `CINNY-050`
+  - Adds tag management UI to the thread context banner (ThreadContextBanner component with tag pills, picker, and resolve toggle).
+  - Includes the compatibility fix for the parsed thread-tags shape:
+    - `useRoomThreadTags` now unwraps `parseThreadTagsContent(...).tags` correctly,
+    - resolved status is computed with `isThreadResolved(...)`,
+    - and room/thread resolved filters render correctly again after the tag-management merge.
+- `CINNY-050c`
+  - Fixes tag picker input focus: removes explicit `initialFocus` from FocusTrap (lets it default to first tabbable element, matching working patterns like AdditionalCreatorInput), adds `useEffect`+`requestAnimationFrame` safety net for portal timing.
+  - Improves empty-state UX: shows "Type to create a tag" when no tags exist instead of "No tags available".
+- `CINNY-050d`
+  - Removes the legacy `com.mindroom.thread.resolution` fallback from `useRoomThreadTags`.
+  - All thread resolution/tag readers now depend only on `com.mindroom.thread.tags`.
+  - This assumes thread resolution data has already been migrated to the new state-event format.
+- `CINNY-050f`
+  - Fixes the thread tag picker input styling in the thread context banner:
+    - typed text and caret now use the themed surface-variant foreground instead of browser-default black,
+    - and the placeholder fades out on focus so the caret no longer appears underneath the leading "F".
+  - Adds focused regression coverage in `src/app/features/room/ThreadTagPicker.test.ts` to keep the picker on the shared class-based styling path.
+  - Validation:
+    - `npm test` passes (`110/110` files, `932/932` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` still fails at repo baseline because `eslint src/*` crashes across the tree with the existing TypeScript parser `originalKeywordKind` deprecation error
+- `CINNY-053`
+  - Fixes iOS Safari keyboard/viewport layout when virtual keyboard opens or closes:
+    - `index.css`: root layout uses `100dvh` on `html` (Safari 15.4+) and `var(--app-height)` on `#root` as JS-driven fallback; `body` gets `overflow: hidden`.
+    - `useIOSKeyboardFix`: rewritten to listen to `visualViewport.resize` on both keyboard open and dismiss, sets `--app-height` CSS custom property via `requestAnimationFrame`, and resets scroll offset drift.
+    - `Editor.tsx`: `maxHeight` default changed from `50vh` to `min(50dvh, calc(var(--app-height, 100vh) * 0.5))` so the editor respects the dynamic viewport with fallbacks.
+    - `index.html`: retains `interactive-widget=resizes-content` for future-proofing (no-op on iOS Safari currently).
+- `CINNY-060`
+  - Adds pinch-to-zoom UI scale control on top of the existing `Settings.pageZoom` setting:
+    - ctrl/trackpad pinch wheel gestures now adjust the stored page zoom,
+    - two-finger touch pinch and Safari `gesture*` events also update the same setting,
+    - and the Settings page zoom input now shares the central min/max constants and resyncs when zoom changes outside the form.
+  - Follow-up fixes from user feedback:
+    - lowers the supported minimum UI scale from `75%` to `50%`,
+    - and skips the global page-zoom pinch interception while the fullscreen `ImageViewer` overlay is mounted so image-viewer gestures are not hijacked by layout zoom.
+    - validation (2026-04-03):
+      - focused Vitest passes for `src/app/utils/pageZoom.test.ts`, `src/app/state/settings.test.ts`, and new `src/app/hooks/usePinchToZoom.test.ts`
+      - `npm run typecheck` passes
+      - `npm run build` passes
+      - `npm test` is still red at the current branch baseline; the same 16 failures reproduce from a clean `HEAD` snapshot in `RoomTimeline.test.ts`, `RoomTimelineCollapsible.test.ts`, `roomThreadOverviewModel.test.ts`, and `roomThreadFilterState.test.ts`
+  - Image viewer pinch-to-zoom follow-up (2026-04-04):
+    - investigated `src/app/hooks/useZoom.ts` and confirmed it previously only exposed bounded zoom state plus button helpers; it did not listen for `touchstart` / `touchmove` / `touchend` or Safari `gesture*` events.
+    - confirmed `index.html` still declares `maximum-scale=1.0`, so native page pinch zoom remains intentionally disabled and the fullscreen image viewer must handle pinch scaling itself.
+    - extended `src/app/hooks/useZoom.ts` with element-scoped touch-pinch and Safari gesture listeners that reuse the same zoom state, clamp through the existing min/max bounds, and call `preventDefault()` from a non-passive `touchmove` listener.
+    - wired `src/app/components/image-viewer/ImageViewer.tsx` to attach the zoom-listener ref to the lightbox content surface, added `touch-action: none` to the viewer content, and disabled the image transform transition during active pinch so the image tracks the gesture directly.
+    - added focused regression coverage in `src/app/hooks/useZoom.test.ts`.
+    - review:
+      - independent second self-review completed via a fresh `git diff` pass after the code/test changes; no unrelated files or behavior changes were introduced outside the image-viewer zoom path plus docs/report updates.
+    - validation (2026-04-04):
+      - `npm test -- src/app/hooks/useZoom.test.ts` passes
+      - `npm run typecheck` passes
+      - `npm run build` passes
+      - `npm test` is still red at the current branch baseline with the same 16 unrelated failures in `RoomTimeline.test.ts`, `RoomTimelineCollapsible.test.ts`, `roomThreadOverviewModel.test.ts`, and `roomThreadFilterState.test.ts`
+- `CINNY-067`
+  - Auto-threads composer attachment bursts in `RoomInput`:
+    - text + attachments in the main timeline now send the text first, capture the returned `event_id`, and send attachments as thread replies to that new root,
+    - attachment-only sends now use the first selected attachment as the room-level root and thread later attachments under it,
+    - single-attachment sends stay room-level,
+    - and explicit thread context (`threadId` or reply-in-thread) keeps the existing thread-targeting behavior without creating a nested auto-thread.
+  - The upload-board Send button and keyboard submit now share one send-session orchestration path instead of separate text/media flows.
+  - Attachment sends now follow selection order instead of upload completion order, while still allowing failed non-root uploads to be retried later without losing the resolved thread root.
+  - Added focused regression coverage in `src/app/features/room/roomInputSendSession.test.ts` for root selection, relation targeting, ordering, root-blocking failures, and non-root retry behavior.
+  - review:
+    - independent second self-review completed via a fresh `git diff` pass after the implementation and tests; scope stayed limited to the room-input send path, upload-board send trigger, helper extraction, tests, and runbook updates.
+  - validation (2026-04-09):
+    - `npm test` passes (`125/125` files, `1048/1048` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+  - review-fix follow-up (2026-04-09):
+    - `RoomInput` now keeps `selectedFilesRef` synchronized across append/replace/delete mutations so same-tick voice sends do not observe an empty active-file list before the atom update renders.
+    - reply-draft clearing is now one-shot and only clears the live draft when the current room/thread/reply context still matches the session snapshot captured when the send started.
+    - documented the intentional silent no-op for repeated Send clicks while a session is waiting on upload retries, the intentional relaxed ordering for non-root upload-error recovery, and the intentional upload-board Send-button behavior change that now shares the unified submit path with typed text.
+    - added focused regression coverage in `src/app/features/room/RoomInput.test.ts` for the voice-send wiring and deferred reply-draft clearing, plus additional context-matching assertions in `src/app/features/room/roomInputSendSession.test.ts`.
+  - review:
+    - independent second self-review completed via a fresh post-fix `git diff` pass; the follow-up scope stayed limited to the room-input send-session wiring, focused tests, and this runbook update.
+  - validation follow-up (2026-04-09):
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm test` passes (`126/126` files, `1051/1051` tests)
+- `CINNY-070`
+  - Adds a recent-threads sidebar panel underneath the room-list `PageNav` content on Home, Direct Messages, and Space views.
+  - New user-scoped Jotai storage atoms:
+    - `recentThreadsAtom` stores most-recent-first `{ roomId, threadId, openedAt }` entries, de-duplicates by room/thread, and trims to 50 entries.
+    - `recentThreadsPanelHeightAtom` stores the panel height with a default of `200px`.
+  - `Room.tsx` now bumps the recent-thread list whenever thread view opens and removes stale entries when a thread open later fails.
+  - New `src/app/features/recent-threads/` UI:
+    - `RecentThreadsPageNav` wraps existing `PageNav` children without changing the shared `PageNav` API.
+    - `RecentThreadsResizer` uses pointer events, `80px` min, `60%` viewport max, and collapses the panel to a `32px` header when dragged below the minimum threshold.
+    - `RecentThreadsPanel` filters out left rooms at render time, hides itself on mobile, and renders a scrollable list with an empty state.
+    - `useRecentThreadSummary(...)` resolves per-entry text on demand in this order: live thread summary metadata, edited root-body preview, IndexedDB summary cache, then room/encryption fallback text.
+  - recent-thread entries also self-heal stored reply-event ids into canonical thread-root ids when live room data makes that mapping available.
+  - review:
+    - independent second self-review completed via a fresh `git diff` pass after implementation and validation; scope stayed limited to the new recent-thread state/UI files, the expected page-nav integrations, and the runbook update.
+    - remaining noted risk: this change currently relies on the full existing suite plus manual diff review; there is not yet dedicated focused automated coverage for the new recent-threads atoms/panel behavior.
+  - validation (2026-04-10):
+    - `npm test` passes (`126/126` files, `1059/1059` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+  - review-fix follow-up (2026-04-10):
+    - `RecentThreadsPageNav` now rebuilds visible entries from joined rooms only, so left rooms no longer remain visible just because `mx.getRoom(...)` still returns a `Room`.
+    - `recentThreadsAtom` now supports a dedicated `REKEY` action so reply-id self-heal upgrades entries to canonical root ids without downgrading `openedAt` or disturbing most-recent-first ordering.
+    - `useRecentThreadSummary(...)` now shares per-room IndexedDB summary loads through a small LRU promise cache and shares room-level thread listeners across entries instead of registering `N * 4` listeners for the same room.
+    - recent-thread summary truncation now respects the intended `120` character cap including the ellipsis, and the cheap thread-root resolution path no longer uses the old memo/version hack.
+    - `RecentThreadsResizer` now supports keyboard resizing with `tabIndex`, separator value ARIA attributes, and defensive pointerdown cleanup so repeated drags do not leak window listeners.
+    - `RecentThreadEntry` is now memoized, and the duplicated `isRecord(...)` helper for recent-thread local-storage parsing was moved to a shared util.
+    - added focused regression coverage in:
+      - `src/app/state/recentThreads.test.ts`
+      - `src/app/features/recent-threads/RecentThreadsPanel.test.ts`
+      - `src/app/features/recent-threads/useRecentThreadSummary.test.ts`
+      - `src/app/features/recent-threads/RecentThreadsResizer.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` pass after the review-fix patchset; scope stayed limited to the recent-thread state/UI/test files plus this runbook update.
+  - validation follow-up (2026-04-10):
+    - `npm test` passes (`130/130` files, `1066/1066` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` passes with the branch’s existing warning-only baseline (`78` warnings, `0` errors)
+  - round-2 review follow-up (2026-04-11):
+    - `RecentThreadEntry` now opens recent-thread sidebar targets through a direct thread-route navigation helper, so Home/Direct/Space launches no longer rewrite the origin history entry before opening the target thread.
+    - logout/cache-clear paths in `initMatrix.ts` now clear `recentThreads`, `recentThreadsPanelHeight`, and the shared recent-thread summary room caches alongside the existing thread/filter UI stores, preventing room/thread id leakage and stale `Room` references across sessions.
+    - `useRelativeTime(...)` now shares one interval per update cadence bucket instead of creating one timer per hook consumer, which removes the `N` independent recent-thread timers problem.
+    - `RecentThreadsPanel` now debounces viewport resize handling, memoizes visible-entry derivation across resize-only renders, and marks the panel body as an `aria-live="polite"` region.
+    - `recentThreads.css.ts` now gives the keyboard-focusable resizer a visible `:focus-visible` outline.
+    - added focused regression coverage in:
+      - `src/app/features/recent-threads/RecentThreadEntry.test.ts`
+      - `src/app/hooks/useRoomNavigate.test.ts`
+      - `src/app/hooks/useRelativeTime.test.ts`
+      - `src/client/initMatrix.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` pass after the round-2 fixes and targeted/full validation; scope stayed limited to recent-thread navigation/UI behavior, shared relative-time scheduling, logout cleanup wiring, focused tests, and this runbook update.
+  - validation round-2 (2026-04-11):
+    - `npm test` passes (`131/131` files, `1069/1069` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+  - bump-on-open fix follow-up (2026-04-12):
+    - investigated the shipped `Room.tsx` bump path and confirmed the `recentThreadsAtom` `BUMP` reducer itself behaves correctly: it removes any existing matching room/thread entry, appends the new `openedAt`, and preserves most-recent-first ordering after trimming.
+    - added focused regression coverage proving the `Room.tsx` search-param effect still fires in isolation for saved-thread updates when navigation enters thread mode.
+    - root cause for the production regression was that recent-thread bumping depended on `Room.tsx`'s raw URL `threadId`, while the actual thread-open source of truth lives in `RoomView` after canonical thread-root resolution (`effectiveThreadId`).
+    - `RoomView.tsx` now bumps recent threads from `effectiveThreadId`, so opening any thread immediately records the canonical open thread even when routing/canonicalization rewrites the URL under the hood.
+    - `Room.tsx` now keeps only the last-open-thread persistence responsibility; stale recent-thread removal on thread-load failure still stays there.
+    - added focused regressions in:
+      - `src/app/features/room/Room.test.ts`
+      - `src/app/features/room/RoomView.test.ts`
+      - `src/app/state/recentThreads.test.ts`
+  - review:
+    - independent second self-review completed via a fresh final `git diff` / `git diff --check` pass; scope stayed limited to the recent-thread bump path, focused tests, and this runbook update.
+  - validation bump-on-open follow-up (2026-04-12):
+    - focused Vitest passes for:
+      - `src/app/features/room/Room.test.ts`
+      - `src/app/features/room/RoomView.test.ts`
+      - `src/app/state/recentThreads.test.ts`
+    - `npm test` passes (`138/138` files, `1127/1127` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` passes with the branch baseline warning-only output (`79` warnings, `0` errors)
+- `CINNY-073`
+  - commit 1 hook extraction (2026-04-18):
+    - extracted `useDebouncedViewportHeight` and `useResolvedRecentThreadsLayout` from `RecentThreadsPanel.tsx`.
+    - preserved the existing desktop-only behavior path while isolating the mobile/desktop layout math behind the new resolver for the later unified-shell steps.
+    - added table-driven resolver coverage in `src/app/features/recent-threads/useResolvedRecentThreadsLayout.test.ts`.
+    - folded in the branch-baseline `CompactThreadCard.tsx` hook-order lint fix so the required zero-error lint gate is reachable again without changing card behavior.
+  - commit 2 storage wiring (2026-04-18):
+    - added the new per-user `recentThreadsPanelMobileExpanded:${userId}` atom with the same registration / imperative-set / clear-store shape as the desktop height atom.
+    - registered the new atom in `ClientInitStorageAtom` and cleared it from `initMatrix.ts` alongside the existing recent-thread stores.
+    - extended `src/client/initMatrix.test.ts` with the four mobile-clear assertions parallel to the existing desktop-height cleanup coverage.
+  - commit 3 divider rename (2026-04-18):
+    - renamed `RecentThreadsResizer` to `RecentThreadsDivider`.
+    - kept the existing drag-resize path intact under `mode="resize"` and added the new `mode="toggle"` button path plus focused divider tests for click and keyboard toggle behavior.
+    - renamed the recent-thread divider CSS classes (`Divider`, `DividerActive`, `DividerHandle`) and added the new toggle/header-button styles needed for the upcoming unified shell wiring.
+  - commit 4 unified shell (2026-04-18):
+    - deleted the mobile early return in `RecentThreadsPanel.tsx` so the page-nav wrapper now renders one recent-thread shell at every viewport.
+    - wired the panel to read both persistence atoms unconditionally and resolve them through the shared layout hook: desktop/tablet keep the pixel resizer path, mobile uses the boolean toggle path.
+    - made the recent-thread panel header a button on mobile/toggle mode with `aria-expanded`, and added focused coverage in `RecentThreadsPanel.test.ts`.
+  - commit 5 live-spec coverage (2026-04-18):
+    - added `e2e/live/cinny073-recent-threads-mobile.spec.ts` to cover the shared recent-thread shell across desktop, tablet, and the two mobile viewports Bas called out.
+    - the spec seeds recent-thread localStorage directly, returns to `/home/` before sidebar assertions, covers mobile expand/reload/thread-open behavior, covers desktop resize persistence, and includes the 480x800 -> 800x480 rotation clamp check.
+  - review-fix follow-up (2026-04-18):
+    - mobile recent threads now use the `RecentThreadsDivider` toggle button as the only header/toggle control; the old clickable panel header path was removed so the collapsed mobile shell no longer stacks two `aria-expanded` buttons.
+    - the mobile toggle button now carries the `Recent Threads` label, chevron state, and a `role="heading"` / `aria-level={2}` span inside the native `<button>`, which fixes the invalid heading-in-button markup without changing the desktop static `h2` header.
+    - the shared layout resolver now gives collapsed mobile state a `0px` panel height, and `RecentThreadsPanel` returns `null` for the collapsed headerless mobile shell so the old extra `32px` panel footprint is gone.
+    - `RecentThreadsDivider.test.ts`, `RecentThreadsPanel.test.ts`, `useResolvedRecentThreadsLayout.test.ts`, and `e2e/live/cinny073-recent-threads-mobile.spec.ts` were updated to lock the new single-control mobile contract and the native-button keyboard behavior.
+  - validation review-fix follow-up (2026-04-18):
+    - independent second self-review completed via a fresh `git diff --stat` plus targeted `git diff` pass after the validation gates; scope stayed limited to the recent-thread mobile shell, focused tests, live spec, and this runbook update.
+    - `git diff --check` passes.
+    - focused Vitest passes for:
+      - `src/app/features/recent-threads/RecentThreadsDivider.test.ts`
+      - `src/app/features/recent-threads/RecentThreadsPanel.test.ts`
+      - `src/app/features/recent-threads/useResolvedRecentThreadsLayout.test.ts`
+    - `npm run typecheck` passes.
+    - `npm run lint` passes with the branch baseline warning-only output (`78` warnings, `0` errors).
+    - `npm run build` passes.
+    - `npm test` passes (`140/140` files, `1262/1262` tests).
+    - `npx playwright test e2e/live/cinny073-recent-threads-mobile.spec.ts --list` passes and enumerates the four expected viewport cases.
+- `Thread Filter Search Placeholder`
+  - fix follow-up (2026-04-20):
+    - the thread filter bar search input placeholder in `RoomThreadOverview.tsx` no longer uses the raw JSX text `Search threads\u2026`, which rendered the escape literally in the browser.
+    - the placeholder now uses plain visible text `Search threads...` to keep the file ASCII-only and avoid JSX escape handling pitfalls.
+    - added focused regression coverage in `src/app/features/room/RoomThreadOverview.test.ts` to assert the rendered placeholder never contains the raw `\\u2026` sequence.
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the implementation and final validation; scope stayed limited to the thread filter search input copy, its focused test coverage, and this runbook update.
+  - validation (2026-04-20):
+    - `npm test -- src/app/features/room/RoomThreadOverview.test.ts` passes (`1/1` file, `40/40` tests).
+    - `npx eslint src/app/features/room/RoomThreadOverview.tsx src/app/features/room/RoomThreadOverview.test.ts` passes.
+    - `npm run typecheck` passes.
+    - `npm run build` passes.
+    - `npm test` passes (`154/154` files, `1375/1375` tests).
+    - `npm run lint` still fails at the current branch baseline with unrelated existing errors in `RoomView.tsx`, `threadFilterDsl.ts`, `useResolvedRoomIdOrAlias.ts`, and `ClientStartupContext.tsx` (`5` errors, `80` warnings total).
+- `CINNY-071`
+  - Aligns the tool-approval frontend parser with the MindRoom backend payload:
+    - `parseToolApprovalContent(...)` now reads canonical `requested_at` into `requestedAt`,
+    - approval data now preserves backend `tool_call_id`, `requester_id`, and `thread_id`,
+    - and the approval card uses parsed `thread_id` as a response-thread fallback when the render surface does not provide a separate thread root.
+  - Updated approval-related fixtures/integration tests to use `requested_at`.
+  - Added a regression test with the exact live backend Matrix payload captured from `/_matrix/client/v3/rooms/.../event/...`.
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after focused and full validation; scope stayed limited to the tool-approval parser/card path, approval-related tests, and this runbook update.
+  - validation (2026-04-18):
+    - focused Vitest passes for:
+      - `src/app/components/message/mindroomToolApproval.test.ts`
+      - `src/app/components/message/MindroomToolApprovalCard.test.ts`
+      - `src/app/components/RenderMessageContent.test.ts`
+      - `src/app/features/room/RoomTimeline.approval.test.ts`
+      - `src/app/features/room/RoomTimeline.cache.test.ts`
+      - `src/app/features/room/room-pin-menu/RoomPinMenu.test.ts`
+    - `npm test` passes (`138/138` files, `1141/1141` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+- `CINNY-076`
+  - step 1/6 settings-modal extraction (2026-04-19):
+    - added `settingsModalAtom` in `src/app/state/settingsModal.ts`
+    - added `SettingsModalRenderer` in `src/app/features/settings/SettingsModalRenderer.tsx`
+    - mounted the shared settings renderer in `Router.tsx`
+    - updated `SettingsTab.tsx` to open shared settings state instead of owning a local `Settings` modal
+    - added focused regression coverage in:
+      - `src/app/features/settings/SettingsModalRenderer.test.ts`
+      - `src/app/pages/client/sidebar/SettingsTab.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after implementation and validation; scope stayed limited to shared settings-modal wiring, router mount, sidebar trigger behavior, tests, and this runbook update.
+  - validation step 1 (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/settings/SettingsModalRenderer.test.ts`
+      - `src/app/pages/client/sidebar/SettingsTab.test.ts`
+    - `npm test` passes (`140/140` files, `1139/1139` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` fails at the current branch baseline because of an unrelated existing hooks-rule error in `src/app/features/room/CompactThreadCard.tsx:179`, plus the branch’s existing warning set (`79` problems total: `1` error, `78` warnings)
+  - step 2/6 command-palette state and pure helpers (2026-04-19):
+    - added `fuse.js` as the only new runtime dependency in `package.json` / `package-lock.json`
+    - added `commandPaletteOpenAtom` in `src/app/state/commandPalette.ts`
+    - added the new `src/app/features/command-palette/` pure layer:
+      - `commandPaletteTypes.ts`
+      - `commandPaletteQuery.ts`
+      - `commandPaletteSearch.ts`
+      - `index.ts`
+    - parser/query helpers now cover:
+      - `>` actions
+      - `#` rooms
+      - `@` users
+      - `t:` threads
+      - `*` spaces alias
+      - unified section ordering rules, including message rows only for non-empty unified search
+    - Fuse search helper now covers:
+      - per-section keys/thresholds/caps
+      - empty-query bypass
+      - small boost pass after Fuse scoring
+    - added focused regression coverage in:
+      - `src/app/features/command-palette/commandPaletteQuery.test.ts`
+      - `src/app/features/command-palette/commandPaletteSearch.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the helper implementation and validation; scope stayed limited to the new command-palette state/helpers/tests, `fuse.js` dependency wiring, and this runbook update.
+  - validation step 2 (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/command-palette/commandPaletteQuery.test.ts`
+      - `src/app/features/command-palette/commandPaletteSearch.test.ts`
+    - `npm test` passes (`142/142` files, `1151/1151` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` fails at the same current branch baseline because of the unrelated existing hooks-rule error in `src/app/features/room/CompactThreadCard.tsx:179`, plus the branch’s existing warning set (`79` problems total: `1` error, `78` warnings)
+  - step 3/6 command-palette shell with fixtures (2026-04-19):
+    - added the fixture-backed shell in:
+      - `src/app/features/command-palette/CommandPaletteRenderer.tsx`
+      - `src/app/features/command-palette/CommandPalette.tsx`
+      - `src/app/features/command-palette/CommandPaletteList.tsx`
+    - the new shell now covers:
+      - react-aria dialog/focus/scroll-prevention wiring via `FocusScope`, `useOverlay`, `useDialog`, and `usePreventScroll`
+      - local query state and selected-row state
+      - grouped section rendering
+      - keyboard handling for `ArrowUp`, `ArrowDown`, `Enter`, and `Escape`
+      - polite live-region result count updates
+      - fixture-backed prefix scoping and message-row visibility
+    - updated `src/app/features/command-palette/index.ts` exports for the new shell files
+    - added focused regression coverage in:
+      - `src/app/features/command-palette/CommandPalette.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the shell implementation and validation; scope stayed limited to the command-palette shell/test files, export updates, and this runbook update.
+  - validation step 3 (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/command-palette/CommandPalette.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+    - `npm test` passes (`144/144` files, `1159/1159` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` fails at the same current branch baseline because of the unrelated existing hooks-rule error in `src/app/features/room/CompactThreadCard.tsx:179`, plus the branch’s existing warning set (`79` problems total: `1` error, `78` warnings)
+  - step 4/6 live item sources and navigation wiring (2026-04-19):
+    - added the live command-palette data/action layer in:
+      - `src/app/features/command-palette/commandPaletteActions.ts`
+      - `src/app/features/command-palette/commandPaletteItems.ts`
+    - updated the palette shell/renderer/types in:
+      - `src/app/features/command-palette/CommandPalette.tsx`
+      - `src/app/features/command-palette/CommandPaletteRenderer.tsx`
+      - `src/app/features/command-palette/commandPaletteTypes.ts`
+      - `src/app/features/command-palette/index.ts`
+    - live palette sourcing now covers:
+      - rooms/spaces from the existing room-list atoms/hooks with activity sorting, unread boosts, parent-name metadata, and room/space navigation callbacks
+      - users from joined-room member snapshots plus known DM partners, deduped by MXID with existing-DM vs direct-create routing
+      - threads from `recentThreadsAtom` plus already-loaded SDK thread models, with canonical root resolution, summary fallback text, participant names, and resolve-state metadata
+      - synthetic message-search bridge rows that route into existing Home/Space message-search pages with the correct `term` / `rooms` / `global` search params
+      - lean quick actions for settings/navigation/create-room/create-space/current-room actions/theme/logout placeholder wiring
+    - the palette renderer now passes a live source into `CommandPalette`; tests keep the fixture fallback by default and mock the live source where needed
+    - added focused regression coverage in:
+      - `src/app/features/command-palette/commandPaletteActions.test.ts`
+      - updated `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after validation; scope stayed limited to the new command-palette live data/action wiring, renderer/source integration, focused tests, and this runbook update.
+  - validation step 4 (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/command-palette/commandPaletteActions.test.ts`
+      - `src/app/features/command-palette/CommandPalette.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+    - `npm test` passes (`145/145` files, `1167/1167` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` fails at the same current branch baseline because of the unrelated existing hooks-rule error in `src/app/features/room/CompactThreadCard.tsx:179`, plus the branch’s existing warning set (`79` problems total: `1` error, `78` warnings)
+  - step 5/6 ownership swap from Search modal to Command palette (2026-04-19):
+    - added `src/app/features/command-palette/useCommandPaletteHotkey.ts`
+    - added focused swap coverage in:
+      - `src/app/features/command-palette/useCommandPaletteHotkey.test.ts`
+      - `src/app/pages/client/sidebar/SearchTab.test.ts`
+      - updated `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+    - repointed runtime ownership:
+      - `Router.tsx` now mounts `CommandPaletteRenderer`
+      - `SearchTab.tsx` now reads/writes `commandPaletteOpenAtom`
+      - `CommandPaletteRenderer.tsx` now owns the single `mod+k` matcher through the new hook
+    - removed the old search-modal implementation:
+      - deleted `src/app/features/search/Search.tsx`
+      - deleted `src/app/features/search/index.ts`
+      - deleted `src/app/state/searchModal.ts`
+    - verification snapshot after the swap:
+      - `rg -n "mod\\+k|isKeyHotkey\\('mod\\+k'" src/app -g '!dist'` returns exactly one match in `src/app/features/command-palette/CommandPaletteRenderer.tsx`
+      - `rg -n "searchModalAtom|SearchModalRenderer|features/search" src/app -g '!dist'` returns no matches
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the swap validation; scope stayed limited to hotkey ownership, router/sidebar wiring, deleted search-modal files, focused swap tests, and this runbook update.
+  - validation step 5 (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/command-palette/useCommandPaletteHotkey.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+      - `src/app/pages/client/sidebar/SearchTab.test.ts`
+    - `npm test` passes (`147/147` files, `1172/1172` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` fails at the same current branch baseline because of the unrelated existing hooks-rule error in `src/app/features/room/CompactThreadCard.tsx:179`, plus the branch’s existing warning set (`79` problems total: `1` error, `78` warnings)
+  - step 6/6 polish, footer hints, quick-jump, and logout confirm (2026-04-19):
+    - updated `src/app/features/command-palette/CommandPalette.tsx` to:
+      - document all five supported prefixes in the footer (`>` actions, `#` rooms, `@` users, `t:` threads, `*` spaces),
+      - document the `mod+k` open shortcut and the new `mod+1..9` quick-jump shortcut,
+      - and execute visible-item quick jumps directly from the palette input with `Ctrl/Cmd+1..9`
+    - updated `src/app/features/command-palette/commandPaletteItems.ts` so the logout quick action now routes through renderer-owned confirmation state instead of a placeholder no-op path
+    - updated `src/app/features/command-palette/CommandPaletteRenderer.tsx` to:
+      - open the existing shared `LogoutDialog` after selecting the logout action,
+      - keep the command palette renderer as the single `mod+k` owner,
+      - and reuse the app’s existing `FocusTrap` / overlay modal pattern for the confirmation dialog
+    - expanded focused regression coverage in:
+      - `src/app/features/command-palette/CommandPalette.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the polish validation; scope stayed limited to command-palette footer/shortcut behavior, logout confirmation wiring, focused tests, and this runbook update.
+  - validation step 6 (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/command-palette/CommandPalette.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm test` passes (`147/147` files, `1175/1175` tests)
+    - `npm run lint` fails at the same current branch baseline because of the unrelated existing hooks-rule error in `src/app/features/room/CompactThreadCard.tsx:179`, plus the branch’s existing warning set (`79` problems total: `1` error, `78` warnings)
+    - final ownership verification:
+      - `grep -rn "isKeyHotkey.*mod+k\\|mod\\+k" src/` returns exactly one match in `src/app/features/command-palette/CommandPaletteRenderer.tsx`
+      - `grep -rn "searchModalAtom\\|SearchModalRenderer" src/` returns no matches
+  - 3b follow-up fix A dialog height cap (2026-04-19):
+    - `CommandPaletteRenderer.tsx` now uses a capped `Modal` (`flexHeight` plus `maxHeight: calc(100vh - 32px)`) so the palette cannot grow past the viewport on large accounts.
+    - `CommandPalette.tsx` now keeps the search input and footer outside the scrolling results region, and the results `Scroll` owns the internal `flex: 1 1 auto`, `min-height: 0`, and `overflow-y: auto` layout.
+    - expanded focused regression coverage in:
+      - `src/app/features/command-palette/CommandPalette.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the follow-up patch and validation; scope stayed limited to the command-palette shell/layout, its focused tests, and this runbook update.
+  - validation 3b fix A (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/command-palette/CommandPalette.test.ts`
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+    - `npm run typecheck` passes
+    - `npm run build` passes
+  - 3b follow-up fix B mobile full-screen palette (2026-04-19):
+    - `CommandPaletteRenderer.tsx` now uses the existing `useScreenSizeContext()` / `ScreenSize.Mobile` breakpoint instead of a new media-query path.
+    - on the existing mobile breakpoint, the command palette modal now renders full-bleed with `width: 100vw`, `height: 100vh`, `maxWidth: 100vw`, `maxHeight: 100vh`, and no rounded-corner card framing.
+    - expanded focused regression coverage in:
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the mobile follow-up patch and validation; scope stayed limited to the command-palette renderer/responsive layout, its focused test, and this runbook update.
+  - validation 3b fix B (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+    - `npm run typecheck` passes
+    - `npm run build` passes
+  - 3b follow-up fix C room header palette entry point (2026-04-19):
+    - `RoomViewHeader.tsx` now imports `commandPaletteOpenAtom` and opens it from a new top-bar `IconButton` using `Icons.Terminal`.
+    - the new command-palette button sits immediately before the existing Search button, uses the same icon-button sizing/styling, and stays visible on all viewports instead of depending on the sidebar tab.
+    - added focused regression coverage in:
+      - `src/app/features/room/RoomViewHeader.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the room-header follow-up patch and validation; scope stayed limited to `RoomViewHeader`, its focused test, and this runbook update.
+  - validation 3b fix C (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/features/room/RoomViewHeader.test.ts`
+    - `npm run typecheck` passes
+    - `npm run build` passes
+  - 3b follow-up bonus sidebar icon consistency (2026-04-19):
+    - `SearchTab.tsx` now uses `Icons.Terminal` and the explicit "Open command palette" tooltip copy so the sidebar entry matches the room-header button semantics.
+    - updated focused regression coverage in:
+      - `src/app/pages/client/sidebar/SearchTab.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after the sidebar consistency patch and validation; scope stayed limited to `SearchTab`, its focused test, and this runbook update.
+  - validation 3b bonus (2026-04-19):
+    - focused Vitest passes for:
+      - `src/app/pages/client/sidebar/SearchTab.test.ts`
+    - `npm run typecheck` passes
+
+### Validation Standard
+
+- Every logical code step should finish with:
+  - `npm test`
+  - `npm run typecheck`
+  - `npm run build`
+- For docs-only or narrowly scoped work, at minimum run the relevant focused validation plus `git diff --check`.
+
+### Current Baseline
+
+- Cleaned issue-backed `dev` history starts at `96b13bcc`.
+- Last confirmed green snapshot on the cleaned issue-backed `dev` line:
+  - `npm test` passes (`113/113` files, `950/950` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+- Current `CINNY-064` worktree baseline (2026-04-04):
+  - `npm test` passes (`119/119` files, `1008/1008` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+
+### Operational Notes
+
+- [justfile](/Users/basnijholt/Code/dev/mindroom-cinny/justfile) is intentionally kept for common local validation commands.
+- [docs/timeline-debugging-playbook.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/timeline-debugging-playbook.md) is the persistent debugging reference for timeline/cache/search work.
+- [docs/mindroom-thread-architecture-plan.md](/Users/basnijholt/Code/dev/mindroom-cinny/docs/mindroom-thread-architecture-plan.md) is the refactor plan for making MindRoom thread/cache behavior single-owner, cache-first, and rebase-friendly.
+- `CINNY-075` planning note (2026-04-24):
+  - recorded the target architecture for consolidating summaries, tags, counts, previews, activity, cache hydration, preloading, and thread UI view models behind fork-owned modules.
+  - planned direction is: Matrix events remain the truth, IndexedDB stores raw event snapshots plus coverage metadata, one per-room thread index derives canonical `ThreadRecord` values, and UI surfaces render read-only view models.
+  - rebase constraint: upstream Cinny files should contain narrow integration seams only; MindRoom logic should move toward `src/app/mindroom/threads/**` or equivalent fork-owned modules.
+  - docs-only validation target for this planning step is `git diff --check`.
+- `CINNY-075` implementation step 1 (2026-04-24):
+  - added the first fork-owned thread model seam under `src/app/mindroom/threads/`:
+    - canonical thread/view-model types,
+    - `buildCompactThreadCardViewModel(...)`,
+    - and `useCompactThreadCardViewModels(...)`.
+  - `CompactThreadCard` now renders a `CompactThreadCardViewModel` instead of owning Matrix/cache/status derivation itself.
+  - `CompactRoomView` now uses the shared MindRoom compact-card selector and keeps only the narrow render/click integration seam.
+  - validation:
+    - focused Vitest passes for `CompactRoomView.test.ts`, `CompactThreadCard.test.ts`, and `compactThreadCardViewModel.test.ts`
+    - `npm test` passes (`156/156` files, `1399/1399` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - focused ESLint on touched TS/TSX files passes
+    - repo-wide `npm run lint` remains blocked by existing unrelated baseline errors in `useResolvedRoomIdOrAlias.ts` and `ClientStartupContext.tsx`
+- `CINNY-075` adoption/reaction follow-up (2026-04-24):
+  - updated the thread architecture plan with a concrete adoption snapshot so it is explicit that compact room cards are only the first converted surface.
+  - confirmed remaining loose ends still exist in normal room badges, thread context banner, recent threads sidebar, command palette, summary ownership, cache/preload orchestration, and scroll/pagination.
+  - added live reaction regression coverage proving fresh Matrix `m.reaction` annotations render in:
+    - normal room timeline messages,
+    - and thread-view replies.
+  - validation:
+    - `npm test -- src/app/features/room/message/Reactions.test.ts src/app/hooks/useRelations.test.ts src/app/features/room/eventCacheEditUtils.test.ts src/app/hooks/useThreadStreamingState.test.ts` passes
+    - `npm run test:e2e:docker-matrix -- e2e/live/cinny075-reactions.spec.ts` passes (`2/2`)
+    - `npx prettier --check e2e/helpers/matrix.ts e2e/live/cinny075-reactions.spec.ts docs/mindroom-thread-architecture-plan.md src/app/mindroom/threads/types.ts src/app/mindroom/threads/compactThreadCardViewModel.ts src/app/mindroom/threads/compactThreadCardViewModel.test.ts` passes
+    - `git diff --check` passes
+    - `npm test` passes (`156/156` files, `1400/1400` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+- `CINNY-075` implementation step 2 (2026-04-24):
+  - added `ThreadBadgeViewModel`, `buildThreadBadgeViewModel(...)`, and `buildTimelineThreadBadgeViewModel(...)` under `src/app/mindroom/threads/`.
+  - normal room badges in `RoomTimeline` now use the shared badge model for summary precedence, recent-thread preview text, reply count, zero-reply eligibility, participants, and resolved status props.
+  - moved the badge reply-count helpers and zero-reply badge logic out of `RoomTimeline`; existing focused cache tests now import those helpers from the fork-owned badge module.
+  - kept the remaining local `RoomTimeline` code limited to the current narrow integration seam: passing existing source maps and rendering the existing `MindroomThreadSummaryCard` / `ThreadIndicator` components.
+  - validation:
+    - focused Vitest passes for `src/app/mindroom/threads/threadBadgeViewModel.test.ts` and `src/app/features/room/RoomTimeline.cache.test.ts`
+    - focused live Matrix e2e passes for `e2e/live/cinny060-thread-summary-consistency.spec.ts` and `e2e/live/cinny068-fresh-zero-reply-open.spec.ts` (`3/3`)
+    - `npm test` passes (`157/157` files, `1405/1405` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `git diff --check` passes
+- `CINNY-075` implementation step 3 (2026-04-24):
+  - added the shared `buildThreadRecord(...)` selector under `src/app/mindroom/threads/threadRecord.ts`.
+  - moved badge reply-count, zero-reply, reply-participant, summary precedence, activity, streaming, scheduled-task, unread, and tag/status derivation behind `ThreadRecord`.
+  - `ThreadBadgeViewModel` and `CompactThreadCardViewModel` now adapt from `ThreadRecord` instead of each deriving their own presentation/status snapshot.
+  - remaining seam: `RoomTimeline` still computes and passes legacy maps; the next slice should build a per-room `ThreadRecord` map first and pass records into compact cards, badges, and later header/sidebar/palette models.
+  - validation:
+    - focused Vitest passes for `threadRecord.test.ts`, `threadBadgeViewModel.test.ts`, `compactThreadCardViewModel.test.ts`, `RoomTimeline.cache.test.ts`, and `CompactRoomView.test.ts`
+    - `npm test` passes (`158/158` files, `1406/1406` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - focused live Matrix e2e passes for `e2e/live/cinny060-thread-summary-consistency.spec.ts` and `e2e/live/cinny068-fresh-zero-reply-open.spec.ts` (`3/3`)
+- `CINNY-075` implementation step 4 (2026-04-24):
+  - added `buildThreadRecordMap(...)` so legacy per-room source maps can be collapsed into a single `Map<threadRootId, ThreadRecord>`.
+  - `RoomTimeline` now builds `threadRecordMap` for visible room thread roots and the normal badge path reads from that map before adapting to `ThreadBadgeViewModel`.
+  - this removes the direct badge dependency on separate reply-count, participant, summary, cached-summary, and resolution maps; those maps still exist for filtering/sorting/cache paths until later slices replace them.
+  - validation:
+    - focused Vitest passes for `threadRecord.test.ts`, `threadBadgeViewModel.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimelineCollapsible.test.ts`
+    - focused live Matrix e2e passes for `e2e/live/cinny060-thread-summary-consistency.spec.ts` and `e2e/live/cinny068-fresh-zero-reply-open.spec.ts` (`3/3`)
+    - `npm test` passes (`158/158` files, `1407/1407` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `git diff --check` passes
+- `CINNY-075` implementation step 5 (2026-04-24):
+  - `RoomTimeline` now builds the active per-room `threadRecordMap` for either normal overview roots or compact-view roots, depending on the active room view.
+  - `CompactRoomView` now receives that `threadRecordMap` and passes it into the shared compact-card selector instead of passing metadata and summary source maps.
+  - `useCompactThreadCardViewModels(...)` now only adapts existing `ThreadRecord` values into `CompactThreadCardViewModel` values; it no longer subscribes to scheduled-task or resolution state and no longer rebuilds records itself.
+  - remaining legacy metadata maps still exist for filtering, sorting, status/tag counts, and cache hydration; those are the next targets if we keep removing duplication.
+- `CINNY-075` implementation step 6 (2026-04-24):
+  - added the fork-owned `threadRecordOverview` selector for overview filter/search/sort, status counts, and tag counts from `ThreadRecord`.
+  - `RoomTimeline` now uses separate normal and compact `ThreadRecord` maps for overview ordering/counts and no longer imports the old metadata-based overview filter/sort/count helpers.
+  - legacy `ThreadOverviewMetadata` maps still exist for cache hydration and compatibility helpers; this step changes consumers first before deleting those producers.
+  - validation:
+    - focused Vitest passes for `threadRecordOverview.test.ts`, `roomThreadOverviewModel.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.filter-query.test.ts`, `CompactRoomView.test.ts`, `compactThreadCardViewModel.test.ts`, and `threadRecord.test.ts`
+    - `npm test` passes (`159/159` files, `1409/1409` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - focused live Matrix e2e passes for `e2e/live/cinny060-thread-summary-consistency.spec.ts` and `e2e/live/cinny068-fresh-zero-reply-open.spec.ts` (`3/3`)
+- `CINNY-075` Phase 4b cleanup gate (2026-04-24):
+  - clarified in `docs/mindroom-thread-architecture-plan.md` that Phase 4 is not complete while `RoomTimeline` still assembles normal/compact `ThreadRecord` maps and overview ids directly.
+  - added the Phase 4b target: introduce `useMindroomThreadIndex` as the fork-owned room index boundary before more cache/preload extraction.
+  - made branch-health expectations explicit for the refactor path: `npm run lint`, `git diff --check`, and behavior/API tests should gate each slice.
+  - fixed the current lint errors in unresolved-promise tests, alias-response destructuring, context provider value identity, and the `threadRecordOverview` exhaustive switch fallback.
+  - validation:
+    - `npm run lint` passes with the branch warning-only baseline (`86` warnings, `0` errors)
+- `CINNY-075` implementation step 7 / Phase 4b (2026-04-24):
+  - added `useMindroomThreadIndex` under `src/app/mindroom/threads/` as the fork-owned room index boundary.
+  - `RoomTimeline` now consumes the index snapshot for normal/compact `ThreadRecord` maps, active record map, overview ids, focused-route bypass, effective filter state, status counts, tag counts, search text, and sort signature.
+  - moved overview cache hydration and its cached activity/latest-preview/last-sender/message-count/root-preview fallback maps into `useMindroomThreadIndex`, so those are no longer component-local sources in `RoomTimeline`.
+  - made `ThreadRecord.cache` populated for every record; direct live records get conservative coverage from loaded SDK thread events, and callers can pass authoritative coverage through `cacheCoverageMap`.
+  - added focused behavior/API coverage for compact-vs-normal index selection, focused route filter bypass, record cache coverage defaults, cache coverage overrides, and the narrower RoomTimeline architecture seam.
+  - validation:
+    - focused Vitest passes for `threadRecord.test.ts`, `useMindroomThreadIndex.test.ts`, `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, and `threadOverviewCacheHydration.test.ts`
+    - `npm test` passes (`169/169` files, `1476/1476` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` passes with the branch warning-only baseline (`82` warnings, `0` errors)
+    - `npm run test:e2e` passes (`9` passed, `58` skipped)
+- `CINNY-075` implementation step 8 / Phase 4b (2026-04-24):
+  - moved room-overview focus/filter helpers from `RoomTimeline.tsx` into `src/app/mindroom/threads/threadRoomFocus.ts`.
+  - `RoomTimeline` no longer owns `getThreadFilteredEvents`, `getRoomEventFocusTarget`, ordered room-overview event resolution, or the ad-hoc `buildThreadRecordMap` call used by focus recovery.
+  - kept compatibility re-exports from `RoomTimeline.tsx` so existing focused regression tests continue to exercise the same API while implementation lives in the fork-owned namespace.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.permalink-refresh.test.ts`, and `RoomTimeline.cache.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`81` warnings, `0` errors)
+- `CINNY-075` implementation step 9 / Phase 5 prep (2026-04-24):
+  - moved thread bootstrap helpers into `src/app/mindroom/threads/threadBootstrap.ts`.
+  - `RoomTimeline` no longer owns room-loaded thread seed extraction, thread model seed merging, priority seed-prewarm target selection, full relation-page fetching, compact root backfill target selection, thread-not-found classification, or overview refresh targeting.
+  - kept compatibility re-exports from `RoomTimeline.tsx` for existing tests while implementation lives under the fork-owned namespace.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.fetchAllThreadRelations.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`80` warnings, `0` errors)
+- `CINNY-075` implementation step 10 / Phase 5 coverage decisions (2026-04-24):
+  - added `src/app/mindroom/threads/threadCacheCoverage.ts` as the fork-owned decision layer for thread cache coverage.
+  - extended `ThreadRecord.cache` with optional `hasMoreBackward` and `snapshotComplete` facts so coverage can represent load-older, complete cached opens, relation-complete, tail-loaded, and no-more-history decisions.
+  - `RoomTimeline` now uses the coverage helpers for the thread "Load Older Messages" affordance, complete cached thread opens, relation-backfill decisions, and cached backward-gap reconciliation.
+  - validation:
+    - focused Vitest passes for `threadCacheCoverage.test.ts`, `threadRecord.test.ts`, and `RoomTimeline.cache.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`80` warnings, `0` errors)
+- `CINNY-075` implementation step 11 / Phase 5 controller extraction (2026-04-24):
+  - added `src/app/mindroom/threads/threadSeedPrewarmController.ts` as the fork-owned owner for room-visible thread seed prewarm queue state.
+  - `RoomTimeline` no longer owns the visible seed-prewarm queue, generation guard, queued/prewarming/prewarmed sets, or in-flight promise map; it only consumes the controller's `ensureThreadSeedPrewarm(...)` command and refs needed for thread-open coordination.
+  - kept the previous behavior shape: room overview prewarms stop while a thread is active, stale room generations are ignored, cached seed snapshots merge into the same thread-open seed cache, and thread opens may await an already queued/in-flight room prewarm.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`80` warnings, `0` errors)
+- `CINNY-075` implementation step 12 / Phase 5 command controller (2026-04-24):
+  - added `src/app/mindroom/threads/threadOpenCacheController.ts` as the fork-owned owner for thread-open cache/network commands.
+  - `RoomTimeline` no longer owns the callback bodies for cached thread hydration, latest-thread slice refresh, relation backfill, or cached relation-tail refresh; it now calls the controller and keeps only route/render/scroll coordination.
+  - this keeps thread-open policy closer to the repository/coverage modules while preserving existing state setters and command timing at the `RoomTimeline` seam.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`77` warnings, `0` errors)
+- `CINNY-075` implementation step 13 / Phase 5 overview resume controller (2026-04-24):
+  - added `src/app/mindroom/threads/threadOverviewResumeController.ts` as the fork-owned owner for overview resume refresh orchestration.
+  - `RoomTimeline` no longer owns the overview resume in-flight/pending/throttle refs, `usePageResume` hookup, or per-thread relation-cache refresh command; it only computes the target overview thread ids and supplies the existing cache/summary write-through commands.
+  - moved `usePageResume` into `src/app/mindroom/threads`, beside the only controller that consumes it.
+  - compact-view resume still refreshes the server-side thread list before relation-cache refresh; expanded overview still loads room threads first.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`77` warnings, `0` errors)
+- `CINNY-075` implementation step 14 / Phase 5 cache persistence controller (2026-04-24):
+  - added `src/app/mindroom/threads/threadCachePersistenceController.ts` as the fork-owned owner for thread-cache persistence commands and the microtask queue for room-derived thread-cache writes.
+  - `RoomTimeline` no longer imports `persistThreadEventCacheSnapshot` or `persistThreadCacheFromRoomEventsSnapshot`; it still owns the plain room-event cache write seam via `persistRoomEventCacheSnapshot`.
+  - this removes the local pending room-thread cache refs from `RoomTimeline` and keeps all thread-cache persistence logging/coverage write-through in one MindRoom controller.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`77` warnings, `0` errors)
+- `CINNY-075` implementation step 15 / Phase 5 compact root edit backfill controller (2026-04-24):
+  - added `src/app/mindroom/threads/compactRootEditBackfillController.ts` as the fork-owned owner for compact-root edit backfill orchestration.
+  - `RoomTimeline` no longer owns the compact root attempted-event WeakMap or the compact-root relation fetch worker; it only enables the controller and passes the existing room-cache persistence command.
+  - thread-message edit backfill remains local for now because it is tied to rendered thread rows and should be separated in a smaller later scroll/render slice.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`77` warnings, `0` errors)
+- `CINNY-075` implementation step 16 / Phase 6 pagination commands (2026-04-24):
+  - added `src/app/mindroom/threads/threadPaginationCommandController.ts` as the fork-owned owner for thread back/front pagination commands.
+  - `RoomTimeline` no longer owns `handleThreadPaginateBack`, `handleThreadPaginateFront`, or the front-pagination in-flight ref; it wires the returned handlers into the existing buttons.
+  - this keeps the already-extracted back-pagination anchor state in `useThreadBackPaginationController` and moves the cache-first/network fallback pagination command body out of `RoomTimeline`.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`77` warnings, `0` errors)
+- `CINNY-075` implementation step 17 / Phase 5 edit backfill controller (2026-04-24):
+  - added `src/app/mindroom/threads/threadEditBackfill.ts` as the fork-owned policy for detecting thread messages that need edit-relation repair, with `features/room/threadEditBackfillUtils.ts` kept as a compatibility re-export.
+  - added `src/app/mindroom/threads/threadEditBackfillController.ts` as the fork-owned owner for thread-message edit backfill orchestration, including relation fetches, sender guards, scroll-bottom preservation, and thread-cache write-through after edits are applied.
+  - `RoomTimeline` no longer owns the thread-message edit backfill worker; it only passes the existing refs/setters into the controller.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts`, `RoomTimeline.architecture.test.ts`, and `threadEditBackfillUtils.test.ts`
+    - `npm run typecheck` passes
+- `CINNY-075` implementation step 18 / Phase 5 room pagination controller (2026-04-24):
+  - added `src/app/mindroom/threads/roomPaginationCommandController.ts` as the fork-owned owner for cache-first room back-pagination.
+  - `RoomTimeline` no longer imports `loadRoomCachedPaginationSnapshot`, `resolveHydratedRoomBeforeToken`, or thread-root aggregation constants for the room pagination path; it wires the returned handler into the existing virtual paginator.
+  - the controller preserves the existing behavior shape: use cached pages first, hydrate relation/edit aggregation, decrypt fetched timelines for encrypted rooms, recalibrate render ranges, and fall back to SDK pagination when cache misses.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+- `CINNY-075` implementation step 19 / Phase 5 room cache lifecycle controller (2026-04-24):
+  - added `src/app/mindroom/threads/roomCacheLifecycleController.ts` as the fork-owned owner for room-event cache persistence, current-room cache write-through, and cached-back-state refresh.
+  - `RoomTimeline` no longer imports `persistRoomEventCacheSnapshot`, `loadRoomCachePersistenceState`, `loadRoomCachedBackStateSnapshot`, or room-cache anchor helpers for those effects; it consumes only the returned `persistRoomEventCache(...)` command.
+  - the initial room cache hydrate/render-state rebuild remains local for now because it still chooses the initial timeline range, bottom-scroll state, and eager-preload completion behavior.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+- `CINNY-075` implementation step 20 / Phase 5 room cache hydration controller (2026-04-24):
+  - added `src/app/mindroom/threads/roomCacheHydrationController.ts` as the fork-owned owner for initial room cache instant-paint hydration.
+  - `RoomTimeline` no longer imports `loadLatestRoomCacheHydrationSnapshot` or `getMainTimelineCacheEvents`; it supplies only a `buildInitialTimeline` callback so UI range selection stays at the render seam.
+  - the controller preserves the existing behavior shape: skip targeted/thread routes, hydrate cached events into the live timeline, process aggregation/decryption, rebuild the room timeline range, mark room cache hydration complete, and clear eager-preloading on room re-entry.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+- `CINNY-075` implementation step 21 / Phase 5 seed prewarm boundary (2026-04-24):
+  - moved the cached thread snapshot read for thread-open seed prewarm into `src/app/mindroom/threads/threadSeedPrewarmController.ts`.
+  - `RoomTimeline` now passes only the room/client/session/pagination seam into the prewarm controller and no longer imports `loadThreadCachedSnapshot` directly.
+  - kept an injectable prewarm snapshot loader on the controller for focused tests without reintroducing cache reads at the render seam.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts`, `RoomTimeline.permalink-refresh.test.ts`, `RoomTimeline.navigation.test.ts`, `RoomTimeline.architecture.test.ts`, `RoomTimeline.fetchAllThreadRelations.test.ts`, `useMindroomThreadIndex.test.ts`, and `eventRepository.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`75` warnings, `0` errors)
+    - `git diff --check` passes
+- `CINNY-075` implementation step 22 / Phase 5 thread-open seed controller (2026-04-24):
+  - added `src/app/mindroom/threads/threadOpenSeedController.ts` as the fork-owned owner for thread-open seed scanning and application.
+  - `RoomTimeline` no longer owns the room/model/cache seed merge, the initial room-seed apply path, or the prewarm wait timeout; it creates a seed session and uses its commands during thread open.
+  - relation backfill still receives the same room-seed baseline through the seed session, preserving the existing cache repair behavior while removing local seed maps from `RoomTimeline`.
+  - validation:
+    - focused Vitest passes for `threadOpenSeedController.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.architecture.test.ts`, `RoomTimeline.navigation.test.ts`, and `RoomTimeline.permalink-refresh.test.ts`
+    - `npm run typecheck` passes
+    - `git diff --check` passes
+- `CINNY-075` implementation step 23 / Phase 5 thread-open SDK bootstrap (2026-04-24):
+  - added `src/app/mindroom/threads/threadOpenSdkBootstrap.ts` as the fork-owned owner for SDK thread bootstrap during thread open.
+  - `RoomTimeline` no longer owns pending local echo root completion, zero-reply standalone root completion, SDK thread creation, relation fallback hydration, empty-thread relation filling, thread-cache write-through after SDK bootstrap, or SDK backward-token reconciliation.
+  - kept targeted permalink/search refresh and final scroll/focus route handling local because those still coordinate route-specific UI state.
+  - validation:
+    - focused Vitest passes for `threadOpenSdkBootstrap.test.ts`, `threadOpenSeedController.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.architecture.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`75` warnings, `0` errors)
+    - `git diff --check` passes
+- `CINNY-075` implementation step 24 / Phase 5 thread-open post-bootstrap refresh (2026-04-24):
+  - added `src/app/mindroom/threads/threadOpenPostBootstrapRefresh.ts` as the fork-owned owner for post-bootstrap thread refresh.
+  - `RoomTimeline` no longer owns the untargeted latest-slice dispatch, targeted permalink/search relation refresh, fetched-slice thread-cache write-through, targeted backward-token reconciliation, or forward-gap/tail-loaded decision.
+  - final route event-context loading and pending scroll target setup remain local because they are directly coupled to URL focus behavior.
+  - validation:
+    - focused Vitest passes for `threadOpenPostBootstrapRefresh.test.ts`, `threadOpenSdkBootstrap.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.architecture.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline (`75` warnings, `0` errors)
+    - `git diff --check` passes
+- `CINNY-075` implementation step 25 / Phase 5 thread-open cache-first flow (2026-04-24):
+  - added `src/app/mindroom/threads/threadOpenCacheFirst.ts` as the fork-owned owner for the cache-first part of thread open.
+  - `RoomTimeline` no longer owns cache hydrate fallback handling, complete cached-thread short-circuit decisions, relation-backfill dispatch, cached relation-tail refresh dispatch, or the initial untargeted seed fallback decision.
+  - route-specific target-event context loading and pending scroll target setup remain local because they still coordinate URL focus behavior.
+  - validation:
+    - focused Vitest passes for `threadOpenCacheFirst.test.ts`, `threadOpenPostBootstrapRefresh.test.ts`, `threadOpenSdkBootstrap.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.architecture.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 26 / Phase 5 thread-open target-event seam (2026-04-24):
+  - added `src/app/mindroom/threads/threadOpenTargetEvent.ts` as the fork-owned owner for targeted thread-open event-context loading and pending-scroll queue setup.
+  - `RoomTimeline` now keeps only the rendered-DOM scroll execution/layout retry loop; the route-open effect no longer owns the targeted `getEventTimeline(...)` context load.
+  - validation:
+    - focused Vitest passes for `threadOpenTargetEvent.test.ts`, `threadOpenCacheFirst.test.ts`, `threadOpenPostBootstrapRefresh.test.ts`, `threadOpenSdkBootstrap.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.architecture.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 27 / Phase 5 thread-aware timeline refresh hook (2026-04-24):
+  - moved `useThreadAwareTimelineRefresh` from `RoomTimeline.tsx` to `src/app/mindroom/threads/useThreadAwareTimelineRefresh.ts`.
+  - `RoomTimeline` keeps a compatibility re-export for existing tests/importers but no longer owns the thread-refresh in-flight/pending coalescing refs or `RoomEvent.TimelineRefresh` refresh policy.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.permalink-refresh.test.ts`, `RoomTimeline.architecture.test.ts`, and the thread-open helper tests
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 28 / Phase 5 compact root data ownership (2026-04-24):
+  - moved compact thread root data implementation to `src/app/mindroom/threads/compactThreadRootData.ts`.
+  - `src/app/features/room/compactThreadRootData.ts` is now only a compatibility re-export, and MindRoom-owned modules import the implementation directly.
+  - this moves compact root derivation, zero-reply root detection, preview fallback selection, cached compact-root activity, and cached compact-root preview extraction out of the upstream feature folder.
+  - validation:
+    - focused Vitest passes for `compactThreadRootData.test.ts`, `RoomTimeline.architecture.test.ts`, `threadRecord.test.ts`, `threadOverviewCacheHydration.test.ts`, `RoomTimeline.cache.test.ts`, and the thread-open helper tests
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 29 / Phase 5 thread presentation ownership (2026-04-24):
+  - moved thread presentation derivation to `src/app/mindroom/threads/threadPresentation.ts`.
+  - `src/app/features/room/threadPresentation.ts` is now only a compatibility re-export, and MindRoom-owned modules import the implementation directly.
+  - this keeps summary/root-preview/latest-reply/last-sender/message-count snapshot assembly with the canonical `ThreadRecord`/view-model stack instead of the upstream feature folder.
+  - validation:
+    - focused Vitest passes for `threadPresentation.test.ts`, `RoomTimeline.architecture.test.ts`, `threadRecord.test.ts`, `threadOverviewCacheHydration.test.ts`, `compactThreadCardViewModel.test.ts`, and `RoomTimeline.cache.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 30 / Phase 5 thread filter DSL ownership (2026-04-24):
+  - moved thread filter query parsing/serialization to `src/app/mindroom/threads/threadFilterDsl.ts`.
+  - `src/app/features/room/threadFilterDsl.ts` is now only a compatibility re-export; `RoomTimeline`, `useMindroomThreadIndex`, and `threadRoomFocus` import the MindRoom implementation directly.
+  - this keeps the textual `is:`/`tag:`/`OR` filter grammar with the thread index/filter source of truth.
+  - validation:
+    - focused Vitest passes for `threadFilterDsl.test.ts`, `RoomTimeline.filter-query.test.ts`, `RoomTimeline.architecture.test.ts`, `useMindroomThreadIndex.test.ts`, and `threadRecordOverview.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 31 / Phase 5 compact room component ownership (2026-04-24):
+  - moved compact room/card rendering and CSS to `src/app/mindroom/threads/CompactRoomView.tsx`, `CompactThreadCard.tsx`, and `CompactRoomView.css.ts`.
+  - the old `src/app/features/room/CompactRoomView*` and `CompactThreadCard.tsx` paths are compatibility re-exports; `RoomTimeline` imports the MindRoom component directly.
+  - this moves the compact-card UI surface next to its `ThreadRecord` view-model source of truth.
+  - validation:
+    - focused Vitest passes for `CompactRoomView.test.ts`, `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimelineCollapsible.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 32 / Phase 5 room overview component ownership (2026-04-24):
+  - moved room thread overview controls, tests, and CSS to `src/app/mindroom/threads/RoomThreadOverview.tsx`, `RoomThreadOverview.test.ts`, and `RoomThreadOverview.css.ts`.
+  - the old `src/app/features/room/RoomThreadOverview*` paths are compatibility re-exports; `RoomTimeline` imports the MindRoom component directly.
+  - this keeps the filter/sort/search control UI with the fork-owned thread index/view-model layer while preserving old import seams for incremental cleanup.
+  - validation:
+    - focused Vitest passes for `RoomThreadOverview.test.ts`, `RoomTimeline.architecture.test.ts`, `RoomTimeline.filter-query.test.ts`, and `RoomTimelineCollapsible.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 33 / Phase 5 room overview model ownership (2026-04-24):
+  - moved room thread overview filtering/sorting/count derivation and tests to `src/app/mindroom/threads/roomThreadOverviewModel.ts` and `roomThreadOverviewModel.test.ts`.
+  - the old `src/app/features/room/roomThreadOverviewModel.ts` path is now only a compatibility re-export; production MindRoom-owned callers import the model directly.
+  - this places the filter state serialization, predicate matching, status/tag counts, scheduled task counts, visible-root data, and metadata map derivation beside `useMindroomThreadIndex`.
+  - validation:
+    - focused Vitest passes for `roomThreadOverviewModel.test.ts`, `RoomThreadOverview.test.ts`, `RoomTimeline.architecture.test.ts`, `RoomTimeline.filter-query.test.ts`, `useMindroomThreadIndex.test.ts`, `threadRecordOverview.test.ts`, and `roomThreadFilterState.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 34 / Phase 5 thread utility ownership (2026-04-24):
+  - moved shared thread relation and route helpers plus tests to `src/app/mindroom/threads/threadUtils.ts`, `threadUtils.test.ts`, `threadRouteUtils.ts`, and `threadRouteUtils.test.ts`.
+  - the old `src/app/features/room/threadUtils.ts` and `threadRouteUtils.ts` paths are compatibility re-exports; MindRoom-owned modules import the implementations directly.
+  - this removes another broad source-of-truth seam from `features/room` while preserving old imports for remaining upstream-adjacent code.
+  - validation:
+    - focused Vitest passes for `threadUtils.test.ts`, `threadRouteUtils.test.ts`, `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimelineCollapsible.test.ts`, `roomThreadOverviewModel.test.ts`, and `threadPresentation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 35 / Phase 5 thread tag ownership (2026-04-24):
+  - moved thread tag parsing, optimistic pending state, read hooks, write hooks, and tests to `src/app/mindroom/threads/threadTags.ts`, `threadTagPending.ts`, `useThreadTags.ts`, `useRoomThreadTags.ts`, and `useMutateThreadTags.ts`.
+  - moved the shared state-event reader hook into `src/app/mindroom/threads/useStateEvents.ts`, since it is only used by MindRoom tag, scheduled-task, header, and index selectors.
+  - the old `src/app/features/room/threadTags.ts`, `threadTagPending.ts`, `useThreadTags.ts`, `useRoomThreadTags.ts`, and `useMutateThreadTags.ts` paths are compatibility re-exports; production consumers that render thread status now import the MindRoom implementations directly.
+  - this keeps tag/resolved state ownership with the `ThreadRecord`/thread-index namespace instead of having a second source of truth under the upstream room feature folder.
+  - validation:
+    - focused Vitest passes for `threadTags.test.ts`, `useThreadTags.test.ts`, `useRoomThreadTags.test.ts`, `useMutateThreadTags.test.ts`, `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimelineCollapsible.test.ts`, `CommandPalette.test.ts`, and `Message.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 36 / Phase 5 thread banner UI ownership (2026-04-24):
+  - moved the thread context banner, tag picker, tag pill, tag colors, CSS, and tests to `src/app/mindroom/threads/ThreadContextBanner.tsx`, `ThreadTagPicker.tsx`, `ThreadTagPill.tsx`, `threadTagColor.ts`, and `ThreadContextBanner.css.ts`.
+  - the old `src/app/features/room/ThreadContextBanner*`, `ThreadTagPicker.tsx`, `ThreadTagPill.tsx`, and `threadTagColor.ts` paths are compatibility re-exports; `RoomView` imports the MindRoom banner directly.
+  - this keeps the thread header/tag UI beside the canonical thread record/header view-model and tag state hooks.
+  - validation:
+    - focused Vitest passes for `ThreadContextBanner.test.ts`, `ThreadTagPicker.test.ts`, `RoomView.test.ts`, `RoomView.threadSummary.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 37 / Phase 5 thread summary ownership (2026-04-24):
+  - moved thread summary persistence, shared summary state, summary precedence, and the RoomView summary hook to `src/app/mindroom/threads/threadSummaryCache.ts`, `threadSummaryState.ts`, `threadSummarySelection.ts`, and `useRoomThreadSummaryState.ts`.
+  - the old `src/app/features/room/threadSummary*` and `useRoomThreadSummaryState.ts` paths are compatibility re-exports; `RoomView` and recent-thread view-model code import the MindRoom summary owner directly.
+  - this keeps cached summary selection and write-through with the thread view-model/index namespace instead of the upstream room feature folder.
+  - validation:
+    - focused Vitest passes for `threadSummarySelection.test.ts`, `useRecentThreadViewModel.test.ts`, `RoomView.threadSummary.test.ts`, `RoomView.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 38 / Phase 5 thread root route ownership (2026-04-24):
+  - moved thread route canonicalization hook ownership to `src/app/mindroom/threads/useThreadRootEvent.ts` with its regression tests beside the rest of the thread route/view-model code.
+  - the old `src/app/features/room/useThreadRootEvent.ts` path is now a compatibility re-export; `RoomView`, `ThreadContextBanner`, and `useThreadHeaderInfo` import the MindRoom implementation directly.
+  - this keeps pending-local-echo and reply-event-to-root route resolution out of the upstream room feature folder.
+  - validation:
+    - focused Vitest passes for `useThreadRootEvent.test.ts`, `ThreadContextBanner.test.ts`, `RoomView.test.ts`, `RoomView.threadSummary.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 39 / Phase 5 scheduled thread display ownership (2026-04-24):
+  - moved scheduled thread display formatting to `src/app/mindroom/threads/compactThreadCardUtils.ts` and moved its regression test beside the MindRoom thread card/view-model code.
+  - the old `src/app/features/room/compactThreadCardUtils.ts` path is now a compatibility re-export; `useThreadHeaderInfo` and compact-card view-model derivation import the MindRoom implementation directly.
+  - this keeps scheduled-label derivation with the thread view-model namespace instead of the upstream room feature folder.
+  - validation:
+    - focused Vitest passes for `compactThreadCardUtils.test.ts`, `useThreadHeaderInfo.test.ts`, `compactThreadCardViewModel.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 40 / Phase 5 thread render utility ownership (2026-04-24):
+  - moved thread render-mode selection, local-echo/confirmed-event dedupe, replacement preference, and thread-only activity helpers to `src/app/mindroom/threads/threadRenderUtils.ts`.
+  - the old `src/app/features/room/threadRenderUtils.ts` path is now a compatibility re-export; `RoomTimeline`, `useThreadRenderState`, room timeline event filtering, notifications, route utilities, and the event repository import the MindRoom implementation directly.
+  - this keeps render-event identity policy beside the thread cache/index namespace instead of the upstream room feature folder.
+  - validation:
+    - focused Vitest passes for `threadRenderUtils.test.ts`, `useThreadRenderState.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimelineCollapsible.test.ts`, `threadRouteUtils.test.ts`, `eventRepository.test.ts`, `notifications.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 41 / Phase 5 thread render state ownership (2026-04-24):
+  - moved live/cached thread render-state merging to `src/app/mindroom/threads/useThreadRenderState.ts` with its regression tests.
+  - moved `useThreadEventRefresh` into `src/app/mindroom/threads`, since it is only used by MindRoom thread-state selectors.
+  - the old `src/app/features/room/useThreadRenderState.ts` path is now a compatibility re-export; `RoomTimeline` imports the MindRoom hook directly and existing RoomTimeline tests mock that direct import path.
+  - this keeps supplemental cached-thread event merging, local-echo reconciliation, and fallback render-mode selection beside the thread render/cache namespace.
+  - validation:
+    - focused Vitest passes for `useThreadRenderState.test.ts`, `threadRenderUtils.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimelineCollapsible.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 42 / Phase 5 room timeline event helper ownership (2026-04-24):
+  - moved room renderability, surface event, visible thread-root, and preload-count helpers to `src/app/mindroom/threads/roomTimelineEvents.ts`.
+  - the old `src/app/features/room/roomTimelineEvents.ts` path is now a compatibility re-export; `RoomTimeline`, timeline pagination, preload/index/bootstrap controllers, room focus, and room pagination import the MindRoom implementation directly.
+  - this keeps event filtering and room-surface thread projection beside the thread index/preload namespace instead of the upstream room feature folder.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts`, `RoomTimeline.navigation.test.ts`, `RoomTimelineCollapsible.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 43 / Phase 5 timeline pagination helper ownership (2026-04-24):
+  - moved timeline linking, event-counting, and range recalibration helpers to `src/app/mindroom/threads/timelinePagination.ts`.
+  - the old `src/app/features/room/timelinePagination.ts` path is now a compatibility re-export; `RoomTimeline` and MindRoom cache/pagination/preload controllers import the MindRoom implementation directly.
+  - this keeps range recalibration used by cache-first room/thread pagination with the rest of the MindRoom timeline controllers.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts`, `RoomTimeline.navigation.test.ts`, `RoomTimelineCollapsible.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 44 / Phase 5 thread pagination helper ownership (2026-04-24):
+  - moved backward-pagination reconciliation helpers to `src/app/mindroom/threads/threadPaginationUtils.ts` with their regression tests.
+  - the old `src/app/features/room/threadPaginationUtils.ts` path is now a compatibility re-export; thread-open cache, SDK bootstrap, post-bootstrap refresh, and pagination command controllers import the MindRoom implementation directly.
+  - this keeps thread pagination-token policy beside the thread cache controllers that consume it.
+  - validation:
+    - focused Vitest passes for `threadPaginationUtils.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimelineCollapsible.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 45 / Phase 5 timeline debug ownership (2026-04-24):
+  - moved timeline debug trace helpers to `src/app/mindroom/threads/timelineDebug.ts`.
+  - the old `src/app/features/room/timelineDebug.ts` path is now a compatibility re-export; `RoomTimeline` and MindRoom preload/cache/thread-open controllers import the MindRoom implementation directly.
+  - this removes another cross-boundary dependency from the MindRoom controller namespace back into the upstream room feature folder.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts`, `RoomTimelineCollapsible.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 46 / Phase 5 event cache token helper ownership (2026-04-24):
+  - moved cache pagination token merge/lookup/anchor comparison helpers to `src/app/mindroom/threads/eventCacheTokenUtils.ts` with their regression tests.
+  - the old `src/app/features/room/eventCacheTokenUtils.ts` path is now a compatibility re-export; room/thread event cache stores, the event repository, and thread-open SDK bootstrap import the MindRoom implementation directly.
+  - this starts the cache-layer move with a pure helper before moving the IndexedDB store modules.
+  - validation:
+    - focused Vitest passes for `eventCacheTokenUtils.test.ts`, `roomEventCache.test.ts`, `threadEventCache.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimelineCollapsible.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 47 / Phase 5 event cache edit helper ownership (2026-04-24):
+  - moved cache hydration, relation aggregation, redaction/replacement application, and serialization helpers to `src/app/mindroom/threads/eventCacheEditUtils.ts` with their regression tests.
+  - the old `src/app/features/room/eventCacheEditUtils.ts` path is now a compatibility re-export; MindRoom render/cache/open controllers and event repository import the MindRoom implementation directly.
+  - this keeps raw-event cache normalization beside the cache repository before moving the IndexedDB store modules.
+  - validation:
+    - focused Vitest passes for `eventCacheEditUtils.test.ts`, `compactThreadRootData.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimelineCollapsible.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 48 / Phase 5 raw event cache store ownership (2026-04-24):
+  - moved the room/thread IndexedDB event cache stores and their legacy migration helper to `src/app/mindroom/threads/roomEventCache.ts`, `threadEventCache.ts`, and `cacheDbMigrationUtils.ts` with their regression tests.
+  - the old `src/app/features/room/{roomEventCache,threadEventCache,cacheDbMigrationUtils}.ts` paths are now compatibility re-exports; `eventRepository` imports the MindRoom store implementations directly.
+  - this keeps raw cache persistence, pagination-token storage, local-echo filtering, expected reply counts, and legacy cache migration under the same MindRoom cache/index namespace.
+  - validation:
+    - focused Vitest passes for `cacheDbMigrationUtils.test.ts`, `roomEventCache.test.ts`, `threadEventCache.test.ts`, `eventRepository.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimelineCollapsible.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 49 / Phase 6 scroll helper ownership (2026-04-24):
+  - moved timeline live-end checks, near-bottom checks, event-element lookup, and thread prepend scroll-anchor helpers to `src/app/mindroom/threads/timelineScrollUtils.ts` with their regression tests.
+  - the old `src/app/features/room/timelineScrollUtils.ts` path is now a compatibility re-export; `RoomTimeline` and MindRoom thread pagination/edit-backfill controllers import the MindRoom implementation directly.
+  - this keeps scroll-anchor policy beside the thread pagination controllers while leaving DOM effect execution in `RoomTimeline`.
+  - validation:
+    - focused Vitest passes for `timelineScrollUtils.test.ts`, `RoomTimeline.permalink-refresh.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimelineCollapsible.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 50 / Phase 5 room thread-list ownership (2026-04-24):
+  - moved server-side room thread-list loading, thread unread/activity helpers, and `useRoomThreadList` to `src/app/mindroom/threads/roomThreadList.ts` and `useRoomThreadList.ts` with their regression tests.
+  - the old `src/app/features/room/{roomThreadList,useRoomThreadList}.ts` paths are now compatibility re-exports; `RoomTimeline`, `Reply`, `threadRecord`, and overview resume code import the MindRoom implementations directly.
+  - this keeps current-room thread-list loading and unread/activity facts beside the canonical thread index instead of upstream-facing room modules.
+  - validation:
+    - focused Vitest passes for `roomThreadList.test.ts`, `threadRecord.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimelineCollapsible.test.ts`, `RoomTimeline.architecture.test.ts`, and `Message.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 51 / Phase 5 room deep-link ownership (2026-04-24):
+  - moved room-event-to-thread deep-link target resolution to `src/app/mindroom/threads/roomDeepLink.ts`.
+  - the old `src/app/features/room/roomDeepLink.ts` path is now a compatibility re-export; `RoomTimeline` and `useMindroomThreadIndex` import the MindRoom implementation directly.
+  - this removes the last production import from `src/app/mindroom/threads` back into `src/app/features/room`; remaining back-references are test fixture imports only.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.permalink-refresh.test.ts`, `useMindroomThreadIndex.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 52 / Phase 5 preload target ownership (2026-04-24):
+  - moved current-room surface preload target selection to `src/app/mindroom/threads/roomPreloadTarget.ts` with its regression tests.
+  - the old `src/app/features/room/roomPreloadTarget.ts` path is now a compatibility re-export; `RoomTimeline` imports the MindRoom implementation directly.
+  - this keeps compact/filter room preload targeting beside the preload controller namespace.
+  - validation:
+    - focused Vitest passes for `roomPreloadTarget.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 53 / Phase 5 compose send-session ownership (2026-04-24):
+  - moved thread-aware compose relation helpers and automatic room-input send-session sequencing to `src/app/mindroom/threads/composeMessageRelation.ts` and `roomInputSendSession.ts` with their regression tests.
+  - the old `src/app/features/room/{composeMessageRelation,roomInputSendSession}.ts` paths are now compatibility re-exports; `RoomInput` imports the MindRoom implementations directly.
+  - this keeps auto-thread text/upload root creation and existing-thread relation policy beside the thread namespace instead of the upstream-facing composer.
+  - validation:
+    - focused Vitest passes for `composeMessageRelation.test.ts`, `roomInputSendSession.test.ts`, and `RoomInput.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 54 / MindRoom command ownership (2026-04-24):
+  - moved MindRoom command definitions, beginning-of-message command-query parsing, insertion helper, and autocomplete UI to `src/app/mindroom/commands/` with their regression tests.
+  - the old `src/app/features/room/{MindroomCommandAutocomplete,mindroomCommandQuery,mindroomCommands}` paths are now compatibility re-exports; `RoomInput` imports the MindRoom command implementations directly.
+  - this keeps product-specific command behavior outside the upstream-facing room composer.
+  - validation:
+    - focused Vitest passes for `mindroomCommandQuery.test.ts`, `mindroomCommands.test.ts`, and `RoomInput.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 55 / MindRoom bridge detection ownership (2026-04-24):
+  - moved Signal bridge room/user detection helpers to `src/app/mindroom/bridges/bridgeDetection.ts` with their regression tests.
+  - the old `src/app/features/room/bridgeDetection.ts` path is now a compatibility re-export; `RoomInput` imports the MindRoom bridge implementation directly.
+  - validation:
+    - focused Vitest passes for `bridgeDetection.test.ts` and `RoomInput.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 56 / MindRoom voice recorder ownership (2026-04-24):
+  - moved the voice recorder composer and voice recorder MIME selection helpers to `src/app/mindroom/voice/` with their regression tests.
+  - the old `src/app/features/room/{VoiceRecorderDialog,voiceRecorderMime}` paths are now compatibility re-exports; `RoomInput` imports the MindRoom voice implementation directly.
+  - validation:
+    - focused Vitest passes for `voiceRecorderMime.test.ts` and `RoomInput.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 57 / Phase 6 room-focus scroll helper ownership (2026-04-24):
+  - moved room-focus retry math, focus scroll option selection, resize-observer recenter setup, and bottom-anchor visibility recovery into `src/app/mindroom/threads/timelineScrollUtils.ts`.
+  - `RoomTimeline` still executes route-specific DOM effects, but no longer owns those reusable scroll/focus policies.
+  - validation:
+    - focused Vitest passes for `timelineScrollUtils.test.ts`, `RoomTimeline.permalink-refresh.test.ts`, `RoomTimeline.navigation.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 58 / Phase 6 timeline anchor helper ownership (2026-04-24):
+  - moved timeline target-anchor selection, unread target-anchor selection, and unread-divider placement into `src/app/mindroom/threads/timelineScrollUtils.ts`.
+  - `RoomTimeline` consumes these helpers for focused-event recovery and unread navigation instead of exporting them itself.
+  - validation:
+    - focused Vitest passes for `timelineScrollUtils.test.ts`, `RoomTimeline.navigation.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 59 / Phase 6 timeline index helper ownership (2026-04-24):
+  - moved event timeline lookup, linked-timeline absolute index lookup, timeline/base-index lookup, relative-index conversion, and timeline event accessors into `src/app/mindroom/threads/timelinePagination.ts`.
+  - `RoomTimeline` now imports these helpers from the existing MindRoom timeline pagination module instead of exporting them itself.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.permalink-refresh.test.ts`, `RoomTimeline.navigation.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 60 / Phase 6 collapsible message policy ownership (2026-04-24):
+  - moved live collapsible-message tracking, one-shot expand ids, summary always-expanded mode, measurement keys, and expand-id consumption to `src/app/mindroom/threads/threadCollapsibleMessages.ts`.
+  - `RoomTimeline` still renders the message surfaces, but no longer owns the MindRoom-specific collapse/expand policy.
+  - moved the `CollapsibleMessage` component, styles, and unit tests into `src/app/mindroom/threads` so the fork-only room timeline collapse UI is not owned by generic component paths.
+  - validation:
+    - focused Vitest passes for `RoomTimelineCollapsible.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 61 / Phase 4b thread index source ownership (2026-04-25):
+  - moved timeline-derived reply/participant/summary fallback maps, scheduled-count derivation, room-surface entry/root-data assembly, compact-root merge logic, available-tag derivation, read-up-to timestamp derivation, and current-room thread-list loading behind `src/app/mindroom/threads/useMindroomThreadIndex.ts`.
+  - `RoomTimeline` now consumes those values from the index snapshot instead of importing compact-root, thread-list, scheduled-count, summary-map, or participant-map helpers directly.
+  - updated architecture guards so direct compact-root/thread-list imports in `RoomTimeline` are treated as regressions while the same implementations remain in the MindRoom thread namespace.
+  - validation:
+    - focused Vitest passes for `useMindroomThreadIndex.test.ts`, `RoomTimeline.filter-query.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+- `CINNY-075` implementation step 62 / Phase 5 overview refresh target ownership (2026-04-25):
+  - added `src/app/mindroom/threads/threadOverviewRefreshTargets.ts` as the fork-owned selector for viewport-aware summary refresh ids and overview resume refresh targets.
+  - `RoomTimeline` now passes only active range/current overview ids into that selector instead of directly classifying visible thread roots for resume policy.
+  - validation:
+    - focused Vitest passes for `threadOverviewRefreshTargets.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 63 / Phase 6 timeline range helper ownership (2026-04-25):
+  - moved initial/empty timeline range construction, active visible-range selection, focused-event index lookup, and room unread lookup into `src/app/mindroom/threads/timelinePagination.ts`.
+  - `RoomTimeline` now imports those helpers from the fork-owned pagination module instead of owning local copies.
+  - validation:
+    - focused Vitest passes for `timelinePagination.test.ts` and `RoomTimeline.architecture.test.ts`
+    - focused Vitest passes for `RoomTimeline.navigation.test.ts` and `RoomTimeline.cache.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 64 / Phase 6 timeline pagination controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/timelinePaginationController.ts` as the fork-owned owner for virtual timeline pagination and permalink event-timeline loading commands.
+  - `RoomTimeline` now imports `useTimelinePagination` and `useEventTimelineLoader` from that controller instead of defining local hook bodies.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.navigation.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 65 / Phase 6 live event subscription ownership (2026-04-25):
+  - added `src/app/mindroom/threads/roomLiveEventArrive.ts` as the fork-owned subscription hook for room timeline/redaction arrivals.
+  - `RoomTimeline` now keeps only the room/thread policy callback and no longer owns the SDK event listener wiring for arrivals.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.cache.test.ts` and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 66 / Phase 3 summary publish ownership (2026-04-25):
+  - added `src/app/mindroom/threads/threadSummaryPublishController.ts` as the fork-owned owner for publishing room-index and active-thread summary updates into shared summary state.
+  - `RoomTimeline` now calls that hook instead of owning local summary write-through effects.
+  - validation:
+    - focused Vitest passes for `threadSummaryPublishController.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 67 / Phase 5 overview refresh counter ownership (2026-04-25):
+  - added `src/app/mindroom/threads/threadOverviewRefreshCounter.ts` as the fork-owned hook for overview metadata refresh subscriptions.
+  - `RoomTimeline` now consumes the counter/setter from that hook instead of owning room receipt/thread event listener wiring.
+  - validation:
+    - focused Vitest passes for `threadOverviewRefreshCounter.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.architecture.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 68 / Phase 4b sort-freeze controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/threadSortFreezeController.ts` as the fork-owned owner for resnapshotting frozen overview order when filter/sort controls change.
+  - `RoomTimeline` now delegates that policy to the hook instead of mutating frozen ordered root ids inline.
+  - validation:
+    - focused Vitest passes for `threadSortFreezeController.test.ts` and `RoomTimeline.architecture.test.ts`
+    - focused Vitest passes for `RoomTimeline.cache.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `git diff --check` passes
+- `CINNY-075` implementation step 69 / Phase 6 timeline debug controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/timelineDebugController.ts` as the fork-owned owner for route debug trace id lifecycle and room/thread range instrumentation effects.
+  - `RoomTimeline` now consumes `useTimelineDebugTraceIds` and `useTimelineDebugRangeController` instead of owning trace refs, init logging effects, and room/thread range logging effects inline.
+  - validation:
+    - focused Vitest passes for `timelineDebugController.test.ts`, `RoomTimeline.architecture.test.ts`, and `RoomTimeline.cache.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+    - `git diff --check` passes
+- `CINNY-075` implementation step 70 / Phase 6 live event policy controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/roomLiveEventController.ts` as the fork-owned owner for live room event cache writes, thread supplemental updates, summary-event write-through, collapsible live-expand tracking, and live auto-follow range updates.
+  - `RoomTimeline` now calls `useRoomLiveEventController` instead of owning the large `useLiveEventArrive` callback body inline, and it no longer imports `eventRepository` directly.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimelineCollapsible.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+- `CINNY-075` implementation step 75 / Phase 6 room focus scroll controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/roomFocusScrollController.ts` as the fork-owned owner for route focus scrolling, unread anchor scrolling, pending thread-open scroll retries, edit-message scrolling, thread-open bottom pinning, back-pagination anchor restore, and live-end bottom recovery.
+  - `RoomTimeline` now consumes `useRoomFocusScrollController` instead of directly owning those DOM scroll effects and no longer imports route focus scroll policy helpers directly.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.navigation.test.ts`, and `RoomTimeline.permalink-refresh.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+    - `npm test` passes (`181/181` files, `1553/1553` tests)
+    - `git diff --check` passes
+- `CINNY-075` implementation step 76 / Phase 6 room timeline navigation controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/roomTimelineNavigationController.ts` as the fork-owned owner for jump-to-latest, jump-to-unread, thread badge opens, compact-card opens, and recent-thread bumping.
+  - `RoomTimeline` now consumes `useRoomTimelineNavigationController` instead of directly owning those route/paginator navigation handlers and no longer imports `bumpRecentThread`.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+    - `npm test` passes (`181/181` files, `1554/1554` tests)
+    - `git diff --check` passes
+- `CINNY-075` implementation step 77 / Phase 5 overview resume target ownership (2026-04-25):
+  - folded overview resume target selection into `src/app/mindroom/threads/threadOverviewResumeController.ts`.
+  - `RoomTimeline` now passes the snapshot inputs to `useThreadOverviewResumeController` instead of importing `resolveThreadOverviewRefreshTargets` or memoizing resume target ids inline.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts` and `RoomTimeline.cache.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+    - `npm test` passes (`181/181` files, `1554/1554` tests)
+    - `git diff --check` passes
+- `CINNY-075` implementation step 74 / Phase 6 room event open controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/roomEventOpenController.ts` as the fork-owned owner for room-event deep-link redirects, focused-event timeline loading, pending thread-open focus handoff, and route event-id dedupe.
+  - `RoomTimeline` now consumes `useRoomEventOpenController` and `useRoomEventRouteOpenController` instead of directly sequencing room event focus targets, unloaded-event timeline loading, thread-event pending scroll state, and route open guards inline.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, `RoomTimeline.navigation.test.ts`, and `RoomTimeline.permalink-refresh.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+    - `git diff --check` passes
+- `CINNY-075` implementation step 73 / Phase 6 timeline read receipt controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/timelineReadReceiptController.ts` as the fork-owned owner for bottom-anchor read state, document-focus read receipts, thread-at-bottom read receipts, and explicit mark-as-read routing.
+  - `RoomTimeline` now consumes `useTimelineReadReceiptController` instead of directly wiring read receipt marking, bottom-anchor intersection observation, focus-change handling, and thread mark-as-read conditions inline.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+    - `git diff --check` passes
+- `CINNY-075` implementation step 72 / Phase 6 room timeline window controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/roomTimelineWindowController.ts` as the fork-owned owner for room overview display-window derivation, unread anchor calculation, preload target selection, visible seed-prewarm prioritization, and thread load-older cache coverage decisions.
+  - `RoomTimeline` now consumes `useRoomTimelineWindowController` instead of assembling ordered room overview events, entry maps, unread scroll anchors, active ranges, prewarm roots, and thread load-older coverage inline.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+    - `git diff --check` passes
+- `CINNY-075` implementation step 71 / Phase 6 thread-open lifecycle controller ownership (2026-04-25):
+  - added `src/app/mindroom/threads/threadOpenLifecycleController.ts` as the fork-owned owner for thread route open/reset lifecycle orchestration.
+  - `RoomTimeline` now calls `useThreadOpenLifecycleController` instead of directly sequencing cache-first open, SDK bootstrap, post-bootstrap refresh, targeted event loading, seed-session cleanup, and thread/room reset state inline.
+  - validation:
+    - focused Vitest passes for `RoomTimeline.architecture.test.ts`, `RoomTimeline.cache.test.ts`, and `RoomTimeline.navigation.test.ts`
+    - `npm run typecheck` passes
+    - `npm run lint -- --quiet` passes with the branch warning-only baseline
+    - `npm run build` passes
+    - `git diff --check` passes
+- `CINNY-075` implementation step 78 / MindRoom preload settings ownership (2026-04-25):
+  - added `src/app/mindroom/threads/preloadSettings.ts` as the fork-owned owner for preload limit defaults, minimums, batch size, and sanitization.
+  - added `src/app/mindroom/settings/MindroomMessagePreloadLimitSetting.tsx` so the generic General settings page only mounts a narrow MindRoom preload setting seam.
+  - MindRoom thread controllers now import `THREAD_BATCH_SIZE` from the fork-owned preload settings module instead of generic settings state.
+  - validation:
+    - focused Vitest passes for `src/app/state/settings.test.ts`, `src/app/mindroom/settings/MindroomMessagePreloadLimitSetting.test.ts`, and `src/app/features/room/RoomTimeline.architecture.test.ts`
+- `CINNY-065` planning note (2026-04-06):
+  - inspected the current Cinny thread-tag readers/writers plus `/srv/mindroom/src/mindroom/thread_tags.py`.
+  - added `.claude/PLAN.md` with the implementation plan for migrating Cinny from legacy per-thread `{ tags: ... }` events to the backend's canonical per-tag `["$threadRootId","tag"]` state-key format.
+  - planned direction is: read both legacy and per-tag room state, write only per-tag events, and ship a one-off migration script that backfills per-tag records then tombstones legacy thread-level events.
+  - docs-only validation target for this planning step is `git diff --check`.
+- `CINNY-065` implementation status (2026-04-07):
+  - `src/app/features/room/threadTags.ts` now:
+    - uses ISO-8601 `set_at` strings internally,
+    - carries optional `note` / `data`,
+    - parses both legacy `{ tags: ... }` payloads and canonical per-tag payloads,
+    - validates canonical tag names and ISO-like timestamps more strictly,
+    - and exports per-tag state-key/content helpers plus `aggregateThreadTagEvents(...)`.
+  - `src/app/features/room/useRoomThreadTags.ts`, `src/app/features/room/useMutateThreadTags.ts`, and `src/app/features/room/useThreadTags.ts` now read merged room-state via aggregation and write only canonical per-tag state events with JSON-array state keys plus `{}` tombstones.
+  - `useToggleThreadResolution(...)` now delegates to `useMutateThreadTags(room).setResolved(...)`.
+  - test fixtures were updated to canonical ISO-string tag metadata, and focused regression coverage was added for:
+    - legacy/per-tag mixed reads,
+    - tombstones,
+    - per-tag writes,
+    - pending-state reconciliation,
+    - and migration helper behavior.
+  - added `scripts/migrate-thread-tags.mjs`:
+    - Node ESM,
+    - dry-run by default,
+    - idempotent,
+    - writes only missing canonical per-tag records,
+    - tombstones legacy thread-level events,
+    - and verifies the merged post-migration view matches the pre-migration view.
+  - review:
+    - independent explorer review completed.
+    - follow-up fixes landed for invalid-tag write/read mismatches, overly loose timestamp parsing, and the pending-clear test harness regression.
+    - review-fix follow-up (2026-04-07):
+      - `src/app/features/room/useMutateThreadTags.ts` now passes `validThreadRootId` into each `buildPlan(...)` callback so canonical per-tag state keys and pending-state reconciliation use the validated thread root id instead of the outer caller closure.
+      - `scripts/migrate-thread-tags.mjs` now tracks raw legacy state keys separately, plans legacy tombstones even when no valid tags survive parsing, and exports guarded helper entry points so the malformed-legacy cleanup path can be regression-tested without executing the CLI.
+      - added focused regressions in `src/app/features/room/useMutateThreadTags.test.ts` and `src/app/features/room/migrateThreadTagsScript.test.ts`.
+    - remaining noted risk: `useThreadResolution(...)` still subscribes per consumer, so large views can still pay repeated room-wide tag-read costs even though aggregation/build steps are now cached within a consumer update cycle.
+  - validation (2026-04-07):
+    - `npx tsc --noEmit` passes.
+    - focused Vitest passes for:
+      - `src/app/features/room/threadTags.test.ts`
+      - `src/app/features/room/useRoomThreadTags.test.ts`
+      - `src/app/features/room/useMutateThreadTags.test.ts`
+      - `src/app/features/room/useThreadTags.test.ts`
+      - `src/app/features/room/ThreadContextBanner.test.ts`
+      - `src/app/features/room/roomThreadOverviewModel.test.ts`
+    - `npm run build` passes.
+    - `npm test` does not complete cleanly in this environment:
+      - the default run hits Node/Vitest heap exhaustion late in the full suite,
+      - and larger-heap / single-fork retries still hit worker memory/runtime instability before a clean exit.
+    - `src/app/features/room/RoomTimeline.tsx` also needed a small missing-helper fix (`getTimelineEventById`) that `npx tsc --noEmit` surfaced while validating this branch.
+  - validation follow-up (2026-04-07, review fixes):
+    - `npx tsc --noEmit` passes.
+    - `npm run build` passes.
+    - the requested `npm test -- --testPathPattern='threadTags|useRoomThreadTags|useMutateThreadTags|useThreadTags' --maxWorkers=1` command fails in this repo because `--testPathPattern` is a Jest-only flag and Vitest rejects it.
+    - equivalent focused Vitest coverage passes with `--minWorkers=1 --maxWorkers=1` for:
+      - `src/app/features/room/threadTags.test.ts`
+      - `src/app/features/room/useRoomThreadTags.test.ts`
+      - `src/app/features/room/useMutateThreadTags.test.ts`
+      - `src/app/features/room/useThreadTags.test.ts`
+    - `src/app/features/room/migrateThreadTagsScript.test.ts` passes.
+  - RangeError follow-up (2026-04-07):
+    - guarded both `normalizeSetAt(...)` implementations against finite but invalid numeric timestamps whose `Date(...).toISOString()` previously threw `RangeError`.
+    - numeric normalization now also reuses the existing four-digit ISO-like timestamp gate, so extended-year values such as `-029719-04-05T22:13:20.000Z` are rejected instead of being accepted only through the numeric path.
+    - `src/app/features/room/threadTags.ts` now exports the helper so focused regression coverage can assert `1e20`, `-1e15`, `NaN`, and `Infinity` return `undefined` without throwing.
+    - `scripts/migrate-thread-tags.mjs` applies the same invalid-date guard and continues treating rejected values as malformed input.
+    - review:
+      - independent second self-review completed via a fresh `git diff` pass after the final guard change; the scope stayed limited to the two timestamp normalizers, focused regression coverage, and this runbook update.
+    - validation (2026-04-07):
+      - `npx tsc --noEmit` passes.
+      - `npx vitest run src/app/features/room/threadTags.test.ts --reporter verbose` passes.
+      - `npx vitest run src/app/features/room/migrateThreadTagsScript.test.ts --reporter verbose` passes.
+      - `npm run build` passes.
+- `CINNY-063` planning note (2026-04-04):
+  - added repo-root `PLAN.md` for freeze/pause thread sorting.
+  - recommended design is a room-scoped, session-only freeze state plus a pure frozen-order layer applied after the existing filter/search/sort pipeline.
+  - important implementation constraint: reuse the same resolved order for render, compact view, focus/navigation helpers, and overview preload selection so paused ordering does not drift from what the user sees.
+  - plan debate finalized:
+    - compared `PLAN.md` vs `PLAN-B.md` against the live code paths in `RoomView.tsx`, `RoomTimeline.tsx`, and `roomThreadOverviewModel.ts`.
+    - final direction is to keep freeze state ephemeral and local in `RoomView` (not persisted, not a new atom), because `RoomTimeline` is keyed by `threadId` and would otherwise lose the snapshot on thread enter/exit.
+    - final plan keeps the pure frozen-order helper approach and resnapshots on deliberate control changes instead of auto-unfreezing.
+    - docs-only validation target for this planning step is `git diff --check`.
+  - implementation status (2026-04-04):
+    - `RoomView.tsx` now owns the room-session freeze snapshot and clears it on room switch or when sort returns to `natural`.
+    - `roomThreadOverviewModel.ts` now exports `applyFrozenThreadOrder(...)` plus `createThreadSortControlSignature(...)` so freeze stays outside the sort comparators and control changes can resnapshot deterministically.
+    - `RoomTimeline.tsx` now resolves one live/display thread-id order per overview mode and reuses the same resolved ids for expanded overview rendering, compact view props, focus targeting, and top-of-list cached metadata preload.
+    - `RoomThreadOverview.tsx` / `RoomThreadOverview.css.ts` now render the lock/unlock toolbar button with paused styling, tooltip copy, `aria-pressed`, and live-region text updates.
+    - focused regression coverage was added in `RoomThreadOverview.test.ts`, `RoomView.test.ts`, `RoomTimeline.test.ts`, and `roomThreadOverviewModel.test.ts`; `RoomTimelineCollapsible.test.ts` was updated so its harness keeps natural-sort message rendering for non-overview timeline assertions.
+  - review-fix follow-up (2026-04-04):
+    - `RoomTimeline.tsx` now drives `threadFilteredEvents` from the active resolved overview ids, so room focus/scroll helpers follow the same compact-vs-expanded and frozen-vs-live ordering that the user sees.
+    - `getFilteredRoomOverviewEvents(...)` and `getRoomEventFocusTarget(...)` now accept compact-view context plus server thread-list roots, so compact-only roots participate in focus targeting even when they are not in the current `renderableEvents` slice.
+    - `CompactRoomView` props and compact-root edit backfill now read the same resolved `overviewThreadRootIds` used by the rest of the overview pipeline, and `compactOverviewOrdering` skips the extra compute path when compact view is not requested.
+    - `RoomTimeline.test.ts` now covers frozen compact scroll-index alignment and compact-only frozen focus targeting; the test harness `sortBy: 'natural'` override is documented inline.
+  - validation follow-up (2026-04-04):
+    - `isDefaultThreadFilterState(...)` now treats `createDefaultThreadFilterState()` as the persisted default again, so resetting room thread filters removes the room-scoped `localStorage` key.
+    - `roomThreadOverviewModel.test.ts` and `roomThreadFilterState.test.ts` now cover the corrected persisted-default semantics.
+  - validation (2026-04-04):
+    - `npm test` passes (`115/115` files, `980/980` tests).
+    - `npx tsc --noEmit` passes.
+    - `npm run build` passes.
+- `CINNY-054` planning investigation (2026-03-31):
+  - confirmed the markdown pipeline is Cinny's in-repo regex parser under `src/app/plugins/markdown/*`, wired into compose/search via `src/app/components/editor/output.ts` and `src/app/features/message-search/searchResultPreview.ts`; it is neither `unified/remark/rehype` nor `markdown-it`.
+  - confirmed incoming formatted HTML is sanitized in `src/app/utils/sanitize.ts` and rendered through `src/app/plugins/react-custom-html-parser.tsx`.
+  - `data-mx-maths` is already allowlisted in the sanitizer, but no render-time or compose-time math handling exists yet.
+  - implementation plan recorded in `.claude/PLAN.md`.
+  - implementation status (2026-03-31):
+    - added `katex` plus shared math parsing/rendering helpers in `src/app/plugins/math.tsx`, with app-level KaTeX CSS loaded from `src/index.tsx`.
+    - incoming render paths now handle `span/div[data-mx-maths]` and raw `$...$` / `$$...$$` text, while skipping escaped dollars, currency-like text, and backtick code spans/blocks.
+    - markdown compose now emits Matrix math HTML (`data-mx-maths`) for inline and display math, and editor markdown mode reconstructs `$...$` / `$$...$$` when loading incoming Matrix math HTML.
+    - added focused coverage in `src/app/plugins/react-custom-html-parser.test.ts` and `src/app/components/editor/math.test.ts`.
+    - review-fix follow-up:
+      - `tokenizeTextWithLatex()` now preserves backtick spans as verbatim segments and protects URL spans before math scanning, so escaped `\$` remains literal inside backticks and raw URLs containing `$...$` are linkified intact instead of being split by math rendering.
+      - inline math now requires non-alphanumeric boundaries around the delimiters, and numeric-only inline content is left raw to avoid currency false positives such as `$5+$10$`.
+      - display math remains top-level only by design; nested `div[data-mx-maths]` inside blockquotes/lists is preserved as raw `$$...$$` text on markdown import instead of flattening to bare LaTeX.
+      - added regressions for escaped `\$` inside backticks, currency-like inline text, URLs containing `$`, and blockquote display-math raw round-tripping.
+    - validation:
+      - `npm test` passes (`106/106` files, `911/911` tests).
+      - `npm run typecheck` passes.
+      - `npm run build` passes; build now emits KaTeX font assets/CSS as part of the bundle.
+      - `npm run lint` does not pass at repo baseline because `eslint src/*` crashes across the tree with the existing TypeScript parser `originalKeywordKind` deprecation error, and `npm run check:prettier` also reports broad pre-existing formatting drift outside this change.
+- `CINNY-037` was reapplied on top of the cleaned issue-backed `dev` history:
+  - `src/app/hooks/useBlobUrlCleanup.ts` revokes blob URLs on URL change and unmount.
+  - Media/file consumers wired into that cleanup: `ImageContent`, `VideoContent`, `AudioContent`, `ThumbnailContent`, `FileContent`, and `FileHeader`.
+  - `src/app/hooks/usePan.ts` now tears down active document listeners on unmount.
+  - Reapplied validation: `npm run typecheck`.
+- Current `dev` also restores two small non-issue runtime guards that were accidentally dropped during issue-history cleanup:
+  - the active settings avatar now survives clear-cache reload by preferring the stored avatar fallback with authenticated thumbnail URLs,
+  - the Settings avatar-cache refetch guard,
+  - and swallowed URL preview effect rejection.
+- Authenticated media URLs now fall back to query-token URLs before service-worker control is established.
+  - This restores room/sidebar/header/settings avatars during startup and clear-cache reloads, when the page can render before the service worker is actively controlling the document.
+- Latest remote regression fixed on top of `gitea/dev`:
+  - `CINNY-050` introduced a parser/API mismatch where `parseThreadTagsContent()` returned `{ tags }`, but `useRoomThreadTags` still treated the parsed object itself as the tag map.
+  - Symptom: compact/room thread buttons stopped showing `Resolved`, and the `Resolved` filter in Personal returned zero threads live.
+  - Validation: live MCP repro on Personal room plus `npm test`, `npm run typecheck`, and `npm run build`.
+- Latest local pinch-to-zoom UI scale support (2026-04-03):
+  - extracted shared page zoom constants plus `sanitizePageZoom()` / `getTouchDistance()` helpers so the settings UI and gesture logic use the same zoom bounds and rounding behavior.
+  - added `src/app/hooks/usePinchToZoom.ts`, which listens for ctrl+wheel trackpad pinch, two-finger touch pinch, and Safari `gesturestart` / `gesturechange` / `gestureend`, then batches setting updates through `requestAnimationFrame`.
+  - mounted the gesture hook alongside `PageZoomFeature`, so pinch gestures update the persisted `pageZoom` setting and therefore the existing root `font-size` application path.
+  - `PageZoomInput` now resyncs its draft value when `pageZoom` changes externally, fixing the stale-input case introduced by gesture-driven updates.
+  - added focused regression coverage in `src/app/utils/pageZoom.test.ts`.
+  - validation:
+    - `npm test`
+    - `npm run typecheck`
+    - `npm run build`
+- Latest local edit-reconciliation hardening (2026-03-31):
+  - extracted shared serialized edit helpers into `src/app/utils/editEvent.ts` so room render, thread render, and cached-event hydration all apply the same validation rules.
+  - serialized bundled replacements now require a real positive `origin_server_ts`; malformed bundled edits are ignored consistently.
+  - `getEditedEvent()` now truthfully rejects sender-mismatched SDK/bundled replacements before candidate selection, instead of logging `*Rejected` while still passing them downstream.
+  - room edit resolution now uses explicit candidate ordering so same-timestamp ties prefer the server-bundled replacement over raw relation edits.
+  - added regression coverage in:
+    - `src/app/utils/room.test.ts`
+    - `src/app/features/room/threadRenderUtils.test.ts`
+    - `src/app/features/room/eventCacheEditUtils.test.ts`
+  - validation:
+    - `npm test`
+    - `npm run typecheck`
+    - `npm run build`
+    - live MCP repro on `/#personal` thread permalink `threadId=$eLBXTjJGVLGW3clgjAjBTI9SsBapa6hwl70_tVbjlUA`:
+      - first load and hard reload both rendered `96` message rows,
+      - the first `12` visible message ids/text snippets stayed identical across reload,
+      - visible `Thinking...` count remained `0`.
+- Latest local room/thread overview timestamp hardening (2026-03-31):
+  - compact and expanded overview cards now backfill `lastActivityTs` from cached thread-event pages when the overview metadata is older than the local thread cache.
+  - `src/app/hooks/useThreadLastActivityTs.ts` now considers `thread.lastReply()`, `thread.replyToEvent`, the root event, bundled `unsigned["m.relations"]["m.thread"].latest_event`, and bundled latest-event replacement timestamps.
+  - `src/app/features/room/compactThreadRootData.ts` now computes a cached thread-activity timestamp from cached root/reply/edit events while ignoring non-message noise such as reactions.
+  - `src/app/features/room/roomThreadOverviewModel.ts` now prefers the fresher of the live overview timestamp and the cached thread timestamp.
+  - `src/app/features/room/RoomTimeline.tsx` hydrates cached last-activity timestamps for the active overview roots, and compact cards receive the cached-aware fallback timestamp directly.
+  - live MCP evidence on `#mindroom-dev`:
+    - previously-bad root `$BOeDM9ovZv1eUvD3QlBYxE-VWuU0wPvsaL21V1o5up4` now matches cache exactly (`deltaMs: 0`) instead of lagging by ~202s,
+    - active compact view now shows at most a small live race (`~6s`) on an actively changing thread rather than multi-minute stale times,
+    - unresolved-only compact reload in the open tab settled directly to the full filtered set (`Showing 11 threads with active filters.`) in the MCP reload repro instead of reproducing the earlier `1`-thread startup state.
+  - added regression coverage in:
+    - `src/app/hooks/useThreadLastActivityTs.test.ts`
+    - `src/app/features/room/compactThreadRootData.test.ts`
+    - `src/app/features/room/roomThreadOverviewModel.test.ts`
+  - validation:
+    - focused Vitest on the new room/timestamp suites
+    - `npm test`
+    - `npm run typecheck`
+    - `npm run build`
+- Latest local reaction-redaction fix (2026-03-31):
+  - fixed two separate stale-reaction paths that could leave a redacted reaction visible until refresh:
+    - `src/app/hooks/useRelations.ts` now refreshes derived relation state when the `Relations` object identity changes, not only when it receives add/remove/redaction events on the original object.
+    - thread-view reaction toggles now operate on the exact rendered `Relations` object from `src/app/features/room/message/Reactions.tsx` instead of re-looking up reactions from `room.getUnfilteredTimelineSet()` inside `src/app/features/room/RoomTimeline.tsx`.
+  - this prevents the thread view from treating a visibly pressed reaction as missing and sending another `m.reaction` instead of redacting the existing one.
+  - added regression coverage in:
+    - `src/app/hooks/useRelations.test.ts`
+    - `src/app/features/room/message/Reactions.test.ts`
+  - live MCP repro on `#mindroom-dev` thread permalink `threadId=$rqMlfFsK8quuecnitF4NmwJpExQwY3Rj5ZdUo-w2V20`:
+    - baseline visible pill: `🔄 1`
+    - first click: `🔄 2`, pressed
+    - second click: returned to `🔄 1` without refresh
+  - validation:
+    - `npm test`
+    - `npm run typecheck`
+    - `npm run build`
+- Latest local thread refresh reconciliation hardening (2026-03-31):
+  - addressed the remaining cached-thread reload bug where a complete thread-cache hit could still show stale redacted stop reactions until a manual refresh.
+  - root cause:
+    - the background `/relations?recurse=true` refresh on complete cache hits updated cached/supplemental thread events, but did not reconcile the live `timelineSet.relations` containers used by `Reactions`.
+    - the homeserver returns already-redacted relation shells via `unsigned.redacted_because`; those events no longer expose `getRelation()`, so relation cleanup must recover the old parent relation metadata from the cached thread snapshot by event id.
+  - implementation:
+    - `src/app/features/room/eventCacheEditUtils.ts`
+      - exports `collectRedactedRelationTargetsFromLookup(...)` to recover relation ancestry for already-redacted shells from prior cached/live copies of the same relation event.
+      - reuses the same redacted-target shape for cached redaction events and refresh reconciliation.
+    - `src/app/features/room/RoomTimeline.tsx`
+      - complete cached thread opens still render immediately from cache,
+      - but the background latest-tail relations refresh now reconciles the fetched relation events into both room and thread timeline-set relations, using cached snapshot metadata to remove stale aggregated reactions by id.
+    - `src/app/hooks/useThreadStreamingState.ts`
+      - streaming state now reads effective edited content via `getEditedEvent(...)` / `getLatestMessageContent(...)`, so compacted server sync payloads do not leave stale raw `streaming` metadata in control of the indicator.
+  - added regression coverage in:
+    - `src/app/features/room/eventCacheEditUtils.test.ts`
+    - `src/app/hooks/useThreadStreamingState.test.ts`
+    - `src/app/features/room/message/Reactions.test.ts`
+    - `src/app/features/room/RoomTimeline.test.ts`
+  - live MCP validation:
+    - exact thread permalink:
+      - `http://127.0.0.1:8080/!8sLvq34Z5eu5QvnZWj%3Amindroom.chat/%23mindroom-dev%3Amindroom.chat?threadId=%24j9ieLcrMb3cUSp1c7yJeKppPMYfg-3P0Fh9K4bVSsII`
+    - before fix:
+      - reloading the thread kept stale `🛑 1` pills visible on `$ebjexl5b3-itRScoedE6lmjsFWHnEvnWovAXUaFc-rQ` and `$6mKAOaDkrDFy69C2SXfJbNII-gveF7ItT1V3aQp-NDw`
+      - network refresh payload already contained the reaction `$4cbaZAx-EC34suTShlQ_6aIuuGc_aAnBsYVEJqZW-5o` in redacted form
+    - after fix:
+      - hard reload of the same thread no longer showed either stale stop pill
+      - returning to `#mindroom-dev` room view with `Streaming: show only` active showed `0` matching threads instead of surfacing this completed thread as still streaming
+  - validation:
+    - `npm test`
+    - `npm run typecheck`
+    - `npm run build`
+- Backup branch created before the issue-only history cleanup:
+  - `backup/dev-before-issue-squash-20260330-102644`
+
+### CINNY-056: Token usage context menu item (2026-04-04)
+
+- Context menu exposes "Token usage" when `io.mindroom.ai_run` metadata present, reusing same metadata dialog
+- Works for grouped/continuation messages where the header info button is not shown
+- Shared AI run metadata dialog resolves return focus to containing message element
+- Files: `src/app/features/room/message/Message.tsx`, `src/app/features/room/message/Message.test.ts`
+- Cleanup follow-up (2026-04-04):
+  - moved generic `assignElementRef(...)` into shared `src/app/utils/react.ts` and re-imported it into `Message.tsx`
+  - wrapped the AI-run dialog state/ref in `MessageMindroomAiRunControls`, so messages without `io.mindroom.ai_run` metadata no longer allocate those hooks
+  - removed the unused `open` prop and `aria-pressed` from `MessageMindroomAiRunItem`
+  - kept `Message.test.ts` UI mocks local because the repo still has no shared Vitest setup file; added a note to extract them once such setup exists
+- Validation (2026-04-04):
+  - `npm test -- src/app/features/room/message/Message.test.ts` passes
+  - `npm test` passes (`118/118` files, `996/996` tests)
+  - `npm run build` passes
+  - `npm run typecheck` is currently blocked by an unrelated existing error in `src/app/features/room/RoomTimeline.tsx(175,3)`: import declaration conflicts with local declaration of `isThreadOnlyRoomActivity`
+
+### CINNY-064: Thread header AI summary + scheduled countdown (2026-04-04)
+
+- Added shared `src/app/hooks/useThreadHeaderInfo.ts` to:
+  - resolve canonical thread roots from reply-event thread URLs,
+  - surface the latest AI summary text from thread summary events,
+  - count pending scheduled tasks for the thread,
+  - pick the next future scheduled task timestamp,
+  - and keep countdown text fresh via `useInterval(...)` plus adaptive refresh cadence from `getScheduledTimeUpdateInterval(...)`.
+- `src/app/utils/scheduledTaskContract.ts` now accepts both `execute_at` and `scheduled_at` timing fields (top-level and workflow JSON/object forms), while still normalizing them onto the existing `executeAt` output field.
+- `src/app/features/room/ThreadContextBanner.tsx` / `src/app/features/room/ThreadContextBanner.css.ts` now replace the static subtitle copy with a compact metadata row:
+  - AI summary text is single-line, truncated, and exposes the full text via `title`.
+  - scheduled tasks render a compact calendar/countdown indicator.
+  - when neither summary nor scheduled task metadata exists, the subtitle row is omitted entirely to save header space.
+- `src/app/components/message/mindroomThreadSummary.ts` now exports `getLatestThreadSummaryInfo(...)` so the banner and compact thread card share the same latest-summary selection logic.
+- `src/app/features/room/CompactThreadCard.tsx` now reuses the extracted summary/scheduled helpers so banner/card metadata stay aligned without changing the compact card’s cached-summary fallback path.
+- Tests:
+  - added `src/app/hooks/useThreadHeaderInfo.test.ts`
+  - expanded `src/app/features/room/ThreadContextBanner.test.ts`
+  - expanded `src/app/utils/scheduledTaskContract.test.ts`
+  - expanded `src/app/components/message/mindroomThreadSummary.test.ts`
+  - expanded `src/app/features/room/CompactThreadCard.test.ts`
+- Validation unblock during rebase:
+  - removed the duplicate imported `isThreadOnlyRoomActivity` symbol from `src/app/features/room/RoomTimeline.tsx`, leaving the existing local helper in place and restoring `npm run typecheck` after rebasing onto `local-dev-ref`.
+- Review:
+  - independent second self-review completed via focused `git diff` pass plus `git diff --check`.
+- Review-fix follow-up (2026-04-05):
+  - `src/app/hooks/useThreadHeaderInfo.ts` now listens for room-level `ThreadEvent.New` while `room.getThread(threadRootId)` is still missing, so the banner re-renders once delayed thread hydration creates the SDK thread model and then resumes the existing thread-scoped refresh path.
+  - the no-timestamp scheduled-task fallback copy now uses `N scheduled task(s)` consistently, including the banner aria-label.
+  - added a delayed-hydration regression in `src/app/hooks/useThreadHeaderInfo.test.ts` and a no-timestamp copy regression in `src/app/features/room/ThreadContextBanner.test.ts`.
+  - independent second self-review completed via final `git diff` pass plus `git diff --check`.
+- Validation (2026-04-04):
+  - `npm test -- src/app/hooks/useThreadHeaderInfo.test.ts src/app/features/room/ThreadContextBanner.test.ts src/app/utils/scheduledTaskContract.test.ts src/app/components/message/mindroomThreadSummary.test.ts src/app/features/room/CompactThreadCard.test.ts` passes
+  - `npm test` passes (`119/119` files, `1008/1008` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+- Validation follow-up (2026-04-05):
+  - `npm test -- src/app/hooks/useThreadHeaderInfo.test.ts src/app/features/room/ThreadContextBanner.test.ts` passes
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - focused `npx eslint ...` on the touched files is still blocked by the existing TypeScript parser `originalKeywordKind` deprecation crash; `FORK_CHANGES.md` itself also is not an ESLint target and fails parsing as Markdown.
+- Validation/tooling follow-up (2026-04-06):
+  - upgraded the ESLint toolchain to `eslint@8.57.1` plus `@typescript-eslint/{parser,eslint-plugin}@6.21.0`, which removes the old `originalKeywordKind` parser crash against the current TypeScript toolchain.
+  - `check:eslint` now targets only JS/TS sources via `eslint "src/**/*.{js,jsx,ts,tsx}"`, so CSS files like `src/index.css` are no longer sent through the JS parser.
+  - `npm run lint` now gates on ESLint only and passes on the current branch; repo-wide Prettier drift remains available through `npm run check:prettier` but is not bundled into `npm run lint`.
+  - validation:
+    - `npm run lint` passes
+    - `npm test` passes (`119/119` files, `1012/1012` tests)
+
+### CINNY-067: Auto-thread attachments planning note (2026-04-09)
+
+- Added repo-root `PLAN.md` with the implementation plan for collapsing one composer send containing text plus attachments into a single top-level room event plus threaded attachment replies.
+- Investigation findings recorded in the plan:
+  - attachment uploads start per-card from `UploadCardRenderer` via `useBindUploadAtom(...)` / `mx.uploadContent(...)`,
+  - attachment Matrix events are sent from `RoomInput.handleSendUpload(...)`,
+  - text sends are a separate `RoomInput.submit()` path that currently does not await or capture the attachment/root send result,
+  - and reply-in-thread already works by storing a reply draft with `m.thread` relation in `RoomTimeline.handleReplyClick(...)` and reusing `getMessageRelation(...)` in `RoomInput`.
+- Planned direction:
+  - only auto-thread when attachments are present and there is no explicit existing thread target,
+  - send text first as room-level root when present,
+  - otherwise use the first attachment as the root candidate,
+  - capture the returned `event_id`,
+  - and send remaining attachments as `m.thread` replies to that new root in stable selection order.
+- Docs-only validation target for this planning step is `git diff --check`.
+
+### CINNY-070: Recent Threads Panel planning note (2026-04-10)
+
+- Added repo-root `PLAN-A.md` for the left-sidebar recent-threads panel.
+- Investigation findings recorded in the plan:
+  - the requested panel belongs in the page-nav room list (`Home` / `Direct` / `Space`), not the icon-only `SidebarNav`,
+  - thread opens are currently represented canonically by room-route `threadId` search params and resolved root ids in `RoomView.tsx`,
+  - `useRoomNavigate.navigateRoomThread(...)` already provides the correct cross-home/direct/space navigation behavior for clicking a recent entry,
+  - and the existing thread-summary helpers/cache are based on timeline notice messages, not the requested `m.thread_summary` / `set_thread_summary` room-state events.
+- Planned direction:
+  - add a shared split-layout wrapper for the three page-nav room lists,
+  - persist recent-thread order plus panel height in a new localStorage atom,
+  - record opens from the canonical room-view thread route after `useThreadRootEvent(...)` resolution,
+  - resolve display text from room state first and stored fallback text second,
+  - and remove stale entries when room membership disappears or a thread-open attempt hits the existing load-error path.
+- Docs-only validation target for this planning step is `git diff --check`.
+
+### CINNY-071: In-thread approval card rendering (2026-04-10)
+
+### Rebase validation follow-up (2026-04-21)
+
+- Live browser validation on the `v4.11.1` rebase branch uncovered and fixed two regressions introduced by the integration:
+  - non-call room routes rendered a duplicate `RoomViewHeader` because both `Room.tsx` and `RoomView.tsx` owned the header after upstream churn
+  - recent-thread sidebar entries lost their explicit accessible name, which broke the existing Playwright selector contract and made the entry buttons less descriptive for assistive tech
+- Fixes:
+  - `src/app/features/room/Room.tsx` now leaves non-call header rendering entirely to `RoomView.tsx`
+  - `src/app/features/recent-threads/RecentThreadEntry.tsx` now restores a stable `aria-label` in the form `Open thread: …`
+  - added focused regressions in `src/app/features/room/Room.test.ts` and `src/app/features/recent-threads/RecentThreadEntry.test.ts`
+- Live E2E harness follow-up:
+
+  - `e2e/live/cinny073-recent-threads-mobile.spec.ts` now clears the targeted room's bare-home thread-restore entry before the `480px` landscape rotation check, because the rebased client intentionally restores the last open thread from bare `/home/`
+  - `e2e/live/threads.spec.ts` now matches recent-thread buttons by `Open thread:` plus both room name and summary/root preview, without assuming a fixed accessible-name field order
+
+- Added `src/app/components/message/mindroomToolApproval.ts`:
+  - exports the `io.mindroom.tool_approval` event constant,
+  - parses approval events into typed approval-card data,
+  - prefers `m.new_content` for edits,
+  - and falls back to original content fields when approval edits omit unchanged fields.
+- Added `src/app/components/message/MindroomToolApprovalCard.tsx` and `src/app/components/message/MindroomToolApprovalCard.css.ts`:
+  - renders pending approvals as inline approval cards with tool name, collapsible JSON arguments, agent/time metadata, and approve/deny actions,
+  - renders approved / denied / expired states with status-specific styling,
+  - supports deny-reason entry before confirmation,
+  - and calls the approvals API directly from the timeline card.
+- Added minimal approvals API client at `src/app/features/approvals/api.ts`:
+  - defaults to `VITE_MINDROOM_API_URL ?? http://localhost:8765`,
+  - exposes `approveRequest(id)` and `denyRequest(id, reason?)`,
+  - and surfaces server error payloads when the request fails.
+- Timeline/rendering integration:
+  - `src/app/components/RenderMessageContent.tsx` now accepts an optional `eventType` and routes `io.mindroom.tool_approval` events to the approval card before normal `msgtype` rendering.
+  - `src/app/features/room/RoomTimeline.tsx` now treats `io.mindroom.tool_approval` as a known renderable event type and renders it through the normal `Message` surface in thread timelines instead of hiding it behind the unknown-event fallback.
+  - the custom approval renderer preserves original event content plus edited `m.new_content`, so partial approval edits still resolve correctly.
+- Edit/backfill follow-up:
+  - `src/app/features/room/threadEditBackfillUtils.ts` now always allows approval events into the thread edit-backfill path once the thread tail is loaded, so cached thread opens can upgrade pending approvals to resolved edits.
+- Tests:
+  - added `src/app/components/message/mindroomToolApproval.test.ts`
+  - added `src/app/components/message/MindroomToolApprovalCard.test.ts`
+  - expanded `src/app/components/RenderMessageContent.test.ts`
+  - expanded `src/app/features/room/threadEditBackfillUtils.test.ts`
+  - expanded `src/app/features/room/RoomTimeline.cache.test.ts`
+- Review:
+  - independent second self-review completed via fresh `git diff`, targeted source reads, and `git diff --check`.
+  - review fix follow-up:
+    - switched approval rendering off the generic flattened edit-content helper after confirming that partial approval edits would otherwise lose original approval fields needed for parsing.
+    - removed the misleading future-relative expiry label from the pending card because the shared relative-time helper intentionally clamps future timestamps to `now`.
+- Validation (2026-04-10):
+  - `npm test` passes (`128/128` files, `1069/1069` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `npm run lint` passes with existing repo warnings (`0` errors, `78` warnings)
+- Review round-1 fix follow-up (2026-04-11):
+  - `src/app/features/approvals/api.ts` now sends `X-Matrix-Access-Token` from the authenticated Matrix client and mirrors the local-MindRoom browser/native transport split so approval actions also work on Capacitor/native platforms.
+  - `src/app/components/message/MindroomToolApprovalCard.tsx` now holds pending cards in a local submitted state after a successful approve/deny call, keeps action buttons unavailable until the Matrix edit lands, and shows explicit "Submitted" feedback instead of reverting to actionable pending UI.
+  - `src/app/features/room/RoomTimeline.tsx` now gives `io.mindroom.tool_approval` events the same thread-root indicator path as normal/encrypted messages, including zero-reply badges, reply counts, participant avatars, and thread summaries.
+  - added focused regressions in:
+    - `src/app/features/approvals/api.test.ts`
+    - `src/app/features/room/RoomTimeline.approval.test.ts`
+    - `src/app/components/message/MindroomToolApprovalCard.test.ts`
+    - updated shared room-timeline test harness coverage in `src/app/features/room/RoomTimeline.test.shared.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` pass plus targeted source reads after validation; scope stayed limited to approval submission/rendering behavior, focused tests, and this runbook update.
+  - validation (2026-04-11):
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npx vitest run --reporter=verbose` passes (`135/135` files, `1085/1085` tests)
+    - `npm run lint` passes with the branch’s existing warning-only baseline (`0` errors, `78` warnings)
+- Review round-2 fix follow-up (2026-04-11):
+  - `src/app/features/room/RoomTimeline.tsx` now re-checks the post-decryption event type inside the encrypted renderer branch and routes decrypted `io.mindroom.tool_approval` events back through the normal approval-content renderer instead of falling through to `MessageUnsupportedContent`.
+  - `src/app/components/message/MindroomToolApprovalCard.tsx` now clears stale local API error text when request state exits error and when the approval status resolves to `approved`, `denied`, or `expired`, so resolved cards no longer show stale failure text.
+  - the deny-reason `Input` in `src/app/components/message/MindroomToolApprovalCard.tsx` now exposes `aria-label="Deny reason (optional)"`.
+  - added focused regressions in:
+    - `src/app/features/room/RoomTimeline.approval.test.ts`
+    - `src/app/components/message/MindroomToolApprovalCard.test.ts`
+    - updated encrypted-event support in `src/app/features/room/RoomTimeline.test.shared.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after validation; scope stayed limited to approval timeline rendering, approval-card state/accessibility, focused tests, and this runbook update.
+  - validation (2026-04-11):
+    - `npm test` passes (`135/135` files, `1087/1087` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+    - `npm run lint` passes with the branch’s existing warning-only baseline (`0` errors, `78` warnings)
+- Review round-3 fix follow-up (2026-04-11):
+  - `src/app/components/message/MindroomToolApprovalCard.tsx` now uses a synchronous `submittingRef` gate around approve/deny submission so rapid double-clicks or repeated Enter submits cannot dispatch duplicate approval API requests before `useAsyncCallback` flips into loading state.
+  - `src/app/features/room/room-pin-menu/RoomPinMenu.tsx` now treats `io.mindroom.tool_approval` as a first-class pinned renderable event and routes both direct and decrypted encrypted approval events back through `RenderMessageContent`, preserving approval-card rendering in the pin menu instead of falling back to the raw-event surface.
+  - added focused regressions in:
+    - `src/app/components/message/MindroomToolApprovalCard.test.ts`
+    - `src/app/features/room/room-pin-menu/RoomPinMenu.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after validation; scope stayed limited to approval submission guarding, pinned approval rendering, focused tests, and this runbook update.
+  - validation (2026-04-11):
+    - `npm test` passes (`136/136` files, `1090/1090` tests)
+    - `npx tsc --noEmit` passes
+    - `npm run build` passes
+- Review round-4 fix follow-up (2026-04-11):
+  - `src/app/features/room/room-pin-menu/RoomPinMenu.tsx` now resolves decrypted encrypted approval cards through `getEditedEvent(eventId, mEvent, evtTimeline.getTimelineSet())` before building approval render content, so relation-only approval edits upgrade pinned encrypted cards instead of leaving stale pending state/content behind.
+  - `src/app/components/message/MindroomToolApprovalCard.tsx` now moves focus into the deny form when it opens (input first, confirm button as fallback) and restores focus to the deny trigger when the form is cancelled, fixing the keyboard-focus loss caused by unmounting the previous action row.
+  - added focused regressions in:
+    - `src/app/components/message/MindroomToolApprovalCard.test.ts`
+    - `src/app/features/room/room-pin-menu/RoomPinMenu.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff` / `git diff --check` pass after validation; scope stayed limited to pinned approval edit resolution, approval-card focus management, focused tests, and this runbook update.
+  - validation (2026-04-11):
+    - `npm test` passes (`136/136` files, `1092/1092` tests)
+    - `npx tsc --noEmit` passes
+    - `npm run build` passes
+
+### CINNY-072: Thread banner summary overlap (2026-04-18)
+
+- `src/app/features/room/ThreadContextBanner.css.ts` now exports `TitleColumn` with `min-width: 0` so the middle banner column can shrink instead of forcing the `Resolve` chip offscreen.
+- `src/app/features/room/ThreadContextBanner.tsx` now:
+  - replaces the middle `Box direction="Column" grow="Yes"` wrapper with a real `div` carrying `TitleColumn`,
+  - renders the summary as `Text as="span"` with `data-thread-context-summary="true"` on the actual flex item,
+  - and keeps the existing summary guard so no empty summary node is mounted.
+- `SummaryText` now uses block formatting plus `flex: 1 1 0` and explicit ellipsis styles so the banner summary truncation contract stays attached to the real flex item.
+- `src/app/features/room/ThreadContextBanner.test.ts` now asserts:
+  - the `data-thread-context-summary="true"` selector renders when summary text is present,
+  - and no summary node renders when `summaryText` is empty or `undefined`.
+- Lint-gate unblock:
+  - `src/app/features/room/CompactThreadCard.tsx` now computes the live unread fallback in an unconditional `useMemo(...)` before applying the existing `metadata?.isUnread ?? ...` override, preserving behavior while fixing the branch's `react-hooks/rules-of-hooks` lint error.
+- Review:
+  - independent second self-review completed via fresh `git diff`, targeted source reads, and `git diff --check`.
+- Validation (2026-04-18):
+  - `npm run lint` passes with the branch baseline warning-only output (`0` errors, `78` warnings)
+  - `npx tsc --noEmit` passes
+  - `npx vitest run src/app/features/room/ThreadContextBanner.test.ts` passes (`1/1` files, `24/24` tests)
+  - `npx vitest run` passes (`139/139` files, `1139/1139` tests)
+  - `npm run build` passes
+
+### CINNY-074: Drop unresolved compact-card badge (merge refresh) (2026-04-18)
+
+- Merged local `dev` (`5782e262`) into `cinny-074-drop-unresolved-badge` to clear the squash-merge conflict in `src/app/features/room/CompactThreadCard.tsx`.
+- Conflict resolution preserved both sides:
+  - kept the `dev` compact resolved-card layout and metadata-row structure from `CINNY-071`,
+  - kept the `CINNY-074` removal of the resolved/unresolved `<Chip>`,
+  - and kept the `hasMetadata` gate so empty metadata rows do not render.
+- `src/app/features/room/CompactThreadCard.tsx` still computes metadata visibility from every mounted metadata child on the merged branch (`threadParticipants`, `displayTags`, `isStreaming`, `isUnread`).
+- Review:
+  - independent second self-review completed via a fresh conflict-marker scan plus merged-file diff review before validation.
+- Validation (2026-04-18):
+  - `npm run typecheck` passes
+  - `npm run lint` passes
+  - `npm run build` passes
+
+### CINNY-071 v2: Matrix-event approvals + compact resolved cards (2026-04-13)
+
+- Review round-5 fix follow-up (2026-04-13):
+  - approval actions no longer call the local approvals REST API; `src/app/components/message/MindroomToolApprovalCard.tsx` now sends `io.mindroom.tool_approval_response` via `mx.sendEvent(...)` with thread reply metadata pointing at the thread root and the original approval event.
+  - `src/app/components/message/mindroomToolApproval.ts` now exports the approval-response event constant plus a shared builder for the response content payload so approve/deny actions stay aligned with the Matrix event schema.
+  - resolved approval cards are now compact inline summaries with status-colored icons/text, tool name, resolver + relative time, and optional deny reason in a tooltip; pending cards keep the larger actionable layout.
+  - `src/app/components/RenderMessageContent.tsx`, `src/app/features/room/RoomTimeline.tsx`, and `src/app/features/room/room-pin-menu/RoomPinMenu.tsx` now thread `roomId` / `eventId` / `threadId` through to the approval card so Matrix approval responses have the source-event context they need.
+  - removed the no-longer-used REST approvals client and its tests:
+    - `src/app/features/approvals/api.ts`
+    - `src/app/features/approvals/api.test.ts`
+  - added/updated focused regressions in:
+    - `src/app/components/message/mindroomToolApproval.test.ts`
+    - `src/app/components/message/MindroomToolApprovalCard.test.ts`
+    - `src/app/components/RenderMessageContent.test.ts`
+    - `src/app/features/room/RoomTimeline.approval.test.ts`
+    - `src/app/features/room/room-pin-menu/RoomPinMenu.test.ts`
+  - review:
+    - independent second self-review completed via a fresh `git diff`, targeted source reads, and `git diff --check`; scope stayed limited to approval-card submission/rendering, approval payload helpers, render-path prop wiring, focused tests, and this runbook update.
+  - validation (2026-04-13):
+    - `npm test` passes (`138/138` files, `1138/1138` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+
+### CINNY-077: "Working" thread filter DSL wiring (2026-04-19)
+
+- Added `src/app/features/room/threadFilterDsl.ts` plus focused parser/serializer tests so the search bar now understands `is:*`, `-is:*`, `tag:*`, `-tag:*`, and status-only `OR` runs while preserving unsupported text as raw tail.
+- Renamed the preset id from `active-work` to `working`; the preset now materializes as `is:streaming OR is:scheduled` in the bar and keeps existing preset behavior of resetting manual chip toggles back to `statusMode: 'and'`.
+- `RoomThreadOverview` now renders included OR-mode status chips with the orange warning treatment, while `RoomTimeline` parses the raw bar text synchronously for chip state and keeps the existing 300ms debounce only on predicate evaluation.
+- `RoomView` chip/tag clicks now re-canonicalize from the current effective parsed state instead of stale stored chip fields, and skip the bar write when serialization is byte-identical to the current input.
+- Step 6 consumer audit:
+  - raw `searchQuery` remains authoritative only in UI/input surfaces (`RoomThreadOverview` expansion/value, `RoomView` write handlers, persisted state, `hasActiveThreadFilters`)
+  - substring matching sites now consume parsed free text (`resolveOverviewThreadRootIds`, room-overview focus recovery, frozen-order signatures)
+  - unsupported runs like `tag:a OR tag:b` intentionally stay raw in the bar and do not silently degrade into active chips
+- Review:
+  - independent second self-review completed via fresh `git diff`, `git diff --check`, and `grep -n "searchQuery" src/app/features/room/*.ts src/app/features/room/*.tsx` before the final audit fix.
+- Validation (2026-04-19):
+  - `npm run build` passes
+  - `npx vitest run --no-coverage` passes
+- review-fix round 1, bug 1 (2026-04-19):
+  - `applyParsedThreadFilterQuery(...)` now treats the bar as authoritative for parsed status/tag state: absent `is:` tokens reset status keys to `'any'`, absent `tag:` tokens clear tag chips, and parsed `statusMode` always wins instead of reviving deleted stored chip state.
+  - added the new `RoomTimeline.filter-query.test.ts` regression that types `is:streaming OR is:scheduled tag:bug`, clears the bar, and verifies both status chips and tag chips reset immediately while the debounced predicate returns to all threads.
+  - aligned the controlled `RoomTimeline` test harness with the real `RoomView` container by canonicalizing `searchQuery` on chip toggles / legacy initial state, which prevents stale harness-only state shapes from bypassing the bar-authoritative merge path.
+  - updated the affected cache/navigation expectations to the real current contract:
+    - debounced chip-query writes now need an explicit debounce settle in the few tests that assert rendered ordering after a chip click,
+    - and reset returns to the default overview sort (`lastReply`) rather than a plain message-timeline range.
+  - tightened `applyPreset(...)` with an explicit `ThreadFilterState` annotation so TypeScript keeps the tri-state literals narrow during validation.
+  - review:
+    - independent second self-review completed via fresh diff review of the blocker patch plus the harness/test expectation adjustments needed to keep the suite aligned with the bar-authoritative invariant.
+  - validation:
+    - `npx vitest run --no-coverage` passes (`141/141` files, `1304/1304` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+- review-fix round 1, bug 2 (2026-04-19):
+  - `RoomView` now applies presets against the effective parsed bar state via `updateFromEffectiveQueryState(...)` instead of the raw stored `threadFilterState`, so typed DSL tokens that have not yet been merged into stored status/tag fields still survive preset clicks.
+  - `applyPreset(...)` now treats the `all` preset as a full clear by explicitly resetting both `searchQuery` and parsed tag state, which keeps the canonicalized bar empty instead of resurrecting stale free text or tags during re-serialization.
+  - added regressions for both user-facing failures:
+    - `RoomTimeline.filter-query.test.ts` verifies `tag:bug` survives when the `working` preset is clicked from the bar,
+    - `roomThreadOverviewModel.test.ts` verifies `applyPreset(state_with_searchQuery, all).searchQuery === ''`.
+  - hardened the range-reset navigation test by switching its debounce waits to fake timers; the behavior is unchanged, but full-suite validation no longer depends on wall-clock timing under heavy Vitest load.
+  - review:
+    - independent second self-review completed via fresh diff review plus `git diff --check` on the preset-path changes and the timer-driven navigation test adjustment.
+  - validation:
+    - `npx vitest run --no-coverage` passes (`141/141` files, `1306/1306` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+- review-fix round 1, bug 3 (2026-04-19):
+  - tightened the parser fallback so only tokens that actually look like DSL syntax (`is:*`, `-is:*`, `tag:*`, `-tag:*`, or stray `OR`) land in `unsupportedTail`; colon-bearing free text like Matrix ids, URLs, and similar search text now remains in `freeText` and reaches substring matching.
+  - added the required regression in `threadFilterDsl.test.ts` to verify `parseThreadFilterQuery('!room:server hello world').freeText === '!room:server hello world'`.
+  - kept the existing invalid-DSL behavior intact for unsupported runs like `tag:a OR tag:b` and `is:streaming OR tag:bug`; this patch only narrows the over-eager colon fallback.
+  - review:
+    - independent second self-review completed via fresh diff review of `threadFilterDsl.ts` / `threadFilterDsl.test.ts` after focused parser-test validation.
+  - validation:
+    - `npx vitest run --no-coverage` passes (`141/141` files, `1307/1307` tests)
+    - `npm run typecheck` passes
+    - `npm run build` passes
+- docs follow-up (2026-04-19):
+  - corrected the CINNY-077 live-test recipe in both `PLAN.md` acceptance criterion 4 and `IMPLEMENTATION-NOTES.md` step 4: a single click on the `resolved` chip while in the Working preset produces `is:resolved is:streaming is:scheduled`, because the chip cycles from `any` to `include` before AND-mode normalization removes the orange OR styling.
+
+### CINNY-076c: command palette mobile fixes (2026-04-19)
+
+- commit 1 mobile bottom-sheet layout + viewport-unit fix (2026-04-19):
+  - `src/app/features/command-palette/CommandPaletteRenderer.tsx` now renders the mobile palette as a bottom sheet anchored to the viewport bottom instead of a full-screen centered modal.
+  - mobile sizing now uses `min(85svh, 700px)` for the sheet height and `100dvh` / `100svh` for the overlay container; `100vh` is no longer used anywhere in the renderer.
+  - desktop layout stays on the existing centered modal path, with the prior `calc(100vh - 32px)` cap updated to `calc(100dvh - 32px)` only.
+  - `src/app/features/command-palette/CommandPaletteRenderer.test.ts` now locks the mobile bottom-sheet style and asserts the renderer no longer emits `100vh`.
+- commit 2 mobile close button (2026-04-19):
+  - `src/app/features/command-palette/CommandPalette.tsx` now renders a mobile-only `IconButton` with `Icons.Cross` beside the search input and routes it through the existing `requestClose()` callback.
+  - `src/app/features/command-palette/CommandPaletteRenderer.tsx` now passes the mobile-sheet flag into `CommandPalette` so desktop stays unchanged.
+  - `src/app/features/command-palette/CommandPaletteRenderer.test.ts` now asserts the mobile renderer includes the explicit close button and that clicking it closes the palette.
+- commit 3 safe-area bottom padding (2026-04-19):
+  - `src/app/features/command-palette/CommandPalette.tsx` now adds `padding-bottom: env(safe-area-inset-bottom, 0px)` to the mobile sheet’s inner content container so the iOS home-indicator zone is painted by the dialog and content clears the indicator.
+- review:
+  - independent second self-review completed via fresh `git diff` / `git diff --check` passes before each logical-step commit and a final post-validation diff audit; scope stayed limited to the command-palette renderer/component/tests plus this runbook.
+- validation (2026-04-19):
+  - focused Vitest passes for:
+    - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+    - `src/app/features/command-palette/CommandPalette.test.ts`
+  - `npm run typecheck` passes
+  - `npm test -- --run` passes (`152/152` files, `1357/1357` tests)
+  - `npm run build` passes
+
+### CINNY-080: Command palette row restyle (2026-04-20)
+
+- `src/app/features/command-palette/CommandPaletteList.tsx` now applies the row-only visual refresh for known item kinds:
+  - a 4px left accent bar per row via `border-left`,
+  - a category icon between the accent bar and title,
+  - slightly roomier row padding,
+  - and stable `data-kind` / `data-category` attributes for focused regression coverage.
+- the accent mapping stays on existing Folds semantic families so the row colors remain theme-safe across Cinny's light/dark/butter/silver themes without hardcoded hex values:
+  - actions -> `color.Warning.Main`
+  - threads -> `color.Primary.Main`
+  - rooms/spaces -> `color.Success.Main`
+  - users -> `color.Secondary.Main`
+  - messages -> `color.SurfaceVariant.OnContainer`
+- icon mapping uses existing Folds glyphs only:
+  - action -> `Icons.Terminal`
+  - room -> `Icons.Hash`
+  - space -> `Icons.Space`
+  - user -> `Icons.User`
+  - thread -> `Icons.Message`
+  - message -> `Icons.Search`
+- added focused row-restyle coverage in `src/app/features/command-palette/CommandPaletteList.test.ts` for:
+  - room category metadata/accent rendering,
+  - selected-row background preservation,
+  - and unknown-kind fallback without icon/bar crashes.
+- updated `CommandPalette.test.ts` and `CommandPaletteRenderer.test.ts` folds mocks for the new icon/color imports used by the shared list renderer.
+- added `CINNY-080-DESIGN.md` at the worktree root with the final color/icon mapping table, section-count snapshot, file list, and implementation tradeoffs.
+- review:
+  - independent second self-review completed via fresh `git diff`, `git diff --check`, and targeted source reads after the full validation pass; scope stayed limited to command-palette row styling, focused tests, and docs/runbook updates.
+- validation (2026-04-20):
+  - `npm run typecheck` passes
+  - focused Vitest passes for:
+    - `src/app/features/command-palette/CommandPaletteList.test.ts`
+    - `src/app/features/command-palette/CommandPalette.test.ts`
+    - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - `npm test -- --run` passes (`153/153` files, `1360/1360` tests)
+  - clean rebuild via `rm -rf dist && npm run build` passes
+  - fresh main bundle verified:
+    - `dist/index.html` timestamp `2026-04-20 08:29:21 -0700`
+    - `dist/assets/index-B7kENa8j.js` timestamp `2026-04-20 08:29:21 -0700`
+    - `dist/assets/index-B7kENa8j.js` size `4,355,187` bytes
+- gutter follow-up for Bas iPhone feedback (2026-04-20):
+  - `src/app/features/command-palette/CommandPalette.tsx` now applies `paddingInline: config.space.S400` on the shared inner wrapper so the search input, live result count, results list, and footer all sit inside the same 16px gutter instead of rendering flush against the dialog edge.
+  - the same gutter now applies on the mobile bottom-sheet path as well; the existing safe-area bottom padding remains intact.
+  - kept unchanged:
+    - desktop dialog width (`800px` via the existing modal size path)
+    - row-level accent bar/icon styling
+    - per-row padding behavior
+    - Cmd-K and prefix-tab logic
+  - expanded `src/app/features/command-palette/CommandPalette.test.ts` with focused assertions for:
+    - desktop inner gutter presence
+    - mobile-sheet gutter preservation alongside safe-area bottom padding
+- review follow-up:
+  - independent second self-review completed via fresh `git diff`, `git diff --check`, and targeted source reads after the gutter patch and requested validation; scope stayed limited to the command-palette inner wrapper/test updates plus this runbook.
+- validation follow-up (2026-04-20):
+  - focused Vitest passes for:
+    - `src/app/features/command-palette/CommandPaletteList.test.ts`
+    - `src/app/features/command-palette/CommandPalette.test.ts`
+    - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - `npm run typecheck` passes
+  - `npm test -- --run` passes (`153/153` files, `1362/1362` tests)
+  - clean rebuild via `rm -rf dist && npm run build` passes
+  - fresh main bundle verified:
+    - `dist/index.html` timestamp `2026-04-20 09:26:02 -0700`
+    - `dist/assets/index-DsIKbFzR.js` timestamp `2026-04-20 09:26:02 -0700`
+    - `dist/assets/index-DsIKbFzR.js` size `4,355,215` bytes
+- selected-row + header-removal follow-up for Bas iPhone feedback (2026-04-20):
+  - `src/app/features/command-palette/CommandPaletteList.tsx` now renders `data-selected="true"` rows with `color.SurfaceVariant.ContainerHover` instead of `var(--bg-surface-hover)`, so keyboard selection stays visibly distinct against the `Background` modal while preserving the existing 4px left accent bar and per-row icon treatment.
+  - removed both redundant section-title text surfaces from the list renderer:
+    - the large section header above each grouped result set,
+    - and the right-aligned per-row section badge text.
+  - kept unchanged:
+    - the row accent-bar styling,
+    - the row icons,
+    - the shared 16px inner gutter,
+    - the existing per-item `Line` separators and grouped spacing,
+    - and the Cmd-K / prefix-tab / mobile-sheet behavior.
+  - updated focused coverage:
+    - `src/app/features/command-palette/CommandPaletteList.test.ts` now asserts the Folds `SurfaceVariant.ContainerHover` selected background token and verifies the redundant section title text no longer renders.
+    - `src/app/features/command-palette/CommandPalette.test.ts` now asserts visible item content instead of removed section-title strings.
+    - `src/app/features/command-palette/CommandPaletteRenderer.test.ts` folds mock now includes the shared `SurfaceVariant.ContainerHover` token used by the list renderer.
+- review follow-up:
+  - independent second self-review completed via fresh `git diff --stat`, targeted `git diff`, and `git diff --check` passes after the requested validation; scope stayed limited to the command-palette row renderer/tests plus this runbook update.
+- validation follow-up 2 (2026-04-20):
+  - focused Vitest passes for:
+    - `src/app/features/command-palette/CommandPaletteList.test.ts`
+    - `src/app/features/command-palette/CommandPalette.test.ts`
+    - `src/app/features/command-palette/CommandPaletteRenderer.test.ts`
+  - `npm run typecheck` passes
+  - `npm test -- --run` passes (`153/153` files, `1363/1363` tests)
+  - clean rebuild via `rm -rf dist && npm run build` passes
+  - fresh main bundle verified:
+    - `dist/index.html` timestamp `2026-04-20 10:00:18 -0700`
+    - `dist/assets/index-B1nAFOIe.js` timestamp `2026-04-20 10:00:18 -0700`
+    - `dist/assets/index-B1nAFOIe.js` size `4,355,063` bytes
+  - `npm run lint` still fails at the current branch baseline with unrelated pre-existing issues:
+    - `src/app/features/room/threadFilterDsl.ts` reports 2 `no-return-assign` errors,
+    - and the branch still has 80 existing warnings elsewhere.
+- per-row category badge restoration follow-up for Bas clarification (2026-04-20):
+  - confirmed the large grouped section header above each result set stays removed.
+  - `src/app/features/command-palette/CommandPaletteList.tsx` now restores the right-aligned per-row category badge text (`section.title`) as a second flex child on each row button.
+  - the row button now uses `justifyContent: 'space-between'` plus `gap: 12` so the title column and right badge stay on separate tracks.
+  - the right badge wrapper now uses `flex: '0 0 auto'`, `alignSelf: 'center'`, `paddingLeft: 12`, and `whiteSpace: 'nowrap'` so the badge never shrinks or wraps into the title column.
+  - the left title/description column continues to own `minWidth: 0`, and both row text surfaces now use the existing Folds `truncate` prop so long content ellipsizes instead of colliding with the restored badge.
+  - updated focused coverage:
+    - `src/app/features/command-palette/CommandPaletteList.test.ts` now asserts the restored per-row badge is present, the badge wrapper keeps the no-wrap/non-shrinking layout, and long titles/descriptions receive `truncate`.
+    - `src/app/features/command-palette/CommandPalette.test.ts` no longer treats hidden group headers as meaning section-title strings must never appear anywhere in the rendered list.
+- review follow-up:
+  - independent second self-review completed via fresh `git diff --stat`, targeted `git diff`, and `git diff --check` passes after the badge-restoration patch and validation; scope stayed limited to the command-palette row renderer/tests plus this runbook update.
+- validation follow-up 3 (2026-04-20):
+  - `npm run typecheck` passes
+  - `npm test -- --run` passes (`153/153` files, `1364/1364` tests)
+  - clean rebuild via `rm -rf dist node_modules/.vite && npm run build` passes
+  - fresh main bundle verified:
+    - `dist/index.html` size `3,169` bytes
+    - `dist/assets/index-rs53twZf.js` size `4,355,258` bytes
+
+## CINNY-081 — Copy Text resolves long-text overflow body (2026-04-20)
+
+- Right-click "Copy Text" on `io.mindroom.long_text` overflow messages now copies the resolved sidecar content instead of the short envelope placeholder body.
+- Added `getCachedMindroomLongTextContent(...)` (sync cache lookup) in `src/app/components/message/mindroomLongText.ts` and `useMindroomLongTextResolvedContent(source, enabled)` hook in `src/app/components/message/MindroomLongTextText.tsx` — reuses the renderer's existing `hydrateMindroomLongTextSource` + `downloadMindroomLongTextSidecarText` plumbing.
+- Hook state stored as `{ mxcUri, content }` and only returns content when the tagged `mxcUri` matches the current `source.mxcUri`, so streaming `m.replace` rotations cannot leak the previous sidecar's body into the click handler.
+- `getMessageCopyTextBody(...)` extended with optional `resolvedLongTextContent`; falls back to envelope body when resolution unavailable.
+- `getMessageCopyTextBody(...)` and `isCopyTextMessageContent(...)` now live in `src/app/mindroom/messages/messageCopyText.ts`, keeping the long-text copy policy in the MindRoom message namespace.
+- `Message.tsx` widens the Copy Text visibility gate through the MindRoom extension state; helper-level gate untouched. Menu item disables with `Copy Text (loading…)` label while sidecar hydrates.
+- Click handler stays synchronous so iOS Safari's user-gesture clipboard requirement is preserved.
+- Tests: 4 helper precedence cases, 5 hook cases (warm/cold/disabled/unmount-cancel/source-change-isolation captured via `renderHook` + `result.current` to fail on the broken pre-fix hook), 1 `Message.test.ts` integration test for the overflow context-menu flow.
+
+## CINNY-082 — Attach file input to DOM for iOS WKWebView uploads (2026-04-21)
+
+- Replaced `src/app/utils/dom.ts` `selectFile()` with the attached off-screen input shape from the implementation plan:
+  - mounts the transient `<input type="file">` on `document.body`,
+  - keeps it inert via off-screen positioning plus `aria-hidden="true"` / `tabIndex=-1`,
+  - resolves successful selections through `change`,
+  - uses the native file-input `cancel` event for dismissal instead of inferring cancel from `window.focus`,
+  - and removes the input/listeners through a single guarded `finalize()` cleanup path.
+- Included the inline iOS WKWebView comment so future cleanups do not remove the DOM attach as a "leak fix".
+- This fix also bumps the supported iOS minimum from `15.0` to `16.4` so the native file-input `cancel` event is available on every supported iOS WKWebView, eliminating any need for `selectFile()` focus- or timeout-based cancel fallbacks.
+- Restored the public empty-selection contract for `selectFile(true)`: if `change` fires with an empty `FileList`, the promise now resolves `[]` instead of `undefined`.
+- Extended `src/app/utils/dom.test.ts` with 8 focused regression cases covering:
+  - attached-before-click cleanup,
+  - single + multi-file resolution,
+  - empty single-select and empty multi-select behavior,
+  - native `cancel` cleanup,
+  - a valid selection arriving 600 ms after window focus,
+  - concurrent calls,
+  - and no leftover file inputs after repeated flows.
+- review:
+  - independent second self-review completed via fresh `git diff`, `git diff --check`, and targeted source/test reads after the review-fix patch; scope stayed limited to `src/app/utils/dom.ts`, `src/app/utils/dom.test.ts`, and this runbook update.
+- validation:
+  - `npx vitest run src/app/utils/dom.test.ts` passes (`12/12` tests)
+  - `npx tsc --noEmit` passes
+  - `npm run build` passes
+  - full-suite baseline remains `1388/1396` pass with 8 pre-existing unrelated failures in `RoomTimeline*`, `RoomView`, and `roomThreadOverviewModel.test.ts`; those failures are baseline on `dev` and out of scope for `CINNY-082`
+  - `npm run lint` still fails at the current branch baseline with unrelated pre-existing issues (`5` errors, `80` warnings); no lint findings in `src/app/utils/dom.ts` or `src/app/utils/dom.test.ts`
+
+## CINNY-083 — Pin RoomView to `--app-height` on iOS Safari transitions (2026-04-21)
+
+- Problem: iOS Safari URL-bar/keyboard visual-viewport transitions could leave a gray body-background bar exposed at the room header/composer edge because the room layer stayed taller than the visible viewport.
+- Fix: `src/app/features/room/RoomView.tsx` now pins the top-level `<Page>` wrapper height to `var(--app-height, 100%)`, so the room shrinks with the visual viewport instead of letting the body background show through.
+- Relationship to `CINNY-079`: this stays on the same iOS keyboard layout system, but binds the room layer instead of rebinding `#root` to `--app-height`.
+
+## CINNY-084 — Truncate compact thread card title fallback (2026-04-21)
+
+- Problem: compact thread cards rendered `titleText` directly, so threads without an AI summary could dump the full uncapped root-body preview into the title row and inflate card height.
+- Fix: `src/app/features/room/CompactThreadCard.tsx` now derives `displayTitleText = truncateText(titleText, TITLE_TEXT_LIMIT)` for rendering while preserving the full `titleText` for accessibility/click payloads, and adds `title={titleText}` so the full string remains available on hover.
+- round-1 review fix:
+  - corrected the local `truncateText(value, limit)` helper from `slice(limit - 1) + '...'` to `slice(limit - 3) + '...'`, so compact thread titles and previews now honor their advertised exact caps including the ellipsis.
+  - this aligns the helper with `src/app/features/recent-threads/recentThreadSummaryUtils.ts`.
+- review:
+  - independent second self-review completed via fresh `git diff`, `git diff --check`, and targeted `eslint` on `src/app/features/room/CompactThreadCard.tsx`; scope stayed limited to the requested compact-card title truncation plus this runbook update.
+- validation:
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `npm run lint` fails at the current branch baseline with 2 unrelated pre-existing repo errors in `src/app/hooks/router/useResolvedRoomIdOrAlias.ts` (`camelcase` on `room_id`) and `src/app/pages/client/ClientStartupContext.tsx` (`react/jsx-no-constructed-context-values`); no lint findings in `src/app/features/room/CompactThreadCard.tsx`
+
+## CINNY-087 — Theme bootstrap before runtime config / first React paint (2026-04-22)
+
+- Problem:
+  - iOS cold launches could flash the UA/default background between the native splash dismissal and `ThemeManager.tsx`'s first `useEffect`, and the first React commit could still paint the wrong Folds tokens before the full theme class stack landed on `<body>`.
+- Fix:
+  - `index.html` now inserts the `CINNY-087` inline `<style>` + `<script>` block before `/runtime-config.js`.
+  - moved the authored `<meta name="theme-color">` and `<meta name="color-scheme">` tags above that bootstrap block so the inline script can update them during head parsing; this preserves the requirement that the bootstrap itself stays ahead of `/runtime-config.js`.
+  - inline bootstrap script now:
+    - mirrors `useActiveTheme()` resolution parity for stored theme ids,
+    - validates stored ids against the stable theme ids (`light-theme`, `silver-theme`, `dark-theme`, `butter-theme`),
+    - falls back to `light-theme` when `useSystemTheme === false` and `themeId` is missing/invalid,
+    - updates `theme-color` only when the resolved background differs from the authored dark default,
+    - updates `color-scheme` only for light-mode themes,
+    - and stashes the resolved id on `window.__INITIAL_THEME__`.
+  - `src/index.css` now mirrors the active theme on `<html>` via `html.<theme>` selectors so steady-state CSS keeps `--app-bg-color` and `color-scheme` aligned with the bootstrap class.
+  - added `src/app/theme/themeBootstrap.ts`:
+    - `resolveInitialTheme(pathname)` now resolves unauth routes to plain system `light-theme` / `dark-theme` first, then reads `window.__INITIAL_THEME__`, then falls back to `localStorage['settings']`, and returns the resolved theme metadata.
+    - `applyThemeToDom()` now owns the shared DOM mutation path: full body class stack, `<html>` stable theme id sync, `--app-bg-color` / background sync, and meta-tag updates.
+  - `src/index.tsx` now calls `applyThemeToDom(resolveInitialTheme(window.location.pathname))` before `root.render(<App />)` so the first `SplashScreen` commit resolves against the correct Folds theme classes.
+  - `src/app/pages/ThemeManager.tsx` now reuses `applyThemeToDom()` for both unauth and auth flows; the existing `useEffect` wiring and monochrome filter behavior stay intact.
+  - added focused coverage in `src/app/theme/themeBootstrap.test.ts`:
+    - 6 plan cases for `resolveInitialTheme()`,
+    - 1 extra fast-path case for `window.__INITIAL_THEME__`,
+    - and 1 JSDOM DOM-integration case for `applyThemeToDom()`.
+  - added `jsdom` as a dev dependency so Vitest can run the required file-level JSDOM integration test.
+- review:
+  - independent second self-review completed via fresh `git diff --stat`, targeted `git diff`, `git diff --check`, and targeted `eslint` on the touched TypeScript files after the meta-tag ordering fix; scope stayed limited to the theme bootstrap files, `index.html`, and this runbook update.
+- validation:
+  - `npx vitest run src/app/theme/themeBootstrap.test.ts` passes (`8/8` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - targeted `npx eslint src/app/theme/themeBootstrap.ts src/app/theme/themeBootstrap.test.ts src/app/pages/ThemeManager.tsx src/index.tsx` reports only the existing `src/index.tsx` `no-console` warnings; no new lint errors
+  - manual desktop smoke against `npm run preview` build:
+    - used Playwright with the system `chromium` binary because the Chrome MCP is unavailable in this environment.
+    - prepaint bootstrap verified across these built-page cases with the app bundle neutralized so only the inline head bootstrap ran:
+      - system dark default,
+      - system light default,
+      - explicit dark,
+      - explicit light,
+      - explicit butter,
+      - explicit invalid id falling back to light.
+    - full built app verified on the unauth login route with remote auth requests stubbed to remove unrelated preview-origin CORS noise:
+      - no console errors,
+      - light-theme load produced the expected light meta/class state,
+      - switching emulated OS appearance light -> dark updated `<html>`, `<body>`, and the meta tags through the shared `ThemeManager` / `applyThemeToDom()` runtime path.
+    - limitation:
+      - this environment did not expose an authenticated local session on the preview origin, so the Settings UI itself was not reachable for a literal in-app theme-toggle click path; runtime DOM theme flipping was validated on the loaded unauth route instead.
+- round-1 review follow-up (2026-04-23):
+  - `src/app/theme/themeBootstrap.ts` now validates resolved theme ids with an own-property check, so prototype keys like `toString` / `constructor` no longer pass storage validation and crash the bootstrap path.
+  - `resolveInitialTheme(pathname)` and the inline `index.html` bootstrap now share the same unauth-route rule as `UnAuthRouteThemeManager`: `/login`, `/register`, and `/reset-password` cold launches always resolve to plain system `light-theme` / `dark-theme`, ignoring stored custom theme ids.
+  - `index.html` moves `<meta charset="UTF-8">` back to the top of `<head>` so the charset declaration stays within the first 1024 bytes again.
+  - `applyThemeToDom()` now restores the pre-refactor runtime contract for `meta[name="color-scheme"]` by writing the single active scheme (`light` or `dark`) instead of the multi-value bootstrap string.
+  - `src/app/theme/themeBootstrap.test.ts` now covers the missing stored-theme cases, prototype-key regressions, and unauth-route cold-launch parity, bringing the focused file to `14` passing tests.
+- review:
+  - independent second self-review completed via fresh `git diff --stat`, targeted `git diff`, `git diff --check`, and targeted `eslint` on `src/app/theme/themeBootstrap.ts`, `src/app/theme/themeBootstrap.test.ts`, and `src/index.tsx`; scope stayed limited to the round-1 review fixes, `index.html`, and this runbook update.
+- validation round-1 follow-up:
+  - `npx vitest run src/app/theme/themeBootstrap.test.ts` passes (`14/14` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - targeted `npx eslint src/app/theme/themeBootstrap.ts src/app/theme/themeBootstrap.test.ts src/index.tsx` reports only the existing `src/index.tsx` `no-console` warnings; no new lint errors
+- round-2 review follow-up (2026-04-23):
+  - the inline `index.html` bootstrap and `src/app/theme/themeBootstrap.ts` now share the same pathname-or-hash unauth-route rule, so hash-router cold launches like `/#/login`, `/#/<basename>/register`, and `/#/reset-password` resolve to plain system `light-theme` / `dark-theme` before any stored explicit theme can flash.
+  - `readStoredThemeSettings()` now normalizes parsed non-object JSON values (including literal `null`) back to empty settings, so malformed-but-valid payloads no longer crash `resolveInitialTheme()`.
+  - the inline bootstrap narrows its `try/catch` to just the `localStorage` read / `JSON.parse` path, which preserves the unauth-route fallback and system-theme resolution even when `localStorage['settings']` is corrupt.
+  - removed the dead runtime theme bootstrap code called out in review:
+    - `applyThemeToDom()` now writes `resolvedTheme.bgColor` directly to `meta[name="theme-color"]`,
+    - and `src/index.tsx` no longer pre-adds Folds classes that `applyThemeToDom()` immediately clears and reapplies.
+  - `src/app/theme/themeBootstrap.test.ts` now covers the `settings = 'null'` regression plus the hash-router unauth-route cases, bringing the focused file to `18` passing tests.
+- review:
+  - independent second self-review completed via fresh `git diff --stat`, targeted `git diff`, and `git diff --check`; scope stayed limited to the round-2 theme bootstrap fixes, the inline bootstrap parity update, the dead-code cleanup, focused tests, and this runbook update.
+- validation round-2 follow-up:
+  - `npx vitest run src/app/theme/themeBootstrap.test.ts` passes (`18/18` tests)
+  - `npm test` passes (`156/156` files, `1419/1419` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+- round-3 review follow-up (2026-04-23):
+  - the inline `index.html` bootstrap and `src/app/theme/themeBootstrap.ts` now normalize candidate auth paths before matching by stripping a leading hash marker and any `?search` suffix, so query-bearing auth cold launches like `/#/login?addAccount=1`, `/#/login?loginToken=...`, `/#/register?email=...`, `/#/reset-password?email=...`, and `/login?return_to=...` all stay on the plain system `light-theme` / `dark-theme` unauth fallback path instead of flashing a stored custom theme first.
+  - added a `CINNY-087` sync comment beside the normalization helper in both the inline bootstrap and `src/app/theme/themeBootstrap.ts` because the prepaint-before-bundle constraint still requires those two copies to stay aligned manually.
+  - `src/app/theme/themeBootstrap.test.ts` now covers the six query-bearing unauth-route regressions called out in round 3, lifting the focused file from `18` to `24` passing tests.
+  - intentionally deferred, no code change: the pre-existing malformed-JSON boot failure in `src/app/state/settings.ts` remains out of scope for `CINNY-087` and will be tracked separately; only the theme bootstrap path stays defensively parsed here.
+- review:
+  - independent second self-review completed after validation via fresh `git diff --stat`, targeted `git diff`, and `git diff --check`; scope stayed limited to the round-3 theme bootstrap matcher fix, the inline bootstrap sync update, focused tests, and this runbook update.
+- validation round-3 follow-up:
+  - `npx vitest run src/app/theme/themeBootstrap.test.ts` passes (`24/24` tests)
+  - `npm run build` passes
+  - `npm run typecheck` passes
+- round-4 review follow-up (2026-04-23):
+  - `src/app/theme/themeBootstrap.ts` and the inline `index.html` bootstrap now use the same falsey `!useSystemTheme` explicit-theme branch as `useActiveTheme()`, so stored values like `null`, `0`, `''`, and omitted/`undefined` no longer diverge between the prepaint bootstrap and the first React render.
+  - added `hasActiveStoredSession()` in `src/app/theme/themeBootstrap.ts` and the mirrored inline `hasActiveSession` read in `index.html`; both now treat “no active stored session” the same as an auth-route cold launch and force the plain system `light-theme` / `dark-theme` unauth fallback before any stored explicit theme can flash.
+  - the session gate intentionally requires `activeSessionId` to match an entry in `sessions[]`, matching `routeSessionGuards.ts`; empty stores, missing `activeSessionId`, mismatched ids, absent storage, and malformed session-store JSON all stay on the unauth fallback path.
+  - `src/app/theme/themeBootstrap.test.ts` now covers the four falsey `useSystemTheme` parity cases plus six session-store cold-launch cases, lifting the focused file from `24` to `34` passing tests.
+- review:
+  - independent second self-review completed after validation via fresh `git diff --stat`, targeted `git diff`, and `git diff --check`; scope stayed limited to the round-4 theme bootstrap/session-gate fixes, the inline bootstrap parity update, focused tests, and this runbook update.
+- validation round-4 follow-up:
+  - `npx vitest run src/app/theme/themeBootstrap.test.ts` passes (`34/34` tests)
+  - `npm run build` passes
+  - `npm run typecheck` passes
+- round-6 review follow-up (2026-04-23):
+  - fixed the root architectural drift instead of adding another point-fix:
+    - `src/app/state/settings.ts` `getSettings()` now guards `JSON.parse`, ignores non-object payloads, and merges defaults before sanitizing, so malformed or legacy `localStorage['settings']` values fall back safely instead of crashing bootstrap/runtime.
+    - `src/app/theme/themeBootstrap.ts` no longer hand-parses or normalizes stored theme settings; the authenticated bootstrap path now calls `getSettings()` directly, so it shares the same default-merged settings contract as `useActiveTheme()`.
+    - the inline `index.html` bootstrap now mirrors `defaultSettings.useSystemTheme = true` explicitly for the prepaint path, with a sync comment pointing back to `src/app/state/settings.ts`.
+  - this fixes the convergent missing-key parity bug from review rounds 5/6 without touching the unrelated `src/app/features/room/useThreadRenderState.ts` CINNY-069 code.
+  - `src/app/theme/themeBootstrap.test.ts` now covers:
+    - authenticated malformed-JSON and `'null'` settings payloads through the `getSettings()` bootstrap path,
+    - the missing-key `{ themeId: 'silver-theme' }` regression,
+    - and the legacy partial `{}` system-theme fallback.
+  - `src/app/state/settings.test.ts` now locks the malformed-JSON tolerance directly on `getSettings()`.
+- review:
+  - independent second self-review completed via fresh `git diff --stat`, targeted `git diff`, `git diff --check`, focused test review, and a final pass over the bootstrap/settings parity path; scope stayed limited to the round-6 structural bootstrap fix, focused tests, `index.html`, and this runbook update.
+- validation round-6 follow-up:
+  - `npx vitest run src/app/theme/themeBootstrap.test.ts` passes (`35/35` tests)
+  - `npx vitest run src/app/state/settings.test.ts` passes (`10/10` tests)
+  - `npm test` passes (`156/156` files, `1437/1437` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `git diff --check` passes
+  - targeted `npx eslint src/app/state/settings.ts src/app/state/settings.test.ts src/app/theme/themeBootstrap.ts src/app/theme/themeBootstrap.test.ts` passes with no output
+
+## CINNY-086 — Disable edge swipe back in iOS standalone PWA (2026-04-22)
+
+- Root cause: the custom global left-edge gesture in `useEdgeSwipeBack` overlapped the iOS standalone WKWebView bezel-back gesture, so a thread-exit swipe could trip both the SPA handler and the shell-native navigation path. The banner arrow stayed correct because it never touched the bezel gesture surface.
+- Fix: added `isIOSStandaloneWebApp()` to `src/app/mindroom/native/nativeSso.ts` and made `useEdgeSwipeBack` skip registering touch listeners when the gesture is enabled on native iOS or an iOS standalone web app. This leaves button/back-route behavior unchanged.
+- Rebase-on-refactor note: the implementation and tests now live under `src/app/mindroom/native`, with `src/app/utils/nativeSso.ts` and `src/app/hooks/useEdgeSwipeBack.ts` kept as compatibility exports.
+- Added focused coverage in `src/app/mindroom/native/useEdgeSwipeBack.test.tsx` for standalone iOS PWA no-op behavior, regular iOS Safari-tab behavior, and the existing image-viewer suppression guard. Added the standalone-detector matrix (`display-mode`, legacy `navigator.standalone`, desktop false, native iOS false) in `src/app/mindroom/native/nativeSso.test.ts`.
+- review:
+  - independent second self-review completed via fresh `git diff`, `git diff --check`, and targeted source/test reads after implementation and validation; scope stayed limited to `src/app/mindroom/native/nativeSso.ts`, `src/app/mindroom/native/nativeSso.test.ts`, `src/app/mindroom/native/useEdgeSwipeBack.ts`, `src/app/mindroom/native/useEdgeSwipeBack.test.tsx`, compatibility exports, and this runbook update.
+- validation:
+  - `npx vitest run src/app/mindroom/native/useEdgeSwipeBack.test.tsx src/app/mindroom/native/nativeSso.test.ts` passes (`15/15` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `npm run lint` still fails at the current branch baseline with unrelated pre-existing errors in `src/app/hooks/router/useResolvedRoomIdOrAlias.ts` and `src/app/pages/client/ClientStartupContext.tsx`; no lint findings in the touched `CINNY-086` files
+
+## CINNY-093 — Remove thread-view orange left border (2026-04-24)
+
+- Removed the thread-view-only orange vertical context strip from `src/app/features/room/RoomTimeline.tsx`.
+- Kept the existing thread header/banner, timeline content, virtualization, pagination, message spacing, and room overview styling unchanged.
+- Implementation scope is one visual render-block removal: the deleted element was absolutely positioned and `pointerEvents: 'none'`, so it had no behavior or layout footprint.
+- review:
+  - two independent Codex reviewers approved `d8db9e72` with no findings; both reran `git diff --check`, targeted eslint on `RoomTimeline.tsx`, and `RoomTimeline.cache.test.ts` (`66/66`).
+- validation:
+  - implementer: `npm test -- src/app/features/room/RoomTimeline.cache.test.ts` passed (`66/66` tests)
+  - implementer: `npx eslint src/app/features/room/RoomTimeline.tsx` passed with the file's existing warning-only baseline (`38` warnings, `0` errors)
+  - implementer: `npm run typecheck` passed
+  - implementer: `npm test` passed (`156/156` files, `1410/1410` tests)
+  - implementer: `npm run build` passed
+
+## CINNY-088 — Voice message compact root previews (2026-04-24)
+
+- Root cause: compact zero-reply root selection already accepted `m.room.message` voice/audio events, but root preview helpers were body-only. Voice roots therefore surfaced as filename-like bodies such as `voice-message-*.m4a` or fell through to generic compact-card labels when the body was absent.
+- Fix: added a shared msgtype-aware preview helper for compact/thread presentation paths. Voice `m.audio` roots with stable `m.voice` or unstable `org.matrix.msc3245.voice` now resolve to the existing app wording `Voice message` before body normalization, while ordinary text roots keep their body preview behavior. The zero-reply candidate predicates, `m.notice` exclusion, nested-thread exclusion, and edit exclusion were left unchanged.
+- Rebase-on-refactor note: the shared preview helper now lives in `src/app/mindroom/threads/threadMessagePreview.ts`; the stale `src/app/features/room/threadMessagePreview.ts` compatibility export has been removed.
+- Added focused regression coverage in:
+  - `src/app/features/room/compactThreadRootData.test.ts` for stable voice filename bodies, unstable/no-body voice roots, zero-reply body-map hydration, and unchanged text previews.
+  - `src/app/features/room/threadPresentation.test.ts` for zero-reply voice root presentation/primary summary text.
+  - `src/app/mindroom/threads/compactThreadCardViewModel.test.ts` for compact card model title/preview plus `0 replies`.
+- review:
+  - independent second self-review completed via fresh `git diff --stat`, targeted `git diff`, `git diff --check`, and source/test readback after validation; scope stayed limited to preview fallback wiring, focused tests, this runbook update, and the implementation note.
+- validation:
+  - `npm test -- src/app/features/room/compactThreadRootData.test.ts src/app/features/room/threadPresentation.test.ts src/app/mindroom/threads/compactThreadCardViewModel.test.ts` passes (`21/21` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `npm test` passes (`175/175` files, `1546/1546` tests)
+  - `npm run lint` passes with the repo's warning-only baseline (`73` warnings, `0` errors)
+  - `git diff --check` passes
+  - live Matrix-room verification was not performed in this implementation worktree; DevAgent review/live-test/merge remains the handoff path.
+
+## CINNY-089 — Hide React Query Devtools launcher by default (2026-04-24)
+
+- Replaced the static `@tanstack/react-query-devtools` import and always-mounted launcher in `src/app/pages/App.tsx` with `ReactQueryDevtoolsToggle` inside the existing `QueryClientProvider`.
+- Added `src/app/components/ReactQueryDevtoolsToggle.tsx`:
+  - returns `null` by default, so the TanStack / React Query Devtools floating launcher is not mounted for normal deployed users,
+  - lazy-loads `@tanstack/react-query-devtools` only after the gate is explicitly enabled,
+  - preserves the existing devtools behavior when enabled with `initialIsOpen={false}`,
+  - enables via `VITE_ENABLE_REACT_QUERY_DEVTOOLS=true`, `?reactQueryDevtools=1/true`, or `localStorage['mindroom.reactQueryDevtools'] === 'true'`,
+  - disables and clears the stored flag via `?reactQueryDevtools=0/false`,
+  - and checks both normal search params and hash-router query params.
+- Added focused coverage in `src/app/components/ReactQueryDevtoolsToggle.test.ts` for default-disabled behavior, env/storage/query/hash opt-in, query opt-out precedence and persistence clearing, and lazy component rendering when explicitly enabled.
+- review:
+  - independent second self-review completed via fresh source/test reads, scoped `git diff`, `git diff --check`, and targeted eslint; scope stayed limited to the devtools visibility gate, focused test, `App.tsx` mount swap, and this runbook update.
+- validation:
+  - resume pass confirmed the uncommitted implementation against the requested behavior; no additional implementation fixes were needed.
+  - `git diff --check` passes
+  - `npx vitest run src/app/components/ReactQueryDevtoolsToggle.test.ts` passes (`9/9` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - targeted `npx eslint src/app/components/ReactQueryDevtoolsToggle.tsx src/app/components/ReactQueryDevtoolsToggle.test.ts src/app/pages/App.tsx` passes with no output
+  - `npm test` passes (`176/176` files, `1550/1550` tests)
+
+## CINNY-085 — Move MindRoom message primitives to fork namespace (2026-04-25)
+
+- Moved thread-summary parsing, tool-approval parsing, the approval card, and the summary card into `src/app/mindroom/messages`.
+- Left thin compatibility re-exports in `src/app/components/message/*` for old import paths while keeping the real implementation out of generic message modules.
+- Removed the MindRoom summary card implementation from `MsgTypeRenderers.tsx`; generic message exports now re-export the fork-owned summary card.
+- Updated MindRoom thread modules, room rendering, recent-thread helpers, and pin-menu approval rendering to import these primitives from the MindRoom namespace directly.
+- Added an architecture guard that asserts the generic paths are wrappers and `RenderMessageContent`/thread badges consume the fork-owned modules.
+
+## CINNY-086 — Move remaining MindRoom message helpers to fork namespace (2026-04-25)
+
+- Moved long-text sidecar parsing/hydration/rendering, AI-run metadata/display helpers, tool-trace parsing, and MindRoom formatted-body block parsing into `src/app/mindroom/messages`.
+- Moved the AI streaming indicator component and styles into `src/app/mindroom/messages`.
+- Left thin compatibility re-exports under `src/app/components/message/*` for legacy import paths.
+- Updated `RenderMessageContent`, room message rendering, the streaming-state hook, and the custom HTML parser to import these helpers from the MindRoom namespace directly.
+- Moved the associated unit tests into `src/app/mindroom/messages` and extended the architecture guard to cover the remaining message boundary.
+
+## CINNY-087 — Move MindRoom message menu controls to fork namespace (2026-04-25)
+
+- Moved the AI-run metadata dialog/button/menu item, long-text original download item, and long-text context-menu hydration state into `src/app/mindroom/messages/MindroomMessageControls.tsx`.
+- Moved the AI-run info-button style out of the generic room message stylesheet and into `src/app/mindroom/messages/MindroomMessageControls.css.ts`.
+- Added `src/app/mindroom/messages/messageExtensions.tsx` as the upstream-facing message seam for AI-run shell/header/menu slots and long-text copy/download state.
+- Reduced `src/app/features/room/message/Message.tsx` to a MindRoom integration seam: it imports the fork-owned extension adapter but no longer owns AI-run display formatting, long-text sidecar download naming, sidecar download execution, or direct control primitives.
+- Added focused filename tests for long-text original downloads and extended the architecture guard so future edits do not put those controls back into the upstream-owned message component.
+
+## CINNY-088 — Move MindRoom custom HTML blocks to fork namespace (2026-04-25)
+
+- Moved MindRoom collapsible HTML blocks (`think`, `debug`, `system`, `plan`, `analysis`, `research`) and tool-trace marker grouping into `src/app/mindroom/messages/MindroomHtmlBlocks.tsx`.
+- Moved the corresponding MindRoom custom-HTML styles into `src/app/mindroom/messages/MindroomHtmlBlocks.css.ts`.
+- Kept `src/app/plugins/react-custom-html-parser.tsx` as a generic parser seam that delegates MindRoom block rendering and re-exports the tool-trace parser option for existing callers.
+- Removed the MindRoom block styles from `src/app/styles/CustomHtml.css.ts` and extended architecture tests to keep parser/style ownership out of generic modules.
+
+## CINNY-089 — Move Local MindRoom settings to fork namespace (2026-04-25)
+
+- Moved the Local MindRoom settings page, provisioning API client, helper utilities, and tests from `src/app/features/settings/local-mindroom` to `src/app/mindroom/local-mindroom`.
+- Left thin compatibility re-exports in `src/app/features/settings/local-mindroom` so the generic settings modal and page registry keep stable import paths.
+- Updated relative imports after the move and added an architecture guard so future Local MindRoom implementation work stays in the fork-owned namespace.
+
+## CINNY-090 — Move Local MindRoom sidebar shortcut to fork namespace (2026-04-25)
+
+- Moved the Local MindRoom sidebar shortcut implementation, styling, and test from `src/app/pages/client/sidebar` to `src/app/mindroom/sidebar`.
+- Left `src/app/pages/client/sidebar/MindroomTab.tsx` as a thin compatibility re-export so the generic sidebar registry can keep its existing index export.
+- Added an architecture guard to keep future Local MindRoom sidebar behavior out of upstream-owned sidebar files.
+
+## CINNY-091 — Move Recent Threads feature to fork namespace (2026-04-25)
+
+- Moved the Recent Threads panel, entries, divider, layout helpers, summary helpers, styling, and tests from `src/app/features/recent-threads` to `src/app/mindroom/recent-threads`.
+- Left thin compatibility exports in `src/app/features/recent-threads` for page seams and older imports.
+- Updated MindRoom thread/index consumers to import recent-thread summary helpers from the fork-owned namespace directly.
+
+## CINNY-092 — Move Recent Threads state to fork namespace (2026-04-25)
+
+- Moved Recent Threads persistence atoms, panel-height state, mobile-expanded state, and their unit tests from `src/app/state` to `src/app/mindroom/recent-threads`.
+- Left `src/app/state/recentThreads*.ts` as thin compatibility exports for legacy import paths.
+- Updated Recent Threads UI, room navigation, command palette, room view, and storage initialization seams to import the state owner from `src/app/mindroom/recent-threads`.
+
+## CINNY-093 — Move native app helpers to fork namespace (2026-04-25)
+
+- Moved native SSO helpers, iOS push registration/state helpers, the iOS push-enabled hook, edge-swipe-back hook, and their tests to `src/app/mindroom/native`.
+- Left thin compatibility exports in `src/app/utils/nativeSso.ts`, `src/app/utils/iosPush.ts`, `src/app/hooks/useIOSPushEnabled.ts`, and `src/app/hooks/useEdgeSwipeBack.ts`.
+- Updated auth, settings, room navigation, back-route handling, and client non-UI feature wiring to import native helpers from the MindRoom namespace directly.
+
+## CINNY-094 — Move thread streaming state to fork namespace (2026-04-25)
+
+- Moved the thread streaming-state selector/hook and tests to `src/app/mindroom/threads/useThreadStreamingState.ts`.
+- Left `src/app/hooks/useThreadStreamingState.ts` as a thin compatibility export for legacy import paths.
+- Updated thread records, thread overview models, reply badges, and test mocks to use the fork-owned streaming-state owner directly.
+
+## CINNY-095 — Centralize MindRoom branding and hosted auth policy (2026-04-25)
+
+- Added `src/app/mindroom/branding/branding.ts` as the single owner for MindRoom product labels, logo asset, source/docs URLs, notification brand, powered-by defaults, and Matrix device display name.
+- Added `src/app/mindroom/auth/authPolicy.ts` as the single owner for `mindroom.chat` SSO-only hosted-auth behavior.
+- Updated auth pages, welcome/about/splash surfaces, settings notifications, and Matrix login/register requests to consume those fork-owned constants/helpers instead of hard-coding MindRoom strings and URL checks across upstream-owned files.
+
+## CINNY-096 — Delegate search long-text detection to MindRoom message owner (2026-04-25)
+
+- Added `hasMindroomLongTextMetadata(...)` to `src/app/mindroom/messages/longText.ts`.
+- Updated search-result preview selection to use that fork-owned predicate instead of checking raw `io.mindroom.long_text` metadata inside the generic message-search module.
+- Preserved the existing lightweight-renderer behavior for placeholder long-text metadata, including raw edit wrappers.
+
+## CINNY-097 — Move MindRoom metadata key ownership out of room utils (2026-04-25)
+
+- Added `src/app/mindroom/messages/metadata.ts` as the owner for MindRoom message metadata-key namespace checks.
+- Updated generic edit resolution in `src/app/utils/room.ts` to preserve MindRoom edit metadata by delegating to `isMindroomMessageMetadataKey(...)` instead of matching raw `io.mindroom.*` / `com.mindroom.*` prefixes locally.
+- Kept the existing `m.mentions` preservation behavior in the generic edit resolver unchanged.
+
+## CINNY-098 — Move scheduled-thread helpers to fork namespace (2026-04-25)
+
+- Moved scheduled-task state parsing, scheduled-task counting, and thread-header scheduled-label hooks into `src/app/mindroom/threads`.
+- Left thin compatibility exports in `src/app/hooks/useThreadHeaderInfo.ts`, `src/app/hooks/useThreadScheduledTasks.ts`, and `src/app/utils/scheduledTaskContract.ts`.
+- Updated thread records, compact cards, thread context banners, reply badges, and test mocks to consume the fork-owned scheduled-task implementation directly.
+
+## CINNY-099 — Move thread activity timestamp derivation to fork namespace (2026-04-25)
+
+- Moved `useThreadLastActivityTs` and its activity timestamp helper into `src/app/mindroom/threads`.
+- Left `src/app/hooks/useThreadLastActivityTs.ts` as a thin compatibility export for legacy import paths.
+- Updated thread records, overview models, reply badges, and test mocks to consume the fork-owned activity derivation directly.
+
+## CINNY-100 — Move cache-aware room event loading to fork namespace (2026-04-25)
+
+- Moved `useRoomEvent` into `src/app/mindroom/threads` so cache-first room/thread event lookup is owned beside the MindRoom event repository.
+- Left `src/app/hooks/useRoomEvent.ts` as a thin compatibility export for legacy import paths.
+- Updated reply rendering, pinned-event rendering, and tests to import the fork-owned cache-aware event hook directly.
+
+## CINNY-101 — Move thread exit route state to fork namespace (2026-04-25)
+
+- Moved room-thread exit route-state helpers into `src/app/mindroom/threads/roomNavigateState.ts`.
+- Left `src/app/hooks/roomNavigateState.ts` as a thin compatibility export for legacy import paths.
+- Updated room navigation, thread exit handling, and tests to import the fork-owned route-state implementation directly.
+
+## CINNY-102 — Move room thread UI persistence to fork namespace (2026-04-25)
+
+- Moved room-scoped thread filter persistence into `src/app/mindroom/threads/roomThreadFilterState.ts`.
+- Moved compact/normal room view-mode persistence into `src/app/mindroom/threads/roomViewMode.ts`.
+- Left `src/app/state/room/roomThreadFilterState.ts` and `src/app/state/room/roomViewMode.ts` as thin compatibility exports for legacy import paths.
+- Updated room rendering, timeline/index helpers, and session cleanup to consume the fork-owned persistence owners directly.
+
+## CINNY-103 — Move edit debug logging to MindRoom messages (2026-04-25)
+
+- Added `src/app/mindroom/messages/editDebug.ts` as the owner for MindRoom edit-debug flags and scoped logging.
+- Kept `logEditDebug` exported from `src/app/utils/room.ts` as a compatibility alias while moving thread backfill controllers to the fork-owned logger directly.
+- Updated app cache cleanup to reference the fork-owned `mindroom.debug.edits` storage key constant.
+
+## CINNY-104 — Keep favicon branding in MindRoom namespace (2026-04-25)
+
+- Added `MINDROOM_FAVICON_SRC` to `src/app/mindroom/branding/branding.ts`.
+- Updated `ClientNonUIFeatures` to consume the fork-owned favicon constant instead of importing the MindRoom asset from a generic client page.
+
+## CINNY-105 — Extract MindRoom session cleanup boundary (2026-04-25)
+
+- Added `src/app/mindroom/cache/sessionCleanup.ts` as the owner for MindRoom cache store names, localStorage keys/prefixes, session cache deletion, UI-state cleanup, native-state cleanup, and in-memory cache cleanup.
+- Updated `src/client/initMatrix.ts` to call that boundary instead of importing individual MindRoom cache, recent-thread, iOS push, and edit-debug owners directly.
+- Exported fork-owned cache DB name constants from the room/thread event cache stores so generic client cleanup no longer owns raw `mindroom-*-event-cache` names.
+- Kept cleanup imports pointed at the fork-owned long-text owner instead of the generic compatibility export.
+
+## CINNY-106 — Extract MindRoom client route restore helpers (2026-04-25)
+
+- Added `src/app/mindroom/routing/clientRouteRestore.ts` for startup thread restore path parsing, saved-route room-id extraction, alias-route detection, and route canonicalization.
+- Reduced `ClientLayout` to React integration: it now wires route restore/canonicalization effects to the fork-owned helper instead of owning the parsing and alias-resolution policy inline.
+- Added focused route-helper coverage for saved-route parsing, thread restore query preservation, alias detection, local alias canonicalization, and homeserver alias resolution fallback.
+
+## CINNY-107 — Move MindRoom state-event names to feature owners (2026-04-25)
+
+- Removed MindRoom-specific scheduled-task and thread-tag event names from the generic Matrix `StateEvent` enum.
+- Added `MINDROOM_SCHEDULED_TASK_EVENT` to the fork-owned scheduled-task contract and `MINDROOM_THREAD_TAGS_EVENT` to the fork-owned thread-tag contract.
+- Updated scheduled-task and thread-tag readers, writers, command-palette actions, and focused tests to consume those owner constants instead of generic Matrix event enums.
+
+## CINNY-089 — Modern compact waveform voice UI (2026-04-25)
+
+- Replaced the composer voice recorder with a compact capsule showing only discard, live SVG waveform, active timer, pause/resume, and send.
+- Added shared waveform utilities and SVG rendering:
+  - Matrix-compatible 48-bar normalization and clamping,
+  - deterministic fallback waveform rendering,
+  - analyser RMS to Matrix waveform conversion,
+  - and optional metadata sanitization that omits malformed empty waveforms instead of writing synthetic metadata.
+- Extracted `useVoiceRecorder` to own microphone capture, `MediaRecorder` lifecycle, native pause/resume, pause-excluded active duration, live analyser sampling, send/discard cleanup, and active-recorder unmount cleanup.
+- Preserved CINNY-052:
+  - `RoomInput` captures room/thread/reply/signal-bridge context when recording starts,
+  - voice sends prefer that captured context over live navigation props,
+  - upload completion still uses the existing send-session state,
+  - and regression coverage now includes thread navigation, overview-to-thread navigation, pause/navigation/resume, cross-room navigation, same-tick send, and deferred reply-draft clearing.
+- Added compact voice-only playback:
+  - voice `m.audio` now renders `VoiceAudioContent` with play/pause, tappable waveform progress/seek, and duration/current time only,
+  - generic non-voice `m.audio` stays on the existing `AudioContent` player,
+  - and the existing lazy media/decrypt/blob URL path is shared through a small `useAudioContentSource` hook.
+- Added focused coverage for waveform utilities, recorder lifecycle, recording capsule controls, RoomInput targeting/metadata, voice metadata writing/parsing, voice playback controls/seek/fallback, renderer branching, and generic audio unchanged behavior.
+- review:
+  - independent Codex review found three issues; follow-up fixed active-recorder cleanup, tightened malformed optional waveform metadata, and added cross-room recording-start targeting coverage.
+- validation:
+  - focused voice suite passed: `npm test -- src/app/utils/audioWaveform.test.ts src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/mindroom/voice/VoiceRecordingCapsule.test.ts src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/features/room/msgContent.test.ts src/app/utils/voiceMessage.test.ts src/app/components/message/content/VoiceAudioContent.test.ts src/app/components/message/MsgTypeRenderers.audio.test.ts src/app/components/message/content/AudioContent.test.tsx`
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `npm run lint` passes with the branch warning-only baseline (`71` warnings, `0` errors)
+  - `git diff --check` passes
+  - `npm test` is red in unrelated room timeline/view tests (`176/182` files, `1565/1573` tests passed); failing files were `RoomTimeline.cache.test.ts`, `RoomTimeline.fetchAllThreadRelations.test.ts`, `RoomTimeline.navigation.test.ts`, `RoomTimeline.permalink-refresh.test.ts`, `RoomTimelineCollapsible.test.ts`, and `RoomView.test.ts`.
+- R1 review follow-up (2026-04-25):
+  - fix commit: `4ddf61cedfea00db9cb002a8aadc21095d65ff90`
+  - `RoomInput` now locks the recording-start voice context until close/send cleanup, disables repeated mic opens while the compact recorder is active, and keeps active voice send-session files/items observed across room navigation after Send so upload completion still sends to the captured room/thread.
+  - `useVoiceRecorder` now stops acquired mic tracks if `MediaRecorder` construction fails, ignores discard while a send stop is pending, and only sends recorded chunks when the stop action was explicitly `send`; unexpected stop events clean up and show an error.
+  - `VoiceRecorderComposer` keeps the room-overview error dialog mounted until OK is clicked instead of closing the parent immediately.
+  - `VoiceAudioContent` now preserves Matrix duration when browser duration is invalid and applies waveform seeks made before first playback after the lazy source loads.
+  - added focused regressions for all R1 items across `useVoiceRecorder`, `VoiceRecordingCapsule`, `VoiceRecorderDialog`, `RoomInput`, and `VoiceAudioContent`.
+- review:
+  - independent second self-review completed via fresh `git diff --stat`, targeted source/test diff review, `git diff --check`, and the full validation pass; scope stayed limited to the R1 voice recorder/playback/send-session fixes plus report/runbook updates.
+- validation R1 follow-up:
+  - focused voice suite passes (`11/11` files, `51/51` tests)
+  - `npm test` passes (`183/183` files, `1582/1582` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `npm run lint` passes with the branch warning-only baseline (`71` warnings, `0` errors)
+  - `git diff --check` passes
+- R2 review follow-up (2026-04-25):
+  - fix commit: `be6ca8cb3a949e0e7aa83bf23dd48507084e539f`
+  - production route verification confirmed cross-room navigation remounts the room subtree through `RoomProvider key={room.roomId}` in `src/app/pages/client/space/RoomProvider.tsx`.
+  - compact voice Send now owns a direct upload/send path after the explicit Send action:
+    - the source room/thread/reply/signal-bridge context captured at recording start is used for upload metadata and `mx.sendMessage`,
+    - upload progress is still written through the existing upload atom so same-room progress can render,
+    - completion/error cleanup removes auto-sent voice items from the captured/source room upload atom even if the source `RoomInput` has unmounted,
+    - and a keyed unmount before the recorder stop callback fires still completes to the captured target.
+  - active recordings that are unmounted before Send continue to discard safely through recorder cleanup, stopping capture resources without creating upload items or sending.
+  - a shared pending voice-send atom disables compact voice recording/sending while one auto-send is pending, preventing a second recording from being silently appended outside the active send.
+  - added production-shaped keyed-room regressions in `RoomInput.test.ts` plus recorder unmount/send-stop coverage in `useVoiceRecorder.test.ts`.
+- review:
+  - independent second self-review completed via focused source/test diff review after validation; scope stayed limited to compact voice lifecycle ownership, source upload cleanup, pending-send blocking, focused tests, and report/runbook updates.
+- validation R2 follow-up:
+  - focused voice suite passes (`11/11` files, `56/56` tests)
+  - `npm test` passes (`183/183` files, `1587/1587` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes; Vite emitted the existing runtime-config, sourcemap, and chunk-size warnings
+  - `npm run lint` passes with the branch warning-only baseline (`71` warnings, `0` errors)
+  - `git diff --check` passes
+- R3 review follow-up (2026-04-25):
+  - fix commit: `5cee523b736bd41c1dcc3ce69fb62d7c23542bf1`
+  - compact voice Send now claims the shared auto-send pending guard at the explicit send-stop request, before the asynchronous `MediaRecorder.stop` callback constructs the voice file.
+  - the captured first send remains authorized through keyed room unmount/remount, while a second room cannot claim/send another compact voice note in that pre-stop pending window.
+  - regular composer submit and upload-board Send/session entry points now no-op while compact voice auto-send is pending, preventing the visible auto-send upload item from being submitted again through the generic pipeline.
+  - added focused regressions in `RoomInput.test.ts` and `useVoiceRecorder.test.ts` for early pending ownership, cross-room second-send blocking, and regular composer/upload-board duplicate prevention.
+- review:
+  - independent second self-review completed via focused source/test diff review plus the full validation pass; scope stayed limited to the R3 compact voice race guards, focused tests, and report/runbook updates.
+- validation R3 follow-up:
+  - focused voice suite passes (`11/11` files, `59/59` tests)
+  - `npm test` passes (`183/183` files, `1590/1590` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes; Vite emitted the existing runtime-config, sourcemap, and chunk-size warnings
+  - `npm run lint` passes with the branch warning-only baseline (`71` warnings, `0` errors)
+  - `git diff --check` passes
+- Rebase-on-current-dev follow-up (2026-04-25):
+  - rebase completed onto current local `dev` at `87873f1c` (`Hide React Query Devtools by default`).
+  - conflict resolution kept the current MindRoom room-input extension/send-session controller seams instead of restoring the old inline `RoomInput` session implementation.
+  - compact voice context capture, direct voice auto-send, keyed cross-room completion, early pending ownership, and regular composer/upload-board duplicate guards were reapplied through those seams.
+  - added focused node-test mocks for CSS-bearing MindRoom voice/streaming UI modules so full Vitest discovery does not load Vanilla Extract styles outside the app build pipeline.
+- validation after rebase-on-current-dev:
+  - focused voice suite passes (`11/11` files, `59/59` tests)
+  - `npm test` passes (`218/218` files, `1757/1757` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes; Vite emitted the existing runtime-config, dependency sourcemap, and chunk-size warnings
+  - `npm run lint` passes with the current branch warning-only baseline (`35` warnings, `0` errors)
+  - `git diff --check dev...HEAD` passes
+- recording waveform width follow-up (2026-05-03):
+  - live recording waveform samples now accumulate as raw display samples instead of being capped to a fixed 48-bar Matrix-width window.
+  - compact recording waveform rendering preserves that raw sample count, keeps fixed pixel bar spacing, and clips an absolutely right-anchored SVG inside the full-width waveform box.
+  - the visible recording time span can therefore grow to fill the available composer box while the perceived right-edge sample cadence stays constant; sent voice metadata still normalizes from the full metadata sample history to Matrix's 48-bar waveform.
+  - focused coverage now verifies raw live sample accumulation and compact rendering without 48-bar resampling.
+- validation recording waveform width follow-up:
+  - `npm test -- src/app/mindroom/voice/useVoiceRecorder.test.ts src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/VoiceRecordingCapsule.test.ts src/app/mindroom/voice/VoiceRecorderDialog.test.ts src/app/components/message/content/VoiceAudioContent.test.ts` passes (`5/5` files, `36/36` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes; Vite emitted the existing CJS/runtime-config/dependency sourcemap/chunk-size warnings
+  - `npx eslint src/app/components/voice/VoiceWaveform.tsx src/app/components/voice/VoiceWaveform.css.ts src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/useVoiceRecorder.ts src/app/mindroom/voice/useVoiceRecorder.test.ts` passes
+  - `npx prettier --check FORK_CHANGES.md src/app/components/voice/VoiceWaveform.tsx src/app/components/voice/VoiceWaveform.css.ts src/app/components/voice/VoiceWaveform.test.ts src/app/mindroom/voice/useVoiceRecorder.ts src/app/mindroom/voice/useVoiceRecorder.test.ts` passes
+  - `git diff --check` passes
+  - `npm test` was attempted during the resume and did not pass: `236/244` files and `1814/1827` tests passed, with `13` timeout-only failures in unrelated RoomTimeline/thread suites.
+  - Retrying the failed RoomTimeline/thread files reduced the unrelated timeout failures to `3`; selecting those `3` timeout tests directly passed (`3/3` tests).
+  - independent second self-review completed after validation; scope stayed limited to live recording waveform width/scrolling velocity, focused tests, and runbook reporting.
+
+## CINNY-094 — Mounted thread replacement refresh merge (2026-04-25)
+
+- Adapted the reviewed mounted-thread replacement refresh fix from `aa9904f0` onto the current MindRoom-owned thread render state path.
+- `useThreadRenderState` now tracks its rendered `threadEvents` through `useThreadEventRefresh` and bumps a guarded `threadEventRefreshTick` so post-mount `ThreadEvent.NewReply` replies refresh in place when streaming and terminal `m.replace` metadata arrives.
+- Preserved the current refactor paths under `src/app/mindroom/threads` and reused the existing local `./useThreadEventRefresh` owner.
+- Added focused regression coverage for a mounted thread receiving a post-mount reply, then streaming and completed replacement edits, without remounting the hook.
+- review:
+  - independent second self-review completed via source/test diff review and `git diff --check`; scope stayed limited to the hook, focused test, and this runbook note.
+- validation:
+  - `npm test -- src/app/mindroom/threads/useThreadRenderState.test.ts` passes (`10/10` tests)
+  - `npm run typecheck` passes
+  - `npm test -- src/app/mindroom/threads/useThreadStreamingState.test.ts src/app/mindroom/threads/eventCacheEditUtils.test.ts` passes (`25/25` tests)
+  - `npm run build` passes; Vite emitted the existing runtime-config, dependency sourcemap, and chunk-size warnings
+  - `npm run lint` passes with the current branch warning-only baseline (`35` warnings, `0` errors)
+
+## CINNY-095 — Message extras rebase onto current dev (2026-04-25)
+
+- Created safety branch `cinny-089-message-extras-pre-rebase-b24f5598` at reviewed SHA `b24f5598`.
+- Current local `dev` advanced from the sanity note's `0ac0b7d2` to `5f9f326a` before the replay was rebuilt, so the clean feature state is based on `5f9f326a`.
+- The original seven CINNY-095 commits did not rebase cleanly because current `dev` moved MindRoom message rendering into `src/app/mindroom/messages` and owns collapse behavior through `src/app/mindroom/threads/threadCollapsibleMessages.ts`.
+- Used the allowed conflict-repair squash path:
+  - moved the feature parser/renderer under `src/app/mindroom/messages`,
+  - wired extras through the current `renderMindroomMessageContent` seam,
+  - preserved the current `renderStateSuffix` streaming indicator path,
+  - adapted long-text extras fallback/preservation to `src/app/mindroom/messages/longText.ts` and `MindroomLongTextText.tsx`,
+  - and adapted outer collapse opt-out/sidecar hydration signaling to the current thread collapse helper.
+- Clean diff sanity after replay:
+  - scope is limited to message-extras parser/renderer/tests, MindRoom render seam integration, long-text metadata/extras handling, room/thread collapse behavior, focused tests, and this runbook.
+  - no unrelated ThemeManager, nativeSso, React Query devtools, iOS edge-swipe, or theme bootstrap files are included.
+- validation:
+  - focused CINNY-095 suite passes (`8/8` files, `88/88` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes with the existing Vite CJS/runtime-config/sourcemap/chunk-size warnings
+  - `git diff --check` passes
+  - default `npm test` and serial `npm test -- --no-file-parallelism` both fail only in current-dev baseline `src/app/mindroom/threads/compactThreadCardViewModel.test.ts` (`scheduledTaskLabel` expected `2 pending scheduled tasks`, received `undefined`); the same isolated failure reproduces on `/var/www/cinny` `dev` at `5f9f326a`.
+
+## CINNY-096 — Long-text streaming tool trace hydration flash (2026-04-27)
+
+- Preserved the last known `io.mindroom.tool_trace` while a refreshed oversized streaming sidecar hydrates.
+- `getMindroomLongTextSource` now carries wrapper-level tool trace fallback metadata into `m.new_content` long-text previews, so edit-resolution metadata fallback is still visible to the long-text renderer.
+- `MindroomLongTextText` now merges the previous hydrated tool trace into a new rich preview only while waiting for that preview's sidecar; the hydrated sidecar remains authoritative once it resolves.
+- Added focused regressions for initial `m.new_content` long-text preview source fallback and for avoiding a tool-dropdown flash during refreshed sidecar hydration.
+- validation:
+  - `npm test -- src/app/mindroom/messages/longText.test.ts src/app/mindroom/messages/MindroomLongTextText.test.ts` passes
+  - `npm run typecheck` passes
+  - `npm test` passes: 234 files / 1755 tests
+  - `npm run build` passes with existing Vite/runtime-config/sourcemap/chunk-size warnings
+  - `npm run lint` passes with existing warnings only
+  - `git diff --check` passes
+- review: second self-review completed; the fallback is limited to `io.mindroom.tool_trace`, only applies when the current preview lacks that key, and hydrated sidecar content still replaces the preview once available.
+
+## CINNY-057 v2 — Voice message playback speed control (2026-05-01)
+
+- Added a voice-only global playback-rate setting with sanitized localStorage hydration/persistence, formatting helpers, rate cycling, and an iOS Safari belt-and-braces `applyVoicePlaybackRate` helper.
+- Added `VoicePlaybackRateButton` plus hidden placeholder geometry so compact voice messages reserve the playback-speed column before interaction and reveal a 44px touch-target pill after play or waveform seek.
+- Updated `VoiceAudioContent` to apply the persisted rate to every mounted voice audio element, including hidden-pill players, on rate/source changes, `onPlay`, and `loadedmetadata`.
+- Preserved the generic audio routing boundary: non-voice `m.audio` remains on `AudioContent`; voice `m.audio` remains on `VoiceAudioContent`.
+- Tightened `themeBootstrap` storage access to `window.localStorage` and made its jsdom spy target `Storage.prototype` so the existing fast-path test observes the session-store read consistently.
+- review:
+  - independent second self-review completed via source/test diff inspection, scope check against `AudioContent.tsx`, `MsgTypeRenderers.tsx`, and `useMediaPlaybackRate.ts`, label grep for `×`, and validation review.
+- validation:
+  - focused CINNY-057 suite passes (`4/4` files, `31/31` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes with existing Vite/runtime-config/sourcemap/chunk-size warnings
+  - `npm test` passes (`237/237` files, `1788/1788` tests)
+  - `npm run lint` passes with the current warning-only baseline (`17` warnings, `0` errors)
+  - `git diff --check` passes
