@@ -8,7 +8,6 @@ import {
   IconButton,
   Icons,
   Menu,
-  MenuItem,
   PopOut,
   RectCords,
   Text,
@@ -52,12 +51,8 @@ import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
 import { useCategoryHandler } from '../../../hooks/useCategoryHandler';
 import { useNavToActivePathMapper } from '../../../hooks/useNavToActivePathMapper';
 import { PageNav, PageNavHeader, PageNavContent } from '../../../components/page';
-import { useRoomsUnread } from '../../../state/hooks/unread';
-import { markAsRead } from '../../../utils/notifications';
 import { useClosedNavCategoriesAtom } from '../../../state/hooks/closedNavCategories';
 import { stopPropagation } from '../../../utils/keyboard';
-import { useSetting } from '../../../state/hooks/settings';
-import { settingsAtom } from '../../../state/settings';
 import {
   getRoomNotificationMode,
   useRoomsNotificationPreferencesContext,
@@ -65,36 +60,19 @@ import {
 import { UseStateProvider } from '../../../components/UseStateProvider';
 import { JoinAddressPrompt } from '../../../components/join-address-prompt';
 import { _RoomSearchParams } from '../../paths';
+import { RecentThreadsPageNav } from '../../../mindroom/recent-threads/RecentThreadsPanel';
+import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 
 type HomeMenuProps = {
   requestClose: () => void;
 };
 const HomeMenu = forwardRef<HTMLDivElement, HomeMenuProps>(({ requestClose }, ref) => {
   const orphanRooms = useHomeRooms();
-  const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
-  const unread = useRoomsUnread(orphanRooms, roomToUnreadAtom);
-  const mx = useMatrixClient();
-
-  const handleMarkAsRead = () => {
-    if (!unread) return;
-    orphanRooms.forEach((rId) => markAsRead(mx, rId, hideActivity));
-    requestClose();
-  };
 
   return (
     <Menu ref={ref} style={{ maxWidth: toRem(160), width: '100vw' }}>
       <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-        <MenuItem
-          onClick={handleMarkAsRead}
-          size="300"
-          after={<Icon size="100" src={Icons.CheckTwice} />}
-          radii="300"
-          aria-disabled={!unread}
-        >
-          <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-            Mark as Read
-          </Text>
-        </MenuItem>
+        <MindroomMarkRoomsReadMenuItem roomIds={orphanRooms} onClose={requestClose} />
       </Box>
     </Menu>
   );
@@ -235,128 +213,130 @@ export function Home() {
   return (
     <PageNav>
       <HomeHeader />
-      {noRoomToDisplay ? (
-        <HomeEmpty />
-      ) : (
-        <PageNavContent scrollRef={scrollRef}>
-          <Box direction="Column" gap="300">
-            <NavCategory>
-              <NavItem variant="Background" radii="400" aria-selected={createRoomSelected}>
-                <NavButton onClick={() => navigate(getHomeCreatePath())}>
-                  <NavItemContent>
-                    <Box as="span" grow="Yes" alignItems="Center" gap="200">
-                      <Avatar size="200" radii="400">
-                        <Icon src={Icons.Plus} size="100" />
-                      </Avatar>
-                      <Box as="span" grow="Yes">
-                        <Text as="span" size="Inherit" truncate>
-                          Create Room
-                        </Text>
+      <RecentThreadsPageNav>
+        {noRoomToDisplay ? (
+          <HomeEmpty />
+        ) : (
+          <PageNavContent scrollRef={scrollRef}>
+            <Box direction="Column" gap="300">
+              <NavCategory>
+                <NavItem variant="Background" radii="400" aria-selected={createRoomSelected}>
+                  <NavButton onClick={() => navigate(getHomeCreatePath())}>
+                    <NavItemContent>
+                      <Box as="span" grow="Yes" alignItems="Center" gap="200">
+                        <Avatar size="200" radii="400">
+                          <Icon src={Icons.Plus} size="100" />
+                        </Avatar>
+                        <Box as="span" grow="Yes">
+                          <Text as="span" size="Inherit" truncate>
+                            Create Room
+                          </Text>
+                        </Box>
                       </Box>
-                    </Box>
-                  </NavItemContent>
-                </NavButton>
-              </NavItem>
-              <UseStateProvider initial={false}>
-                {(open, setOpen) => (
-                  <>
-                    <NavItem variant="Background" radii="400">
-                      <NavButton onClick={() => setOpen(true)}>
-                        <NavItemContent>
-                          <Box as="span" grow="Yes" alignItems="Center" gap="200">
-                            <Avatar size="200" radii="400">
-                              <Icon src={Icons.Link} size="100" />
-                            </Avatar>
-                            <Box as="span" grow="Yes">
-                              <Text as="span" size="Inherit" truncate>
-                                Join with Address
-                              </Text>
+                    </NavItemContent>
+                  </NavButton>
+                </NavItem>
+                <UseStateProvider initial={false}>
+                  {(open, setOpen) => (
+                    <>
+                      <NavItem variant="Background" radii="400">
+                        <NavButton onClick={() => setOpen(true)}>
+                          <NavItemContent>
+                            <Box as="span" grow="Yes" alignItems="Center" gap="200">
+                              <Avatar size="200" radii="400">
+                                <Icon src={Icons.Link} size="100" />
+                              </Avatar>
+                              <Box as="span" grow="Yes">
+                                <Text as="span" size="Inherit" truncate>
+                                  Join with Address
+                                </Text>
+                              </Box>
                             </Box>
-                          </Box>
-                        </NavItemContent>
-                      </NavButton>
-                    </NavItem>
-                    {open && (
-                      <JoinAddressPrompt
-                        onCancel={() => setOpen(false)}
-                        onOpen={(roomIdOrAlias, viaServers, eventId) => {
-                          setOpen(false);
-                          const path = getHomeRoomPath(roomIdOrAlias, eventId);
-                          navigate(
-                            viaServers
-                              ? withSearchParam<_RoomSearchParams>(path, {
-                                  viaServers: encodeSearchParamValueArray(viaServers),
-                                })
-                              : path
-                          );
-                        }}
-                      />
-                    )}
-                  </>
-                )}
-              </UseStateProvider>
-              <NavItem variant="Background" radii="400" aria-selected={searchSelected}>
-                <NavLink to={getHomeSearchPath()}>
-                  <NavItemContent>
-                    <Box as="span" grow="Yes" alignItems="Center" gap="200">
-                      <Avatar size="200" radii="400">
-                        <Icon src={Icons.Search} size="100" filled={searchSelected} />
-                      </Avatar>
-                      <Box as="span" grow="Yes">
-                        <Text as="span" size="Inherit" truncate>
-                          Message Search
-                        </Text>
+                          </NavItemContent>
+                        </NavButton>
+                      </NavItem>
+                      {open && (
+                        <JoinAddressPrompt
+                          onCancel={() => setOpen(false)}
+                          onOpen={(roomIdOrAlias, viaServers, eventId) => {
+                            setOpen(false);
+                            const path = getHomeRoomPath(roomIdOrAlias, eventId);
+                            navigate(
+                              viaServers
+                                ? withSearchParam<_RoomSearchParams>(path, {
+                                    viaServers: encodeSearchParamValueArray(viaServers),
+                                  })
+                                : path
+                            );
+                          }}
+                        />
+                      )}
+                    </>
+                  )}
+                </UseStateProvider>
+                <NavItem variant="Background" radii="400" aria-selected={searchSelected}>
+                  <NavLink to={getHomeSearchPath()}>
+                    <NavItemContent>
+                      <Box as="span" grow="Yes" alignItems="Center" gap="200">
+                        <Avatar size="200" radii="400">
+                          <Icon src={Icons.Search} size="100" filled={searchSelected} />
+                        </Avatar>
+                        <Box as="span" grow="Yes">
+                          <Text as="span" size="Inherit" truncate>
+                            Message Search
+                          </Text>
+                        </Box>
                       </Box>
-                    </Box>
-                  </NavItemContent>
-                </NavLink>
-              </NavItem>
-            </NavCategory>
-            <NavCategory>
-              <NavCategoryHeader>
-                <RoomNavCategoryButton
-                  closed={closedCategories.has(DEFAULT_CATEGORY_ID)}
-                  data-category-id={DEFAULT_CATEGORY_ID}
-                  onClick={handleCategoryClick}
+                    </NavItemContent>
+                  </NavLink>
+                </NavItem>
+              </NavCategory>
+              <NavCategory>
+                <NavCategoryHeader>
+                  <RoomNavCategoryButton
+                    closed={closedCategories.has(DEFAULT_CATEGORY_ID)}
+                    data-category-id={DEFAULT_CATEGORY_ID}
+                    onClick={handleCategoryClick}
+                  >
+                    Rooms
+                  </RoomNavCategoryButton>
+                </NavCategoryHeader>
+                <div
+                  style={{
+                    position: 'relative',
+                    height: virtualizer.getTotalSize(),
+                  }}
                 >
-                  Rooms
-                </RoomNavCategoryButton>
-              </NavCategoryHeader>
-              <div
-                style={{
-                  position: 'relative',
-                  height: virtualizer.getTotalSize(),
-                }}
-              >
-                {virtualizer.getVirtualItems().map((vItem) => {
-                  const roomId = sortedRooms[vItem.index];
-                  const room = mx.getRoom(roomId);
-                  if (!room) return null;
-                  const selected = selectedRoomId === roomId;
+                  {virtualizer.getVirtualItems().map((vItem) => {
+                    const roomId = sortedRooms[vItem.index];
+                    const room = mx.getRoom(roomId);
+                    if (!room) return null;
+                    const selected = selectedRoomId === roomId;
 
-                  return (
-                    <VirtualTile
-                      virtualItem={vItem}
-                      key={vItem.index}
-                      ref={virtualizer.measureElement}
-                    >
-                      <RoomNavItem
-                        room={room}
-                        selected={selected}
-                        linkPath={getHomeRoomPath(getCanonicalAliasOrRoomId(mx, roomId))}
-                        notificationMode={getRoomNotificationMode(
-                          notificationPreferences,
-                          room.roomId
-                        )}
-                      />
-                    </VirtualTile>
-                  );
-                })}
-              </div>
-            </NavCategory>
-          </Box>
-        </PageNavContent>
-      )}
+                    return (
+                      <VirtualTile
+                        virtualItem={vItem}
+                        key={vItem.index}
+                        ref={virtualizer.measureElement}
+                      >
+                        <RoomNavItem
+                          room={room}
+                          selected={selected}
+                          linkPath={getHomeRoomPath(getCanonicalAliasOrRoomId(mx, roomId))}
+                          notificationMode={getRoomNotificationMode(
+                            notificationPreferences,
+                            room.roomId
+                          )}
+                        />
+                      </VirtualTile>
+                    );
+                  })}
+                </div>
+              </NavCategory>
+            </Box>
+          </PageNavContent>
+        )}
+      </RecentThreadsPageNav>
     </PageNav>
   );
 }

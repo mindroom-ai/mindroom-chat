@@ -10,6 +10,10 @@ import { getNotificationState, usePermissionState } from '../../../hooks/usePerm
 import { useEmailNotifications } from '../../../hooks/useEmailNotifications';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
+import {
+  getMindroomEmailNotificationPusherData,
+  MindroomNativeNotificationSettings,
+} from '../../../mindroom/notifications/SystemNotificationMindroomExtensions';
 
 function EmailNotification() {
   const mx = useMatrixClient();
@@ -26,9 +30,7 @@ function EmailNotification() {
             app_display_name: 'Email Notifications',
             device_display_name: email,
             lang: 'en',
-            data: {
-              brand: 'Cinny',
-            },
+            data: getMindroomEmailNotificationPusherData(),
             append: true,
           });
           return;
@@ -93,7 +95,9 @@ export function SystemNotification() {
   );
 
   const requestNotificationPermission = () => {
-    window.Notification.requestPermission();
+    if ('Notification' in window) {
+      window.Notification.requestPermission();
+    }
   };
 
   return (
@@ -133,6 +137,7 @@ export function SystemNotification() {
           }
         />
       </SequenceCard>
+      <MindroomNativeNotificationSettings />
       <SequenceCard
         className={SequenceCardStyle}
         variant="SurfaceVariant"

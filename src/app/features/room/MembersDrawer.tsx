@@ -41,7 +41,7 @@ import {
 import { useDebounce } from '../../hooks/useDebounce';
 import { TypingIndicator } from '../../components/typing-indicator';
 import { getMemberDisplayName, getMemberSearchStr } from '../../utils/room';
-import { getMxIdLocalPart } from '../../utils/matrix';
+import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { useSetSetting, useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
 import { millify } from '../../plugins/millify';
@@ -59,22 +59,50 @@ import { useSpaceOptionally } from '../../hooks/useSpace';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import { useFlattenPowerTagMembers, useGetMemberPowerTag } from '../../hooks/useMemberPowerTag';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
+import { useRoomPermissions } from '../../hooks/useRoomPermissions';
+import { InviteUserPrompt } from '../../components/invite-user-prompt';
 
 type MemberDrawerHeaderProps = {
   room: Room;
+  canInvite: boolean;
 };
-function MemberDrawerHeader({ room }: MemberDrawerHeaderProps) {
+function MemberDrawerHeader({ room, canInvite }: MemberDrawerHeaderProps) {
   const setPeopleDrawer = useSetSetting(settingsAtom, 'isPeopleDrawer');
+  const [invitePrompt, setInvitePrompt] = useState(false);
 
   return (
     <Header className={css.MembersDrawerHeader} variant="Background" size="600">
+      {invitePrompt && <InviteUserPrompt room={room} requestClose={() => setInvitePrompt(false)} />}
       <Box grow="Yes" alignItems="Center" gap="200">
         <Box grow="Yes" alignItems="Center" gap="200">
           <Text title={`${room.getJoinedMemberCount()} Members`} size="H5" truncate>
             {`${millify(room.getJoinedMemberCount())} Members`}
           </Text>
         </Box>
-        <Box shrink="No" alignItems="Center">
+        <Box shrink="No" alignItems="Center" gap="100">
+          <TooltipProvider
+            position="Bottom"
+            align="End"
+            offset={4}
+            tooltip={
+              <Tooltip>
+                <Text>Invite</Text>
+              </Tooltip>
+            }
+          >
+            {(triggerRef) => (
+              <IconButton
+                ref={triggerRef}
+                aria-label="Invite people"
+                aria-pressed={invitePrompt}
+                disabled={!canInvite}
+                variant="Background"
+                onClick={() => setInvitePrompt(true)}
+              >
+                <Icon src={Icons.UserPlus} />
+              </IconButton>
+            )}
+          </TooltipProvider>
           <TooltipProvider
             position="Bottom"
             align="End"
@@ -123,7 +151,7 @@ function MemberItem({
     getMemberDisplayName(room, member.userId) ?? getMxIdLocalPart(member.userId) ?? member.userId;
   const avatarMxcUrl = member.getMxcAvatarUrl();
   const avatarUrl = avatarMxcUrl
-    ? mx.mxcUrlToHttp(avatarMxcUrl, 100, 100, 'crop', undefined, false, useAuthentication)
+    ? mxcUrlToHttp(mx, avatarMxcUrl, useAuthentication, 100, 100, 'crop')
     : undefined;
 
   return (
@@ -186,6 +214,8 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
   const creators = useRoomCreators(room);
   const getPowerTag = useGetMemberPowerTag(room, creators, powerLevels);
   const getPowerLevel = useGetMemberPowerLevel(powerLevels);
+  const permissions = useRoomPermissions(creators, powerLevels);
+  const canInvite = permissions.action('invite', mx.getSafeUserId());
 
   const fetchingMembers = members.length < room.getJoinedMemberCount();
   const openUserRoomProfile = useOpenUserRoomProfile();
@@ -250,7 +280,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
       shrink="No"
       direction="Column"
     >
-      <MemberDrawerHeader room={room} />
+      <MemberDrawerHeader room={room} canInvite={canInvite} />
       <Box className={css.MemberDrawerContentBase} grow="Yes">
         <Scroll ref={scrollRef} variant="Background" size="300" visibility="Hover" hideTrack>
           <Box className={css.MemberDrawerContent} direction="Column" gap="200">

@@ -1,18 +1,33 @@
-import { atom, useAtomValue, useSetAtom } from 'jotai';
+import { atom, type WritableAtom, useAtomValue, useSetAtom } from 'jotai';
 import { selectAtom } from 'jotai/utils';
 import { useMemo } from 'react';
 import { Settings, settingsAtom as sAtom } from '../settings';
 
-export type SettingSetter<K extends keyof Settings> =
-  | Settings[K]
-  | ((s: Settings[K]) => Settings[K]);
+type SettingsWritableAtom<TSettings extends object> = WritableAtom<
+  TSettings,
+  [TSettings],
+  undefined
+>;
 
-export const useSetSetting = <K extends keyof Settings>(settingsAtom: typeof sAtom, key: K) => {
+export type SettingSetter<TSettings extends object, K extends keyof TSettings> =
+  | TSettings[K]
+  | ((s: TSettings[K]) => TSettings[K]);
+
+export const useSetSetting = <
+  TSettings extends object = Settings,
+  K extends keyof TSettings = keyof TSettings
+>(
+  settingsAtom: SettingsWritableAtom<TSettings>,
+  key: K
+): ((value: SettingSetter<TSettings, K>) => void) => {
   const setterAtom = useMemo(
     () =>
-      atom<null, [SettingSetter<K>], undefined>(null, (get, set, value) => {
+      atom<null, [SettingSetter<TSettings, K>], undefined>(null, (get, set, value) => {
         const s = { ...get(settingsAtom) };
-        s[key] = typeof value === 'function' ? value(s[key]) : value;
+        s[key] =
+          typeof value === 'function'
+            ? (value as (current: TSettings[K]) => TSettings[K])(s[key])
+            : value;
         set(settingsAtom, s);
       }),
     [settingsAtom, key]
@@ -21,11 +36,14 @@ export const useSetSetting = <K extends keyof Settings>(settingsAtom: typeof sAt
   return useSetAtom(setterAtom);
 };
 
-export const useSetting = <K extends keyof Settings>(
-  settingsAtom: typeof sAtom,
+export const useSetting = <
+  TSettings extends object = Settings,
+  K extends keyof TSettings = keyof TSettings
+>(
+  settingsAtom: SettingsWritableAtom<TSettings>,
   key: K
-): [Settings[K], ReturnType<typeof useSetSetting<K>>] => {
-  const selector = useMemo(() => (s: Settings) => s[key], [key]);
+): [TSettings[K], (value: SettingSetter<TSettings, K>) => void] => {
+  const selector = useMemo(() => (s: TSettings) => s[key], [key]);
   const setting = useAtomValue(selectAtom(settingsAtom, selector));
 
   const setter = useSetSetting(settingsAtom, key);

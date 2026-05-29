@@ -1,6 +1,8 @@
 import produce from 'immer';
 import { atom, useSetAtom } from 'jotai';
 import {
+  NotificationCountType,
+  ClientEvent,
   IRoomTimelineData,
   MatrixClient,
   MatrixEvent,
@@ -9,6 +11,7 @@ import {
   SyncState,
 } from 'matrix-js-sdk';
 import { ReceiptContent, ReceiptType } from 'matrix-js-sdk/lib/@types/read_receipts';
+import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { useCallback, useEffect } from 'react';
 import {
   Membership,
@@ -24,6 +27,7 @@ import {
   getUnreadInfo,
   getUnreadInfos,
   isNotificationEvent,
+  roomHaveUnread,
 } from '../../utils/room';
 import { roomToParentsAtom } from './roomToParents';
 import { useStateEventCallback } from '../../hooks/useStateEventCallback';
@@ -49,6 +53,94 @@ export const unreadInfoToUnread = (unreadInfo: UnreadInfo): Unread => ({
   total: unreadInfo.total,
   from: null,
 });
+
+type ReceiptContext = {
+  threadId?: string;
+  unthreaded: boolean;
+};
+
+const getUnreadInfoFromCounts = (room: Room, total: number, highlight: number): UnreadInfo => ({
+  roomId: room.roomId,
+  highlight,
+  total: highlight > total ? highlight : total,
+});
+
+const getSelfReceiptContexts = (content: ReceiptContent, userId: string): ReceiptContext[] => {
+  const receiptContexts: ReceiptContext[] = [];
+
+  Object.keys(content).forEach((eventId) => {
+    (Object.keys(content[eventId]) as ReceiptType[]).forEach((receiptType) => {
+      const receipt = content[eventId][receiptType][userId];
+      if (!receipt) return;
+
+      receiptContexts.push({
+        threadId: receipt.thread_id,
+        unthreaded: !receipt.thread_id,
+      });
+    });
+  });
+
+  return receiptContexts;
+};
+
+export const getOptimisticReceiptUnreadInfo = (
+  room: Room,
+  receiptContexts: ReceiptContext[]
+): UnreadInfo | undefined => {
+  if (receiptContexts.length === 0) return undefined;
+  if (receiptContexts.some((context) => context.unthreaded)) {
+    return getUnreadInfoFromCounts(room, 0, 0);
+  }
+
+  let total = room.getUnreadNotificationCount(NotificationCountType.Total);
+  let highlight = room.getUnreadNotificationCount(NotificationCountType.Highlight);
+  const hasMainReceipt = receiptContexts.some((context) => context.threadId === MAIN_ROOM_TIMELINE);
+  if (hasMainReceipt) {
+    total -= room.getRoomUnreadNotificationCount(NotificationCountType.Total);
+    highlight -= room.getRoomUnreadNotificationCount(NotificationCountType.Highlight);
+  }
+
+  const threadIds = new Set(
+    receiptContexts
+      .map((context) => context.threadId)
+      .filter((threadId): threadId is string => !!threadId && threadId !== MAIN_ROOM_TIMELINE)
+  );
+  threadIds.forEach((threadId) => {
+    total -= room.getThreadUnreadNotificationCount(threadId, NotificationCountType.Total);
+    highlight -= room.getThreadUnreadNotificationCount(threadId, NotificationCountType.Highlight);
+  });
+
+  return getUnreadInfoFromCounts(room, Math.max(0, total), Math.max(0, highlight));
+};
+
+export const getRoomUnreadAction = (
+  mx: MatrixClient,
+  room: Room,
+  unreadInfo: UnreadInfo = getUnreadInfo(room)
+): Extract<RoomToUnreadAction, { type: 'PUT' | 'DELETE' }> => {
+  if (
+    room.isSpaceRoom() ||
+    room.getMyMembership() !== Membership.Join ||
+    getNotificationType(mx, room.roomId) === NotificationType.Mute
+  ) {
+    return {
+      type: 'DELETE',
+      roomId: room.roomId,
+    };
+  }
+
+  if (unreadInfo.total > 0 || unreadInfo.highlight > 0 || roomHaveUnread(mx, room)) {
+    return {
+      type: 'PUT',
+      unreadInfo,
+    };
+  }
+
+  return {
+    type: 'DELETE',
+    roomId: room.roomId,
+  };
+};
 
 const putUnreadInfo = (
   roomToUnread: RoomToUnread,
@@ -169,6 +261,12 @@ export const roomToUnreadAtom = atom<RoomToUnread, [RoomToUnreadAction], undefin
 export const useBindRoomToUnreadAtom = (mx: MatrixClient, unreadAtom: typeof roomToUnreadAtom) => {
   const setUnreadAtom = useSetAtom(unreadAtom);
   const roomsNotificationPreferences = useRoomsNotificationPreferencesContext();
+  const syncRoomUnread = useCallback(
+    (room: Room, unreadInfo?: UnreadInfo) => {
+      setUnreadAtom(getRoomUnreadAction(mx, room, unreadInfo));
+    },
+    [mx, setUnreadAtom]
+  );
 
   useEffect(() => {
     setUnreadAtom({
@@ -203,23 +301,15 @@ export const useBindRoomToUnreadAtom = (mx: MatrixClient, unreadAtom: typeof roo
       removed: boolean,
       data: IRoomTimelineData
     ) => {
-      if (!room || !data.liveEvent || room.isSpaceRoom() || !isNotificationEvent(mEvent)) return;
-      if (getNotificationType(mx, room.roomId) === NotificationType.Mute) {
-        setUnreadAtom({
-          type: 'DELETE',
-          roomId: room.roomId,
-        });
-        return;
-      }
-
+      if (!room || !data.liveEvent || removed || !isNotificationEvent(mEvent)) return;
       if (mEvent.getSender() === mx.getUserId()) return;
-      setUnreadAtom({ type: 'PUT', unreadInfo: getUnreadInfo(room) });
+      syncRoomUnread(room);
     };
     mx.on(RoomEvent.Timeline, handleTimelineEvent);
     return () => {
       mx.removeListener(RoomEvent.Timeline, handleTimelineEvent);
     };
-  }, [mx, setUnreadAtom]);
+  }, [mx, syncRoomUnread]);
 
   useEffect(() => {
     const handleReceipt = (mEvent: MatrixEvent, room: Room) => {
@@ -228,20 +318,41 @@ export const useBindRoomToUnreadAtom = (mx: MatrixClient, unreadAtom: typeof roo
       if (room.isSpaceRoom()) return;
       const content = mEvent.getContent<ReceiptContent>();
 
-      const isMyReceipt = Object.keys(content).find((eventId) =>
-        (Object.keys(content[eventId]) as ReceiptType[]).find(
-          (receiptType) => content[eventId][receiptType][myUserId]
-        )
-      );
-      if (isMyReceipt) {
-        setUnreadAtom({ type: 'DELETE', roomId: room.roomId });
+      const receiptContexts = getSelfReceiptContexts(content, myUserId);
+      if (receiptContexts.length > 0) {
+        syncRoomUnread(room, getOptimisticReceiptUnreadInfo(room, receiptContexts));
       }
     };
     mx.on(RoomEvent.Receipt, handleReceipt);
     return () => {
       mx.removeListener(RoomEvent.Receipt, handleReceipt);
     };
-  }, [mx, setUnreadAtom]);
+  }, [mx, syncRoomUnread]);
+
+  useEffect(() => {
+    const roomHandlers = new Map<Room, () => void>();
+
+    const attachRoom = (room: Room) => {
+      if (roomHandlers.has(room)) return;
+
+      const handleUnreadNotifications = () => {
+        syncRoomUnread(room);
+      };
+
+      room.on(RoomEvent.UnreadNotifications, handleUnreadNotifications);
+      roomHandlers.set(room, handleUnreadNotifications);
+    };
+
+    mx.getRooms().forEach(attachRoom);
+    mx.on(ClientEvent.Room, attachRoom);
+
+    return () => {
+      mx.removeListener(ClientEvent.Room, attachRoom);
+      roomHandlers.forEach((handler, room) => {
+        room.removeListener(RoomEvent.UnreadNotifications, handler);
+      });
+    };
+  }, [mx, syncRoomUnread]);
 
   useEffect(() => {
     setUnreadAtom({

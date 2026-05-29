@@ -32,7 +32,14 @@ import FocusTrap from 'focus-trap-react';
 import { Page, PageContent, PageHeader } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { useSetting } from '../../../state/hooks/settings';
-import { DateFormat, MessageLayout, MessageSpacing, settingsAtom } from '../../../state/settings';
+import {
+  DateFormat,
+  MessageLayout,
+  MessageSpacing,
+  PAGE_ZOOM_MAX,
+  PAGE_ZOOM_MIN,
+  settingsAtom,
+} from '../../../state/settings';
 import { SettingTile } from '../../../components/setting-tile';
 import { KeySymbol } from '../../../utils/key-symbol';
 import { isMacOS } from '../../../utils/user-agent';
@@ -50,6 +57,8 @@ import { useMessageLayoutItems } from '../../../hooks/useMessageLayout';
 import { useMessageSpacingItems } from '../../../hooks/useMessageSpacing';
 import { useDateFormatItems } from '../../../hooks/useDateFormat';
 import { SequenceCardStyle } from '../styles.css';
+import { sanitizePageZoom } from '../../../utils/pageZoom';
+import { MindroomGeneralMessageSettings } from '../../../mindroom/settings/settingsExtensions';
 
 type ThemeSelectorProps = {
   themeNames: Record<string, string>;
@@ -263,6 +272,19 @@ function PageZoomInput() {
   const [pageZoom, setPageZoom] = useSetting(settingsAtom, 'pageZoom');
   const [currentZoom, setCurrentZoom] = useState(`${pageZoom}`);
 
+  useEffect(() => {
+    setCurrentZoom(pageZoom.toString());
+  }, [pageZoom]);
+
+  const commitValue = (raw: string) => {
+    const parsed = parseInt(raw, 10);
+    if (Number.isNaN(parsed)) return;
+
+    const safeZoom = sanitizePageZoom(parsed);
+    setPageZoom(safeZoom);
+    setCurrentZoom(safeZoom.toString());
+  };
+
   const handleZoomChange: ChangeEventHandler<HTMLInputElement> = (evt) => {
     setCurrentZoom(evt.target.value);
   };
@@ -277,11 +299,7 @@ function PageZoomInput() {
       'value' in evt.target &&
       typeof evt.target.value === 'string'
     ) {
-      const newZoom = parseInt(evt.target.value, 10);
-      if (Number.isNaN(newZoom)) return;
-      const safeZoom = Math.max(Math.min(newZoom, 150), 75);
-      setPageZoom(safeZoom);
-      setCurrentZoom(safeZoom.toString());
+      commitValue(evt.target.value);
     }
   };
 
@@ -292,8 +310,8 @@ function PageZoomInput() {
       size="300"
       radii="300"
       type="number"
-      min="75"
-      max="150"
+      min={PAGE_ZOOM_MIN.toString()}
+      max={PAGE_ZOOM_MAX.toString()}
       value={currentZoom}
       onChange={handleZoomChange}
       onKeyDown={handleZoomEnter}
@@ -906,6 +924,7 @@ function Messages() {
       <SequenceCard className={SequenceCardStyle} variant="SurfaceVariant" direction="Column">
         <SettingTile title="Message Spacing" after={<SelectMessageSpacing />} />
       </SequenceCard>
+      <MindroomGeneralMessageSettings className={SequenceCardStyle} />
       <SequenceCard className={SequenceCardStyle} variant="SurfaceVariant" direction="Column">
         <SettingTile
           title="Legacy Username Color"

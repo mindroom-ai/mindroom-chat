@@ -7,7 +7,6 @@ import {
   Icon,
   IconButton,
   Icons,
-  IconSrc,
   MenuItem,
   Overlay,
   OverlayBackdrop,
@@ -33,70 +32,24 @@ import { About } from './about';
 import { UseStateProvider } from '../../components/UseStateProvider';
 import { stopPropagation } from '../../utils/keyboard';
 import { LogoutDialog } from '../../components/LogoutDialog';
+import { useClientConfig } from '../../hooks/useClientConfig';
+import {
+  getSettingsMenuItems,
+  resolveSettingsInitialPage,
+  type SettingsMenuItem,
+} from './settingsMenu';
+import { SettingsPage, SettingsPages } from './settingsPages';
+import { renderMindroomSettingsPage } from '../../mindroom/settings/settingsExtensions';
 
-export enum SettingsPages {
-  GeneralPage,
-  AccountPage,
-  NotificationPage,
-  DevicesPage,
-  EmojisStickersPage,
-  DeveloperToolsPage,
-  AboutPage,
-}
-
-type SettingsMenuItem = {
-  page: SettingsPages;
-  name: string;
-  icon: IconSrc;
-};
-
-const useSettingsMenuItems = (): SettingsMenuItem[] =>
-  useMemo(
-    () => [
-      {
-        page: SettingsPages.GeneralPage,
-        name: 'General',
-        icon: Icons.Setting,
-      },
-      {
-        page: SettingsPages.AccountPage,
-        name: 'Account',
-        icon: Icons.User,
-      },
-      {
-        page: SettingsPages.NotificationPage,
-        name: 'Notifications',
-        icon: Icons.Bell,
-      },
-      {
-        page: SettingsPages.DevicesPage,
-        name: 'Devices',
-        icon: Icons.Monitor,
-      },
-      {
-        page: SettingsPages.EmojisStickersPage,
-        name: 'Emojis & Stickers',
-        icon: Icons.Smile,
-      },
-      {
-        page: SettingsPages.DeveloperToolsPage,
-        name: 'Developer Tools',
-        icon: Icons.Terminal,
-      },
-      {
-        page: SettingsPages.AboutPage,
-        name: 'About',
-        icon: Icons.Info,
-      },
-    ],
-    []
-  );
+const useSettingsMenuItems = (showLocalMindRoom: boolean): SettingsMenuItem[] =>
+  useMemo(() => getSettingsMenuItems(showLocalMindRoom), [showLocalMindRoom]);
 
 type SettingsProps = {
-  initialPage?: SettingsPages;
+  initialPage?: SettingsPage;
   requestClose: () => void;
 };
 export function Settings({ initialPage, requestClose }: SettingsProps) {
+  const { sidebar } = useClientConfig();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const userId = mx.getUserId()!;
@@ -107,11 +60,11 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
     : undefined;
 
   const screenSize = useScreenSizeContext();
-  const [activePage, setActivePage] = useState<SettingsPages | undefined>(() => {
-    if (initialPage) return initialPage;
-    return screenSize === ScreenSize.Mobile ? undefined : SettingsPages.GeneralPage;
-  });
-  const menuItems = useSettingsMenuItems();
+  const showLocalMindRoom = sidebar?.showMindRoom ?? true;
+  const [activePage, setActivePage] = useState<SettingsPage | undefined>(() =>
+    resolveSettingsInitialPage(initialPage, screenSize, showLocalMindRoom)
+  );
+  const menuItems = useSettingsMenuItems(showLocalMindRoom);
 
   const handlePageRequestClose = () => {
     if (screenSize === ScreenSize.Mobile) {
@@ -225,6 +178,7 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
       {activePage === SettingsPages.EmojisStickersPage && (
         <EmojisStickers requestClose={handlePageRequestClose} />
       )}
+      {renderMindroomSettingsPage(activePage, showLocalMindRoom, handlePageRequestClose)}
       {activePage === SettingsPages.DeveloperToolsPage && (
         <DeveloperTools requestClose={handlePageRequestClose} />
       )}
