@@ -30,6 +30,12 @@ import {
   escapeMarkdownInlineSequences,
   escapeMarkdownBlockSequences,
 } from '../../plugins/markdown';
+import {
+  getMindroomEditorMathText,
+  getMindroomEditorPasteMarkerElement,
+  isMindroomEditorMathBlockElement,
+  parseMindroomEditorMathBlock,
+} from '../../mindroom/editor/MindroomEditorExtensions';
 
 type ProcessTextCallback = (text: string) => string;
 
@@ -133,17 +139,27 @@ const getInlineNonMarkElement = (node: Element): MentionElement | EmoticonElemen
   return undefined;
 };
 
-const getInlineElement = (node: ChildNode, processText: ProcessTextCallback): InlineElement[] => {
+const getInlineElement = (
+  node: ChildNode,
+  processText: ProcessTextCallback,
+  markdown?: boolean
+): InlineElement[] => {
   if (isText(node)) {
     return [{ text: processText(node.data) }];
   }
 
   if (isTag(node)) {
+    const mathText = getMindroomEditorMathText(node, getText, markdown);
+    if (mathText) return [{ text: mathText }];
+
+    const pasteMarker = getMindroomEditorPasteMarkerElement(node, getText);
+    if (pasteMarker) return [pasteMarker];
+
     const markType = getInlineNodeMarkType(node);
     if (markType) {
       return getInlineMarkElement(markType, node, (child) => {
         if (markType === MarkType.Code) return [{ text: getText(child) }];
-        return getInlineElement(child, processText);
+        return getInlineElement(child, processText, markdown);
       });
     }
 
@@ -151,13 +167,15 @@ const getInlineElement = (node: ChildNode, processText: ProcessTextCallback): In
     if (inlineNode) return [inlineNode];
 
     if (node.name === 'a') {
-      const children = node.childNodes.flatMap((child) => getInlineElement(child, processText));
+      const children = node.childNodes.flatMap((child) =>
+        getInlineElement(child, processText, markdown)
+      );
       children.unshift({ text: '[' });
       children.push({ text: `](${node.attribs.href})` });
       return children;
     }
 
-    return node.childNodes.flatMap((child) => getInlineElement(child, processText));
+    return node.childNodes.flatMap((child) => getInlineElement(child, processText, markdown));
   }
 
   return [];
@@ -165,7 +183,8 @@ const getInlineElement = (node: ChildNode, processText: ProcessTextCallback): In
 
 const parseBlockquoteNode = (
   node: Element,
-  processText: ProcessTextCallback
+  processText: ProcessTextCallback,
+  markdown?: boolean
 ): BlockQuoteElement[] | ParagraphElement[] => {
   const quoteLines: Array<InlineElement[]> = [];
   let lineHolder: InlineElement[] = [];
@@ -191,11 +210,11 @@ const parseBlockquoteNode = (
 
       if (child.name === 'p') {
         appendLine();
-        quoteLines.push(child.children.flatMap((c) => getInlineElement(c, processText)));
+        quoteLines.push(child.children.flatMap((c) => getInlineElement(c, processText, markdown)));
         return;
       }
 
-      lineHolder.push(...getInlineElement(child, processText));
+      lineHolder.push(...getInlineElement(child, processText, markdown));
     }
   });
   appendLine();
@@ -251,7 +270,8 @@ const parseCodeBlockNode = (node: Element): CodeBlockElement[] | ParagraphElemen
 };
 const parseListNode = (
   node: Element,
-  processText: ProcessTextCallback
+  processText: ProcessTextCallback,
+  markdown?: boolean
 ): OrderedListElement[] | UnorderedListElement[] | ParagraphElement[] => {
   const listLines: Array<InlineElement[]> = [];
   let lineHolder: InlineElement[] = [];
@@ -277,11 +297,11 @@ const parseListNode = (
 
       if (child.name === 'li') {
         appendLine();
-        listLines.push(child.children.flatMap((c) => getInlineElement(c, processText)));
+        listLines.push(child.children.flatMap((c) => getInlineElement(c, processText, markdown)));
         return;
       }
 
-      lineHolder.push(...getInlineElement(child, processText));
+      lineHolder.push(...getInlineElement(child, processText, markdown));
     }
   });
   appendLine();
@@ -323,9 +343,10 @@ const parseListNode = (
 };
 const parseHeadingNode = (
   node: Element,
-  processText: ProcessTextCallback
+  processText: ProcessTextCallback,
+  markdown?: boolean
 ): HeadingElement | ParagraphElement => {
-  const children = node.children.flatMap((child) => getInlineElement(child, processText));
+  const children = node.children.flatMap((child) => getInlineElement(child, processText, markdown));
 
   const headingMatch = node.name.match(/^h([123456])$/);
   const [, g1AsLevel] = headingMatch ?? ['h3', '3'];
@@ -349,7 +370,8 @@ const parseHeadingNode = (
 export const domToEditorInput = (
   domNodes: ChildNode[],
   processText: ProcessTextCallback,
-  processLineStartText: ProcessTextCallback
+  processLineStartText: ProcessTextCallback,
+  markdown?: boolean
 ): Descendant[] => {
   const children: Descendant[] = [];
 
@@ -388,14 +410,22 @@ export const domToEditorInput = (
         appendLine();
         children.push({
           type: BlockType.Paragraph,
-          children: node.children.flatMap((child) => getInlineElement(child, processText)),
+          children: node.children.flatMap((child) =>
+            getInlineElement(child, processText, markdown)
+          ),
         });
+        return;
+      }
+
+      if (isMindroomEditorMathBlockElement(node)) {
+        appendLine();
+        children.push(...parseMindroomEditorMathBlock(node, getText, markdown));
         return;
       }
 
       if (node.name === 'blockquote') {
         appendLine();
-        children.push(...parseBlockquoteNode(node, processText));
+        children.push(...parseBlockquoteNode(node, processText, markdown));
         return;
       }
       if (node.name === 'pre') {
@@ -405,17 +435,17 @@ export const domToEditorInput = (
       }
       if (node.name === 'ol' || node.name === 'ul') {
         appendLine();
-        children.push(...parseListNode(node, processText));
+        children.push(...parseListNode(node, processText, markdown));
         return;
       }
 
       if (node.name.match(/^h[123456]$/)) {
         appendLine();
-        children.push(parseHeadingNode(node, processText));
+        children.push(parseHeadingNode(node, processText, markdown));
         return;
       }
 
-      lineHolder.push(...getInlineElement(node, processText));
+      lineHolder.push(...getInlineElement(node, processText, markdown));
     }
   });
   appendLine();
@@ -432,10 +462,15 @@ export const htmlToEditorInput = (unsafeHtml: string, markdown?: boolean): Desce
   };
 
   const domNodes = parse(sanitizedHtml);
-  const editorNodes = domToEditorInput(domNodes, processText, (lineStartText: string) => {
-    if (!markdown) return lineStartText;
-    return escapeMarkdownBlockSequences(lineStartText, processText);
-  });
+  const editorNodes = domToEditorInput(
+    domNodes,
+    processText,
+    (lineStartText: string) => {
+      if (!markdown) return lineStartText;
+      return escapeMarkdownBlockSequences(lineStartText, processText);
+    },
+    markdown
+  );
   return editorNodes;
 };
 

@@ -11,7 +11,11 @@ import {
 } from '../../plugins/markdown';
 import { findAndReplace } from '../../utils/findAndReplace';
 import { sanitizeForRegex } from '../../utils/regex';
-import { getCanonicalAliasOrRoomId, isUserId } from '../../utils/matrix';
+import { isUserId } from '../../utils/matrix';
+import {
+  mindroomEditorPasteMarkerElementToCustomHtml,
+  mindroomEditorPasteMarkerElementToPlainText,
+} from '../../mindroom/editor/MindroomEditorExtensions';
 
 export type OutputOptions = {
   allowTextFormatting?: boolean;
@@ -81,6 +85,8 @@ const elementToCustomHtml = (node: CustomElement, children: string): string => {
       return `<a href="${encodeURI(node.href)}">${node.children}</a>`;
     case BlockType.Command:
       return `/${sanitizeText(node.command)}`;
+    case BlockType.PasteMarker:
+      return mindroomEditorPasteMarkerElementToCustomHtml(node);
     default:
       return children;
   }
@@ -159,6 +165,8 @@ const elementToPlainText = (node: CustomElement, children: string): string => {
       return `[${node.children}](${node.href})`;
     case BlockType.Command:
       return `/${node.command}`;
+    case BlockType.PasteMarker:
+      return mindroomEditorPasteMarkerElementToPlainText(node);
     default:
       return children;
   }

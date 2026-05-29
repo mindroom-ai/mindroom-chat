@@ -9,12 +9,18 @@ import {
 } from 'slate-react';
 
 import * as css from '../../styles/CustomHtml.css';
-import { CommandElement, EmoticonElement, LinkElement, MentionElement } from './slate';
+import {
+  CommandElement,
+  EmoticonElement,
+  LinkElement,
+  MentionElement,
+} from './slate';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { getBeginCommand } from './utils';
 import { BlockType } from './types';
 import { mxcUrlToHttp } from '../../utils/matrix';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { RenderMindroomEditorPasteMarkerElement } from '../../mindroom/editor/MindroomEditorElements';
 
 // Put this at the start and end of an inline component to work around this Chromium bug:
 // https://bugs.chromium.org/p/chromium/issues/detail?id=1249405
@@ -215,6 +221,12 @@ export function RenderElement({ attributes, element, children }: RenderElementPr
         <RenderCommandElement attributes={attributes} element={element}>
           {children}
         </RenderCommandElement>
+      );
+    case BlockType.PasteMarker:
+      return (
+        <RenderMindroomEditorPasteMarkerElement attributes={attributes} element={element}>
+          {children}
+        </RenderMindroomEditorPasteMarkerElement>
       );
     default:
       return (
