@@ -18,8 +18,8 @@ import {
   MatrixError,
   RegisterRequest,
   UIAFlow,
-  createClient,
 } from 'matrix-js-sdk';
+import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory';
 import { PasswordInput } from '../../../components/password-input';
 import {
   getLoginTermUrl,
@@ -32,6 +32,7 @@ import { AsyncState, AsyncStatus, useAsyncCallback } from '../../../hooks/useAsy
 import { useAutoDiscoveryInfo } from '../../../hooks/useAutoDiscoveryInfo';
 import { RegisterError, RegisterResult, register, useRegisterComplete } from './registerUtil';
 import { FieldError } from '../FiledError';
+import { MINDROOM_AUTH_BRANDING } from '../../../mindroom/auth/authUi';
 import {
   AutoDummyStageDialog,
   AutoTermsStageDialog,
@@ -109,7 +110,7 @@ function RegisterUIAFlow({
         auth: authDict,
         password,
         username,
-        initial_device_display_name: 'Cinny Web',
+        initial_device_display_name: MINDROOM_AUTH_BRANDING.deviceDisplayName,
       });
     },
     [onRegister, formData]
@@ -176,6 +177,7 @@ type PasswordRegisterFormProps = {
   defaultUsername?: string;
   defaultEmail?: string;
   defaultRegisterToken?: string;
+  addAccount?: boolean;
 };
 export function PasswordRegisterForm({
   authData,
@@ -183,10 +185,11 @@ export function PasswordRegisterForm({
   defaultUsername,
   defaultEmail,
   defaultRegisterToken,
+  addAccount = false,
 }: PasswordRegisterFormProps) {
   const serverDiscovery = useAutoDiscoveryInfo();
   const baseUrl = serverDiscovery['m.homeserver'].base_url;
-  const mx = useMemo(() => createClient({ baseUrl }), [baseUrl]);
+  const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
   const params = useUIAParams(authData);
   const termUrl = getLoginTermUrl(params);
   const [formData, setFormData] = useState<FormData>();
@@ -205,7 +208,7 @@ export function PasswordRegisterForm({
   const registerError =
     registerState.status === AsyncStatus.Error ? registerState.error : undefined;
 
-  useRegisterComplete(customRegisterResp);
+  useRegisterComplete(customRegisterResp, addAccount);
 
   const handleSubmit: ChangeEventHandler<HTMLFormElement> = (evt) => {
     evt.preventDefault();
@@ -250,7 +253,7 @@ export function PasswordRegisterForm({
       auth: {
         session: authData.session,
       },
-      initial_device_display_name: 'Cinny Web',
+      initial_device_display_name: MINDROOM_AUTH_BRANDING.deviceDisplayName,
     });
   };
 

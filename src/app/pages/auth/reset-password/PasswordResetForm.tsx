@@ -14,7 +14,8 @@ import {
 } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
-import { AuthDict, AuthType, MatrixError, createClient } from 'matrix-js-sdk';
+import { AuthDict, AuthType, MatrixError } from 'matrix-js-sdk';
+import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../../hooks/useAutoDiscoveryInfo';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { useAuthServer } from '../../../hooks/useAuthServer';
@@ -28,6 +29,7 @@ import { ResetPasswordResult, resetPassword } from './resetPasswordUtil';
 import { getLoginPath, withSearchParam } from '../../pathUtils';
 import { LoginPathSearchParams } from '../../paths';
 import { getUIAError, getUIAErrorCode } from '../../../utils/matrix-uia';
+import { withAddAccountSearchIf } from '../addAccount';
 
 type FormData = {
   email: string;
@@ -35,13 +37,19 @@ type FormData = {
   clientSecret: string;
 };
 
-function ResetPasswordComplete({ email }: { email?: string }) {
+function ResetPasswordComplete({
+  email,
+  addAccount = false,
+}: {
+  email?: string;
+  addAccount?: boolean;
+}) {
   const server = useAuthServer();
 
   const navigate = useNavigate();
 
   const handleClick = () => {
-    const path = getLoginPath(server);
+    const path = withAddAccountSearchIf(getLoginPath(server), addAccount);
     if (email) {
       navigate(withSearchParam<LoginPathSearchParams>(path, { email }));
       return;
@@ -73,13 +81,14 @@ function ResetPasswordComplete({ email }: { email?: string }) {
 
 type PasswordResetFormProps = {
   defaultEmail?: string;
+  addAccount?: boolean;
 };
-export function PasswordResetForm({ defaultEmail }: PasswordResetFormProps) {
+export function PasswordResetForm({ defaultEmail, addAccount = false }: PasswordResetFormProps) {
   const server = useAuthServer();
 
   const serverDiscovery = useAutoDiscoveryInfo();
   const baseUrl = serverDiscovery['m.homeserver'].base_url;
-  const mx = useMemo(() => createClient({ baseUrl }), [baseUrl]);
+  const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
 
   const [formData, setFormData] = useState<FormData>();
 
@@ -237,7 +246,9 @@ export function PasswordResetForm({ defaultEmail }: PasswordResetFormProps) {
         </Text>
       </Button>
 
-      {resetPasswordResult && <ResetPasswordComplete email={formData?.email} />}
+      {resetPasswordResult && (
+        <ResetPasswordComplete email={formData?.email} addAccount={addAccount} />
+      )}
 
       {passwordEmailState.status === AsyncStatus.Success && formData && waitingToVerifyEmail && (
         <UIAFlowOverlay currentStep={1} stepCount={1} onCancel={handleCancel}>
