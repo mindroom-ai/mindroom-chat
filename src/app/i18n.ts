@@ -2,7 +2,7 @@ import i18n from 'i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import Backend, { HttpBackendOptions } from 'i18next-http-backend';
 import { initReactI18next } from 'react-i18next';
-import { trimTrailingSlash } from './utils/common';
+import { appUrl } from './utils/basePath';
 
 i18n
   // i18next-http-backend
@@ -24,7 +24,7 @@ i18n
     },
     load: 'languageOnly',
     backend: {
-      loadPath: `${trimTrailingSlash(import.meta.env.BASE_URL)}/public/locales/{{lng}}.json`,
+      loadPath: appUrl('public/locales/{{lng}}.json'),
     },
   });
 

@@ -1,12 +1,4 @@
-import React, {
-  ChangeEventHandler,
-  FormEventHandler,
-  KeyboardEventHandler,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { FormEventHandler, useCallback, useMemo, useRef, useState } from 'react';
 import {
   Overlay,
   OverlayBackdrop,
@@ -18,38 +10,22 @@ import {
   IconButton,
   Icon,
   Icons,
-  Input,
   Button,
   Spinner,
   color,
   TextArea,
   Dialog,
-  Menu,
   toRem,
-  Scroll,
-  MenuItem,
 } from 'folds';
 import { Room } from 'matrix-js-sdk';
-import { isKeyHotkey } from 'is-hotkey';
 import FocusTrap from 'focus-trap-react';
 import { stopPropagation } from '../../utils/keyboard';
-import { useDirectUsers } from '../../hooks/useDirectUsers';
-import { getMxIdLocalPart, getMxIdServer, isUserId } from '../../utils/matrix';
-import { Membership } from '../../../types/matrix/room';
-import { useAsyncSearch, UseAsyncSearchOptions } from '../../hooks/useAsyncSearch';
-import { highlightText, makeHighlightRegex } from '../../plugins/react-custom-html-parser';
+import { isUserId } from '../../utils/matrix';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { BreakWord } from '../../styles/Text.css';
 import { useAlive } from '../../hooks/useAlive';
-
-const SEARCH_OPTIONS: UseAsyncSearchOptions = {
-  limit: 1000,
-  matchOptions: {
-    contain: true,
-  },
-};
-const getUserIdString = (userId: string) => getMxIdLocalPart(userId) ?? userId;
+import { InviteUserAutocomplete } from './InviteUserAutocomplete';
 
 type InviteUserProps = {
   room: Room;
@@ -60,25 +36,11 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserProps) {
   const alive = useAlive();
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const directUsers = useDirectUsers();
-  const [validUserId, setValidUserId] = useState<string>();
-
-  const filteredUsers = useMemo(
-    () =>
-      directUsers.filter((userId) => {
-        const membership = room.getMember(userId)?.membership;
-        return membership !== Membership.Join;
-      }),
-    [directUsers, room]
+  const [inputValue, setInputValue] = useState('');
+  const validUserId = useMemo(
+    () => (isUserId(inputValue.trim()) ? inputValue.trim() : undefined),
+    [inputValue]
   );
-  const [result, search, resetSearch] = useAsyncSearch(
-    filteredUsers,
-    getUserIdString,
-    SEARCH_OPTIONS
-  );
-  const queryHighlighRegex = result?.query
-    ? makeHighlightRegex(result.query.split(' '))
-    : undefined;
 
   const [inviteState, invite] = useAsyncCallback<void, Error, [string, string | undefined]>(
     useCallback(
@@ -92,9 +54,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserProps) {
   const inviting = inviteState.status === AsyncStatus.Loading;
 
   const handleReset = () => {
-    if (inputRef.current) inputRef.current.value = '';
-    setValidUserId(undefined);
-    resetSearch();
+    setInputValue('');
   };
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = (evt) => {
@@ -114,40 +74,9 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserProps) {
     });
   };
 
-  const handleSearchChange: ChangeEventHandler<HTMLInputElement> = (evt) => {
-    const value = evt.currentTarget.value.trim();
-    if (isUserId(value)) {
-      setValidUserId(value);
-    } else {
-      setValidUserId(undefined);
-      const term = getMxIdLocalPart(value) ?? (value.startsWith('@') ? value.slice(1) : value);
-      if (term) {
-        search(term);
-      } else {
-        resetSearch();
-      }
-    }
-  };
-
   const handleUserId = (userId: string) => {
-    if (inputRef.current) {
-      inputRef.current.value = userId;
-      setValidUserId(userId);
-      resetSearch();
-      inputRef.current.focus();
-    }
-  };
-
-  const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (evt) => {
-    if (isKeyHotkey('escape', evt)) {
-      resetSearch();
-      return;
-    }
-    if (isKeyHotkey('tab', evt) && result && result.items.length > 0) {
-      evt.preventDefault();
-      const userId = result.items[0];
-      handleUserId(userId);
-    }
+    setInputValue(userId);
+    inputRef.current?.focus();
   };
 
   return (
@@ -161,7 +90,12 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserProps) {
             escapeDeactivates: stopPropagation,
           }}
         >
-          <Dialog>
+          <Dialog
+            style={{
+              width: '100%',
+              maxWidth: `min(calc(100vw - 2 * ${config.space.S400}), ${toRem(680)})`,
+            }}
+          >
             <Box grow="Yes" direction="Column">
               <Header
                 size="500"
@@ -188,76 +122,14 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserProps) {
               >
                 <Box direction="Column" gap="100">
                   <Text size="L400">User ID</Text>
-                  <div>
-                    <Input
-                      size="500"
-                      ref={inputRef}
-                      onChange={handleSearchChange}
-                      onKeyDown={handleKeyDown}
-                      placeholder="@username:server"
-                      name="userIdInput"
-                      variant="Background"
-                      disabled={inviting}
-                      autoComplete="off"
-                      required
-                    />
-                    {result && result.items.length > 0 && (
-                      <FocusTrap
-                        focusTrapOptions={{
-                          initialFocus: false,
-                          onDeactivate: resetSearch,
-                          returnFocusOnDeactivate: false,
-                          clickOutsideDeactivates: true,
-                          allowOutsideClick: true,
-                          isKeyForward: (evt: KeyboardEvent) => isKeyHotkey('arrowdown', evt),
-                          isKeyBackward: (evt: KeyboardEvent) => isKeyHotkey('arrowup', evt),
-                          escapeDeactivates: stopPropagation,
-                        }}
-                      >
-                        <Box style={{ position: 'relative' }}>
-                          <Menu style={{ position: 'absolute', top: 0, zIndex: 1, width: '100%' }}>
-                            <Scroll size="300" style={{ maxHeight: toRem(100) }}>
-                              <div style={{ padding: config.space.S100 }}>
-                                {result.items.map((userId) => {
-                                  const username = `${getMxIdLocalPart(userId)}`;
-                                  const userServer = getMxIdServer(userId);
-
-                                  return (
-                                    <MenuItem
-                                      key={userId}
-                                      type="button"
-                                      size="300"
-                                      variant="Surface"
-                                      radii="300"
-                                      onClick={() => handleUserId(userId)}
-                                      after={
-                                        <Text size="T200" truncate>
-                                          {userServer}
-                                        </Text>
-                                      }
-                                      disabled={inviting}
-                                    >
-                                      <Box grow="Yes">
-                                        <Text size="T300" truncate>
-                                          <b>
-                                            {queryHighlighRegex
-                                              ? highlightText(queryHighlighRegex, [
-                                                  username ?? userId,
-                                                ])
-                                              : username}
-                                          </b>
-                                        </Text>
-                                      </Box>
-                                    </MenuItem>
-                                  );
-                                })}
-                              </div>
-                            </Scroll>
-                          </Menu>
-                        </Box>
-                      </FocusTrap>
-                    )}
-                  </div>
+                  <InviteUserAutocomplete
+                    ref={inputRef}
+                    room={room}
+                    inputValue={inputValue}
+                    onInputChange={setInputValue}
+                    onSelect={handleUserId}
+                    disabled={inviting}
+                  />
                 </Box>
                 <Box direction="Column" gap="100">
                   <Text size="L400">Reason (Optional)</Text>

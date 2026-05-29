@@ -17,6 +17,11 @@ import { encryptFile, getImageInfo, getThumbnailContent, getVideoInfo } from '..
 import { TUploadItem } from '../../state/room/roomInputDrafts';
 import { encodeBlurHash } from '../../utils/blurHash';
 import { scaleYDimension } from '../../utils/common';
+import { addVoiceMessageMetadata } from '../../utils/voiceMessage';
+
+type AudioMsgContentOptions = {
+  voiceMessageMimeTypeOverride?: string;
+};
 
 const generateThumbnailContent = async (
   mx: MatrixClient,
@@ -126,15 +131,25 @@ export const getVideoMsgContent = async (
   return content;
 };
 
-export const getAudioMsgContent = (item: TUploadItem, mxc: string): IContent => {
-  const { file, encInfo } = item;
+export const getAudioMsgContent = (
+  item: TUploadItem,
+  mxc: string,
+  options?: AudioMsgContentOptions
+): IContent => {
+  const { file, encInfo, metadata } = item;
+  const duration = metadata.voiceMessage?.duration;
+  const mimetype =
+    metadata.voiceMessage && options?.voiceMessageMimeTypeOverride
+      ? options.voiceMessageMimeTypeOverride
+      : file.type;
   const content: IContent = {
     msgtype: MsgType.Audio,
     filename: file.name,
     body: file.name,
     info: {
-      mimetype: file.type,
+      mimetype,
       size: file.size,
+      ...(typeof duration === 'number' ? { duration } : {}),
     },
   };
   if (encInfo) {
@@ -145,7 +160,14 @@ export const getAudioMsgContent = (item: TUploadItem, mxc: string): IContent => 
   } else {
     content.url = mxc;
   }
-  return content;
+  if (!metadata.voiceMessage) {
+    return content;
+  }
+
+  return addVoiceMessageMetadata(content, {
+    duration: metadata.voiceMessage.duration,
+    ...(metadata.voiceMessage.waveform ? { waveform: metadata.voiceMessage.waveform } : {}),
+  });
 };
 
 export const getFileMsgContent = (item: TUploadItem, mxc: string): IContent => {

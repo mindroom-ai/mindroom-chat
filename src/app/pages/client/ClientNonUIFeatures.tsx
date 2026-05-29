@@ -1,20 +1,13 @@
-import { useAtomValue } from 'jotai';
 import React, { ReactNode, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RoomEvent, RoomEventHandlerMap } from 'matrix-js-sdk';
-import { roomToUnreadAtom, unreadEqual, unreadInfoToUnread } from '../../state/room/roomToUnread';
-import LogoSVG from '../../../../public/res/svg/cinny.svg';
-import LogoUnreadSVG from '../../../../public/res/svg/cinny-unread.svg';
-import LogoHighlightSVG from '../../../../public/res/svg/cinny-highlight.svg';
+import { unreadEqual, unreadInfoToUnread } from '../../state/room/roomToUnread';
 import NotificationSound from '../../../../public/sound/notification.ogg';
-import InviteSound from '../../../../public/sound/invite.ogg';
-import { notificationPermission, setFavicon } from '../../utils/dom';
+import { notificationPermission } from '../../utils/dom';
 import { useSetting } from '../../state/hooks/settings';
-import { settingsAtom } from '../../state/settings';
-import { allInvitesAtom } from '../../state/room-list/inviteList';
-import { usePreviousValue } from '../../hooks/usePreviousValue';
+import { PAGE_ZOOM_DEFAULT, settingsAtom } from '../../state/settings';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { getInboxInvitesPath, getInboxNotificationsPath } from '../pathUtils';
+import { getInboxNotificationsPath } from '../pathUtils';
 import {
   getMemberDisplayName,
   getNotificationType,
@@ -26,6 +19,8 @@ import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { useSelectedRoom } from '../../hooks/router/useSelectedRoom';
 import { useInboxNotificationsSelected } from '../../hooks/router/useInbox';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { usePinchToZoom } from '../../hooks/usePinchToZoom';
+import { MindroomClientNonUIFeatures } from '../../mindroom/client/MindroomClientNonUIFeatures';
 
 function SystemEmojiFeature() {
   const [twitterEmoji] = useSetting(settingsAtom, 'twitterEmoji');
@@ -42,7 +37,7 @@ function SystemEmojiFeature() {
 function PageZoomFeature() {
   const [pageZoom] = useSetting(settingsAtom, 'pageZoom');
 
-  if (pageZoom === 100) {
+  if (pageZoom === PAGE_ZOOM_DEFAULT) {
     document.documentElement.style.removeProperty('font-size');
   } else {
     document.documentElement.style.setProperty('font-size', `calc(1em * ${pageZoom / 100})`);
@@ -51,81 +46,12 @@ function PageZoomFeature() {
   return null;
 }
 
-function FaviconUpdater() {
-  const roomToUnread = useAtomValue(roomToUnreadAtom);
+function PinchToZoomFeature() {
+  const [pageZoom, setPageZoom] = useSetting(settingsAtom, 'pageZoom');
 
-  useEffect(() => {
-    let notification = false;
-    let highlight = false;
-    roomToUnread.forEach((unread) => {
-      if (unread.total > 0) {
-        notification = true;
-      }
-      if (unread.highlight > 0) {
-        highlight = true;
-      }
-    });
-
-    if (notification) {
-      setFavicon(highlight ? LogoHighlightSVG : LogoUnreadSVG);
-    } else {
-      setFavicon(LogoSVG);
-    }
-  }, [roomToUnread]);
+  usePinchToZoom(pageZoom, setPageZoom);
 
   return null;
-}
-
-function InviteNotifications() {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const invites = useAtomValue(allInvitesAtom);
-  const perviousInviteLen = usePreviousValue(invites.length, 0);
-  const mx = useMatrixClient();
-
-  const navigate = useNavigate();
-  const [showNotifications] = useSetting(settingsAtom, 'showNotifications');
-  const [notificationSound] = useSetting(settingsAtom, 'isNotificationSounds');
-
-  const notify = useCallback(
-    (count: number) => {
-      const noti = new window.Notification('Invitation', {
-        icon: LogoSVG,
-        badge: LogoSVG,
-        body: `You have ${count} new invitation request.`,
-        silent: true,
-      });
-
-      noti.onclick = () => {
-        if (!window.closed) navigate(getInboxInvitesPath());
-        noti.close();
-      };
-    },
-    [navigate]
-  );
-
-  const playSound = useCallback(() => {
-    const audioElement = audioRef.current;
-    audioElement?.play();
-  }, []);
-
-  useEffect(() => {
-    if (invites.length > perviousInviteLen && mx.getSyncState() === 'SYNCING') {
-      if (showNotifications && notificationPermission('granted')) {
-        notify(invites.length - perviousInviteLen);
-      }
-
-      if (notificationSound) {
-        playSound();
-      }
-    }
-  }, [mx, invites, perviousInviteLen, showNotifications, notificationSound, notify, playSound]);
-
-  return (
-    // eslint-disable-next-line jsx-a11y/media-has-caption
-    <audio ref={audioRef} style={{ display: 'none' }}>
-      <source src={InviteSound} type="audio/ogg" />
-    </audio>
-  );
 }
 
 function MessageNotifications() {
@@ -174,7 +100,7 @@ function MessageNotifications() {
 
   const playSound = useCallback(() => {
     const audioElement = audioRef.current;
-    audioElement?.play();
+    void audioElement?.play().catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -247,7 +173,7 @@ function MessageNotifications() {
 
   return (
     // eslint-disable-next-line jsx-a11y/media-has-caption
-    <audio ref={audioRef} style={{ display: 'none' }}>
+    <audio ref={audioRef} preload="none" style={{ display: 'none' }}>
       <source src={NotificationSound} type="audio/ogg" />
     </audio>
   );
@@ -262,8 +188,8 @@ export function ClientNonUIFeatures({ children }: ClientNonUIFeaturesProps) {
     <>
       <SystemEmojiFeature />
       <PageZoomFeature />
-      <FaviconUpdater />
-      <InviteNotifications />
+      <PinchToZoomFeature />
+      <MindroomClientNonUIFeatures />
       <MessageNotifications />
       {children}
     </>

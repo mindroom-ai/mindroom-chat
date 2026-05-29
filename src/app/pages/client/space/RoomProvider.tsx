@@ -1,7 +1,7 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useLayoutEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAtom, useAtomValue } from 'jotai';
-import { useSelectedRoom } from '../../../hooks/router/useSelectedRoom';
+import { useSelectedRoomResolution } from '../../../hooks/router/useSelectedRoom';
 import { IsDirectRoomProvider, RoomProvider } from '../../../hooks/useRoom';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { JoinBeforeNavigate } from '../../../features/join-before-navigate';
@@ -13,6 +13,8 @@ import { useSearchParamsViaServers } from '../../../hooks/router/useSearchParams
 import { mDirectAtom } from '../../../state/mDirectList';
 import { settingsAtom } from '../../../state/settings';
 import { useSetting } from '../../../state/hooks/settings';
+import { resolveSpaceRouteRoomAccess, shouldDeferSpaceRoomRouteFallback } from '../routeVisibility';
+import { useClientStartupContext } from '../ClientStartupContext';
 
 export function SpaceRouteRoomProvider({ children }: { children: ReactNode }) {
   const mx = useMatrixClient();
@@ -24,39 +26,41 @@ export function SpaceRouteRoomProvider({ children }: { children: ReactNode }) {
 
   const { roomIdOrAlias, eventId } = useParams();
   const viaServers = useSearchParamsViaServers();
-  const roomId = useSelectedRoom();
+  const { roomId, isResolvingAlias } = useSelectedRoomResolution();
   const room = mx.getRoom(roomId);
+  const { hasCompletedInitialSync } = useClientStartupContext();
+  const hasMappedParent = !!room && getAllParents(roomToParents, room.roomId).has(space.roomId);
+  const isListedChild = !!room && getSpaceChildren(space).includes(room.roomId);
+  const access = resolveSpaceRouteRoomAccess({
+    room,
+    routedRoomIds: allRooms,
+    developerTools,
+    selectedSpaceId: space.roomId,
+    hasMappedParent,
+    isListedChild,
+  });
 
-  if (!room || !allRooms.includes(room.roomId)) {
-    // room is not joined
-    return (
-      <JoinBeforeNavigate
-        roomIdOrAlias={roomIdOrAlias!}
-        eventId={eventId}
-        viaServers={viaServers}
-      />
-    );
+  useLayoutEffect(() => {
+    if (!room || !access.shouldBackfillParent) return;
+
+    setRoomToParents({
+      type: 'PUT',
+      parent: space.roomId,
+      children: [room.roomId],
+    });
+  }, [access.shouldBackfillParent, room, setRoomToParents, space.roomId]);
+
+  if (
+    shouldDeferSpaceRoomRouteFallback({
+      hasCompletedInitialSync,
+      isResolvingAlias,
+      access,
+    })
+  ) {
+    return null;
   }
 
-  if (developerTools && room.isSpaceRoom() && room.roomId === space.roomId) {
-    // allow to view space timeline
-    return (
-      <RoomProvider key={room.roomId} value={room}>
-        <IsDirectRoomProvider value={mDirects.has(room.roomId)}>{children}</IsDirectRoomProvider>
-      </RoomProvider>
-    );
-  }
-
-  if (!getAllParents(roomToParents, room.roomId).has(space.roomId)) {
-    if (getSpaceChildren(space).includes(room.roomId)) {
-      // fill missing roomToParent mapping
-      setRoomToParents({
-        type: 'PUT',
-        parent: space.roomId,
-        children: [room.roomId],
-      });
-    }
-
+  if (!room || !access.canRender) {
     return (
       <JoinBeforeNavigate
         roomIdOrAlias={roomIdOrAlias!}

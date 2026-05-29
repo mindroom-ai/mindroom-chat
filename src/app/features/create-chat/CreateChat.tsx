@@ -12,6 +12,7 @@ import { millisecondsToMinutes } from '../../utils/common';
 import { createRoomEncryptionState } from '../../components/create-room';
 import { useAlive } from '../../hooks/useAlive';
 import { getDirectRoomPath } from '../../pages/pathUtils';
+import { useClientConfig } from '../../hooks/useClientConfig';
 
 type CreateChatProps = {
   defaultUserId?: string;
@@ -20,8 +21,11 @@ export function CreateChat({ defaultUserId }: CreateChatProps) {
   const mx = useMatrixClient();
   const alive = useAlive();
   const navigate = useNavigate();
+  const { createRoom: createRoomConfig } = useClientConfig();
+  const showEncryptionOption = createRoomConfig?.showEncryptionOption ?? true;
+  const defaultEncryption = createRoomConfig?.defaultEncryption ?? true;
 
-  const [encryption, setEncryption] = useState(true);
+  const [encryption, setEncryption] = useState(defaultEncryption);
   const [invalidUserId, setInvalidUserId] = useState(false);
 
   const [createState, create] = useAsyncCallback<string, Error | MatrixError, [string, boolean]>(
@@ -97,28 +101,30 @@ export function CreateChat({ defaultUserId }: CreateChatProps) {
           </Box>
         )}
       </Box>
-      <Box shrink="No" direction="Column" gap="100">
-        <Text size="L400">Options</Text>
-        <SequenceCard
-          style={{ padding: config.space.S300 }}
-          variant="SurfaceVariant"
-          direction="Column"
-          gap="500"
-        >
-          <SettingTile
-            title="End-to-End Encryption"
-            description="Once this feature is enabled, it can't be disabled after the room is created."
-            after={
-              <Switch
-                variant="Primary"
-                value={encryption}
-                onChange={setEncryption}
-                disabled={disabled}
-              />
-            }
-          />
-        </SequenceCard>
-      </Box>
+      {showEncryptionOption && (
+        <Box shrink="No" direction="Column" gap="100">
+          <Text size="L400">Options</Text>
+          <SequenceCard
+            style={{ padding: config.space.S300 }}
+            variant="SurfaceVariant"
+            direction="Column"
+            gap="500"
+          >
+            <SettingTile
+              title="End-to-End Encryption"
+              description="Once this feature is enabled, it can't be disabled after the room is created."
+              after={
+                <Switch
+                  variant="Primary"
+                  value={encryption}
+                  onChange={setEncryption}
+                  disabled={disabled}
+                />
+              }
+            />
+          </SequenceCard>
+        </Box>
+      )}
       {error && (
         <Box style={{ color: color.Critical.Main }} alignItems="Center" gap="200">
           <Icon src={Icons.Warning} filled size="100" />
