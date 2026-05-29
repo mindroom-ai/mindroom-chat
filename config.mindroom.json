@@ -5,9 +5,9 @@
 
   "push": {
     "ios": {
-      "enabled": false,
+      "enabled": true,
       "appId": "com.mindroom-ai.app.ios",
-      "gatewayUrl": "",
+      "gatewayUrl": "https://push.mindroom.chat/_matrix/push/v1/notify",
       "appDisplayName": "MindRoom iOS",
       "deviceDisplayName": "MindRoom iOS",
       "append": true,
