@@ -207,6 +207,41 @@ export const Command = recipe({
   },
 });
 
+export const PasteMarker = recipe({
+  base: [
+    DefaultReset,
+    {
+      display: 'inline-flex',
+      alignItems: 'center',
+      maxWidth: '100%',
+      gap: config.space.S100,
+      padding: `0 ${config.space.S100}`,
+      margin: `0 ${toRem(1)}`,
+      borderRadius: config.radii.R300,
+      backgroundColor: color.SurfaceVariant.Container,
+      color: color.SurfaceVariant.OnContainer,
+      boxShadow: `0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
+      fontWeight: config.fontWeight.W500,
+      lineHeight: config.lineHeight.T300,
+      whiteSpace: 'nowrap',
+      verticalAlign: 'baseline',
+    },
+  ],
+  variants: {
+    focus: {
+      true: {
+        boxShadow: `0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.OnContainer}`,
+      },
+    },
+  },
+});
+
+export const PasteMarkerMeta = style({
+  color: color.SurfaceVariant.OnContainer,
+  fontWeight: config.fontWeight.W400,
+  opacity: 0.72,
+});
+
 export const EmoticonBase = style([
   DefaultReset,
   {

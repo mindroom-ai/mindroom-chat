@@ -1,7 +1,9 @@
 import { Box, Icon, Icons, Text, as, color, toRem } from 'folds';
-import { EventTimelineSet, Room } from 'matrix-js-sdk';
 import React, { MouseEventHandler, ReactNode, useCallback, useMemo } from 'react';
 import classNames from 'classnames';
+import type { MatrixEvent } from 'matrix-js-sdk';
+import type { EventTimelineSet } from 'matrix-js-sdk/lib/models/event-timeline-set';
+import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { getMemberDisplayName, trimReplyFromBody } from '../../utils/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { LinePlaceholder } from './placeholder';
@@ -9,9 +11,12 @@ import { randomNumberBetween } from '../../utils/common';
 import * as css from './Reply.css';
 import { MessageBadEncryptedContent, MessageDeletedContent, MessageFailedContent } from './content';
 import { scaleSystemEmoji } from '../../plugins/react-custom-html-parser';
-import { useRoomEvent } from '../../hooks/useRoomEvent';
 import colorMXID from '../../../util/colorMXID';
 import { GetMemberPowerTag } from '../../hooks/useMemberPowerTag';
+import {
+  MindroomReplyThreadIndicator,
+  useMindroomReplyEvent,
+} from '../../mindroom/messages/replyExtensions';
 
 type ReplyLayoutProps = {
   userColor?: string;
@@ -37,25 +42,13 @@ export const ReplyLayout = as<'div', ReplyLayoutProps>(
   )
 );
 
-export const ThreadIndicator = as<'div'>(({ ...props }, ref) => (
-  <Box
-    shrink="No"
-    className={css.ThreadIndicator}
-    alignItems="Center"
-    gap="100"
-    {...props}
-    ref={ref}
-  >
-    <Icon size="50" src={Icons.Thread} />
-    <Text size="L400">Thread</Text>
-  </Box>
-));
-
 type ReplyProps = {
   room: Room;
   timelineSet?: EventTimelineSet | undefined;
   replyEventId: string;
   threadRootId?: string | undefined;
+  getLocally?: (() => MatrixEvent | undefined) | undefined;
+  hideThreadIndicator?: boolean;
   onClick?: MouseEventHandler | undefined;
   getMemberPowerTag?: GetMemberPowerTag;
   accessibleTagColors?: Map<string, string>;
@@ -69,6 +62,8 @@ export const Reply = as<'div', ReplyProps>(
       timelineSet,
       replyEventId,
       threadRootId,
+      getLocally,
+      hideThreadIndicator,
       onClick,
       getMemberPowerTag,
       accessibleTagColors,
@@ -79,10 +74,13 @@ export const Reply = as<'div', ReplyProps>(
   ) => {
     const placeholderWidth = useMemo(() => randomNumberBetween(40, 400), []);
     const getFromLocalTimeline = useCallback(
-      () => timelineSet?.findEventById(replyEventId),
-      [timelineSet, replyEventId]
+      () =>
+        getLocally?.() ??
+        timelineSet?.findEventById(replyEventId) ??
+        room.findEventById(replyEventId),
+      [getLocally, room, timelineSet, replyEventId]
     );
-    const replyEvent = useRoomEvent(room, replyEventId, getFromLocalTimeline);
+    const replyEvent = useMindroomReplyEvent(room, replyEventId, getFromLocalTimeline, threadRootId);
 
     const { body } = replyEvent?.getContent() ?? {};
     const sender = replyEvent?.getSender();
@@ -102,9 +100,14 @@ export const Reply = as<'div', ReplyProps>(
 
     return (
       <Box direction="Row" gap="200" alignItems="Center" {...props} ref={ref}>
-        {threadRootId && (
-          <ThreadIndicator as="button" data-event-id={threadRootId} onClick={onClick} />
-        )}
+        {/* Hide the thread badge inside thread view to avoid redundant UI. */}
+        <MindroomReplyThreadIndicator
+          room={room}
+          timelineSet={timelineSet}
+          threadRootId={threadRootId}
+          hide={hideThreadIndicator}
+          onClick={onClick}
+        />
         <ReplyLayout
           as="button"
           userColor={usernameColor}

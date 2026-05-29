@@ -11,6 +11,7 @@ import {
   MessageEditedContent,
   MessageUnsupportedContent,
 } from './content';
+import { VoiceAudioContent } from './content/VoiceAudioContent';
 import {
   IAudioContent,
   IAudioInfo,
@@ -27,6 +28,7 @@ import {
 } from '../../../types/matrix/common';
 import { FALLBACK_MIMETYPE, getBlobSafeMimeType } from '../../utils/mimeTypes';
 import { parseGeoUri, scaleYDimension } from '../../utils/common';
+import { getVoiceMessageAudioDetails, isVoiceMessageContent } from '../../utils/voiceMessage';
 import { Attachment, AttachmentBox, AttachmentContent, AttachmentHeader } from './attachment';
 import { FileHeader, FileDownloadButton } from './FileHeader';
 
@@ -69,14 +71,31 @@ type RenderBodyProps = {
   body: string;
   customBody?: string;
 };
+type RenderMessageStateProps = {
+  edited?: boolean;
+  renderStateSuffix?: () => ReactNode;
+};
+const renderMessageStateSuffix = ({ edited, renderStateSuffix }: RenderMessageStateProps) =>
+  renderStateSuffix ? renderStateSuffix() : edited && <MessageEditedContent />;
+
 type MTextProps = {
   edited?: boolean;
+  renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   renderBody: (props: RenderBodyProps) => ReactNode;
+  renderAfterBody?: ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
   style?: CSSProperties;
 };
-export function MText({ edited, content, renderBody, renderUrlsPreview, style }: MTextProps) {
+export function MText({
+  edited,
+  renderStateSuffix,
+  content,
+  renderBody,
+  renderAfterBody,
+  renderUrlsPreview,
+  style,
+}: MTextProps) {
   const { body, formatted_body: customBody } = content;
 
   if (typeof body !== 'string') return <BrokenContent />;
@@ -95,8 +114,9 @@ export function MText({ edited, content, renderBody, renderUrlsPreview, style }:
           body: trimmedBody,
           customBody: typeof customBody === 'string' ? customBody : undefined,
         })}
-        {edited && <MessageEditedContent />}
+        {renderMessageStateSuffix({ edited, renderStateSuffix })}
       </MessageTextBody>
+      {renderAfterBody}
       {renderUrlsPreview && urls && urls.length > 0 && renderUrlsPreview(urls)}
     </>
   );
@@ -105,15 +125,19 @@ export function MText({ edited, content, renderBody, renderUrlsPreview, style }:
 type MEmoteProps = {
   displayName: string;
   edited?: boolean;
+  renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   renderBody: (props: RenderBodyProps) => ReactNode;
+  renderAfterBody?: ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
 };
 export function MEmote({
   displayName,
   edited,
+  renderStateSuffix,
   content,
   renderBody,
+  renderAfterBody,
   renderUrlsPreview,
 }: MEmoteProps) {
   const { body, formatted_body: customBody } = content;
@@ -135,8 +159,9 @@ export function MEmote({
           body: trimmedBody,
           customBody: typeof customBody === 'string' ? customBody : undefined,
         })}
-        {edited && <MessageEditedContent />}
+        {renderMessageStateSuffix({ edited, renderStateSuffix })}
       </MessageTextBody>
+      {renderAfterBody}
       {renderUrlsPreview && urls && urls.length > 0 && renderUrlsPreview(urls)}
     </>
   );
@@ -144,11 +169,20 @@ export function MEmote({
 
 type MNoticeProps = {
   edited?: boolean;
+  renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   renderBody: (props: RenderBodyProps) => ReactNode;
+  renderAfterBody?: ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
 };
-export function MNotice({ edited, content, renderBody, renderUrlsPreview }: MNoticeProps) {
+export function MNotice({
+  edited,
+  renderStateSuffix,
+  content,
+  renderBody,
+  renderAfterBody,
+  renderUrlsPreview,
+}: MNoticeProps) {
   const { body, formatted_body: customBody } = content;
 
   if (typeof body !== 'string') return <BrokenContent />;
@@ -167,8 +201,9 @@ export function MNotice({ edited, content, renderBody, renderUrlsPreview }: MNot
           body: trimmedBody,
           customBody: typeof customBody === 'string' ? customBody : undefined,
         })}
-        {edited && <MessageEditedContent />}
+        {renderMessageStateSuffix({ edited, renderStateSuffix })}
       </MessageTextBody>
+      {renderAfterBody}
       {renderUrlsPreview && urls && urls.length > 0 && renderUrlsPreview(urls)}
     </>
   );
@@ -296,8 +331,18 @@ type MAudioProps = {
   renderAudioContent: (props: RenderAudioContentProps) => ReactNode;
   outlined?: boolean;
 };
-export function MAudio({ content, renderAsFile, renderAudioContent, outlined }: MAudioProps) {
-  const audioInfo = content?.info;
+export function MAudio({ content, renderAsFile }: MAudioProps) {
+  const voiceMessage = isVoiceMessageContent(content as Record<string, unknown>);
+  const voiceAudioDetails = getVoiceMessageAudioDetails(content as Record<string, unknown>);
+  const audioInfo: IAudioInfo | undefined =
+    content?.info || voiceAudioDetails
+      ? {
+          ...(content?.info ?? {}),
+          ...(content?.info?.duration === undefined && voiceAudioDetails?.duration !== undefined
+            ? { duration: voiceAudioDetails.duration }
+            : {}),
+        }
+      : undefined;
   const mxcUrl = content.file?.url ?? content.url;
   const safeMimeType = getBlobSafeMimeType(audioInfo?.mimetype ?? '');
 
@@ -308,34 +353,17 @@ export function MAudio({ content, renderAsFile, renderAudioContent, outlined }: 
     return <BrokenContent />;
   }
 
-  const filename = content.filename ?? content.body ?? 'Audio';
+  const downloadFilename = content.filename ?? content.body ?? 'Audio';
   return (
-    <Attachment outlined={outlined}>
-      <AttachmentHeader>
-        <FileHeader
-          body={filename}
-          mimeType={safeMimeType}
-          after={
-            <FileDownloadButton
-              filename={filename}
-              url={mxcUrl}
-              mimeType={safeMimeType}
-              encInfo={content.file}
-            />
-          }
-        />
-      </AttachmentHeader>
-      <AttachmentBox>
-        <AttachmentContent>
-          {renderAudioContent({
-            info: audioInfo,
-            mimeType: safeMimeType,
-            url: mxcUrl,
-            encInfo: content.file,
-          })}
-        </AttachmentContent>
-      </AttachmentBox>
-    </Attachment>
+    <VoiceAudioContent
+      info={audioInfo}
+      mimeType={safeMimeType}
+      url={mxcUrl}
+      encInfo={content.file}
+      filename={downloadFilename}
+      waveform={voiceAudioDetails?.waveform}
+      label={voiceMessage ? 'voice message' : 'audio'}
+    />
   );
 }
 
