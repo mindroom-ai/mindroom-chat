@@ -63,6 +63,10 @@
     updated the iOS phone watch script to rebuild when the MindRoom config changes.
   - Review follow-up: updated the E2E homeserver fallback to read
     `config.mindroom.json` before the upstream sample `config.json`.
+  - Review follow-up: rebased on `origin/dev`, made the iOS phone watcher track
+    `vite.config.js` and drop the runtime-unused sample `config.json`, and
+    loosened runtime-config tests to stable MindRoom invariants plus the exported
+    Vite copy target.
 - Decisions:
   - Keep the runtime URL stable as `config.json`; only the build source changed.
   - Keep native packaging tied to `dist/config.json`, which is now generated from
@@ -95,10 +99,15 @@
   - Green check:
     `npx prettier --check config.json config.mindroom.json scripts/appstore-preflight.mjs src/app/utils/runtimeConfig.test.ts vite.config.js`.
   - Note: `scripts/ios-phone.mjs` has pre-existing Prettier drift; this change
-    kept that file to the single watch-target line.
+    kept that file to the watch-target lines only.
+  - Review follow-up green check:
+    `npm test -- src/app/utils/runtimeConfig.test.ts src/app/utils/e2eEnv.test.ts`.
+  - Review follow-up green check: `npm run typecheck`.
+  - Review follow-up green check: `node --check scripts/ios-phone.mjs`.
   - Green check: `npm run appstore:preflight`.
   - Green check: `npm run build` passed with existing Vite/runtime-config,
     sourcemap, and chunk-size warnings.
+  - Review follow-up green check: `npm test` (294 files, 2223 tests).
   - Green check: `cmp -s config.mindroom.json dist/config.json`.
   - Green check: `git diff --check`.
 - Review:
