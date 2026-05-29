@@ -1,4 +1,4 @@
-import React, { RefObject, useEffect, useMemo, useRef } from 'react';
+import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text, Box, Icon, Icons, config, Spinner, IconButton, Line, toRem } from 'folds';
 import { useAtomValue } from 'jotai';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -18,11 +18,31 @@ import { decodeSearchParamValueArray, encodeSearchParamValueArray } from '../../
 import { useRooms } from '../../state/hooks/roomList';
 import { allRoomsAtom } from '../../state/room-list/roomList';
 import { mDirectAtom } from '../../state/mDirectList';
-import { MessageSearchParams, useMessageSearch } from './useMessageSearch';
-import { SearchResultGroup } from './SearchResultGroup';
+import {
+  getCanonicalSearchEventKey,
+  MessageSearchParams,
+  useMessageSearch,
+} from './useMessageSearch';
+import {
+  SearchResultBodyRenderer,
+  SearchResultGroupHeader,
+  SearchResultItemCard,
+} from './SearchResultGroup';
 import { SearchInput } from './SearchInput';
 import { SearchFilters } from './SearchFilters';
 import { VirtualTile } from '../../components/virtualizer';
+import { shouldFetchNextMessageSearchPage } from './messageSearchPagination';
+import { getMessageSearchRenderState } from './messageSearchRenderState';
+import {
+  isInitialMessageSearchCatchupInProgress,
+  normalizeMessageSearchRooms,
+  shouldDeferImplicitMessageSearch,
+} from './messageSearchScope';
+import {
+  flattenMessageSearchRows,
+  MESSAGE_SEARCH_FALLBACK_ROW_LIMIT,
+} from './messageSearchRows';
+import { useSyncState } from '../../hooks/useSyncState';
 
 const useSearchPathSearchParams = (searchParams: URLSearchParams): _SearchPathSearchParams =>
   useMemo(
@@ -36,12 +56,13 @@ const useSearchPathSearchParams = (searchParams: URLSearchParams): _SearchPathSe
     [searchParams]
   );
 
-type MessageSearchProps = {
+export type MessageSearchProps = {
   defaultRoomsFilterName: string;
   allowGlobal?: boolean;
   rooms: string[];
   senders?: string[];
   scrollRef: RefObject<HTMLDivElement>;
+  renderBody: SearchResultBodyRenderer;
 };
 export function MessageSearch({
   defaultRoomsFilterName,
@@ -49,12 +70,11 @@ export function MessageSearch({
   rooms,
   senders,
   scrollRef,
+  renderBody,
 }: MessageSearchProps) {
   const mx = useMatrixClient();
   const mDirects = useAtomValue(mDirectAtom);
   const allRooms = useRooms(mx, allRoomsAtom, mDirects);
-  const [mediaAutoLoad] = useSetting(settingsAtom, 'mediaAutoLoad');
-  const [urlPreview] = useSetting(settingsAtom, 'urlPreview');
   const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
 
   const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
@@ -64,7 +84,15 @@ export function MessageSearch({
   const scrollTopAnchorRef = useRef<HTMLDivElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const searchPathSearchParams = useSearchPathSearchParams(searchParams);
-  const { navigateRoom } = useRoomNavigate();
+  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
+  const [syncStateData, setSyncStateData] = useState<{
+    current: ReturnType<typeof mx.getSyncState>;
+    previous: ReturnType<typeof mx.getSyncState> | undefined;
+  }>({
+    current: mx.getSyncState(),
+    previous: undefined,
+  });
+  const [implicitRoomsReady, setImplicitRoomsReady] = useState(false);
 
   const searchParamRooms = useMemo(() => {
     if (searchPathSearchParams.rooms) {
@@ -75,29 +103,106 @@ export function MessageSearch({
     }
     return undefined;
   }, [allRooms, searchPathSearchParams.rooms]);
+  const normalizedSearchParamRooms = useMemo(
+    () => normalizeMessageSearchRooms(searchParamRooms),
+    [searchParamRooms]
+  );
+  const normalizedDefaultRooms = useMemo(
+    () => normalizeMessageSearchRooms(rooms) ?? [],
+    [rooms]
+  );
+  const normalizedDefaultRoomsKey = useMemo(
+    () => normalizedDefaultRooms.join('\n'),
+    [normalizedDefaultRooms]
+  );
+  const globalSearch = searchPathSearchParams.global === 'true';
   const searchParamsSenders = useMemo(() => {
     if (searchPathSearchParams.senders) {
       return decodeSearchParamValueArray(searchPathSearchParams.senders);
     }
     return undefined;
   }, [searchPathSearchParams.senders]);
+  const hasExplicitRooms = !!normalizedSearchParamRooms;
+  const initialCatchupInProgress = useMemo(
+    () => isInitialMessageSearchCatchupInProgress(syncStateData),
+    [syncStateData]
+  );
+
+  useSyncState(
+    mx,
+    useCallback((current, previous) => {
+      setSyncStateData((state) => {
+        if (state.current === current && state.previous === previous) {
+          return state;
+        }
+
+        return {
+          current,
+          previous,
+        };
+      });
+    }, [])
+  );
+
+  useEffect(() => {
+    const hasTerm = !!searchPathSearchParams.term;
+
+    if (!hasTerm || globalSearch || hasExplicitRooms) {
+      setImplicitRoomsReady(true);
+      return undefined;
+    }
+
+    if (initialCatchupInProgress || normalizedDefaultRooms.length === 0) {
+      setImplicitRoomsReady(false);
+      return undefined;
+    }
+
+    setImplicitRoomsReady(false);
+    const timeoutId = setTimeout(() => {
+      setImplicitRoomsReady(true);
+    }, 500);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [
+    globalSearch,
+    hasExplicitRooms,
+    initialCatchupInProgress,
+    normalizedDefaultRooms.length,
+    normalizedDefaultRoomsKey,
+    searchPathSearchParams.term,
+  ]);
 
   const msgSearchParams: MessageSearchParams = useMemo(() => {
-    const isGlobal = searchPathSearchParams.global === 'true';
-    const defaultRooms = isGlobal ? undefined : rooms;
-
     return {
       term: searchPathSearchParams.term,
       order: searchPathSearchParams.order ?? SearchOrderBy.Recent,
-      rooms: searchParamRooms ?? defaultRooms,
+      rooms: globalSearch ? undefined : normalizedSearchParamRooms ?? normalizedDefaultRooms,
       senders: searchParamsSenders ?? senders,
     };
-  }, [searchPathSearchParams, searchParamRooms, searchParamsSenders, rooms, senders]);
+  }, [
+    globalSearch,
+    normalizedDefaultRooms,
+    normalizedSearchParamRooms,
+    searchParamsSenders,
+    searchPathSearchParams,
+    senders,
+  ]);
 
   const searchMessages = useMessageSearch(msgSearchParams);
+  const searchEnabled =
+    !!msgSearchParams.term &&
+    !shouldDeferImplicitMessageSearch({
+      hasTerm: !!msgSearchParams.term,
+      global: globalSearch,
+      hasExplicitRooms,
+      implicitRoomsReady,
+    }) &&
+    (globalSearch || hasExplicitRooms || normalizedDefaultRooms.length > 0);
 
   const { status, data, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
-    enabled: !!msgSearchParams.term,
+    enabled: searchEnabled,
     queryKey: [
       'search',
       msgSearchParams.term,
@@ -110,19 +215,49 @@ export function MessageSearch({
     getNextPageParam: (lastPage) => lastPage.nextToken,
   });
 
-  const groups = useMemo(() => data?.pages.flatMap((result) => result.groups) ?? [], [data]);
+  const groups = useMemo(() => {
+    const allResults = data?.pages.flatMap((result) => result.groups) ?? [];
+    const seenIds = new Set<string>();
+
+    return allResults.flatMap((group) => {
+      const items = group.items.filter((item) => {
+        const canonicalEventKey = getCanonicalSearchEventKey(item.event);
+        if (!canonicalEventKey) return true;
+        if (seenIds.has(canonicalEventKey)) return false;
+
+        seenIds.add(canonicalEventKey);
+        return true;
+      });
+
+      return items.length > 0 ? [{ ...group, items }] : [];
+    });
+  }, [data]);
   const highlights = useMemo(() => {
     const mixed = data?.pages.flatMap((result) => result.highlights);
     return Array.from(new Set(mixed));
   }, [data]);
-
+  const rows = useMemo(() => flattenMessageSearchRows(groups), [groups]);
   const virtualizer = useVirtualizer({
-    count: groups.length,
+    count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 40,
-    overscan: 1,
+    estimateSize: (index) => (rows[index]?.kind === 'room-header' ? 44 : 168),
+    overscan: 4,
   });
   const vItems = virtualizer.getVirtualItems();
+  const renderState = useMemo(
+    () =>
+      getMessageSearchRenderState({
+        hasTerm: !!msgSearchParams.term,
+        status,
+        groupsCount: rows.length,
+        virtualItemCount: vItems.length,
+      }),
+    [msgSearchParams.term, rows.length, status, vItems.length]
+  );
+  const fallbackRows = useMemo(
+    () => rows.slice(0, MESSAGE_SEARCH_FALLBACK_ROW_LIMIT),
+    [rows]
+  );
 
   const handleSearch = (term: string) => {
     setSearchParams((prevParams) => {
@@ -175,19 +310,39 @@ export function MessageSearch({
     });
   };
 
-  const lastVItem = vItems[vItems.length - 1];
-  const lastVItemIndex: number | undefined = lastVItem?.index;
-  const lastGroupIndex = groups.length - 1;
-  useEffect(() => {
-    if (
-      lastGroupIndex > -1 &&
-      lastGroupIndex === lastVItemIndex &&
-      !isFetchingNextPage &&
-      hasNextPage
-    ) {
-      fetchNextPage();
+  const handleOpen = (roomId: string, eventId: string, threadRootId?: string) => {
+    if (threadRootId) {
+      navigateRoomThread(roomId, threadRootId, eventId);
+      return;
     }
-  }, [lastVItemIndex, lastGroupIndex, fetchNextPage, isFetchingNextPage, hasNextPage]);
+    navigateRoom(roomId, eventId);
+  };
+
+  useEffect(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement) return undefined;
+
+    const maybeFetchNextPage = () => {
+      if (
+        shouldFetchNextMessageSearchPage({
+          hasNextPage: !!hasNextPage,
+          isFetchingNextPage,
+          scrollTop: scrollElement.scrollTop,
+          clientHeight: scrollElement.clientHeight,
+          scrollHeight: scrollElement.scrollHeight,
+        })
+      ) {
+        fetchNextPage();
+      }
+    };
+
+    maybeFetchNextPage();
+    scrollElement.addEventListener('scroll', maybeFetchNextPage, { passive: true });
+
+    return () => {
+      scrollElement.removeEventListener('scroll', maybeFetchNextPage);
+    };
+  }, [scrollRef, fetchNextPage, isFetchingNextPage, hasNextPage, groups.length]);
 
   return (
     <Box direction="Column" gap="700">
@@ -250,8 +405,7 @@ export function MessageSearch({
         </Box>
       )}
 
-      {((msgSearchParams.term && status === 'pending') ||
-        (groups.length > 0 && vItems.length === 0)) && (
+      {renderState.showLoadingSkeletons && (
         <Box direction="Column" gap="100">
           {[...Array(8).keys()].map((key) => (
             <SequenceCard variant="SurfaceVariant" key={key} style={{ minHeight: toRem(80) }} />
@@ -259,7 +413,45 @@ export function MessageSearch({
         </Box>
       )}
 
-      {vItems.length > 0 && (
+      {renderState.showVirtualizerFallback && (
+        <Box direction="Column" gap="300">
+          <Box direction="Column" gap="200">
+            <Text size="H5">{`Results for "${msgSearchParams.term}"`}</Text>
+            <Line size="300" variant="Surface" />
+          </Box>
+          <Box direction="Column" gap="500">
+            {fallbackRows.map((row) => {
+              const groupRoom = mx.getRoom(row.roomId);
+              if (!groupRoom) return null;
+
+              if (row.kind === 'room-header') {
+                return <SearchResultGroupHeader key={row.key} room={groupRoom} />;
+              }
+
+              return (
+                <SearchResultItemCard
+                  key={row.key}
+                  room={groupRoom}
+                  item={row.item}
+                  highlights={highlights}
+                  onOpen={handleOpen}
+                  legacyUsernameColor={legacyUsernameColor || mDirects.has(groupRoom.roomId)}
+                  hour24Clock={hour24Clock}
+                  dateFormatString={dateFormatString}
+                  renderBody={renderBody}
+                />
+              );
+            })}
+          </Box>
+          {isFetchingNextPage && (
+            <Box justifyContent="Center" alignItems="Center">
+              <Spinner size="600" variant="Secondary" />
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {renderState.showVirtualizedResults && (
         <Box direction="Column" gap="300">
           <Box direction="Column" gap="200">
             <Text size="H5">{`Results for "${msgSearchParams.term}"`}</Text>
@@ -272,9 +464,9 @@ export function MessageSearch({
             }}
           >
             {vItems.map((vItem) => {
-              const group = groups[vItem.index];
-              if (!group) return null;
-              const groupRoom = mx.getRoom(group.roomId);
+              const row = rows[vItem.index];
+              if (!row) return null;
+              const groupRoom = mx.getRoom(row.roomId);
               if (!groupRoom) return null;
 
               return (
@@ -282,19 +474,22 @@ export function MessageSearch({
                   virtualItem={vItem}
                   style={{ paddingBottom: config.space.S500 }}
                   ref={virtualizer.measureElement}
-                  key={vItem.index}
+                  key={row.key}
                 >
-                  <SearchResultGroup
-                    room={groupRoom}
-                    highlights={highlights}
-                    items={group.items}
-                    mediaAutoLoad={mediaAutoLoad}
-                    urlPreview={urlPreview}
-                    onOpen={navigateRoom}
-                    legacyUsernameColor={legacyUsernameColor || mDirects.has(groupRoom.roomId)}
-                    hour24Clock={hour24Clock}
-                    dateFormatString={dateFormatString}
-                  />
+                  {row.kind === 'room-header' ? (
+                    <SearchResultGroupHeader room={groupRoom} />
+                  ) : (
+                    <SearchResultItemCard
+                      room={groupRoom}
+                      item={row.item}
+                      highlights={highlights}
+                      onOpen={handleOpen}
+                      legacyUsernameColor={legacyUsernameColor || mDirects.has(groupRoom.roomId)}
+                      hour24Clock={hour24Clock}
+                      dateFormatString={dateFormatString}
+                      renderBody={renderBody}
+                    />
+                  )}
                 </VirtualTile>
               );
             })}

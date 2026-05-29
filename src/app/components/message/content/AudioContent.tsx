@@ -1,10 +1,9 @@
 /* eslint-disable jsx-a11y/media-has-caption */
-import React, { ReactNode, useCallback, useRef, useState } from 'react';
+import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Badge, Chip, Icon, IconButton, Icons, ProgressBar, Spinner, Text, toRem } from 'folds';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { Range } from 'react-range';
-import { useMatrixClient } from '../../../hooks/useMatrixClient';
-import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
+import { AsyncStatus } from '../../../hooks/useAsyncCallback';
 import { IAudioInfo } from '../../../../types/matrix/common';
 import {
   PlayTimeCallback,
@@ -16,13 +15,7 @@ import {
 } from '../../../hooks/media';
 import { useThrottle } from '../../../hooks/useThrottle';
 import { secondsToMinutesAndSeconds } from '../../../utils/common';
-import {
-  decryptFile,
-  downloadEncryptedMedia,
-  downloadMedia,
-  mxcUrlToHttp,
-} from '../../../utils/matrix';
-import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
+import { getAudioContentSourceIdentity, useAudioContentSource } from './useAudioContentSource';
 
 const PLAY_TIME_THROTTLE_OPS = {
   wait: 500,
@@ -49,28 +42,25 @@ export function AudioContent({
   encInfo,
   renderMediaControl,
 }: AudioContentProps) {
-  const mx = useMatrixClient();
-  const useAuthentication = useMediaAuthentication();
-
-  const [srcState, loadSrc] = useAsyncCallback(
-    useCallback(async () => {
-      const mediaUrl = mxcUrlToHttp(mx, url, useAuthentication);
-      if (!mediaUrl) throw new Error('Invalid media URL');
-      const fileContent = encInfo
-        ? await downloadEncryptedMedia(mediaUrl, (encBuf) => decryptFile(encBuf, mimeType, encInfo))
-        : await downloadMedia(mediaUrl);
-      return URL.createObjectURL(fileContent);
-    }, [mx, url, useAuthentication, mimeType, encInfo])
-  );
+  const [srcState, loadSrc] = useAudioContentSource({ mimeType, url, encInfo });
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [autoPlayOnLoad, setAutoPlayOnLoad] = useState(false);
+  const mediaIdentity = getAudioContentSourceIdentity({ mimeType, url, encInfo });
+  const mediaIdentityRef = useRef(mediaIdentity);
+  const loadIntentRef = useRef(0);
 
   const [currentTime, setCurrentTime] = useState(0);
   // duration in seconds. (NOTE: info.duration is in milliseconds)
   const infoDuration = info.duration ?? 0;
   const [duration, setDuration] = useState((infoDuration >= 0 ? infoDuration : 0) / 1000);
 
-  const getAudioRef = useCallback(() => audioRef.current, []);
+  const setAudioRef = useCallback((element: HTMLAudioElement | null) => {
+    audioRef.current = element;
+    setAudioElement(element);
+  }, []);
+  const getAudioRef = useCallback(() => audioElement, [audioElement]);
   const { loading } = useMediaLoading(getAudioRef);
   const { playing, setPlaying } = useMediaPlay(getAudioRef);
   const { seek } = useMediaSeek(getAudioRef);
@@ -84,13 +74,47 @@ export function AudioContent({
     useThrottle(handlePlayTimeCallback, PLAY_TIME_THROTTLE_OPS)
   );
 
+  useEffect(() => {
+    if (mediaIdentityRef.current === mediaIdentity) return;
+
+    mediaIdentityRef.current = mediaIdentity;
+    loadIntentRef.current += 1;
+    setAutoPlayOnLoad(false);
+    setCurrentTime(0);
+    setDuration((infoDuration >= 0 ? infoDuration : 0) / 1000);
+  }, [infoDuration, mediaIdentity]);
+
+  const createLoadIntent = useCallback(() => {
+    const intent = {
+      id: loadIntentRef.current + 1,
+      mediaIdentity,
+    };
+    loadIntentRef.current = intent.id;
+    return intent;
+  }, [mediaIdentity]);
+
+  const isCurrentLoadIntent = useCallback(
+    (intent: { id: number; mediaIdentity: string }) =>
+      loadIntentRef.current === intent.id && mediaIdentityRef.current === intent.mediaIdentity,
+    []
+  );
+
   const handlePlay = () => {
     if (srcState.status === AsyncStatus.Success) {
+      setAutoPlayOnLoad(false);
       setPlaying(!playing);
     } else if (srcState.status !== AsyncStatus.Loading) {
-      loadSrc();
+      const loadIntent = createLoadIntent();
+      setAutoPlayOnLoad(true);
+      void loadSrc().catch(() => {
+        if (!isCurrentLoadIntent(loadIntent)) return;
+        setAutoPlayOnLoad(false);
+      });
     }
   };
+
+  const sourceValue = srcState.status === AsyncStatus.Success ? srcState.data : undefined;
+  const audioMediaKey = `${mediaIdentity}:${sourceValue ?? ''}`;
 
   return renderMediaControl({
     after: (
@@ -202,8 +226,14 @@ export function AudioContent({
       </>
     ),
     children: (
-      <audio controls={false} autoPlay ref={audioRef}>
-        {srcState.status === AsyncStatus.Success && <source src={srcState.data} type={mimeType} />}
+      <audio
+        key={audioMediaKey}
+        controls={false}
+        autoPlay={autoPlayOnLoad}
+        ref={setAudioRef}
+        onPlay={() => setAutoPlayOnLoad(false)}
+      >
+        {sourceValue && <source src={sourceValue} type={mimeType} />}
       </audio>
     ),
   });
