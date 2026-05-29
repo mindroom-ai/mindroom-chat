@@ -46,8 +46,22 @@ export type CommandElement = {
   command: string;
   children: Text[];
 };
+export type PasteMarkerElement = {
+  type: BlockType.PasteMarker;
+  id: string;
+  chars: number;
+  fileName: string;
+  marker: string;
+  children: Text[];
+};
 
-export type InlineElement = Text | LinkElement | MentionElement | EmoticonElement | CommandElement;
+export type InlineElement =
+  | Text
+  | LinkElement
+  | MentionElement
+  | EmoticonElement
+  | CommandElement
+  | PasteMarkerElement;
 
 export type ParagraphElement = {
   type: BlockType.Paragraph;
@@ -92,6 +106,7 @@ export type CustomElement =
   | MentionElement
   | EmoticonElement
   | CommandElement
+  | PasteMarkerElement
   | ParagraphElement
   | HeadingElement
   | CodeLineElement
