@@ -1,0 +1,178 @@
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
+import type { ThreadCacheCoverage } from './types';
+
+export type ThreadOverviewCachedMetadataSnapshot = {
+  compactRootBodyMap: Map<string, string>;
+  lastActivityTsMap: Map<string, number>;
+  latestReplyPreviewMap: Map<string, string>;
+  lastSenderIdMap: Map<string, string>;
+  messageCountMap: Map<string, number>;
+  coverageMap: Map<string, ThreadCacheCoverage>;
+};
+
+export type ThreadOverviewCachedMetadataUpdate = {
+  rootId: string;
+  nextActivityTs?: number;
+  nextPreview?: string;
+  nextReplyPreviewText?: string;
+  nextLastSenderId?: string;
+  nextMessageCount?: number;
+  nextCacheCoverage?: ThreadCacheCoverage;
+};
+
+export type ApplyThreadOverviewCachedMetadataUpdatesOptions = {
+  includeCompactRootBody: boolean;
+};
+
+export type ThreadOverviewCachedMetadataController = ThreadOverviewCachedMetadataSnapshot & {
+  compactRootPreviewAttemptCountsRef: MutableRefObject<Map<string, number>>;
+  applyUpdate: (
+    update: ThreadOverviewCachedMetadataUpdate | null | undefined,
+    options?: ApplyThreadOverviewCachedMetadataUpdatesOptions
+  ) => void;
+  applyUpdates: (
+    updates: ThreadOverviewCachedMetadataUpdate[],
+    options: ApplyThreadOverviewCachedMetadataUpdatesOptions
+  ) => void;
+};
+
+export const createEmptyThreadOverviewCachedMetadata =
+  (): ThreadOverviewCachedMetadataSnapshot => ({
+    compactRootBodyMap: new Map(),
+    lastActivityTsMap: new Map(),
+    latestReplyPreviewMap: new Map(),
+    lastSenderIdMap: new Map(),
+    messageCountMap: new Map(),
+    coverageMap: new Map(),
+  });
+
+const updateMap = <K, V>(
+  previous: Map<K, V>,
+  entries: Array<{ key: K; value: V | undefined }>
+): Map<K, V> => {
+  let next: Map<K, V> | undefined;
+
+  entries.forEach(({ key, value }) => {
+    if (value === undefined || Object.is(previous.get(key), value)) return;
+    if (!next) next = new Map(previous);
+    next.set(key, value);
+  });
+
+  return next ?? previous;
+};
+
+export const applyThreadOverviewCachedMetadataUpdates = (
+  previous: ThreadOverviewCachedMetadataSnapshot,
+  updates: ThreadOverviewCachedMetadataUpdate[],
+  { includeCompactRootBody }: ApplyThreadOverviewCachedMetadataUpdatesOptions
+): ThreadOverviewCachedMetadataSnapshot => {
+  if (updates.length === 0) return previous;
+
+  const compactRootBodyMap = includeCompactRootBody
+    ? updateMap(
+        previous.compactRootBodyMap,
+        updates.map(({ rootId, nextPreview }) => ({ key: rootId, value: nextPreview }))
+      )
+    : previous.compactRootBodyMap;
+  const lastActivityTsMap = updateMap(
+    previous.lastActivityTsMap,
+    updates.map(({ rootId, nextActivityTs }) => ({ key: rootId, value: nextActivityTs }))
+  );
+  const latestReplyPreviewMap = updateMap(
+    previous.latestReplyPreviewMap,
+    updates.map(({ rootId, nextReplyPreviewText }) => ({
+      key: rootId,
+      value: nextReplyPreviewText,
+    }))
+  );
+  const lastSenderIdMap = updateMap(
+    previous.lastSenderIdMap,
+    updates.map(({ rootId, nextLastSenderId }) => ({ key: rootId, value: nextLastSenderId }))
+  );
+  const messageCountMap = updateMap(
+    previous.messageCountMap,
+    updates.map(({ rootId, nextMessageCount }) => ({ key: rootId, value: nextMessageCount }))
+  );
+  const coverageMap = updateMap(
+    previous.coverageMap,
+    updates.map(({ rootId, nextCacheCoverage }) => ({ key: rootId, value: nextCacheCoverage }))
+  );
+
+  if (
+    compactRootBodyMap === previous.compactRootBodyMap &&
+    lastActivityTsMap === previous.lastActivityTsMap &&
+    latestReplyPreviewMap === previous.latestReplyPreviewMap &&
+    lastSenderIdMap === previous.lastSenderIdMap &&
+    messageCountMap === previous.messageCountMap &&
+    coverageMap === previous.coverageMap
+  ) {
+    return previous;
+  }
+
+  return {
+    compactRootBodyMap,
+    lastActivityTsMap,
+    latestReplyPreviewMap,
+    lastSenderIdMap,
+    messageCountMap,
+    coverageMap,
+  };
+};
+
+export const mergeCompactThreadRootBodyMaps = (
+  liveBodyMap: ReadonlyMap<string, string>,
+  cachedBodyMap: ReadonlyMap<string, string>
+): Map<string, string> => {
+  const bodyMap = new Map(liveBodyMap);
+  cachedBodyMap.forEach((value, key) => {
+    bodyMap.set(key, value);
+  });
+  return bodyMap;
+};
+
+export const useThreadOverviewCachedMetadata = (
+  roomId: string
+): ThreadOverviewCachedMetadataController => {
+  const [snapshot, setSnapshot] = useState(createEmptyThreadOverviewCachedMetadata);
+  const compactRootPreviewAttemptCountsRef = useRef<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    compactRootPreviewAttemptCountsRef.current = new Map();
+    setSnapshot(createEmptyThreadOverviewCachedMetadata());
+  }, [roomId]);
+
+  const applyUpdates = useCallback(
+    (
+      updates: ThreadOverviewCachedMetadataUpdate[],
+      options: ApplyThreadOverviewCachedMetadataUpdatesOptions
+    ) => {
+      setSnapshot((previous) =>
+        applyThreadOverviewCachedMetadataUpdates(previous, updates, options)
+      );
+    },
+    []
+  );
+
+  const applyUpdate = useCallback(
+    (
+      update: ThreadOverviewCachedMetadataUpdate | null | undefined,
+      options: ApplyThreadOverviewCachedMetadataUpdatesOptions = {
+        includeCompactRootBody: true,
+      }
+    ) => {
+      if (!update) return;
+      applyUpdates([update], options);
+    },
+    [applyUpdates]
+  );
+
+  return useMemo(
+    () => ({
+      ...snapshot,
+      compactRootPreviewAttemptCountsRef,
+      applyUpdate,
+      applyUpdates,
+    }),
+    [applyUpdate, applyUpdates, snapshot]
+  );
+};
