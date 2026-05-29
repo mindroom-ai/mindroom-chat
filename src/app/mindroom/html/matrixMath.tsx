@@ -1,6 +1,6 @@
 import React from 'react';
 import classNames from 'classnames';
-import { Element, HTMLReactParserOptions, attributesToProps, domToReact } from 'html-react-parser';
+import { HTMLReactParserOptions, attributesToProps, domToReact } from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import Linkify from 'linkify-react';
 import { Opts as LinkifyOpts } from 'linkifyjs';

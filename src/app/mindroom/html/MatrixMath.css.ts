@@ -1,5 +1,5 @@
 import { globalStyle, style } from '@vanilla-extract/css';
-import { color, config, DefaultReset } from 'folds';
+import { config, DefaultReset } from 'folds';
 import { MarginSpaced } from '../../styles/CustomHtml.css';
 
 export const MathInline = style([
