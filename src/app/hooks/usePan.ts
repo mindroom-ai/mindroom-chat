@@ -1,4 +1,4 @@
-import { MouseEventHandler, useEffect, useState } from 'react';
+import { MouseEventHandler, useCallback, useEffect, useRef, useState } from 'react';
 
 export type Pan = {
   translateX: number;
@@ -20,39 +20,59 @@ export const usePan = (active: boolean) => {
     setCursor(active ? 'grab' : 'initial');
   }, [active]);
 
-  const handleMouseMove = (evt: MouseEvent) => {
-    evt.preventDefault();
-    evt.stopPropagation();
+  const handleMouseMoveRef = useRef<((evt: MouseEvent) => void) | null>(null);
+  const handleMouseUpRef = useRef<((evt: MouseEvent) => void) | null>(null);
 
-    setPan((p) => {
-      const { translateX, translateY } = p;
-      const mX = translateX + evt.movementX;
-      const mY = translateY + evt.movementY;
-
-      return { translateX: mX, translateY: mY };
-    });
-  };
-
-  const handleMouseUp = (evt: MouseEvent) => {
-    evt.preventDefault();
-    setCursor('grab');
-
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-  };
+  const cleanupListeners = useCallback(() => {
+    if (handleMouseMoveRef.current) {
+      document.removeEventListener('mousemove', handleMouseMoveRef.current);
+      handleMouseMoveRef.current = null;
+    }
+    if (handleMouseUpRef.current) {
+      document.removeEventListener('mouseup', handleMouseUpRef.current);
+      handleMouseUpRef.current = null;
+    }
+  }, []);
 
   const handleMouseDown: MouseEventHandler<HTMLElement> = (evt) => {
     if (!active) return;
     evt.preventDefault();
     setCursor('grabbing');
 
+    // Clean up any stale listeners before adding new ones
+    cleanupListeners();
+
+    const handleMouseMove = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      setPan((p) => ({
+        translateX: p.translateX + e.movementX,
+        translateY: p.translateY + e.movementY,
+      }));
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      e.preventDefault();
+      setCursor('grab');
+      cleanupListeners();
+    };
+
+    handleMouseMoveRef.current = handleMouseMove;
+    handleMouseUpRef.current = handleMouseUp;
+
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   };
 
+  // Cleanup on unmount or when active changes
   useEffect(() => {
-    if (!active) setPan(INITIAL_PAN);
-  }, [active]);
+    if (!active) {
+      setPan(INITIAL_PAN);
+      cleanupListeners();
+    }
+    return cleanupListeners;
+  }, [active, cleanupListeners]);
 
   return {
     pan,

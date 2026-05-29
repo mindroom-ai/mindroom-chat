@@ -1,6 +1,16 @@
 import { atom } from 'jotai';
 
 const STORAGE_KEY = 'settings';
+
+export const PAGE_ZOOM_MIN = 50;
+export const PAGE_ZOOM_MAX = 150;
+export const PAGE_ZOOM_DEFAULT = 100;
+
+const sanitizeStoredPageZoom = (value: unknown): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return PAGE_ZOOM_DEFAULT;
+  return Math.min(PAGE_ZOOM_MAX, Math.max(PAGE_ZOOM_MIN, Math.round(value)));
+};
+
 export type DateFormat =
   | 'D MMM YYYY'
   | 'DD/MM/YYYY'
@@ -58,7 +68,7 @@ const defaultSettings: Settings = {
   isMarkdown: true,
   editorToolbar: false,
   twitterEmoji: false,
-  pageZoom: 100,
+  pageZoom: PAGE_ZOOM_DEFAULT,
   hideActivity: false,
 
   isPeopleDrawer: true,
@@ -84,15 +94,32 @@ const defaultSettings: Settings = {
 };
 
 export const getSettings = () => {
+  if (typeof localStorage === 'undefined') return defaultSettings;
+  if (typeof localStorage.getItem !== 'function') return defaultSettings;
+
   const settings = localStorage.getItem(STORAGE_KEY);
   if (settings === null) return defaultSettings;
-  return {
+  let parsed: Partial<Settings> = {};
+  try {
+    const value = JSON.parse(settings);
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      parsed = value as Partial<Settings>;
+    }
+  } catch {
+    parsed = {};
+  }
+  const merged = {
     ...defaultSettings,
-    ...(JSON.parse(settings) as Settings),
+    ...parsed,
   };
+  merged.pageZoom = sanitizeStoredPageZoom(merged.pageZoom);
+  return merged;
 };
 
 export const setSettings = (settings: Settings) => {
+  if (typeof localStorage === 'undefined') return;
+  if (typeof localStorage.setItem !== 'function') return;
+
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 };
 

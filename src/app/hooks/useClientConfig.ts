@@ -10,6 +10,20 @@ export type ClientConfig = {
   homeserverList?: string[];
   allowCustomHomeservers?: boolean;
 
+  push?: {
+    ios?: {
+      enabled?: boolean;
+      appId?: string;
+      gatewayUrl?: string;
+      appDisplayName?: string;
+      deviceDisplayName?: string;
+      profileTag?: string;
+      append?: boolean;
+      format?: 'event_id_only' | 'full';
+      lang?: string;
+    };
+  };
+
   featuredCommunities?: {
     openAsDefault?: boolean;
     spaces?: string[];
@@ -18,6 +32,53 @@ export type ClientConfig = {
   };
 
   hashRouter?: HashRouterConfig;
+
+  splash?: {
+    loadingMessages?: string[];
+  };
+
+  mindroom?: {
+    thinkingPlaceholderMessages?: string[];
+  };
+
+  sidebar?: {
+    showThreads?: boolean;
+    showExploreCommunity?: boolean;
+    showAddSpace?: boolean;
+    showMindRoom?: boolean;
+    mindRoomUrl?: string;
+    mindRoomProvisioningUrl?: string;
+  };
+
+  auth?: {
+    hideServerPickerWhenSingle?: boolean;
+    allowRegistration?: boolean;
+    disablePasswordLogin?: boolean;
+    requireAppleProvider?: boolean;
+    supportUrl?: string;
+    privacyPolicyUrl?: string;
+    termsUrl?: string;
+  };
+
+  createRoom?: {
+    showEncryptionOption?: boolean;
+    defaultEncryption?: boolean;
+    showFederationOption?: boolean;
+    defaultFederation?: boolean;
+  };
+
+  welcome?: {
+    title?: string;
+    subtitle?: string;
+    sourceLabel?: string;
+    sourceUrl?: string;
+    docsLabel?: string;
+    docsUrl?: string;
+    poweredBy?: {
+      label: string;
+      url: string;
+    }[];
+  };
 };
 
 const ClientConfigContext = createContext<ClientConfig | null>(null);

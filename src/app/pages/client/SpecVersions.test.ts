@@ -1,0 +1,241 @@
+import React from 'react';
+import { act, create } from 'react-test-renderer';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { clearAllCacheAndReload, removeSessionAndReload } from '../../../client/initMatrix';
+import { SpecVersions } from './SpecVersions';
+import { useActiveSession } from '../../hooks/useSessionStore';
+
+let specVersionsLoaderMode: 'fallback' | 'error' | 'success' = 'success';
+
+vi.mock('folds', async () => {
+  const reactModule = await import('react');
+
+  return {
+    Box: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
+    Dialog: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
+    Text: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('span', null, children),
+    Button: ({
+      children,
+      onClick,
+      disabled,
+      before,
+    }: {
+      children: React.ReactNode;
+      onClick?: () => void;
+      disabled?: boolean;
+      before?: React.ReactNode;
+    }) => reactModule.createElement('button', { onClick, disabled }, before, children),
+    Spinner: () => reactModule.createElement('div', null, 'spinner'),
+    config: {
+      space: {
+        S400: '16px',
+      },
+    },
+  };
+});
+
+vi.mock('../../components/splash-screen', () => ({
+  SplashScreen: ({
+    children,
+    background,
+  }: {
+    children: React.ReactNode;
+    background?: React.ReactNode;
+  }) => React.createElement('div', { 'data-has-background': Boolean(background) }, children),
+  MindRoomSplashScreen: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', { 'data-mindroom-splash': true }, children),
+}));
+
+vi.mock('../../components/SpecVersionsLoader', () => ({
+  SpecVersionsLoader: ({
+    fallback,
+    error,
+    children,
+  }: {
+    fallback?: () => React.ReactNode;
+    error?: (err: unknown, retry: () => void, ignore: () => void) => React.ReactNode;
+    children: (versions: { versions: string[] }) => React.ReactNode;
+  }) => {
+    if (specVersionsLoaderMode === 'fallback') return fallback?.() ?? null;
+    if (specVersionsLoaderMode === 'error') {
+      return (
+        error?.(
+          new Error('request failed'),
+          () => undefined,
+          () => undefined
+        ) ?? null
+      );
+    }
+    return children({ versions: [] });
+  },
+}));
+
+vi.mock('../../../client/initMatrix', () => ({
+  clearAllCacheAndReload: vi.fn(() => Promise.resolve()),
+  removeSessionAndReload: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock('../../hooks/useSessionStore', () => ({
+  useActiveSession: vi.fn(),
+}));
+
+describe('SpecVersions', () => {
+  const originalWindow = globalThis.window;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    specVersionsLoaderMode = 'success';
+
+    if (originalWindow === undefined) {
+      Reflect.deleteProperty(globalThis, 'window');
+    } else {
+      Object.defineProperty(globalThis, 'window', {
+        value: originalWindow,
+        configurable: true,
+      });
+    }
+  });
+
+  it('supports canceling from connecting state', async () => {
+    specVersionsLoaderMode = 'fallback';
+    vi.mocked(useActiveSession).mockReturnValue({
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE',
+      accessToken: 'token',
+      lastUsedAt: 1,
+    });
+
+    const renderer = create(
+      React.createElement(
+        SpecVersions,
+        {
+          baseUrl: 'https://example.com',
+        },
+        React.createElement('div', null, 'child')
+      )
+    );
+
+    const cancelButton = renderer.root
+      .findAllByType('button')
+      .find((node) =>
+        node
+          .findAllByType('span')
+          .some((textNode) => textNode.children.join('') === 'Cancel and return to sign in')
+      );
+
+    expect(cancelButton).toBeDefined();
+
+    await act(async () => {
+      cancelButton?.props.onClick();
+    });
+
+    expect(vi.mocked(removeSessionAndReload)).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the particle background while connecting to the server', () => {
+    specVersionsLoaderMode = 'fallback';
+    vi.mocked(useActiveSession).mockReturnValue(undefined);
+
+    const renderer = create(
+      React.createElement(
+        SpecVersions,
+        {
+          baseUrl: 'https://example.com',
+        },
+        React.createElement('div', null, 'child')
+      )
+    );
+
+    expect(renderer.root.findByProps({ 'data-mindroom-splash': true })).toBeDefined();
+  });
+
+  it('shows clear-cache recovery on connection error', async () => {
+    specVersionsLoaderMode = 'error';
+    vi.mocked(useActiveSession).mockReturnValue(undefined);
+
+    const renderer = create(
+      React.createElement(
+        SpecVersions,
+        {
+          baseUrl: 'https://example.com',
+        },
+        React.createElement('div', null, 'child')
+      )
+    );
+
+    const clearCacheButton = renderer.root
+      .findAllByType('button')
+      .find((node) =>
+        node
+          .findAllByType('span')
+          .some((textNode) => textNode.children.join('') === 'Clear Cache and Reload')
+      );
+
+    expect(clearCacheButton).toBeDefined();
+
+    await act(async () => {
+      clearCacheButton?.props.onClick();
+    });
+
+    expect(vi.mocked(clearAllCacheAndReload)).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables the clear-cache action and shows progress while clearing', () => {
+    specVersionsLoaderMode = 'error';
+    vi.mocked(useActiveSession).mockReturnValue(undefined);
+
+    let resolveClear: (() => void) | undefined;
+    vi.mocked(clearAllCacheAndReload).mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveClear = resolve;
+        })
+    );
+
+    const renderer = create(
+      React.createElement(
+        SpecVersions,
+        {
+          baseUrl: 'https://example.com',
+        },
+        React.createElement('div', null, 'child')
+      )
+    );
+
+    const getButtonByLabel = (label: string) =>
+      renderer.root
+        .findAllByType('button')
+        .find((node) =>
+          node.findAllByType('span').some((textNode) => textNode.children.join('') === label)
+        );
+
+    const initialButton = getButtonByLabel('Clear Cache and Reload');
+
+    expect(initialButton?.props.disabled).toBeFalsy();
+
+    act(() => {
+      initialButton?.props.onClick();
+    });
+
+    const clearingButton = getButtonByLabel('Clearing...');
+
+    expect(vi.mocked(clearAllCacheAndReload)).toHaveBeenCalledTimes(1);
+    expect(clearingButton).toBeDefined();
+    expect(clearingButton?.props.disabled).toBe(true);
+
+    act(() => {
+      clearingButton?.props.onClick();
+    });
+
+    expect(vi.mocked(clearAllCacheAndReload)).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      resolveClear?.();
+    });
+  });
+});

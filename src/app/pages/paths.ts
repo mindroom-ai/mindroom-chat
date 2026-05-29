@@ -39,6 +39,10 @@ export const _SEARCH_PATH = 'search/';
 export type _RoomSearchParams = {
   /* comma separated string of servers */
   viaServers?: string;
+  /* thread root event id */
+  threadId?: string;
+  /* keep synthetic history event permalinks in room view instead of reopening thread view */
+  focusEvent?: string;
 };
 export const _ROOM_PATH = ':roomIdOrAlias/:eventId?/';
 
@@ -54,6 +58,8 @@ export type DirectCreateSearchParams = {
 };
 export const DIRECT_CREATE_PATH = `/direct/${_CREATE_PATH}`;
 export const DIRECT_ROOM_PATH = `/direct/${_ROOM_PATH}`;
+
+export const THREADS_PATH = '/threads/';
 
 export const SPACE_PATH = '/:spaceIdOrAlias/';
 export const SPACE_LOBBY_PATH = `/:spaceIdOrAlias/${_LOBBY_PATH}`;

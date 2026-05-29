@@ -12,11 +12,11 @@ import { DIRECT_PATH, EXPLORE_PATH, HOME_PATH, INBOX_PATH, SPACE_PATH } from '..
 type BackRouteHandlerProps = {
   children: (onBack: () => void) => ReactNode;
 };
-export function BackRouteHandler({ children }: BackRouteHandlerProps) {
+export function useBackRoute(): () => void {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const goBack = useCallback(() => {
+  return useCallback(() => {
     if (
       matchPath(
         {
@@ -85,6 +85,10 @@ export function BackRouteHandler({ children }: BackRouteHandlerProps) {
       navigate(getInboxPath());
     }
   }, [navigate, location]);
+}
+
+export function BackRouteHandler({ children }: BackRouteHandlerProps) {
+  const goBack = useBackRoute();
 
   return children(goBack);
 }

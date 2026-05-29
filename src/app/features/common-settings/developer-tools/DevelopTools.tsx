@@ -58,7 +58,7 @@ export function DeveloperTools({ requestClose }: DeveloperToolsProps) {
 
   const submitAccountData: AccountDataSubmitCallback = useCallback(
     async (type, content) => {
-      await mx.setRoomAccountData(room.roomId, type, content);
+      await mx.setRoomAccountData(room.roomId, type as any, content as any);
     },
     [mx, room.roomId]
   );

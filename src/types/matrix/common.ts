@@ -3,7 +3,12 @@ import { MsgType } from 'matrix-js-sdk';
 
 export const MATRIX_BLUR_HASH_PROPERTY_NAME = 'xyz.amorgan.blurhash';
 export const MATRIX_SPOILER_PROPERTY_NAME = 'page.codeberg.everypizza.msc4193.spoiler';
-export const MATRIX_SPOILER_REASON_PROPERTY_NAME = 'page.codeberg.everypizza.msc4193.spoiler.reason';
+export const MATRIX_SPOILER_REASON_PROPERTY_NAME =
+  'page.codeberg.everypizza.msc4193.spoiler.reason';
+export const MATRIX_VOICE_MESSAGE_UNSTABLE_PROPERTY_NAME = 'org.matrix.msc3245.voice';
+export const MATRIX_VOICE_MESSAGE_PROPERTY_NAME = 'm.voice';
+export const MATRIX_AUDIO_DETAILS_UNSTABLE_PROPERTY_NAME = 'org.matrix.msc1767.audio';
+export const MATRIX_AUDIO_DETAILS_PROPERTY_NAME = 'm.audio';
 
 export type IImageInfo = {
   w?: number;
@@ -25,6 +30,11 @@ export type IAudioInfo = {
   mimetype?: string;
   size?: number;
   duration?: number;
+};
+
+export type IMatrixAudioDetails = {
+  duration?: number;
+  waveform?: number[];
 };
 
 export type IFileInfo = {
@@ -71,6 +81,10 @@ export type IAudioContent = {
   url?: string;
   info?: IAudioInfo;
   file?: IEncryptedFile;
+  [MATRIX_VOICE_MESSAGE_UNSTABLE_PROPERTY_NAME]?: Record<string, never>;
+  [MATRIX_VOICE_MESSAGE_PROPERTY_NAME]?: Record<string, never>;
+  [MATRIX_AUDIO_DETAILS_UNSTABLE_PROPERTY_NAME]?: IMatrixAudioDetails;
+  [MATRIX_AUDIO_DETAILS_PROPERTY_NAME]?: IMatrixAudioDetails;
 };
 
 export type IFileContent = {

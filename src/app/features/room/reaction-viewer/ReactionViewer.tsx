@@ -17,7 +17,8 @@ import {
 import { MatrixEvent, Room, RoomMember } from 'matrix-js-sdk';
 import { Relations } from 'matrix-js-sdk/lib/models/relations';
 import { getMemberDisplayName } from '../../../utils/room';
-import { eventWithShortcode, getMxIdLocalPart } from '../../../utils/matrix';
+import { eventWithShortcode, getMxIdLocalPart, mxcUrlToHttp } from '../../../utils/matrix';
+import { getActiveAnnotationsByKey } from '../../../utils/reactionAnnotations';
 import * as css from './ReactionViewer.css';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useRelations } from '../../../hooks/useRelations';
@@ -41,7 +42,7 @@ export const ReactionViewer = as<'div', ReactionViewerProps>(
     const useAuthentication = useMediaAuthentication();
     const reactions = useRelations(
       relations,
-      useCallback((rel) => [...(rel.getSortedAnnotationsByKey() ?? [])], [])
+      useCallback((rel) => getActiveAnnotationsByKey(rel), [])
     );
     const space = useSpaceOptionally();
     const openProfile = useOpenUserRoomProfile();
@@ -116,15 +117,7 @@ export const ReactionViewer = as<'div', ReactionViewerProps>(
 
                   const avatarMxcUrl = member?.getMxcAvatarUrl();
                   const avatarUrl = avatarMxcUrl
-                    ? mx.mxcUrlToHttp(
-                        avatarMxcUrl,
-                        100,
-                        100,
-                        'crop',
-                        undefined,
-                        false,
-                        useAuthentication
-                      )
+                    ? mxcUrlToHttp(mx, avatarMxcUrl, useAuthentication, 100, 100, 'crop')
                     : undefined;
 
                   return (
@@ -132,7 +125,7 @@ export const ReactionViewer = as<'div', ReactionViewerProps>(
                       key={senderId}
                       style={{ padding: `0 ${config.space.S200}` }}
                       radii="400"
-                      onClick={(event) => {
+                      onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
                         openProfile(
                           room.roomId,
                           space?.roomId,

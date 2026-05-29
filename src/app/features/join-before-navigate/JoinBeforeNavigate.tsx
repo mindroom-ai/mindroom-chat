@@ -9,7 +9,7 @@ import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { allRoomsAtom } from '../../state/room-list/roomList';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
-import { BackRouteHandler } from '../../components/BackRouteHandler';
+import { MindroomBackRouteHandler as BackRouteHandler } from '../../mindroom/native/MindroomBackRouteHandler';
 
 type JoinBeforeNavigateProps = { roomIdOrAlias: string; eventId?: string; viaServers?: string[] };
 export function JoinBeforeNavigate({

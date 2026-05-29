@@ -30,7 +30,7 @@ import { useRoomUnread } from '../../state/hooks/unread';
 import { roomToUnreadAtom } from '../../state/room/roomToUnread';
 import { getPowersLevelFromMatrixEvent, usePowerLevels } from '../../hooks/usePowerLevels';
 import { copyToClipboard } from '../../utils/dom';
-import { markAsRead } from '../../utils/notifications';
+import { MindroomMarkRoomReadMenuItem } from '../../mindroom/notifications/MindroomMarkRoomReadMenuItem';
 import { UseStateProvider } from '../../components/UseStateProvider';
 import { LeaveRoomPrompt } from '../../components/leave-room-prompt';
 import { useRoomTypingMember } from '../../hooks/useRoomTypingMembers';
@@ -40,8 +40,6 @@ import { getMatrixToRoom } from '../../plugins/matrix-to';
 import { getCanonicalAliasOrRoomId, isRoomAlias } from '../../utils/matrix';
 import { getViaServers } from '../../plugins/via-servers';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import { useSetting } from '../../state/hooks/settings';
-import { settingsAtom } from '../../state/settings';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
 import { useSpaceOptionally } from '../../hooks/useSpace';
 import {
@@ -70,8 +68,6 @@ type RoomNavItemMenuProps = {
 const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(
   ({ room, requestClose, notificationMode }, ref) => {
     const mx = useMatrixClient();
-    const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
-    const unread = useRoomUnread(room.roomId, roomToUnreadAtom);
     const powerLevels = usePowerLevels(room);
     const creators = useRoomCreators(room);
 
@@ -81,11 +77,6 @@ const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(
     const space = useSpaceOptionally();
 
     const [invitePrompt, setInvitePrompt] = useState(false);
-
-    const handleMarkAsRead = () => {
-      markAsRead(mx, room.roomId, hideActivity);
-      requestClose();
-    };
 
     const handleInvite = () => {
       setInvitePrompt(true);
@@ -115,17 +106,7 @@ const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(
           />
         )}
         <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-          <MenuItem
-            onClick={handleMarkAsRead}
-            size="300"
-            after={<Icon size="100" src={Icons.CheckTwice} />}
-            radii="300"
-            disabled={!unread}
-          >
-            <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-              Mark as Read
-            </Text>
-          </MenuItem>
+          <MindroomMarkRoomReadMenuItem room={room} onClose={requestClose} />
           <RoomNotificationModeSwitcher roomId={room.roomId} value={notificationMode}>
             {(handleOpen, opened, changing) => (
               <MenuItem

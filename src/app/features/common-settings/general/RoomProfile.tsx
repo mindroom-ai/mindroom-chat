@@ -145,6 +145,7 @@ export function RoomProfileEdit({
             <Box gap="200" direction="Column">
               <CompactUploadCardRenderer
                 uploadAtom={uploadAtom}
+                uploadKind="avatar"
                 onRemove={handleRemoveUpload}
                 onComplete={handleUploaded}
               />
