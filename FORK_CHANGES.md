@@ -2,6 +2,70 @@
 
 ## Runbook
 
+### CINNY-129 - Android keyboard viewport restore (2026-05-29)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Investigated a mobile screenshot where the room composer and following bar
+    were stranded halfway up the screen after keyboard interaction.
+  - Root cause class: the room shell is pinned to `--app-height`/`100dvh`, but
+    the explicit viewport repair hook only ran for iOS. Android native could
+    keep a stale keyboard-shrunken dynamic viewport after keyboard hide/resume.
+  - Extended the existing room viewport hook to run for Android native as well
+    as iOS, while still shrinking to `visualViewport.height` during keyboard
+    show/resizes.
+  - Renamed the hook to `useMobileKeyboardViewportFix` so the Android behavior
+    is not hidden behind an iOS-only name.
+  - On native keyboard hide, page show, and orientation restore paths, the hook
+    now prefers the larger layout viewport height so a stale visual viewport
+    cannot leave the room permanently half-height.
+  - On focus-out, the hook now re-syncs to the visual viewport instead of
+    forcing the larger layout viewport, avoiding an iOS browser focus-transfer
+    regression while the keyboard remains visible.
+- Rebase follow-up:
+  - Reset the PR branch to `origin/dev` at `a95e1076` and cherry-picked the
+    original fix commit `6de12747` after PR conflict feedback.
+  - Resolved the `FORK_CHANGES.md` conflict by preserving the current v4.12.2
+    runbook entries and re-adding the CINNY-129 notes.
+- Review follow-up:
+  - Triaged Gemini comments on `RenderMessageContent.tsx`,
+    `ClientConfigLoader.tsx`, `serve.py`, and `ReactQueryDevtoolsToggle.tsx` as
+    stale after the branch reset because those files are no longer in this PR
+    diff.
+  - Validated Greptile's focus-transfer concern with a failing iOS browser
+    regression test, then changed `focusout` handling to use the visual
+    viewport path.
+  - Validated Greptile's pending-RAF cleanup concern with a failing teardown
+    regression test, then added a `disposed` guard before DOM writes.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/hooks/useMobileKeyboardViewportFix.test.ts`
+  - `src/app/hooks/useMobileKeyboardViewportFix.ts`
+  - `src/app/mindroom/threads/MindroomRoomView.tsx`
+- Validation:
+  - Red check: `npm test -- src/app/hooks/useMobileKeyboardViewportFix.test.ts`
+    failed while Android native skipped the viewport hook and left
+    `--app-height` unset.
+  - Green check: `npm test -- src/app/hooks/useMobileKeyboardViewportFix.test.ts`.
+  - Dependency sync after reset: `npm ci`.
+  - Green check:
+    `npm test -- src/app/hooks/useMobileKeyboardViewportFix.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts`
+    (2 files, 25 tests).
+  - Green check: `npm run typecheck`.
+  - Green check: `npm run lint` (18 warnings, 0 errors - existing
+    console/unused-var warning class).
+  - Green check: `npm test` (300 files, 2236 tests).
+  - Green check: `npm run build` (existing Vite runtime-config, sourcemap, and
+    chunk-size warnings only).
+  - Green check:
+    `npx prettier --check FORK_CHANGES.md src/app/hooks/useMobileKeyboardViewportFix.ts src/app/hooks/useMobileKeyboardViewportFix.test.ts src/app/mindroom/threads/MindroomRoomView.tsx`.
+  - Green check: `git diff --check`.
+  - Review red check: `npm test -- src/app/hooks/useMobileKeyboardViewportFix.test.ts`
+    failed with the iOS focus-transfer and pending-RAF cleanup regression tests.
+  - Review green check: `npm test -- src/app/hooks/useMobileKeyboardViewportFix.test.ts`
+    (3 tests).
+
 ### Safe SVG in message extras HTML (2026-05-11)
 
 - Status:
@@ -4298,7 +4362,7 @@ uploads it as the `cinny-android-debug-apk` workflow artifact (14-day retention)
 - `CINNY-053`
   - Fixes iOS Safari keyboard/viewport layout when virtual keyboard opens or closes:
     - `index.css`: root layout uses `100dvh` on `html` (Safari 15.4+) and `var(--app-height)` on `#root` as JS-driven fallback; `body` gets `overflow: hidden`.
-    - `useIOSKeyboardFix`: rewritten to listen to `visualViewport.resize` on both keyboard open and dismiss, sets `--app-height` CSS custom property via `requestAnimationFrame`, and resets scroll offset drift.
+    - `useMobileKeyboardViewportFix`: rewritten to listen to `visualViewport.resize` on both keyboard open and dismiss, sets `--app-height` CSS custom property via `requestAnimationFrame`, and resets scroll offset drift.
     - `Editor.tsx`: `maxHeight` default changed from `50vh` to `min(50dvh, calc(var(--app-height, 100vh) * 0.5))` so the editor respects the dynamic viewport with fallbacks.
     - `index.html`: retains `interactive-widget=resizes-content` for future-proofing (no-op on iOS Safari currently).
 - `CINNY-060`
