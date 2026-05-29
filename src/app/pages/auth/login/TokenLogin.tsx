@@ -15,6 +15,7 @@ import { MatrixError } from 'matrix-js-sdk';
 import { useAutoDiscoveryInfo } from '../../../hooks/useAutoDiscoveryInfo';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { CustomLoginResponse, LoginError, login, useLoginComplete } from './loginUtil';
+import { MINDROOM_AUTH_BRANDING } from '../../../mindroom/auth/authUi';
 
 function LoginTokenError({ message }: { message: string }) {
   return (
@@ -42,8 +43,9 @@ function LoginTokenError({ message }: { message: string }) {
 
 type TokenLoginProps = {
   token: string;
+  addAccount?: boolean;
 };
-export function TokenLogin({ token }: TokenLoginProps) {
+export function TokenLogin({ token, addAccount = false }: TokenLoginProps) {
   const discovery = useAutoDiscoveryInfo();
   const baseUrl = discovery['m.homeserver'].base_url;
 
@@ -57,11 +59,14 @@ export function TokenLogin({ token }: TokenLoginProps) {
     startLogin(baseUrl, {
       type: 'm.login.token',
       token,
-      initial_device_display_name: 'Cinny Web',
+      initial_device_display_name: MINDROOM_AUTH_BRANDING.deviceDisplayName,
     });
   }, [baseUrl, token, startLogin]);
 
-  useLoginComplete(loginState.status === AsyncStatus.Success ? loginState.data : undefined);
+  useLoginComplete(
+    loginState.status === AsyncStatus.Success ? loginState.data : undefined,
+    addAccount
+  );
 
   return (
     <>

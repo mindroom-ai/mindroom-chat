@@ -1,28 +1,41 @@
 import React from 'react';
 import { Box, Text } from 'folds';
 import * as css from './styles.css';
+import { useClientConfig } from '../../hooks/useClientConfig';
+import { MINDROOM_AUTH_BRANDING } from '../../mindroom/auth/authUi';
 
 export function AuthFooter() {
+  const { auth } = useClientConfig();
+
+  const optionalLinks = [
+    auth?.supportUrl ? { label: 'Support', href: auth.supportUrl } : undefined,
+    auth?.privacyPolicyUrl ? { label: 'Privacy', href: auth.privacyPolicyUrl } : undefined,
+    auth?.termsUrl ? { label: 'Terms', href: auth.termsUrl } : undefined,
+  ].filter((item): item is { label: string; href: string } => Boolean(item));
+
   return (
     <Box className={css.AuthFooter} justifyContent="Center" gap="400" wrap="Wrap">
-      <Text as="a" size="T300" href="https://cinny.in" target="_blank" rel="noreferrer">
-        About
+      <Text size="T300">
+        Powered by{' '}
+        <a href={MINDROOM_AUTH_BRANDING.cinnySourceUrl} target="_blank" rel="noreferrer">
+          {MINDROOM_AUTH_BRANDING.appName}
+        </a>
+        ,{' '}
+        <a href="https://matrix.org" target="_blank" rel="noreferrer">
+          Matrix
+        </a>
+        ,{' '}
+        <a href="https://github.com/ajbura/cinny" target="_blank" rel="noreferrer">
+          Cinny
+        </a>
       </Text>
-      <Text
-        as="a"
-        size="T300"
-        href="https://github.com/ajbura/cinny/releases"
-        target="_blank"
-        rel="noreferrer"
-      >
-        v4.12.2
-      </Text>
-      <Text as="a" size="T300" href="https://twitter.com/cinnyapp" target="_blank" rel="noreferrer">
-        Twitter
-      </Text>
-      <Text as="a" size="T300" href="https://matrix.org" target="_blank" rel="noreferrer">
-        Powered by Matrix
-      </Text>
+      {optionalLinks.map((link) => (
+        <Text key={link.label} size="T300">
+          <a href={link.href} target="_blank" rel="noreferrer">
+            {link.label}
+          </a>
+        </Text>
+      ))}
     </Box>
   );
 }
