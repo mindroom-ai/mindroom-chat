@@ -11,11 +11,15 @@ import fs from 'fs';
 import path from 'path';
 import buildConfig from './build.config';
 
-const copyFiles = {
+export const copyFiles = {
   targets: [
     {
       src: 'node_modules/@element-hq/element-call-embedded/dist/*',
       dest: 'public/element-call',
+    },
+    {
+      src: 'public/runtime-config.js',
+      dest: '',
     },
     {
       src: 'node_modules/pdfjs-dist/build/pdf.worker.min.mjs',
@@ -27,8 +31,9 @@ const copyFiles = {
       dest: '',
     },
     {
-      src: 'config.json',
+      src: 'config.mindroom.json',
       dest: '',
+      rename: 'config.json',
     },
     {
       src: 'public/manifest.json',
@@ -50,7 +55,8 @@ function serverMatrixSdkCryptoWasm(wasmFilePath) {
     name: 'vite-plugin-serve-matrix-sdk-crypto-wasm',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (req.url === wasmFilePath) {
+        const requestPath = req.url?.split('?')[0];
+        if (requestPath === wasmFilePath) {
           const resolvedPath = path.join(
             path.resolve(),
             '/node_modules/@matrix-org/matrix-sdk-crypto-wasm/pkg/matrix_sdk_crypto_wasm_bg.wasm'
@@ -74,6 +80,94 @@ function serverMatrixSdkCryptoWasm(wasmFilePath) {
   };
 }
 
+function serverRuntimeConfig(runtimeConfigPath) {
+  return {
+    name: 'vite-plugin-serve-runtime-config',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url === runtimeConfigPath) {
+          const resolvedPath = path.join(path.resolve(), 'public/runtime-config.js');
+
+          if (fs.existsSync(resolvedPath)) {
+            res.setHeader('Content-Type', 'application/javascript');
+            res.setHeader('Cache-Control', 'no-cache');
+
+            const fileStream = fs.createReadStream(resolvedPath);
+            fileStream.pipe(res);
+          } else {
+            res.writeHead(404);
+            res.end('File not found');
+          }
+        } else {
+          next();
+        }
+      });
+    },
+  };
+}
+
+const staleServiceWorkerCleanupScript = `
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    if ('caches' in self) {
+      const cacheNames = await self.caches.keys();
+      await Promise.all(cacheNames.map((cacheName) => self.caches.delete(cacheName)));
+    }
+
+    await self.registration.unregister();
+
+    const clients = await self.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true,
+    });
+    await Promise.all(clients.map((client) => client.navigate(client.url)));
+  })());
+});
+`;
+
+function serverStaleServiceWorkerCleanup(serviceWorkerPath) {
+  return {
+    name: 'vite-plugin-serve-stale-service-worker-cleanup',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const requestPath = req.url?.split('?')[0];
+        if (requestPath === serviceWorkerPath) {
+          res.setHeader('Content-Type', 'application/javascript');
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(staleServiceWorkerCleanupScript);
+        } else {
+          next();
+        }
+      });
+    },
+  };
+}
+
+const appBasePath =
+  buildConfig.base === '/' || buildConfig.base === './' || buildConfig.base === '.'
+    ? ''
+    : buildConfig.base.replace(/\/+$/g, '');
+const matrixCryptoWasmPath =
+  appBasePath && appBasePath !== '.'
+    ? `${appBasePath}/node_modules/.vite/deps/pkg/matrix_sdk_crypto_wasm_bg.wasm`
+    : '/node_modules/.vite/deps/pkg/matrix_sdk_crypto_wasm_bg.wasm';
+const defaultAllowedHosts = [
+  'chat.lab.mindroom.chat',
+  'chat.mindroom.chat',
+  'cinny-dev.lab.nijho.lt',
+  'localhost',
+  '127.0.0.1',
+];
+const allowedHosts = (process.env.VITE_ALLOWED_HOSTS ?? defaultAllowedHosts.join(','))
+  .split(',')
+  .map((host) => host.trim())
+  .filter(Boolean);
+
 export default defineConfig({
   appType: 'spa',
   publicDir: false,
@@ -81,13 +175,16 @@ export default defineConfig({
   server: {
     port: 8080,
     host: true,
+    allowedHosts,
     fs: {
       // Allow serving files from one level up to the project root
       allow: ['..'],
     },
   },
   plugins: [
-    serverMatrixSdkCryptoWasm('/node_modules/.vite/deps/pkg/matrix_sdk_crypto_wasm_bg.wasm'),
+    serverRuntimeConfig('/runtime-config.js'),
+    serverStaleServiceWorkerCleanup(`${appBasePath}/sw.js`),
+    serverMatrixSdkCryptoWasm(matrixCryptoWasmPath),
     topLevelAwait({
       // The export name of top-level await promise for each chunk module
       promiseExportName: '__tla',
@@ -105,7 +202,9 @@ export default defineConfig({
       injectRegister: false,
       manifest: false,
       injectManifest: {
-        injectionPoint: undefined,
+        injectionPoint: 'self.__WB_MANIFEST',
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        globIgnores: ['public/element-call/**', 'runtime-config.js'],
       },
       devOptions: {
         enabled: true,

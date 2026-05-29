@@ -1,12 +1,14 @@
 ## Builder
-FROM node:24.13.1-alpine AS builder
+FROM --platform=$BUILDPLATFORM node:24.13.1-alpine AS builder
 
 WORKDIR /src
 
 COPY .npmrc package.json package-lock.json /src/
-RUN npm ci
+RUN npm ci --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
 COPY . /src/
 ENV NODE_OPTIONS=--max_old_space_size=4096
+ARG APP_BUILD_BASE_PATH
+ENV APP_BUILD_BASE_PATH=${APP_BUILD_BASE_PATH}
 RUN npm run build
 
 
@@ -15,6 +17,7 @@ FROM nginx:1.29.5-alpine
 
 COPY --from=builder /src/dist /app
 COPY --from=builder /src/docker-nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker-entrypoint.d/99-runtime-config.sh /docker-entrypoint.d/99-runtime-config.sh
 
 RUN rm -rf /usr/share/nginx/html \
   && ln -s /app /usr/share/nginx/html
