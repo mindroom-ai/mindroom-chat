@@ -1,7 +1,35 @@
 /// <reference lib="WebWorker" />
 
+import {
+  cleanupOutdatedCaches,
+  createHandlerBoundToURL,
+  precacheAndRoute,
+  type PrecacheEntry,
+} from 'workbox-precaching';
+import { NavigationRoute, registerRoute } from 'workbox-routing';
+import { looksLikeMediaRequest, validMediaRequest } from './swMediaAuth';
+import { buildAuthenticatedMediaRequestInit } from './swMediaFetch';
+
 export type {};
-declare const self: ServiceWorkerGlobalScope;
+declare const self: ServiceWorkerGlobalScope & {
+  __WB_MANIFEST: Array<PrecacheEntry | string>;
+};
+
+precacheAndRoute(self.__WB_MANIFEST);
+cleanupOutdatedCaches();
+
+const navigationFallbackDenylist = [
+  /^\/api(?:\/|$)/,
+  /^\/(?:[^/]+\/)?_matrix(?:\/|$)/,
+  /^\/(?:[^/]+\/)?_synapse(?:\/|$)/,
+  /^\/(?:[^/]+\/)?\.well-known(?:\/|$)/,
+];
+
+registerRoute(
+  new NavigationRoute(createHandlerBoundToURL('index.html'), {
+    denylist: navigationFallbackDenylist,
+  })
+);
 
 type SessionInfo = {
   accessToken: string;
@@ -104,55 +132,69 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
   }
 });
 
-const MEDIA_PATHS = ['/_matrix/client/v1/media/download', '/_matrix/client/v1/media/thumbnail'];
+async function askForAccessToken(client: Client): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    const responseKey = Math.random().toString(36);
+    let listener: (messageEvent: ExtendableMessageEvent) => void = () => undefined;
+    const timeoutId = setTimeout(() => {
+      self.removeEventListener('message', listener);
+      resolve(undefined);
+    }, 1500);
 
-function mediaPath(url: string): boolean {
-  try {
-    const { pathname } = new URL(url);
-    return MEDIA_PATHS.some((p) => pathname.startsWith(p));
-  } catch {
-    return false;
-  }
-}
+    listener = (messageEvent: ExtendableMessageEvent) => {
+      if (messageEvent.data?.responseKey !== responseKey) return;
+      clearTimeout(timeoutId);
+      self.removeEventListener('message', listener);
+      resolve(typeof messageEvent.data?.token === 'string' ? messageEvent.data.token : undefined);
+    };
 
-function validMediaRequest(url: string, baseUrl: string): boolean {
-  return MEDIA_PATHS.some((p) => {
-    const validUrl = new URL(p, baseUrl);
-    return url.startsWith(validUrl.href);
+    self.addEventListener('message', listener);
+    client.postMessage({ responseKey, type: 'token' });
   });
 }
 
-function fetchConfig(token: string): RequestInit {
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    cache: 'default',
-  };
-}
+const fetchAuthenticatedMedia = async (request: Request, token: string): Promise<Response> => {
+  const init = buildAuthenticatedMediaRequestInit(request, token);
+  return request.mode === 'no-cors' ? fetch(request.url, init) : fetch(request, init);
+};
+
+const fetchAuthenticatedMediaWithFallback = async (
+  request: Request,
+  token: string
+): Promise<Response> => {
+  try {
+    return await fetchAuthenticatedMedia(request, token);
+  } catch {
+    // If authenticated fetch fails unexpectedly, fall back to the original request.
+    return fetch(request);
+  }
+};
 
 self.addEventListener('fetch', (event: FetchEvent) => {
   const { url, method } = event.request;
 
-  if (method !== 'GET' || !mediaPath(url)) return;
-
-  const { clientId } = event;
-  if (!clientId) return;
-
-  const session = sessions.get(clientId);
-  if (session) {
-    if (validMediaRequest(url, session.baseUrl)) {
-      event.respondWith(fetch(url, fetchConfig(session.accessToken)));
-    }
-    return;
-  }
+  if (method !== 'GET') return;
+  if (!looksLikeMediaRequest(url)) return;
 
   event.respondWith(
-    requestSessionWithTimeout(clientId).then((s) => {
-      if (s && validMediaRequest(url, s.baseUrl)) {
-        return fetch(url, fetchConfig(s.accessToken));
+    (async (): Promise<Response> => {
+      if (event.clientId) {
+        const session = sessions.get(event.clientId);
+        if (session && validMediaRequest(url, session.baseUrl)) {
+          return fetchAuthenticatedMediaWithFallback(event.request, session.accessToken);
+        }
+
+        // Fallback for clients still on the older token request/response flow.
+        const client = await self.clients.get(event.clientId);
+        if (client) {
+          const token = await askForAccessToken(client);
+          if (token) {
+            return fetchAuthenticatedMediaWithFallback(event.request, token);
+          }
+        }
       }
+
       return fetch(event.request);
-    })
+    })()
   );
 });
