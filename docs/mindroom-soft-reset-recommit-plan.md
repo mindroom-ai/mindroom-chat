@@ -18,13 +18,18 @@ The current diff from `v4.11.1` to head contains 1,074 changed files: 460
 
 ## Pre-Reset Checks
 
-- Confirm the intended base before rewriting history. The current runbook recommends rebasing to
-  upstream `v4.12.2` before rewriting, because v4.12.2 already changes call, dependency, sanitizer,
-  and editor surfaces that overlap this fork.
+- Confirm the intended reset base before rewriting history. The current strategy is to finish
+  cleanup on the already-working fork state, save a safety ref, soft-reset/recommit against the
+  current fork point, and only then rebase the clean stack onto newer upstream.
+- Preview upstream `v4.12.2` conflicts before rewriting, but do not rebase to `v4.12.2` during the
+  cleanup/reset window. v4.12.2 already changes call, dependency, sanitizer, and editor surfaces
+  that overlap this fork, so it should inform commit boundaries without changing the pre-reset tree.
 - Save a safety ref before any reset: `git branch backup/mindroom-before-clean-history HEAD`.
 - Capture inventory:
   - `git diff --name-status v4.11.1..HEAD > /tmp/mindroom-clean-history-files.txt`
   - `node scripts/report-non-mindroom-source-diff.mjs v4.11.1 HEAD`
+  - `node scripts/report-package-dependency-diff.mjs v4.11.1 HEAD`
+  - `node scripts/report-package-dependency-diff.mjs v4.12.2 HEAD`
   - `git merge-tree --write-tree --messages --merge-base 6a05ff58 upstream/dev HEAD`
 - If this linked worktree resolves plain `git` commands to the git metadata directory, export the
   explicit worktree before running inventory commands:
@@ -45,6 +50,7 @@ later feature commits do not repeatedly carry lockfile/config churn.
 - `package.json`
 - `package-lock.json`
 - `patches/**`
+- `scripts/report-package-dependency-diff.mjs`
 - `.npmrc`
 - `.node-version`
 - `vite.config.js`
@@ -72,7 +78,7 @@ later feature commits do not repeatedly carry lockfile/config churn.
 
 **Expected validation command:**
 
-`npm run typecheck && npm test && npm run build`
+`node scripts/report-package-dependency-diff.mjs v4.11.1 HEAD && node scripts/report-package-dependency-diff.mjs v4.12.2 HEAD && npm run typecheck && npm test && npm run build`
 
 **Likely conflict risk:** High. `package.json`, `package-lock.json`, `config.json`, `Dockerfile`,
 and Vite/PWA settings overlap upstream v4.12.2 dependency and runtime changes. Resolve this group
