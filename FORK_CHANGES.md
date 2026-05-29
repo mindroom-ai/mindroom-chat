@@ -107,6 +107,47 @@
     warnings only).
   - Green:
     `npx prettier --check FORK_CHANGES.md src/app/plugins/math.tsx src/app/components/editor/math.test.ts src/app/plugins/react-custom-html-parser.test.ts`.
+
+### CINNY-120 - Fork-owned custom HTML sanitizer/render policy (2026-05-28)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Moved MindRoom-specific custom HTML sanitizer additions into
+    `src/app/mindroom/html/customHtmlPolicy.ts`.
+  - Moved Matrix math custom HTML rendering and KaTeX wrapper styles into
+    `src/app/mindroom/html/matrixMath.tsx` and
+    `src/app/mindroom/html/MatrixMath.css.ts`.
+  - Added `src/app/mindroom/html/customHtmlRenderers.tsx` as the narrow render
+    seam consumed by the generic custom HTML parser.
+  - Removed inline MindRoom block/math rendering and policy strings from
+    `src/app/plugins/react-custom-html-parser.tsx`,
+    `src/app/utils/sanitize.ts`, and `src/app/styles/CustomHtml.css.ts`.
+  - PR review follow-up: made sanitizer style policy extension additive for
+    matching selectors/properties and kept base security transformers ahead of
+    policy-provided overrides.
+  - Rebased onto `origin/dev` after the currency-rendering fix landed.
+- Decisions:
+  - Kept `sanitizeCustomHtml()` behavior-compatible by defaulting it to the
+    fork-owned MindRoom policy object; generic sanitizer code now merges a
+    policy object instead of owning those rules inline.
+  - Kept the existing strict sanitizer posture: no expanded URL schemes, no
+    broad style attributes, paste marker attributes are data-only, and message
+    extras keep their separate stricter sanitizer.
+  - Treated Matrix math rendering as fork-owned policy for rebaseability because
+    this fork introduced and maintains that render path, even though the
+    attribute name is Matrix-compatible.
+- Validation:
+  - Green focused check:
+    `npm test -- src/app/mindroom/html/customHtmlPolicy.test.ts` (1 file,
+    4 tests).
+  - Green: `npm test -- src/app/mindroom/html/customHtmlPolicy.test.ts src/app/mindroom/html/customHtmlPolicy.architecture.test.ts src/app/plugins/react-custom-html-parser.test.ts src/app/mindroom/messages/MindroomHtmlBlocks.pasteMarker.test.ts src/app/mindroom/messages/messageExtrasHtml.test.ts`.
+  - Green: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green: `npm test` (295 files, 2226 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/html/customHtmlPolicy.test.ts src/app/utils/sanitize.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`.
   - Green: `git diff --check`.
 
 ### CINNY-123 - MindRoom runtime config overlay (2026-05-28)

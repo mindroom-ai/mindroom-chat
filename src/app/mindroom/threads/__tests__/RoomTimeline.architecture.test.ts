@@ -1284,6 +1284,18 @@ describe('RoomTimeline architecture', () => {
       new URL('../../../plugins/react-custom-html-parser.tsx', import.meta.url),
       'utf8'
     );
+    const customHtmlPolicySource = readFileSync(
+      new URL('../../html/customHtmlPolicy.ts', import.meta.url),
+      'utf8'
+    );
+    const customHtmlRendererSource = readFileSync(
+      new URL('../../html/customHtmlRenderers.tsx', import.meta.url),
+      'utf8'
+    );
+    const matrixMathStyleSource = readFileSync(
+      new URL('../../html/MatrixMath.css.ts', import.meta.url),
+      'utf8'
+    );
     const searchResultPreviewSource = readFileSync(
       new URL('../../message-search/searchResultPreview.ts', import.meta.url),
       'utf8'
@@ -1423,9 +1435,12 @@ describe('RoomTimeline architecture', () => {
     expect(mindroomMessageSource).not.toContain('downloadMindroomLongTextSidecarBlob');
     expect(mindroomMessageSource).not.toContain('getMindroomAiRunModelLabel');
     expect(roomMessageStyleSource).not.toContain('MessageAiRunInfoButton');
-    expect(parserSource).toContain("from '../mindroom/messages/MindroomHtmlBlocks'");
+    expect(parserSource).toContain("from '../mindroom/html/customHtmlRenderers'");
     expect(parserSource).not.toContain("from '../mindroom/messages/blocks'");
     expect(parserSource).not.toContain("from '../mindroom/messages/toolTrace'");
+    expect(parserSource).not.toContain('renderMindroomHtmlBlock');
+    expect(parserSource).not.toContain('data-mindroom-paste-marker');
+    expect(parserSource).not.toContain('data-mx-maths');
     expect(parserSource).not.toContain('MINDROOM_BLOCK_META');
     expect(parserSource).not.toContain('MindroomCollapsibleBlock');
     expect(searchResultPreviewSource).toContain("from '../messages/searchResultPolicy'");
@@ -1439,6 +1454,8 @@ describe('RoomTimeline architecture', () => {
     expect(roomUtilsSource).not.toContain("key.startsWith('com.mindroom.')");
     expect(customHtmlStyleSource).not.toContain('MindroomBlock');
     expect(customHtmlStyleSource).not.toContain('MindroomToolGroup');
+    expect(customHtmlStyleSource).not.toContain('MathInline');
+    expect(customHtmlStyleSource).not.toContain('MathBlock');
     expect(streamingHookImplementationSource).toContain("from '../messages/aiRun'");
     expect(streamingHookImplementationSource).toContain('STREAM_STATUS_KEY');
     expect(messageIndexSource).not.toContain(
@@ -1465,6 +1482,12 @@ describe('RoomTimeline architecture', () => {
     expect(htmlBlocksSource).toContain('withMindroomToolTraceMarkerParserOptions');
     expect(htmlBlocksSource).toContain('parseMindroomToolRefHtml');
     expect(htmlBlocksSource).toContain('getMindroomToolTraceEvents');
+    expect(customHtmlPolicySource).toContain('data-mindroom-paste-marker');
+    expect(customHtmlPolicySource).toContain('data-mx-maths');
+    expect(customHtmlRendererSource).toContain('renderMindroomHtmlBlock');
+    expect(customHtmlRendererSource).toContain('renderMatrixMathHtmlElement');
+    expect(matrixMathStyleSource).toContain('MathInline');
+    expect(matrixMathStyleSource).toContain('MathBlock');
     expect(htmlBlocksStyleSource).toContain('ToolGroupItem');
     expect(threadSummaryCardSource).toContain('MindroomThreadSummaryCard');
     expect(messageControlsSource).toContain('useMindroomMessageControls');
