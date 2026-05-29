@@ -97,30 +97,42 @@ export const createUploadAtom = (file: TUploadContent) => {
 };
 export type TUploadAtom = ReturnType<typeof createUploadAtom>;
 
+export type UploadBindOptions = {
+  hideFilename?: boolean;
+  blockUploadError?: MatrixError;
+};
+
+const getUploadBindOptions = (options?: boolean | UploadBindOptions): UploadBindOptions =>
+  typeof options === 'boolean' ? { hideFilename: options } : options ?? {};
+
 export const useBindUploadAtom = (
   mx: MatrixClient,
   uploadAtom: TUploadAtom,
-  hideFilename?: boolean
+  options?: boolean | UploadBindOptions
 ) => {
   const [upload, setUpload] = useAtom(uploadAtom);
   const { file } = upload;
+  const { hideFilename, blockUploadError } = getUploadBindOptions(options);
 
   const handleProgress = useThrottle(
     useCallback((progress: UploadProgress) => setUpload({ progress }), [setUpload]),
     { immediate: true, wait: 200 }
   );
 
-  const startUpload = useCallback(
-    () =>
-      uploadContent(mx, file, {
-        hideFilename,
-        onPromise: (promise: Promise<UploadResponse>) => setUpload({ promise }),
-        onProgress: handleProgress,
-        onSuccess: (mxc) => setUpload({ mxc }),
-        onError: (error) => setUpload({ error }),
-      }),
-    [mx, file, hideFilename, setUpload, handleProgress]
-  );
+  const startUpload = useCallback(() => {
+    if (blockUploadError) {
+      setUpload({ error: blockUploadError });
+      return Promise.resolve();
+    }
+
+    return uploadContent(mx, file, {
+      hideFilename,
+      onPromise: (promise: Promise<UploadResponse>) => setUpload({ promise }),
+      onProgress: handleProgress,
+      onSuccess: (mxc) => setUpload({ mxc }),
+      onError: (error) => setUpload({ error }),
+    });
+  }, [mx, file, hideFilename, blockUploadError, setUpload, handleProgress]);
 
   const cancelUpload = useCallback(async () => {
     if (upload.status === UploadStatus.Loading) {

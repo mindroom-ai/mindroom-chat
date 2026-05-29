@@ -1,6 +1,7 @@
 /* eslint-disable no-param-reassign */
 import React, {
   ClipboardEventHandler,
+  CSSProperties,
   KeyboardEventHandler,
   ReactNode,
   forwardRef,
@@ -35,9 +36,13 @@ const withInline = (editor: Editor): Editor => {
   const { isInline } = editor;
 
   editor.isInline = (element) =>
-    [BlockType.Mention, BlockType.Emoticon, BlockType.Link, BlockType.Command].includes(
-      element.type
-    ) || isInline(element);
+    [
+      BlockType.Mention,
+      BlockType.Emoticon,
+      BlockType.Link,
+      BlockType.Command,
+      BlockType.PasteMarker,
+    ].includes(element.type) || isInline(element);
 
   return editor;
 };
@@ -46,8 +51,9 @@ const withVoid = (editor: Editor): Editor => {
   const { isVoid } = editor;
 
   editor.isVoid = (element) =>
-    [BlockType.Mention, BlockType.Emoticon, BlockType.Command].includes(element.type) ||
-    isVoid(element);
+    [BlockType.Mention, BlockType.Emoticon, BlockType.Command, BlockType.PasteMarker].includes(
+      element.type
+    ) || isVoid(element);
 
   return editor;
 };
@@ -65,6 +71,7 @@ type CustomEditorProps = {
   before?: ReactNode;
   after?: ReactNode;
   maxHeight?: string;
+  style?: CSSProperties;
   editor: Editor;
   placeholder?: string;
   onKeyDown?: KeyboardEventHandler;
@@ -80,7 +87,8 @@ export const CustomEditor = forwardRef<HTMLDivElement, CustomEditorProps>(
       bottom,
       before,
       after,
-      maxHeight = '50vh',
+      maxHeight = 'min(50dvh, calc(var(--app-height, 100vh) * 0.5))',
+      style,
       editor,
       placeholder,
       onKeyDown,
@@ -119,7 +127,7 @@ export const CustomEditor = forwardRef<HTMLDivElement, CustomEditorProps>(
     );
 
     return (
-      <div className={css.Editor} ref={ref}>
+      <div className={css.Editor} style={style} ref={ref}>
         <Slate editor={editor} initialValue={initialValue} onChange={onChange}>
           {top}
           <Box alignItems="Start">

@@ -3,8 +3,12 @@ import { Box, Chip, Icon, IconButton, Icons, Text, color, config, toRem } from '
 import { UploadCard, UploadCardError, UploadCardProgress } from './UploadCard';
 import { UploadStatus, UploadSuccess, useBindUploadAtom } from '../../state/upload';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { TUploadContent } from '../../utils/matrix';
-import { bytesToSize, getFileTypeIcon } from '../../utils/common';
+import {
+  TUploadContent,
+  getMatrixUploadErrorMessage,
+  getMatrixUploadTooLargeMessage,
+} from '../../utils/matrix';
+import { getFileTypeIcon } from '../../utils/common';
 import {
   roomUploadAtomFamily,
   TUploadItem,
@@ -114,15 +118,23 @@ export function UploadCardRenderer({
 }: UploadCardRendererProps) {
   const mx = useMatrixClient();
   const mediaConfig = useMediaConfig();
-  const allowSize = mediaConfig['m.upload.size'] || Infinity;
+  const allowSize = mediaConfig['m.upload.size'] ?? Infinity;
+  const maxUploadSize = Number.isFinite(allowSize) ? allowSize : undefined;
 
   const uploadAtom = roomUploadAtomFamily(fileItem.file);
   const { metadata } = fileItem;
-  const { upload, startUpload, cancelUpload } = useBindUploadAtom(mx, uploadAtom, isEncrypted);
+  const encryptedPrepErrorBlock =
+    isEncrypted && fileItem.prepError && !fileItem.encInfo ? fileItem.prepError : undefined;
+  const { upload, startUpload, cancelUpload } = useBindUploadAtom(mx, uploadAtom, {
+    hideFilename: !!fileItem.encInfo,
+    blockUploadError: encryptedPrepErrorBlock,
+  });
   const { file } = upload;
   const fileSizeExceeded = file.size >= allowSize;
+  const uploadError =
+    fileItem.prepError ?? (upload.status === UploadStatus.Error ? upload.error : undefined);
 
-  if (upload.status === UploadStatus.Idle && !fileSizeExceeded) {
+  if (upload.status === UploadStatus.Idle && !fileSizeExceeded && !fileItem.prepError) {
     startUpload();
   }
 
@@ -147,7 +159,7 @@ export function UploadCardRenderer({
       before={<Icon src={getFileTypeIcon(Icons, file.type)} />}
       after={
         <>
-          {upload.status === UploadStatus.Error && (
+          {upload.status === UploadStatus.Error && !fileItem.prepError && (
             <Chip
               as="button"
               onClick={startUpload}
@@ -182,23 +194,33 @@ export function UploadCardRenderer({
               <PreviewVideo fileItem={fileItem} />
             </MediaPreview>
           )}
-          {upload.status === UploadStatus.Idle && !fileSizeExceeded && (
+          {upload.status === UploadStatus.Idle && !fileSizeExceeded && !uploadError && (
             <UploadCardProgress sentBytes={0} totalBytes={file.size} />
           )}
           {upload.status === UploadStatus.Loading && (
             <UploadCardProgress sentBytes={upload.progress.loaded} totalBytes={file.size} />
           )}
-          {upload.status === UploadStatus.Error && (
-            <UploadCardError>
-              <Text size="T200">{upload.error.message}</Text>
-            </UploadCardError>
-          )}
-          {upload.status === UploadStatus.Idle && fileSizeExceeded && (
+          {uploadError && (
             <UploadCardError>
               <Text size="T200">
-                The file size exceeds the limit. Maximum allowed size is{' '}
-                <b>{bytesToSize(allowSize)}</b>, but the uploaded file is{' '}
-                <b>{bytesToSize(file.size)}</b>.
+                {getMatrixUploadErrorMessage(
+                  uploadError,
+                  fileItem.prepError ? 'create' : 'upload',
+                  {
+                    fileSize: file.size,
+                    maxUploadSize,
+                  }
+                )}
+              </Text>
+            </UploadCardError>
+          )}
+          {upload.status === UploadStatus.Idle && fileSizeExceeded && !uploadError && (
+            <UploadCardError>
+              <Text size="T200">
+                {getMatrixUploadTooLargeMessage({
+                  fileSize: file.size,
+                  maxUploadSize: allowSize,
+                })}
               </Text>
             </UploadCardError>
           )}
