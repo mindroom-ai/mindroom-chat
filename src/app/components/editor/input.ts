@@ -16,7 +16,6 @@ import {
   MentionElement,
   OrderedListElement,
   ParagraphElement,
-  PasteMarkerElement,
   UnorderedListElement,
 } from './slate';
 import { createEmoticonElement, createMentionElement } from './utils';
@@ -31,12 +30,14 @@ import {
   escapeMarkdownInlineSequences,
   escapeMarkdownBlockSequences,
 } from '../../plugins/markdown';
-import { parseMindroomPasteMarker } from '../../mindroom/messages/pasteAttachmentMarker';
+import {
+  getMindroomEditorMathText,
+  getMindroomEditorPasteMarkerElement,
+  isMindroomEditorMathBlockElement,
+  parseMindroomEditorMathBlock,
+} from '../../mindroom/editor/MindroomEditorExtensions';
 
 type ProcessTextCallback = (text: string) => string;
-
-const formatMathMarkdown = (latex: string, displayMode: boolean): string =>
-  displayMode ? `$$${latex}$$` : `$${latex}$`;
 
 const getText = (node: ChildNode): string => {
   if (isText(node)) {
@@ -46,16 +47,6 @@ const getText = (node: ChildNode): string => {
     return node.children.map((child) => getText(child)).join('');
   }
   return '';
-};
-
-const getMathLatex = (node: Element): string | undefined => {
-  const latex = node.attribs['data-mx-maths'];
-  if (typeof latex === 'string' && latex.length > 0) {
-    return latex;
-  }
-
-  const text = getText(node);
-  return text.length > 0 ? text : undefined;
 };
 
 const getInlineNodeMarkType = (node: Element): MarkType | undefined => {
@@ -148,24 +139,6 @@ const getInlineNonMarkElement = (node: Element): MentionElement | EmoticonElemen
   return undefined;
 };
 
-const getPasteMarkerElement = (node: Element): PasteMarkerElement | undefined => {
-  if (node.name !== 'span' || node.attribs['data-mindroom-paste-marker'] !== 'true') {
-    return undefined;
-  }
-
-  const marker = parseMindroomPasteMarker(getText(node));
-  if (!marker) return undefined;
-
-  return {
-    type: BlockType.PasteMarker,
-    id: marker.id,
-    chars: marker.chars,
-    fileName: marker.fileName,
-    marker: marker.raw,
-    children: [{ text: '' }],
-  };
-};
-
 const getInlineElement = (
   node: ChildNode,
   processText: ProcessTextCallback,
@@ -176,16 +149,10 @@ const getInlineElement = (
   }
 
   if (isTag(node)) {
-    const mathLatex =
-      (node.name === 'span' || node.name === 'div') && node.attribs['data-mx-maths'] !== undefined
-        ? getMathLatex(node)
-        : undefined;
-    if (mathLatex) {
-      const displayMode = node.name === 'div';
-      return [{ text: markdown ? formatMathMarkdown(mathLatex, displayMode) : mathLatex }];
-    }
+    const mathText = getMindroomEditorMathText(node, getText, markdown);
+    if (mathText) return [{ text: mathText }];
 
-    const pasteMarker = getPasteMarkerElement(node);
+    const pasteMarker = getMindroomEditorPasteMarkerElement(node, getText);
     if (pasteMarker) return [pasteMarker];
 
     const markType = getInlineNodeMarkType(node);
@@ -212,42 +179,6 @@ const getInlineElement = (
   }
 
   return [];
-};
-
-const parseMathBlockNode = (node: Element, markdown?: boolean): ParagraphElement[] => {
-  const latex = getMathLatex(node);
-  if (!latex) return [];
-
-  if (!markdown) {
-    return latex.split('\n').map<ParagraphElement>((lineText) => ({
-      type: BlockType.Paragraph,
-      children: [{ text: lineText }],
-    }));
-  }
-
-  if (!latex.includes('\n')) {
-    return [
-      {
-        type: BlockType.Paragraph,
-        children: [{ text: formatMathMarkdown(latex, true) }],
-      },
-    ];
-  }
-
-  return [
-    {
-      type: BlockType.Paragraph,
-      children: [{ text: '$$' }],
-    },
-    ...latex.split('\n').map<ParagraphElement>((lineText) => ({
-      type: BlockType.Paragraph,
-      children: [{ text: lineText }],
-    })),
-    {
-      type: BlockType.Paragraph,
-      children: [{ text: '$$' }],
-    },
-  ];
 };
 
 const parseBlockquoteNode = (
@@ -486,9 +417,9 @@ export const domToEditorInput = (
         return;
       }
 
-      if (node.name === 'div' && node.attribs['data-mx-maths'] !== undefined) {
+      if (isMindroomEditorMathBlockElement(node)) {
         appendLine();
-        children.push(...parseMathBlockNode(node, markdown));
+        children.push(...parseMindroomEditorMathBlock(node, getText, markdown));
         return;
       }
 

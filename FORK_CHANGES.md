@@ -2,6 +2,68 @@
 
 ## Runbook
 
+### CINNY-124 - MindRoom editor extension boundary (2026-05-28)
+
+- Status:
+  - Complete locally; rebased on `origin/dev` and PR review comments addressed.
+- Summary:
+  - Added a fork-owned editor namespace under `src/app/mindroom/editor/`.
+  - Moved MindRoom paste-marker editor import/export helpers into
+    `MindroomEditorExtensions.ts`.
+  - Moved Matrix math editor markdown reconstruction helpers into
+    `MindroomEditorExtensions.ts`.
+  - Moved the MindRoom paste-marker Slate renderer into
+    `MindroomEditorElements.tsx`.
+  - Reduced generic editor ownership in `input.ts`, `output.ts`, and
+    `Elements.tsx` to small extension call sites.
+  - PR review follow-up: kept `isMindroomEditorMathElement` internal instead of
+    exporting it, added direct tests for exported helper contracts, and
+    documented risks in this runbook entry.
+- Decisions:
+  - Kept the generic editor's `BlockType.PasteMarker` and Slate
+    `PasteMarkerElement` type as unavoidable schema seams because Slate needs to
+    recognize the atomic node shape.
+  - Kept sanitizer/render/CSS files unchanged in this task; the render pipeline
+    remains separate.
+  - Kept Matrix event output stable by delegating the same paste-marker HTML and
+    plain-text serialization through the new extension API.
+- Risks:
+  - Concurrent render-policy work can make validation failures look editor
+    related; isolate failures by running the focused editor/math/paste-marker
+    tests before investigating renderer CSS setup.
+  - `BlockType.PasteMarker` and `PasteMarkerElement` remain exposed in the
+    generic editor schema; keep the atomic paste-marker node shape stable and
+    route policy changes through the MindRoom editor extension.
+  - Thin call sites in `input.ts`, `output.ts`, and `Elements.tsx` can still
+    regress generic editor behavior during upstream rebases; keep focused
+    editor math and paste-marker tests in normal Vitest discovery.
+  - If Matrix event output changes unexpectedly, compare
+    `pasteMarker.test.ts` serializer expectations and roll back the extension
+    delegation before changing paste-marker marker text or HTML attributes.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/components/editor/Elements.tsx`
+  - `src/app/components/editor/input.ts`
+  - `src/app/components/editor/output.ts`
+  - `src/app/mindroom/editor/MindroomEditorElements.tsx`
+  - `src/app/mindroom/editor/MindroomEditorExtensions.test.ts`
+  - `src/app/mindroom/editor/MindroomEditorExtensions.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/editor/MindroomEditorExtensions.test.ts`
+    initially failed because `MindroomEditorExtensions` did not exist.
+  - Green check: `npm test -- src/app/mindroom/editor/MindroomEditorExtensions.test.ts`
+    (2 tests).
+  - Green check: `npm test -- src/app/components/editor/math.test.ts src/app/components/editor/pasteMarker.test.ts src/app/mindroom/messages/pasteAttachmentMarker.test.ts`
+    (3 files, 15 tests).
+  - Green check after rebase/review follow-up: `npm test -- src/app/mindroom/editor/MindroomEditorExtensions.test.ts src/app/components/editor/math.test.ts src/app/components/editor/pasteMarker.test.ts src/app/mindroom/messages/pasteAttachmentMarker.test.ts`
+    (4 files, 20 tests).
+  - Green check: `npm run typecheck`.
+  - Green independent review: no task-specific findings in the inspected diff.
+  - Green check after rebase: `npm test` (294 files, 2223 tests).
+  - Green check: `git diff --check`.
+- Next steps:
+  - Monitor PR review bots for follow-up comments after the force-push.
+
 ### CINNY-117 - Currency-like dollar text stays out of math rendering (2026-05-28)
 
 - Status:
