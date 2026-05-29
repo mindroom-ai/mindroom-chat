@@ -12,6 +12,7 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
       <table><caption>Rows</caption><thead><tr><th>Name</th></tr></thead><tbody><tr><td>ok</td></tr></tbody></table>
       <pre class="language-js"><code>const value = 1;</code></pre>
       <a href="https://example.test/path?q=1" target="_self" rel="opener">link</a>
+      <a HREF="https://example.test/caps">caps</a>
       <a href="mailto:user@example.test">mail</a>
     `);
 
@@ -24,6 +25,9 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
     expect(sanitized).toContain('<pre class="language-js">');
     expect(sanitized).toContain(
       '<a href="https://example.test/path?q=1" target="_blank" rel="noreferrer noopener">link</a>'
+    );
+    expect(sanitized).toContain(
+      '<a href="https://example.test/caps" target="_blank" rel="noreferrer noopener">caps</a>'
     );
     expect(sanitized).toContain(
       '<a href="mailto:user@example.test" target="_blank" rel="noreferrer noopener">mail</a>'
@@ -42,7 +46,7 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
         <text x="40" y="14" text-anchor="middle" fill="white" font-size="11">passing</text>
       </svg>
       <svg viewBox="0 0 120 60">
-        <defs><marker id="arrow" markerWidth="6" markerHeight="6"><path d="M0,0 L6,3 L0,6 z" fill="currentColor"></path></marker></defs>
+        <defs><marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L6,3 L0,6 z" fill="currentColor"></path></marker></defs>
         <g transform="translate(4 4)" opacity="0.9">
           <rect x="0" y="0" width="42" height="20" ry="2" stroke="black" fill="none"></rect>
           <line x1="44" y1="10" x2="78" y2="10" marker-end="url(#arrow)" stroke="black"></line>
@@ -62,7 +66,9 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
     expect(sanitized).toContain(
       '<text x="40" y="14" text-anchor="middle" fill="white" font-size="11">passing</text>'
     );
-    expect(sanitized).toContain('<defs><marker id="arrow">');
+    expect(sanitized).toContain(
+      '<defs><marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto" markerUnits="strokeWidth">'
+    );
     expect(sanitized).toContain(
       '<line x1="44" y1="10" x2="78" y2="10" marker-end="url(#arrow)" stroke="black"></line>'
     );
@@ -71,9 +77,9 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
 
   it('strips SVG script vectors while keeping safe SVG siblings', () => {
     const sanitized = sanitizeMindroomMessageExtraHtml(`
-      <svg onload="alert(1)" style="background:url(javascript:alert(1))" href="javascript:alert(1)" xlink:href="https://evil.example/x.svg#bad">
+      <svg class="safe bad@class -bad" onload="alert(1)" style="background:url(javascript:alert(1))" href="javascript:alert(1)" xlink:href="https://evil.example/x.svg#bad">
         <script>alert(1)</script>
-        <circle cx="50" cy="50" r="40" onclick="alert(1)" fill="red"></circle>
+        <circle cx="50" cy="50" r="40" onclick="alert(1)" fill="red" stroke="url(https://tracker.example/stroke.svg#paint)"></circle>
         <foreignObject><body><script>alert(1)</script></body></foreignObject>
         <use href="https://evil.com/x.svg#bad"></use>
         <image href="https://tracker.example/pixel.png"></image>
@@ -82,12 +88,15 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
         <animateMotion path="M0,0 L10,10"></animateMotion>
         <set attributeName="href" to="javascript:alert(1)"></set>
         <a href="javascript:alert(1)"><text>click</text></a>
+        <path d="M0,0 L1,1" fill="url(https://tracker.example/fill.svg#paint)" marker-start="url(javascript:alert(1))" marker-mid="url(data:image/svg+xml;base64,PHN2Zy8+)" marker-end="url(#safe)"></path>
       </svg>
     `);
 
-    expect(sanitized).toContain('<svg>');
+    expect(sanitized).toContain('<svg class="safe">');
     expect(sanitized).toContain('<circle cx="50" cy="50" r="40" fill="red"></circle>');
+    expect(sanitized).toContain('<path d="M0,0 L1,1" marker-end="url(#safe)"></path>');
     expect(sanitized).toContain('<text>click</text>');
+    const normalized = sanitized.toLowerCase();
     for (const forbidden of [
       'onload',
       'onclick',
@@ -96,7 +105,7 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
       'xlink:href',
       '<script',
       'alert(1)',
-      '<foreignObject',
+      '<foreignobject',
       '<body',
       '<use',
       '<image',
@@ -106,8 +115,13 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
       '<set',
       'tracker.example',
       'evil.com',
+      'url(https:',
+      'url(javascript:',
+      'url(data:',
+      'bad@class',
+      '-bad',
     ]) {
-      expect(sanitized).not.toContain(forbidden);
+      expect(normalized).not.toContain(forbidden.toLowerCase());
     }
   });
 

@@ -42,6 +42,8 @@ const allowedTags = [
   'a',
 ];
 
+// sanitize-html does not track SVG parent context. title/desc are kept as inert
+// text labels for accessible inline SVG, and remain inert if they appear outside SVG.
 const svgTags = [
   'svg',
   'g',
@@ -59,6 +61,15 @@ const svgTags = [
   'title',
   'desc',
 ];
+
+const svgMixedCaseAttributeNames: Record<string, string> = {
+  markerheight: 'markerHeight',
+  markerunits: 'markerUnits',
+  markerwidth: 'markerWidth',
+  refx: 'refX',
+  refy: 'refY',
+  viewbox: 'viewBox',
+};
 
 const svgAttributes = [
   'viewBox',
@@ -95,6 +106,12 @@ const svgAttributes = [
   'marker-end',
   'marker-start',
   'marker-mid',
+  'markerWidth',
+  'markerHeight',
+  'refX',
+  'refY',
+  'orient',
+  'markerUnits',
   'id',
   'class',
 ];
@@ -103,10 +120,11 @@ const allowedSvgAttributes = Object.fromEntries(
   svgTags.map((tag) => [tag, svgAttributes])
 ) as Record<string, string[]>;
 
-const allowedSvgClasses = Object.fromEntries(svgTags.map((tag) => [tag, [/.+/]])) as Record<
-  string,
-  RegExp[]
->;
+const SAFE_SVG_CLASS_PATTERN = /^[A-Za-z_][\w:-]*$/;
+
+const allowedSvgClasses = Object.fromEntries(
+  svgTags.map((tag) => [tag, [SAFE_SVG_CLASS_PATTERN]])
+) as Record<string, RegExp[]>;
 
 const svgTransformTags = Object.fromEntries(svgTags.map((tag) => [tag, transformSvgTag])) as Record<
   string,
@@ -127,6 +145,8 @@ const forbiddenSvgTags = [
 ];
 
 const forbiddenSvgAttributes = new Set(['href', 'xlink:href', 'style']);
+
+const SVG_URL_REFERENCE_PATTERN = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)/gi;
 
 const nonTextTags = [
   'script',
@@ -199,20 +219,38 @@ const transformAnchorTag: Transformer = (tagName, attribs) => {
 };
 
 function transformSvgTag(tagName: string, attribs: Attributes) {
-  const sanitizedAttributes = Object.fromEntries(
-    Object.entries(attribs).filter(([attrName]) => {
-      const normalizedAttrName = attrName.toLowerCase();
-      return (
-        !normalizedAttrName.startsWith('on') && !forbiddenSvgAttributes.has(normalizedAttrName)
-      );
-    })
-  );
+  const sanitizedAttributes: Attributes = {};
+
+  for (const [attrName, attrValue] of Object.entries(attribs)) {
+    const normalizedAttrName = attrName.toLowerCase();
+    if (normalizedAttrName.startsWith('on') || forbiddenSvgAttributes.has(normalizedAttrName)) {
+      continue;
+    }
+    if (hasUnsafeSvgUrlReference(attrValue)) {
+      continue;
+    }
+    const safeAttrName = svgMixedCaseAttributeNames[normalizedAttrName] ?? attrName;
+    sanitizedAttributes[safeAttrName] = attrValue;
+  }
 
   return {
     tagName,
-    attribs: sanitizedAttributes as Attributes,
+    attribs: sanitizedAttributes,
   };
 }
+
+const hasUnsafeSvgUrlReference = (value: string): boolean => {
+  SVG_URL_REFERENCE_PATTERN.lastIndex = 0;
+  for (
+    let match = SVG_URL_REFERENCE_PATTERN.exec(value);
+    match !== null;
+    match = SVG_URL_REFERENCE_PATTERN.exec(value)
+  ) {
+    const target = (match[1] ?? match[2] ?? match[3] ?? '').trim();
+    if (!target.startsWith('#')) return true;
+  }
+  return false;
+};
 
 export const sanitizeMindroomMessageExtraHtml = (html: string): string =>
   sanitizeHtml(html, {
@@ -242,7 +280,4 @@ export const sanitizeMindroomMessageExtraHtml = (html: string): string =>
     },
     nonTextTags,
     nestingLimit: MAX_TAG_NESTING,
-    parser: {
-      lowerCaseAttributeNames: false,
-    },
   });

@@ -26,6 +26,32 @@
     and all event handlers remain stripped.
   - Added sanitizer and render tests covering sparkline/status/diagram SVG plus
     adversarial SVG payloads.
+- Review follow-up:
+  - SVG paint and marker attributes now reject external `url(...)`,
+    `javascript:` URL references, and `data:` URL references while preserving
+    internal fragment marker references such as `url(#arrow)`.
+  - Restored sanitize-html's default case-insensitive HTML parsing so uppercase
+    HTML attributes like `HREF` are normalized safely, then explicitly restores
+    only the SVG camelCase attributes needed for `viewBox` and marker geometry.
+  - SVG class allowlisting now accepts only simple identifier-like class tokens
+    instead of any class string.
+- Risks:
+  - `title` and `desc` are allowed as inert text labels because sanitize-html
+    does not enforce SVG-only parent context; they may also survive outside SVG,
+    but without scripting or external-resource attributes.
+  - SVG paint values still allow plain colors, `none`, `currentColor`, and
+    internal fragment `url(#...)` references; future support for richer CSS-like
+    paint syntax should add value-level tests before broadening this list.
+  - MindRoom server-side message-extras sanitization could not be changed in
+    this worktree because the mounted server checkout did not contain the
+    described writer path.
+- Next steps:
+  - Owner: PR reviewer verifies the production deployment path for Cinny uses
+    this sanitizer before rendering message extras.
+  - Owner: MindRoom server maintainer applies the same SVG allowlist server-side
+    if the message-extras sanitizer exists in a private or different checkout.
+  - Owner: product/agent workflow owner captures live lab evidence after this PR
+    is deployed to the lab Cinny build.
 - Files changed:
   - `FORK_CHANGES.md`
   - `src/app/mindroom/messages/messageExtrasHtml.ts`
@@ -47,6 +73,19 @@
   - Live browser evidence was not captured in this chat-thread worktree; the
     sanitizer/render unit tests verify the production render path used by
     message extras.
+  - Review red check: focused sanitizer tests failed before follow-up fixes for
+    uppercase `HREF`, marker geometry attributes, and external SVG `url(...)`
+    references.
+  - Review green check: `npm test -- src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`.
+  - Review green check:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/messages/messageExtrasHtml.ts src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`.
+  - Review green check: `npm run typecheck`.
+  - Review green check: `npm run lint` completed with the existing warning-only
+    baseline (`16` warnings, `0` errors).
+  - Review green check: `npm test` passed (`276` files, `2057` tests).
+  - Review green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Review green check: `git diff --check`.
 
 ### CINNY-128 - Remove transient planning and completion docs (2026-05-29)
 
