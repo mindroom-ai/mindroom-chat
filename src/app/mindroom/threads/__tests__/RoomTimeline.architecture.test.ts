@@ -92,6 +92,8 @@ describe('RoomTimeline architecture', () => {
     expect(roomViewSource).toContain("from './MindroomRoomTimeline'");
     expect(roomViewSource).not.toContain("from '../../features/room/RoomInput'");
     expect(roomViewSource).not.toContain("from '../../features/room/RoomTimeline'");
+    expect(readRoomSource()).toContain("from '../../mindroom/threads/MindroomCallChatView'");
+    expect(readRoomSource()).not.toContain("from '../../features/room/CallChatView'");
     expect(timelineSource).toContain("from '../messages/MindroomMessage'");
     expect(timelineSource).not.toContain("from '../../features/room/message'");
     expect(pinMenuSource).toContain("from '../../features/room/message/EncryptedContent'");

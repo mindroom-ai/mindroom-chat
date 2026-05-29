@@ -20,7 +20,7 @@ import {
   applyVoicePlaybackRate,
   voiceMessagePlaybackRateAtom,
   voiceMessageVolumeAtom,
-} from '../../../state/voiceMessageSettings';
+} from '../../../mindroom/settings/voiceMessageSettings';
 import {
   VoicePlaybackRateButton,
   VoicePlaybackRatePlaceholder,

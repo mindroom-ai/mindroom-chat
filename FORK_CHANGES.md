@@ -219,6 +219,239 @@
     sample/runtime config split, native preflight/watch wiring, focused test, and
     this runbook update.
 
+### CINNY-122 - MindRoom settings ownership split (2026-05-28)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Removed MindRoom pagination/preload constants, defaults, exports, and
+    sanitizer ownership from generic `src/app/state/settings.ts`.
+  - Added `src/app/mindroom/settings/mindroomSettings.ts` as the MindRoom
+    settings atom wrapper. It exposes the fork-owned `paginationLimit` setting,
+    sanitizes it through `src/app/mindroom/threads/preloadSettings.ts`, and
+    writes it back through the existing generic settings object for storage
+    compatibility.
+  - Moved voice playback-rate and voice-message volume settings from
+    `src/app/state/voiceMessageSettings.ts` into
+    `src/app/mindroom/settings/voiceMessageSettings.ts`; voice UI/content
+    consumers now import the MindRoom-owned module directly.
+  - Generalized `src/app/state/hooks/settings.ts` so fork-owned settings atoms
+    can reuse the same typed setting hook without extending the generic
+    `Settings` interface.
+  - Added direct `preloadSettings` sanitizer tests under the MindRoom thread
+    namespace and updated source-ownership coverage for generic settings.
+- Compatibility:
+  - The pagination limit still reads from and writes to the existing
+    `localStorage["settings"].paginationLimit` field. No new key or migration is
+    required for existing users.
+  - Voice playback compatibility is unchanged: the existing
+    `voiceMessagePlaybackRate` and `voiceMessageVolume` localStorage keys are
+    preserved.
+- Validation:
+  - Green: `npm test -- src/app/state/settings.test.ts src/app/mindroom/settings/mindroomSettings.test.ts src/app/mindroom/settings/voiceMessageSettings.test.ts src/app/mindroom/settings/MindroomMessagePreloadLimitSetting.test.ts`.
+  - Green: `npm test -- src/app/mindroom/threads/preloadSettings.test.ts src/app/mindroom/threads/timelinePagination.test.ts src/app/mindroom/threads/threadPaginationUtils.test.ts src/app/mindroom/threads/roomPaginationCommandController.test.ts src/app/mindroom/threads/threadBackPaginationController.test.ts src/app/mindroom/settings/mindroomSettings.test.ts src/app/mindroom/settings/MindroomMessagePreloadLimitSetting.test.ts src/app/mindroom/settings/voiceMessageSettings.test.ts src/app/components/voice/VoicePlaybackRateButton.test.ts src/app/components/message/content/VoiceAudioContent.test.ts`.
+  - Green: `npm run typecheck`.
+  - Green: `git diff --check`.
+
+### CINNY-121 - Room feature re-export ownership reduction (2026-05-28)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Moved the call-chat room shell used by MindRoom production from
+    `src/app/features/room/CallChatView.tsx` into
+    `src/app/mindroom/threads/MindroomCallChatView.tsx`.
+  - `MindroomRoom.tsx` now imports the MindRoom call-chat shell directly, so
+    MindRoom production no longer depends on the `features/room/CallChatView`
+    -> `features/room/RoomView` compatibility path.
+  - Added a focused architecture assertion that MindRoom room production code
+    must import `MindroomCallChatView` directly and must not import the
+    upstream-owned `features/room/CallChatView` wrapper.
+- Rebase notes:
+  - Production imports no longer require the compatibility re-export files
+    `Room.tsx`, `RoomView.tsx`, `RoomTimeline.tsx`, `RoomViewHeader.tsx`,
+    `RoomInput.tsx`, or `CallChatView.tsx` to remain MindRoom-owned.
+  - A clean-history pass can restore those room feature files closer to
+    upstream `v4.11.1`/`v4.12.2` from a production-behavior standpoint.
+    Current MindRoom tests still import the compatibility re-exports heavily;
+    either migrate those tests to direct MindRoom imports or keep temporary
+    test-only compatibility until that migration is complete.
+  - Do not implicitly port upstream `v4.12.2` call-session/header behavior in
+    this pass. If MindRoom production needs parity, explicitly port
+    `useCallEmbed`, `useCallSession`, `useCallMembers`, LiveKit support, and
+    call-start header controls into the MindRoom room shell/header later.
+- Validation:
+  - Red check: dependency-free source assertion failed while `MindroomRoom.tsx`
+    still imported `../../features/room/CallChatView`.
+  - Green: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts src/app/mindroom/threads/__tests__/Room.test.ts`
+    (2 files, 102 tests).
+  - Green: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts -t "keeps MindRoom-owned room modules off their compatibility re-export seams"`.
+  - Green: `npm test -- src/app/mindroom/threads/__tests__/Room.test.ts`
+    (9 tests).
+  - Green: `npm run typecheck`.
+  - Green: `git diff --check`.
+
+### CINNY-119 - Package dependency ownership audit (2026-05-28)
+
+- Status:
+  - Audit complete; no package or lockfile changes made.
+- Scope checked:
+  - Compared `package.json` direct dependencies against upstream `v4.11.1` base
+    `6a05ff58`, current fork `HEAD`, and upstream `dev` / `v4.12.2`
+    `80fd8863`.
+  - Checked `package-lock.json` through the root manifest relationship, the
+    `patches/**` hook, package-driven scripts, Vite/Vitest/Playwright config,
+    and Android/iOS Capacitor generated package references.
+- Dependency ownership buckets:
+  | Bucket | Dependencies / scripts | Ownership note |
+  | --- | --- | --- |
+  | Upstream dependency upgrades to adopt during rebase | `matrix-js-sdk` `38.2.0 -> 41.5.0`, `matrix-widget-api` `1.13.0 -> 1.16.1`, `sanitize-html` `2.12.1 -> 2.17.4`, `@types/sanitize-html` `2.9.0 -> 2.16.1`, `@element-hq/element-call-embedded` `0.16.3 -> 0.19.1`; upstream-only `cz-conventional-changelog`, `husky`, `lint-staged`, `bump`, `commit`, and `prepare` scripts. | Keep these in an upstream-adoption/rebase commit. Re-evaluate `patches/matrix-js-sdk+38.2.0.patch` when adopting the newer SDK because the patch is version-tied to `38.2.0`. |
+  | MindRoom product/runtime dependencies | `@basnijholt/particular-drift`, `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@tabler/icons-react`, `fuse.js`, `katex`, plus `workbox-precaching` and `workbox-routing` for the forked service worker. | These are fork-owned product/runtime choices with direct imports from `src/**` or `src/sw.ts`. |
+  | Native mobile dependencies | `@capacitor/android`, `@capacitor/app`, `@capacitor/browser`, `@capacitor/core`, `@capacitor/ios`, `@capacitor/keyboard`, `@capacitor/push-notifications`, `@capacitor/status-bar`, `@capacitor/cli`; generated native references also include `@capacitor/app-launcher`, `@capacitor/haptics`, and `@capacitor/splash-screen`. | Keep native packaging in a mobile-owned commit together with `capacitor.config.ts`, `android/**`, `ios/**`, and `npx cap sync` output. |
+  | Test/tooling dependencies | `vitest`, `jsdom`, `react-test-renderer`, `@types/react-test-renderer`, `@playwright/test`, `typescript` `5.4.2`, `eslint` `8.57.1`, `@typescript-eslint/eslint-plugin` `6.21.0`, `@typescript-eslint/parser` `6.21.0`, `patch-package`. | Keep Vitest/Playwright/test renderer in a test harness commit. Keep TypeScript/ESLint upgrades either with test/tooling or a separate tooling bump commit. `patch-package` belongs with the Matrix SDK patch commit. |
+  | Obsolete candidates, not removed in this audit | `@capacitor/app-launcher`, `@capacitor/haptics`, `@capacitor/splash-screen`. | No direct JS imports or explicit `capacitor.config.ts` plugin config were found, but they are present in generated Android Gradle files, iOS Podfile, and `Podfile.lock`. Removing them would require deliberate `npx cap sync` churn plus Android/iOS validation, so it is not safe as a lockfile-only cleanup. |
+  | Inherited unchanged dependencies with no current direct references | `@atlaskit/pragmatic-drag-and-drop-hitbox`, `dateformat`. | Present unchanged in base `v4.11.1`, current fork, and upstream `v4.12.2`. They are not fork-added dependency drift, so leave them to an upstream dependency-cleanup commit unless a separate source audit removes them with upstream parity. |
+- Decision:
+  - Do not remove dependencies or regenerate `package-lock.json` in this audit.
+    The fork-added dependencies are either actively imported, part of the native
+    generated package set, or tied to the current Matrix SDK patching strategy.
+    The two unreferenced direct dependencies found in the current manifest are
+    inherited unchanged from upstream/base and are not safe fork-only lockfile
+    cleanup candidates.
+- Recommended clean commit boundaries:
+  1. Upstream dependency adoption: accept upstream `matrix-js-sdk`,
+     `matrix-widget-api`, `sanitize-html`, `@types/sanitize-html`,
+     `@element-hq/element-call-embedded`, and upstream npm workflow scripts.
+  2. Matrix SDK patch strategy: either drop
+     `patches/matrix-js-sdk+38.2.0.patch` if the upstream SDK has the fix, or
+     refresh it as a version-specific patch against the adopted SDK.
+  3. MindRoom runtime UI/search/math/worker dependencies: keep
+     `particular-drift`, `@dnd-kit/*`, `@tabler/icons-react`, `fuse.js`,
+     `katex`, and Workbox imports with their owning feature commits.
+  4. Native mobile packaging: keep all `@capacitor/*` dependencies with
+     `capacitor.config.ts`, `android/**`, `ios/**`, generated Pod/Gradle files,
+     and mobile CI scripts.
+  5. Test/tooling harness: keep Vitest, Playwright, jsdom, react-test-renderer,
+     TypeScript, and ESLint changes with test/config additions.
+- Validation:
+  - Green: `npm install --package-lock-only --ignore-scripts --no-audit --no-fund --dry-run`.
+  - Green: `npx patch-package --error-on-fail` reapplied
+    `matrix-js-sdk@38.2.0`.
+  - Green: `npm run typecheck`.
+  - Green: `npm run build` passed with existing Vite runtime-config,
+    sourcemap, and chunk-size warnings.
+  - Red: `npm run lint` failed on the pre-existing
+    `src/app/mindroom/html/customHtmlPolicy.test.ts` `no-script-url` lint
+    error; it also reported existing warnings.
+  - Red: `npm test` failed in unrelated existing tests:
+    `src/app/mindroom/messages/renderMindroomMessageContent.test.ts`
+    (`vanilla-extract` file-scope setup error, 18 failed tests) and
+    `src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts`
+    (one timeout).
+  - Green: independent explorer review found the changed-dependency buckets and
+    no-removal decision sound after adding the inherited-unchanged bucket above.
+  - Green: `git diff --check`.
+
+### CINNY-118 - Soft-reset/recommit preparation plan (2026-05-28)
+
+- Status:
+  - Plan and guardrail prepared; no reset, rebase, squash, or commit performed.
+- Summary:
+  - Added `docs/mindroom-soft-reset-recommit-plan.md` to group the current
+    `v4.11.1..HEAD` tree into clean-history commits by ownership:
+    upstream/dependency adoption, MindRoom namespace core/thread/cache, narrow
+    upstream seams, message rendering/tool calls/long text, composer/commands/paste/voice,
+    native iOS/Android, push/release automation, and tests/docs.
+  - Added `scripts/report-non-mindroom-source-diff.mjs` as a pre-reset guardrail
+    for reporting changed `src/**` files outside `src/app/mindroom/**` relative
+    to a selected base.
+  - The plan preserves the existing CINNY-117 recommendation to handle the
+    upstream `v4.12.2` dependency/call/editor overlap before rewriting history.
+- Validation:
+  - Green: `npx prettier --write docs/mindroom-soft-reset-recommit-plan.md FORK_CHANGES.md scripts/report-non-mindroom-source-diff.mjs`.
+  - Green: `npx prettier --check docs/mindroom-soft-reset-recommit-plan.md FORK_CHANGES.md scripts/report-non-mindroom-source-diff.mjs`.
+  - Green: `node --check scripts/report-non-mindroom-source-diff.mjs`.
+  - Green: `node scripts/report-non-mindroom-source-diff.mjs v4.11.1 HEAD`
+    reports `374` changed non-MindRoom `src/**` files.
+  - Green: `git diff --check`.
+
+### CINNY-117 - Rebaseability audit against upstream v4.12.2 (2026-05-28)
+
+- Status:
+  - Analysis complete; no source behavior changed.
+- Baseline:
+  - Fork base is upstream `v4.11.1` at `6a05ff58`.
+  - Current fork head is `e1d7c390` / `v4.11.1-mindroom.82`.
+  - Current upstream `dev` is `80fd8863` / `v4.12.2`.
+- Measurements:
+  - Fork changes since base: `578` commits, `1074` files, `158765` insertions,
+    `9187` deletions.
+  - Upstream changes since base: `46` commits, `67` files, `3255` insertions,
+    `517` deletions.
+  - Direct file overlap: `32` files.
+  - `git merge-tree --write-tree --messages --merge-base 6a05ff58 upstream/dev HEAD`
+    reports conflicts concentrated in `17` files:
+    `.github/workflows/prod-deploy.yml`, `README.md`, `config.json`,
+    `package-lock.json`, `package.json`, `src/app/components/CallEmbedProvider.tsx`,
+    `src/app/components/editor/input.ts`, `src/app/components/editor/output.ts`,
+    `src/app/features/room/Room.tsx`, `src/app/features/room/RoomTimeline.tsx`,
+    `src/app/features/room/RoomViewHeader.tsx`, `src/app/features/search/Search.tsx`,
+    `src/app/features/settings/about/About.tsx`, `src/app/pages/auth/AuthFooter.tsx`,
+    `src/app/pages/client/WelcomePage.tsx`, `src/app/plugins/markdown/block/parser.ts`,
+    `src/app/state/settings.ts`, and `src/app/styles/CustomHtml.css.ts`.
+  - Most fork code is already isolated under `src/app/mindroom/**` (`466` changed
+    files), but there are still `374` changed non-MindRoom source files.
+- Findings:
+  - History cleanup alone will not make future rebases cheap. The current branch is
+    already much better than the original broad inline thread work because the large
+    room implementations now live under `src/app/mindroom/**`, but upstream-owned
+    integration files still decide the rebase cost.
+  - The highest-risk source divergence is the room/call surface. `Room.tsx`,
+    `RoomTimeline.tsx`, and `RoomViewHeader.tsx` are tiny MindRoom re-export seams,
+    which makes textual resolution simple, but upstream v4.12.2 added call-session
+    behavior in the original `Room` and `RoomViewHeader` files. Keeping the re-export
+    resolution would drop those upstream behaviors unless they are deliberately ported
+    into the MindRoom room shell/header.
+  - The second-highest-risk source divergence is the editor/custom-HTML pipeline:
+    MindRoom paste markers and Matrix math support touch generic parser, serializer,
+    sanitizer, Slate element, CSS, and markdown rule files. Upstream also changed
+    editor parsing and sanitizer dependencies in v4.12.2, so this area should become
+    an explicit extension seam before the next large upstream jump.
+  - Package/config/workflow conflicts are predictable but recurring. `package.json`
+    and `package-lock.json` contain both fork-only mobile/test dependencies and
+    upstream dependency upgrades (`matrix-js-sdk`, `matrix-widget-api`,
+    `@element-hq/element-call-embedded`, `sanitize-html`, `husky`, `lint-staged`).
+    `config.json` is fork-branded runtime policy replacing upstream examples.
+  - Product branding pages (`WelcomePage`, `AuthFooter`, `About`, `README`) are small
+    but still conflict whenever upstream changes copy/version text.
+- Recommended simplification queue:
+  1. Rebase onto upstream `v4.12.2` before rewriting history, then make the cleaned
+     stack start from that verified base. Otherwise the clean commits will still have
+     to absorb the v4.12.2 dependency/call/editor drift later.
+  2. Restore unused upstream room files where production already imports
+     `src/app/mindroom/**` directly. In particular, consider keeping upstream's
+     `features/room/Room*` files as upstream-owned files and remove compatibility
+     re-export tests/imports that force those files to be fork-owned. Port only the
+     upstream behaviors needed by the MindRoom room shell/header/timeline.
+  3. Introduce one generic editor/render extension boundary for paste markers and math
+     so `input.ts`, `output.ts`, markdown parser/rules, sanitizer allowlists, Slate
+     element rendering, and `CustomHtml.css.ts` do not each carry separate MindRoom
+     edits.
+  4. Move default MindRoom runtime policy out of the upstream sample `config.json`
+     where feasible, for example into `config.mindroom.json`, generated native app
+     config, or a MindRoom runtime overlay. Keep `config.json` close to upstream or
+     treat it as a single intentional fork-owned file.
+  5. Split the future clean history by ownership, not by chronology: upstream base
+     adoption/dependency upgrade, MindRoom namespace implementation, narrow upstream
+     seams, native mobile packaging, CI/release automation, and docs/tests. Keep the
+     seam commit small enough that a future rebase can replay or drop it independently.
+- Validation:
+  - Green: `git fetch --all --tags --prune`.
+  - Green: explicit-worktree `git status --short --branch` is clean.
+  - Green: `git merge-tree --write-tree --messages --merge-base 6a05ff58 upstream/dev HEAD`
+    completed as a non-mutating conflict simulation and produced the conflict list
+    above.
+
 ### CINNY-116 - iOS App Store closed-train version bump (2026-05-20)
 
 - Status:
