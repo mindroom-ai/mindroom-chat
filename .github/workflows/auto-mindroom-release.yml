@@ -17,7 +17,9 @@ jobs:
     name: Create release tag and GitHub release
     runs-on: ubuntu-latest
     outputs:
+      base_version: ${{ steps.version.outputs.base_version }}
       release_tag: ${{ steps.version.outputs.release_tag }}
+      release_iteration: ${{ steps.version.outputs.release_iteration }}
       release_created: ${{ steps.create_release.outputs.created }}
     steps:
       - name: Checkout repository
@@ -133,8 +135,30 @@ jobs:
       - name: Sync Capacitor to Android
         run: npx cap sync android
 
+      - name: Compute Android release metadata
+        id: android_version
+        env:
+          RELEASE_TAG: ${{ needs.release.outputs.release_tag }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import os
+          import re
+
+          release_tag = os.environ["RELEASE_TAG"]
+          match = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)-mindroom\.(\d+)", release_tag)
+          if not match:
+              raise SystemExit(f"Unsupported MindRoom release tag: {release_tag}")
+
+          major, minor, patch, iteration = (int(value) for value in match.groups())
+          version_code = major * 1_000_000 + minor * 10_000 + patch * 100 + iteration
+          print(f"version_code={version_code}")
+          PY
+
       - name: Build signed release AAB
         working-directory: android
+        env:
+          MINDROOM_ANDROID_VERSION_CODE: ${{ steps.android_version.outputs.version_code }}
+          MINDROOM_ANDROID_VERSION_NAME: ${{ needs.release.outputs.base_version }}
         run: ./gradlew --no-daemon :app:bundleRelease
 
       - name: Verify release AAB signature

@@ -641,8 +641,20 @@
     release is created by CI.
   - The job fails early if required signing or Play service-account secrets are
     missing.
+  - Follow-up fix: GitHub Actions now derives Android release metadata from the
+    MindRoom release tag, passing `MINDROOM_ANDROID_VERSION_CODE` and
+    `MINDROOM_ANDROID_VERSION_NAME` into Gradle. The Android `versionCode` uses
+    a monotonic semantic code such as `v4.12.2-mindroom.3` -> `4120203`, so it
+    does not reset below already-uploaded Play builds when the base version
+    changes.
+  - Operational setup completed on 2026-05-28: created the
+    `MindRoom Play Publisher` service account, stored its JSON as
+    `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`, granted app-scoped Play Console release
+    permissions for `com.mindroom_ai.app`, and enabled the Google Play Android
+    Developer API for the `mindroom-468605` Cloud project.
 - Files changed:
   - `.github/workflows/auto-mindroom-release.yml`
+  - `android/app/build.gradle`
   - `FORK_CHANGES.md`
   - `README.md`
 - Regression tests:

@@ -11,6 +11,9 @@ def requiredUploadKeystoreProperties = ['storeFile', 'storePassword', 'keyAlias'
 def hasUploadKeystoreProperties = requiredUploadKeystoreProperties.every { propertyName ->
     uploadKeystoreProperties[propertyName]?.toString()?.trim()
 }
+def mindroomAndroidVersionCodeOverride = System.getenv('MINDROOM_ANDROID_VERSION_CODE')?.trim()
+def mindroomAndroidVersionCode = mindroomAndroidVersionCodeOverride ? mindroomAndroidVersionCodeOverride.toInteger() : 30
+def mindroomAndroidVersionName = System.getenv('MINDROOM_ANDROID_VERSION_NAME')?.trim() ?: "4.11.1"
 
 android {
     namespace = "com.mindroom_ai.app"
@@ -19,8 +22,8 @@ android {
         applicationId "com.mindroom_ai.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 30
-        versionName "4.11.1"
+        versionCode mindroomAndroidVersionCode
+        versionName mindroomAndroidVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
