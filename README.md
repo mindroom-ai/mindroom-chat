@@ -122,7 +122,7 @@ registration). To turn it on for a deployment:
   "push": {
     "ios": {
       "enabled": true,
-      "appId": "com.mindroom-ai.app.ios",
+      "appId": "chat.mindroom.app",
       "gatewayUrl": "https://YOUR-PUSH-GATEWAY/_matrix/push/v1/notify",
       "appDisplayName": "MindRoom iOS",
       "deviceDisplayName": "MindRoom iOS",
