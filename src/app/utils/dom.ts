@@ -15,31 +15,25 @@ export const isIntersectingScrollView = (
   scrollElement: HTMLElement,
   childElement: HTMLElement
 ): boolean => {
-  const scrollTop = scrollElement.offsetTop + scrollElement.scrollTop;
-  const scrollBottom = scrollTop + scrollElement.offsetHeight;
+  const scrollRect = scrollElement.getBoundingClientRect();
+  const childRect = childElement.getBoundingClientRect();
 
-  const childTop = childElement.offsetTop;
-  const childBottom = childTop + childElement.clientHeight;
-
-  if (childTop >= scrollTop && childTop < scrollBottom) return true;
-  if (childBottom > scrollTop && childBottom <= scrollBottom) return true;
-  if (childTop < scrollTop && childBottom > scrollBottom) return true;
+  if (childRect.top >= scrollRect.top && childRect.top < scrollRect.bottom) return true;
+  if (childRect.bottom > scrollRect.top && childRect.bottom <= scrollRect.bottom) return true;
+  if (childRect.top < scrollRect.top && childRect.bottom > scrollRect.bottom) return true;
   return false;
 };
 
 export const isInScrollView = (scrollElement: HTMLElement, childElement: HTMLElement): boolean => {
-  const scrollTop = scrollElement.offsetTop + scrollElement.scrollTop;
-  const scrollBottom = scrollTop + scrollElement.offsetHeight;
-  return (
-    childElement.offsetTop >= scrollTop &&
-    childElement.offsetTop + childElement.offsetHeight <= scrollBottom
-  );
+  const scrollRect = scrollElement.getBoundingClientRect();
+  const childRect = childElement.getBoundingClientRect();
+  return childRect.top >= scrollRect.top && childRect.bottom <= scrollRect.bottom;
 };
 
 export const canFitInScrollView = (
   scrollElement: HTMLElement,
   childElement: HTMLElement
-): boolean => childElement.offsetHeight < scrollElement.offsetHeight;
+): boolean => childElement.getBoundingClientRect().height < scrollElement.getBoundingClientRect().height;
 
 export type FilesOrFile<T extends boolean | undefined = undefined> = T extends true ? File[] : File;
 
@@ -59,23 +53,65 @@ export const selectFile = <M extends boolean | undefined = undefined>(
   multiple?: M
 ): Promise<FilesOrFile<M> | undefined> =>
   new Promise((resolve) => {
+    // iOS WKWebView (Capacitor host) silently drops the `change` event
+    // when the <input> is not attached to the document. Mount it
+    // off-screen so selection events fire reliably on iOS while staying
+    // invisible / inert on every other platform.
     const input = document.createElement('input');
     input.type = 'file';
     if (accept) input.accept = accept;
     if (multiple) input.multiple = true;
+    input.style.position = 'fixed';
+    input.style.opacity = '0';
+    input.style.pointerEvents = 'none';
+    input.style.left = '-9999px';
+    input.setAttribute('aria-hidden', 'true');
+    input.tabIndex = -1;
 
-    const changeHandler = () => {
-      const fileList = input.files;
-      if (!fileList) {
-        resolve(undefined);
-      } else {
-        const files: File[] = getFilesFromFileList(fileList);
-        resolve((multiple ? files : files[0]) as FilesOrFile<M>);
-      }
+    let settled = false;
+
+    const cleanup = () => {
       input.removeEventListener('change', changeHandler);
+      input.removeEventListener('cancel', cancelHandler);
+      input.remove();
     };
 
+    const finalize = (value: FilesOrFile<M> | undefined) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
+
+    const resolveFromInput = () => {
+      const fileList = input.files;
+      if (!fileList || fileList.length === 0) {
+        finalize((multiple ? [] : undefined) as FilesOrFile<M> | undefined);
+        return;
+      }
+
+      const files = getFilesFromFileList(fileList);
+      if (files.length === 0) {
+        finalize((multiple ? [] : undefined) as FilesOrFile<M> | undefined);
+        return;
+      }
+      finalize((multiple ? files : files[0]) as FilesOrFile<M>);
+    };
+
+    const changeHandler = () => {
+      resolveFromInput();
+    };
+
+    // Use the native file-input cancel event rather than inferring
+    // dismissal from window focus. Focus can return before a valid
+    // late change event on iOS WKWebView and drop real selections.
+    const cancelHandler = () => {
+      finalize(undefined);
+    };
+
+    document.body.appendChild(input);
     input.addEventListener('change', changeHandler);
+    input.addEventListener('cancel', cancelHandler);
     input.click();
   });
 
@@ -98,6 +134,17 @@ export const getImageUrlBlob = async (url: string) => {
 export const getImageFileUrl = (fileOrBlob: File | Blob) => URL.createObjectURL(fileOrBlob);
 
 export const getVideoFileUrl = (fileOrBlob: File | Blob) => URL.createObjectURL(fileOrBlob);
+
+export const pauseAllMediaElements = () => {
+  if (typeof document === 'undefined') return;
+
+  document.querySelectorAll('audio, video').forEach((element) => {
+    const mediaElement = element as Element & { pause?: () => void };
+    if (typeof mediaElement.pause === 'function') {
+      mediaElement.pause();
+    }
+  });
+};
 
 export const loadImageElement = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Box, Text, color } from 'folds';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { SSOAction } from 'matrix-js-sdk';
 import { useAuthServer } from '../../../hooks/useAuthServer';
 import { RegisterFlowStatus, useAuthFlows } from '../../../hooks/useAuthFlows';
@@ -12,6 +12,14 @@ import { SupportedUIAFlowsLoader } from '../../../components/SupportedUIAFlowsLo
 import { getLoginPath } from '../../pathUtils';
 import { usePathWithOrigin } from '../../../hooks/usePathWithOrigin';
 import { RegisterPathSearchParams } from '../../paths';
+import { useClientConfig } from '../../../hooks/useClientConfig';
+import { hasAppleIdentityProvider } from '../ssoProviders';
+import { isAddAccountSearch, withAddAccountSearch } from '../addAccount';
+import {
+  getMindroomAuthSsoRedirectUrl,
+  shouldRequireAppleProvider,
+  shouldUseSsoOnlyRegistration,
+} from '../../../mindroom/auth/authUi';
 
 const useRegisterSearchParams = (searchParams: URLSearchParams): RegisterPathSearchParams =>
   useMemo(
@@ -25,19 +33,46 @@ const useRegisterSearchParams = (searchParams: URLSearchParams): RegisterPathSea
 
 export function Register() {
   const server = useAuthServer();
+  const { auth } = useClientConfig();
   const { loginFlows, registerFlows } = useAuthFlows();
   const [searchParams] = useSearchParams();
   const registerSearchParams = useRegisterSearchParams(searchParams);
+  const addAccount = isAddAccountSearch(searchParams);
   const { sso } = useParsedLoginFlows(loginFlows.flows);
+  const registrationAllowed = auth?.allowRegistration !== false;
+  const requireAppleProvider = shouldRequireAppleProvider(server, auth);
+  const appleProviderAvailable = hasAppleIdentityProvider(sso?.identity_providers);
+  const ssoOnlyRegistration = shouldUseSsoOnlyRegistration(server);
+  const showPasswordRegistration =
+    registerFlows.status === RegisterFlowStatus.FlowRequired && !ssoOnlyRegistration;
 
   // redirect to /login because only that path handle m.login.token
-  const ssoRedirectUrl = usePathWithOrigin(getLoginPath(server));
+  const webSsoRedirectUrl = usePathWithOrigin(getLoginPath(server));
+  const ssoRedirectUrl = useMemo(() => {
+    const redirectPath = addAccount ? withAddAccountSearch(webSsoRedirectUrl) : webSsoRedirectUrl;
+    return getMindroomAuthSsoRedirectUrl(redirectPath);
+  }, [addAccount, webSsoRedirectUrl]);
+
+  if (!registrationAllowed) {
+    return <Navigate to={addAccount ? withAddAccountSearch(getLoginPath(server)) : getLoginPath(server)} replace />;
+  }
 
   return (
     <Box direction="Column" gap="500">
       <Text size="H2" priority="400">
         Register
       </Text>
+      {requireAppleProvider && !appleProviderAvailable && (
+        <Text style={{ color: color.Critical.Main }} size="T300">
+          This client requires Sign in with Apple. Configure the homeserver SSO provider list to
+          include Apple.
+        </Text>
+      )}
+      {ssoOnlyRegistration && (
+        <Text style={{ color: color.Warning.Main }} size="T300">
+          This homeserver only allows sign up with Apple, Google, or GitHub.
+        </Text>
+      )}
       {registerFlows.status === RegisterFlowStatus.RegistrationDisabled && !sso && (
         <Text style={{ color: color.Critical.Main }} size="T300">
           Registration has been disabled on this homeserver.
@@ -53,7 +88,7 @@ export function Register() {
           Invalid Request! Failed to get any registration options.
         </Text>
       )}
-      {registerFlows.status === RegisterFlowStatus.FlowRequired && (
+      {showPasswordRegistration && (
         <>
           <SupportedUIAFlowsLoader
             flows={registerFlows.data.flows ?? []}
@@ -71,6 +106,7 @@ export function Register() {
                   defaultUsername={registerSearchParams.username}
                   defaultEmail={registerSearchParams.email}
                   defaultRegisterToken={registerSearchParams.token}
+                  addAccount={addAccount}
                 />
               )
             }
@@ -79,19 +115,27 @@ export function Register() {
           {sso && <OrDivider />}
         </>
       )}
+      {ssoOnlyRegistration && !sso && (
+        <Text style={{ color: color.Critical.Main }} size="T300">
+          SSO registration is required on this homeserver, but no SSO providers were advertised.
+        </Text>
+      )}
       {sso && (
         <>
           <SSOLogin
             providers={sso.identity_providers}
             redirectUrl={ssoRedirectUrl}
             action={SSOAction.REGISTER}
-            saveScreenSpace={registerFlows.status === RegisterFlowStatus.FlowRequired}
+            saveScreenSpace={showPasswordRegistration}
           />
           <span data-spacing-node />
         </>
       )}
       <Text align="Center">
-        Already have an account? <Link to={getLoginPath(server)}>Login</Link>
+        Already have an account?{' '}
+        <Link to={addAccount ? withAddAccountSearch(getLoginPath(server)) : getLoginPath(server)}>
+          Login
+        </Link>
       </Text>
     </Box>
   );
