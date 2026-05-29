@@ -37,7 +37,7 @@ vi.mock('../../components/message', () => ({
   RenderBody: ({ body }: { body: string }) => React.createElement('span', null, body),
 }));
 
-vi.mock('../../plugins/react-custom-html-parser', () => ({
+vi.mock('./MindroomHtmlBlocks', () => ({
   withMindroomToolTraceMarkerParserOptions: toolTraceParserOptionsMock,
 }));
 

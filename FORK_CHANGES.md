@@ -64,6 +64,7 @@
   - PR review follow-up: made sanitizer style policy extension additive for
     matching selectors/properties and kept base security transformers ahead of
     policy-provided overrides.
+  - Rebased onto `origin/dev` after the currency-rendering fix landed.
 - Decisions:
   - Kept `sanitizeCustomHtml()` behavior-compatible by defaulting it to the
     fork-owned MindRoom policy object; generic sanitizer code now merges a
@@ -80,7 +81,11 @@
     4 tests).
   - Green: `npm test -- src/app/mindroom/html/customHtmlPolicy.test.ts src/app/mindroom/html/customHtmlPolicy.architecture.test.ts src/app/plugins/react-custom-html-parser.test.ts src/app/mindroom/messages/MindroomHtmlBlocks.pasteMarker.test.ts src/app/mindroom/messages/messageExtrasHtml.test.ts`.
   - Green: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green: `npm test` (295 files, 2226 tests).
   - Green: `npm run typecheck`.
+  - Green: `npm run lint` (16 warnings, 0 errors - pre-existing baseline).
+  - Green:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/html/customHtmlPolicy.test.ts src/app/utils/sanitize.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts`.
   - Green: `git diff --check`.
 
 ### CINNY-116 - iOS App Store closed-train version bump (2026-05-20)
