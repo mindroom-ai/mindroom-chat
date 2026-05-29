@@ -96,7 +96,10 @@ const {
   },
   threadLastActivityTsMapMock: new Map<string, number>(),
   threadStreamingStateMock: new Map<string, boolean>(),
-  threadResolutionMapMock: new Map<string, { isResolved: boolean; tags: Record<string, unknown> | null }>(),
+  threadResolutionMapMock: new Map<
+    string,
+    { isResolved: boolean; tags: Record<string, unknown> | null }
+  >(),
   stateEventsByTypeMock: new Map<string, unknown[]>(),
   roomThreadListThreadsMock: [] as Array<{ id?: string; rootEvent?: unknown }>,
   ignoredUsersMock: [] as string[],
@@ -232,10 +235,11 @@ vi.mock('../../../state/settings', () => ({
     Bubble: 'Bubble',
     Modern: 'Modern',
   },
-  sanitizePaginationLimit: (v: unknown) =>
-    typeof v === 'number' && Number.isFinite(v) ? Math.max(Math.trunc(v), 50) : 300,
   settingsAtom: {},
-  THREAD_BATCH_SIZE: 200,
+}));
+
+vi.mock('../../settings/mindroomSettings', () => ({
+  mindroomSettingsAtom: {},
 }));
 
 vi.mock('../../../hooks/useRoom', () => ({
@@ -514,13 +518,7 @@ vi.mock('../../messages/MindroomThreadSummaryCard', () => ({
 
 vi.mock('../../../features/room/message', () => ({
   Reactions: passthrough,
-  Message: ({
-    children,
-    ...props
-  }: {
-    children?: React.ReactNode;
-    [key: string]: unknown;
-  }) =>
+  Message: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
     React.createElement(
       passthrough,
       {
@@ -589,13 +587,7 @@ vi.mock('../../../features/room/message/EncryptedContent', () => ({
 }));
 
 vi.mock('../../messages/MindroomMessage', () => ({
-  Message: ({
-    children,
-    ...props
-  }: {
-    children?: React.ReactNode;
-    [key: string]: unknown;
-  }) =>
+  Message: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
     React.createElement(
       passthrough,
       {
@@ -724,7 +716,9 @@ vi.mock('../threadUtils', () => ({
 
     return participants;
   },
-  buildThreadReplyCountMap: (events: Array<{ getId(): string | undefined; threadRootId?: string }>) => {
+  buildThreadReplyCountMap: (
+    events: Array<{ getId(): string | undefined; threadRootId?: string }>
+  ) => {
     const counts = new Map<string, number>();
     events.forEach((event) => {
       const eventId = event.getId();
@@ -825,8 +819,8 @@ vi.mock('../threadUtils', () => ({
     const replyEvents = thread?.events?.length
       ? thread.events
       : thread?.timeline?.length
-        ? thread.timeline
-        : thread?.events ?? thread?.timeline ?? [];
+      ? thread.timeline
+      : thread?.events ?? thread?.timeline ?? [];
     return replyEvents.filter(
       (event) =>
         !!event.getId() &&
@@ -883,8 +877,8 @@ vi.mock('../threadUtils', () => ({
     const replyEvents = thread?.events?.length
       ? thread.events
       : thread?.timeline?.length
-        ? thread.timeline
-        : thread?.events ?? thread?.timeline ?? [];
+      ? thread.timeline
+      : thread?.events ?? thread?.timeline ?? [];
     const visibleReplies = replyEvents.filter(
       (event) =>
         !!event.getId() &&
@@ -936,10 +930,14 @@ vi.mock('../threadUtils', () => ({
     const replyEvents = thread?.events?.length
       ? thread.events
       : thread?.timeline?.length
-        ? thread.timeline
-        : thread?.events ?? thread?.timeline ?? [];
+      ? thread.timeline
+      : thread?.events ?? thread?.timeline ?? [];
 
-    for (let i = replyEvents.length - 1; i >= 0 && participantIds.length < maxParticipants; i -= 1) {
+    for (
+      let i = replyEvents.length - 1;
+      i >= 0 && participantIds.length < maxParticipants;
+      i -= 1
+    ) {
       const event = replyEvents[i];
       const senderId = event.getSender?.();
       if (
@@ -957,7 +955,11 @@ vi.mock('../threadUtils', () => ({
     }
 
     const rootSenderId = threadRootEvent?.getSender?.();
-    if (participantIds.length < maxParticipants && rootSenderId && !seenParticipantIds.has(rootSenderId)) {
+    if (
+      participantIds.length < maxParticipants &&
+      rootSenderId &&
+      !seenParticipantIds.has(rootSenderId)
+    ) {
       participantIds.push(rootSenderId);
     }
 
@@ -968,8 +970,7 @@ vi.mock('../threadUtils', () => ({
 }));
 
 vi.mock('../../messages/threadSummary', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../messages/threadSummary')>();
+  const actual = await importOriginal<typeof import('../../messages/threadSummary')>();
   return {
     ...actual,
     buildThreadSummaryMap: () => new Map(),
@@ -1005,8 +1006,7 @@ vi.mock('../threadPaginationUtils', () => ({
 }));
 
 vi.mock('../eventCacheTokenUtils', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../eventCacheTokenUtils')>();
+  const actual = await importOriginal<typeof import('../eventCacheTokenUtils')>();
   return actual;
 });
 
@@ -1014,7 +1014,6 @@ vi.mock('../threadSummaryCache', () => ({
   loadCachedThreadSummaries: loadCachedThreadSummariesMock,
   saveCachedThreadSummary: saveCachedThreadSummaryMock,
 }));
-
 
 vi.mock('../roomEventCache', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../roomEventCache')>();
@@ -1032,19 +1031,27 @@ vi.mock('../eventCacheEditUtils', () => ({
   collectRedactedRelationTargetsFromLookup: vi.fn(() => []),
   hydrateCachedEvents: vi.fn(() => []),
   reconcileRelationEventsWithAggregation: vi.fn(),
-  serializeEventsForCache: (_room: unknown, events: Array<{ event?: Record<string, unknown>; getId?(): string | undefined; getTs?(): number; getContent?(): Record<string, unknown> }>) =>
-    events.map((event) =>
-      event.event ?? {
-        content: event.getContent?.() ?? {},
-        event_id: event.getId?.(),
-        origin_server_ts: event.getTs?.() ?? 0,
-      }
+  serializeEventsForCache: (
+    _room: unknown,
+    events: Array<{
+      event?: Record<string, unknown>;
+      getId?(): string | undefined;
+      getTs?(): number;
+      getContent?(): Record<string, unknown>;
+    }>
+  ) =>
+    events.map(
+      (event) =>
+        event.event ?? {
+          content: event.getContent?.() ?? {},
+          event_id: event.getId?.(),
+          origin_server_ts: event.getTs?.() ?? 0,
+        }
     ),
 }));
 
 vi.mock('../timelineScrollUtils', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../timelineScrollUtils')>();
+  const actual = await importOriginal<typeof import('../timelineScrollUtils')>();
   return {
     ...actual,
     isScrollNearBottom: () => true,
@@ -1264,8 +1271,7 @@ const makeRoom = ({
     roomLiveTimeline as ReturnType<typeof makeTimeline> & {
       getTimelineSet?: () => typeof timelineSet;
     }
-  ).getTimelineSet =
-    () => timelineSet;
+  ).getTimelineSet = () => timelineSet;
   timelinesByEventId.forEach((timeline) => {
     (
       timeline as ReturnType<typeof makeTimeline> & {
@@ -1346,23 +1352,20 @@ beforeEach(() => {
   scrollToItemMock.mockReturnValue(false);
   scrollToElementMock.mockReturnValue(false);
   retryPaginationMock.mockReset();
-  matrixClientMock.getEventMapper.mockImplementation(
-    () =>
-      (rawEvent: unknown) => {
-        const event = rawEvent as {
-          content?: Record<string, unknown>;
-          event_id?: string;
-          origin_server_ts?: number;
-        };
+  matrixClientMock.getEventMapper.mockImplementation(() => (rawEvent: unknown) => {
+    const event = rawEvent as {
+      content?: Record<string, unknown>;
+      event_id?: string;
+      origin_server_ts?: number;
+    };
 
-        return typeof event?.event_id === 'string'
-          ? makeEvent(event.event_id, {
-              content: event.content,
-              ts: event.origin_server_ts ?? 0,
-            })
-          : rawEvent;
-      }
-  );
+    return typeof event?.event_id === 'string'
+      ? makeEvent(event.event_id, {
+          content: event.content,
+          ts: event.origin_server_ts ?? 0,
+        })
+      : rawEvent;
+  });
   loadCachedRoomEventsBeforeMock.mockResolvedValue({ events: [], hasMoreBefore: false });
   loadCachedRoomPaginationTokenMock.mockResolvedValue(undefined);
   loadLatestCachedRoomEventsMock.mockResolvedValue({ events: [], hasMoreBefore: false });
@@ -1401,9 +1404,7 @@ afterEach(() => {
   mountedRenderers.forEach((renderer) => renderer.unmount());
   mountedRenderers.clear();
 });
-let useThreadAwareTimelineRefreshHook:
-  | typeof useThreadAwareTimelineRefresh
-  | undefined;
+let useThreadAwareTimelineRefreshHook: typeof useThreadAwareTimelineRefresh | undefined;
 
 type TimelineRefreshHarnessProps = {
   room: ReturnType<typeof makeRoom>;
@@ -1454,7 +1455,8 @@ const getRenderedEventIds = (renderer: ReturnType<typeof create>): string[] =>
       renderer.root
         .findAll(
           (node) =>
-            node.type === ('mock-event' as never) || typeof node.props['data-message-id'] === 'string'
+            node.type === ('mock-event' as never) ||
+            typeof node.props['data-message-id'] === 'string'
         )
         .map((node) =>
           typeof node.props['data-message-id'] === 'string'
@@ -1554,13 +1556,16 @@ const createControlledRoomTimelineHarness = (
     initialViewMode?: 'threaded' | 'compact' | 'classic';
     initialThreadSortFrozen?: boolean;
   }) {
-    const [threadFilterState, setThreadFilterState] =
-      React.useState<import('../roomThreadOverviewModel').ThreadFilterState>(
-        canonicalizeThreadFilterState(
-          initialThreadFilterState ?? threadFilterStateFromLegacy(initialThreadFilter)
-        )
-      );
-    const [viewMode, setViewMode] = React.useState<'threaded' | 'compact' | 'classic'>(initialViewMode);
+    const [threadFilterState, setThreadFilterState] = React.useState<
+      import('../roomThreadOverviewModel').ThreadFilterState
+    >(
+      canonicalizeThreadFilterState(
+        initialThreadFilterState ?? threadFilterStateFromLegacy(initialThreadFilter)
+      )
+    );
+    const [viewMode, setViewMode] = React.useState<'threaded' | 'compact' | 'classic'>(
+      initialViewMode
+    );
     const [threadSortFreezeState, setThreadSortFreezeState] = React.useState<
       import('../roomThreadOverviewModel').ThreadSortFreezeState | null
     >(
@@ -1574,7 +1579,9 @@ const createControlledRoomTimelineHarness = (
 
     const onToggle = React.useCallback(
       (key: 'resolved' | 'streaming' | 'scheduled' | 'unread' | 'idle') => {
-        setThreadFilterState((prev) => syncQueryState(prev, (state) => updateThreadFilterKey(state, key)));
+        setThreadFilterState((prev) =>
+          syncQueryState(prev, (state) => updateThreadFilterKey(state, key))
+        );
       },
       []
     );

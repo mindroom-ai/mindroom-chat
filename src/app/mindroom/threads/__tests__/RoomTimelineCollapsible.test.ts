@@ -136,9 +136,11 @@ vi.mock('../../../state/settings', () => ({
     Bubble: 'Bubble',
     Modern: 'Modern',
   },
-  sanitizePaginationLimit: (v: unknown) =>
-    typeof v === 'number' && Number.isFinite(v) ? Math.max(Math.trunc(v), 50) : 300,
   settingsAtom: {},
+}));
+
+vi.mock('../../settings/mindroomSettings', () => ({
+  mindroomSettingsAtom: {},
 }));
 
 vi.mock('../../../hooks/useRoom', () => ({

@@ -5,7 +5,7 @@ import {
   cycleVoicePlaybackRate,
   formatVoicePlaybackRate,
   voiceMessagePlaybackRateAtom,
-} from '../../state/voiceMessageSettings';
+} from '../../mindroom/settings/voiceMessageSettings';
 import * as css from './VoicePlaybackRateButton.css';
 
 export function VoicePlaybackRateButton() {

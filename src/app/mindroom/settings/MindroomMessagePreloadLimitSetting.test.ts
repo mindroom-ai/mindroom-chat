@@ -20,13 +20,8 @@ vi.mock('folds', async () => {
 });
 
 vi.mock('../../components/sequence-card', () => ({
-  SequenceCard: ({
-    children,
-    className,
-  }: {
-    children?: React.ReactNode;
-    className?: string;
-  }) => React.createElement('section', { className }, children),
+  SequenceCard: ({ children, className }: { children?: React.ReactNode; className?: string }) =>
+    React.createElement('section', { className }, children),
 }));
 
 vi.mock('../../components/setting-tile', () => ({
@@ -55,6 +50,10 @@ vi.mock('../../state/hooks/settings', () => ({
 
 vi.mock('../../state/settings', () => ({
   settingsAtom: {},
+}));
+
+vi.mock('./mindroomSettings', () => ({
+  mindroomSettingsAtom: {},
 }));
 
 afterEach(() => {

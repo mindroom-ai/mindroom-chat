@@ -1,18 +1,7 @@
 import { atom } from 'jotai';
-import {
-  DEFAULT_PAGINATION_LIMIT,
-  sanitizePaginationLimit,
-} from '../mindroom/threads/preloadSettings';
 
 const STORAGE_KEY = 'settings';
 
-export {
-  DEFAULT_PAGINATION_LIMIT,
-  MIN_PAGINATION_LIMIT,
-  ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
-  THREAD_BATCH_SIZE,
-  sanitizePaginationLimit,
-} from '../mindroom/threads/preloadSettings';
 export const PAGE_ZOOM_MIN = 50;
 export const PAGE_ZOOM_MAX = 150;
 export const PAGE_ZOOM_DEFAULT = 100;
@@ -61,8 +50,6 @@ export interface Settings {
   hour24Clock: boolean;
   dateFormatString: string;
 
-  paginationLimit: number;
-
   developerTools: boolean;
 }
 
@@ -97,8 +84,6 @@ const defaultSettings: Settings = {
   hour24Clock: false,
   dateFormatString: 'D MMM YYYY',
 
-  paginationLimit: DEFAULT_PAGINATION_LIMIT,
-
   developerTools: false,
 };
 
@@ -122,7 +107,6 @@ export const getSettings = () => {
     ...parsed,
   };
   merged.pageZoom = sanitizeStoredPageZoom(merged.pageZoom);
-  merged.paginationLimit = sanitizePaginationLimit(merged.paginationLimit);
   return merged;
 };
 
