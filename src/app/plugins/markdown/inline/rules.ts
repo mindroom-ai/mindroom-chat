@@ -1,3 +1,5 @@
+import { sanitizeText } from '../../../utils/sanitize';
+import { findInlineLatexMatch } from '../../math';
 import { InlineMDRule } from './type';
 
 const MIN_ANY = '(.+?)';
@@ -86,6 +88,32 @@ export const CodeRule: InlineMDRule = {
   },
 };
 
+const createInlineRuleMatch = (
+  text: string,
+  fullMatch: string,
+  content: string,
+  index: number
+): RegExpExecArray => {
+  const match = [fullMatch, content] as unknown as RegExpExecArray;
+  match.index = index;
+  match.input = text;
+  return match;
+};
+
+export const InlineMathRule: InlineMDRule = {
+  match: (text) => {
+    const match = findInlineLatexMatch(text);
+    if (!match) return null;
+
+    return createInlineRuleMatch(text, match.fullMatch, match.latex, match.start);
+  },
+  html: (_parse, match) => {
+    const [, g1] = match;
+    const latex = sanitizeText(g1);
+    return `<span data-mx-maths="${latex}">${latex}</span>`;
+  },
+};
+
 const SPOILER_MD_1 = '||';
 const SPOILER_PREFIX_1 = `${ESC_NEG_LB}\\|{2}`;
 const SPOILER_NEG_LA_1 = '(?!\\|)';
@@ -111,7 +139,7 @@ export const LinkRule: InlineMDRule = {
   },
 };
 
-export const INLINE_SEQUENCE_SET = '[*_~`|]';
+export const INLINE_SEQUENCE_SET = '[*_~`|$]';
 export const CAP_INLINE_SEQ = `${URL_NEG_LB}${INLINE_SEQUENCE_SET}`;
 const ESC_SEQ_1 = `\\\\(${INLINE_SEQUENCE_SET})`;
 const ESC_REG_1 = new RegExp(`${URL_NEG_LB}${ESC_SEQ_1}`);

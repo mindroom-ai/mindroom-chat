@@ -5,19 +5,6 @@ export const ReplyBend = style({
   flexShrink: 0,
 });
 
-export const ThreadIndicator = style({
-  opacity: config.opacity.P300,
-
-  selectors: {
-    'button&': {
-      cursor: 'pointer',
-    },
-    ':hover&': {
-      opacity: config.opacity.P500,
-    },
-  },
-});
-
 export const Reply = style({
   marginBottom: toRem(1),
   minWidth: 0,

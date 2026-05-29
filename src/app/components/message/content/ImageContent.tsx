@@ -1,4 +1,5 @@
 import React, { ReactNode, useCallback, useEffect, useState } from 'react';
+import { useSetAtom } from 'jotai';
 import {
   Badge,
   Box,
@@ -22,6 +23,7 @@ import FocusTrap from 'focus-trap-react';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { IImageInfo, MATRIX_BLUR_HASH_PROPERTY_NAME } from '../../../../types/matrix/common';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
+import { useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import * as css from './style.css';
 import { bytesToSize } from '../../../utils/common';
@@ -29,8 +31,11 @@ import { FALLBACK_MIMETYPE } from '../../../utils/mimeTypes';
 import { stopPropagation } from '../../../utils/keyboard';
 import { decryptFile, downloadEncryptedMedia, mxcUrlToHttp } from '../../../utils/matrix';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
+import { imageViewerOpenAtom } from '../../../state/imageViewer';
 import { ModalWide } from '../../../styles/Modal.css';
 import { validBlurHash } from '../../../utils/blurHash';
+
+const IMAGE_VIEWER_HISTORY_MARKER = '__cinnyImageViewer';
 
 type RenderViewerProps = {
   src: string;
@@ -84,6 +89,7 @@ export const ImageContent = as<'div', ImageContentProps>(
     const [error, setError] = useState(false);
     const [viewer, setViewer] = useState(false);
     const [blurred, setBlurred] = useState(markedAsSpoiler ?? false);
+    const setImageViewerOpen = useSetAtom(imageViewerOpenAtom);
 
     const [srcState, loadSrc] = useAsyncCallback(
       useCallback(async () => {
@@ -98,6 +104,7 @@ export const ImageContent = as<'div', ImageContentProps>(
         return mediaUrl;
       }, [mx, url, useAuthentication, mimeType, encInfo])
     );
+    useBlobUrlCleanup(srcState);
 
     const handleLoad = () => {
       setLoad(true);
@@ -115,6 +122,47 @@ export const ImageContent = as<'div', ImageContentProps>(
     useEffect(() => {
       if (autoPlay) loadSrc();
     }, [autoPlay, loadSrc]);
+
+    useEffect(() => {
+      if (!viewer) return undefined;
+
+      setImageViewerOpen(true);
+      window.history.pushState(
+        {
+          ...(window.history.state ?? {}),
+          [IMAGE_VIEWER_HISTORY_MARKER]: true,
+        },
+        ''
+      );
+
+      let poppedByBrowser = false;
+
+      const handlePopState = () => {
+        poppedByBrowser = true;
+        setViewer(false);
+      };
+
+      const handlePageHide = () => {
+        if (!window.history.state?.[IMAGE_VIEWER_HISTORY_MARKER]) return;
+
+        const nextState = { ...(window.history.state ?? {}) };
+        delete nextState[IMAGE_VIEWER_HISTORY_MARKER];
+        window.history.replaceState(nextState, '');
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      window.addEventListener('pagehide', handlePageHide);
+
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+        window.removeEventListener('pagehide', handlePageHide);
+        setImageViewerOpen(false);
+
+        if (!poppedByBrowser && window.history.state?.[IMAGE_VIEWER_HISTORY_MARKER]) {
+          window.history.back();
+        }
+      };
+    }, [viewer, setImageViewerOpen]);
 
     return (
       <Box className={classNames(css.RelativeBase, className)} {...props} ref={ref}>
