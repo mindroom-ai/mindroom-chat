@@ -2,6 +2,37 @@
 
 ## Runbook
 
+### CINNY-125 - PR review follow-up for clean-history ownership PR (2026-05-28)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Rebasing `codex/mindroom-clean-history-ownership` onto `origin/dev`
+    required a `FORK_CHANGES.md` runbook conflict resolution. The resolved
+    runbook preserves the newer currency-like dollar text entry from `origin/dev`
+    and the clean-history ownership entries from this PR.
+  - Addressed Gemini review on `scripts/report-non-mindroom-source-diff.mjs` by
+    checking that `.git` is a file before reading worktree gitdir metadata, so
+    standard clones with a `.git` directory do not crash with `EISDIR`.
+  - Addressed Gemini review on `MindroomEditorExtensions.ts` by splitting Matrix
+    math block text with `/\r?\n/` and adding CRLF coverage.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `scripts/report-non-mindroom-source-diff.mjs`
+  - `src/app/mindroom/editor/MindroomEditorExtensions.test.ts`
+  - `src/app/mindroom/editor/MindroomEditorExtensions.ts`
+- Validation:
+  - Green: `npm test -- src/app/mindroom/editor/MindroomEditorExtensions.test.ts`
+    (1 file, 2 tests).
+  - Green: `node --check scripts/report-non-mindroom-source-diff.mjs`.
+  - Green:
+    `node scripts/report-non-mindroom-source-diff.mjs v4.11.1 HEAD`.
+  - Green: standard-clone `.git` directory smoke check:
+    `node /Users/bas.nijholt/.codex/worktrees/pr28-mindroom-clean-history-ownership/scripts/report-non-mindroom-source-diff.mjs HEAD~1 HEAD`
+    from `/tmp/pr28-standard-clone`.
+  - Green: `npm run typecheck`.
+  - Green: `git diff --check`.
+
 ### CINNY-124 - MindRoom editor extension boundary (2026-05-28)
 
 - Status:

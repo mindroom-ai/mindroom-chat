@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const workTree = process.cwd();
 const gitFile = resolve(workTree, '.git');
 const env = { ...process.env };
 
-if (existsSync(gitFile)) {
+if (existsSync(gitFile) && statSync(gitFile).isFile()) {
   const gitFileBody = readFileSync(gitFile, 'utf8').trim();
   const gitdirPrefix = 'gitdir: ';
   if (gitFileBody.startsWith(gitdirPrefix)) {
