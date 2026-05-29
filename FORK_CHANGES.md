@@ -2,6 +2,62 @@
 
 ## Runbook
 
+### CINNY-130 - Point fork support links at MindRoom repository (2026-05-29)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Updated GitHub issue/discussion template links from the upstream Cinny
+    repository to `mindroom-ai/mindroom-cinny` so fork users are routed to the
+    MindRoom fork instead of upstream support surfaces.
+  - Updated MindRoom source-code links in the About panel and README to point at
+    the MindRoom Cinny fork repository.
+  - Kept upstream Cinny attribution, but changed powered-by attribution links to
+    the Cinny website instead of the upstream GitHub issue tracker.
+- Decisions:
+  - Keep upstream-owned GitHub templates present for rebaseability, but route
+    their visible support links to the MindRoom fork.
+  - Keep attribution to upstream Cinny while using `cinny.in` for powered-by
+    attribution instead of upstream GitHub support surfaces.
+- Risks:
+  - Future upstream template or README syncs may reintroduce upstream support
+    repository links.
+  - Fork users may still see upstream Cinny terminology in retained templates
+    where broader rewrites would increase rebase churn.
+- Next steps:
+  - Monitor future upstream syncs for support links that should point at
+    `mindroom-ai/mindroom-cinny`.
+  - Keep durable attribution policy documented in this runbook when related
+    branding or support links change.
+- Validation:
+  - Green: hidden-file grep for the old upstream repository URL returned no
+    matches.
+  - Green: `npm run typecheck`.
+  - Green:
+    `npx prettier --check FORK_CHANGES.md README.md config.mindroom.json .github/DISCUSSION_TEMPLATE/issue-triage.yml .github/ISSUE_TEMPLATE/config.yml src/app/features/settings/about/About.tsx src/app/mindroom/branding/branding.ts`.
+  - Green: `git diff --check`.
+  - Rebase green check: rebased onto `origin/dev` at `a95e1076`.
+  - Rebase green check: hidden-file grep for the old upstream repository URL
+    returned no matches.
+  - Rebase green check:
+    `npx prettier --check FORK_CHANGES.md README.md config.mindroom.json .github/DISCUSSION_TEMPLATE/issue-triage.yml .github/ISSUE_TEMPLATE/config.yml src/app/features/settings/about/About.tsx src/app/mindroom/branding/branding.ts`.
+  - Rebase green check: `npm run typecheck`.
+  - Rebase green check: `git diff --check`.
+  - Review green check: hidden-file grep for the old upstream repository URL
+    and stale checkbox label returned no matches.
+  - Review green check:
+    `npx prettier --check FORK_CHANGES.md README.md config.mindroom.json .github/DISCUSSION_TEMPLATE/issue-triage.yml .github/ISSUE_TEMPLATE/config.yml src/app/features/settings/about/About.tsx src/app/mindroom/branding/branding.ts`.
+  - Review green check: `npm run typecheck`.
+  - Review green check: `git diff --check`.
+  - Rebase green check: rebased onto `origin/dev` at `2ad704e1` after the
+    Android keyboard viewport fix landed.
+  - Rebase green check: hidden-file grep for the old upstream repository URL
+    and stale checkbox label returned no matches.
+  - Rebase green check:
+    `npx prettier --check FORK_CHANGES.md README.md config.mindroom.json .github/DISCUSSION_TEMPLATE/issue-triage.yml .github/ISSUE_TEMPLATE/config.yml src/app/features/settings/about/About.tsx src/app/mindroom/branding/branding.ts`.
+  - Rebase green check: `npm run typecheck`.
+  - Rebase green check: `git diff --check`.
+
 ### CINNY-129 - Android keyboard viewport restore (2026-05-29)
 
 - Status:

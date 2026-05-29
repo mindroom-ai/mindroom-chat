@@ -1,13 +1,13 @@
-labels: ["needs-confirmation"]
+labels: ['needs-confirmation']
 body:
   - type: markdown #add faqs in future
     attributes:
       value: |
         > [!IMPORTANT]
-        > Please read through [the Discussion rules](https://github.com/cinnyapp/cinny/discussions/2653) and check for both existing [Discussions](https://github.com/cinnyapp/cinny/discussions?discussions_q=) and [Issues](https://github.com/cinnyapp/cinny/issues?q=sort%3Areactions-desc) prior to opening a new Discussion.
+        > Please check for both existing [Discussions](https://github.com/mindroom-ai/mindroom-cinny/discussions?discussions_q=) and [Issues](https://github.com/mindroom-ai/mindroom-cinny/issues?q=sort%3Areactions-desc) prior to opening a new Discussion.
   - type: markdown
     attributes:
-      value: "# Issue Details"
+      value: '# Issue Details'
   - type: textarea
     attributes:
       label: Issue Description
@@ -64,7 +64,7 @@ body:
         - Browser: 
         - Cinny Web Version: (app.cinny.in or self hosted)
         - Cinny desktop Version: (appimage or deb or flatpak)
-        - Matrix Homeserver: 
+        - Matrix Homeserver:
       placeholder: |
         - OS: Windows 11
         - Browser: Chrome 120.0.6099.109
@@ -80,12 +80,12 @@ body:
       label: Relevant Logs
       description: |
         If applicable, add browser console logs to help explain your problem.
-        
+
         **To get browser console logs:**
         - Chrome/Edge: Press F12 → Console tab
         - Firefox: Press F12 → Console tab  
         - Safari: Develop → Show Web Inspector → Console
-        
+
         Please wrap large log outputs in code blocks with triple backticks (```).
       placeholder: |
         ```
@@ -98,7 +98,7 @@ body:
       render: shell
     validations:
       required: false
-  - type: textarea 
+  - type: textarea
     attributes:
       label: Additional context
       description: |
@@ -116,12 +116,12 @@ body:
       value: |
         # User Acknowledgements
         > [!TIP]
-        > Use these links to review the existing Cinny [Discussions](https://github.com/cinnyapp/cinny/discussions?discussions_q=) and [Issues](https://github.com/cinnyapp/cinny/issues?q=sort%3Areactions-desc).
+        > Use these links to review the existing MindRoom Cinny [Discussions](https://github.com/mindroom-ai/mindroom-cinny/discussions?discussions_q=) and [Issues](https://github.com/mindroom-ai/mindroom-cinny/issues?q=sort%3Areactions-desc).
   - type: checkboxes #add faqs in future
     attributes:
-      label: "I acknowledge that:"
+      label: 'I acknowledge that:'
       options:
-        - label: I have searched the Cinny repository (both open and closed Discussions and Issues) and confirm this is not a duplicate of an existing issue or discussion.
+        - label: I have searched the MindRoom Cinny repository (both open and closed Discussions and Issues) and confirm this is not a duplicate of an existing issue or discussion.
           required: true
         - label: I have checked the "Preview" tab on all text fields to ensure that everything looks right, and have wrapped all configuration and code in code blocks with a group of three backticks (` ``` `) on separate lines.
           required: true
