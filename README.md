@@ -1,115 +1,235 @@
-# Cinny
-<p>
-    <a href="https://github.com/ajbura/cinny/releases">
-        <img alt="GitHub release downloads" src="https://img.shields.io/github/downloads/ajbura/cinny/total?logo=github&style=social"></a>
-    <a href="https://hub.docker.com/r/ajbura/cinny">
-        <img alt="DockerHub downloads" src="https://img.shields.io/docker/pulls/ajbura/cinny?logo=docker&style=social"></a>
-    <a href="https://fosstodon.org/@cinnyapp">
-        <img alt="Follow on Mastodon" src="https://img.shields.io/mastodon/follow/106845779685925461?domain=https%3A%2F%2Ffosstodon.org&logo=mastodon&style=social"></a>
-    <a href="https://twitter.com/intent/follow?screen_name=cinnyapp">
-        <img alt="Follow on Twitter" src="https://img.shields.io/twitter/follow/cinnyapp?logo=twitter&style=social"></a>
-    <a href="https://cinny.in/#sponsor">
-        <img alt="Sponsor Cinny" src="https://img.shields.io/opencollective/all/cinny?logo=opencollective&style=social"></a>
-</p>
+# MindRoom
 
-A Matrix client focusing primarily on simple, elegant and secure interface. The main goal is to have an instant messaging application that is easy on people and has a modern touch.
-- [Roadmap](https://github.com/orgs/cinnyapp/projects/1)
-- [Contributing](./CONTRIBUTING.md)
+MindRoom is a Matrix client focused on AI-agent workflows.
+This repository is a fork of [Cinny](https://github.com/cinnyapp/cinny), with product and UX changes for MindRoom use cases.
 
-> [!IMPORTANT] 
-We are currently in the [process of replacing the matrix-js-sdk](https://github.com/cinnyapp/cinny/issues/257#issuecomment-3714406704) with our own SDK. As a result, we will not be accepting any pull requests until further notice.
-Thank you for your understanding.
+## What MindRoom Is
 
-<img align="center" src="https://raw.githubusercontent.com/cinnyapp/cinny-site/main/assets/preview2-light.png" height="380">
+MindRoom is designed for teams that use Matrix as the execution and collaboration layer for AI-assisted work.
+The app prioritizes:
 
-## Getting started
-The web app is available at [app.cinny.in](https://app.cinny.in/) and gets updated on each new release. The `dev` branch is continuously deployed at [dev.cinny.in](https://dev.cinny.in) but keep in mind that it could have things broken.
+- reliable streaming/edit rendering,
+- thread-first workflows,
+- tool-call and run-metadata visibility,
+- predictable deployment under root and subpath hosting,
+- iOS distribution readiness.
 
-You can also download our desktop app from the [cinny-desktop repository](https://github.com/cinnyapp/cinny-desktop).
+## What Is Different From Upstream Cinny
 
-## Self-hosting
-To host Cinny on your own, simply download the tarball from [GitHub releases](https://github.com/cinnyapp/cinny/releases/latest), and serve the files from `dist/` using your preferred webserver. Alternatively, you can just pull the docker image from [DockerHub](https://hub.docker.com/r/ajbura/cinny) or [GitHub Container Registry](https://github.com/cinnyapp/cinny/pkgs/container/cinny).
+| Area | MindRoom Fork |
+| --- | --- |
+| Branding | MindRoom identity, assets, defaults, and onboarding text |
+| Message model | Strong focus on edit-resolution behavior for streaming content |
+| Threads | Thread-aware composition, deep-linking, and timeline behavior improvements |
+| Tool UX | MindRoom tool-trace rendering (`io.mindroom.tool_trace` v2 markers) |
+| Long text | MindRoom v2 sidecar hydration, safer fallbacks, original download support |
+| Commands | `!` command autocomplete for MindRoom workflows |
+| Apple auth | Apple-first SSO provider handling (`Sign in with Apple` / `Sign up with Apple`) |
+| Voice | iOS-friendly recording defaults and composer-first UX |
+| Deployment | Runtime base-path support for one build artifact |
+| iOS | Capacitor app setup and App Store compliance workflow/docs |
 
-* The default homeservers and explore pages are defined in [`config.json`](config.json).
+For detailed implementation and rationale, see:
 
-* You need to set up redirects to serve the assests. Example configurations; [netlify](netlify.toml), [nginx](contrib/nginx/cinny.domain.tld.conf), [caddy](contrib/caddy/caddyfile).
-    * If you have trouble configuring redirects you can [enable hash routing](config.json#L35) — the url in the browser will have a `/#/` between the domain and open channel (ie. `app.cinny.in/#/home/` instead of `app.cinny.in/home/`) but you won't have to configure your webserver.
+- [`FORK_CHANGES.md`](./FORK_CHANGES.md)
 
-* To deploy on subdirectory, you need to rebuild the app youself after updating the `base` path in [`build.config.ts`](build.config.ts).
-    * For example, if you want to deploy on `https://cinny.in/app`, then set `base: '/app'`.
+## App Store / iOS Submission Docs
 
-<details><summary><b>PGP Public Key to verify tarball</b></summary>
+- Checklist: [`APP_STORE_COMPLIANCE.md`](./.docs/APP_STORE_COMPLIANCE.md)
+- Submission metadata/review notes packet: [`APP_STORE_SUBMISSION_PACKET.md`](./.docs/APP_STORE_SUBMISSION_PACKET.md)
+- Build guide: [`ios-build.md`](./.docs/ios-build.md)
 
-```
------BEGIN PGP PUBLIC KEY BLOCK-----
+### TestFlight via Xcode Cloud
 
-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
-mxFo+ioe/ABCufSmyqFye0psX3Sp
-=WtqZ
------END PGP PUBLIC KEY BLOCK-----
-```
-</details>
+The Xcode Cloud workflow should archive the iOS app with the `Archive - iOS` action.
+Set that action's `Distribution Preparation` to `TestFlight (Internal Testing Only)` so successful archives are prepared for TestFlight.
+If that setting changes after a successful archive, rerun the workflow because existing archives are not prepared for TestFlight retroactively.
+The source release tag can stay tied to upstream Cinny, for example `v4.11.1-mindroom.80`, while the App Store marketing version advances independently.
+For the current iOS train, Xcode Cloud publishes Apple version `4.11.2`; release tags ending in `-mindroom.<n>` provide the App Store build number, so `v4.11.1-mindroom.80` uploads as `4.11.2 (80)`.
+Branch-triggered builds fall back to the checked-in Xcode build number, currently `80`.
+Set `IOS_MARKETING_VERSION` or `IOS_BUILD_NUMBER` in Xcode Cloud only when overriding those defaults is intentional.
 
-## Local development
-> [!TIP]
-> We recommend using a version manager as versions change very quickly. You will likely need to switch between multiple Node.js versions based on the needs of different projects you're working on. [NVM on windows](https://github.com/coreybutler/nvm-windows#installation--upgrades) on Windows and [nvm](https://github.com/nvm-sh/nvm) on Linux/macOS are pretty good choices. Recommended nodejs version is Krypton LTS (v24.13.1).
+## Quick Start
 
-Execute the following commands to start a development server:
-```sh
-npm ci # Installs all dependencies
-npm start # Serve a development version
+```bash
+npm ci
+npm run test
+npm run build
 ```
 
-To build the app:
-```sh
-npm run build # Compiles the app into the dist/ directory
+## Runtime Configuration
+
+Main runtime config file:
+
+- [`config.json`](./config.json)
+
+Notable options:
+
+- homeserver defaults and allowed-server policy,
+- auth behavior (including `allowRegistration`, support/privacy/terms links),
+- splash loading copy via `splash.loadingMessages`,
+- MindRoom placeholder copy via `mindroom.thinkingPlaceholderMessages`,
+- sidebar entry points including `sidebar.showThreads`,
+- welcome-page behavior.
+
+## Self-Hosting
+
+### Standard static hosting
+
+Build and serve `dist/` with your preferred web server.
+
+### Runtime base-path (single build artifact)
+
+- Build once with relative assets: `npm run build`
+- At runtime set `APP_BASE_PATH` to `/` or `/mindroom`
+- Example: `APP_BASE_PATH=/mindroom ./your-server`
+
+Containerized runtime also supports:
+
+- `APP_ENABLE_SERVICE_WORKER` (enabled by default in container runtime config)
+
+### Optional build-time base path
+
+- `APP_BUILD_BASE_PATH=/mindroom npm run build`
+
+### Reverse-proxy examples
+
+- Netlify: [`netlify.toml`](./netlify.toml)
+- Nginx: [`contrib/nginx/cinny.domain.tld.conf`](./contrib/nginx/cinny.domain.tld.conf)
+- Caddy: [`contrib/caddy/caddyfile`](./contrib/caddy/caddyfile)
+
+## iOS Build / Archive
+
+```bash
+npm run build
+npm run ios:icons
+npm run appstore:preflight
+npx cap sync ios
+npx cap open ios
 ```
 
-### Running with Docker
-This repository includes a Dockerfile, which builds the application from source and serves it with Nginx on port 80. To
-use this locally, you can build the container like so:
-```
-docker build -t cinny:latest .
+Then archive from Xcode (`App` scheme, `Any iOS Device (arm64)`).
+
+## iOS Push Notifications (APNs + Matrix)
+
+Native iOS push plumbing is included in this fork (`@capacitor/push-notifications` + Matrix pusher
+registration). To turn it on for a deployment:
+
+1. Configure `config.json`:
+
+```json
+{
+  "push": {
+    "ios": {
+      "enabled": true,
+      "appId": "com.mindroom-ai.app.ios",
+      "gatewayUrl": "https://YOUR-PUSH-GATEWAY/_matrix/push/v1/notify",
+      "appDisplayName": "MindRoom iOS",
+      "deviceDisplayName": "MindRoom iOS",
+      "append": true,
+      "format": "event_id_only"
+    }
+  }
+}
 ```
 
-You can then run the container you've built with a command similar to this:
-```
-docker run -p 8080:80 cinny:latest
+2. Sync iOS project artifacts after config/dependency changes: `npx cap sync ios`.
+3. In Xcode, confirm `Signing & Capabilities` includes `Push Notifications`.
+4. Run the app on a physical iPhone and enable `Settings -> Notifications -> iOS Push Notifications`
+   inside MindRoom.
+5. Ensure your Matrix push gateway is configured server-side to accept APNs tokens for your app.
+
+## Local Development
+
+```bash
+npm ci
+npm start
 ```
 
-This will forward your `localhost` port 8080 to the container's port 80. You can visit the app in your browser by navigating to `http://localhost:8080`.
+## Docker
+
+```bash
+docker build -t mindroom-cinny:latest .
+docker run -p 8080:80 mindroom-cinny:latest
+```
+
+## Dockerized Matrix E2E
+
+The Docker boundary for local e2e is the Matrix stack, not the Cinny app itself.
+Cinny and Playwright stay on the host. Docker only runs a disposable Tuwunel homeserver.
+
+Start or stop the local Matrix stack:
+
+```bash
+npm run e2e:matrix:up
+npm run e2e:matrix:down
+```
+
+Run the e2e suite against that Docker-backed homeserver:
+
+```bash
+npm run test:e2e:docker-matrix
+```
+
+Pass extra Playwright arguments after `--`:
+
+```bash
+npm run test:e2e:docker-matrix -- e2e/live/smoke.spec.ts
+npm run test:e2e:docker-matrix -- --grep "three stored accounts"
+```
+
+Notes:
+
+- The stack is defined in [`e2e/docker-compose.matrix.yaml`](./e2e/docker-compose.matrix.yaml).
+- The wrapper provisions three local e2e accounts, seeds the shared fixture room, and starts a
+  static built preview on `http://127.0.0.1:28090` for the deployed clear-cache spec.
+- The main app under test still runs from the host via Playwright's normal `webServer`
+  (`npm run start -- --host 127.0.0.1 --port 4173 --strictPort`) unless `E2E_NO_WEB_SERVER=1`.
+- Useful overrides:
+  `E2E_MATRIX_PORT`,
+  `E2E_MATRIX_SERVER_NAME`,
+  `E2E_MATRIX_AUTO_DOWN=1`,
+  `E2E_ENABLE_DEPLOYED_FIXTURE=0`,
+  `E2E_SERVER_COMMAND`,
+  `MINDROOM_TUWUNEL_IMAGE`.
+
+## Releases
+
+- Every push to `dev` creates an automated GitHub release tag in the format
+  `v<base_version>-mindroom.<n>`.
+- `base_version` is read from [`package.json`](./package.json) by default
+  (or `BASE_VERSION` if set), with upstream-style semver tags as fallback;
+  `<n>` increments from existing fork tags for that base version.
+- The Python helper is reusable across forks via env vars:
+  `RELEASE_TAG_PREFIX`, `RELEASE_TAG_SUFFIX`, `BASE_TAG_PREFIX`, `BASE_VERSION`.
+- Local preview of the next tag:
+
+```bash
+npm run release:next-tag
+```
+
+### Android Play internal releases
+
+- The same `dev` push release workflow builds a signed Android App Bundle and
+  publishes it to the Google Play `internal` track when it creates a new
+  MindRoom GitHub release.
+- Required GitHub secrets:
+  `ANDROID_UPLOAD_KEYSTORE_BASE64`,
+  `ANDROID_UPLOAD_KEYSTORE_PASSWORD`,
+  `ANDROID_UPLOAD_KEY_ALIAS`,
+  `ANDROID_UPLOAD_KEY_PASSWORD`,
+  and `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`.
+- The keystore secret should be the base64-encoded upload keystore file. The
+  Play service account must have permission to release `com.mindroom_ai.app`.
+
+## Upstream Attribution
+
+This project is built on top of Cinny and Matrix ecosystem libraries.
+
+- Upstream Cinny: <https://github.com/cinnyapp/cinny>
+- Matrix: <https://matrix.org>
+
+## License
+
+Licensed under AGPL-3.0-only (same as upstream project).
+See [`LICENSE`](./LICENSE).
