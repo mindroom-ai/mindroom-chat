@@ -477,6 +477,35 @@ describe('getReactCustomHtmlParser', () => {
     expect(markup.match(/MathInline/g)).toHaveLength(1);
   });
 
+  it('does not render formatted currency amounts as math in raw text', () => {
+    const markup = renderLatexTextMarkup(
+      '$1234$ and $1,000.00$ and $1.000,00$ and $5 USD$ and $19.99/mo$'
+    );
+
+    expect(markup).toContain('$1234$');
+    expect(markup).toContain('$1,000.00$');
+    expect(markup).toContain('$1.000,00$');
+    expect(markup).toContain('$5 USD$');
+    expect(markup).toContain('$19.99/mo$');
+    expect(markup).not.toContain('MathInline');
+  });
+
+  it('does not render currency ranges as math in raw text', () => {
+    const markup = renderLatexTextMarkup('$5-10$ and $5–10$ and $5-$10$');
+
+    expect(markup).toContain('$5-10$');
+    expect(markup).toContain('$5–10$');
+    expect(markup).toContain('$5-$10$');
+    expect(markup).not.toContain('MathInline');
+  });
+
+  it('renders numeric-leading expressions as math in raw text', () => {
+    const markup = renderLatexTextMarkup('$2sin(x)$');
+
+    expect(markup).toContain('MathInline');
+    expect(markup).toContain('katex');
+  });
+
   it('does not split URLs that contain dollar delimiters', () => {
     const markup = renderLatexTextMarkup('https://example.com/$x$/y');
 
