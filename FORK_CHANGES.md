@@ -2,6 +2,116 @@
 
 ## Runbook
 
+### Safe SVG in message extras HTML (2026-05-11)
+
+- Status:
+  - Complete; rebased onto `origin/dev` at `be494836` on 2026-05-29.
+- Summary:
+  - Investigated both requested sides. `/srv/mindroom` and `/var/www/cinny` are
+    not mounted in this environment; the available MindRoom server checkout is
+    `/Users/basnijholt/dev/mindroom`, and this Cinny worktree is
+    `/Users/basnijholt/.codex/worktrees/bb45/mindroom-cinny`.
+  - MindRoom server search found no `message_extras` writer/sanitizer in
+    `/Users/basnijholt/dev/mindroom`; its only relevant HTML sanitizer is the
+    general Matrix `formatted_body` sanitizer in
+    `src/mindroom/matrix/message_builder.py`, so the server side did not need a
+    message-extras-specific change in the available checkout.
+  - Cinny message extras HTML sanitization lives in
+    `src/app/mindroom/messages/messageExtrasHtml.ts`; it previously listed
+    `svg` as a non-text tag, so all inline SVG content was discarded before
+    render.
+  - Added a labeled SVG allowlist for geometry/text primitives and direct
+    presentation attributes while keeping SVG script vectors out: script,
+    foreignObject, use, image, animation tags, `href`/`xlink:href`, `style`,
+    and all event handlers remain stripped.
+  - Added sanitizer and render tests covering sparkline/status/diagram SVG plus
+    adversarial SVG payloads.
+- Review follow-up:
+  - SVG paint and marker attributes now reject external `url(...)`,
+    `javascript:` URL references, and `data:` URL references while preserving
+    internal fragment marker references such as `url(#arrow)`.
+  - Restored sanitize-html's default case-insensitive HTML parsing so uppercase
+    HTML attributes like `HREF` are normalized safely, then explicitly restores
+    only the SVG camelCase attributes needed for `viewBox` and marker geometry.
+  - SVG class allowlisting now accepts only simple identifier-like class tokens
+    instead of any class string.
+  - `preserveAspectRatio` is now preserved with explicit camelCase restoration
+    so safe charts and diagrams can control viewport scaling.
+- Rebase follow-up:
+  - Replayed the three PR #15 safe-SVG commits onto the latest `origin/dev`
+    after the v4.12.2 MindRoom history rewrite.
+  - Resolved `FORK_CHANGES.md` conflicts by preserving the newer v4.12.2
+    runbook entries and carrying forward the safe-SVG implementation, review,
+    and validation notes.
+- Risks:
+  - `title` and `desc` are allowed as inert text labels because sanitize-html
+    does not enforce SVG-only parent context; they may also survive outside SVG,
+    but without scripting or external-resource attributes.
+  - SVG paint values still allow plain colors, `none`, `currentColor`, and
+    internal fragment `url(#...)` references; future support for richer CSS-like
+    paint syntax should add value-level tests before broadening this list.
+  - MindRoom server-side message-extras sanitization could not be changed in
+    this worktree because the mounted server checkout did not contain the
+    described writer path.
+- Next steps:
+  - Owner: PR reviewer verifies the production deployment path for Cinny uses
+    this sanitizer before rendering message extras.
+  - Owner: MindRoom server maintainer applies the same SVG allowlist server-side
+    if the message-extras sanitizer exists in a private or different checkout.
+  - Owner: product/agent workflow owner captures live lab evidence after this PR
+    is deployed to the lab Cinny build.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/messages/messageExtrasHtml.ts`
+  - `src/app/mindroom/messages/messageExtrasHtml.test.ts`
+  - `src/app/mindroom/messages/MessageExtrasView.test.ts`
+- Tests and validation:
+  - Red check: `npm test -- src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`
+    failed while `svg` remained stripped.
+  - Green check: `npm test -- src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check: `npm run lint` completed with the existing warning-only
+    baseline (`16` warnings, `0` errors).
+  - Green check: `npm test` passed (`276` files, `2057` tests).
+  - Green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Green check:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/messages/messageExtrasHtml.ts src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`.
+  - Green check: `git diff --check`.
+  - Live browser evidence was not captured in this chat-thread worktree; the
+    sanitizer/render unit tests verify the production render path used by
+    message extras.
+  - Review red check: focused sanitizer tests failed before follow-up fixes for
+    uppercase `HREF`, marker geometry attributes, and external SVG `url(...)`
+    references.
+  - Review green check: `npm test -- src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`.
+  - Review green check:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/messages/messageExtrasHtml.ts src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`.
+  - Review green check: `npm run typecheck`.
+  - Review green check: `npm run lint` completed with the existing warning-only
+    baseline (`16` warnings, `0` errors).
+  - Review green check: `npm test` passed (`276` files, `2057` tests).
+  - Review green check: `npm run build` passed with existing Vite
+    runtime-config/sourcemap/chunk-size warnings.
+  - Review green check: `git diff --check`.
+  - Final review green check: `npm test -- src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`.
+  - Final review green check:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/messages/messageExtrasHtml.ts src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`.
+  - Final review green check: `npm run typecheck`.
+  - Final review green check: `npm run lint` completed with the existing
+    warning-only baseline (`16` warnings, `0` errors).
+  - Final review green check: `git diff --check`.
+  - Rebase green check: `npm ci`.
+  - Rebase green check:
+    `npm test -- src/app/mindroom/messages/messageExtrasHtml.test.ts src/app/mindroom/messages/MessageExtrasView.test.ts`
+    (2 files, 22 tests).
+  - Rebase green check: `npm run typecheck`.
+  - Rebase green check: `npm run lint` (18 warnings, 0 errors - existing
+    console/unused-var warning class).
+  - Rebase green check: `npm run build` (existing Vite runtime-config,
+    sourcemap, and chunk-size warnings only).
+  - Rebase green check: `npm test` (299 files, 2233 tests).
+
 ### CINNY-128 - Remove transient planning and completion docs (2026-05-29)
 
 - Status:

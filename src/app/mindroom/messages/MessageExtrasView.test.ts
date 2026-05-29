@@ -306,6 +306,34 @@ describe('MindroomMessageExtras', () => {
     renderer.unmount();
   });
 
+  it('renders sanitized text/html SVG sections as React SVG elements', () => {
+    const renderer = create(
+      React.createElement(MindroomMessageExtras, {
+        extras: createExtras(
+          [
+            section({
+              contentType: 'text/html',
+              content:
+                '<svg viewBox="0 0 200 40"><polyline fill="none" stroke="#7d5fff" points="0,30 50,10 100,20 150,5 200,15"/></svg>',
+            }),
+          ],
+          2
+        ),
+        htmlReactParserOptions: {},
+      })
+    );
+
+    const svg = renderer.root.findByType('svg');
+    const polyline = renderer.root.findByType('polyline');
+
+    expect(svg.props.viewBox).toBe('0 0 200 40');
+    expect(polyline.props.fill).toBe('none');
+    expect(polyline.props.stroke).toBe('#7d5fff');
+    expect(polyline.props.points).toBe('0,30 50,10 100,20 150,5 200,15');
+
+    renderer.unmount();
+  });
+
   it('removes sender-owned disclosure controls from text/html sections', () => {
     const renderer = create(
       React.createElement(MindroomMessageExtras, {
