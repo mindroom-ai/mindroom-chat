@@ -9,10 +9,18 @@ import { PasswordLoginForm } from './PasswordLoginForm';
 import { SSOLogin } from '../SSOLogin';
 import { TokenLogin } from './TokenLogin';
 import { OrDivider } from '../OrDivider';
-import { getLoginPath, getRegisterPath, withSearchParam } from '../../pathUtils';
+import { getLoginPath, getRegisterPath } from '../../pathUtils';
 import { usePathWithOrigin } from '../../../hooks/usePathWithOrigin';
 import { LoginPathSearchParams } from '../../paths';
 import { useClientConfig } from '../../../hooks/useClientConfig';
+import { hasAppleIdentityProvider } from '../ssoProviders';
+import { isAddAccountSearch, withAddAccountSearch } from '../addAccount';
+import {
+  getMindroomAuthSsoRedirectUrl,
+  isMindroomHomeserver,
+  shouldDisablePasswordLogin,
+  shouldRequireAppleProvider,
+} from '../../../mindroom/auth/authUi';
 
 const getLoginTokenSearchParam = () => {
   // when using hasRouter query params in existing route
@@ -36,37 +44,53 @@ const useLoginSearchParams = (searchParams: URLSearchParams): LoginPathSearchPar
 
 export function Login() {
   const server = useAuthServer();
-  const { hashRouter } = useClientConfig();
+  const { hashRouter, auth } = useClientConfig();
   const { loginFlows } = useAuthFlows();
   const [searchParams] = useSearchParams();
   const loginSearchParams = useLoginSearchParams(searchParams);
-  const ssoRedirectUrl = usePathWithOrigin(getLoginPath(server));
+  const addAccount = isAddAccountSearch(searchParams);
+  const webSsoRedirectUrl = usePathWithOrigin(getLoginPath(server));
+  const ssoRedirectUrl = useMemo(() => {
+    const redirectPath = addAccount ? withAddAccountSearch(webSsoRedirectUrl) : webSsoRedirectUrl;
+    return getMindroomAuthSsoRedirectUrl(redirectPath);
+  }, [addAccount, webSsoRedirectUrl]);
   const loginTokenForHashRouter = getLoginTokenSearchParam();
-  const absoluteLoginPath = usePathWithOrigin(getLoginPath(server));
+  const absoluteLoginPath = addAccount ? withAddAccountSearch(webSsoRedirectUrl) : webSsoRedirectUrl;
 
   if (hashRouter?.enabled && loginTokenForHashRouter) {
-    window.location.replace(
-      withSearchParam(absoluteLoginPath, {
-        loginToken: loginTokenForHashRouter,
-      })
-    );
+    const loginTokenUrl = new URL(absoluteLoginPath);
+    loginTokenUrl.searchParams.set('loginToken', loginTokenForHashRouter);
+    window.location.replace(loginTokenUrl.toString());
   }
 
   const parsedFlows = useParsedLoginFlows(loginFlows.flows);
+  const isMindroomServer = isMindroomHomeserver(server);
+  const disablePasswordLogin = shouldDisablePasswordLogin(server, auth);
+  const showPasswordLogin = parsedFlows.password !== undefined && !disablePasswordLogin;
+  const registrationAllowed = auth?.allowRegistration !== false;
+  const requireAppleProvider = shouldRequireAppleProvider(server, auth);
+  const appleProviderAvailable = hasAppleIdentityProvider(parsedFlows.sso?.identity_providers);
 
   return (
     <Box direction="Column" gap="500">
       <Text size="H2" priority="400">
         Login
       </Text>
-      {parsedFlows.token && loginSearchParams.loginToken && (
-        <TokenLogin token={loginSearchParams.loginToken} />
+      {requireAppleProvider && !appleProviderAvailable && (
+        <Text style={{ color: color.Critical.Main }} size="T300">
+          This client requires Sign in with Apple. Configure the homeserver SSO provider list to
+          include Apple.
+        </Text>
       )}
-      {parsedFlows.password && (
+      {parsedFlows.token && loginSearchParams.loginToken && (
+        <TokenLogin token={loginSearchParams.loginToken} addAccount={addAccount} />
+      )}
+      {showPasswordLogin && (
         <>
           <PasswordLoginForm
             defaultUsername={loginSearchParams.username}
             defaultEmail={loginSearchParams.email}
+            addAccount={addAccount}
           />
           <span data-spacing-node />
           {parsedFlows.sso && <OrDivider />}
@@ -78,22 +102,29 @@ export function Login() {
             providers={parsedFlows.sso.identity_providers}
             redirectUrl={ssoRedirectUrl}
             action={SSOAction.LOGIN}
-            saveScreenSpace={parsedFlows.password !== undefined}
+            saveScreenSpace={showPasswordLogin}
           />
           <span data-spacing-node />
         </>
       )}
-      {!parsedFlows.password && !parsedFlows.sso && (
+      {!showPasswordLogin && !parsedFlows.sso && (
         <>
           <Text style={{ color: color.Critical.Main }}>
-            {`This client does not support login on "${server}" homeserver. Password and SSO based login method not found.`}
+            {disablePasswordLogin
+              ? `Password login is disabled on "${server}". Use SSO to sign in.`
+              : `This client does not support login on "${server}" server. Password and SSO based login method not found.`}
           </Text>
           <span data-spacing-node />
         </>
       )}
-      <Text align="Center">
-        Do not have an account? <Link to={getRegisterPath(server)}>Register</Link>
-      </Text>
+      {registrationAllowed && !isMindroomServer && (
+        <Text align="Center">
+          Do not have an account?{' '}
+          <Link to={addAccount ? withAddAccountSearch(getRegisterPath(server)) : getRegisterPath(server)}>
+            Register
+          </Link>
+        </Text>
+      )}
     </Box>
   );
 }
