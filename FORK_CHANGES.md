@@ -61,6 +61,9 @@
   - Removed inline MindRoom block/math rendering and policy strings from
     `src/app/plugins/react-custom-html-parser.tsx`,
     `src/app/utils/sanitize.ts`, and `src/app/styles/CustomHtml.css.ts`.
+  - PR review follow-up: made sanitizer style policy extension additive for
+    matching selectors/properties and kept base security transformers ahead of
+    policy-provided overrides.
 - Decisions:
   - Kept `sanitizeCustomHtml()` behavior-compatible by defaulting it to the
     fork-owned MindRoom policy object; generic sanitizer code now merges a
@@ -72,6 +75,9 @@
     this fork introduced and maintains that render path, even though the
     attribute name is Matrix-compatible.
 - Validation:
+  - Green focused check:
+    `npm test -- src/app/mindroom/html/customHtmlPolicy.test.ts` (1 file,
+    4 tests).
   - Green: `npm test -- src/app/mindroom/html/customHtmlPolicy.test.ts src/app/mindroom/html/customHtmlPolicy.architecture.test.ts src/app/plugins/react-custom-html-parser.test.ts src/app/mindroom/messages/MindroomHtmlBlocks.pasteMarker.test.ts src/app/mindroom/messages/messageExtrasHtml.test.ts`.
   - Green: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
   - Green: `npm run typecheck`.

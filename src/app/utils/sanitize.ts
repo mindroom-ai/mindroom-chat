@@ -40,10 +40,7 @@ const mergeStylePolicy = (base: StylePolicy, extension: StylePolicy | undefined)
   return Object.entries(extension).reduce(
     (merged, [selector, properties]) => ({
       ...merged,
-      [selector]: {
-        ...(merged[selector] ?? {}),
-        ...properties,
-      },
+      [selector]: mergeRecordOfLists(merged[selector] ?? {}, properties),
     }),
     { ...base }
   );
@@ -199,11 +196,11 @@ export const sanitizeCustomHtml = (
     allowedClasses: mergeRecordOfLists(baseAllowedClasses, policy.allowedClasses),
     allowedStyles: mergeStylePolicy(baseAllowedStyles, policy.allowedStyles),
     transformTags: {
+      ...policy.transformTags,
       font: transformFontTag,
       span: transformSpanTag,
       a: transformATag,
       img: transformImgTag,
-      ...policy.transformTags,
     },
     nonTextTags: mergeList(
       ['style', 'script', 'textarea', 'option', 'noscript', 'mx-reply'],

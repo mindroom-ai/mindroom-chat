@@ -51,4 +51,49 @@ describe('mindroomCustomHtmlSanitizerPolicy', () => {
     expect(sanitized).not.toContain('javascript:');
     expect(sanitized).not.toContain('<script>');
   });
+
+  it('adds custom style rules without replacing base style rules', () => {
+    const sanitized = sanitizeCustomHtml(
+      [
+        '<p style="color:#123">hex</p>',
+        '<p style="color:red">named</p>',
+        '<p style="color:blue">blocked</p>',
+      ].join(''),
+      {
+        allowedAttributes: {
+          p: ['style'],
+        },
+        allowedStyles: {
+          '*': {
+            color: [/^red$/],
+          },
+        },
+      }
+    );
+
+    expect(sanitized).toContain('<p style="color:#123">hex</p>');
+    expect(sanitized).toContain('<p style="color:red">named</p>');
+    expect(sanitized).toContain('<p>blocked</p>');
+  });
+
+  it('does not let custom policy replace base security transformers', () => {
+    const sanitized = sanitizeCustomHtml('<a href="https://example.com" target="_self">link</a>', {
+      transformTags: {
+        a: (tagName, attribs) => ({
+          tagName,
+          attribs: {
+            ...attribs,
+            rel: 'unsafe',
+            target: '_self',
+          },
+        }),
+      },
+    });
+
+    expect(sanitized).toContain('href="https://example.com"');
+    expect(sanitized).toContain('rel="noreferrer noopener"');
+    expect(sanitized).toContain('target="_blank"');
+    expect(sanitized).not.toContain('rel="unsafe"');
+    expect(sanitized).not.toContain('target="_self"');
+  });
 });
