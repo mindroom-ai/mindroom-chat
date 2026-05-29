@@ -363,6 +363,7 @@ const existingWatchTargets = () => {
     'public',
     'index.html',
     'config.json',
+    'config.mindroom.json',
     'capacitor.config.ts',
     'package.json',
     'package-lock.json',

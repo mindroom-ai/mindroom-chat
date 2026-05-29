@@ -47,6 +47,56 @@
     `npx prettier --check FORK_CHANGES.md src/app/plugins/math.tsx src/app/components/editor/math.test.ts src/app/plugins/react-custom-html-parser.test.ts`.
   - Green: `git diff --check`.
 
+### CINNY-123 - MindRoom runtime config overlay (2026-05-28)
+
+- Status:
+  - Complete.
+- Summary:
+  - Moved the fork-branded MindRoom runtime defaults out of the upstream-owned
+    sample `config.json` and into `config.mindroom.json`.
+  - Restored `config.json` to the current upstream sample shape so future upstream
+    sample-config edits should no longer conflict with MindRoom deployment policy.
+  - Updated Vite static copy so MindRoom builds still publish
+    `config.mindroom.json` as runtime `config.json`; `ClientConfigLoader`
+    continues to fetch the same `/config.json` URL.
+  - Updated App Store preflight checks to validate `config.mindroom.json`, and
+    updated the iOS phone watch script to rebuild when the MindRoom config changes.
+- Decisions:
+  - Keep the runtime URL stable as `config.json`; only the build source changed.
+  - Keep native packaging tied to `dist/config.json`, which is now generated from
+    `config.mindroom.json` during `npm run build` before Capacitor sync/copy.
+  - Do not change auth/sidebar/welcome behavior; the effective MindRoom config is
+    byte-for-byte the previous fork config after build.
+- Files changed:
+  - `config.json`
+  - `config.mindroom.json`
+  - `scripts/appstore-preflight.mjs`
+  - `scripts/ios-phone.mjs`
+  - `src/app/utils/runtimeConfig.test.ts`
+  - `vite.config.js`
+- Regression tests:
+  - Added runtime config coverage proving the MindRoom defaults live in the
+    fork-owned config and Vite maps that file back to runtime `config.json`.
+- Validation:
+  - Red check: `npm test -- src/app/utils/runtimeConfig.test.ts` failed while
+    `config.mindroom.json` did not exist.
+  - Green check: `npm test -- src/app/utils/runtimeConfig.test.ts`.
+  - Green check: `npm run typecheck`.
+  - Green check:
+    `npx prettier --check config.json config.mindroom.json scripts/appstore-preflight.mjs src/app/utils/runtimeConfig.test.ts vite.config.js`.
+  - Note: `scripts/ios-phone.mjs` has pre-existing Prettier drift; this change
+    kept that file to the single watch-target line.
+  - Green check: `npm run appstore:preflight`.
+  - Green check: `npm run build` passed with existing Vite/runtime-config,
+    sourcemap, and chunk-size warnings.
+  - Green check: `cmp -s config.mindroom.json dist/config.json`.
+  - Green check: `git diff --check`.
+- Review:
+  - Independent second self-review completed via fresh scoped `git diff`, build
+    artifact comparison, and `git diff --check`; scope stayed limited to the
+    sample/runtime config split, native preflight/watch wiring, focused test, and
+    this runbook update.
+
 ### CINNY-116 - iOS App Store closed-train version bump (2026-05-20)
 
 - Status:

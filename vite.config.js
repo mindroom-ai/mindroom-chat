@@ -31,8 +31,9 @@ const copyFiles = {
       dest: '',
     },
     {
-      src: 'config.json',
+      src: 'config.mindroom.json',
       dest: '',
+      rename: 'config.json',
     },
     {
       src: 'public/manifest.json',
