@@ -16,11 +16,20 @@ import {
   SettingsTab,
   UnverifiedTab,
   SearchTab,
+  ThreadsTab,
 } from './sidebar';
 import { CreateTab } from './sidebar/CreateTab';
+import { useClientConfig } from '../../hooks/useClientConfig';
+import { MindroomTab } from '../../mindroom/sidebar/MindroomTab';
 
 export function SidebarNav() {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { sidebar } = useClientConfig();
+  // Allow deployments to hide optional sidebar entry points.
+  const showThreads = sidebar?.showThreads ?? true;
+  const showExploreCommunity = sidebar?.showExploreCommunity ?? true;
+  const showAddSpace = sidebar?.showAddSpace ?? true;
+  const showMindRoom = sidebar?.showMindRoom ?? true;
 
   return (
     <Sidebar>
@@ -30,12 +39,14 @@ export function SidebarNav() {
             <SidebarStack>
               <HomeTab />
               <DirectTab />
+              {showThreads && <ThreadsTab />}
             </SidebarStack>
             <SpaceTabs scrollRef={scrollRef} />
             <SidebarStackSeparator />
             <SidebarStack>
-              <ExploreTab />
-              <CreateTab />
+              {showExploreCommunity && <ExploreTab />}
+              {showMindRoom && <MindroomTab />}
+              {showAddSpace && <CreateTab />}
             </SidebarStack>
           </Scroll>
         }

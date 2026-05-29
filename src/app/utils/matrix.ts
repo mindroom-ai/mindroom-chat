@@ -18,6 +18,9 @@ import { IImageInfo, IThumbnailContent, IVideoInfo } from '../../types/matrix/co
 import { AccountDataEvent } from '../../types/matrix/accountData';
 import { getStateEvent } from './room';
 import { Membership, StateEvent } from '../../types/matrix/room';
+import { bytesToSize } from './common';
+
+export { mxcUrlToHttp } from './mediaUrl';
 
 const DOMAIN_REGEX = /\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b/;
 
@@ -134,6 +137,190 @@ export const decryptFile = async (
 };
 
 export type TUploadContent = File | Blob;
+export type MatrixUploadErrorStage = 'upload' | 'send' | 'create';
+export type MatrixUploadKind = 'file' | 'avatar';
+export type MatrixUploadErrorMessageOptions = {
+  uploadKind?: MatrixUploadKind;
+  fileSize?: number;
+  maxUploadSize?: number;
+};
+
+const TRANSIENT_UPLOAD_ERROR_MESSAGE = "Couldn't send — your connection dropped. Try again.";
+const FALLBACK_UPLOAD_ERROR_MESSAGE = "Couldn't send. Try again.";
+const PREPARE_UPLOAD_ERROR_MESSAGE = "Couldn't prepare file for upload.";
+const UNKNOWN_MESSAGE = 'Unknown message';
+
+type MatrixUploadErrorMetadata = {
+  stage?: MatrixUploadErrorStage;
+  originalName?: string;
+};
+
+const matrixUploadErrorMetadata = new WeakMap<MatrixError, MatrixUploadErrorMetadata>();
+
+const getErrorName = (err: unknown): string | undefined =>
+  typeof err === 'object' && err !== null && 'name' in err && typeof err.name === 'string'
+    ? err.name
+    : undefined;
+
+const getHttpStatus = (err: unknown): number | undefined => {
+  if (typeof err !== 'object' || err === null || !('httpStatus' in err)) return undefined;
+
+  const httpStatus = (err as { httpStatus?: unknown }).httpStatus;
+  return typeof httpStatus === 'number' ? httpStatus : undefined;
+};
+
+const isKnownUploadSize = (size: number | undefined): size is number =>
+  typeof size === 'number' && Number.isFinite(size) && size >= 0;
+
+const getMatrixUploadOriginalNameValue = (err: MatrixError): string | undefined => {
+  const originalName = matrixUploadErrorMetadata.get(err)?.originalName;
+  return typeof originalName === 'string' && originalName.trim() !== '' ? originalName : undefined;
+};
+
+const setMatrixUploadErrorMetadata = (
+  err: MatrixError,
+  metadata: MatrixUploadErrorMetadata
+): void => {
+  matrixUploadErrorMetadata.set(err, {
+    ...matrixUploadErrorMetadata.get(err),
+    ...metadata,
+  });
+};
+
+const stripMatrixErrorPrefix = (message: string): string =>
+  message.replace(/^MatrixError:\s*/, '').trim();
+
+const hasHttpStatus = (err: MatrixError): boolean =>
+  typeof err.httpStatus === 'number' && err.httpStatus > 0;
+
+const isMeaningfulErrorMessage = (message: string | undefined): boolean =>
+  typeof message === 'string' && message.trim() !== '' && message.trim() !== UNKNOWN_MESSAGE;
+
+const hasMeaningfulMatrixErrorDetails = (err: MatrixError): boolean => {
+  if (hasHttpStatus(err)) return true;
+
+  const dataError = err.data?.error;
+  if (isMeaningfulErrorMessage(dataError)) return true;
+
+  return isMeaningfulErrorMessage(stripMatrixErrorPrefix(err.message));
+};
+
+const nonEmptyMessage = (err: unknown): string => {
+  if (err instanceof MatrixError) {
+    const dataError = err.data?.error;
+    if (typeof dataError === 'string' && dataError.trim() !== '') return dataError.trim();
+  }
+  if (err instanceof Error && err.message.trim() !== '') {
+    return stripMatrixErrorPrefix(err.message);
+  }
+  if (typeof err === 'string' && err.trim() !== '') return err.trim();
+  return UNKNOWN_MESSAGE;
+};
+
+export const isMatrixUploadTooLargeError = (err: unknown): boolean => {
+  if (getHttpStatus(err) === 413) return true;
+
+  return err instanceof MatrixError && err.errcode === 'M_TOO_LARGE';
+};
+
+export const isTransientMatrixError = (err: unknown): boolean => {
+  if (getErrorName(err) === 'AbortError') return true;
+
+  if (isMatrixUploadTooLargeError(err)) return false;
+
+  if (err instanceof MatrixError) {
+    if (getMatrixUploadOriginalNameValue(err) === 'AbortError') return true;
+    if (err.errcode != null && err.errcode !== 'M_UNKNOWN') return false;
+
+    return !hasMeaningfulMatrixErrorDetails(err);
+  }
+
+  return false;
+};
+
+export const toMatrixUploadError = (err: unknown, stage: MatrixUploadErrorStage): MatrixError => {
+  if (err instanceof MatrixError) {
+    if (!getMatrixUploadErrorStage(err)) {
+      setMatrixUploadErrorMetadata(err, { stage });
+    }
+    return err;
+  }
+
+  const httpStatus = getHttpStatus(err);
+
+  const matrixError = new MatrixError(
+    {
+      errcode: httpStatus === 413 ? 'M_TOO_LARGE' : 'M_UNKNOWN',
+      error: nonEmptyMessage(err),
+    },
+    httpStatus
+  );
+  setMatrixUploadErrorMetadata(matrixError, {
+    stage,
+    originalName: getErrorName(err) ?? typeof err,
+  });
+  return matrixError;
+};
+
+export const getMatrixUploadErrorStage = (err: unknown): MatrixUploadErrorStage | undefined => {
+  if (!(err instanceof MatrixError)) return undefined;
+
+  const stage = matrixUploadErrorMetadata.get(err)?.stage;
+  if (stage === 'upload' || stage === 'send' || stage === 'create') return stage;
+  return undefined;
+};
+
+export const getMatrixUploadOriginalName = (err: unknown): string | undefined => {
+  if (!(err instanceof MatrixError)) return undefined;
+
+  return getMatrixUploadOriginalNameValue(err);
+};
+
+export const getMatrixUploadTooLargeMessage = (
+  options: MatrixUploadErrorMessageOptions = {}
+): string => {
+  const { uploadKind = 'file', fileSize, maxUploadSize } = options;
+
+  if (isKnownUploadSize(fileSize) && isKnownUploadSize(maxUploadSize)) {
+    const subject = uploadKind === 'avatar' ? 'Avatar image' : 'File';
+
+    return `${subject} is too large. Maximum upload size is ${bytesToSize(
+      maxUploadSize
+    )}; selected file is ${bytesToSize(fileSize)}.`;
+  }
+
+  if (uploadKind === 'avatar') {
+    return 'Avatar image is too large for this server. Choose a smaller image.';
+  }
+
+  return 'File is too large for this server. Choose a smaller file.';
+};
+
+export const getMatrixUploadErrorMessage = (
+  err: unknown,
+  stage = getMatrixUploadErrorStage(err),
+  options: MatrixUploadErrorMessageOptions = {}
+): string => {
+  if (isMatrixUploadTooLargeError(err)) {
+    return getMatrixUploadTooLargeMessage(options);
+  }
+
+  if (stage === 'create') return PREPARE_UPLOAD_ERROR_MESSAGE;
+
+  if (isTransientMatrixError(err)) {
+    if (stage === 'upload' || stage === 'send') return TRANSIENT_UPLOAD_ERROR_MESSAGE;
+  }
+
+  if (err instanceof MatrixError && err.errcode) {
+    return `${err.errcode}: ${nonEmptyMessage(err)}`;
+  }
+
+  if (err instanceof MatrixError && hasMeaningfulMatrixErrorDetails(err)) {
+    return nonEmptyMessage(err);
+  }
+
+  return FALLBACK_UPLOAD_ERROR_MESSAGE;
+};
 
 export type ContentUploadOptions = {
   name?: string;
@@ -165,9 +352,7 @@ export const uploadContent = async (
     if (mxc) onSuccess(mxc);
     else onError(new MatrixError(data));
   } catch (e: any) {
-    const error = typeof e?.message === 'string' ? e.message : undefined;
-    const errcode = typeof e?.name === 'string' ? e.message : undefined;
-    onError(new MatrixError({ error, errcode }));
+    onError(toMatrixUploadError(e, 'upload'));
   }
 };
 
@@ -275,26 +460,6 @@ export const removeRoomIdFromMDirect = async (mx: MatrixClient, roomId: string):
 
   await mx.setAccountData(AccountDataEvent.Direct as any, userIdToRoomIds as any);
 };
-
-export const mxcUrlToHttp = (
-  mx: MatrixClient,
-  mxcUrl: string,
-  useAuthentication?: boolean,
-  width?: number,
-  height?: number,
-  resizeMethod?: string,
-  allowDirectLinks?: boolean,
-  allowRedirects?: boolean
-): string | null =>
-  mx.mxcUrlToHttp(
-    mxcUrl,
-    width,
-    height,
-    resizeMethod,
-    allowDirectLinks,
-    allowRedirects,
-    useAuthentication
-  );
 
 export const downloadMedia = async (src: string): Promise<Blob> => {
   // this request is authenticated by service worker

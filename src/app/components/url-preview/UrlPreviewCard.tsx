@@ -24,7 +24,7 @@ export const UrlPreviewCard = as<'div', { url: string; ts: number }>(
     );
 
     useEffect(() => {
-      loadPreview();
+      loadPreview().catch(() => undefined);
     }, [loadPreview]);
 
     if (previewStatus.status === AsyncStatus.Error) return null;

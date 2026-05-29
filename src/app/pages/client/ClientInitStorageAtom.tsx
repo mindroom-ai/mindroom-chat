@@ -1,5 +1,6 @@
 import React, { ReactNode, useMemo } from 'react';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useMindroomClientStorageAtoms } from '../../mindroom/cache/clientStorageAtoms';
 import { makeClosedNavCategoriesAtom } from '../../state/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../state/hooks/closedNavCategories';
 import { makeClosedLobbyCategoriesAtom } from '../../state/closedLobbyCategories';
@@ -27,6 +28,8 @@ export function ClientInitStorageAtom({ children }: ClientInitStorageAtomProps) 
   const openedSidebarFolderAtom = useMemo(() => makeOpenedSidebarFolderAtom(userId), [userId]);
 
   const callPreferencesAtom = useMemo(() => makeCallPreferencesAtom(userId), [userId]);
+
+  useMindroomClientStorageAtoms(userId);
 
   return (
     <ClosedNavCategoriesProvider value={closedNavCategoriesAtom}>

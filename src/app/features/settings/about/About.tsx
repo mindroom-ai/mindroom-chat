@@ -1,18 +1,37 @@
 import React from 'react';
-import { Box, Text, IconButton, Icon, Icons, Scroll, Button, config, toRem } from 'folds';
+import { Box, Text, IconButton, Icon, Icons, Scroll, Button, Spinner, config, toRem } from 'folds';
 import { Page, PageContent, PageHeader } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';
-import CinnySVG from '../../../../../public/res/svg/cinny.svg';
-import { clearCacheAndReload } from '../../../../client/initMatrix';
+import { clearAllCacheAndReload } from '../../../../client/initMatrix';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
+import { useClientConfig } from '../../../hooks/useClientConfig';
+import {
+  MINDROOM_CLIENT_BRANDING,
+  getMindroomWelcomePageContent,
+} from '../../../mindroom/branding/clientBranding';
 
 type AboutProps = {
   requestClose: () => void;
 };
 export function About({ requestClose }: AboutProps) {
   const mx = useMatrixClient();
+  const clientConfig = useClientConfig();
+  const { subtitle } = getMindroomWelcomePageContent(clientConfig.welcome);
+  const [clearing, setClearing] = React.useState(false);
+
+  const handleClearCache = async () => {
+    if (clearing) return;
+
+    setClearing(true);
+
+    try {
+      await clearAllCacheAndReload(mx);
+    } catch {
+      setClearing(false);
+    }
+  };
 
   return (
     <Page>
@@ -38,17 +57,17 @@ export function About({ requestClose }: AboutProps) {
                 <Box shrink="No">
                   <img
                     style={{ width: toRem(60), height: toRem(60) }}
-                    src={CinnySVG}
-                    alt="Cinny logo"
+                    src={MINDROOM_CLIENT_BRANDING.logoSrc}
+                    alt={MINDROOM_CLIENT_BRANDING.logoAlt}
                   />
                 </Box>
                 <Box direction="Column" gap="300">
                   <Box direction="Column" gap="100">
                     <Box gap="100" alignItems="End">
-                      <Text size="H3">Cinny</Text>
-                      <Text size="T200">v4.11.1</Text>
+                      <Text size="H3">{MINDROOM_CLIENT_BRANDING.appName}</Text>
+                      <Text size="T200">v4.10.5</Text>
                     </Box>
-                    <Text>Yet another matrix client.</Text>
+                    <Text>{subtitle}</Text>
                   </Box>
 
                   <Box gap="200" wrap="Wrap">
@@ -91,17 +110,19 @@ export function About({ requestClose }: AboutProps) {
                 >
                   <SettingTile
                     title="Clear Cache & Reload"
-                    description="Clear all your locally stored data and reload from server."
+                    description="Clears cached data and reloads. You will stay signed in."
                     after={
                       <Button
-                        onClick={() => clearCacheAndReload(mx)}
+                        onClick={handleClearCache}
                         variant="Secondary"
                         fill="Soft"
                         size="300"
                         radii="300"
                         outlined
+                        disabled={clearing}
+                        before={clearing && <Spinner size="200" variant="Secondary" fill="Soft" />}
                       >
-                        <Text size="B300">Clear Cache</Text>
+                        <Text size="B300">{clearing ? 'Clearing...' : 'Clear Cache'}</Text>
                       </Button>
                     }
                   />

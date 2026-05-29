@@ -58,7 +58,7 @@ import { RoomTopicViewer } from '../../../components/room-topic-viewer';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
-import { BackRouteHandler } from '../../../components/BackRouteHandler';
+import { MindroomBackRouteHandler as BackRouteHandler } from '../../../mindroom/native/MindroomBackRouteHandler';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { StateEvent } from '../../../../types/matrix/room';
 import { testBadWords } from '../../../plugins/bad-words';
@@ -702,7 +702,7 @@ export function Invites() {
 
   const invitesData = allInviteIds
     .map((inviteId) => mx.getRoom(inviteId))
-    .filter((inviteRoom) => !!inviteRoom)
+    .filter((inviteRoom): inviteRoom is Room => !!inviteRoom)
     .map((inviteRoom) => makeInviteData(mx, inviteRoom, useAuthentication));
 
   const [knownInvites, unknownInvites, spamInvites] = useMemo(() => {

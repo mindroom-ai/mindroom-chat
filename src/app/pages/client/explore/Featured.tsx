@@ -17,7 +17,7 @@ import { RoomTopicViewer } from '../../../components/room-topic-viewer';
 import * as css from './style.css';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
-import { BackRouteHandler } from '../../../components/BackRouteHandler';
+import { MindroomBackRouteHandler as BackRouteHandler } from '../../../mindroom/native/MindroomBackRouteHandler';
 
 export function FeaturedRooms() {
   const { featuredCommunities } = useClientConfig();
