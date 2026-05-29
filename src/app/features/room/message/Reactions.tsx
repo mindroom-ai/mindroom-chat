@@ -17,6 +17,7 @@ import { type Relations } from 'matrix-js-sdk/lib/models/relations';
 import FocusTrap from 'focus-trap-react';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { factoryEventSentBy } from '../../../utils/matrix';
+import { getActiveAnnotationsByKey } from '../../../utils/reactionAnnotations';
 import { Reaction, ReactionTooltipMsg } from '../../../components/message';
 import { useRelations } from '../../../hooks/useRelations';
 import * as css from './styles.css';
@@ -29,7 +30,12 @@ export type ReactionsProps = {
   mEventId: string;
   canSendReaction?: boolean;
   relations: Relations;
-  onReactionToggle: (targetEventId: string, key: string, shortcode?: string) => void;
+  onReactionToggle: (
+    targetEventId: string,
+    key: string,
+    shortcode?: string,
+    relations?: Relations
+  ) => void;
 };
 export const Reactions = as<'div', ReactionsProps>(
   ({ className, room, relations, mEventId, canSendReaction, onReactionToggle, ...props }, ref) => {
@@ -39,7 +45,7 @@ export const Reactions = as<'div', ReactionsProps>(
     const myUserId = mx.getUserId();
     const reactions = useRelations(
       relations,
-      useCallback((rel) => [...(rel.getSortedAnnotationsByKey() ?? [])], [])
+      useCallback((rel) => getActiveAnnotationsByKey(rel), [])
     );
 
     const handleViewReaction: MouseEventHandler<HTMLButtonElement> = (evt) => {
@@ -85,7 +91,9 @@ export const Reactions = as<'div', ReactionsProps>(
                   mx={mx}
                   reaction={key}
                   count={events.size}
-                  onClick={canSendReaction ? () => onReactionToggle(mEventId, key) : undefined}
+                  onClick={
+                    canSendReaction ? () => onReactionToggle(mEventId, key, undefined, relations) : undefined
+                  }
                   onContextMenu={handleViewReaction}
                   aria-disabled={!canSendReaction}
                   useAuthentication={useAuthentication}

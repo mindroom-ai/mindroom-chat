@@ -5,6 +5,7 @@ import { MatrixId } from './MatrixId';
 import { Profile } from './Profile';
 import { ContactInformation } from './ContactInfo';
 import { IgnoredUserList } from './IgnoredUserList';
+import { AccountDeactivation } from './AccountDeactivation';
 
 type AccountProps = {
   requestClose: () => void;
@@ -34,6 +35,7 @@ export function Account({ requestClose }: AccountProps) {
               <MatrixId />
               <ContactInformation />
               <IgnoredUserList />
+              <AccountDeactivation />
             </Box>
           </PageContent>
         </Scroll>

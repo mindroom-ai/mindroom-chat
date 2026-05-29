@@ -22,9 +22,11 @@ import {
   SPACE_PATH,
   SPACE_ROOM_PATH,
   SPACE_SEARCH_PATH,
+  THREADS_PATH,
   CREATE_PATH,
 } from './paths';
 import { trimLeadingSlash, trimTrailingSlash } from '../utils/common';
+import { ensureBasePathTrailingSlash, getAppBasePath } from '../utils/basePath';
 import { HashRouterConfig } from '../hooks/useClientConfig';
 
 export const joinPathComponent = (path: Path): string => path.pathname + path.search + path.hash;
@@ -41,7 +43,9 @@ export const encodeSearchParamValueArray = (ids: string[]): string => ids.join('
 export const decodeSearchParamValueArray = (idsParam: string): string[] => idsParam.split(',');
 
 export const getOriginBaseUrl = (hashRouterConfig?: HashRouterConfig): string => {
-  const baseUrl = `${trimTrailingSlash(window.location.origin)}${import.meta.env.BASE_URL}`;
+  const baseUrl = `${trimTrailingSlash(window.location.origin)}${ensureBasePathTrailingSlash(
+    getAppBasePath()
+  )}`;
 
   if (hashRouterConfig?.enabled) {
     return `${trimTrailingSlash(baseUrl)}/#${hashRouterConfig.basename}`;
@@ -110,6 +114,8 @@ export const getDirectRoomPath = (roomIdOrAlias: string, eventId?: string): stri
 
   return generatePath(DIRECT_ROOM_PATH, params);
 };
+
+export const getThreadsPath = (): string => THREADS_PATH;
 
 export const getSpacePath = (spaceIdOrAlias: string): string => {
   const params = {

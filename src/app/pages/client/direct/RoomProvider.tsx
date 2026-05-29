@@ -1,20 +1,34 @@
 import React, { ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
-import { useSelectedRoom } from '../../../hooks/router/useSelectedRoom';
+import { useSelectedRoomResolution } from '../../../hooks/router/useSelectedRoom';
 import { IsDirectRoomProvider, RoomProvider } from '../../../hooks/useRoom';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { JoinBeforeNavigate } from '../../../features/join-before-navigate';
 import { useDirectRooms } from './useDirectRooms';
+import { shouldDeferRoomRouteFallback, canRenderRoutedRoom } from '../routeVisibility';
+import { useClientStartupContext } from '../ClientStartupContext';
 
 export function DirectRouteRoomProvider({ children }: { children: ReactNode }) {
   const mx = useMatrixClient();
   const rooms = useDirectRooms();
 
   const { roomIdOrAlias, eventId } = useParams();
-  const roomId = useSelectedRoom();
+  const { roomId, isResolvingAlias } = useSelectedRoomResolution();
   const room = mx.getRoom(roomId);
+  const { hasCompletedInitialSync } = useClientStartupContext();
 
-  if (!room || !rooms.includes(room.roomId)) {
+  if (
+    shouldDeferRoomRouteFallback({
+      hasCompletedInitialSync,
+      isResolvingAlias,
+      room,
+      routedRoomIds: rooms,
+    })
+  ) {
+    return null;
+  }
+
+  if (!room || !canRenderRoutedRoom(room, rooms)) {
     return <JoinBeforeNavigate roomIdOrAlias={roomIdOrAlias!} eventId={eventId} />;
   }
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Room } from 'matrix-js-sdk';
 import { useSetAtom } from 'jotai';
 import { useParams } from 'react-router-dom';
 import { Box, Text, TooltipProvider, Tooltip, Icon, Icons, IconButton, toRem } from 'folds';
@@ -7,7 +8,7 @@ import { callChatAtom } from '../../state/callEmbed';
 import { RoomView } from './RoomView';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 
-export function CallChatView() {
+export function CallChatView({ room }: { room: Room }) {
   const { eventId } = useParams();
   const setChat = useSetAtom(callChatAtom);
   const screenSize = useScreenSizeContext();
@@ -50,7 +51,7 @@ export function CallChatView() {
         </Box>
       </PageHeader>
       <Box grow="Yes" direction="Column">
-        <RoomView eventId={eventId} />
+        <RoomView room={room} eventId={eventId} />
       </Box>
     </Page>
   );

@@ -1,14 +1,14 @@
 import React, { useRef } from 'react';
 import { Box, Icon, Icons, Text, Scroll, IconButton } from 'folds';
 import { Page, PageContent, PageContentCenter, PageHeader } from '../../../components/page';
-import { MessageSearch } from '../../../features/message-search';
-import { useHomeRooms } from './useHomeRooms';
+import { MindroomMessageSearch } from '../../../mindroom/message-search/MindroomMessageSearch';
+import { useHomeSearchRooms } from './useHomeRooms';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
-import { BackRouteHandler } from '../../../components/BackRouteHandler';
+import { MindroomBackRouteHandler as BackRouteHandler } from '../../../mindroom/native/MindroomBackRouteHandler';
 
 export function HomeSearch() {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const rooms = useHomeRooms();
+  const rooms = useHomeSearchRooms();
   const screenSize = useScreenSizeContext();
 
   return (
@@ -39,7 +39,7 @@ export function HomeSearch() {
         <Scroll ref={scrollRef} hideTrack visibility="Hover">
           <PageContent>
             <PageContentCenter>
-              <MessageSearch
+              <MindroomMessageSearch
                 defaultRoomsFilterName="Home"
                 allowGlobal
                 rooms={rooms}

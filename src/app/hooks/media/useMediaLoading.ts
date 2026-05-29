@@ -15,6 +15,10 @@ export const useMediaLoading = (
 
   useEffect(() => {
     const targetEl = getTargetElement();
+    setLoadingData({
+      loading: false,
+      error: false,
+    });
     const handleStart = () => {
       setLoadingData({
         loading: true,
