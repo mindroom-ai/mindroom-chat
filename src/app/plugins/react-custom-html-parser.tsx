@@ -16,24 +16,14 @@ import {
 } from 'html-react-parser';
 import { MatrixClient } from 'matrix-js-sdk';
 import classNames from 'classnames';
-import {
-  Box,
-  Chip,
-  config,
-  Header,
-  Icon,
-  IconButton,
-  Icons,
-  Scroll,
-  Text,
-  toRem,
-} from 'folds';
+import { Box, Chip, config, Header, Icon, IconButton, Icons, Scroll, Text, toRem } from 'folds';
 import { IntermediateRepresentation, Opts as LinkifyOpts, OptFn } from 'linkifyjs';
 import Linkify from 'linkify-react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ChildNode } from 'domhandler';
 import * as css from '../styles/CustomHtml.css';
-import { renderMindroomHtmlBlock } from '../mindroom/messages/MindroomHtmlBlocks';
+import { renderMindroomCustomHtmlElement } from '../mindroom/html/customHtmlRenderers';
+import { renderTextWithMatrixMath } from '../mindroom/html/matrixMath';
 import {
   getMxIdLocalPart,
   getCanonicalAliasRoomId,
@@ -50,12 +40,9 @@ import {
   parseMatrixToUser,
   testMatrixTo,
 } from './matrix-to';
-import { renderLatexToHtml, tokenizeTextWithLatex, unescapeLatexDelimiters } from './math';
 import { onEnterOrSpace } from '../utils/keyboard';
 import { copyToClipboard, tryDecodeURIComponent } from '../utils/dom';
 import { useTimeoutToggle } from '../hooks/useTimeoutToggle';
-
-export { withMindroomToolTraceMarkerParserOptions } from '../mindroom/messages/MindroomHtmlBlocks';
 
 const ReactPrism = lazy(() => import('./react-prism/ReactPrism'));
 
@@ -220,9 +207,6 @@ export const highlightText = (
     );
   });
 
-const formatRawLatex = (latex: string, displayMode: boolean): string =>
-  displayMode ? `$$${latex}$$` : `$${latex}$`;
-
 const renderStyledText = (text: string, highlightRegex?: RegExp): (string | JSX.Element)[] => {
   let jsx = scaleSystemEmoji(text);
 
@@ -233,29 +217,6 @@ const renderStyledText = (text: string, highlightRegex?: RegExp): (string | JSX.
   return jsx;
 };
 
-const MathHtml = ({
-  latex,
-  displayMode,
-  className,
-  fallback,
-  as = 'span',
-}: {
-  latex: string;
-  displayMode: boolean;
-  className: string;
-  fallback?: React.ReactNode;
-  as?: 'span' | 'div';
-}) => {
-  const renderedHtml = renderLatexToHtml(latex, displayMode);
-  const Tag = as;
-
-  if (renderedHtml === latex) {
-    return <Tag className={className}>{fallback ?? formatRawLatex(latex, displayMode)}</Tag>;
-  }
-
-  return <Tag className={className} dangerouslySetInnerHTML={{ __html: renderedHtml }} />;
-};
-
 export const renderTextWithLatex = (
   text: string,
   params: {
@@ -264,55 +225,11 @@ export const renderTextWithLatex = (
     highlightRegex?: RegExp;
     keyPrefix?: string;
   }
-): React.ReactNode => {
-  const segments = tokenizeTextWithLatex(text, params.linkifyOpts);
-  const hasEscapedDelimiters = segments.some(
-    (segment) =>
-      segment.type === 'text' &&
-      unescapeLatexDelimiters(segment.content) !== segment.content
-  );
-  const hasMath = segments.some((segment) => segment.type === 'math');
-  const hasOnlyPlainText = segments.every((segment) => segment.type === 'text');
-
-  if (hasOnlyPlainText && !hasEscapedDelimiters && !hasMath) {
-    const jsx = renderStyledText(text, params.highlightRegex);
-    if (params.linkify === false) return jsx;
-    return <Linkify options={params.linkifyOpts}>{jsx}</Linkify>;
-  }
-
-  return segments
-    .map((segment, index) => {
-      const key = `${params.keyPrefix ?? 'latex'}-${index}`;
-
-      if (segment.type === 'math') {
-        return (
-          <MathHtml
-            key={key}
-            as="span"
-            latex={segment.content}
-            displayMode={segment.displayMode}
-            className={segment.displayMode ? css.MathBlock : css.MathInline}
-          />
-        );
-      }
-
-      const content =
-        segment.type === 'text' ? unescapeLatexDelimiters(segment.content) : segment.content;
-      if (content === '') return null;
-
-      const jsx = renderStyledText(content, params.highlightRegex);
-      if (params.linkify === false || segment.type === 'verbatim') {
-        return <React.Fragment key={key}>{jsx}</React.Fragment>;
-      }
-
-      return (
-        <Linkify key={key} options={params.linkifyOpts}>
-          {jsx}
-        </Linkify>
-      );
-    })
-    .filter((node) => node !== null);
-};
+): React.ReactNode =>
+  renderTextWithMatrixMath(text, {
+    ...params,
+    renderStyledText,
+  });
 
 /**
  * Recursively extracts and concatenates all text content from an array of ChildNode objects.
@@ -436,8 +353,8 @@ export const getReactCustomHtmlParser = (
         const { name, attribs, children, parent } = domNode;
         const props = attributesToProps(attribs);
 
-        const mindroomBlock = renderMindroomHtmlBlock(name, children, opts);
-        if (mindroomBlock) return mindroomBlock;
+        const mindroomElement = renderMindroomCustomHtmlElement(name, attribs, children, opts);
+        if (mindroomElement) return mindroomElement;
 
         if (name === 'h1') {
           return (
@@ -566,24 +483,6 @@ export const getReactCustomHtmlParser = (
           );
 
           if (mention) return mention;
-        }
-
-        if ((name === 'span' || name === 'div') && typeof attribs['data-mx-maths'] === 'string') {
-          const latex = attribs['data-mx-maths'];
-          const fallback = children.length > 0 ? domToReact(children, opts) : undefined;
-
-          return (
-            <MathHtml
-              as={name === 'div' ? 'div' : 'span'}
-              latex={latex}
-              displayMode={name === 'div'}
-              fallback={fallback}
-              className={classNames(
-                name === 'div' ? css.MathBlock : css.MathInline,
-                props.className
-              )}
-            />
-          );
         }
 
         if (name === 'span' && 'data-mx-spoiler' in props) {

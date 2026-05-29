@@ -1,0 +1,54 @@
+import { describe, expect, it } from 'vitest';
+import { sanitizeCustomHtml } from '../../utils/sanitize';
+import { mindroomCustomHtmlSanitizerPolicy } from './customHtmlPolicy';
+
+describe('mindroomCustomHtmlSanitizerPolicy', () => {
+  it('keeps paste markers and Matrix math attributes needed by MindRoom rendering', () => {
+    expect(mindroomCustomHtmlSanitizerPolicy.allowedAttributes?.span).toEqual(
+      expect.arrayContaining([
+        'data-mx-maths',
+        'data-mindroom-paste-marker',
+        'data-mindroom-paste-id',
+        'data-mindroom-paste-chars',
+        'data-mindroom-paste-file',
+      ])
+    );
+    expect(mindroomCustomHtmlSanitizerPolicy.allowedAttributes?.div).toContain('data-mx-maths');
+
+    const sanitized = sanitizeCustomHtml(
+      [
+        '<span data-mindroom-paste-marker="true" data-mindroom-paste-id="paste-a3f19c"',
+        ' data-mindroom-paste-chars="11" data-mindroom-paste-file="mindroom-paste-a3f19c.txt">',
+        '[[mindroom-paste id=paste-a3f19c chars=11 file="mindroom-paste-a3f19c.txt"]]',
+        '</span>',
+        '<span data-mx-maths="x^2">x^2</span>',
+        '<div data-mx-maths="\\frac{a}{b}">\\frac{a}{b}</div>',
+      ].join('')
+    );
+
+    expect(sanitized).toContain('data-mindroom-paste-marker="true"');
+    expect(sanitized).toContain('data-mindroom-paste-id="paste-a3f19c"');
+    expect(sanitized).toContain('data-mx-maths="x^2"');
+    expect(sanitized).toContain('data-mx-maths="\\frac{a}{b}"');
+  });
+
+  it('keeps the sanitizer strict around MindRoom policy additions', () => {
+    const sanitized = sanitizeCustomHtml(`
+      <span data-mindroom-paste-marker="true" data-unsafe="x" onclick="alert(1)" style="position:absolute;color:#123">
+        marker
+      </span>
+      <think onclick="alert(1)"><script>alert(1)</script>safe thought</think>
+      <span data-mx-maths="x" style="background-image:url(javascript:alert(1));color:red">x</span>
+    `);
+
+    expect(sanitized).toContain('data-mindroom-paste-marker="true"');
+    expect(sanitized).toContain('<think>safe thought</think>');
+    expect(sanitized).toContain('data-mx-maths="x"');
+    expect(sanitized).not.toContain('onclick');
+    expect(sanitized).not.toContain('data-unsafe');
+    expect(sanitized).not.toContain('position:absolute');
+    expect(sanitized).not.toContain('background-image');
+    expect(sanitized).not.toContain('javascript:');
+    expect(sanitized).not.toContain('<script>');
+  });
+});

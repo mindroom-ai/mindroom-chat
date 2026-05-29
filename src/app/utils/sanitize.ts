@@ -1,8 +1,55 @@
 import sanitizeHtml, { Transformer } from 'sanitize-html';
+import { mindroomCustomHtmlSanitizerPolicy } from '../mindroom/html/customHtmlPolicy';
 
 const MAX_TAG_NESTING = 100;
 
-const permittedHtmlTags = [
+type AttributePolicy = Record<string, string[]>;
+type ClassPolicy = Record<string, string[]>;
+type StylePolicy = Record<string, Record<string, RegExp[]>>;
+
+export type CustomHtmlSanitizerPolicy = {
+  allowedTags?: string[];
+  allowedAttributes?: AttributePolicy;
+  allowedClasses?: ClassPolicy;
+  allowedStyles?: StylePolicy;
+  transformTags?: Record<string, Transformer>;
+  nonTextTags?: string[];
+};
+
+const mergeList = <T>(base: T[], extension: T[] | undefined): T[] =>
+  extension ? [...base, ...extension] : base;
+
+const mergeRecordOfLists = <T>(
+  base: Record<string, T[]>,
+  extension: Record<string, T[]> | undefined
+): Record<string, T[]> => {
+  if (!extension) return base;
+
+  return Object.entries(extension).reduce(
+    (merged, [key, values]) => ({
+      ...merged,
+      [key]: [...(merged[key] ?? []), ...values],
+    }),
+    { ...base }
+  );
+};
+
+const mergeStylePolicy = (base: StylePolicy, extension: StylePolicy | undefined): StylePolicy => {
+  if (!extension) return base;
+
+  return Object.entries(extension).reduce(
+    (merged, [selector, properties]) => ({
+      ...merged,
+      [selector]: {
+        ...(merged[selector] ?? {}),
+        ...properties,
+      },
+    }),
+    { ...base }
+  );
+};
+
+const basePermittedHtmlTags = [
   'font',
   'del',
   'h1',
@@ -42,33 +89,21 @@ const permittedHtmlTags = [
   'img',
   'details',
   'summary',
-  'think',
-  'debug',
-  'system',
-  'plan',
-  'analysis',
-  'research',
 ];
 
 const urlSchemes = ['https', 'http', 'ftp', 'mailto', 'magnet'];
 
-const permittedTagToAttributes = {
+const basePermittedTagToAttributes: AttributePolicy = {
   font: ['style', 'data-mx-bg-color', 'data-mx-color', 'color'],
   span: [
     'style',
     'data-mx-bg-color',
     'data-mx-color',
     'data-mx-spoiler',
-    'data-mx-maths',
     'data-mx-pill',
     'data-mx-ping',
     'data-md',
-    'data-mindroom-paste-marker',
-    'data-mindroom-paste-id',
-    'data-mindroom-paste-chars',
-    'data-mindroom-paste-file',
   ],
-  div: ['data-mx-maths'],
   blockquote: ['data-md'],
   h1: ['data-md'],
   h2: ['data-md'],
@@ -88,6 +123,17 @@ const permittedTagToAttributes = {
   u: ['data-md'],
   s: ['data-md'],
   del: ['data-md'],
+};
+
+const baseAllowedClasses: ClassPolicy = {
+  code: ['language-*'],
+};
+
+const baseAllowedStyles: StylePolicy = {
+  '*': {
+    color: [/^#(?:[0-9a-fA-F]{3}){1,2}$/],
+    'background-color': [/^#(?:[0-9a-fA-F]{3}){1,2}$/],
+  },
 };
 
 const transformFontTag: Transformer = (tagName, attribs) => ({
@@ -136,10 +182,13 @@ const transformImgTag: Transformer = (tagName, attribs) => {
   };
 };
 
-export const sanitizeCustomHtml = (customHtml: string): string =>
+export const sanitizeCustomHtml = (
+  customHtml: string,
+  policy: CustomHtmlSanitizerPolicy = mindroomCustomHtmlSanitizerPolicy
+): string =>
   sanitizeHtml(customHtml, {
-    allowedTags: permittedHtmlTags,
-    allowedAttributes: permittedTagToAttributes,
+    allowedTags: mergeList(basePermittedHtmlTags, policy.allowedTags),
+    allowedAttributes: mergeRecordOfLists(basePermittedTagToAttributes, policy.allowedAttributes),
     disallowedTagsMode: 'discard',
     allowedSchemes: urlSchemes,
     allowedSchemesByTag: {
@@ -147,22 +196,19 @@ export const sanitizeCustomHtml = (customHtml: string): string =>
     },
     allowedSchemesAppliedToAttributes: ['href'],
     allowProtocolRelative: false,
-    allowedClasses: {
-      code: ['language-*'],
-    },
-    allowedStyles: {
-      '*': {
-        color: [/^#(?:[0-9a-fA-F]{3}){1,2}$/],
-        'background-color': [/^#(?:[0-9a-fA-F]{3}){1,2}$/],
-      },
-    },
+    allowedClasses: mergeRecordOfLists(baseAllowedClasses, policy.allowedClasses),
+    allowedStyles: mergeStylePolicy(baseAllowedStyles, policy.allowedStyles),
     transformTags: {
       font: transformFontTag,
       span: transformSpanTag,
       a: transformATag,
       img: transformImgTag,
+      ...policy.transformTags,
     },
-    nonTextTags: ['style', 'script', 'textarea', 'option', 'noscript', 'mx-reply'],
+    nonTextTags: mergeList(
+      ['style', 'script', 'textarea', 'option', 'noscript', 'mx-reply'],
+      policy.nonTextTags
+    ),
     nestingLimit: MAX_TAG_NESTING,
   });
 
