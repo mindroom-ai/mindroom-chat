@@ -61,6 +61,8 @@
     continues to fetch the same `/config.json` URL.
   - Updated App Store preflight checks to validate `config.mindroom.json`, and
     updated the iOS phone watch script to rebuild when the MindRoom config changes.
+  - Review follow-up: updated the E2E homeserver fallback to read
+    `config.mindroom.json` before the upstream sample `config.json`.
 - Decisions:
   - Keep the runtime URL stable as `config.json`; only the build source changed.
   - Keep native packaging tied to `dist/config.json`, which is now generated from
@@ -70,17 +72,25 @@
 - Files changed:
   - `config.json`
   - `config.mindroom.json`
+  - `e2e/env.ts`
   - `scripts/appstore-preflight.mjs`
   - `scripts/ios-phone.mjs`
+  - `src/app/utils/e2eEnv.test.ts`
   - `src/app/utils/runtimeConfig.test.ts`
   - `vite.config.js`
 - Regression tests:
   - Added runtime config coverage proving the MindRoom defaults live in the
     fork-owned config and Vite maps that file back to runtime `config.json`.
+  - Added E2E env coverage proving tests without `E2E_HOMESERVER` still default
+    to `mindroom.chat` from the MindRoom config overlay.
 - Validation:
   - Red check: `npm test -- src/app/utils/runtimeConfig.test.ts` failed while
     `config.mindroom.json` did not exist.
+  - Red check: `npm test -- src/app/utils/e2eEnv.test.ts` failed while the E2E
+    fallback still read upstream sample `config.json` and returned `matrix.org`.
   - Green check: `npm test -- src/app/utils/runtimeConfig.test.ts`.
+  - Green check:
+    `npm test -- src/app/utils/runtimeConfig.test.ts src/app/utils/e2eEnv.test.ts`.
   - Green check: `npm run typecheck`.
   - Green check:
     `npx prettier --check config.json config.mindroom.json scripts/appstore-preflight.mjs src/app/utils/runtimeConfig.test.ts vite.config.js`.
