@@ -58,7 +58,7 @@ describe('MindRoom runtime client config defaults', () => {
     expect(mindroomConfig.welcome?.title).toBe('Welcome to MindRoom');
     expect(mindroomConfig.splash?.loadingMessages).toContain('Loading MindRoom');
     expect(mindroomConfig.mindroom?.thinkingPlaceholderMessages).toContain('Thinking');
-    expect(mindroomConfig.push?.ios?.appId).toBe('com.mindroom-ai.app.ios');
+    expect(mindroomConfig.push?.ios?.appId).toBe('chat.mindroom.app');
 
     expect(copyFiles.targets).toContainEqual(
       expect.objectContaining({
