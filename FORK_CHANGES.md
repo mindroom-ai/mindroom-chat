@@ -2,6 +2,48 @@
 
 ## Runbook
 
+### CINNY-131 - Default splash screens to WebGL background (2026-05-31)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Updated the shared `SplashScreen` fallback so generic client error and
+    feature-check screens use the MindRoom WebGL particle background instead of
+    the old dot-pattern background.
+  - Target surfaces include the homeserver connection error, client config
+    error, missing browser feature error, and client startup error screens.
+  - Preserved the optional `background` prop so callers can still supply an
+    explicit custom background.
+- Review:
+  - Independent subagent review found no source issues; the reviewer noted the
+    new splash-screen test needed to be tracked.
+- Validation:
+  - Red check:
+    `npm test -- src/app/components/splash-screen/SplashScreen.test.ts`
+    failed while `SplashScreen` did not render a default particle background.
+  - Green check:
+    `npm test -- src/app/components/splash-screen/SplashScreen.test.ts`.
+  - Red architecture check:
+    `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    failed on the old dot-pattern invariant before the guard was updated.
+  - Green focused check:
+    `npm test -- src/app/components/splash-screen/SplashScreen.test.ts src/app/components/splash-screen/MindRoomSplashScreen.test.ts src/app/pages/client/SpecVersions.test.ts`
+    (3 files, 10 tests).
+  - Green architecture check:
+    `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    (93 tests).
+  - Dependency sync: `npm ci` refreshed stale local `node_modules`; npm reported
+    Node 20 engine warnings for packages requiring Node 22 and audit findings.
+  - Green:
+    `npx prettier --check FORK_CHANGES.md src/app/components/splash-screen/SplashScreen.tsx src/app/components/splash-screen/SplashScreen.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (18 warnings, 0 errors - existing
+    console/unused-var warning class).
+  - Green: `npm test` (301 files, 2237 tests).
+  - Green: `npm run build` (existing Vite runtime-config, sourcemap, and
+    chunk-size warnings only).
+  - Green: `git diff --check`.
+
 ### CINNY-130 - Point fork support links at MindRoom repository (2026-05-29)
 
 - Status:
