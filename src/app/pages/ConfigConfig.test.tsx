@@ -4,20 +4,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { ConfigConfigError } from './ConfigConfig';
 
 vi.mock('folds', () => ({
-  Box: ({ children, ...props }: { children?: React.ReactNode }) =>
-    React.createElement('div', props, children),
+  Box: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement('div', null, children),
   Button: ({
     children,
     onClick,
-    ...props
   }: {
     children?: React.ReactNode;
     onClick?: (event?: unknown) => void;
-  }) => React.createElement('button', { ...props, onClick }, children),
-  Dialog: ({ children, ...props }: { children?: React.ReactNode }) =>
-    React.createElement('div', props, children),
-  Text: ({ children, ...props }: { children?: React.ReactNode }) =>
-    React.createElement('span', props, children),
+  }) => React.createElement('button', { onClick }, children),
+  Dialog: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement('div', null, children),
+  Text: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement('span', null, children),
   color: {
     Critical: {
       Main: 'red',
@@ -42,19 +41,29 @@ const getButtonByText = (renderer: ReactTestRenderer, text: string) =>
     button.findAllByType('span').some((span) => span.children.includes(text))
   );
 
+const renderConfigError = ({
+  retry,
+  ignore,
+}: {
+  retry: () => void;
+  ignore: () => void;
+}) => {
+  let renderer: ReactTestRenderer;
+  act(() => {
+    renderer = create(
+      <ConfigConfigError error={new Error('config failed')} retry={retry} ignore={ignore} />
+    );
+  });
+  return renderer!;
+};
+
 describe('ConfigConfigError', () => {
   it('does not forward the click event into the retry callback', () => {
     const retry = vi.fn();
     const ignore = vi.fn();
+    const renderer = renderConfigError({ retry, ignore });
 
-    let renderer: ReactTestRenderer;
-    act(() => {
-      renderer = create(
-        <ConfigConfigError error={new Error('config failed')} retry={retry} ignore={ignore} />
-      );
-    });
-
-    const retryButton = getButtonByText(renderer!, 'Retry');
+    const retryButton = getButtonByText(renderer, 'Retry');
     expect(retryButton).toBeDefined();
 
     act(() => {
@@ -63,5 +72,21 @@ describe('ConfigConfigError', () => {
 
     expect(retry).toHaveBeenCalledTimes(1);
     expect(retry).toHaveBeenCalledWith();
+  });
+
+  it('does not forward the click event into the ignore callback', () => {
+    const retry = vi.fn();
+    const ignore = vi.fn();
+    const renderer = renderConfigError({ retry, ignore });
+
+    const continueButton = getButtonByText(renderer, 'Continue');
+    expect(continueButton).toBeDefined();
+
+    act(() => {
+      continueButton?.props.onClick({ type: 'click' });
+    });
+
+    expect(ignore).toHaveBeenCalledTimes(1);
+    expect(ignore).toHaveBeenCalledWith();
   });
 });
