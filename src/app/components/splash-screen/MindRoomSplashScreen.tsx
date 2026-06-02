@@ -1,7 +1,6 @@
 import { Box, Spinner, Text } from 'folds';
 import React, { ReactNode, useMemo } from 'react';
 import { useNativeSplashOverlay } from '../../mindroom/native/useNativeSplashOverlay';
-import { MindRoomParticleBackground } from '../particle-background';
 import { SplashScreen } from './SplashScreen';
 
 export const DEFAULT_MINDROOM_SPLASH_MESSAGES = ['Loading MindRoom'] as const;
@@ -44,7 +43,7 @@ export function MindRoomSplashScreen({
   );
 
   return (
-    <SplashScreen background={<MindRoomParticleBackground position="fixed" />}>
+    <SplashScreen>
       <Box direction="Column" grow="Yes" alignItems="Center" justifyContent="Center" gap="400">
         <Spinner variant="Secondary" size="600" />
         <Text>{selectedMessage}</Text>
