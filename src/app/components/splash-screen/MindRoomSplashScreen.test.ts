@@ -31,10 +31,6 @@ vi.mock('folds', async () => {
   };
 });
 
-vi.mock('../particle-background', () => ({
-  MindRoomParticleBackground: () => React.createElement('div', null, 'particle background'),
-}));
-
 vi.mock('./SplashScreen', () => ({
   SplashScreen: ({
     children,
@@ -87,7 +83,7 @@ describe('MindRoomSplashScreen', () => {
       );
     });
 
-    expect(renderer!.root.findByProps({ 'data-has-background': true })).toBeDefined();
+    expect(renderer!.root.findByProps({ 'data-has-background': false })).toBeDefined();
     expect(
       renderer!.root.findAll(
         (node) => typeof node.type === 'string' && node.children.includes('Alpha')
