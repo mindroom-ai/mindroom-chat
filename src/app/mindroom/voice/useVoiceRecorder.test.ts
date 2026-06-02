@@ -10,7 +10,12 @@ import {
   timeDomainDataToWaveformPoint,
   VOICE_WAVEFORM_BAR_COUNT,
 } from '../../utils/audioWaveform';
-import { getVoiceRecorderErrorMessage, useVoiceRecorder } from './useVoiceRecorder';
+import {
+  getVoiceRecorderErrorMessage,
+  useVoiceRecorder,
+  VOICE_RECORDER_AUDIO_BITS_PER_SECOND,
+  VOICE_RECORDER_AUDIO_CONSTRAINTS,
+} from './useVoiceRecorder';
 import {
   pendingVoiceSendDraftAtom,
   type PendingVoiceSendContext,
@@ -49,6 +54,8 @@ class MockMediaRecorder {
 
   mimeType: string;
 
+  options: MediaRecorderOptions;
+
   pause = vi.fn(() => {
     this.state = 'paused';
   });
@@ -60,7 +67,8 @@ class MockMediaRecorder {
   private listeners = new Map<string, Set<Listener>>();
 
   constructor(_stream: MediaStream, options?: MediaRecorderOptions) {
-    this.mimeType = options?.mimeType ?? 'audio/ogg;codecs=opus';
+    this.options = { ...(options ?? {}) };
+    this.mimeType = this.options.mimeType ?? 'audio/ogg;codecs=opus';
     MockMediaRecorder.instances.push(this);
   }
 
@@ -237,6 +245,17 @@ describe('useVoiceRecorder', () => {
     recorderState.current = undefined;
   });
 
+  it('pins the compressed speech capture contract', () => {
+    expect(VOICE_RECORDER_AUDIO_BITS_PER_SECOND).toBe(32_000);
+    expect(VOICE_RECORDER_AUDIO_CONSTRAINTS).toEqual({
+      channelCount: 1,
+      sampleRate: 24_000,
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    });
+  });
+
   it('starts mic capture and emits file, active duration, waveform, and captured context on send', async () => {
     const onRecordingStart = vi.fn();
     const onSendRecording = vi.fn();
@@ -259,7 +278,13 @@ describe('useVoiceRecorder', () => {
 
     expect(onRecordingStart).toHaveBeenCalledOnce();
     expect(getSendContext).toHaveBeenCalledOnce();
-    expect(getUserMedia).toHaveBeenCalledWith({ audio: true });
+    expect(getUserMedia).toHaveBeenCalledWith({
+      audio: VOICE_RECORDER_AUDIO_CONSTRAINTS,
+    });
+    expect(MockMediaRecorder.instances[0].options).toEqual({
+      mimeType: 'audio/ogg;codecs=opus',
+      audioBitsPerSecond: VOICE_RECORDER_AUDIO_BITS_PER_SECOND,
+    });
     expect(onSendRecording).toHaveBeenCalledOnce();
     expect(onSendRecording.mock.calls[0][0]).toBeInstanceOf(File);
     expect(onSendRecording.mock.calls[0][1]).toBe(1200);
@@ -269,6 +294,91 @@ describe('useVoiceRecorder', () => {
       threadId: '$thread-a',
     });
     expect(stream.track.stop).toHaveBeenCalledOnce();
+
+    renderer.unmount();
+  });
+
+  it('passes the audio bitrate even when no preferred MIME type is supported', async () => {
+    MockMediaRecorder.isTypeSupported.mockReturnValue(false);
+    const { renderer } = await renderHarness();
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+
+    expect(MockMediaRecorder.instances[0].options).toEqual({
+      audioBitsPerSecond: VOICE_RECORDER_AUDIO_BITS_PER_SECOND,
+    });
+    expect(MockMediaRecorder.instances[0].options).not.toHaveProperty('mimeType');
+
+    renderer.unmount();
+  });
+
+  it('falls back to unconstrained mic capture on OverconstrainedError', async () => {
+    const fallbackStream = new MockMediaStream();
+    getUserMedia
+      .mockRejectedValueOnce(new DOMException('msg', 'OverconstrainedError'))
+      .mockResolvedValueOnce(fallbackStream);
+    const { renderer } = await renderHarness();
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+
+    expect(getUserMedia).toHaveBeenNthCalledWith(1, {
+      audio: VOICE_RECORDER_AUDIO_CONSTRAINTS,
+    });
+    expect(getUserMedia).toHaveBeenNthCalledWith(2, { audio: true });
+    expect(recorderState.current?.phase).toBe('recording');
+
+    renderer.unmount();
+  });
+
+  it('does not start unconstrained fallback mic capture after unmount', async () => {
+    let rejectGetUserMedia!: (error: DOMException) => void;
+    getUserMedia.mockImplementationOnce(
+      () =>
+        new Promise<MockMediaStream>((_resolve, reject) => {
+          rejectGetUserMedia = reject;
+        })
+    );
+    const { renderer } = await renderHarness();
+
+    let startPromise!: Promise<unknown>;
+    await act(async () => {
+      startPromise = recorderState.current!.start();
+      await Promise.resolve();
+    });
+
+    act(() => {
+      renderer.unmount();
+    });
+
+    await act(async () => {
+      rejectGetUserMedia(new DOMException('msg', 'OverconstrainedError'));
+      await startPromise;
+    });
+
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(getUserMedia).toHaveBeenNthCalledWith(1, {
+      audio: VOICE_RECORDER_AUDIO_CONSTRAINTS,
+    });
+    expect(MockMediaRecorder.instances).toHaveLength(0);
+  });
+
+  it('does not fall back to unconstrained mic capture on NotAllowedError', async () => {
+    getUserMedia.mockRejectedValueOnce(new DOMException('denied', 'NotAllowedError'));
+    const { renderer } = await renderHarness();
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(recorderState.current?.phase).toBe('idle');
+    expect(recorderState.current?.errorMessage).toBe(
+      'Microphone access is blocked. Allow microphone access for this site/app in your browser or system settings and try again.'
+    );
 
     renderer.unmount();
   });
