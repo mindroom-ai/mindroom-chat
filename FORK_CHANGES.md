@@ -14,9 +14,42 @@
     error, missing browser feature error, and client startup error screens.
   - Preserved the optional `background` prop so callers can still supply an
     explicit custom background.
+  - Review follow-up: falsy `background` values now keep the fallback behavior
+    instead of silently removing both the visual background and particle content
+    wrapper.
+- Decisions:
+  - Treat `null` and `false` `background` values like the old fallback path,
+    because the previous dot-pattern implementation did not support disabling
+    the default background with falsy prop values.
+  - Keep `SplashScreen` responsible for selecting the default MindRoom particle
+    background while preserving custom background nodes supplied by callers.
+  - Do not add a second fallback component in `SplashScreen`; the particle
+    background already lowers particle counts for coarse/low-core devices and
+    keeps a CSS gradient visible when reduced-motion CSS hides the canvas.
+- Risks:
+  - `@basnijholt/particular-drift` is a WebGL2 renderer, so non-WebGL2 runtime
+    failures may still need a future library-level or component-level fallback
+    if they appear in real devices.
+  - Low-powered devices now see the particle background on generic splash
+    screens; the existing low-end particle count and reduced-motion CSS should
+    be watched in production-like device testing.
+  - Local dependency sync reports Node 20 engine warnings for packages requiring
+    Node 22 and npm audit findings; these are not introduced by the splash
+    fallback change but remain operational follow-up items.
+- Next steps:
+  - Track device/browser feedback for the new generic splash-screen background,
+    especially WebGL2 failures and reduced-motion behavior.
+  - Revisit a no-WebGL fallback if the particle renderer does not degrade
+    cleanly on supported deployment targets.
+  - Keep the architecture guard watching for accidental reintroduction of the
+    old dot-pattern stylesheet import.
 - Review:
   - Independent subagent review found no source issues; the reviewer noted the
     new splash-screen test needed to be tracked.
+  - PR review follow-up verified the `null`/`false` fallback concern against the
+    previous implementation, added custom-background and falsy-background unit
+    coverage, loosened brittle architecture source assertions, and added an
+    explicit guard against reintroducing `Patterns.css`.
 - Validation:
   - Red check:
     `npm test -- src/app/components/splash-screen/SplashScreen.test.ts`
@@ -43,6 +76,27 @@
   - Green: `npm run build` (existing Vite runtime-config, sourcemap, and
     chunk-size warnings only).
   - Green: `git diff --check`.
+  - Review red check:
+    `npm test -- src/app/components/splash-screen/SplashScreen.test.ts` failed
+    while `background={null}` did not render the default particle background.
+  - Review green check:
+    `npm test -- src/app/components/splash-screen/SplashScreen.test.ts` (4
+    tests).
+  - Review green focused check:
+    `npm test -- src/app/components/splash-screen/SplashScreen.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    (2 files, 97 tests).
+  - Review green check:
+    `npx prettier --check FORK_CHANGES.md src/app/components/splash-screen/SplashScreen.tsx src/app/components/splash-screen/SplashScreen.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Review green check: `npm run typecheck`.
+  - Review green check: `npm run lint` (18 warnings, 0 errors - existing
+    console/unused-var warning class).
+  - Review green check: `npm test` (301 files, 2240 tests).
+  - Review green check: `npm run build` (existing Vite runtime-config,
+    sourcemap, localStorage, and chunk-size warnings only).
+  - Independent review green check: separate subagent review found no issues,
+    and independently ran the focused splash/architecture tests plus
+    `git diff --check`.
+  - Review green check: `git diff --check`.
 
 ### CINNY-130 - Point fork support links at MindRoom repository (2026-05-29)
 

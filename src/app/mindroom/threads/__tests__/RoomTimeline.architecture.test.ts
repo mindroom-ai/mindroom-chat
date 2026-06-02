@@ -1902,8 +1902,11 @@ describe('RoomTimeline architecture', () => {
     expect(splashScreenSource).toContain("from '../particle-background'");
     expect(splashScreenSource).toContain('background?: ReactNode');
     expect(splashScreenSource).toContain('const resolvedBackground =');
-    expect(splashScreenSource).toContain('<MindRoomParticleBackground position="fixed" />');
+    expect(splashScreenSource).toContain('MindRoomParticleBackground');
+    expect(splashScreenSource).toContain('position="fixed"');
     expect(splashScreenSource).not.toContain('patternsCSS.BackgroundDotPattern');
+    expect(splashScreenSource).not.toContain("'../../styles/Patterns.css'");
+    expect(splashScreenSource).not.toContain('"../../styles/Patterns.css"');
     expect(splashScreenSource).not.toContain("from '../../pages/auth/AuthParticleBackground'");
     expect(mindRoomSplashScreenSource).toContain("from '../particle-background'");
     expect(mindRoomSplashScreenSource).toContain(

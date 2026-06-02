@@ -42,4 +42,48 @@ describe('SplashScreen', () => {
       })
     ).toBeDefined();
   });
+
+  it('renders a custom background instead of the particle background', () => {
+    const customBackground = React.createElement('div', {
+      'data-custom-background': true,
+    });
+
+    const renderer = create(
+      React.createElement(
+        SplashScreen,
+        { background: customBackground },
+        React.createElement('span', null, 'Content')
+      )
+    );
+
+    expect(renderer.root.findByProps({ 'data-custom-background': true })).toBeDefined();
+    expect(
+      renderer.root.findAllByProps({ 'data-mindroom-particle-background': true })
+    ).toHaveLength(0);
+  });
+
+  it.each([null, false])(
+    'falls back to the MindRoom particle background when background is %s',
+    (background) => {
+      const renderer = create(
+        React.createElement(
+          SplashScreen,
+          { background },
+          React.createElement('span', null, 'Content')
+        )
+      );
+
+      expect(
+        renderer.root.findByProps({
+          'data-mindroom-particle-background': true,
+          'data-position': 'fixed',
+        })
+      ).toBeDefined();
+      expect(
+        renderer.root.findAll(
+          (node) => node.type === 'div' && node.props.className === 'splash-screen-content'
+        )
+      ).toHaveLength(1);
+    }
+  );
 });

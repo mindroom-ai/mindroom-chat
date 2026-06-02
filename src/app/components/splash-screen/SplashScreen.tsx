@@ -11,8 +11,7 @@ type SplashScreenProps = {
 };
 
 export function SplashScreen({ children, background }: SplashScreenProps) {
-  const resolvedBackground =
-    background === undefined ? <MindRoomParticleBackground position="fixed" /> : background;
+  const resolvedBackground = background || <MindRoomParticleBackground position="fixed" />;
 
   return (
     <Box
