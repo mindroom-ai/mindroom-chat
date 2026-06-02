@@ -61,6 +61,15 @@ const TIMER_INTERVAL_MS = 200;
 const WAVEFORM_SAMPLE_INTERVAL_MS = 80;
 const MAX_LIVE_SAMPLES = 1200;
 
+export const VOICE_RECORDER_AUDIO_BITS_PER_SECOND = 32_000;
+export const VOICE_RECORDER_AUDIO_CONSTRAINTS: MediaTrackConstraints = {
+  channelCount: 1,
+  sampleRate: 24_000,
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+};
+
 const now = (): number => Date.now();
 
 const getAudioContextConstructor = (): typeof AudioContext | undefined => {
@@ -605,7 +614,19 @@ export function useVoiceRecorder({
     safeSetPhase('requesting');
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: VOICE_RECORDER_AUDIO_CONSTRAINTS,
+        });
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'OverconstrainedError') {
+          if (sessionIdRef.current !== sessionId) return false;
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } else {
+          throw err;
+        }
+      }
       if (sessionIdRef.current !== sessionId) {
         stream.getTracks().forEach((track) => track.stop());
         return false;
@@ -613,9 +634,11 @@ export function useVoiceRecorder({
 
       const mimeType = getSupportedRecorderMimeType();
       streamRef.current = stream;
-      const recorder = mimeType
-        ? new MediaRecorder(stream, { mimeType })
-        : new MediaRecorder(stream);
+      const recorderOptions: MediaRecorderOptions = {
+        audioBitsPerSecond: VOICE_RECORDER_AUDIO_BITS_PER_SECOND,
+      };
+      if (mimeType) recorderOptions.mimeType = mimeType;
+      const recorder = new MediaRecorder(stream, recorderOptions);
       const pauseSupported =
         typeof recorder.pause === 'function' && typeof recorder.resume === 'function';
 

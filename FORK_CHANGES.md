@@ -121,7 +121,45 @@
     failed with the iOS focus-transfer and pending-RAF cleanup regression tests.
   - Review green check: `npm test -- src/app/hooks/useMobileKeyboardViewportFix.test.ts`
     (3 tests).
+### CINNY-118 - Voice message compression and speech capture constraints (2026-05-18)
 
+- Status:
+  - Complete after review round 1 fixes; recovered onto `cinny-118-redo` from
+    squashed commit `8eafc162` after the dev history rewrite.
+- Summary:
+  - Voice recorder capture now requests mono speech-oriented audio constraints:
+    `channelCount: 1`, `sampleRate: 24_000`, `echoCancellation: true`,
+    `noiseSuppression: true`, and `autoGainControl: true`.
+  - `MediaRecorder` is configured with `audioBitsPerSecond: 32_000` so
+    MindRoom voice messages stay small while preserving speech quality.
+  - Overconstrained devices fall back to unconstrained audio only while the
+    initiating `start()` session is still current; stale starts invalidated by
+    unmount or reset must not issue a second mic request.
+- Review round 1 triage:
+  - FIX Issue 1: stale-session fallback mic capture was a real correctness bug
+    at the `useVoiceRecorder` capture-session boundary.
+  - FIX Issue 2: compression constants needed literal contract assertions
+    instead of expectations imported from the same implementation constants.
+  - FIX runbook issue: this voice-compression branch needed a focused runbook
+    entry with invariant, fallback behavior, and validation.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/voice/useVoiceRecorder.ts`
+  - `src/app/mindroom/voice/useVoiceRecorder.test.ts`
+- Validation:
+  - Green before recovery:
+    `npx vitest run src/app/mindroom/voice/useVoiceRecorder.test.ts --reporter=verbose`
+    (1 file, 36 tests).
+  - Green before recovery: `npm run typecheck`.
+  - Green before recovery: `npm test` (293 files, 2207 tests).
+  - Green before recovery: `npm run lint` (16 warnings, 0 errors -
+    pre-existing baseline).
+  - Green before recovery: `npm run build` (existing Vite
+    runtime-config/source-map/chunk-size warnings only).
+  - Green before recovery: `git diff --check`.
+  - Independent review before recovery: second self-review checked the final
+    diff for stale fallback paths, literal contract coverage, runbook status,
+    and half-refactor traces.
 ### Safe SVG in message extras HTML (2026-05-11)
 
 - Status:
