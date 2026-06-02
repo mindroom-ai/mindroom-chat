@@ -17,12 +17,18 @@
   - Review follow-up: falsy `background` values now keep the fallback behavior
     instead of silently removing both the visual background and particle content
     wrapper.
+  - Simplification follow-up: `MindRoomSplashScreen` now relies on the shared
+    `SplashScreen` default particle background instead of passing the same
+    WebGL background explicitly.
 - Decisions:
   - Treat `null` and `false` `background` values like the old fallback path,
     because the previous dot-pattern implementation did not support disabling
     the default background with falsy prop values.
   - Keep `SplashScreen` responsible for selecting the default MindRoom particle
     background while preserving custom background nodes supplied by callers.
+  - Remove redundant default-background props only from `SplashScreen` callers;
+    keep direct particle backgrounds on non-`SplashScreen` surfaces such as the
+    auth layout.
   - Do not add a second fallback component in `SplashScreen`; the particle
     background already lowers particle counts for coarse/low-core devices and
     keeps a CSS gradient visible when reduced-motion CSS hides the canvas.
@@ -50,6 +56,9 @@
     previous implementation, added custom-background and falsy-background unit
     coverage, loosened brittle architecture source assertions, and added an
     explicit guard against reintroducing `Patterns.css`.
+  - Follow-up cleanup verified that `MindRoomSplashScreen` was the only
+    redundant explicit default-background caller; `AuthLayout` still renders its
+    own particle background because it does not use `SplashScreen`.
 - Validation:
   - Red check:
     `npm test -- src/app/components/splash-screen/SplashScreen.test.ts`
@@ -97,6 +106,24 @@
     and independently ran the focused splash/architecture tests plus
     `git diff --check`.
   - Review green check: `git diff --check`.
+  - Cleanup red check:
+    `npm test -- src/app/components/splash-screen/MindRoomSplashScreen.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    failed while `MindRoomSplashScreen` still imported and passed the explicit
+    particle background.
+  - Cleanup green focused check:
+    `npm test -- src/app/components/splash-screen/MindRoomSplashScreen.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    (2 files, 98 tests).
+  - Cleanup green check:
+    `npx prettier --check FORK_CHANGES.md src/app/components/splash-screen/MindRoomSplashScreen.tsx src/app/components/splash-screen/MindRoomSplashScreen.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Cleanup green check: `npm run typecheck`.
+  - Cleanup green check: `npm run lint` (18 warnings, 0 errors - existing
+    console/unused-var warning class).
+  - Cleanup green check: `npm test` (301 files, 2240 tests).
+  - Cleanup green check: `npm run build` (existing Vite runtime-config,
+    sourcemap, localStorage, and chunk-size warnings only).
+  - Cleanup independent review green check: separate subagent review found no
+    issues and confirmed no `SplashScreen` caller still passes the redundant
+    default particle background.
 
 ### CINNY-130 - Point fork support links at MindRoom repository (2026-05-29)
 
