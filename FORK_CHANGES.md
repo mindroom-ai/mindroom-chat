@@ -589,6 +589,56 @@
     `npx prettier --check FORK_CHANGES.md docs/superpowers/plans/2026-06-13-pending-send-indicator.md src/app/mindroom/messages/messageStateSuffix.test.ts src/app/mindroom/threads/roomLocalEchoRefresh.ts src/app/mindroom/threads/roomLocalEchoRefresh.test.ts`
     and `git diff --check`.
 
+### Large-thread timeline performance (laggy UI / high CPU) (2026-06-12)
+
+- Status:
+  - In progress. Baseline reproduction and measurement landed; optimizations
+    follow as separate bounded steps.
+- Problem:
+  - Threads with many messages make the frontend laggy with high CPU,
+    especially while MindRoom agents stream responses via frequent `m.replace`
+    edits.
+- Investigation:
+  - The thread view renders every thread event to the DOM with no
+    virtualization (`MindroomRoomTimeline.tsx` thread branch maps over all
+    `threadEvents`); both `useVirtualPaginator` and the TanStack room
+    virtualizer are explicitly disabled for threads (`count: threadId ? 0 :
+...`). Only the classic room view is virtualized.
+  - Every live thread event — including every streaming `m.replace` chunk —
+    bumps `threadTimelineTick` in `roomLiveEventController.ts`, re-rendering
+    the entire `MindroomRoomTimeline` component and therefore every mounted
+    thread row.
+  - `RenderBody` runs `sanitizeCustomHtml` + `html-react-parser` `parse()` on
+    every render with no memoization, and `MindroomMessageExtras` re-parses
+    markdown/HTML sections (tool traces) on every render. Each streaming chunk
+    therefore re-sanitizes and re-parses the HTML of every message in the
+    thread.
+- Baseline measurement (new probe `e2e/live/perf-thread-streaming.spec.ts`,
+  docker-matrix homeserver, 400-reply thread with formatted HTML bodies,
+  40 `m.replace` edits paced at 50ms):
+  - `mountedRows: 371`, `domNodeCount: 11982`, `usedJsHeapMb: 290`.
+  - Edit burst: `cdpTaskDurationMs: 11459` over `wallClockMs: 11688` —
+    the main thread is ~100% saturated for the whole burst, ~286ms of
+    main-thread work per streaming chunk; `longTaskTotalMs: 10035` across 83
+    long tasks.
+  - Probe is informational (prints/attaches a JSON report); run with
+    `E2E_HOMESERVER/E2E_USERNAME/E2E_PASSWORD` against the docker-matrix
+    server. Knobs: `PERF_REPLY_COUNT`, `PERF_EDIT_COUNT`,
+    `PERF_EDIT_INTERVAL_MS`.
+- Planned bounded steps:
+  1. Memoize sanitize+parse in `RenderBody` and `MindroomMessageExtras` so
+     unchanged messages skip HTML re-parsing on timeline re-renders.
+  2. Coalesce `threadTimelineTick` bumps (at most one timeline re-render per
+     frame during streaming bursts).
+  3. Virtualize the thread timeline following the proven classic-room TanStack
+     pattern (bounded mounted rows, prepend anchoring, bottom pinning).
+- Risks:
+  - The perf probe is environment-sensitive; treat numbers as relative
+    before/after comparisons on the same machine, not absolute thresholds.
+- Next steps:
+  - Step 1 (parse memoization) with red/green unit checks, then re-run the
+    probe and record the delta here.
+
 ### CINNY-131 - Default splash screens to WebGL background (2026-05-31)
 
 - Status:
