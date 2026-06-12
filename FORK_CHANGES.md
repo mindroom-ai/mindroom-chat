@@ -795,14 +795,22 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
   - Live probes: open-at-latest lands exactly at the bottom
     (scrollTop+clientHeight == scrollHeight) with 16 mounted rows; perf
     numbers above.
+- Follow-up — `account-offline.spec.ts` detector fix (2026-06-12):
+  - The spec's connectivity-state detector matched the old "Failed to connect
+    to homeserver" message; upstream `acae043f` changed the splash text to
+    "Unable to connect to the homeserver…". The detector now accepts both
+    spellings (old kept for rebaseability). Green:
+    `npx playwright test e2e/account-offline.spec.ts` against the
+    docker-matrix homeserver.
 - Next steps:
-  - Fix the pre-existing `account-offline.spec.ts` detector string (separate
-    focused commit).
   - Watch `cinny070` for batch flakiness in CI.
   - Optional future: wire `scrollThreadEventIntoView` into
     `roomEventOpenController.handleOpenEvent` for direct opens of
     loaded-but-unmounted thread events (review note; current retry path
     covers the common permalink flow).
+  - If marker-bearing tool-trace threads still feel warm during very heavy
+    multi-agent streaming, revisit per-event caching of wrapped parser
+    options (deliberately skipped — see step 1 decisions).
 
 ### CINNY-131 - Default splash screens to WebGL background (2026-05-31)
 
