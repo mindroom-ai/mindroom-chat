@@ -627,17 +627,98 @@
     `PERF_EDIT_INTERVAL_MS`.
 - Planned bounded steps:
   1. Memoize sanitize+parse in `RenderBody` and `MindroomMessageExtras` so
-     unchanged messages skip HTML re-parsing on timeline re-renders.
+     unchanged messages skip HTML re-parsing on timeline re-renders. (Done,
+     see below.)
   2. Coalesce `threadTimelineTick` bumps (at most one timeline re-render per
      frame during streaming bursts).
   3. Virtualize the thread timeline following the proven classic-room TanStack
      pattern (bounded mounted rows, prepend anchoring, bottom pinning).
+- Step 1 — message parse memoization (2026-06-12):
+  - `RenderBody` now wraps sanitize+parse / `renderTextWithLatex` in `useMemo`
+    keyed on `[body, customBody, highlightRegex, htmlReactParserOptions,
+linkifyOpts]`.
+  - `MindroomMessageExtras` renders section content through a
+    `MindroomMessageExtraSectionContent` component that memoizes the
+    markdown/HTML parse keyed on `[content, contentType,
+htmlReactParserOptions]`.
+  - Independent review found the memo was initially defeated on the exact
+    streaming hot path: `withMindroomToolTraceMarkerParserOptions` minted a
+    fresh parser-options object for every message on every render (it carries
+    per-parse mutable marker state). The probe confirmed no improvement until
+    this was fixed.
+  - `withMindroomToolTraceMarkerParserOptions` now returns the base options
+    unchanged when the content cannot contain mindroom markers — string
+    `includes` checks for `🔧` and `data-mindroom-paste-marker` on
+    `formatted_body`, `body`, and `com.mindroom.message_extras` section
+    contents, plus the tool-trace v2 content check. Contract change: the
+    wrapper activates from the message content, so tests that parsed marker
+    HTML while passing unrelated/empty content now pass the real content
+    (matches production, where `MText` derives `customBody` from
+    `content.formatted_body`).
+  - Probe after step 1 (same machine, same knobs): edit burst
+    `cdpTaskDurationMs` 11459 → 4350 (−62%), `longTaskTotalMs` 10035 (83
+    tasks) → 0 (zero main-thread stalls > 50ms), burst wall clock 11.7s →
+    4.6s, `usedJsHeapMb` 290 → 159, `threadOpenToRowsMs` 10.6s → 4.6s.
+- Decisions:
+  - Marker-bearing messages (tool traces) intentionally still get fresh
+    parser options per render — the wrapped options carry per-parse mutable
+    state (`consumedToolIndexes`) and caching them across parse runs risks
+    suppressed tool blocks on re-parse/remount. Their residual re-render cost
+    is bounded later by tick coalescing and thread virtualization.
+  - Known tradeoff: mention pills/custom emoji inside parsed bodies resolve at
+    parse time; with memoization a member rename shows stale display names in
+    old messages until the message changes or remounts. Accepted — renames are
+    rare and previous behavior re-parsed every message on every render.
 - Risks:
   - The perf probe is environment-sensitive; treat numbers as relative
     before/after comparisons on the same machine, not absolute thresholds.
+  - The marker detector must stay a superset of what the wrapper's
+    replace/transform can match; false negatives would render raw marker text
+    instead of tool cards. Current signals: `🔧`, paste-marker attribute,
+    tool-trace v2 key, extras sections.
+- Review:
+  - Independent subagent review of the initial step-1 diff found a blocker —
+    the memo was 100% defeated on the streaming timeline path by the fresh
+    parser-options identity; fixed via the wrapper early-return, confirmed by
+    the probe.
+  - Delta re-review found no blockers. It traced every production parse input
+    (synthesized bodies, reply trims, `m.new_content` edits, extras
+    fallbacks, long-text hydration) to the same object the gate inspects, so
+    the gate is a strict superset of the wrapper's activation conditions.
+    Non-blocking follow-ups addressed: a comment documenting the
+    literal-marker assumption, and a seam test pinning that the wrapper keeps
+    base-options identity for plain content composed with the `RenderBody`
+    memo.
+- Step 2 re-scope:
+  - Tick coalescing is deprioritized: React 18 already batches set-states
+    within one sync response, and streaming chunk rates (2–10/s) sit below
+    frame rate, so rAF coalescing would not reduce per-edit render cost. The
+    dominant remaining cost is re-rendering all mounted rows per tick —
+    addressed by thread virtualization. Revisit coalescing only if the probe
+    still shows excess burst CPU after virtualization.
+- Validation (step 1):
+  - Red check: `npm test -- src/app/components/message/RenderBody.test.tsx`
+    failed with 3 sanitize calls for 3 identical renders before the memo.
+  - Red check: `npm test --
+src/app/mindroom/messages/MessageExtrasView.test.ts` failed re-parsing
+    unchanged sections before the section memo.
+  - Red check: `npm test --
+src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
+    failed while the wrapper always minted fresh options.
+  - Green: focused tests above plus
+    `src/app/mindroom/messages/MindroomHtmlBlocks.pasteMarker.test.ts` and
+    `src/app/plugins/react-custom-html-parser.test.ts` after the contract
+    update.
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (304 files, 2262 tests).
+  - Green: `npm run lint` (18 warnings, 0 errors — existing baseline).
+  - Green: `npm run build` (existing Vite warning baseline).
+  - Green: `npx prettier --check` on all changed files.
+  - Green: `git diff --check`.
+  - Probe delta recorded above (−62% main-thread, zero long tasks).
 - Next steps:
-  - Step 1 (parse memoization) with red/green unit checks, then re-run the
-    probe and record the delta here.
+  - Thread timeline virtualization (next bounded step); re-run the probe and
+    the docker-matrix e2e suite, and record deltas here.
 
 ### CINNY-131 - Default splash screens to WebGL background (2026-05-31)
 

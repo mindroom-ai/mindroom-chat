@@ -3,6 +3,7 @@ import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'ht
 import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Spinner, Text } from 'folds';
 import { MindroomToolRefParseResult, parseMindroomToolRefHtml } from './blocks';
+import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
 import { MindroomPasteMarker, parseMindroomPasteMarker } from './pasteAttachmentMarker';
 import {
   MindroomToolTraceEvent,
@@ -422,10 +423,46 @@ const getPasteMarkerFromElement = (element: Element): MindroomPasteMarker | unde
   return marker;
 };
 
+const MINDROOM_TOOL_REF_MARKER_TEXT = '🔧';
+const MINDROOM_PASTE_MARKER_ATTRIBUTE = 'data-mindroom-paste-marker';
+
+// Literal substring detection assumes MindRoom-emitted markers: a literal 🔧
+// and lowercase paste-marker attributes. Entity-encoded or case-variant
+// spellings from non-MindRoom senders fall back to plain rendering.
+const valueHasMindroomMarkerCandidate = (value: unknown): boolean =>
+  typeof value === 'string' &&
+  (value.includes(MINDROOM_TOOL_REF_MARKER_TEXT) ||
+    value.includes(MINDROOM_PASTE_MARKER_ATTRIBUTE));
+
+const contentHasMindroomMarkerCandidate = (content: Record<string, unknown>): boolean => {
+  if (isMindroomToolTraceV2(content)) return true;
+  if (valueHasMindroomMarkerCandidate(content.formatted_body)) return true;
+  if (valueHasMindroomMarkerCandidate(content.body)) return true;
+
+  const extras = content[MINDROOM_MESSAGE_EXTRAS_KEY];
+  if (extras && typeof extras === 'object') {
+    const { sections } = extras as { sections?: unknown };
+    if (Array.isArray(sections)) {
+      return sections.some((section) =>
+        valueHasMindroomMarkerCandidate((section as { content?: unknown } | null)?.content)
+      );
+    }
+  }
+
+  return false;
+};
+
 export const withMindroomToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
   content: Record<string, unknown>
 ): HTMLReactParserOptions => {
+  // The wrapped options carry per-parse state and a fresh identity, which
+  // defeats parse memoization downstream. Most messages carry no mindroom
+  // markers, so keep the stable base options for them.
+  if (!contentHasMindroomMarkerCandidate(content)) {
+    return baseOpts;
+  }
+
   const traceEvents = isMindroomToolTraceV2(content)
     ? getMindroomToolTraceEvents(content)
     : undefined;
