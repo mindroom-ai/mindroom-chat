@@ -1,8 +1,12 @@
 import { MutableRefObject, useCallback, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { IContent, MatrixClient, Room } from 'matrix-js-sdk';
-import { Editor } from 'slate';
-import { resetEditor, resetEditorHistory } from '../../components/editor/utils';
+import { Descendant, Editor } from 'slate';
+import {
+  resetEditor,
+  resetEditorHistory,
+  restoreEditorContent,
+} from '../../components/editor/utils';
 import { IReplyDraft, TUploadItem } from '../../state/room/roomInputDrafts';
 import { Upload } from '../../state/upload';
 import { TUploadContent } from '../../utils/matrix';
@@ -24,6 +28,7 @@ type SendSession = RoomInputSendSessionState & {
   replyDraft: IReplyDraft | undefined;
   threadingEnabled: boolean;
   textContent?: IContent;
+  composerFallback?: Descendant[];
   replyCleared: boolean;
   signalBridgedRoom: boolean;
 };
@@ -217,6 +222,21 @@ export const useRoomInputSendSessionController = ({
     ]
   );
 
+  const restoreComposerFallback = useCallback(
+    (session: SendSession) => {
+      // A failed caption goes back into the composer instead of parking in the session: by the
+      // time the caption sends, the uploads have left the board, so the board's Send-again
+      // affordance that resumes a blocked session no longer exists.
+      session.textPending = false;
+      const fragment = session.composerFallback;
+      session.composerFallback = undefined;
+      if (fragment && (mountedRef?.current ?? true)) {
+        restoreEditorContent(editor, fragment);
+      }
+    },
+    [editor, mountedRef]
+  );
+
   const processSendSession = useCallback(async () => {
     if (processingSendSessionRef.current) return;
 
@@ -257,8 +277,7 @@ export const useRoomInputSendSessionController = ({
           try {
             await sendSessionText(session);
           } catch (error) {
-            session.blockedRoot = true;
-            return;
+            restoreComposerFallback(session);
           }
           continue;
         }
@@ -286,6 +305,7 @@ export const useRoomInputSendSessionController = ({
     mountedRef,
     sendSessionText,
     sendSessionUpload,
+    restoreComposerFallback,
   ]);
 
   const startSendSession = useCallback(
@@ -352,7 +372,10 @@ export const useRoomInputSendSessionController = ({
       };
       if (textContent) {
         // The caption sends last (after the uploads), so free the composer as soon as the
-        // session has snapshotted the text instead of when the text event goes out.
+        // session has snapshotted the text instead of when the text event goes out. Keep a
+        // clone of the composer content so a failed caption can be restored (slate mutates
+        // editor.children in place).
+        sendSessionRef.current.composerFallback = structuredClone(editor.children);
         resetEditor(editor);
         resetEditorHistory(editor);
         sendTypingStatus(false);

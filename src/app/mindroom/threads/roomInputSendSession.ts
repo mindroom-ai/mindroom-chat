@@ -156,7 +156,11 @@ export const resolveRoomInputSendStep = (
   const pendingFiles = getPendingFiles(session, activeFiles);
   const uploadMap = new Map(uploads.map((upload) => [upload.file, upload]));
 
-  if (session.mode === 'auto-thread-upload-root' && !session.rootEventId && pendingFiles.length > 0) {
+  if (
+    session.mode === 'auto-thread-upload-root' &&
+    !session.rootEventId &&
+    pendingFiles.length > 0
+  ) {
     const rootFile = pendingFiles[0];
     const upload = uploadMap.get(rootFile);
 

@@ -38,7 +38,7 @@ const plainReplyDraft = (eventId = '$reply'): IReplyDraft => ({
 });
 
 describe('roomInputSendSession', () => {
-  it('sends attachments in selection order first and the caption last for text plus attachments', () => {
+  it('sends attachments first and the caption last for text plus attachments', () => {
     const first = createFile('first.png');
     const second = createFile('second.png');
     const session = createRoomInputSendSessionState({
@@ -49,11 +49,19 @@ describe('roomInputSendSession', () => {
     expect(session.mode).toBe('auto-thread-upload-root');
 
     expect(
-      resolveRoomInputSendStep(session, [loadingUpload(first), successUpload(second)], [first, second])
+      resolveRoomInputSendStep(
+        session,
+        [loadingUpload(first), successUpload(second)],
+        [first, second]
+      )
     ).toEqual({ kind: 'wait' });
 
     expect(
-      resolveRoomInputSendStep(session, [successUpload(first), successUpload(second)], [first, second])
+      resolveRoomInputSendStep(
+        session,
+        [successUpload(first), successUpload(second)],
+        [first, second]
+      )
     ).toEqual({
       kind: 'send-upload',
       file: first,
@@ -65,7 +73,11 @@ describe('roomInputSendSession', () => {
     session.rootEventId = '$root';
 
     expect(
-      resolveRoomInputSendStep(session, [successUpload(first), successUpload(second)], [first, second])
+      resolveRoomInputSendStep(
+        session,
+        [successUpload(first), successUpload(second)],
+        [first, second]
+      )
     ).toEqual({
       kind: 'send-upload',
       file: second,
@@ -76,13 +88,21 @@ describe('roomInputSendSession', () => {
     session.sentFiles.add(second);
 
     expect(
-      resolveRoomInputSendStep(session, [successUpload(first), successUpload(second)], [first, second])
+      resolveRoomInputSendStep(
+        session,
+        [successUpload(first), successUpload(second)],
+        [first, second]
+      )
     ).toEqual({ kind: 'send-text' });
 
     session.textPending = false;
 
     expect(
-      resolveRoomInputSendStep(session, [successUpload(first), successUpload(second)], [first, second])
+      resolveRoomInputSendStep(
+        session,
+        [successUpload(first), successUpload(second)],
+        [first, second]
+      )
     ).toEqual({ kind: 'complete' });
 
     expect(getTextRelationForSendSession(session)).toMatchObject({
@@ -189,7 +209,11 @@ describe('roomInputSendSession', () => {
     expect(resolveRoomInputSendStep(session, [], [first, second])).toEqual({ kind: 'wait' });
 
     expect(
-      resolveRoomInputSendStep(session, [successUpload(first), successUpload(second)], [first, second])
+      resolveRoomInputSendStep(
+        session,
+        [successUpload(first), successUpload(second)],
+        [first, second]
+      )
     ).toEqual({
       kind: 'send-upload',
       file: first,
@@ -201,7 +225,11 @@ describe('roomInputSendSession', () => {
     session.sentFiles.add(second);
 
     expect(
-      resolveRoomInputSendStep(session, [successUpload(first), successUpload(second)], [first, second])
+      resolveRoomInputSendStep(
+        session,
+        [successUpload(first), successUpload(second)],
+        [first, second]
+      )
     ).toEqual({ kind: 'send-text' });
     expect(session.rootEventId).toBeUndefined();
   });
@@ -403,13 +431,21 @@ describe('roomInputSendSession', () => {
     session.failedFiles.add(second);
 
     expect(
-      resolveRoomInputSendStep(session, [successUpload(first), errorUpload(second)], [first, second])
+      resolveRoomInputSendStep(
+        session,
+        [successUpload(first), errorUpload(second)],
+        [first, second]
+      )
     ).toEqual({ kind: 'send-text' });
 
     session.textPending = false;
 
     expect(
-      resolveRoomInputSendStep(session, [successUpload(first), errorUpload(second)], [first, second])
+      resolveRoomInputSendStep(
+        session,
+        [successUpload(first), errorUpload(second)],
+        [first, second]
+      )
     ).toEqual({ kind: 'wait' });
   });
 

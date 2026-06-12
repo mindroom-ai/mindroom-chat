@@ -38,6 +38,7 @@ const {
     moveCursor: vi.fn(),
     resetEditor: vi.fn(),
     resetEditorHistory: vi.fn(),
+    restoreEditorContent: vi.fn(),
   },
   customEditorState: {
     autocompleteQuery: undefined as { prefix: string; range: unknown; text: string } | undefined,
@@ -244,6 +245,7 @@ vi.mock('../../../components/editor/utils', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   resetEditor: editorMocks.resetEditor,
   resetEditorHistory: editorMocks.resetEditorHistory,
+  restoreEditorContent: editorMocks.restoreEditorContent,
 }));
 
 vi.mock('../../../components/emoji-board', () => ({
@@ -1053,7 +1055,7 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('keeps a paste upload claimed by send after the session-start editor reset clears the marker', async () => {
+  it('keeps a paste upload claimed by send after the session-start editor reset', async () => {
     const { store, renderer } = await renderRoomInput();
     const pastedText = 'large paste\n'.repeat(6000);
 
