@@ -14,11 +14,13 @@ import {
 const mocks = vi.hoisted(() => ({
   resetEditor: vi.fn(),
   resetEditorHistory: vi.fn(),
+  restoreEditorContent: vi.fn(),
 }));
 
 vi.mock('../../components/editor/utils', () => ({
   resetEditor: mocks.resetEditor,
   resetEditorHistory: mocks.resetEditorHistory,
+  restoreEditorContent: mocks.restoreEditorContent,
 }));
 
 type HarnessApi = {
@@ -72,11 +74,13 @@ const prepErrorUpload = (file: File): Upload => ({
 const TestHarness = ({
   onReady,
   mx,
+  editor,
 }: {
   onReady: (api: HarnessApi) => void;
   mx: {
     sendMessage: ReturnType<typeof vi.fn>;
   };
+  editor: { children: unknown[] };
 }) => {
   const selectedFilesRef = useRef<TUploadItem[]>([]);
   const sendSessionFilesRef = useRef<TUploadContent[]>([]);
@@ -94,7 +98,7 @@ const TestHarness = ({
     threadId: undefined,
     replyDraft: undefined,
     setReplyDraft: vi.fn(),
-    editor: {} as never,
+    editor: editor as never,
     sendTypingStatus: vi.fn(),
     selectedFilesRef,
     sendSessionFilesRef,
@@ -142,12 +146,16 @@ const renderHarness = () => {
       return { event_id: eventId };
     }),
   };
+  const editor = {
+    children: [{ type: 'paragraph', children: [{ text: 'caption draft' }] }],
+  };
   let api!: HarnessApi;
 
   act(() => {
     create(
       React.createElement(TestHarness, {
         mx,
+        editor,
         onReady: (nextApi) => {
           api = nextApi;
         },
@@ -155,7 +163,7 @@ const renderHarness = () => {
     );
   });
 
-  return { api, mx };
+  return { api, mx, editor };
 };
 
 describe('useRoomInputSendSessionController prep-error uploads', () => {
@@ -293,5 +301,103 @@ describe('useRoomInputSendSessionController prep-error uploads', () => {
         is_falling_back: true,
       },
     });
+  });
+});
+
+describe('useRoomInputSendSessionController caption send failures', () => {
+  beforeEach(() => {
+    mocks.resetEditor.mockReset();
+    mocks.resetEditorHistory.mockReset();
+    mocks.restoreEditorContent.mockReset();
+  });
+
+  it('restores the caption to the composer and completes the session when the caption fails', async () => {
+    const { api, mx, editor } = renderHarness();
+    const image = createFile('image.png');
+
+    api.selectedFilesRef.current = [createUploadItem(image)];
+    api.uploadsRef.current = [successUpload(image)];
+
+    mx.sendMessage.mockImplementationOnce(async () => ({ event_id: '$root' }));
+    mx.sendMessage.mockImplementationOnce(async () => {
+      throw new Error('caption send failed');
+    });
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'caption draft' },
+      });
+    });
+
+    expect(mx.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mx.sendMessage.mock.calls[0][1]).toMatchObject({
+      url: 'mxc://mindroom/image.png',
+    });
+    expect(mocks.resetEditor).toHaveBeenCalledWith(editor);
+    expect(mocks.restoreEditorContent).toHaveBeenCalledWith(editor, [
+      { type: 'paragraph', children: [{ text: 'caption draft' }] },
+    ]);
+
+    // The failed caption must not piggyback onto a later unrelated send.
+    const later = createFile('later.txt');
+    api.selectedFilesRef.current = [createUploadItem(later)];
+    api.uploadsRef.current = [successUpload(later)];
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(mx.sendMessage).toHaveBeenCalledTimes(3);
+    expect(mx.sendMessage.mock.calls[2][1]).toMatchObject({
+      body: 'later.txt',
+      url: 'mxc://mindroom/later.txt',
+    });
+  });
+
+  it('keeps upload retries resumable after a failed caption without resending the caption', async () => {
+    const { api, mx } = renderHarness();
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+
+    api.selectedFilesRef.current = [createUploadItem(first), createUploadItem(second)];
+    api.uploadsRef.current = [successUpload(first), successUpload(second)];
+
+    mx.sendMessage.mockImplementationOnce(async () => ({ event_id: '$root' }));
+    mx.sendMessage.mockImplementationOnce(async () => {
+      throw new Error('upload send failed');
+    });
+    mx.sendMessage.mockImplementationOnce(async () => {
+      throw new Error('caption send failed');
+    });
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'caption draft' },
+      });
+    });
+
+    // Root upload sent, the second upload send failed, then the caption failed and was
+    // restored to the composer.
+    expect(mx.sendMessage).toHaveBeenCalledTimes(3);
+    expect(mocks.restoreEditorContent).toHaveBeenCalledTimes(1);
+
+    // Send-again resumes the failed upload but must not resend the restored caption.
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(mx.sendMessage).toHaveBeenCalledTimes(4);
+    expect(mx.sendMessage.mock.calls[3][1]).toMatchObject({
+      body: 'second.png',
+      url: 'mxc://mindroom/second.png',
+      'm.relates_to': {
+        event_id: '$root',
+        rel_type: 'm.thread',
+      },
+    });
+    const textSends = mx.sendMessage.mock.calls.filter(
+      (call) => (call[1] as { msgtype?: string }).msgtype === 'm.text'
+    );
+    expect(textSends).toHaveLength(1);
   });
 });

@@ -6986,3 +6986,28 @@ uploads it as the `cinny-android-debug-apk` workflow artifact (14-day retention)
   - `npm test` passes (`237/237` files, `1788/1788` tests)
   - `npm run lint` passes with the current warning-only baseline (`17` warnings, `0` errors)
   - `git diff --check` passes
+
+## CINNY-108 — Send attachments before the caption text (2026-06-12)
+
+- Inverted the room-input send-session ordering so attachments send first (selection order) and the caption text sends last, matching the MindRoom backend coalescing contract where a media batch forms one agent turn and the trailing text event closes it (mindroom PR #1255).
+- Removed the `auto-thread-text-root` send mode: text plus attachments in the main timeline now uses the upload-root shape (first attachment is the room-level root, remaining attachments and the caption thread under it), the same structure attachment-only bursts already used.
+- The caption joins the thread opened by the upload root via a plain thread relation; reply-draft metadata stays on the root upload as before.
+- A caption no longer waits forever on a failed non-root upload awaiting manual retry; it sends once every active upload is settled, mirroring the existing relaxed non-root retry ordering.
+- The composer now resets when the send session snapshots the caption (session start) instead of when the text event goes out, since the text can now wait behind slow uploads; a failed caption is restored into the composer (see review fixes below).
+- `RoomInput.test.ts` now also mocks `components/editor/utils` (the controller imports the reset helpers from there, not from the mocked editor barrel); at the old HEAD the controller's real `resetEditor` call crashed against the stubbed slate `Editor` and was silently swallowed by the send-step `catch`.
+- review:
+  - independent second self-review completed via a fresh `git diff` pass over the send-session policy, controller, and test changes; scope stayed limited to the room-input send path and this runbook update.
+- validation (2026-06-12):
+  - `npm test` passes (`302/302` files, `2249/2249` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `npx eslint` on the changed files passes
+- review fixes (2026-06-12, PR #40 review):
+  - Failed-caption recovery: with media-first ordering, the caption usually fails only after every upload has sent and left the board, so the board's Send-again affordance (the only way to resume a `blockedRoot` session) no longer exists — the caption was silently lost and the zombie session would flush the stale caption into a later unrelated send. The send-text failure path no longer sets `blockedRoot`; it restores the composer from a `structuredClone` snapshot of `editor.children` taken at session start (slate mutates `editor.children` in place) via the new `restoreEditorContent` helper in `components/editor/utils`, clears `textPending`, and lets the session finish. Upload retries stay resumable; a restored caption is never resent by the session. Manual resend of a restored caption goes through the normal submit path (in the auto-thread case it posts as a plain room message since the session root is gone — accepted trade-off).
+  - New controller tests cover caption-send failure: composer restore + session completion without stale resends, and upload-retry resume after a failed caption.
+  - Wrapped the over-`printWidth` lines this branch had introduced (send-step root condition, `resolveRoomInputSendStep` one-liners, two test titles); the touched modules other than `roomInputSendSession.ts`/`RoomInput.test.ts` pre-existing hunks are now prettier-clean.
+- validation (2026-06-12, after review fixes):
+  - `npm test` passes (`302/302` files, `2251/2251` tests)
+  - `npm run typecheck` passes
+  - `npm run build` passes
+  - `npx eslint` on the changed files passes
