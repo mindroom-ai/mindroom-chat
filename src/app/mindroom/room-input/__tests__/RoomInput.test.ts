@@ -238,6 +238,14 @@ vi.mock('../../../components/editor', () => ({
   trimCustomHtml: (value: string) => value,
 }));
 
+// The send-session controller imports these helpers from the utils module directly, so the
+// editor barrel mock above does not cover its calls.
+vi.mock('../../../components/editor/utils', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  resetEditor: editorMocks.resetEditor,
+  resetEditorHistory: editorMocks.resetEditorHistory,
+}));
+
 vi.mock('../../../components/emoji-board', () => ({
   EmojiBoard: () => null,
   EmojiBoardTab: {},
@@ -1045,7 +1053,7 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('keeps a paste upload claimed by send after the text-send editor reset clears the marker', async () => {
+  it('keeps a paste upload claimed by send after the session-start editor reset clears the marker', async () => {
     const { store, renderer } = await renderRoomInput();
     const pastedText = 'large paste\n'.repeat(6000);
 
@@ -1075,13 +1083,28 @@ describe('RoomInput', () => {
       await uploadBoardSend.props.onClick();
     });
 
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    // The caption sends after the paste upload; the session-start editor reset clears the
+    // marker but must not orphan-clean the claimed paste upload while it is still uploading.
+    expect(editorMocks.resetEditor).toHaveBeenCalled();
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toHaveLength(1);
 
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    const pasteFile = store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))[0].file;
+    await act(async () => {
+      store.set(roomUploadAtomFamily(pasteFile), { mxc: 'mxc://mindroom/paste' });
+    });
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
     expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+      url: 'mxc://mindroom/paste',
+    });
+    expect(mxState.sendMessage.mock.calls[1][1]).toMatchObject({
       msgtype: 'm.text',
       body: `${marker}\n\ntest testing`,
+      'm.relates_to': {
+        event_id: '$sent',
+        rel_type: 'm.thread',
+      },
     });
 
     renderer.unmount();

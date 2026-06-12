@@ -172,18 +172,12 @@ export const useRoomInputSendSessionController = ({
             'm.relates_to': relation,
           }
         : session.textContent;
-      const response = await mx.sendMessage(session.roomId, content as any);
+      await mx.sendMessage(session.roomId, content as any);
 
       session.textPending = false;
-      if (session.mode === 'auto-thread-text-root') {
-        session.rootEventId = response.event_id;
-      }
       clearReplyDraftForSession(session);
-      resetEditor(editor);
-      resetEditorHistory(editor);
-      sendTypingStatus(false);
     },
-    [mx, clearReplyDraftForSession, editor, sendTypingStatus]
+    [mx, clearReplyDraftForSession]
   );
 
   const sendSessionUpload = useCallback(
@@ -356,6 +350,13 @@ export const useRoomInputSendSessionController = ({
           threadingEnabled: sessionThreadingEnabled,
         }),
       };
+      if (textContent) {
+        // The caption sends last (after the uploads), so free the composer as soon as the
+        // session has snapshotted the text instead of when the text event goes out.
+        resetEditor(editor);
+        resetEditorHistory(editor);
+        sendTypingStatus(false);
+      }
       await processSendSession();
     },
     [
@@ -364,6 +365,8 @@ export const useRoomInputSendSessionController = ({
       replyDraft,
       threadingEnabled,
       room,
+      editor,
+      sendTypingStatus,
       selectedFilesRef,
       sendSessionFilesRef,
       sendSessionUploadItemsRef,

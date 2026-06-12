@@ -38,7 +38,7 @@ const plainReplyDraft = (eventId = '$reply'): IReplyDraft => ({
 });
 
 describe('roomInputSendSession', () => {
-  it('sends text first, then attachments in selection order for text plus attachments', () => {
+  it('sends attachments in selection order first and the caption last for text plus attachments', () => {
     const first = createFile('first.png');
     const second = createFile('second.png');
     const session = createRoomInputSendSessionState({
@@ -46,11 +46,7 @@ describe('roomInputSendSession', () => {
       hasText: true,
     });
 
-    expect(session.mode).toBe('auto-thread-text-root');
-    expect(resolveRoomInputSendStep(session, [], [first, second])).toEqual({ kind: 'send-text' });
-
-    session.textPending = false;
-    session.rootEventId = '$root';
+    expect(session.mode).toBe('auto-thread-upload-root');
 
     expect(
       resolveRoomInputSendStep(session, [loadingUpload(first), successUpload(second)], [first, second])
@@ -62,10 +58,11 @@ describe('roomInputSendSession', () => {
       kind: 'send-upload',
       file: first,
       mxc: 'mxc://mindroom/first.png',
-      isRoot: false,
+      isRoot: true,
     });
 
     session.sentFiles.add(first);
+    session.rootEventId = '$root';
 
     expect(
       resolveRoomInputSendStep(session, [successUpload(first), successUpload(second)], [first, second])
@@ -80,7 +77,41 @@ describe('roomInputSendSession', () => {
 
     expect(
       resolveRoomInputSendStep(session, [successUpload(first), successUpload(second)], [first, second])
+    ).toEqual({ kind: 'send-text' });
+
+    session.textPending = false;
+
+    expect(
+      resolveRoomInputSendStep(session, [successUpload(first), successUpload(second)], [first, second])
     ).toEqual({ kind: 'complete' });
+
+    expect(getTextRelationForSendSession(session)).toMatchObject({
+      event_id: '$root',
+      rel_type: RelationType.Thread,
+    });
+  });
+
+  it('auto-threads a single attachment with a caption under the upload root', () => {
+    const only = createFile('only.png');
+    const session = createRoomInputSendSessionState({
+      files: [only],
+      hasText: true,
+    });
+
+    expect(session.mode).toBe('auto-thread-upload-root');
+    expect(resolveRoomInputSendStep(session, [successUpload(only)], [only])).toEqual({
+      kind: 'send-upload',
+      file: only,
+      mxc: 'mxc://mindroom/only.png',
+      isRoot: true,
+    });
+
+    session.sentFiles.add(only);
+    session.rootEventId = '$root';
+
+    expect(resolveRoomInputSendStep(session, [successUpload(only)], [only])).toEqual({
+      kind: 'send-text',
+    });
   });
 
   it('uses the first attachment as the root and threads the rest for attachment-only sends', () => {
@@ -155,9 +186,7 @@ describe('roomInputSendSession', () => {
       is_falling_back: true,
     });
 
-    expect(resolveRoomInputSendStep(session, [], [first, second])).toEqual({ kind: 'send-text' });
-
-    session.textPending = false;
+    expect(resolveRoomInputSendStep(session, [], [first, second])).toEqual({ kind: 'wait' });
 
     expect(
       resolveRoomInputSendStep(session, [successUpload(first), successUpload(second)], [first, second])
@@ -167,6 +196,13 @@ describe('roomInputSendSession', () => {
       mxc: 'mxc://mindroom/first.png',
       isRoot: false,
     });
+
+    session.sentFiles.add(first);
+    session.sentFiles.add(second);
+
+    expect(
+      resolveRoomInputSendStep(session, [successUpload(first), successUpload(second)], [first, second])
+    ).toEqual({ kind: 'send-text' });
     expect(session.rootEventId).toBeUndefined();
   });
 
@@ -206,18 +242,27 @@ describe('roomInputSendSession', () => {
 
   it('keeps plain reply metadata on the root and threads later attachments under the new root', () => {
     const first = createFile('first.png');
-    const textSession = createRoomInputSendSessionState({
+    const captionedSession = createRoomInputSendSessionState({
       files: [first],
       hasText: true,
       replyDraft: plainReplyDraft(),
     });
 
     expect(
-      getTextRelationForSendSession({ ...textSession, replyDraft: plainReplyDraft() })
+      getUploadRelationForSendSession({ ...captionedSession, replyDraft: plainReplyDraft() }, true)
     ).toEqual({
       'm.in_reply_to': {
         event_id: '$reply',
       },
+    });
+
+    captionedSession.rootEventId = '$new-root';
+
+    expect(
+      getTextRelationForSendSession({ ...captionedSession, replyDraft: plainReplyDraft() })
+    ).toMatchObject({
+      event_id: '$new-root',
+      rel_type: RelationType.Thread,
     });
 
     const uploadSession = createRoomInputSendSessionState({
@@ -343,6 +388,29 @@ describe('roomInputSendSession', () => {
       mxc: 'mxc://mindroom/second.png',
       isRoot: false,
     });
+  });
+
+  it('sends the caption without waiting for a failed non-root upload awaiting manual retry', () => {
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    const session = createRoomInputSendSessionState({
+      files: [first, second],
+      hasText: true,
+    });
+
+    session.sentFiles.add(first);
+    session.rootEventId = '$root';
+    session.failedFiles.add(second);
+
+    expect(
+      resolveRoomInputSendStep(session, [successUpload(first), errorUpload(second)], [first, second])
+    ).toEqual({ kind: 'send-text' });
+
+    session.textPending = false;
+
+    expect(
+      resolveRoomInputSendStep(session, [successUpload(first), errorUpload(second)], [first, second])
+    ).toEqual({ kind: 'wait' });
   });
 
   it('only matches reply-draft clearing when the live send context still matches the session snapshot', () => {
