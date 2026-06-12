@@ -716,9 +716,93 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
   - Green: `npx prettier --check` on all changed files.
   - Green: `git diff --check`.
   - Probe delta recorded above (−62% main-thread, zero long tasks).
+- Step 3 — thread timeline virtualization (2026-06-12):
+  - The single TanStack virtualizer in `MindroomRoomTimeline` now serves both
+    paths: `count` is `threadEvents.length` for threads (was hardwired 0) and
+    `getItemKey` returns thread event ids. The thread branch renders a
+    `renderVirtualThreadTimelineItems()` slice (VirtualTile + measureElement,
+    overscan 10) instead of mapping every thread event, with a thread render
+    primer replicating the thread-branch skip rules so sender-collapse and day
+    dividers stay correct at the slice boundary.
+  - Thread bottom pinning under estimated row heights: a settling layout
+    effect re-pins (instant only, never during smooth pins) until the position
+    is stably near bottom (cap ~90 frames), cancelling on user scroll intent
+    (wheel/touch/pointer/key).
+  - Open-at-latest root-cause fix: the pending-open bottom-pin suppression in
+    `roomFocusScrollController` treated any scroll event away from the bottom
+    as the user scrolling. Virtualizers also scroll programmatically (offset
+    adjustments when rows above the viewport re-measure), which falsely
+    suppressed every open pin and stranded the view mid-thread (reproduced
+    with a live probe; the view stuck at the bottom-of-first-batch offset).
+    Suppression now requires user scroll intent within 400ms of the scroll
+    event.
+  - Load Older prepend anchoring: the existing event-id DOM anchor restore
+    only works while the anchor row is mounted; after a virtual prepend the
+    indexes shift, so a compensation effect scrolls the anchor's new index
+    into view first, then retries the DOM fine-correction across a few frames
+    and finally expires the anchor so a stale anchor can never fire a late
+    scroll jump.
+  - Permalinks into unmounted rows: `useRoomFocusScrollController` accepts a
+    `scrollThreadEventIntoView` fallback (virtualizer scrollToIndex via the
+    thread event index map) used when a pending thread-open target row is not
+    in the DOM; retry attempts raised 2 → 3.
+  - Expand/collapse-all (`[+all]`): the CollapsibleMessage listener bus now
+    records the latest broadcast so rows mounted later under virtualization
+    adopt it; the state resets during render on room/thread navigation (before
+    the new tree's initializers run).
+- Probe after step 3 (same machine/knobs, cumulative with step 1):
+  - Edit burst `cdpTaskDurationMs` 11459 → 555–821 (−93–95%), zero long
+    tasks; burst wall clock ≈ the send pacing (client fully keeps up).
+  - `mountedRows` 371 → 16, `domNodeCount` ~12000 → ~1100, `usedJsHeapMb`
+    290 → 104.
+- Review:
+  - Implemented by a dedicated subagent from a detailed brief; orchestrator
+    re-validated everything independently.
+  - Independent review subagent: no blockers; four concerns addressed in this
+    step — widened user-intent vectors for both the suppression listener and
+    the settle loop (scrollbar/keyboard/middle-click), the prepend
+    fine-correction retry/expiry (would otherwise fire a delayed scroll jump),
+    and the expand-all reset moved to render phase (module state leaked into
+    the next room's first commit).
+  - Review nits accepted as-is (documented): local-echo key flip remounts own
+    just-sent rows once on confirmation; virtual count includes non-renderable
+    events (estimate inflation only); no scrollMargin for content above the
+    virtual container (pre-existing in the room path too).
+- Risks:
+  - Open-pin suppression now keys on wheel/touch/pointer/keydown intent;
+    exotic scroll vectors without those events (e.g. some assistive tech)
+    would be re-pinned during the brief pending-open window.
+  - The e2e spec most coupled to prepend anchoring (`cinny070`) showed one
+    batch-context flake during validation but passes standalone and in the
+    full suite; watch it in CI.
+- Validation:
+  - Red check: thread virtual-slice test failed while the virtualizer count
+    was `threadId ? 0` and all rows rendered.
+  - Red checks: prepend re-anchor (no `scrollToIndex` call), expand-all on
+    late mounts (missing API), focus-scroll fallback (gave up at 2 attempts,
+    no fallback), `getPendingAnchorEventId`/`clearPendingAnchor` (missing),
+    programmatic-scroll suppression (suppressed without user intent).
+  - Green: all of the above plus full `npm test` (304 files, 2274 tests).
+  - Green: `npm run typecheck`, `npm run lint` (18 warnings, 0 errors
+    baseline), `npm run build`, `npx prettier --check` on touched files,
+    `git diff --check`.
+  - Green: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix`
+    (70 passed, 3 skipped, 1 failed: `account-offline.spec.ts` — pre-existing
+    failure unrelated to this work; the upstream error-message text changed in
+    `acae043f` and the spec's connectivity-state detector no longer matches.
+    Verified the text change predates this branch; spec fix tracked as a
+    separate follow-up).
+  - Live probes: open-at-latest lands exactly at the bottom
+    (scrollTop+clientHeight == scrollHeight) with 16 mounted rows; perf
+    numbers above.
 - Next steps:
-  - Thread timeline virtualization (next bounded step); re-run the probe and
-    the docker-matrix e2e suite, and record deltas here.
+  - Fix the pre-existing `account-offline.spec.ts` detector string (separate
+    focused commit).
+  - Watch `cinny070` for batch flakiness in CI.
+  - Optional future: wire `scrollThreadEventIntoView` into
+    `roomEventOpenController.handleOpenEvent` for direct opens of
+    loaded-but-unmounted thread events (review note; current retry path
+    covers the common permalink flow).
 
 ### CINNY-131 - Default splash screens to WebGL background (2026-05-31)
 

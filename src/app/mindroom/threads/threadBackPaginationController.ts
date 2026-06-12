@@ -21,6 +21,8 @@ export type ThreadBackPaginationController = {
     eventCount?: number
   ) => boolean;
   finish: (opts: { didPaginateBack: boolean; threadId: string; currentThreadId?: string }) => void;
+  clearPendingAnchor: () => void;
+  getPendingAnchorEventId: () => string | undefined;
   restorePendingAnchor: (
     scrollRoot: HTMLElement | null | undefined,
     threadId: string | undefined,
@@ -88,6 +90,12 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
     []
   );
 
+  const getPendingAnchorEventId = useCallback(() => pendingAnchorRef.current?.eventId, []);
+
+  const clearPendingAnchor = useCallback(() => {
+    pendingAnchorRef.current = undefined;
+  }, []);
+
   const restorePendingAnchor = useCallback(
     (
       scrollRoot: HTMLElement | null | undefined,
@@ -125,6 +133,8 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
     reset,
     begin,
     finish,
+    clearPendingAnchor,
+    getPendingAnchorEventId,
     restorePendingAnchor,
   };
 };

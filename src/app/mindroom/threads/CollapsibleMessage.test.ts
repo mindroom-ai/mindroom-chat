@@ -10,7 +10,12 @@ vi.mock('./CollapsibleMessage.css', () => ({
   CollapsiblePill: 'collapsible-pill',
 }));
 
-import { collapseAllMessages, expandAllMessages, CollapsibleMessage } from './CollapsibleMessage';
+import {
+  collapseAllMessages,
+  expandAllMessages,
+  resetExpandAllState,
+  CollapsibleMessage,
+} from './CollapsibleMessage';
 
 type MockContentElement = Pick<HTMLDivElement, 'clientHeight' | 'scrollHeight'>;
 type MockGradientElement = { focus: ReturnType<typeof vi.fn> };
@@ -130,6 +135,7 @@ beforeEach(() => {
   resizeObserverConstructed = vi.fn();
   intersectionObserverConstructed = vi.fn();
   lastIntersectionCallback = null;
+  resetExpandAllState();
   vi.stubGlobal('ResizeObserver', MockResizeObserver);
   vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
   vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
@@ -720,6 +726,78 @@ describe('CollapsibleMessage', () => {
         node.props.className === 'collapsible-close-button'
     );
     expect(legacy).toHaveLength(0);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('mounts later instances expanded while expand-all is active', () => {
+    act(() => {
+      expandAllMessages();
+    });
+
+    const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
+    const content = getContentContainer(renderer);
+
+    expect(content.props.style.maxHeight).toBeUndefined();
+    expect(content.props['aria-expanded']).toBe(true);
+    expect(getCloseButton(renderer).props['aria-label']).toBe('Show less');
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('mounts later instances collapsed after collapse-all', () => {
+    act(() => {
+      expandAllMessages();
+    });
+    act(() => {
+      collapseAllMessages();
+    });
+
+    const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
+    const content = getContentContainer(renderer);
+
+    expect(content.props.style.maxHeight).toBe('4.5em');
+    expect(content.props['aria-expanded']).toBe(false);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('mounts later instances with default behavior after resetExpandAllState', () => {
+    act(() => {
+      expandAllMessages();
+    });
+    resetExpandAllState();
+
+    const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
+    const content = getContentContainer(renderer);
+
+    expect(content.props.style.maxHeight).toBe('4.5em');
+    expect(content.props['aria-expanded']).toBe(false);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('keeps initially-expanded semantics for new instances while collapse-all is active', () => {
+    act(() => {
+      collapseAllMessages();
+    });
+
+    const onInitialExpandConsumed = vi.fn();
+    const renderer = renderCollapsibleMessage({
+      collapseMode: 'initially-expanded',
+      onInitialExpandConsumed,
+    });
+
+    expect(onInitialExpandConsumed).toHaveBeenCalledTimes(1);
+    expect(getContentContainer(renderer).props['aria-expanded']).toBe(true);
 
     act(() => {
       renderer.unmount();

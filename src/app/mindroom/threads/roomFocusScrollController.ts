@@ -69,6 +69,7 @@ export type RoomFocusScrollControllerOptions = {
   retryPagination: RetryPagination;
   roomId: string;
   scrollRef: MutableRefObject<HTMLDivElement | null>;
+  scrollThreadEventIntoView?: (eventId: string) => boolean;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   scrollToElement: ScrollToElement;
   scrollToItem: ScrollToItem;
@@ -102,6 +103,7 @@ export const useRoomFocusScrollController = ({
   retryPagination,
   roomId,
   scrollRef,
+  scrollThreadEventIntoView,
   scrollToBottomRef,
   scrollToElement,
   scrollToItem,
@@ -136,7 +138,16 @@ export const useRoomFocusScrollController = ({
     const scrollEl = scrollRef.current;
     if (!scrollEl) return undefined;
 
+    // Only user-intended scrolls may cancel the open bottom pin. Virtualized
+    // timelines also scroll programmatically (bottom pins and scroll-offset
+    // adjustments when rows above the viewport re-measure), so a bare scroll
+    // event is not evidence of user intent.
+    let lastUserScrollIntentTs = 0;
+    const markUserScrollIntent = () => {
+      lastUserScrollIntentTs = Date.now();
+    };
     const cancelPendingOpenBottomPin = () => {
+      if (Date.now() - lastUserScrollIntentTs > 400) return;
       if (
         isScrollNearBottom({
           scrollHeight: scrollEl.scrollHeight,
@@ -149,8 +160,21 @@ export const useRoomFocusScrollController = ({
       suppressThreadOpenBottomPinRef.current = true;
     };
 
+    const userScrollIntentEvents = [
+      'wheel',
+      'touchstart',
+      'touchmove',
+      'pointerdown',
+      'keydown',
+    ] as const;
+    userScrollIntentEvents.forEach((eventType) => {
+      scrollEl.addEventListener(eventType, markUserScrollIntent, { passive: true });
+    });
     scrollEl.addEventListener('scroll', cancelPendingOpenBottomPin, { passive: true });
     return () => {
+      userScrollIntentEvents.forEach((eventType) => {
+        scrollEl.removeEventListener(eventType, markUserScrollIntent);
+      });
       scrollEl.removeEventListener('scroll', cancelPendingOpenBottomPin);
     };
   }, [scrollRef, suppressThreadOpenBottomPinRef, threadId, threadLatestOpenPending]);
@@ -391,11 +415,15 @@ export const useRoomFocusScrollController = ({
       return;
     }
 
-    if (pendingOpen.attempts >= 2) {
+    if (pendingOpen.attempts >= 3) {
       if (pendingOpen.onScroll) pendingOpen.onScroll(false);
       pendingThreadOpenRef.current = undefined;
       return;
     }
+
+    // Under thread virtualization an off-screen target never mounts on its own;
+    // ask the timeline to scroll the virtual index into view before retrying.
+    scrollThreadEventIntoView?.(pendingOpen.eventId);
 
     pendingThreadOpenRef.current = {
       ...pendingOpen,
@@ -409,6 +437,7 @@ export const useRoomFocusScrollController = ({
     pendingThreadOpenRef,
     pendingThreadOpenTick,
     scrollRef,
+    scrollThreadEventIntoView,
     scrollToElement,
     setFocusItem,
     setPendingThreadOpenTick,

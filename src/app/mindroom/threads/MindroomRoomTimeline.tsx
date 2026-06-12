@@ -96,7 +96,12 @@ import { GetContentCallback, MessageEvent, StateEvent } from '../../../types/mat
 import { useKeyDown } from '../../hooks/useKeyDown';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
 import { VirtualTile } from '../../components/virtualizer';
-import { CollapsibleMessage, expandAllMessages, collapseAllMessages } from './CollapsibleMessage';
+import {
+  CollapsibleMessage,
+  expandAllMessages,
+  collapseAllMessages,
+  resetExpandAllState,
+} from './CollapsibleMessage';
 import { Image } from '../../components/media';
 import { ImageViewer } from '../../components/image-viewer';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
@@ -166,7 +171,11 @@ import {
   type FilterPreset,
 } from './roomThreadOverviewModel';
 import type { RoomViewMode } from './roomViewMode';
-import { isTimelineAtLiveEnd, shouldRenderUnreadDividerAt } from './timelineScrollUtils';
+import {
+  isScrollNearBottom,
+  isTimelineAtLiveEnd,
+  shouldRenderUnreadDividerAt,
+} from './timelineScrollUtils';
 import {
   resolveRoomTimelineViewState,
   THREAD_OVERVIEW_METADATA_CACHE_LIMIT,
@@ -400,6 +409,8 @@ export function RoomTimeline({
     reset: resetThreadBackPagination,
     begin: beginThreadBackPagination,
     finish: finishThreadBackPagination,
+    clearPendingAnchor: clearPendingThreadBackPaginationAnchor,
+    getPendingAnchorEventId: getPendingThreadBackPaginationAnchorEventId,
     restorePendingAnchor: restorePendingThreadBackPaginationAnchor,
   } = useThreadBackPaginationController();
   const roomIdRef = useRef(room.roomId);
@@ -457,9 +468,19 @@ export function RoomTimeline({
   const prevShowThreadRepliesInRoomRef = useRef(showThreadRepliesInRoom);
   const eventsLength = getTimelinesEventsCount(timeline.linkedTimelines);
   const threadResolutionMap = useRoomThreadResolutionMap(room);
+  // Reset during render, not in an effect: on room/thread navigation the new
+  // tree's CollapsibleMessage initializers read the module-level expand-all
+  // state before any effect of this instance runs.
+  const expandAllScopeKey = `${room.roomId}:${threadId ?? ''}`;
+  const expandAllScopeKeyRef = useRef<string>();
+  if (expandAllScopeKeyRef.current !== expandAllScopeKey) {
+    expandAllScopeKeyRef.current = expandAllScopeKey;
+    resetExpandAllState();
+  }
   useEffect(() => {
     liveExpandOnceIds.current.clear();
     setHydratedLongTextExtrasCollapseKeys((current) => (current.size === 0 ? current : new Set()));
+    setAllExpanded(false);
   }, [room.roomId, threadId]);
   const markHydratedLongTextExtrasCollapsedExempt = useCallback((collapseKey: string) => {
     setHydratedLongTextExtrasCollapseKeys((current) => {
@@ -984,11 +1005,14 @@ export function RoomTimeline({
     [messageLayout]
   );
   const roomTimelineVirtualizer = useVirtualizer({
-    count: threadId ? 0 : timelineItems.length,
+    count: threadId ? threadEvents.length : timelineItems.length,
     getScrollElement,
     estimateSize: estimateRoomTimelineItemSize,
     overscan: 10,
     getItemKey: (index) => {
+      if (threadId) {
+        return threadEvents[index]?.getId() ?? index;
+      }
       const item = timelineItems[index];
       return threadFilteredEventEntries[item]?.event.getId() ?? item ?? index;
     },
@@ -1063,6 +1087,145 @@ export function RoomTimeline({
     setAtBottom,
     threadId,
   ]);
+  // Thread bottom-pin settling: under virtualization the scroll height is an
+  // estimate until rows mount and measure, so a pin can land far off-bottom
+  // while measurements keep growing the total size (opening a large thread can
+  // need dozens of correction frames). Re-pin until the position is stably at
+  // the bottom, and stop immediately on user scroll intent so streaming
+  // re-pins cannot trap the user at the bottom.
+  useLayoutEffect(() => {
+    if (!threadId || roomScrollToBottomCount <= 0 || scrollToBottomRef.current.smooth) {
+      return undefined;
+    }
+
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return undefined;
+
+    let rafId: number | undefined;
+    let remainingTicks = 90;
+    let stableTicks = 0;
+    const cancelOnUserScrollIntent = () => {
+      if (rafId !== undefined) cancelAnimationFrame(rafId);
+      rafId = undefined;
+    };
+    const settle = () => {
+      rafId = undefined;
+      if (
+        isScrollNearBottom({
+          scrollHeight: scrollEl.scrollHeight,
+          scrollTop: scrollEl.scrollTop,
+          clientHeight: scrollEl.clientHeight,
+        })
+      ) {
+        stableTicks += 1;
+        if (stableTicks >= 2) return;
+      } else {
+        stableTicks = 0;
+        scrollToBottom(scrollEl, 'instant');
+      }
+      remainingTicks -= 1;
+      if (remainingTicks > 0) {
+        rafId = requestAnimationFrame(settle);
+      }
+    };
+    const userScrollIntentEvents = [
+      'wheel',
+      'touchstart',
+      'touchmove',
+      'pointerdown',
+      'keydown',
+    ] as const;
+    userScrollIntentEvents.forEach((eventType) => {
+      scrollEl.addEventListener(eventType, cancelOnUserScrollIntent, { passive: true });
+    });
+    rafId = requestAnimationFrame(settle);
+    return () => {
+      userScrollIntentEvents.forEach((eventType) => {
+        scrollEl.removeEventListener(eventType, cancelOnUserScrollIntent);
+      });
+      if (rafId !== undefined) cancelAnimationFrame(rafId);
+    };
+  }, [roomScrollToBottomCount, scrollRef, scrollToBottomRef, threadId]);
+  // Thread prepend compensation: after back-pagination prepends rows, virtual
+  // item indexes shift while the scroll offset still points at the old offset,
+  // which can unmount the captured anchor row. Scroll the anchor's new index
+  // into view first so the DOM-based restore (which runs after this effect, in
+  // useRoomFocusScrollController) can fine-correct against a mounted element.
+  const threadVirtualPrependStateRef = useRef<{
+    threadId?: string;
+    length: number;
+    firstEventId?: string;
+  }>({ length: 0 });
+  useLayoutEffect(() => {
+    const previous = threadVirtualPrependStateRef.current;
+    const firstEventId = threadEvents[0]?.getId();
+    threadVirtualPrependStateRef.current = {
+      threadId,
+      length: threadEvents.length,
+      firstEventId,
+    };
+    if (!threadId || previous.threadId !== threadId) return;
+    if (threadEvents.length <= previous.length) return;
+    if (!previous.firstEventId || previous.firstEventId === firstEventId) return;
+
+    const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
+    if (!anchorEventId) return undefined;
+
+    const anchorIndex = threadEventIndexMapRef.current.get(anchorEventId);
+    if (typeof anchorIndex !== 'number') return undefined;
+
+    roomTimelineVirtualizer.scrollToIndex(anchorIndex, { align: 'start' });
+
+    // The anchor row mounts on the virtualizer's next render, so the same-commit
+    // DOM restore in useRoomFocusScrollController can miss it. Retry the
+    // fine-correction over the next frames and never leave a stale anchor
+    // behind — a lingering anchor would fire a visible scroll jump on the next
+    // unrelated thread update.
+    let rafId: number | undefined;
+    let attempts = 0;
+    const retryRestore = () => {
+      rafId = undefined;
+      const restored = restorePendingThreadBackPaginationAnchor(
+        scrollRef.current,
+        threadId,
+        threadEvents.length
+      );
+      attempts += 1;
+      if (restored || !getPendingThreadBackPaginationAnchorEventId()) return;
+      if (attempts < 5) {
+        rafId = requestAnimationFrame(retryRestore);
+        return;
+      }
+      clearPendingThreadBackPaginationAnchor();
+    };
+    rafId = requestAnimationFrame(retryRestore);
+    return () => {
+      if (rafId !== undefined) {
+        cancelAnimationFrame(rafId);
+        clearPendingThreadBackPaginationAnchor();
+      }
+    };
+  }, [
+    clearPendingThreadBackPaginationAnchor,
+    getPendingThreadBackPaginationAnchorEventId,
+    restorePendingThreadBackPaginationAnchor,
+    roomTimelineVirtualizer,
+    scrollRef,
+    threadEventIndexMapRef,
+    threadEvents,
+    threadId,
+  ]);
+  const roomTimelineVirtualizerRef = useRef(roomTimelineVirtualizer);
+  roomTimelineVirtualizerRef.current = roomTimelineVirtualizer;
+  const scrollThreadEventIntoView = useCallback(
+    (eventId: string) => {
+      const eventIndex = threadEventIndexMapRef.current.get(eventId);
+      if (typeof eventIndex !== 'number') return false;
+      roomTimelineVirtualizerRef.current.scrollToIndex(eventIndex, { align: 'center' });
+      return true;
+    },
+    [threadEventIndexMapRef]
+  );
   const scrollToTimelineItem = useCallback(
     (index: number, opts?: Parameters<typeof scrollToItem>[1]) => {
       if (threadId || index < activeTimelineRange.start || index >= activeTimelineRange.end) {
@@ -1356,6 +1519,7 @@ export function RoomTimeline({
     retryPagination,
     roomId: room.roomId,
     scrollRef,
+    scrollThreadEventIntoView,
     scrollToBottomRef,
     scrollToElement,
     scrollToItem: scrollToTimelineItem,
@@ -2657,6 +2821,67 @@ export function RoomTimeline({
     );
   };
 
+  const primeThreadTimelineRenderContextBefore = (index: number) => {
+    for (let previousIndex = index - 1; previousIndex >= 0; previousIndex -= 1) {
+      const mEvent = threadEvents[previousIndex];
+      const mEventId = mEvent?.getId();
+      if (!mEvent || !mEventId) continue;
+
+      const eventSender = mEvent.getSender();
+      if (eventSender && ignoredUsersSet.has(eventSender)) continue;
+      if (mEvent.isRedacted() && !showHiddenEvents) continue;
+      if (reactionOrEditEvent(mEvent)) continue;
+
+      prevEvent = mEvent;
+      isPrevRendered = true;
+      return;
+    }
+  };
+
+  const threadEventRenderer = (index: number) => {
+    const mEvent = threadEvents[index];
+    if (!mEvent) return null;
+    const mEventId = mEvent.getId();
+    if (!mEventId) return null;
+    const threadTimeline = threadTimelineSet?.getTimelineForEvent(mEventId);
+    const roomTimeline = roomTimelineSet.getTimelineForEvent(mEventId);
+    const timelineSet =
+      threadTimeline?.getTimelineSet() ??
+      roomTimeline?.getTimelineSet() ??
+      threadTimelineSet ??
+      roomTimelineSet;
+
+    return renderResolvedEvent(mEvent, index, timelineSet);
+  };
+
+  const renderVirtualThreadTimelineItems = () => {
+    const virtualItems = roomTimelineVirtualizer.getVirtualItems();
+    const firstVirtualItem = virtualItems[0];
+    if (firstVirtualItem !== undefined) {
+      primeThreadTimelineRenderContextBefore(firstVirtualItem.index);
+    }
+
+    return (
+      <div
+        style={{
+          height: roomTimelineVirtualizer.getTotalSize(),
+          position: 'relative',
+          width: '100%',
+        }}
+      >
+        {virtualItems.map((virtualItem) => (
+          <VirtualTile
+            key={virtualItem.key}
+            ref={roomTimelineVirtualizer.measureElement}
+            virtualItem={virtualItem}
+          >
+            {threadEventRenderer(virtualItem.index)}
+          </VirtualTile>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <Box grow="Yes" direction="Column">
       {shouldShowRoomThreadOverviewControls && (
@@ -2864,20 +3089,7 @@ export function RoomTimeline({
                     </>
                   ))}
 
-                {threadId
-                  ? threadEvents.map((mEvent, index) => {
-                      const eventId = mEvent.getId();
-                      if (!eventId) return null;
-                      const threadTimeline = threadTimelineSet?.getTimelineForEvent(eventId);
-                      const roomTimeline = roomTimelineSet.getTimelineForEvent(eventId);
-                      const timelineSet =
-                        threadTimeline?.getTimelineSet() ??
-                        roomTimeline?.getTimelineSet() ??
-                        threadTimelineSet ??
-                        roomTimelineSet;
-                      return renderResolvedEvent(mEvent, index, timelineSet);
-                    })
-                  : renderVirtualRoomTimelineItems()}
+                {threadId ? renderVirtualThreadTimelineItems() : renderVirtualRoomTimelineItems()}
                 {threadId && canPaginateThreadFront && (
                   <MessageBase space={messageSpacing}>
                     <TimelineDivider variant="Surface">

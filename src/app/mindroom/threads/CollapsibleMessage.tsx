@@ -8,12 +8,23 @@ const MAX_HEIGHT = '4.5em';
 type ExpandAllListener = (expand: boolean) => void;
 const listeners = new Set<ExpandAllListener>();
 
+// Virtualized timelines mount rows lazily, so an active expand/collapse-all must
+// also apply to instances mounted after the broadcast. The latest broadcast is
+// recorded here and consumed as the initial expanded state of new instances.
+let currentExpandAllState: boolean | undefined;
+
 export function expandAllMessages() {
+  currentExpandAllState = true;
   listeners.forEach((fn) => fn(true));
 }
 
 export function collapseAllMessages() {
+  currentExpandAllState = false;
   listeners.forEach((fn) => fn(false));
+}
+
+export function resetExpandAllState() {
+  currentExpandAllState = undefined;
 }
 
 function useExpandAllListener(onToggle: (expand: boolean) => void, enabled: boolean) {
@@ -87,7 +98,12 @@ export function CollapsibleMessage({
   const previousCollapseModeRef = useRef<CollapsibleMessageCollapseMode | undefined>(undefined);
   const needsFocusOnCollapseRef = useRef(false);
   const [overflowing, setOverflowing] = useState(true);
-  const [expanded, setExpanded] = useState(() => collapseMode !== 'default');
+  const [expanded, setExpanded] = useState(() => {
+    if (!isExempt && currentExpandAllState !== undefined) {
+      return currentExpandAllState;
+    }
+    return collapseMode !== 'default';
+  });
 
   initialExpandConsumedRef.current = onInitialExpandConsumed;
 

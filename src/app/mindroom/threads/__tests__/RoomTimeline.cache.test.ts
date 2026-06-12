@@ -349,6 +349,188 @@ describe('RoomTimeline', () => {
     }
   });
 
+  it('renders only the visible virtual slice of a large thread timeline', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const threadId = '$thread-root';
+    const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
+    const threadEvents = [
+      rootEvent,
+      ...Array.from({ length: 299 }, (_value, index) =>
+        makeEvent(`$thread-reply-${index + 1}`, { threadRootId: threadId, ts: index + 1 })
+      ),
+    ];
+    const threadTimeline = makeTimeline(threadEvents, { backwardToken: null });
+    const threadTimelineSet = {
+      getLiveTimeline: () => threadTimeline,
+      getTimelineForEvent: () => undefined,
+    };
+    const threadModel = {
+      rootEvent,
+      events: threadEvents.slice(1),
+      getUnfilteredTimelineSet: () => threadTimelineSet,
+    };
+    const room = makeRoom({ liveEvents: [rootEvent] });
+    room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+    threadRenderStateMock.threadEvents = threadEvents as never;
+    threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+      threadEvents.map((event, index) => [event.getId(), index])
+    );
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    roomTimelineVirtualizerState.virtualIndexes = [295, 296, 297, 298, 299];
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            threadId,
+          })
+        );
+        await flushAsyncWork();
+      });
+
+      expect(roomTimelineVirtualizerState.lastOptions?.count).toBe(300);
+      expect(getRenderedEventIds(renderer!)).toEqual([
+        '$thread-reply-295',
+        '$thread-reply-296',
+        '$thread-reply-297',
+        '$thread-reply-298',
+        '$thread-reply-299',
+      ]);
+    } finally {
+      renderer?.unmount();
+    }
+  });
+
+  it('re-anchors the thread virtualizer on the captured event after back-pagination prepends rows', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const threadId = '$prepend-thread-root';
+    const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
+    const makeReply = (index: number) =>
+      makeEvent(`$te-${index}`, { threadRootId: threadId, ts: index + 1 });
+    const initialThreadEvents = Array.from({ length: 300 }, (_value, index) =>
+      makeReply(index + 100)
+    );
+    const prependedThreadEvents = [
+      ...Array.from({ length: 100 }, (_value, index) => makeReply(index)),
+      ...initialThreadEvents,
+    ];
+    const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
+    const threadTimelineSet = {
+      getLiveTimeline: () => threadTimeline,
+      getTimelineForEvent: () => undefined,
+    };
+    const threadModel = {
+      rootEvent,
+      events: initialThreadEvents,
+      getUnfilteredTimelineSet: () => threadTimelineSet,
+    };
+    const room = makeRoom({ liveEvents: [] });
+    room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+    const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
+      threadRenderStateMock.threadEvents = events as never;
+      threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+        events.map((event, index) => [event.getId(), index])
+      );
+    };
+    setThreadEvents(initialThreadEvents);
+    const anchorElement = {
+      getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$te-100' : null)),
+      getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
+    };
+    const scrollElement = {
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
+      querySelector: vi.fn(() => undefined),
+      querySelectorAll: vi.fn(() => [anchorElement]),
+      scrollHeight: 4000,
+      clientHeight: 600,
+      scrollTop: 0,
+    };
+    // The thread-open bootstrap may also paginate; only the explicit
+    // Load Older Messages pagination should prepend the older rows.
+    let prependOnPaginate = false;
+    matrixClientMock.paginateEventTimeline.mockImplementation(async () => {
+      if (prependOnPaginate) {
+        prependOnPaginate = false;
+        setThreadEvents(prependedThreadEvents);
+      }
+      return false;
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            threadId,
+          }),
+          {
+            createNodeMock: (element) => (element.type === scrollType ? scrollElement : null),
+          }
+        );
+        await flushAsyncWork();
+      });
+
+      const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
+      await act(async () => {
+        prependOnPaginate = true;
+        loadOlderChip.props.onClick();
+        await flushAsyncWork(10);
+      });
+
+      await waitForCondition(
+        () => roomTimelineVirtualizerState.scrollToIndexMock.mock.calls.length > 0,
+        100
+      );
+      expect(roomTimelineVirtualizerState.scrollToIndexMock).toHaveBeenCalledWith(100, {
+        align: 'start',
+      });
+    } finally {
+      renderer?.unmount();
+    }
+  });
+
+  it('resets the recorded expand-all state when the open room or thread changes', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { resetExpandAllState } = await import('../CollapsibleMessage');
+    const room = makeRoom();
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+          })
+        );
+        await flushAsyncWork();
+      });
+
+      expect(vi.mocked(resetExpandAllState)).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        renderer!.update(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            threadId: '$expand-reset-thread',
+          })
+        );
+        await flushAsyncWork();
+      });
+
+      expect(vi.mocked(resetExpandAllState)).toHaveBeenCalledTimes(2);
+    } finally {
+      renderer?.unmount();
+    }
+  });
+
   it('keeps the first visible classic room message anchored when prepending an older virtual range', async () => {
     const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const events = Array.from({ length: 300 }, (_value, index) =>

@@ -614,6 +614,7 @@ vi.mock('../CollapsibleMessage', async () => {
   return {
     expandAllMessages: vi.fn(),
     collapseAllMessages: vi.fn(),
+    resetExpandAllState: vi.fn(),
     CollapsibleMessage: ({
       children,
       collapseMode = 'default',
