@@ -4,11 +4,7 @@ import { Upload, UploadStatus } from '../../state/upload';
 import { TUploadContent } from '../../utils/matrix';
 import { getMessageRelation } from './composeMessageRelation';
 
-export type RoomInputSendMode =
-  | 'room'
-  | 'existing-thread'
-  | 'auto-thread-text-root'
-  | 'auto-thread-upload-root';
+export type RoomInputSendMode = 'room' | 'existing-thread' | 'auto-thread-upload-root';
 
 export type RoomInputSendSessionState = {
   mode: RoomInputSendMode;
@@ -99,10 +95,7 @@ export const getRoomInputSendMode = ({
     return 'existing-thread';
   }
   if (!threadingEnabled) return 'room';
-  if (hasText) {
-    return 'auto-thread-text-root';
-  }
-  if (attachmentCount > 1) {
+  if (attachmentCount > 1 || (hasText && attachmentCount > 0)) {
     return 'auto-thread-upload-root';
   }
   return 'room';
@@ -160,18 +153,14 @@ export const resolveRoomInputSendStep = (
     return { kind: 'wait' };
   }
 
-  if (session.textPending) {
-    return { kind: 'send-text' };
-  }
-
   const pendingFiles = getPendingFiles(session, activeFiles);
-  if (pendingFiles.length === 0) {
-    return { kind: 'complete' };
-  }
-
   const uploadMap = new Map(uploads.map((upload) => [upload.file, upload]));
 
-  if (session.mode === 'auto-thread-upload-root' && !session.rootEventId) {
+  if (
+    session.mode === 'auto-thread-upload-root' &&
+    !session.rootEventId &&
+    pendingFiles.length > 0
+  ) {
     const rootFile = pendingFiles[0];
     const upload = uploadMap.get(rootFile);
 
@@ -200,6 +189,17 @@ export const resolveRoomInputSendStep = (
     return { kind: 'send-upload', file, mxc: upload.mxc, isRoot: false };
   }
 
+  // Attachments go out first and the caption goes last: MindRoom coalesces a media batch into
+  // one agent turn and closes it on the trailing text event. Files awaiting a manual retry do
+  // not hold the caption back.
+  if (session.textPending) {
+    return { kind: 'send-text' };
+  }
+
+  if (pendingFiles.length === 0) {
+    return { kind: 'complete' };
+  }
+
   return { kind: 'wait' };
 };
 
@@ -223,6 +223,11 @@ export const getTextRelationForSendSession = (session: RelationSession) => {
       session.threadId,
       { allowThreadRelation: allowThreadRelation(session) }
     );
+  }
+  if (session.mode === 'auto-thread-upload-root' && session.rootEventId) {
+    // The root upload already carried the reply metadata; the trailing caption just joins the
+    // thread it opened.
+    return getMessageRelation(undefined, undefined, session.rootEventId);
   }
 
   return getMessageRelation(session.replyDraft?.eventId, session.replyDraft?.relation, undefined, {
