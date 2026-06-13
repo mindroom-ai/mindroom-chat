@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### CINNY-132 - Pending local echo send indicator (2026-06-13)
+
+- Status:
+  - In progress.
+- Summary:
+  - Designing and implementing a subtle indicator for messages that are still
+    Matrix local echoes and have not yet been accepted/remote-echoed by the
+    server.
+  - Approved UX: a small muted inline clock at the end of the message body,
+    using Matrix local echo status rather than custom message metadata.
+- Design:
+  - Spec: `docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md`.
+- Validation:
+  - Green: independent spec review approved
+    `docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md`
+    with advisory notes on suffix composition and media scope folded into the
+    spec.
+  - Green:
+    `npx prettier --check FORK_CHANGES.md docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md`.
+
 ### CINNY-131 - Default splash screens to WebGL background (2026-05-31)
 
 - Status:
