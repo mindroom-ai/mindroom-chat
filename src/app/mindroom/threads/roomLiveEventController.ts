@@ -144,6 +144,14 @@ export const useRoomLiveEventController = ({
         }
 
         if (!timelineMeta.liveEvent) {
+          if (threadId && mEvt.isSending() && isVisibleThreadActivity) {
+            if (relation?.rel_type !== RelationType.Replace) {
+              setSupplementalThreadEvents(threadId, [mEvt]);
+            }
+            setThreadTimelineTick((val) => val + 1);
+            return;
+          }
+
           if (!threadId && threadCacheTargetId) {
             queueRoomThreadCachePersist(mEvt);
             logTimelineDebug(roomDebugTraceId, 'room-thread-cache-persist-paginated', {

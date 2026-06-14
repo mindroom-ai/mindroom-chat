@@ -553,8 +553,28 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
       ),
     isMindroomRoomInputAutocompleteQuery: (query?: { prefix?: string }) => query?.prefix === '!',
     MindroomRoomInputAutocomplete: () => null,
-    MindroomRoomInputReplyContext: ({ children }: { children?: React.ReactNode }) =>
-      React.createElement('div', null, children),
+    MindroomRoomInputReplyContext: ({
+      children,
+      pendingSend,
+    }: {
+      children?: React.ReactNode;
+      pendingSend?: boolean;
+    }) =>
+      React.createElement(
+        'div',
+        null,
+        children ?? 'Sending to this thread',
+        pendingSend
+          ? React.createElement(
+              'span',
+              {
+                role: 'status',
+                title: 'Waiting for server',
+              },
+              'Message sending'
+            )
+          : null
+      ),
     MindroomVoiceRecorderComposer: ({
       onSendRecording,
       getSendContext,
@@ -1145,6 +1165,33 @@ describe('RoomInput', () => {
       send.resolve({ event_id: '$sent' });
       await Promise.resolve();
     });
+
+    renderer.unmount();
+  });
+
+  it('shows the pending send indicator for unresolved thread composer sends', async () => {
+    const { renderer } = await renderRoomInput(createStore(), { threadId: '$thread' });
+    const send = createDeferred<{ event_id: string }>();
+    mxState.sendMessage.mockReturnValueOnce(send.promise);
+
+    editorOutputState.plainText = 'Thread reply still sending';
+    editorOutputState.customHtml = 'Thread reply still sending';
+    editorOutputState.htmlEqualsPlainText = true;
+
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('Message sending');
+    expect(JSON.stringify(renderer.toJSON())).toContain('Waiting for server');
+
+    await act(async () => {
+      send.resolve({ event_id: '$sent' });
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Message sending');
 
     renderer.unmount();
   });

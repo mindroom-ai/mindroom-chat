@@ -51,6 +51,21 @@ edited markers and MindRoom streaming indicators. This keeps the mark aligned
 with text, emote, notice, long-text, and standard MindRoom message rendering
 without changing the surrounding message layout.
 
+Compact MindRoom overview cards do not render through the message body suffix
+path. For those cards, derive a compact `hasPendingSend` flag from the loaded
+thread root and visible reply events, including pending replacement edits, and
+render the same quiet clock beside the compact preview text. This keeps the
+overview signal aligned with the opened thread timeline without widening the
+card metadata area.
+
+When a user sends a new reply from an already-open thread, the observed SDK/UI
+path keeps the unresolved text in the thread composer until `sendMessage`
+resolves. Show the same quiet clock in the composer thread context while the
+thread reply send is in flight. If the SDK also emits a pending
+`Room.timeline` event for that thread with `liveEvent: false`, preserve it as a
+supplemental thread event so timeline surfaces can render the row-level
+indicator.
+
 Suffixes should compose rather than replace each other. If a message is both
 edited and pending, render both the pending indicator and the edited marker. If
 MindRoom AI streaming and local-echo pending are both present, keep the streaming
@@ -74,7 +89,13 @@ Add focused unit coverage for:
 - helper returns pending for encrypting/sending/queued/sent states,
 - helper returns false for no status/not_sent/cancelled,
 - message rendering includes the pending indicator for a pending local echo,
-- message rendering omits it for accepted or failed/cancelled states.
+- message rendering omits it for accepted or failed/cancelled states,
+- compact card view models mark pending root and reply local echoes,
+- compact cards render the pending indicator beside preview text.
+- thread composer sends show the pending indicator while the unresolved
+  `sendMessage` promise is in flight,
+- pending thread local echoes emitted with `liveEvent: false` are retained for
+  the open thread timeline.
 
 Prefer focused message-rendering or helper tests over expanding broad room
 timeline tests unless local echo refresh behavior requires a targeted timeline

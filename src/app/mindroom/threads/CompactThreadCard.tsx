@@ -6,6 +6,7 @@ import { UserAvatar } from '../../components/user-avatar';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import type { CompactThreadCardViewModel } from './types';
 import * as css from './CompactRoomView.css';
+import { PendingSendIndicator } from '../messages/pendingSendIndicator';
 
 const tagColor = (tagName: string): string => {
   let hash = 0;
@@ -36,6 +37,7 @@ export function CompactThreadCard({ viewModel, onClick }: CompactThreadCardProps
     isResolved,
     isUnread,
     isStreaming,
+    hasPendingSend,
     scheduledDisplayText,
     scheduledTaskLabel,
     lastActivityTs,
@@ -51,6 +53,7 @@ export function CompactThreadCard({ viewModel, onClick }: CompactThreadCardProps
     isResolved ? 'Resolved thread' : 'Unresolved thread',
     isUnread ? 'Unread messages' : undefined,
     isStreaming ? 'Agent streaming' : undefined,
+    hasPendingSend ? 'Message sending' : undefined,
     scheduledTaskLabel,
     relativeTime ? `Last activity ${relativeTime}` : undefined,
   ]
@@ -92,9 +95,12 @@ export function CompactThreadCard({ viewModel, onClick }: CompactThreadCardProps
       </Box>
 
       <Box className={css.MessageRow}>
-        <Text className={css.MessageText} size="T200" priority="300" truncate>
-          {previewText}
-        </Text>
+        <Box className={css.MessagePreview} alignItems="Center">
+          <Text className={css.MessageText} size="T200" priority="300" truncate>
+            {previewText}
+          </Text>
+          {hasPendingSend && <PendingSendIndicator />}
+        </Box>
         <Box className={css.Stats}>
           <Badge className={css.StatBadge} variant="Secondary" fill="Soft" radii="Pill">
             <Text as="span" size="T200">

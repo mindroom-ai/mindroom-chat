@@ -236,6 +236,109 @@ git add src/app/mindroom/threads/roomLocalEchoRefresh.ts src/app/mindroom/thread
 git commit -m "fix: refresh room timeline on local echo updates"
 ```
 
+### PR Follow-Up: Compact Overview Cards
+
+**Files:**
+
+- Modify: `src/app/mindroom/threads/threadRecord.ts`
+- Modify: `src/app/mindroom/threads/compactThreadCardViewModel.ts`
+- Modify: `src/app/mindroom/threads/types.ts`
+- Modify: `src/app/mindroom/threads/CompactThreadCard.tsx`
+- Modify: `src/app/mindroom/threads/CompactRoomView.css.ts`
+- Test: `src/app/mindroom/threads/compactThreadCardViewModel.test.ts`
+- Test: `src/app/mindroom/threads/CompactThreadCard.test.tsx`
+
+- [x] **Step 1: Write failing compact view tests**
+
+Cover:
+
+- zero-reply thread root local echoes set `hasPendingSend`,
+- pending visible reply local echoes set `hasPendingSend`,
+- compact cards render the pending indicator beside preview text.
+
+- [x] **Step 2: Run the compact tests and verify they fail**
+
+Run:
+`npm test -- src/app/mindroom/threads/CompactThreadCard.test.tsx src/app/mindroom/threads/compactThreadCardViewModel.test.ts`
+
+Expected: FAIL because compact models do not expose pending send state and the
+card does not render the indicator.
+
+- [x] **Step 3: Implement compact pending state**
+
+In `threadRecord.ts`, derive `hasPendingSend` from the resolved thread root and
+loaded visible replies, checking both each event and its pending replacement
+event with `isPendingLocalEchoEvent`.
+
+In `compactThreadCardViewModel.ts`, map the thread-record status flag into the
+compact card view model.
+
+- [x] **Step 4: Render the indicator in compact cards**
+
+Import `PendingSendIndicator` into `CompactThreadCard.tsx`, include
+`Message sending` in the card aria label when pending, and render the clock next
+to preview text inside a stable flex wrapper.
+
+- [x] **Step 5: Run the compact tests and verify they pass**
+
+Run:
+`npm test -- src/app/mindroom/threads/CompactThreadCard.test.tsx src/app/mindroom/threads/compactThreadCardViewModel.test.ts`
+
+Expected: PASS.
+
+### PR Follow-Up: Open Thread Sends
+
+**Files:**
+
+- Modify: `src/app/mindroom/room-input/MindroomRoomInput.tsx`
+- Modify: `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`
+- Modify: `src/app/mindroom/threads/roomLiveEventController.ts`
+- Test: `src/app/mindroom/room-input/__tests__/RoomInput.test.ts`
+- Test: `src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts`
+
+- [x] **Step 1: Write failing active-thread send tests**
+
+Cover:
+
+- the thread composer shows `Message sending` while an unresolved
+  `sendMessage` promise is in flight,
+- a pending thread reply local echo emitted with `liveEvent: false` is retained
+  as a supplemental event for the open thread timeline.
+
+- [x] **Step 2: Run the active-thread tests and verify they fail**
+
+Run:
+`npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts -t "pending send indicator for unresolved thread composer sends"`
+
+Run:
+`npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts -t "adds pending local-echo replies"`
+
+Expected: FAIL while the composer context has no pending send state and the
+live-event controller drops pending thread local echoes with `liveEvent: false`.
+
+- [x] **Step 3: Implement active-thread pending state**
+
+Track a narrow `submitPending` state around unresolved text-message
+`mx.sendMessage` calls in `MindroomRoomInput.tsx`. Pass it to
+`MindroomRoomInputReplyContext` only when composing inside an open thread.
+
+In `RoomInputMindroomExtensions.tsx`, render `PendingSendIndicator` beside the
+`Sending to this thread` context when `pendingSend` is true.
+
+In `roomLiveEventController.ts`, keep pending thread reply local echoes emitted
+with `liveEvent: false` as supplemental thread events instead of dropping them
+before the open thread can render them.
+
+- [x] **Step 4: Run the active-thread tests and verify they pass**
+
+Run:
+`npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts -t "pending send indicator for unresolved thread composer sends"`
+
+Run:
+`npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts -t "adds pending local-echo replies"`
+
+Expected: PASS.
+
 ### Task 5: Final Validation And Runbook
 
 **Files:**
