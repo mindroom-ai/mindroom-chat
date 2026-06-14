@@ -35,6 +35,11 @@ Do not show the pending indicator for `EventStatus.NOT_SENT` or
 sent to the server but not yet remotely echoed. Once the remote echo is handled,
 the SDK clears/replaces the local echo and the indicator should disappear.
 
+When rendering edited message content, derive pending state from both the
+original event and the resolved replacement event. This covers pending
+`m.replace` local echoes so an edited message can show both the edited marker
+and the pending clock while the edit is still waiting for server acceptance.
+
 ## Architecture
 
 Add a fork-owned MindRoom pending-send helper/component near the existing

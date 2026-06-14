@@ -14,13 +14,20 @@
     using Matrix local echo status rather than custom message metadata.
 - Design:
   - Spec: `docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md`.
+  - Plan: `docs/superpowers/plans/2026-06-13-pending-send-indicator.md`.
 - Validation:
   - Green: independent spec review approved
     `docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md`
     with advisory notes on suffix composition and media scope folded into the
     spec.
+  - Green: independent plan review approved
+    `docs/superpowers/plans/2026-06-13-pending-send-indicator.md` after the
+    plan was updated to derive pending state from both base events and pending
+    edit replacement events.
   - Green:
     `npx prettier --check FORK_CHANGES.md docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md`.
+  - Green:
+    `npx prettier --check docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md docs/superpowers/plans/2026-06-13-pending-send-indicator.md`.
 
 ### CINNY-131 - Default splash screens to WebGL background (2026-05-31)
 
