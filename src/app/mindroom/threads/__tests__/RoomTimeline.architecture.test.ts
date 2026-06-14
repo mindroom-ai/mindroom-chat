@@ -137,7 +137,7 @@ describe('RoomTimeline architecture', () => {
   it('passes pending local echo state from base and edited events into message content', () => {
     const source = readRoomTimelineSource();
 
-    expect(source).toContain("from '../messages/pendingSendIndicator'");
+    expect(source).toContain("from '../messages/pendingLocalEcho'");
     expect(source).toContain(
       'isPendingLocalEchoEvent(mEvent) || isPendingLocalEchoEvent(editedEvent)'
     );

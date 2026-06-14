@@ -120,7 +120,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { Event, Message } from '../messages/MindroomMessage';
-import { isPendingLocalEchoEvent } from '../messages/pendingSendIndicator';
+import { isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
 import type { MindroomThreadSummaryInfo } from './threadSummaryStore';
 import {
   consumeLiveExpandOnceId,

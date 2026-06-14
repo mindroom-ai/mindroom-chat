@@ -5,16 +5,45 @@
 ### CINNY-132 - Pending local echo send indicator (2026-06-13)
 
 - Status:
-  - In progress.
+  - Complete locally.
 - Summary:
-  - Designing and implementing a subtle indicator for messages that are still
+  - Added a subtle muted inline clock indicator for messages that are still
     Matrix local echoes and have not yet been accepted/remote-echoed by the
     server.
-  - Approved UX: a small muted inline clock at the end of the message body,
-    using Matrix local echo status rather than custom message metadata.
+  - Pending state is derived from SDK local-echo status:
+    `ENCRYPTING`, `SENDING`, `QUEUED`, and `SENT` render the indicator;
+    `NOT_SENT`, `CANCELLED`, and absent status do not.
+  - Message suffix rendering now composes streaming, edited, and pending-send
+    markers without duplicating the existing edited marker behavior.
+  - Pending state is derived from both the base event and a pending replacement
+    edit event so edited local echoes show the indicator until the server
+    accepts the edit.
+  - Added a room local-echo refresh hook so `RoomEvent.LocalEchoUpdated`
+    triggers a cheap room/thread timeline re-render when SDK status or local ID
+    replacement changes.
 - Design:
   - Spec: `docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md`.
   - Plan: `docs/superpowers/plans/2026-06-13-pending-send-indicator.md`.
+- Review:
+  - Independent review found no Critical issues and no implementation logic
+    issues. The reviewer flagged the untracked `pendingLocalEcho.ts` helper as
+    an Important release blocker; it is included in the final close-out commit.
+  - Residual risk: there is no full behavioral room/thread timeline test that
+    renders a pending local echo, emits `RoomEvent.LocalEchoUpdated`, and
+    verifies the clock disappears across both surfaces. Coverage is split
+    across focused renderer tests, status helper tests, a local-echo refresh
+    hook test, and source architecture guards.
+- Files changed:
+  - `src/app/mindroom/messages/pendingLocalEcho.ts`
+  - `src/app/mindroom/messages/pendingSendIndicator.tsx`
+  - `src/app/mindroom/messages/PendingSendIndicator.css.ts`
+  - `src/app/mindroom/messages/messageStateSuffix.tsx`
+  - `src/app/components/RenderMessageContent.tsx`
+  - `src/app/mindroom/messages/renderMindroomMessageContent.tsx`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/roomLocalEchoRefresh.ts`
+  - `src/app/mindroom/threads/roomLiveEventController.ts`
+  - Focused tests under the same message/thread areas.
 - Validation:
   - Green: independent spec review approved
     `docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md`
@@ -28,6 +57,35 @@
     `npx prettier --check FORK_CHANGES.md docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md`.
   - Green:
     `npx prettier --check docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md docs/superpowers/plans/2026-06-13-pending-send-indicator.md`.
+  - Green focused check:
+    `npm test -- src/app/mindroom/messages/pendingSendIndicator.test.ts`.
+  - Green focused check:
+    `npm test -- src/app/mindroom/messages/messageStateSuffix.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts src/app/mindroom/messages/__tests__/RenderMessageContent.test.ts`.
+  - Green architecture check:
+    `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green local-echo refresh check:
+    `npm test -- src/app/mindroom/threads/roomLocalEchoRefresh.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Red full-suite check: `npm test` initially failed in room timeline suites
+    because `MindroomRoomTimeline.tsx` imported the pure pending-status helper
+    from the React indicator module, which also imported vanilla-extract CSS.
+  - Fix after red check: split pending-status logic into
+    `src/app/mindroom/messages/pendingLocalEcho.ts` so timeline code depends on
+    a CSS-free helper module.
+  - Green regression check:
+    `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.navigation.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.permalink-refresh.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.filter-query.test.ts src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts`
+    (5 files, 143 tests).
+  - Green focused check:
+    `npm test -- src/app/mindroom/messages/pendingSendIndicator.test.ts src/app/mindroom/messages/messageStateSuffix.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts src/app/mindroom/messages/__tests__/RenderMessageContent.test.ts src/app/mindroom/threads/roomLocalEchoRefresh.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    (6 files, 137 tests).
+  - Green: `npm test` (304 files, 2259 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (18 warnings, 0 errors - existing
+    console/unused-var warning class).
+  - Green: `npm run build` (existing Vite runtime-config, sourcemap, and
+    chunk-size warnings only).
+  - Green:
+    `npx prettier --check FORK_CHANGES.md docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md docs/superpowers/plans/2026-06-13-pending-send-indicator.md src/app/mindroom/messages/pendingLocalEcho.ts src/app/mindroom/messages/pendingSendIndicator.tsx src/app/mindroom/messages/PendingSendIndicator.css.ts src/app/mindroom/messages/messageStateSuffix.tsx src/app/mindroom/messages/pendingSendIndicator.test.ts src/app/mindroom/messages/messageStateSuffix.test.ts src/app/components/RenderMessageContent.tsx src/app/mindroom/messages/renderMindroomMessageContent.tsx src/app/mindroom/messages/renderMindroomMessageContent.test.ts src/app/mindroom/messages/__tests__/RenderMessageContent.test.ts src/app/mindroom/threads/MindroomRoomTimeline.tsx src/app/mindroom/threads/roomLocalEchoRefresh.ts src/app/mindroom/threads/roomLocalEchoRefresh.test.ts src/app/mindroom/threads/roomLiveEventController.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green: `git diff --check`.
 
 ### CINNY-131 - Default splash screens to WebGL background (2026-05-31)
 

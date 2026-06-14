@@ -2,11 +2,8 @@ import React from 'react';
 import { create } from 'react-test-renderer';
 import { EventStatus } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  PendingSendIndicator,
-  isPendingLocalEchoEvent,
-  isPendingLocalEchoStatus,
-} from './pendingSendIndicator';
+import { PendingSendIndicator } from './pendingSendIndicator';
+import { isPendingLocalEchoEvent, isPendingLocalEchoStatus } from './pendingLocalEcho';
 
 vi.mock('./PendingSendIndicator.css', () => ({
   Container: 'PendingSendIndicator',
