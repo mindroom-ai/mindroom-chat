@@ -134,6 +134,16 @@ describe('RoomTimeline architecture', () => {
     expect(timelineMessageSource).toContain('renderMindroomRoomTimelineThreadBadge');
   });
 
+  it('passes pending local echo state from base and edited events into message content', () => {
+    const source = readRoomTimelineSource();
+
+    expect(source).toContain("from '../messages/pendingSendIndicator'");
+    expect(source).toContain(
+      'isPendingLocalEchoEvent(mEvent) || isPendingLocalEchoEvent(editedEvent)'
+    );
+    expect(source).toContain('pendingSend={pendingSend}');
+  });
+
   it('keeps reply/start-thread draft policy in MindRoom threads', () => {
     const source = readRoomTimelineSource();
     const implementationSource = readFileSync(

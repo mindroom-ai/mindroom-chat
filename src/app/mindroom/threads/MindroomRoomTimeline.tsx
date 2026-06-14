@@ -120,6 +120,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { Event, Message } from '../messages/MindroomMessage';
+import { isPendingLocalEchoEvent } from '../messages/pendingSendIndicator';
 import type { MindroomThreadSummaryInfo } from './threadSummaryStore';
 import {
   consumeLiveExpandOnceId,
@@ -1541,6 +1542,7 @@ export function RoomTimeline({
         const highlighted = focusItem?.index === item && focusItem.highlight;
 
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
+        const pendingSend = isPendingLocalEchoEvent(mEvent) || isPendingLocalEchoEvent(editedEvent);
         const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
         const getContent = (() => resolvedContent) as GetContentCallback;
         const collapseMode = getCollapsibleMessageMode(
@@ -1660,6 +1662,7 @@ export function RoomTimeline({
                   msgType={msgType ?? ''}
                   ts={mEvent.getTs()}
                   edited={!!editedEvent}
+                  pendingSend={pendingSend}
                   getContent={getContent}
                   mediaAutoLoad={mediaAutoLoad}
                   urlPreview={showUrlPreview}
@@ -1706,6 +1709,8 @@ export function RoomTimeline({
           const { replyEventId, threadRootId } = mEvent;
           const highlighted = focusItem?.index === item && focusItem.highlight;
           const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
+          const pendingSend =
+            isPendingLocalEchoEvent(mEvent) || isPendingLocalEchoEvent(editedEvent);
           const approvalContent =
             getMindroomRoomTimelineApprovalContentIfSupported(mEvent, editedEvent) ??
             mEvent.getContent();
@@ -1805,6 +1810,7 @@ export function RoomTimeline({
                   }
                   ts={mEvent.getTs()}
                   edited={!!editedEvent}
+                  pendingSend={pendingSend}
                   getContent={getContent}
                   mediaAutoLoad={mediaAutoLoad}
                   urlPreview={showUrlPreview}
@@ -1823,6 +1829,7 @@ export function RoomTimeline({
         const { replyEventId, threadRootId } = mEvent;
         const highlighted = focusItem?.index === item && focusItem.highlight;
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
+        const pendingSend = isPendingLocalEchoEvent(mEvent) || isPendingLocalEchoEvent(editedEvent);
         const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
         const threadSummary = showThreadBadgesInRoom
           ? renderMindroomRoomTimelineThreadBadge({
@@ -1943,6 +1950,7 @@ export function RoomTimeline({
                       }
                       ts={mEvent.getTs()}
                       edited={!!editedEvent}
+                      pendingSend={pendingSend}
                       getContent={getContent}
                       mediaAutoLoad={mediaAutoLoad}
                       urlPreview={showUrlPreview}
@@ -1988,6 +1996,7 @@ export function RoomTimeline({
                       msgType={mEvent.getContent().msgtype ?? ''}
                       ts={mEvent.getTs()}
                       edited={!!editedEvent}
+                      pendingSend={pendingSend}
                       getContent={getContent}
                       mediaAutoLoad={mediaAutoLoad}
                       urlPreview={showUrlPreview}
