@@ -2339,6 +2339,8 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('room-thread-cache-persist-paginated');
     expect(controllerSource).toContain('useRoomLiveEventController');
     expect(controllerSource).toContain('useLiveEventArrive');
+    expect(controllerSource).toContain("from './roomLocalEchoRefresh'");
+    expect(controllerSource).toContain('useRoomLocalEchoRefresh');
     expect(controllerSource).toContain('getLiveCollapsibleMessageExpandId');
     expect(controllerSource).toContain('room-thread-cache-persist-paginated');
     expect(subscriptionSource).toContain('useLiveEventArrive');

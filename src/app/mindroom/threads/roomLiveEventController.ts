@@ -33,6 +33,7 @@ import type {
   ThreadCachePersistenceController,
 } from './threadCachePersistenceController';
 import type { PersistRoomEventCache } from './roomCacheLifecycleController';
+import { useRoomLocalEchoRefresh } from './roomLocalEchoRefresh';
 
 type ScrollToBottomState = {
   count: number;
@@ -84,10 +85,7 @@ export const useRoomLiveEventController = ({
   liveExpandOnceIds: MutableRefObject<Set<string>>;
   mx: MatrixClient;
   normalThreadRecordMap: ReadonlyMap<string, ThreadRecord>;
-  onStoreThreadSummary: (
-    threadRootId: string,
-    info: MindroomThreadSummaryInfo | undefined
-  ) => void;
+  onStoreThreadSummary: (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => void;
   persistRoomEventCache: PersistRoomEventCache;
   persistThreadCacheFromRoomEvents: ThreadCachePersistenceController['persistThreadCacheFromRoomEvents'];
   persistThreadEventCache: PersistThreadEventCache;
@@ -109,6 +107,13 @@ export const useRoomLiveEventController = ({
   timelineAtLiveEnd: boolean;
   unreadInfo: RoomUnreadInfo;
 }) => {
+  useRoomLocalEchoRefresh(
+    room,
+    useCallback(() => {
+      setTimeline((current) => ({ ...current }));
+    }, [setTimeline])
+  );
+
   useLiveEventArrive(
     room,
     useCallback(
@@ -155,11 +160,7 @@ export const useRoomLiveEventController = ({
           // "0 replies" card never appears until the second arrival. Scoped
           // narrowly to sent-but-not-yet-confirmed standalone roots in the room
           // view, so paginated history and thread-only arrivals are unaffected.
-          if (
-            !threadId &&
-            mEvt.isSending() &&
-            isZeroReplyStandaloneThreadRootEvent(mEvt)
-          ) {
+          if (!threadId && mEvt.isSending() && isZeroReplyStandaloneThreadRootEvent(mEvt)) {
             setTimeline((ct) => ({ ...ct }));
           }
           return;
