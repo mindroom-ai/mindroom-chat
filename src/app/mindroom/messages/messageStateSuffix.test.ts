@@ -58,4 +58,23 @@ describe('getMindroomMessageStateSuffixRenderer', () => {
     expect(rendered).toContain('(edited)');
     expect(rendered).toContain('Message sending');
   });
+
+  it('composes custom suffixes, edited markers, and pending send indicators in order', () => {
+    const rendered = renderSuffix(
+      getMindroomMessageStateSuffixRenderer({
+        edited: true,
+        pendingSend: true,
+        renderStateSuffix: () => React.createElement('span', { 'data-renderer': 'streaming' }),
+      })
+    );
+
+    const customSuffixIndex = rendered.indexOf('streaming');
+    const editedIndex = rendered.indexOf('(edited)');
+    const pendingIndex = rendered.indexOf('Message sending');
+
+    expect(customSuffixIndex).toBeGreaterThanOrEqual(0);
+    expect(editedIndex).toBeGreaterThan(customSuffixIndex);
+    expect(pendingIndex).toBeGreaterThan(editedIndex);
+    expect(rendered).toContain('Waiting for server');
+  });
 });

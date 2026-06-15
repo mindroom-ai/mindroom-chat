@@ -3,11 +3,7 @@ import { Room, RoomEvent, RoomEventHandlerMap } from 'matrix-js-sdk';
 
 export const useRoomLocalEchoRefresh = (room: Room, onRefresh: () => void) => {
   useEffect(() => {
-    const handleLocalEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (
-      _event,
-      eventRoom
-    ) => {
-      if (eventRoom.roomId !== room.roomId) return;
+    const handleLocalEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = () => {
       onRefresh();
     };
 

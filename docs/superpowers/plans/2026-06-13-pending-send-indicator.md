@@ -92,6 +92,7 @@ Cover:
 - pending returns a suffix renderer,
 - custom streaming suffix plus pending renders both,
 - edited plus pending renders both edited and pending.
+- custom suffix plus edited plus pending renders all three in order.
 
 - [x] **Step 2: Run the focused tests and verify they fail**
 

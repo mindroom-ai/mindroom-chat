@@ -51,21 +51,6 @@ describe('useRoomLocalEchoRefresh', () => {
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it('ignores local echo updates for other rooms', async () => {
-    const room = makeRoom('!room:example.org');
-    const otherRoom = makeRoom('!other:example.org');
-    const onRefresh = vi.fn();
-
-    await act(async () => {
-      create(React.createElement(LocalEchoHarness, { room, onRefresh }));
-    });
-    await act(async () => {
-      room.emit(RoomEvent.LocalEchoUpdated, {}, otherRoom);
-    });
-
-    expect(onRefresh).not.toHaveBeenCalled();
-  });
-
   it('removes the local echo listener on unmount', async () => {
     const room = makeRoom();
     const onRefresh = vi.fn();

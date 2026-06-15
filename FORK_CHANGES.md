@@ -28,6 +28,9 @@
     in the `Sending to this thread` context while `sendMessage` is unresolved.
     Pending thread reply local echoes emitted with `liveEvent: false` are also
     retained for the open thread timeline as supplemental events.
+  - PR review follow-up: removed the unreachable cross-room guard from the
+    local-echo refresh hook and added the all-three suffix composition test for
+    custom suffix, edited marker, and pending indicator order.
 - Design:
   - Spec: `docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md`.
   - Plan: `docs/superpowers/plans/2026-06-13-pending-send-indicator.md`.
@@ -41,6 +44,11 @@
     focused renderer tests, compact card/model tests, active-thread composer
     tests, status helper tests, a local-echo refresh hook test, a targeted
     pending thread local-echo controller test, and source architecture guards.
+  - PR review triage: skipped the suggested nullable-room guard because
+    `useRoomLocalEchoRefresh` and its only production caller require a concrete
+    `Room`; skipped the one-off i18n migration because current MindRoom/status
+    UI strings in this fork are not localized and the locale files contain only
+    a minimal legacy key.
 - Files changed:
   - `src/app/mindroom/messages/pendingLocalEcho.ts`
   - `src/app/mindroom/messages/pendingSendIndicator.tsx`
@@ -152,6 +160,18 @@
   - PR follow-up manual real-app verification: captured actual app screenshots
     for a pending compact root card and an unresolved open-thread composer send
     against the local Matrix fixture.
+  - PR review green focused check:
+    `npm test -- src/app/mindroom/messages/messageStateSuffix.test.ts src/app/mindroom/threads/roomLocalEchoRefresh.test.ts`
+    (2 files, 7 tests).
+  - PR review green: `npm run typecheck`.
+  - PR review green: `npm test` (306 files, 2278 tests).
+  - PR review green: `npm run lint` (18 warnings, 0 errors - existing
+    console/unused-var warning class).
+  - PR review green: `npm run build` (existing Vite runtime-config, sourcemap,
+    and chunk-size warnings only).
+  - PR review green:
+    `npx prettier --check FORK_CHANGES.md docs/superpowers/plans/2026-06-13-pending-send-indicator.md src/app/mindroom/messages/messageStateSuffix.test.ts src/app/mindroom/threads/roomLocalEchoRefresh.ts src/app/mindroom/threads/roomLocalEchoRefresh.test.ts`
+    and `git diff --check`.
 
 ### CINNY-131 - Default splash screens to WebGL background (2026-05-31)
 
