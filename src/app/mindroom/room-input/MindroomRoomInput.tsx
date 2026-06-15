@@ -279,6 +279,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [autocompleteQuery, setAutocompleteQuery] =
       useState<AutocompleteQuery<RoomInputAutocompletePrefix>>();
     const [voiceRecorderOpen, setVoiceRecorderOpen] = useState(false);
+    const [submitPending, setSubmitPending] = useState(false);
     const voiceAutoSendPending = useAtomValue(voiceAutoSendPendingAtom);
     const pendingVoiceSendDraft = useAtomValue(pendingVoiceSendDraftAtom);
     const setPendingVoiceSendDraft = useSetAtom(pendingVoiceSendDraftAtom);
@@ -920,6 +921,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const submit = useCallback(async () => {
       if (submitInFlightRef.current) return;
       submitInFlightRef.current = true;
+      let submitPendingStarted = false;
 
       try {
         if (store.get(voiceAutoSendPendingAtom)) return;
@@ -1009,12 +1011,17 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         if (relation) {
           content['m.relates_to'] = relation;
         }
+        submitPendingStarted = true;
+        setSubmitPending(true);
         await mx.sendMessage(roomId, content as any);
         resetEditor(editor);
         resetEditorHistory(editor);
         setReplyDraft(undefined);
         sendTypingStatus(false);
       } finally {
+        if (submitPendingStarted) {
+          setSubmitPending(false);
+        }
         submitInFlightRef.current = false;
       }
     }, [
@@ -1235,6 +1242,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   <MindroomRoomInputReplyContext
                     room={room}
                     relation={replyDraft?.relation}
+                    pendingSend={!!threadId && submitPending}
                     threadId={threadId}
                     leading={
                       replyDraft && (
