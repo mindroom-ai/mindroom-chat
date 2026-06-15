@@ -2,6 +2,177 @@
 
 ## Runbook
 
+### CINNY-132 - Pending local echo send indicator (2026-06-13)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Added a subtle muted inline clock indicator for messages that are still
+    Matrix local echoes and have not yet been accepted/remote-echoed by the
+    server.
+  - Pending state is derived from SDK local-echo status:
+    `ENCRYPTING`, `SENDING`, `QUEUED`, and `SENT` render the indicator;
+    `NOT_SENT`, `CANCELLED`, and absent status do not.
+  - Message suffix rendering now composes streaming, edited, and pending-send
+    markers without duplicating the existing edited marker behavior.
+  - Pending state is derived from both the base event and a pending replacement
+    edit event so edited local echoes show the indicator until the server
+    accepts the edit.
+  - Added a room local-echo refresh hook so `RoomEvent.LocalEchoUpdated`
+    triggers a cheap room/thread timeline re-render when SDK status or local ID
+    replacement changes.
+  - PR follow-up: compact MindRoom overview cards now carry `hasPendingSend`
+    from loaded thread root/reply events, including pending replacement edits,
+    and render the same subtle clock beside the compact preview text.
+  - PR follow-up: open thread composer sends now render the same pending clock
+    in the `Sending to this thread` context while `sendMessage` is unresolved.
+    Pending thread reply local echoes emitted with `liveEvent: false` are also
+    retained for the open thread timeline as supplemental events.
+  - PR review follow-up: removed the unreachable cross-room guard from the
+    local-echo refresh hook and added the all-three suffix composition test for
+    custom suffix, edited marker, and pending indicator order.
+- Design:
+  - Spec: `docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md`.
+  - Plan: `docs/superpowers/plans/2026-06-13-pending-send-indicator.md`.
+- Review:
+  - Independent review found no Critical issues and no implementation logic
+    issues. The reviewer flagged the untracked `pendingLocalEcho.ts` helper as
+    an Important release blocker; it is included in the final close-out commit.
+  - Residual risk: there is no full behavioral room/thread timeline test that
+    renders a pending local echo, emits `RoomEvent.LocalEchoUpdated`, and
+    verifies the clock disappears across every surface. Coverage is split across
+    focused renderer tests, compact card/model tests, active-thread composer
+    tests, status helper tests, a local-echo refresh hook test, a targeted
+    pending thread local-echo controller test, and source architecture guards.
+  - PR review triage: skipped the suggested nullable-room guard because
+    `useRoomLocalEchoRefresh` and its only production caller require a concrete
+    `Room`; skipped the one-off i18n migration because current MindRoom/status
+    UI strings in this fork are not localized and the locale files contain only
+    a minimal legacy key.
+- Files changed:
+  - `src/app/mindroom/messages/pendingLocalEcho.ts`
+  - `src/app/mindroom/messages/pendingSendIndicator.tsx`
+  - `src/app/mindroom/messages/PendingSendIndicator.css.ts`
+  - `src/app/mindroom/messages/messageStateSuffix.tsx`
+  - `src/app/components/RenderMessageContent.tsx`
+  - `src/app/mindroom/messages/renderMindroomMessageContent.tsx`
+  - `src/app/mindroom/room-input/MindroomRoomInput.tsx`
+  - `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx`
+  - `src/app/mindroom/threads/MindroomRoomTimeline.tsx`
+  - `src/app/mindroom/threads/CompactRoomView.css.ts`
+  - `src/app/mindroom/threads/CompactThreadCard.tsx`
+  - `src/app/mindroom/threads/compactThreadCardViewModel.ts`
+  - `src/app/mindroom/threads/threadRecord.ts`
+  - `src/app/mindroom/threads/types.ts`
+  - `src/app/mindroom/threads/roomLocalEchoRefresh.ts`
+  - `src/app/mindroom/threads/roomLiveEventController.ts`
+  - Focused tests under the same message/thread areas.
+- Validation:
+  - Green: independent spec review approved
+    `docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md`
+    with advisory notes on suffix composition and media scope folded into the
+    spec.
+  - Green: independent plan review approved
+    `docs/superpowers/plans/2026-06-13-pending-send-indicator.md` after the
+    plan was updated to derive pending state from both base events and pending
+    edit replacement events.
+  - Green:
+    `npx prettier --check FORK_CHANGES.md docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md`.
+  - Green:
+    `npx prettier --check docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md docs/superpowers/plans/2026-06-13-pending-send-indicator.md`.
+  - Green focused check:
+    `npm test -- src/app/mindroom/messages/pendingSendIndicator.test.ts`.
+  - Green focused check:
+    `npm test -- src/app/mindroom/messages/messageStateSuffix.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts src/app/mindroom/messages/__tests__/RenderMessageContent.test.ts`.
+  - Green architecture check:
+    `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green local-echo refresh check:
+    `npm test -- src/app/mindroom/threads/roomLocalEchoRefresh.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Red full-suite check: `npm test` initially failed in room timeline suites
+    because `MindroomRoomTimeline.tsx` imported the pure pending-status helper
+    from the React indicator module, which also imported vanilla-extract CSS.
+  - Fix after red check: split pending-status logic into
+    `src/app/mindroom/messages/pendingLocalEcho.ts` so timeline code depends on
+    a CSS-free helper module.
+  - Green regression check:
+    `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.navigation.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.permalink-refresh.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.filter-query.test.ts src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts`
+    (5 files, 143 tests).
+  - Green focused check:
+    `npm test -- src/app/mindroom/messages/pendingSendIndicator.test.ts src/app/mindroom/messages/messageStateSuffix.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts src/app/mindroom/messages/__tests__/RenderMessageContent.test.ts src/app/mindroom/threads/roomLocalEchoRefresh.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    (6 files, 137 tests).
+  - Green: `npm test` (304 files, 2259 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (18 warnings, 0 errors - existing
+    console/unused-var warning class).
+  - Green: `npm run build` (existing Vite runtime-config, sourcemap, and
+    chunk-size warnings only).
+  - Green:
+    `npx prettier --check FORK_CHANGES.md docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md docs/superpowers/plans/2026-06-13-pending-send-indicator.md src/app/mindroom/messages/pendingLocalEcho.ts src/app/mindroom/messages/pendingSendIndicator.tsx src/app/mindroom/messages/PendingSendIndicator.css.ts src/app/mindroom/messages/messageStateSuffix.tsx src/app/mindroom/messages/pendingSendIndicator.test.ts src/app/mindroom/messages/messageStateSuffix.test.ts src/app/components/RenderMessageContent.tsx src/app/mindroom/messages/renderMindroomMessageContent.tsx src/app/mindroom/messages/renderMindroomMessageContent.test.ts src/app/mindroom/messages/__tests__/RenderMessageContent.test.ts src/app/mindroom/threads/MindroomRoomTimeline.tsx src/app/mindroom/threads/roomLocalEchoRefresh.ts src/app/mindroom/threads/roomLocalEchoRefresh.test.ts src/app/mindroom/threads/roomLiveEventController.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`.
+  - Green: `git diff --check`.
+  - PR follow-up red compact check:
+    `npm test -- src/app/mindroom/threads/CompactThreadCard.test.tsx src/app/mindroom/threads/compactThreadCardViewModel.test.ts`
+    failed while compact cards omitted the pending indicator and compact view
+    models did not expose `hasPendingSend`.
+  - PR follow-up green compact check:
+    `npm test -- src/app/mindroom/threads/CompactThreadCard.test.tsx src/app/mindroom/threads/compactThreadCardViewModel.test.ts`
+    (2 files, 7 tests).
+  - PR follow-up red active-thread composer check:
+    `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts -t "pending send indicator for unresolved thread composer sends"`
+    failed while unresolved thread sends did not expose a pending indicator in
+    the composer context.
+  - PR follow-up green active-thread composer check:
+    `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts -t "pending send indicator for unresolved thread composer sends"`
+    (1 file, 1 test).
+  - PR follow-up red active-thread controller check:
+    `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts -t "adds pending local-echo replies"`
+    failed while pending thread reply local echoes emitted with
+    `liveEvent: false` were dropped before the open thread timeline could retain
+    them.
+  - PR follow-up green active-thread controller check:
+    `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts -t "adds pending local-echo replies"`
+    (1 file, 1 test).
+  - PR follow-up focused regression check:
+    `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts src/app/mindroom/threads/CompactThreadCard.test.tsx src/app/mindroom/threads/compactThreadCardViewModel.test.ts src/app/mindroom/messages/pendingSendIndicator.test.ts src/app/mindroom/messages/messageStateSuffix.test.ts src/app/mindroom/messages/renderMindroomMessageContent.test.ts src/app/mindroom/messages/__tests__/RenderMessageContent.test.ts src/app/mindroom/threads/roomLocalEchoRefresh.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    (10 files, 260 tests).
+  - PR follow-up red full-suite check: `npm test` failed because
+    `RoomInputMindroomExtensions.test.ts` directly imports the extension module,
+    and the new `PendingSendIndicator` import pulled vanilla-extract CSS into a
+    non-CSS test file scope.
+  - Fix after red check: added the missing
+    `../messages/PendingSendIndicator.css` mock in
+    `RoomInputMindroomExtensions.test.ts`, matching the existing CSS-module
+    test pattern.
+  - PR follow-up green direct extension check:
+    `npm test -- src/app/mindroom/room-input/RoomInputMindroomExtensions.test.ts`
+    (1 file, 6 tests).
+  - PR follow-up green: `npm run typecheck`.
+  - PR follow-up green: `npm test` (306 files, 2278 tests).
+  - PR follow-up green: `npm run lint` (18 warnings, 0 errors - existing
+    console/unused-var warning class).
+  - PR follow-up green: `npm run build` (existing Vite runtime-config,
+    sourcemap, and chunk-size warnings only).
+  - PR follow-up green:
+    `npx prettier --check FORK_CHANGES.md docs/superpowers/plans/2026-06-13-pending-send-indicator.md docs/superpowers/specs/2026-06-13-pending-send-indicator-design.md src/app/mindroom/threads/CompactRoomView.css.ts src/app/mindroom/threads/CompactThreadCard.tsx src/app/mindroom/threads/CompactThreadCard.test.tsx src/app/mindroom/threads/compactThreadCardViewModel.test.ts src/app/mindroom/threads/compactThreadCardViewModel.ts src/app/mindroom/threads/roomLiveEventController.ts src/app/mindroom/threads/threadRecord.ts src/app/mindroom/threads/types.ts`.
+  - PR follow-up note: skipped Prettier on legacy-format room-input test/source
+    files to avoid unrelated formatter churn; lint, typecheck, and tests still
+    cover them.
+  - PR follow-up green: `git diff --check`.
+  - PR follow-up manual real-app verification: captured actual app screenshots
+    for a pending compact root card and an unresolved open-thread composer send
+    against the local Matrix fixture.
+  - PR review green focused check:
+    `npm test -- src/app/mindroom/messages/messageStateSuffix.test.ts src/app/mindroom/threads/roomLocalEchoRefresh.test.ts`
+    (2 files, 7 tests).
+  - PR review green: `npm run typecheck`.
+  - PR review green: `npm test` (306 files, 2278 tests).
+  - PR review green: `npm run lint` (18 warnings, 0 errors - existing
+    console/unused-var warning class).
+  - PR review green: `npm run build` (existing Vite runtime-config, sourcemap,
+    and chunk-size warnings only).
+  - PR review green:
+    `npx prettier --check FORK_CHANGES.md docs/superpowers/plans/2026-06-13-pending-send-indicator.md src/app/mindroom/messages/messageStateSuffix.test.ts src/app/mindroom/threads/roomLocalEchoRefresh.ts src/app/mindroom/threads/roomLocalEchoRefresh.test.ts`
+    and `git diff --check`.
+
 ### CINNY-131 - Default splash screens to WebGL background (2026-05-31)
 
 - Status:
@@ -244,6 +415,7 @@
     failed with the iOS focus-transfer and pending-RAF cleanup regression tests.
   - Review green check: `npm test -- src/app/hooks/useMobileKeyboardViewportFix.test.ts`
     (3 tests).
+
 ### CINNY-118 - Voice message compression and speech capture constraints (2026-05-18)
 
 - Status:
@@ -283,6 +455,7 @@
   - Independent review before recovery: second self-review checked the final
     diff for stale fallback paths, literal contract coverage, runbook status,
     and half-refactor traces.
+
 ### Safe SVG in message extras HTML (2026-05-11)
 
 - Status:
