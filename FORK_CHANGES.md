@@ -2,6 +2,35 @@
 
 ## Runbook
 
+### CINNY-207 - Hide thread-only composer helper in thread view (2026-06-17)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Removed the redundant `Sending to this thread` composer text when the room
+    input is already scoped to an open thread view.
+  - Kept explicit reply-draft context and the submit-pending clock visible.
+- Decisions:
+  - Treat `threadId` as send-target state, not as a reason to render visible
+    composer text by itself.
+- Validation:
+  - Green focused check:
+    `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm test -- src/app/mindroom/room-input/RoomInputMindroomExtensions.test.ts src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    (3 files, 135 tests, after rebase onto `origin/dev` at `3c2ff596`).
+  - PR review follow-up: removed the dead `threadId` prop from
+    `MindroomRoomInputReplyContextProps`, removed the matching dead unit-test
+    argument, and added a RoomInput regression test proving a static
+    thread-scoped composer renders no helper context.
+  - PR review follow-up green focused check:
+    `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm test -- src/app/mindroom/room-input/RoomInputMindroomExtensions.test.ts src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    (3 files, 136 tests).
+  - PR review follow-up green: `npm run typecheck`, `npm test` (306 files,
+    2279 tests), `npm run lint` (18 existing warnings), `npm run build`
+    (existing Vite warnings), and `git diff --check`.
+  - PR review follow-up green: `npx prettier --check FORK_CHANGES.md`.
+    Prettier still flags the legacy room-input files at `HEAD`, so those were
+    left unformatted to avoid unrelated churn.
+
 ### CINNY-132 - Pending local echo send indicator (2026-06-13)
 
 - Status:
