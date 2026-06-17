@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertMarketingVersionNotBehindPackage } from './ios-ci-version.mjs';
 import { getAppTargetBuildSettingValues } from './ios-xcode-project.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -11,6 +12,7 @@ const repoRoot = path.resolve(__dirname, '..');
 
 const configFileName = 'config.mindroom.json';
 const configPath = path.join(repoRoot, configFileName);
+const packagePath = path.join(repoRoot, 'package.json');
 const capacitorConfigPath = path.join(repoRoot, 'capacitor.config.ts');
 const xcodeProjectPath = path.join(repoRoot, 'ios', 'App', 'App.xcodeproj', 'project.pbxproj');
 const infoPlistPath = path.join(repoRoot, 'ios', 'App', 'App', 'Info.plist');
@@ -35,6 +37,7 @@ const check = (condition, message) => {
 };
 
 const config = JSON.parse(readText(configPath));
+const packageJson = JSON.parse(readText(packagePath));
 const capacitorConfig = readText(capacitorConfigPath);
 const xcodeProject = readText(xcodeProjectPath);
 const infoPlist = readText(infoPlistPath);
@@ -70,10 +73,9 @@ try {
   buildNumbers = getAppTargetBuildSettingValues(xcodeProject, 'CURRENT_PROJECT_VERSION').map(
     (record) => record.value
   );
-  bundleIdentifiers = getAppTargetBuildSettingValues(
-    xcodeProject,
-    'PRODUCT_BUNDLE_IDENTIFIER'
-  ).map((record) => record.value);
+  bundleIdentifiers = getAppTargetBuildSettingValues(xcodeProject, 'PRODUCT_BUNDLE_IDENTIFIER').map(
+    (record) => record.value
+  );
 } catch (error) {
   check(false, `Xcode project: ${error.message}`);
 }
@@ -108,6 +110,13 @@ check(
   hasSingleValue(marketingVersions),
   'Xcode project: App target MARKETING_VERSION values must match across build configurations.'
 );
+marketingVersions.forEach((marketingVersion) => {
+  try {
+    assertMarketingVersionNotBehindPackage(marketingVersion, packageJson.version);
+  } catch (error) {
+    check(false, `Xcode project: ${error.message}`);
+  }
+});
 check(
   buildNumbers.length > 0,
   'Xcode project: missing App target CURRENT_PROJECT_VERSION entries.'

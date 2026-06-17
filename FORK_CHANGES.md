@@ -2,6 +2,80 @@
 
 ## Runbook
 
+### CINNY-209 - Repair Xcode Cloud App Store versioning (2026-06-17)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Investigated failing `origin/dev` Xcode Cloud checks attached to
+    `v4.12.2-mindroom.14` and `v4.12.2-mindroom.15`.
+  - Root cause: after the package advanced to `4.12.2`, the checked-in Xcode
+    App target still published Apple marketing version `4.11.2` and build `80`.
+    Branch-triggered Xcode Cloud builds could therefore keep preparing stale or
+    duplicate App Store versions even while GitHub release tags advanced to
+    `v4.12.2-mindroom.<n>`.
+  - Apple delivery emails confirmed the rejected archive still reported version
+    `4.11.2` with Xcode Cloud build `60`, so the stale marketing version was the
+    active App Store rejection cause even when Xcode Cloud supplied its own
+    build number.
+  - Added `scripts/ios-ci-version.mjs` as the single resolver for iOS archive
+    metadata. It prefers explicit `IOS_BUILD_NUMBER`, then release-tag
+    metadata from CI env vars, then release tags fetched at `HEAD`, then
+    `CI_BUILD_NUMBER`, and only then the checked-in Xcode fallback.
+  - Updated `ci_pre_xcodebuild.sh` to refresh remote tags before resolving the
+    archive build number, so branch-triggered Xcode Cloud builds can use the
+    release tag created by the GitHub `Create MindRoom Release` workflow.
+  - Added an App Store preflight guard preventing the checked-in iOS marketing
+    version from lagging behind `package.json`, while still allowing a deliberate
+    Apple marketing version ahead of the source package for closed-train bumps.
+  - Updated the checked-in App target to Apple version `4.12.2 (17)`, matching
+    the latest existing MindRoom release tag at the time of this fix.
+- Decisions:
+  - Keep `package.json` as the source base version for the current release
+    family; the App Store marketing version may be ahead of it but must not be
+    behind it.
+  - Keep release iteration numbers as the preferred App Store build number when
+    the matching `v<base>-mindroom.<n>` tag is available at `HEAD`.
+  - Keep `CI_BUILD_NUMBER` as a race-resistant CI fallback if Xcode Cloud starts
+    before the GitHub-created release tag is visible.
+- Risks:
+  - Xcode Cloud can still start before the release workflow creates a tag, but
+    the new tag refresh plus `CI_BUILD_NUMBER` fallback avoids the stale
+    checked-in build `80` path.
+  - Existing Xcode Cloud warnings from Capacitor/Metal search paths remain
+    separate from this versioning fix.
+- Validation:
+  - Red check:
+    `PATH="/opt/homebrew/bin:$PATH" npx vitest run src/app/mindroom/native/iosCiVersion.test.ts --reporter=verbose`
+    failed while `scripts/ios-ci-version.mjs` did not exist.
+  - Green focused check:
+    `PATH="/opt/homebrew/bin:$PATH" npx vitest run src/app/mindroom/native/iosCiVersion.test.ts --reporter=verbose`
+    (1 file, 6 tests).
+  - Green check:
+    `bash -n ios/App/ci_scripts/ci_common.sh ios/App/ci_scripts/ci_post_clone.sh ios/App/ci_scripts/ci_pre_xcodebuild.sh`.
+  - Green check: `PATH="/opt/homebrew/bin:$PATH" node scripts/ios-ci-version.mjs`
+    printed `marketing_version=4.12.2`, `build_number=17`, and
+    `build_number_source=head-tag:v4.12.2-mindroom.17`.
+  - Green check: `PATH="/opt/homebrew/bin:$PATH" npm run appstore:preflight`.
+  - Green check:
+    `plutil -lint ios/App/App.xcodeproj/project.pbxproj ios/App/App/App.entitlements`.
+  - Green check: `PATH="/opt/homebrew/bin:$PATH" npm run typecheck`.
+  - Green check: `PATH="/opt/homebrew/bin:$PATH" npm run lint` (18 warnings, 0
+    errors - existing console/unused-var warning class).
+  - Green check: `PATH="/opt/homebrew/bin:$PATH" npm test` (308 files, 2298
+    tests).
+  - Green check: `PATH="/opt/homebrew/bin:$PATH" npm run build` (existing
+    Vite runtime-config, sourcemap, localStorage, and chunk-size warnings only).
+  - Green check:
+    `PATH="/opt/homebrew/bin:$PATH" npx prettier --check FORK_CHANGES.md scripts/ios-ci-version.mjs scripts/appstore-preflight.mjs src/app/mindroom/native/iosCiVersion.test.ts`.
+  - Green check: `git diff --check`.
+  - Independent review: separate reviewer found no source blockers; followed up
+    by adding env-tag precedence coverage and ensuring the new resolver/test
+    files are part of the commit.
+- Next steps:
+  - Monitor the next `origin/dev` Xcode Cloud archive for Apple version
+    `4.12.2` and a fresh integer build number.
+
 ### CINNY-208 - Auto-open compact sends as threads (2026-06-17)
 
 - Status:
