@@ -2,6 +2,7 @@ import React, { ReactNode, useState } from 'react';
 import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Spinner, Text } from 'folds';
+import { getMcpAppResources } from '../../components/message/mcpApps';
 import { MindroomToolRefParseResult, parseMindroomToolRefHtml } from './blocks';
 import { MindroomPasteMarker, parseMindroomPasteMarker } from './pasteAttachmentMarker';
 import {
@@ -429,6 +430,7 @@ export const withMindroomToolTraceMarkerParserOptions = (
   const traceEvents = isMindroomToolTraceV2(content)
     ? getMindroomToolTraceEvents(content)
     : undefined;
+  const hasMcpApps = getMcpAppResources(content).length > 0;
 
   const baseReplace = baseOpts.replace;
   const baseTransform = baseOpts.transform;
@@ -439,7 +441,7 @@ export const withMindroomToolTraceMarkerParserOptions = (
     replace: (domNode) => {
       const isContainer = isDomElementNode(domNode) && ['p', 'div', 'li'].includes(domNode.name);
 
-      if (isContainer) {
+      if (!hasMcpApps && isContainer) {
         const maybeChildren = domNode.children;
         const maybeToolIndex = parseToolRefIndexFromTextPrefix(
           extractTextFromChildren(maybeChildren as ChildNode[])
@@ -453,6 +455,10 @@ export const withMindroomToolTraceMarkerParserOptions = (
         const pasteMarker = getPasteMarkerFromElement(domNode);
         if (pasteMarker) {
           return <MindroomPasteMarkerBadge marker={pasteMarker} />;
+        }
+
+        if (hasMcpApps) {
+          return baseReplace ? baseReplace(domNode) : undefined;
         }
 
         type ToolRefItem = {
@@ -550,7 +556,7 @@ export const withMindroomToolTraceMarkerParserOptions = (
     transform: (reactNode, domNode, index) => {
       const isContainer = isDomElementNode(domNode) && ['p', 'div', 'li'].includes(domNode.name);
 
-      if (isContainer) {
+      if (!hasMcpApps && isContainer) {
         const maybeChildren = domNode.children;
         const maybeToolIndex = parseToolRefIndexFromTextPrefix(
           extractTextFromChildren(maybeChildren as ChildNode[])

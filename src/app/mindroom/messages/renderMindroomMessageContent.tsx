@@ -3,6 +3,8 @@ import { MsgType } from 'matrix-js-sdk';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts } from 'linkifyjs';
 import { BrokenContent, MEmote, MNotice, MText, RenderBody } from '../../components/message';
+import { McpAppsRenderer } from '../../components/message/McpAppFrame';
+import { getMcpAppResources } from '../../components/message/mcpApps';
 import { MindroomMessageExtras } from './MindroomMessageExtras';
 import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from './messageExtrasData';
 import { withMindroomToolTraceMarkerParserOptions } from './MindroomHtmlBlocks';
@@ -169,6 +171,36 @@ export const renderMindroomMessageContent = ({
     }
   };
 
+  const getMcpAppsContent = (
+    primaryContent: Record<string, unknown>,
+    fallbackContents: Record<string, unknown>[] = []
+  ): Record<string, unknown> | undefined =>
+    [primaryContent, ...fallbackContents].find(
+      (candidate) => getMcpAppResources(candidate).length > 0
+    );
+
+  const renderMindroomAfterBody = (
+    primaryContent: Record<string, unknown>,
+    fallbackContents: Record<string, unknown>[] = [],
+    onFallbackExtrasRendered?: (fallbackIndex: number) => void
+  ) => {
+    const extras = renderMessageExtras(
+      primaryContent,
+      fallbackContents,
+      onFallbackExtrasRendered
+    );
+    const mcpAppsContent = getMcpAppsContent(primaryContent, fallbackContents);
+    const mcpApps = mcpAppsContent ? <McpAppsRenderer content={mcpAppsContent} /> : undefined;
+
+    if (!extras && !mcpApps) return undefined;
+    return (
+      <>
+        {extras}
+        {mcpApps}
+      </>
+    );
+  };
+
   const getMessageStateSuffix = (renderStateSuffix?: () => ReactNode) =>
     getMindroomMessageStateSuffixRenderer({
       edited,
@@ -209,7 +241,7 @@ export const renderMindroomMessageContent = ({
           content={content}
           renderStateSuffix={getMessageStateSuffix()}
           renderBody={() => <MindroomThinkingPlaceholder />}
-          renderAfterBody={renderMessageExtras(content)}
+          renderAfterBody={renderMindroomAfterBody(content)}
         />
       );
     }
@@ -235,7 +267,7 @@ export const renderMindroomMessageContent = ({
             />
           )}
           renderAfterBody={(extrasContent, fallbackContent) =>
-            renderMessageExtras(
+            renderMindroomAfterBody(
               extrasContent,
               [content, fallbackContent],
               handleLongTextFallbackExtrasRendered
@@ -263,7 +295,7 @@ export const renderMindroomMessageContent = ({
           )}
           content={renderableContent}
           renderBody={renderBody(renderableContent)}
-          renderAfterBody={renderMessageExtras(renderableContent, [content])}
+          renderAfterBody={renderMindroomAfterBody(renderableContent, [content])}
           renderUrlsPreview={renderUrlsPreview}
         />
       );
@@ -294,7 +326,7 @@ export const renderMindroomMessageContent = ({
             />
           )}
           renderAfterBody={(extrasContent, fallbackContent) =>
-            renderMessageExtras(
+            renderMindroomAfterBody(
               extrasContent,
               [content, fallbackContent],
               handleLongTextFallbackExtrasRendered
@@ -315,7 +347,7 @@ export const renderMindroomMessageContent = ({
         )}
         content={renderableContent}
         renderBody={renderBody(renderableContent)}
-        renderAfterBody={renderMessageExtras(renderableContent, [content])}
+        renderAfterBody={renderMindroomAfterBody(renderableContent, [content])}
         renderUrlsPreview={renderUrlsPreview}
       />
     );
@@ -344,7 +376,7 @@ export const renderMindroomMessageContent = ({
             />
           )}
           renderAfterBody={(extrasContent, fallbackContent) =>
-            renderMessageExtras(
+            renderMindroomAfterBody(
               extrasContent,
               [content, fallbackContent],
               handleLongTextFallbackExtrasRendered
@@ -364,7 +396,7 @@ export const renderMindroomMessageContent = ({
         )}
         content={renderableContent}
         renderBody={renderBody(renderableContent)}
-        renderAfterBody={renderMessageExtras(renderableContent, [content])}
+        renderAfterBody={renderMindroomAfterBody(renderableContent, [content])}
         renderUrlsPreview={renderUrlsPreview}
       />
     );
