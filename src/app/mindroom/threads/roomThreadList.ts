@@ -12,11 +12,12 @@ const getLatestVisibleReply = (thread: Thread) =>
     ? thread.replyToEvent
     : undefined);
 
-const getThreadReceiptCandidates = (thread: Thread): MatrixEvent[] => {
-  const candidates = [...(thread.events ?? [])];
-  if (thread.replyToEvent) candidates.push(thread.replyToEvent);
-  if (thread.rootEvent) candidates.push(thread.rootEvent);
-  return candidates;
+const findThreadReceiptEvent = (thread: Thread, eventId: string): MatrixEvent | undefined => {
+  const timelineEvent = thread.events?.find((event) => event.getId() === eventId);
+  if (timelineEvent) return timelineEvent;
+  if (thread.replyToEvent?.getId?.() === eventId) return thread.replyToEvent;
+  if (thread.rootEvent?.getId?.() === eventId) return thread.rootEvent;
+  return undefined;
 };
 
 export const getThreadReadUpToTs = (
@@ -28,9 +29,10 @@ export const getThreadReadUpToTs = (
   const readUpToId = thread.getEventReadUpTo(userId);
   if (!readUpToId) return undefined;
 
-  return getThreadReceiptCandidates(thread)
-    .find((event) => event.getId() === readUpToId)
-    ?.getTs();
+  const readUpToEvent = findThreadReceiptEvent(thread, readUpToId);
+  // A thread receipt can target a paginated-out event; without its timestamp,
+  // the room-level receipt is the only orderable fallback.
+  return readUpToEvent?.getTs();
 };
 
 export const getEffectiveThreadReadUpToTs = (
@@ -60,9 +62,8 @@ export const getThreadUnread = (room: Room, thread: Thread, userId: string): boo
 
   const readUpToId = room.getEventReadUpTo(userId);
   const roomReadUpToTs = readUpToId ? room.findEventById(readUpToId)?.getTs() : null;
-  const readUpToTs = getEffectiveThreadReadUpToTs(thread, userId, roomReadUpToTs ?? null);
+  const readUpToTs = getEffectiveThreadReadUpToTs(thread, userId, roomReadUpToTs ?? null) ?? null;
   if (readUpToTs === null) return true;
-  if (readUpToTs === undefined) return true;
 
   return latestReply.getTs() > readUpToTs;
 };

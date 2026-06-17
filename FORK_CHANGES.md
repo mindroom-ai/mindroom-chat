@@ -88,6 +88,34 @@
     class).
   - Rebase green:
     `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/roomThreadList.ts src/app/mindroom/threads/roomThreadList.test.ts src/app/mindroom/threads/threadRecord.ts src/app/mindroom/threads/threadRecord.test.ts`.
+  - PR review follow-up: addressed Sourcery/Gemini/Greptile inline comments by
+    removing the unreachable `undefined` unread guard, replacing the receipt
+    candidate array copy with direct event lookup, and documenting the
+    paginated-out receipt fallback.
+  - PR review green focused check:
+    `npm test -- src/app/mindroom/threads/threadRecord.test.ts src/app/mindroom/threads/roomThreadList.test.ts`
+    (2 files, 18 tests).
+  - PR review green: `npm run typecheck`.
+  - PR review green: `npm run lint` (18 warnings, 0 errors - existing warning
+    class).
+  - PR review green: `npm test` (306 files, 2280 tests).
+  - PR review green: `npm run build` (existing Vite runtime-config, sourcemap,
+    localStorage, and chunk-size warnings only).
+  - PR review green:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/roomThreadList.ts src/app/mindroom/threads/threadRecord.ts`.
+  - PR review green: `git diff --check`.
+  - Latest rebase check: rebased onto `origin/dev` at `38cb0a4d` after
+    `CINNY-207`; resolved the `FORK_CHANGES.md` conflict by preserving both
+    runbook entries.
+  - Latest rebase green focused check:
+    `npm test -- src/app/mindroom/threads/threadRecord.test.ts src/app/mindroom/threads/roomThreadList.test.ts src/app/mindroom/threads/compactThreadCardViewModel.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    (4 files, 118 tests).
+  - Latest rebase green: `npm run typecheck`.
+  - Latest rebase green: `npm run lint` (18 warnings, 0 errors - existing
+    warning class).
+  - Latest rebase green: `npm test` (306 files, 2281 tests).
+  - Latest rebase green: `npm run build` (existing Vite runtime-config,
+    sourcemap, localStorage, and chunk-size warnings only).
 
 ### CINNY-132 - Pending local echo send indicator (2026-06-13)
 
