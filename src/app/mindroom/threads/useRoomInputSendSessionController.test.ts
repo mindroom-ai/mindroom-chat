@@ -308,8 +308,20 @@ describe('useRoomInputSendSessionController prep-error uploads', () => {
   });
 
   it('notifies the auto-thread upload root once and skips child uploads', async () => {
+    const notificationSnapshots: Array<{ selectedFiles: string[]; uploadFiles: string[] }> = [];
     const onRoomMessageSent = vi.fn();
-    const { api } = renderHarness({ onRoomMessageSent });
+    const apiRef: { current?: HarnessApi } = {};
+    const { api } = renderHarness({
+      onRoomMessageSent: (eventId) => {
+        onRoomMessageSent(eventId);
+        notificationSnapshots.push({
+          selectedFiles:
+            apiRef.current?.selectedFilesRef.current.map((item) => item.file.name) ?? [],
+          uploadFiles: apiRef.current?.uploadsRef.current.map((upload) => upload.file.name) ?? [],
+        });
+      },
+    });
+    apiRef.current = api;
     const root = createFile('root.txt');
     const child = createFile('child.txt');
 
@@ -325,6 +337,12 @@ describe('useRoomInputSendSessionController prep-error uploads', () => {
 
     expect(onRoomMessageSent).toHaveBeenCalledTimes(1);
     expect(onRoomMessageSent).toHaveBeenCalledWith('$event-0');
+    expect(notificationSnapshots).toEqual([
+      {
+        selectedFiles: ['child.txt'],
+        uploadFiles: ['child.txt'],
+      },
+    ]);
   });
 });
 

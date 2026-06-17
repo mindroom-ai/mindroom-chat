@@ -1153,6 +1153,34 @@ describe('RoomView', () => {
     expect(navigateRoomThreadMock).not.toHaveBeenCalled();
   });
 
+  it('does not open successful sends when only an effective thread id is active', async () => {
+    const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
+    const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
+    const room = makeRoom(nextRoomId('room-a'));
+    let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
+
+    useThreadRootEventMock.mockReturnValue('$thread-from-state');
+
+    await act(async () => {
+      create(
+        React.createElement(ThreadStateHarness, {
+          onState: (state) => {
+            threadState = state;
+          },
+          room,
+        })
+      );
+    });
+
+    expect(threadState?.effectiveThreadId).toBe('$thread-from-state');
+
+    await act(async () => {
+      threadState?.handleRoomMessageSent('$sent');
+    });
+
+    expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+  });
+
   it('does not open unresolved local-echo sends as compact threads', async () => {
     const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
     const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);

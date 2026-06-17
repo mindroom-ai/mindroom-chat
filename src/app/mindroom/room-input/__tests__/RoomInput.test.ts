@@ -1219,7 +1219,16 @@ describe('RoomInput', () => {
   });
 
   it('notifies successful top-level room text sends with the new event id', async () => {
-    const onRoomMessageSent = vi.fn();
+    const notificationOrder: string[] = [];
+    editorMocks.resetEditor.mockImplementation(() => {
+      notificationOrder.push('reset-editor');
+    });
+    editorMocks.resetEditorHistory.mockImplementation(() => {
+      notificationOrder.push('reset-history');
+    });
+    const onRoomMessageSent = vi.fn(() => {
+      notificationOrder.push('notify');
+    });
     const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
 
     editorOutputState.plainText = 'Start a compact thread';
@@ -1231,6 +1240,10 @@ describe('RoomInput', () => {
     });
 
     expect(onRoomMessageSent).toHaveBeenCalledWith('$sent');
+    const notifyIndex = notificationOrder.indexOf('notify');
+    expect(notifyIndex).toBeGreaterThan(-1);
+    expect(notificationOrder.indexOf('reset-editor')).toBeLessThan(notifyIndex);
+    expect(notificationOrder.indexOf('reset-history')).toBeLessThan(notifyIndex);
 
     renderer.unmount();
   });
@@ -1442,6 +1455,31 @@ describe('RoomInput', () => {
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
     expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+
+    renderer.unmount();
+  });
+
+  it('notifies top-level voice sends after clearing local voice state', async () => {
+    const store = createStore();
+    const notificationState: Array<{ pending: boolean; uploads: File[] }> = [];
+    const onRoomMessageSent = vi.fn(() => {
+      notificationState.push({
+        pending: store.get(voiceAutoSendPendingAtom),
+        uploads: store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file),
+      });
+    });
+    const { renderer } = await renderRoomInput(store, { onRoomMessageSent });
+    await openVoiceRecorder(renderer);
+    const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+
+    await act(async () => {
+      await voiceRecorderState.props?.onSendRecording(file, 900);
+    });
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+    expect(onRoomMessageSent).toHaveBeenCalledWith('$sent');
+    expect(notificationState).toEqual([{ pending: false, uploads: [] }]);
 
     renderer.unmount();
   });

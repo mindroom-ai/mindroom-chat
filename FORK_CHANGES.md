@@ -13,6 +13,12 @@
     classic mode and existing thread sends are unchanged.
   - Upload send sessions also notify on the root upload only, skipping child
     uploads and caption replies that already target the generated thread root.
+  - PR review follow-up: root-send notification rules now live in one shared
+    helper, and text, upload, and voice send paths finish local cleanup before
+    invoking the callback that may navigate away.
+  - PR review follow-up: added coverage for voice-send notification cleanup
+    ordering, upload-root cleanup ordering, the shared helper, and the
+    `effectiveThreadId` guard without an explicit `threadId` prop.
 - Decisions:
   - Keep the routing policy in `useRoomViewThreadState`, beside view-mode and
     thread-route ownership, instead of putting navigation decisions inside the
@@ -55,6 +61,42 @@
     console/unused-var warning class).
   - Rebase green: `npm run build` (existing Vite runtime-config, sourcemap,
     localStorage, and chunk-size warnings only).
+  - PR review red focused check:
+    `npm test -- src/app/mindroom/threads/roomMessageSent.test.ts src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/useRoomInputSendSessionController.test.ts`
+    failed while the helper module did not exist and voice/upload callbacks
+    still observed stale local state.
+  - PR review green focused check:
+    `npm test -- src/app/mindroom/threads/roomMessageSent.test.ts src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/useRoomInputSendSessionController.test.ts`
+    (4 files, 74 tests).
+  - PR review green: `npm run typecheck`.
+  - PR review green: `npm test` (307 files, 2289 tests).
+  - PR review green: `npm run lint` (18 warnings, 0 errors - existing
+    console/unused-var warning class).
+  - PR review green: `npm run build` (existing Vite runtime-config, sourcemap,
+    localStorage, and chunk-size warnings only).
+  - PR review green:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/room-input/MindroomRoomInput.tsx src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/MindroomRoomView.tsx src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/useRoomInputSendSessionController.ts src/app/mindroom/threads/useRoomInputSendSessionController.test.ts src/app/mindroom/threads/useRoomViewThreadState.ts src/app/mindroom/threads/roomMessageSent.ts src/app/mindroom/threads/roomMessageSent.test.ts`
+    and `git diff --check`.
+  - PR review second self-review: verified no remaining duplicated inline
+    root-send notification condition and no remaining `room.roomId` dependency
+    references in the touched hook.
+  - Latest rebase check: rebased onto `origin/dev` at `4ae69f37`; resolved
+    `FORK_CHANGES.md` by preserving upstream `CINNY-207`/`CINNY-133` entries
+    and renumbering this entry to `CINNY-208`, and resolved
+    `RoomInput.test.ts` by preserving both upstream thread-helper coverage and
+    this branch's send-notification coverage.
+  - Latest rebase green focused check:
+    `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm test -- src/app/mindroom/threads/roomMessageSent.test.ts src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/useRoomInputSendSessionController.test.ts`
+    (4 files, 75 tests).
+  - Latest rebase green: `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run typecheck`.
+  - Latest rebase green: `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run lint`
+    (18 warnings, 0 errors - existing warning class).
+  - Latest rebase green:
+    `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm test` (307 files, 2292
+    tests).
+  - Latest rebase green: `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run build`
+    (existing Vite runtime-config, sourcemap, localStorage, and chunk-size
+    warnings only).
 
 ### CINNY-207 - Hide thread-only composer helper in thread view (2026-06-17)
 

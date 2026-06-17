@@ -21,6 +21,7 @@ import {
   resolveRoomInputSendStep,
   RoomInputSendSessionState,
 } from './roomInputSendSession';
+import { getRoomMessageSentNotificationEventId } from './roomMessageSent';
 
 type SendSession = RoomInputSendSessionState & {
   roomId: string;
@@ -180,12 +181,18 @@ export const useRoomInputSendSessionController = ({
           }
         : session.textContent;
       const response = await mx.sendMessage(session.roomId, content as any);
-      if (!relation && !session.threadId && !session.replyDraft && response.event_id) {
-        onRoomMessageSent?.(response.event_id);
-      }
+      const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
+        eventId: response.event_id,
+        relation,
+        replyDraft: session.replyDraft,
+        threadId: session.threadId,
+      });
 
       session.textPending = false;
       clearReplyDraftForSession(session);
+      if (sentEventIdToNotify) {
+        onRoomMessageSent?.(sentEventIdToNotify);
+      }
     },
     [mx, clearReplyDraftForSession, onRoomMessageSent]
   );
@@ -208,9 +215,12 @@ export const useRoomInputSendSessionController = ({
           }
         : content;
       const response = await mx.sendMessage(session.roomId, contentWithRelation as any);
-      if (!relation && !session.threadId && !session.replyDraft && response.event_id) {
-        onRoomMessageSent?.(response.event_id);
-      }
+      const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
+        eventId: response.event_id,
+        relation,
+        replyDraft: session.replyDraft,
+        threadId: session.threadId,
+      });
 
       session.sentFiles.add(file);
       session.failedFiles.delete(file);
@@ -219,6 +229,9 @@ export const useRoomInputSendSessionController = ({
       }
       clearReplyDraftForSession(session);
       removeUploadsFromBoard(file);
+      if (sentEventIdToNotify) {
+        onRoomMessageSent?.(sentEventIdToNotify);
+      }
     },
     [
       mx,

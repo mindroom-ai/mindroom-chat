@@ -144,6 +144,7 @@ import {
   withMindroomPasteAttachmentMetadata,
 } from '../messages/pasteAttachmentMarker';
 import { shouldConvertPasteToAttachment } from './pasteAttachment';
+import { getRoomMessageSentNotificationEventId } from '../threads/roomMessageSent';
 
 type RoomInputAutocompletePrefix = AutocompletePrefix | MindroomRoomInputAutocompletePrefix;
 
@@ -736,11 +737,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           : content;
 
         const response = await mx.sendMessage(context.roomId, contentWithRelation as any);
-        if (!relation && !context.threadId && !context.replyDraft && response.event_id) {
-          onRoomMessageSent?.(response.event_id);
-        }
+        return getRoomMessageSentNotificationEventId({
+          eventId: response.event_id,
+          relation,
+          replyDraft: context.replyDraft,
+          threadId: context.threadId,
+        });
       },
-      [mx, buildUploadMessageContent, onRoomMessageSent]
+      [mx, buildUploadMessageContent]
     );
 
     const clearReplyDraftForVoiceContext = useCallback(
@@ -837,6 +841,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         // calling it unconditionally is safe even on the un-claimed path.
         let fileItems: TUploadItem[] = [];
         let liveContext: MindroomVoiceSendContext | null = null;
+        let sentEventIdToNotify: string | undefined;
         const logAndThrowUploadError = (err: unknown, stage: MatrixUploadErrorStage): never => {
           const originalName =
             getMatrixUploadOriginalName(err) ?? (err instanceof Error ? err.name : typeof err);
@@ -904,7 +909,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             return logAndThrowUploadError(err, 'upload');
           }
           try {
-            await sendVoiceItem(liveContext, fileItem, mxc);
+            sentEventIdToNotify = await sendVoiceItem(liveContext, fileItem, mxc);
           } catch (err) {
             return logAndThrowUploadError(err, 'send');
           }
@@ -918,6 +923,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           }
           releaseVoiceAutoSend();
         }
+        if (sentEventIdToNotify) {
+          onRoomMessageSent?.(sentEventIdToNotify);
+        }
       },
       [
         appendUploadItemsToRoomBoard,
@@ -929,6 +937,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         sendVoiceItem,
         store,
         uploadVoiceItem,
+        onRoomMessageSent,
       ]
     );
 
@@ -1028,13 +1037,21 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         submitPendingStarted = true;
         setSubmitPending(true);
         const response = await mx.sendMessage(roomId, content as any);
-        if (!relation && !threadId && !replyDraft && response.event_id) {
-          onRoomMessageSent?.(response.event_id);
-        }
+        const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
+          eventId: response.event_id,
+          relation,
+          replyDraft,
+          threadId,
+        });
         resetEditor(editor);
         resetEditorHistory(editor);
         setReplyDraft(undefined);
         sendTypingStatus(false);
+        setSubmitPending(false);
+        submitPendingStarted = false;
+        if (sentEventIdToNotify) {
+          onRoomMessageSent?.(sentEventIdToNotify);
+        }
       } finally {
         if (submitPendingStarted) {
           setSubmitPending(false);
