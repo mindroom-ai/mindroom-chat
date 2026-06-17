@@ -8,7 +8,7 @@ import { getThreadStreamingState } from './useThreadStreamingState';
 import { getThreadLastActivityTs } from './useThreadLastActivityTs';
 import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
-import { getThreadUnread } from './roomThreadList';
+import { getEffectiveThreadReadUpToTs, getThreadUnread } from './roomThreadList';
 import { getEffectiveThreadRootActivityTs } from './threadRouteUtils';
 import {
   getThreadPrimarySummaryText,
@@ -190,13 +190,15 @@ const getThreadUnreadFromReadUpToTs = (
   readUpToTs: number | null | undefined
 ): boolean | undefined => {
   if (readUpToTs === undefined || !thread || !currentUserId) return undefined;
+  const effectiveReadUpToTs = getEffectiveThreadReadUpToTs(thread, currentUserId, readUpToTs);
 
   const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
   const latestReply = replyEvents[replyEvents.length - 1];
   if (!latestReply) return false;
   if (latestReply.getSender() === currentUserId) return false;
-  if (readUpToTs === null) return true;
-  return latestReply.getTs() > readUpToTs;
+  if (effectiveReadUpToTs === null) return true;
+  if (effectiveReadUpToTs === undefined) return true;
+  return latestReply.getTs() > effectiveReadUpToTs;
 };
 
 const buildDefaultThreadCacheCoverage = (

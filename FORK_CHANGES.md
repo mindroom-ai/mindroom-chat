@@ -31,6 +31,92 @@
     Prettier still flags the legacy room-input files at `HEAD`, so those were
     left unformatted to avoid unrelated churn.
 
+### CINNY-133 - Compact thread unread clears from thread receipts (2026-06-17)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Investigated compact thread cards staying unread after opening an unread
+    thread.
+  - Root cause: compact/thread-list unread status compared the latest visible
+    reply against the room-level read marker only. Opening a thread sends a
+    thread-scoped read receipt via `markThreadAsRead`, so the compact card could
+    stay unread until another action, such as resolve/unresolve, caused a
+    room-level receipt or refresh path to move.
+  - Thread unread calculations now use the newest available read timestamp from
+    the thread-scoped receipt and the room-level receipt. Room receipts still
+    work as a fallback for whole-room mark-read flows.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/app/mindroom/threads/roomThreadList.ts`
+  - `src/app/mindroom/threads/roomThreadList.test.ts`
+  - `src/app/mindroom/threads/threadRecord.ts`
+  - `src/app/mindroom/threads/threadRecord.test.ts`
+- Validation:
+  - Red check:
+    `npm test -- src/app/mindroom/threads/threadRecord.test.ts src/app/mindroom/threads/roomThreadList.test.ts`
+    failed because both compact record and thread-list unread helpers ignored
+    the thread-scoped receipt.
+  - Green focused check:
+    `npm test -- src/app/mindroom/threads/threadRecord.test.ts src/app/mindroom/threads/roomThreadList.test.ts`
+    (2 files, 18 tests).
+  - Green broader thread check:
+    `npm test -- src/app/mindroom/threads/threadRecord.test.ts src/app/mindroom/threads/roomThreadList.test.ts src/app/mindroom/threads/threadIndexRecords.test.ts src/app/mindroom/threads/compactThreadCardViewModel.test.ts src/app/mindroom/threads/ThreadIndicator.test.ts src/app/mindroom/threads/useMindroomThreadIndex.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts`
+    (7 files, 109 tests).
+  - Green:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/roomThreadList.ts src/app/mindroom/threads/roomThreadList.test.ts src/app/mindroom/threads/threadRecord.ts src/app/mindroom/threads/threadRecord.test.ts`.
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (18 warnings, 0 errors - existing warning class).
+  - Green: `npm test` (302 files, 2253 tests).
+  - Green: `npm run build` (existing Vite runtime-config, sourcemap,
+    localStorage, and chunk-size warnings only).
+  - Green: `git diff --check`.
+  - Independent review: separate subagent review found no blocking issues; it
+    suggested optional extra coverage for hidden metadata receipt targets, but
+    assessed the helper behavior as sound and ready.
+  - Dependency sync: `npm ci` restored local `node_modules`; npm reported 27
+    audit findings in existing dependencies.
+  - Rebase check: rebased onto `origin/dev` at `3c2ff596` after the pending
+    local echo send indicator landed; resolved conflicts by preserving pending
+    send state in `threadRecord.ts` and renumbering this entry to CINNY-133.
+  - Rebase green focused check:
+    `npm test -- src/app/mindroom/threads/threadRecord.test.ts src/app/mindroom/threads/roomThreadList.test.ts src/app/mindroom/threads/compactThreadCardViewModel.test.ts`
+    (3 files, 24 tests).
+  - Rebase green: `npm test` (306 files, 2280 tests).
+  - Rebase green: `npm run typecheck`.
+  - Rebase green: `npm run lint` (18 warnings, 0 errors - existing warning
+    class).
+  - Rebase green:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/roomThreadList.ts src/app/mindroom/threads/roomThreadList.test.ts src/app/mindroom/threads/threadRecord.ts src/app/mindroom/threads/threadRecord.test.ts`.
+  - PR review follow-up: addressed Sourcery/Gemini/Greptile inline comments by
+    removing the unreachable `undefined` unread guard, replacing the receipt
+    candidate array copy with direct event lookup, and documenting the
+    paginated-out receipt fallback.
+  - PR review green focused check:
+    `npm test -- src/app/mindroom/threads/threadRecord.test.ts src/app/mindroom/threads/roomThreadList.test.ts`
+    (2 files, 18 tests).
+  - PR review green: `npm run typecheck`.
+  - PR review green: `npm run lint` (18 warnings, 0 errors - existing warning
+    class).
+  - PR review green: `npm test` (306 files, 2280 tests).
+  - PR review green: `npm run build` (existing Vite runtime-config, sourcemap,
+    localStorage, and chunk-size warnings only).
+  - PR review green:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/threads/roomThreadList.ts src/app/mindroom/threads/threadRecord.ts`.
+  - PR review green: `git diff --check`.
+  - Latest rebase check: rebased onto `origin/dev` at `38cb0a4d` after
+    `CINNY-207`; resolved the `FORK_CHANGES.md` conflict by preserving both
+    runbook entries.
+  - Latest rebase green focused check:
+    `npm test -- src/app/mindroom/threads/threadRecord.test.ts src/app/mindroom/threads/roomThreadList.test.ts src/app/mindroom/threads/compactThreadCardViewModel.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    (4 files, 118 tests).
+  - Latest rebase green: `npm run typecheck`.
+  - Latest rebase green: `npm run lint` (18 warnings, 0 errors - existing
+    warning class).
+  - Latest rebase green: `npm test` (306 files, 2281 tests).
+  - Latest rebase green: `npm run build` (existing Vite runtime-config,
+    sourcemap, localStorage, and chunk-size warnings only).
+
 ### CINNY-132 - Pending local echo send indicator (2026-06-13)
 
 - Status:
