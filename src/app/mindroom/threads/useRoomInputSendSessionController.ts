@@ -70,6 +70,7 @@ type UseRoomInputSendSessionControllerOptions = {
     signalBridgedRoom: boolean
   ) => Promise<IContent>;
   removeUploadsFromBoard: (upload: TUploadContent | TUploadContent[]) => void;
+  onRoomMessageSent?: (eventId: string) => void;
   shouldBlockStartSendSession?: () => boolean;
 };
 
@@ -126,6 +127,7 @@ export const useRoomInputSendSessionController = ({
   uploadsRef,
   buildUploadMessageContent,
   removeUploadsFromBoard,
+  onRoomMessageSent,
   shouldBlockStartSendSession,
 }: UseRoomInputSendSessionControllerOptions): {
   processSendSession: () => Promise<void>;
@@ -177,12 +179,15 @@ export const useRoomInputSendSessionController = ({
             'm.relates_to': relation,
           }
         : session.textContent;
-      await mx.sendMessage(session.roomId, content as any);
+      const response = await mx.sendMessage(session.roomId, content as any);
+      if (!relation && !session.threadId && !session.replyDraft && response.event_id) {
+        onRoomMessageSent?.(response.event_id);
+      }
 
       session.textPending = false;
       clearReplyDraftForSession(session);
     },
-    [mx, clearReplyDraftForSession]
+    [mx, clearReplyDraftForSession, onRoomMessageSent]
   );
 
   const sendSessionUpload = useCallback(
@@ -203,6 +208,9 @@ export const useRoomInputSendSessionController = ({
           }
         : content;
       const response = await mx.sendMessage(session.roomId, contentWithRelation as any);
+      if (!relation && !session.threadId && !session.replyDraft && response.event_id) {
+        onRoomMessageSent?.(response.event_id);
+      }
 
       session.sentFiles.add(file);
       session.failedFiles.delete(file);
@@ -218,6 +226,7 @@ export const useRoomInputSendSessionController = ({
       sendSessionUploadItemsRef,
       buildUploadMessageContent,
       clearReplyDraftForSession,
+      onRoomMessageSent,
       removeUploadsFromBoard,
     ]
   );

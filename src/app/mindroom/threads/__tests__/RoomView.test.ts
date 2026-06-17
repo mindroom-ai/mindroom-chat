@@ -1104,6 +1104,106 @@ describe('RoomView', () => {
     );
   });
 
+  it('opens a successful compact room message send as a thread', async () => {
+    const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
+    const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
+    const room = makeRoom(nextRoomId('room-a'));
+    let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
+
+    await act(async () => {
+      create(
+        React.createElement(ThreadStateHarness, {
+          onState: (state) => {
+            threadState = state;
+          },
+          room,
+        })
+      );
+    });
+
+    await act(async () => {
+      threadState?.handleRoomMessageSent('$sent');
+    });
+
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith(room.roomId, '$sent');
+  });
+
+  it('does not open successful sends as new threads outside the compact room overview', async () => {
+    const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
+    const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
+    const room = makeRoom(nextRoomId('room-a'));
+    let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
+
+    await act(async () => {
+      create(
+        React.createElement(ThreadStateHarness, {
+          onState: (state) => {
+            threadState = state;
+          },
+          room,
+          threadId: '$thread-a',
+        })
+      );
+    });
+
+    await act(async () => {
+      threadState?.handleRoomMessageSent('$sent');
+    });
+
+    expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+  });
+
+  it('does not open unresolved local-echo sends as compact threads', async () => {
+    const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
+    const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
+    const room = makeRoom(nextRoomId('room-a'));
+    let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
+
+    await act(async () => {
+      create(
+        React.createElement(ThreadStateHarness, {
+          onState: (state) => {
+            threadState = state;
+          },
+          room,
+        })
+      );
+    });
+
+    await act(async () => {
+      threadState?.handleRoomMessageSent('~local-echo');
+    });
+
+    expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+  });
+
+  it('does not open successful sends as new threads in classic mode', async () => {
+    const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
+    const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
+    const room = makeRoom(nextRoomId('room-a'));
+    let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
+
+    await act(async () => {
+      create(
+        React.createElement(ThreadStateHarness, {
+          onState: (state) => {
+            threadState = state;
+          },
+          room,
+        })
+      );
+    });
+
+    await act(async () => {
+      threadState?.handleViewModeChange('classic');
+    });
+    await act(async () => {
+      threadState?.handleRoomMessageSent('$sent');
+    });
+
+    expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+  });
+
   it('does not persist unresolved local-echo ids in the recent-thread list', async () => {
     const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom(nextRoomId('room-a'));

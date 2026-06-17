@@ -2,6 +2,60 @@
 
 ## Runbook
 
+### CINNY-208 - Auto-open compact sends as threads (2026-06-17)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Compact room overview now opens a newly sent top-level room message as its
+    thread once Matrix returns the sent event id.
+  - The route change reuses the existing MindRoom thread navigation path, so
+    classic mode and existing thread sends are unchanged.
+  - Upload send sessions also notify on the root upload only, skipping child
+    uploads and caption replies that already target the generated thread root.
+- Decisions:
+  - Keep the routing policy in `useRoomViewThreadState`, beside view-mode and
+    thread-route ownership, instead of putting navigation decisions inside the
+    composer.
+  - Treat only confirmed Matrix event ids as auto-open targets, avoiding
+    persisted navigation to local-echo ids.
+  - Notify only root sends with no active thread or reply draft; existing
+    threads, replies, and classic sends keep their current destination.
+- Risks:
+  - Navigating immediately after an upload root may unmount the composer while
+    the local send-session loop continues sending child uploads and captions.
+    Existing send-session state already owns those captured files, but live
+    multi-upload smoke testing is still useful.
+- Validation:
+  - Red check:
+    `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts`
+    failed while the send callback and compact route handler did not exist.
+  - Green focused check:
+    `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/useRoomInputSendSessionController.test.ts`
+    (3 files, 69 tests).
+  - Independent review green check: separate reviewer found no blockers; minor
+    helper typing and compact guard coverage suggestions were addressed.
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (18 warnings, 0 errors - existing
+    console/unused-var warning class).
+  - Green: `npm test` (302 files, 2258 tests).
+  - Green: `npm run build` (existing Vite runtime-config, sourcemap,
+    localStorage, and chunk-size warnings only).
+  - Green:
+    `npx prettier --check FORK_CHANGES.md src/app/mindroom/room-input/MindroomRoomInput.tsx src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/MindroomRoomView.tsx src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/useRoomInputSendSessionController.ts src/app/mindroom/threads/useRoomInputSendSessionController.test.ts src/app/mindroom/threads/useRoomViewThreadState.ts`.
+  - Green: `git diff --check`.
+  - Rebase green check: rebased onto `origin/dev` at `3c2ff596` and resolved
+    composer conflicts with the pending-send indicator path.
+  - Rebase green focused check:
+    `npm test -- src/app/mindroom/room-input/__tests__/RoomInput.test.ts src/app/mindroom/threads/__tests__/RoomView.test.ts src/app/mindroom/threads/useRoomInputSendSessionController.test.ts`
+    (3 files, 70 tests).
+  - Rebase green: `npm run typecheck`.
+  - Rebase green: `npm test` (306 files, 2285 tests).
+  - Rebase green: `npm run lint` (18 warnings, 0 errors - existing
+    console/unused-var warning class).
+  - Rebase green: `npm run build` (existing Vite runtime-config, sourcemap,
+    localStorage, and chunk-size warnings only).
+
 ### CINNY-207 - Hide thread-only composer helper in thread view (2026-06-17)
 
 - Status:

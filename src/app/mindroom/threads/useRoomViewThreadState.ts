@@ -61,6 +61,7 @@ export type RoomViewThreadState = {
   handleSortDirectionChange: () => void;
   handleToggle: (key: ThreadFilterKey) => void;
   handleToggleThreadSortFreeze: () => void;
+  handleRoomMessageSent: (eventId: string) => void;
   handleViewModeChange: (mode: RoomViewMode) => void;
   setThreadSortFreezeState: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
   storeThreadSummary: ReturnType<typeof useRoomThreadSummaryState>['storeThreadSummary'];
@@ -242,6 +243,16 @@ export const useRoomViewThreadState = ({
     [setViewMode]
   );
 
+  const handleRoomMessageSent = useCallback(
+    (sentEventId: string) => {
+      if (viewMode !== 'compact' || threadId || effectiveThreadId) return;
+      if (!isConfirmedMatrixEventId(sentEventId)) return;
+
+      navigateRoomThread(room.roomId, sentEventId);
+    },
+    [effectiveThreadId, navigateRoomThread, room.roomId, threadId, viewMode]
+  );
+
   useEffect(() => {
     setThreadSortFreezeState(null);
   }, [roomId]);
@@ -289,6 +300,7 @@ export const useRoomViewThreadState = ({
     handleSortDirectionChange,
     handleToggle,
     handleToggleThreadSortFreeze,
+    handleRoomMessageSent,
     handleViewModeChange,
     setThreadSortFreezeState,
     storeThreadSummary,

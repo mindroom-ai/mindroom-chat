@@ -698,6 +698,8 @@ const createRoomInputTree = (
   props?: {
     roomId?: string;
     threadId?: string;
+    threadingEnabled?: boolean;
+    onRoomMessageSent?: (eventId: string) => void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
   }
@@ -712,6 +714,8 @@ const createRoomInputTree = (
       roomId: props?.roomId ?? ROOM_ID,
       room: createRoom(props?.roomId ?? ROOM_ID, props?.encryptedRoom),
       threadId: props?.threadId,
+      threadingEnabled: props?.threadingEnabled,
+      onRoomMessageSent: props?.onRoomMessageSent,
     })
   );
 
@@ -720,6 +724,8 @@ const renderRoomInput = async (
   props?: {
     roomId?: string;
     threadId?: string;
+    threadingEnabled?: boolean;
+    onRoomMessageSent?: (eventId: string) => void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
   }
@@ -739,6 +745,8 @@ const updateRoomInput = async (
   props?: {
     roomId?: string;
     threadId?: string;
+    threadingEnabled?: boolean;
+    onRoomMessageSent?: (eventId: string) => void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
   }
@@ -1206,6 +1214,44 @@ describe('RoomInput', () => {
 
     expect(customEditorState.replyContextRenderCount).toBe(0);
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Sending to this thread');
+
+    renderer.unmount();
+  });
+
+  it('notifies successful top-level room text sends with the new event id', async () => {
+    const onRoomMessageSent = vi.fn();
+    const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
+
+    editorOutputState.plainText = 'Start a compact thread';
+    editorOutputState.customHtml = 'Start a compact thread';
+    editorOutputState.htmlEqualsPlainText = true;
+
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+    });
+
+    expect(onRoomMessageSent).toHaveBeenCalledWith('$sent');
+
+    renderer.unmount();
+  });
+
+  it('does not notify thread-targeted text sends as new room message roots', async () => {
+    const onRoomMessageSent = vi.fn();
+    const { renderer } = await renderRoomInput(createStore(), {
+      threadId: '$thread-a',
+      onRoomMessageSent,
+    });
+
+    editorOutputState.plainText = 'Reply in thread';
+    editorOutputState.customHtml = 'Reply in thread';
+    editorOutputState.htmlEqualsPlainText = true;
+
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+    });
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(onRoomMessageSent).not.toHaveBeenCalled();
 
     renderer.unmount();
   });
@@ -2059,12 +2105,7 @@ describe('RoomInput', () => {
     let rejected: unknown;
     await act(async () => {
       try {
-        await voiceRecorderState.props!.onSendRecording(
-          file,
-          1100,
-          undefined,
-          capturedContext
-        );
+        await voiceRecorderState.props!.onSendRecording(file, 1100, undefined, capturedContext);
       } catch (err) {
         rejected = err;
       }
@@ -2120,12 +2161,7 @@ describe('RoomInput', () => {
     let rejected: unknown;
     await act(async () => {
       try {
-        await voiceRecorderState.props!.onSendRecording(
-          file,
-          1100,
-          undefined,
-          capturedContext
-        );
+        await voiceRecorderState.props!.onSendRecording(file, 1100, undefined, capturedContext);
       } catch (err) {
         rejected = err;
       }

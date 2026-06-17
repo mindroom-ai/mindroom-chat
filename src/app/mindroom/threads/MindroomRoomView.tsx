@@ -96,6 +96,7 @@ export function RoomView({
     handleExitThread,
     handleRemoveTag,
     handleReset,
+    handleRoomMessageSent,
     handleSearchQueryChange,
     handleSortDirectionChange,
     handleToggle,
@@ -186,6 +187,7 @@ export function RoomView({
                   roomId={roomId}
                   threadId={effectiveThreadId}
                   threadingEnabled={viewMode !== 'classic'}
+                  onRoomMessageSent={handleRoomMessageSent}
                   fileDropContainerRef={roomViewRef}
                   ref={roomInputRef}
                 />

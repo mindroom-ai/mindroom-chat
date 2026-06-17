@@ -203,9 +203,21 @@ export interface RoomInputProps {
   room: Room;
   threadId?: string;
   threadingEnabled?: boolean;
+  onRoomMessageSent?: (eventId: string) => void;
 }
 export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
-  ({ editor, fileDropContainerRef, roomId, room, threadId, threadingEnabled = true }, ref) => {
+  (
+    {
+      editor,
+      fileDropContainerRef,
+      roomId,
+      room,
+      threadId,
+      threadingEnabled = true,
+      onRoomMessageSent,
+    },
+    ref
+  ) => {
     const mx = useMatrixClient();
     const store = useStore();
     const useAuthentication = useMediaAuthentication();
@@ -289,12 +301,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // account; ignore (and clean up) any draft that does not belong to us.
     const currentSessionId = mx.getUserId() ?? undefined;
     const draftBelongsToCurrentSession =
-      !!pendingVoiceSendDraft &&
-      pendingVoiceSendDraft.context.ownerSessionId === currentSessionId;
+      !!pendingVoiceSendDraft && pendingVoiceSendDraft.context.ownerSessionId === currentSessionId;
     const ownsPendingVoiceDraft =
       draftBelongsToCurrentSession && pendingVoiceSendDraft?.context.roomId === roomId;
-    const otherRoomOwnsPendingVoiceDraft =
-      draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
+    const otherRoomOwnsPendingVoiceDraft = draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
     const otherPendingVoiceRoomName =
       otherRoomOwnsPendingVoiceDraft && pendingVoiceSendDraft
         ? pendingVoiceSendDraft.context.room.name ?? pendingVoiceSendDraft.context.roomId
@@ -725,9 +735,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             }
           : content;
 
-        await mx.sendMessage(context.roomId, contentWithRelation as any);
+        const response = await mx.sendMessage(context.roomId, contentWithRelation as any);
+        if (!relation && !context.threadId && !context.replyDraft && response.event_id) {
+          onRoomMessageSent?.(response.event_id);
+        }
       },
-      [mx, buildUploadMessageContent]
+      [mx, buildUploadMessageContent, onRoomMessageSent]
     );
 
     const clearReplyDraftForVoiceContext = useCallback(
@@ -759,6 +772,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       uploadsRef,
       buildUploadMessageContent,
       removeUploadsFromBoard,
+      onRoomMessageSent,
       shouldBlockStartSendSession: () => store.get(voiceAutoSendPendingAtom),
     });
 
@@ -1013,7 +1027,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         }
         submitPendingStarted = true;
         setSubmitPending(true);
-        await mx.sendMessage(roomId, content as any);
+        const response = await mx.sendMessage(roomId, content as any);
+        if (!relation && !threadId && !replyDraft && response.event_id) {
+          onRoomMessageSent?.(response.event_id);
+        }
         resetEditor(editor);
         resetEditorHistory(editor);
         setReplyDraft(undefined);
@@ -1037,6 +1054,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       threadingEnabled,
       startSendSession,
       store,
+      onRoomMessageSent,
     ]);
 
     const handleUploadBoardSend = useCallback(async () => {
