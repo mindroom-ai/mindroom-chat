@@ -162,6 +162,53 @@ describe('buildThreadRecord', () => {
     });
   });
 
+  it('uses the thread-scoped receipt to clear unread status when the room read marker is older', () => {
+    const rootEvent = makeEvent({
+      eventId: '$root',
+      sender: '@me:server',
+      body: 'Root body',
+      ts: 1000,
+    });
+    const latestReply = makeEvent({
+      eventId: '$reply',
+      threadRootId: '$root',
+      sender: '@agent:server',
+      body: 'Reply body',
+      ts: 3000,
+    });
+    const room = makeRoom({
+      rootEvent,
+      thread: {
+        id: '$root',
+        rootEvent,
+        events: [latestReply],
+        timeline: [latestReply],
+        length: 1,
+        lastReply: () => latestReply,
+        getEventReadUpTo: vi.fn(() => latestReply.getId()),
+        getUnfilteredTimelineSet: () => ({
+          getLiveTimeline: () => ({
+            getEvents: () => [rootEvent, latestReply],
+            getNeighbouringTimeline: () => undefined,
+          }),
+          relations: {
+            getChildEventsForEvent: () => undefined,
+          },
+        }),
+      } as unknown as ReturnType<Room['getThread']>,
+    });
+
+    const record = buildThreadRecord({
+      room,
+      threadRootId: '$root',
+      threadRootEvent: rootEvent,
+      currentUserId: '@me:server',
+      readUpToTs: rootEvent.getTs(),
+    });
+
+    expect(record.status.isUnread).toBe(false);
+  });
+
   it('builds a per-room record map from direct source maps', () => {
     const rootEvent = makeEvent({
       eventId: '$root',

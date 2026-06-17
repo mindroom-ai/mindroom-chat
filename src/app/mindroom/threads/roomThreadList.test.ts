@@ -231,6 +231,22 @@ describe('thread visibility helpers', () => {
 
     expect(getThreadUnread(room as never, thread, '@self:example.org')).toBe(false);
   });
+
+  it('uses the thread-scoped read receipt before falling back to the room read marker', () => {
+    const visibleReply = makeThreadReplyEvent('$reply-visible', 300, '@other:example.org');
+    const room = {
+      getEventReadUpTo: vi.fn(() => '$room-read'),
+      findEventById: vi.fn(() => ({ getTs: () => 100 })),
+    };
+    const thread = {
+      events: [visibleReply],
+      getEventReadUpTo: vi.fn(() => '$reply-visible'),
+      replyToEvent: undefined,
+      rootEvent: { getTs: () => 50 },
+    } as never;
+
+    expect(getThreadUnread(room as never, thread, '@self:example.org')).toBe(false);
+  });
 });
 
 describe('roomThreadListIsComplete', () => {
