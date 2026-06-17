@@ -87,7 +87,9 @@ export const buildMindroomDelegateMessageContent = (options: {
     msgtype: 'm.text',
     body,
     format: 'org.matrix.custom.html',
-    formatted_body: `${formattedOriginalBody}<br><br><a href="https://matrix.to/#/${options.selectedAgentId}">${formattedAgentId}</a>, ${MINDROOM_DELEGATE_PROMPT}`,
+    formatted_body: `${formattedOriginalBody}<br><br><a href="https://matrix.to/#/${encodeURIComponent(
+      options.selectedAgentId
+    )}">${formattedAgentId}</a>, ${MINDROOM_DELEGATE_PROMPT}`,
     'm.mentions': { user_ids: [options.selectedAgentId] },
     'm.relates_to': {
       rel_type: 'm.thread',

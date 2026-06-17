@@ -82,7 +82,7 @@ describe('mindroom delegation helpers', () => {
       body: 'Who owns <this>?\n\n@mindroom_worker:mindroom.chat, can you address this question?',
       format: 'org.matrix.custom.html',
       formatted_body:
-        'Who owns &lt;this&gt;?<br><br><a href="https://matrix.to/#/@mindroom_worker:mindroom.chat">@mindroom_worker:mindroom.chat</a>, can you address this question?',
+        'Who owns &lt;this&gt;?<br><br><a href="https://matrix.to/#/%40mindroom_worker%3Amindroom.chat">@mindroom_worker:mindroom.chat</a>, can you address this question?',
       'm.mentions': { user_ids: ['@mindroom_worker:mindroom.chat'] },
       'm.relates_to': {
         rel_type: 'm.thread',

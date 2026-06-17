@@ -24,6 +24,7 @@ import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { stopPropagation } from '../../utils/keyboard';
 import { assignElementRef } from '../../utils/react';
 import { MindroomAiRunInfo, getMindroomAiRunInfo } from './aiRun';
@@ -316,7 +317,8 @@ export function MindroomDelegateMenuItem({
   const [agentMenuAnchor, setAgentMenuAnchor] = useState<RectCords>();
   const [submittingAgentId, setSubmittingAgentId] = useState<string>();
   const [errorMessage, setErrorMessage] = useState<string>();
-  const agents = useMemo(() => getMindroomDelegateAgents(room.getMembers()), [room]);
+  const members = useRoomMembers(mx, room.roomId);
+  const agents = useMemo(() => getMindroomDelegateAgents(members), [members]);
   const routerEventId = mEvent.getId() ?? undefined;
   const threadRootId = mEvent.threadRootId;
   const originalBody = getMindroomDelegateOriginalBody(content);

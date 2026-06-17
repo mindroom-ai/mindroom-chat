@@ -17,6 +17,9 @@ const domMocks = vi.hoisted(() => ({
 const matrixMocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
 }));
+const roomMemberMocks = vi.hoisted(() => ({
+  members: [] as Array<{ membership?: string | null; userId?: string | null }>,
+}));
 const longTextMocks = vi.hoisted(() => ({
   downloadMindroomLongTextSidecarBlob: vi.fn(),
   getMindroomLongTextSource: vi.fn(() => undefined),
@@ -240,6 +243,10 @@ vi.mock('../../../hooks/useMatrixClient', () => ({
   }),
 }));
 
+vi.mock('../../../hooks/useRoomMembers', () => ({
+  useRoomMembers: () => roomMemberMocks.members,
+}));
+
 vi.mock('../../../hooks/useRecentEmoji', () => ({
   useRecentEmoji: () => [],
 }));
@@ -343,6 +350,7 @@ beforeEach(() => {
   lastMessageBaseNode = undefined;
   vi.clearAllMocks();
   matrixMocks.sendMessage.mockResolvedValue({ event_id: '$delegate' });
+  roomMemberMocks.members = [];
   longTextMocks.getMindroomLongTextSource.mockReturnValue(undefined);
   longTextMocks.useMindroomLongTextResolvedContent.mockReturnValue(undefined);
 });
@@ -381,12 +389,14 @@ const renderMessage = async (
   {
     collapse = true,
     eventId,
+    hookMembers,
     members,
     senderId,
     threadRootId,
   }: {
     collapse?: boolean;
     eventId?: string;
+    hookMembers?: Array<{ membership?: string | null; userId?: string | null }>;
     members?: Array<{ membership?: string | null; userId?: string | null }>;
     senderId?: string;
     threadRootId?: string;
@@ -395,6 +405,7 @@ const renderMessage = async (
   const Message = await getMessageComponent();
   let renderer!: ReactTestRenderer;
   lastMessageBaseNode = undefined;
+  roomMemberMocks.members = hookMembers ?? members ?? [];
 
   await act(async () => {
     renderer = create(
@@ -751,7 +762,7 @@ describe('Router delegate menu item', () => {
       body: 'Who owns <this>?\n\n@mindroom_worker:mindroom.chat, can you address this question?',
       format: 'org.matrix.custom.html',
       formatted_body:
-        'Who owns &lt;this&gt;?<br><br><a href="https://matrix.to/#/@mindroom_worker:mindroom.chat">@mindroom_worker:mindroom.chat</a>, can you address this question?',
+        'Who owns &lt;this&gt;?<br><br><a href="https://matrix.to/#/%40mindroom_worker%3Amindroom.chat">@mindroom_worker:mindroom.chat</a>, can you address this question?',
       'm.mentions': { user_ids: ['@mindroom_worker:mindroom.chat'] },
       'm.relates_to': {
         rel_type: 'm.thread',
@@ -760,5 +771,25 @@ describe('Router delegate menu item', () => {
         'm.in_reply_to': { event_id: '$router' },
       },
     });
+  });
+
+  it('uses the reactive room-member hook instead of a stale room member snapshot', async () => {
+    const { renderer } = await renderMessage(
+      {
+        msgtype: 'm.text',
+        body: 'Who owns this?',
+      },
+      {
+        eventId: '$router',
+        hookMembers: delegateMembers,
+        members: [],
+        senderId: '@mindroom_router:mindroom.chat',
+        threadRootId: '$thread',
+      }
+    );
+
+    await openContextMenu(renderer);
+
+    expect(getButtonByText(renderer, 'Delegate to')).toBeDefined();
   });
 });

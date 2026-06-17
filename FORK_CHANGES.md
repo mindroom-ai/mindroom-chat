@@ -76,6 +76,120 @@
   - Monitor the next `origin/dev` Xcode Cloud archive for Apple version
     `4.12.2` and a fresh integer build number.
 
+### CINNY-210 - Delegate unassigned router messages to agents (2026-06-17)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Added a MindRoom message-menu delegate action for unassigned
+    `@mindroom_router:mindroom.chat` messages rendered inside an existing
+    Matrix thread.
+  - The action appears only when the router message has no `m.mentions` user or
+    room mention, has a thread root id, and the room has joined
+    `@mindroom_*:mindroom.chat` agents besides the router.
+  - Selecting an agent sends a same-thread Matrix reply that quotes the original
+    router message, includes a clickable Matrix.to mention in `formatted_body`,
+    and sets `m.mentions.user_ids` for the selected agent.
+  - Added design and implementation-plan docs under `docs/superpowers/` for
+    the route from brainstorm to implementation.
+- Decisions:
+  - Keep the first version specific to the current MindRoom router and
+    `mindroom.chat` agent namespace, but isolate the policy in
+    `messages/delegation.ts` constants so a later generic policy can be added
+    without touching menu plumbing.
+  - Use joined room members only; invited agents are excluded until there is a
+    product need to delegate to agents that cannot receive the message yet.
+  - Treat `m.mentions` as the source of truth for whether a message is already
+    tagged. Raw `@...` text without `m.mentions` does not suppress delegation.
+  - Send directly from the message menu instead of pre-filling the composer so
+    the relation, formatted mention, and `m.mentions` payload stay atomic.
+- Risks:
+  - Router or agent ids outside the current namespace will not appear until the
+    isolated constants become configuration.
+  - Raw-text mentions without Matrix mention metadata are intentionally ignored
+    for now.
+- Next steps:
+  - Watch real router rooms for whether non-`mindroom.chat` agent namespaces or
+    invited agents need support.
+  - If a second router or domain appears, lift the constants into a small
+    configurable policy instead of duplicating checks in the UI.
+- Review:
+  - Independent subagent review found no critical issues and two important
+    follow-ups: the Matrix.to mention href needed URL encoding, and the delegate
+    menu needed the reactive room-member hook instead of a one-time
+    `room.getMembers()` snapshot.
+  - Review follow-up fixed both issues and added regression coverage for the
+    encoded mention link and reactive member source.
+- Validation:
+  - Dependency sync: `npm ci` installed local dependencies; npm reported 27
+    audit findings.
+  - Red check:
+    `npm test -- src/app/mindroom/messages/delegation.test.ts` failed while the
+    helper module did not exist.
+  - Red check:
+    `npm test -- src/app/mindroom/messages/delegation.test.ts` failed with 4
+    assertion failures against compile stubs.
+  - Green helper check:
+    `npm test -- src/app/mindroom/messages/delegation.test.ts` (6 tests).
+  - Red UI check:
+    `npm test -- src/app/mindroom/messages/__tests__/Message.test.ts` failed
+    while `Delegate to` did not render.
+  - Green focused check:
+    `npm test -- src/app/mindroom/messages/delegation.test.ts src/app/mindroom/messages/__tests__/Message.test.ts`
+    (2 files, 13 tests).
+  - Review red helper check:
+    `npm test -- src/app/mindroom/messages/delegation.test.ts` failed while the
+    Matrix.to mention href was not URL encoded.
+  - Review red UI check:
+    `npm test -- src/app/mindroom/messages/__tests__/Message.test.ts` failed
+    while the Matrix.to mention href was not URL encoded and the delegate menu
+    used stale `room.getMembers()` data.
+  - Review green focused check:
+    `npm test -- src/app/mindroom/messages/delegation.test.ts src/app/mindroom/messages/__tests__/Message.test.ts`
+    (2 files, 14 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (18 warnings, 0 errors - existing console/unused-var
+    warning class).
+  - Green: `npm test` (303 files, 2261 tests).
+  - Green: `npm run build` (existing Vite runtime-config, sourcemap,
+    localStorage, and chunk-size warnings only).
+  - Green:
+    `npx prettier --check FORK_CHANGES.md docs/superpowers/specs/2026-06-17-router-delegate-design.md docs/superpowers/plans/2026-06-17-router-delegate.md src/app/mindroom/messages/delegation.ts src/app/mindroom/messages/delegation.test.ts src/app/mindroom/messages/MindroomMessageControls.tsx src/app/mindroom/messages/messageExtensions.tsx src/app/mindroom/messages/MindroomMessage.tsx src/app/mindroom/messages/__tests__/Message.test.ts`.
+  - Green: `git diff --check`.
+  - Latest rebase check: rebased onto `origin/dev` at `8ab6f9b4`; resolved the
+    `FORK_CHANGES.md` conflict by preserving upstream `CINNY-208`/`CINNY-207`
+    entries and renumbering this entry to `CINNY-209`.
+  - Latest rebase green focused check:
+    `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm test -- src/app/mindroom/messages/delegation.test.ts src/app/mindroom/messages/__tests__/Message.test.ts`
+    (2 files, 14 tests).
+  - Latest rebase green: `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run typecheck`.
+  - Latest rebase green: `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run lint`
+    (18 warnings, 0 errors - existing warning class).
+  - Latest rebase green:
+    `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm test` (308 files, 2302
+    tests).
+  - Latest rebase green: `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run build`
+    (existing Vite runtime-config, sourcemap, localStorage, and chunk-size
+    warnings only).
+  - Second rebase check: rebased onto `origin/dev` at `11fc880b`; resolved the
+    `FORK_CHANGES.md` conflict by preserving upstream `CINNY-209` and
+    renumbering this entry to `CINNY-210`.
+  - CI title check root cause: GitHub `Check PR title / lint` failed because
+    the PR title `Add router delegate menu` lacked a Conventional Commit type;
+    renamed the PR to `feat: add router delegate menu`.
+  - Second rebase green focused check:
+    `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm test -- src/app/mindroom/messages/delegation.test.ts src/app/mindroom/messages/__tests__/Message.test.ts`
+    (2 files, 14 tests).
+  - Second rebase green: `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run typecheck`.
+  - Second rebase green: `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run lint`
+    (18 warnings, 0 errors - existing warning class).
+  - Second rebase green:
+    `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm test` (309 files, 2308
+    tests).
+  - Second rebase green: `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run build`
+    (existing Vite runtime-config, sourcemap, localStorage, and chunk-size
+    warnings only).
+
 ### CINNY-208 - Auto-open compact sends as threads (2026-06-17)
 
 - Status:
