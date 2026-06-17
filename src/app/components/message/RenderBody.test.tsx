@@ -15,7 +15,7 @@ vi.mock('../../utils/sanitize', async (importOriginal) => {
 });
 
 vi.mock('./content', () => ({
-  MessageEmptyContent: () => null,
+  MessageEmptyContent: () => React.createElement('span', { 'data-testid': 'empty-content' }),
 }));
 
 vi.mock('../../plugins/react-custom-html-parser', () => ({
@@ -107,6 +107,28 @@ describe('RenderBody', () => {
 
     expect(JSON.stringify(renderer?.toJSON())).toContain('plain text body');
     expect(sanitizeCustomHtmlSpy).not.toHaveBeenCalled();
+  });
+
+  it('renders the empty placeholder for an empty plain body with no formatted body', () => {
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(renderBody(''));
+    });
+
+    expect(JSON.stringify(renderer?.toJSON())).toContain('empty-content');
+    expect(sanitizeCustomHtmlSpy).not.toHaveBeenCalled();
+  });
+
+  it('renders the formatted body even when the plain-text fallback is empty', () => {
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(renderBody('', '<p>formatted only</p>'));
+    });
+
+    const json = JSON.stringify(renderer?.toJSON());
+    expect(json).toContain('formatted only');
+    expect(json).not.toContain('empty-content');
+    expect(sanitizeCustomHtmlSpy).toHaveBeenCalledTimes(1);
   });
 
   it('stays memoized through the mindroom parser-options wrapper for plain content', () => {

@@ -23,11 +23,11 @@ export function RenderBody({
   // Sanitizing + parsing message HTML is expensive; timeline re-renders (e.g.
   // streaming m.replace bursts) must not re-parse unchanged bodies.
   return useMemo(() => {
-    if (body === '') <MessageEmptyContent />;
+    // A formatted body wins even when the plain-text fallback is empty.
     if (customBody) {
-      if (customBody === '') <MessageEmptyContent />;
       return parse(sanitizeCustomHtml(customBody), htmlReactParserOptions);
     }
+    if (body === '') return <MessageEmptyContent />;
     return renderTextWithLatex(body, {
       linkify: true,
       linkifyOpts,

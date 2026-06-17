@@ -496,40 +496,6 @@ describe('RoomTimeline', () => {
     }
   });
 
-  it('resets the recorded expand-all state when the open room or thread changes', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-    const { resetExpandAllState } = await import('../CollapsibleMessage');
-    const room = makeRoom();
-    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-    let renderer: ReturnType<typeof create> | undefined;
-
-    try {
-      await act(async () => {
-        renderer = create(
-          React.createElement(ControlledRoomTimeline, {
-            room,
-          })
-        );
-        await flushAsyncWork();
-      });
-
-      expect(vi.mocked(resetExpandAllState)).toHaveBeenCalledTimes(1);
-
-      await act(async () => {
-        renderer!.update(
-          React.createElement(ControlledRoomTimeline, {
-            room,
-            threadId: '$expand-reset-thread',
-          })
-        );
-        await flushAsyncWork();
-      });
-
-      expect(vi.mocked(resetExpandAllState)).toHaveBeenCalledTimes(2);
-    } finally {
-      renderer?.unmount();
-    }
-  });
 
   it('keeps the first visible classic room message anchored when prepending an older virtual range', async () => {
     const { RoomTimeline } = await import('../../../features/room/RoomTimeline');

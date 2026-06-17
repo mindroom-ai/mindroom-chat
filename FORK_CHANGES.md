@@ -802,6 +802,35 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
     spellings (old kept for rebaseability). Green:
     `npx playwright test e2e/account-offline.spec.ts` against the
     docker-matrix homeserver.
+- PR #44 review follow-up (2026-06-13):
+  - Bot reviewers: gemini-code-assist and greptile gave substantive comments;
+    sourcery, qodo, and coderabbit were rate-limited (no content).
+  - `RenderBody` empty-content guards were missing `return` (pre-existing,
+    flagged by both bots). Fixed at the root: check `customBody` first so a
+    formatted body still renders when the plain-text fallback is empty, then
+    return `MessageEmptyContent` for a truly-empty body. Did NOT apply the
+    bots' literal patch (empty-check first), which would have regressed
+    empty-plaintext-with-formatted-body to render the placeholder instead of
+    the HTML. Added unit coverage for both empty cases.
+  - Expand/collapse-all module global (`currentExpandAllState`) + render-phase
+    `resetExpandAllState()` (the latter newly introduced by this PR) were
+    flagged as a React anti-pattern. Replaced with `ExpandAllInitContext`, an
+    instance-scoped React context provided by `RoomTimeline` from a new
+    `expandAllOverride` state — render-pure, and reset for free by the
+    room:thread-keyed remount (no module global, no render-phase write). The
+    pre-existing `listeners` bus still toggles already-mounted rows. Note: the
+    bus predates this PR and only one `RoomTimeline` mounts at a time
+    (keyed single instance), so the multi-timeline sharing concern is
+    theoretical; converting the bus itself to context was left out of scope.
+  - Settle-loop scroll-intent listeners are now removed as soon as settling
+    finishes (stable, capped, or cancelled) instead of only on effect
+    teardown.
+  - 90-frame settle cap (greptile P2): kept. If it ever caps short, the next
+    near-bottom live event re-pins and the Jump-to-Latest chip is the explicit
+    fallback; probes land at the bottom in well under the cap.
+  - Validation: `npm test` (308 files, 2304 tests), `npm run typecheck`,
+    `npm run lint` (18 warnings, 0 errors), `npm run build`, and the perf
+    probe (16 mounted rows, 482ms burst, 0 long tasks, open-at-latest lands).
 - Next steps:
   - Watch `cinny070` for batch flakiness in CI.
   - Optional future: wire `scrollThreadEventIntoView` into
