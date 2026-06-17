@@ -569,7 +569,7 @@ describe('RoomTimeline architecture', () => {
     expect(roomInputExtensionsSource).toContain("from '../commands/MindroomCommandAutocomplete'");
     expect(roomInputExtensionsSource).toContain("from '../voice/VoiceRecorderDialog'");
     expect(roomInputExtensionsSource).toContain('MindroomRoomInputReplyContext');
-    expect(roomInputExtensionsSource).toContain('Sending to this thread');
+    expect(roomInputExtensionsSource).not.toContain('Sending to this thread');
     expect(roomInputExtensionsSource).toContain(
       "from '../threads/useRoomInputSendSessionController'"
     );

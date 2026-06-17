@@ -1236,14 +1236,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           onKeyUp={handleKeyUp}
           onPaste={handlePaste}
           top={
-            (replyDraft || threadId || voiceRecorderOpen || ownsPendingVoiceDraft) && (
+            (replyDraft ||
+              (!!threadId && submitPending) ||
+              voiceRecorderOpen ||
+              ownsPendingVoiceDraft) && (
               <div>
-                {(replyDraft || threadId) && (
+                {(replyDraft || (!!threadId && submitPending)) && (
                   <MindroomRoomInputReplyContext
                     room={room}
                     relation={replyDraft?.relation}
                     pendingSend={!!threadId && submitPending}
-                    threadId={threadId}
                     leading={
                       replyDraft && (
                         <IconButton
