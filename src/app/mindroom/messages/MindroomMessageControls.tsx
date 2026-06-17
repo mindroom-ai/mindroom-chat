@@ -5,10 +5,13 @@ import {
   Icon,
   IconButton,
   Icons,
+  Menu,
   MenuItem,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
+  PopOut,
+  RectCords,
   Spinner,
   Text,
   as,
@@ -17,6 +20,7 @@ import {
 import React, { ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import FileSaver from 'file-saver';
+import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
@@ -40,6 +44,12 @@ import {
   downloadMindroomLongTextSidecarBlob,
   useMindroomLongTextResolvedContent,
 } from './MindroomLongTextText';
+import {
+  buildMindroomDelegateMessageContent,
+  getMindroomDelegateAgents,
+  getMindroomDelegateOriginalBody,
+  shouldShowMindroomDelegateAction,
+} from './delegation';
 import * as css from './MindroomMessageControls.css';
 
 export function useMindroomMessageControls(content: Record<string, unknown>, menuOpen: boolean) {
@@ -287,3 +297,123 @@ export const MindroomDownloadOriginalMenuItem = as<
     </MenuItem>
   );
 });
+
+const getDelegateErrorMessage = (error: unknown): string =>
+  error instanceof Error && error.message ? error.message : 'Unable to delegate. Please try again.';
+
+export function MindroomDelegateMenuItem({
+  content,
+  mEvent,
+  onClose,
+  room,
+}: {
+  content: Record<string, unknown>;
+  mEvent: MatrixEvent;
+  onClose?: () => void;
+  room: Room;
+}) {
+  const mx = useMatrixClient();
+  const [agentMenuAnchor, setAgentMenuAnchor] = useState<RectCords>();
+  const [submittingAgentId, setSubmittingAgentId] = useState<string>();
+  const [errorMessage, setErrorMessage] = useState<string>();
+  const agents = useMemo(() => getMindroomDelegateAgents(room.getMembers()), [room]);
+  const routerEventId = mEvent.getId() ?? undefined;
+  const threadRootId = mEvent.threadRootId;
+  const originalBody = getMindroomDelegateOriginalBody(content);
+  const showDelegate = shouldShowMindroomDelegateAction({
+    agents,
+    content,
+    eventId: routerEventId,
+    senderId: mEvent.getSender() ?? undefined,
+    threadRootId,
+  });
+
+  if (!showDelegate || !routerEventId || !threadRootId) return null;
+
+  const handleOpenAgents = (evt: React.MouseEvent<HTMLButtonElement>) => {
+    setErrorMessage(undefined);
+    setAgentMenuAnchor(evt.currentTarget.getBoundingClientRect());
+  };
+
+  const handleDelegate = async (agentId: string) => {
+    if (submittingAgentId) return;
+
+    setErrorMessage(undefined);
+    setSubmittingAgentId(agentId);
+
+    try {
+      await mx.sendMessage(
+        room.roomId,
+        buildMindroomDelegateMessageContent({
+          originalBody,
+          selectedAgentId: agentId,
+          routerEventId,
+          threadRootId,
+        }) as any
+      );
+      setAgentMenuAnchor(undefined);
+      onClose?.();
+    } catch (error) {
+      setErrorMessage(getDelegateErrorMessage(error));
+    } finally {
+      setSubmittingAgentId(undefined);
+    }
+  };
+
+  return (
+    <PopOut
+      anchor={agentMenuAnchor}
+      position="Bottom"
+      align={agentMenuAnchor?.width === 0 ? 'Start' : 'End'}
+      offset={agentMenuAnchor?.width === 0 ? 0 : undefined}
+      content={
+        <Menu>
+          <Box direction="Column" gap="100">
+            {agents.map((agentId) => (
+              <MenuItem
+                key={agentId}
+                size="300"
+                after={
+                  submittingAgentId === agentId ? (
+                    <Spinner fill="Soft" size="100" />
+                  ) : (
+                    <Icon size="100" src={Icons.User} />
+                  )
+                }
+                radii="300"
+                onClick={() => {
+                  void handleDelegate(agentId);
+                }}
+                aria-disabled={submittingAgentId !== undefined}
+              >
+                <Text className={css.MenuItemText} as="span" size="T300" truncate>
+                  {agentId}
+                </Text>
+              </MenuItem>
+            ))}
+            {errorMessage && (
+              <Box style={{ padding: config.space.S200 }}>
+                <Text as="span" size="T200" priority="400">
+                  {errorMessage}
+                </Text>
+              </Box>
+            )}
+          </Box>
+        </Menu>
+      }
+    >
+      <MenuItem
+        size="300"
+        after={<Icon size="100" src={Icons.User} />}
+        radii="300"
+        onClick={handleOpenAgents}
+        aria-haspopup="menu"
+        aria-pressed={agentMenuAnchor !== undefined}
+      >
+        <Text className={css.MenuItemText} as="span" size="T300" truncate>
+          Delegate to
+        </Text>
+      </MenuItem>
+    </PopOut>
+  );
+}

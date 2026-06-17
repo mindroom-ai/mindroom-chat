@@ -14,6 +14,9 @@ let lastMessageBaseNode: HostNodeMock | undefined;
 const domMocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn(),
 }));
+const matrixMocks = vi.hoisted(() => ({
+  sendMessage: vi.fn(),
+}));
 const longTextMocks = vi.hoisted(() => ({
   downloadMindroomLongTextSidecarBlob: vi.fn(),
   getMindroomLongTextSource: vi.fn(() => undefined),
@@ -230,6 +233,7 @@ vi.mock('../../../utils/matrix', () => ({
 vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getUserId: () => '@alice:example.org',
+    sendMessage: matrixMocks.sendMessage,
     sendStateEvent: vi.fn(),
     redactEvent: vi.fn(),
     reportEvent: vi.fn(),
@@ -338,23 +342,32 @@ const getMessageComponent = async () =>
 beforeEach(() => {
   lastMessageBaseNode = undefined;
   vi.clearAllMocks();
+  matrixMocks.sendMessage.mockResolvedValue({ event_id: '$delegate' });
   longTextMocks.getMindroomLongTextSource.mockReturnValue(undefined);
   longTextMocks.useMindroomLongTextResolvedContent.mockReturnValue(undefined);
 });
 
-const createMessageEvent = (content: Record<string, unknown>) =>
+const createMessageEvent = (
+  content: Record<string, unknown>,
+  overrides: {
+    eventId?: string;
+    senderId?: string;
+    threadRootId?: string;
+  } = {}
+) =>
   ({
-    threadRootId: undefined,
+    threadRootId: overrides.threadRootId,
     getContent: () => content,
-    getId: () => '$event',
-    getSender: () => '@alice:example.org',
+    getId: () => overrides.eventId ?? '$event',
+    getSender: () => overrides.senderId ?? '@alice:example.org',
     getTs: () => 1,
     isRedacted: () => false,
   } as const);
 
-const createRoom = () =>
+const createRoom = (members: Array<{ membership?: string | null; userId?: string | null }> = []) =>
   ({
     roomId: '!room:example.org',
+    getMembers: () => members,
     getTimelineForEvent: () => undefined,
   } as const);
 
@@ -365,7 +378,19 @@ type RenderedMessage = {
 
 const renderMessage = async (
   content: Record<string, unknown>,
-  { collapse = true }: { collapse?: boolean } = {}
+  {
+    collapse = true,
+    eventId,
+    members,
+    senderId,
+    threadRootId,
+  }: {
+    collapse?: boolean;
+    eventId?: string;
+    members?: Array<{ membership?: string | null; userId?: string | null }>;
+    senderId?: string;
+    threadRootId?: string;
+  } = {}
 ): Promise<RenderedMessage> => {
   const Message = await getMessageComponent();
   let renderer!: ReactTestRenderer;
@@ -376,8 +401,8 @@ const renderMessage = async (
       React.createElement(
         Message,
         {
-          room: createRoom(),
-          mEvent: createMessageEvent(content),
+          room: createRoom(members),
+          mEvent: createMessageEvent(content, { eventId, senderId, threadRootId }),
           collapse,
           highlight: false,
           messageLayout: 'Modern',
@@ -632,5 +657,108 @@ describe('Message copy text overflow integration', () => {
     });
 
     expect(domMocks.copyToClipboard).toHaveBeenCalledWith('Resolved overflow body');
+  });
+});
+
+describe('Router delegate menu item', () => {
+  const delegateMembers = [
+    { userId: '@mindroom_router:mindroom.chat', membership: 'join' },
+    { userId: '@mindroom_worker:mindroom.chat', membership: 'join' },
+    { userId: '@mindroom_invited:mindroom.chat', membership: 'invite' },
+    { userId: '@alice:example.org', membership: 'join' },
+  ];
+
+  it('does not render Delegate to for non-router messages', async () => {
+    const { renderer } = await renderMessage(
+      {
+        msgtype: 'm.text',
+        body: 'Who owns this?',
+      },
+      {
+        members: delegateMembers,
+        senderId: '@alice:example.org',
+        threadRootId: '$thread',
+      }
+    );
+
+    await openContextMenu(renderer);
+
+    expect(getButtonByText(renderer, 'Delegate to')).toBeUndefined();
+  });
+
+  it('does not render Delegate to when the router message already mentions an agent', async () => {
+    const { renderer } = await renderMessage(
+      {
+        msgtype: 'm.text',
+        body: '@mindroom_worker:mindroom.chat already tagged',
+        'm.mentions': { user_ids: ['@mindroom_worker:mindroom.chat'] },
+      },
+      {
+        members: delegateMembers,
+        senderId: '@mindroom_router:mindroom.chat',
+        threadRootId: '$thread',
+      }
+    );
+
+    await openContextMenu(renderer);
+
+    expect(getButtonByText(renderer, 'Delegate to')).toBeUndefined();
+  });
+
+  it('sends a same-thread delegate message with clickable mention metadata', async () => {
+    const { renderer } = await renderMessage(
+      {
+        msgtype: 'm.text',
+        body: 'Who owns <this>?',
+      },
+      {
+        eventId: '$router',
+        members: delegateMembers,
+        senderId: '@mindroom_router:mindroom.chat',
+        threadRootId: '$thread',
+      }
+    );
+
+    await openContextMenu(renderer);
+
+    const delegateButton = getButtonByText(renderer, 'Delegate to');
+
+    expect(delegateButton).toBeDefined();
+
+    await act(async () => {
+      delegateButton?.props.onClick({
+        currentTarget: {
+          getBoundingClientRect: () => ({
+            x: 100,
+            y: 200,
+            width: 24,
+            height: 24,
+          }),
+        },
+      });
+    });
+
+    const agentButton = getButtonByText(renderer, '@mindroom_worker:mindroom.chat');
+
+    expect(agentButton).toBeDefined();
+
+    await act(async () => {
+      await agentButton?.props.onClick();
+    });
+
+    expect(matrixMocks.sendMessage).toHaveBeenCalledWith('!room:example.org', {
+      msgtype: 'm.text',
+      body: 'Who owns <this>?\n\n@mindroom_worker:mindroom.chat, can you address this question?',
+      format: 'org.matrix.custom.html',
+      formatted_body:
+        'Who owns &lt;this&gt;?<br><br><a href="https://matrix.to/#/@mindroom_worker:mindroom.chat">@mindroom_worker:mindroom.chat</a>, can you address this question?',
+      'm.mentions': { user_ids: ['@mindroom_worker:mindroom.chat'] },
+      'm.relates_to': {
+        rel_type: 'm.thread',
+        event_id: '$thread',
+        is_falling_back: false,
+        'm.in_reply_to': { event_id: '$router' },
+      },
+    });
   });
 });

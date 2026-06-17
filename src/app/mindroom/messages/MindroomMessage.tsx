@@ -804,9 +804,7 @@ export const Message = as<'div', MessageProps>(
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const [emojiBoardAnchor, setEmojiBoardAnchor] = useState<RectCords>();
     const menuMessageContent = resolvedMessageContent ?? getMenuMessageContent(room, mEvent);
-    const showCopyText = isCopyTextMessageContent(
-      menuMessageContent as Record<string, unknown>
-    );
+    const showCopyText = isCopyTextMessageContent(menuMessageContent as Record<string, unknown>);
     const mindroomMessageExtensions = useMindroomMessageExtensionState(
       menuMessageContent,
       menuAnchor !== undefined
@@ -1176,10 +1174,13 @@ export const Message = as<'div', MessageProps>(
                               />
                             )}
                             <MindroomMessageMenuExtensions
+                              content={menuMessageContent}
                               controls={mindroomAiRunControls}
+                              mEvent={mEvent}
                               state={mindroomMessageExtensions}
                               onClose={closeMenu}
                               onOpenAiRun={handleOpenMindroomAiRun}
+                              room={room}
                             />
                             {showDeveloperTools && (
                               <MessageSourceCodeItem

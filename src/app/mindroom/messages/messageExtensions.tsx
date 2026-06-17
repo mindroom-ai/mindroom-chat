@@ -1,6 +1,8 @@
 import React, { ReactNode } from 'react';
+import { MatrixEvent, Room } from 'matrix-js-sdk';
 
 import {
+  MindroomDelegateMenuItem,
   MindroomAiRunControls,
   MindroomAiRunControlsRenderProps,
   MindroomAiRunInfoButton,
@@ -69,18 +71,25 @@ export function MindroomMessageHeaderExtensions({
 }
 
 export function MindroomMessageMenuExtensions({
+  content,
   controls,
+  mEvent,
   state,
   onClose,
   onOpenAiRun,
+  room,
 }: {
+  content: Record<string, unknown>;
   controls?: MindroomMessageExtensionControls;
+  mEvent: MatrixEvent;
   state: MindroomMessageExtensionState;
   onClose?: () => void;
   onOpenAiRun: () => void;
+  room: Room;
 }) {
   return (
     <>
+      <MindroomDelegateMenuItem content={content} mEvent={mEvent} onClose={onClose} room={room} />
       {controls && <MindroomAiRunMenuItem onOpen={onOpenAiRun} />}
       {state.longTextSource && (
         <MindroomDownloadOriginalMenuItem source={state.longTextSource} onClose={onClose} />
