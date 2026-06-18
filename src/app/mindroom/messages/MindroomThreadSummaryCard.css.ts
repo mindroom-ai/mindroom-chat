@@ -24,8 +24,7 @@ export const ThreadSummaryLabel = style({
   display: 'inline-flex',
   alignItems: 'center',
   gap: config.space.S100,
-  color: color.SurfaceVariant.OnContainer,
-  opacity: 0.72,
+  color: color.Secondary.Main,
 });
 
 export const ThreadSummaryBody = style({
