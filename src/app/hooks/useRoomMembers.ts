@@ -1,4 +1,5 @@
 import { MatrixClient, MatrixEvent, RoomMember, RoomMemberEvent } from 'matrix-js-sdk';
+import { logger } from 'matrix-js-sdk/lib/logger';
 import { useEffect, useState } from 'react';
 
 export const useRoomMembers = (mx: MatrixClient, roomId: string): RoomMember[] => {
@@ -15,10 +16,16 @@ export const useRoomMembers = (mx: MatrixClient, roomId: string): RoomMember[] =
 
     if (room) {
       setMembers(room.getMembers());
-      room.loadMembersIfNeeded().then(() => {
-        if (disposed) return;
-        updateMemberList();
-      });
+      room
+        .loadMembersIfNeeded()
+        .then(() => {
+          if (disposed) return;
+          updateMemberList();
+        })
+        .catch((error) => {
+          if (disposed) return;
+          logger.warn('[useRoomMembers] Failed to load room members', error);
+        });
     }
 
     mx.on(RoomMemberEvent.Membership, updateMemberList);

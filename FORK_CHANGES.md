@@ -2,7 +2,7 @@
 
 ## Runbook
 
-### CINNY-132 - Live members drawer updates during invites (2026-06-17)
+### CINNY-210 - Live members drawer updates during invites (2026-06-17)
 
 - Status:
   - Complete locally.
@@ -16,6 +16,9 @@
   - Updated `useRoomMembers` so live member events refresh the member array even
     while the full member load is still pending. The load completion path still
     refreshes the list again once full member data is available.
+  - PR review follow-up: handled `loadMembersIfNeeded()` rejection without an
+    unhandled promise, tightened hook test renderer assertions/cleanup, and
+    renumbered this runbook entry away from the existing `CINNY-132`.
 - Decisions:
   - Keep the fix in the shared `useRoomMembers` hook so the members drawer,
     room settings members page, lobby members list, and mention autocomplete use
@@ -31,11 +34,15 @@
     `npm test -- src/app/hooks/useRoomMembers.test.tsx` failed because a live
     join emitted while `loadMembersIfNeeded()` was pending left the hook output
     at only `@alice:example.org`.
+  - Review RED observed:
+    `npm test -- src/app/hooks/useRoomMembers.test.tsx` failed because a
+    rejected `loadMembersIfNeeded()` promise was not logged and produced a
+    Vitest unhandled rejection.
   - Green focused check:
-    `npm test -- src/app/hooks/useRoomMembers.test.tsx`.
+    `npm test -- src/app/hooks/useRoomMembers.test.tsx` (2 tests).
   - Green affected check:
     `npm test -- src/app/hooks/useRoomMembers.test.tsx src/app/features/room/MembersDrawer.test.ts`
-    (2 files, 3 tests).
+    (2 files, 4 tests).
   - Green:
     `npx prettier --check FORK_CHANGES.md src/app/hooks/useRoomMembers.ts src/app/hooks/useRoomMembers.test.tsx src/app/features/room/MembersDrawer.test.ts`.
   - Green: `npm run typecheck`.
@@ -43,7 +50,7 @@
     warning class).
   - Rebase green check: rebased onto `origin/dev` at `11fc880b` and resolved
     the runbook top-entry conflict.
-  - Green: `npm test` (309 files, 2299 tests; existing localStorage and React
+  - Green: `npm test` (309 files, 2300 tests; existing localStorage and React
     Router future-flag warnings).
   - Green: `npm run build` (existing Vite runtime-config, sourcemap,
     localStorage, and chunk-size warnings only).
