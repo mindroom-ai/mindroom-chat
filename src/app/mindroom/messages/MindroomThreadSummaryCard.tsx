@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { Box, Chip, Icon, Icons, Text } from 'folds';
+import { Box, Icon, Icons, Text } from 'folds';
 import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
 import { MessageEditedContent } from '../../components/message/content';
@@ -36,24 +36,25 @@ export function MindroomThreadSummaryCard({
     typeof summaryInfo.messageCount === 'number'
       ? formatMindroomThreadSummaryMessageCount(summaryInfo.messageCount)
       : undefined;
+  const provenanceLabel = messageCountLabel
+    ? `Generated from last ${messageCountLabel}`
+    : 'AI-generated thread summary';
 
   return (
     <Box
       className={css.ThreadSummaryCard}
       direction="Column"
-      gap="200"
+      gap="100"
       aria-label="AI thread summary"
     >
-      <Box className={css.ThreadSummaryMeta}>
+      <Box className={css.ThreadSummaryHeader}>
         <Box as="span" className={css.ThreadSummaryLabel}>
           <Icon size="50" src={Icons.Bulb} />
           <Text size="T200">AI summary</Text>
         </Box>
-        {messageCountLabel && !compact && (
-          <Chip variant="SurfaceVariant" radii="Pill" outlined>
-            <Text size="T200">{messageCountLabel}</Text>
-          </Chip>
-        )}
+        <Text as="span" size="T200" className={css.ThreadSummaryMeta}>
+          {provenanceLabel}
+        </Text>
         {summaryInfo.generatedTs && (
           <Time
             ts={summaryInfo.generatedTs}

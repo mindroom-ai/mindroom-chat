@@ -6,29 +6,31 @@ export const ThreadSummaryCard = style({
   width: 'fit-content',
   minWidth: 0,
   maxWidth: `min(100%, ${toRem(560)})`,
-  padding: config.space.S300,
-  borderRadius: config.radii.R400,
+  padding: config.space.S200,
+  borderRadius: config.radii.R300,
   border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
   backgroundColor: color.SurfaceVariant.Container,
   color: color.SurfaceVariant.OnContainer,
 });
 
-export const ThreadSummaryMeta = style({
+export const ThreadSummaryHeader = style({
   display: 'flex',
   flexWrap: 'wrap',
   alignItems: 'center',
-  gap: config.space.S200,
+  columnGap: config.space.S200,
+  rowGap: config.space.S100,
 });
 
 export const ThreadSummaryLabel = style({
   display: 'inline-flex',
   alignItems: 'center',
   gap: config.space.S100,
-  padding: `${config.space.S100} ${config.space.S200}`,
-  borderRadius: config.radii.R300,
-  border: `${config.borderWidth.B300} solid ${color.Secondary.ContainerLine}`,
-  backgroundColor: color.Secondary.Container,
-  color: color.Secondary.OnContainer,
+  color: color.Secondary.Main,
+});
+
+export const ThreadSummaryMeta = style({
+  color: color.SurfaceVariant.OnContainer,
+  opacity: 0.72,
 });
 
 export const ThreadSummaryBody = style({
