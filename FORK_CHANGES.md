@@ -2,6 +2,80 @@
 
 ## Runbook
 
+### CINNY-212 - Top-align short active thread timelines (2026-06-18)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Fixed short active thread timelines that were bottom-aligned above the
+    composer, leaving a large empty band between the thread header and the
+    messages.
+  - Changed the shared timeline content wrapper to use `justifyContent="Start"`
+    only when an active `threadId` is present.
+  - Normal room timelines keep the existing bottom-aligned behavior.
+- Decisions:
+  - Scope the layout change to active thread views instead of changing room
+    overview behavior.
+  - Keep existing timeline padding, composer placement, pagination controls,
+    and message rendering unchanged.
+- Validation:
+  - Red focused check:
+    `node node_modules/vitest/vitest.mjs run src/app/mindroom/threads/__tests__/RoomTimeline.layout.test.ts`
+    failed while active thread timelines still reported `justifyContent="End"`.
+  - Green focused check:
+    `node node_modules/vitest/vitest.mjs run src/app/mindroom/threads/__tests__/RoomTimeline.layout.test.ts`
+    (1 file, 2 tests).
+  - Rebased onto `origin/dev` at `c7397730`.
+  - Green rebase check: `npm test` (311 files, 2304 tests; existing React
+    Router/Vite warnings only).
+  - Green rebase check: `npm run typecheck`.
+  - Green rebase check: `npm run lint` (18 warnings, 0 errors; existing
+    console/unused-var warning class).
+  - Green rebase check: `npm run build` (existing Vite runtime-config,
+    sourcemap, and chunk-size warnings only).
+
+### CINNY-211 - Compact AI thread summary cards (2026-06-18)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Redesigned in-thread AI summary cards so the summary is primary and the
+    provenance is clear without making the message count look clickable.
+  - Replaced the old `Chip`-style message-count badge with plain static
+    provenance text.
+  - Removed the generated timestamp from inside the summary card because the
+    normal message timestamp is already displayed outside the card.
+  - Collapsed the header to `AI summary of last N messages`, reduced max width
+    to 420px, and pinned compact summary body typography to 15px/22px.
+  - Removed the later pill/badge styling per user preference, leaving the
+    provenance as plain muted text.
+- Decisions:
+  - Keep provenance visible for both normal and `compact` summary card usage.
+  - Avoid `Chip`, pill, or badge styling for static metadata because those
+    affordances imply an action.
+  - Keep the card compact while preserving the rendered summary content.
+- Validation:
+  - Red focused check:
+    `node node_modules/vitest/vitest.mjs run src/app/mindroom/messages/MindroomThreadSummaryCard.test.tsx`
+    failed while the card still rendered `3 messages` via `Chip` and lacked
+    static provenance text.
+  - Green focused check:
+    `node node_modules/vitest/vitest.mjs run src/app/mindroom/messages/MindroomThreadSummaryCard.test.tsx`
+    (1 file, 2 tests).
+  - Green related check:
+    `node node_modules/vitest/vitest.mjs run src/app/mindroom/messages/MindroomThreadSummaryCard.test.tsx src/app/mindroom/messages/renderMindroomMessageContent.test.ts src/app/mindroom/threads/ThreadBadgeRenderer.test.ts`
+    (3 files, 22 tests).
+  - Rebased onto `origin/dev` at `c7397730`.
+  - Green rebase check: `npm test` (311 files, 2304 tests; existing React
+    Router/Vite warnings only).
+  - Green rebase check: `npm run typecheck`.
+  - Green rebase check: `npm run lint` (18 warnings, 0 errors; existing
+    console/unused-var warning class).
+  - Green rebase check: `npm run build` (existing Vite runtime-config,
+    sourcemap, and chunk-size warnings only).
+  - Independent review: separate subagent found no issues after the final
+    badge/pill revert.
+
 ### CINNY-210 - Live members drawer updates during invites (2026-06-17)
 
 - Status:
