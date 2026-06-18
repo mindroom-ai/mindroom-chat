@@ -7,6 +7,7 @@ import { MindroomThreadSummaryCard } from './MindroomThreadSummaryCard';
 const chipMock = vi.fn(({ children }: { children?: React.ReactNode }) =>
   React.createElement('button', { 'data-chip': true }, children)
 );
+const timeMock = vi.fn(({ ts }: { ts: number }) => React.createElement('time', null, `time-${ts}`));
 
 vi.mock('folds', () => ({
   Box: ({
@@ -27,14 +28,6 @@ vi.mock('folds', () => ({
     React.createElement(Tag, props, children),
 }));
 
-vi.mock('../../state/hooks/settings', () => ({
-  useSetting: () => [false],
-}));
-
-vi.mock('../../state/settings', () => ({
-  settingsAtom: {},
-}));
-
 vi.mock('../../components/message/content', () => ({
   MessageEditedContent: () => React.createElement('span', null, 'edited'),
 }));
@@ -45,7 +38,7 @@ vi.mock('../../components/message/layout', () => ({
 }));
 
 vi.mock('../../components/message/Time', () => ({
-  Time: ({ ts }: { ts: number }) => React.createElement('time', null, `time-${ts}`),
+  Time: (props: { ts: number }) => timeMock(props),
 }));
 
 vi.mock('./MindroomThreadSummaryCard.css', () => ({
@@ -81,8 +74,8 @@ describe('MindroomThreadSummaryCard', () => {
     expect(text).toContain('AI summary');
     expect(text).toContain('Generated from last 3 messages');
     expect(text).toContain('Deployment completed and health checks passed.');
-    expect(text).toContain('time-1775000000000');
     expect(chipMock).not.toHaveBeenCalled();
+    expect(timeMock).not.toHaveBeenCalled();
 
     renderer.unmount();
   });
