@@ -24,6 +24,12 @@ export const ThreadSummaryLabel = style({
   display: 'inline-flex',
   alignItems: 'center',
   gap: config.space.S100,
+  width: 'fit-content',
+  minHeight: toRem(24),
+  padding: `0 ${config.space.S200}`,
+  borderRadius: config.radii.Pill,
+  border: `${config.borderWidth.B300} solid ${color.Secondary.ContainerLine}`,
+  backgroundColor: color.Secondary.Container,
   color: color.Secondary.Main,
 });
 
