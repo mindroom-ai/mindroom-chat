@@ -15,6 +15,7 @@ import {
   Spinner,
   Text,
   as,
+  color,
   config,
 } from 'folds';
 import React, { ReactNode, useCallback, useMemo, useRef, useState } from 'react';
@@ -351,7 +352,7 @@ export function MindroomDelegateMenuItem({
           selectedAgentId: agentId,
           routerEventId,
           threadRootId,
-        }) as any
+        })
       );
       setAgentMenuAnchor(undefined);
       onClose?.();
@@ -395,7 +396,7 @@ export function MindroomDelegateMenuItem({
             ))}
             {errorMessage && (
               <Box style={{ padding: config.space.S200 }}>
-                <Text as="span" size="T200" priority="400">
+                <Text style={{ color: color.Critical.Main }} as="span" size="T200" priority="400">
                   {errorMessage}
                 </Text>
               </Box>

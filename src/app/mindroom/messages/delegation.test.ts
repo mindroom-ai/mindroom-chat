@@ -35,6 +35,34 @@ describe('mindroom delegation helpers', () => {
     ).toBe(false);
   });
 
+  it('does not treat empty mention ids as assigned agents', () => {
+    expect(
+      shouldShowMindroomDelegateAction({
+        senderId: '@mindroom_router:mindroom.chat',
+        content: {
+          msgtype: 'm.text',
+          body: 'Who owns this?',
+          'm.mentions': { user_ids: [''] },
+        },
+        eventId: '$router',
+        threadRootId: '$thread',
+        agents: ['@mindroom_worker:mindroom.chat'],
+      })
+    ).toBe(true);
+  });
+
+  it('hides delegation for non-text router messages', () => {
+    expect(
+      shouldShowMindroomDelegateAction({
+        senderId: '@mindroom_router:mindroom.chat',
+        content: { msgtype: 'm.file', body: 'question.txt' },
+        eventId: '$router',
+        threadRootId: '$thread',
+        agents: ['@mindroom_worker:mindroom.chat'],
+      })
+    ).toBe(false);
+  });
+
   it('hides delegation when the router message is outside a thread', () => {
     expect(
       shouldShowMindroomDelegateAction({
@@ -91,5 +119,17 @@ describe('mindroom delegation helpers', () => {
         'm.in_reply_to': { event_id: '$router' },
       },
     });
+  });
+
+  it('formats CRLF line breaks without preserving carriage returns in HTML', () => {
+    const content = buildMindroomDelegateMessageContent({
+      originalBody: 'Line one\r\nLine two',
+      selectedAgentId: '@mindroom_worker:mindroom.chat',
+      routerEventId: '$router',
+      threadRootId: '$thread',
+    });
+
+    expect(content.formatted_body).toContain('Line one<br>Line two');
+    expect(content.formatted_body).not.toContain('\r');
   });
 });

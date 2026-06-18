@@ -120,6 +120,11 @@
     `room.getMembers()` snapshot.
   - Review follow-up fixed both issues and added regression coverage for the
     encoded mention link and reactive member source.
+  - PR-hosted review triage accepted the actionable Gemini/Greptile findings:
+    restrict delegation to text messages, ignore empty mention ids, normalize
+    CRLF line breaks in formatted HTML, remove the `sendMessage` `as any` cast,
+    and style delegate send errors with the standard critical color token.
+  - Non-actionable bot limit/summary/preview comments were ignored.
 - Validation:
   - Dependency sync: `npm ci` installed local dependencies; npm reported 27
     audit findings.
@@ -189,6 +194,25 @@
   - Second rebase green: `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run build`
     (existing Vite runtime-config, sourcemap, localStorage, and chunk-size
     warnings only).
+  - PR review red helper check:
+    `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm test -- src/app/mindroom/messages/delegation.test.ts`
+    failed with 3 expected regressions for empty mention ids, non-text router
+    messages, and CRLF formatted HTML.
+  - PR review green focused check:
+    `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm test -- src/app/mindroom/messages/delegation.test.ts src/app/mindroom/messages/__tests__/Message.test.ts`
+    (2 files, 17 tests).
+  - PR review green: `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run typecheck`.
+  - PR review green: `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run lint`
+    (18 warnings, 0 errors - existing warning class).
+  - PR review green:
+    `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm test` (309 files, 2311
+    tests).
+  - PR review green: `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run build`
+    (existing Vite runtime-config, sourcemap, localStorage, and chunk-size
+    warnings only).
+  - PR review green:
+    `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npx prettier --check FORK_CHANGES.md src/app/mindroom/messages/delegation.ts src/app/mindroom/messages/delegation.test.ts src/app/mindroom/messages/MindroomMessageControls.tsx`
+    and `git diff --check`.
 
 ### CINNY-208 - Auto-open compact sends as threads (2026-06-17)
 

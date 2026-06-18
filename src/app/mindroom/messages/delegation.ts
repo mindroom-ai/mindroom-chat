@@ -1,3 +1,5 @@
+import { MsgType, RelationType } from 'matrix-js-sdk';
+import { type RoomMessageEventContent } from 'matrix-js-sdk/lib/@types/events';
 import { sanitizeText } from '../../utils/sanitize';
 
 export type MindroomDelegateMember = {
@@ -8,6 +10,15 @@ export type MindroomDelegateMember = {
 export const MINDROOM_ROUTER_USER_ID = '@mindroom_router:mindroom.chat';
 export const MINDROOM_DELEGATE_AGENT_PATTERN = /^@mindroom_[^:]+:mindroom\.chat$/;
 export const MINDROOM_DELEGATE_PROMPT = 'can you address this question?';
+
+export type MindroomDelegateMessageContent = RoomMessageEventContent & {
+  'm.relates_to': {
+    rel_type: RelationType.Thread;
+    event_id: string;
+    is_falling_back: false;
+    'm.in_reply_to': { event_id: string };
+  };
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
@@ -40,6 +51,14 @@ export const getMindroomDelegateOriginalBody = (content: Record<string, unknown>
   return typeof body === 'string' ? body.trim() : '';
 };
 
+const getMindroomDelegateMsgType = (content: Record<string, unknown>): unknown => {
+  const newContent = isRecord(content['m.new_content'])
+    ? (content['m.new_content'] as Record<string, unknown>)
+    : undefined;
+
+  return newContent?.msgtype ?? content.msgtype;
+};
+
 export const hasMindroomDelegateMention = (content: Record<string, unknown>): boolean => {
   const newContent = isRecord(content['m.new_content'])
     ? (content['m.new_content'] as Record<string, unknown>)
@@ -54,7 +73,10 @@ export const hasMindroomDelegateMention = (content: Record<string, unknown>): bo
     if (mentions.room === true) return true;
 
     const userIds = mentions.user_ids;
-    return Array.isArray(userIds) && userIds.some((userId) => typeof userId === 'string');
+    return (
+      Array.isArray(userIds) &&
+      userIds.some((userId) => typeof userId === 'string' && userId.length > 0)
+    );
   });
 };
 
@@ -68,6 +90,7 @@ export const shouldShowMindroomDelegateAction = (options: {
   if (options.senderId !== MINDROOM_ROUTER_USER_ID) return false;
   if (!options.eventId) return false;
   if (!options.threadRootId) return false;
+  if (getMindroomDelegateMsgType(options.content) !== MsgType.Text) return false;
   if (options.agents.length === 0) return false;
   if (hasMindroomDelegateMention(options.content)) return false;
   return getMindroomDelegateOriginalBody(options.content).length > 0;
@@ -78,13 +101,13 @@ export const buildMindroomDelegateMessageContent = (options: {
   routerEventId: string;
   selectedAgentId: string;
   threadRootId: string;
-}): Record<string, unknown> => {
+}): MindroomDelegateMessageContent => {
   const body = `${options.originalBody}\n\n${options.selectedAgentId}, ${MINDROOM_DELEGATE_PROMPT}`;
-  const formattedOriginalBody = sanitizeText(options.originalBody).replace(/\n/g, '<br>');
+  const formattedOriginalBody = sanitizeText(options.originalBody).replace(/\r?\n/g, '<br>');
   const formattedAgentId = sanitizeText(options.selectedAgentId);
 
   return {
-    msgtype: 'm.text',
+    msgtype: MsgType.Text,
     body,
     format: 'org.matrix.custom.html',
     formatted_body: `${formattedOriginalBody}<br><br><a href="https://matrix.to/#/${encodeURIComponent(
@@ -92,7 +115,7 @@ export const buildMindroomDelegateMessageContent = (options: {
     )}">${formattedAgentId}</a>, ${MINDROOM_DELEGATE_PROMPT}`,
     'm.mentions': { user_ids: [options.selectedAgentId] },
     'm.relates_to': {
-      rel_type: 'm.thread',
+      rel_type: RelationType.Thread,
       event_id: options.threadRootId,
       is_falling_back: false,
       'm.in_reply_to': { event_id: options.routerEventId },
