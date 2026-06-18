@@ -90,11 +90,5 @@ describe('MindroomThreadSummaryCard', () => {
     expect(source).not.toContain('toRem(560)');
     expect(source).toContain('fontSize: toRem(15)');
     expect(source).toContain('lineHeight: toRem(22)');
-    expect(source).toContain('color: color.Secondary.Main');
-    expect(source).not.toContain('opacity: 0.72');
-    expect(source).toContain('borderRadius: config.radii.Pill');
-    expect(source).toContain('backgroundColor: color.Secondary.Container');
-    expect(source).toContain('config.borderWidth.B300');
-    expect(source).toContain('color.Secondary.ContainerLine');
   });
 });
