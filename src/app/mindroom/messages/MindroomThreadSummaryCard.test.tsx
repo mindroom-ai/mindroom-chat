@@ -45,7 +45,6 @@ vi.mock('./MindroomThreadSummaryCard.css', () => ({
   ThreadSummaryCard: 'ThreadSummaryCard',
   ThreadSummaryHeader: 'ThreadSummaryHeader',
   ThreadSummaryLabel: 'ThreadSummaryLabel',
-  ThreadSummaryMeta: 'ThreadSummaryMeta',
   ThreadSummaryBody: 'ThreadSummaryBody',
   ThreadSummaryBodyCompact: 'ThreadSummaryBodyCompact',
 }));
@@ -71,8 +70,8 @@ describe('MindroomThreadSummaryCard', () => {
 
     const text = getNodeText(renderer.root);
 
-    expect(text).toContain('AI summary');
-    expect(text).toContain('Generated from last 3 messages');
+    expect(text).toContain('AI summary of last 3 messages');
+    expect(text).not.toContain('Generated from last 3 messages');
     expect(text).toContain('Deployment completed and health checks passed.');
     expect(chipMock).not.toHaveBeenCalled();
     expect(timeMock).not.toHaveBeenCalled();

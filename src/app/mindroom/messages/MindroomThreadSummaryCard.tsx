@@ -32,7 +32,7 @@ export function MindroomThreadSummaryCard({
       ? formatMindroomThreadSummaryMessageCount(summaryInfo.messageCount)
       : undefined;
   const provenanceLabel = messageCountLabel
-    ? `Generated from last ${messageCountLabel}`
+    ? `AI summary of last ${messageCountLabel}`
     : 'AI-generated thread summary';
 
   return (
@@ -45,11 +45,10 @@ export function MindroomThreadSummaryCard({
       <Box className={css.ThreadSummaryHeader}>
         <Box as="span" className={css.ThreadSummaryLabel}>
           <Icon size="50" src={Icons.Bulb} />
-          <Text size="T200">AI summary</Text>
+          <Text as="span" size="T200">
+            {provenanceLabel}
+          </Text>
         </Box>
-        <Text as="span" size="T200" className={css.ThreadSummaryMeta}>
-          {provenanceLabel}
-        </Text>
       </Box>
 
       <MessageTextBody

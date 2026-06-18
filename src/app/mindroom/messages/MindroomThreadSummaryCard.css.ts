@@ -17,28 +17,25 @@ export const ThreadSummaryHeader = style({
   display: 'flex',
   flexWrap: 'wrap',
   alignItems: 'center',
-  columnGap: config.space.S200,
-  rowGap: config.space.S100,
+  gap: config.space.S100,
 });
 
 export const ThreadSummaryLabel = style({
   display: 'inline-flex',
   alignItems: 'center',
   gap: config.space.S100,
-  color: color.Secondary.Main,
-});
-
-export const ThreadSummaryMeta = style({
   color: color.SurfaceVariant.OnContainer,
   opacity: 0.72,
 });
 
 export const ThreadSummaryBody = style({
   minWidth: 0,
+  margin: 0,
   fontWeight: 500,
 });
 
 export const ThreadSummaryBodyCompact = style({
   minWidth: 0,
+  margin: 0,
   fontWeight: 500,
 });
