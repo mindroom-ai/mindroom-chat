@@ -2,6 +2,63 @@
 
 ## Runbook
 
+### CINNY-210 - Live members drawer updates during invites (2026-06-17)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Reproduced a stale members drawer list when a newly invited user joins while
+    the drawer is already open.
+  - Root cause: `useRoomMembers` ignored live membership and power-level events
+    while `room.loadMembersIfNeeded()` was pending. The drawer header read the
+    room's live joined-member count directly, but the list rendered the stale
+    hook state until the drawer remounted.
+  - Updated `useRoomMembers` so live member events refresh the member array even
+    while the full member load is still pending. The load completion path still
+    refreshes the list again once full member data is available.
+  - PR review follow-up: handled `loadMembersIfNeeded()` rejection without an
+    unhandled promise, tightened hook test renderer assertions/cleanup, and
+    renumbered this runbook entry away from the existing `CINNY-132`.
+- Decisions:
+  - Keep the fix in the shared `useRoomMembers` hook so the members drawer,
+    room settings members page, lobby members list, and mention autocomplete use
+    the same live update behavior.
+  - Preserve room-id filtering and the final refresh after
+    `loadMembersIfNeeded()` resolves.
+- Risks:
+  - Live member updates can now re-render member-backed surfaces during an
+    in-flight full load; this is expected and limited to membership/power-level
+    event cadence.
+- Validation:
+  - RED observed:
+    `npm test -- src/app/hooks/useRoomMembers.test.tsx` failed because a live
+    join emitted while `loadMembersIfNeeded()` was pending left the hook output
+    at only `@alice:example.org`.
+  - Review RED observed:
+    `npm test -- src/app/hooks/useRoomMembers.test.tsx` failed because a
+    rejected `loadMembersIfNeeded()` promise was not logged and produced a
+    Vitest unhandled rejection.
+  - Green focused check:
+    `npm test -- src/app/hooks/useRoomMembers.test.tsx` (2 tests).
+  - Green affected check:
+    `npm test -- src/app/hooks/useRoomMembers.test.tsx src/app/features/room/MembersDrawer.test.ts`
+    (2 files, 4 tests).
+  - Green:
+    `npx prettier --check FORK_CHANGES.md src/app/hooks/useRoomMembers.ts src/app/hooks/useRoomMembers.test.tsx src/app/features/room/MembersDrawer.test.ts`.
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (18 warnings, 0 errors - existing console/unused-var
+    warning class).
+  - Rebase green check: rebased onto `origin/dev` at `11fc880b` and resolved
+    the runbook top-entry conflict.
+  - Green: `npm test` (309 files, 2300 tests; existing localStorage and React
+    Router future-flag warnings).
+  - Green: `npm run build` (existing Vite runtime-config, sourcemap,
+    localStorage, and chunk-size warnings only).
+  - Green: `git diff --check`.
+  - Independent review: subagent review found no issues, confirmed the narrow
+    root fix, and ran the focused hook regression test plus cached diff
+    whitespace check.
+
 ### CINNY-209 - Repair Xcode Cloud App Store versioning (2026-06-17)
 
 - Status:
