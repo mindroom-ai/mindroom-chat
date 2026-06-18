@@ -1,8 +1,12 @@
 /* eslint-disable react/prop-types */
+import { readFileSync } from 'node:fs';
 import React from 'react';
 import { create, ReactTestInstance } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MindroomThreadSummaryCard } from './MindroomThreadSummaryCard';
+
+const cssSource = () =>
+  readFileSync(new URL('./MindroomThreadSummaryCard.css.ts', import.meta.url), 'utf8');
 
 const chipMock = vi.fn(({ children }: { children?: React.ReactNode }) =>
   React.createElement('button', { 'data-chip': true }, children)
@@ -77,5 +81,14 @@ describe('MindroomThreadSummaryCard', () => {
     expect(timeMock).not.toHaveBeenCalled();
 
     renderer.unmount();
+  });
+
+  it('keeps the summary card visually compact', () => {
+    const source = cssSource();
+
+    expect(source).toContain('toRem(420)');
+    expect(source).not.toContain('toRem(560)');
+    expect(source).toContain('fontSize: toRem(15)');
+    expect(source).toContain('lineHeight: toRem(22)');
   });
 });
