@@ -26,6 +26,7 @@ platform :ios do
     build_app(
       workspace: "App.xcworkspace",
       scheme: "App",
+      export_method: "app-store",
       output_directory: "build",
       xcargs: "-allowProvisioningUpdates",
     )

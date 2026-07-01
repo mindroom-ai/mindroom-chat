@@ -71,6 +71,12 @@ per file), seeded from `.docs/APP_STORE_SUBMISSION_PACKET.md`. Edit the files
 and re-run `upload_metadata`; the submission packet doc remains the place for
 review-time checklists and credentials handling.
 
+`deliver` uploads each file verbatim and simply skips fields whose file does
+not exist. Release notes ("What's New") are therefore intentionally not
+checked in — write real notes into
+`fastlane/metadata/en-US/release_notes.txt` before each release upload, so a
+stale placeholder can never ship. The same applies to the marketing URL.
+
 Safety defaults (`ios/App/fastlane/Deliverfile`): uploads never submit for
 review and never auto-release. Reviewer demo credentials are intentionally not
 stored in the repo — fill the demo account fields in App Store Connect
