@@ -951,6 +951,38 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
     residual is the O(N) view-model/index rebuild per refresh — acceptable at
     150 threads; card-list virtualization and index-level incremental updates
     are the follow-ups if rooms grow into many hundreds of threads.
+- Fast-scroll flicker fix (2026-07-01, user-reported):
+  - Report: in a 400-message thread with `[+all]` active, fast upward
+    scrolling flickers (content jumps up/down), and near the top the view
+    visibly shifts down.
+  - New probe `e2e/live/perf-thread-scroll-stability.spec.ts`: expands all
+    rows, wheel-scrolls up fast with real input, and tracks ONE anchored row
+    by identity per frame; a frame where the anchor's viewport delta diverges
+    from the scroll delta is a user-visible jump. (First metric version
+    compared different rows across frames and produced identical garbage
+    across code variants — anchor-by-identity is the honest measurement.)
+  - Baseline: 8 jump frames per run, max 612px. Cause: the static
+    `estimateSize` (96/144px) is far off for expanded rows (~330px+); every
+    row mounting above the viewport corrected offsets by that error, and the
+    correction's scroll adjustment and tile repositioning land a frame apart.
+  - Fix: a learned per-thread row-height estimate — running mean of measured
+    tile heights, adopted into state with hysteresis (>25% change, ≥8
+    samples) so TanStack recomputes cleanly (a mutating ref leaves stale
+    mixed estimates); stats reset on room/thread change and on
+    expand/collapse-all (height regime change); scoped to threads so a
+    thread's learned size never leaks into room estimates.
+  - Result: 0 jump frames across three consecutive probe runs (one earlier
+    run showed a single 216px jump); all behavior guards, cinny033/070, and
+    the streaming probe unchanged.
+  - Also hardened: the room jump-to-latest keeps smooth scrolling only when
+    the target row is already mounted — smooth scrolling to an unmounted
+    target is unsupported with dynamic measurement and can stop short.
+  - Investigated and rejected: upgrading @tanstack/react-virtual 3.2.0 →
+    3.14.5 with `directDomUpdates` (sync tile repositioning). The honest
+    metric showed the learned estimate alone reaches 0 jumps on 3.2.0, and
+    the upgrade regressed the room jump-to-latest e2e — reverted; not worth
+    the dependency risk. CSS `overflow-anchor: auto` for threads was likewise
+    tried and reverted (no measurable contribution).
 - Next steps:
   - Push is blocked locally: the `block-git-rewrites.py` hook rejects
     `git push --force-with-lease`, which the rebase requires; needs a manual

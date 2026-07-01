@@ -993,10 +993,41 @@ export function RoomTimeline({
     shouldSuppressPagination: useCallback(() => suppressFocusPaginationRef.current, []),
   });
   const timelineItems = getItems();
+  // Learned mean of measured row heights for the open thread. A static
+  // estimate is far off for expanded rows (96/144 vs several hundred px), and
+  // every mount-above then corrects offsets by that error — visible as
+  // flicker/jumps during fast upward scrolling. The estimate lives in state
+  // with hysteresis: TanStack caches per-item estimates, so it must see a new
+  // estimateSize identity (one clean recompute) rather than a mutating ref
+  // (stale, mixed estimates).
+  const threadRowSizeStatsRef = useRef<{ total: number; count: number }>({ total: 0, count: 0 });
+  const [learnedThreadRowSize, setLearnedThreadRowSize] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    threadRowSizeStatsRef.current = { total: 0, count: 0 };
+    setLearnedThreadRowSize(undefined);
+  }, [room.roomId, threadId]);
+  useEffect(() => {
+    // Expand/collapse-all changes the height regime; re-learn from fresh
+    // measurements (keeping the previous learned value until enough arrive).
+    threadRowSizeStatsRef.current = { total: 0, count: 0 };
+  }, [expandAllOverride]);
+  const defaultRowEstimate = messageLayout === MessageLayout.Compact ? 96 : 144;
   const estimateRoomTimelineItemSize = useCallback(
-    () => (messageLayout === MessageLayout.Compact ? 96 : 144),
-    [messageLayout]
+    () => (threadId ? learnedThreadRowSize ?? defaultRowEstimate : defaultRowEstimate),
+    [defaultRowEstimate, learnedThreadRowSize, threadId]
   );
+  const maybeAdoptLearnedThreadRowSize = useCallback(() => {
+    const stats = threadRowSizeStatsRef.current;
+    if (stats.count < 8) return;
+    const mean = Math.round(stats.total / stats.count);
+    setLearnedThreadRowSize((current) => {
+      const reference = current ?? defaultRowEstimate;
+      // Hysteresis: only adopt when the learned mean is materially different,
+      // so the virtualizer is not recomputed on every measurement.
+      if (Math.abs(mean - reference) / reference < 0.25) return current;
+      return mean;
+    });
+  }, [defaultRowEstimate]);
   const roomTimelineVirtualizer = useVirtualizer({
     count: threadId ? threadEvents.length : timelineItems.length,
     getScrollElement,
@@ -1010,6 +1041,20 @@ export function RoomTimeline({
       return threadFilteredEventEntries[item]?.event.getId() ?? item ?? index;
     },
   });
+  const measureThreadTile = useCallback(
+    (element: Element | null) => {
+      if (!element) return;
+      roomTimelineVirtualizer.measureElement(element);
+      const height = (element as HTMLElement).offsetHeight;
+      if (height > 0) {
+        const stats = threadRowSizeStatsRef.current;
+        stats.total += height;
+        stats.count += 1;
+        maybeAdoptLearnedThreadRowSize();
+      }
+    },
+    [maybeAdoptLearnedThreadRowSize, roomTimelineVirtualizer]
+  );
   useLayoutEffect(() => {
     const anchor = roomVirtualPrependAnchorRef.current;
     if (!anchor || threadId) return;
@@ -1066,9 +1111,15 @@ export function RoomTimeline({
   useLayoutEffect(() => {
     if (threadId || roomScrollToBottomCount <= 0 || roomTimelineLatestVirtualIndex < 0) return;
 
+    // Smooth scrolling to an unmounted target is unsupported with dynamic row
+    // measurement (it can stop short of the target); keep smooth only for the
+    // near-bottom case where the target row is already mounted.
+    const targetMounted = roomTimelineVirtualizer
+      .getVirtualItems()
+      .some((virtualItem) => virtualItem.index === roomTimelineLatestVirtualIndex);
     roomTimelineVirtualizer.scrollToIndex(roomTimelineLatestVirtualIndex, {
       align: roomOverviewOrderActive ? 'start' : 'end',
-      behavior: scrollToBottomRef.current.smooth ? 'smooth' : 'auto',
+      behavior: scrollToBottomRef.current.smooth && targetMounted ? 'smooth' : 'auto',
     });
     setAtBottom(true);
   }, [
@@ -2901,11 +2952,7 @@ export function RoomTimeline({
         }}
       >
         {virtualItems.map((virtualItem) => (
-          <VirtualTile
-            key={virtualItem.key}
-            ref={roomTimelineVirtualizer.measureElement}
-            virtualItem={virtualItem}
-          >
+          <VirtualTile key={virtualItem.key} ref={measureThreadTile} virtualItem={virtualItem}>
             {threadEventRenderer(virtualItem.index)}
           </VirtualTile>
         ))}
