@@ -27,6 +27,7 @@ ios/App/vendor/
 ios/App/.bundle/
 ios/App/fastlane/report.xml
 ios/App/fastlane/Preview.html
+ios/App/fastlane/README.md
 ios/App/fastlane/test_output/
 ios/App/fastlane/screenshots/**/*.png
 ios/App/fastlane/screenshots/**/*.jpg
