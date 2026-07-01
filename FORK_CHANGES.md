@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### CINNY-133 - Thread toolbar wraps into vertical columns on narrow rooms (2026-07-01)
+
+- Status:
+  - Complete locally; validated with typecheck, lint, thread unit tests (937 passed),
+    and live before/after screenshots at 900/700/560px (`ui-audit/*-toolbar-*.png`,
+    repro spec `e2e/live/narrow-toolbar.spec.ts`).
+- Problem:
+  - `ToolbarHeader` in `RoomThreadOverview.css.ts` was `flexWrap: nowrap` above 480px while
+    each `ToggleGroup` was `flexWrap: wrap` and shrinkable. When the room got narrow, the
+    groups were squeezed and wrapped *internally* into 1-button-wide vertical columns
+    (user-reported screenshot).
+- Fix (CSS-only plus separator removal):
+  - `ToolbarHeader`: always `flexWrap: 'wrap'` (media query removed) — wrapping happens
+    *between* groups; gap bumped S100→S200 to keep group rhythm without separators.
+  - `ToggleGroup`: `flexWrap: 'nowrap'` + `flexShrink: 0` — a group never breaks apart.
+  - `SectionSeparator` removed entirely (style + 4 usages). Review caught that its
+    `max-width: 480px` hide rule was coupled to the removed wrap breakpoint and would have
+    left dangling vertical ticks at row boundaries in the wrapped state; spacing now does
+    the grouping, which also declutters the toolbar.
+- Result: single row on wide rooms (visually unchanged apart from separators), clean
+  horizontal rows when narrow.
+
 ### CINNY-132 - Visual modernization: radii, shadows, tinted dark palette, calm sync banner (2026-07-01)
 
 - Status:

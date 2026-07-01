@@ -814,8 +814,6 @@ export function RoomThreadOverview({
           )}
         </TooltipProvider>
 
-        <div className={css.SectionSeparator} aria-hidden="true" />
-
         {/* Status toggles */}
         <div className={css.ToggleGroup} role="group" aria-label="Status filters">
           <TriStateIconToggle
@@ -869,15 +867,11 @@ export function RoomThreadOverview({
           </TriStateIconToggle>
         </div>
 
-        <div className={css.SectionSeparator} aria-hidden="true" />
-
         {/* Preset dropdown */}
         <ThreadPresetDropdown
           onApplyPreset={handlePresetApply}
           activePresetLabel={lastAppliedPreset}
         />
-
-        <div className={css.SectionSeparator} aria-hidden="true" />
 
         {/* Info + Search */}
         <ThreadInfoPopover
@@ -890,8 +884,6 @@ export function RoomThreadOverview({
           searchQuery={state.searchQuery ?? ''}
           onSearchQueryChange={handleSearchWithPresetClear}
         />
-
-        <div className={css.SectionSeparator} aria-hidden="true" />
 
         {/* View mode */}
         <div className={css.ToggleGroup} role="group" aria-label="Room view mode">
