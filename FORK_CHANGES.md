@@ -831,12 +831,62 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
   - Validation: `npm test` (308 files, 2304 tests), `npm run typecheck`,
     `npm run lint` (18 warnings, 0 errors), `npm run build`, and the perf
     probe (16 mounted rows, 482ms burst, 0 long tasks, open-at-latest lands).
+- Rebase onto dev + multi-agent self-review (2026-06-14):
+  - Rebased the branch onto latest `origin/dev` (PRs #43–#49 landed under it).
+    One conflict in `MindroomRoomTimeline.tsx`; dev's #49 change
+    (`justifyContent={threadId ? 'Start' : 'End'}`) lived only inside the
+    conflict block and was preserved explicitly (verified no reversion of any
+    dev change in the final diff).
+  - Ran a workflow-orchestrated review: 5 parallel reviewers (scroll/timing
+    correctness, React semantics, parse-memo semantics, rebase integration,
+    test quality), every finding then adversarially verified by a dedicated
+    skeptic agent. 13 raw findings → 10 confirmed, 3 refuted.
+  - Confirmed blocker (fixed): the thread prepend compensation never fired in
+    production — `threadEvents[0]` is permanently the thread root (oldest ts),
+    so the "first event id changed" prepend detector could not trigger; the
+    covering unit test only passed because its mock omitted the root at index 0. Detection now keys on the pending back-pagination anchor's index
+    shifting upward, and the unit test uses the production shape (root at
+    index 0; red under the old detector).
+  - Confirmed concern (fixed): the compensation effect's cleanup cancelled the
+    fine-correction rAF chain and expired the anchor on ANY `threadEvents`
+    identity change (every streaming edit). The retry chain now lives in a ref
+    — it survives unrelated updates and ends only on restore success, anchor
+    expiry (5 attempts), a newer prepend, or unmount; cleanup no longer clears
+    the anchor.
+  - Confirmed concern (fixed): in-thread jump-to-event (reply-quote clicks,
+    permalinks into the open thread) silently no-oped for loaded-but-unmounted
+    rows — `handleOpenEvent` found the index but `getEventElementById`
+    returned null and it gave up. `roomEventOpenController` now accepts
+    `scrollThreadEventIntoView`, scrolls the virtual index into view, and
+    retries the element scroll over up to 4 frames.
+  - Confirmed, accepted as documented tradeoffs (no change): mention-pill
+    display names freeze at parse time under memoization (step 1 decision);
+    per-row collapse state resets when a virtualized row unmounts and remounts
+    (virtualization tradeoff, expand-all override covers the bulk case).
+  - Confirmed test gaps (follow-ups, not blocking): the settle loop and the
+    ExpandAllInitContext provider wiring lack direct unit coverage (harness
+    mocks replace CollapsibleMessage/context; behavior is exercised live);
+    `roomEventOpenController` has no dedicated unit harness — the new
+    unmounted-row retry is covered via e2e only.
+  - Confirmed nit (documented): scrollbar-thumb drags emit no wheel/pointer
+    events mid-drag (Chromium: only the initial pointerdown; Firefox: none),
+    so a drag starting >400ms before leaving the near-bottom zone does not
+    suppress the open pin during the brief pending-open window.
+  - Refuted by verification (no action): bottom-pin landing permanently short
+    due to estimate staleness (undershoot is bounded by the container padding,
+    ≤ the near-bottom threshold); local-echo key-flip causing visible jitter
+    (re-measure commits before paint); marker-message re-parse defeating the
+    memo (intentional, correctness-motivated, documented).
+  - Validation: `npm test` (313 files, 2330 tests) green after rebase and
+    after fixes; typecheck/lint/build green; e2e `cinny070` + `cinny033` +
+    perf probe green (16 mounted rows, ~500ms burst, 0 long tasks).
 - Next steps:
+  - Push is blocked locally: the `block-git-rewrites.py` hook rejects
+    `git push --force-with-lease`, which the rebase requires; needs a manual
+    push or explicit override.
   - Watch `cinny070` for batch flakiness in CI.
-  - Optional future: wire `scrollThreadEventIntoView` into
-    `roomEventOpenController.handleOpenEvent` for direct opens of
-    loaded-but-unmounted thread events (review note; current retry path
-    covers the common permalink flow).
+  - Add unit coverage for the settle loop, ExpandAllInitContext wiring, and a
+    `roomEventOpenController` harness (confirmed test-gap findings).
   - If marker-bearing tool-trace threads still feel warm during very heavy
     multi-agent streaming, revisit per-event caching of wrapped parser
     options (deliberately skipped — see step 1 decisions).

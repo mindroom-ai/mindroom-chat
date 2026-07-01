@@ -1153,61 +1153,78 @@ export function RoomTimeline({
   // which can unmount the captured anchor row. Scroll the anchor's new index
   // into view first so the DOM-based restore (which runs after this effect, in
   // useRoomFocusScrollController) can fine-correct against a mounted element.
+  // A prepend is detected by the pending anchor's index shifting upward: the
+  // thread root permanently occupies index 0, so watching the first event id
+  // would never fire for real back-pagination prepends (older replies insert
+  // at index 1+).
   const threadVirtualPrependStateRef = useRef<{
     threadId?: string;
     length: number;
-    firstEventId?: string;
+    anchorEventId?: string;
+    anchorIndex?: number;
   }>({ length: 0 });
+  // The fine-correction retry chain lives in a ref so unrelated threadEvents
+  // updates (e.g. streaming edits) cannot cancel it or expire the anchor; it
+  // ends on restore success, anchor expiry, a newer prepend, or unmount.
+  const threadPrependRetryRef = useRef<{ rafId?: number }>({});
+  const cancelThreadPrependRetry = useCallback(() => {
+    if (threadPrependRetryRef.current.rafId !== undefined) {
+      cancelAnimationFrame(threadPrependRetryRef.current.rafId);
+      threadPrependRetryRef.current.rafId = undefined;
+    }
+  }, []);
+  useEffect(() => cancelThreadPrependRetry, [cancelThreadPrependRetry]);
   useLayoutEffect(() => {
     const previous = threadVirtualPrependStateRef.current;
-    const firstEventId = threadEvents[0]?.getId();
+    const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
+    const anchorIndex =
+      anchorEventId === undefined ? undefined : threadEventIndexMapRef.current.get(anchorEventId);
     threadVirtualPrependStateRef.current = {
       threadId,
       length: threadEvents.length,
-      firstEventId,
+      anchorEventId,
+      anchorIndex,
     };
     if (!threadId || previous.threadId !== threadId) return;
     if (threadEvents.length <= previous.length) return;
-    if (!previous.firstEventId || previous.firstEventId === firstEventId) return;
-
-    const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
-    if (!anchorEventId) return undefined;
-
-    const anchorIndex = threadEventIndexMapRef.current.get(anchorEventId);
-    if (typeof anchorIndex !== 'number') return undefined;
+    if (
+      anchorEventId === undefined ||
+      typeof anchorIndex !== 'number' ||
+      previous.anchorEventId !== anchorEventId ||
+      typeof previous.anchorIndex !== 'number' ||
+      anchorIndex <= previous.anchorIndex
+    ) {
+      return;
+    }
 
     roomTimelineVirtualizer.scrollToIndex(anchorIndex, { align: 'start' });
 
-    // The anchor row mounts on the virtualizer's next render, so the same-commit
-    // DOM restore in useRoomFocusScrollController can miss it. Retry the
-    // fine-correction over the next frames and never leave a stale anchor
-    // behind — a lingering anchor would fire a visible scroll jump on the next
-    // unrelated thread update.
-    let rafId: number | undefined;
+    // The anchor row mounts on the virtualizer's next render, so the
+    // same-commit DOM restore in useRoomFocusScrollController can miss it.
+    // Retry the fine-correction over the next frames, then expire the anchor —
+    // a lingering anchor would fire a visible scroll jump on a later unrelated
+    // thread update.
+    cancelThreadPrependRetry();
+    const eventCountAtDetection = threadEvents.length;
     let attempts = 0;
     const retryRestore = () => {
-      rafId = undefined;
+      threadPrependRetryRef.current.rafId = undefined;
       const restored = restorePendingThreadBackPaginationAnchor(
         scrollRef.current,
         threadId,
-        threadEvents.length
+        eventCountAtDetection
       );
       attempts += 1;
       if (restored || !getPendingThreadBackPaginationAnchorEventId()) return;
       if (attempts < 5) {
-        rafId = requestAnimationFrame(retryRestore);
+        threadPrependRetryRef.current.rafId = requestAnimationFrame(retryRestore);
         return;
       }
       clearPendingThreadBackPaginationAnchor();
     };
-    rafId = requestAnimationFrame(retryRestore);
-    return () => {
-      if (rafId !== undefined) {
-        cancelAnimationFrame(rafId);
-        clearPendingThreadBackPaginationAnchor();
-      }
-    };
+    threadPrependRetryRef.current.rafId = requestAnimationFrame(retryRestore);
   }, [
+    cancelThreadPrependRetry,
     clearPendingThreadBackPaginationAnchor,
     getPendingThreadBackPaginationAnchorEventId,
     restorePendingThreadBackPaginationAnchor,
@@ -1275,6 +1292,7 @@ export function RoomTimeline({
     safePaginationLimitRef,
     scheduledStatusMap,
     scrollRef,
+    scrollThreadEventIntoView,
     scrollToBottomRef,
     scrollToElement,
     scrollToItem: scrollToTimelineItem,
