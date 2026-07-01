@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 
 import { Direction } from 'matrix-js-sdk/lib/models/event-timeline';
+import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isVisibleThreadReplyEvent } from './threadUtils';
@@ -11,30 +12,60 @@ const getLatestVisibleReply = (thread: Thread) =>
     ? thread.replyToEvent
     : undefined);
 
+const findThreadReceiptEvent = (thread: Thread, eventId: string): MatrixEvent | undefined => {
+  const timelineEvent = thread.events?.find((event) => event.getId() === eventId);
+  if (timelineEvent) return timelineEvent;
+  if (thread.replyToEvent?.getId?.() === eventId) return thread.replyToEvent;
+  if (thread.rootEvent?.getId?.() === eventId) return thread.rootEvent;
+  return undefined;
+};
+
+export const getThreadReadUpToTs = (
+  thread: Thread | null | undefined,
+  userId: string | undefined
+): number | undefined => {
+  if (!thread || !userId || typeof thread.getEventReadUpTo !== 'function') return undefined;
+
+  const readUpToId = thread.getEventReadUpTo(userId);
+  if (!readUpToId) return undefined;
+
+  const readUpToEvent = findThreadReceiptEvent(thread, readUpToId);
+  // A thread receipt can target a paginated-out event; without its timestamp,
+  // the room-level receipt is the only orderable fallback.
+  return readUpToEvent?.getTs();
+};
+
+export const getEffectiveThreadReadUpToTs = (
+  thread: Thread | null | undefined,
+  userId: string | undefined,
+  roomReadUpToTs: number | null | undefined
+): number | null | undefined => {
+  const threadReadUpToTs = getThreadReadUpToTs(thread, userId);
+  if (threadReadUpToTs === undefined) return roomReadUpToTs;
+  if (typeof roomReadUpToTs !== 'number') return threadReadUpToTs;
+  return Math.max(threadReadUpToTs, roomReadUpToTs);
+};
+
 export const getThreadLastActivityTs = (thread: Thread): number =>
   getLatestVisibleReply(thread)?.getTs() ?? thread.rootEvent?.getTs() ?? 0;
 
 /**
  * Check if a single thread has unread messages.
  * A thread is unread when its latest reply is from another user
- * and is newer than the room-level read receipt.
+ * and is newer than both the thread-scoped and room-level read receipts.
  */
-export const getThreadUnread = (
-  room: Room,
-  thread: Thread,
-  userId: string
-): boolean => {
+export const getThreadUnread = (room: Room, thread: Thread, userId: string): boolean => {
   const latestReply = getLatestVisibleReply(thread);
   if (!latestReply) return false;
 
   if (latestReply.getSender() === userId) return false;
 
   const readUpToId = room.getEventReadUpTo(userId);
-  if (!readUpToId) return true;
-  const readUpToEvent = room.findEventById(readUpToId);
-  if (!readUpToEvent) return true;
+  const roomReadUpToTs = readUpToId ? room.findEventById(readUpToId)?.getTs() : null;
+  const readUpToTs = getEffectiveThreadReadUpToTs(thread, userId, roomReadUpToTs ?? null) ?? null;
+  if (readUpToTs === null) return true;
 
-  return latestReply.getTs() > readUpToEvent.getTs();
+  return latestReply.getTs() > readUpToTs;
 };
 
 /**

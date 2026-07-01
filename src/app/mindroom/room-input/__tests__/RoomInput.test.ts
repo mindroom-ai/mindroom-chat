@@ -58,6 +58,7 @@ const {
           onKeyUp?: (evt: { key: string; preventDefault: () => void }) => void;
         }
       | undefined,
+    replyContextRenderCount: 0,
   },
   editorOutputState: {
     plainText: '',
@@ -553,8 +554,30 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
       ),
     isMindroomRoomInputAutocompleteQuery: (query?: { prefix?: string }) => query?.prefix === '!',
     MindroomRoomInputAutocomplete: () => null,
-    MindroomRoomInputReplyContext: ({ children }: { children?: React.ReactNode }) =>
-      React.createElement('div', null, children),
+    MindroomRoomInputReplyContext: ({
+      children,
+      pendingSend,
+    }: {
+      children?: React.ReactNode;
+      pendingSend?: boolean;
+    }) => {
+      customEditorState.replyContextRenderCount += 1;
+      return React.createElement(
+        'div',
+        null,
+        children,
+        pendingSend
+          ? React.createElement(
+              'span',
+              {
+                role: 'status',
+                title: 'Waiting for server',
+              },
+              'Message sending'
+            )
+          : null
+      );
+    },
     MindroomVoiceRecorderComposer: ({
       onSendRecording,
       getSendContext,
@@ -675,6 +698,8 @@ const createRoomInputTree = (
   props?: {
     roomId?: string;
     threadId?: string;
+    threadingEnabled?: boolean;
+    onRoomMessageSent?: (eventId: string) => void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
   }
@@ -689,6 +714,8 @@ const createRoomInputTree = (
       roomId: props?.roomId ?? ROOM_ID,
       room: createRoom(props?.roomId ?? ROOM_ID, props?.encryptedRoom),
       threadId: props?.threadId,
+      threadingEnabled: props?.threadingEnabled,
+      onRoomMessageSent: props?.onRoomMessageSent,
     })
   );
 
@@ -697,6 +724,8 @@ const renderRoomInput = async (
   props?: {
     roomId?: string;
     threadId?: string;
+    threadingEnabled?: boolean;
+    onRoomMessageSent?: (eventId: string) => void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
   }
@@ -716,6 +745,8 @@ const updateRoomInput = async (
   props?: {
     roomId?: string;
     threadId?: string;
+    threadingEnabled?: boolean;
+    onRoomMessageSent?: (eventId: string) => void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
   }
@@ -745,6 +776,7 @@ afterEach(() => {
   customEditorState.autocompleteQuery = undefined;
   customEditorState.editor = undefined;
   customEditorState.props = undefined;
+  customEditorState.replyContextRenderCount = 0;
   editorOutputState.plainText = '';
   editorOutputState.customHtml = '';
   editorOutputState.htmlEqualsPlainText = true;
@@ -1149,6 +1181,94 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
+  it('shows the pending send indicator for unresolved thread composer sends', async () => {
+    const { renderer } = await renderRoomInput(createStore(), { threadId: '$thread' });
+    const send = createDeferred<{ event_id: string }>();
+    mxState.sendMessage.mockReturnValueOnce(send.promise);
+
+    editorOutputState.plainText = 'Thread reply still sending';
+    editorOutputState.customHtml = 'Thread reply still sending';
+    editorOutputState.htmlEqualsPlainText = true;
+
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('Message sending');
+    expect(JSON.stringify(renderer.toJSON())).toContain('Waiting for server');
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Sending to this thread');
+
+    await act(async () => {
+      send.resolve({ event_id: '$sent' });
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Message sending');
+
+    renderer.unmount();
+  });
+
+  it('does not render thread helper context for static thread composers', async () => {
+    const { renderer } = await renderRoomInput(createStore(), { threadId: '$thread' });
+
+    expect(customEditorState.replyContextRenderCount).toBe(0);
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Sending to this thread');
+
+    renderer.unmount();
+  });
+
+  it('notifies successful top-level room text sends with the new event id', async () => {
+    const notificationOrder: string[] = [];
+    editorMocks.resetEditor.mockImplementation(() => {
+      notificationOrder.push('reset-editor');
+    });
+    editorMocks.resetEditorHistory.mockImplementation(() => {
+      notificationOrder.push('reset-history');
+    });
+    const onRoomMessageSent = vi.fn(() => {
+      notificationOrder.push('notify');
+    });
+    const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
+
+    editorOutputState.plainText = 'Start a compact thread';
+    editorOutputState.customHtml = 'Start a compact thread';
+    editorOutputState.htmlEqualsPlainText = true;
+
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+    });
+
+    expect(onRoomMessageSent).toHaveBeenCalledWith('$sent');
+    const notifyIndex = notificationOrder.indexOf('notify');
+    expect(notifyIndex).toBeGreaterThan(-1);
+    expect(notificationOrder.indexOf('reset-editor')).toBeLessThan(notifyIndex);
+    expect(notificationOrder.indexOf('reset-history')).toBeLessThan(notifyIndex);
+
+    renderer.unmount();
+  });
+
+  it('does not notify thread-targeted text sends as new room message roots', async () => {
+    const onRoomMessageSent = vi.fn();
+    const { renderer } = await renderRoomInput(createStore(), {
+      threadId: '$thread-a',
+      onRoomMessageSent,
+    });
+
+    editorOutputState.plainText = 'Reply in thread';
+    editorOutputState.customHtml = 'Reply in thread';
+    editorOutputState.htmlEqualsPlainText = true;
+
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+    });
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(onRoomMessageSent).not.toHaveBeenCalled();
+
+    renderer.unmount();
+  });
+
   it('does not submit when Enter is pressed with an autocomplete menu open', async () => {
     const { renderer } = await renderRoomInput();
     customEditorState.autocompleteQuery = {
@@ -1335,6 +1455,31 @@ describe('RoomInput', () => {
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
     expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+
+    renderer.unmount();
+  });
+
+  it('notifies top-level voice sends after clearing local voice state', async () => {
+    const store = createStore();
+    const notificationState: Array<{ pending: boolean; uploads: File[] }> = [];
+    const onRoomMessageSent = vi.fn(() => {
+      notificationState.push({
+        pending: store.get(voiceAutoSendPendingAtom),
+        uploads: store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file),
+      });
+    });
+    const { renderer } = await renderRoomInput(store, { onRoomMessageSent });
+    await openVoiceRecorder(renderer);
+    const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+
+    await act(async () => {
+      await voiceRecorderState.props?.onSendRecording(file, 900);
+    });
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+    expect(onRoomMessageSent).toHaveBeenCalledWith('$sent');
+    expect(notificationState).toEqual([{ pending: false, uploads: [] }]);
 
     renderer.unmount();
   });
@@ -1998,12 +2143,7 @@ describe('RoomInput', () => {
     let rejected: unknown;
     await act(async () => {
       try {
-        await voiceRecorderState.props!.onSendRecording(
-          file,
-          1100,
-          undefined,
-          capturedContext
-        );
+        await voiceRecorderState.props!.onSendRecording(file, 1100, undefined, capturedContext);
       } catch (err) {
         rejected = err;
       }
@@ -2059,12 +2199,7 @@ describe('RoomInput', () => {
     let rejected: unknown;
     await act(async () => {
       try {
-        await voiceRecorderState.props!.onSendRecording(
-          file,
-          1100,
-          undefined,
-          capturedContext
-        );
+        await voiceRecorderState.props!.onSendRecording(file, 1100, undefined, capturedContext);
       } catch (err) {
         rejected = err;
       }
