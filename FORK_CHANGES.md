@@ -932,6 +932,25 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
     - Verified visually: sender-collapse grouping and row alignment are
       correct across virtualization window boundaries while scrolling;
       expand-all leaves zero collapsed rows including late-mounted ones.
+- Compact room view pass (2026-07-01):
+  - The compact overview is a separate render branch the earlier steps did
+    not touch: all thread cards mount unvirtualized, and every thread-index
+    refresh (each streaming edit anywhere in the room) rebuilt every card
+    view model with a fresh identity and re-rendered every card.
+  - New probe `e2e/live/perf-compact-view.spec.ts` (150 threads, 40-edit
+    streaming burst): baseline `cdpTaskDurationMs` 2023 (~50ms per chunk,
+    O(thread count)); cards are light (~3.7k DOM nodes for 150), so DOM size
+    is not the bottleneck — the O(N) re-render is.
+  - Fix: `useCompactThreadCardViewModels` reuses the previous view-model
+    instance when a rebuilt record produces content-identical output
+    (JSON signature per thread root); `CompactThreadCard` is memoized; the
+    card click handler is fully stable (refs for the view-model map and
+    `onThreadClick`). Unit test pins identity reuse across rebuilt records
+    and identity change on content change.
+  - Probe after: `cdpTaskDurationMs` 2023 → 832 (−59%), ~20ms per chunk. The
+    residual is the O(N) view-model/index rebuild per refresh — acceptable at
+    150 threads; card-list virtualization and index-level incremental updates
+    are the follow-ups if rooms grow into many hundreds of threads.
 - Next steps:
   - Push is blocked locally: the `block-git-rewrites.py` hook rejects
     `git push --force-with-lease`, which the rebase requires; needs a manual
