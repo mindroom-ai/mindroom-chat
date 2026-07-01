@@ -328,9 +328,15 @@ export const useRoomEventOpenController = ({
   const handleOpenEvent = useCallback<OpenRoomEventHandler>(
     async (evtId, highlight = true, onScroll = undefined) => {
       if (threadId && evtId !== threadId) {
-        const targetEvent = room.findEventById(evtId);
-        if (!targetEvent || !eventBelongsToThread(targetEvent, threadId)) {
-          return;
+        // The render index map is authoritative thread membership: events
+        // loaded through the MindRoom thread cache may be absent from the SDK
+        // room/thread structures that findEventById searches.
+        const isRenderedThreadEvent = threadEventIndexMapRef.current.has(evtId);
+        if (!isRenderedThreadEvent) {
+          const targetEvent = room.findEventById(evtId);
+          if (!targetEvent || !eventBelongsToThread(targetEvent, threadId)) {
+            return;
+          }
         }
       }
 
@@ -354,8 +360,10 @@ export const useRoomEventOpenController = ({
             return;
           }
           // Under thread virtualization a loaded-but-distant row is unmounted;
-          // scroll its virtual index into view, then retry the element scroll
-          // once the row has mounted.
+          // scroll its virtual index into view and retry until the row mounts.
+          // The virtualizer positions by estimated row heights, so a distant
+          // jump converges over a few re-issued scrolls as freshly mounted
+          // rows report their real sizes.
           if (scrollThreadEventIntoView?.(evtId)) {
             let attempts = 0;
             const retryScrollToMountedTarget = () => {
@@ -371,7 +379,8 @@ export const useRoomEventOpenController = ({
                 return;
               }
               attempts += 1;
-              if (attempts < 4) {
+              if (attempts < 12) {
+                scrollThreadEventIntoView(evtId);
                 requestAnimationFrame(retryScrollToMountedTarget);
                 return;
               }

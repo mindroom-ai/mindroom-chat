@@ -880,11 +880,45 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
   - Validation: `npm test` (313 files, 2330 tests) green after rebase and
     after fixes; typecheck/lint/build green; e2e `cinny070` + `cinny033` +
     perf probe green (16 mounted rows, ~500ms burst, 0 long tasks).
+- Live-test hardening pass (2026-07-01):
+  - Added `e2e/live/thread-virtualization-behaviors.spec.ts` — four permanent
+    live guards for behaviors only observable with real scroll geometry and a
+    real /sync stream: (1) open-at-latest lands the newest reply in the
+    viewport with a bounded mounted-row count; (2) streaming edits do not yank
+    a wheel-scrolled-up reader back to the bottom (anti-trap); (3) clicking a
+    reply quote that targets a loaded-but-unmounted row scrolls to and mounts
+    it; (4) `[+all]` expand-all applies to rows mounted only after scrolling
+    far up. All four pass.
+  - Writing guard (3) exposed two real gaps in the unmounted-row jump fix,
+    both fixed:
+    - `handleOpenEvent`'s thread-membership guard used `room.findEventById`,
+      which only searches SDK structures; events loaded through the MindRoom
+      thread cache failed the guard and the click silently returned. The
+      render index map is now the authoritative membership test, with the SDK
+      lookup as fallback for unknown events.
+    - The unmounted-row retry only re-queried the DOM; with estimate-based
+      offsets a distant `scrollToIndex` lands off-target and never mounts the
+      row. The retry now re-issues `scrollToIndex` each frame (up to 12) so
+      the jump converges as freshly mounted rows report real sizes.
+  - Pre-existing finding (NOT this PR, filed for follow-up): large threads
+    load all but their oldest ~30 replies and then show no Load Older chip —
+    observed as `mapSize 171` for a 201-event thread and `131` for a
+    161-event thread; the thread-open/pagination pipeline reports no backward
+    token while events remain. Predates virtualization (same pipeline on
+    dev); means the oldest replies of a long thread are currently
+    unreachable. Deserves its own investigation.
+  - Test-harness notes: the Load Older chip's accessible name flips to
+    "Loading..." mid-pagination — pagination loops must wait through that
+    state; message rows carry `data-event-id` on their own controls, so quote
+    clicks must match the quoted id specifically.
 - Next steps:
   - Push is blocked locally: the `block-git-rewrites.py` hook rejects
     `git push --force-with-lease`, which the rebase requires; needs a manual
     push or explicit override.
   - Watch `cinny070` for batch flakiness in CI.
+  - Investigate the pre-existing thread-history loader gap (oldest ~30
+    replies unreachable in large threads; no Load Older chip despite missing
+    events).
   - Add unit coverage for the settle loop, ExpandAllInitContext wiring, and a
     `roomEventOpenController` harness (confirmed test-gap findings).
   - If marker-bearing tool-trace threads still feel warm during very heavy
