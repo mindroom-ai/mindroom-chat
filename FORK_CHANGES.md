@@ -911,6 +911,27 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
     "Loading..." mid-pagination — pagination loops must wait through that
     state; message rows carry `data-event-id` on their own controls, so quote
     clicks must match the quoted id specifically.
+  - Interactive visual pass (chrome-devtools against a 200-reply seeded
+    thread) found two more items:
+    - Fixed: Jump to Latest from mid-thread landed ~440px short of the bottom
+      and stayed there (with the chip hidden). Jumps issue a smooth pin, and
+      the settle loop skipped smooth pins — the earlier review verdict that
+      "smooth pins only occur near bottom" missed the far-jump path. The
+      settle loop now also runs for smooth pins: it observes without
+      correcting while the animation is still moving, then instant-corrects
+      any leftover measurement gap once motion stops (verified live:
+      gapToBottom 0 after a far jump).
+    - Pre-existing (NOT this PR): mid-thread replies can render interleaved
+      out of send order. Traced to the server: Tuwunel assigned inverted
+      `origin_server_ts` under load (e.g. reply 131 stamped between replies
+      118 and 119 while reply 130 got a later ts), and the fork's thread
+      model sorts by ts (`mergeThreadRenderEvents`, unchanged by this PR and
+      identical on dev). Virtualization renders the ts-sorted array
+      faithfully. Follow-up: consider topological/stream ordering instead of
+      ts sort, and check whether prod homeservers exhibit ts inversion.
+    - Verified visually: sender-collapse grouping and row alignment are
+      correct across virtualization window boundaries while scrolling;
+      expand-all leaves zero collapsed rows including late-mounted ones.
 - Next steps:
   - Push is blocked locally: the `block-git-rewrites.py` hook rejects
     `git push --force-with-lease`, which the rebase requires; needs a manual
@@ -919,6 +940,9 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
   - Investigate the pre-existing thread-history loader gap (oldest ~30
     replies unreachable in large threads; no Load Older chip despite missing
     events).
+  - Investigate the pre-existing ts-sort ordering: Tuwunel can assign
+    inverted origin_server_ts under load, and the thread model's ts sort then
+    interleaves replies out of send order (consider topological ordering).
   - Add unit coverage for the settle loop, ExpandAllInitContext wiring, and a
     `roomEventOpenController` harness (confirmed test-gap findings).
   - If marker-bearing tool-trace threads still feel warm during very heavy

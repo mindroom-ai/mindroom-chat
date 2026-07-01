@@ -1087,7 +1087,7 @@ export function RoomTimeline({
   // the bottom, and stop immediately on user scroll intent so streaming
   // re-pins cannot trap the user at the bottom.
   useLayoutEffect(() => {
-    if (!threadId || roomScrollToBottomCount <= 0 || scrollToBottomRef.current.smooth) {
+    if (!threadId || roomScrollToBottomCount <= 0) {
       return undefined;
     }
 
@@ -1102,8 +1102,9 @@ export function RoomTimeline({
       'keydown',
     ] as const;
     let rafId: number | undefined;
-    let remainingTicks = 90;
+    let remainingTicks = 150;
     let stableTicks = 0;
+    let lastScrollTop = Number.NaN;
     const removeListeners = () => {
       userScrollIntentEvents.forEach((eventType) => {
         scrollEl.removeEventListener(eventType, cancelOnUserScrollIntent);
@@ -1119,21 +1120,31 @@ export function RoomTimeline({
     }
     const settle = () => {
       rafId = undefined;
-      if (
-        isScrollNearBottom({
-          scrollHeight: scrollEl.scrollHeight,
-          scrollTop: scrollEl.scrollTop,
-          clientHeight: scrollEl.clientHeight,
-        })
-      ) {
-        stableTicks += 1;
-        if (stableTicks >= 2) {
-          removeListeners();
-          return;
+      // While a smooth pin animation is still moving, observe without
+      // correcting; once motion stops, instant-correct any leftover gap from
+      // rows that measured during the ride (a far Jump to Latest can land
+      // hundreds of px short of the true bottom otherwise).
+      const scrollInMotion = scrollEl.scrollTop !== lastScrollTop;
+      lastScrollTop = scrollEl.scrollTop;
+      if (!scrollInMotion) {
+        if (
+          isScrollNearBottom({
+            scrollHeight: scrollEl.scrollHeight,
+            scrollTop: scrollEl.scrollTop,
+            clientHeight: scrollEl.clientHeight,
+          })
+        ) {
+          stableTicks += 1;
+          if (stableTicks >= 2) {
+            removeListeners();
+            return;
+          }
+        } else {
+          stableTicks = 0;
+          scrollToBottom(scrollEl, 'instant');
         }
       } else {
         stableTicks = 0;
-        scrollToBottom(scrollEl, 'instant');
       }
       remainingTicks -= 1;
       if (remainingTicks > 0) {
