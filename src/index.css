@@ -7,7 +7,7 @@
 
 :root {
   --tc-link: hsl(213deg 100% 45%);
-  --app-bg-color: #1A1A1A;
+  --app-bg-color: #17161D;
 
   /* user mxid colors */
   --mx-uc-1: hsl(208, 100%, 45%);
@@ -34,7 +34,7 @@ html.silver-theme {
 }
 
 html.dark-theme {
-  --app-bg-color: #1A1A1A;
+  --app-bg-color: #17161D;
   color-scheme: dark;
 }
 
@@ -61,8 +61,8 @@ html.butter-theme {
   color-scheme: dark;
 }
 .dark-theme {
-  --app-bg-color: #1A1A1A;
-  background-color: #1A1A1A;
+  --app-bg-color: #17161D;
+  background-color: #17161D;
 }
 .butter-theme {
   --app-bg-color: #1A1916;

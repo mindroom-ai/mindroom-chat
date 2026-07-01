@@ -52,7 +52,7 @@ const RESOLVED_THEME_MAP: Record<ThemeId, ResolvedTheme> = {
   [DarkTheme.id]: {
     themeId: DarkTheme.id,
     themeKind: DarkTheme.kind,
-    bgColor: '#1A1A1A',
+    bgColor: '#17161D',
     scheme: 'dark',
     classNames: [configClass, varsClass, ...DarkTheme.classNames],
   },

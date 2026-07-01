@@ -2,6 +2,49 @@
 
 ## Runbook
 
+### CINNY-132 - Visual modernization: radii, shadows, tinted dark palette, calm sync banner (2026-07-01)
+
+- Status:
+  - Complete locally; validated with typecheck, build, lint, and affected unit tests.
+- Motivation:
+  - Repeated feedback that the UI does not look modern. Goal: maximum perceived-quality gain
+    with a minimal, token-level diff (no component logic changes).
+- Summary (all token-level; ~60 lines):
+  - `src/config.css.ts`: new `roundedRadii` override of folds `config.radii`
+    (R300 4px→8px, R400 8px→12px, R500 12px→18px) and `softShadow` override of
+    `config.shadow` (larger, softer diffuse elevations referencing `color.Other.Shadow`).
+  - `src/app/hooks/useTheme.ts`: both new classes wired into all four themes' `classNames`
+    (same pattern as the existing `onLight/onDarkFontWeight` overrides).
+  - `src/colors.css.ts`: dark theme surfaces tinted toward the lavender primary
+    (`#1A1A1A → #17161D` ladder, hue ≈247°, same lightness steps); dark `Other.Shadow`
+    softened from `rgba(0,0,0,1)` to `rgba(0,0,0,0.6)`. Butter/silver/light palettes untouched.
+  - Dark background constant `#1A1A1A → #17161D` synchronized across `src/index.css`,
+    `index.html` (theme-color meta + pre-hydration bootstrap), `src/app/theme/themeBootstrap.ts`,
+    `capacitor.config.ts` (iOS status bar), and their tests.
+  - `src/app/pages/client/SyncStatus.tsx`: "Catching up..." banner changed from a full-width
+    green `Success` slab to neutral `SurfaceVariant` with the green kept on the accent `Line`.
+- Method:
+  - Decisions driven by live-app screenshots (Playwright against local Tuwunel), not just code
+    reading. Before/after evidence in `ui-audit/` (git-ignored candidates; keep out of commits),
+    captured by the reusable `e2e/live/style-preview.spec.ts`
+    (`SHOT_PREFIX=before|after`, output dir `ui-audit/` — deliberately outside `test-results/`
+    because Playwright wipes that dir each run).
+- Validation:
+  - `npm run typecheck` ✓, `npm run build` ✓, `npm run lint` ✓ (0 errors, 18 pre-existing warnings),
+    `vitest` on themeBootstrap/capacitorStatusBarConfig/ClientRoot tests ✓ (49 passed).
+- Visual-audit backlog (observed in screenshots, intentionally not done here):
+  - Thread-board toolbar is a dense strip of ~13 icon-only buttons — main intuitiveness issue.
+  - Login page renders light-styled inputs/blue button on the dark splash (unauth routes follow
+    `prefers-color-scheme`, not stored settings) — visually incoherent with MindRoom branding.
+  - Butter theme surfaces not re-tinted (kept warm gray by design; revisit if adopted).
+  - Pre-existing (found in review): `CommandPaletteRenderer.tsx:31` and
+    `FilterBarMobileSheet.tsx:14` use undefined `var(--radii-400)` (folds emits hashed var
+    names), so those sheets render radius 0 and ignore the new tokens; `WelcomePage.tsx:94`
+    hardcodes 8px; a few `RoomThreadOverview`/`CollapsibleMessage` shadows bypass
+    `Other.Shadow`. Follow-up: switch to `config.radii`/`config.shadow` tokens.
+- Next steps:
+  - Get user sign-off on the direction; optionally follow up on the backlog items above.
+
 ### CINNY-131 - Default splash screens to WebGL background (2026-05-31)
 
 - Status:
