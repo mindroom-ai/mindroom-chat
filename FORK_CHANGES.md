@@ -2,6 +2,37 @@
 
 ## Runbook
 
+### Sync `!` command autocomplete with upstream MindRoom bot commands (2026-07-01)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Audited the upstream MindRoom bot command set
+    (`mindroom/src/mindroom/commands/parsing.py`, `CommandType` +
+    `_COMMAND_DOCS`) and made the frontend autocomplete list in
+    `src/app/mindroom/commands/mindroomCommands.ts` mirror it exactly.
+  - Added missing commands: `!model`, `!thread_mode`, `!reload-plugins`.
+  - Removed stale entries: `!skill` (explicitly removed upstream; parses as
+    unknown per `test_removed_skill_command_is_unknown`) and `!widget` (does
+    not exist upstream or as a frontend-local command).
+  - Ordered entries to match the order `!help` lists them (upstream
+    `CommandType` enum order).
+- Decisions:
+  - Keep admin-only commands (`!reload-plugins`, `!config`, `!thread_mode`)
+    in the autocomplete list; the bot replies with a clear permission error
+    for non-admins, and the frontend has no admin-status signal to filter on.
+  - The list stays a static mirror of upstream; there is no runtime command
+    discovery protocol yet. Re-sync manually when upstream commands change.
+- Validation:
+  - `npm run typecheck` passes.
+  - `npx vitest run src/app/mindroom/commands/` passes (6 tests), including a
+    new test asserting every syntax string starts with its command name so
+    inserted text stays valid.
+  - `npm run build` passes; `npx eslint src/app/mindroom/commands/` passes.
+- Next steps:
+  - Consider a runtime command-discovery mechanism (e.g. state event or
+    well-known payload from the bot) so the frontend list cannot drift.
+
 ### CINNY-131 - Default splash screens to WebGL background (2026-05-31)
 
 - Status:
