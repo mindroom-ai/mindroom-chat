@@ -2,6 +2,61 @@
 
 ## Runbook
 
+### Rebase onto upstream Cinny v4.12.3 (2026-07-01)
+
+- Status:
+  - Rebase complete and validated locally on branch `rebase-v4.12.3`; awaiting
+    force-push of `dev` (history rewrite) after confirmation.
+- Summary:
+  - Rebased all 28 fork commits from the v4.12.2 base onto the upstream
+    `v4.12.3` tag, preserving the fork's linear rebase-onto-release history.
+  - Upstream v4.12.3 payload: element-call 0.19.1 -> 0.20.1, docker CI action
+    bumps (buildx v4.1.0, login v4.2.0, metadata v6.1.0, build-push v7.2.0),
+    lockfile maintenance, a space lobby title/description overflow fix, and the
+    v4.12.3 version/release chores.
+  - Bumped iOS `MARKETING_VERSION` 4.12.2 -> 4.12.3 in both Xcode build
+    configurations so `scripts/ios-ci-version.mjs` does not fail its
+    marketing-version-not-behind-package check against the new package.json
+    version.
+- Decisions:
+  - Conflict resolutions (4 files):
+    - `package.json`: kept fork's `@capacitor/cli` plus upstream's
+      element-call-embedded 0.20.1.
+    - `package-lock.json`: took upstream v4.12.3's lockfile, then regenerated
+      fork dependencies with `npm install` against the merged package.json.
+    - `src/app/pages/auth/AuthFooter.tsx` and
+      `src/app/pages/client/WelcomePage.tsx`: kept MindRoom branding (upstream
+      side only bumped hardcoded version strings the fork no longer renders).
+    - `src/app/features/settings/about/About.tsx`: kept MindRoom branding,
+      took upstream's `v4.12.3` version string.
+    - `.github/workflows/prod-deploy.yml`: kept upstream's buildx v4.1.0 bump
+      while preserving the fork's removal of the Docker Hub login step.
+  - Left `iosCiVersion.test.ts` fixtures at 4.12.2 - they are sample data, not
+    live version references.
+  - Android needs no version bump; `versionName` is derived dynamically
+    (`mindroomAndroidVersionName`).
+- Risks:
+  - Publishing requires a force-push of `dev` (history rewrite); anyone with
+    local branches based on the old v4.12.2-based history must rebase them.
+  - The rebase's `--update-refs` also moved local branches
+    `codex/rebase-v4.12.2`, `t3code/cinny-latest-rebase`, and
+    `t3code/ios-release-tooling` onto the new history.
+  - element-call embedded jumped a minor version (0.20.1); call flows should
+    get a smoke test in a real deployment.
+- Next steps:
+  - Force-push `dev` (after confirmation) and tag the next release as
+    `v4.12.3-mindroom.1`.
+  - Smoke-test calls and the iOS release pipeline on the new base.
+- Validation:
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (311 files, 2305 tests).
+  - Green: `npm run lint` (18 warnings, 0 errors - existing
+    console/unused-var warning class).
+  - Green: `npm run build`.
+  - Green: `npm install` produced no lockfile drift after the rebase.
+  - Green: `git diff origin/dev..HEAD` matches the upstream v4.12.3 payload
+    only (plus the iOS marketing-version follow-up).
+
 ### Sync `!` command autocomplete with upstream MindRoom bot commands (2026-07-01)
 
 - Status:
