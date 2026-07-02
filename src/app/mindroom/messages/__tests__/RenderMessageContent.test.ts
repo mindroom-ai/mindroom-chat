@@ -6,7 +6,27 @@ const toolApprovalCardMock = vi.hoisted(() => vi.fn());
 const renderMindroomMessageContentMock = vi.hoisted(() => vi.fn());
 
 vi.mock('folds', () => ({
+  Box: ({ children, as: asElement = 'div', ...props }: any) =>
+    React.createElement(asElement, props, children),
+  Icon: ({ src }: { src?: string }) => React.createElement('span', null, src ?? 'icon'),
+  Icons: {
+    Clock: 'Clock',
+    Delete: 'Delete',
+    Lock: 'Lock',
+    Warning: 'Warning',
+  },
+  Text: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
+    React.createElement('span', props, children),
+  as: (render: (props: Record<string, unknown>, ref: React.Ref<unknown>) => React.ReactNode) =>
+    React.forwardRef(render),
+  color: {
+    Critical: { Main: '#f00' },
+    Warning: { Main: '#fc0' },
+  },
   config: {
+    opacity: {
+      P300: '0.6',
+    },
     space: {
       S200: '8px',
     },
@@ -27,7 +47,13 @@ vi.mock('../../../components/message', () => ({
   MNotice: () => React.createElement('div', { 'data-renderer': 'notice' }),
   MindroomThreadSummaryCard: ({ summaryInfo }: { summaryInfo: { summaryText?: string } }) =>
     React.createElement('div', { 'data-renderer': 'summary-card' }, summaryInfo.summaryText),
-  MText: () => React.createElement('div', { 'data-renderer': 'text' }),
+  MText: ({ content, renderStateSuffix }: any) =>
+    React.createElement(
+      'div',
+      { 'data-renderer': 'text' },
+      typeof content.body === 'string' ? content.body : '',
+      renderStateSuffix?.()
+    ),
   MVideo: () => null,
   ReadPdfFile: () => null,
   ReadTextFile: () => null,
@@ -67,6 +93,10 @@ vi.mock('../../../plugins/matrix-to', () => ({
 
 vi.mock('../renderMindroomMessageContent', () => ({
   renderMindroomMessageContent: renderMindroomMessageContentMock,
+}));
+
+vi.mock('../PendingSendIndicator.css', () => ({
+  Container: 'PendingSendIndicator',
 }));
 
 vi.mock('../longText', () => ({
@@ -278,6 +308,36 @@ describe('RenderMessageContent', () => {
         }),
       })
     );
+
+    renderer.unmount();
+  });
+
+  it('renders the pending send suffix on image captions', async () => {
+    const { RenderMessageContent } = await import('../../../components/RenderMessageContent');
+    renderMindroomMessageContentMock.mockReset();
+    renderMindroomMessageContentMock.mockReturnValue(undefined);
+
+    const renderer = create(
+      React.createElement(RenderMessageContent, {
+        displayName: 'MindRoom',
+        msgType: 'm.image',
+        ts: 0,
+        pendingSend: true,
+        getContent: (() => ({
+          msgtype: 'm.image',
+          body: 'Caption text',
+          filename: 'image.png',
+          url: 'mxc://example/image',
+        })) as <T>() => T,
+        htmlReactParserOptions: {} as never,
+        linkifyOpts: {} as never,
+      })
+    );
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('Caption text');
+    expect(rendered).toContain('Message sending');
 
     renderer.unmount();
   });

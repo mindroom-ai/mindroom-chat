@@ -92,6 +92,13 @@ export const MessageRow = style({
   justifyContent: 'space-between',
 });
 
+export const MessagePreview = style({
+  display: 'flex',
+  alignItems: 'center',
+  minWidth: 0,
+  flex: 1,
+});
+
 export const MessageText = style({
   minWidth: 0,
   flex: 1,

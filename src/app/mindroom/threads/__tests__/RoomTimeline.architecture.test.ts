@@ -134,6 +134,16 @@ describe('RoomTimeline architecture', () => {
     expect(timelineMessageSource).toContain('renderMindroomRoomTimelineThreadBadge');
   });
 
+  it('passes pending local echo state from base and edited events into message content', () => {
+    const source = readRoomTimelineSource();
+
+    expect(source).toContain("from '../messages/pendingLocalEcho'");
+    expect(source).toContain(
+      'isPendingLocalEchoEvent(mEvent) || isPendingLocalEchoEvent(editedEvent)'
+    );
+    expect(source).toContain('pendingSend={pendingSend}');
+  });
+
   it('keeps reply/start-thread draft policy in MindRoom threads', () => {
     const source = readRoomTimelineSource();
     const implementationSource = readFileSync(
@@ -559,7 +569,7 @@ describe('RoomTimeline architecture', () => {
     expect(roomInputExtensionsSource).toContain("from '../commands/MindroomCommandAutocomplete'");
     expect(roomInputExtensionsSource).toContain("from '../voice/VoiceRecorderDialog'");
     expect(roomInputExtensionsSource).toContain('MindroomRoomInputReplyContext');
-    expect(roomInputExtensionsSource).toContain('Sending to this thread');
+    expect(roomInputExtensionsSource).not.toContain('Sending to this thread');
     expect(roomInputExtensionsSource).toContain(
       "from '../threads/useRoomInputSendSessionController'"
     );
@@ -2329,6 +2339,8 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('room-thread-cache-persist-paginated');
     expect(controllerSource).toContain('useRoomLiveEventController');
     expect(controllerSource).toContain('useLiveEventArrive');
+    expect(controllerSource).toContain("from './roomLocalEchoRefresh'");
+    expect(controllerSource).toContain('useRoomLocalEchoRefresh');
     expect(controllerSource).toContain('getLiveCollapsibleMessageExpandId');
     expect(controllerSource).toContain('room-thread-cache-persist-paginated');
     expect(subscriptionSource).toContain('useLiveEventArrive');

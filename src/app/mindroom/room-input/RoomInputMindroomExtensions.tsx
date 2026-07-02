@@ -1,7 +1,7 @@
 import React from 'react';
 import { MatrixClient, RelationType, Room } from 'matrix-js-sdk';
 import { BaseRange, Descendant, Editor, Element, Transforms } from 'slate';
-import { Box, Text, config } from 'folds';
+import { Box, config } from 'folds';
 import { Membership } from '../../../types/matrix/room';
 import type { AutocompleteQuery } from '../../components/editor/autocomplete/autocompleteQuery';
 import type { PasteMarkerElement } from '../../components/editor/slate';
@@ -12,6 +12,7 @@ import type {
 } from '../../state/room/roomInputDrafts';
 import { MindroomCommandAutocomplete } from '../commands/MindroomCommandAutocomplete';
 import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from '../commands/mindroomCommandQuery';
+import { PendingSendIndicator } from '../messages/pendingSendIndicator';
 import { getMessageRelation } from '../threads/composeMessageRelation';
 import { ThreadIndicator } from '../threads/ThreadIndicator';
 import { VoiceRecorderComposer } from '../voice/VoiceRecorderDialog';
@@ -51,9 +52,9 @@ export type MindroomVoiceSendContext = PendingVoiceSendContext;
 type MindroomRoomInputReplyContextProps = {
   children?: React.ReactNode;
   leading?: React.ReactNode;
+  pendingSend?: boolean;
   relation: IReplyDraft['relation'] | undefined;
   room: Room;
-  threadId?: string;
 };
 
 export const getMindroomRoomInputAutocompleteQuery = (
@@ -226,11 +227,11 @@ export function MindroomRoomInputThreadIndicator({
 export function MindroomRoomInputReplyContext({
   children,
   leading,
+  pendingSend,
   relation,
   room,
-  threadId,
 }: MindroomRoomInputReplyContextProps) {
-  if (!leading && !children && !threadId) return null;
+  if (!leading && !children && !pendingSend) return null;
 
   return (
     <Box
@@ -241,11 +242,8 @@ export function MindroomRoomInputReplyContext({
       {leading}
       <Box direction="Row" gap="200" alignItems="Center">
         <MindroomRoomInputThreadIndicator room={room} relation={relation} />
-        {children ?? (
-          <Text size="T300" priority="300">
-            Sending to this thread
-          </Text>
-        )}
+        {children}
+        {pendingSend && <PendingSendIndicator />}
       </Box>
     </Box>
   );
