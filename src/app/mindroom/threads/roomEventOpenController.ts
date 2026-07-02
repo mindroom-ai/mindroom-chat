@@ -49,6 +49,7 @@ export type OpenRoomEventHandler = (
 
 export const useRoomEventOpenController = ({
   alive,
+  cancelThreadBottomSettle,
   effectiveViewMode,
   focusEventInRoom,
   hideMembershipEvents,
@@ -90,6 +91,7 @@ export const useRoomEventOpenController = ({
   threadSummaryInfoMap,
 }: {
   alive: () => boolean;
+  cancelThreadBottomSettle?: () => void;
   effectiveViewMode: RoomViewMode;
   focusEventInRoom?: boolean;
   hideMembershipEvents: boolean;
@@ -138,6 +140,8 @@ export const useRoomEventOpenController = ({
   handleOpenEvent: OpenRoomEventHandler;
   redirectRoomEventDeepLink: (eventId: string) => boolean;
 } => {
+  const threadJumpGenerationRef = useRef(0);
+
   const redirectRoomEventDeepLink = useCallback(
     (targetEventId: string, linkedTimelines?: EventTimeline[]): boolean => {
       if (effectiveViewMode === 'classic') {
@@ -344,6 +348,7 @@ export const useRoomEventOpenController = ({
       if (threadId) {
         const threadItemIndex = threadEventIndexMapRef.current.get(evtId);
         if (typeof threadItemIndex === 'number') {
+          cancelThreadBottomSettle?.();
           const target = getEventElementById(scrollRef.current, evtId);
           setFocusItem({
             eventId: evtId,
@@ -366,9 +371,11 @@ export const useRoomEventOpenController = ({
           // jump converges over a few re-issued scrolls as freshly mounted
           // rows report their real sizes.
           if (scrollThreadEventIntoView?.(evtId)) {
+            threadJumpGenerationRef.current += 1;
+            const generation = threadJumpGenerationRef.current;
             let attempts = 0;
             const retryScrollToMountedTarget = () => {
-              if (!alive()) return;
+              if (!alive() || threadJumpGenerationRef.current !== generation) return;
               const retryTarget = getEventElementById(scrollRef.current, evtId);
               if (retryTarget) {
                 scrollToElement(retryTarget, {
@@ -451,6 +458,7 @@ export const useRoomEventOpenController = ({
     },
     [
       alive,
+      cancelThreadBottomSettle,
       loadEventTimeline,
       mx,
       pendingThreadOpenRef,

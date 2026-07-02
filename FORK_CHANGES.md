@@ -996,11 +996,76 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
     renderable-only rows — empty tiles measure ~0px, jump targets are always
     renderable, all live guards pass on threads containing edits; the remap
     would touch every index consumer for cosmetic gain (documented follow-up).
+- PR #44 review round 3 (2026-07-01, independent adversarial workflow on user
+  request: 5 finder lenses, each finding adversarially verified):
+  - Fixed (blocker): the thread prepend compensation never armed in quiet
+    threads. The pre-prepend snapshot was taken inside a `threadEvents`-gated
+    effect, but clicking Load Older does not change `threadEvents`, so the
+    effect first observed the anchor in the prepend render itself and the
+    index-shift comparison had no "before" to compare against. `begin()` is
+    now wrapped (`beginThreadBackPaginationWithCapture`) to record the pending
+    anchor's event id + index synchronously at click time; the layout effect
+    compensates when that anchor's index shifts upward.
+  - Fixed (harness fidelity, masked the blocker): the shared
+    `@tanstack/react-virtual` test mock returned a fresh virtualizer object on
+    every render, so dep-gated effects re-ran each render in tests and hid
+    production dead code. The mock now returns one stable instance per
+    harness state, delegating live options through a ref like the real
+    library.
+  - Fixed: learned thread row-height adoption is now gated to bottom-pinned
+    or open-at-latest-pending moments so a mid-thread reader can never have
+    unmounted-row offsets re-derived under the viewport; switching message
+    layout (compact/modern) now also resets the learned estimate.
+  - Fixed: programmatic in-thread jumps (reply-quote clicks, permalink opens)
+    emit no user scroll-intent events, so an active bottom-settle loop could
+    yank a just-initiated jump back to the bottom. The settle loop exposes its
+    stop function via ref; `scrollThreadEventIntoView` and the open
+    controller's thread branch cancel it (`cancelThreadBottomSettle`).
+  - Fixed (nit): overlapping unmounted-row jump retry chains for different
+    targets could fight across frames; a generation counter invalidates the
+    superseded chain.
+  - Live-validation fallout: the first post-fix `cinny070` run failed and
+    exposed that the spec's bare `scrollTop = 0` emits no user scroll intent,
+    so the round-2 settle loop yanked the view back to the bottom before the
+    anchor was captured — the spec was not exercising prepend-at-top at all
+    (video frames show the "Jump to Latest" chip flash with no visible
+    movement). Product hardening: the compensation now coarse-scrolls only
+    when the anchor row is unmounted (its only job is to mount the row for
+    the DOM-based restore; a mounted anchor gets the same-commit
+    fine-correction alone). Spec fidelity: `cinny070` dispatches a wheel
+    event before scrolling, matching the product contract that user intent
+    cancels the pin. The prepend unit test's mock DOM now unmounts the anchor
+    on prepend (production shape), and a companion test pins the
+    mounted-anchor skip.
+  - Independent reviewer pass over the round-3 fix diff found and fixed:
+    `beginThreadBackPaginationWithCapture` wiped the in-flight capture before
+    checking that `begin()` accepted (a double-click on "Loading..." would
+    disarm the live pagination's compensation — the fixed blocker reopening
+    through a one-line ordering mistake); the prepend fine-restore chain now
+    owns only the anchor it detected (a rapid second Load Older's fresh
+    anchor is no longer restored or expired by the stale chain);
+    `measureThreadTile` keeps a stable identity across open-pending flips
+    (reads the flag via ref) so all mounted rows are not re-attached and
+    double-counted into the row-size stats; dropped the capture's dead
+    `length` field; documented the mock's single-consumer WeakMap keying.
+  - Reviewer-accepted residuals (documented, not fixed): adoption while
+    bottom-anchored with no active settle loop can displace without a re-pin
+    until the next live event (rare: needs a quiet thread + expand-all +
+    return to bottom); `cinny070`'s wheel-intent dispatch narrows but cannot
+    close the race with a pin that starts after the dispatch; a smooth
+    in-thread jump started from the bottom can still be yanked by a
+    streaming re-pin that arrives during its first frames (pre-existing).
+  - Round 3 validation: `npm run typecheck`; `npm test` (314 files, 2333
+    tests); `npm run lint` (18 warnings, 0 errors — baseline); `npm run
+    build`; live against docker-matrix: `cinny070` ×3 serial green,
+    `thread-virtualization-behaviors` 4/4, `perf-thread-scroll-stability`
+    green, `perf-thread-streaming` 0 long tasks.
 - Next steps:
   - Push is blocked locally: the `block-git-rewrites.py` hook rejects
     `git push --force-with-lease`, which the rebase requires; needs a manual
     push or explicit override.
-  - Watch `cinny070` for batch flakiness in CI.
+  - `cinny070` batch flakiness root-caused in round 3 (settle loop vs the
+    spec's intent-less programmatic scroll) and fixed on both sides.
   - Investigate the pre-existing thread-history loader gap (oldest ~30
     replies unreachable in large threads; no Load Older chip despite missing
     events).

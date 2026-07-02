@@ -53,6 +53,11 @@ const scrollThreadTimelineToTop = async (page: import('@playwright/test').Page):
     }
     if (!scrollContainer) return false;
 
+    // Real users scroll with wheel/touch gestures, which cancel the timeline's
+    // bottom-pin settle loop; a bare scrollTop write emits no intent event and
+    // gets yanked back to the bottom if the open-at-latest pin is still
+    // settling. Announce the intent the way a user gesture would.
+    scrollContainer.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }));
     scrollContainer.scrollTop = 0;
     return true;
   });

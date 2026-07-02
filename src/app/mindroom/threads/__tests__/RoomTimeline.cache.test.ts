@@ -449,12 +449,16 @@ describe('RoomTimeline', () => {
         getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$te-100' : null)),
         getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
       };
+      // Prepending 100 rows above the viewport unmounts the anchor row in
+      // production (virtual indexes shift while scrollTop stays), which is the
+      // case the coarse scrollToIndex compensation exists for.
+      let anchorMounted = true;
       const scrollElement = {
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
         getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
         querySelector: vi.fn(() => undefined),
-        querySelectorAll: vi.fn(() => [anchorElement]),
+        querySelectorAll: vi.fn(() => (anchorMounted ? [anchorElement] : [])),
         scrollHeight: 4000,
         clientHeight: 600,
         scrollTop: 0,
@@ -465,6 +469,7 @@ describe('RoomTimeline', () => {
       matrixClientMock.paginateEventTimeline.mockImplementation(async () => {
         if (prependOnPaginate) {
           prependOnPaginate = false;
+          anchorMounted = false;
           setThreadEvents(prependedThreadEvents);
         }
         return false;
@@ -500,6 +505,93 @@ describe('RoomTimeline', () => {
         expect(roomTimelineVirtualizerState.scrollToIndexMock).toHaveBeenCalledWith(101, {
           align: 'start',
         });
+      } finally {
+        renderer?.unmount();
+      }
+    });
+
+    it('skips the coarse re-anchor scroll when the captured row stays mounted through the prepend', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const threadId = '$prepend-thread-root';
+      const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
+      const makeReply = (index: number) =>
+        makeEvent(`$te-${index}`, { threadRootId: threadId, ts: index + 1 });
+      const initialThreadEvents = [
+        rootEvent,
+        ...Array.from({ length: 300 }, (_value, index) => makeReply(index + 100)),
+      ];
+      const prependedThreadEvents = [
+        rootEvent,
+        ...Array.from({ length: 100 }, (_value, index) => makeReply(index)),
+        ...initialThreadEvents.slice(1),
+      ];
+      const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
+      const threadTimelineSet = {
+        getLiveTimeline: () => threadTimeline,
+        getTimelineForEvent: () => undefined,
+      };
+      const threadModel = {
+        rootEvent,
+        events: initialThreadEvents,
+        getUnfilteredTimelineSet: () => threadTimelineSet,
+      };
+      const room = makeRoom({ liveEvents: [] });
+      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
+        threadRenderStateMock.threadEvents = events as never;
+        threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+          events.map((event, index) => [event.getId(), index])
+        );
+      };
+      setThreadEvents(initialThreadEvents);
+      const anchorElement = {
+        getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$te-100' : null)),
+        getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
+      };
+      const scrollElement = {
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
+        querySelector: vi.fn(() => undefined),
+        querySelectorAll: vi.fn(() => [anchorElement]),
+        scrollHeight: 4000,
+        clientHeight: 600,
+        scrollTop: 0,
+      };
+      let prependOnPaginate = false;
+      matrixClientMock.paginateEventTimeline.mockImplementation(async () => {
+        if (prependOnPaginate) {
+          prependOnPaginate = false;
+          setThreadEvents(prependedThreadEvents);
+        }
+        return false;
+      });
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      let renderer: ReturnType<typeof create> | undefined;
+
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            }),
+            {
+              createNodeMock: (element) => (element.type === scrollType ? scrollElement : null),
+            }
+          );
+          await flushAsyncWork();
+        });
+        roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
+
+        const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
+        await act(async () => {
+          prependOnPaginate = true;
+          loadOlderChip.props.onClick();
+          await flushAsyncWork(10);
+        });
+
+        expect(roomTimelineVirtualizerState.scrollToIndexMock).not.toHaveBeenCalled();
       } finally {
         renderer?.unmount();
       }

@@ -172,6 +172,7 @@ import {
 } from './roomThreadOverviewModel';
 import type { RoomViewMode } from './roomViewMode';
 import {
+  getEventElementById,
   isScrollNearBottom,
   isTimelineAtLiveEnd,
   shouldRenderUnreadDividerAt,
@@ -404,6 +405,11 @@ export function RoomTimeline({
   const [threadPaginatingFront, setThreadPaginatingFront] = useState(false);
   const [threadInitialCacheHydrated, setThreadInitialCacheHydrated] = useState(false);
   const [threadLatestOpenPending, setThreadLatestOpenPending] = useState(false);
+  // Mirrored for callbacks that must keep a stable identity (measureThreadTile
+  // is every VirtualTile's ref; an identity change re-attaches all mounted
+  // rows and double-counts their heights in the row-size stats).
+  const threadLatestOpenPendingRef = useRef(threadLatestOpenPending);
+  threadLatestOpenPendingRef.current = threadLatestOpenPending;
   const [threadTimelineTick, setThreadTimelineTick] = useState(0);
   const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
   const {
@@ -1002,16 +1008,16 @@ export function RoomTimeline({
   // (stale, mixed estimates).
   const threadRowSizeStatsRef = useRef<{ total: number; count: number }>({ total: 0, count: 0 });
   const [learnedThreadRowSize, setLearnedThreadRowSize] = useState<number | undefined>(undefined);
+  const defaultRowEstimate = messageLayout === MessageLayout.Compact ? 96 : 144;
   useEffect(() => {
     threadRowSizeStatsRef.current = { total: 0, count: 0 };
     setLearnedThreadRowSize(undefined);
-  }, [room.roomId, threadId]);
+  }, [room.roomId, threadId, defaultRowEstimate]);
   useEffect(() => {
     // Expand/collapse-all changes the height regime; re-learn from fresh
     // measurements (keeping the previous learned value until enough arrive).
     threadRowSizeStatsRef.current = { total: 0, count: 0 };
   }, [expandAllOverride]);
-  const defaultRowEstimate = messageLayout === MessageLayout.Compact ? 96 : 144;
   const estimateRoomTimelineItemSize = useCallback(
     () => (threadId ? learnedThreadRowSize ?? defaultRowEstimate : defaultRowEstimate),
     [defaultRowEstimate, learnedThreadRowSize, threadId]
@@ -1019,6 +1025,11 @@ export function RoomTimeline({
   const maybeAdoptLearnedThreadRowSize = useCallback(() => {
     const stats = threadRowSizeStatsRef.current;
     if (stats.count < 8) return;
+    // Adopting a new estimate shifts every unmeasured row's offset with no
+    // scroll compensation. That is invisible while pinned at the bottom (the
+    // settle loop re-pins) but teleports a mid-thread reader, so defer
+    // adoption until the view is bottom-anchored again.
+    if (!atBottomRef.current && !threadLatestOpenPendingRef.current) return;
     const mean = Math.round(stats.total / stats.count);
     setLearnedThreadRowSize((current) => {
       const reference = current ?? defaultRowEstimate;
@@ -1027,7 +1038,7 @@ export function RoomTimeline({
       if (Math.abs(mean - reference) / reference < 0.25) return current;
       return mean;
     });
-  }, [defaultRowEstimate]);
+  }, [defaultRowEstimate, threadLatestOpenPendingRef]);
   const roomTimelineVirtualizer = useVirtualizer({
     count: threadId ? threadEvents.length : timelineItems.length,
     getScrollElement,
@@ -1131,6 +1142,10 @@ export function RoomTimeline({
     setAtBottom,
     threadId,
   ]);
+  // Active settle loop's stop function; programmatic in-thread jumps cancel
+  // it so a streaming re-pin cannot yank a just-initiated jump back to the
+  // bottom (jumps emit no user scroll-intent events).
+  const threadSettleStopRef = useRef<(() => void) | undefined>(undefined);
   // Thread bottom-pin settling: under virtualization the scroll height is an
   // estimate until rows mount and measure, so a pin can land far off-bottom
   // while measurements keep growing the total size (opening a large thread can
@@ -1165,7 +1180,11 @@ export function RoomTimeline({
       if (rafId !== undefined) cancelAnimationFrame(rafId);
       rafId = undefined;
       removeListeners();
+      if (threadSettleStopRef.current === stop) {
+        threadSettleStopRef.current = undefined;
+      }
     };
+    threadSettleStopRef.current = stop;
     function cancelOnUserScrollIntent() {
       stop();
     }
@@ -1187,7 +1206,7 @@ export function RoomTimeline({
         ) {
           stableTicks += 1;
           if (stableTicks >= 2) {
-            removeListeners();
+            stop();
             return;
           }
         } else {
@@ -1201,7 +1220,7 @@ export function RoomTimeline({
       if (remainingTicks > 0) {
         rafId = requestAnimationFrame(settle);
       } else {
-        removeListeners();
+        stop();
       }
     };
     userScrollIntentEvents.forEach((eventType) => {
@@ -1215,16 +1234,50 @@ export function RoomTimeline({
   // which can unmount the captured anchor row. Scroll the anchor's new index
   // into view first so the DOM-based restore (which runs after this effect, in
   // useRoomFocusScrollController) can fine-correct against a mounted element.
-  // A prepend is detected by the pending anchor's index shifting upward: the
-  // thread root permanently occupies index 0, so watching the first event id
-  // would never fire for real back-pagination prepends (older replies insert
-  // at index 1+).
-  const threadVirtualPrependStateRef = useRef<{
-    threadId?: string;
-    length: number;
-    anchorEventId?: string;
-    anchorIndex?: number;
-  }>({ length: 0 });
+  // A prepend is detected by the pending anchor's index shifting upward
+  // versus its index captured at begin() (click) time: the thread root
+  // permanently occupies index 0, so watching the first event id would never
+  // fire, and observing renders/effects for the pre-prepend state is unsafe —
+  // the begin() render does not change threadEvents, so a dep-gated effect
+  // first sees the anchor only in the prepend render itself.
+  const threadVirtualPrependCaptureRef = useRef<
+    | {
+        threadId: string;
+        anchorEventId: string;
+        anchorIndex: number;
+      }
+    | undefined
+  >(undefined);
+  const beginThreadBackPaginationWithCapture = useCallback(
+    (
+      beginThreadId: string | undefined,
+      scrollRoot: HTMLElement | null | undefined,
+      eventCount?: number
+    ) => {
+      const began = beginThreadBackPagination(beginThreadId, scrollRoot, eventCount);
+      // begin() refuses while a pagination is in flight (the chip stays
+      // clickable showing "Loading..."); a refused call must not wipe the
+      // in-flight pagination's armed capture.
+      if (!began) return began;
+      threadVirtualPrependCaptureRef.current = undefined;
+      if (beginThreadId) {
+        const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
+        const anchorIndex =
+          anchorEventId === undefined
+            ? undefined
+            : threadEventIndexMapRef.current.get(anchorEventId);
+        if (anchorEventId !== undefined && typeof anchorIndex === 'number') {
+          threadVirtualPrependCaptureRef.current = {
+            threadId: beginThreadId,
+            anchorEventId,
+            anchorIndex,
+          };
+        }
+      }
+      return began;
+    },
+    [beginThreadBackPagination, getPendingThreadBackPaginationAnchorEventId, threadEventIndexMapRef]
+  );
   // The fine-correction retry chain lives in a ref so unrelated threadEvents
   // updates (e.g. streaming edits) cannot cancel it or expire the anchor; it
   // ends on restore success, anchor expiry, a newer prepend, or unmount.
@@ -1237,29 +1290,24 @@ export function RoomTimeline({
   }, []);
   useEffect(() => cancelThreadPrependRetry, [cancelThreadPrependRetry]);
   useLayoutEffect(() => {
-    const previous = threadVirtualPrependStateRef.current;
+    const capture = threadVirtualPrependCaptureRef.current;
+    if (!capture || !threadId || capture.threadId !== threadId) return;
     const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
-    const anchorIndex =
-      anchorEventId === undefined ? undefined : threadEventIndexMapRef.current.get(anchorEventId);
-    threadVirtualPrependStateRef.current = {
-      threadId,
-      length: threadEvents.length,
-      anchorEventId,
-      anchorIndex,
-    };
-    if (!threadId || previous.threadId !== threadId) return;
-    if (threadEvents.length <= previous.length) return;
-    if (
-      anchorEventId === undefined ||
-      typeof anchorIndex !== 'number' ||
-      previous.anchorEventId !== anchorEventId ||
-      typeof previous.anchorIndex !== 'number' ||
-      anchorIndex <= previous.anchorIndex
-    ) {
+    if (anchorEventId !== capture.anchorEventId) {
+      // Anchor restored or cleared elsewhere; nothing left to compensate.
+      threadVirtualPrependCaptureRef.current = undefined;
       return;
     }
+    const anchorIndex = threadEventIndexMapRef.current.get(anchorEventId);
+    if (typeof anchorIndex !== 'number' || anchorIndex <= capture.anchorIndex) return;
+    threadVirtualPrependCaptureRef.current = undefined;
 
-    roomTimelineVirtualizer.scrollToIndex(anchorIndex, { align: 'start' });
+    // scrollToIndex exists only to mount an unmounted anchor row so the
+    // DOM-based restore has an element to align; when the row is already
+    // mounted, the coarse move just adds displacement for the restore to undo.
+    if (!getEventElementById(scrollRef.current, anchorEventId)) {
+      roomTimelineVirtualizer.scrollToIndex(anchorIndex, { align: 'start' });
+    }
 
     // The anchor row mounts on the virtualizer's next render, so the
     // same-commit DOM restore in useRoomFocusScrollController can miss it.
@@ -1268,16 +1316,21 @@ export function RoomTimeline({
     // thread update.
     cancelThreadPrependRetry();
     const eventCountAtDetection = threadEvents.length;
+    const chainAnchorEventId = anchorEventId;
     let attempts = 0;
     const retryRestore = () => {
       threadPrependRetryRef.current.rafId = undefined;
+      // A rapid second Load Older replaces the pending anchor; this chain owns
+      // only the anchor it detected and must not restore or expire the newer
+      // one (its own compensation effect takes over).
+      if (getPendingThreadBackPaginationAnchorEventId() !== chainAnchorEventId) return;
       const restored = restorePendingThreadBackPaginationAnchor(
         scrollRef.current,
         threadId,
         eventCountAtDetection
       );
       attempts += 1;
-      if (restored || !getPendingThreadBackPaginationAnchorEventId()) return;
+      if (restored) return;
       if (attempts < 5) {
         threadPrependRetryRef.current.rafId = requestAnimationFrame(retryRestore);
         return;
@@ -1302,11 +1355,15 @@ export function RoomTimeline({
     (eventId: string) => {
       const eventIndex = threadEventIndexMapRef.current.get(eventId);
       if (typeof eventIndex !== 'number') return false;
+      threadSettleStopRef.current?.();
       roomTimelineVirtualizerRef.current.scrollToIndex(eventIndex, { align: 'center' });
       return true;
     },
     [threadEventIndexMapRef]
   );
+  const cancelThreadBottomSettle = useCallback(() => {
+    threadSettleStopRef.current?.();
+  }, []);
   const scrollToTimelineItem = useCallback(
     (index: number, opts?: Parameters<typeof scrollToItem>[1]) => {
       if (threadId || index < activeTimelineRange.start || index >= activeTimelineRange.end) {
@@ -1352,6 +1409,7 @@ export function RoomTimeline({
     roomThreadListThreads,
     safePaginationLimit,
     safePaginationLimitRef,
+    cancelThreadBottomSettle,
     scheduledStatusMap,
     scrollRef,
     scrollThreadEventIntoView,
@@ -2699,7 +2757,7 @@ export function RoomTimeline({
 
   const { handleThreadPaginateBack, handleThreadPaginateFront } =
     useThreadPaginationCommandController({
-      beginThreadBackPagination,
+      beginThreadBackPagination: beginThreadBackPaginationWithCapture,
       finishThreadBackPagination,
       forceTimelineUpdate,
       mx,
