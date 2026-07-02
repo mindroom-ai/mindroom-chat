@@ -56,10 +56,12 @@
   - PR #51 review-comment triage: rejected the gemini claim that
     `cd ../../..` overshoots the repo root (fastlane `sh` empirically runs
     from `ios/App/fastlane`, so three levels up is the repo root); accepted
-    explicit `export_method: "app-store"` on `build_app` (gym's fallback is
-    app-store, not development as claimed, but it defers first to the
-    archive's provisioning-derived method, so pinning it avoids a silent
-    development export); accepted a `~> 2.236` Gemfile constraint; and fixed
+    explicit `export_method: "app-store"` on `build_app` as a clarity
+    improvement (the claimed development-default risk was wrong: gym 2.236.1
+    only defers to a user-supplied `export_options` hash, which the lane does
+    not pass, and otherwise always defaults to app-store — pinning it guards
+    against future `export_options` additions and makes intent explicit);
+    accepted a `~> 2.236` Gemfile constraint; and fixed
     the release-notes concern at the root by deleting the checked-in
     placeholder (`deliver` uploads metadata files verbatim, so the suggested
     `# TODO` comment line would itself ship to "What's New" — real notes are
