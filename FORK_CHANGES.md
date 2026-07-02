@@ -847,6 +847,622 @@ theme in CINNY-215; Dark reverted to the neutral grays.)
     `npx prettier --check FORK_CHANGES.md docs/superpowers/plans/2026-06-13-pending-send-indicator.md src/app/mindroom/messages/messageStateSuffix.test.ts src/app/mindroom/threads/roomLocalEchoRefresh.ts src/app/mindroom/threads/roomLocalEchoRefresh.test.ts`
     and `git diff --check`.
 
+### Large-thread timeline performance (laggy UI / high CPU) (2026-06-12)
+
+- Status:
+  - In progress. Baseline reproduction and measurement landed; optimizations
+    follow as separate bounded steps.
+- Problem:
+  - Threads with many messages make the frontend laggy with high CPU,
+    especially while MindRoom agents stream responses via frequent `m.replace`
+    edits.
+- Investigation:
+  - The thread view renders every thread event to the DOM with no
+    virtualization (`MindroomRoomTimeline.tsx` thread branch maps over all
+    `threadEvents`); both `useVirtualPaginator` and the TanStack room
+    virtualizer are explicitly disabled for threads (`count: threadId ? 0 :
+...`). Only the classic room view is virtualized.
+  - Every live thread event — including every streaming `m.replace` chunk —
+    bumps `threadTimelineTick` in `roomLiveEventController.ts`, re-rendering
+    the entire `MindroomRoomTimeline` component and therefore every mounted
+    thread row.
+  - `RenderBody` runs `sanitizeCustomHtml` + `html-react-parser` `parse()` on
+    every render with no memoization, and `MindroomMessageExtras` re-parses
+    markdown/HTML sections (tool traces) on every render. Each streaming chunk
+    therefore re-sanitizes and re-parses the HTML of every message in the
+    thread.
+- Baseline measurement (new probe `e2e/live/perf-thread-streaming.spec.ts`,
+  docker-matrix homeserver, 400-reply thread with formatted HTML bodies,
+  40 `m.replace` edits paced at 50ms):
+  - `mountedRows: 371`, `domNodeCount: 11982`, `usedJsHeapMb: 290`.
+  - Edit burst: `cdpTaskDurationMs: 11459` over `wallClockMs: 11688` —
+    the main thread is ~100% saturated for the whole burst, ~286ms of
+    main-thread work per streaming chunk; `longTaskTotalMs: 10035` across 83
+    long tasks.
+  - Probe is informational (prints/attaches a JSON report); run with
+    `E2E_HOMESERVER/E2E_USERNAME/E2E_PASSWORD` against the docker-matrix
+    server. Knobs: `PERF_REPLY_COUNT`, `PERF_EDIT_COUNT`,
+    `PERF_EDIT_INTERVAL_MS`.
+- Planned bounded steps:
+  1. Memoize sanitize+parse in `RenderBody` and `MindroomMessageExtras` so
+     unchanged messages skip HTML re-parsing on timeline re-renders. (Done,
+     see below.)
+  2. Coalesce `threadTimelineTick` bumps (at most one timeline re-render per
+     frame during streaming bursts).
+  3. Virtualize the thread timeline following the proven classic-room TanStack
+     pattern (bounded mounted rows, prepend anchoring, bottom pinning).
+- Step 1 — message parse memoization (2026-06-12):
+  - `RenderBody` now wraps sanitize+parse / `renderTextWithLatex` in `useMemo`
+    keyed on `[body, customBody, highlightRegex, htmlReactParserOptions,
+linkifyOpts]`.
+  - `MindroomMessageExtras` renders section content through a
+    `MindroomMessageExtraSectionContent` component that memoizes the
+    markdown/HTML parse keyed on `[content, contentType,
+htmlReactParserOptions]`.
+  - Independent review found the memo was initially defeated on the exact
+    streaming hot path: `withMindroomToolTraceMarkerParserOptions` minted a
+    fresh parser-options object for every message on every render (it carries
+    per-parse mutable marker state). The probe confirmed no improvement until
+    this was fixed.
+  - `withMindroomToolTraceMarkerParserOptions` now returns the base options
+    unchanged when the content cannot contain mindroom markers — string
+    `includes` checks for `🔧` and `data-mindroom-paste-marker` on
+    `formatted_body`, `body`, and `com.mindroom.message_extras` section
+    contents, plus the tool-trace v2 content check. Contract change: the
+    wrapper activates from the message content, so tests that parsed marker
+    HTML while passing unrelated/empty content now pass the real content
+    (matches production, where `MText` derives `customBody` from
+    `content.formatted_body`).
+  - Probe after step 1 (same machine, same knobs): edit burst
+    `cdpTaskDurationMs` 11459 → 4350 (−62%), `longTaskTotalMs` 10035 (83
+    tasks) → 0 (zero main-thread stalls > 50ms), burst wall clock 11.7s →
+    4.6s, `usedJsHeapMb` 290 → 159, `threadOpenToRowsMs` 10.6s → 4.6s.
+- Decisions:
+  - Marker-bearing messages (tool traces) intentionally still get fresh
+    parser options per render — the wrapped options carry per-parse mutable
+    state (`consumedToolIndexes`) and caching them across parse runs risks
+    suppressed tool blocks on re-parse/remount. Their residual re-render cost
+    is bounded later by tick coalescing and thread virtualization.
+  - Known tradeoff: mention pills/custom emoji inside parsed bodies resolve at
+    parse time; with memoization a member rename shows stale display names in
+    old messages until the message changes or remounts. Accepted — renames are
+    rare and previous behavior re-parsed every message on every render.
+- Risks:
+  - The perf probe is environment-sensitive; treat numbers as relative
+    before/after comparisons on the same machine, not absolute thresholds.
+  - The marker detector must stay a superset of what the wrapper's
+    replace/transform can match; false negatives would render raw marker text
+    instead of tool cards. Current signals: `🔧`, paste-marker attribute,
+    tool-trace v2 key, extras sections.
+- Review:
+  - Independent subagent review of the initial step-1 diff found a blocker —
+    the memo was 100% defeated on the streaming timeline path by the fresh
+    parser-options identity; fixed via the wrapper early-return, confirmed by
+    the probe.
+  - Delta re-review found no blockers. It traced every production parse input
+    (synthesized bodies, reply trims, `m.new_content` edits, extras
+    fallbacks, long-text hydration) to the same object the gate inspects, so
+    the gate is a strict superset of the wrapper's activation conditions.
+    Non-blocking follow-ups addressed: a comment documenting the
+    literal-marker assumption, and a seam test pinning that the wrapper keeps
+    base-options identity for plain content composed with the `RenderBody`
+    memo.
+- Step 2 re-scope:
+  - Tick coalescing is deprioritized: React 18 already batches set-states
+    within one sync response, and streaming chunk rates (2–10/s) sit below
+    frame rate, so rAF coalescing would not reduce per-edit render cost. The
+    dominant remaining cost is re-rendering all mounted rows per tick —
+    addressed by thread virtualization. Revisit coalescing only if the probe
+    still shows excess burst CPU after virtualization.
+- Validation (step 1):
+  - Red check: `npm test -- src/app/components/message/RenderBody.test.tsx`
+    failed with 3 sanitize calls for 3 identical renders before the memo.
+  - Red check: `npm test --
+src/app/mindroom/messages/MessageExtrasView.test.ts` failed re-parsing
+    unchanged sections before the section memo.
+  - Red check: `npm test --
+src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
+    failed while the wrapper always minted fresh options.
+  - Green: focused tests above plus
+    `src/app/mindroom/messages/MindroomHtmlBlocks.pasteMarker.test.ts` and
+    `src/app/plugins/react-custom-html-parser.test.ts` after the contract
+    update.
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (304 files, 2262 tests).
+  - Green: `npm run lint` (18 warnings, 0 errors — existing baseline).
+  - Green: `npm run build` (existing Vite warning baseline).
+  - Green: `npx prettier --check` on all changed files.
+  - Green: `git diff --check`.
+  - Probe delta recorded above (−62% main-thread, zero long tasks).
+- Step 3 — thread timeline virtualization (2026-06-12):
+  - The single TanStack virtualizer in `MindroomRoomTimeline` now serves both
+    paths: `count` is `threadEvents.length` for threads (was hardwired 0) and
+    `getItemKey` returns thread event ids. The thread branch renders a
+    `renderVirtualThreadTimelineItems()` slice (VirtualTile + measureElement,
+    overscan 10) instead of mapping every thread event, with a thread render
+    primer replicating the thread-branch skip rules so sender-collapse and day
+    dividers stay correct at the slice boundary.
+  - Thread bottom pinning under estimated row heights: a settling layout
+    effect re-pins (instant only, never during smooth pins) until the position
+    is stably near bottom (cap ~90 frames), cancelling on user scroll intent
+    (wheel/touch/pointer/key).
+  - Open-at-latest root-cause fix: the pending-open bottom-pin suppression in
+    `roomFocusScrollController` treated any scroll event away from the bottom
+    as the user scrolling. Virtualizers also scroll programmatically (offset
+    adjustments when rows above the viewport re-measure), which falsely
+    suppressed every open pin and stranded the view mid-thread (reproduced
+    with a live probe; the view stuck at the bottom-of-first-batch offset).
+    Suppression now requires user scroll intent within 400ms of the scroll
+    event.
+  - Load Older prepend anchoring: the existing event-id DOM anchor restore
+    only works while the anchor row is mounted; after a virtual prepend the
+    indexes shift, so a compensation effect scrolls the anchor's new index
+    into view first, then retries the DOM fine-correction across a few frames
+    and finally expires the anchor so a stale anchor can never fire a late
+    scroll jump.
+  - Permalinks into unmounted rows: `useRoomFocusScrollController` accepts a
+    `scrollThreadEventIntoView` fallback (virtualizer scrollToIndex via the
+    thread event index map) used when a pending thread-open target row is not
+    in the DOM; retry attempts raised 2 → 3.
+  - Expand/collapse-all (`[+all]`): the CollapsibleMessage listener bus now
+    records the latest broadcast so rows mounted later under virtualization
+    adopt it; the state resets during render on room/thread navigation (before
+    the new tree's initializers run).
+- Probe after step 3 (same machine/knobs, cumulative with step 1):
+  - Edit burst `cdpTaskDurationMs` 11459 → 555–821 (−93–95%), zero long
+    tasks; burst wall clock ≈ the send pacing (client fully keeps up).
+  - `mountedRows` 371 → 16, `domNodeCount` ~12000 → ~1100, `usedJsHeapMb`
+    290 → 104.
+- Review:
+  - Implemented by a dedicated subagent from a detailed brief; orchestrator
+    re-validated everything independently.
+  - Independent review subagent: no blockers; four concerns addressed in this
+    step — widened user-intent vectors for both the suppression listener and
+    the settle loop (scrollbar/keyboard/middle-click), the prepend
+    fine-correction retry/expiry (would otherwise fire a delayed scroll jump),
+    and the expand-all reset moved to render phase (module state leaked into
+    the next room's first commit).
+  - Review nits accepted as-is (documented): local-echo key flip remounts own
+    just-sent rows once on confirmation; virtual count includes non-renderable
+    events (estimate inflation only); no scrollMargin for content above the
+    virtual container (pre-existing in the room path too).
+- Risks:
+  - Open-pin suppression now keys on wheel/touch/pointer/keydown intent;
+    exotic scroll vectors without those events (e.g. some assistive tech)
+    would be re-pinned during the brief pending-open window.
+  - The e2e spec most coupled to prepend anchoring (`cinny070`) showed one
+    batch-context flake during validation but passes standalone and in the
+    full suite; watch it in CI.
+- Validation:
+  - Red check: thread virtual-slice test failed while the virtualizer count
+    was `threadId ? 0` and all rows rendered.
+  - Red checks: prepend re-anchor (no `scrollToIndex` call), expand-all on
+    late mounts (missing API), focus-scroll fallback (gave up at 2 attempts,
+    no fallback), `getPendingAnchorEventId`/`clearPendingAnchor` (missing),
+    programmatic-scroll suppression (suppressed without user intent).
+  - Green: all of the above plus full `npm test` (304 files, 2274 tests).
+  - Green: `npm run typecheck`, `npm run lint` (18 warnings, 0 errors
+    baseline), `npm run build`, `npx prettier --check` on touched files,
+    `git diff --check`.
+  - Green: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix`
+    (70 passed, 3 skipped, 1 failed: `account-offline.spec.ts` — pre-existing
+    failure unrelated to this work; the upstream error-message text changed in
+    `acae043f` and the spec's connectivity-state detector no longer matches.
+    Verified the text change predates this branch; spec fix tracked as a
+    separate follow-up).
+  - Live probes: open-at-latest lands exactly at the bottom
+    (scrollTop+clientHeight == scrollHeight) with 16 mounted rows; perf
+    numbers above.
+- Follow-up — `account-offline.spec.ts` detector fix (2026-06-12):
+  - The spec's connectivity-state detector matched the old "Failed to connect
+    to homeserver" message; upstream `acae043f` changed the splash text to
+    "Unable to connect to the homeserver…". The detector now accepts both
+    spellings (old kept for rebaseability). Green:
+    `npx playwright test e2e/account-offline.spec.ts` against the
+    docker-matrix homeserver.
+- PR #44 review follow-up (2026-06-13):
+  - Bot reviewers: gemini-code-assist and greptile gave substantive comments;
+    sourcery, qodo, and coderabbit were rate-limited (no content).
+  - `RenderBody` empty-content guards were missing `return` (pre-existing,
+    flagged by both bots). Fixed at the root: check `customBody` first so a
+    formatted body still renders when the plain-text fallback is empty, then
+    return `MessageEmptyContent` for a truly-empty body. Did NOT apply the
+    bots' literal patch (empty-check first), which would have regressed
+    empty-plaintext-with-formatted-body to render the placeholder instead of
+    the HTML. Added unit coverage for both empty cases.
+  - Expand/collapse-all module global (`currentExpandAllState`) + render-phase
+    `resetExpandAllState()` (the latter newly introduced by this PR) were
+    flagged as a React anti-pattern. Replaced with `ExpandAllInitContext`, an
+    instance-scoped React context provided by `RoomTimeline` from a new
+    `expandAllOverride` state — render-pure, and reset for free by the
+    room:thread-keyed remount (no module global, no render-phase write). The
+    pre-existing `listeners` bus still toggles already-mounted rows. Note: the
+    bus predates this PR and only one `RoomTimeline` mounts at a time
+    (keyed single instance), so the multi-timeline sharing concern is
+    theoretical; converting the bus itself to context was left out of scope.
+  - Settle-loop scroll-intent listeners are now removed as soon as settling
+    finishes (stable, capped, or cancelled) instead of only on effect
+    teardown.
+  - 90-frame settle cap (greptile P2): kept. If it ever caps short, the next
+    near-bottom live event re-pins and the Jump-to-Latest chip is the explicit
+    fallback; probes land at the bottom in well under the cap.
+  - Validation: `npm test` (308 files, 2304 tests), `npm run typecheck`,
+    `npm run lint` (18 warnings, 0 errors), `npm run build`, and the perf
+    probe (16 mounted rows, 482ms burst, 0 long tasks, open-at-latest lands).
+- Rebase onto dev + multi-agent self-review (2026-06-14):
+  - Rebased the branch onto latest `origin/dev` (PRs #43–#49 landed under it).
+    One conflict in `MindroomRoomTimeline.tsx`; dev's #49 change
+    (`justifyContent={threadId ? 'Start' : 'End'}`) lived only inside the
+    conflict block and was preserved explicitly (verified no reversion of any
+    dev change in the final diff).
+  - Ran a workflow-orchestrated review: 5 parallel reviewers (scroll/timing
+    correctness, React semantics, parse-memo semantics, rebase integration,
+    test quality), every finding then adversarially verified by a dedicated
+    skeptic agent. 13 raw findings → 10 confirmed, 3 refuted.
+  - Confirmed blocker (fixed): the thread prepend compensation never fired in
+    production — `threadEvents[0]` is permanently the thread root (oldest ts),
+    so the "first event id changed" prepend detector could not trigger; the
+    covering unit test only passed because its mock omitted the root at index 0. Detection now keys on the pending back-pagination anchor's index
+    shifting upward, and the unit test uses the production shape (root at
+    index 0; red under the old detector).
+  - Confirmed concern (fixed): the compensation effect's cleanup cancelled the
+    fine-correction rAF chain and expired the anchor on ANY `threadEvents`
+    identity change (every streaming edit). The retry chain now lives in a ref
+    — it survives unrelated updates and ends only on restore success, anchor
+    expiry (5 attempts), a newer prepend, or unmount; cleanup no longer clears
+    the anchor.
+  - Confirmed concern (fixed): in-thread jump-to-event (reply-quote clicks,
+    permalinks into the open thread) silently no-oped for loaded-but-unmounted
+    rows — `handleOpenEvent` found the index but `getEventElementById`
+    returned null and it gave up. `roomEventOpenController` now accepts
+    `scrollThreadEventIntoView`, scrolls the virtual index into view, and
+    retries the element scroll over up to 4 frames.
+  - Confirmed, accepted as documented tradeoffs (no change): mention-pill
+    display names freeze at parse time under memoization (step 1 decision);
+    per-row collapse state resets when a virtualized row unmounts and remounts
+    (virtualization tradeoff, expand-all override covers the bulk case).
+  - Confirmed test gaps (follow-ups, not blocking): the settle loop and the
+    ExpandAllInitContext provider wiring lack direct unit coverage (harness
+    mocks replace CollapsibleMessage/context; behavior is exercised live);
+    `roomEventOpenController` has no dedicated unit harness — the new
+    unmounted-row retry is covered via e2e only.
+  - Confirmed nit (documented): scrollbar-thumb drags emit no wheel/pointer
+    events mid-drag (Chromium: only the initial pointerdown; Firefox: none),
+    so a drag starting >400ms before leaving the near-bottom zone does not
+    suppress the open pin during the brief pending-open window.
+  - Refuted by verification (no action): bottom-pin landing permanently short
+    due to estimate staleness (undershoot is bounded by the container padding,
+    ≤ the near-bottom threshold); local-echo key-flip causing visible jitter
+    (re-measure commits before paint); marker-message re-parse defeating the
+    memo (intentional, correctness-motivated, documented).
+  - Validation: `npm test` (313 files, 2330 tests) green after rebase and
+    after fixes; typecheck/lint/build green; e2e `cinny070` + `cinny033` +
+    perf probe green (16 mounted rows, ~500ms burst, 0 long tasks).
+- Live-test hardening pass (2026-07-01):
+  - Added `e2e/live/thread-virtualization-behaviors.spec.ts` — four permanent
+    live guards for behaviors only observable with real scroll geometry and a
+    real /sync stream: (1) open-at-latest lands the newest reply in the
+    viewport with a bounded mounted-row count; (2) streaming edits do not yank
+    a wheel-scrolled-up reader back to the bottom (anti-trap); (3) clicking a
+    reply quote that targets a loaded-but-unmounted row scrolls to and mounts
+    it; (4) `[+all]` expand-all applies to rows mounted only after scrolling
+    far up. All four pass.
+  - Writing guard (3) exposed two real gaps in the unmounted-row jump fix,
+    both fixed:
+    - `handleOpenEvent`'s thread-membership guard used `room.findEventById`,
+      which only searches SDK structures; events loaded through the MindRoom
+      thread cache failed the guard and the click silently returned. The
+      render index map is now the authoritative membership test, with the SDK
+      lookup as fallback for unknown events.
+    - The unmounted-row retry only re-queried the DOM; with estimate-based
+      offsets a distant `scrollToIndex` lands off-target and never mounts the
+      row. The retry now re-issues `scrollToIndex` each frame (up to 12) so
+      the jump converges as freshly mounted rows report real sizes.
+  - Pre-existing finding (NOT this PR, filed for follow-up): large threads
+    load all but their oldest ~30 replies and then show no Load Older chip —
+    observed as `mapSize 171` for a 201-event thread and `131` for a
+    161-event thread; the thread-open/pagination pipeline reports no backward
+    token while events remain. Predates virtualization (same pipeline on
+    dev); means the oldest replies of a long thread are currently
+    unreachable. Deserves its own investigation.
+  - Test-harness notes: the Load Older chip's accessible name flips to
+    "Loading..." mid-pagination — pagination loops must wait through that
+    state; message rows carry `data-event-id` on their own controls, so quote
+    clicks must match the quoted id specifically.
+  - Interactive visual pass (chrome-devtools against a 200-reply seeded
+    thread) found two more items:
+    - Fixed: Jump to Latest from mid-thread landed ~440px short of the bottom
+      and stayed there (with the chip hidden). Jumps issue a smooth pin, and
+      the settle loop skipped smooth pins — the earlier review verdict that
+      "smooth pins only occur near bottom" missed the far-jump path. The
+      settle loop now also runs for smooth pins: it observes without
+      correcting while the animation is still moving, then instant-corrects
+      any leftover measurement gap once motion stops (verified live:
+      gapToBottom 0 after a far jump).
+    - Pre-existing (NOT this PR): mid-thread replies can render interleaved
+      out of send order. Traced to the server: Tuwunel assigned inverted
+      `origin_server_ts` under load (e.g. reply 131 stamped between replies
+      118 and 119 while reply 130 got a later ts), and the fork's thread
+      model sorts by ts (`mergeThreadRenderEvents`, unchanged by this PR and
+      identical on dev). Virtualization renders the ts-sorted array
+      faithfully. Follow-up: consider topological/stream ordering instead of
+      ts sort, and check whether prod homeservers exhibit ts inversion.
+    - Verified visually: sender-collapse grouping and row alignment are
+      correct across virtualization window boundaries while scrolling;
+      expand-all leaves zero collapsed rows including late-mounted ones.
+- Compact room view pass (2026-07-01):
+  - The compact overview is a separate render branch the earlier steps did
+    not touch: all thread cards mount unvirtualized, and every thread-index
+    refresh (each streaming edit anywhere in the room) rebuilt every card
+    view model with a fresh identity and re-rendered every card.
+  - New probe `e2e/live/perf-compact-view.spec.ts` (150 threads, 40-edit
+    streaming burst): baseline `cdpTaskDurationMs` 2023 (~50ms per chunk,
+    O(thread count)); cards are light (~3.7k DOM nodes for 150), so DOM size
+    is not the bottleneck — the O(N) re-render is.
+  - Fix: `useCompactThreadCardViewModels` reuses the previous view-model
+    instance when a rebuilt record produces content-identical output
+    (JSON signature per thread root); `CompactThreadCard` is memoized; the
+    card click handler is fully stable (refs for the view-model map and
+    `onThreadClick`). Unit test pins identity reuse across rebuilt records
+    and identity change on content change.
+  - Probe after: `cdpTaskDurationMs` 2023 → 832 (−59%), ~20ms per chunk. The
+    residual is the O(N) view-model/index rebuild per refresh — acceptable at
+    150 threads; card-list virtualization and index-level incremental updates
+    are the follow-ups if rooms grow into many hundreds of threads.
+- Fast-scroll flicker fix (2026-07-01, user-reported):
+  - Report: in a 400-message thread with `[+all]` active, fast upward
+    scrolling flickers (content jumps up/down), and near the top the view
+    visibly shifts down.
+  - New probe `e2e/live/perf-thread-scroll-stability.spec.ts`: expands all
+    rows, wheel-scrolls up fast with real input, and tracks ONE anchored row
+    by identity per frame; a frame where the anchor's viewport delta diverges
+    from the scroll delta is a user-visible jump. (First metric version
+    compared different rows across frames and produced identical garbage
+    across code variants — anchor-by-identity is the honest measurement.)
+  - Baseline: 8 jump frames per run, max 612px. Cause: the static
+    `estimateSize` (96/144px) is far off for expanded rows (~330px+); every
+    row mounting above the viewport corrected offsets by that error, and the
+    correction's scroll adjustment and tile repositioning land a frame apart.
+  - Fix: a learned per-thread row-height estimate — running mean of measured
+    tile heights, adopted into state with hysteresis (>25% change, ≥8
+    samples) so TanStack recomputes cleanly (a mutating ref leaves stale
+    mixed estimates); stats reset on room/thread change and on
+    expand/collapse-all (height regime change); scoped to threads so a
+    thread's learned size never leaks into room estimates.
+  - Result: 0 jump frames across three consecutive probe runs (one earlier
+    run showed a single 216px jump); all behavior guards, cinny033/070, and
+    the streaming probe unchanged.
+  - Also hardened: the room jump-to-latest keeps smooth scrolling only when
+    the target row is already mounted — smooth scrolling to an unmounted
+    target is unsupported with dynamic measurement and can stop short.
+  - Investigated and rejected: upgrading @tanstack/react-virtual 3.2.0 →
+    3.14.5 with `directDomUpdates` (sync tile repositioning). The honest
+    metric showed the learned estimate alone reaches 0 jumps on 3.2.0, and
+    the upgrade regressed the room jump-to-latest e2e — reverted; not worth
+    the dependency risk. CSS `overflow-anchor: auto` for threads was likewise
+    tried and reverted (no measurable contribution).
+- PR #44 review round 2 (2026-07-01, coderabbit on the pushed branch):
+  - Fixed: `initially-expanded` rows mounted collapsed for one paint under an
+    active collapse-all override (initializer now checks the mode before the
+    context override; test pins the first rendered state); the
+    thread-membership guard's early return now fires `onScroll(false)`
+    (pre-existing omission in touched lines); the streaming perf probe's Load
+    Older loop waits through the "Loading..." label.
+  - Added: test pinning that an explicit empty-string `customBody` falls
+    through to the plain-text path (behavior unchanged; now pinned).
+  - Declined with reasoning: re-indexing the thread virtualizer to
+    renderable-only rows — empty tiles measure ~0px, jump targets are always
+    renderable, all live guards pass on threads containing edits; the remap
+    would touch every index consumer for cosmetic gain (documented follow-up).
+- PR #44 review round 3 (2026-07-01, independent adversarial workflow on user
+  request: 5 finder lenses, each finding adversarially verified):
+  - Fixed (blocker): the thread prepend compensation never armed in quiet
+    threads. The pre-prepend snapshot was taken inside a `threadEvents`-gated
+    effect, but clicking Load Older does not change `threadEvents`, so the
+    effect first observed the anchor in the prepend render itself and the
+    index-shift comparison had no "before" to compare against. `begin()` is
+    now wrapped (`beginThreadBackPaginationWithCapture`) to record the pending
+    anchor's event id + index synchronously at click time; the layout effect
+    compensates when that anchor's index shifts upward.
+  - Fixed (harness fidelity, masked the blocker): the shared
+    `@tanstack/react-virtual` test mock returned a fresh virtualizer object on
+    every render, so dep-gated effects re-ran each render in tests and hid
+    production dead code. The mock now returns one stable instance per
+    harness state, delegating live options through a ref like the real
+    library.
+  - Fixed: learned thread row-height adoption is now gated to bottom-pinned
+    or open-at-latest-pending moments so a mid-thread reader can never have
+    unmounted-row offsets re-derived under the viewport; switching message
+    layout (compact/modern) now also resets the learned estimate.
+  - Fixed: programmatic in-thread jumps (reply-quote clicks, permalink opens)
+    emit no user scroll-intent events, so an active bottom-settle loop could
+    yank a just-initiated jump back to the bottom. The settle loop exposes its
+    stop function via ref; `scrollThreadEventIntoView` and the open
+    controller's thread branch cancel it (`cancelThreadBottomSettle`).
+  - Fixed (nit): overlapping unmounted-row jump retry chains for different
+    targets could fight across frames; a generation counter invalidates the
+    superseded chain.
+  - Live-validation fallout: the first post-fix `cinny070` run failed and
+    exposed that the spec's bare `scrollTop = 0` emits no user scroll intent,
+    so the round-2 settle loop yanked the view back to the bottom before the
+    anchor was captured — the spec was not exercising prepend-at-top at all
+    (video frames show the "Jump to Latest" chip flash with no visible
+    movement). Product hardening: the compensation now coarse-scrolls only
+    when the anchor row is unmounted (its only job is to mount the row for
+    the DOM-based restore; a mounted anchor gets the same-commit
+    fine-correction alone). Spec fidelity: `cinny070` dispatches a wheel
+    event before scrolling, matching the product contract that user intent
+    cancels the pin. The prepend unit test's mock DOM now unmounts the anchor
+    on prepend (production shape), and a companion test pins the
+    mounted-anchor skip.
+  - Independent reviewer pass over the round-3 fix diff found and fixed:
+    `beginThreadBackPaginationWithCapture` wiped the in-flight capture before
+    checking that `begin()` accepted (a double-click on "Loading..." would
+    disarm the live pagination's compensation — the fixed blocker reopening
+    through a one-line ordering mistake); the prepend fine-restore chain now
+    owns only the anchor it detected (a rapid second Load Older's fresh
+    anchor is no longer restored or expired by the stale chain);
+    `measureThreadTile` keeps a stable identity across open-pending flips
+    (reads the flag via ref) so all mounted rows are not re-attached and
+    double-counted into the row-size stats; dropped the capture's dead
+    `length` field; documented the mock's single-consumer WeakMap keying.
+  - Reviewer-accepted residuals (documented, not fixed): adoption while
+    bottom-anchored with no active settle loop can displace without a re-pin
+    until the next live event (rare: needs a quiet thread + expand-all +
+    return to bottom); `cinny070`'s wheel-intent dispatch narrows but cannot
+    close the race with a pin that starts after the dispatch; a smooth
+    in-thread jump started from the bottom can still be yanked by a
+    streaming re-pin that arrives during its first frames (pre-existing).
+  - Round 3 validation: `npm run typecheck`; `npm test` (314 files, 2333
+    tests); `npm run lint` (18 warnings, 0 errors — baseline); `npm run
+    build`; live against docker-matrix: `cinny070` ×3 serial green,
+    `thread-virtualization-behaviors` 4/4, `perf-thread-scroll-stability`
+    green, `perf-thread-streaming` 0 long tasks.
+- PR #44 review round 4 (2026-07-01, external codex review supplied by the
+  user; every claim verified against the code before editing, two of them by
+  dedicated verification subagents):
+  - Already fixed in round 3 (confirmed overlap): the prepend-detector
+    never-arms blocker + fresh-mock masking, and the double-Load-Older retry
+    chain expiring the newer anchor.
+  - Fixed (confirmed, virtual-window primer parity): the primers skipped
+    reaction/edit events and marked the nearest real message as rendered,
+    while the sequential path keeps the edit as `prevEvent` with
+    `isPrevRendered = false` — so a message following an edit burst rendered
+    collapsed only when the window started on it, flipping its height (and
+    reply-preview visibility) as the boundary crossed the burst and staling
+    the per-event measurement cache: flicker in exactly MindRoom's edit-heavy
+    streaming threads. Both primers (thread and room paths) now derive
+    context through `primeTimelineRenderContextBefore` in
+    `threadRenderUtils.ts`, unit-tested including a sequential-fold parity
+    property over every window start. The claim's day-divider sub-case was
+    refuted (thread events are strictly ts-sorted, so the sticky pairwise
+    chain agrees across midnight) and unread dividers do not apply to the
+    thread path.
+  - Verified and corrected the learned-estimate comment instead of taking the
+    suggested fix: on virtual-core 3.2.0, `estimateSize` is not a memo dep;
+    new estimates reach unmeasured rows because state guarantees a render and
+    the inline `getItemKey` invalidates `memoOptions -> getMeasurements`
+    every render (full rebuild; measured heights persist in `itemSizeCache`).
+    The review's proposed lever — memoizing `getItemKey` — would stop new
+    estimates from ever reaching the unvisited region above the viewport
+    (partial rebuilds copy stale estimates below the min measured index) and
+    silently regress the flicker fix; the O(count) per-render rebuild is
+    microseconds at current sizes. Comment now states the real mechanics and
+    warns against the memoization; the `height > 0` stats guard (zero-height
+    edit/reaction tiles excluded from the learned mean) is documented at the
+    guard.
+  - Fixed (small, confirmed): `CompactRoomView` latest-value refs now sync in
+    a layout effect instead of during render (concurrent-render safety); the
+    compact-view probe counts real cards (`[data-thread-root-id]`, must reach
+    the seeded count) instead of any child of the container (the empty state
+    satisfied the old assertion); the scroll-stability probe hard-asserts the
+    sampler produced frames (it previously had no assertions at all); the
+    expand-all guard scopes `[aria-expanded]` to `[data-message-item]`
+    descendants; the offline spec's "Failed to connect to homeserver" branch
+    was dropped (only `SpecVersions.tsx` renders connectivity text, and only
+    the "Unable to connect" wording); the two divergent load-all-older loops
+    (the streaming spec's could exit early during the label flip) are
+    consolidated into `e2e/helpers/threadTimeline.ts` with double-check
+    completion.
+  - Declined with reasoning: consolidating the scroller-discovery walks and
+    reply-seeding loops across the four new specs — the walks live inside
+    `page.evaluate` closures (sharing requires function-stringification
+    hacks) and the fixture shapes are spec-specific and pinned to published
+    baseline measurements; `handleOpenEvent`'s `!alive()` exit not firing
+    `onScroll` — the component is unmounted, so there is no spinner state
+    left to settle and invoking the callback would touch an unmounted tree.
+  - Documented (accepted residual): Firefox dispatches no pointer events for
+    scrollbar interaction, so during the ~2.5s settle window after
+    open/Jump-to-Latest a scrollbar thumb-drag that pauses off-bottom is
+    re-pinned; wheel/touch/keyboard all cancel normally. A
+    scroll-delta-opposing-the-pin heuristic would close this and the 400ms
+    intent-window nit together (follow-up).
+  - Round 4 validation: `npm run typecheck`; `npm test` (314 files, 2339
+    tests — 6 new primer-parity tests); `npm run lint` (18 warnings,
+    baseline); `npm run build`; live: `cinny070`, `perf-compact-view`,
+    `perf-thread-scroll-stability`, `perf-thread-streaming`,
+    `thread-virtualization-behaviors` — 8/8 green.
+- PR #44 review round 5 (2026-07-02, final scoped workflow over the rounds
+  3-4 fix commits: 5 finder lenses, every finding judged by two adversarial
+  verifiers; 14 candidates -> 10 confirmed (7 distinct), 3 split, 1 refuted):
+  - Fixed (real regression from round 4): the primer parity fix primed only
+    `prevEvent`/`isPrevRendered` and dropped the sequential fold's carried
+    day divider — a midnight crossing latched at a null-rendered edit row is
+    consumed only by the next real message, so a window starting inside the
+    burst rendered that message WITHOUT its date divider, flipping its
+    height with the window boundary (round 4's "day-divider sub-case
+    refuted" argument was only valid under the old skip-edits primer).
+    `primeTimelineRenderContextBefore` now reconstructs the pending carry
+    (ts-sorted events make it endpoint-comparable from the nearest rendered
+    row), both primers apply it, and the fold-parity property test folds the
+    divider latch too.
+  - Fixed: a pagination that prepends nothing (empty/duplicate page) left
+    the pending anchor armed forever with no expiry path, so the next
+    appended reply could fire a click-time scroll restore minutes later
+    (pre-existing lifecycle, now converging). The same-commit DOM restore is
+    gated on the capture: unshifted-anchor commits skip it (appends), and
+    once the pagination has finished without prepending the anchor+capture
+    are expired.
+  - Fixed: mounted-target jumps now bump the jump generation, so a stale
+    unmounted-target retry chain (up to 12 frames) can no longer scroll the
+    viewport back to an older target after a newer click (also resolves both
+    split-verdict variants of the same mechanism).
+  - Fixed: the third programmatic jump path — a deferred pending-thread-open
+    whose target is already mounted when the retry effect fires
+    (`roomFocusScrollController`) — now cancels an active bottom-settle loop
+    like the other two paths.
+  - Fixed (nit): pending anchors carry a capture sequence token, so a
+    rapid re-capture anchoring the same event id cannot be restored or
+    expired by the previous pagination's retry chain.
+  - Fixed (test-strength): component-level pins for the primer wiring — the
+    grouping pin and the day-divider pin both verified to fail under a
+    faithful in-place revert (the first attempts were vacuous: the harness
+    mocks `reactionOrEditEvent` to false and `inSameDay` to true, erasing
+    the semantics under test; both are now overridable `vi.fn`s and the
+    divider pin asserts rendered text, not serialized props). The
+    scroll-stability probe also asserts `anchoredFrames > 20` (an anchorless
+    sampler silently zeroes the jump metric).
+  - `cinny070` batch flake root-caused (again, deeper): with the wheel-intent
+    fix in place the anchor now holds perfectly, but in slow batch runs the
+    thread-open bootstrap preloads the full history before the click and the
+    homeserver's pagination token lingers through empty pages, so the
+    spec's strict button-vanish wait timed out (pre-existing tail behavior,
+    the loader-gap family). The spec now drains via the shared
+    `loadAllOlderThreadMessages` loop — bounded, and extra prepends only
+    strengthen the anchor guard.
+  - Documented (accepted residuals, from the split/nit verdicts): a
+    non-pagination insert landing above the anchor (Tuwunel ts-inversion
+    family) can consume the capture before the real prepend; the room-path
+    `newDivider` latch has the same primer parity gap when the unread run
+    starts with the user's own message — verified PRE-existing (not from
+    these commits) and self-healing in the common index-based path;
+    lab-only jump/pin interleavings within the accepted race family.
+  - Round 5 validation: `npm run typecheck`; `npm test` (314 files, 2345
+    tests — 12 new); `npm run lint` (18 warnings, baseline); `npm run
+    build`; live: `cinny033` jump-to-latest + permalink, `cinny070` (x2
+    after hardening), `perf-compact-view`, `perf-thread-scroll-stability`,
+    `perf-thread-streaming`, `thread-virtualization-behaviors` 4/4. The
+    interrupted full-suite run also confirmed all 56 locally-seeded specs
+    green; the 10 failures were federation joins to the unreachable lab
+    fixture homeserver (environmental, documented in the e2e memory).
+- Next steps:
+  - Push is blocked locally: the `block-git-rewrites.py` hook rejects
+    `git push --force-with-lease`, which the rebase requires; needs a manual
+    push or explicit override.
+  - `cinny070` batch flakiness root-caused in round 3 (settle loop vs the
+    spec's intent-less programmatic scroll) and fixed on both sides.
+  - Investigate the pre-existing thread-history loader gap (oldest ~30
+    replies unreachable in large threads; no Load Older chip despite missing
+    events).
+  - Investigate the pre-existing ts-sort ordering: Tuwunel can assign
+    inverted origin_server_ts under load, and the thread model's ts sort then
+    interleaves replies out of send order (consider topological ordering).
+  - Add unit coverage for the settle loop, ExpandAllInitContext wiring, and a
+    `roomEventOpenController` harness (confirmed test-gap findings).
+  - If marker-bearing tool-trace threads still feel warm during very heavy
+    multi-agent streaming, revisit per-event caching of wrapped parser
+    options (deliberately skipped — see step 1 decisions).
+
 ### CINNY-131 - Default splash screens to WebGL background (2026-05-31)
 
 - Status:
