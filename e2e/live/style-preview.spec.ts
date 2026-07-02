@@ -1,8 +1,8 @@
 import { test } from '@playwright/test';
 
 const HOMESERVER = process.env.E2E_HOMESERVER || 'https://mindroom.lab.mindroom.chat';
-const USERNAME = process.env.E2E_USERNAME || 'e2e-test-bot';
-const PASSWORD = process.env.E2E_PASSWORD || 'e2e-test-pw-2026';
+const USERNAME = process.env.E2E_USERNAME;
+const PASSWORD = process.env.E2E_PASSWORD;
 const ROOM_ID = process.env.E2E_ROOM_ID || '!TFs182DGokWnICCUm6:mindroom.lab.mindroom.chat';
 const PREFIX = process.env.SHOT_PREFIX || 'before';
 // NOTE: keep outside test-results/ — Playwright wipes that dir on every run.
@@ -12,6 +12,7 @@ const settingsJson = (themeId: string, messageLayout: number) =>
   JSON.stringify({ useSystemTheme: false, themeId, messageLayout });
 
 test('capture styling screenshots', async ({ page }) => {
+  test.skip(!USERNAME || !PASSWORD, 'E2E_USERNAME / E2E_PASSWORD not set');
   test.setTimeout(300000);
   await page.setViewportSize({ width: 1440, height: 900 });
   // Unauth routes ignore stored settings and follow prefers-color-scheme.
@@ -26,8 +27,8 @@ test('capture styling screenshots', async ({ page }) => {
   await page.waitForTimeout(1000);
   await page.screenshot({ path: `${OUT}/${PREFIX}-login-dark.png` });
 
-  await page.fill('[name="usernameInput"]', USERNAME);
-  await page.fill('[name="passwordInput"]', PASSWORD);
+  await page.fill('[name="usernameInput"]', USERNAME as string);
+  await page.fill('[name="passwordInput"]', PASSWORD as string);
   await page.click('button[type="submit"]');
   await page.waitForURL(/\/home\/?$/, { timeout: 60000 });
   await page.waitForTimeout(8000); // initial sync

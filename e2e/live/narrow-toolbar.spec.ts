@@ -1,13 +1,14 @@
 import { expect, test } from '@playwright/test';
 
 const HOMESERVER = process.env.E2E_HOMESERVER || 'https://mindroom.lab.mindroom.chat';
-const USERNAME = process.env.E2E_USERNAME || 'e2e-test-bot';
-const PASSWORD = process.env.E2E_PASSWORD || 'e2e-test-pw-2026';
+const USERNAME = process.env.E2E_USERNAME;
+const PASSWORD = process.env.E2E_PASSWORD;
 const ROOM_ID = process.env.E2E_ROOM_ID || '!TFs182DGokWnICCUm6:mindroom.lab.mindroom.chat';
 const PREFIX = process.env.SHOT_PREFIX || 'before';
 const TOOLBAR = '[data-room-thread-overview="true"] [role="toolbar"]';
 
 test('narrow toolbar keeps groups in horizontal rows', async ({ page }) => {
+  test.skip(!USERNAME || !PASSWORD, 'E2E_USERNAME / E2E_PASSWORD not set');
   test.setTimeout(180000);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
@@ -18,8 +19,8 @@ test('narrow toolbar keeps groups in horizontal rows', async ({ page }) => {
     )
   );
   await page.goto(`/login/${encodeURIComponent(HOMESERVER)}/`);
-  await page.fill('[name="usernameInput"]', USERNAME);
-  await page.fill('[name="passwordInput"]', PASSWORD);
+  await page.fill('[name="usernameInput"]', USERNAME as string);
+  await page.fill('[name="passwordInput"]', PASSWORD as string);
   await page.click('button[type="submit"]');
   await page.waitForURL(/\/home\/?$/, { timeout: 60000 });
   await page.goto(`/home/${encodeURIComponent(ROOM_ID)}/`);
