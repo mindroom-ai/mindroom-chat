@@ -22,3 +22,15 @@ android/local.properties
 android/captures/
 android/.idea/
 ui-audit/
+
+
+# fastlane generated artifacts (ios/App); build output is covered by ios/.gitignore
+ios/App/vendor/
+ios/App/.bundle/
+ios/App/fastlane/report.xml
+ios/App/fastlane/Preview.html
+ios/App/fastlane/README.md
+ios/App/fastlane/test_output/
+ios/App/fastlane/screenshots/**/*.png
+ios/App/fastlane/screenshots/**/*.jpg
+ios/App/fastlane/screenshots/**/*.jpeg

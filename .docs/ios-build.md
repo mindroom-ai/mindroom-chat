@@ -83,6 +83,9 @@ to map this app/bundle/APNs environment and forward notifications to APNs.
 
 ## Archive for TestFlight / App Store
 
+Automated alternative: fastlane lanes cover the TestFlight upload, App Store
+metadata, and screenshot upload steps — see `.docs/ios-fastlane.md`.
+
 1. In Xcode, set scheme to `App` and destination to `Any iOS Device (arm64)`.
 2. Product → Archive.
 3. In Organizer, select the archive and click `Distribute App`.
