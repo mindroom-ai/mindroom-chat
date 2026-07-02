@@ -10,7 +10,12 @@ vi.mock('./CollapsibleMessage.css', () => ({
   CollapsiblePill: 'collapsible-pill',
 }));
 
-import { collapseAllMessages, expandAllMessages, CollapsibleMessage } from './CollapsibleMessage';
+import {
+  collapseAllMessages,
+  expandAllMessages,
+  ExpandAllInitContext,
+  CollapsibleMessage,
+} from './CollapsibleMessage';
 
 type MockContentElement = Pick<HTMLDivElement, 'clientHeight' | 'scrollHeight'>;
 type MockGradientElement = { focus: ReturnType<typeof vi.fn> };
@@ -79,12 +84,22 @@ const renderCollapsibleMessage = (
     scrollHeight: 160,
   },
   gradientElement: MockGradientElement = { focus: vi.fn() },
-  children: React.ReactNode = React.createElement('span', undefined, 'message')
+  children: React.ReactNode = React.createElement('span', undefined, 'message'),
+  expandAllInit: boolean | undefined = undefined
 ) => {
   let renderer!: ReactTestRenderer;
 
+  const element = React.createElement(CollapsibleMessage as never, props as never, children);
+  // Only wrap when an override is provided; an undefined provider is equivalent
+  // to the default context, and leaving the element unwrapped keeps the root
+  // type stable for tests that drive their own renderer.update(...).
+  const tree =
+    expandAllInit === undefined
+      ? element
+      : React.createElement(ExpandAllInitContext.Provider, { value: expandAllInit }, element);
+
   act(() => {
-    renderer = create(React.createElement(CollapsibleMessage as never, props as never, children), {
+    renderer = create(tree, {
       createNodeMock: (element) => {
         if (
           element.type === 'div' &&
@@ -720,6 +735,90 @@ describe('CollapsibleMessage', () => {
         node.props.className === 'collapsible-close-button'
     );
     expect(legacy).toHaveLength(0);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('mounts later instances expanded when the expand-all override is active', () => {
+    const renderer = renderCollapsibleMessage(
+      { collapseMode: 'default' },
+      undefined,
+      undefined,
+      undefined,
+      true
+    );
+    const content = getContentContainer(renderer);
+
+    expect(content.props.style.maxHeight).toBeUndefined();
+    expect(content.props['aria-expanded']).toBe(true);
+    expect(getCloseButton(renderer).props['aria-label']).toBe('Show less');
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('mounts later instances collapsed when the collapse-all override is active', () => {
+    const renderer = renderCollapsibleMessage(
+      { collapseMode: 'default' },
+      undefined,
+      undefined,
+      undefined,
+      false
+    );
+    const content = getContentContainer(renderer);
+
+    expect(content.props.style.maxHeight).toBe('4.5em');
+    expect(content.props['aria-expanded']).toBe(false);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('mounts later instances with default behavior when no expand-all override is set', () => {
+    const renderer = renderCollapsibleMessage(
+      { collapseMode: 'default' },
+      undefined,
+      undefined,
+      undefined,
+      undefined
+    );
+    const content = getContentContainer(renderer);
+
+    expect(content.props.style.maxHeight).toBe('4.5em');
+    expect(content.props['aria-expanded']).toBe(false);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('keeps initially-expanded semantics for new instances while a collapse-all override is active', () => {
+    const onInitialExpandConsumed = vi.fn();
+    // Record every rendered expanded state: the FIRST render must already be
+    // expanded (a post-paint effect correction would flash collapsed on
+    // virtualized mounts).
+    const renderedStates: boolean[] = [];
+    const renderer = renderCollapsibleMessage(
+      {
+        collapseMode: 'initially-expanded',
+        onInitialExpandConsumed,
+      },
+      undefined,
+      undefined,
+      ({ expanded }: { expanded: boolean }) => {
+        renderedStates.push(expanded);
+        return React.createElement('span', undefined, 'message');
+      },
+      false
+    );
+
+    expect(renderedStates[0]).toBe(true);
+    expect(onInitialExpandConsumed).toHaveBeenCalledTimes(1);
+    expect(getContentContainer(renderer).props['aria-expanded']).toBe(true);
 
     act(() => {
       renderer.unmount();

@@ -1,11 +1,13 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
+import { inSameDay } from '../../utils/time';
 import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
   getThreadInitialRenderMode,
   mergeThreadRenderEvents,
   pickPreferredThreadRenderEvent,
+  primeTimelineRenderContextBefore,
   shouldPinThreadToBottomOnOpen,
 } from './threadRenderUtils';
 
@@ -377,5 +379,186 @@ describe('dedupeThreadRenderEventEntries', () => {
       { event: confirmed, absoluteIndex: 11 },
       { event: later, absoluteIndex: 13 },
     ]);
+  });
+});
+
+const DAY_MS = 86_400_000;
+
+describe('primeTimelineRenderContextBefore', () => {
+  const makeReactionEvent = (eventId: string, targetEventId: string, ts: number) =>
+    new MatrixEvent({
+      content: {
+        'm.relates_to': {
+          event_id: targetEventId,
+          key: '👍',
+          rel_type: 'm.annotation',
+        },
+      },
+      event_id: eventId,
+      origin_server_ts: ts,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.reaction',
+    });
+
+  const never = () => false;
+
+  it('marks a preceding normal message as rendered', () => {
+    const events = [makeMessageEvent('$a', 1), makeMessageEvent('$b', 2)];
+    const primed = primeTimelineRenderContextBefore((i) => events[i], 1, never);
+    expect(primed?.prevEvent.getId()).toBe('$a');
+    expect(primed?.isPrevRendered).toBe(true);
+  });
+
+  it('keeps a preceding edit as prevEvent with isPrevRendered false, matching the sequential path', () => {
+    // Sequential rendering sets prevEvent to the edit itself (rendered null),
+    // so the following message never collapses. The primer must agree, or the
+    // row's height flips as the virtual window boundary crosses the edit.
+    const events = [
+      makeMessageEvent('$a', 1),
+      makeEditEvent('$a', '$edit-1', 2),
+      makeMessageEvent('$b', 3),
+    ];
+    const primed = primeTimelineRenderContextBefore((i) => events[i], 2, never);
+    expect(primed?.prevEvent.getId()).toBe('$edit-1');
+    expect(primed?.isPrevRendered).toBe(false);
+  });
+
+  it('treats a preceding reaction like an edit', () => {
+    const events = [
+      makeMessageEvent('$a', 1),
+      makeReactionEvent('$react-1', '$a', 2),
+      makeMessageEvent('$b', 3),
+    ];
+    const primed = primeTimelineRenderContextBefore((i) => events[i], 2, never);
+    expect(primed?.prevEvent.getId()).toBe('$react-1');
+    expect(primed?.isPrevRendered).toBe(false);
+  });
+
+  it('passes over skipped events to the nearest surviving one', () => {
+    const events = [
+      makeMessageEvent('$a', 1),
+      makeMessageEvent('$ignored', 2),
+      makeMessageEvent('$b', 3),
+    ];
+    const primed = primeTimelineRenderContextBefore(
+      (i) => events[i],
+      2,
+      (event) => event.getId() === '$ignored'
+    );
+    expect(primed?.prevEvent.getId()).toBe('$a');
+    expect(primed?.isPrevRendered).toBe(true);
+  });
+
+  it('returns undefined when nothing precedes the window', () => {
+    const events = [makeMessageEvent('$a', 1)];
+    expect(primeTimelineRenderContextBefore((i) => events[i], 0, never)).toBeUndefined();
+    expect(
+      primeTimelineRenderContextBefore(
+        (i) => events[i],
+        1,
+        () => true
+      )
+    ).toBeUndefined();
+  });
+
+  it('carries a pending day divider latched at a trailing edit', () => {
+    // Sequential fold: the midnight crossing is detected at the (null-
+    // rendered) edit row and carried until the next real message consumes
+    // it; the primer must reconstruct that carry or the date divider (and
+    // the row's height) flips with the virtual window boundary.
+    const events = [
+      makeMessageEvent('$m1', 1_000),
+      makeEditEvent('$m1', '$e1', 1_000 + 3 * DAY_MS),
+      makeMessageEvent('$m2', 1_000 + 3 * DAY_MS + 60_000),
+    ];
+    const primed = primeTimelineRenderContextBefore((i) => events[i], 2, never);
+    expect(primed?.prevEvent.getId()).toBe('$e1');
+    expect(primed?.pendingDayDivider).toBe(true);
+  });
+
+  it('does not carry a day divider when the trailing edits stay in the same day', () => {
+    const events = [
+      makeMessageEvent('$m1', 1_000),
+      makeEditEvent('$m1', '$e1', 2_000),
+      makeMessageEvent('$m2', 3_000),
+    ];
+    const primed = primeTimelineRenderContextBefore((i) => events[i], 2, never);
+    expect(primed?.pendingDayDivider).toBe(false);
+  });
+
+  it('treats a rendered previous row as having consumed the divider', () => {
+    // M2 renders on day 2 and consumes the divider; a window starting after
+    // it must not re-carry the crossing.
+    const events = [
+      makeMessageEvent('$m1', 1_000),
+      makeEditEvent('$m1', '$e1', 1_000 + 3 * DAY_MS),
+      makeMessageEvent('$m2', 1_000 + 3 * DAY_MS + 60_000),
+      makeMessageEvent('$m3', 1_000 + 3 * DAY_MS + 120_000),
+    ];
+    const primed = primeTimelineRenderContextBefore((i) => events[i], 3, never);
+    expect(primed?.prevEvent.getId()).toBe('$m2');
+    expect(primed?.pendingDayDivider).toBe(false);
+  });
+
+  it('carries a crossing that happens between two leading edits with nothing rendered before', () => {
+    const events = [
+      makeEditEvent('$x', '$e1', 1_000),
+      makeEditEvent('$x', '$e2', 1_000 + 3 * DAY_MS),
+      makeMessageEvent('$m1', 1_000 + 3 * DAY_MS + 60_000),
+    ];
+    expect(primeTimelineRenderContextBefore((i) => events[i], 2, never)?.pendingDayDivider).toBe(
+      true
+    );
+    // A single leading edit has no adjacent pair before it: no carry.
+    expect(primeTimelineRenderContextBefore((i) => events[i], 1, never)?.pendingDayDivider).toBe(
+      false
+    );
+  });
+
+  it('matches folding the sequential context update over every prior event', () => {
+    // Sequential parity property: for any window start, priming must equal
+    // applying the sequential rule in order — skipped events untouched;
+    // every other event becomes prevEvent (rendered iff not a
+    // reaction/edit); the day divider latches on any adjacent crossing and
+    // resets only when a rendered row consumes it.
+    const events = [
+      makeMessageEvent('$m1', 1_000),
+      makeEditEvent('$m1', '$e1', 2_000),
+      makeEditEvent('$m1', '$e2', 1_000 + 3 * DAY_MS),
+      makeMessageEvent('$skip-me', 1_000 + 3 * DAY_MS + 1_000),
+      makeMessageEvent('$m2', 1_000 + 3 * DAY_MS + 2_000),
+      makeReactionEvent('$r1', '$m2', 1_000 + 6 * DAY_MS),
+      makeMessageEvent('$m3', 1_000 + 6 * DAY_MS + 1_000),
+      makeEditEvent('$m3', '$e3', 1_000 + 9 * DAY_MS),
+    ];
+    const isSkipped = (event: MatrixEvent) => event.getId() === '$skip-me';
+    const isEditOrReaction = (event: MatrixEvent) =>
+      ['m.annotation', 'm.replace'].includes(
+        (event.getContent()['m.relates_to'] as { rel_type?: string } | undefined)?.rel_type ?? ''
+      );
+
+    for (let windowStart = 0; windowStart <= events.length; windowStart += 1) {
+      let foldedPrev: MatrixEvent | undefined;
+      let foldedRendered = false;
+      let foldedDayDivider = false;
+      for (let i = 0; i < windowStart; i += 1) {
+        const event = events[i];
+        if (isSkipped(event)) continue;
+        if (!foldedDayDivider) {
+          foldedDayDivider = foldedPrev ? !inSameDay(foldedPrev.getTs(), event.getTs()) : false;
+        }
+        foldedPrev = event;
+        foldedRendered = !isEditOrReaction(event);
+        if (foldedRendered) {
+          foldedDayDivider = false;
+        }
+      }
+
+      const primed = primeTimelineRenderContextBefore((i) => events[i], windowStart, isSkipped);
+      expect(primed?.prevEvent.getId()).toBe(foldedPrev?.getId());
+      expect(primed?.isPrevRendered ?? false).toBe(foldedRendered);
+      expect(primed?.pendingDayDivider ?? false).toBe(foldedDayDivider);
+    }
   });
 });

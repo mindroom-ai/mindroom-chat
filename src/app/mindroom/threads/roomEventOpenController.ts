@@ -8,24 +8,13 @@ import {
   type SetStateAction,
 } from 'react';
 import type { NavigateOptions } from 'react-router-dom';
-import type {
-  EventTimeline,
-  MatrixClient,
-  MatrixEvent,
-  Room,
-  Thread,
-} from 'matrix-js-sdk';
+import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import type { ScrollToElement, ScrollToItem } from '../../hooks/useVirtualPaginator';
 import type { RoomViewMode } from './roomViewMode';
-import type {
-  ThreadFilterState,
-  ThreadSortFreezeState,
-} from './roomThreadOverviewModel';
-import {
-  getRenderableEventEntries,
-} from './roomTimelineEvents';
+import type { ThreadFilterState, ThreadSortFreezeState } from './roomThreadOverviewModel';
+import { getRenderableEventEntries } from './roomTimelineEvents';
 import {
   getEmptyTimeline,
   getInitialTimeline,
@@ -40,10 +29,7 @@ import {
 import { useEventTimelineLoader } from './timelinePaginationController';
 import { resolveRoomEventThreadRedirect } from './roomDeepLink';
 import { getRoomEventFocusTarget } from './threadRoomFocus';
-import {
-  buildVisibleThreadReplyCountMap,
-  eventBelongsToThread,
-} from './threadUtils';
+import { buildVisibleThreadReplyCountMap, eventBelongsToThread } from './threadUtils';
 import type { PendingThreadOpen } from './threadOpenTargetEvent';
 import type { ThreadScheduledStatus } from './threadScheduledStatus';
 import type { ThreadResolutionState } from './useRoomThreadTags';
@@ -63,6 +49,7 @@ export type OpenRoomEventHandler = (
 
 export const useRoomEventOpenController = ({
   alive,
+  cancelThreadBottomSettle,
   effectiveViewMode,
   focusEventInRoom,
   hideMembershipEvents,
@@ -82,6 +69,7 @@ export const useRoomEventOpenController = ({
   safePaginationLimitRef,
   scheduledStatusMap,
   scrollRef,
+  scrollThreadEventIntoView,
   scrollToBottomRef,
   scrollToElement,
   scrollToItem,
@@ -103,6 +91,7 @@ export const useRoomEventOpenController = ({
   threadSummaryInfoMap,
 }: {
   alive: () => boolean;
+  cancelThreadBottomSettle?: () => void;
   effectiveViewMode: RoomViewMode;
   focusEventInRoom?: boolean;
   hideMembershipEvents: boolean;
@@ -127,6 +116,7 @@ export const useRoomEventOpenController = ({
   safePaginationLimitRef: MutableRefObject<number>;
   scheduledStatusMap: Map<string, ThreadScheduledStatus>;
   scrollRef: RefObject<HTMLElement>;
+  scrollThreadEventIntoView?: (eventId: string) => boolean;
   scrollToBottomRef: MutableRefObject<{ count: number; smooth: boolean }>;
   scrollToElement: ScrollToElement;
   scrollToItem: ScrollToItem;
@@ -150,6 +140,8 @@ export const useRoomEventOpenController = ({
   handleOpenEvent: OpenRoomEventHandler;
   redirectRoomEventDeepLink: (eventId: string) => boolean;
 } => {
+  const threadJumpGenerationRef = useRef(0);
+
   const redirectRoomEventDeepLink = useCallback(
     (targetEventId: string, linkedTimelines?: EventTimeline[]): boolean => {
       if (effectiveViewMode === 'classic') {
@@ -340,15 +332,27 @@ export const useRoomEventOpenController = ({
   const handleOpenEvent = useCallback<OpenRoomEventHandler>(
     async (evtId, highlight = true, onScroll = undefined) => {
       if (threadId && evtId !== threadId) {
-        const targetEvent = room.findEventById(evtId);
-        if (!targetEvent || !eventBelongsToThread(targetEvent, threadId)) {
-          return;
+        // The render index map is authoritative thread membership: events
+        // loaded through the MindRoom thread cache may be absent from the SDK
+        // room/thread structures that findEventById searches.
+        const isRenderedThreadEvent = threadEventIndexMapRef.current.has(evtId);
+        if (!isRenderedThreadEvent) {
+          const targetEvent = room.findEventById(evtId);
+          if (!targetEvent || !eventBelongsToThread(targetEvent, threadId)) {
+            if (onScroll) onScroll(false);
+            return;
+          }
         }
       }
 
       if (threadId) {
         const threadItemIndex = threadEventIndexMapRef.current.get(evtId);
         if (typeof threadItemIndex === 'number') {
+          cancelThreadBottomSettle?.();
+          // Every jump supersedes any prior jump's retry chain — including
+          // mounted-target jumps, which otherwise lose to a stale
+          // unmounted-target chain still scrolling toward the older target.
+          threadJumpGenerationRef.current += 1;
           const target = getEventElementById(scrollRef.current, evtId);
           setFocusItem({
             eventId: evtId,
@@ -363,6 +367,37 @@ export const useRoomEventOpenController = ({
               stopInView: true,
             });
             if (onScroll) onScroll(true);
+            return;
+          }
+          // Under thread virtualization a loaded-but-distant row is unmounted;
+          // scroll its virtual index into view and retry until the row mounts.
+          // The virtualizer positions by estimated row heights, so a distant
+          // jump converges over a few re-issued scrolls as freshly mounted
+          // rows report their real sizes.
+          if (scrollThreadEventIntoView?.(evtId)) {
+            const generation = threadJumpGenerationRef.current;
+            let attempts = 0;
+            const retryScrollToMountedTarget = () => {
+              if (!alive() || threadJumpGenerationRef.current !== generation) return;
+              const retryTarget = getEventElementById(scrollRef.current, evtId);
+              if (retryTarget) {
+                scrollToElement(retryTarget, {
+                  behavior: 'smooth',
+                  align: 'center',
+                  stopInView: true,
+                });
+                if (onScroll) onScroll(true);
+                return;
+              }
+              attempts += 1;
+              if (attempts < 12) {
+                scrollThreadEventIntoView(evtId);
+                requestAnimationFrame(retryScrollToMountedTarget);
+                return;
+              }
+              if (onScroll) onScroll(false);
+            };
+            requestAnimationFrame(retryScrollToMountedTarget);
             return;
           }
           if (onScroll) onScroll(false);
@@ -425,11 +460,14 @@ export const useRoomEventOpenController = ({
       }
     },
     [
+      alive,
+      cancelThreadBottomSettle,
       loadEventTimeline,
       mx,
       pendingThreadOpenRef,
       room,
       scrollRef,
+      scrollThreadEventIntoView,
       scrollToElement,
       scrollToItem,
       setFocusItem,
