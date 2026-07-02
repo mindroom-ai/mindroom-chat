@@ -22,7 +22,8 @@ test('capture styling screenshots', async ({ page }) => {
   await page.evaluate((s) => localStorage.setItem('settings', s), settingsJson('dark-theme', 0));
   await page.goto(`/login/${encodeURIComponent(HOMESERVER)}/`);
   await page.waitForSelector('[name="usernameInput"]', { timeout: 30000 });
-  await page.waitForTimeout(2000);
+  // Settle: fonts and the WebGL splash need a moment to paint before capture.
+  await page.waitForTimeout(1000);
   await page.screenshot({ path: `${OUT}/${PREFIX}-login-dark.png` });
 
   await page.fill('[name="usernameInput"]', USERNAME);
@@ -43,12 +44,15 @@ test('capture styling screenshots', async ({ page }) => {
       settingsJson(c.theme, c.layout)
     );
     await page.goto(`/home/${encodeURIComponent(ROOM_ID)}/`);
-    await page.waitForTimeout(6000);
     const view = page.getByRole('button', { name: 'View', exact: true });
     if (await view.isVisible().catch(() => false)) {
       await view.click();
-      await page.waitForTimeout(5000);
     }
+    await page
+      .waitForSelector('[data-room-thread-overview="true"]', { timeout: 20000 })
+      .catch(() => {});
+    // Settle: avatars/fonts finish painting before capture.
+    await page.waitForTimeout(1500);
     await page.screenshot({ path: `${OUT}/${PREFIX}-room-${c.name}.png` });
 
     if (c.name === 'dark-modern' || c.name === 'dark-bubble') {
