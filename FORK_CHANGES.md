@@ -983,6 +983,19 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
     the upgrade regressed the room jump-to-latest e2e — reverted; not worth
     the dependency risk. CSS `overflow-anchor: auto` for threads was likewise
     tried and reverted (no measurable contribution).
+- PR #44 review round 2 (2026-07-01, coderabbit on the pushed branch):
+  - Fixed: `initially-expanded` rows mounted collapsed for one paint under an
+    active collapse-all override (initializer now checks the mode before the
+    context override; test pins the first rendered state); the
+    thread-membership guard's early return now fires `onScroll(false)`
+    (pre-existing omission in touched lines); the streaming perf probe's Load
+    Older loop waits through the "Loading..." label.
+  - Added: test pinning that an explicit empty-string `customBody` falls
+    through to the plain-text path (behavior unchanged; now pinned).
+  - Declined with reasoning: re-indexing the thread virtualizer to
+    renderable-only rows — empty tiles measure ~0px, jump targets are always
+    renderable, all live guards pass on threads containing edits; the remap
+    would touch every index consumer for cosmetic gain (documented follow-up).
 - Next steps:
   - Push is blocked locally: the `block-git-rewrites.py` hook rejects
     `git push --force-with-lease`, which the rebase requires; needs a manual
