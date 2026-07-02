@@ -2,6 +2,103 @@
 
 ## Runbook
 
+### CINNY-215 - Move tinted dark palette behind a new "Midnight" theme (2026-07-02)
+
+- Status:
+  - Complete locally; validated with typecheck, build, full vitest, and live screenshots
+    of both Dark (reverted) and Midnight (`ui-audit/themed-room-{dark,midnight}-modern.png`).
+- Motivation:
+  - User preference: the CINNY-213 lavender-tinted dark surfaces should be opt-in, not a
+    change to the familiar Dark theme. Radii/shadow geometry stays global.
+- Summary:
+  - `src/colors.css.ts`: `darkThemeData` reverted to the original neutral grays
+    (`#1A1A1A` ladder, opaque shadow); new `midnightTheme` carries the tinted ladder
+    (`#17161D`, hue ≈247°) and the softened `Shadow: rgba(0,0,0,0.6)`.
+  - `src/app/hooks/useTheme.ts`: new `MidnightTheme` (`midnight-theme`, kind Dark)
+    registered in `useThemes`/`useThemeNames` ("Midnight") — appears automatically in
+    Appearance settings and as a system-dark choice.
+  - Bootstrap layers all gained a midnight entry and reverted dark to `#1A1A1A`:
+    `themeBootstrap.ts` (`THEME_IDS`, `RESOLVED_THEME_MAP`), `src/index.css`
+    (`html.midnight-theme`, dark link/mxid color block), `index.html` inline style+script,
+    `capacitor.config.ts`, `public/manifest.json`, and the theme tests (midnight added to
+    the useTheme mock).
+  - `e2e/live/*.spec.ts`: `E2E_ROOM_ID` env override added; style-preview now captures a
+    `midnight-modern` surface. (Captured against the docker Tuwunel `matrix.localhost` on
+    :28008 with a seeded fixture room — the lab host at mindroom.lab.mindroom.chat was
+    unreachable.)
+- Default remains Dark; Midnight is purely opt-in.
+
+### CINNY-214 - Thread toolbar wraps into vertical columns on narrow rooms (2026-07-01)
+
+(Referenced as "CINNY-133" in commit `f6bcead3` — renumbered here because dev already
+used that ID.)
+
+- Status:
+  - Complete locally; validated with typecheck, lint, thread unit tests (937 passed),
+    and live before/after screenshots at 900/700/560px (`ui-audit/*-toolbar-*.png`,
+    repro spec `e2e/live/narrow-toolbar.spec.ts`).
+- Problem:
+  - `ToolbarHeader` in `RoomThreadOverview.css.ts` was `flexWrap: nowrap` above 480px while
+    each `ToggleGroup` was `flexWrap: wrap` and shrinkable. When the room got narrow, the
+    groups were squeezed and wrapped *internally* into 1-button-wide vertical columns
+    (user-reported screenshot).
+- Fix (CSS-only plus separator removal):
+  - `ToolbarHeader`: always `flexWrap: 'wrap'` (media query removed) — wrapping happens
+    *between* groups; gap bumped S100→S200 to keep group rhythm without separators.
+  - `ToggleGroup`: `flexWrap: 'nowrap'` + `flexShrink: 0` — a group never breaks apart.
+  - `SectionSeparator` removed entirely (style + 4 usages). Review caught that its
+    `max-width: 480px` hide rule was coupled to the removed wrap breakpoint and would have
+    left dangling vertical ticks at row boundaries in the wrapped state; spacing now does
+    the grouping, which also declutters the toolbar.
+- Result: single row on wide rooms (visually unchanged apart from separators), clean
+  horizontal rows when narrow.
+
+### CINNY-213 - Visual modernization: radii, shadows, tinted dark palette, calm sync banner (2026-07-01)
+
+(Referenced as "CINNY-132" in commit `86e73292` — renumbered here because dev already
+used that ID. Note: the tinted dark palette was later moved behind the opt-in "Midnight"
+theme in CINNY-215; Dark reverted to the neutral grays.)
+
+- Status:
+  - Complete locally; validated with typecheck, build, lint, and affected unit tests.
+- Motivation:
+  - Repeated feedback that the UI does not look modern. Goal: maximum perceived-quality gain
+    with a minimal, token-level diff (no component logic changes).
+- Summary (all token-level; ~60 lines):
+  - `src/config.css.ts`: new `roundedRadii` override of folds `config.radii`
+    (R300 4px→8px, R400 8px→12px, R500 12px→18px) and `softShadow` override of
+    `config.shadow` (larger, softer diffuse elevations referencing `color.Other.Shadow`).
+  - `src/app/hooks/useTheme.ts`: both new classes wired into all four themes' `classNames`
+    (same pattern as the existing `onLight/onDarkFontWeight` overrides).
+  - `src/colors.css.ts`: dark theme surfaces tinted toward the lavender primary
+    (`#1A1A1A → #17161D` ladder, hue ≈247°, same lightness steps); dark `Other.Shadow`
+    softened from `rgba(0,0,0,1)` to `rgba(0,0,0,0.6)`. Butter/silver/light palettes untouched.
+  - Dark background constant `#1A1A1A → #17161D` synchronized across `src/index.css`,
+    `index.html` (theme-color meta + pre-hydration bootstrap), `src/app/theme/themeBootstrap.ts`,
+    `capacitor.config.ts` (iOS status bar), and their tests.
+  - `src/app/pages/client/SyncStatus.tsx`: "Catching up..." banner changed from a full-width
+    green `Success` slab to neutral `SurfaceVariant` with the green kept on the accent `Line`.
+- Method:
+  - Decisions driven by live-app screenshots (Playwright against local Tuwunel), not just code
+    reading. Before/after evidence in `ui-audit/` (git-ignored candidates; keep out of commits),
+    captured by the reusable `e2e/live/style-preview.spec.ts`
+    (`SHOT_PREFIX=before|after`, output dir `ui-audit/` — deliberately outside `test-results/`
+    because Playwright wipes that dir each run).
+- Validation:
+  - `npm run typecheck` ✓, `npm run build` ✓, `npm run lint` ✓ (0 errors, 18 pre-existing warnings),
+    `vitest` on themeBootstrap/capacitorStatusBarConfig/ClientRoot tests ✓ (49 passed).
+- Visual-audit backlog (observed in screenshots, intentionally not done here):
+  - Thread-board toolbar is a dense strip of ~13 icon-only buttons — main intuitiveness issue.
+  - Login page renders light-styled inputs/blue button on the dark splash (unauth routes follow
+    `prefers-color-scheme`, not stored settings) — visually incoherent with MindRoom branding.
+  - Butter theme surfaces not re-tinted (kept warm gray by design; revisit if adopted).
+  - Pre-existing (found in review): `CommandPaletteRenderer.tsx:31` and
+    `FilterBarMobileSheet.tsx:14` use undefined `var(--radii-400)` (folds emits hashed var
+    names), so those sheets render radius 0 and ignore the new tokens; `WelcomePage.tsx:94`
+    hardcodes 8px; a few `RoomThreadOverview`/`CollapsibleMessage` shadows bypass
+    `Other.Shadow`. Follow-up: switch to `config.radii`/`config.shadow` tokens.
+- Next steps:
+  - Get user sign-off on the direction; optionally follow up on the backlog items above.
 ### iOS release automation with fastlane (2026-07-01)
 
 - Status:
