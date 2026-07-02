@@ -104,6 +104,12 @@ export function CollapsibleMessage({
   const expandAllInit = useContext(ExpandAllInitContext);
   const [overflowing, setOverflowing] = useState(true);
   const [expanded, setExpanded] = useState(() => {
+    // Live-expand-once rows must mount expanded even under an active
+    // collapse-all override; the mount effect would correct this anyway, but
+    // only after paint (a visible collapsed flash on virtualized mounts).
+    if (collapseMode === 'initially-expanded') {
+      return true;
+    }
     if (!isExempt && expandAllInit !== undefined) {
       return expandAllInit;
     }

@@ -335,6 +335,7 @@ export const useRoomEventOpenController = ({
         if (!isRenderedThreadEvent) {
           const targetEvent = room.findEventById(evtId);
           if (!targetEvent || !eventBelongsToThread(targetEvent, threadId)) {
+            if (onScroll) onScroll(false);
             return;
           }
         }

@@ -119,6 +119,16 @@ describe('RenderBody', () => {
     expect(sanitizeCustomHtmlSpy).not.toHaveBeenCalled();
   });
 
+  it('renders the plain-text body when customBody is an explicit empty string', () => {
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(renderBody('plain fallback', ''));
+    });
+
+    expect(JSON.stringify(renderer?.toJSON())).toContain('plain fallback');
+    expect(sanitizeCustomHtmlSpy).not.toHaveBeenCalled();
+  });
+
   it('renders the formatted body even when the plain-text fallback is empty', () => {
     let renderer: ReactTestRenderer | undefined;
     act(() => {

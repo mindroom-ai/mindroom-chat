@@ -798,6 +798,10 @@ describe('CollapsibleMessage', () => {
 
   it('keeps initially-expanded semantics for new instances while a collapse-all override is active', () => {
     const onInitialExpandConsumed = vi.fn();
+    // Record every rendered expanded state: the FIRST render must already be
+    // expanded (a post-paint effect correction would flash collapsed on
+    // virtualized mounts).
+    const renderedStates: boolean[] = [];
     const renderer = renderCollapsibleMessage(
       {
         collapseMode: 'initially-expanded',
@@ -805,10 +809,14 @@ describe('CollapsibleMessage', () => {
       },
       undefined,
       undefined,
-      undefined,
+      ({ expanded }: { expanded: boolean }) => {
+        renderedStates.push(expanded);
+        return React.createElement('span', undefined, 'message');
+      },
       false
     );
 
+    expect(renderedStates[0]).toBe(true);
     expect(onInitialExpandConsumed).toHaveBeenCalledTimes(1);
     expect(getContentContainer(renderer).props['aria-expanded']).toBe(true);
 
