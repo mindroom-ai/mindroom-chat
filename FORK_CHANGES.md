@@ -57,6 +57,77 @@
   - Green: `git diff origin/dev..HEAD` matches the upstream v4.12.3 payload
     only (plus the iOS marketing-version follow-up).
 
+### iOS release automation with fastlane (2026-07-01)
+
+- Status:
+  - Complete locally; scaffolding only, no App Store Connect calls were made.
+- Summary:
+  - Added fastlane to automate the manual parts of iOS releases: App Store
+    metadata upload (`upload_metadata`), screenshot upload
+    (`upload_screenshots`), and local TestFlight builds (`beta`), plus a
+    `sync_web` helper (npm build + `cap sync ios`).
+  - New files under `ios/App/`: `Gemfile`/`Gemfile.lock` (fastlane 2.236.1),
+    `fastlane/Appfile`, `fastlane/Fastfile`, `fastlane/Deliverfile`,
+    `fastlane/metadata/` seeded from `.docs/APP_STORE_SUBMISSION_PACKET.md`,
+    and `fastlane/screenshots/` (docs + gitignored binaries).
+  - New workflow doc `.docs/ios-fastlane.md`; pointer added from
+    `.docs/ios-build.md`; fastlane artifacts added to `.gitignore`.
+- Decisions:
+  - fastlane complements the existing pipeline (auto-release tag → Xcode Cloud
+    build via `ios/App/ci_scripts`); it does not replace CI builds.
+  - Auth via App Store Connect API key from env vars (`ASC_KEY_ID`,
+    `ASC_ISSUER_ID`, `ASC_KEY_CONTENT`/`ASC_KEY_PATH`); no Apple ID 2FA flows.
+  - `Deliverfile` hard-codes `submit_for_review false` and
+    `automatic_release false` so uploads can never accidentally submit.
+  - Reviewer demo credentials are never stored in the repo; the demo-account
+    fields stay manual in App Store Connect.
+  - Screenshot binaries are gitignored; only docs and locale placeholders are
+    tracked.
+- Risks:
+  - Lanes that talk to App Store Connect could not be exercised end-to-end
+    here (requires an API key); only Fastfile parsing (`fastlane lanes`) was
+    validated locally.
+  - `beta` relies on Xcode-managed signing (`-allowProvisioningUpdates`);
+    teams without account access would need fastlane `match` (documented as
+    follow-up).
+- Next steps:
+  - Run `upload_metadata` once with a real API key and verify the App Store
+    Connect draft matches the submission packet.
+  - Optional: automated screenshot capture (Xcode UI-test target for
+    `snapshot`, or Playwright rendering App-Store-sized viewports into
+    `fastlane/screenshots/`).
+  - Optional: adopt `match` for shared code signing.
+- Review:
+  - Independent subagent review found no blockers. Applied follow-ups: fixed
+    the Bundler Ruby requirement claim (the committed lock needs Ruby >= 3.2),
+    dropped a redundant `ios/App/build/` ignore (already covered by
+    `ios/.gitignore`), added a `.jpeg` ignore pattern, documented the
+    `overwrite_screenshots` empty-folder pitfall, and removed the empty
+    `marketing_url.txt` so `deliver` cannot blank a manually entered value.
+  - Reviewer verified metadata matches the submission packet verbatim and is
+    within App Store character limits, no credentials are committed, ignore
+    patterns behave as intended (`git check-ignore`), and the bundle ID
+    matches `capacitor.config.ts` and the Xcode project.
+  - PR #51 review-comment triage: rejected the gemini claim that
+    `cd ../../..` overshoots the repo root (fastlane `sh` empirically runs
+    from `ios/App/fastlane`, so three levels up is the repo root); accepted
+    explicit `export_method: "app-store"` on `build_app` as a clarity
+    improvement (the claimed development-default risk was wrong: gym 2.236.1
+    only defers to a user-supplied `export_options` hash, which the lane does
+    not pass, and otherwise always defaults to app-store — pinning it guards
+    against future `export_options` additions and makes intent explicit);
+    accepted a `~> 2.236` Gemfile constraint; and fixed
+    the release-notes concern at the root by deleting the checked-in
+    placeholder (`deliver` uploads metadata files verbatim, so the suggested
+    `# TODO` comment line would itself ship to "What's New" — real notes are
+    written per release instead, matching the `marketing_url.txt` decision).
+- Validation:
+  - `fastlane lanes` from `ios/App` parses the Fastfile and lists all four
+    lanes (fastlane 2.236.1 under Homebrew Ruby 4.0.5).
+  - `bundle lock` resolves the Gemfile cleanly.
+  - Green: `npm run typecheck`, `npm run build`, `npm run lint` (0 errors,
+    18 pre-existing warnings; no web-code changes in this step).
+
 ### Sync `!` command autocomplete with upstream MindRoom bot commands (2026-07-01)
 
 - Status:
