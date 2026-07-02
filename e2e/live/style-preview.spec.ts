@@ -3,7 +3,7 @@ import { test } from '@playwright/test';
 const HOMESERVER = process.env.E2E_HOMESERVER || 'https://mindroom.lab.mindroom.chat';
 const USERNAME = process.env.E2E_USERNAME || 'e2e-test-bot';
 const PASSWORD = process.env.E2E_PASSWORD || 'e2e-test-pw-2026';
-const ROOM_ID = '!TFs182DGokWnICCUm6:mindroom.lab.mindroom.chat';
+const ROOM_ID = process.env.E2E_ROOM_ID || '!TFs182DGokWnICCUm6:mindroom.lab.mindroom.chat';
 const PREFIX = process.env.SHOT_PREFIX || 'before';
 // NOTE: keep outside test-results/ — Playwright wipes that dir on every run.
 const OUT = 'ui-audit';
@@ -35,6 +35,7 @@ test('capture styling screenshots', async ({ page }) => {
   const configs = [
     { name: 'dark-modern', theme: 'dark-theme', layout: 0 },
     { name: 'dark-bubble', theme: 'dark-theme', layout: 1 },
+    { name: 'midnight-modern', theme: 'midnight-theme', layout: 0 },
     { name: 'light-modern', theme: 'light-theme', layout: 0 },
   ];
 

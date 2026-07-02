@@ -100,26 +100,26 @@ export const silverTheme = createTheme(color, {
 
 const darkThemeData = {
   Background: {
-    Container: '#17161D',
-    ContainerHover: '#23222A',
-    ContainerActive: '#2F2E38',
-    ContainerLine: '#3C3B45',
+    Container: '#1A1A1A',
+    ContainerHover: '#262626',
+    ContainerActive: '#333333',
+    ContainerLine: '#404040',
     OnContainer: '#F2F2F2',
   },
 
   Surface: {
-    Container: '#23222A',
-    ContainerHover: '#2F2E38',
-    ContainerActive: '#3C3B45',
-    ContainerLine: '#484753',
+    Container: '#262626',
+    ContainerHover: '#333333',
+    ContainerActive: '#404040',
+    ContainerLine: '#4D4D4D',
     OnContainer: '#F2F2F2',
   },
 
   SurfaceVariant: {
-    Container: '#2F2E38',
-    ContainerHover: '#3C3B45',
-    ContainerActive: '#484753',
-    ContainerLine: '#55545F',
+    Container: '#333333',
+    ContainerHover: '#404040',
+    ContainerActive: '#4D4D4D',
+    ContainerLine: '#595959',
     OnContainer: '#F2F2F2',
   },
 
@@ -141,11 +141,11 @@ const darkThemeData = {
     MainHover: '#E5E5E5',
     MainActive: '#D9D9D9',
     MainLine: '#CCCCCC',
-    OnMain: '#17161D',
-    Container: '#3C3B45',
-    ContainerHover: '#484753',
-    ContainerActive: '#55545F',
-    ContainerLine: '#61606D',
+    OnMain: '#1A1A1A',
+    Container: '#404040',
+    ContainerHover: '#4D4D4D',
+    ContainerActive: '#595959',
+    ContainerLine: '#666666',
     OnContainer: '#F2F2F2',
   },
 
@@ -190,12 +190,60 @@ const darkThemeData = {
 
   Other: {
     FocusRing: 'rgba(255, 255, 255, 0.5)',
-    Shadow: 'rgba(0, 0, 0, 0.6)',
+    Shadow: 'rgba(0, 0, 0, 1)',
     Overlay: 'rgba(0, 0, 0, 0.8)',
   },
 };
 
 export const darkTheme = createTheme(color, darkThemeData);
+
+// Dark surfaces tinted toward the lavender primary (hue ~247°, same lightness
+// steps as the neutral dark ladder), with a softer shadow color.
+export const midnightTheme = createTheme(color, {
+  ...darkThemeData,
+  Background: {
+    Container: '#17161D',
+    ContainerHover: '#23222A',
+    ContainerActive: '#2F2E38',
+    ContainerLine: '#3C3B45',
+    OnContainer: '#F2F2F2',
+  },
+
+  Surface: {
+    Container: '#23222A',
+    ContainerHover: '#2F2E38',
+    ContainerActive: '#3C3B45',
+    ContainerLine: '#484753',
+    OnContainer: '#F2F2F2',
+  },
+
+  SurfaceVariant: {
+    Container: '#2F2E38',
+    ContainerHover: '#3C3B45',
+    ContainerActive: '#484753',
+    ContainerLine: '#55545F',
+    OnContainer: '#F2F2F2',
+  },
+
+  Secondary: {
+    Main: '#FFFFFF',
+    MainHover: '#E5E5E5',
+    MainActive: '#D9D9D9',
+    MainLine: '#CCCCCC',
+    OnMain: '#17161D',
+    Container: '#3C3B45',
+    ContainerHover: '#484753',
+    ContainerActive: '#55545F',
+    ContainerLine: '#61606D',
+    OnContainer: '#F2F2F2',
+  },
+
+  Other: {
+    FocusRing: 'rgba(255, 255, 255, 0.5)',
+    Shadow: 'rgba(0, 0, 0, 0.6)',
+    Overlay: 'rgba(0, 0, 0, 0.8)',
+  },
+});
 
 export const butterTheme = createTheme(color, {
   ...darkThemeData,

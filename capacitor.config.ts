@@ -34,7 +34,7 @@ const config: CapacitorConfig = {
       // navigation controls remain visible and tappable on real devices.
       overlaysWebView: false,
       // Initial native status-bar background before React syncs the active theme.
-      backgroundColor: '#17161D',
+      backgroundColor: '#1A1A1A',
       style: 'dark',
     },
   },

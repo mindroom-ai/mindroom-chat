@@ -1,7 +1,7 @@
 import { lightTheme } from 'folds';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { onDarkFontWeight, onLightFontWeight, roundedRadii, softShadow } from '../../config.css';
-import { butterTheme, darkTheme, silverTheme } from '../../colors.css';
+import { butterTheme, darkTheme, midnightTheme, silverTheme } from '../../colors.css';
 import { settingsAtom } from '../state/settings';
 import { useSetting } from '../state/hooks/settings';
 
@@ -32,6 +32,18 @@ export const DarkTheme: Theme = {
   kind: ThemeKind.Dark,
   classNames: ['dark-theme', darkTheme, onDarkFontWeight, roundedRadii, softShadow, 'prism-dark'],
 };
+export const MidnightTheme: Theme = {
+  id: 'midnight-theme',
+  kind: ThemeKind.Dark,
+  classNames: [
+    'midnight-theme',
+    midnightTheme,
+    onDarkFontWeight,
+    roundedRadii,
+    softShadow,
+    'prism-dark',
+  ],
+};
 export const ButterTheme: Theme = {
   id: 'butter-theme',
   kind: ThemeKind.Dark,
@@ -39,7 +51,10 @@ export const ButterTheme: Theme = {
 };
 
 export const useThemes = (): Theme[] => {
-  const themes: Theme[] = useMemo(() => [LightTheme, SilverTheme, DarkTheme, ButterTheme], []);
+  const themes: Theme[] = useMemo(
+    () => [LightTheme, SilverTheme, DarkTheme, MidnightTheme, ButterTheme],
+    []
+  );
 
   return themes;
 };
@@ -50,6 +65,7 @@ export const useThemeNames = (): Record<string, string> =>
       [LightTheme.id]: 'Light',
       [SilverTheme.id]: 'Silver',
       [DarkTheme.id]: 'Dark',
+      [MidnightTheme.id]: 'Midnight',
       [ButterTheme.id]: 'Butter',
     }),
     []

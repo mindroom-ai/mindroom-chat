@@ -2,6 +2,32 @@
 
 ## Runbook
 
+### CINNY-215 - Move tinted dark palette behind a new "Midnight" theme (2026-07-02)
+
+- Status:
+  - Complete locally; validated with typecheck, build, full vitest, and live screenshots
+    of both Dark (reverted) and Midnight (`ui-audit/themed-room-{dark,midnight}-modern.png`).
+- Motivation:
+  - User preference: the CINNY-213 lavender-tinted dark surfaces should be opt-in, not a
+    change to the familiar Dark theme. Radii/shadow geometry stays global.
+- Summary:
+  - `src/colors.css.ts`: `darkThemeData` reverted to the original neutral grays
+    (`#1A1A1A` ladder, opaque shadow); new `midnightTheme` carries the tinted ladder
+    (`#17161D`, hue ≈247°) and the softened `Shadow: rgba(0,0,0,0.6)`.
+  - `src/app/hooks/useTheme.ts`: new `MidnightTheme` (`midnight-theme`, kind Dark)
+    registered in `useThemes`/`useThemeNames` ("Midnight") — appears automatically in
+    Appearance settings and as a system-dark choice.
+  - Bootstrap layers all gained a midnight entry and reverted dark to `#1A1A1A`:
+    `themeBootstrap.ts` (`THEME_IDS`, `RESOLVED_THEME_MAP`), `src/index.css`
+    (`html.midnight-theme`, dark link/mxid color block), `index.html` inline style+script,
+    `capacitor.config.ts`, `public/manifest.json`, and the theme tests (midnight added to
+    the useTheme mock).
+  - `e2e/live/*.spec.ts`: `E2E_ROOM_ID` env override added; style-preview now captures a
+    `midnight-modern` surface. (Captured against the docker Tuwunel `matrix.localhost` on
+    :28008 with a seeded fixture room — the lab host at mindroom.lab.mindroom.chat was
+    unreachable.)
+- Default remains Dark; Midnight is purely opt-in.
+
 ### CINNY-214 - Thread toolbar wraps into vertical columns on narrow rooms (2026-07-01)
 
 (Referenced as "CINNY-133" in commit `f6bcead3` — renumbered here because dev already
@@ -30,7 +56,8 @@ used that ID.)
 ### CINNY-213 - Visual modernization: radii, shadows, tinted dark palette, calm sync banner (2026-07-01)
 
 (Referenced as "CINNY-132" in commit `86e73292` — renumbered here because dev already
-used that ID.)
+used that ID. Note: the tinted dark palette was later moved behind the opt-in "Midnight"
+theme in CINNY-215; Dark reverted to the neutral grays.)
 
 - Status:
   - Complete locally; validated with typecheck, build, lint, and affected unit tests.

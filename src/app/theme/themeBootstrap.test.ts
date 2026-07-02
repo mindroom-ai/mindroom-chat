@@ -30,6 +30,11 @@ vi.mock('../hooks/useTheme', () => {
       kind: ThemeKind.Dark,
       classNames: ['dark-theme', 'dark-class', 'dark-font', 'prism-dark'],
     },
+    MidnightTheme: {
+      id: 'midnight-theme',
+      kind: ThemeKind.Dark,
+      classNames: ['midnight-theme', 'midnight-class', 'dark-font', 'prism-dark'],
+    },
     ButterTheme: {
       id: 'butter-theme',
       kind: ThemeKind.Dark,
@@ -87,7 +92,7 @@ const setStoredSessionStore = (value: unknown) => {
 describe('themeBootstrap', () => {
   beforeEach(() => {
     document.head.innerHTML = `
-      <meta name="theme-color" content="#17161D" />
+      <meta name="theme-color" content="#1A1A1A" />
       <meta name="color-scheme" content="dark light" />
     `;
     document.documentElement.className = '';
@@ -405,11 +410,11 @@ describe('themeBootstrap', () => {
     expect(document.documentElement.classList.contains('dark-theme')).toBe(true);
     expect(document.documentElement.classList.contains('silver-theme')).toBe(false);
     expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe(
-      '#17161D'
+      '#1A1A1A'
     );
     expect(document.querySelector('meta[name="color-scheme"]')?.getAttribute('content')).toBe(
       'dark'
     );
-    expect(statusBarTheme.syncNativeStatusBarBackground).toHaveBeenLastCalledWith('#17161D');
+    expect(statusBarTheme.syncNativeStatusBarBackground).toHaveBeenLastCalledWith('#1A1A1A');
   });
 });

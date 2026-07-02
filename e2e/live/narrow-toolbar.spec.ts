@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 const HOMESERVER = process.env.E2E_HOMESERVER || 'https://mindroom.lab.mindroom.chat';
 const USERNAME = process.env.E2E_USERNAME || 'e2e-test-bot';
 const PASSWORD = process.env.E2E_PASSWORD || 'e2e-test-pw-2026';
-const ROOM_ID = '!TFs182DGokWnICCUm6:mindroom.lab.mindroom.chat';
+const ROOM_ID = process.env.E2E_ROOM_ID || '!TFs182DGokWnICCUm6:mindroom.lab.mindroom.chat';
 const PREFIX = process.env.SHOT_PREFIX || 'before';
 const TOOLBAR = '[data-room-thread-overview="true"] [role="toolbar"]';
 

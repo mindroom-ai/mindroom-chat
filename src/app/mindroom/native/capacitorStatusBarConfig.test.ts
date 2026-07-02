@@ -8,6 +8,6 @@ describe('Capacitor status bar config', () => {
   });
 
   it('matches the native status bar background to the default app background', () => {
-    expect(capacitorConfig.plugins?.StatusBar?.backgroundColor).toBe('#17161D');
+    expect(capacitorConfig.plugins?.StatusBar?.backgroundColor).toBe('#1A1A1A');
   });
 });
