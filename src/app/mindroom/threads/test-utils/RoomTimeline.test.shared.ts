@@ -32,6 +32,8 @@ const {
   directRoomState,
   aliveFn,
   reactionOrEditEventMock,
+  inSameDayMock,
+  timeDayMonthYearMock,
   isMembershipChangedMock,
   matrixClientMock,
   navigateRoomMock,
@@ -68,6 +70,8 @@ const {
   directRoomState: { value: false },
   aliveFn: () => true,
   reactionOrEditEventMock: vi.fn(() => false),
+  inSameDayMock: vi.fn(() => true),
+  timeDayMonthYearMock: vi.fn(() => 'time'),
   isMembershipChangedMock: vi.fn(() => false),
   matrixClientMock: {
     fetchRelations: vi.fn(),
@@ -685,11 +689,11 @@ vi.mock('../../../utils/dom', () => ({
 }));
 
 vi.mock('../../../utils/time', () => ({
-  inSameDay: () => true,
+  inSameDay: inSameDayMock,
   minuteDifference: () => 0,
-  timeDayMonthYear: () => 'time',
-  today: 'today',
-  yesterday: 'yesterday',
+  timeDayMonthYear: timeDayMonthYearMock,
+  today: () => false,
+  yesterday: () => false,
 }));
 
 vi.mock('../../../components/editor', () => ({
@@ -1703,6 +1707,8 @@ export {
   navigateRoomMock,
   navigateRoomThreadMock,
   reactionOrEditEventMock,
+  inSameDayMock,
+  timeDayMonthYearMock,
   roomIntroType,
   roomThreadListThreadsMock,
   roomThreadOverviewType,

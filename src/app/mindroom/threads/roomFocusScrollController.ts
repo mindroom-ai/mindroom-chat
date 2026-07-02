@@ -58,6 +58,7 @@ type RestorePendingThreadBackPaginationAnchor = (
 type RetryPagination = (opts?: RetryPaginationOptions) => void;
 
 export type RoomFocusScrollControllerOptions = {
+  cancelThreadBottomSettle?: () => void;
   alive: () => boolean;
   atBottomAnchorRef: MutableRefObject<HTMLElement | null>;
   editId?: string;
@@ -92,6 +93,7 @@ export type RoomFocusScrollControllerOptions = {
 };
 
 export const useRoomFocusScrollController = ({
+  cancelThreadBottomSettle,
   alive,
   atBottomAnchorRef,
   editId,
@@ -405,6 +407,10 @@ export const useRoomFocusScrollController = ({
     }
     const target = getEventElementById(scrollRef.current, pendingOpen.eventId);
     if (target) {
+      // Same contract as handleOpenEvent's mounted branch: a programmatic
+      // jump emits no user scroll-intent events, so an active bottom-settle
+      // loop (open-at-latest pin) would yank the jump back to the bottom.
+      cancelThreadBottomSettle?.();
       scrollToElement(target, {
         behavior: 'smooth',
         align: 'center',
@@ -434,6 +440,7 @@ export const useRoomFocusScrollController = ({
       setPendingThreadOpenTick((val) => val + 1);
     });
   }, [
+    cancelThreadBottomSettle,
     pendingThreadOpenRef,
     pendingThreadOpenTick,
     scrollRef,

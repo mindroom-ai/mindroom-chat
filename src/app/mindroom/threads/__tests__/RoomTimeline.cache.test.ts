@@ -18,6 +18,7 @@ import {
   loadCachedRoomEventsBeforeMock,
   loadCachedRoomPaginationTokenMock,
   loadLatestCachedThreadSummaryInfoMock,
+  inSameDayMock,
   loadLatestCachedRoomEventsMock,
   makeCachedRoomEvent,
   makeEvent,
@@ -33,6 +34,7 @@ import {
   saveRoomEventsToCacheMock,
   scrollToItemMock,
   scrollType,
+  timeDayMonthYearMock,
   settingsState,
   TEST_DEFAULT_THREAD_FILTER_STATE,
   threadLastActivityTsMapMock,
@@ -404,6 +406,149 @@ describe('RoomTimeline', () => {
           '$thread-reply-299',
         ]);
       } finally {
+        renderer?.unmount();
+      }
+    });
+
+    it('primes window-boundary grouping from the trailing edit, matching the sequential fold', async () => {
+      // Component-level pin for the primer wiring: a message that follows an
+      // edit must render UNCOLLAPSED when the virtual window starts on it,
+      // exactly as it does when the window includes the edit (the sequential
+      // path keeps the edit as prevEvent with isPrevRendered=false).
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const threadId = '$thread-root';
+      const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
+      const threadEvents = [
+        rootEvent,
+        makeEvent('$m1', { threadRootId: threadId, ts: 60_000 }),
+        makeEvent('$e1', {
+          threadRootId: threadId,
+          ts: 90_000,
+          relation: { rel_type: 'm.replace', event_id: '$m1' },
+        }),
+        makeEvent('$m2', { threadRootId: threadId, ts: 120_000 }),
+      ];
+      const threadTimeline = makeTimeline(threadEvents, { backwardToken: null });
+      const threadTimelineSet = {
+        getLiveTimeline: () => threadTimeline,
+        getTimelineForEvent: () => undefined,
+      };
+      const threadModel = {
+        rootEvent,
+        events: threadEvents.slice(1),
+        getUnfilteredTimelineSet: () => threadTimelineSet,
+      };
+      const room = makeRoom({ liveEvents: [rootEvent] });
+      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      threadRenderStateMock.threadEvents = threadEvents as never;
+      threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+        threadEvents.map((event, index) => [event.getId(), index])
+      );
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      let renderer: ReturnType<typeof create> | undefined;
+
+      reactionOrEditEventMock.mockImplementation(
+        (event) =>
+          (event as { getRelation?: () => { rel_type?: string } | undefined }).getRelation?.()
+            ?.rel_type === 'm.replace'
+      );
+      roomTimelineVirtualizerState.virtualIndexes = [3];
+
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            })
+          );
+          await flushAsyncWork();
+        });
+
+        const messageNode = renderer!.root.findAll(
+          (node) => node.props?.['data-message-id'] === '$m2'
+        )[0];
+        expect(messageNode).toBeDefined();
+        // Reverting the primer wiring makes prevEvent the rendered $m1
+        // (same sender, <2min), which would collapse this row.
+        expect(messageNode.props.collapse).toBe(false);
+      } finally {
+        reactionOrEditEventMock.mockImplementation(() => false);
+        renderer?.unmount();
+      }
+    });
+
+    it('primes the pending day divider carried across a midnight-crossing edit', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const DAY_MS = 86_400_000;
+      const threadId = '$thread-root';
+      const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1_000 });
+      const threadEvents = [
+        rootEvent,
+        makeEvent('$m1', { threadRootId: threadId, ts: 61_000 }),
+        makeEvent('$e1', {
+          threadRootId: threadId,
+          ts: 1_000 + 3 * DAY_MS,
+          relation: { rel_type: 'm.replace', event_id: '$m1' },
+        }),
+        makeEvent('$m2', { threadRootId: threadId, ts: 1_000 + 3 * DAY_MS + 60_000 }),
+      ];
+      const threadTimeline = makeTimeline(threadEvents, { backwardToken: null });
+      const threadTimelineSet = {
+        getLiveTimeline: () => threadTimeline,
+        getTimelineForEvent: () => undefined,
+      };
+      const threadModel = {
+        rootEvent,
+        events: threadEvents.slice(1),
+        getUnfilteredTimelineSet: () => threadTimelineSet,
+      };
+      const room = makeRoom({ liveEvents: [rootEvent] });
+      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      threadRenderStateMock.threadEvents = threadEvents as never;
+      threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+        threadEvents.map((event, index) => [event.getId(), index])
+      );
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      let renderer: ReturnType<typeof create> | undefined;
+
+      reactionOrEditEventMock.mockImplementation(
+        (event) =>
+          (event as { getRelation?: () => { rel_type?: string } | undefined }).getRelation?.()
+            ?.rel_type === 'm.replace'
+      );
+      // The harness defaults flatten time semantics (inSameDay always true),
+      // which makes any divider assertion vacuous; use real day arithmetic
+      // and a unique divider label for this test.
+      inSameDayMock.mockImplementation(
+        (ts1: number, ts2: number) => Math.floor(ts1 / DAY_MS) === Math.floor(ts2 / DAY_MS)
+      );
+      timeDayMonthYearMock.mockImplementation((ts: number) => `divider-${ts}`);
+      roomTimelineVirtualizerState.virtualIndexes = [3];
+
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            })
+          );
+          await flushAsyncWork();
+        });
+
+        // The crossing was latched at the null-rendered edit row; the window
+        // starting on $m2 must still render the carried date divider as
+        // visible text (a serialized-props match would be vacuous).
+        const dividerText = `divider-${1_000 + 3 * DAY_MS + 60_000}`;
+        const dividerNodes = renderer!.root.findAll((node) =>
+          node.children.some((child) => child === dividerText)
+        );
+        expect(dividerNodes.length).toBeGreaterThan(0);
+      } finally {
+        reactionOrEditEventMock.mockImplementation(() => false);
+        inSameDayMock.mockImplementation(() => true);
+        timeDayMonthYearMock.mockImplementation(() => 'time');
         renderer?.unmount();
       }
     });

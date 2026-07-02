@@ -418,12 +418,14 @@ export function RoomTimeline({
   const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
   const {
     isPaginatingBack: threadPaginatingBack,
+    isPaginatingBackRef: threadPaginatingBackRef,
     suppressOpenBottomPinRef: suppressThreadOpenBottomPinRef,
     reset: resetThreadBackPagination,
     begin: beginThreadBackPagination,
     finish: finishThreadBackPagination,
     clearPendingAnchor: clearPendingThreadBackPaginationAnchor,
     getPendingAnchorEventId: getPendingThreadBackPaginationAnchorEventId,
+    getPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq,
     restorePendingAnchor: restorePendingThreadBackPaginationAnchor,
   } = useThreadBackPaginationController();
   const roomIdRef = useRef(room.roomId);
@@ -1261,6 +1263,7 @@ export function RoomTimeline({
         threadId: string;
         anchorEventId: string;
         anchorIndex: number;
+        anchorSeq: number;
       }
     | undefined
   >(undefined);
@@ -1278,21 +1281,32 @@ export function RoomTimeline({
       threadVirtualPrependCaptureRef.current = undefined;
       if (beginThreadId) {
         const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
+        const anchorSeq = getPendingThreadBackPaginationAnchorSeq();
         const anchorIndex =
           anchorEventId === undefined
             ? undefined
             : threadEventIndexMapRef.current.get(anchorEventId);
-        if (anchorEventId !== undefined && typeof anchorIndex === 'number') {
+        if (
+          anchorEventId !== undefined &&
+          anchorSeq !== undefined &&
+          typeof anchorIndex === 'number'
+        ) {
           threadVirtualPrependCaptureRef.current = {
             threadId: beginThreadId,
             anchorEventId,
             anchorIndex,
+            anchorSeq,
           };
         }
       }
       return began;
     },
-    [beginThreadBackPagination, getPendingThreadBackPaginationAnchorEventId, threadEventIndexMapRef]
+    [
+      beginThreadBackPagination,
+      getPendingThreadBackPaginationAnchorEventId,
+      getPendingThreadBackPaginationAnchorSeq,
+      threadEventIndexMapRef,
+    ]
   );
   // The fine-correction retry chain lives in a ref so unrelated threadEvents
   // updates (e.g. streaming edits) cannot cancel it or expire the anchor; it
@@ -1309,8 +1323,12 @@ export function RoomTimeline({
     const capture = threadVirtualPrependCaptureRef.current;
     if (!capture || !threadId || capture.threadId !== threadId) return;
     const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
-    if (anchorEventId !== capture.anchorEventId) {
-      // Anchor restored or cleared elsewhere; nothing left to compensate.
+    if (
+      anchorEventId !== capture.anchorEventId ||
+      getPendingThreadBackPaginationAnchorSeq() !== capture.anchorSeq
+    ) {
+      // Anchor restored, cleared, or re-captured elsewhere; nothing left to
+      // compensate for THIS pagination.
       threadVirtualPrependCaptureRef.current = undefined;
       return;
     }
@@ -1332,14 +1350,15 @@ export function RoomTimeline({
     // thread update.
     cancelThreadPrependRetry();
     const eventCountAtDetection = threadEvents.length;
-    const chainAnchorEventId = anchorEventId;
+    const chainAnchorSeq = capture.anchorSeq;
     let attempts = 0;
     const retryRestore = () => {
       threadPrependRetryRef.current.rafId = undefined;
       // A rapid second Load Older replaces the pending anchor; this chain owns
-      // only the anchor it detected and must not restore or expire the newer
+      // only the anchor it detected (by capture seq, since a re-capture can
+      // anchor the same event id) and must not restore or expire the newer
       // one (its own compensation effect takes over).
-      if (getPendingThreadBackPaginationAnchorEventId() !== chainAnchorEventId) return;
+      if (getPendingThreadBackPaginationAnchorSeq() !== chainAnchorSeq) return;
       const restored = restorePendingThreadBackPaginationAnchor(
         scrollRef.current,
         threadId,
@@ -1358,6 +1377,7 @@ export function RoomTimeline({
     cancelThreadPrependRetry,
     clearPendingThreadBackPaginationAnchor,
     getPendingThreadBackPaginationAnchorEventId,
+    getPendingThreadBackPaginationAnchorSeq,
     restorePendingThreadBackPaginationAnchor,
     roomTimelineVirtualizer,
     scrollRef,
@@ -1365,6 +1385,46 @@ export function RoomTimeline({
     threadEvents,
     threadId,
   ]);
+  // Same-commit DOM restore gate: while this pagination's capture is still
+  // armed (no index shift detected), a threadEvents change is an append —
+  // restoring would teleport the viewport back to the click-time position.
+  // Mid-flight appends just skip the restore; once the pagination has
+  // finished without ever prepending (empty or fully-duplicate page), the
+  // armed anchor would otherwise fire that yank on the next append, so it is
+  // expired instead.
+  const restoreThreadPrependAnchorIfPrepended = useCallback(
+    (
+      scrollRoot: HTMLElement | null | undefined,
+      restoreThreadId: string | undefined,
+      eventCount?: number
+    ) => {
+      const capture = threadVirtualPrependCaptureRef.current;
+      if (
+        capture &&
+        restoreThreadId &&
+        capture.threadId === restoreThreadId &&
+        getPendingThreadBackPaginationAnchorSeq() === capture.anchorSeq
+      ) {
+        const anchorIndex = threadEventIndexMapRef.current.get(capture.anchorEventId);
+        const shifted = typeof anchorIndex === 'number' && anchorIndex > capture.anchorIndex;
+        if (!shifted) {
+          if (!threadPaginatingBackRef.current) {
+            threadVirtualPrependCaptureRef.current = undefined;
+            clearPendingThreadBackPaginationAnchor();
+          }
+          return false;
+        }
+      }
+      return restorePendingThreadBackPaginationAnchor(scrollRoot, restoreThreadId, eventCount);
+    },
+    [
+      clearPendingThreadBackPaginationAnchor,
+      getPendingThreadBackPaginationAnchorSeq,
+      restorePendingThreadBackPaginationAnchor,
+      threadEventIndexMapRef,
+      threadPaginatingBackRef,
+    ]
+  );
   const roomTimelineVirtualizerRef = useRef(roomTimelineVirtualizer);
   roomTimelineVirtualizerRef.current = roomTimelineVirtualizer;
   const scrollThreadEventIntoView = useCallback(
@@ -1666,12 +1726,13 @@ export function RoomTimeline({
   useRoomFocusScrollController({
     alive,
     atBottomAnchorRef,
+    cancelThreadBottomSettle,
     editId,
     focusItem,
     focusScrollResetToken: effectiveThreadFilterState,
     pendingThreadOpenRef,
     pendingThreadOpenTick,
-    restorePendingThreadBackPaginationAnchor,
+    restorePendingThreadBackPaginationAnchor: restoreThreadPrependAnchorIfPrepended,
     retryPagination,
     roomId: room.roomId,
     scrollRef,
@@ -2939,6 +3000,9 @@ export function RoomTimeline({
     if (!primed) return;
     prevEvent = primed.prevEvent;
     isPrevRendered = primed.isPrevRendered;
+    if (!roomThreadFilterActive) {
+      dayDivider = primed.pendingDayDivider;
+    }
     // The sequential path advances prevRenderedEventAbsoluteIndex only on
     // rendered rows, so it comes from the nearest surviving non-edit entry —
     // possibly further back than prevEvent.
@@ -3001,6 +3065,9 @@ export function RoomTimeline({
     if (!primed) return;
     prevEvent = primed.prevEvent;
     isPrevRendered = primed.isPrevRendered;
+    if (!roomThreadFilterActive) {
+      dayDivider = primed.pendingDayDivider;
+    }
   };
 
   const threadEventRenderer = (index: number) => {

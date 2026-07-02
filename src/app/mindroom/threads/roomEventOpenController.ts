@@ -349,6 +349,10 @@ export const useRoomEventOpenController = ({
         const threadItemIndex = threadEventIndexMapRef.current.get(evtId);
         if (typeof threadItemIndex === 'number') {
           cancelThreadBottomSettle?.();
+          // Every jump supersedes any prior jump's retry chain — including
+          // mounted-target jumps, which otherwise lose to a stale
+          // unmounted-target chain still scrolling toward the older target.
+          threadJumpGenerationRef.current += 1;
           const target = getEventElementById(scrollRef.current, evtId);
           setFocusItem({
             eventId: evtId,
@@ -371,7 +375,6 @@ export const useRoomEventOpenController = ({
           // jump converges over a few re-issued scrolls as freshly mounted
           // rows report their real sizes.
           if (scrollThreadEventIntoView?.(evtId)) {
-            threadJumpGenerationRef.current += 1;
             const generation = threadJumpGenerationRef.current;
             let attempts = 0;
             const retryScrollToMountedTarget = () => {

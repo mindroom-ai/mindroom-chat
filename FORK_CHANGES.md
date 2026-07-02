@@ -1124,6 +1124,69 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
     baseline); `npm run build`; live: `cinny070`, `perf-compact-view`,
     `perf-thread-scroll-stability`, `perf-thread-streaming`,
     `thread-virtualization-behaviors` — 8/8 green.
+- PR #44 review round 5 (2026-07-02, final scoped workflow over the rounds
+  3-4 fix commits: 5 finder lenses, every finding judged by two adversarial
+  verifiers; 14 candidates -> 10 confirmed (7 distinct), 3 split, 1 refuted):
+  - Fixed (real regression from round 4): the primer parity fix primed only
+    `prevEvent`/`isPrevRendered` and dropped the sequential fold's carried
+    day divider — a midnight crossing latched at a null-rendered edit row is
+    consumed only by the next real message, so a window starting inside the
+    burst rendered that message WITHOUT its date divider, flipping its
+    height with the window boundary (round 4's "day-divider sub-case
+    refuted" argument was only valid under the old skip-edits primer).
+    `primeTimelineRenderContextBefore` now reconstructs the pending carry
+    (ts-sorted events make it endpoint-comparable from the nearest rendered
+    row), both primers apply it, and the fold-parity property test folds the
+    divider latch too.
+  - Fixed: a pagination that prepends nothing (empty/duplicate page) left
+    the pending anchor armed forever with no expiry path, so the next
+    appended reply could fire a click-time scroll restore minutes later
+    (pre-existing lifecycle, now converging). The same-commit DOM restore is
+    gated on the capture: unshifted-anchor commits skip it (appends), and
+    once the pagination has finished without prepending the anchor+capture
+    are expired.
+  - Fixed: mounted-target jumps now bump the jump generation, so a stale
+    unmounted-target retry chain (up to 12 frames) can no longer scroll the
+    viewport back to an older target after a newer click (also resolves both
+    split-verdict variants of the same mechanism).
+  - Fixed: the third programmatic jump path — a deferred pending-thread-open
+    whose target is already mounted when the retry effect fires
+    (`roomFocusScrollController`) — now cancels an active bottom-settle loop
+    like the other two paths.
+  - Fixed (nit): pending anchors carry a capture sequence token, so a
+    rapid re-capture anchoring the same event id cannot be restored or
+    expired by the previous pagination's retry chain.
+  - Fixed (test-strength): component-level pins for the primer wiring — the
+    grouping pin and the day-divider pin both verified to fail under a
+    faithful in-place revert (the first attempts were vacuous: the harness
+    mocks `reactionOrEditEvent` to false and `inSameDay` to true, erasing
+    the semantics under test; both are now overridable `vi.fn`s and the
+    divider pin asserts rendered text, not serialized props). The
+    scroll-stability probe also asserts `anchoredFrames > 20` (an anchorless
+    sampler silently zeroes the jump metric).
+  - `cinny070` batch flake root-caused (again, deeper): with the wheel-intent
+    fix in place the anchor now holds perfectly, but in slow batch runs the
+    thread-open bootstrap preloads the full history before the click and the
+    homeserver's pagination token lingers through empty pages, so the
+    spec's strict button-vanish wait timed out (pre-existing tail behavior,
+    the loader-gap family). The spec now drains via the shared
+    `loadAllOlderThreadMessages` loop — bounded, and extra prepends only
+    strengthen the anchor guard.
+  - Documented (accepted residuals, from the split/nit verdicts): a
+    non-pagination insert landing above the anchor (Tuwunel ts-inversion
+    family) can consume the capture before the real prepend; the room-path
+    `newDivider` latch has the same primer parity gap when the unread run
+    starts with the user's own message — verified PRE-existing (not from
+    these commits) and self-healing in the common index-based path;
+    lab-only jump/pin interleavings within the accepted race family.
+  - Round 5 validation: `npm run typecheck`; `npm test` (314 files, 2345
+    tests — 12 new); `npm run lint` (18 warnings, baseline); `npm run
+    build`; live: `cinny033` jump-to-latest + permalink, `cinny070` (x2
+    after hardening), `perf-compact-view`, `perf-thread-scroll-stability`,
+    `perf-thread-streaming`, `thread-virtualization-behaviors` 4/4. The
+    interrupted full-suite run also confirmed all 56 locally-seeded specs
+    green; the 10 failures were federation joins to the unreachable lab
+    fixture homeserver (environmental, documented in the e2e memory).
 - Next steps:
   - Push is blocked locally: the `block-git-rewrites.py` hook rejects
     `git push --force-with-lease`, which the rebase requires; needs a manual

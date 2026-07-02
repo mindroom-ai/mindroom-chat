@@ -1,6 +1,7 @@
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getLatestEdit, reactionOrEditEvent } from '../../utils/room';
+import { inSameDay } from '../../utils/time';
 
 export type ThreadInitialRenderMode = 'loading' | 'cached' | 'live';
 export type ThreadRenderEventEntry<TEvent extends MatrixEvent = MatrixEvent> = {
@@ -301,6 +302,7 @@ export const dedupeThreadRenderEventEntries = <
 export type TimelineRenderContextPrime = {
   prevEvent: MatrixEvent;
   isPrevRendered: boolean;
+  pendingDayDivider: boolean;
 };
 
 /**
@@ -322,14 +324,41 @@ export const primeTimelineRenderContextBefore = (
   windowStartIndex: number,
   isSkipped: (event: MatrixEvent) => boolean
 ): TimelineRenderContextPrime | undefined => {
+  let prevEvent: MatrixEvent | undefined;
+  let oldestTrailing: MatrixEvent | undefined;
+  let consumptionBase: MatrixEvent | undefined;
   for (let index = windowStartIndex - 1; index >= 0; index -= 1) {
     const event = getEvent(index);
     if (!event || !event.getId()) continue;
     if (isSkipped(event)) continue;
-    // Residual approximation: a non-edit event whose renderer returns null
-    // (e.g. hidden membership) sequentially yields isPrevRendered = false;
-    // the collapsed check's sender/type equality makes that invisible.
-    return { prevEvent: event, isPrevRendered: !reactionOrEditEvent(event) };
+    if (!prevEvent) {
+      prevEvent = event;
+      // Residual approximation: a non-edit event whose renderer returns null
+      // (e.g. hidden membership) sequentially yields isPrevRendered = false;
+      // the collapsed check's sender/type equality makes that invisible.
+      if (!reactionOrEditEvent(event)) break;
+      oldestTrailing = event;
+      continue;
+    }
+    oldestTrailing = event;
+    if (!reactionOrEditEvent(event)) {
+      consumptionBase = event;
+      break;
+    }
   }
-  return undefined;
+  if (!prevEvent) return undefined;
+  const isPrevRendered = !reactionOrEditEvent(prevEvent);
+  // Sequential fold: dayDivider latches at any adjacent midnight crossing and
+  // is only consumed (rendered) by a row with output — a crossing at a
+  // null-rendering edit/reaction row carries forward to the next real
+  // message. Events are ts-sorted, so a crossing exists among the trailing
+  // null rows iff the endpoints differ in day: from the nearest rendered row
+  // (where the last consumption happened) — or the oldest surviving event
+  // when nothing before renders — up to prevEvent.
+  const carryBase = consumptionBase ?? oldestTrailing;
+  const pendingDayDivider =
+    !isPrevRendered && carryBase !== undefined && carryBase !== prevEvent
+      ? !inSameDay(carryBase.getTs(), prevEvent.getTs())
+      : false;
+  return { prevEvent, isPrevRendered, pendingDayDivider };
 };

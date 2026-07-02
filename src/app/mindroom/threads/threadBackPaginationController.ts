@@ -8,6 +8,9 @@ import {
 type PendingThreadBackPaginationAnchor = ThreadPrependScrollAnchor & {
   eventCount?: number;
   threadId: string;
+  // Distinguishes successive captures even when they anchor the same event id
+  // (e.g. a rapid second Load Older with the same first-visible row).
+  seq: number;
 };
 
 export type ThreadBackPaginationController = {
@@ -23,6 +26,7 @@ export type ThreadBackPaginationController = {
   finish: (opts: { didPaginateBack: boolean; threadId: string; currentThreadId?: string }) => void;
   clearPendingAnchor: () => void;
   getPendingAnchorEventId: () => string | undefined;
+  getPendingAnchorSeq: () => number | undefined;
   restorePendingAnchor: (
     scrollRoot: HTMLElement | null | undefined,
     threadId: string | undefined,
@@ -35,6 +39,7 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
   const isPaginatingBackRef = useRef(false);
   const suppressOpenBottomPinRef = useRef(false);
   const pendingAnchorRef = useRef<PendingThreadBackPaginationAnchor | undefined>();
+  const pendingAnchorSeqRef = useRef(0);
 
   useEffect(() => {
     isPaginatingBackRef.current = isPaginatingBack;
@@ -57,11 +62,13 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
 
       suppressOpenBottomPinRef.current = true;
       const capturedAnchor = captureThreadPrependScrollAnchor(scrollRoot);
+      pendingAnchorSeqRef.current += 1;
       pendingAnchorRef.current = capturedAnchor
         ? {
             ...capturedAnchor,
             eventCount,
             threadId,
+            seq: pendingAnchorSeqRef.current,
           }
         : undefined;
       isPaginatingBackRef.current = true;
@@ -91,6 +98,8 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
   );
 
   const getPendingAnchorEventId = useCallback(() => pendingAnchorRef.current?.eventId, []);
+
+  const getPendingAnchorSeq = useCallback(() => pendingAnchorRef.current?.seq, []);
 
   const clearPendingAnchor = useCallback(() => {
     pendingAnchorRef.current = undefined;
@@ -135,6 +144,7 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
     finish,
     clearPendingAnchor,
     getPendingAnchorEventId,
+    getPendingAnchorSeq,
     restorePendingAnchor,
   };
 };

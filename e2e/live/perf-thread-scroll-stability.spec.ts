@@ -143,6 +143,7 @@ test.describe('PERF: thread scroll stability under expand-all', () => {
       }
       return {
         frames: s.length,
+        anchoredFrames: s.filter((sample) => sample.anchorTop !== -1).length,
         visibleJumpFrames: jumps,
         maxVisibleJumpPx: maxJump,
         totalJumpPx: total,
@@ -156,8 +157,10 @@ test.describe('PERF: thread scroll stability under expand-all', () => {
       contentType: 'application/json',
     });
 
-    // The jump metric is informational, but a run that never sampled (or
-    // never found an anchor row) must not pass as a silent no-op.
+    // The jump metric is informational, but a run that never sampled — or
+    // whose sampler never located an anchor row, which silently zeroes the
+    // jump counts — must not pass as a no-op.
     expect(report.frames).toBeGreaterThan(20);
+    expect(report.anchoredFrames).toBeGreaterThan(20);
   });
 });
