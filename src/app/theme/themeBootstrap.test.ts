@@ -30,6 +30,11 @@ vi.mock('../hooks/useTheme', () => {
       kind: ThemeKind.Dark,
       classNames: ['dark-theme', 'dark-class', 'dark-font', 'prism-dark'],
     },
+    MidnightTheme: {
+      id: 'midnight-theme',
+      kind: ThemeKind.Dark,
+      classNames: ['midnight-theme', 'midnight-class', 'dark-font', 'prism-dark'],
+    },
     ButterTheme: {
       id: 'butter-theme',
       kind: ThemeKind.Dark,

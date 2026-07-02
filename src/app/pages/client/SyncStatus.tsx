@@ -39,7 +39,7 @@ export function SyncStatus({ mx }: SyncStatusProps) {
     return (
       <Box direction="Column" shrink="No">
         <Box
-          className={ContainerColor({ variant: 'Success' })}
+          className={ContainerColor({ variant: 'SurfaceVariant' })}
           style={{ padding: `${config.space.S100} 0` }}
           alignItems="Center"
           justifyContent="Center"

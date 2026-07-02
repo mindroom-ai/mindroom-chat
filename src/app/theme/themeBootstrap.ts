@@ -3,6 +3,7 @@ import {
   ButterTheme,
   DarkTheme,
   LightTheme,
+  MidnightTheme,
   SilverTheme,
   type Theme,
   ThemeKind,
@@ -14,7 +15,13 @@ import { getSettings } from '../state/settings';
 const UNAUTH_ROUTE_PATH_PATTERN = /(?:^|\/)(login|register|reset-password)(?:\/[^/]+)?\/?$/;
 const hasOwn = Object.prototype.hasOwnProperty;
 
-const THEME_IDS = [LightTheme.id, SilverTheme.id, DarkTheme.id, ButterTheme.id] as const;
+const THEME_IDS = [
+  LightTheme.id,
+  SilverTheme.id,
+  DarkTheme.id,
+  MidnightTheme.id,
+  ButterTheme.id,
+] as const;
 type ThemeId = typeof THEME_IDS[number];
 type ThemeScheme = 'light' | 'dark';
 
@@ -55,6 +62,13 @@ const RESOLVED_THEME_MAP: Record<ThemeId, ResolvedTheme> = {
     bgColor: '#1A1A1A',
     scheme: 'dark',
     classNames: [configClass, varsClass, ...DarkTheme.classNames],
+  },
+  [MidnightTheme.id]: {
+    themeId: MidnightTheme.id,
+    themeKind: MidnightTheme.kind,
+    bgColor: '#17161D',
+    scheme: 'dark',
+    classNames: [configClass, varsClass, ...MidnightTheme.classNames],
   },
   [ButterTheme.id]: {
     themeId: ButterTheme.id,

@@ -197,6 +197,54 @@ const darkThemeData = {
 
 export const darkTheme = createTheme(color, darkThemeData);
 
+// Dark surfaces tinted toward the lavender primary (hue ~247°, same lightness
+// steps as the neutral dark ladder), with a softer shadow color.
+export const midnightTheme = createTheme(color, {
+  ...darkThemeData,
+  Background: {
+    Container: '#17161D',
+    ContainerHover: '#23222A',
+    ContainerActive: '#2F2E38',
+    ContainerLine: '#3C3B45',
+    OnContainer: '#F2F2F2',
+  },
+
+  Surface: {
+    Container: '#23222A',
+    ContainerHover: '#2F2E38',
+    ContainerActive: '#3C3B45',
+    ContainerLine: '#484753',
+    OnContainer: '#F2F2F2',
+  },
+
+  SurfaceVariant: {
+    Container: '#2F2E38',
+    ContainerHover: '#3C3B45',
+    ContainerActive: '#484753',
+    ContainerLine: '#55545F',
+    OnContainer: '#F2F2F2',
+  },
+
+  Secondary: {
+    Main: '#FFFFFF',
+    MainHover: '#E5E5E5',
+    MainActive: '#D9D9D9',
+    MainLine: '#CCCCCC',
+    OnMain: '#17161D',
+    Container: '#3C3B45',
+    ContainerHover: '#484753',
+    ContainerActive: '#55545F',
+    ContainerLine: '#61606D',
+    OnContainer: '#F2F2F2',
+  },
+
+  Other: {
+    FocusRing: 'rgba(255, 255, 255, 0.5)',
+    Shadow: 'rgba(0, 0, 0, 0.6)',
+    Overlay: 'rgba(0, 0, 0, 0.8)',
+  },
+});
+
 export const butterTheme = createTheme(color, {
   ...darkThemeData,
   Background: {
