@@ -134,7 +134,11 @@ import {
   getHydratedLongTextExtrasCollapseKey,
   shouldForceCollapsibleMessageOverflow,
 } from './threadCollapsibleMessages';
-import { buildResolveConfirmedEventId, dedupeThreadRenderEventEntries } from './threadRenderUtils';
+import {
+  buildResolveConfirmedEventId,
+  dedupeThreadRenderEventEntries,
+  primeTimelineRenderContextBefore,
+} from './threadRenderUtils';
 import {
   useTimelineDebugRangeController,
   useTimelineDebugTraceIds,
@@ -1002,10 +1006,18 @@ export function RoomTimeline({
   // Learned mean of measured row heights for the open thread. A static
   // estimate is far off for expanded rows (96/144 vs several hundred px), and
   // every mount-above then corrects offsets by that error — visible as
-  // flicker/jumps during fast upward scrolling. The estimate lives in state
-  // with hysteresis: TanStack caches per-item estimates, so it must see a new
-  // estimateSize identity (one clean recompute) rather than a mutating ref
-  // (stale, mixed estimates).
+  // flicker/jumps during fast upward scrolling. Mechanics on virtual-core
+  // 3.2.0: estimateSize is NOT a virtualizer memo dependency; new estimates
+  // reach unmeasured rows because (i) state guarantees a render (a ref write
+  // from the measure callback might never trigger one) and (ii) the inline
+  // getItemKey arrow below invalidates memoOptions -> getMeasurements every
+  // render — a full rebuild that consults estimateSize for unmeasured items
+  // while measured heights persist in itemSizeCache. Do NOT memoize
+  // getItemKey without keying it on the learned size: a stable identity would
+  // stop new estimates from ever reaching the unvisited region above the
+  // viewport (getMeasurements then only recomputes from the min measured
+  // index up) and silently regress this fix. The rebuild's per-render cost is
+  // one O(count) pass of key/Map lookups — microseconds at current sizes.
   const threadRowSizeStatsRef = useRef<{ total: number; count: number }>({ total: 0, count: 0 });
   const [learnedThreadRowSize, setLearnedThreadRowSize] = useState<number | undefined>(undefined);
   const defaultRowEstimate = messageLayout === MessageLayout.Compact ? 96 : 144;
@@ -1057,6 +1069,10 @@ export function RoomTimeline({
       if (!element) return;
       roomTimelineVirtualizer.measureElement(element);
       const height = (element as HTMLElement).offsetHeight;
+      // Null-rendering edit/reaction rows measure 0 and are deliberately
+      // excluded so the mean tracks visible-row height; unmounted zero rows
+      // are therefore overestimated until they mount (accepted — see the
+      // declined renderable-only re-indexing follow-up in FORK_CHANGES.md).
       if (height > 0) {
         const stats = threadRowSizeStatsRef.current;
         stats.total += height;
@@ -2904,24 +2920,35 @@ export function RoomTimeline({
     return renderResolvedEvent(mEvent, item, timelineSet, eventEntry.absoluteIndex);
   };
 
+  const isRoomTimelinePrimeSkipped = (mEvent: MatrixEvent) => {
+    const mEventId = mEvent.getId();
+    const eventSender = mEvent.getSender();
+    if (eventSender && ignoredUsersSet.has(eventSender)) return true;
+    if (!showThreadRepliesInRoom && mEvent.threadRootId && mEvent.threadRootId !== mEventId) {
+      return true;
+    }
+    return mEvent.isRedacted() && !showHiddenEvents;
+  };
+
   const primeRoomTimelineRenderContextBefore = (item: number) => {
+    const primed = primeTimelineRenderContextBefore(
+      (index) => threadFilteredEventEntries[index]?.event,
+      item,
+      isRoomTimelinePrimeSkipped
+    );
+    if (!primed) return;
+    prevEvent = primed.prevEvent;
+    isPrevRendered = primed.isPrevRendered;
+    // The sequential path advances prevRenderedEventAbsoluteIndex only on
+    // rendered rows, so it comes from the nearest surviving non-edit entry —
+    // possibly further back than prevEvent.
     for (let previousItem = item - 1; previousItem >= 0; previousItem -= 1) {
       const eventEntry = threadFilteredEventEntries[previousItem];
       const mEvent = eventEntry?.event;
-      const mEventId = mEvent?.getId();
-      if (!mEvent || !mEventId) continue;
-
-      const eventSender = mEvent.getSender();
-      if (eventSender && ignoredUsersSet.has(eventSender)) continue;
-      if (!showThreadRepliesInRoom && mEvent.threadRootId && mEvent.threadRootId !== mEventId) {
-        continue;
-      }
-      if (mEvent.isRedacted() && !showHiddenEvents) continue;
+      if (!mEvent || !mEvent.getId()) continue;
+      if (isRoomTimelinePrimeSkipped(mEvent)) continue;
       if (reactionOrEditEvent(mEvent)) continue;
-
-      prevEvent = mEvent;
       prevRenderedEventAbsoluteIndex = eventEntry.absoluteIndex;
-      isPrevRendered = true;
       return;
     }
   };
@@ -2962,20 +2989,18 @@ export function RoomTimeline({
   };
 
   const primeThreadTimelineRenderContextBefore = (index: number) => {
-    for (let previousIndex = index - 1; previousIndex >= 0; previousIndex -= 1) {
-      const mEvent = threadEvents[previousIndex];
-      const mEventId = mEvent?.getId();
-      if (!mEvent || !mEventId) continue;
-
-      const eventSender = mEvent.getSender();
-      if (eventSender && ignoredUsersSet.has(eventSender)) continue;
-      if (mEvent.isRedacted() && !showHiddenEvents) continue;
-      if (reactionOrEditEvent(mEvent)) continue;
-
-      prevEvent = mEvent;
-      isPrevRendered = true;
-      return;
-    }
+    const primed = primeTimelineRenderContextBefore(
+      (previousIndex) => threadEvents[previousIndex],
+      index,
+      (mEvent) => {
+        const eventSender = mEvent.getSender();
+        if (eventSender && ignoredUsersSet.has(eventSender)) return true;
+        return mEvent.isRedacted() && !showHiddenEvents;
+      }
+    );
+    if (!primed) return;
+    prevEvent = primed.prevEvent;
+    isPrevRendered = primed.isPrevRendered;
   };
 
   const threadEventRenderer = (index: number) => {

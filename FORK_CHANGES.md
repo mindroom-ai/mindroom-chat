@@ -1060,6 +1060,70 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
     build`; live against docker-matrix: `cinny070` ×3 serial green,
     `thread-virtualization-behaviors` 4/4, `perf-thread-scroll-stability`
     green, `perf-thread-streaming` 0 long tasks.
+- PR #44 review round 4 (2026-07-01, external codex review supplied by the
+  user; every claim verified against the code before editing, two of them by
+  dedicated verification subagents):
+  - Already fixed in round 3 (confirmed overlap): the prepend-detector
+    never-arms blocker + fresh-mock masking, and the double-Load-Older retry
+    chain expiring the newer anchor.
+  - Fixed (confirmed, virtual-window primer parity): the primers skipped
+    reaction/edit events and marked the nearest real message as rendered,
+    while the sequential path keeps the edit as `prevEvent` with
+    `isPrevRendered = false` — so a message following an edit burst rendered
+    collapsed only when the window started on it, flipping its height (and
+    reply-preview visibility) as the boundary crossed the burst and staling
+    the per-event measurement cache: flicker in exactly MindRoom's edit-heavy
+    streaming threads. Both primers (thread and room paths) now derive
+    context through `primeTimelineRenderContextBefore` in
+    `threadRenderUtils.ts`, unit-tested including a sequential-fold parity
+    property over every window start. The claim's day-divider sub-case was
+    refuted (thread events are strictly ts-sorted, so the sticky pairwise
+    chain agrees across midnight) and unread dividers do not apply to the
+    thread path.
+  - Verified and corrected the learned-estimate comment instead of taking the
+    suggested fix: on virtual-core 3.2.0, `estimateSize` is not a memo dep;
+    new estimates reach unmeasured rows because state guarantees a render and
+    the inline `getItemKey` invalidates `memoOptions -> getMeasurements`
+    every render (full rebuild; measured heights persist in `itemSizeCache`).
+    The review's proposed lever — memoizing `getItemKey` — would stop new
+    estimates from ever reaching the unvisited region above the viewport
+    (partial rebuilds copy stale estimates below the min measured index) and
+    silently regress the flicker fix; the O(count) per-render rebuild is
+    microseconds at current sizes. Comment now states the real mechanics and
+    warns against the memoization; the `height > 0` stats guard (zero-height
+    edit/reaction tiles excluded from the learned mean) is documented at the
+    guard.
+  - Fixed (small, confirmed): `CompactRoomView` latest-value refs now sync in
+    a layout effect instead of during render (concurrent-render safety); the
+    compact-view probe counts real cards (`[data-thread-root-id]`, must reach
+    the seeded count) instead of any child of the container (the empty state
+    satisfied the old assertion); the scroll-stability probe hard-asserts the
+    sampler produced frames (it previously had no assertions at all); the
+    expand-all guard scopes `[aria-expanded]` to `[data-message-item]`
+    descendants; the offline spec's "Failed to connect to homeserver" branch
+    was dropped (only `SpecVersions.tsx` renders connectivity text, and only
+    the "Unable to connect" wording); the two divergent load-all-older loops
+    (the streaming spec's could exit early during the label flip) are
+    consolidated into `e2e/helpers/threadTimeline.ts` with double-check
+    completion.
+  - Declined with reasoning: consolidating the scroller-discovery walks and
+    reply-seeding loops across the four new specs — the walks live inside
+    `page.evaluate` closures (sharing requires function-stringification
+    hacks) and the fixture shapes are spec-specific and pinned to published
+    baseline measurements; `handleOpenEvent`'s `!alive()` exit not firing
+    `onScroll` — the component is unmounted, so there is no spinner state
+    left to settle and invoking the callback would touch an unmounted tree.
+  - Documented (accepted residual): Firefox dispatches no pointer events for
+    scrollbar interaction, so during the ~2.5s settle window after
+    open/Jump-to-Latest a scrollbar thumb-drag that pauses off-bottom is
+    re-pinned; wheel/touch/keyboard all cancel normally. A
+    scroll-delta-opposing-the-pin heuristic would close this and the 400ms
+    intent-window nit together (follow-up).
+  - Round 4 validation: `npm run typecheck`; `npm test` (314 files, 2339
+    tests — 6 new primer-parity tests); `npm run lint` (18 warnings,
+    baseline); `npm run build`; live: `cinny070`, `perf-compact-view`,
+    `perf-thread-scroll-stability`, `perf-thread-streaming`,
+    `thread-virtualization-behaviors` — 8/8 green.
 - Next steps:
   - Push is blocked locally: the `block-git-rewrites.py` hook rejects
     `git push --force-with-lease`, which the rebase requires; needs a manual

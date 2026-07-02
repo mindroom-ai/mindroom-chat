@@ -40,10 +40,7 @@ test('survives a homeserver outage without crashing and recovers after reconnect
       const bodyText = document.body?.innerText ?? '';
       if (bodyText.includes('Unexpected Application Error!')) return 'crash';
       if (document.querySelector('input[name="serverInput"]')) return 'auth';
-      if (
-        bodyText.includes('Failed to connect to homeserver') ||
-        bodyText.includes('Unable to connect to the homeserver')
-      ) {
+      if (bodyText.includes('Unable to connect to the homeserver')) {
         return 'connectivity-dialog';
       }
       if (

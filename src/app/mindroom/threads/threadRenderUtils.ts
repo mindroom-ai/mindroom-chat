@@ -1,6 +1,6 @@
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
-import { getLatestEdit } from '../../utils/room';
+import { getLatestEdit, reactionOrEditEvent } from '../../utils/room';
 
 export type ThreadInitialRenderMode = 'loading' | 'cached' | 'live';
 export type ThreadRenderEventEntry<TEvent extends MatrixEvent = MatrixEvent> = {
@@ -296,4 +296,40 @@ export const dedupeThreadRenderEventEntries = <
   });
 
   return dedupedEntries;
+};
+
+export type TimelineRenderContextPrime = {
+  prevEvent: MatrixEvent;
+  isPrevRendered: boolean;
+};
+
+/**
+ * Computes the sequential renderer's `prevEvent`/`isPrevRendered` context as
+ * it would stand just before `windowStartIndex`, for priming a virtual window
+ * that does not render the preceding rows.
+ *
+ * Parity contract with the sequential path: events failing `isSkipped`
+ * (ignored sender, hidden redaction, filtered thread reply) never touch the
+ * context; every other event becomes `prevEvent` — including reaction/edit
+ * events, which set `isPrevRendered = false`. Skipping edits here instead
+ * (the original primer bug) makes a message that follows an edit burst group
+ * as collapsed only when the window starts on it, so its height flips as the
+ * window boundary crosses the burst and the row measurement cache goes stale
+ * — visible flicker in edit-heavy streaming threads.
+ */
+export const primeTimelineRenderContextBefore = (
+  getEvent: (index: number) => MatrixEvent | undefined,
+  windowStartIndex: number,
+  isSkipped: (event: MatrixEvent) => boolean
+): TimelineRenderContextPrime | undefined => {
+  for (let index = windowStartIndex - 1; index >= 0; index -= 1) {
+    const event = getEvent(index);
+    if (!event || !event.getId()) continue;
+    if (isSkipped(event)) continue;
+    // Residual approximation: a non-edit event whose renderer returns null
+    // (e.g. hidden membership) sequentially yields isPrevRendered = false;
+    // the collapsed check's sender/type equality makes that invisible.
+    return { prevEvent: event, isPrevRendered: !reactionOrEditEvent(event) };
+  }
+  return undefined;
 };

@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
@@ -155,5 +155,9 @@ test.describe('PERF: thread scroll stability under expand-all', () => {
       body: JSON.stringify(report, null, 2),
       contentType: 'application/json',
     });
+
+    // The jump metric is informational, but a run that never sampled (or
+    // never found an anchor row) must not pass as a silent no-op.
+    expect(report.frames).toBeGreaterThan(20);
   });
 });

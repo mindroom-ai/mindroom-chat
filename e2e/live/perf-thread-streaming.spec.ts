@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
+import { loadAllOlderThreadMessages } from '../helpers/threadTimeline';
 
 /**
  * Performance probe for large threads with streaming `m.replace` edits.
@@ -103,29 +104,7 @@ test.describe('PERF: large thread with streaming edits', () => {
 
     const mountedRowsAfterOpen = await page.locator('[data-message-item]').count();
 
-    let loadOlderClicks = 0;
-    // The chip's label flips to "Loading..." while a page is in flight, so
-    // wait through that state instead of treating the missing label as done.
-    for (let i = 0; i < 60; i += 1) {
-      const loadOlder = page.getByRole('button', { name: 'Load Older Messages' });
-      // eslint-disable-next-line no-await-in-loop
-      if ((await loadOlder.count()) > 0) {
-        loadOlderClicks += 1;
-        // eslint-disable-next-line no-await-in-loop
-        await loadOlder.first().click();
-        // eslint-disable-next-line no-await-in-loop
-        await page.waitForTimeout(700);
-        continue;
-      }
-      const loading = page.getByRole('button', { name: 'Loading...' });
-      // eslint-disable-next-line no-await-in-loop
-      if ((await loading.count()) > 0) {
-        // eslint-disable-next-line no-await-in-loop
-        await page.waitForTimeout(400);
-        continue;
-      }
-      break;
-    }
+    const loadOlderClicks = await loadAllOlderThreadMessages(page);
 
     const mountedRowsAfterLoadAll = await page.locator('[data-message-item]').count();
     const domNodeCount = await page.evaluate(() => document.getElementsByTagName('*').length);

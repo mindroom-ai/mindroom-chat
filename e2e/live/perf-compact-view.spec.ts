@@ -70,7 +70,7 @@ test.describe('PERF: compact room view with many threads', () => {
     const openMs = Date.now() - openStart;
 
     const state = await page.evaluate(() => ({
-      cards: document.querySelectorAll('[data-compact-room-view] > *').length,
+      cards: document.querySelectorAll('[data-compact-room-view] [data-thread-root-id]').length,
       domNodeCount: document.getElementsByTagName('*').length,
       usedJsHeapMb: (() => {
         const memory = (performance as Performance & { memory?: { usedJSHeapSize: number } })
@@ -123,6 +123,6 @@ test.describe('PERF: compact room view with many threads', () => {
       contentType: 'application/json',
     });
 
-    expect(state.cards).toBeGreaterThan(0);
+    expect(state.cards).toBeGreaterThanOrEqual(THREAD_COUNT);
   });
 });

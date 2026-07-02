@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
+import { loadAllOlderThreadMessages } from '../helpers/threadTimeline';
 
 /**
  * Live behavior guards for the virtualized thread timeline (PR #44).
@@ -86,35 +87,6 @@ const getScrollState = (page: Page) =>
     };
   });
 
-const loadAllOlderMessages = async (page: Page) => {
-  // The chip's label flips to "Loading..." while a page is in flight, so the
-  // loop must keep waiting through that state instead of treating the missing
-  // "Load Older Messages" label as completion.
-  for (let i = 0; i < 60; i += 1) {
-    const loadOlder = page.getByRole('button', { name: 'Load Older Messages' });
-    // eslint-disable-next-line no-await-in-loop
-    if ((await loadOlder.count()) > 0) {
-      // eslint-disable-next-line no-await-in-loop
-      await loadOlder.first().click();
-      // eslint-disable-next-line no-await-in-loop
-      await page.waitForTimeout(400);
-      continue;
-    }
-    const loading = page.getByRole('button', { name: 'Loading...' });
-    // eslint-disable-next-line no-await-in-loop
-    if ((await loading.count()) > 0) {
-      // eslint-disable-next-line no-await-in-loop
-      await page.waitForTimeout(400);
-      continue;
-    }
-    // Neither label present for two consecutive checks -> fully loaded.
-    // eslint-disable-next-line no-await-in-loop
-    await page.waitForTimeout(500);
-    // eslint-disable-next-line no-await-in-loop
-    if ((await loadOlder.count()) === 0 && (await loading.count()) === 0) return;
-  }
-};
-
 test.describe('virtualized thread behaviors', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
   test.setTimeout(420_000);
@@ -198,7 +170,7 @@ test.describe('virtualized thread behaviors', () => {
 
     await loginWithPassword(page, { homeserver, username, password });
     await openThread(page, seeded);
-    await loadAllOlderMessages(page);
+    await loadAllOlderThreadMessages(page);
 
     // Jump back to the bottom where the quoting message lives.
     const jump = page.getByRole('button', { name: 'Jump to Latest' });
@@ -235,13 +207,13 @@ test.describe('virtualized thread behaviors', () => {
     await openThread(page, seeded);
 
     // Sanity: long bodies start collapsed.
-    await expect(page.locator('[aria-expanded="false"]').first()).toBeVisible({
+    await expect(page.locator('[data-message-item] [aria-expanded="false"]').first()).toBeVisible({
       timeout: 15_000,
     });
 
     await page.getByRole('button', { name: '[+all]' }).click();
     await page.waitForTimeout(500);
-    expect(await page.locator('[aria-expanded="false"]').count()).toBe(0);
+    expect(await page.locator('[data-message-item] [aria-expanded="false"]').count()).toBe(0);
 
     // Scroll far up so fresh rows mount outside the original window.
     const timeline = page.locator('[data-message-item]').first();
@@ -255,6 +227,6 @@ test.describe('virtualized thread behaviors', () => {
     await page.waitForTimeout(800);
 
     expect(await page.locator('[data-message-item]').count()).toBeGreaterThan(0);
-    expect(await page.locator('[aria-expanded="false"]').count()).toBe(0);
+    expect(await page.locator('[data-message-item] [aria-expanded="false"]').count()).toBe(0);
   });
 });

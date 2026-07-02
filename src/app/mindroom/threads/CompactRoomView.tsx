@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useLayoutEffect, useRef } from 'react';
 import { Box, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
@@ -29,11 +29,15 @@ export function CompactRoomView({
   // when unrelated threads update; the per-thread summary text and the latest
   // onThreadClick are resolved through refs at click time.
   const viewModelByRootRef = useRef<ReadonlyMap<string, CompactThreadCardViewModel>>(new Map());
-  viewModelByRootRef.current = new Map(
-    cardViewModels.map((viewModel) => [viewModel.id.threadRootId, viewModel])
-  );
   const onThreadClickRef = useRef(onThreadClick);
-  onThreadClickRef.current = onThreadClick;
+  // Synced after commit (not during render) so a discarded concurrent render
+  // cannot leave uncommitted view models behind the stable click handler.
+  useLayoutEffect(() => {
+    viewModelByRootRef.current = new Map(
+      cardViewModels.map((viewModel) => [viewModel.id.threadRootId, viewModel])
+    );
+    onThreadClickRef.current = onThreadClick;
+  });
   const handleCardClick = useCallback((clickedThreadRootId: string) => {
     const viewModel = viewModelByRootRef.current.get(clickedThreadRootId);
     onThreadClickRef.current(clickedThreadRootId, viewModel?.recentThreadSummaryText);
