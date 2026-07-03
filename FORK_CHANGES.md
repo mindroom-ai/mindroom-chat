@@ -2,6 +2,32 @@
 
 ## Runbook
 
+### Fix dev service worker registration (2026-07-02)
+
+- Status:
+  - Complete; PR #53 (branch `fix/dev-sw-module-registration`).
+- Problem:
+  - Dev sessions with `__ENABLE_SERVICE_WORKER__` (the lab deployment) log
+    `dev-sw.js?dev-sw:1 Uncaught SyntaxError: Cannot use import statement
+    outside a module` and silently run without a service worker. Pre-existing
+    (mobile-shell commit), surfaced while smoke-testing the merged PR #44.
+- Root causes (stacked):
+  - `src/index.tsx` registered the dev worker without `type: 'module'`, but
+    vite-plugin-pwa's `devOptions.type: 'module'` serves `dev-sw.js` as an ES
+    module — classic evaluation hits the `import` statement.
+  - Even as a module, evaluation failed: dev injects an empty precache
+    manifest and `createHandlerBoundToURL('index.html')` throws for
+    non-precached URLs.
+- Fix:
+  - Register with the mode-matching worker type; gate the navigation fallback
+    on a non-empty precache manifest (media-auth fetch handler still works in
+    dev). Source-guard test updated to pin the new shape.
+- Validation:
+  - Live CDP against the dev server: classic reproduces the SyntaxError; with
+    the fix the app's own boot path registers, activates, and controls the
+    page. `dist/sw.js` intact (17 precache entries, fallback + denylist).
+    `npm test` (2,346), typecheck, lint baseline, build.
+
 ### CINNY-215 - Move tinted dark palette behind a new "Midnight" theme (2026-07-02)
 
 - Status:
