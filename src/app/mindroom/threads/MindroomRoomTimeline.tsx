@@ -1531,6 +1531,7 @@ export function RoomTimeline({
     roomThreadFilterActive,
     scrollRef,
     scrollToBottomRef,
+    sessionId,
     setSupplementalThreadEvents,
     setThreadTailLoaded,
     setThreadTimelineTick,

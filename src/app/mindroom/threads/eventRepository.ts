@@ -32,13 +32,11 @@ import {
   getRoomDerivedThreadSnapshotState,
   mergeThreadBackfillEvents,
 } from './threadCacheSnapshot';
-import {
-  getThreadOpenSeedSnapshot,
-  saveThreadOpenSeedSnapshot,
-} from './threadOpenSeedCache';
+import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { countCacheProbe } from './cacheProbe';
 
 export {
+  deleteRoomEventsFromCache,
   getRoomCursorAnchor,
   loadCachedRoomEvent,
   loadCachedRoomEventsBefore,
@@ -51,6 +49,8 @@ export {
 } from './roomEventCache';
 
 export {
+  deleteThreadEventFromCacheByEventId,
+  deleteThreadEventsFromCache,
   getThreadCursorAnchor,
   loadCachedThreadEvent,
   loadCachedThreadEventsBefore,
@@ -60,6 +60,37 @@ export {
   type CachedThreadEvent,
   type CachedThreadEventPage,
 } from './threadEventCache';
+
+/**
+ * CINNY-207 P1.2 (finding F6-B): prefer the SDK's live event instance over a
+ * cache-mapped clone. The SDK applies redactions and relation removal by
+ * object identity, so clones injected into relation aggregations never learn
+ * about later redactions. When the SDK already holds the event, hydrate with
+ * that instance.
+ *
+ * The mapper also heals the reverse divergence: the SDK's sync store is saved
+ * periodically, so after a reload the restored live instance can predate a
+ * redaction that a cached/fetched raw copy already knows about
+ * (`unsigned.redacted_because`). Applying it via `makeRedacted` cascades into
+ * the SDK's relation cleanup (Relations listens for BeforeRedaction), which
+ * is what removes a stale reaction chip.
+ */
+export const createPreferLiveEventMapper =
+  (
+    room: Room,
+    mapEvent: (rawEvent: Partial<IEvent>) => MatrixEvent
+  ): ((rawEvent: Partial<IEvent>) => MatrixEvent) =>
+  (rawEvent) => {
+    const eventId = typeof rawEvent.event_id === 'string' ? rawEvent.event_id : undefined;
+    const liveEvent = eventId ? room.findEventById(eventId) : undefined;
+    if (!liveEvent) return mapEvent(rawEvent);
+
+    const rawRedactedBecause = rawEvent.unsigned?.redacted_because;
+    if (rawRedactedBecause && !liveEvent.isRedacted()) {
+      liveEvent.makeRedacted(mapEvent(rawRedactedBecause as Partial<IEvent>), room);
+    }
+    return liveEvent;
+  };
 
 type ThreadCursorAnchor = ReturnType<typeof getCachedThreadCursorAnchor>;
 
@@ -280,7 +311,8 @@ export const getThreadCacheTargetId = (room: Room, mEvent: MatrixEvent): string 
     return relatedEvent.threadRootId;
   }
 
-  return relatedEvent.isThreadRoot || room.getThread(relatedEventId)?.rootEvent?.getId() === relatedEventId
+  return relatedEvent.isThreadRoot ||
+    room.getThread(relatedEventId)?.rootEvent?.getId() === relatedEventId
     ? relatedEventId
     : undefined;
 };
@@ -369,10 +401,7 @@ export const loadRoomCachePersistenceState = async ({
 
   return {
     cachedBeforeToken,
-    beforeTokenForEarliest: resolvePersistedRoomBeforeToken(
-      currentBeforeToken,
-      cachedBeforeToken
-    ),
+    beforeTokenForEarliest: resolvePersistedRoomBeforeToken(currentBeforeToken, cachedBeforeToken),
     roomStartKnown: currentBeforeToken === null || cachedBeforeToken === null,
     shouldClearBackwardToken: cachedBeforeToken === null && currentBeforeToken !== null,
   };
@@ -400,14 +429,11 @@ export const filterLatestRoomCacheHydrationEvents = (
   loadedEvents: MatrixEvent[]
 ): Partial<IEvent>[] => {
   const loadedEventIds = new Set(
-    loadedEvents
-      .map((mEvent) => mEvent.getId())
-      .filter((eventId): eventId is string => !!eventId)
+    loadedEvents.map((mEvent) => mEvent.getId()).filter((eventId): eventId is string => !!eventId)
   );
 
   return rawCachedEvents.filter(
-    (rawEvent) =>
-      typeof rawEvent.event_id === 'string' && !loadedEventIds.has(rawEvent.event_id)
+    (rawEvent) => typeof rawEvent.event_id === 'string' && !loadedEventIds.has(rawEvent.event_id)
   );
 };
 
@@ -597,10 +623,7 @@ export const serializeThreadCacheEvents = (
     collectStateTargetEvents(room, rootEvent ? [rootEvent, ...events] : events)
   );
 
-export const serializeRoomCacheEvents = (
-  room: Room,
-  events: MatrixEvent[]
-): Partial<IEvent>[] =>
+export const serializeRoomCacheEvents = (room: Room, events: MatrixEvent[]): Partial<IEvent>[] =>
   serializeEventsForCache(
     room,
     collectStateTargetEvents(room, events).filter(
@@ -649,7 +672,7 @@ export const persistThreadEventCacheSnapshot = ({
   const persistedExpectedReplyCount =
     expectedReplyCount ??
     (resolvedRootEvent ? getKnownThreadReplyCount(resolvedRootEvent) : undefined) ??
-    ((snapshotComplete === true || (beforeTokenForEarliest === null && tailLoaded === true))
+    (snapshotComplete === true || (beforeTokenForEarliest === null && tailLoaded === true)
       ? loadedReplyCount
       : undefined);
   const rawEvents = serializeThreadCacheEvents(room, events, resolvedRootEvent);

@@ -376,6 +376,30 @@ export const saveRoomEventsToCache = async (
   });
 };
 
+// CINNY-207 P1.2: targeted record deletion — see threadEventCache.ts.
+export const deleteRoomEventsFromCache = async (
+  sessionId: string,
+  roomId: string,
+  eventIds: string[]
+): Promise<void> => {
+  if (eventIds.length === 0) return;
+  const db = await openRoomEventCache(sessionId);
+  if (!db) return;
+
+  countCacheProbe('eventDeletes', eventIds.length);
+
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(EVENT_STORE, 'readwrite');
+    const eventStore = transaction.objectStore(EVENT_STORE);
+    eventIds.forEach((eventId) => {
+      eventStore.delete(getEventCacheKey(roomId, eventId));
+    });
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+};
+
 export const deleteRoomEventCache = async (sessionId: string): Promise<void> => {
   if (typeof indexedDB === 'undefined') return;
 

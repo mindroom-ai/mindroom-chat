@@ -15,7 +15,7 @@ import {
   findEarliestLoadedThreadReplyByCacheOrder,
   reconcileThreadBackwardPagination,
 } from './threadPaginationUtils';
-import { loadThreadCachedPaginationSnapshot } from './eventRepository';
+import { createPreferLiveEventMapper, loadThreadCachedPaginationSnapshot } from './eventRepository';
 import type { PersistThreadEventCache } from './threadCachePersistenceController';
 
 type ThreadBackPaginationFinishOptions = {
@@ -88,7 +88,7 @@ export const useThreadPaginationCommandController = ({
         threadId: expectedThreadId,
         earliestLoadedReply: earliestThreadReply,
         limit: THREAD_BATCH_SIZE,
-        mapEvent: (rawEvent) => mapper(rawEvent),
+        mapEvent: createPreferLiveEventMapper(room, mapper),
       });
       if (threadIdRef.current !== expectedThreadId) return;
 
@@ -155,7 +155,7 @@ export const useThreadPaginationCommandController = ({
     forceTimelineUpdate,
     mx,
     persistThreadEventCache,
-    room.roomId,
+    room,
     scrollRef,
     sessionId,
     setSupplementalThreadEvents,

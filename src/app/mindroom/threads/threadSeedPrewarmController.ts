@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { logTimelineDebug } from './timelineDebug';
-import { loadThreadCachedSnapshot } from './eventRepository';
+import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from './eventRepository';
 import { mergeThreadBackfillEvents } from './threadCacheSnapshot';
-import {
-  getThreadOpenSeedSnapshot,
-  saveThreadOpenSeedSnapshot,
-} from './threadOpenSeedCache';
+import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
 
 type ThreadSeedPrewarmTarget = {
@@ -86,18 +83,15 @@ export const useThreadSeedPrewarmController = ({
         threadId: expectedThreadId,
         limit: safePaginationLimitRef.current,
         maxPages: MAX_THREAD_FETCH_ITERATIONS,
-        mapEvent: (rawEvent) => mapper(rawEvent),
+        mapEvent: createPreferLiveEventMapper(room, mapper),
       });
       return cachedSnapshot?.events ?? [];
     },
-    [loadThreadOpenSeedSnapshotFromCacheProp, mx, room.roomId, safePaginationLimitRef, sessionId]
+    [loadThreadOpenSeedSnapshotFromCacheProp, mx, room, safePaginationLimitRef, sessionId]
   );
 
   const ensureThreadSeedPrewarm = useCallback(
-    (
-      expectedThreadId: string,
-      opts?: EnsureThreadSeedPrewarmOptions
-    ): Promise<void> => {
+    (expectedThreadId: string, opts?: EnsureThreadSeedPrewarmOptions): Promise<void> => {
       const existingPromise = prewarmingThreadSeedPromisesRef.current.get(expectedThreadId);
       if (existingPromise) return existingPromise;
       if (prewarmedThreadSeedIdsRef.current.has(expectedThreadId)) {
@@ -148,9 +142,7 @@ export const useThreadSeedPrewarmController = ({
 
       prewarmingThreadSeedPromisesRef.current.set(expectedThreadId, prewarmPromise);
       void prewarmPromise.finally(() => {
-        if (
-          prewarmingThreadSeedPromisesRef.current.get(expectedThreadId) === prewarmPromise
-        ) {
+        if (prewarmingThreadSeedPromisesRef.current.get(expectedThreadId) === prewarmPromise) {
           prewarmingThreadSeedPromisesRef.current.delete(expectedThreadId);
         }
       });

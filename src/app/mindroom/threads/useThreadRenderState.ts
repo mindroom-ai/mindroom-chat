@@ -1,6 +1,7 @@
 import { MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EventTimelineSet, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { aggregateCachedRelationEvents, hydrateCachedEvents } from './eventCacheEditUtils';
+import { removeAggregatedReactionByEventId } from './redactionCacheLifecycle';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 import {
   buildResolveConfirmedEventId,
@@ -155,6 +156,29 @@ export const useThreadRenderState = ({
         relationState.relationEventIds,
         redactedRelationTargets
       );
+
+      // CINNY-207 P1.2 (finding F6): homeservers can serve stale un-pruned
+      // copies of redacted reactions for a while after the redaction
+      // (observed on Tuwunel /relations and /messages), and the SDK's own
+      // timeline ingestion aggregates them outside our pipelines. Scrub
+      // aggregations by event id for every target our merged set knows is
+      // redacted — instance-agnostic, so both SDK copies and cache clones go.
+      const redactionTargetIds = mergedEvents
+        .filter((mEvent) => mEvent.isRedaction())
+        .map((mEvent) => mEvent.getAssociatedId())
+        .filter((eventId): eventId is string => !!eventId);
+      if (redactionTargetIds.length > 0) {
+        const candidateParentIds = mergedEvents
+          .map((mEvent) => mEvent.getId())
+          .filter((eventId): eventId is string => !!eventId);
+        redactionTargetIds.forEach((redactedEventId) => {
+          removeAggregatedReactionByEventId({
+            timelineSets: [threadTimelineSet, roomTimelineSet],
+            candidateParentIds,
+            redactedEventId,
+          });
+        });
+      }
 
       const nextFallbackState = {
         threadId: expectedThreadId,

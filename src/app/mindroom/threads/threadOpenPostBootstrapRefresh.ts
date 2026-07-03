@@ -8,6 +8,7 @@ import {
 } from './threadPaginationUtils';
 import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from './timelineDebug';
+import { createPreferLiveEventMapper } from './eventRepository';
 
 type PersistThreadEventCache = (
   expectedThreadId: string,
@@ -66,7 +67,7 @@ export const runThreadOpenPostBootstrapRefresh = async ({
       const latestEvents = relData.chunk
         .slice()
         .reverse()
-        .map((rawEvent: Parameters<typeof mapper>[0]) => mapper(rawEvent));
+        .map(createPreferLiveEventMapper(room, mapper));
       if (latestEvents.length > 0) {
         currentThread.addEvents(latestEvents, false);
         setSupplementalThreadEvents(threadId, latestEvents);
