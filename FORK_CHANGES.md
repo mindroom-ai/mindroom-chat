@@ -2,6 +2,104 @@
 
 ## Runbook
 
+### CINNY-207 - Timeline minimap: left-edge stripes for human messages (2026-07-03)
+
+- Status:
+  - Complete locally, verified live against the local Tuwunel fixtures.
+- Summary:
+  - Ported the t3code conversation minimap (`TimelineMinimap` in
+    `apps/web/src/components/chat/MessagesTimeline.tsx` of
+    github.com/pingdotgg/t3code) to the MindRoom timeline: vertical stripes on
+    the left edge of the room/thread message stream, one stripe per rendered
+    `m.room.message` that was NOT sent by a MindRoom agent.
+  - Hovering the rail grows nearby stripes (dock effect) and shows a floating
+    preview card pairing the human message (single-line, bold) with the final
+    agent reply before the next human message (3-line clamp). Clicking jumps
+    the timeline to that message via `handleOpenEvent`; arrow keys / Home /
+    End / Enter navigate the rail when focused. Stripes light up via a
+    `data-in-view` attribute mutated on scroll frames without React
+    re-renders.
+  - New files: `src/app/mindroom/matrix/agentIdentity.ts` (agent detection),
+    `src/app/mindroom/threads/timelineMinimapViewModel.ts` (+ tests, pure
+    geometry/derivation ported 1:1 from t3code `MessagesTimeline.logic.ts`),
+    `src/app/mindroom/threads/TimelineMinimap.tsx` (+ `.css.ts`), and
+    `e2e/live/minimap-verify.spec.ts` with
+    `e2e/live/fixtures/minimap-fixture.sh`.
+  - Wiring in `MindroomRoomTimeline.tsx` is ~25 lines: items derive from
+    `threadEvents` (thread mode) or `threadFilteredEvents` (room mode), and
+    the overlay mounts as a sibling of `<Scroll>` inside the relative Box.
+- Decisions:
+  - Agent detection: sender localpart prefix `mindroom_` (mirrors the
+    platform's `matrix_identifiers.agent_username_localpart`) OR presence of
+    `io.mindroom.ai_run` / `io.mindroom.stream_status` /
+    `io.mindroom.tool_trace` content metadata (covers renamed/bridged
+    senders). Every other `m.room.message` gets a stripe, so other humans in
+    a room are represented — per the product ask "one stripe for every
+    message that is not made by a MindRoom agent".
+  - Geometry adaptation: the rail hit area is 16px wide at the far-left edge
+    (t3code uses 40px at x=12) because this timeline has no empty side
+    gutter — a wider rail would swallow avatar clicks. Stripe spacing (8px),
+    min items (2), max rail height (`calc(100vh - 18rem)`), proximity widths
+    (8/10/16/24px), and pointer-to-index rounding are copied exactly.
+  - The minimap is always visible when eligible (t3code's persistent-gutter
+    mode); t3code's hover-to-reveal fallback and gutter-width probe were
+    dropped since our layout never has the gutter it probes for.
+  - Fine-pointer only, enforced in JS (`matchMedia('(pointer: fine)')`) and
+    CSS: touch devices skip item derivation, scroll tracking, and rendering.
+  - Trailing agent events with empty previews (e.g. tool traces) do not wipe
+    the paired agent reply preview (deliberate deviation from t3code, which
+    overwrites with the last assistant text).
+  - Jump uses `handleOpenEvent(eventId, /* highlight */ false)` to match
+    t3code's no-highlight jump; the existing controller handles lazy loading
+    and virtualizer coordination.
+  - Logic module named `timelineMinimapViewModel.ts` because
+    `timelineMinimap.ts` collides with `TimelineMinimap.tsx` on macOS's
+    case-insensitive filesystem (TS1149).
+- Risks:
+  - Stripes only cover loaded events: thread mode initially loads the root +
+    ~10 tail events, so older human messages gain stripes as pagination
+    loads them. Verified acceptable (t3code always has full history; we
+    surface what is loaded, and clicks still lazy-load via
+    `handleOpenEvent`).
+  - The 16px rail intercepts clicks in a small far-left band at mid-height;
+    message rows have ~16px left padding there so no interactive elements
+    are covered.
+  - In-view tracking does one `querySelectorAll('[data-message-id]')` pass
+    per scroll frame; fine at current sizes, an IntersectionObserver is the
+    next step if very large unvirtualized threads make it show up in traces.
+- Next steps:
+  - Consider stripes/preview for image-only human messages (currently shows
+    the msgtype fallback text like "Image").
+  - Consider an IntersectionObserver-based in-view tracker (see Risks).
+- Review:
+  - Independent subagent review (general-purpose agent) flagged: per-item
+    DOM scans per scroll frame (fixed: single `querySelectorAll` pass
+    building an in-view id set), stale scroll element after compact-view
+    toggles (fixed: `enabled` flag re-keys the effect on
+    `showCompactRoomView`), touch devices paying hidden costs (fixed: JS
+    `matchMedia` gate), opaque single-button a11y (fixed: `role="slider"`
+    with `aria-valuenow`/`aria-valuetext`), invalid `<div>` inside
+    `<button>` (fixed: `<span>`), hardcoded shadow + unitless width in CSS
+    (fixed: `config.shadow.E400`, `toRem(1)`), and the fixture script living
+    in /tmp (fixed: committed to `e2e/live/fixtures/`).
+  - Reviewer verified: stripMap lifecycle is leak-free (component remounts
+    per `roomId:threadId` key), event-array choices match both render paths,
+    `handleOpenEvent` is the correct jump API, and no z-index conflicts with
+    `TimelineFloat` (1) or the `[+all]` button (2); minimap uses 3 with a
+    `pointer-events: none` container.
+- Validation:
+  - Green: `npm test -- src/app/mindroom/threads/timelineMinimapViewModel.test.ts`
+    (9 tests: geometry, agent identity, item derivation).
+  - Green: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    (93 tests).
+  - Green: `npm test` (full suite), `npm run typecheck`, `npm run lint`,
+    `npm run build`.
+  - Green live check: `e2e/live/minimap-verify.spec.ts` against local
+    Tuwunel :8008 fixtures + Vite :8090 — asserts stripe count per loaded
+    human message, hover preview card content (question + paired answer),
+    click-jump both directions, and `data-in-view` flag transitions.
+    Screenshots in `ui-audit/minimap-{rest,hover,clicked}.png`.
+
 ### CINNY-131 - Default splash screens to WebGL background (2026-05-31)
 
 - Status:
@@ -244,6 +342,7 @@
     failed with the iOS focus-transfer and pending-RAF cleanup regression tests.
   - Review green check: `npm test -- src/app/hooks/useMobileKeyboardViewportFix.test.ts`
     (3 tests).
+
 ### CINNY-118 - Voice message compression and speech capture constraints (2026-05-18)
 
 - Status:
@@ -283,6 +382,7 @@
   - Independent review before recovery: second self-review checked the final
     diff for stale fallback paths, literal contract coverage, runbook status,
     and half-refactor traces.
+
 ### Safe SVG in message extras HTML (2026-05-11)
 
 - Status:
