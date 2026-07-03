@@ -206,6 +206,8 @@ import { useRoomLiveEventController } from './roomLiveEventController';
 import { useThreadOpenLifecycleController } from './threadOpenLifecycleController';
 import { useRoomTimelineWindowController } from './roomTimelineWindowController';
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
+import { TimelineMinimap, useTimelineMinimapInView } from './TimelineMinimap';
+import { TimelineMinimapItem, deriveTimelineMinimapItems } from './timelineMinimapViewModel';
 import {
   useRoomEventOpenController,
   useRoomEventRouteOpenController,
@@ -1543,6 +1545,26 @@ export function RoomTimeline({
     timelineAtLiveEnd,
     unreadInfo,
   });
+
+  const [minimapStripMap] = useState(() => new Map<string, HTMLSpanElement>());
+  // Fine-pointer only (like the reference implementation): touch devices
+  // never see the minimap, so skip deriving items and tracking scroll there.
+  const [minimapPointerFine] = useState(
+    () => typeof window !== 'undefined' && (window.matchMedia?.('(pointer: fine)').matches ?? false)
+  );
+  const minimapEnabled = minimapPointerFine && !showCompactRoomView;
+  const minimapEvents = threadId ? threadEvents : threadFilteredEvents;
+  const minimapItems = useMemo(
+    () => (minimapEnabled ? deriveTimelineMinimapItems(minimapEvents) : []),
+    [minimapEnabled, minimapEvents]
+  );
+  useTimelineMinimapInView(scrollRef, minimapItems, minimapStripMap, minimapEnabled);
+  const handleMinimapSelect = useCallback(
+    (item: TimelineMinimapItem) => {
+      void handleOpenEvent(item.id, false);
+    },
+    [handleOpenEvent]
+  );
 
   const buildRoomCacheHydratedTimeline = useCallback(
     () =>
@@ -3377,6 +3399,11 @@ export function RoomTimeline({
                   <span ref={atBottomAnchorRef} />
                 </Box>
               </Scroll>
+              <TimelineMinimap
+                items={minimapItems}
+                stripMap={minimapStripMap}
+                onSelect={handleMinimapSelect}
+              />
               {!atBottom && (
                 <TimelineFloat position="Bottom">
                   <Chip
