@@ -2,13 +2,17 @@
 
 ## Runbook
 
-### Rebase onto upstream Cinny v4.12.3 (2026-07-01)
+### Rebase onto upstream Cinny v4.12.3 (2026-07-01, updated 2026-07-02)
 
 - Status:
   - Rebase complete and validated locally on branch `rebase-v4.12.3`; awaiting
     force-push of `dev` (history rewrite) after confirmation.
+  - 2026-07-02 update: replayed the four commits merged to `dev` after the
+    initial rebase (#51 fastlane, #52 UI modernization, #44 thread perf, #53
+    dev service-worker fix) onto the rebased branch with
+    `git rebase --onto`; only `FORK_CHANGES.md` runbook entries conflicted.
 - Summary:
-  - Rebased all 28 fork commits from the v4.12.2 base onto the upstream
+  - Rebased all 25 fork commits from the v4.12.2 base onto the upstream
     `v4.12.3` tag, preserving the fork's linear rebase-onto-release history.
   - Upstream v4.12.3 payload: element-call 0.19.1 -> 0.20.1, docker CI action
     bumps (buildx v4.1.0, login v4.2.0, metadata v6.1.0, build-push v7.2.0),
@@ -56,6 +60,12 @@
   - Green: `npm install` produced no lockfile drift after the rebase.
   - Green: `git diff origin/dev..HEAD` matches the upstream v4.12.3 payload
     only (plus the iOS marketing-version follow-up).
+  - Update green check: `git range-diff` shows the four replayed commits
+    identical to their `origin/dev` originals outside `FORK_CHANGES.md`.
+  - Update green check: `npm run typecheck`.
+  - Update green check: `npm test` (314 files, 2346 tests).
+  - Update green check: `npm run lint` (18 warnings, 0 errors).
+  - Update green check: `npm run build`.
 
 ### Fix dev service worker registration (2026-07-02)
 
