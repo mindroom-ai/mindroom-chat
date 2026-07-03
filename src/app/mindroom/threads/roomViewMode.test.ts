@@ -97,8 +97,27 @@ describe('roomViewMode', () => {
     unmountB();
   });
 
-  it('migrates legacy normal mode to threaded mode', async () => {
+  it('treats stored legacy normal mode as unset and resolves the compact default', async () => {
     storageState.set('roomViewMode:!room-a:example.org', '"normal"');
+    const { roomViewModeAtomFamily } = await import('./roomViewMode');
+    const atom = roomViewModeAtomFamily('!room-a:example.org');
+    const store = createStore();
+    const unmount = store.sub(atom, () => undefined);
+
+    expect(store.get(atom)).toBe('compact');
+
+    unmount();
+  });
+
+  it('resolves stored legacy normal mode to the compact default in getRoomViewMode', async () => {
+    storageState.set('roomViewMode:!room-a:example.org', '"normal"');
+    const { getRoomViewMode } = await import('./roomViewMode');
+
+    expect(getRoomViewMode('!room-a:example.org')).toBe('compact');
+  });
+
+  it('preserves an explicitly stored threaded mode', async () => {
+    storageState.set('roomViewMode:!room-a:example.org', '"threaded"');
     const { roomViewModeAtomFamily } = await import('./roomViewMode');
     const atom = roomViewModeAtomFamily('!room-a:example.org');
     const store = createStore();
