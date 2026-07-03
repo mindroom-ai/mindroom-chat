@@ -1280,6 +1280,56 @@ the remaining checklist was finished in-session).
   guard-abort path from a plausible open-flow sequence. STEP 3 fix is
   gated on that repro pinning the mechanism.
 
+### Compact view previews: strip markdown, collapse tool calls to a badge (2026-07-03)
+
+- Status:
+  - Phase 1 complete locally (plain-text preview cleanup).
+- Summary:
+  - Thread previews in the compact overview showed raw markdown
+    (`**bold**`, backticks, headings) and MindRoom tool-call fallback lines
+    (`🔨 \`tool_name\` [n]` repeated per call), making cards hard to scan.
+  - All preview surfaces funnel through `getThreadMessagePreviewText()`
+    (`src/app/mindroom/threads/threadMessagePreview.ts`) — compact cards,
+    zero-reply roots, latest-reply snippets, command palette, aria labels —
+    so the fix lives entirely in that module:
+    - `stripPreviewMarkdown()` removes inline emphasis, code spans/fences,
+      links/images (kept as labels), headings, blockquotes, and list markers.
+      Underscore emphasis (`_x_`, `__x__`) is deliberately left alone to
+      protect identifiers like `snake_case`/`__init__` (LLMs emit asterisks).
+    - Tool-call markers are counted and collapsed into an inline badge:
+      `🔧 4 tools · <remaining prose>` when prose exists, or `🔧 4 tools`
+      alone for tool-only messages. Orphan separators left between removed
+      markers are cleaned up.
+- Decisions:
+  - Preview stays a plain string (no rich rendering): it flows through
+    `JSON.stringify` view-model signatures, aria-labels, `title` attrs, and
+    the command palette, and per-card render cost matters because every
+    streaming `m.replace` rebuilds all records. A styled pill chip (view-model
+    `toolSummary` field) is a possible phase 2.
+  - Tool count comes from body markers (not `io.mindroom.tool_trace`), so the
+    badge always matches what the raw body displayed; markers require the
+    backticked-name form, so a bare 🔨 in prose is not miscounted.
+  - Previews are recomputed from cached raw events at hydration, so the new
+    format applies to existing threads without a cache migration.
+- Validation:
+  - New `threadMessagePreview.test.ts` (25 tests): pass.
+  - Full unit suite (316 files, 2392 tests): pass.
+  - `npm run typecheck`, `npm run build`: clean; `npm run lint`: 0 errors
+    (18 pre-existing warnings).
+  - Independent subagent review: ship, no blockers. Two nice-to-haves fixed:
+    (1) italic regex no longer pairs glob asterisks across spaces
+    (`*.log and *.tmp` stays intact, incl. inside code spans); (2) streaming
+    "Thinking..." placeholders pass through unbadged so the
+    `hasLikelyIncompleteStreamingBody` checks downstream of preview text
+    (compactThreadRootData, threadOverviewCacheHydration) keep firing.
+    Review also probed regex backtracking on 60–100KB streaming bodies
+    (≤1ms) and confirmed no persisted-preview equality path compares
+    old-format strings against new ones.
+- Next steps:
+  - Optional phase 2: move the tool summary into the card view model and
+    render it as a styled pill next to the msgs badge.
+  - Optional: enrich media fallbacks (e.g. `Image · filename.png`).
+
 ### CINNY-219 - Timeline minimap: left-edge stripes for human messages (2026-07-03)
 
 - Status:
