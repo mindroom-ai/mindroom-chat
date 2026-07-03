@@ -4,6 +4,14 @@ import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { ThreadRecord } from '../types';
 import { ROOM_CACHE_PERSIST_DEBOUNCE_MS } from '../preloadSettings';
+
+// Shrink the sweep debounce for tests: the trailing-debounce behavior under
+// test is interval-independent, and the real 250 ms across every
+// waitForPersistSweepDebounce call adds seconds of dead wall-clock time.
+vi.mock('../preloadSettings', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../preloadSettings')>()),
+  ROOM_CACHE_PERSIST_DEBOUNCE_MS: 25,
+}));
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from '../threadOpenSeedCache';
 import {
   compactPlaceholderType,

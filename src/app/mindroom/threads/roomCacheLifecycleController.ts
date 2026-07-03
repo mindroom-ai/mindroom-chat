@@ -104,7 +104,12 @@ export const useRoomCacheLifecycleController = ({
       const roomTailLoaded = !lastTimeline?.getPaginationToken(Direction.Forward);
       // Token/tail transitions (e.g. backward pagination discovering the room
       // start) must be persisted even when they arrive with no unseen events,
-      // and they change the per-thread derived flags for every group.
+      // and they change the per-thread derived flags for every group. The
+      // undefined initial state deliberately makes the first sweep of a room
+      // mount a full one: it re-derives per-thread flags from current token
+      // state and captures events that arrived while the room was unmounted
+      // (finding F1). The delta guard targets the per-live-event repeat
+      // sweeps (finding F2), not this once-per-open baseline.
       const lastTokenState = lastSweepTokenStateRef.current;
       const tokenStateChanged =
         !lastTokenState ||
