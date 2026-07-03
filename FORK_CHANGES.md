@@ -2,6 +2,34 @@
 
 ## Runbook
 
+### Thread overview toolbar: top spacing + inline tag filters (2026-07-03)
+
+- Status:
+  - Complete locally (rebased onto the v4.12.3-based `dev`).
+- Summary:
+  - `RoomThreadOverview` panel (`src/app/mindroom/threads/RoomThreadOverview.css.ts`)
+    now has a top margin (`S200`) so it no longer touches the room header.
+  - The tag filter group (tag pills + "+ tag" dropdown) moved from its own
+    second row into the main toolbar row, right-aligned via `marginLeft: auto`,
+    reclaiming a full row of vertical space. The toolbar already wraps on
+    narrow rooms (post-#52), so the tag group degrades to a second
+    right-aligned line instead of overflowing.
+  - `AddTagDropdown` popup is now right-anchored (`right: 0` instead of
+    `left: 0`) since its trigger sits at the panel's right edge.
+- Decisions:
+  - Kept the `TagRow`/`TagList` style names and the `data-tag-filter-row`
+    attribute so existing unit tests and selectors keep working; only the
+    styles and DOM placement changed.
+- Validation:
+  - `npm run typecheck`, `npm run build`, eslint on both changed files: clean.
+  - `RoomThreadOverview.test.ts`: pass.
+  - Live visual check against local Tuwunel (:8008) with a seeded room
+    containing two tagged threads (`e2e/live/tag-toolbar-capture.spec.ts`,
+    untracked): at 1920px the "+ tag" control sits inline right; at 1280px with
+    the members drawer open it wraps to a second right-aligned line.
+- Next steps:
+  - None.
+
 ### Rebase onto upstream Cinny v4.12.3 (2026-07-01, updated 2026-07-03)
 
 - Status:
