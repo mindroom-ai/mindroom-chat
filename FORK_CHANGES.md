@@ -2,6 +2,299 @@
 
 ## Runbook
 
+### CINNY-217 - Invite autocomplete menu portals past host clipping (2026-07-02)
+
+- Status:
+  - Complete locally; live host-surface verification done (see Validation).
+- Summary:
+  - The suggestion listbox used to render `position: absolute` inside a
+    relative anchor under the input, so any host ancestor with
+    `overflow: hidden/auto` (members drawer, dialogs, lobby header, space
+    pages) clipped it instead of letting it extend below the input.
+  - `InviteAutocompleteMenu` now renders the menu through the established
+    folds `PopOut` portal (the same primitive as MembersDrawer filter/sort
+    menus and JumpToTime pickers), anchored to the input wrapper's viewport
+    rect and width-matched to the input.
+  - While open, the menu re-anchors on capture-phase `scroll` (hears
+    scrolling ancestors) and window `resize`, and flips above the input when
+    the menu's maximum height does not fit below but fits (or fits better)
+    above. Placement is a pure function in
+    `inviteAutocompleteMenuPlacement.ts` with direct unit tests.
+  - Keyboard navigation, combobox ARIA (`aria-controls` /
+    `aria-activedescendant` reference the portaled listbox by id, which is
+    document-global), `closedForValue` no-reopen semantics, and Escape
+    handling are unchanged; `InviteUserAutocomplete.tsx` needed no changes.
+- Decisions:
+  - Reused folds `PopOut` (portal + fixed positioning + `zIndex.Max`) rather
+    than inventing a new portal primitive; App.tsx routes all PopOut portals
+    to `#portalContainer` - the same container as the invite dialog's Overlay
+    - and the menu node is appended later, so it paints above the dialog.
+  - The folds `PopOut` wrapper is a full-viewport fixed layer that swallows
+    pointer events (fine for context menus, wrong for a combobox), so the
+    fork overrides it with `pointer-events: none` on the wrapper and
+    `pointer-events: auto` on the menu container - the input stays clickable
+    while suggestions are open.
+  - The `FocusTrap` in `InviteAutocompleteMenu` keeps wrapping only the input
+    wrapper; `clickOutsideDeactivates` became a predicate that treats clicks
+    inside the portaled menu as inside the combobox. The outer
+    `InviteUserPrompt` dialog trap needs no change because focus-trap pauses
+    outer traps while an inner trap is active.
+  - Placement flips based on the menu's maximum height
+    (`min(52vh, 448px) + 8px offset`), preferring Bottom, then Top, then the
+    larger side; constants are shared between the CSS and the placement
+    function via `inviteAutocompleteMenuPlacement.ts`.
+  - Replaced the CINNY-112 "popup stays input-bounded" CSS-source guard
+    (which pinned the clipping-prone absolute layout) with runtime guards:
+    the menu portals through `PopOut` anchored to the input rect and
+    width-matched, plus a source guard against reintroducing
+    `position: 'absolute'`.
+- Risks:
+  - Re-anchoring runs per scroll/resize event; a bail-out skips re-renders
+    when the input rect is unchanged (e.g. scrolling the menu's own list),
+    but rAF-throttling remains a follow-up if low-end devices struggle.
+  - Component tests stub `window`/`document` and mock `PopOut`, so true
+    portal/positioning behavior is only exercised in the live client (done;
+    see Validation).
+  - Escape does not close the invite dialog while focus is in an editable
+    element - pre-existing upstream `stopPropagation` behavior, unchanged by
+    this work; backdrop click and the close button still dismiss it.
+- Next steps:
+  - Consider rAF-throttling the scroll re-anchoring if profiling shows churn.
+  - Optionally clean up the local-homeserver live fixtures (users
+    `mindroom_{mind,sarro,alpha,...}`, `melinda`, `dominic`, `mia`,
+    `invite-tester`; rooms `Agent Hub`, `Portal Test Room`,
+    `Portal Test Space` + `Space Child Room` on `localhost:8008`); they are
+    reusable by `e2e/live/cinny217-invite-menu-portal.spec.ts`.
+- Review:
+  - Independent subagent review approved with no blocking defects; it
+    verified the two-focus-trap interaction against focus-trap 7.8 sources
+    (outer dialog trap is paused with listeners removed while the menu trap
+    is active, so portaled option clicks cannot close the dialog) and folds'
+    positioning internals.
+  - Review follow-ups applied: (1) menu max-height now also clamps to the
+    space actually available on the chosen side
+    (`getInviteAutocompleteMenuMaxHeight`, applied as inline style), so
+    folds' own fit-check can never fall back to positioning the menu beside
+    the input; (2) anchor updates bail out when the input rect is unchanged;
+    (3) the anchor effect uses `useLayoutEffect` to avoid a one-frame
+    open-without-menu flash; (4) corrected the portal-container wording in
+    this entry (`#portalContainer`, not `document.body`).
+- Validation:
+  - Red check (before fix):
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+    failed 19 tests: the new portal/flip/tracking/click-inside tests plus all
+    existing tests, because the old component still rendered the
+    anchor-nested absolute layout and crashed against the portal-based CSS
+    module contract.
+  - Green focused check:
+    `npx vitest run src/app/components/invite-user-prompt/ src/app/hooks/useInviteUserSearch.test.ts src/app/utils/userDirectorySearch.test.ts`
+    (5 files, 48 tests; 50 after the review follow-up max-height tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (303 files, 2270 tests, before review follow-ups).
+  - Green: `npm run lint` (18 warnings, 0 errors - existing baseline).
+  - Green: `npm run build` (existing Vite warnings only).
+  - Live host-surface verification (Vite dev server on `:8090`, local
+    Tuwunel on `:8008`, fixtures: 12 `mindroom_*` agents with short display
+    names, 3 humans, user `invite-tester`):
+    `npx playwright test e2e/live/cinny217-invite-menu-portal.spec.ts`
+    (green, 1 test with per-surface steps). Each step opens the invite
+    prompt from a different host, types `mind`, and asserts: the listbox is
+    visible, the first option is `Mind, @mindroom_mind:...` (CINNY-216 live
+    proof), the menu's bottom extends below the dialog form's bottom (the
+    old clipping boundary) while staying inside the viewport, clicking a
+    portaled option commits the MXID without closing the dialog, and Escape
+    closes only the menu. Surfaces driven, with screenshots in
+    `ui-audit/cinny217/` (untracked):
+    - RoomNavItem context menu (home sidebar) - `room-nav-item.png`
+    - MembersDrawer invite icon - `members-drawer.png`
+    - MindroomRoomViewHeader options menu - `mindroom-room-header.png`
+    - SpaceTabs sidebar context menu - `space-tabs.png`
+    - Space page panel menu (`Space.tsx`) - `space-page-menu.png`
+    - LobbyHeader options menu - `lobby-header.png`
+    - Space room-list nav item menu (`RoomNavItem` inside the space view) -
+      `hierarchy-item.png`
+      Not driven distinctly: the lobby canvas `HierarchyItemMenu` row menu and
+      `RoomIntro` (the thread-first default room view does not render the
+      intro card). Both render the identical `InviteUserPrompt` modal, and the
+      menu portal is host-independent (viewport-anchored in
+      `#portalContainer`), so behavior is covered by the driven surfaces.
+  - Red check (live, before spec fix): the spec initially asserted that a
+    second Escape closes the dialog; the run showed Escape never closes the
+    dialog while focus is in the input - pre-existing upstream behavior
+    (`stopPropagation` returns false for editable elements), not a portal
+    regression; the spec now closes via backdrop click.
+
+### CINNY-216 - Invite autocomplete agent-name ranking and server fallback (2026-07-02)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Fixed the invite-user autocomplete failing to surface a MindRoom agent when
+    the query is the agent's short name (e.g. `mind` for
+    `@mindroom_mind:server`), while unrelated users filled the list.
+  - Diagnosis (probe against real `rankUsers`): with display names cached the
+    agent already ranked first, so the production failure requires cached rows
+    without display names — exactly what direct-user candidates (`{userId}`
+    only) and bootstrap gaps produce. With bare rows, a query hitting the
+    shared `mindroom_` prefix put all ~20 agents in the same starts-with
+    bucket; Fuse scores tie at ~0 and the alphabetical userId tiebreak buried
+    `@mindroom_mind` at position 13, off the 8-item limit.
+  - Second failure layer: the 8-result prefix-collision flood satisfied
+    `localSuggestions.length >= INVITE_SERVER_FALLBACK_MIN_LOCAL_RESULTS`, so
+    the server-directory fallback that would have returned the intended agent
+    (with display name) never ran. This also explains why pasting the full
+    MXID was the only reliable path: a long MXID query produces few local
+    matches, so the fallback fired.
+  - `rankUsers` now ranks with field-identity tiers instead of field-blind
+    buckets: exact display name (0) > exact post-prefix-localpart/localpart/
+    MXID (1) > display-name prefix (2) > post-prefix-localpart prefix (3) >
+    display-name includes (4) > post-prefix includes (5) > full-localpart/MXID
+    prefix, i.e. shared-prefix hits (6) > full-localpart/MXID includes (7) >
+    fuzzy-only (8). A `postPrefixLocalpart` field (localpart with the shared
+    `mindroom_` prefix stripped; identity for non-agents) is searchable in
+    Fuse and drives tiers 1/3/5.
+  - `useInviteUserSearch` now suppresses the server fallback only when at
+    least `INVITE_SERVER_FALLBACK_MIN_LOCAL_RESULTS` local suggestions are
+    strong matches (tier <= 3: exact on any field, or display-name/post-prefix
+    prefix) via `countStrongInviteUserMatches`, instead of counting any local
+    result.
+- Decisions:
+  - Introduced `MINDROOM_AGENT_LOCALPART_PREFIX = 'mindroom_'` in
+    `userDirectorySearch.ts`; no such constant existed in the fork yet.
+  - Kept Fuse threshold 0.4: after the tier fix, fuzzy-only matches sit in the
+    lowest tier and can only fill leftover slots, never outrank a display-name
+    or post-prefix hit (covered by a regression test), so no tightening was
+    needed.
+  - Did not change `INVITE_AUTOCOMPLETE_LIMIT`; the fix is ranking, not a
+    longer list.
+  - Intentional ranking change in an existing test: for query `a`, a user
+    whose only hit is the homeserver name in the MXID (`@bob:example.org`)
+    now ranks below users matching in display name or localpart.
+  - Post-prefix "includes" matches (e.g. `supermind`) rank above shared-prefix
+    "starts-with" matches (e.g. `mindroom_alpha` for query `mind`), because
+    shared-prefix hits carry no identity signal for the query.
+- Candidate-source verification:
+  - An agent absent from the local cache is found via the server fallback once
+    the strong-match gating stops suppressing it (covered by the new hook
+    test: 20 bare cached agents flood the list, server returns the intended
+    agent, it ranks first with its display name).
+  - If a homeserver's user directory does not return an account at all
+    (directory visibility is server config), the client cannot recover it;
+    no client-side workaround was added. Follow-up: verify MindRoom homeserver
+    directory config returns agent accounts for name queries.
+- Risks:
+  - Server fallback now fires for shared-prefix floods (weak-match-only local
+    results), adding `searchUserDirectory` calls while typing prefixes like
+    `mi`/`min`/`mind`; bounded by the existing 200 ms debounce and
+    per-request-id guards.
+  - Tier changes affect generic (non-agent) deployments: MXID-server-name-only
+    matches now rank last; this matches user intent but differs from upstream
+    Cinny ordering.
+- Next steps:
+  - CINNY-217: portal the suggestion menu so host `overflow` cannot clip it.
+- Review:
+  - Independent subagent review approved with no blocking defects; it
+    independently re-verified the pre-fix failure against real Fuse with the
+    20-bare-agent fixture and recomputed the changed single-char expectation
+    by hand.
+  - Review follow-ups applied: added a suppression-side hook test (three
+    strong display-name-prefix local matches keep `searchUserDirectory`
+    uncalled, guarding against the fallback firing on every keystroke), and
+    renamed the stale "uses Fuse weights..." test to describe the tier that
+    now decides it.
+  - PR #54 review comments (rebased onto dev with entries renumbered
+    132/133 -> 216/217 because dev had already used those ids):
+    - Accepted (gemini-code-assist): rank tiers are now precomputed once per
+      candidate instead of recomputed inside the sort comparator, dropping
+      the string matching from O(n log n) to O(n) per query.
+    - Skipped (greptile): moving `setPlacement`/`setMaxHeight` inside the
+      `setAnchor` same-rect bail-out would skip updates on window resizes
+      that change the viewport height without moving the input rect, leaving
+      a stale menu max-height; scalar setters already self-bail via
+      `Object.is`, and the suggested patch also put side effects inside a
+      state updater.
+  - Self-review (multi-angle finder/verifier harness over the full PR diff
+    after the dev rebase) - accepted fixes:
+    - Queries are now normalized with a leading `@` stripped inside
+      `rankUsers`/`countStrongInviteUserMatches`, and the MXID field is
+      matched without its sigil; previously the exact/prefix MXID tiers were
+      unreachable through the UI path (the hook strips `@`), so a pasted
+      MXID ranked as a weak tier-7 hit and never counted as strong.
+      Regression test added.
+    - `searchSingleCharacter` no longer runs a parallel field-matching pass
+      (`getSearchFields` + `includesQuery` deleted); it filters on
+      `tier < NO_MATCH_TIER`, provably equivalent since the post-prefix
+      localpart is a substring of the localpart.
+    - `getRankTier` skips the duplicate post-prefix `matchField` call for
+      non-agent users (post-prefix equals localpart).
+    - Removed the dead CSS `maxHeight` clamp (the inline side-space-aware
+      clamp always overrides it; the CSS copy was also rem-based vs the JS
+      px-based clamp) and the brittle `readFileSync` source-text guard test
+      (behavioral portal tests cover the regression class).
+  - Self-review - verified but intentionally not changed (documented
+    trade-offs):
+    - Typing the literal shared prefix (`mindroom`) ranks display-name
+      substring humans above the tier-6 agent fleet and can evict agents at
+      the 8-item limit; this is the flip side of un-burying agents for
+      short-name queries, resolves as soon as one more character
+      distinguishes an agent, and the server fallback fires for such
+      queries.
+    - Flip-above uses the menu's max height rather than actual content
+      height (a short menu can flip above on short viewports); flipping on
+      content height would make the menu jump sides as suggestion counts
+      change per keystroke.
+    - Fallback traffic for shared-prefix typing (each settled keystroke
+      while strong matches < 3) stays as disclosed, bounded by the 200 ms
+      trailing debounce and request-id guards.
+  - PR #54 CodeRabbit review (posted against the pre-rebase snapshot),
+    triaged against current code:
+    - Accepted: the "prefers the larger side when the menu fits on neither
+      side" placement test never reached the tie-break fallback (both cases
+      resolved via the fits-below/fits-above branches); fixtures changed to
+      a 300px viewport where neither side fits (required 164px vs 160/100
+      and 120/140), so the fallback line is actually exercised.
+    - Stale: the brittle CSS source-text assertion it flagged was already
+      deleted by the self-review commit.
+    - Skipped: importing `MINDROOM_AGENT_LOCALPART_PREFIX` into the test
+      fixtures - the hardcoded `mindroom_` literal deliberately pins the
+      deployment contract so a prefix change fails tests loudly instead of
+      silently adapting.
+  - Self-review - follow-ups (not this PR): rank server-merged results via a
+    cached Fuse (the merged-array path rebuilds the index per server
+    response - pre-existing, now more frequent); optionally suppress the
+    fallback when the top local suggestion is an exact tier<=1 hit; shared
+    invite-prompt test harness (the two files' PopOut mocks have diverged);
+    extract a shared `containsEventTarget` util (third hand-rolled copy
+    alongside two voice components); consider a single state object for
+    anchor/placement/maxHeight.
+- Validation:
+  - Red checks (before fix):
+    `npx vitest run src/app/utils/userDirectorySearch.test.ts src/app/hooks/useInviteUserSearch.test.ts`
+    failed 3 new tests: bare-row agent query `mind` ranked
+    `@mindroom_alpha` first and dropped the intended agent; display-name
+    substring match (`Dominic Mindler`) was pushed off the list by
+    shared-prefix siblings; `searchUserDirectory` was never called when 20
+    bare agents flooded local results (0 calls).
+  - Green focused check:
+    `npx vitest run src/app/hooks/useInviteUserSearch.test.ts src/app/utils/userDirectorySearch.test.ts src/app/components/invite-user-prompt/`
+    (post-review-follow-ups: 5 files, 44 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (302 files, 2257 tests, before review follow-up tests).
+  - Green: `npm run lint` (18 warnings, 0 errors - existing baseline).
+  - Green: `npm run build` (existing Vite warnings only).
+  - Green: `npx prettier --check` on the changed source/test files.
+  - Post-rebase / PR-review-follow-up validation (tier precompute, MXID
+    normalization, single-char dedup, dead CSS clamp removal):
+    - Green focused check:
+      `npx vitest run src/app/utils/userDirectorySearch.test.ts src/app/hooks/useInviteUserSearch.test.ts src/app/components/invite-user-prompt/`
+      (5 files, 52 tests, including the new pasted-MXID regression test).
+    - Green: `npm run typecheck`.
+    - Green: `npm test` (full suite on the rebased branch).
+    - Green: `npm run lint` (18 warnings, 0 errors - existing baseline).
+    - Green: `npm run build`.
+    - Green live re-verification post-rebase:
+      `npx playwright test e2e/live/cinny217-invite-menu-portal.spec.ts`.
+
 ### Fix dev service worker registration (2026-07-02)
 
 - Status:
@@ -9,7 +302,7 @@
 - Problem:
   - Dev sessions with `__ENABLE_SERVICE_WORKER__` (the lab deployment) log
     `dev-sw.js?dev-sw:1 Uncaught SyntaxError: Cannot use import statement
-    outside a module` and silently run without a service worker. Pre-existing
+outside a module` and silently run without a service worker. Pre-existing
     (mobile-shell commit), surfaced while smoke-testing the merged PR #44.
 - Root causes (stacked):
   - `src/index.tsx` registered the dev worker without `type: 'module'`, but
@@ -66,11 +359,11 @@ used that ID.)
 - Problem:
   - `ToolbarHeader` in `RoomThreadOverview.css.ts` was `flexWrap: nowrap` above 480px while
     each `ToggleGroup` was `flexWrap: wrap` and shrinkable. When the room got narrow, the
-    groups were squeezed and wrapped *internally* into 1-button-wide vertical columns
+    groups were squeezed and wrapped _internally_ into 1-button-wide vertical columns
     (user-reported screenshot).
 - Fix (CSS-only plus separator removal):
   - `ToolbarHeader`: always `flexWrap: 'wrap'` (media query removed) — wrapping happens
-    *between* groups; gap bumped S100→S200 to keep group rhythm without separators.
+    _between_ groups; gap bumped S100→S200 to keep group rhythm without separators.
   - `ToggleGroup`: `flexWrap: 'nowrap'` + `flexShrink: 0` — a group never breaks apart.
   - `SectionSeparator` removed entirely (style + 4 usages). Review caught that its
     `max-width: 480px` hide rule was coupled to the removed wrap breakpoint and would have
@@ -125,6 +418,7 @@ theme in CINNY-215; Dark reverted to the neutral grays.)
     `Other.Shadow`. Follow-up: switch to `config.radii`/`config.shadow` tokens.
 - Next steps:
   - Get user sign-off on the direction; optionally follow up on the backlog items above.
+
 ### iOS release automation with fastlane (2026-07-01)
 
 - Status:
@@ -1286,7 +1580,7 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
     streaming re-pin that arrives during its first frames (pre-existing).
   - Round 3 validation: `npm run typecheck`; `npm test` (314 files, 2333
     tests); `npm run lint` (18 warnings, 0 errors — baseline); `npm run
-    build`; live against docker-matrix: `cinny070` ×3 serial green,
+build`; live against docker-matrix: `cinny070` ×3 serial green,
     `thread-virtualization-behaviors` 4/4, `perf-thread-scroll-stability`
     green, `perf-thread-streaming` 0 long tasks.
 - PR #44 review round 4 (2026-07-01, external codex review supplied by the
@@ -1410,7 +1704,7 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
     lab-only jump/pin interleavings within the accepted race family.
   - Round 5 validation: `npm run typecheck`; `npm test` (314 files, 2345
     tests — 12 new); `npm run lint` (18 warnings, baseline); `npm run
-    build`; live: `cinny033` jump-to-latest + permalink, `cinny070` (x2
+build`; live: `cinny033` jump-to-latest + permalink, `cinny070` (x2
     after hardening), `perf-compact-view`, `perf-thread-scroll-stability`,
     `perf-thread-streaming`, `thread-virtualization-behaviors` 4/4. The
     interrupted full-suite run also confirmed all 56 locally-seeded specs

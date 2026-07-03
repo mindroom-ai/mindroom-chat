@@ -11,7 +11,11 @@ import {
   type ServerUserDirectoryUser,
   type UserDirectoryCacheState,
 } from '../state/userDirectoryCache';
-import { filterInviteUserCandidates, rankUsers } from '../utils/userDirectorySearch';
+import {
+  countStrongInviteUserMatches,
+  filterInviteUserCandidates,
+  rankUsers,
+} from '../utils/userDirectorySearch';
 import { useAlive } from './useAlive';
 import { useDebounce } from './useDebounce';
 import { useDirectUsers } from './useDirectUsers';
@@ -42,6 +46,7 @@ const getFilteredUsers = (
 
 const shouldSearchServer = (
   trimmedQuery: string,
+  localSearchTerm: string,
   cache: UserDirectoryCacheState,
   localSuggestions: readonly ServerUserDirectoryUser[]
 ): boolean =>
@@ -50,7 +55,11 @@ const shouldSearchServer = (
     !isUserDirectoryCacheFresh(cache) ||
     cache.limited ||
     cache.isBootstrapOnly ||
-    localSuggestions.length < INVITE_SERVER_FALLBACK_MIN_LOCAL_RESULTS);
+    // Weak matches (shared agent prefix, fuzzy noise) can flood the local
+    // list while the intended user only exists on the server; only strong
+    // local matches may suppress the server fallback.
+    countStrongInviteUserMatches(localSuggestions, localSearchTerm) <
+      INVITE_SERVER_FALLBACK_MIN_LOCAL_RESULTS);
 
 export const useInviteUserSearch = (room: Room, query: string): InviteUserSearchResult => {
   const mx = useMatrixClient();
@@ -108,7 +117,8 @@ export const useInviteUserSearch = (room: Room, query: string): InviteUserSearch
   );
 
   const needsServerSearch =
-    localSearchTerm.length > 0 && shouldSearchServer(trimmedQuery, cacheState, localSuggestions);
+    localSearchTerm.length > 0 &&
+    shouldSearchServer(trimmedQuery, localSearchTerm, cacheState, localSuggestions);
 
   const runServerSearch = useCallback(
     async (term: string, queryTerm: string, requestId: number) => {
