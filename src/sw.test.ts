@@ -12,10 +12,11 @@ describe('service worker app shell caching', () => {
     expect(swSource).toContain('createHandlerBoundToURL');
     expect(swSource).toContain('new NavigationRoute');
     expect(swSource).toContain('denylist: navigationFallbackDenylist');
-    // Dev injects an empty manifest and createHandlerBoundToURL throws for
-    // non-precached URLs; the fallback must stay guarded or the dev service
-    // worker fails evaluation entirely.
-    expect(swSource).toContain('if (precacheManifest.length > 0)');
+    // createHandlerBoundToURL throws for non-precached URLs (dev injects an
+    // empty manifest); the fallback must stay guarded on a precached
+    // index.html or service worker evaluation fails entirely.
+    expect(swSource).toContain("=== 'index.html'");
+    expect(swSource).toContain('if (precachesAppShell)');
     expect(viteConfigSource).toContain("injectionPoint: 'self.__WB_MANIFEST'");
     expect(viteConfigSource).toContain('maximumFileSizeToCacheInBytes');
     expect(viteConfigSource).toContain("'public/element-call/**'");
