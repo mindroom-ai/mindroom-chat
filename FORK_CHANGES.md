@@ -2,6 +2,101 @@
 
 ## Runbook
 
+### CINNY-216 - Invite autocomplete agent-name ranking and server fallback (2026-07-02)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - Fixed the invite-user autocomplete failing to surface a MindRoom agent when
+    the query is the agent's short name (e.g. `mind` for
+    `@mindroom_mind:server`), while unrelated users filled the list.
+  - Diagnosis (probe against real `rankUsers`): with display names cached the
+    agent already ranked first, so the production failure requires cached rows
+    without display names — exactly what direct-user candidates (`{userId}`
+    only) and bootstrap gaps produce. With bare rows, a query hitting the
+    shared `mindroom_` prefix put all ~20 agents in the same starts-with
+    bucket; Fuse scores tie at ~0 and the alphabetical userId tiebreak buried
+    `@mindroom_mind` at position 13, off the 8-item limit.
+  - Second failure layer: the 8-result prefix-collision flood satisfied
+    `localSuggestions.length >= INVITE_SERVER_FALLBACK_MIN_LOCAL_RESULTS`, so
+    the server-directory fallback that would have returned the intended agent
+    (with display name) never ran. This also explains why pasting the full
+    MXID was the only reliable path: a long MXID query produces few local
+    matches, so the fallback fired.
+  - `rankUsers` now ranks with field-identity tiers instead of field-blind
+    buckets: exact display name (0) > exact post-prefix-localpart/localpart/
+    MXID (1) > display-name prefix (2) > post-prefix-localpart prefix (3) >
+    display-name includes (4) > post-prefix includes (5) > full-localpart/MXID
+    prefix, i.e. shared-prefix hits (6) > full-localpart/MXID includes (7) >
+    fuzzy-only (8). A `postPrefixLocalpart` field (localpart with the shared
+    `mindroom_` prefix stripped; identity for non-agents) is searchable in
+    Fuse and drives tiers 1/3/5.
+  - `useInviteUserSearch` now suppresses the server fallback only when at
+    least `INVITE_SERVER_FALLBACK_MIN_LOCAL_RESULTS` local suggestions are
+    strong matches (tier <= 3: exact on any field, or display-name/post-prefix
+    prefix) via `countStrongInviteUserMatches`, instead of counting any local
+    result.
+- Decisions:
+  - Introduced `MINDROOM_AGENT_LOCALPART_PREFIX = 'mindroom_'` in
+    `userDirectorySearch.ts`; no such constant existed in the fork yet.
+  - Kept Fuse threshold 0.4: after the tier fix, fuzzy-only matches sit in the
+    lowest tier and can only fill leftover slots, never outrank a display-name
+    or post-prefix hit (covered by a regression test), so no tightening was
+    needed.
+  - Did not change `INVITE_AUTOCOMPLETE_LIMIT`; the fix is ranking, not a
+    longer list.
+  - Intentional ranking change in an existing test: for query `a`, a user
+    whose only hit is the homeserver name in the MXID (`@bob:example.org`)
+    now ranks below users matching in display name or localpart.
+  - Post-prefix "includes" matches (e.g. `supermind`) rank above shared-prefix
+    "starts-with" matches (e.g. `mindroom_alpha` for query `mind`), because
+    shared-prefix hits carry no identity signal for the query.
+- Candidate-source verification:
+  - An agent absent from the local cache is found via the server fallback once
+    the strong-match gating stops suppressing it (covered by the new hook
+    test: 20 bare cached agents flood the list, server returns the intended
+    agent, it ranks first with its display name).
+  - If a homeserver's user directory does not return an account at all
+    (directory visibility is server config), the client cannot recover it;
+    no client-side workaround was added. Follow-up: verify MindRoom homeserver
+    directory config returns agent accounts for name queries.
+- Risks:
+  - Server fallback now fires for shared-prefix floods (weak-match-only local
+    results), adding `searchUserDirectory` calls while typing prefixes like
+    `mi`/`min`/`mind`; bounded by the existing 200 ms debounce and
+    per-request-id guards.
+  - Tier changes affect generic (non-agent) deployments: MXID-server-name-only
+    matches now rank last; this matches user intent but differs from upstream
+    Cinny ordering.
+- Next steps:
+  - CINNY-217: portal the suggestion menu so host `overflow` cannot clip it.
+- Review:
+  - Independent subagent review approved with no blocking defects; it
+    independently re-verified the pre-fix failure against real Fuse with the
+    20-bare-agent fixture and recomputed the changed single-char expectation
+    by hand.
+  - Review follow-ups applied: added a suppression-side hook test (three
+    strong display-name-prefix local matches keep `searchUserDirectory`
+    uncalled, guarding against the fallback firing on every keystroke), and
+    renamed the stale "uses Fuse weights..." test to describe the tier that
+    now decides it.
+- Validation:
+  - Red checks (before fix):
+    `npx vitest run src/app/utils/userDirectorySearch.test.ts src/app/hooks/useInviteUserSearch.test.ts`
+    failed 3 new tests: bare-row agent query `mind` ranked
+    `@mindroom_alpha` first and dropped the intended agent; display-name
+    substring match (`Dominic Mindler`) was pushed off the list by
+    shared-prefix siblings; `searchUserDirectory` was never called when 20
+    bare agents flooded local results (0 calls).
+  - Green focused check:
+    `npx vitest run src/app/hooks/useInviteUserSearch.test.ts src/app/utils/userDirectorySearch.test.ts src/app/components/invite-user-prompt/`
+    (post-review-follow-ups: 5 files, 44 tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (302 files, 2257 tests, before review follow-up tests).
+  - Green: `npm run lint` (18 warnings, 0 errors - existing baseline).
+  - Green: `npm run build` (existing Vite warnings only).
+  - Green: `npx prettier --check` on the changed source/test files.
+
 ### Fix dev service worker registration (2026-07-02)
 
 - Status:
