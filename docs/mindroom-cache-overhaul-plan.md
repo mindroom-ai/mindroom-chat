@@ -507,7 +507,7 @@ new engine-scoped guard file):
 - 2026-07-03 — **P1.2 landed** (PR 4): redaction cache lifecycle. Reaction
   records deleted (with by-event-id scan fallback), redaction events
   persisted as records and re-applied to late-arriving stale copies (Tuwunel
-  serves un-pruned redacted events on /relations//messages for ~10 s and a
+  serves un-pruned redacted events on /relations and /messages for ~10 s and a
   reload's gappy sync can skip the redaction entirely), prefer-live event
   mapper heals instance divergence both ways, render-merge scrubs reaction
   aggregations by redacted event id, explicit repaint tick. AC3 green in all

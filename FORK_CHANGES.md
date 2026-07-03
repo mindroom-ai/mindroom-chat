@@ -39,8 +39,8 @@
   - A redacted message record is kept as a pruned tombstone, never deleted.
   - Unknown-target redactions (target not in SDK memory) are left to the
     Phase 5 reconcile pass; documented limitation.
-  - Review follow-ups applied: room-view redaction persists no longer
-    downgrade a thread's cached `tailLoaded` (only the open thread's
+  - Review follow-ups applied: room-view redaction persistence no longer
+    downgrades a thread's cached `tailLoaded` (only the open thread's
     live-end state is passed); ambiguous fallback thread attribution also
     persists the redaction record to the room cache
     (`threadTargetFromFallback`); `room` added to two hook dependency arrays

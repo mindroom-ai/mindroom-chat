@@ -163,10 +163,14 @@ export const useThreadRenderState = ({
       // timeline ingestion aggregates them outside our pipelines. Scrub
       // aggregations by event id for every target our merged set knows is
       // redacted — instance-agnostic, so both SDK copies and cache clones go.
-      const redactionTargetIds = mergedEvents
-        .filter((mEvent) => mEvent.isRedaction())
-        .map((mEvent) => mEvent.getAssociatedId())
-        .filter((eventId): eventId is string => !!eventId);
+      const redactionTargetIds = Array.from(
+        new Set(
+          mergedEvents
+            .filter((mEvent) => mEvent.isRedaction())
+            .map((mEvent) => mEvent.getAssociatedId())
+            .filter((eventId): eventId is string => !!eventId)
+        )
+      );
       if (redactionTargetIds.length > 0) {
         const candidateParentIds = mergedEvents
           .map((mEvent) => mEvent.getId())

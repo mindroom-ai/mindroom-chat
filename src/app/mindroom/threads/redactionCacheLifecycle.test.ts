@@ -59,7 +59,6 @@ describe('planRedactionCacheCleanup', () => {
       redactedEventId: '$gone',
       threadTargetFromFallback: false,
       deleteRecords: false,
-      repersistTarget: false,
     });
   });
 
@@ -83,7 +82,6 @@ describe('planRedactionCacheCleanup', () => {
       threadCacheTargetId: '$root',
       threadTargetFromFallback: false,
       deleteRecords: true,
-      repersistTarget: false,
     });
   });
 
@@ -101,7 +99,6 @@ describe('planRedactionCacheCleanup', () => {
       redactedEventId: '$reply',
       threadCacheTargetId: '$root',
       deleteRecords: false,
-      repersistTarget: true,
     });
   });
 
@@ -159,7 +156,6 @@ describe('planRedactionCacheCleanup', () => {
       redactedEventId: '$msg',
       threadCacheTargetId: undefined,
       deleteRecords: false,
-      repersistTarget: true,
     });
   });
 });

@@ -32,8 +32,6 @@ export type RedactionCacheCleanupPlan = {
   threadTargetFromFallback: boolean;
   /** Delete the redacted event's record from the caches (reactions only). */
   deleteRecords: boolean;
-  /** Re-persist the redaction so the pruned target reaches the cache. */
-  repersistTarget: boolean;
 };
 
 export const planRedactionCacheCleanup = ({
@@ -56,7 +54,6 @@ export const planRedactionCacheCleanup = ({
       redactedEventId,
       threadTargetFromFallback: false,
       deleteRecords: false,
-      repersistTarget: false,
     };
   }
 
@@ -77,7 +74,6 @@ export const planRedactionCacheCleanup = ({
     threadCacheTargetId,
     threadTargetFromFallback: !hintedThreadTargetId && !!fallbackThreadId,
     deleteRecords: isReaction,
-    repersistTarget: !isReaction,
   };
 };
 
@@ -117,7 +113,10 @@ export const removeAggregatedReactionByEventId = ({
   let removedFromParentId: string | undefined;
   const parentIds = Array.from(new Set(candidateParentIds));
 
-  parentIds.forEach((parentId) => {
+  for (const parentId of parentIds) {
+    // A reaction has exactly one parent, so stop scanning candidates once a
+    // removal happened — but always sweep every timelineSet for that parent:
+    // the same reaction aggregates in both the room and thread sets.
     uniqueTimelineSets.forEach((timelineSet) => {
       const relations = timelineSet.relations.getChildEventsForEvent(
         parentId,
@@ -134,7 +133,8 @@ export const removeAggregatedReactionByEventId = ({
       relations.removeEvent(aggregatedReaction);
       removedFromParentId = parentId;
     });
-  });
+    if (removedFromParentId) break;
+  }
 
   return removedFromParentId;
 };
