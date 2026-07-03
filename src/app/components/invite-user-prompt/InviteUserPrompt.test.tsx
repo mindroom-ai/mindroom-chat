@@ -30,6 +30,15 @@ vi.mock('folds', async () => {
       React.createElement(React.Fragment, null, backdrop, children),
     OverlayBackdrop: Wrapper,
     OverlayCenter: Wrapper,
+    PopOut: ({
+      anchor,
+      content,
+      children,
+    }: {
+      anchor?: unknown;
+      content?: React.ReactNode;
+      children?: React.ReactNode;
+    }) => React.createElement('div', { 'data-popout': true }, children, anchor ? content : null),
   };
 });
 
@@ -40,7 +49,7 @@ vi.mock('focus-trap-react', () => ({
 
 vi.mock('./InviteAutocompleteMenu.css', () => ({
   InviteAutocompleteMenuRoot: 'InviteAutocompleteMenuRoot',
-  InviteAutocompleteMenuAnchor: 'InviteAutocompleteMenuAnchor',
+  InviteAutocompletePopOut: 'InviteAutocompletePopOut',
   InviteAutocompleteMenuContainer: 'InviteAutocompleteMenuContainer',
   InviteAutocompleteMenu: 'InviteAutocompleteMenu',
   InviteAutocompleteMenuHeader: 'InviteAutocompleteMenuHeader',
@@ -108,6 +117,25 @@ const makeRoom = (): Pick<Room, 'roomId' | 'getMember'> => ({
   getMember: () => null,
 });
 
+const anchorRect = {
+  x: 24,
+  y: 100,
+  width: 320,
+  height: 40,
+  top: 100,
+  bottom: 140,
+  left: 24,
+  right: 344,
+};
+
+const createNodeMock = (element: React.ReactElement) => {
+  const className = typeof element.props.className === 'string' ? element.props.className : '';
+  if (className.includes('InviteAutocompleteMenuRoot')) {
+    return { getBoundingClientRect: () => anchorRect };
+  }
+  return null;
+};
+
 const renderPrompt = () => {
   const store = createStore();
   const mx = makeMx();
@@ -121,7 +149,8 @@ const renderPrompt = () => {
         <MatrixClientProvider value={mx as MatrixClient}>
           <InviteUserPrompt room={room as Room} requestClose={vi.fn()} />
         </MatrixClientProvider>
-      </Provider>
+      </Provider>,
+      { createNodeMock }
     );
   });
 
@@ -196,10 +225,17 @@ const submitInvite = async (renderer: ReactTestRenderer) => {
 };
 
 const originalWindow = globalThis.window;
+const originalDocument = globalThis.document;
 
 beforeEach(() => {
   windowListeners.clear();
   directUsersMock.users = [];
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      documentElement: { clientHeight: 768 },
+    },
+  });
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
     value: {
@@ -225,6 +261,10 @@ afterEach(() => {
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
     value: originalWindow,
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: originalDocument,
   });
 });
 

@@ -33,9 +33,38 @@ vi.mock('focus-trap-react', () => ({
   }) => React.createElement('div', { 'data-focus-trap': true, active, focusTrapOptions }, children),
 }));
 
+vi.mock('folds', async () => {
+  const actual = await vi.importActual<typeof import('folds')>('folds');
+
+  return {
+    ...actual,
+    PopOut: ({
+      anchor,
+      position,
+      align,
+      offset,
+      content,
+      children,
+    }: {
+      anchor?: unknown;
+      position?: string;
+      align?: string;
+      offset?: number;
+      content?: React.ReactNode;
+      children?: React.ReactNode;
+    }) =>
+      React.createElement(
+        'div',
+        { 'data-popout': true, anchor, position, align, offset },
+        children,
+        anchor ? content : null
+      ),
+  };
+});
+
 vi.mock('./InviteAutocompleteMenu.css', () => ({
   InviteAutocompleteMenuRoot: 'InviteAutocompleteMenuRoot',
-  InviteAutocompleteMenuAnchor: 'InviteAutocompleteMenuAnchor',
+  InviteAutocompletePopOut: 'InviteAutocompletePopOut',
   InviteAutocompleteMenuContainer: 'InviteAutocompleteMenuContainer',
   InviteAutocompleteMenu: 'InviteAutocompleteMenu',
   InviteAutocompleteMenuHeader: 'InviteAutocompleteMenuHeader',
@@ -133,6 +162,37 @@ function ControlledAutocomplete({
   );
 }
 
+const defaultAnchorRect = () => ({
+  x: 24,
+  y: 100,
+  width: 320,
+  height: 40,
+  top: 100,
+  bottom: 140,
+  left: 24,
+  right: 344,
+});
+
+// Mutable rect returned by the anchor node mock; tests move it to simulate
+// scroll/resize and cramped viewports.
+let anchorRect = defaultAnchorRect();
+
+const insideMenuNode = { name: 'inside-menu' };
+const menuContainerNode = {
+  contains: (node: unknown) => node === menuContainerNode || node === insideMenuNode,
+};
+
+const createNodeMock = (element: React.ReactElement) => {
+  const className = typeof element.props.className === 'string' ? element.props.className : '';
+  if (className.includes('InviteAutocompleteMenuRoot')) {
+    return { getBoundingClientRect: () => anchorRect };
+  }
+  if (className.includes('InviteAutocompleteMenuContainer')) {
+    return menuContainerNode;
+  }
+  return null;
+};
+
 const renderAutocomplete = ({
   cacheState = readyCache([]),
   disabled,
@@ -159,7 +219,8 @@ const renderAutocomplete = ({
             onSelect={onSelect}
           />
         </MatrixClientProvider>
-      </Provider>
+      </Provider>,
+      { createNodeMock }
     );
   });
   if (autoFocus) {
@@ -182,6 +243,9 @@ const getOptions = (renderer: ReactTestRenderer) =>
 
 const getFocusTrap = (renderer: ReactTestRenderer) =>
   renderer.root.findByProps({ 'data-focus-trap': true });
+
+const getPopOut = (renderer: ReactTestRenderer) =>
+  renderer.root.findByProps({ 'data-popout': true });
 
 const blurInput = (renderer: ReactTestRenderer) => {
   act(() => {
@@ -257,11 +321,19 @@ const optionKeyDown = (
 };
 
 const originalWindow = globalThis.window;
+const originalDocument = globalThis.document;
 
 beforeEach(() => {
   vi.useFakeTimers();
   directUsersMock.users = [];
   windowListeners.clear();
+  anchorRect = defaultAnchorRect();
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      documentElement: { clientHeight: 768 },
+    },
+  });
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
     value: {
@@ -288,6 +360,10 @@ afterEach(() => {
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
     value: originalWindow,
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: originalDocument,
   });
 });
 
@@ -387,15 +463,77 @@ describe('InviteUserAutocomplete', () => {
     expect(displayNameNode.props.children).toBe('space');
   });
 
-  it('keeps the suggestion popup anchored inside the input bounds', () => {
+  it('portals the suggestion menu anchored to the input rect instead of nesting it', () => {
+    const { renderer } = renderAutocomplete({
+      cacheState: readyCache([{ userId: '@alice:example.org', displayName: 'Alice Adams' }]),
+      initialValue: 'ali',
+    });
+
+    const popOut = getPopOut(renderer);
+
+    expect(popOut.props.anchor).toMatchObject({ y: 100, width: 320 });
+    expect(popOut.props.position).toBe('Bottom');
+    expect(getOptions(renderer)).toHaveLength(1);
+
+    const menuContainer = renderer.root.findByProps({
+      className: 'InviteAutocompleteMenuContainer',
+    });
+    expect(menuContainer.props.style).toMatchObject({ width: 320 });
+  });
+
+  it('does not position the menu with clip-prone absolute CSS inside the anchor', () => {
     const cssSource = readFileSync(new URL('./InviteAutocompleteMenu.css.ts', import.meta.url), {
       encoding: 'utf8',
     });
 
-    expect(cssSource).toContain('left: 0');
-    expect(cssSource).toContain('right: 0');
-    expect(cssSource).not.toContain("left: '50%'");
-    expect(cssSource).not.toContain('translateX(-50%)');
+    expect(cssSource).not.toContain("position: 'absolute'");
+  });
+
+  it('flips the menu above the input when there is no room below', () => {
+    anchorRect = { ...anchorRect, y: 700, top: 700, bottom: 740 };
+    const { renderer } = renderAutocomplete({
+      cacheState: readyCache([{ userId: '@alice:example.org', displayName: 'Alice Adams' }]),
+      initialValue: 'ali',
+    });
+
+    expect(getPopOut(renderer).props.position).toBe('Top');
+  });
+
+  it('tracks the input rect when ancestors scroll or the viewport resizes', () => {
+    const { renderer } = renderAutocomplete({
+      cacheState: readyCache([{ userId: '@alice:example.org', displayName: 'Alice Adams' }]),
+      initialValue: 'ali',
+    });
+
+    expect(getPopOut(renderer).props.anchor).toMatchObject({ y: 100 });
+
+    anchorRect = { ...anchorRect, y: 60, top: 60, bottom: 100 };
+    act(() => {
+      windowListeners.get('scroll')?.forEach((handler) => handler({} as never));
+    });
+
+    expect(getPopOut(renderer).props.anchor).toMatchObject({ y: 60 });
+
+    anchorRect = { ...anchorRect, y: 40, top: 40, bottom: 80 };
+    act(() => {
+      windowListeners.get('resize')?.forEach((handler) => handler({} as never));
+    });
+
+    expect(getPopOut(renderer).props.anchor).toMatchObject({ y: 40 });
+  });
+
+  it('treats clicks inside the portaled menu as inside the focus trap', () => {
+    const { renderer } = renderAutocomplete({
+      cacheState: readyCache([{ userId: '@alice:example.org', displayName: 'Alice Adams' }]),
+      initialValue: 'ali',
+    });
+
+    const { clickOutsideDeactivates } = getFocusTrap(renderer).props.focusTrapOptions as {
+      clickOutsideDeactivates: (event: { target: unknown }) => boolean;
+    };
+
+    expect(clickOutsideDeactivates({ target: insideMenuNode })).toBe(false);
+    expect(clickOutsideDeactivates({ target: { name: 'elsewhere' } })).toBe(true);
   });
 
   it('moves the active row with arrows and commits it with Enter', () => {
