@@ -8,16 +8,20 @@ import {
 } from '../state/userDirectoryCache';
 import { getMxIdLocalPart } from './matrix';
 
+export const MINDROOM_AGENT_LOCALPART_PREFIX = 'mindroom_';
+
 type SearchableUserDirectoryUser = ServerUserDirectoryUser & {
   localpart: string;
+  postPrefixLocalpart: string;
 };
 
 type UserDirectoryFuseResult = {
   user: ServerUserDirectoryUser;
   score: number;
+  tier: number;
 };
 
-type RankBucket = 0 | 1 | 2 | 3;
+type FieldMatch = 'exact' | 'prefix' | 'includes' | 'none';
 
 const userFuseCache = new WeakMap<
   readonly ServerUserDirectoryUser[],
@@ -25,8 +29,9 @@ const userFuseCache = new WeakMap<
 >();
 
 const userDirectoryFuseKeys: FuseOptionKey<SearchableUserDirectoryUser>[] = [
-  { name: 'displayName', weight: 0.55 },
-  { name: 'localpart', weight: 0.35 },
+  { name: 'displayName', weight: 0.5 },
+  { name: 'postPrefixLocalpart', weight: 0.25 },
+  { name: 'localpart', weight: 0.15 },
   { name: 'userId', weight: 0.1 },
 ];
 
@@ -37,36 +42,82 @@ export const sanitizeInviteAutocompleteOptionId = (userId: string): string =>
 
 const getUserLocalpart = (userId: string): string => getMxIdLocalPart(userId) ?? userId;
 
-const getSearchFields = (user: ServerUserDirectoryUser): string[] => [
-  user.displayName ?? '',
-  getUserLocalpart(user.userId),
-  user.userId,
-];
+// Accept queries with or without the MXID sigil so a pasted @user:server
+// ranks as the exact match it is.
+const normalizeQuery = (query: string): string =>
+  query.trim().toLocaleLowerCase().replace(/^@/, '');
 
-const includesQuery = (value: string, query: string): boolean =>
-  value.toLocaleLowerCase().includes(query);
+const getPostPrefixLocalpart = (localpart: string): string =>
+  localpart.startsWith(MINDROOM_AGENT_LOCALPART_PREFIX)
+    ? localpart.slice(MINDROOM_AGENT_LOCALPART_PREFIX.length)
+    : localpart;
 
-const startsWithQuery = (value: string, query: string): boolean =>
-  value.toLocaleLowerCase().startsWith(query);
+const matchField = (value: string, query: string): FieldMatch => {
+  const normalizedValue = value.toLocaleLowerCase();
+  if (normalizedValue === query) return 'exact';
+  if (normalizedValue.startsWith(query)) return 'prefix';
+  if (normalizedValue.includes(query)) return 'includes';
+  return 'none';
+};
 
-const exactQuery = (value: string, query: string): boolean => value.toLocaleLowerCase() === query;
+/**
+ * Field-identity rank tiers. Matches on the display name or on the localpart
+ * segment after the shared agent prefix outrank matches that only hit the
+ * shared `mindroom_` prefix, so one agent's name cannot bury another agent
+ * behind the whole fleet.
+ */
+const NO_MATCH_TIER = 8;
 
-const getRankBucket = (user: ServerUserDirectoryUser, normalizedQuery: string): RankBucket => {
-  const fields = getSearchFields(user);
+const getRankTier = (user: ServerUserDirectoryUser, normalizedQuery: string): number => {
+  const localpart = getUserLocalpart(user.userId);
+  const postPrefixLocalpart = getPostPrefixLocalpart(localpart);
+  const displayName = matchField(user.displayName ?? '', normalizedQuery);
+  const local = matchField(localpart, normalizedQuery);
+  const postPrefix =
+    postPrefixLocalpart === localpart ? local : matchField(postPrefixLocalpart, normalizedQuery);
+  // Queries reach here with any leading @ stripped, so match the MXID
+  // without its sigil or an exact/prefix MXID paste could never rank as one.
+  const mxid = matchField(user.userId.replace(/^@/, ''), normalizedQuery);
 
-  if (fields.some((field) => exactQuery(field, normalizedQuery))) return 0;
-  if (fields.some((field) => startsWithQuery(field, normalizedQuery))) return 1;
-  if (fields.some((field) => includesQuery(field, normalizedQuery))) return 2;
-  return 3;
+  if (displayName === 'exact') return 0;
+  if (postPrefix === 'exact' || local === 'exact' || mxid === 'exact') return 1;
+  if (displayName === 'prefix') return 2;
+  if (postPrefix === 'prefix') return 3;
+  if (displayName === 'includes') return 4;
+  if (postPrefix === 'includes') return 5;
+  if (local === 'prefix' || mxid === 'prefix') return 6;
+  if (local === 'includes' || mxid === 'includes') return 7;
+  return NO_MATCH_TIER;
+};
+
+/**
+ * Tiers 0-3 are identity-bearing hits (exact on any field, or a prefix of the
+ * display name / post-prefix localpart segment). Shared-prefix and fuzzy
+ * matches are weaker and must not suppress the server-directory fallback.
+ */
+const STRONG_MATCH_MAX_TIER = 3;
+
+export const countStrongInviteUserMatches = (
+  users: readonly ServerUserDirectoryUser[],
+  query: string
+): number => {
+  const normalizedQuery = normalizeQuery(query);
+  if (normalizedQuery.length === 0) return 0;
+
+  return users.filter((user) => getRankTier(user, normalizedQuery) <= STRONG_MATCH_MAX_TIER).length;
 };
 
 const toSearchableUsers = (
   users: readonly ServerUserDirectoryUser[]
 ): SearchableUserDirectoryUser[] =>
-  users.map((user) => ({
-    ...user,
-    localpart: getUserLocalpart(user.userId),
-  }));
+  users.map((user) => {
+    const localpart = getUserLocalpart(user.userId);
+    return {
+      ...user,
+      localpart,
+      postPrefixLocalpart: getPostPrefixLocalpart(localpart),
+    };
+  });
 
 const getFuse = (users: readonly ServerUserDirectoryUser[]): Fuse<SearchableUserDirectoryUser> => {
   const cachedFuse = userFuseCache.get(users);
@@ -84,12 +135,13 @@ const getFuse = (users: readonly ServerUserDirectoryUser[]): Fuse<SearchableUser
   return fuse;
 };
 
+// Tiers are precomputed per candidate; recomputing them inside the comparator
+// would repeat the string matching O(n log n) times while sorting.
 const compareUserDirectoryResults = (
-  normalizedQuery: string,
   left: UserDirectoryFuseResult,
   right: UserDirectoryFuseResult
 ): number =>
-  getRankBucket(left.user, normalizedQuery) - getRankBucket(right.user, normalizedQuery) ||
+  left.tier - right.tier ||
   left.score - right.score ||
   left.user.userId.localeCompare(right.user.userId);
 
@@ -99,12 +151,13 @@ const searchSingleCharacter = (
   limit: number
 ): ServerUserDirectoryUser[] =>
   users
-    .filter((user) => getSearchFields(user).some((field) => includesQuery(field, normalizedQuery)))
     .map((user) => ({
       user,
       score: 0,
+      tier: getRankTier(user, normalizedQuery),
     }))
-    .sort((left, right) => compareUserDirectoryResults(normalizedQuery, left, right))
+    .filter((result) => result.tier < NO_MATCH_TIER)
+    .sort(compareUserDirectoryResults)
     .slice(0, limit)
     .map((result) => result.user);
 
@@ -125,7 +178,7 @@ export const rankUsers = (
   query: string,
   limit = INVITE_AUTOCOMPLETE_LIMIT
 ): ServerUserDirectoryUser[] => {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const normalizedQuery = normalizeQuery(query);
   if (normalizedQuery.length === 0) return [];
 
   if (normalizedQuery.length === 1) {
@@ -137,8 +190,9 @@ export const rankUsers = (
     .map((result) => ({
       user: result.item,
       score: result.score ?? 1,
+      tier: getRankTier(result.item, normalizedQuery),
     }))
-    .sort((left, right) => compareUserDirectoryResults(normalizedQuery, left, right))
+    .sort(compareUserDirectoryResults)
     .slice(0, limit)
     .map((result) => result.user);
 };
