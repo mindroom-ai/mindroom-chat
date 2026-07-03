@@ -85,6 +85,103 @@
       fail deterministically on BOTH `origin/dev` and the rebased branch -
       pre-existing breakage on `dev`, needs its own follow-up.
 
+### CINNY-218 - Treat legacy 'normal' room view mode as unset (2026-07-03)
+
+- Status:
+  - Complete locally.
+- Symptom:
+  - Compact is the intended default room view, yet at least one long-time user
+    landed in the threaded view in rooms they never explicitly configured.
+    Cause: `sanitizeRoomViewMode` migrated the legacy stored value `'normal'`
+    to `'threaded'`, permanently overriding the compact default.
+- History audit (all findings verified against git history, including the
+  pre-squash t3 checkpoint refs since mainline history was squashed):
+  - 2026-03-28 (CINNY-028, `46a257f4`): `roomViewMode:<roomId>` localStorage
+    atom introduced with type `'normal' | 'compact'` and default `'normal'`.
+    No writer existed (the `onViewModeChange` prop was dead).
+  - 2026-03-30 (CINNY-035, `2157521d`): compact view shipped with a two-state
+    header toggle `onViewModeChange?.(compactViewActive ? 'normal' : 'compact')`.
+    This toggle was the only production writer of `'normal'`, ever.
+  - 2026-04-03 (CINNY-062, `e1b62334`): default flipped `'normal'` ->
+    `'compact'` as a one-line change with no storage migration.
+  - 2026-05-10 (`632ae956`): rename `'normal'` -> `'threaded'`, `'classic'`
+    added, `sanitizeRoomViewMode` introduced with the `'normal'` ->
+    `'threaded'` migration.
+  - Ruled out as `'normal'` writers: auto-persist on first visit
+    (`atomWithLocalStorage` writes only on explicit set), navigation side
+    effects, filter presets (touch tri-states only), bulk localStorage
+    iteration (CINNY-030 removes filter keys only), direct rooms and thread
+    views (toggle hidden: `showRoomThreadOverviewControls: !threadId &&
+!direct`), keyboard shortcuts, and programmatic clicks.
+  - Ruled out as alternative current causes: all consumers
+    (`MindroomRoom.tsx`, `useRoomViewThreadState.ts`, `roomPreloadTarget.ts`,
+    `MindroomRoomViewHeader.tsx`, room-settings `General.tsx`,
+    `RecentThreadEntry.tsx`, `clientRouteRestore.ts`) resolve through the same
+    atom/`getRoomViewMode` sanitize path with the same default, and every
+    current writer (header menu, settings buttons, overview segmented control)
+    is an explicit click that writes only the new mode names.
+- Decision:
+  - Treat stored legacy `'normal'` as unset: `sanitizeRoomViewMode` now lets it
+    fall through to `DEFAULT_ROOM_VIEW_MODE` (`'compact'`) instead of mapping
+    it to `'threaded'`.
+  - Rationale: although every `'normal'` write came from an explicit toggle
+    click, between 2026-03-30 and 2026-04-03 `'normal'` was itself the storage
+    default and the two-state toggle had no notion of "unset" - any user who
+    tried the brand-new compact view and toggled back had the then-default
+    materialized into storage as if it were a configuration. A stored
+    `'normal'` therefore cannot be distinguished from "returned to the
+    then-default" and does not reliably preserve a real per-room decision to
+    prefer the threaded view. Users who genuinely prefer threads re-select it
+    once via the header menu or room settings, which writes `'threaded'` and
+    is preserved durably.
+  - Scope note: opening a thread from the compact overview intentionally shows
+    the full thread view; that behavior is by design and untouched.
+- Risks:
+  - Users who deliberately chose the expanded view between 2026-04-03 and
+    2026-05-10 are reset to compact once and must re-select Threads; this is a
+    one-time, recoverable nudge for a small early-adopter cohort and matches
+    the product default intent.
+- Next steps:
+  - Optional cleanup: drop the now-dead `'normal'` option from the e2e
+    `seedRoomOverviewState` viewMode union in `e2e/helpers/matrix.ts` (no spec
+    seeds it today).
+- Review:
+  - Independent subagent review: APPROVE, no blocking issues. The reviewer
+    independently verified all sanitize inputs, every consumer (including the
+    `=== 'classic'`-only checks in `RecentThreadEntry.tsx` and
+    `clientRouteRestore.ts`, and the intended `roomPreloadTarget.ts` behavior
+    change), confirmed no remaining code or spec assumes `'normal'` ->
+    `'threaded'`, and re-ran the focused tests (6/6) plus typecheck.
+  - Non-blocking reviewer note: no direct atom-level test for `'classic'`
+    preservation or garbage input; both paths are unchanged and covered by the
+    sanitize logic.
+- Rebase note:
+  - Originally authored as CINNY-207 on the pre-v4.12.3 `dev`; renumbered to
+    CINNY-218 while rebasing onto the v4.12.3-based `dev`, which had taken ids
+    up to CINNY-217. `roomViewMode.ts` and its test were unchanged by the
+    rebase; only this Runbook entry needed conflict resolution.
+- Validation:
+  - Red check: `npm test -- src/app/mindroom/threads/roomViewMode.test.ts`
+    failed (2 failed, 4 passed) while `sanitizeRoomViewMode` still mapped
+    `'normal'` to `'threaded'` against the new legacy-value expectations.
+  - Green check: `npm test -- src/app/mindroom/threads/roomViewMode.test.ts`
+    (6 tests), including a guard that an explicitly stored `'threaded'` value
+    is still preserved.
+  - Green: `npm run typecheck`.
+  - Green: `npm run lint` (18 warnings, 0 errors - existing
+    console/constant-condition warning class).
+  - Green: `npm test` (302 files, 2253 tests).
+  - Green: `npm run build` (existing Vite runtime-config, sourcemap, and
+    chunk-size warnings only).
+  - Post-rebase validation on the v4.12.3-based `dev` (after `npm ci` for the
+    rebased lockfile):
+    - Green: `npm test -- src/app/mindroom/threads/roomViewMode.test.ts`
+      (6 tests).
+    - Green: `npm run typecheck`.
+    - Green: `npm run lint` (18 warnings, 0 errors - existing warning class).
+    - Green: `npm test` (2367 tests).
+    - Green: `npm run build` (existing warning classes only).
+
 ### CINNY-217 - Invite autocomplete menu portals past host clipping (2026-07-02)
 
 - Status:
