@@ -173,8 +173,14 @@
   - Green: `npm test` (302 files, 2253 tests).
   - Green: `npm run build` (existing Vite runtime-config, sourcemap, and
     chunk-size warnings only).
-  - Post-rebase validation on the v4.12.3-based `dev`: recorded below after
-    re-running the battery.
+  - Post-rebase validation on the v4.12.3-based `dev` (after `npm ci` for the
+    rebased lockfile):
+    - Green: `npm test -- src/app/mindroom/threads/roomViewMode.test.ts`
+      (6 tests).
+    - Green: `npm run typecheck`.
+    - Green: `npm run lint` (18 warnings, 0 errors - existing warning class).
+    - Green: `npm test` (2367 tests).
+    - Green: `npm run build` (existing warning classes only).
 
 ### CINNY-217 - Invite autocomplete menu portals past host clipping (2026-07-02)
 
