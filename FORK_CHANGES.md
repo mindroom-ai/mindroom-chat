@@ -2,7 +2,7 @@
 
 ## Runbook
 
-### Rebase onto upstream Cinny v4.12.3 (2026-07-01, updated 2026-07-02)
+### Rebase onto upstream Cinny v4.12.3 (2026-07-01, updated 2026-07-03)
 
 - Status:
   - Rebase complete and validated locally on branch `rebase-v4.12.3`; awaiting
@@ -11,6 +11,13 @@
     initial rebase (#51 fastlane, #52 UI modernization, #44 thread perf, #53
     dev service-worker fix) onto the rebased branch with
     `git rebase --onto`; only `FORK_CHANGES.md` runbook entries conflicted.
+  - 2026-07-03 update: replayed #54 (invite autocomplete ranking + menu
+    portal, CINNY-216/217) the same way; only the `FORK_CHANGES.md` runbook
+    entry conflicted, code identical per `git range-diff`. Full validation
+    green (typecheck, 2365 unit tests, lint, build). The new
+    `cinny217-invite-menu-portal` live spec fails identically on `origin/dev`
+    in the docker-matrix environment, so that is environmental (fixture
+    users live on the :8008 Tuwunel), not a rebase regression.
 - Summary:
   - Rebased all 25 fork commits from the v4.12.2 base onto the upstream
     `v4.12.3` tag, preserving the fork's linear rebase-onto-release history.
