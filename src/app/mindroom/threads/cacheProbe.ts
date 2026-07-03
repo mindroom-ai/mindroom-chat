@@ -37,6 +37,8 @@ const createEmptyCounters = (): CacheProbeCounters => ({
 
 let counters = createEmptyCounters();
 
+const HYDRATE_MARK_PREFIX = 'mindroom:cache-hydrate';
+
 export const countCacheProbe = (key: keyof CacheProbeCounters, amount = 1): void => {
   counters[key] += amount;
 };
@@ -45,9 +47,18 @@ export const getCacheProbeSnapshot = (): CacheProbeCounters => ({ ...counters })
 
 export const resetCacheProbe = (): void => {
   counters = createEmptyCounters();
+  // Clear the hydrate timeline too, so a reset defines a clean measurement
+  // window for both counters and timings.
+  if (typeof performance !== 'undefined') {
+    performance
+      .getEntries()
+      .filter((entry) => entry.name.startsWith(HYDRATE_MARK_PREFIX))
+      .forEach((entry) => {
+        if (entry.entryType === 'measure') performance.clearMeasures(entry.name);
+        if (entry.entryType === 'mark') performance.clearMarks(entry.name);
+      });
+  }
 };
-
-const HYDRATE_MARK_PREFIX = 'mindroom:cache-hydrate';
 
 export const markCacheHydrateStart = (scope: string): void => {
   if (typeof performance === 'undefined') return;

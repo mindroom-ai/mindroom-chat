@@ -179,13 +179,18 @@ const readStoreRecords = async (
             }
             const transaction = db.transaction(store, 'readonly');
             const getAllRequest = transaction.objectStore(store).getAll();
-            getAllRequest.onerror = () =>
+            getAllRequest.onerror = () => {
+              db.close();
               reject(getAllRequest.error ?? new Error(`Failed to read ${store}`));
+            };
             transaction.oncomplete = () => {
               db.close();
               resolve((getAllRequest.result ?? []) as Record<string, unknown>[]);
             };
-            transaction.onerror = () => reject(transaction.error ?? new Error('read failed'));
+            transaction.onerror = () => {
+              db.close();
+              reject(transaction.error ?? new Error('read failed'));
+            };
           };
         });
 
