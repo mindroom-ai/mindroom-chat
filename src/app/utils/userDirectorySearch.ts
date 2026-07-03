@@ -18,6 +18,7 @@ type SearchableUserDirectoryUser = ServerUserDirectoryUser & {
 type UserDirectoryFuseResult = {
   user: ServerUserDirectoryUser;
   score: number;
+  tier: number;
 };
 
 type FieldMatch = 'exact' | 'prefix' | 'includes' | 'none';
@@ -132,12 +133,13 @@ const getFuse = (users: readonly ServerUserDirectoryUser[]): Fuse<SearchableUser
   return fuse;
 };
 
+// Tiers are precomputed per candidate; recomputing them inside the comparator
+// would repeat the string matching O(n log n) times while sorting.
 const compareUserDirectoryResults = (
-  normalizedQuery: string,
   left: UserDirectoryFuseResult,
   right: UserDirectoryFuseResult
 ): number =>
-  getRankTier(left.user, normalizedQuery) - getRankTier(right.user, normalizedQuery) ||
+  left.tier - right.tier ||
   left.score - right.score ||
   left.user.userId.localeCompare(right.user.userId);
 
@@ -151,8 +153,9 @@ const searchSingleCharacter = (
     .map((user) => ({
       user,
       score: 0,
+      tier: getRankTier(user, normalizedQuery),
     }))
-    .sort((left, right) => compareUserDirectoryResults(normalizedQuery, left, right))
+    .sort(compareUserDirectoryResults)
     .slice(0, limit)
     .map((result) => result.user);
 
@@ -185,8 +188,9 @@ export const rankUsers = (
     .map((result) => ({
       user: result.item,
       score: result.score ?? 1,
+      tier: getRankTier(result.item, normalizedQuery),
     }))
-    .sort((left, right) => compareUserDirectoryResults(normalizedQuery, left, right))
+    .sort(compareUserDirectoryResults)
     .slice(0, limit)
     .map((result) => result.user);
 };

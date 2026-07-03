@@ -202,6 +202,17 @@
     uncalled, guarding against the fallback firing on every keystroke), and
     renamed the stale "uses Fuse weights..." test to describe the tier that
     now decides it.
+  - PR #54 review comments (rebased onto dev with entries renumbered
+    132/133 -> 216/217 because dev had already used those ids):
+    - Accepted (gemini-code-assist): rank tiers are now precomputed once per
+      candidate instead of recomputed inside the sort comparator, dropping
+      the string matching from O(n log n) to O(n) per query.
+    - Skipped (greptile): moving `setPlacement`/`setMaxHeight` inside the
+      `setAnchor` same-rect bail-out would skip updates on window resizes
+      that change the viewport height without moving the input rect, leaving
+      a stale menu max-height; scalar setters already self-bail via
+      `Object.is`, and the suggested patch also put side effects inside a
+      state updater.
 - Validation:
   - Red checks (before fix):
     `npx vitest run src/app/utils/userDirectorySearch.test.ts src/app/hooks/useInviteUserSearch.test.ts`
