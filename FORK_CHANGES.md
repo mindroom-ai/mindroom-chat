@@ -66,6 +66,17 @@
   - Update green check: `npm test` (314 files, 2346 tests).
   - Update green check: `npm run lint` (18 warnings, 0 errors).
   - Update green check: `npm run build`.
+  - E2e (docker-matrix, 2026-07-03): 74 passed, 5 failed, 3 skipped; all five
+    failures triaged as not caused by the rebase:
+    - `perf-thread-streaming` passes in isolation with metrics at or better
+      than the recorded baselines (`cdpTaskDurationMs` 631, zero long tasks,
+      heap 117 MB, thread open 936 ms) - full-suite failure was machine load.
+    - `cinny061-thread-summary-cache-upgrade` and
+      `cinny077-classic-large-room-scroll` are flaky-in-batch; each passed on
+      the rebased branch in isolation and/or on re-run.
+    - `narrow-toolbar` and `threads.spec.ts:268` (zero-reply thread card)
+      fail deterministically on BOTH `origin/dev` and the rebased branch -
+      pre-existing breakage on `dev`, needs its own follow-up.
 
 ### Fix dev service worker registration (2026-07-02)
 
