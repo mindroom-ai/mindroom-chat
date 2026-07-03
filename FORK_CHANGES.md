@@ -2,6 +2,128 @@
 
 ## Runbook
 
+### CINNY-217 - Invite autocomplete menu portals past host clipping (2026-07-02)
+
+- Status:
+  - Complete locally; live host-surface verification done (see Validation).
+- Summary:
+  - The suggestion listbox used to render `position: absolute` inside a
+    relative anchor under the input, so any host ancestor with
+    `overflow: hidden/auto` (members drawer, dialogs, lobby header, space
+    pages) clipped it instead of letting it extend below the input.
+  - `InviteAutocompleteMenu` now renders the menu through the established
+    folds `PopOut` portal (the same primitive as MembersDrawer filter/sort
+    menus and JumpToTime pickers), anchored to the input wrapper's viewport
+    rect and width-matched to the input.
+  - While open, the menu re-anchors on capture-phase `scroll` (hears
+    scrolling ancestors) and window `resize`, and flips above the input when
+    the menu's maximum height does not fit below but fits (or fits better)
+    above. Placement is a pure function in
+    `inviteAutocompleteMenuPlacement.ts` with direct unit tests.
+  - Keyboard navigation, combobox ARIA (`aria-controls` /
+    `aria-activedescendant` reference the portaled listbox by id, which is
+    document-global), `closedForValue` no-reopen semantics, and Escape
+    handling are unchanged; `InviteUserAutocomplete.tsx` needed no changes.
+- Decisions:
+  - Reused folds `PopOut` (portal + fixed positioning + `zIndex.Max`) rather
+    than inventing a new portal primitive; App.tsx routes all PopOut portals
+    to `#portalContainer` - the same container as the invite dialog's Overlay
+    - and the menu node is appended later, so it paints above the dialog.
+  - The folds `PopOut` wrapper is a full-viewport fixed layer that swallows
+    pointer events (fine for context menus, wrong for a combobox), so the
+    fork overrides it with `pointer-events: none` on the wrapper and
+    `pointer-events: auto` on the menu container - the input stays clickable
+    while suggestions are open.
+  - The `FocusTrap` in `InviteAutocompleteMenu` keeps wrapping only the input
+    wrapper; `clickOutsideDeactivates` became a predicate that treats clicks
+    inside the portaled menu as inside the combobox. The outer
+    `InviteUserPrompt` dialog trap needs no change because focus-trap pauses
+    outer traps while an inner trap is active.
+  - Placement flips based on the menu's maximum height
+    (`min(52vh, 448px) + 8px offset`), preferring Bottom, then Top, then the
+    larger side; constants are shared between the CSS and the placement
+    function via `inviteAutocompleteMenuPlacement.ts`.
+  - Replaced the CINNY-112 "popup stays input-bounded" CSS-source guard
+    (which pinned the clipping-prone absolute layout) with runtime guards:
+    the menu portals through `PopOut` anchored to the input rect and
+    width-matched, plus a source guard against reintroducing
+    `position: 'absolute'`.
+- Risks:
+  - Re-anchoring runs per scroll/resize event; a bail-out skips re-renders
+    when the input rect is unchanged (e.g. scrolling the menu's own list),
+    but rAF-throttling remains a follow-up if low-end devices struggle.
+  - Component tests stub `window`/`document` and mock `PopOut`, so true
+    portal/positioning behavior is only exercised in the live client (done;
+    see Validation).
+  - Escape does not close the invite dialog while focus is in an editable
+    element - pre-existing upstream `stopPropagation` behavior, unchanged by
+    this work; backdrop click and the close button still dismiss it.
+- Next steps:
+  - Consider rAF-throttling the scroll re-anchoring if profiling shows churn.
+  - Optionally clean up the local-homeserver live fixtures (users
+    `mindroom_{mind,sarro,alpha,...}`, `melinda`, `dominic`, `mia`,
+    `invite-tester`; rooms `Agent Hub`, `Portal Test Room`,
+    `Portal Test Space` + `Space Child Room` on `localhost:8008`); they are
+    reusable by `e2e/live/cinny217-invite-menu-portal.spec.ts`.
+- Review:
+  - Independent subagent review approved with no blocking defects; it
+    verified the two-focus-trap interaction against focus-trap 7.8 sources
+    (outer dialog trap is paused with listeners removed while the menu trap
+    is active, so portaled option clicks cannot close the dialog) and folds'
+    positioning internals.
+  - Review follow-ups applied: (1) menu max-height now also clamps to the
+    space actually available on the chosen side
+    (`getInviteAutocompleteMenuMaxHeight`, applied as inline style), so
+    folds' own fit-check can never fall back to positioning the menu beside
+    the input; (2) anchor updates bail out when the input rect is unchanged;
+    (3) the anchor effect uses `useLayoutEffect` to avoid a one-frame
+    open-without-menu flash; (4) corrected the portal-container wording in
+    this entry (`#portalContainer`, not `document.body`).
+- Validation:
+  - Red check (before fix):
+    `npx vitest run src/app/components/invite-user-prompt/InviteUserAutocomplete.test.tsx`
+    failed 19 tests: the new portal/flip/tracking/click-inside tests plus all
+    existing tests, because the old component still rendered the
+    anchor-nested absolute layout and crashed against the portal-based CSS
+    module contract.
+  - Green focused check:
+    `npx vitest run src/app/components/invite-user-prompt/ src/app/hooks/useInviteUserSearch.test.ts src/app/utils/userDirectorySearch.test.ts`
+    (5 files, 48 tests; 50 after the review follow-up max-height tests).
+  - Green: `npm run typecheck`.
+  - Green: `npm test` (303 files, 2270 tests, before review follow-ups).
+  - Green: `npm run lint` (18 warnings, 0 errors - existing baseline).
+  - Green: `npm run build` (existing Vite warnings only).
+  - Live host-surface verification (Vite dev server on `:8090`, local
+    Tuwunel on `:8008`, fixtures: 12 `mindroom_*` agents with short display
+    names, 3 humans, user `invite-tester`):
+    `npx playwright test e2e/live/cinny217-invite-menu-portal.spec.ts`
+    (green, 1 test with per-surface steps). Each step opens the invite
+    prompt from a different host, types `mind`, and asserts: the listbox is
+    visible, the first option is `Mind, @mindroom_mind:...` (CINNY-216 live
+    proof), the menu's bottom extends below the dialog form's bottom (the
+    old clipping boundary) while staying inside the viewport, clicking a
+    portaled option commits the MXID without closing the dialog, and Escape
+    closes only the menu. Surfaces driven, with screenshots in
+    `ui-audit/cinny217/` (untracked):
+    - RoomNavItem context menu (home sidebar) - `room-nav-item.png`
+    - MembersDrawer invite icon - `members-drawer.png`
+    - MindroomRoomViewHeader options menu - `mindroom-room-header.png`
+    - SpaceTabs sidebar context menu - `space-tabs.png`
+    - Space page panel menu (`Space.tsx`) - `space-page-menu.png`
+    - LobbyHeader options menu - `lobby-header.png`
+    - Space room-list nav item menu (`RoomNavItem` inside the space view) -
+      `hierarchy-item.png`
+      Not driven distinctly: the lobby canvas `HierarchyItemMenu` row menu and
+      `RoomIntro` (the thread-first default room view does not render the
+      intro card). Both render the identical `InviteUserPrompt` modal, and the
+      menu portal is host-independent (viewport-anchored in
+      `#portalContainer`), so behavior is covered by the driven surfaces.
+  - Red check (live, before spec fix): the spec initially asserted that a
+    second Escape closes the dialog; the run showed Escape never closes the
+    dialog while focus is in the input - pre-existing upstream behavior
+    (`stopPropagation` returns false for editable elements), not a portal
+    regression; the spec now closes via backdrop click.
+
 ### CINNY-216 - Invite autocomplete agent-name ranking and server fallback (2026-07-02)
 
 - Status:
