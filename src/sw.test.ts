@@ -7,10 +7,15 @@ describe('service worker app shell caching', () => {
     const viteConfigSource = readFileSync(new URL('../vite.config.js', import.meta.url), 'utf8');
 
     expect(swSource).toContain("from 'workbox-precaching'");
-    expect(swSource).toContain('precacheAndRoute(self.__WB_MANIFEST');
+    expect(swSource).toContain('const precacheManifest = self.__WB_MANIFEST');
+    expect(swSource).toContain('precacheAndRoute(precacheManifest)');
     expect(swSource).toContain('createHandlerBoundToURL');
     expect(swSource).toContain('new NavigationRoute');
     expect(swSource).toContain('denylist: navigationFallbackDenylist');
+    // Dev injects an empty manifest and createHandlerBoundToURL throws for
+    // non-precached URLs; the fallback must stay guarded or the dev service
+    // worker fails evaluation entirely.
+    expect(swSource).toContain('if (precacheManifest.length > 0)');
     expect(viteConfigSource).toContain("injectionPoint: 'self.__WB_MANIFEST'");
     expect(viteConfigSource).toContain('maximumFileSizeToCacheInBytes');
     expect(viteConfigSource).toContain("'public/element-call/**'");
