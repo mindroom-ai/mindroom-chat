@@ -58,7 +58,9 @@ streaming-edit traffic (10+ edits/sec during streams).
 
 ## 2. Investigation findings (2026-07-03)
 
-Ranked. File references are as of commit `b7b10b9d` (v4.12.3 replay base, pre-overhaul); re-verified after the fork's upstream rebase.
+Ranked by severity within each thematic group (numbering is stable across
+the document, so ids are not sequential within groups). File references are
+as of commit `b7b10b9d` (v4.12.3 replay base, pre-overhaul); re-verified after the fork's upstream rebase.
 
 ### Architecture-level
 
@@ -332,7 +334,8 @@ referenced from `FORK_CHANGES.md` entries.
 - **P2.1** Unified CacheStore module: merge the two near-identical cache
   modules behind one API (F12); add delete ops; schema v3 with **wipe and
   rebuild** (D8): on open, delete legacy DBs (`mindroom-room-event-cache`,
-  `mindroom-thread-event-cache` and their session-scoped names).
+  `mindroom-thread-event-cache`, `mindroom-thread-summary-cache` and their
+  session-scoped names).
 - **P2.2** Eviction ledger + 1 GB budget (D9): per-room byte estimate and
   last-activity tracking; background eviction job in policy order; prune
   `beforeTokens` maps. Exit: synthetic overfill test (small budget override)
