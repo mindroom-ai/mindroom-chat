@@ -501,6 +501,13 @@ new engine-scoped guard file):
 
 ## 9. Status log
 
+- 2026-07-03 — **P1.1 landed** (PR 3): room-cache persist sweep is now a
+  trailing-debounced (250 ms) delta pass — already-persisted room events are
+  skipped, thread groups re-persist only when they contain an unseen event,
+  and cached backward tokens are only written when the delta contains the
+  overall-earliest event. AC5 formal measurement via the probe happens with
+  the P1.4 streamed-edit spec run.
+
 - 2026-07-03 — **P0.1 + P0.2 landed** (PR 2 of the stack): cache write probe
   (`cacheProbe.ts`) wired into both save paths and the persist entry points
   (put/save/error counters, hydrate timing marks, `window.__MINDROOM_CACHE_PROBE__`);

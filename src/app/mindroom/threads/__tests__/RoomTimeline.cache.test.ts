@@ -3,6 +3,7 @@ import { Direction, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { ThreadRecord } from '../types';
+import { ROOM_CACHE_PERSIST_DEBOUNCE_MS } from '../preloadSettings';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from '../threadOpenSeedCache';
 import {
   compactPlaceholderType,
@@ -43,6 +44,17 @@ import {
   virtualPaginatorState,
   waitForCondition,
 } from '../test-utils/RoomTimeline.test.shared';
+
+// CINNY-207 P1.1: the room-cache persist sweep is trailing-debounced, so
+// tests asserting sweep-driven writes must let real time pass first.
+const waitForPersistSweepDebounce = async () => {
+  await act(async () => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, ROOM_CACHE_PERSIST_DEBOUNCE_MS + 100);
+    });
+    await flushAsyncWork();
+  });
+};
 
 const makeThreadFilterRecord = (
   threadRootId: string,
@@ -1034,6 +1046,11 @@ describe('RoomTimeline', () => {
       expect(liveTimeline.setPaginationToken).toHaveBeenCalledWith(null, Direction.Backward);
       expect(renderer?.root.findAllByType(roomIntroType)).toHaveLength(1);
       expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+
+      // The persist sweep is debounced (CINNY-207 P1.1); wait past it before
+      // asserting the cache writes.
+      await waitForPersistSweepDebounce();
+
       expect(saveRoomEventsToCacheMock).toHaveBeenCalled();
       expect(saveRoomEventsToCacheMock.mock.lastCall?.[3]).toBeNull();
 
@@ -1140,6 +1157,11 @@ describe('RoomTimeline', () => {
       expect(liveTimeline.getPaginationToken(Direction.Backward)).toBeNull();
       expect(renderer?.root.findAllByType(roomIntroType)).toHaveLength(1);
       expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+
+      // The persist sweep is debounced (CINNY-207 P1.1); wait past it before
+      // asserting the cache writes.
+      await waitForPersistSweepDebounce();
+
       expect(saveRoomEventsToCacheMock).toHaveBeenCalled();
       expect(saveRoomEventsToCacheMock.mock.lastCall?.[3]).toBeNull();
 
@@ -2451,6 +2473,7 @@ describe('RoomTimeline', () => {
           );
         });
 
+        await waitForPersistSweepDebounce();
         await waitForCondition(
           () => getThreadOpenSeedSnapshot(room as never, threadId).length === 4,
           50
@@ -4155,6 +4178,7 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
+        await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
 
         expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
@@ -4304,6 +4328,7 @@ describe('RoomTimeline', () => {
         });
 
         expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
+        await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
         expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
           expect.any(String),
@@ -4513,6 +4538,7 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
+        await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
         expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
           expect.any(String),
@@ -4579,6 +4605,7 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
+        await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
         expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
           expect.any(String),
@@ -4648,6 +4675,7 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
+        await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
         expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
           expect.any(String),
@@ -4707,6 +4735,7 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
+        await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
         expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
           expect.any(String),
@@ -4762,6 +4791,7 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
+        await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
         expect(
           vi
@@ -4822,6 +4852,7 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
+        await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
         expect(
           vi
