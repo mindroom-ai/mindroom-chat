@@ -15,7 +15,8 @@ declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<PrecacheEntry | string>;
 };
 
-precacheAndRoute(self.__WB_MANIFEST);
+const precacheManifest = self.__WB_MANIFEST;
+precacheAndRoute(precacheManifest);
 cleanupOutdatedCaches();
 
 const navigationFallbackDenylist = [
@@ -25,11 +26,17 @@ const navigationFallbackDenylist = [
   /^\/(?:[^/]+\/)?\.well-known(?:\/|$)/,
 ];
 
-registerRoute(
-  new NavigationRoute(createHandlerBoundToURL('index.html'), {
-    denylist: navigationFallbackDenylist,
-  })
-);
+// The dev server injects an empty precache manifest, and
+// createHandlerBoundToURL throws for non-precached URLs — which would fail
+// the whole service worker evaluation in dev. The media-auth fetch handler
+// below works without the navigation fallback.
+if (precacheManifest.length > 0) {
+  registerRoute(
+    new NavigationRoute(createHandlerBoundToURL('index.html'), {
+      denylist: navigationFallbackDenylist,
+    })
+  );
+}
 
 type SessionInfo = {
   accessToken: string;
