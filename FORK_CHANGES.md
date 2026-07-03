@@ -57,6 +57,32 @@
   - Green: `git diff origin/dev..HEAD` matches the upstream v4.12.3 payload
     only (plus the iOS marketing-version follow-up).
 
+### Fix dev service worker registration (2026-07-02)
+
+- Status:
+  - Complete; PR #53 (branch `fix/dev-sw-module-registration`).
+- Problem:
+  - Dev sessions with `__ENABLE_SERVICE_WORKER__` (the lab deployment) log
+    `dev-sw.js?dev-sw:1 Uncaught SyntaxError: Cannot use import statement
+outside a module` and silently run without a service worker. Pre-existing
+    (mobile-shell commit), surfaced while smoke-testing the merged PR #44.
+- Root causes (stacked):
+  - `src/index.tsx` registered the dev worker without `type: 'module'`, but
+    vite-plugin-pwa's `devOptions.type: 'module'` serves `dev-sw.js` as an ES
+    module — classic evaluation hits the `import` statement.
+  - Even as a module, evaluation failed: dev injects an empty precache
+    manifest and `createHandlerBoundToURL('index.html')` throws for
+    non-precached URLs.
+- Fix:
+  - Register with the mode-matching worker type; gate the navigation fallback
+    on a non-empty precache manifest (media-auth fetch handler still works in
+    dev). Source-guard test updated to pin the new shape.
+- Validation:
+  - Live CDP against the dev server: classic reproduces the SyntaxError; with
+    the fix the app's own boot path registers, activates, and controls the
+    page. `dist/sw.js` intact (17 precache entries, fallback + denylist).
+    `npm test` (2,346), typecheck, lint baseline, build.
+
 ### CINNY-215 - Move tinted dark palette behind a new "Midnight" theme (2026-07-02)
 
 - Status:
@@ -95,11 +121,11 @@ used that ID.)
 - Problem:
   - `ToolbarHeader` in `RoomThreadOverview.css.ts` was `flexWrap: nowrap` above 480px while
     each `ToggleGroup` was `flexWrap: wrap` and shrinkable. When the room got narrow, the
-    groups were squeezed and wrapped *internally* into 1-button-wide vertical columns
+    groups were squeezed and wrapped _internally_ into 1-button-wide vertical columns
     (user-reported screenshot).
 - Fix (CSS-only plus separator removal):
   - `ToolbarHeader`: always `flexWrap: 'wrap'` (media query removed) — wrapping happens
-    *between* groups; gap bumped S100→S200 to keep group rhythm without separators.
+    _between_ groups; gap bumped S100→S200 to keep group rhythm without separators.
   - `ToggleGroup`: `flexWrap: 'nowrap'` + `flexShrink: 0` — a group never breaks apart.
   - `SectionSeparator` removed entirely (style + 4 usages). Review caught that its
     `max-width: 480px` hide rule was coupled to the removed wrap breakpoint and would have
@@ -154,6 +180,7 @@ theme in CINNY-215; Dark reverted to the neutral grays.)
     `Other.Shadow`. Follow-up: switch to `config.radii`/`config.shadow` tokens.
 - Next steps:
   - Get user sign-off on the direction; optionally follow up on the backlog items above.
+
 ### iOS release automation with fastlane (2026-07-01)
 
 - Status:
@@ -1315,7 +1342,7 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
     streaming re-pin that arrives during its first frames (pre-existing).
   - Round 3 validation: `npm run typecheck`; `npm test` (314 files, 2333
     tests); `npm run lint` (18 warnings, 0 errors — baseline); `npm run
-    build`; live against docker-matrix: `cinny070` ×3 serial green,
+build`; live against docker-matrix: `cinny070` ×3 serial green,
     `thread-virtualization-behaviors` 4/4, `perf-thread-scroll-stability`
     green, `perf-thread-streaming` 0 long tasks.
 - PR #44 review round 4 (2026-07-01, external codex review supplied by the
@@ -1439,7 +1466,7 @@ src/app/mindroom/messages/MindroomHtmlBlocks.parserOptionsIdentity.test.ts`
     lab-only jump/pin interleavings within the accepted race family.
   - Round 5 validation: `npm run typecheck`; `npm test` (314 files, 2345
     tests — 12 new); `npm run lint` (18 warnings, baseline); `npm run
-    build`; live: `cinny033` jump-to-latest + permalink, `cinny070` (x2
+build`; live: `cinny033` jump-to-latest + permalink, `cinny070` (x2
     after hardening), `perf-compact-view`, `perf-thread-scroll-stability`,
     `perf-thread-streaming`, `thread-virtualization-behaviors` 4/4. The
     interrupted full-suite run also confirmed all 56 locally-seeded specs
