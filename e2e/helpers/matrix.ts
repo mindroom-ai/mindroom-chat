@@ -295,6 +295,61 @@ export const sendRoomMessage = async (
   return body.event_id;
 };
 
+export const sendMessageEdit = async (
+  homeserver: string,
+  accessToken: string,
+  roomId: string,
+  targetEventId: string,
+  newBody: string,
+  txnPrefix = 'cinny-e2e-edit'
+): Promise<string> => {
+  const txnId = `${txnPrefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const body = await matrixFetch<{ event_id: string }>(
+    homeserver,
+    `/rooms/${encodeURIComponent(roomId)}/send/m.room.message/${txnId}`,
+    {
+      method: 'PUT',
+      accessToken,
+      body: JSON.stringify({
+        msgtype: 'm.text',
+        body: `* ${newBody}`,
+        'm.new_content': {
+          msgtype: 'm.text',
+          body: newBody,
+        },
+        'm.relates_to': {
+          rel_type: 'm.replace',
+          event_id: targetEventId,
+        },
+      }),
+    }
+  );
+
+  return body.event_id;
+};
+
+export const redactEvent = async (
+  homeserver: string,
+  accessToken: string,
+  roomId: string,
+  eventId: string,
+  reason?: string,
+  txnPrefix = 'cinny-e2e-redact'
+): Promise<string> => {
+  const txnId = `${txnPrefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const body = await matrixFetch<{ event_id: string }>(
+    homeserver,
+    `/rooms/${encodeURIComponent(roomId)}/redact/${encodeURIComponent(eventId)}/${txnId}`,
+    {
+      method: 'PUT',
+      accessToken,
+      body: JSON.stringify(reason ? { reason } : {}),
+    }
+  );
+
+  return body.event_id;
+};
+
 export const sendReaction = async (
   homeserver: string,
   accessToken: string,

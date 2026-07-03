@@ -36,6 +36,7 @@ import {
   getThreadOpenSeedSnapshot,
   saveThreadOpenSeedSnapshot,
 } from './threadOpenSeedCache';
+import { countCacheProbe } from './cacheProbe';
 
 export {
   getRoomCursorAnchor,
@@ -656,6 +657,7 @@ export const persistThreadEventCacheSnapshot = ({
     ? rawEvents.find((rawEvent) => rawEvent.event_id === resolvedRootEvent.getId())
     : undefined;
 
+  countCacheProbe('serializedEvents', rawEvents.length);
   save(
     sessionId,
     room.roomId,
@@ -667,7 +669,10 @@ export const persistThreadEventCacheSnapshot = ({
     snapshotComplete,
     persistedExpectedReplyCount,
     relationSnapshotComplete
-  ).catch(() => undefined);
+  ).catch(() => {
+    countCacheProbe('writeErrors');
+    return undefined;
+  });
 
   return {
     rawEvents,
@@ -798,7 +803,11 @@ export const persistRoomEventCacheSnapshot = ({
 }): RoomEventCacheSnapshotWrite => {
   const rawEvents = serializeRoomCacheEvents(room, events);
 
-  save(sessionId, room.roomId, rawEvents, beforeTokenForEarliest).catch(() => undefined);
+  countCacheProbe('serializedEvents', rawEvents.length);
+  save(sessionId, room.roomId, rawEvents, beforeTokenForEarliest).catch(() => {
+    countCacheProbe('writeErrors');
+    return undefined;
+  });
 
   return {
     rawEvents,

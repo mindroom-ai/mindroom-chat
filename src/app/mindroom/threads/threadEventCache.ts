@@ -14,6 +14,7 @@ import {
   copyLegacyIndexedDbIfTargetStoreEmpty,
   openExistingDatabase,
 } from './cacheDbMigrationUtils';
+import { countCacheProbe } from './cacheProbe';
 
 export const MINDROOM_THREAD_EVENT_CACHE_DB_NAME = 'mindroom-thread-event-cache';
 const DB_NAME = MINDROOM_THREAD_EVENT_CACHE_DB_NAME;
@@ -569,6 +570,10 @@ export const saveThreadEventsToCache = async (
     threadId
   );
   if (normalizedEvents.length === 0 && !rootEvent) return;
+
+  countCacheProbe('threadSaveCalls');
+  countCacheProbe('threadEventPuts', normalizedEvents.length);
+  countCacheProbe('threadMetaPuts');
 
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction([EVENT_STORE, META_STORE], 'readwrite');

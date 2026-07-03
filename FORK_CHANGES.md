@@ -2,6 +2,49 @@
 
 ## Runbook
 
+### CINNY-207 P0 - Cache probe instrumentation and red e2e baselines (2026-07-03)
+
+- Status:
+  - Complete locally (PR 2 of the cache-overhaul stack).
+- Summary:
+  - Added `src/app/mindroom/threads/cacheProbe.ts`: pure counters for cache
+    save calls, event/meta puts, deletes, serialized events, and write errors,
+    wired into `roomEventCache.saveRoomEventsToCache`,
+    `threadEventCache.saveThreadEventsToCache`, and the
+    `eventRepository` persist entry points; hydrate timing marks in
+    `roomCacheHydrationController`; exposed via
+    `window.__MINDROOM_CACHE_PROBE__`. No behavior change (write errors are
+    still swallowed, now counted — surfacing is P1.5).
+  - Added e2e matrix helpers `sendMessageEdit` (m.replace) and `redactEvent`,
+    plus IndexedDB cache readers in `e2e/helpers/storage.ts`.
+  - Added three red live specs (annotated `test.fail()`, so the suite stays
+    green while the redness is executable): stop-emoji redaction lifecycle
+    (AC3, green in P1.2), streamed-edit cache compaction (AC4, green in
+    P1.4), background-room cache freshness (AC6, green in Phase 3).
+- Decisions:
+  - Red specs use `test.fail()` rather than skip so an accidental fix or
+    regression is loud ("passed unexpectedly").
+  - Probe counting inside the swallowed `.catch` handlers is observability
+    only; behavior change is deferred to P1.5 per the plan.
+- Next steps:
+  - P1.1 (kill write amplification), evidence via the new probe (AC5).
+- Validation:
+  - Green: `npm run typecheck`.
+  - Lint: 0 errors; 2 intentional `no-console` warnings in the new e2e specs
+    (baseline-number capture for the plan scorecard).
+  - Green: `npm test -- src/app/mindroom/threads/cacheProbe.test.ts src/app/mindroom/threads/eventRepository.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts` (3 files, 108 tests).
+  - Red-as-expected: `E2E_ENABLE_DEPLOYED_FIXTURE=0 ./scripts/test-e2e-docker-matrix.sh e2e/live/cinny207-*.spec.ts --reporter=line`
+    — 3 expected-failure passes; baselines captured: background room cached
+    0 events; streamed 25-edit message left 26 thread-cache records
+    (recorded in the plan scorecard "before" column).
+  - Green: `npm run build` (existing Vite warning classes only).
+  - Independent subagent review: no blockers; applied its should-fix (this
+    build line) and nits (probe docstring "attempted puts" wording,
+    `eventDeletes` marked reserved for P1.2, baseline log in the stop-emoji
+    spec). Lint console-warning count is now 3 with that added log line.
+    Unrelated prettier canonicalization churn in old runbook entries is
+    noted in the commit message.
+
 ### CINNY-207 - Native-feel cache overhaul: investigation and plan (2026-07-03)
 
 - Status:
@@ -2810,14 +2853,14 @@ build`; live: `cinny033` jump-to-latest + permalink, `cinny070` (x2
     rerun the package ownership audit against `v4.11.1`, `v4.12.2`, or another
     explicit base without touching `package.json` or `package-lock.json`.
 - Dependency ownership buckets:
-  | Bucket                                                             | Dependencies / scripts                                                                                                                                                                                                                                                                                                          | Ownership note                                                                                                                                                                                                                                                                                                   |
+  | Bucket | Dependencies / scripts | Ownership note |
   | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | Upstream dependency upgrades to adopt during rebase                | `matrix-js-sdk` `38.2.0 -> 41.5.0`, `matrix-widget-api` `1.13.0 -> 1.16.1`, `sanitize-html` `2.12.1 -> 2.17.4`, `@types/sanitize-html` `2.9.0 -> 2.16.1`, `@element-hq/element-call-embedded` `0.16.3 -> 0.19.1`; upstream-only `cz-conventional-changelog`, `husky`, `lint-staged`, `bump`, `commit`, and `prepare` scripts.   | Keep these in an upstream-adoption/rebase commit. Re-evaluate `patches/matrix-js-sdk+38.2.0.patch` when adopting the newer SDK because the patch is version-tied to `38.2.0`.                                                                                                                                    |
-  | MindRoom product/runtime dependencies                              | `@basnijholt/particular-drift`, `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@tabler/icons-react`, `fuse.js`, `katex`, plus `workbox-precaching` and `workbox-routing` for the forked service worker.                                                                                                           | These are fork-owned product/runtime choices with direct imports from `src/**` or `src/sw.ts`.                                                                                                                                                                                                                   |
-  | Native mobile dependencies                                         | `@capacitor/android`, `@capacitor/app`, `@capacitor/browser`, `@capacitor/core`, `@capacitor/ios`, `@capacitor/keyboard`, `@capacitor/push-notifications`, `@capacitor/status-bar`, `@capacitor/cli`; generated native references also include `@capacitor/app-launcher`, `@capacitor/haptics`, and `@capacitor/splash-screen`. | Keep native packaging in a mobile-owned commit together with `capacitor.config.ts`, `android/**`, `ios/**`, and `npx cap sync` output.                                                                                                                                                                           |
-  | Test/tooling dependencies                                          | `vitest`, `jsdom`, `react-test-renderer`, `@types/react-test-renderer`, `@playwright/test`, `typescript` `5.4.2`, `eslint` `8.57.1`, `@typescript-eslint/eslint-plugin` `6.21.0`, `@typescript-eslint/parser` `6.21.0`, `patch-package`.                                                                                        | Keep Vitest/Playwright/test renderer in a test harness commit. Keep TypeScript/ESLint upgrades either with test/tooling or a separate tooling bump commit. `patch-package` belongs with the Matrix SDK patch commit.                                                                                             |
-  | Obsolete candidates, not removed in this audit                     | `@capacitor/app-launcher`, `@capacitor/haptics`, `@capacitor/splash-screen`.                                                                                                                                                                                                                                                    | No direct JS imports or explicit `capacitor.config.ts` plugin config were found, but they are present in generated Android Gradle files, iOS Podfile, and `Podfile.lock`. Removing them would require deliberate `npx cap sync` churn plus Android/iOS validation, so it is not safe as a lockfile-only cleanup. |
-  | Inherited unchanged dependencies with no current direct references | `@atlaskit/pragmatic-drag-and-drop-hitbox`, `dateformat`.                                                                                                                                                                                                                                                                       | Present unchanged in base `v4.11.1`, current fork, and upstream `v4.12.2`. They are not fork-added dependency drift, so leave them to an upstream dependency-cleanup commit unless a separate source audit removes them with upstream parity.                                                                    |
+  | Upstream dependency upgrades to adopt during rebase | `matrix-js-sdk` `38.2.0 -> 41.5.0`, `matrix-widget-api` `1.13.0 -> 1.16.1`, `sanitize-html` `2.12.1 -> 2.17.4`, `@types/sanitize-html` `2.9.0 -> 2.16.1`, `@element-hq/element-call-embedded` `0.16.3 -> 0.19.1`; upstream-only `cz-conventional-changelog`, `husky`, `lint-staged`, `bump`, `commit`, and `prepare` scripts. | Keep these in an upstream-adoption/rebase commit. Re-evaluate `patches/matrix-js-sdk+38.2.0.patch` when adopting the newer SDK because the patch is version-tied to `38.2.0`. |
+  | MindRoom product/runtime dependencies | `@basnijholt/particular-drift`, `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@tabler/icons-react`, `fuse.js`, `katex`, plus `workbox-precaching` and `workbox-routing` for the forked service worker. | These are fork-owned product/runtime choices with direct imports from `src/**` or `src/sw.ts`. |
+  | Native mobile dependencies | `@capacitor/android`, `@capacitor/app`, `@capacitor/browser`, `@capacitor/core`, `@capacitor/ios`, `@capacitor/keyboard`, `@capacitor/push-notifications`, `@capacitor/status-bar`, `@capacitor/cli`; generated native references also include `@capacitor/app-launcher`, `@capacitor/haptics`, and `@capacitor/splash-screen`. | Keep native packaging in a mobile-owned commit together with `capacitor.config.ts`, `android/**`, `ios/**`, and `npx cap sync` output. |
+  | Test/tooling dependencies | `vitest`, `jsdom`, `react-test-renderer`, `@types/react-test-renderer`, `@playwright/test`, `typescript` `5.4.2`, `eslint` `8.57.1`, `@typescript-eslint/eslint-plugin` `6.21.0`, `@typescript-eslint/parser` `6.21.0`, `patch-package`. | Keep Vitest/Playwright/test renderer in a test harness commit. Keep TypeScript/ESLint upgrades either with test/tooling or a separate tooling bump commit. `patch-package` belongs with the Matrix SDK patch commit. |
+  | Obsolete candidates, not removed in this audit | `@capacitor/app-launcher`, `@capacitor/haptics`, `@capacitor/splash-screen`. | No direct JS imports or explicit `capacitor.config.ts` plugin config were found, but they are present in generated Android Gradle files, iOS Podfile, and `Podfile.lock`. Removing them would require deliberate `npx cap sync` churn plus Android/iOS validation, so it is not safe as a lockfile-only cleanup. |
+  | Inherited unchanged dependencies with no current direct references | `@atlaskit/pragmatic-drag-and-drop-hitbox`, `dateformat`. | Present unchanged in base `v4.11.1`, current fork, and upstream `v4.12.2`. They are not fork-added dependency drift, so leave them to an upstream dependency-cleanup commit unless a separate source audit removes them with upstream parity. |
 - Decision:
   - Do not remove dependencies or regenerate `package-lock.json` in this audit.
     The fork-added dependencies are either actively imported, part of the native
@@ -6414,7 +6457,7 @@ uploads it as the `cinny-android-debug-apk` workflow artifact (14-day retention)
     - targeted Prettier check on touched files passes
 - `CINNY-203`
   - Fixed MindRoom tool-call marker rendering for streaming edit updates that omit `formatted_body` and/or `io.mindroom.tool_trace` metadata.
-  - Plain-text tool marker lines such as ``🔧 `run_shell_command` [1]`` are now converted to the existing safe formatted marker contract before rendering, so the tool-call card parser can consume them instead of leaking raw markers into the timeline.
+  - Plain-text tool marker lines such as `` 🔧 `run_shell_command` [1] `` are now converted to the existing safe formatted marker contract before rendering, so the tool-call card parser can consume them instead of leaking raw markers into the timeline.
   - Edit resolution now carries forward missing MindRoom metadata from older replacement events before resolving the latest edit, preserving previous tool-trace details when a newer streaming update only sends body text and stream status.
   - The tool marker parser now renders marker-only formatted bodies as tool-call blocks, while enriching them with trace details whenever versioned trace metadata is available.
   - Renamed the message-extras data/parser module to `messageExtrasData.ts` and the component test to `MessageExtrasView.test.ts` to avoid case-only module collisions with `MindroomMessageExtras.tsx` on case-insensitive filesystems.
