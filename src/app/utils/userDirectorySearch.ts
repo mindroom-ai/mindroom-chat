@@ -42,19 +42,15 @@ export const sanitizeInviteAutocompleteOptionId = (userId: string): string =>
 
 const getUserLocalpart = (userId: string): string => getMxIdLocalPart(userId) ?? userId;
 
+// Accept queries with or without the MXID sigil so a pasted @user:server
+// ranks as the exact match it is.
+const normalizeQuery = (query: string): string =>
+  query.trim().toLocaleLowerCase().replace(/^@/, '');
+
 const getPostPrefixLocalpart = (localpart: string): string =>
   localpart.startsWith(MINDROOM_AGENT_LOCALPART_PREFIX)
     ? localpart.slice(MINDROOM_AGENT_LOCALPART_PREFIX.length)
     : localpart;
-
-const getSearchFields = (user: ServerUserDirectoryUser): string[] => [
-  user.displayName ?? '',
-  getUserLocalpart(user.userId),
-  user.userId,
-];
-
-const includesQuery = (value: string, query: string): boolean =>
-  value.toLocaleLowerCase().includes(query);
 
 const matchField = (value: string, query: string): FieldMatch => {
   const normalizedValue = value.toLocaleLowerCase();
@@ -70,12 +66,18 @@ const matchField = (value: string, query: string): FieldMatch => {
  * shared `mindroom_` prefix, so one agent's name cannot bury another agent
  * behind the whole fleet.
  */
+const NO_MATCH_TIER = 8;
+
 const getRankTier = (user: ServerUserDirectoryUser, normalizedQuery: string): number => {
   const localpart = getUserLocalpart(user.userId);
+  const postPrefixLocalpart = getPostPrefixLocalpart(localpart);
   const displayName = matchField(user.displayName ?? '', normalizedQuery);
-  const postPrefix = matchField(getPostPrefixLocalpart(localpart), normalizedQuery);
   const local = matchField(localpart, normalizedQuery);
-  const mxid = matchField(user.userId, normalizedQuery);
+  const postPrefix =
+    postPrefixLocalpart === localpart ? local : matchField(postPrefixLocalpart, normalizedQuery);
+  // Queries reach here with any leading @ stripped, so match the MXID
+  // without its sigil or an exact/prefix MXID paste could never rank as one.
+  const mxid = matchField(user.userId.replace(/^@/, ''), normalizedQuery);
 
   if (displayName === 'exact') return 0;
   if (postPrefix === 'exact' || local === 'exact' || mxid === 'exact') return 1;
@@ -85,7 +87,7 @@ const getRankTier = (user: ServerUserDirectoryUser, normalizedQuery: string): nu
   if (postPrefix === 'includes') return 5;
   if (local === 'prefix' || mxid === 'prefix') return 6;
   if (local === 'includes' || mxid === 'includes') return 7;
-  return 8;
+  return NO_MATCH_TIER;
 };
 
 /**
@@ -99,7 +101,7 @@ export const countStrongInviteUserMatches = (
   users: readonly ServerUserDirectoryUser[],
   query: string
 ): number => {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const normalizedQuery = normalizeQuery(query);
   if (normalizedQuery.length === 0) return 0;
 
   return users.filter((user) => getRankTier(user, normalizedQuery) <= STRONG_MATCH_MAX_TIER).length;
@@ -149,12 +151,12 @@ const searchSingleCharacter = (
   limit: number
 ): ServerUserDirectoryUser[] =>
   users
-    .filter((user) => getSearchFields(user).some((field) => includesQuery(field, normalizedQuery)))
     .map((user) => ({
       user,
       score: 0,
       tier: getRankTier(user, normalizedQuery),
     }))
+    .filter((result) => result.tier < NO_MATCH_TIER)
     .sort(compareUserDirectoryResults)
     .slice(0, limit)
     .map((result) => result.user);
@@ -176,7 +178,7 @@ export const rankUsers = (
   query: string,
   limit = INVITE_AUTOCOMPLETE_LIMIT
 ): ServerUserDirectoryUser[] => {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const normalizedQuery = normalizeQuery(query);
   if (normalizedQuery.length === 0) return [];
 
   if (normalizedQuery.length === 1) {

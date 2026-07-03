@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import React, { useState } from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
@@ -479,14 +478,6 @@ describe('InviteUserAutocomplete', () => {
       className: 'InviteAutocompleteMenuContainer',
     });
     expect(menuContainer.props.style).toMatchObject({ width: 320 });
-  });
-
-  it('does not position the menu with clip-prone absolute CSS inside the anchor', () => {
-    const cssSource = readFileSync(new URL('./InviteAutocompleteMenu.css.ts', import.meta.url), {
-      encoding: 'utf8',
-    });
-
-    expect(cssSource).not.toContain("position: 'absolute'");
   });
 
   it('flips the menu above the input when there is no room below', () => {

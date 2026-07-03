@@ -93,6 +93,18 @@ describe('rankUsers', () => {
     ]);
   });
 
+  it('ranks a pasted MXID (with its @ stripped by the input layer) as an exact match', () => {
+    const results = rankUsers(
+      [
+        { userId: '@alice-two:example.org', displayName: 'Alice Example Org' },
+        { userId: '@alice:example.org', displayName: 'Unrelated Name' },
+      ],
+      'alice:example.org'
+    ).map((user) => user.userId);
+
+    expect(results[0]).toBe('@alice:example.org');
+  });
+
   it('falls back to a deterministic userId tiebreak', () => {
     expect(
       rankUsers(

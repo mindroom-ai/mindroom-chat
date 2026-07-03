@@ -213,6 +213,47 @@
       a stale menu max-height; scalar setters already self-bail via
       `Object.is`, and the suggested patch also put side effects inside a
       state updater.
+  - Self-review (multi-angle finder/verifier harness over the full PR diff
+    after the dev rebase) - accepted fixes:
+    - Queries are now normalized with a leading `@` stripped inside
+      `rankUsers`/`countStrongInviteUserMatches`, and the MXID field is
+      matched without its sigil; previously the exact/prefix MXID tiers were
+      unreachable through the UI path (the hook strips `@`), so a pasted
+      MXID ranked as a weak tier-7 hit and never counted as strong.
+      Regression test added.
+    - `searchSingleCharacter` no longer runs a parallel field-matching pass
+      (`getSearchFields` + `includesQuery` deleted); it filters on
+      `tier < NO_MATCH_TIER`, provably equivalent since the post-prefix
+      localpart is a substring of the localpart.
+    - `getRankTier` skips the duplicate post-prefix `matchField` call for
+      non-agent users (post-prefix equals localpart).
+    - Removed the dead CSS `maxHeight` clamp (the inline side-space-aware
+      clamp always overrides it; the CSS copy was also rem-based vs the JS
+      px-based clamp) and the brittle `readFileSync` source-text guard test
+      (behavioral portal tests cover the regression class).
+  - Self-review - verified but intentionally not changed (documented
+    trade-offs):
+    - Typing the literal shared prefix (`mindroom`) ranks display-name
+      substring humans above the tier-6 agent fleet and can evict agents at
+      the 8-item limit; this is the flip side of un-burying agents for
+      short-name queries, resolves as soon as one more character
+      distinguishes an agent, and the server fallback fires for such
+      queries.
+    - Flip-above uses the menu's max height rather than actual content
+      height (a short menu can flip above on short viewports); flipping on
+      content height would make the menu jump sides as suggestion counts
+      change per keystroke.
+    - Fallback traffic for shared-prefix typing (each settled keystroke
+      while strong matches < 3) stays as disclosed, bounded by the 200 ms
+      trailing debounce and request-id guards.
+  - Self-review - follow-ups (not this PR): rank server-merged results via a
+    cached Fuse (the merged-array path rebuilds the index per server
+    response - pre-existing, now more frequent); optionally suppress the
+    fallback when the top local suggestion is an exact tier<=1 hit; shared
+    invite-prompt test harness (the two files' PopOut mocks have diverged);
+    extract a shared `containsEventTarget` util (third hand-rolled copy
+    alongside two voice components); consider a single state object for
+    anchor/placement/maxHeight.
 - Validation:
   - Red checks (before fix):
     `npx vitest run src/app/utils/userDirectorySearch.test.ts src/app/hooks/useInviteUserSearch.test.ts`
@@ -229,6 +270,17 @@
   - Green: `npm run lint` (18 warnings, 0 errors - existing baseline).
   - Green: `npm run build` (existing Vite warnings only).
   - Green: `npx prettier --check` on the changed source/test files.
+  - Post-rebase / PR-review-follow-up validation (tier precompute, MXID
+    normalization, single-char dedup, dead CSS clamp removal):
+    - Green focused check:
+      `npx vitest run src/app/utils/userDirectorySearch.test.ts src/app/hooks/useInviteUserSearch.test.ts src/app/components/invite-user-prompt/`
+      (5 files, 52 tests, including the new pasted-MXID regression test).
+    - Green: `npm run typecheck`.
+    - Green: `npm test` (full suite on the rebased branch).
+    - Green: `npm run lint` (18 warnings, 0 errors - existing baseline).
+    - Green: `npm run build`.
+    - Green live re-verification post-rebase:
+      `npx playwright test e2e/live/cinny217-invite-menu-portal.spec.ts`.
 
 ### Fix dev service worker registration (2026-07-02)
 

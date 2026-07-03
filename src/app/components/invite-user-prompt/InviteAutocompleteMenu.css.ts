@@ -1,11 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, config, toRem } from 'folds';
 
-import {
-  INVITE_AUTOCOMPLETE_MENU_MAX_HEIGHT_PX,
-  INVITE_AUTOCOMPLETE_MENU_MAX_VIEWPORT_PERCENT,
-} from './inviteAutocompleteMenuPlacement';
-
 export const InviteAutocompleteMenuRoot = style([DefaultReset]);
 
 /**
@@ -27,12 +22,12 @@ export const InviteAutocompleteMenuContainer = style([
   },
 ]);
 
+// Height is clamped by the inline maxHeight computed alongside the anchor in
+// InviteAutocompleteMenu.tsx (side-space aware); no CSS clamp so there is a
+// single source of truth.
 export const InviteAutocompleteMenu = style([
   DefaultReset,
   {
-    maxHeight: `min(${INVITE_AUTOCOMPLETE_MENU_MAX_VIEWPORT_PERCENT}vh, ${toRem(
-      INVITE_AUTOCOMPLETE_MENU_MAX_HEIGHT_PX
-    )})`,
     height: '100%',
     display: 'flex',
     flexDirection: 'column',
