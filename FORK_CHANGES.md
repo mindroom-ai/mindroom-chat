@@ -246,6 +246,19 @@
     - Fallback traffic for shared-prefix typing (each settled keystroke
       while strong matches < 3) stays as disclosed, bounded by the 200 ms
       trailing debounce and request-id guards.
+  - PR #54 CodeRabbit review (posted against the pre-rebase snapshot),
+    triaged against current code:
+    - Accepted: the "prefers the larger side when the menu fits on neither
+      side" placement test never reached the tie-break fallback (both cases
+      resolved via the fits-below/fits-above branches); fixtures changed to
+      a 300px viewport where neither side fits (required 164px vs 160/100
+      and 120/140), so the fallback line is actually exercised.
+    - Stale: the brittle CSS source-text assertion it flagged was already
+      deleted by the self-review commit.
+    - Skipped: importing `MINDROOM_AGENT_LOCALPART_PREFIX` into the test
+      fixtures - the hardcoded `mindroom_` literal deliberately pins the
+      deployment contract so a prefix change fails tests loudly instead of
+      silently adapting.
   - Self-review - follow-ups (not this PR): rank server-merged results via a
     cached Fuse (the merged-array path rebuilds the index per server
     response - pre-existing, now more frequent); optionally suppress the

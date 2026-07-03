@@ -18,8 +18,9 @@ describe('getInviteAutocompleteMenuPlacement', () => {
   });
 
   it('prefers the larger side when the menu fits on neither side', () => {
-    expect(getInviteAutocompleteMenuPlacement({ y: 150, height: 40 }, 500)).toBe('Bottom');
-    expect(getInviteAutocompleteMenuPlacement({ y: 320, height: 40 }, 500)).toBe('Top');
+    // requiredHeight = min(300 * 0.52, 448) + 8 = 164; both sides below it.
+    expect(getInviteAutocompleteMenuPlacement({ y: 100, height: 40 }, 300)).toBe('Bottom');
+    expect(getInviteAutocompleteMenuPlacement({ y: 140, height: 40 }, 300)).toBe('Top');
   });
 
   it('caps the required height at the fixed pixel maximum on tall viewports', () => {
