@@ -2,6 +2,7 @@ import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matri
 import type { Dispatch, SetStateAction } from 'react';
 import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from './timelineDebug';
+import { countCacheProbe } from './cacheProbe';
 import { createPreferLiveEventMapper, mapCachedThreadPageEvents } from './eventRepository';
 import {
   hasUsableThreadCacheSnapshot,
@@ -27,7 +28,7 @@ type ThreadOpenSeedSession = {
 export type ScheduleReconcileFn = (
   args: Pick<
     ScheduleReconcileArgs,
-    'roomId' | 'room' | 'threadId' | 'cachedPage' | 'reason' | 'onRepaired' | 'shouldContinue'
+    'roomId' | 'room' | 'threadId' | 'cachedPage' | 'reason' | 'onRepaired'
   >
 ) => Promise<ReconcileResult>;
 
@@ -98,10 +99,92 @@ export const runThreadOpenCacheFirst = async ({
   try {
     hydratedCachedPage = await hydrateThreadFromCache(threadId);
   } catch {
-    if (!isCurrentThreadOpen()) return { shouldContinue: false };
+    if (!isCurrentThreadOpen()) {
+      // AC2 STEP 4 iter 2 (2026-07-04): hydrate threw and the guard
+      // says the thread has been closed/re-navigated in the meantime.
+      // No scheduleReconcile fires — count this skip.
+      countCacheProbe('threadOpenSkipCacheFirstHydrateGuard');
+      return { shouldContinue: false };
+    }
     hydratedCachedPage = undefined;
   }
-  if (!isCurrentThreadOpen()) return { shouldContinue: false };
+  if (!isCurrentThreadOpen()) {
+    // AC2 STEP 4 iter 2 (2026-07-04): guard flipped between hydrate
+    // returning and this check — the open aborted before we reached
+    // the choke-point schedule. This is one of the two legitimate
+    // "no reconcile fires" paths: the thread is closed, there is no
+    // convergence work to do.
+    countCacheProbe('threadOpenSkipCacheFirstPostHydrateGuard');
+    return { shouldContinue: false };
+  }
+
+  // CINNY-207 AC2 revision (2026-07-04): SINGLE UNSKIPPABLE CHOKE-POINT
+  // SCHEDULE. Product-owner directive replaces the earlier bandage shape
+  // (bolt a `scheduleReconcile` onto each branch that could bail without
+  // scheduling). D7 SWR rule: coverage decides PAINT, never REVALIDATE
+  // — so the reconcile schedule belongs ABOVE every coverage/bootstrap
+  // conditional, structurally impossible for any early return to skip.
+  //
+  // Every thread open that survives the hydrate + post-hydrate guards
+  // schedules exactly one reconcile here. The scheduler's
+  // (roomId|threadId|kind=reconcile) dedup key coalesces this call
+  // against any in-flight reconcile from a prior tab/focus event.
+  //
+  // The reconciler runs to completion regardless of navigation (the
+  // paired R1/R2 revert removed `shouldContinue` from the engine); the
+  // component-mount check lives inside `onRepaired` so a moved-away
+  // component no-ops on render while the persist leg still teaches the
+  // cache.
+  //
+  // The `cachedPage` argument is the hydrated snapshot (may be
+  // undefined). The reconciler uses it to short-circuit its fetch loop
+  // when the fetched chunk overlaps the cached window by event id — so
+  // the "cached was right" case still costs at most one /relations page.
+  countCacheProbe('threadOpenScheduledCacheFirst');
+  void scheduleReconcile({
+    roomId: room.roomId,
+    room,
+    threadId,
+    cachedPage: hydratedCachedPage,
+    reason: 'open-thread-choke-point',
+    onRepaired: (repairedEvents) => {
+      // CINNY-207 AC2 render-gap RG1 (2026-07-04): sink counters.
+      // These three counters partition the outcomes of the
+      // component-side onRepaired callback so a docker probe snapshot
+      // can name which seam the render-gap lives at without another
+      // blind cycle. Invariant asserted by the render-gap
+      // instrumentation:
+      //   reconcilesOnRepairedFired ==
+      //     onRepairedGuardBailed +
+      //     supplementalEventsExecuted +
+      //     supplementalEventsSkippedEmpty
+      // (reconcilesOnRepairedFired is bumped in reconciler.ts BEFORE
+      // this callback is invoked.)
+      if (!isCurrentThreadOpen()) {
+        countCacheProbe('onRepairedGuardBailed');
+        return;
+      }
+      if (repairedEvents.length > 0) {
+        setSupplementalThreadEvents(threadId, [...repairedEvents]);
+        countCacheProbe('supplementalEventsExecuted');
+      } else {
+        countCacheProbe('supplementalEventsSkippedEmpty');
+      }
+      forceTimelineUpdate();
+      setThreadTimelineTick((val) => val + 1);
+    },
+  }).catch((err) => {
+    // CINNY-207 AC2 review F6 (2026-07-04): the scheduler's own
+    // rejection paths already bump `schedulerFailed` /
+    // `schedulerAborted`, so this catch used to silently return
+    // undefined to avoid an unhandled promise rejection. That left a
+    // triage ambiguity: from a browser log you couldn't tell WHICH
+    // rejection this was, only that one had happened. A single warn
+    // line here names the site without changing behavior — the
+    // counters remain the source of truth for aggregate counts.
+    // eslint-disable-next-line no-console
+    console.warn('[thread-open-choke-point] scheduleReconcile rejected', err);
+  });
 
   const cachedThreadHasLocalSnapshot =
     !!hydratedCachedPage &&
@@ -145,41 +228,12 @@ export const runThreadOpenCacheFirst = async ({
       skipNetworkBootstrap: true,
       threadId,
     });
-    // CINNY-207 P5.1 (D7 / AC9): complete-coverage still schedules a
-    // reconcile. Fire-and-forget from the caller's POV — the reconcile
-    // is deduped in the scheduler and only calls `onRepaired` (which
-    // batches a tick) if it actually applied a repair. When the cache
-    // was right this is a cheap no-op: fetch, diff empty, no writes,
-    // no tick.
-    //
-    // P5-GATE-FIX v3 (AC2 dual-injection, render leg): the widened
-    // `onRepaired` receives the fully-mapped batch the reconciler
-    // fetched. We route it through `setSupplementalThreadEvents`
-    // (defence-in-depth against zero-length batches — the engine
-    // guards this at its side too by only calling `onRepaired` when
-    // repair actually ran, but the component-side wiring must also
-    // skip cleanly to preserve the "one tick per repair" invariant).
-    // Why this is required: on complete-coverage the SDK bootstrap
-    // is skipped by design; `useThreadRenderState.buildThreadEvents`
-    // reads `fallbackThreadEventsState.events` alongside
-    // `thread.events`, and `setSupplementalThreadEvents` is the
-    // component-owned sink for that fallback state.
-    void scheduleReconcile({
-      roomId: room.roomId,
-      room,
-      threadId,
-      cachedPage: hydratedCachedPage,
-      reason: 'open-complete-coverage',
-      onRepaired: (repairedEvents) => {
-        if (!isCurrentThreadOpen()) return;
-        if (repairedEvents.length > 0) {
-          setSupplementalThreadEvents(threadId, [...repairedEvents]);
-        }
-        forceTimelineUpdate();
-        setThreadTimelineTick((val) => val + 1);
-      },
-      shouldContinue: isCurrentThreadOpen,
-    }).catch(() => undefined);
+    // CINNY-207 AC2 revision (2026-07-04): the branch-local reconcile
+    // schedule that used to live here has been relocated to the
+    // choke-point call above (after the post-hydrate guard). D7 says
+    // coverage decides PAINT, never REVALIDATE — the schedule sits
+    // above the coverage branching now, so this branch only PAINTS
+    // and returns.
     pinThreadToBottomOnOpen();
     return {
       hydratedCachedPage,
@@ -209,7 +263,13 @@ export const runThreadOpenCacheFirst = async ({
       baselineBackfillEvents,
       hydratedCachedPage.expectedReplyCount
     );
-    if (!isCurrentThreadOpen()) return { shouldContinue: false };
+    if (!isCurrentThreadOpen()) {
+      // Guard flipped between backfill returning and this check. The
+      // choke-point reconcile already fired above so no skip counter
+      // is needed — the reconcile runs to completion regardless of
+      // navigation.
+      return { shouldContinue: false };
+    }
     if (relationBackfill?.completed) {
       logTimelineDebug(debugTraceId, 'thread-open-complete', {
         completedBy: 'relations-backfill',
@@ -218,6 +278,10 @@ export const runThreadOpenCacheFirst = async ({
         threadId,
       });
       pinThreadToBottomOnOpen();
+      // CINNY-207 AC2 revision (2026-07-04): the bandage-shape schedule
+      // that iter 2 STEP d added here has been removed. The choke-point
+      // schedule at the top of this function covers this path — the
+      // backfill-completed branch just PAINTS and returns.
       return {
         hydratedCachedPage,
         shouldContinue: false,

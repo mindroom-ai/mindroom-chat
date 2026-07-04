@@ -3964,7 +3964,19 @@ describe('RoomTimeline', () => {
         snapshotComplete: false,
         tailLoaded: true,
       } as never);
-      matrixClientMock.fetchRelations.mockResolvedValueOnce({
+      // CINNY-207 AC2 revision (2026-07-04): both the choke-point
+      // reconciler (kind='reconcile') and the backfill executor
+      // (kind='thread-backfill') fire `fetchRelations` on this open,
+      // in that order (the choke-point is now the FIRST call site
+      // inside `runThreadOpenCacheFirst`, above coverage branching).
+      // Both need the same chunk: the backfill uses it to compute
+      // `completed: true` (which is what makes the branch skip SDK
+      // bootstrap); the reconciler uses it to detect divergence
+      // against the cached window. Pre-revision this test only needed
+      // one mockResolvedValueOnce because the reconciler was scheduled
+      // AFTER the backfill returned — its fetch landed after the
+      // assertions window and its default empty response was harmless.
+      const relationsChunkResponse = {
         chunk: [
           {
             content: {
@@ -4007,7 +4019,10 @@ describe('RoomTimeline', () => {
           },
         ],
         next_batch: null,
-      });
+      };
+      matrixClientMock.fetchRelations
+        .mockResolvedValueOnce(relationsChunkResponse)
+        .mockResolvedValueOnce(relationsChunkResponse);
 
       let renderer: ReturnType<typeof create> | undefined;
       try {
@@ -4024,7 +4039,16 @@ describe('RoomTimeline', () => {
         await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
 
-        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
+        // CINNY-207 AC2 revision (2026-07-04): the choke-point schedule
+        // at the top of `runThreadOpenCacheFirst` fires the reconciler's
+        // `/relations` BEFORE the coverage branching runs; the backfill
+        // then fires its own `/relations` when the partial-coverage
+        // branch calls `backfillThreadRelationsIntoCache`. Both live in
+        // different dedup domains (reconciler `kind='reconcile'`,
+        // backfill `kind='thread-backfill'`) so the scheduler doesn't
+        // collapse them. Total = 2, same total STEP d asserted; only
+        // the call ordering flipped (reconciler now first, not second).
+        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
         expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
         expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
         expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();

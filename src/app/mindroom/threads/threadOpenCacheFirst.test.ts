@@ -43,11 +43,12 @@ const makeDefaultOptions = () => {
     isCurrentThreadOpen: vi.fn(() => true),
     mx,
     pinThreadToBottomOnOpen: vi.fn(),
-    // CINNY-207 P5.1 (AC9): D7 rewire — `refreshLatestThreadRelationsTail`
-    // was deleted; the complete-coverage path now schedules a reconcile
-    // through the engine.
+    // CINNY-207 AC2 revision (2026-07-04): single choke-point schedule
+    // at the top of `runThreadOpenCacheFirst`. Every open that survives
+    // the hydrate + post-hydrate guards schedules exactly one reconcile
+    // with reason `open-thread-choke-point`.
     scheduleReconcile: vi.fn(async () => ({
-      reason: 'open-complete-coverage' as const,
+      reason: 'open-thread-choke-point' as const,
       repaired: false,
       fetchedCount: 0,
       iterations: 1,
@@ -101,17 +102,22 @@ describe('runThreadOpenCacheFirst', () => {
     expect(opts.setThreadHasMoreCachedBack).toHaveBeenCalledWith(false);
     expect(opts.setThreadTailLoaded).toHaveBeenCalledWith(true);
     expect(opts.forceTimelineUpdate).toHaveBeenCalledTimes(1);
-    // CINNY-207 P5.1 (D7 / AC9): coverage gates PAINT, never
-    // REVALIDATE. Even on a complete-coverage cache hit the reconciler
-    // is scheduled — when the cache was right, the reconcile is a
-    // cheap no-op (fetch, diff empty, no writes, no tick).
+    // CINNY-207 AC2 revision (2026-07-04): the SINGLE choke-point
+    // reconcile schedule at the top of `runThreadOpenCacheFirst` fires
+    // on every open that survives the hydrate + post-hydrate guards.
+    // On the complete-coverage path this is the only reconcile —
+    // structurally impossible for a coverage branch to skip. Reason
+    // is `open-thread-choke-point` (the three earlier branch-local
+    // reason variants — open-complete-coverage, open-partial-coverage,
+    // open-backfill-completed — were consolidated when the branch
+    // schedule sites were deleted).
     expect(opts.scheduleReconcile).toHaveBeenCalledTimes(1);
     expect(opts.scheduleReconcile).toHaveBeenCalledWith(
       expect.objectContaining({
         roomId: opts.room.roomId,
         threadId: '$root',
         cachedPage,
-        reason: 'open-complete-coverage',
+        reason: 'open-thread-choke-point',
       })
     );
     expect(opts.pinThreadToBottomOnOpen).toHaveBeenCalledTimes(1);
@@ -161,11 +167,18 @@ describe('runThreadOpenCacheFirst', () => {
       1
     );
     expect(opts.pinThreadToBottomOnOpen).toHaveBeenCalledTimes(1);
-    // CINNY-207 P5.1: partial-coverage and no-cache paths let the
-    // lifecycle controller schedule the reconcile after
-    // `runThreadOpenSdkBootstrap`; the cache-first function itself
-    // only schedules on the complete-coverage exit.
-    expect(opts.scheduleReconcile).not.toHaveBeenCalled();
+    // CINNY-207 AC2 revision (2026-07-04): the backfill-completed
+    // branch used to carry its own scheduleReconcile call site (iter 2
+    // STEP d's D7 fix). The revision moved the schedule to the SINGLE
+    // choke-point call above the coverage branching, so every open
+    // schedules exactly one reconcile with reason
+    // `open-thread-choke-point` regardless of which coverage branch
+    // paints. This assertion proves the choke-point fires even when
+    // the flow reaches the backfill-completed branch.
+    expect(opts.scheduleReconcile).toHaveBeenCalledTimes(1);
+    const [reconcileArgs] = opts.scheduleReconcile.mock.calls[0];
+    expect(reconcileArgs.reason).toBe('open-thread-choke-point');
+    expect(reconcileArgs.threadId).toBe('$root');
   });
 
   it('routes the reconciler onRepaired batch through setSupplementalThreadEvents + tick (CINNY-207 P5-GATE-FIX v3 AC2 dual-injection)', async () => {
@@ -214,7 +227,7 @@ describe('runThreadOpenCacheFirst', () => {
     }) => {
       capturedOnRepaired = args.onRepaired;
       return {
-        reason: 'open-complete-coverage' as const,
+        reason: 'open-thread-choke-point' as const,
         repaired: true,
         fetchedCount: 1,
         iterations: 1,
@@ -285,7 +298,7 @@ describe('runThreadOpenCacheFirst', () => {
     }) => {
       capturedOnRepaired = args.onRepaired;
       return {
-        reason: 'open-complete-coverage' as const,
+        reason: 'open-thread-choke-point' as const,
         repaired: false,
         fetchedCount: 0,
         iterations: 1,
@@ -317,10 +330,25 @@ describe('runThreadOpenCacheFirst', () => {
     expect(opts.threadOpenSeedSession.applyInitialUntargetedThreadSeed).toHaveBeenCalledTimes(1);
     expect(opts.setThreadInitialCacheHydrated).toHaveBeenCalledWith(true);
     expect(opts.backfillThreadRelationsIntoCache).not.toHaveBeenCalled();
-    // CINNY-207 P5.1: partial-coverage and no-cache paths let the
-    // lifecycle controller schedule the reconcile after
-    // `runThreadOpenSdkBootstrap`; the cache-first function itself
-    // only schedules on the complete-coverage exit.
-    expect(opts.scheduleReconcile).not.toHaveBeenCalled();
+    // CINNY-207 AC2 revision (2026-07-04): STRONGER invariant. The
+    // pre-revision code let the no-cache path fall through to the
+    // lifecycle controller's partial-coverage schedule site. The
+    // revision moved the schedule to the choke-point at the top of
+    // `runThreadOpenCacheFirst`, above every coverage/bootstrap
+    // conditional — so even the no-cache path (which returns
+    // shouldContinue=true and will hand off to SDK bootstrap
+    // downstream) still schedules exactly one reconcile here with
+    // `cachedPage: undefined`. The reconciler treats an undefined
+    // cached page as "compare fetched chunk against empty cache" —
+    // divergence is any non-empty tail, which converges the cache.
+    expect(opts.scheduleReconcile).toHaveBeenCalledTimes(1);
+    expect(opts.scheduleReconcile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roomId: opts.room.roomId,
+        threadId: '$root',
+        cachedPage: undefined,
+        reason: 'open-thread-choke-point',
+      })
+    );
   });
 });

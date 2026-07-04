@@ -101,6 +101,223 @@ export type CacheProbeCounters = {
   // `threadSaveCalls` (which counts ALL persist paths including live
   // writes) by isolating the reconciler-owned persist.
   reconcilerPersists: number;
+  // CINNY-207 AC2 STEP 1 (2026-07-04): distinguishable exit-path
+  // counters for `runThreadReconcilePass`. Together with the existing
+  // `reconcilesRepaired`, EVERY code path out of the executor increments
+  // exactly one counter, so the invariant
+  //   reconcilesScheduled ==
+  //     reconcilesSignalAborted +
+  //     reconcilesFetchFailed + reconcilesNoDivergence +
+  //     reconcilesNoRoom + reconcilesRoomScopeNoop +
+  //     reconcilesRepaired
+  // holds and can be asserted from a docker probe snapshot.
+  //
+  //   reconcilesSignalAborted: `signal.aborted` was observed (in the
+  //     loop or post-loop). The scheduler drove this via
+  //     controller.abort — engine teardown / abort() call.
+  //   reconcilesFetchFailed: fetchThreadRelationPage returned
+  //     undefined (SDK threw) OR the fetch succeeded but the merged
+  //     batch was empty (all pages returned empty chunks). Either way
+  //     no divergence could be assessed.
+  //   reconcilesNoDivergence: fetch produced a non-empty batch, but
+  //     detectDivergence returned false — the "cached was right"
+  //     zero-cost path (D7 no-op).
+  //   reconcilesNoRoom: schedule reached the executor but
+  //     `mx.getRoom(roomId)` returned null (rare — room unloaded
+  //     between schedule and drain).
+  //   reconcilesRoomScopeNoop: room-scope reconcile (no threadId)
+  //     completed its scheduler tripwire without fetching (tail
+  //     catchup is owned by the gap-fill executor).
+  reconcilesSignalAborted: number;
+  reconcilesFetchFailed: number;
+  reconcilesNoDivergence: number;
+  reconcilesNoRoom: number;
+  reconcilesRoomScopeNoop: number;
+  // CINNY-207 AC2 revision (2026-07-04): pruned to the minimal set that
+  // still enforces the post-choke-point invariant. The iter-2 shape had
+  // one schedule counter per branch (`threadOpenScheduledCacheFirst`,
+  // `threadOpenScheduledLifecycle`) and 12 skip counters, one per early
+  // return in the thread-open flow. With the schedule relocated to a
+  // single unskippable choke point at the top of `runThreadOpenCacheFirst`
+  // (right after the post-hydrate guard), all the branch-schedule
+  // counters and post-choke-point skip counters became scaffolding for a
+  // shape that no longer exists — pruning them per the product-owner
+  // directive ("prune counters that guard now-impossible paths").
+  //
+  // Post-revision invariant asserted from a docker probe snapshot:
+  //
+  //   threadOpens ==
+  //     threadOpenScheduledCacheFirst +
+  //     threadOpenSkipCacheFirstHydrateGuard +
+  //     threadOpenSkipCacheFirstPostHydrateGuard
+  //
+  //   threadOpens: bumps once at the start of the useEffect body for
+  //     every open (guarded to skip the no-thread cleanup effect).
+  //   threadOpenScheduledCacheFirst: bumps at the single choke-point
+  //     schedule call site in `runThreadOpenCacheFirst` (right after
+  //     the post-hydrate guard). Kept the historical name for
+  //     git-blame continuity, but "cacheFirst" here means "the
+  //     choke-point inside runThreadOpenCacheFirst" — there is no
+  //     other schedule counter to disambiguate against.
+  //   threadOpenSkipCacheFirstHydrateGuard: hydrate threw AND
+  //     isCurrentThreadOpen() returned false; the open aborted before
+  //     the choke-point could fire. Legitimate — the thread is closed.
+  //   threadOpenSkipCacheFirstPostHydrateGuard: post-hydrate
+  //     isCurrentThreadOpen() returned false; same shape, same
+  //     legitimacy.
+  //
+  // Every OTHER path through the thread-open flow (SDK-bootstrap
+  // early returns, backfill-completed paint-and-return, etc.) now
+  // occurs AFTER the choke-point schedule fired, so those paths do
+  // not need skip counters to prove convergence intent.
+  threadOpens: number;
+  threadOpenScheduledCacheFirst: number;
+  threadOpenSkipCacheFirstHydrateGuard: number;
+  threadOpenSkipCacheFirstPostHydrateGuard: number;
+  // CINNY-207 AC2 render-gap RG1 (2026-07-04): sink counters that
+  // distinguish the three candidate mechanisms for the render-gap
+  // ("engine converges, edit-target v2 never renders"). Each names a
+  // specific seam between the reconciler's onRepaired batch and the
+  // MatrixEvent instance the render layer actually holds.
+  //
+  //   onRepairedGuardBailed: reconciler fired onRepaired but the
+  //     component-side guard (`isCurrentThreadOpen()`) returned false,
+  //     so `setSupplementalThreadEvents` did NOT run for this batch.
+  //     Diagnostic for candidate (b) / (c): the repair batch reached
+  //     the render seam but was gated out before the sink ran.
+  //     Together with `reconcilesOnRepairedFired` (bumped inside the
+  //     reconciler before calling the callback), the relation
+  //     reconcilesOnRepairedFired == onRepairedGuardBailed +
+  //       supplementalEventsExecuted + supplementalEventsSkippedEmpty
+  //     holds and can be asserted from a probe snapshot.
+  //   supplementalEventsExecuted: reconciler's onRepaired ran end to
+  //     end and called `setSupplementalThreadEvents(threadId, [...])`.
+  //     Diagnostic: sink executed; if v2 still not visible, the gap
+  //     is downstream of the fallback state (candidate (a) or (b)).
+  //   supplementalEventsSkippedEmpty: onRepaired ran but the repaired
+  //     batch was empty, so the sink was intentionally skipped (see
+  //     P5-GATE-FIX v3 cost-guarantee test). Kept separate so a docker
+  //     trace can distinguish "sink skipped because nothing to sink"
+  //     from "sink guarded out".
+  onRepairedGuardBailed: number;
+  supplementalEventsExecuted: number;
+  supplementalEventsSkippedEmpty: number;
+  // CINNY-207 AC2 render-gap RG1 (2026-07-04): mergeThreadRenderEvents
+  // "edit-relation seen but target's replacingEvent() unchanged"
+  // observability. Diagnostic for candidate (b): the merge received an
+  // m.replace event but the target instance it kept has no
+  // `replacingEvent()` set — i.e. the applier mutated some other
+  // instance and this merge is picking the un-repaired copy. See
+  // threadRenderUtils.ts `mergeThreadRenderEvents`.
+  mergeSawEditRelationNoTargetChange: number;
+  // CINNY-207 AC2 render-gap RG2 (2026-07-04): distinguishes
+  // hypothesis 1 (merge never receives the edit event) from
+  // hypothesis 2 (merge receives it and produces correct output, but
+  // downstream render swallows). Bumps once per merge call whose
+  // `incomingEvents` contains ANY m.replace event, regardless of
+  // whether the target's replacingEvent() is set. If this counter is
+  // 0 while supplementalEventsExecuted is >0, the sink fired but the
+  // re-render / state propagation is not delivering the incoming
+  // batch to the merge — the seam is between the sink and the memo.
+  mergeSawIncomingEditRelation: number;
+  // CINNY-207 AC2 render-gap RG3 (2026-07-04): observability at the
+  // ACTUAL render-pipeline entry point (getEditedEvent in
+  // utils/room.ts). Bumps once per getEditedEvent call:
+  //
+  //   renderTargetHadReplacement: `mEvent.replacingEvent()` returned
+  //     a non-null candidate that PASSED the same-sender check and
+  //     was included in the candidate edit list.
+  //   renderTargetLackedReplacement: `mEvent.replacingEvent()`
+  //     returned null.
+  //
+  // Diagnostic: if `renderTargetHadReplacement` is 0 while merge
+  // counter `mergeSawEditRelationNoTargetChange` is also 0 AND the
+  // merge saw incoming edits (`mergeSawIncomingEditRelation > 0`),
+  // then the merge produced correct output but the RENDER is
+  // receiving a DIFFERENT instance for the target — proving the seam
+  // between "merge output stored in state" and "render reads state".
+  renderTargetHadReplacement: number;
+  renderTargetLackedReplacement: number;
+  // CINNY-207 AC2 render-gap RG5b (2026-07-04): unconditional applier
+  // observability, kept as permanent scalar tripwires after the RG4-era
+  // instance-identity classifiers were retired. Together they partition
+  // every path out of `applyCachedReplaceRelations`:
+  //   applierMakeReplacedFired: bumped once per real makeReplaced call
+  //     in the applier (the m.replace was in the batch, sender matched,
+  //     latestEdit differed from the current replacement).
+  //   applierMakeReplacedNoOpGuardFired: bumped when the guard bailed
+  //     out (no candidate edit OR the picked edit equalled the current
+  //     replacement). Sub-split into the two mutually exclusive causes
+  //     via `applierMakeReplacedNoLatestEdit` (getLatestEdit returned
+  //     undefined — every candidate had a sender mismatch) and
+  //     `applierMakeReplacedLatestEqualsCurrent` (target already carries
+  //     the picked replacement — benign no-op). Invariant:
+  //     applierMakeReplacedNoOpGuardFired ==
+  //       applierMakeReplacedNoLatestEdit +
+  //       applierMakeReplacedLatestEqualsCurrent
+  //   applierMakeReplacedNoLatestEdit > 0 names a sender-mismatch shape
+  //     (hydration issue or cross-sender edit). Must-stay-0 in a
+  //     well-formed corpus.
+  applierMakeReplacedFired: number;
+  applierMakeReplacedNoOpGuardFired: number;
+  applierMakeReplacedNoLatestEdit: number;
+  applierMakeReplacedLatestEqualsCurrent: number;
+  // CINNY-207 AC2 render-gap RG5d (2026-07-04): permanent WORK counter
+  // on the eventMap merge invariant — NOT a must-stay-0 tripwire.
+  // `mergeThreadRenderEvents` canonicalizes on write in
+  // `setEventForKeys` — when writing an event under its key set, any
+  // existing instance reachable under ANY of the incoming keys is
+  // displaced from ALL of its map keys before the winner is written
+  // under the union. This counter bumps once per losing instance that
+  // had to be displaced.
+  //
+  // Invariant: after `mergeThreadRenderEvents` returns, every event
+  // identity in `eventMap` maps to exactly one instance, and that
+  // instance is reachable under every key both the winner and any
+  // loser held. `Array.from(new Set(eventMap.values()))` (used by both
+  // the merge output and any downstream consumer that walks the map)
+  // therefore contains one entry per identity, not one per instance.
+  //
+  // A stable small non-zero reading is HEALTHY, expected dedup work:
+  // multiple ingestion paths legitimately deliver distinct instances
+  // of the same identity to the sink (reconciler onRepaired payloads,
+  // SDK sync/echo deliveries), and dedup across overlapping key sets
+  // is exactly the merge's contract. The AC2 live flow reads 3 per
+  // run — and still reads 3 with the onRepaired hydrated-view payload
+  // reverted, so the duplication is not attributable to any single
+  // producer. What warrants investigation is a step-change in the
+  // reading (a new duplication source appeared) — not the non-zero
+  // itself.
+  eventMapCanonicalizedDisplacements: number;
+  // CINNY-207 AC2 render-gap RG5c (2026-07-04, re-homed post-F1):
+  // permanent MUST-STAY-0 tripwire on the "repaired state is monotonic"
+  // picker rule. Bumps once per canonicalization event where at least
+  // one displaced loser carried `.replacingEvent() != null` while the
+  // chosen winner had `.replacingEvent() == null` — i.e. the picker
+  // rule (raw replacement presence must win a same-id tie) was
+  // violated at the eventMap merge seam.
+  //
+  // History: the RG5c cycle originally installed this counter inside
+  // `replaceFallbackInstanceRegistry` as a pre-overwrite check on the
+  // fallback registry map. The F1 sweep (d5f04e90) removed that
+  // registry to close a memory-hazard shape (module-scope Map holding
+  // strong MatrixEvent refs, unbounded in prod), which also removed
+  // the counter. Per team-lead: the counter itself is a pure scalar
+  // and must survive as the permanent alarm on the picker rule.
+  // Re-homed at the canonicalization site in
+  // `threadRenderUtils.ts::setEventForKeys`, where the same
+  // repaired-vs-unrepaired shape now expresses as "loser had
+  // replacement, winner does not". No Map, no retained refs, no eager
+  // collection — a scalar bump on a shape that
+  // `pickPreferredThreadRenderEvent`'s RG5-fix2 rule already
+  // guarantees cannot fire.
+  //
+  // Interpretation: must stay 0. Any non-zero reading is a real
+  // regression alarm — the picker preference (raw
+  // `.replacingEvent()` presence wins) is being violated somewhere
+  // downstream of the picker call or the picker itself has a code
+  // path that returns the unrepaired sibling.
+  registrySwappedRepairedForUnrepaired: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -127,6 +344,28 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   reconcilesThreadNull: 0,
   reconcilesOnRepairedFired: 0,
   reconcilerPersists: 0,
+  reconcilesSignalAborted: 0,
+  reconcilesFetchFailed: 0,
+  reconcilesNoDivergence: 0,
+  reconcilesNoRoom: 0,
+  reconcilesRoomScopeNoop: 0,
+  threadOpens: 0,
+  threadOpenScheduledCacheFirst: 0,
+  threadOpenSkipCacheFirstHydrateGuard: 0,
+  threadOpenSkipCacheFirstPostHydrateGuard: 0,
+  onRepairedGuardBailed: 0,
+  supplementalEventsExecuted: 0,
+  supplementalEventsSkippedEmpty: 0,
+  mergeSawEditRelationNoTargetChange: 0,
+  mergeSawIncomingEditRelation: 0,
+  renderTargetHadReplacement: 0,
+  renderTargetLackedReplacement: 0,
+  applierMakeReplacedFired: 0,
+  applierMakeReplacedNoOpGuardFired: 0,
+  applierMakeReplacedNoLatestEdit: 0,
+  applierMakeReplacedLatestEqualsCurrent: 0,
+  eventMapCanonicalizedDisplacements: 0,
+  registrySwappedRepairedForUnrepaired: 0,
 });
 
 let counters = createEmptyCounters();

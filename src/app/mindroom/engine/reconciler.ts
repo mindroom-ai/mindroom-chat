@@ -82,8 +82,13 @@ const MAX_RECONCILE_ITERATIONS = 25;
  * (D7 revalidation)" from "user opened a fresh room we just hydrated".
  */
 export type ReconcileReason =
-  | 'open-complete-coverage'
-  | 'open-partial-coverage'
+  // CINNY-207 AC2 revision (2026-07-04): single choke-point schedule
+  // at the top of the thread-open flow (see runThreadOpenCacheFirst).
+  // Replaces the three earlier open-* variants ('open-complete-coverage',
+  // 'open-partial-coverage', 'open-backfill-completed') that each pinned
+  // a branch-local schedule call site — those sites are gone; there is
+  // now exactly one thread-open reconcile per open, structurally.
+  | 'open-thread-choke-point'
   | 'room-open'
   | 'resume';
 
@@ -134,12 +139,6 @@ export type ScheduleReconcileArgs = {
    * not need to distinguish which repair changed what.
    */
   readonly onRepaired?: (repairedEvents: readonly MatrixEvent[]) => void;
-  /**
-   * Optional predicate to abort mid-pass. Wired so a component unmount
-   * (thread closed, room switched) can stop a straggling reconcile
-   * without waiting for the scheduler's own abort signal to propagate.
-   */
-  readonly shouldContinue?: () => boolean;
   /**
    * Optional debug trace id. When present, reconciler observability
    * events (`reconcile-scheduled`, `reconcile-complete`) attach it so
@@ -348,7 +347,6 @@ const runThreadReconcilePass = async ({
   threadId,
   cachedPage,
   onRepaired,
-  shouldContinue,
   signal,
   reason,
   debugTraceId,
@@ -360,7 +358,6 @@ const runThreadReconcilePass = async ({
   threadId: string;
   cachedPage: HydratedThreadCachePage | undefined;
   onRepaired: ((repairedEvents: readonly MatrixEvent[]) => void) | undefined;
-  shouldContinue: (() => boolean) | undefined;
   signal: AbortSignal;
   reason: ReconcileReason;
   debugTraceId: string | undefined;
@@ -374,18 +371,29 @@ const runThreadReconcilePass = async ({
   let fromToken: string | undefined;
   const allMapped: MatrixEvent[] = [];
 
+  // Set by the fetch loop when it observed a fetch failure that
+  // produced no usable page (SDK threw / returned undefined). Used
+  // AFTER the loop to distinguish "empty response" from "everything
+  // failed" — both surface as allMapped.length === 0.
+  let fetchFailedOccurred = false;
+
   while (iterations < MAX_RECONCILE_ITERATIONS) {
     if (signal.aborted) {
-      return { reason, repaired: false, fetchedCount, iterations, aborted: true };
-    }
-    if (shouldContinue && !shouldContinue()) {
+      // Signal-abort — scheduler-driven teardown (engine.stop / abort()
+      // call). Reconciles are an engine responsibility (invariant I2,
+      // convergence to server truth); this is the only legitimate
+      // silent exit before the first fetch.
+      countCacheProbe('reconcilesSignalAborted');
       return { reason, repaired: false, fetchedCount, iterations, aborted: true };
     }
 
     iterations += 1;
     // eslint-disable-next-line no-await-in-loop
     const page = await fetchThreadRelationPage(mx, roomId, threadId, fromToken);
-    if (!page) break;
+    if (!page) {
+      fetchFailedOccurred = true;
+      break;
+    }
 
     // P5-GATE-FIX v4 (final iteration — team-lead directive 2026-07-04):
     // per-page chunk-triple log. Signature (A) from the last docker run
@@ -455,6 +463,8 @@ const runThreadReconcilePass = async ({
   }
 
   if (signal.aborted) {
+    // Post-loop signal-abort — same class as in-loop signal-abort.
+    countCacheProbe('reconcilesSignalAborted');
     return { reason, repaired: false, fetchedCount, iterations, aborted: true };
   }
 
@@ -483,6 +493,17 @@ const runThreadReconcilePass = async ({
   // no events (or all fetches failed) there is nothing to reconcile and
   // no tick to fire.
   if (allMapped.length === 0) {
+    // CINNY-207 AC2 STEP 1 (2026-07-04): treat "fetch failed with no
+    // usable pages" AND "server returned empty chunks" as the same
+    // outcome bucket for probe purposes — both are silent exits with
+    // no divergence assessment possible. `fetchFailedOccurred` flags
+    // the first (SDK threw at least once), but both branches must
+    // increment a counter so the invariant
+    //   reconcilesScheduled == sum(outcome counters)
+    // holds. Using a single bucket keeps that arithmetic honest;
+    // splitting SDK-threw vs empty-chunk would require another
+    // counter and the diagnosis value is low.
+    countCacheProbe('reconcilesFetchFailed');
     logTimelineDebug(debugTraceId, 'reconcile-complete', {
       fetchedCount: 0,
       iterations,
@@ -490,6 +511,7 @@ const runThreadReconcilePass = async ({
       repaired: false,
       roomId,
       threadId,
+      fetchFailedOccurred,
     });
     return { reason, repaired: false, fetchedCount, iterations, aborted: false };
   }
@@ -503,6 +525,11 @@ const runThreadReconcilePass = async ({
   const diverged = detectDivergence(allMapped, cachedIds);
 
   if (!diverged) {
+    // CINNY-207 AC2 STEP 1 (2026-07-04): the D7 no-op path — the
+    // reconciler ran end to end and confirmed the cache agreed with
+    // server truth. Cheap by design; the counter separates this from
+    // silent failures upstream.
+    countCacheProbe('reconcilesNoDivergence');
     logTimelineDebug(debugTraceId, 'reconcile-complete', {
       fetchedCount,
       iterations,
@@ -677,8 +704,27 @@ const runThreadReconcilePass = async ({
   // paths converge on the same tick: SDK-populated `thread.events`
   // (from `liveThread.addEvents(allMapped, false)` above) AND the
   // component-owned `fallbackThreadEventsState.events`.
+  //
+  // CINNY-207 AC2 render-gap RG5-fix (2026-07-04): pass
+  // `mergedForHydrate` (cachedSnapshotEvents + allMapped) instead of
+  // just `allMapped`. RG4d diagnosis: when the fetched /relations page
+  // includes a target's m.replace child but not the target itself
+  // (e.g. the target sits in the pre-hydrated cache snapshot outside
+  // the fetched window), the applier's id→instance map picks the
+  // cached-snapshot copy for the makeReplaced target and mutates it in
+  // place. Passing only `allMapped` to onRepaired meant that mutated
+  // instance never reached the sink; the fallback registry then got a
+  // SYNC-delivered sibling (via ThreadEvent.NewReply → single-event
+  // sink call) that never had `.replacingEvent()` set, and the render
+  // preference picked the un-repaired sibling. Passing the full
+  // hydrated view makes the "persistent render source for a given
+  // thread-open" = the reconciler-repaired view, per team-lead's
+  // fourth-shape directive. Sink merge is a Map-by-key, so replaying
+  // cachedSnapshotEvents (already render-held) is idempotent modulo
+  // instance-identity — and identity is precisely what we want to
+  // propagate here.
   if (onRepaired) {
-    onRepaired(allMapped);
+    onRepaired(mergedForHydrate);
     // P5-GATE-FIX v4 (final iteration): definitive callback-fired
     // evidence. `reconcilesRepaired` bumped BEFORE this line, so a
     // guard-skipped or throwing callback would leave
@@ -726,7 +772,6 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
     cachedPage,
     reason,
     onRepaired,
-    shouldContinue,
     debugTraceId,
   } = args;
 
@@ -773,6 +818,10 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
       priority: 0,
       execute: async (signal) => {
         if (signal.aborted) {
+          // CINNY-207 AC2 STEP 1 (2026-07-04): signal-abort on the
+          // room-scope tripwire — same class as the thread-scope
+          // signal-abort exit.
+          countCacheProbe('reconcilesSignalAborted');
           return {
             reason,
             repaired: false,
@@ -781,6 +830,12 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
             aborted: true,
           };
         }
+        // CINNY-207 AC2 STEP 1 (2026-07-04): the room-scope executor
+        // is a deliberate no-op (tail catchup is owned by the gap-fill
+        // executor). Counting it separately keeps the invariant
+        //   reconcilesScheduled == sum(outcome counters)
+        // honest for room-open reconciles.
+        countCacheProbe('reconcilesRoomScopeNoop');
         logTimelineDebug(debugTraceId, 'reconcile-complete', {
           fetchedCount: 0,
           iterations: 0,
@@ -819,6 +874,7 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
     execute: (signal) => {
       const room = providedRoom ?? mx.getRoom?.(roomId);
       if (!room) {
+        countCacheProbe('reconcilesNoRoom');
         return Promise.resolve({
           reason,
           repaired: false,
@@ -835,7 +891,6 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
         threadId,
         cachedPage,
         onRepaired,
-        shouldContinue,
         signal,
         reason,
         debugTraceId,

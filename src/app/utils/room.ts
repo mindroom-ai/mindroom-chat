@@ -35,6 +35,7 @@ import {
   copyMindroomResolvedEditMetadata,
   logMindroomEditDebug,
 } from '../mindroom/messages/editResolution';
+import { countCacheProbe } from '../mindroom/threads/cacheProbe';
 
 export const logEditDebug = logMindroomEditDebug;
 
@@ -519,6 +520,13 @@ export const getEditedEvent = (
   timelineSet: EventTimelineSet
 ): MatrixEvent | undefined => {
   const replacingEventCandidate = mEvent.replacingEvent() ?? undefined;
+  // CINNY-207 AC2 render-gap RG3 (2026-07-04): observability at the
+  // render-pipeline seam. See cacheProbe.ts for interpretation.
+  if (replacingEventCandidate) {
+    countCacheProbe('renderTargetHadReplacement');
+  } else {
+    countCacheProbe('renderTargetLackedReplacement');
+  }
   const replacingEvent = isSameSenderEditEvent(mEvent, replacingEventCandidate)
     ? replacingEventCandidate
     : undefined;
