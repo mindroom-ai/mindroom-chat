@@ -114,7 +114,9 @@ export const enqueueRoomDeepHistoryJob = (
         // Yield to a macrotask so a long deep-history run doesn't
         // starve UI callbacks between batches.
         // eslint-disable-next-line no-await-in-loop
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise((resolve) => {
+          setTimeout(resolve, 0);
+        });
       }
     },
   });

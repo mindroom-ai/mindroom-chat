@@ -99,7 +99,9 @@ const waitForCompleted = async (): Promise<void> => {
   for (let i = 0; i < 30; i += 1) {
     if (getCacheProbeSnapshot().schedulerCompleted > 0) return;
     // eslint-disable-next-line no-await-in-loop
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 5);
+    });
   }
 };
 

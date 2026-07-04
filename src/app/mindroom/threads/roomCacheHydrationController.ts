@@ -158,6 +158,7 @@ export const useRoomCacheHydrationController = ({
     safePaginationLimit,
     scrollToBottomRef,
     sessionId,
+    setAtBottom,
     setRoomInitialCacheHydratedKey,
     setTimeline,
     threadId,

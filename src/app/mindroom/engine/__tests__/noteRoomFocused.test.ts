@@ -82,7 +82,9 @@ describe('engine.noteRoomFocused (CINNY-207 P4.2)', () => {
 
     engine.noteRoomFocused('!own:mindroom.chat');
     // Let the async ledger + meta writes settle.
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
 
     const row = await readLedgerRow(engine.sessionId, '!own:mindroom.chat');
     expect(row?.federated).toBe(false);
@@ -96,7 +98,9 @@ describe('engine.noteRoomFocused (CINNY-207 P4.2)', () => {
     const engine = createMindroomSyncEngine({ mx });
 
     engine.noteRoomFocused('!fed:example.org');
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
 
     const row = await readLedgerRow(engine.sessionId, '!fed:example.org');
     expect(row?.federated).toBe(true);
@@ -110,7 +114,9 @@ describe('engine.noteRoomFocused (CINNY-207 P4.2)', () => {
     const engine = createMindroomSyncEngine({ mx });
 
     engine.noteRoomFocused('!bg:unknown');
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
 
     const row = await readLedgerRow(engine.sessionId, '!bg:unknown');
     // No ledger row is created for background rooms because we don't

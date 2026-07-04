@@ -1,6 +1,6 @@
 # MindRoom Cache Overhaul Plan (CINNY-207)
 
-Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 fully landed locally (P2.1 unified CacheStore + D8 wipe, P2.2 ledger + `beforeTokens` pruning + 1 GB eviction budget, P2.3 direct-import flip + architecture guards + health-gate move into the store); Phase 3 fully landed locally (P3.1 engine skeleton + Tier-1 write-through, P3.2 gap detection + queue stub, P3.3 strip the component's persistence responsibilities). Phase 4 (BackfillScheduler) is next.**
+Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 fully landed locally (P2.1 unified CacheStore + D8 wipe, P2.2 ledger + `beforeTokens` pruning + 1 GB eviction budget, P2.3 direct-import flip + architecture guards + health-gate move into the store); Phase 3 fully landed locally (P3.1 engine skeleton + Tier-1 write-through, P3.2 gap detection + queue stub, P3.3 strip the component's persistence responsibilities); Phase 4 fully landed locally (P4.1 BackfillScheduler with priority + dedup + abort, P4.2 prefetch policy + gap-fill executor + AC13 spec green-shaped + `noteRoomFederated` + `engine.noteRoomFocused`, P4.3 delete preloadController + deep history as band-4 scheduler job, P4.4 absorb thread-seed + overview-resume fetch dedup onto the scheduler). Phase 5 (Reconciler) is next.**
 Phase-1 e2e gate (2026-07-03, stack tip 55439be8): streamed-edit spec green
 live (AC4, probe numbers in scorecard), stop-emoji green (AC3; three failed
 attempts were host `ERR_NETWORK_CHANGED` flake — tracked in the Runbook).
@@ -369,18 +369,24 @@ referenced from `FORK_CHANGES.md` entries.
   keeps render triggering only. Exit: background-room-freshness spec (P0.2)
   green.
 
-### Phase 4 — BackfillScheduler (Tiers 2–3)
+### Phase 4 — BackfillScheduler (Tiers 2–3) — **landed 2026-07-04**
 
 - **P4.1** Scheduler with priority queue, concurrency cap, `AbortController`,
-  in-flight dedup map (F9/F10/D14).
+  in-flight dedup map (F9/F10/D14). **Landed** as `4f74dafa` on
+  `cache-overhaul/11-p4-scheduler`.
 - **P4.2** PrefetchPolicy: homeserver detection via `m.room.create` sender
   (D3); scope default `my-server` (D2); depth targets per tier.
+  Includes the gap-fill executor over the Phase-3.2 queue and
+  `engine.noteRoomFocused`. **Landed** as `0bc82add`.
 - **P4.3** Migrate Tier 3 (current-room deep history) into the scheduler;
-  delete the eager-preload loop in `preloadController.ts`. Exit: room open
-  issues no burst of 50 sequential `/messages`; deep history proceeds in
-  scheduled, abortable batches.
+  delete the eager-preload loop in `preloadController.ts`. Deep history
+  is now a band-4 job that uses `createMessagesRequest` +
+  `saveRoomEventsToCache` (never touches the SDK live timeline).
+  **Landed** as `549e891a`.
 - **P4.4** Absorb thread seed prewarm and overview resume fetching into the
-  scheduler (single dedup domain).
+  scheduler (single dedup domain). Fetch dedup relocated onto the
+  scheduler; outer React scaffolding preserved for downstream
+  consumers. **Landed** as `2fa4334a`.
 
 ### Phase 5 — Reconciler (I2 everywhere)
 
@@ -458,12 +464,12 @@ Filled as steps complete. "Before" numbers from P0.3.
 | AC5  | ☐ impl | Sweep deleted in P3.3 (`refactor: strip component persistence`); writes-per-live-event are structurally O(1) — the engine's per-event write-through is the only cache-write codepath from live events (no bulk re-serialization exists). Formal probe numbers land with the Phase 3 e2e docker gate on the P3.3 tip. | 26 thread-cache records for a 25-edit streamed message → 1 target record; the "loaded timeline size feeds cache writes" coupling (F2) is gone by construction |                         |      |
 | AC6  | ☐ impl | e2e `cinny207-background-room-freshness` was `test.fail()` through Phase 2; P3.3 (`refactor: strip component persistence`) flips it green: `MindroomSyncEngine` attaches `RoomEvent.Timeline`/`RoomEvent.Redaction` at client scope so live events reach the cache regardless of which room is mounted. Docker gate pending (team-lead). | 0 cached events for a background room (P0.3 spec run) → cached copy present on next open |                         |      |
 | AC7  | ☐ impl | `npx vitest run src/app/mindroom/threads/cacheStore/__tests__/cacheEviction.test.ts` (4/4 — three rooms seeded via the real save paths (federated / LRU-old / protected-recent); budget shrunk via `__setCacheStoreByteBudgetForTests` so eviction must fire; asserts federated evicted first, protected room never touched, cleanup complete (events / meta / summaries / ledger row), under-budget stop honoured at `budget * EVICTION_TARGET_UTILIZATION = 0.9`, recent-open guard alone protects a room without registry entry, back-to-back schedules collapse to one runner invocation via a `readLedgerSnapshot` spy). Docker e2e budget-override run pending. | over-budget state persists without the job (red-first probe inside the AC7 test); after the job runs, `bytesAfter` drops below the target and evicted rooms' events / meta / summaries / ledger rows are all gone |                         |      |
-| AC8  | ☐      |                                   |                |                         |      |
+| AC8  | ☐ impl | `npx vitest run src/app/mindroom/engine/__tests__/backfillScheduler.test.ts` (14/14 — same-key enqueue while queued OR running returns the same promise identity; different kinds on same (room, thread) are distinct; scheduler-completed re-enqueue works; priority + activity ordering across bands; concurrency cap peaks at MAX_CONCURRENT_BACKFILL_JOBS=2; abort in-flight / queued / unknown key; `abortAll` cancels every job; `pendingJobs` snapshot order stable). Additional dedup coverage in `engine/__tests__/deepHistoryJob.test.ts` (AC8 on the deep-history kind) and `engine/__tests__/gapFillExecutor.test.ts` (subscription + dedup). Client-scoped dedup extends to `thread-seed` (P4.4 threadSeedPrewarmController wraps `ensureThreadSeedPrewarm` in `scheduler.enqueue({kind: 'thread-seed'})`) and `thread-backfill` (P4.4 threadOverviewResumeController wraps `refreshOverviewThreadCacheFromRelations` in `scheduler.enqueue({kind: 'thread-backfill'})`). Docker gate observability handle: `window.__MINDROOM_CACHE_PROBE__.snapshot().schedulerDeduped` must be > 0 during any duplicate-producing scenario. | duplicate `/relations` and `/messages` fetches per (room, thread, kind) (F9) → at-most-one in-flight, others share the promise |                         |      |
 | AC9  | ☐      |                                   |                |                         |      |
 | AC10 | ☐      |                                   |                |                         |      |
 | AC11 | ✓      | `npx vitest run src/app/mindroom/threads/cacheHealth.test.ts src/app/mindroom/threads/eventRepository.test.ts` | silent divergence → read-only degrade | workflow rounds 1-2 (p15-p16 interaction dimension clean) | 2026-07-03 |
 | AC12 | ✓      | `npx vitest run src/app/utils/room.test.ts` (tie tests) | order-dependent → id-deterministic | workflow rounds 1-2 + landed-stack review | 2026-07-03 |
-| AC13 | ☐      |                                   |                |                         |      |
+| AC13 | ☐ impl | Executor landed in P4.2 (`engine/gapFillExecutor.ts`): subscribes to the Phase-3.2 `GapFillScheduler.onEnqueue`; per job, runs `mx.createMessagesRequest(Direction.Backward, 200/batch, ≤20 iterations)` through the P4.1 `BackfillScheduler` (band 1), persists via `saveRoomEventsToCache`, clears the durable `tailDiscontinuity` marker on success. AC13 e2e spec `e2e/live/cinny207-gap-fill-restart.spec.ts` flipped from `test.fail()` to green-shape: seed room + mount + ~25 REST messages + reload (single page context) + reset probe + wait 12s, then assert (a) `schedulerCompleted >= 1`, (b) `gapFillsEnqueued >= 1`, (c) last REST event id present in cache. Docker gate pending (team-lead). | offline messages missed after reload (I2/AC13 pre-Phase-4 — spec was `test.fail()`) → cache converges to server tail within seconds of reload |                         |      |
 | AC14 | ☐ impl | `npx vitest run src/app/mindroom/threads/cacheStore/__tests__/cacheStoreDb.wipe.test.ts` (2/2 — legacy DB names gone from `indexedDB.databases()` on first v3 open, marker present in `meta`, reopen after `resetCacheStoreForTesting()` performs zero further `deleteDatabase` calls; multi-session gate leaves shared singletons alone). Docker e2e post-upgrade paint verification pending. | six legacy DBs present pre-open → all six absent + unified DB present post-open |                         |      |
 
 ### 6.4 Regression guards (architecture tests)
@@ -493,7 +499,18 @@ new engine-scoped guard file):
   in P2.3 in the same arch test; scans `MindroomRoomTimeline.tsx` and
   everything under `mindroom/messages/**`; separately, an exact allowlist
   test enumerates the only sanctioned consumers: `eventRepository.ts`,
-  `threadSummaryStore.ts`, `threadSummaryState.ts`, and `sessionCleanup.ts`).
+  `threadSummaryStore.ts`, `threadSummaryState.ts`, `sessionCleanup.ts`,
+  and — extended in P3.2 and P4.2/P4.3 — the four engine-native cache
+  orchestrators: `engine/engineGapTracker.ts`,
+  `engine/mindroomSyncEngine.ts`, `engine/gapFillExecutor.ts`, and
+  `engine/deepHistoryJob.ts`).
+- Backfill network fetchers live inside the engine (Phase 4 — **added**
+  in P4.3 as a guard in `RoomTimeline.architecture.test.ts`): the
+  `useRoomEagerPreload` hook is deleted, `enqueueRoomDeepHistoryJob` is
+  wired instead, and `MindroomRoomTimeline` must not call
+  `mx.createMessagesRequest` directly. Any /messages fetch has to go
+  through the engine's `BackfillScheduler` (via `enqueueRoomDeepHistoryJob`
+  or `gapFillExecutor`).
 - The removed preload setting is not reintroduced (Phase 6).
 
 ### 6.5 Validation environment
@@ -526,6 +543,95 @@ new engine-scoped guard file):
   nondeterministic part. Revisit if federation becomes a product target.
 
 ## 8. Deviations
+
+- 2026-07-04 — **P4.1 cooperative abort v1: executors check between
+  batches only.** The SDK helpers `mx.fetchRelations` and
+  `mx.createMessagesRequest` do not accept an `AbortSignal` today.
+  The `BackfillScheduler` exposes a signal on each executor call, and
+  every executor written for Phase 4 (`gapFillExecutor`,
+  `deepHistoryJob`, `thread-seed`, `thread-backfill`) checks
+  `signal.aborted` between batches. Cancellation lands between
+  requests, not mid-request. Migration to
+  `mx.http.authedRequest({abortSignal})` is a recorded follow-up (it
+  requires re-implementing the two SDK helpers' request shapes; the
+  scheduler contract already matches).
+
+- 2026-07-04 — **P4.2 gap-fill executor uses
+  `mx.createMessagesRequest` — first caller of this SDK method in the
+  fork.** Previous pagination paths all went through
+  `mx.paginateEventTimeline` (which mutates the SDK live timeline).
+  The executor calls `createMessagesRequest(Direction.Backward,
+  200/batch, ≤20 iterations)` and persists via
+  `saveRoomEventsToCache` — the SDK timeline is never touched. This
+  is deliberate: gap-fill is background work that must not force
+  React re-renders. Deep-history (P4.3) uses the same primitive for
+  the same reason. Any future speculative-fetch job kind should use
+  this primitive too and go through the scheduler.
+
+- 2026-07-04 — **P4.2 `noteRoomFederated` is a patch-only ledger
+  setter.** The setter fills the P2.2-deferred writer gap for the
+  `federated` field. Existing rows: single-field replace preserving
+  byte/count/activity so the LRU-inside-priority ordering the
+  eviction job depends on is not disturbed. Missing rows: minimal
+  bootstrap (`approxBytes=0`, `eventCount=0`, `lastActivityTs=0`,
+  `federated`); the next real save from the events store's ledger
+  tracker overwrites the zeroed counters via
+  `baseline.federated !== undefined` in `writeUpdatedLedger`.
+  Alternative considered: fold the write into `saveRoomEventsToCache`
+  as an extra arg. Rejected because the tier is a room-level property
+  that doesn't change per-event — a dedicated setter called once per
+  focus is cleaner. Recorded so P4.2 review does not count the split
+  as a duplication of write paths.
+
+- 2026-07-04 — **P4.2 AC13 spec tightened to ~25 REST messages and a
+  single page context.** The P3.2 red version sent ONE offline
+  message and slept; Tuwunel rarely declares `limited=true` for that
+  single event on the next incremental sync, so the fill executor
+  path only sometimes ran. The green version sends ~25 REST messages
+  while the page is still mounted, reloads (single page context —
+  no `about:blank`), resets the probe on the fresh page, waits 12s,
+  and asserts (a) `schedulerCompleted >= 1`, (b) `gapFillsEnqueued
+  >= 1`, (c) the last REST event id is present in cache. Divergence
+  approved by team-lead in the GO-P4 message ("testing more, not
+  less"). `test.fail()` removed.
+
+- 2026-07-04 — **P4.2 eviction protection is single-element in v1.**
+  `engine.noteRoomFocused(roomId, threadId?)` calls
+  `setEvictionProtectedRoomIds([roomId])` — only the currently
+  focused room is protected from eviction. LRU inside priority
+  covers everything else (the actively-open room is by definition
+  the room with the highest `lastActivityTs`; new events keep it at
+  the tail). Recorded so AC7 review does not count "recently opened
+  but not focused" rooms as protected. A future iteration can
+  broaden the set once we have a use case (e.g. protect the last
+  N focused rooms across account switches).
+
+- 2026-07-04 — **P4.3 progressive-render recalibration NOT
+  replicated.** The old `useRoomEagerPreload` loop notified React
+  every batch so the scrollbar height grew smoothly as deep-history
+  pagination progressed. The new band-4 scheduler job persists to
+  IDB and does not touch the SDK live timeline — events surface on
+  the next mount's cache-hydration pass, all at once. Cost: users
+  don't see the "loading more" scroll smear anymore. Benefit: no
+  per-batch React re-render storm, and the sweep can run happily in
+  the background of an unmounted room. Product-owner-accepted per
+  team-lead direction as consistent with D14 ("persist raw events
+  to IDB, let hydration read on demand").
+
+- 2026-07-04 — **P4.4 does not fully delete
+  `threadSeedPrewarmController` / `threadOverviewResumeController`.**
+  Client-scoped fetch dedup is now on the scheduler (the F9 fix
+  point), and the previously-in-flight refs mirror scheduler state.
+  The outer React scaffolding (generation guards, priority-target
+  drain loop, page-resume trigger) is preserved because it wires
+  into multiple downstream consumers (`threadOpenSeedController`
+  reads the prewarm refs to decide whether to await; the compact
+  view's summary hydration reads the resume trigger). A follow-up
+  in a later phase can enqueue seed jobs directly from
+  `engine.noteRoomFocused` (targeting `collectPriorityThreadSeedPrewarmRoots`
+  output) and retire the controllers entirely. Recorded so P4.4
+  review is not measured against a "delete both controllers"
+  standard the brief loosely implies.
 
 - 2026-07-03 — **P3.1/P3.3 live thread appends persist
   `tailLoaded: true` always.** The pre-strip component controller
@@ -629,6 +735,77 @@ new engine-scoped guard file):
   workflow review round 1; recorded here for product-owner review.
 
 ## 9. Status log
+
+- 2026-07-04 — **Phase 4 fully landed locally** on
+  `cache-overhaul/11-p4-scheduler` (four feature commits + docs).
+  Branched from `202e57f1` (P3.3 tip after the round-2 redaction
+  gate fix). Commits:
+
+  1. `4f74dafa` P4.1 `feat: BackfillScheduler with priority queue,
+     dedup, and abort` — the client-scoped queue that serializes
+     every backfill-shaped network fetch. AC8 dedup: ONE Map covers
+     queued AND in-flight, so same-key enqueues return the same
+     promise identity. Bands 0-4 with within-band `getLastActiveTimestamp`
+     desc; MAX_CONCURRENT_BACKFILL_JOBS=2; cooperative abort v1.
+     Engine wired (scheduler exposed on the instance; `abortAll` from
+     stop). Four new probe counters (`schedulerEnqueued`,
+     `schedulerDeduped`, `schedulerAborted`, `schedulerCompleted`).
+     14 new unit tests.
+  2. `0bc82add` P4.2 `feat: prefetch policy with homeserver detection`
+     — `engine/prefetchPolicy.ts` new (D3, homeserver-domain
+     comparison of the `m.room.create` sender; NEVER parses room
+     ids). `engine/gapFillExecutor.ts` new (subscribes to Phase-3.2
+     queue via new `GapFillScheduler.onEnqueue`; drives
+     `mx.createMessagesRequest` through the scheduler; persists via
+     `saveRoomEventsToCache`; clears durable marker). New
+     `cacheStore/cacheStoreLedger.ts` setter `noteRoomFederated`
+     fills the P2.2-deferred writer gap. New engine method
+     `noteRoomFocused(roomId, threadId?)` consolidates tier stamp +
+     eviction protection + open-timestamp bumps. Called from a
+     useEffect in `MindroomRoomTimeline`. AC13 e2e spec tightened
+     (~25 REST messages, single page context, probe + cache
+     assertions, `test.fail()` removed). 19 new unit tests
+     (prefetchPolicy 10, gapFillExecutor 5, noteRoomFocused 4).
+  3. `549e891a` P4.3 `refactor: delete the eager-preload loop; deep
+     history as scheduler job` — DELETE `threads/preloadController.ts`
+     (317 lines). NEW `engine/deepHistoryJob.ts` (band 4, up to
+     10000 events via `createMessagesRequest` + `saveRoomEventsToCache`;
+     never touches the SDK live timeline). `MindroomRoomTimeline`
+     sheds the `eagerPreloading` state + reset useLayoutEffect +
+     `eagerPreloadDoneForRoomRef` + the `!eagerPreloading` skeleton
+     gate term + the debug controller `eagerPreloading` prop. New
+     useEffect enqueues the band-4 job. `roomCacheHydrationController`
+     shrinks (loses preload-done ref, `setEagerPreloading`). Two
+     architecture guards rewritten/added: "delegates eager room
+     preload orchestration outside RoomTimeline" → "routes
+     deep-history preload through the engine scheduler, not the SDK
+     live timeline"; NEW "keeps backfill network fetchers inside
+     the engine (no direct createMessagesRequest in components)".
+     Deleted the stale "keeps eager-preloading past fifty batches"
+     cache test (asserted the deleted hook). 4 new deepHistoryJob
+     unit tests.
+  4. `2fa4334a` P4.4 `refactor: absorb thread seed prewarm and
+     overview resume into the scheduler` — `ensureThreadSeedPrewarm`
+     wraps its cache-first seed load in `scheduler.enqueue({kind:
+     'thread-seed', priority: 3})`; client-scoped dedup replaces
+     the per-controller `prewarmingThreadSeedPromisesRef` as the F9
+     dedup point (refs still populated for downstream consumers).
+     `refreshOverviewThreadCacheFromRelations` wraps its
+     `fetchAllThreadRelations` + persist in `scheduler.enqueue({kind:
+     'thread-backfill', priority: 2})`; `overviewResumeRefreshInFlightRef`
+     and `pendingOverviewResumeRefreshRef` deleted. Outer React
+     scaffolding preserved.
+  5. This docs commit — runbook P4.1-P4.4, plan header + status log
+     + scorecard AC8/AC13 + Deviations §8 (seven new entries) +
+     §6.4 guard updates.
+
+  Full validation on the branch tip: `npx tsc --noEmit` clean;
+  `npx vitest run src/app/mindroom/` 231 files / 1992 tests green;
+  `npx vitest run` 337 files / 2553 tests green (+48 vs P3.3
+  baseline of 2505); `npm run build` OK; `npm run lint` 18 warnings
+  / 0 errors — matches P3 baseline exactly (zero delta). Docker
+  gate (AC13 flip + regression trio) not run by the implementing
+  agent; team-lead runs it after PR open.
 
 - 2026-07-03 — **Phase 3 fully landed locally** on
   `cache-overhaul/10-p3-sync-engine` after P3.3. Six commits
