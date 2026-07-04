@@ -485,6 +485,49 @@ test.describe('CINNY-207 stale-cache divergence reconcile', () => {
 
       const displacement = Math.abs(afterTop - beforeTop);
       expect(displacement).toBeLessThanOrEqual(8);
+
+      // CINNY-207 AC2 render-gap RG4e (2026-07-04): dump the name-the-
+      // caller counters after the forced re-render. Team-lead's directive:
+      // "one instrumentation commit + one docker run, then report the
+      // counter read before writing any fix code." Log line goes to the
+      // Playwright stdout stream (`RG4e-COUNTERS ...`) so the log tee'd
+      // to /tmp can be grepped without a browser DevTools session.
+      const rg4eSnapshot = await page.evaluate(() => {
+        const w = window as Window & {
+          __MINDROOM_CACHE_PROBE__?: { snapshot: () => Record<string, number> };
+        };
+        const snap = w.__MINDROOM_CACHE_PROBE__?.snapshot() ?? {};
+        const pick = (key: string): number => Number(snap[key] ?? 0);
+        return {
+          sunkTargetMakeRedactedCalls: pick('sunkTargetMakeRedactedCalls'),
+          sunkTargetMakeReplacedNonNull: pick('sunkTargetMakeReplacedNonNull'),
+          sunkTargetMakeReplacedCleared: pick('sunkTargetMakeReplacedCleared'),
+          renderTargetLostReplacement: pick('renderTargetLostReplacement'),
+          renderTargetFallbackNeverHadReplacement: pick(
+            'renderTargetFallbackNeverHadReplacement'
+          ),
+          renderTargetSourceFallbackAlsoLacked: pick(
+            'renderTargetSourceFallbackAlsoLacked'
+          ),
+          renderTargetSourceSdkFallbackRepaired: pick(
+            'renderTargetSourceSdkFallbackRepaired'
+          ),
+          renderTargetHadReplacement: pick('renderTargetHadReplacement'),
+          renderTargetLackedReplacement: pick('renderTargetLackedReplacement'),
+          applierMakeReplacedFired: pick('applierMakeReplacedFired'),
+          applierMakeReplacedLatestEqualsCurrent: pick(
+            'applierMakeReplacedLatestEqualsCurrent'
+          ),
+          applierMakeReplacedNoLatestEdit: pick('applierMakeReplacedNoLatestEdit'),
+          reconcilesRepaired: pick('reconcilesRepaired'),
+          reconcilesScheduled: pick('reconcilesScheduled'),
+        };
+      });
+      // Structured single-line log so the grep is trivial and copy-paste
+      // faithful. Not an assertion — team-lead wants the reading, not
+      // a pass/fail on it.
+      // eslint-disable-next-line no-console
+      console.log(`RG4e-COUNTERS ${JSON.stringify(rg4eSnapshot)}`);
     }
   );
 });
