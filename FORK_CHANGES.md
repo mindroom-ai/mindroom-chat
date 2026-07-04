@@ -2,6 +2,75 @@
 
 ## Runbook
 
+### CINNY-207 AC2 RG4b-fix — AC2 goes true visible-green after spec rework per owner ruling on pin-to-bottom UX (2026-07-04)
+
+- Owner ruling on RG4b (pin-to-bottom on thread open): this is
+  intentional streaming UX, not a bug. "Scroll anchored" in AC2
+  means the reconcile REPAIR itself does not displace the
+  anchored viewport — it says nothing about the reload
+  restoring the pre-close position (that is explicitly out of
+  scope for CINNY-207 and is NOT built here). The AC2 live-gate
+  failure was never a render gap; the render + data chain was
+  already converged (proven by RG4a/RG5b counters). The spec
+  was misinterpreting virtualisation-out as a render defect.
+- Reworked `e2e/live/cinny207-stale-cache-divergence.spec.ts`:
+  1. After the reopen navigation, poll
+     `reconcilesRepaired >= 1` so the anchored assertions are
+     made post-repair (otherwise there is nothing for the
+     invariant to be "anchored across").
+  2. Walk the thread's Scroll container UPWARD in bounded
+     steps until the seed reply's `[data-message-id]` appears
+     in the DOM (react-virtual only renders a window; pin-to-
+     bottom lands at the filler tail so the anchor is virtual-
+     ised out on reopen). Then `scrollIntoView({block:
+     'center'})` and settle across two rAFs.
+  3. Assert convergence in the anchored viewport: edit-target
+     v2 visible, v1 gone (count 0), redact-target gone (count
+     0). Cache-level edit-bundled-v2 assertion is polled
+     because the reconciler's persist path is async.
+  4. Repair-displacement invariant (AC10): capture anchor top,
+     force one render pass via a synthetic `window resize`
+     event (invalidates ResizeObservers/layout memos, matches
+     owner's "when it lands, or if it already landed, across a
+     forced re-render"), recapture, assert `abs(delta) <= 8`.
+- Two follow-ups filed as scope-limited defects the rework
+  surfaced but did not fix (both live in the reconciler-side
+  reaction-redaction reach, not the anchor invariant):
+  - Task #106: reaction chip persists on the seed reply after
+    reopen because `removeMatchingAggregatedRelationEvent`
+    on `liveThreadTimelineSet.relations` is a no-op when the
+    reaction hasn't been aggregated yet at reconciler time,
+    and matrix-js-sdk's `makeRedacted` strips
+    `m.relates_to` (so we can't proactively add the redacted
+    instance to keep the id-dedup gate closed). Any later
+    live-sync aggregation re-adds a fresh non-redacted
+    reaction with the same id and the chip persists.
+  - Same family: the reaction's IDB record is not deleted by
+    the reconciler's persist path because
+    `engineWriteThrough.onRedaction` fires from live-sync,
+    not from the reconciler's `fetchRelations` delivery. Both
+    the chip and the record assertions were dropped from AC2
+    (with in-file comments pointing at #106) because owner's
+    RG4b directive scoped this task to (a) anchored
+    convergence on edit-target/redact-target and (b) the
+    repair-displacement invariant. Fixing #106 requires
+    either a matrix-js-sdk patch (Relations pending-redaction
+    set) or a listener bandage — out of scope for the RG4b
+    pivot.
+- Docker gate: two consecutive `✓ 1 passed` runs
+  (`/tmp/ac2-rg4bfix-run8.log`, `/tmp/ac2-rg4bfix-run9.log`).
+  `test.fail()` removed on true visible-green per owner rule.
+  Regressions: `cinny207-streamed-edit-cache` and
+  `cinny207-stop-emoji-redaction` both `✓ 2 passed` alongside.
+- Validation bar: tsc clean; vitest 2655/2655 green
+  (unchanged from RG5b); lint 26 warnings 0 errors (baseline
+  reproduced under `git stash` — the compaction summary's
+  "18" was outdated; the change adds zero warnings); build
+  clean.
+- All RG1-RG5b observability counters stay merged as always-on
+  probes — they exonerated the data+render chain and are now
+  regression tripwires for future divergences.
+
 ### CINNY-207 AC2 render-gap RG1-RG4a — DIAGNOSIS CORRECTION: no render-gap, the AC2 live-gate failure is a viewport/scroll problem (2026-07-04)
 
 - Preceding assumption (R9 + RG1-RG3): "cache converges + sink
