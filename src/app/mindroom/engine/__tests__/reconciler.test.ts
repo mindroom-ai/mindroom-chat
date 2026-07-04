@@ -1027,12 +1027,20 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     // the v2 (instance-race) fix addressed for cache-clone identity
     // but did not fix for the SDK-doesn't-know-the-id case.
     //
-    // The batch handed to onRepaired is the fully-mapped, prefer-live
-    // fetched event set — the same set the SDK receives via
-    // addEvents. That mirrors the SDK's own dedup guarantee: the
-    // render's `setSupplementalThreadEvents` merges by event id via
-    // `mergeThreadRenderEvents`, so re-passing a live-known event is
-    // a no-op there too.
+    // The batch handed to onRepaired is the reconciler-hydrated view
+    // (`mergedForHydrate = [...cachedSnapshotEvents, ...allMapped]`),
+    // NOT just the fetched `/relations` chunk. RG5-fix rationale (see
+    // reconciler.ts around the onRepaired call): when the fetched
+    // chunk carries an m.replace whose target sits only in the cached
+    // snapshot (not in the fetched window), the applier mutates the
+    // cached-snapshot copy in place. Passing only `allMapped` would
+    // strand that mutated instance server-side of the sink — the
+    // fallback registry would then hold a fresh SDK sibling with a
+    // null `.replacingEvent()`, and render preference would paint the
+    // un-repaired sibling. Handing the hydrated view through makes the
+    // "persistent render source" the reconciler-repaired view.
+    // Sink merge is a Map-by-key, so replaying cachedSnapshotEvents
+    // (already render-held) is idempotent modulo instance-identity.
     const room = makeFakeRoom();
     const fetchRelations = vi.fn(async () => ({
       chunk: [
@@ -1063,15 +1071,14 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
 
     expect(result.repaired).toBe(true);
     expect(onRepaired).toHaveBeenCalledTimes(1);
-    // The load-bearing assertion: onRepaired receives the repaired
-    // batch as its first argument. Under the pre-v3 zero-arg wiring,
-    // `onRepaired.mock.calls[0][0]` is undefined — the component-side
-    // callback has nothing to hand to `setSupplementalThreadEvents`,
-    // so the fallback event state cannot converge. Under v3 the
-    // callback receives the full mapped batch.
+    // The load-bearing assertion: onRepaired receives the batch as
+    // its first argument, and the batch carries both the fetched
+    // events AND the cached-snapshot instances the reconciler
+    // hydrated in place. Under the pre-fix wiring
+    // (`onRepaired(allMapped)`) the cached-snapshot instances never
+    // reached the sink — the RG5-fix seam.
     const [batchArg] = onRepaired.mock.calls[0];
     expect(Array.isArray(batchArg)).toBe(true);
-    expect(batchArg).toHaveLength(2);
     const batchIds = (batchArg as MatrixEvent[]).map((mEvent) => mEvent.getId());
     expect(batchIds).toContain('$edit-v2');
     expect(batchIds).toContain('$reply-1');
@@ -1139,7 +1146,12 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     expect(onRepaired).toHaveBeenCalledTimes(1);
     const [batchArg] = onRepaired.mock.calls[0];
     expect(Array.isArray(batchArg)).toBe(true);
-    expect(batchArg).toHaveLength(2);
+    // RG5-fix: onRepaired now hands the hydrated view (cached snapshot
+    // + fetched), so the payload includes both the fetched $edit-v2
+    // and the cached snapshot's $reply-1. Length assertion loosened
+    // from the pre-fix `toHaveLength(2)` because the hydrated view
+    // may include multiple instances for the same id (cached and
+    // fetched) prior to sink-side merge dedup.
     const batchIds = (batchArg as MatrixEvent[]).map((mEvent) => mEvent.getId());
     expect(batchIds).toContain('$edit-v2');
     expect(batchIds).toContain('$reply-1');

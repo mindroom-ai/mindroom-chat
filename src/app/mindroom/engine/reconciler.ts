@@ -721,8 +721,27 @@ const runThreadReconcilePass = async ({
   // paths converge on the same tick: SDK-populated `thread.events`
   // (from `liveThread.addEvents(allMapped, false)` above) AND the
   // component-owned `fallbackThreadEventsState.events`.
+  //
+  // CINNY-207 AC2 render-gap RG5-fix (2026-07-04): pass
+  // `mergedForHydrate` (cachedSnapshotEvents + allMapped) instead of
+  // just `allMapped`. RG4d diagnosis: when the fetched /relations page
+  // includes a target's m.replace child but not the target itself
+  // (e.g. the target sits in the pre-hydrated cache snapshot outside
+  // the fetched window), the applier's id→instance map picks the
+  // cached-snapshot copy for the makeReplaced target and mutates it in
+  // place. Passing only `allMapped` to onRepaired meant that mutated
+  // instance never reached the sink; the fallback registry then got a
+  // SYNC-delivered sibling (via ThreadEvent.NewReply → single-event
+  // sink call) that never had `.replacingEvent()` set, and the render
+  // preference picked the un-repaired sibling. Passing the full
+  // hydrated view makes the "persistent render source for a given
+  // thread-open" = the reconciler-repaired view, per team-lead's
+  // fourth-shape directive. Sink merge is a Map-by-key, so replaying
+  // cachedSnapshotEvents (already render-held) is idempotent modulo
+  // instance-identity — and identity is precisely what we want to
+  // propagate here.
   if (onRepaired) {
-    onRepaired(allMapped);
+    onRepaired(mergedForHydrate);
     // P5-GATE-FIX v4 (final iteration): definitive callback-fired
     // evidence. `reconcilesRepaired` bumped BEFORE this line, so a
     // guard-skipped or throwing callback would leave
