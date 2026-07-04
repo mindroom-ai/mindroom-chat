@@ -46,6 +46,23 @@ the remaining checklist was finished in-session).
   distinct instances of one identity). Notably it STILL reads 3 with
   fix B reverted, so the duplication is not attributable to the
   onRepaired payload alone.
+- **RG5c tripwire re-homed post-F1**: team-lead's follow-up directive
+  ("keep `registrySwappedRepairedForUnrepaired` itself if it's a pure
+  scalar — it's the permanent must-stay-0 tripwire on the picker
+  rule"). The counter itself is a pure scalar; F1 removed it as
+  collateral when the fallback registry map it lived inside was
+  deleted. Restored at the eventMap canonicalization site in
+  `threadRenderUtils.ts::setEventForKeys`: bumps when a displaced
+  loser carried `.replacingEvent()` non-null while the chosen winner
+  had it null — the same picker-rule-violation shape the RG5c
+  counter originally observed at the fallback-registry write site,
+  now observed at the map merge seam that is the actual chokepoint
+  in the post-F1 world. No Map, no retained refs — bare scalar.
+  Added to the AC2 spec's RG-COUNTERS dump. Locked by a
+  describe-scoped test in `threadRenderUtils.test.ts` that runs
+  every RG5d scenario (dual-key collapse both orders, 3-way
+  conflict, no-replacement baseline) and asserts the tripwire
+  stays 0.
 - **Fix-B load-bearing check (EXTRA-1)**: throwaway branch, `git
   revert --no-commit 52af9eed`, clean revert, tsc clean, one docker
   AC2 run: **PASSED without fix B** (/tmp/ac2-fixb-revert-check.log,

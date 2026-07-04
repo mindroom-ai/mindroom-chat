@@ -498,6 +498,16 @@ test.describe('CINNY-207 stale-cache divergence reconcile', () => {
           eventMapCanonicalizedDisplacements: pick(
             'eventMapCanonicalizedDisplacements'
           ),
+          // RG5c permanent must-stay-0 tripwire, re-homed at the
+          // canonicalization site post-F1 (per team-lead's directive
+          // that a scalar tripwire on the picker rule must survive).
+          // Bumps only when a displaced loser carried
+          // `.replacingEvent()` non-null while the chosen winner had
+          // it null — the picker's raw-presence rule (RG5-fix2) was
+          // bypassed. Any non-zero reading is a real regression alarm.
+          registrySwappedRepairedForUnrepaired: pick(
+            'registrySwappedRepairedForUnrepaired'
+          ),
         };
       });
       // Structured single-line log so the grep is trivial and copy-paste

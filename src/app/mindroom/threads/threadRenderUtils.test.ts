@@ -476,6 +476,54 @@ describe('mergeThreadRenderEvents RG5d key canonicalization', () => {
     // Existing bare, incoming repaired — repaired must win.
     expect(mergeThreadRenderEvents([bareB], [repairedB])).toEqual([repairedB]);
   });
+
+  it('permanent must-stay-0 tripwire: registrySwappedRepairedForUnrepaired never fires under the picker rule', () => {
+    // The RG5c tripwire re-homed at the canonicalization site (per
+    // team-lead's F1 correction): must stay 0 across every scenario the
+    // picker guards. Any non-zero reading names a picker-rule violation
+    // (a loser carried `.replacingEvent()` non-null while the chosen
+    // winner had it null — the RG5-fix2 raw-presence rule was
+    // bypassed).
+    //
+    // Exercise every RG5d scenario in one describe-scoped assertion so
+    // the invariant is checked against the full canonicalizer surface,
+    // not just one path.
+    resetCacheProbe();
+    const scenarios: Array<() => void> = [
+      // Simple dual-key + single-key collapse.
+      () => {
+        const dual = makeMessageEvent('$s1', 10);
+        dual.event.unsigned = { transaction_id: 'txn-s1' };
+        const repaired = makeMessageEventWithReplacement('$s1', 10, 15);
+        mergeThreadRenderEvents([dual], [repaired]);
+      },
+      // Reversed: existing repaired, incoming bare.
+      () => {
+        const dual = makeMessageEvent('$s2', 10);
+        dual.event.unsigned = { transaction_id: 'txn-s2' };
+        const repaired = makeMessageEventWithReplacement('$s2', 10, 15);
+        mergeThreadRenderEvents([repaired], [dual]);
+      },
+      // Three-way conflict.
+      () => {
+        const a = makeMessageEvent('$s3', 10);
+        a.event.unsigned = { transaction_id: 'txn-3a' };
+        const b = makeMessageEvent('$s3', 10);
+        b.event.unsigned = { transaction_id: 'txn-3b' };
+        const repaired = makeMessageEventWithReplacement('$s3', 10, 15);
+        mergeThreadRenderEvents([a, b], [repaired]);
+      },
+      // Neither side carries replacement — tripwire must not fire.
+      () => {
+        const a = makeMessageEvent('$s4', 10);
+        a.event.unsigned = { transaction_id: 'txn-4' };
+        const b = makeMessageEvent('$s4', 10);
+        mergeThreadRenderEvents([a], [b]);
+      },
+    ];
+    scenarios.forEach((run) => run());
+    expect(getCacheProbeSnapshot().registrySwappedRepairedForUnrepaired).toBe(0);
+  });
 });
 
 describe('buildResolveConfirmedEventId', () => {

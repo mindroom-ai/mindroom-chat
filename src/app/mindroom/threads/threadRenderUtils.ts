@@ -326,6 +326,26 @@ export const mergeThreadRenderEvents = (
         eventMap.delete(key);
       });
       losers.forEach(() => countCacheProbe('eventMapCanonicalizedDisplacements'));
+      // CINNY-207 AC2 render-gap RG5c (re-homed post-F1): permanent
+      // must-stay-0 tripwire on the picker rule. Bumps if any loser
+      // carried `.replacingEvent()` non-null while the chosen winner
+      // has `.replacingEvent()` null — the "repaired state is
+      // monotonic across a same-id tie" preference
+      // (`pickPreferredThreadRenderEvent`'s RG5-fix2 raw-presence
+      // rule) is violated at the map layer. The picker's contract
+      // makes this shape unreachable in the current tree; any
+      // non-zero reading names a real regression.
+      if (winner.replacingEvent() == null) {
+        let anyLoserRepaired = false;
+        losers.forEach((loser) => {
+          if (!anyLoserRepaired && loser.replacingEvent() != null) {
+            anyLoserRepaired = true;
+          }
+        });
+        if (anyLoserRepaired) {
+          countCacheProbe('registrySwappedRepairedForUnrepaired');
+        }
+      }
     }
 
     unionKeys.forEach((key) => eventMap.set(key, winner));

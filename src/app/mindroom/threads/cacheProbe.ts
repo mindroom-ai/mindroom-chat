@@ -289,6 +289,35 @@ export type CacheProbeCounters = {
   // reading (a new duplication source appeared) — not the non-zero
   // itself.
   eventMapCanonicalizedDisplacements: number;
+  // CINNY-207 AC2 render-gap RG5c (2026-07-04, re-homed post-F1):
+  // permanent MUST-STAY-0 tripwire on the "repaired state is monotonic"
+  // picker rule. Bumps once per canonicalization event where at least
+  // one displaced loser carried `.replacingEvent() != null` while the
+  // chosen winner had `.replacingEvent() == null` — i.e. the picker
+  // rule (raw replacement presence must win a same-id tie) was
+  // violated at the eventMap merge seam.
+  //
+  // History: the RG5c cycle originally installed this counter inside
+  // `replaceFallbackInstanceRegistry` as a pre-overwrite check on the
+  // fallback registry map. The F1 sweep (d5f04e90) removed that
+  // registry to close a memory-hazard shape (module-scope Map holding
+  // strong MatrixEvent refs, unbounded in prod), which also removed
+  // the counter. Per team-lead: the counter itself is a pure scalar
+  // and must survive as the permanent alarm on the picker rule.
+  // Re-homed at the canonicalization site in
+  // `threadRenderUtils.ts::setEventForKeys`, where the same
+  // repaired-vs-unrepaired shape now expresses as "loser had
+  // replacement, winner does not". No Map, no retained refs, no eager
+  // collection — a scalar bump on a shape that
+  // `pickPreferredThreadRenderEvent`'s RG5-fix2 rule already
+  // guarantees cannot fire.
+  //
+  // Interpretation: must stay 0. Any non-zero reading is a real
+  // regression alarm — the picker preference (raw
+  // `.replacingEvent()` presence wins) is being violated somewhere
+  // downstream of the picker call or the picker itself has a code
+  // path that returns the unrepaired sibling.
+  registrySwappedRepairedForUnrepaired: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -336,6 +365,7 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   applierMakeReplacedNoLatestEdit: 0,
   applierMakeReplacedLatestEqualsCurrent: 0,
   eventMapCanonicalizedDisplacements: 0,
+  registrySwappedRepairedForUnrepaired: 0,
 });
 
 let counters = createEmptyCounters();
