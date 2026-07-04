@@ -40,6 +40,26 @@ describe('eventRepository cache serialization helpers', () => {
     ).toEqual(['$edit', '$target', '$redaction']);
   });
 
+  // CINNY-207 P1.2/P1.4 interplay (round-1 review fix): the redaction
+  // lifecycle DELETES a redacted reaction's records; expanding the pruned
+  // reaction back into the persist batch here would re-insert the record
+  // the same handler just deleted.
+  it('does not pull redacted reaction targets back into the persist batch', () => {
+    const reactionEvent = makeEvent('$reaction', { ts: 100, type: 'm.reaction' });
+    const redactionEvent = makeEvent('$redaction', {
+      associatedId: '$reaction',
+      isRedaction: true,
+      ts: 200,
+    });
+    const room = makeRoom({ liveEvents: [reactionEvent] });
+
+    expect(
+      collectStateTargetEvents(room as never, [redactionEvent] as never).map((event) =>
+        event.getId()
+      )
+    ).toEqual(['$redaction']);
+  });
+
   it('serializes room cache payloads without thread-only activity', () => {
     const rootEvent = makeEvent('$root', { ts: 100, content: { body: 'root' } });
     const replyEvent = makeEvent('$reply', {

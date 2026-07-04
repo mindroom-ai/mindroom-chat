@@ -211,6 +211,40 @@ export const useRoomLiveEventController = ({
           liveExpandOnceIds.current.add(liveExpandOnceId);
         }
 
+        // CINNY-207 P1.4 (finding F5, decision D5): shared compaction
+        // scheduling for the three replace persist paths. Returns false when
+        // the replace must persist directly instead: no scheduler, or a
+        // cross-sender replace — the serializer only bundles same-sender
+        // replacements onto the target, so compacting a cross-sender replace
+        // would drop it from cache entirely. At fire time, a target that is
+        // not in SDK memory (e.g. it exists only as a detached
+        // cache-hydrated instance after a cache-first thread open) falls
+        // back to persisting the replace event standalone — the serializer
+        // keeps that shape and hydration applies it — so an edit is never
+        // silently dropped (the miss is counted for observability).
+        const scheduleReplaceCompaction = (
+          key: string,
+          targetEventId: string,
+          replaceEvent: MatrixEvent,
+          persistEvents: (events: MatrixEvent[]) => void
+        ): boolean => {
+          const scheduler = editCompactionSchedulerRef.current;
+          if (!scheduler) return false;
+          const knownTarget = room.findEventById(targetEventId);
+          if (knownTarget && knownTarget.getSender() !== replaceEvent.getSender()) {
+            return false;
+          }
+          scheduler.scheduleTargetUpsert(key, () => {
+            const targetEvent = room.findEventById(targetEventId);
+            if (!targetEvent) {
+              countCacheProbe('editCompactionTargetMisses');
+            }
+            countCacheProbe('editCompactions');
+            persistEvents([targetEvent ?? replaceEvent]);
+          });
+          return true;
+        };
+
         // CINNY-207 P1.2 (finding F6): redaction events carry `redacts`, not
         // `m.relates_to`, so the relation-based thread checks below never
         // match them. Handle their cache lifecycle explicitly: delete
@@ -345,25 +379,23 @@ export const useRoomLiveEventController = ({
             // `unsigned['m.relations']['m.replace']` at fire time, so the
             // trailing write always carries the final edit even if more
             // arrive after the timer is armed.
-            const scheduler = editCompactionSchedulerRef.current;
-            if (relation?.rel_type === RelationType.Replace && scheduler) {
-              const targetEventId = relation.event_id;
-              if (targetEventId) {
-                const key = `thread|${room.roomId}|${threadId}|${targetEventId}`;
-                scheduler.scheduleTargetUpsert(key, () => {
-                  const targetEvent = room.findEventById(targetEventId);
-                  if (!targetEvent) return;
-                  countCacheProbe('editCompactions');
-                  persistThreadEventCache(
-                    threadId,
-                    [targetEvent],
-                    room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId),
-                    undefined,
-                    atLiveEndRef.current
-                  );
-                });
-              }
-            } else {
+            const scheduledThreadCompaction =
+              relation?.rel_type === RelationType.Replace && relation.event_id
+                ? scheduleReplaceCompaction(
+                    `thread|${room.roomId}|${threadId}|${relation.event_id}`,
+                    relation.event_id,
+                    mEvt,
+                    (events) =>
+                      persistThreadEventCache(
+                        threadId,
+                        events,
+                        room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId),
+                        undefined,
+                        atLiveEndRef.current
+                      )
+                  )
+                : false;
+            if (!scheduledThreadCompaction) {
               persistThreadEventCache(
                 threadId,
                 [mEvt],
@@ -409,22 +441,30 @@ export const useRoomLiveEventController = ({
 
         if (threadCacheTargetId) {
           // CINNY-207 P1.4: coalesce room-view replace persists too. The
-          // target's cache record gets the bundled latest edit at fire time.
-          const scheduler = editCompactionSchedulerRef.current;
-          if (relation?.rel_type === RelationType.Replace && scheduler) {
-            const targetEventId = relation.event_id;
-            if (targetEventId) {
-              const key = `thread|${room.roomId}|${threadCacheTargetId}|${targetEventId}`;
-              scheduler.scheduleTargetUpsert(key, () => {
-                const targetEvent = room.findEventById(targetEventId);
-                if (!targetEvent) return;
-                countCacheProbe('editCompactions');
-                persistThreadCacheFromRoomEvents([targetEvent], {
-                  tailLoaded: true,
-                });
-              });
-            }
-          } else {
+          // thread attribution is captured HERE, at schedule time: a
+          // mid-debounce redaction prunes the target's `m.relates_to`, so a
+          // fire-time re-derivation via persistThreadCacheFromRoomEvents'
+          // grouping would fail and the pruned tombstone would never reach
+          // the thread cache. persistThreadEventCache with the captured
+          // thread id writes it regardless.
+          const scheduledRoomViewCompaction =
+            relation?.rel_type === RelationType.Replace && relation.event_id
+              ? scheduleReplaceCompaction(
+                  `thread|${room.roomId}|${threadCacheTargetId}|${relation.event_id}`,
+                  relation.event_id,
+                  mEvt,
+                  (events) =>
+                    persistThreadEventCache(
+                      threadCacheTargetId,
+                      events,
+                      room.getThread(threadCacheTargetId)?.rootEvent ??
+                        room.findEventById(threadCacheTargetId),
+                      undefined,
+                      true
+                    )
+                )
+              : false;
+          if (!scheduledRoomViewCompaction) {
             persistThreadCacheFromRoomEvents([mEvt], {
               tailLoaded: true,
             });
@@ -452,19 +492,16 @@ export const useRoomLiveEventController = ({
         // CINNY-207 P1.4: room-level (non-thread) replaces also coalesce
         // through the scheduler onto their target's room cache record.
         {
-          const scheduler = editCompactionSchedulerRef.current;
-          if (relation?.rel_type === RelationType.Replace && scheduler) {
-            const targetEventId = relation.event_id;
-            if (targetEventId) {
-              const key = `room|${room.roomId}|${targetEventId}`;
-              scheduler.scheduleTargetUpsert(key, () => {
-                const targetEvent = room.findEventById(targetEventId);
-                if (!targetEvent) return;
-                countCacheProbe('editCompactions');
-                persistRoomEventCache([targetEvent]);
-              });
-            }
-          } else {
+          const scheduledRoomCompaction =
+            relation?.rel_type === RelationType.Replace && relation.event_id
+              ? scheduleReplaceCompaction(
+                  `room|${room.roomId}|${relation.event_id}`,
+                  relation.event_id,
+                  mEvt,
+                  (events) => persistRoomEventCache(events)
+                )
+              : false;
+          if (!scheduledRoomCompaction) {
             persistRoomEventCache([mEvt]);
           }
         }

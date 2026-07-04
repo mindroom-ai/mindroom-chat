@@ -204,15 +204,40 @@ export const readThreadEventCacheRecords = async (
   page: Page,
   roomId: string,
   threadId: string
-): Promise<{ eventId: string; eventType?: string }[]> => {
+): Promise<
+  {
+    eventId: string;
+    eventType?: string;
+    bundledReplaceEventId?: string;
+    bundledReplaceBody?: string;
+  }[]
+> => {
   const dbNames = await findMindroomCacheDbNames(page, 'mindroom-thread-event-cache');
   const records = await readStoreRecords(page, dbNames, 'thread_events');
   return records
     .filter((record) => record.roomId === roomId && record.threadId === threadId)
-    .map((record) => ({
-      eventId: String(record.eventId ?? ''),
-      eventType: (record.rawEvent as { type?: string } | undefined)?.type,
-    }));
+    .map((record) => {
+      const rawEvent = record.rawEvent as
+        | {
+            type?: string;
+            unsigned?: {
+              'm.relations'?: {
+                'm.replace'?: {
+                  event_id?: string;
+                  content?: { 'm.new_content'?: { body?: string } };
+                };
+              };
+            };
+          }
+        | undefined;
+      const bundledReplace = rawEvent?.unsigned?.['m.relations']?.['m.replace'];
+      return {
+        eventId: String(record.eventId ?? ''),
+        eventType: rawEvent?.type,
+        bundledReplaceEventId: bundledReplace?.event_id,
+        bundledReplaceBody: bundledReplace?.content?.['m.new_content']?.body,
+      };
+    });
 };
 
 export const readRoomEventCacheEventIds = async (page: Page, roomId: string): Promise<string[]> => {

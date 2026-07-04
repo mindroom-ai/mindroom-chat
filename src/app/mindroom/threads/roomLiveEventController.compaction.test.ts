@@ -357,6 +357,190 @@ describe('roomLiveEventController edit compaction (CINNY-207 P1.4)', () => {
     harness.unmount();
   });
 
+  // Round-1 review fix coverage: non-replace events must keep persisting
+  // synchronously — a regression that routes them through the debounce
+  // would delay normal persistence and risk fire-time drops.
+  it('persists non-replace thread events immediately, bypassing the debounce', () => {
+    const threadId = '$thread-root';
+    const reply = makeEvent('$reply-1', { threadRootId: threadId });
+    const { harness } = createHarness({ threadId });
+
+    act(() => {
+      harness.fireLive(reply);
+    });
+
+    expect(harness.persistThreadEventCache).toHaveBeenCalledTimes(1);
+    const [, events] = harness.persistThreadEventCache.mock.calls[0];
+    expect(events).toEqual([reply]);
+
+    harness.unmount();
+  });
+
+  // Round-1 review fix: a fire-time target miss must fall back to
+  // persisting the replace event standalone instead of silently dropping
+  // the edit (the serializer keeps standalone replaces whose target is not
+  // in the batch, and hydration applies them).
+  it('falls back to persisting the replace standalone when the target is not in SDK memory', async () => {
+    const threadId = '$thread-root';
+    const edit = makeEvent('$edit-1', {
+      threadRootId: threadId,
+      relation: { rel_type: 'm.replace', event_id: '$target' },
+    });
+    const { harness } = createHarness({
+      threadId,
+      findEventById: () => undefined,
+    });
+
+    act(() => {
+      harness.fireLive(edit);
+    });
+    expect(harness.persistThreadEventCache).not.toHaveBeenCalled();
+
+    await waitCompactionDebounce();
+
+    expect(harness.persistThreadEventCache).toHaveBeenCalledTimes(1);
+    const [, events] = harness.persistThreadEventCache.mock.calls[0];
+    expect(events).toEqual([edit]);
+
+    harness.unmount();
+  });
+
+  // Round-1 review fix: cross-sender replaces never bundle into the target,
+  // so compacting them would drop them from cache — they persist directly.
+  it('persists cross-sender replaces directly instead of compacting them', () => {
+    const threadId = '$thread-root';
+    const target = makeEvent('$target', {
+      threadRootId: threadId,
+      sender: '@alice:example.org',
+    });
+    const crossSenderEdit = makeEvent('$edit-x', {
+      threadRootId: threadId,
+      sender: '@mallory:example.org',
+      relation: { rel_type: 'm.replace', event_id: '$target' },
+    });
+    const { harness } = createHarness({
+      threadId,
+      findEventById: (id) => (id === '$target' ? target : undefined),
+    });
+
+    act(() => {
+      harness.fireLive(crossSenderEdit);
+    });
+
+    expect(harness.persistThreadEventCache).toHaveBeenCalledTimes(1);
+    const [, events] = harness.persistThreadEventCache.mock.calls[0];
+    expect(events).toEqual([crossSenderEdit]);
+
+    harness.unmount();
+  });
+
+  // Round-1 review fix coverage for the room-view thread-target branch:
+  // the thread attribution is captured at schedule time and the upsert goes
+  // through persistThreadEventCache (fire-time re-derivation would fail for
+  // a mid-debounce-redacted target).
+  it('compacts room-view thread edits onto the target with captured thread attribution', async () => {
+    const rootId = '$thread-root';
+    const target = makeEvent('$target', { threadRootId: rootId });
+    const edit = makeEvent('$edit-1', {
+      threadRootId: rootId,
+      relation: { rel_type: 'm.replace', event_id: '$target' },
+    });
+    const { harness } = createHarness({
+      findEventById: (id) => (id === '$target' ? target : undefined),
+    });
+
+    act(() => {
+      harness.fireLive(edit);
+    });
+    expect(harness.persistThreadEventCache).not.toHaveBeenCalled();
+    expect(harness.persistThreadCacheFromRoomEvents).not.toHaveBeenCalled();
+
+    await waitCompactionDebounce();
+
+    expect(harness.persistThreadEventCache).toHaveBeenCalledTimes(1);
+    const [scheduledThreadId, threadEvents] = harness.persistThreadEventCache.mock.calls[0];
+    expect(scheduledThreadId).toBe(rootId);
+    expect(threadEvents).toEqual([target]);
+
+    harness.unmount();
+  });
+
+  it('persists non-replace room-view thread events immediately via the room-events path', () => {
+    const rootId = '$thread-root';
+    const reply = makeEvent('$reply-1', { threadRootId: rootId });
+    const { harness } = createHarness({});
+
+    act(() => {
+      harness.fireLive(reply);
+    });
+
+    expect(harness.persistThreadCacheFromRoomEvents).toHaveBeenCalledTimes(1);
+    const [events] = harness.persistThreadCacheFromRoomEvents.mock.calls[0];
+    expect(events).toEqual([reply]);
+
+    harness.unmount();
+  });
+
+  it('compacts room-level edits onto the target room cache record', async () => {
+    const target = makeEvent('$room-msg');
+    const edit = makeEvent('$edit-1', {
+      relation: { rel_type: 'm.replace', event_id: '$room-msg' },
+    });
+    const { harness } = createHarness({
+      findEventById: (id) => (id === '$room-msg' ? target : undefined),
+    });
+
+    act(() => {
+      harness.fireLive(edit);
+    });
+    expect(harness.persistRoomEventCache).not.toHaveBeenCalled();
+
+    await waitCompactionDebounce();
+
+    expect(harness.persistRoomEventCache).toHaveBeenCalledTimes(1);
+    expect(harness.persistRoomEventCache.mock.calls[0][0]).toEqual([target]);
+
+    harness.unmount();
+  });
+
+  it('keeps thread and room compaction keys isolated for the same target id', async () => {
+    const rootId = '$thread-root';
+    const threadTarget = makeEvent('$target', { threadRootId: rootId });
+    const roomTarget = makeEvent('$room-msg');
+    const threadEdit = makeEvent('$edit-t', {
+      threadRootId: rootId,
+      relation: { rel_type: 'm.replace', event_id: '$target' },
+    });
+    const roomEdit = makeEvent('$edit-r', {
+      relation: { rel_type: 'm.replace', event_id: '$room-msg' },
+    });
+    const { harness } = createHarness({
+      findEventById: (id) =>
+        id === '$target' ? threadTarget : id === '$room-msg' ? roomTarget : undefined,
+    });
+
+    act(() => {
+      harness.fireLive(threadEdit);
+      harness.fireLive(roomEdit);
+    });
+
+    await waitCompactionDebounce();
+
+    expect(harness.persistThreadEventCache).toHaveBeenCalledTimes(1);
+    expect(harness.persistThreadEventCache.mock.calls[0][1]).toEqual([threadTarget]);
+    // The thread edit also flows through the room-level persist path (the
+    // harness mocks isThreadOnlyRoomActivity to false), so the room cache
+    // sees both targets — under distinct keys, neither upsert swallowed the
+    // other.
+    const roomPersistedBatches = harness.persistRoomEventCache.mock.calls.map(
+      (call) => call[0]
+    );
+    expect(roomPersistedBatches).toContainEqual([roomTarget]);
+    expect(roomPersistedBatches).toContainEqual([threadTarget]);
+
+    harness.unmount();
+  });
+
   it('flushes pending upserts on unmount', () => {
     const threadId = '$thread-root';
     const target = makeEvent('$target', { threadRootId: threadId });
