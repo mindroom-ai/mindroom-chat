@@ -486,12 +486,13 @@ test.describe('CINNY-207 stale-cache divergence reconcile', () => {
       const displacement = Math.abs(afterTop - beforeTop);
       expect(displacement).toBeLessThanOrEqual(8);
 
-      // CINNY-207 AC2 render-gap RG4e (2026-07-04): dump the name-the-
-      // caller counters after the forced re-render. Team-lead's directive:
-      // "one instrumentation commit + one docker run, then report the
-      // counter read before writing any fix code." Log line goes to the
-      // Playwright stdout stream (`RG4e-COUNTERS ...`) so the log tee'd
-      // to /tmp can be grepped without a browser DevTools session.
+      // CINNY-207 AC2 render-gap RG4e/RG5c (2026-07-04): dump the name-
+      // the-caller counters plus the RG5c registry-swap tripwire after
+      // the forced re-render. Team-lead's directive: "one instrumentation
+      // commit + one docker run, then report the counter read before
+      // writing any fix code." Log line goes to the Playwright stdout
+      // stream (`RG-COUNTERS ...`) so the log tee'd to /tmp can be
+      // grepped without a browser DevTools session.
       const rg4eSnapshot = await page.evaluate(() => {
         const w = window as Window & {
           __MINDROOM_CACHE_PROBE__?: { snapshot: () => Record<string, number> };
@@ -521,13 +522,19 @@ test.describe('CINNY-207 stale-cache divergence reconcile', () => {
           applierMakeReplacedNoLatestEdit: pick('applierMakeReplacedNoLatestEdit'),
           reconcilesRepaired: pick('reconcilesRepaired'),
           reconcilesScheduled: pick('reconcilesScheduled'),
+          // RG5c registry-swap tripwire — must be 0 in a correct design.
+          // Non-zero names X5 (silent repaired -> unrepaired downgrade at
+          // the fallback registry write path).
+          registrySwappedRepairedForUnrepaired: pick(
+            'registrySwappedRepairedForUnrepaired'
+          ),
         };
       });
       // Structured single-line log so the grep is trivial and copy-paste
       // faithful. Not an assertion — team-lead wants the reading, not
       // a pass/fail on it.
       // eslint-disable-next-line no-console
-      console.log(`RG4e-COUNTERS ${JSON.stringify(rg4eSnapshot)}`);
+      console.log(`RG-COUNTERS ${JSON.stringify(rg4eSnapshot)}`);
     }
   );
 });

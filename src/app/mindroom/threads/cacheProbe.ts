@@ -514,6 +514,42 @@ export type CacheProbeCounters = {
   sunkTargetMakeRedactedCalls: number;
   sunkTargetMakeReplacedNonNull: number;
   sunkTargetMakeReplacedCleared: number;
+  // CINNY-207 AC2 render-gap RG5c (2026-07-04): registry-swap tripwire on
+  // the fallback-instance registry write path. Team-lead's B-approval note
+  // named X5 explicitly: `handleThreadNewReply` fires AFTER the reconcile
+  // repair with the sync-delivered MatrixEvent instance for the same
+  // target id (no replacement); if the merge preference is unconditional
+  // incoming-wins, the non-repaired sibling overwrites the repaired
+  // instance in the fallback registry and we are back to NEVER-HAD —
+  // same silent wipe through a different door, just racier.
+  //
+  // The same-id merge preference DID land in
+  // `pickPreferredThreadRenderEvent` in commit 3fbe8afd (asymmetric raw
+  // `.replacingEvent()` presence check placed AFTER the effective-
+  // replacement block so the D12 ts→event_id ordering still wins when
+  // both sides carry an effective replacement). But that only guards the
+  // ONE path — the picker. Any registry write that does NOT go through
+  // the picker (or a picker seam we missed) would bypass the rule.
+  //
+  // Interpretation matrix:
+  //   registrySwappedRepairedForUnrepaired == 0 across a docker cycle:
+  //     no path is silently downgrading a repaired instance. X5 is not
+  //     happening (or the picker guard covers every seam that could
+  //     produce it).
+  //   registrySwappedRepairedForUnrepaired > 0 while
+  //     renderTargetLostReplacement / renderTargetFallbackNeverHadReplacement
+  //     is also non-zero: X5 is the mechanism (or one of them). The fix
+  //     direction is structural: the same-id merge preference must be
+  //     extended to whichever seam is bypassing the picker (a new call
+  //     site, a code path that writes the registry directly without
+  //     going through mergeThreadRenderEvents, etc.). NOT a bandage —
+  //     the rule "repaired state is monotonic within a thread-open" must
+  //     hold at every write to the registry.
+  //
+  // Diagnostic-only: bumped BEFORE the overwrite completes, does not
+  // change semantics. Duck-typed via the existing FallbackTargetProbe
+  // shape (`.replacingEvent?()` present on the instance).
+  registrySwappedRepairedForUnrepaired: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -574,6 +610,7 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   sunkTargetMakeRedactedCalls: 0,
   sunkTargetMakeReplacedNonNull: 0,
   sunkTargetMakeReplacedCleared: 0,
+  registrySwappedRepairedForUnrepaired: 0,
 });
 
 let counters = createEmptyCounters();
@@ -690,6 +727,23 @@ export const replaceFallbackInstanceRegistry = (
     if (prev && prev.instance === mEvent) {
       nextRegistry.set(eventId, prev);
     } else {
+      // CINNY-207 AC2 render-gap RG5c (2026-07-04): registry-swap tripwire.
+      // If we are ABOUT to overwrite an existing entry for this id whose
+      // previous instance had a non-null `.replacingEvent()` (i.e. was
+      // repaired) with a new instance whose `.replacingEvent()` is null
+      // (unrepaired), bump the tripwire. Bumped BEFORE the overwrite so
+      // even a subsequent swap-back doesn't erase the signal. Must be 0
+      // in a correct design — the same-id merge preference in
+      // pickPreferredThreadRenderEvent (commit 3fbe8afd) should prevent
+      // any repair from being downgraded via the picker seam. A non-zero
+      // reading names a bypass path (X5).
+      if (prev) {
+        const prevHadReplacement = !!prev.instance.replacingEvent?.();
+        const newHasReplacement = !!mEvent.replacingEvent?.();
+        if (prevHadReplacement && !newHasReplacement) {
+          countCacheProbe('registrySwappedRepairedForUnrepaired');
+        }
+      }
       nextRegistry.set(eventId, { instance: mEvent, everHadReplacement: false });
     }
   });

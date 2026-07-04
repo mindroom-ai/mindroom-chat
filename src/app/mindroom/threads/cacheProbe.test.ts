@@ -343,3 +343,90 @@ describe('cacheProbe RG4e sunk-target name-the-caller', () => {
     expect(getCacheProbeSnapshot().sunkTargetMakeReplacedCleared).toBe(1);
   });
 });
+
+// CINNY-207 AC2 render-gap RG5c (2026-07-04): registry-swap tripwire on
+// the fallback-instance registry write path. Verifies:
+//  - No bump on identity-stable re-registration (same instance in, same
+//    instance out — the fast path).
+//  - No bump on a brand-new id (no prior entry to downgrade).
+//  - No bump when new instance also carries a replacement (repaired ->
+//    repaired swap; either the picker picked a peer or hydrate mutated
+//    a fresh clone but the replacement carried through).
+//  - No bump when previous instance did NOT carry a replacement
+//    (unrepaired -> unrepaired or unrepaired -> repaired both fine).
+//  - BUMP exactly once per swap when old carried a replacement and new
+//    does not (X5 shape — the exact silent-wipe door team-lead flagged).
+describe('cacheProbe RG5c registry-swap tripwire', () => {
+  beforeEach(() => {
+    resetCacheProbe();
+  });
+
+  it('does not bump on identity-stable re-registration', () => {
+    const fallback = makeFallbackInstance({ id: '$edit' });
+    replaceFallbackInstanceRegistry([['$evt', fallback]]);
+    replaceFallbackInstanceRegistry([['$evt', fallback]]);
+    expect(getCacheProbeSnapshot().registrySwappedRepairedForUnrepaired).toBe(0);
+  });
+
+  it('does not bump on a brand-new id (no prior entry)', () => {
+    const fresh = makeFallbackInstance(null);
+    replaceFallbackInstanceRegistry([['$new', fresh]]);
+    expect(getCacheProbeSnapshot().registrySwappedRepairedForUnrepaired).toBe(0);
+  });
+
+  it('does not bump when new instance also carries a replacement (repaired -> repaired)', () => {
+    const oldInstance = makeFallbackInstance({ id: '$edit1' });
+    replaceFallbackInstanceRegistry([['$evt', oldInstance]]);
+    const newInstance = makeFallbackInstance({ id: '$edit2' });
+    replaceFallbackInstanceRegistry([['$evt', newInstance]]);
+    expect(getCacheProbeSnapshot().registrySwappedRepairedForUnrepaired).toBe(0);
+  });
+
+  it('does not bump when previous instance never carried a replacement', () => {
+    const oldInstance = makeFallbackInstance(null);
+    replaceFallbackInstanceRegistry([['$evt', oldInstance]]);
+    const newInstance = makeFallbackInstance(null);
+    replaceFallbackInstanceRegistry([['$evt', newInstance]]);
+    expect(getCacheProbeSnapshot().registrySwappedRepairedForUnrepaired).toBe(0);
+  });
+
+  it('bumps once per swap of a repaired instance for an unrepaired one (X5 shape)', () => {
+    // The exact NewReply-through-a-different-door shape team-lead named
+    // when approving fix B: reconciler.onRepaired registers the repaired
+    // instance, then handleThreadNewReply merges a sync-delivered target
+    // instance for the same id that carries no replacement.
+    const repaired = makeFallbackInstance({ id: '$edit' });
+    replaceFallbackInstanceRegistry([['$evt', repaired]]);
+    const unrepairedSync = makeFallbackInstance(null);
+    replaceFallbackInstanceRegistry([['$evt', unrepairedSync]]);
+    expect(getCacheProbeSnapshot().registrySwappedRepairedForUnrepaired).toBe(1);
+  });
+
+  it('does not double-bump when the swap is idempotently repeated', () => {
+    // If the same unrepaired instance is written twice in a row (identity
+    // stable in the second call), the second call takes the fast path and
+    // must not bump — the downgrade already happened.
+    const repaired = makeFallbackInstance({ id: '$edit' });
+    replaceFallbackInstanceRegistry([['$evt', repaired]]);
+    const unrepairedSync = makeFallbackInstance(null);
+    replaceFallbackInstanceRegistry([['$evt', unrepairedSync]]);
+    replaceFallbackInstanceRegistry([['$evt', unrepairedSync]]);
+    expect(getCacheProbeSnapshot().registrySwappedRepairedForUnrepaired).toBe(1);
+  });
+
+  it('bumps independently for multiple ids in the same batch', () => {
+    const repairedA = makeFallbackInstance({ id: '$editA' });
+    const repairedB = makeFallbackInstance({ id: '$editB' });
+    replaceFallbackInstanceRegistry([
+      ['$evtA', repairedA],
+      ['$evtB', repairedB],
+    ]);
+    const unrepairedA = makeFallbackInstance(null);
+    const unrepairedB = makeFallbackInstance(null);
+    replaceFallbackInstanceRegistry([
+      ['$evtA', unrepairedA],
+      ['$evtB', unrepairedB],
+    ]);
+    expect(getCacheProbeSnapshot().registrySwappedRepairedForUnrepaired).toBe(2);
+  });
+});
