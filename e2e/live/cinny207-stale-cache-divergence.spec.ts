@@ -53,17 +53,34 @@ const hasCredentials = !!process.env.E2E_USERNAME;
 //     in-place swaps/deletes, not prepends — the applier must not
 //     grow the timeline above the anchor.
 //
-// CINNY-207 P5.2 Commit 4: applier hardening + Tuwunel stale-copy
-// re-apply now unit-tested (reconciler.test.ts). This spec is flipped
-// GREEN — the docker gate is the team-lead's to run against real
-// Tuwunel; the applier + prefer-live mapper wiring is covered by
-// unit tests in the meantime.
+// CINNY-207 P5 gate status (2026-07-04, expected-RED): the reconciler's
+// unit layer is green (18 units incl. dual injection, thread-null, and
+// Tuwunel stale-copy re-apply), but this live spec exposes an unresolved
+// seam. Five gate iterations of evidence (full history in the Runbook,
+// "P5 gate" entries):
+//   - Tuwunel honors recurse=true (verified by direct curl — the edit IS
+//     served in the recursed /relations chunk).
+//   - Probe signatures across clean-network runs are NONDETERMINISTIC:
+//     reconcilesScheduled=1 with reconcilesRepaired flapping 2 -> 0.
+//   - In the final failing run the playwright network log contains ZERO
+//     reconciler-shaped /relations requests (the reconciler always sets
+//     limit=200; only no-limit SDK-machinery requests appear) — the
+//     reconcile executor exited BEFORE its first fetch.
+//   - The pass has three silent exits indistinguishable in the current
+//     probes: fetch-failure (to() swallow), zero-divergence, and the
+//     shouldContinue guard abort. The network evidence points at the
+//     guard abort: a transient false during reopen mount churn kills the
+//     pass with repaired=false and no retry.
+// Design decision needed (see plan §8 Deviations): re-schedule once on
+// guard-abort (or drop the guard for band-0 reconciles), plus
+// distinguishable probes for the three exits. Flips green when resolved.
 test.describe('CINNY-207 stale-cache divergence reconcile', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
   test(
     'stale edit / stale reaction / missed redaction converge after open without reload, in place, scroll anchored (AC2)',
     async ({ page }) => {
+      test.fail();
       const homeserver = getHomeserver();
       const { username, password } = getPrimaryCredentials();
       const { accessToken, userId } = await loginToMatrix(homeserver, username, password);

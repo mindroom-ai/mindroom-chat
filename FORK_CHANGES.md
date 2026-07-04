@@ -2,6 +2,40 @@
 
 ## Runbook
 
+### CINNY-207 P5 gate closure - AC2 ships expected-RED with network-evidence diagnosis (2026-07-04)
+
+- Status:
+  - Orchestrator decision after five fix iterations (v1-v5 entries
+    below): the AC2 live spec is re-annotated `test.fail()` and Phase 5
+    ships with the unit layer green (18 reconciler units) and the live
+    convergence seam documented for a product-owner design decision.
+    Per plan rule 6.1: red with evidence beats green by wallpaper.
+- Final evidence (beyond the v1-v5 entries):
+  - Tuwunel honors `recurse=true` — verified by direct curl against the
+    live fixture (m.replace present with `recursion_depth: 1`; absent
+    without recurse). Server-side hypotheses eliminated.
+  - Probe signatures across clean-network runs are nondeterministic:
+    `reconcilesScheduled=1` constant, `reconcilesRepaired` flapping
+    2 → 0 with identical code — timing-dependent behavior in the pass.
+  - DECISIVE: the playwright network log of the final failing run
+    contains ZERO reconciler-shaped `/relations` requests (the
+    reconciler always sets `limit=200`; only no-limit SDK-machinery
+    requests appear). The reconcile executor exited BEFORE its first
+    fetch. Three silent exits are indistinguishable in current probes:
+    fetch-failure (`to()` swallow), zero-divergence, and the
+    `shouldContinue` guard abort — the network evidence points at the
+    guard abort during reopen mount churn (`repaired: false,
+    aborted: true` is not probed).
+- Decision needed (recorded in plan §8 Deviations): re-schedule once on
+  guard-abort or drop the guard for band-0 reconciles; and resolve the
+  deeper seam — on token-resume reopen, thread-scope divergence reaches
+  neither cache path (engine liveMode gate skips the catch-up sync;
+  gap-fill persists room scope only).
+- Follow-up implementation notes for whoever picks this up: add
+  distinguishable probes for the three exits (reconcilesAborted,
+  reconcilesFetchFailed), log chunk (event_id, type, rel_type) triples
+  per fetched page, and unit-test the guard-abort-then-reschedule path.
+
 ### CINNY-207 P5-GATE-FIX v5 - honest root-cause writeup: v3 supplemental-array delivery is load-bearing; v1/v2 were real but insufficient (2026-07-04)
 
 - Status: Documentation-only entry atop v4 tip `c1367008` on
