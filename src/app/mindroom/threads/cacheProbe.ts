@@ -272,6 +272,76 @@ export type CacheProbeCounters = {
   renderTargetRegressedNever: number;
   renderTargetRegressedSameInstance: number;
   renderTargetRegressedDifferentInstance: number;
+  // CINNY-207 AC2 render-gap RG4c (2026-07-04): source-tag + instance-
+  // identity classifier at the render-pipeline seam. Team-lead's fourth-
+  // shape hypothesis: the render's event-source selection consults the
+  // repaired fallback only on the sink-driven merge that arrives with the
+  // replacement, and every subsequent re-render (SDK ticks, virtualizer
+  // rebuilds, etc.) builds `threadEvents` from the RAW SDK instance
+  // (never carrying the replacement — the divergence predates sync). RG4a
+  // showed 5 hadReplacement vs 384 lackedReplacement with 0/0 regression:
+  // the classifier logic was "did this eventId ever have replacement AND
+  // then lose it" — but if only 5 calls EVER hit the repaired fallback
+  // instance and the other 384 hit the SDK instance from the start, the
+  // regression classifier reads 0 because the "previously had" pass
+  // increments arm the tracker on the FALLBACK instance and subsequent
+  // SDK-instance calls are then a "different instance regressed" — but
+  // even simpler if the tracker was never armed for the id at all (SDK
+  // instance is passed on the first call), it lands in "never".
+  //
+  // Bookkeeping (in getEditedEvent, per-eventId, consulted only on
+  // lack-replacement paths — cheap):
+  //   - `registerFallbackInstance(eventId, mEvent)` is called by
+  //     `useThreadRenderState.setSupplementalThreadEvents` for every
+  //     mEvent in the merged fallback state (post-hydrate). The registry
+  //     is the source of truth for "which MatrixEvent instance the
+  //     fallback layer holds for this id, right now".
+  //   - On a lack-replacement call in getEditedEvent, we look up the
+  //     registry for this id and instance-identity-compare against
+  //     `mEvent`.
+  //
+  // Increment rules (mutually exclusive within a single lack-replacement
+  // call, so the invariant
+  //   renderTargetLackedReplacement ==
+  //     renderTargetSourceNoFallback +
+  //     renderTargetSourceFallbackAlsoLacked +
+  //     renderTargetSourceSdkFallbackAlsoLacked +
+  //     renderTargetSourceSdkFallbackRepaired
+  // holds):
+  //
+  //   renderTargetSourceNoFallback: the fallback registry has no entry
+  //     for this event id (`useThreadRenderState.setSupplementalThreadEvents`
+  //     never fired for it, e.g. filler events that only exist in the
+  //     SDK timeline). Not diagnostic of a render-gap — expected shape
+  //     for anything the sink never touched.
+  //   renderTargetSourceFallbackAlsoLacked: the fallback registry has
+  //     this id, `mEvent === fallbackRegistry.get(id)` (render IS
+  //     holding the fallback instance), AND the fallback instance
+  //     itself lacks `.replacingEvent()`. Diagnostic: the merge did
+  //     prefer the fallback, but the fallback was never repaired — the
+  //     bug is upstream (applier ran on some other instance, or the
+  //     repair batch never included this id, or hydrateCachedEvents
+  //     failed to set the replacement on the fallback instance).
+  //   renderTargetSourceSdkFallbackAlsoLacked: the fallback registry has
+  //     this id, `mEvent !== fallbackRegistry.get(id)` (render is holding
+  //     the SDK instance, merge preferred SDK over fallback), AND the
+  //     fallback instance ALSO lacks replacement. The merge preference
+  //     is questionable (why choose SDK if identical?), but this is not
+  //     the fourth-shape either — the repair never reached the fallback.
+  //   renderTargetSourceSdkFallbackRepaired: the fallback registry has
+  //     this id, `mEvent !== fallbackRegistry.get(id)`, AND the fallback
+  //     instance HAS `.replacingEvent()` set. THIS IS THE FOURTH-SHAPE:
+  //     the merge preferred the SDK instance over a repaired fallback
+  //     instance — the render layer never sees the repair even though
+  //     the sink delivered it correctly. Named-mechanism-decisive: if
+  //     this bumps, the real fix is in the merge selection (fallback
+  //     with replacement must beat SDK without) or in the applier (the
+  //     repair must also reach the SDK instance via
+  //     makeReplaced-on-render-held).
+  renderTargetSourceNoFallback: number;
+  renderTargetSourceFallbackAlsoLacked: number;
+  renderTargetSourceSdkFallbackAlsoLacked: number;
+  renderTargetSourceSdkFallbackRepaired: number;
   // CINNY-207 AC2 render-gap RG1 (2026-07-04): applyCachedReplaceRelations
   // ("hydrate applier") instance-identity observability. Diagnostic
   // for candidate (a) — the mechanism where the applier's
@@ -337,6 +407,10 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   renderTargetRegressedNever: 0,
   renderTargetRegressedSameInstance: 0,
   renderTargetRegressedDifferentInstance: 0,
+  renderTargetSourceNoFallback: 0,
+  renderTargetSourceFallbackAlsoLacked: 0,
+  renderTargetSourceSdkFallbackAlsoLacked: 0,
+  renderTargetSourceSdkFallbackRepaired: 0,
   hydrateApplierMutatedRenderHeldInstance: 0,
   hydrateApplierMutatedFreshInstance: 0,
 });
@@ -409,9 +483,81 @@ export const recordRenderTargetSeen = (
   }
 };
 
+// CINNY-207 AC2 render-gap RG4c (2026-07-04): fallback-instance registry
+// for the source-tag + instance-identity classifier. Populated by
+// `useThreadRenderState.setSupplementalThreadEvents` for every event in
+// the merged fallback state (post-hydrate). Consulted by
+// `recordRenderTargetSource` on lack-replacement calls in getEditedEvent.
+//
+// Strong refs: identical rationale to `renderTargetSeenById` above —
+// diagnostic-only, render/fallback layers retain these events for their
+// render lifetime anyway, and strong refs avoid GC ambiguity in the
+// identity comparison. Cleared on resetCacheProbe.
+//
+// Duck-typed: we only need `.replacingEvent()` presence; not importing
+// MatrixEvent keeps cacheProbe decoupled from the SDK type surface.
+type FallbackTargetProbe = {
+  replacingEvent?: () => unknown | null | undefined;
+};
+const fallbackInstanceById = new Map<string, FallbackTargetProbe>();
+
+export const registerFallbackInstance = (eventId: string, mEvent: FallbackTargetProbe): void => {
+  fallbackInstanceById.set(eventId, mEvent);
+};
+
+// Called from `useThreadRenderState.setSupplementalThreadEvents` after
+// the merged batch is produced. Replaces the registry contents with the
+// current fallback set — an id present in the previous set but not the
+// new set is intentionally dropped so a subsequent lack-replacement call
+// classifies as `renderTargetSourceNoFallback` (which is truthful:
+// the fallback layer no longer holds that id).
+export const replaceFallbackInstanceRegistry = (
+  entries: ReadonlyArray<readonly [string, FallbackTargetProbe]>
+): void => {
+  fallbackInstanceById.clear();
+  entries.forEach(([eventId, mEvent]) => {
+    fallbackInstanceById.set(eventId, mEvent);
+  });
+};
+
+// Exported for use by the render-pipeline seam (utils/room.ts). Called
+// once per getEditedEvent lack-replacement pass to classify the source
+// of the render-held instance.
+export const recordRenderTargetSource = (eventId: string, mEvent: object): void => {
+  const fallback = fallbackInstanceById.get(eventId);
+  if (!fallback) {
+    countCacheProbe('renderTargetSourceNoFallback');
+    return;
+  }
+  const fallbackHasReplacement = !!fallback.replacingEvent?.();
+  if ((fallback as unknown as object) === mEvent) {
+    // Render is holding the fallback instance itself.
+    if (fallbackHasReplacement) {
+      // Contradicts the outer lack-replacement caller — if this bumps we
+      // have a real inconsistency (mEvent === fallback and fallback has
+      // replacement, but the caller said mEvent.replacingEvent() was
+      // null). Fold into the "also-lacked" bucket to keep the invariant
+      // whole; the contradiction would show as a discrepancy between
+      // this counter and the applier counters.
+      countCacheProbe('renderTargetSourceFallbackAlsoLacked');
+    } else {
+      countCacheProbe('renderTargetSourceFallbackAlsoLacked');
+    }
+    return;
+  }
+  // Render is holding a DIFFERENT instance than the fallback registry's
+  // (typically the SDK's own copy that survived the merge preference).
+  if (fallbackHasReplacement) {
+    countCacheProbe('renderTargetSourceSdkFallbackRepaired');
+  } else {
+    countCacheProbe('renderTargetSourceSdkFallbackAlsoLacked');
+  }
+};
+
 export const resetCacheProbe = (): void => {
   counters = createEmptyCounters();
   renderTargetSeenById.clear();
+  fallbackInstanceById.clear();
   // Clear the hydrate timeline too, so a reset defines a clean measurement
   // window for both counters and timings.
   if (typeof performance !== 'undefined') {
