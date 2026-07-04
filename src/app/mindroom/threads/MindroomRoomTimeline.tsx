@@ -879,8 +879,8 @@ export function RoomTimeline({
   // depth change won't reset the running job, but the next mount
   // (room switch, view mode flip) picks up the new value.
   useEffect(() => {
-    if (!roomEagerPreloadEnabled) return;
-    if (eventId || threadId) return;
+    if (!roomEagerPreloadEnabled) return undefined;
+    if (eventId || threadId) return undefined;
     enqueueRoomDeepHistoryJob({
       mx,
       sessionId,
@@ -888,6 +888,19 @@ export function RoomTimeline({
       roomId: room.roomId,
       targetEventCount: prefetchDepth,
     }).catch(() => undefined);
+    // CINNY-207 P4.3 review (gemini PR #70 high): abort the deep
+    // history job on room switch / unmount. Without this, opening a
+    // different room, opening a thread, or unmounting leaves the
+    // previous room's job draining in the background (up to
+    // CURRENT_ROOM_DEEP_HISTORY_TARGET events fetched, one batch at
+    // a time), clogging the scheduler's concurrent slots and
+    // delaying higher-priority tasks for the newly focused room. The
+    // executor already checks `signal.aborted` between batches (see
+    // `deepHistoryJob.ts`), so aborting here is cooperative and
+    // ends the sweep at the next batch boundary.
+    return () => {
+      syncEngine.scheduler.abort(room.roomId, undefined, 'room-deep-history');
+    };
   }, [
     eventId,
     mx,

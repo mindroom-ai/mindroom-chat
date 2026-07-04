@@ -181,6 +181,184 @@
   4; full-repo `npx vitest run` and `npm run build` + `npm run lint`
   land with this docs commit. Docker e2e gate on the branch tip is
   the team-lead's / orchestrator's to run.
+### CINNY-207 review-fix batch - PRs #69/#70/#71 bot comments addressed (2026-07-04)
+
+- Status: review-fix pass over all outstanding top-level bot comments
+  on the CINNY-207 stack. Commits landed:
+  - Branch `cache-overhaul/11-p4-scheduler` (PR #70): `c7226501`
+  - Branch `cache-overhaul/12-p5-reconciler` (PR #71): `ba55bdb0`
+    (before merge-up of `c7226501`)
+- PR #69 (Phase 3 engine): 1 outstanding comment (pagination token
+  missing on `roomPaginationCommandController.ts:219`) verified
+  already fixed at tip `af73904d` by commit "fix: persist the
+  correct back-pagination slice with its continuity token (CINNY-207
+  P3.3 review)". Replied citing the fix commit; no code change.
+- PR #70 (Phase 4 scheduler): 4 outstanding comments, ALL real, all
+  fixed in `c7226501`:
+  - Greptile P1 gap marker clears early: two-layer bug.
+    `gapFillExecutor.runOnce` cleared the marker on
+    `persistedAnyBatch || reachedEnd` (dropped after 4,000 events
+    even with more history available); AND `runSaveRoomEventsTxn` in
+    the meta writer silently stripped `tailDiscontinuity` on every
+    meta rewrite. Fix: clear only on `reachedEnd`; propagate
+    `tailDiscontinuity` through meta writes;
+    `clearRoomTailDiscontinuity` remains the sole removal path.
+    Red test: `preserves the durable marker when max iterations
+    exhaust without reaching the server-tail end`.
+  - Greptile P1 queued aborts stay pending: `abortAll` only aborted
+    signals and relied on a later `drain` (which never fires if all
+    running executors ignore the signal), leaving queued entries in
+    `byKey` forever and trapping same-key follow-up enqueues into
+    dangling promises. Fix: reject and delete queued entries
+    synchronously in `abortAll`; running entries still cooperate
+    via signal+finally. Red test: `abortAll() rejects queued jobs
+    synchronously even when running executors never observe the
+    signal`.
+  - Gemini critical sync-throw slot leak: an executor throwing
+    synchronously ran the IIFE's finally block synchronously during
+    its initial evaluation — `running.delete(key)` fired BEFORE the
+    following-line `running.set(key, ...)`, so the failed job's key
+    stuck in `running` forever. Fix: `running.set` before invoking
+    the IIFE with a placeholder promise, then patch in the real
+    `runPromise`. Red test: `a synchronously-thrown non-async
+    executor does not leak a running slot`.
+  - Gemini high missing useEffect cleanup: room-deep-history job
+    (up to 10,000 events) was never aborted on room switch. Fix:
+    useEffect returns cleanup calling
+    `syncEngine.scheduler.abort(roomId, undefined, 'room-deep-history')`.
+- PR #71 (Phase 5 reconciler): 9 outstanding comments (3 pairs of
+  duplicate greptile findings from a re-review + 3 gemini criticals):
+  - Greptile P1 paged batch order reverses (reconciler.ts:393/398,
+    duplicated): fixed in `ba55bdb0` on branch 12. Each backward
+    page was reversed internally but appended newest-page first,
+    yielding [page1_older→newer, page2_older→newer] where all of
+    page2 < all of page1. Fix: stable sort by `origin_server_ts`
+    after the pagination loop. Red test:
+    `sorts multi-page fetches chronologically before injection`.
+  - Greptile P1 dedup returns void (threadOpenCacheController.ts:429,
+    duplicated): fixed in `ba55bdb0`. Two producers shared scheduler
+    key `(roomId, threadId, 'thread-backfill')` with different
+    return types — overview-resume executor was `Promise<void>`,
+    thread-open expected `Promise<ThreadBackfillResult>`. If
+    overview-resume enqueued first, the open path deduped to a
+    void promise cast as ThreadBackfillResult and silently skipped.
+    Fix: routed `refreshOverviewThreadCacheFromRelations` through
+    `enqueueThreadBackfillJob` so both callers get a uniform
+    `ThreadBackfillResult | null`. Arch guard updated: no non-engine
+    importers of `fetchAllThreadRelations` remain.
+  - Greptile P1 guard aborts reconcile (threadOpenCacheFirst.ts:181,
+    duplicated): REFUTED as a documented seam. Points at the AC2
+    gate-closure entry below and plan §8 Deviations: `test.fail()`
+    ships expected-red per plan rule 6.1; retry-on-guard-abort /
+    drop-guard-for-band-0 is a product-owner design decision for a
+    follow-up phase, not something to patch in this PR.
+  - Gemini 3× critical claims on `forceTimelineUpdate` /
+    `setThreadTimelineTick` "undefined at runtime": REFUTED at tip
+    `572c09ad`. Both are destructured from options
+    (`threadOpenLifecycleController.ts:39,66`), typed on the options
+    object (`:77,111`), AND passed by the caller
+    (`MindroomRoomTimeline.tsx:1718,1746`). Gemini reviewed against
+    an intermediate diff state (see the earlier P5-GATE-FIX v3
+    entries below for how the plumbing rolled in across commits).
+- Merge-up done: `origin/cache-overhaul/11-p4-scheduler`
+  (`c7226501`) merged into branch 12 with the 'ort' strategy
+  (auto-merge, no conflicts) → branch 12 tip `7d6cfe5b`, pushed.
+- Validation: focused vitest suites pass on both branches (branch 11:
+  engine 106 pass, full mindroom 1999 pass; branch 12: engine 133
+  pass after merge). Typecheck clean on both. Lint 18 warnings
+  baseline, zero delta on both. Docker e2e not run (per project
+  policy — host has known ERR_NETWORK_CHANGED flake).
+- Follow-ups: none from this batch. The AC2 documented seam remains
+  the sole outstanding item on PR #71 and is intentionally deferred
+  per plan §8 Deviations.
+
+### CINNY-207 P5-GATE-FIX v4-follow-through - chunk-triple log + verified fix completeness (2026-07-04)
+
+- Status: implementation on top of the v4-final commit `572c09ad`
+  (persist leg) on `cache-overhaul/12-p5-reconciler`. Continuation of
+  the same team-lead-time-boxed iteration — NOT a new attempt.
+- Trigger (team-lead 2026-07-04, post-Signature-A on v4-final docker
+  run): the clean-network trace of the v4-final commit reported
+  `reconcilesScheduled=1, reconcilesRepaired=0` — `detectDivergence`
+  returned FALSE — while the failing render assertion remained on the
+  v2-visible edit line (post-shift line 280 of the spec). Two
+  indistinguishable causes: (i) the fetched chunk did not contain
+  `$edit-v2`, or (ii) it did but the detector's comparison baseline
+  already knew it. Directive: add a permanent-safe per-page chunk log
+  so the next capture disambiguates (i) vs (ii) at a glance, and
+  confirm the three-part fix (cache-based detector + engine persist
+  leg + unit test for the timing-race) is fully wired.
+- What changed (behavior):
+  - `src/app/mindroom/engine/reconciler.ts` — inside the fetch loop,
+    after `fetchThreadRelationPage` returns and before the prefer-live
+    mapper runs, emit one `reconcile-chunk` timeline-debug entry per
+    iteration with: `iteration`, `chunkSize`, `nextToken` ("present" /
+    "absent"), and per-event `triples: [{event_id, type, rel_type,
+    bundled_relations}]`. `rel_type` is read off
+    `content['m.relates_to'].rel_type`; `bundled_relations` is
+    `Object.keys(unsigned['m.relations'])` when present — exposes both
+    the "standalone m.replace" and the "target with bundled m.replace"
+    shapes without further plumbing. The log fires only when both a
+    `debugTraceId` is present AND the `mindroom.debug.timeline`
+    localStorage flag is set (the standard `logTimelineDebug` gate),
+    so production cost is zero.
+- Verification of the three-part v4 fix (no code change; documented
+  for the record):
+  1. Cache-based detector: `buildCachedEventIdSet` derives `cachedIds`
+     from `cachedPage.rootEvent.event_id` + `cachedPage.events[]
+     .event_id` (raw JSON) only. SDK state does not enter the diff.
+  2. Engine persist leg: `persistThreadEventCacheSnapshot` call sits
+     after `hydrateCachedEvents` and before `onRepaired`, guarded by
+     the `diverged` early-return so no-op paths never persist. Same
+     entry point the engine's write-through uses; contract preserved.
+  3. Timing-race unit test: `'detects SDK-vs-cache timing race and
+     STILL persists + injects'` exercises SDK-has-v2/cache-has-v1
+     with the fetched raw carrying bundled `m.replace` — cache-truth
+     divergence detected, persist + inject both fire.
+- Unit tests (reconciler.test.ts now 24 tests, +2 red-first for the
+  chunk-triple log):
+  - `'logs per-page (event_id, type, rel_type, bundled_relations)
+    triples when debug is enabled — P5-GATE-FIX v4-follow-through'` —
+    stubs `mindroom.debug.timeline='1'` in localStorage, spies
+    `console.log`, seeds a fetched chunk with (a) a standalone
+    m.replace edit (`rel_type: 'm.replace'`), (b) an edit target
+    carrying `unsigned['m.relations']['m.replace']`, (c) a plain
+    reply. Asserts one `reconcile-chunk` log with the exact triples
+    for all three shapes.
+  - `'does NOT log reconcile-chunk when debugTraceId is absent —
+    cheap-in-prod invariant'` — same setup but no `debugTraceId`;
+    asserts zero `reconcile-chunk` lines even with the flag on.
+- Validation:
+  - `npm run typecheck` — clean.
+  - `npx vitest run src/app/mindroom/engine/__tests__/reconciler.test.ts`
+    — 24/24. Full-suite vitest and build/lint at the bar are run below
+    at commit time.
+- What was NOT changed:
+  - `detectDivergence` — already cache-based; no rework needed. The
+    seam-explanation for `reconcilesRepaired=0` is either the fetch
+    shape (which the new log will surface) or a still-open aborted /
+    fetch-failed silent exit (the `reconcilesAborted` /
+    `reconcilesFetchFailed` distinguisher probes remain the noted
+    follow-up, orthogonal to this iteration).
+  - AC2 spec — still `test.fail()` from the honest-red gate closure
+    (`d5b2d345`). If the docker re-run goes green on this
+    fix-plus-diagnostic, that annotation needs removal (a passing
+    `test.fail()` fails Playwright as "expected failure but passed").
+  - Engine persist leg — already committed at `572c09ad`.
+- Design rationale:
+  - Emit-per-iteration (not per-event) keeps the log volume proportional
+    to network use, not to timeline size. A pathological homeserver
+    streaming 25 pages of 200 events would log 25 entries — bounded by
+    `MAX_RECONCILE_ITERATIONS`.
+  - Raw-JSON introspection (not MatrixEvent accessors) avoids the
+    `mapEvent`/`preferLive` transformation window; it shows what the
+    server actually sent, which is exactly the question team-lead
+    needs answered.
+  - The `bundled_relations` axis is what closes the specific
+    ambiguity: a chunk containing an edit target WITH `m.replace`
+    bundled proves case (ii) is possible; a chunk without any bundled
+    replaces on cached ids proves case (i).
+
 ### CINNY-207 P5-GATE-FIX v4 (final iteration) - reconciler as deterministic owner: cache-diff + ENGINE PERSIST leg (2026-07-04)
 
 - Status: Implementation-complete atop the P5 gate-closure tip

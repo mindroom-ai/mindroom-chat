@@ -148,20 +148,22 @@ describe('CINNY-207 P3.3 engine boundary architecture', () => {
       }
     }
     expect(definers).toEqual(['engine/threadRelationsFetcher.ts']);
-    // Currently allowed non-engine importers (via the engine barrel):
-    //   - threads/threadOverviewResumeController.ts (P4.4 overview
-    //     resume producer; the executor code still lives in threads/
-    //     — moving it is a future refactor). Any other importer here
-    //     trips the guard.
+    // CINNY-207 P5 review (greptile P1: dedup returns void):
+    // `threadOverviewResumeController.ts` no longer imports
+    // `fetchAllThreadRelations` directly — it now routes through
+    // `enqueueThreadBackfillJob` (same as the thread-open path in
+    // `threadOpenCacheController.ts`) so the shared scheduler
+    // `(roomId, threadId, 'thread-backfill')` key resolves to a
+    // consistent `Promise<ThreadBackfillResult>` for both callers.
+    // No non-engine importers should remain.
+    //
     // NOTE: `notifications/readReceipts.ts` uses `mx.fetchRelations`
     // directly with a `RelationType.Thread` limit-1 receipt probe —
     // that's receipts-domain, not thread-history backfill, and does
     // NOT import `fetchAllThreadRelations`. Excluded from this guard
     // by scope: the guard checks for `fetchAllThreadRelations`
     // specifically.
-    expect(nonEngineImporters).toEqual([
-      'threads/threadOverviewResumeController.ts',
-    ]);
+    expect(nonEngineImporters).toEqual([]);
   });
 
   // CINNY-207 P5.1 Commit 2: `mx.fetchRelations` file-level allowlist.

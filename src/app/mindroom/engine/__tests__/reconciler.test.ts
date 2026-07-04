@@ -663,6 +663,93 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     expect(result.fetchedCount).toBe(5);
   });
 
+  it('sorts multi-page fetches chronologically before injection (greptile P1: paged batch order reverses)', async () => {
+    // When divergence spans multiple `/relations` pages, each page
+    // comes back backward-paginated (newest→oldest). We reverse each
+    // page's chunk to get oldest→newest WITHIN a page, but page 1
+    // events are still newer than page 2 events. Naively concatenating
+    // yields [page1_oldest..page1_newest, page2_oldest..page2_newest]
+    // where page 2 events are chronologically OLDER than any page 1
+    // event — a non-monotonic array. The SDK's `thread.addEvents`
+    // and the persistence writer both benefit from a chronologically
+    // ordered batch (the full backfill path in `gapFillExecutor.ts`
+    // sorts after flattening for exactly this reason).
+    //
+    // This test proves the fix: the injected/persisted array must be
+    // in origin_server_ts ascending order across page boundaries.
+    const addEvents = vi.fn();
+    const threadStub = {
+      addEvents,
+      getUnfilteredTimelineSet: () => undefined,
+    } as unknown as ReturnType<Room['getThread']>;
+    const roomWithThread = {
+      roomId: '!room:example',
+      findEventById: () => null,
+      getThread: (id: string) => (id === '$thread' ? threadStub : undefined),
+    } as unknown as Room;
+    // Page 1 (newest): ts=200, 300. Page 2 (older tail): ts=50, 100.
+    // Wire order is backward → newest first; the fetcher returns them
+    // in the SDK's raw chunk order (newest→oldest within a page).
+    let iteration = 0;
+    const fetchRelations = vi.fn(async () => {
+      iteration += 1;
+      if (iteration === 1) {
+        return {
+          chunk: [
+            { event_id: '$e-newest', origin_server_ts: 300 },
+            { event_id: '$e-newer', origin_server_ts: 200 },
+          ] as Partial<IEvent>[],
+          next_batch: 'page-2',
+        };
+      }
+      return {
+        chunk: [
+          { event_id: '$e-older', origin_server_ts: 100 },
+          { event_id: '$e-oldest', origin_server_ts: 50 },
+        ] as Partial<IEvent>[],
+        next_batch: undefined,
+      };
+    });
+    const mx = {
+      getRoom: () => roomWithThread,
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        makeFakeEvent({
+          id: (raw.event_id as string) ?? '',
+          ts: (raw.origin_server_ts as number) ?? 0,
+        }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx });
+
+    let onRepairedBatch: readonly MatrixEvent[] | undefined;
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      threadId: '$thread',
+      cachedPage: makeCachedPage([]),
+      reason: 'open-complete-coverage',
+      room: roomWithThread,
+      onRepaired: (batch) => {
+        onRepairedBatch = batch;
+      },
+    });
+
+    expect(result.repaired).toBe(true);
+    expect(fetchRelations).toHaveBeenCalledTimes(2);
+    // Injection call — must be chronologically ordered.
+    expect(addEvents).toHaveBeenCalledTimes(1);
+    const [injectedEvents] = addEvents.mock.calls[0];
+    const injectedTs = (injectedEvents as MatrixEvent[]).map((mEvent) => mEvent.getTs());
+    expect(injectedTs).toEqual([50, 100, 200, 300]);
+    // onRepaired batch — must be the same chronologically ordered
+    // array (both call sites downstream expect the same shape).
+    expect(onRepairedBatch).toBeDefined();
+    const repairedTs = (onRepairedBatch as MatrixEvent[]).map((mEvent) => mEvent.getTs());
+    expect(repairedTs).toEqual([50, 100, 200, 300]);
+  });
+
   // ---------------------------------------------------------------------
   // CINNY-207 P5-GATE-FIX (AC2): observability + SDK injection.
   // ---------------------------------------------------------------------
@@ -1362,5 +1449,170 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     const probe = getCacheProbeSnapshot();
     expect(probe.reconcilerPersists).toBe(0);
     expect(probe.reconcilesOnRepairedFired).toBe(0);
+  });
+
+  it('logs per-page (event_id, type, rel_type, bundled_relations) triples when debug is enabled — P5-GATE-FIX v4-follow-through', async () => {
+    // Team-lead directive (2026-07-04, post-Signature-A): the docker
+    // trace showed `reconcilesRepaired=0` from ONE clean-network run,
+    // leaving two indistinguishable explanations — (i) the fetched
+    // chunk did not carry the edit at all, or (ii) it did but the
+    // detector's comparison baseline already knew about it. Emit the
+    // raw chunk shape per iteration so the next trace answers the
+    // question without another gate-fix iteration.
+    //
+    // The log is gated on BOTH `debugTraceId` presence AND the
+    // `mindroom.debug.timeline` localStorage flag — this test asserts
+    // (a) it fires when both are on, (b) the payload carries the four
+    // useful axes: event_id, type, rel_type, and the bundled relation
+    // keys (so a bundled m.replace is visible even when the top-level
+    // event is not itself a replace event).
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const originalLocalStorage = globalThis.localStorage;
+    const debugStorage = {
+      getItem: vi.fn((key: string) => (key === 'mindroom.debug.timeline' ? '1' : null)),
+    };
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: debugStorage,
+    });
+
+    try {
+      const room = makeFakeRoom();
+      const fetchRelations = vi.fn(async () => ({
+        chunk: [
+          {
+            event_id: '$edit-v2',
+            type: 'm.room.message',
+            content: {
+              'm.new_content': { body: 'new body', msgtype: 'm.text' },
+              'm.relates_to': { rel_type: 'm.replace', event_id: '$edit-target' },
+            },
+          },
+          {
+            event_id: '$edit-target',
+            type: 'm.room.message',
+            unsigned: {
+              'm.relations': { 'm.replace': { event_id: '$edit-v2' } },
+            },
+          },
+          { event_id: '$reply-1', type: 'm.room.message' },
+        ] as Partial<IEvent>[],
+        next_batch: undefined,
+      }));
+      const mx = {
+        getRoom: () => room,
+        getEventMapper: () => (raw: Partial<IEvent>) =>
+          makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+        fetchRelations,
+      } as unknown as MatrixClient;
+      const scheduler = createBackfillScheduler({ mx });
+
+      await scheduleReconcile({
+        mx,
+        sessionId: 'session',
+        scheduler,
+        roomId: '!room:example',
+        threadId: '$thread',
+        cachedPage: makeCachedPage(['$reply-1']),
+        reason: 'open-complete-coverage',
+        debugTraceId: 'test-trace-1',
+      });
+
+      const chunkLogs = consoleLogSpy.mock.calls.filter((args) => {
+        const first = args[0];
+        return typeof first === 'string' && first.includes('reconcile-chunk');
+      });
+      // Exactly one page fetched → exactly one chunk log.
+      expect(chunkLogs.length).toBe(1);
+      const [, payload] = chunkLogs[0] as [string, Record<string, unknown>];
+      expect(payload.iteration).toBe(1);
+      expect(payload.chunkSize).toBe(3);
+      expect(payload.nextToken).toBe('absent');
+      const triples = payload.triples as Array<{
+        event_id: string;
+        type: string;
+        rel_type?: string;
+        bundled_relations?: string[];
+      }>;
+      // Triple 1 — the standalone m.replace edit event.
+      expect(triples[0]).toMatchObject({
+        event_id: '$edit-v2',
+        type: 'm.room.message',
+        rel_type: 'm.replace',
+      });
+      // Triple 2 — the edit target with bundled m.replace metadata.
+      expect(triples[1]).toMatchObject({
+        event_id: '$edit-target',
+        type: 'm.room.message',
+        bundled_relations: ['m.replace'],
+      });
+      // Triple 3 — plain reply, no relation.
+      expect(triples[2]).toMatchObject({
+        event_id: '$reply-1',
+        type: 'm.room.message',
+      });
+      expect(triples[2].rel_type).toBeUndefined();
+      expect(triples[2].bundled_relations).toBeUndefined();
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: originalLocalStorage,
+      });
+      consoleLogSpy.mockRestore();
+    }
+  });
+
+  it('does NOT log reconcile-chunk when debugTraceId is absent — cheap-in-prod invariant', async () => {
+    // Companion to the debug-enabled test above: with no traceId, the
+    // early-return branch inside the reconcile loop must skip the
+    // triple-building work AND the `logTimelineDebug` call. Assertion
+    // is on console.log receiving no `reconcile-chunk` line even if
+    // localStorage flag is set (traceId absence alone is sufficient).
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const originalLocalStorage = globalThis.localStorage;
+    const debugStorage = {
+      getItem: vi.fn((key: string) => (key === 'mindroom.debug.timeline' ? '1' : null)),
+    };
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: debugStorage,
+    });
+
+    try {
+      const room = makeFakeRoom();
+      const mx = {
+        getRoom: () => room,
+        getEventMapper: () => (raw: Partial<IEvent>) =>
+          makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+        fetchRelations: vi.fn(async () => ({
+          chunk: [{ event_id: '$reply-1' }] as Partial<IEvent>[],
+          next_batch: undefined,
+        })),
+      } as unknown as MatrixClient;
+      const scheduler = createBackfillScheduler({ mx });
+
+      await scheduleReconcile({
+        mx,
+        sessionId: 'session',
+        scheduler,
+        roomId: '!room:example',
+        threadId: '$thread',
+        cachedPage: makeCachedPage(['$reply-1']),
+        reason: 'open-complete-coverage',
+        // debugTraceId intentionally omitted.
+      });
+
+      const chunkLogs = consoleLogSpy.mock.calls.filter((args) => {
+        const first = args[0];
+        return typeof first === 'string' && first.includes('reconcile-chunk');
+      });
+      expect(chunkLogs.length).toBe(0);
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: originalLocalStorage,
+      });
+      consoleLogSpy.mockRestore();
+    }
   });
 });
