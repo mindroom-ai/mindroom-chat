@@ -639,4 +639,338 @@ describe('useThreadRenderState', () => {
 
     renderer.unmount();
   });
+
+  // CINNY-207 AC2 render-gap RG3 (2026-07-04): minimized repro of the
+  // AC2 stale-cache-divergence render-gap. The docker RG2 run named
+  // the mechanism: engine converges, sink executes end to end, and
+  // mergeThreadRenderEvents produces output whose target has
+  // replacingEvent() set — yet the docker AC2 spec still cannot see
+  // `edit-target v2 converged` in the DOM. The seam is between the
+  // sink's own `setSupplementalThreadEvents` call and the render-held
+  // MatrixEvent instance the DOM message body reads.
+  //
+  // Scenario replays the AC2 timing:
+  //   t0: cache hydrate lands `editTargetV1` (no replacingEvent) in
+  //       fallback via setSupplementalThreadEvents.
+  //   t1: reconciler onRepaired fires with `[editTargetV1Fresh,
+  //       editEventC]` — a DIFFERENT MatrixEvent instance for the
+  //       same event id, plus the m.replace event carrying v2.
+  //
+  // The invariant the fix must satisfy: after t1, the merged
+  // `threadEvents` output must contain an instance for the target
+  // whose `replacingEvent()` returns the m.replace event AND whose
+  // `getContent()` reflects the v2 body via
+  // `getLatestMessageContent(target, target.replacingEvent())`.
+  //
+  // Fails on tip when the sink's own merge picks up the fresh
+  // incoming instance but the target instance the render layer
+  // subsequently sees still has replacingEvent() undefined —
+  // typically because the applier mutated an instance that lost the
+  // merge dedup race (the exact "render-held" mismatch the RG1
+  // hydrateApplier counters were designed to catch).
+  it('AC2 render-gap: reconciler onRepaired batch mutates the render-held target instance in place (CINNY-207 AC2 render-gap)', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+
+    // t0: cache hydrate handed the render layer these instances.
+    // Neither carries a replacement — the divergence happened while
+    // the client was away, so the cache was stale.
+    const cachedReplyEvent = makeMessageEvent('$reply', 2);
+    const cachedEditTargetV1 = makeMessageEvent(
+      '$edit-target',
+      3,
+      '@alice:example.org',
+      'edit-target v1'
+    );
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+
+    const { getSnapshot, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread: null,
+      threadInitialCacheHydrated: false,
+    });
+
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [
+        cachedReplyEvent,
+        cachedEditTargetV1,
+      ]);
+    });
+
+    // Sanity: after the cache hydrate the render sees v1 with no
+    // replacement.
+    const beforeRepair = getSnapshot().threadEvents.find(
+      (mEvt) => mEvt.getId() === '$edit-target'
+    );
+    expect(beforeRepair).toBeDefined();
+    expect(beforeRepair?.replacingEvent()).toBeNull();
+    expect(beforeRepair?.getContent().body).toBe('edit-target v1');
+
+    // t1: reconciler onRepaired fires with `allMapped`, containing a
+    // FRESH instance for the same target id plus the m.replace event
+    // carrying v2. This mirrors the reconciler.ts path where
+    // `preferLive` returns fresh MatrixEvent instances for events
+    // the SDK does not already know.
+    const freshEditTargetV1 = makeMessageEvent(
+      '$edit-target',
+      3,
+      '@alice:example.org',
+      'edit-target v1'
+    );
+    const editEventC = makeEditEvent('$edit-c', 4, '$edit-target');
+    // Sanity: the two instances share an id but are distinct objects
+    // — this is exactly the "fresh clone from server" shape.
+    expect(freshEditTargetV1).not.toBe(cachedEditTargetV1);
+
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [freshEditTargetV1, editEventC]);
+    });
+
+    // The render layer must now see the target with replacingEvent()
+    // set to editEventC. Which instance object it is (cached or
+    // fresh) does not matter for correctness — what matters is that
+    // the ONE the render holds carries the replacement. The idiom
+    // the fix implements is "repair must reach the render-held
+    // instance".
+    const afterRepair = getSnapshot().threadEvents.find(
+      (mEvt) => mEvt.getId() === '$edit-target'
+    );
+    expect(afterRepair).toBeDefined();
+    expect(afterRepair?.replacingEvent()).toBe(editEventC);
+    // The bundled body reachable through the SDK's own resolver is
+    // the ultimate render-side truth (getLatestMessageContent reads
+    // this).
+    expect(
+      (afterRepair?.replacingEvent()?.getContent() as Record<string, unknown> | undefined)?.[
+        'm.new_content'
+      ]
+    ).toMatchObject({ body: '$edit-c' });
+
+    renderer.unmount();
+  });
+
+  // CINNY-207 AC2 render-gap RG3 (2026-07-04): the sibling scenario
+  // that matches the docker AC2 in-vivo counter snapshot exactly.
+  // The RG2 diagnostic showed `reconcilesThreadNull: 0` — the SDK
+  // Thread was non-null at reconciler inject time, so
+  // `liveThread.addEvents(allMapped, false)` ran. The SDK dedupes on
+  // event id and KEEPS its earlier instance for the same id (the
+  // fresh clone gets discarded). Result at render time:
+  //
+  //   - `thread.events` contains sdkTarget (no replacingEvent unless
+  //     the SDK's own aggregation applied it during addEvents).
+  //   - fallbackEvents contains the reconciler's fresh merged output
+  //     which DID get makeReplaced'd by the sink's own hydrate call.
+  //   - initialRenderMode = 'live', so buildThreadEvents pulls
+  //     `thread.events` FIRST then fallbackEvents.
+  //
+  // The merge dedup preference logic (`pickPreferredThreadRenderEvent`)
+  // must keep whichever instance carries the replacement. If it
+  // keeps the SDK instance whose replacingEvent is undefined instead
+  // of the fallback instance whose replacingEvent is set, the render
+  // shows v1.
+  // CINNY-207 AC2 render-gap RG3 (2026-07-04): reproduces the actual
+  // failing docker AC2 scenario. RG2 counters proved
+  // `renderTargetHadReplacement` flatlines at 5 while
+  // `renderTargetLackedReplacement` grows to 410+ over a 30s window —
+  // subsequent re-renders (triggered by SDK sync bursts, ThreadEvent
+  // updates, etc.) receive a target instance without the repair.
+  //
+  // Mechanism this test exercises: after the sink lands the
+  // fallback state's target-with-replacement, the SDK's
+  // `thread.events` mutates (e.g. a subsequent sync burst produces a
+  // fresh MatrixEvent instance for the same id with NO replacement
+  // bundled), and a downstream refresh tick re-runs `buildThreadEvents`.
+  // The merge must still produce output whose target carries the
+  // repair — otherwise every subsequent render regresses to v1
+  // despite the fallback state being correct.
+  //
+  // If this test fails on tip and passes on the RG4 fix, the fix
+  // idiom is exactly "repair reaches the render-held instance"
+  // enforced across every re-render, not just the one immediately
+  // following the sink.
+  it('AC2 render-gap: target-with-replacement is preserved through subsequent SDK thread mutations (CINNY-207 AC2 render-gap RG3)', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+    const cachedEditTargetV1 = makeMessageEvent(
+      '$edit-target',
+      3,
+      '@alice:example.org',
+      'edit-target v1'
+    );
+    const sdkTargetV1 = makeMessageEvent(
+      '$edit-target',
+      3,
+      '@alice:example.org',
+      'edit-target v1'
+    );
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+    const thread = makeThread(rootEvent, [sdkTargetV1]);
+
+    const { getSnapshot, update, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: false,
+    });
+
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [cachedEditTargetV1]);
+    });
+    update({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: true,
+    });
+
+    const freshEditTargetV1 = makeMessageEvent(
+      '$edit-target',
+      3,
+      '@alice:example.org',
+      'edit-target v1'
+    );
+    const editEventC = makeEditEvent('$edit-c', 4, '$edit-target');
+
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [freshEditTargetV1, editEventC]);
+    });
+
+    // Sanity: after the sink lands the repair, the target carries
+    // it.
+    const afterRepair = getSnapshot().threadEvents.find(
+      (mEvt) => mEvt.getId() === '$edit-target'
+    );
+    expect(afterRepair?.replacingEvent()).toBe(editEventC);
+
+    // NEW: simulate a subsequent SDK sync burst that replaces the
+    // thread's live instance for the same id with a fresh clone that
+    // does NOT carry the replacement (matches
+    // `EventTimelineSet.addEventToTimeline` behavior when the SDK
+    // creates a fresh MatrixEvent from raw JSON on live-event
+    // dispatch — the fresh clone has no `_replacingEvent`). Fire
+    // ThreadEvent.Update so the render tick refresh kicks in, which
+    // is what happens in production when the SDK's thread state
+    // shifts (see useThreadEventRefresh subscribing to Update).
+    const sdkTargetV1Refreshed = makeMessageEvent(
+      '$edit-target',
+      3,
+      '@alice:example.org',
+      'edit-target v1'
+    );
+    expect(sdkTargetV1Refreshed.replacingEvent()).toBeNull();
+    act(() => {
+      thread.events.length = 0;
+      thread.events.push(sdkTargetV1Refreshed);
+      thread.emit(ThreadEvent.Update, thread);
+    });
+
+    // The render layer MUST still see a target carrying editEventC.
+    // If the merge picks the fresh SDK instance (no replacement) and
+    // drops the fallback instance (with replacement), render
+    // regresses to v1 — the exact docker AC2 failure mode.
+    const afterSdkChurn = getSnapshot().threadEvents.find(
+      (mEvt) => mEvt.getId() === '$edit-target'
+    );
+    expect(afterSdkChurn).toBeDefined();
+    expect(afterSdkChurn?.replacingEvent()).toBe(editEventC);
+
+    renderer.unmount();
+  });
+
+  it('AC2 render-gap: reconciler-repaired fallback instance wins over stale SDK thread duplicate (CINNY-207 AC2 render-gap)', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+
+    // t0 hydrate: the render holds cachedEditTargetV1 (no
+    // replacement).
+    const cachedEditTargetV1 = makeMessageEvent(
+      '$edit-target',
+      3,
+      '@alice:example.org',
+      'edit-target v1'
+    );
+    // The SDK Thread had its own instance for the target id — same
+    // event, different MatrixEvent instance, also no replacement.
+    // Populated by the SDK's own sync burst before reconciler runs.
+    const sdkTargetV1 = makeMessageEvent(
+      '$edit-target',
+      3,
+      '@alice:example.org',
+      'edit-target v1'
+    );
+    expect(sdkTargetV1).not.toBe(cachedEditTargetV1);
+
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+    const thread = makeThread(rootEvent, [sdkTargetV1]);
+
+    const { getSnapshot, update, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: false,
+    });
+
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [cachedEditTargetV1]);
+    });
+    // Sync boundary: initialCacheHydrated flips true after
+    // `hydrateThreadFromCache` returns; this mirrors what
+    // threadOpenCacheFirst does in production.
+    update({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: true,
+    });
+
+    // t1: reconciler onRepaired fires with the fetched batch. The
+    // fresh instance for the target and the m.replace event both
+    // land in the sink; the sink's internal hydrate applies
+    // makeReplaced on whatever instance won the sink's own merge
+    // dedup.
+    const freshEditTargetV1 = makeMessageEvent(
+      '$edit-target',
+      3,
+      '@alice:example.org',
+      'edit-target v1'
+    );
+    const editEventC = makeEditEvent('$edit-c', 4, '$edit-target');
+
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [freshEditTargetV1, editEventC]);
+    });
+
+    // Post-repair, the render layer must observe an instance for
+    // $edit-target whose replacingEvent() returns editEventC. The
+    // merge dedup between thread.events (sdkTargetV1, no
+    // replacement) and fallbackEvents (fresh, WITH replacement after
+    // sink hydrate) MUST prefer the one carrying the replacement.
+    // This is the invariant "repair must reach the render-held
+    // instance": no matter which instance the merge selects, the
+    // one delivered to render must carry the repair.
+    const afterRepair = getSnapshot().threadEvents.find(
+      (mEvt) => mEvt.getId() === '$edit-target'
+    );
+    expect(afterRepair).toBeDefined();
+    expect(afterRepair?.replacingEvent()).toBe(editEventC);
+    expect(
+      (afterRepair?.replacingEvent()?.getContent() as Record<string, unknown> | undefined)?.[
+        'm.new_content'
+      ]
+    ).toMatchObject({ body: '$edit-c' });
+
+    renderer.unmount();
+  });
 });

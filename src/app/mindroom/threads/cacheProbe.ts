@@ -220,6 +220,24 @@ export type CacheProbeCounters = {
   // re-render / state propagation is not delivering the incoming
   // batch to the merge — the seam is between the sink and the memo.
   mergeSawIncomingEditRelation: number;
+  // CINNY-207 AC2 render-gap RG3 (2026-07-04): observability at the
+  // ACTUAL render-pipeline entry point (getEditedEvent in
+  // utils/room.ts). Bumps once per getEditedEvent call:
+  //
+  //   renderTargetHadReplacement: `mEvent.replacingEvent()` returned
+  //     a non-null candidate that PASSED the same-sender check and
+  //     was included in the candidate edit list.
+  //   renderTargetLackedReplacement: `mEvent.replacingEvent()`
+  //     returned null.
+  //
+  // Diagnostic: if `renderTargetHadReplacement` is 0 while merge
+  // counter `mergeSawEditRelationNoTargetChange` is also 0 AND the
+  // merge saw incoming edits (`mergeSawIncomingEditRelation > 0`),
+  // then the merge produced correct output but the RENDER is
+  // receiving a DIFFERENT instance for the target — proving the seam
+  // between "merge output stored in state" and "render reads state".
+  renderTargetHadReplacement: number;
+  renderTargetLackedReplacement: number;
   // CINNY-207 AC2 render-gap RG1 (2026-07-04): applyCachedReplaceRelations
   // ("hydrate applier") instance-identity observability. Diagnostic
   // for candidate (a) — the mechanism where the applier's
@@ -280,6 +298,8 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   supplementalEventsSkippedEmpty: 0,
   mergeSawEditRelationNoTargetChange: 0,
   mergeSawIncomingEditRelation: 0,
+  renderTargetHadReplacement: 0,
+  renderTargetLackedReplacement: 0,
   hydrateApplierMutatedRenderHeldInstance: 0,
   hydrateApplierMutatedFreshInstance: 0,
 });
