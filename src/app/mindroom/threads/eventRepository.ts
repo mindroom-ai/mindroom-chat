@@ -156,16 +156,23 @@ export const collectLegacyStandaloneReplaceIds = (
     const bundled = relations?.[RelationType.Replace] as Partial<IEvent> | undefined;
     if (!bundled) return false;
 
+    // The bundle only proves supersession if hydration would actually apply
+    // it: it must carry a nonempty event id and come from the same sender as
+    // the standalone (mirroring the read path's serialized-relation and
+    // same-sender validation). A server-provided cross-sender or id-less
+    // aggregation must not license deleting a record hydration still needs.
+    if (typeof bundled.event_id !== 'string' || bundled.event_id.length === 0) return false;
+    if (bundled.sender !== standaloneEvent.sender) return false;
+
     const bundledTs = bundled.origin_server_ts;
     const standaloneTs = standaloneEvent.origin_server_ts;
     if (typeof bundledTs !== 'number' || typeof standaloneTs !== 'number') return false;
     if (bundledTs !== standaloneTs) return bundledTs > standaloneTs;
 
-    const bundledId = bundled.event_id;
     const standaloneId = standaloneEvent.event_id;
-    if (typeof bundledId !== 'string' || typeof standaloneId !== 'string') return false;
+    if (typeof standaloneId !== 'string') return false;
     // Equal ids mean the bundled edit IS the standalone record's event.
-    return bundledId >= standaloneId;
+    return bundled.event_id >= standaloneId;
   };
 
   const legacyReplaceIds: string[] = [];
