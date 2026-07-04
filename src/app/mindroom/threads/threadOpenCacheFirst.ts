@@ -28,7 +28,7 @@ type ThreadOpenSeedSession = {
 export type ScheduleReconcileFn = (
   args: Pick<
     ScheduleReconcileArgs,
-    'roomId' | 'room' | 'threadId' | 'cachedPage' | 'reason' | 'onRepaired' | 'shouldContinue'
+    'roomId' | 'room' | 'threadId' | 'cachedPage' | 'reason' | 'onRepaired'
   >
 ) => Promise<ReconcileResult>;
 
@@ -197,7 +197,6 @@ export const runThreadOpenCacheFirst = async ({
         forceTimelineUpdate();
         setThreadTimelineTick((val) => val + 1);
       },
-      shouldContinue: isCurrentThreadOpen,
     }).catch(() => undefined);
     pinThreadToBottomOnOpen();
     return {
@@ -277,7 +276,6 @@ export const runThreadOpenCacheFirst = async ({
           forceTimelineUpdate();
           setThreadTimelineTick((val) => val + 1);
         },
-        shouldContinue: isCurrentThreadOpen,
       }).catch(() => undefined);
       return {
         hydratedCachedPage,

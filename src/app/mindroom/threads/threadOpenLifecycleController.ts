@@ -251,7 +251,6 @@ export const useThreadOpenLifecycleController = ({
             forceTimelineUpdate();
             setThreadTimelineTick((val) => val + 1);
           },
-          shouldContinue: () => mounted && threadIdRef.current === threadId,
         }).catch(() => undefined);
 
         // CINNY-207 P5.1 Commit 2: `runThreadOpenPostBootstrapRefresh`

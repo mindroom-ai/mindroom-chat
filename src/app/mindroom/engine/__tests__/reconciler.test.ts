@@ -1619,7 +1619,7 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
   // CINNY-207 AC2 STEP 1 (2026-07-04): the distinguishable exit-path
   // counters make the invariant
   //   reconcilesScheduled ==
-  //     reconcilesGuardAborted + reconcilesSignalAborted +
+  //     reconcilesSignalAborted +
   //     reconcilesFetchFailed + reconcilesNoDivergence +
   //     reconcilesNoRoom + reconcilesRoomScopeNoop +
   //     reconcilesRepaired
@@ -1631,7 +1631,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     const sumOutcomes = (
       probe: ReturnType<typeof getCacheProbeSnapshot>
     ): number =>
-      probe.reconcilesGuardAborted +
       probe.reconcilesSignalAborted +
       probe.reconcilesFetchFailed +
       probe.reconcilesNoDivergence +
@@ -1639,18 +1638,17 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       probe.reconcilesRoomScopeNoop +
       probe.reconcilesRepaired;
 
-    it('reconcilesGuardAborted bumps when shouldContinue flips false BEFORE the first fetch; STEP 3 fix triggers a guard-free retry that converges (bounded, one-shot)', async () => {
-      // The exact silent-exit shape from the 6-iteration diagnosis:
-      // the reconciler enters the executor, checks shouldContinue,
-      // returns aborted:true — no /relations request on the wire.
-      //
-      // POST-STEP-3: the guard-abort exit fires `onGuardAborted`, which
-      // the outer scheduleReconcile uses to enqueue a bounded
-      // guard-free retry (kind='reconcile-retry'). The retry runs
-      // with shouldContinue=undefined, fetches, detects the
-      // divergence (chunk carries $reply-new not in cache), and
-      // repairs. Net: the AC2 convergence contract holds even when
-      // the initial mount walked away.
+    it('reconcile pass runs to completion and fires onRepaired regardless of component state (I2: engine-owned, decoupled from mount)', async () => {
+      // CINNY-207 AC2 revision (2026-07-04): the reconciler is an
+      // engine responsibility (invariant I2, convergence to server
+      // truth). Its fetch/persist lifecycle MUST NOT be coupled to
+      // component mount state. With `shouldContinue` removed from
+      // `ScheduleReconcileArgs`, only `signal.aborted` (scheduler
+      // teardown / abort()) can stop a pass — a moved-away component
+      // has no way to abort the engine's convergence work. This test
+      // asserts the inverse of the deleted guard-abort scenario: a
+      // schedule with a non-aborted signal runs the full fetch loop,
+      // detects divergence, and invokes onRepaired.
       const room = makeFakeRoom();
       const fetchRelations = vi.fn(async () => ({
         chunk: [{ event_id: '$reply-new' }] as Partial<IEvent>[],
@@ -1674,32 +1672,16 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         cachedPage: makeCachedPage([]),
         reason: 'open-complete-coverage',
         onRepaired,
-        // Force the guard to return false — the exit path under test.
-        shouldContinue: () => false,
       });
-      // Give the retry job (enqueued from the guard-abort callback)
-      // time to drain. The initial promise resolves before the
-      // retry runs, so we flush.
-      for (let i = 0; i < 8; i += 1) {
-        // eslint-disable-next-line no-await-in-loop
-        await Promise.resolve();
-      }
 
       const probe = getCacheProbeSnapshot();
-      // Initial guard-abort: recorded.
-      expect(probe.reconcilesGuardAborted).toBe(1);
-      expect(probe.reconcilesDirtyMarked).toBe(1);
-      // Retry ran: fetched, detected divergence, repaired.
+      // Fetch happened — engine did not silently short-circuit.
       expect(fetchRelations).toHaveBeenCalledTimes(1);
-      expect(probe.reconcilesDirtyRetried).toBe(1);
+      // Divergence detected → repair applied → onRepaired fired.
       expect(probe.reconcilesRepaired).toBe(1);
-      // Two schedules total: the initial guard-abort + the retry.
-      expect(probe.reconcilesScheduled).toBe(2);
-      // The retry ran with the caller's onRepaired sink — the sink
-      // fired for the repaired batch.
       expect(onRepaired).toHaveBeenCalledTimes(1);
-      // sum-invariant: 2 schedules == 1 guard-abort (initial) + 1
-      // repaired (retry).
+      // No guard-abort or retry machinery exists anymore.
+      expect(probe.reconcilesScheduled).toBe(1);
       expect(sumOutcomes(probe)).toBe(probe.reconcilesScheduled);
     });
 
@@ -1753,9 +1735,7 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       expect(probe.reconcilesScheduled).toBe(1);
       // The signal was observed post-loop (fetch resolved before
       // aborted check), so the counter falls into the signal-abort
-      // bucket. Guard-abort MUST be zero — the guard was never
-      // touched in this scenario.
-      expect(probe.reconcilesGuardAborted).toBe(0);
+      // bucket.
       expect(probe.reconcilesSignalAborted).toBe(1);
       expect(sumOutcomes(probe)).toBe(probe.reconcilesScheduled);
     });

@@ -142,12 +142,6 @@ export type ScheduleReconcileArgs = {
    */
   readonly onRepaired?: (repairedEvents: readonly MatrixEvent[]) => void;
   /**
-   * Optional predicate to abort mid-pass. Wired so a component unmount
-   * (thread closed, room switched) can stop a straggling reconcile
-   * without waiting for the scheduler's own abort signal to propagate.
-   */
-  readonly shouldContinue?: () => boolean;
-  /**
    * Optional debug trace id. When present, reconciler observability
    * events (`reconcile-scheduled`, `reconcile-complete`) attach it so
    * a capture can be correlated with the surrounding thread-open flow.
@@ -355,11 +349,9 @@ const runThreadReconcilePass = async ({
   threadId,
   cachedPage,
   onRepaired,
-  shouldContinue,
   signal,
   reason,
   debugTraceId,
-  onGuardAborted,
 }: {
   mx: MatrixClient;
   sessionId: string;
@@ -368,26 +360,9 @@ const runThreadReconcilePass = async ({
   threadId: string;
   cachedPage: HydratedThreadCachePage | undefined;
   onRepaired: ((repairedEvents: readonly MatrixEvent[]) => void) | undefined;
-  shouldContinue: (() => boolean) | undefined;
   signal: AbortSignal;
   reason: ReconcileReason;
   debugTraceId: string | undefined;
-  /**
-   * CINNY-207 AC2 STEP 3 (2026-07-04): guard-abort recovery hook.
-   * Fires when the pass exited via `shouldContinue()=false` BEFORE
-   * the first fetch — the AC2 silent-exit shape. The outer
-   * `scheduleReconcile` enqueues a bounded retry (kind
-   * `'reconcile-retry'`) whose executor calls `runThreadReconcilePass`
-   * with `shouldContinue: undefined` and `onGuardAborted: undefined`,
-   * so the retry itself cannot re-trigger this callback and the
-   * recovery is bounded to at most one retry per initial schedule.
-   *
-   * Fires ONLY on the guard-abort path, and ONLY when no fetch has
-   * happened yet (iterations === 0). A signal-abort still exits
-   * silently — that's a scheduler-driven teardown (engine.stop /
-   * abort()) where retrying would be wrong.
-   */
-  onGuardAborted: (() => void) | undefined;
 }): Promise<ReconcileResult> => {
   const cachedIds = cachedPage ? buildCachedEventIdSet(cachedPage) : new Set<string>();
   const mapper = mx.getEventMapper();
@@ -406,30 +381,11 @@ const runThreadReconcilePass = async ({
 
   while (iterations < MAX_RECONCILE_ITERATIONS) {
     if (signal.aborted) {
-      // CINNY-207 AC2 STEP 1 (2026-07-04): signal-abort in the loop
-      // is distinct from guard-abort — the scheduler drove this via
-      // controller.abort (engine teardown / abort() call), NOT the
-      // component boundary.
+      // Signal-abort — scheduler-driven teardown (engine.stop / abort()
+      // call). Reconciles are an engine responsibility (invariant I2,
+      // convergence to server truth); this is the only legitimate
+      // silent exit before the first fetch.
       countCacheProbe('reconcilesSignalAborted');
-      return { reason, repaired: false, fetchedCount, iterations, aborted: true };
-    }
-    if (shouldContinue && !shouldContinue()) {
-      // CINNY-207 AC2 STEP 1 (2026-07-04): guard-abort — the exact
-      // leading hypothesis from the 6-iteration diagnosis. This is
-      // the ONLY silent exit that produces "zero /relations requests
-      // on the wire" in a docker trace, because the guard check
-      // runs BEFORE `iterations += 1` and `fetchThreadRelationPage`.
-      countCacheProbe('reconcilesGuardAborted');
-      // CINNY-207 AC2 STEP 3 (2026-07-04): guard-abort recovery leg.
-      // On the pre-first-fetch guard-abort (the AC2 silent-exit
-      // shape), invoke the recovery hook so the outer scheduler can
-      // enqueue a bounded guard-free retry. Fires ONLY when no
-      // fetch has happened yet — a mid-pass guard-abort (iterations
-      // > 0) means we already did work and the outer promise
-      // resolves normally; the retry would be redundant.
-      if (iterations === 0 && onGuardAborted) {
-        onGuardAborted();
-      }
       return { reason, repaired: false, fetchedCount, iterations, aborted: true };
     }
 
@@ -799,7 +755,6 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
     cachedPage,
     reason,
     onRepaired,
-    shouldContinue,
     debugTraceId,
   } = args;
 
@@ -894,138 +849,35 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
     threadId,
   });
 
-  // CINNY-207 AC2 STEP 3 (2026-07-04): guard-abort recovery. When
-  // the initial reconcile pass exits via the guard BEFORE the first
-  // fetch (the AC2 silent-exit shape — see STEP 2 red repro), the
-  // pass invokes this callback and we enqueue a bounded, one-shot
-  // retry through the scheduler with kind `'reconcile-retry'`. The
-  // retry runs the same executor logic with `shouldContinue:
-  // undefined` (only scheduler-driven signal.aborted can stop it)
-  // and `onGuardAborted: undefined` (so the retry itself cannot
-  // trigger another retry — the recovery is bounded to at most
-  // one). The retry key includes the different kind so it does not
-  // dedup against the doomed original schedule.
-  //
-  // Design decision (retry vs dirty-marker + open-hook):
-  //   The alternative — mark the thread dirty on abort, retry on
-  //   the next open — pushes the recovery latency to whenever the
-  //   user reopens. The retry-in-scheduler approach converges the
-  //   cache proactively (D7 SWR: "cached was right, revalidate
-  //   anyway"). Since the retry is bounded (one-shot per initial
-  //   schedule, dedup-guarded within its own kind), the extra
-  //   `/relations` request is cheap and its `onRepaired` callback
-  //   is a no-op for a component that has moved on (the callback
-  //   itself is internally guarded by `isCurrentThreadOpen()` on
-  //   the caller side — see threadOpenCacheFirst.ts:174).
-  //
-  //   The persist leg (`persistThreadEventCacheSnapshot` inside the
-  //   pass) writes the fresh state to IDB regardless — that alone
-  //   closes the AC2 rubric's "cache stays stale until reload"
-  //   failure mode. The `onRepaired` sink is best-effort on top.
-  const runPassOnce = ({
-    signal,
-    passShouldContinue,
-    passOnGuardAborted,
-    passReason,
-    passOnRepaired,
-  }: {
-    signal: AbortSignal;
-    passShouldContinue: (() => boolean) | undefined;
-    passOnGuardAborted: (() => void) | undefined;
-    passReason: ReconcileReason;
-    passOnRepaired: ((repairedEvents: readonly MatrixEvent[]) => void) | undefined;
-  }): Promise<ReconcileResult> => {
-    const room = providedRoom ?? mx.getRoom?.(roomId);
-    if (!room) {
-      countCacheProbe('reconcilesNoRoom');
-      return Promise.resolve({
-        reason: passReason,
-        repaired: false,
-        fetchedCount: 0,
-        iterations: 0,
-        aborted: false,
-      });
-    }
-    return runThreadReconcilePass({
-      mx,
-      sessionId,
-      room,
-      roomId,
-      threadId,
-      cachedPage,
-      onRepaired: passOnRepaired,
-      shouldContinue: passShouldContinue,
-      onGuardAborted: passOnGuardAborted,
-      signal,
-      reason: passReason,
-      debugTraceId,
-    });
-  };
-
   return scheduler.enqueue<ReconcileResult>({
     roomId,
     threadId,
     kind: 'reconcile',
     priority: 0,
-    execute: (signal) =>
-      runPassOnce({
+    execute: (signal) => {
+      const room = providedRoom ?? mx.getRoom?.(roomId);
+      if (!room) {
+        countCacheProbe('reconcilesNoRoom');
+        return Promise.resolve({
+          reason,
+          repaired: false,
+          fetchedCount: 0,
+          iterations: 0,
+          aborted: false,
+        });
+      }
+      return runThreadReconcilePass({
+        mx,
+        sessionId,
+        room,
+        roomId,
+        threadId,
+        cachedPage,
+        onRepaired,
         signal,
-        passShouldContinue: shouldContinue,
-        passOnRepaired: onRepaired,
-        passReason: reason,
-        // Recovery hook: on the guard-abort silent-exit (iterations=0),
-        // enqueue a bounded, guard-free retry pass. This closes the
-        // AC2 dedup-race gap where mount #2 dedups to a doomed
-        // mount #1 schedule — the retry runs after the initial
-        // pass resolves (its kind is `'reconcile-retry'` so it does
-        // not itself dedup against the doomed key).
-        passOnGuardAborted: () => {
-          countCacheProbe('reconcilesDirtyMarked');
-          // Bump `reconcilesScheduled` so the STEP 1 invariant
-          // `sum(outcomes) == scheduled` continues to hold: each
-          // outcome bump is paired with exactly one schedule bump.
-          // The retry has its own outcome (repaired / fetch-failed /
-          // no-divergence / etc. — signal-abort is the only path
-          // that avoids one, and that means the scheduler tore
-          // down mid-teardown which counts on the scheduler side).
-          countCacheProbe('reconcilesScheduled');
-          // Fire and forget — the caller of the ORIGINAL schedule
-          // does not wait for the retry. Callers who want to observe
-          // the retry outcome would schedule it directly. The
-          // primary consumer (threadOpenCacheFirst) treats the
-          // reconcile as fire-and-forget already (see the `void
-          // scheduleReconcile(...)` call at threadOpenCacheFirst.ts:167).
-          scheduler
-            .enqueue<ReconcileResult>({
-              roomId,
-              threadId,
-              kind: 'reconcile-retry',
-              priority: 0,
-              execute: (retrySignal) => {
-                countCacheProbe('reconcilesDirtyRetried');
-                return runPassOnce({
-                  signal: retrySignal,
-                  // Guard-free: only scheduler-driven signal.aborted
-                  // stops us. This is D7 SWR compliance — the cache
-                  // MUST converge to server truth on a schedule that
-                  // was fired at least once, even if the mount that
-                  // fired it walked away.
-                  passShouldContinue: undefined,
-                  // No recursive recovery: the retry cannot itself
-                  // enqueue another retry.
-                  passOnGuardAborted: undefined,
-                  // Preserve the caller's onRepaired sink — the
-                  // sink is internally guarded by isCurrentThreadOpen
-                  // so a "moved away" component naturally no-ops on
-                  // the render side, while the persist leg still
-                  // teaches the cache.
-                  passOnRepaired: onRepaired,
-                  passReason: reason,
-                });
-              },
-            })
-            .catch(() => undefined);
-        },
-      }),
+        reason,
+        debugTraceId,
+      });
+    },
   });
 };

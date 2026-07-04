@@ -106,21 +106,15 @@ export type CacheProbeCounters = {
   // `reconcilesRepaired`, EVERY code path out of the executor increments
   // exactly one counter, so the invariant
   //   reconcilesScheduled ==
-  //     reconcilesGuardAborted + reconcilesSignalAborted +
+  //     reconcilesSignalAborted +
   //     reconcilesFetchFailed + reconcilesNoDivergence +
   //     reconcilesNoRoom + reconcilesRoomScopeNoop +
   //     reconcilesRepaired
   // holds and can be asserted from a docker probe snapshot.
   //
-  //   reconcilesGuardAborted: `shouldContinue()` returned false inside
-  //     the fetch loop — the "guard-abort" leading hypothesis from
-  //     the 6-iteration diagnosis (silent exit with no /relations
-  //     request on the wire).
   //   reconcilesSignalAborted: `signal.aborted` was observed (in the
-  //     loop or post-loop). Distinguishing this from guard-abort
-  //     tells us whether the abort came from the scheduler
-  //     (abort/abortAll on engine teardown) or from the component
-  //     boundary (isCurrentThreadOpen flipping mid-open).
+  //     loop or post-loop). The scheduler drove this via
+  //     controller.abort — engine teardown / abort() call.
   //   reconcilesFetchFailed: fetchThreadRelationPage returned
   //     undefined (SDK threw) OR the fetch succeeded but the merged
   //     batch was empty (all pages returned empty chunks). Either way
@@ -134,19 +128,11 @@ export type CacheProbeCounters = {
   //   reconcilesRoomScopeNoop: room-scope reconcile (no threadId)
   //     completed its scheduler tripwire without fetching (tail
   //     catchup is owned by the gap-fill executor).
-  reconcilesGuardAborted: number;
   reconcilesSignalAborted: number;
   reconcilesFetchFailed: number;
   reconcilesNoDivergence: number;
   reconcilesNoRoom: number;
   reconcilesRoomScopeNoop: number;
-  // CINNY-207 AC2 STEP 3 (2026-07-04): bumps whenever the guard-abort
-  // recovery path marks a thread dirty for a retry on the next open.
-  // Complements `reconcilesGuardAborted` — every guard-abort should
-  // set the dirty marker so a subsequent open re-schedules once and
-  // converges without a page reload.
-  reconcilesDirtyMarked: number;
-  reconcilesDirtyRetried: number;
   // CINNY-207 AC2 STEP 4 iteration 2 (2026-07-04): distinguishable
   // upstream thread-open path counters. Together these prove which
   // route a thread open took, and specifically WHETHER the thread-scope
@@ -241,14 +227,11 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   reconcilesThreadNull: 0,
   reconcilesOnRepairedFired: 0,
   reconcilerPersists: 0,
-  reconcilesGuardAborted: 0,
   reconcilesSignalAborted: 0,
   reconcilesFetchFailed: 0,
   reconcilesNoDivergence: 0,
   reconcilesNoRoom: 0,
   reconcilesRoomScopeNoop: 0,
-  reconcilesDirtyMarked: 0,
-  reconcilesDirtyRetried: 0,
   threadOpens: 0,
   threadOpenScheduledCacheFirst: 0,
   threadOpenScheduledLifecycle: 0,
