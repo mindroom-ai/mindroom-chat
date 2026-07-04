@@ -664,6 +664,14 @@ describe('RoomTimeline', () => {
           prependOnPaginate = true;
           loadOlderChip.props.onClick();
           await flushAsyncWork(10);
+          // Task #125 follow-up: the prepend RENDER COMMIT waits for
+          // scroll quiescence (150ms with no scroll events, wall
+          // clock) before it lands — see scrollQuiescence.ts. This
+          // suite section runs real timers, so wait it out.
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(10);
         });
 
         await waitForCondition(
