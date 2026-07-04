@@ -88,6 +88,7 @@ describe('useRoomPaginationCommandController', () => {
         alive: () => true,
         handleTimelinePagination: vi.fn(),
         mx,
+        persistRoomEventCache: vi.fn(),
         recalibrateFilterOptsRef: {
           current: {
             room,
@@ -169,6 +170,7 @@ describe('useRoomPaginationCommandController', () => {
         alive: () => true,
         handleTimelinePagination: vi.fn(),
         mx,
+        persistRoomEventCache: vi.fn(),
         recalibrateFilterOptsRef: {
           current: {
             room,
@@ -249,6 +251,7 @@ describe('useRoomPaginationCommandController', () => {
         alive: () => true,
         handleTimelinePagination: vi.fn(),
         mx,
+        persistRoomEventCache: vi.fn(),
         recalibrateFilterOptsRef: {
           current: {
             room,

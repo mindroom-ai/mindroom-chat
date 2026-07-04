@@ -9,6 +9,7 @@
  */
 
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import type { EnginePersistFacade } from './enginePersistFacade';
 
 /**
  * Live event dispatch metadata as observed by the engine. This is a
@@ -62,9 +63,10 @@ export type MindroomSyncEngine = EngineLifecycle & {
    */
   isLiveMode(): boolean;
   /**
-   * Test/debug hook: run a callback under the assumption that the
-   * engine has already flipped to live mode. Intentionally not
-   * exposed in the public typing — it exists on the instance and
-   * tests reach for it directly.
+   * Persist facade exposed to the React tree. CINNY-207 P3.3 rewires
+   * the fetch controllers off the deleted
+   * `useThreadCachePersistenceController` onto `engine.persist` —
+   * signatures match the pre-strip props, only the wiring changed.
    */
+  readonly persist: EnginePersistFacade;
 };

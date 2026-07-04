@@ -37,6 +37,7 @@ import type {
 import { createSessionId } from '../../state/sessions';
 import { createEngineWriteThrough, type EngineWriteThrough } from './engineWriteThrough';
 import { createEngineGapTracker, type EngineGapTracker } from './engineGapTracker';
+import { createEnginePersistFacade, type EnginePersistFacade } from './enginePersistFacade';
 import type { EngineLiveEventMeta, MindroomSyncEngine } from './types';
 
 const LIVE_SYNC_STATES: ReadonlySet<string> = new Set(['PREPARED', 'SYNCING', 'CATCHUP']);
@@ -72,16 +73,22 @@ export type CreateMindroomSyncEngineOptions = {
    * Optional gap tracker override for tests.
    */
   gapTracker?: EngineGapTracker;
+  /**
+   * Optional persist facade override for tests.
+   */
+  persist?: EnginePersistFacade;
 };
 
 export const createMindroomSyncEngine = ({
   mx,
   writeThrough,
   gapTracker,
+  persist,
 }: CreateMindroomSyncEngineOptions): MindroomSyncEngine => {
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
   const effectiveWriteThrough = writeThrough ?? createEngineWriteThrough({ sessionId });
   const effectiveGapTracker = gapTracker ?? createEngineGapTracker({ mx, sessionId });
+  const effectivePersist = persist ?? createEnginePersistFacade({ sessionId });
 
   let started = false;
   let liveMode = false;
@@ -209,5 +216,6 @@ export const createMindroomSyncEngine = ({
     start,
     stop,
     isLiveMode: () => liveMode,
+    persist: effectivePersist,
   };
 };

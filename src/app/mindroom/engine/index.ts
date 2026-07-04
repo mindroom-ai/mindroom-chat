@@ -32,3 +32,11 @@ export type {
   EngineLiveEventMeta,
   MindroomSyncEngine,
 } from './types';
+export { createEnginePersistFacade } from './enginePersistFacade';
+export type {
+  EnginePersistFacade,
+  PersistRoomEventCache,
+  PersistThreadEventCache,
+  PersistThreadCacheFromRoomEvents,
+  QueueRoomThreadCachePersist,
+} from './enginePersistFacade';
