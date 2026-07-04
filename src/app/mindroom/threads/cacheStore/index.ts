@@ -7,6 +7,7 @@ export {
   MINDROOM_CACHE_DB_BASE_NAME,
   CACHE_STORE_DB_VERSION,
   CACHE_BYTE_BUDGET_BYTES,
+  MAX_CACHE_BEFORE_TOKENS,
   getCacheStoreByteBudget,
   __setCacheStoreByteBudgetForTests,
   buildEventCacheKey,

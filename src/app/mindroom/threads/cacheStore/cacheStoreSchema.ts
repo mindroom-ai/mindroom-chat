@@ -45,6 +45,11 @@ export const LEGACY_WIPE_MARKER_META_KEY = '__cacheStore|migration';
 // `THREAD_EDIT_COMPACTION_DEBOUNCE_MS` is mocked in P1.4.
 export const CACHE_BYTE_BUDGET_BYTES = 1_073_741_824;
 
+// CINNY-207 P2.2 commit 2 (F3): cap on beforeTokens map size per meta
+// record. Re-exported from `eventCacheTokenUtils` so the CacheStore's
+// schema constants module is the single source of truth for tunables.
+export { MAX_CACHE_BEFORE_TOKENS } from '../eventCacheTokenUtils';
+
 let cacheByteBudgetOverride: number | undefined;
 export const getCacheStoreByteBudget = (): number =>
   cacheByteBudgetOverride ?? CACHE_BYTE_BUDGET_BYTES;
