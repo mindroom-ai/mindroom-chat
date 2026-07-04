@@ -262,8 +262,10 @@ export const mergeThreadRenderEvents = (
     const eventId = mEvent.getId();
     if (eventId) mergedById.set(eventId, mEvent);
   });
+  let incomingHadEditRelation = false;
   incomingEvents.forEach((mEvent) => {
     if (mEvent.getRelation()?.rel_type !== RelationType.Replace) return;
+    incomingHadEditRelation = true;
     const targetEventId = mEvent.getRelation()?.event_id;
     if (!targetEventId) return;
     const target = mergedById.get(targetEventId);
@@ -272,6 +274,9 @@ export const mergeThreadRenderEvents = (
       countCacheProbe('mergeSawEditRelationNoTargetChange');
     }
   });
+  if (incomingHadEditRelation) {
+    countCacheProbe('mergeSawIncomingEditRelation');
+  }
 
   return merged;
 };

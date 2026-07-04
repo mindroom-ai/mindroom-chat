@@ -210,6 +210,16 @@ export type CacheProbeCounters = {
   // instance and this merge is picking the un-repaired copy. See
   // threadRenderUtils.ts `mergeThreadRenderEvents`.
   mergeSawEditRelationNoTargetChange: number;
+  // CINNY-207 AC2 render-gap RG2 (2026-07-04): distinguishes
+  // hypothesis 1 (merge never receives the edit event) from
+  // hypothesis 2 (merge receives it and produces correct output, but
+  // downstream render swallows). Bumps once per merge call whose
+  // `incomingEvents` contains ANY m.replace event, regardless of
+  // whether the target's replacingEvent() is set. If this counter is
+  // 0 while supplementalEventsExecuted is >0, the sink fired but the
+  // re-render / state propagation is not delivering the incoming
+  // batch to the merge — the seam is between the sink and the memo.
+  mergeSawIncomingEditRelation: number;
   // CINNY-207 AC2 render-gap RG1 (2026-07-04): applyCachedReplaceRelations
   // ("hydrate applier") instance-identity observability. Diagnostic
   // for candidate (a) — the mechanism where the applier's
@@ -269,6 +279,7 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   supplementalEventsExecuted: 0,
   supplementalEventsSkippedEmpty: 0,
   mergeSawEditRelationNoTargetChange: 0,
+  mergeSawIncomingEditRelation: 0,
   hydrateApplierMutatedRenderHeldInstance: 0,
   hydrateApplierMutatedFreshInstance: 0,
 });
