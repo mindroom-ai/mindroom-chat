@@ -2,6 +2,50 @@
 
 ## Runbook
 
+### CINNY-207 AC2 STEP 4 iter 2 STEP b+c — skip named, RED repro (2026-07-04)
+
+- STEP b: one docker run of the AC2 spec against the Tuwunel matrix
+  fixture (`E2E_ENABLE_DEPLOYED_FIXTURE=0 bash
+  scripts/test-e2e-docker-matrix.sh
+  e2e/live/cinny207-stale-cache-divergence.spec.ts --trace on`).
+- Probe snapshot (playwright trace, `[cinny-207] ac2-probe t30s`
+  line, invariant `threadOpens == sum(scheduled + skip)` holds:
+  `2 == 0 + 0 + 1 + 1`):
+  - `threadOpens = 2`
+  - `threadOpenSkipCacheFirstBackfillCompleted = 1`  ← the return-nav open
+  - `threadOpenSkipCacheFirstPostHydrateGuard   = 1`  ← the first-open cleanup
+  - `threadOpenScheduledCacheFirst = 0`
+  - `threadOpenScheduledLifecycle  = 0`
+  - `reconcilesScheduled = 1`   (all from `noteRoomFocused`, the
+                                room-scope tripwire)
+  - `reconcilesRoomScopeNoop = 1`
+- Mechanism named: after
+  `backfillThreadRelationsIntoCache` returns `{completed: true}`,
+  `runThreadOpenCacheFirst` early-returns with
+  `shouldContinue: false` at `threadOpenCacheFirst.ts:213` WITHOUT
+  scheduling any reconcile. The lifecycle controller then respects
+  the early-out at `threadOpenLifecycleController.ts:192` and
+  skips its own partial-coverage schedule at line 220. Any
+  server-side divergence that landed AFTER the backfill window
+  stays frozen in the cache until the next full reload.
+- This violates D7 by construction: "coverage decides PAINT,
+  never REVALIDATE" — a complete-coverage paint MUST still
+  schedule a revalidate.
+- STEP c: minimized unit repro in
+  `threadOpenBackfillCompletedSkip.test.ts` — two tests, both
+  green. Test 1 documents pre-fix behavior (skip counter bumps,
+  no schedule fires). Test 2 is `it.fails` and asserts the D7
+  invariant (a completed backfill DOES schedule a reconcile with
+  reason `open-backfill-completed`); once STEP d lands the fix,
+  the `it.fails` marker is removed and the assertion turns green.
+- Validation: `npx tsc --noEmit` clean; `npx vitest run
+  src/app/mindroom/threads/__tests__/threadOpenBackfillCompletedSkip.test.ts`
+  2/2; probe extraction script logged in commit body.
+- Next: STEP d — implement the D7-preserving fix (call
+  `scheduleReconcile` before the `shouldContinue: false` return on
+  the backfill-completed branch) and confirm the STEP c
+  `it.fails` flips to a regular `it()`.
+
 ### CINNY-207 AC2 STEP 4 iter 2 STEP a — upstream thread-open probe counters (2026-07-04)
 
 - Context: STEP 4 iter 1 proved the reconciler exit-path counters
