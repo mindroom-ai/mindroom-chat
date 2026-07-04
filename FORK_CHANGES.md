@@ -136,10 +136,16 @@
       `m.room.message` events terminate the pairing run (classified by
       sender only, since redaction strips content metadata). Regression
       tests added for both redacted-question and redacted-agent cases.
-  - Accepted as-is: `matchMedia('(pointer: fine)')` sampled once per mount
-    (matches reference implementation; remount per room/thread re-samples),
-    and slider semantics with Enter-to-jump (focus always sets an index, so
-    a focused slider always has a value).
+  - Nit follow-ups (same PR): the `(pointer: fine)` probe now subscribes to
+    the media query's `change` event (same pattern as `useSystemThemeKind`),
+    so attaching/detaching a mouse toggles the minimap without a room
+    switch; the fixture script builds login JSON via `json.dumps` so
+    overridden passwords with quotes/backslashes can't produce invalid
+    request bodies.
+  - Accepted as-is: slider semantics with Enter-to-jump — `role="slider"`
+    with `aria-valuetext` is what announces question/answer previews during
+    arrow-key navigation; alternative roles lose that or require
+    restructuring the presentational stripes into a real listbox.
 
 ### Thread overview toolbar: top spacing + inline tag filters (2026-07-03)
 

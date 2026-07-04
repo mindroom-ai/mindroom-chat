@@ -1549,9 +1549,17 @@ export function RoomTimeline({
   const [minimapStripMap] = useState(() => new Map<string, HTMLSpanElement>());
   // Fine-pointer only (like the reference implementation): touch devices
   // never see the minimap, so skip deriving items and tracking scroll there.
-  const [minimapPointerFine] = useState(
+  const [minimapPointerFine, setMinimapPointerFine] = useState(
     () => typeof window !== 'undefined' && (window.matchMedia?.('(pointer: fine)').matches ?? false)
   );
+  useEffect(() => {
+    const queryList =
+      typeof window === 'undefined' ? undefined : window.matchMedia?.('(pointer: fine)');
+    if (!queryList) return undefined;
+    const handleChange = () => setMinimapPointerFine(queryList.matches);
+    queryList.addEventListener('change', handleChange);
+    return () => queryList.removeEventListener('change', handleChange);
+  }, []);
   const minimapEnabled = minimapPointerFine && !showCompactRoomView;
   const minimapEvents = threadId ? threadEvents : threadFilteredEvents;
   const minimapItems = useMemo(
