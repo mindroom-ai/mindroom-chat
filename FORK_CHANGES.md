@@ -2,6 +2,97 @@
 
 ## Runbook
 
+### CINNY-207 P3 gate - Redaction thread attribution from SDK thread sets (2026-07-03)
+
+- Status: Complete locally on `cache-overhaul/10-p3-sync-engine`, one
+  focused commit on top of the P3.3 review-fix commit `0bb63df4`.
+  Docker gate on the P3.3 tip caught the stop-emoji spec at the
+  assertion that a `m.room.redaction` record exists in the THREAD
+  cache after redacting a stop reaction; this commit restores that
+  invariant.
+- Root cause (verified red-first, evidence below):
+  - After the P3.3 strip, the engine's redaction path calls
+    `planRedactionCacheCleanup` with `fallbackThreadId: undefined`
+    (no viewer state — the engine is client-level, not per-room).
+    For a reaction on a thread reply, `RoomEvent.Redaction` fires
+    AFTER the SDK prunes the target — so the target has no
+    `m.relates_to` and often no `threadRootId`, and the redaction
+    event itself is not a thread event. Result: every hint in the
+    plan's chain (`getThreadCacheTargetId` → `target.threadRootId`
+    → `redaction.threadRootId`) returns undefined,
+    `threadCacheTargetId` is undefined, and the engine persists
+    the redaction record to ROOM scope only. Thread hydration reads
+    THREAD-scope records, so the P1.2 I2 protection (re-applying
+    the redaction against stale un-pruned `/relations` copies and
+    gappy-sync reloads — see the P1.2 runbook entry) is silently
+    lost for exactly this case.
+- Fix (chosen site: the plan, not the engine handler):
+  - `planRedactionCacheCleanup` gains a
+    `findSingleSdkThreadContaining(room, redactedEventId)` fallback
+    when the event-side hint chain is empty. Iterates
+    `room.getThreads()` and asks each thread's
+    `getUnfilteredTimelineSet().findEventById(id)` — SDK's own
+    event index, O(threads). Exactly one hit → use it. Ambiguous
+    (>1) or zero hits → return undefined, so the caller falls
+    through to its existing by-event-id scan + room-scope persist
+    path (no guessing).
+  - `threadTargetFromFallback` is structurally `false` on the
+    SDK-derivation branch: physical membership in the thread's
+    timelineSet IS the event's attribution (the SDK put it there
+    for a reason), so the belt-and-braces room persist that the
+    fallback flag triggers would double-store the redaction.
+  - Engine handler stays declarative — it just consumes
+    `plan.threadCacheTargetId`. No engine-side helper needed;
+    the P3.1 header block already documents the
+    `fallbackThreadId: undefined` invariant.
+  - Site choice rationale: the plan already receives `room` and
+    it centralizes the entire attribution hint chain in one pure
+    function. Putting the derivation in the handler would fork
+    the "attribution resolution" concept across two files, and
+    unit-testing the pure plan is simpler than mocking the whole
+    engine write path for what is fundamentally an attribution
+    question. An inherited draft that put the fix in the handler
+    was reverted for exactly that reason (colleague independently
+    endorsed the plan-level choice).
+- Scope: three files changed, all under `engine/`.
+  - `redactionCacheLifecycle.ts`: +30 lines (SDK-scan helper +
+    plan wiring + expanded doc block on the fallback semantics).
+    Zero deletions from the existing hint chain — the SDK
+    derivation is strictly an added fallback layer.
+  - `redactionCacheLifecycle.test.ts`: +76 lines, +3 tests
+    (single-hit / ambiguous-multi / zero-hit).
+  - `engineWriteThrough.redaction.test.ts` (new file, 244 lines,
+    3 tests): engine-boundary integration coverage — dispatch →
+    plan → deletes + persists, asserting the derived thread id
+    flows through both the delete path (keyed
+    `deleteThreadEventsFromCache`, not the by-event-id scan) and
+    the persist path (`persistThreadEventCacheSnapshot` with
+    `tailLoaded: undefined`), and that ambiguous / zero-hit cases
+    still hit the room-scope fallback.
+- Red-first evidence: before the fix landed on
+  `redactionCacheLifecycle.ts`, running the new tests failed exactly
+  as predicted:
+  - `redactionCacheLifecycle.test.ts` single-hit test: expected
+    `threadCacheTargetId: '$thread-root'`, got `undefined`.
+  - `engineWriteThrough.redaction.test.ts` stop-emoji test:
+    `persistThreadEventCacheSnapshot` called 0 times (expected 1).
+  - Ambiguous / zero-hit cases already passed (proves existing
+    fallback behavior is preserved).
+- Validation:
+  - `npx vitest run src/app/mindroom/engine/` → 60/60 green
+    (was 57 before this commit; +3 plan + 3 engine-redaction, and
+    the two adapted tests still pass).
+  - `npx vitest run src/app/mindroom/` → 226 files / 1950 tests
+    green (was 1944; +6, aligned with the engine delta).
+  - `npm run typecheck` clean.
+  - `npm run lint` → 18 warnings, 0 errors — baseline, zero delta.
+- Deviations: none. Semantics match the P1.2 controller path for
+  the (formerly common) case where the viewer had the correct
+  thread open — the SDK-derivation branch reaches the same thread
+  scope the pre-P3.3 code did via `fallbackThreadId`, without
+  needing the viewer at all. Ambiguous / zero-hit remain undefined
+  and fall through as before.
+
 ### CINNY-207 P3.3 review-fix - mergeThreadCacheFlag preserve-on-undefined (2026-07-03)
 
 - Status: Complete locally on `cache-overhaul/10-p3-sync-engine`, one
@@ -224,10 +315,40 @@
     + 1 (useRoomCachedBackState is covered via existing
     RoomTimeline.cache.test.ts on the harness path). Net delta on
     the mindroom suite: -19 tests, same architectural coverage.
+- Docker gate findings (P3.3 tip, 2026-07-03):
+  - `background-room-freshness` (AC6): PASSED. Client-level listener
+    coverage from the engine confirmed — F1 fixed as designed.
+  - `stop-emoji-redaction`: FAILED. Root-caused to attribution
+    gap in the engine's redaction path — after the strip removed the
+    viewer's "open thread" context, `planRedactionCacheCleanup` was
+    called with `fallbackThreadId: undefined`. A pruned reaction on
+    a thread reply has no `m.relates_to` (redacted away before
+    RoomEvent.Redaction fires) and no `threadRootId`, and the
+    redaction event itself is not a thread event, so the plan's
+    entire hint chain (`getThreadCacheTargetId` →
+    `target.threadRootId` → `redaction.threadRootId`) returned
+    undefined. Consequence: the redaction record persisted to
+    ROOM scope only, and the P1.2 I2 protection (re-applying the
+    cached redaction against stale un-pruned `/relations` copies
+    and gappy-sync reloads) was silently lost for thread hydration.
+    Fixed at the plan level: when every event-side hint is gone,
+    `planRedactionCacheCleanup` now scans `room.getThreads()` via
+    `EventTimelineSet.findEventById` for the redacted event id and,
+    when exactly one thread claims it, uses that thread as the
+    attribution (`threadTargetFromFallback: false` — SDK membership
+    IS the event's attribution, not a viewer-side guess). Ambiguous
+    (>1) and zero-hit cases keep the previous behavior (by-event-id
+    scan + room-scope persist). See the P3-gate runbook entry
+    above for the commit, tests (3 pure-plan + 3 engine-boundary,
+    red-first), and validation.
+  - `streamed-edit-cache-compaction`: FAILED, host-side flake
+    (`ERR_NETWORK_CHANGED` during the docker suite run — documented
+    as an environmental artifact of the docker gate, not a P3
+    regression). Recommend re-run.
 - Next steps:
-  - Team-lead docker e2e gate on the P3 tip (streamed-edit +
-    stop-emoji + background-freshness — background-freshness should
-    FLIP GREEN with the strip landed).
+  - Team-lead re-run of docker e2e after the P3 gate fix lands, to
+    confirm the stop-emoji flip and re-check the streamed-edit run
+    on a stable network.
   - Phase 4 (BackfillScheduler): the plan's P4.x steps become the
     next branch. The engine's write-through and persist facade are
     the drop-in surfaces the scheduler consumes.

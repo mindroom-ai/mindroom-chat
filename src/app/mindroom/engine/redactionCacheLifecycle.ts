@@ -65,16 +65,55 @@ export const planRedactionCacheCleanup = ({
     getThreadCacheTargetId(room, targetEvent) ??
     targetEvent.threadRootId ??
     redactionEvent.threadRootId;
-  const threadCacheTargetId = hintedThreadTargetId ?? fallbackThreadId;
+  // CINNY-207 P3 gate: when every event-side hint is gone (the docker-gate
+  // stop-emoji case — a pruned reaction with no threadRootId, no relation,
+  // on a thread reply), fall back to scanning the SDK's own thread
+  // timelineSets for the redacted event id. The pruned event physically
+  // still lives inside its thread's unfiltered timelineSet, and that
+  // membership IS the event's attribution (not a viewer-side guess), so
+  // callers must not treat this branch as `threadTargetFromFallback`.
+  // Ambiguous (multi-thread) or zero-hit cases keep the previous behavior:
+  // caller-side by-event-id scan + room-scope persist.
+  const sdkDerivedThreadTargetId = hintedThreadTargetId
+    ? undefined
+    : findSingleSdkThreadContaining(room, redactedEventId);
+  const threadCacheTargetId =
+    hintedThreadTargetId ?? sdkDerivedThreadTargetId ?? fallbackThreadId;
   const isReaction = targetEvent.getType() === 'm.reaction';
 
   return {
     redactedEventId,
     targetEvent,
     threadCacheTargetId,
-    threadTargetFromFallback: !hintedThreadTargetId && !!fallbackThreadId,
+    threadTargetFromFallback:
+      !hintedThreadTargetId && !sdkDerivedThreadTargetId && !!fallbackThreadId,
     deleteRecords: isReaction,
   };
+};
+
+/**
+ * Return the thread id whose unfiltered timelineSet contains the given
+ * event id, only when exactly one thread contains it. Multiple hits
+ * (ambiguous) or zero hits both return undefined so the caller falls
+ * through to its existing by-event-id scan + room-scope persist path
+ * instead of guessing an attribution.
+ *
+ * Uses `EventTimelineSet.findEventById` (SDK's own event index) rather
+ * than iterating live-timeline slices, so it stays O(threads).
+ */
+const findSingleSdkThreadContaining = (
+  room: Room,
+  redactedEventId: string
+): string | undefined => {
+  const threads = room.getThreads?.() ?? [];
+  let match: string | undefined;
+  for (const thread of threads) {
+    const found = thread.getUnfilteredTimelineSet().findEventById(redactedEventId);
+    if (!found) continue;
+    if (match) return undefined;
+    match = thread.id;
+  }
+  return match;
 };
 
 type RelationsLike = {

@@ -28,12 +28,24 @@ const makeEvent = ({
     isThreadRoot: false,
   } as unknown as MatrixEvent);
 
-const makeRoom = (eventsById: Record<string, MatrixEvent>): Room =>
-  ({
+const makeRoom = (
+  eventsById: Record<string, MatrixEvent>,
+  threads: Array<{ id: string; eventIds: string[] }> = []
+): Room => {
+  const threadObjects = threads.map((thread) => ({
+    id: thread.id,
+    getUnfilteredTimelineSet: () => ({
+      findEventById: (eventId: string) =>
+        thread.eventIds.includes(eventId) ? eventsById[eventId] : undefined,
+    }),
+  }));
+  return {
     roomId: '!room:example.org',
     findEventById: (eventId: string) => eventsById[eventId],
     getThread: () => undefined,
-  } as unknown as Room);
+    getThreads: () => threadObjects,
+  } as unknown as Room;
+};
 
 describe('planRedactionCacheCleanup', () => {
   it('returns undefined for non-redaction events', () => {
@@ -127,6 +139,78 @@ describe('planRedactionCacheCleanup', () => {
   it('leaves the thread target undefined when no hint exists (scan fallback)', () => {
     const prunedReaction = makeEvent({ eventId: '$reaction', type: 'm.reaction' });
     const room = makeRoom({ $reaction: prunedReaction });
+    const redaction = makeEvent({
+      eventId: '$redaction',
+      isRedaction: true,
+      associatedId: '$reaction',
+    });
+
+    const plan = planRedactionCacheCleanup({ room, redactionEvent: redaction });
+    expect(plan).toMatchObject({
+      redactedEventId: '$reaction',
+      threadCacheTargetId: undefined,
+      threadTargetFromFallback: false,
+      deleteRecords: true,
+    });
+  });
+
+  it('derives thread attribution from SDK thread membership when the pruned reaction lost its hints and exactly one thread contains it (CINNY-207 P3 gate)', () => {
+    // Reaction is pruned before RoomEvent.Redaction fires: no threadRootId,
+    // no relation, so getThreadCacheTargetId / targetEvent.threadRootId /
+    // redactionEvent.threadRootId all return undefined. The SDK still has
+    // the (pruned) event in the thread's unfiltered timelineSet — that's
+    // the only remaining attribution signal, and it MUST be honored so the
+    // redaction record persists to thread scope (invariant I2).
+    const prunedReaction = makeEvent({ eventId: '$reaction', type: 'm.reaction' });
+    const room = makeRoom({ $reaction: prunedReaction }, [
+      { id: '$other-thread', eventIds: ['$unrelated'] },
+      { id: '$thread-root', eventIds: ['$reaction'] },
+    ]);
+    const redaction = makeEvent({
+      eventId: '$redaction',
+      isRedaction: true,
+      associatedId: '$reaction',
+    });
+
+    const plan = planRedactionCacheCleanup({ room, redactionEvent: redaction });
+    expect(plan).toMatchObject({
+      redactedEventId: '$reaction',
+      threadCacheTargetId: '$thread-root',
+      // SDK membership IS the event's attribution, not a viewer-side guess,
+      // so this must NOT be treated as fallback (would trigger a
+      // duplicate room-scope persist).
+      threadTargetFromFallback: false,
+      deleteRecords: true,
+    });
+  });
+
+  it('leaves the thread target undefined when the pruned target appears in multiple SDK threads (ambiguous)', () => {
+    const prunedReaction = makeEvent({ eventId: '$reaction', type: 'm.reaction' });
+    const room = makeRoom({ $reaction: prunedReaction }, [
+      { id: '$thread-a', eventIds: ['$reaction'] },
+      { id: '$thread-b', eventIds: ['$reaction'] },
+    ]);
+    const redaction = makeEvent({
+      eventId: '$redaction',
+      isRedaction: true,
+      associatedId: '$reaction',
+    });
+
+    const plan = planRedactionCacheCleanup({ room, redactionEvent: redaction });
+    // Ambiguous → keep the by-event-id scan + room-scope persist behavior.
+    expect(plan).toMatchObject({
+      redactedEventId: '$reaction',
+      threadCacheTargetId: undefined,
+      threadTargetFromFallback: false,
+      deleteRecords: true,
+    });
+  });
+
+  it('leaves the thread target undefined when the pruned target is in zero SDK threads', () => {
+    const prunedReaction = makeEvent({ eventId: '$reaction', type: 'm.reaction' });
+    const room = makeRoom({ $reaction: prunedReaction }, [
+      { id: '$thread-a', eventIds: ['$other'] },
+    ]);
     const redaction = makeEvent({
       eventId: '$redaction',
       isRedaction: true,
