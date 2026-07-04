@@ -2,6 +2,34 @@
 
 ## Runbook
 
+### CINNY-207 P1.6 - Cap the legacy preload setting (2026-07-03)
+
+- Status:
+  - Complete locally (PR 8 of the cache-overhaul stack). Phase 1 is now
+    fully landed (P1.1-P1.6).
+- Summary:
+  - Finding F11: `sanitizePaginationLimit` had a minimum (50) but no
+    maximum, so arbitrarily large stored values drove the unbounded
+    eager-preload loop (F13) — hundreds of sequential `/messages` calls.
+  - New `MAX_PAGINATION_LIMIT = 10000` (equals the default — already the
+    design's heavy end at ~50 sequential batches); `sanitizePaginationLimit`
+    clamps both ends, which covers the settings UI commit path and every
+    stored-value read (`MindroomRoomTimeline` sanitizes on read).
+  - Settings UI: `max` attribute on the number input; description says
+    "Minimum 50, maximum 10,000."
+- Decisions:
+  - Interim guard only — the setting is removed entirely in Phase 6 (D4)
+    in favor of the tiered prefetch settings group.
+- Next steps:
+  - Phase 1 complete. Next: P0.3 baseline capture (Scorecard "before"
+    numbers) + docker e2e run of the P1.4-flipped spec, then Phase 2
+    (CacheStore consolidation, P2.1).
+- Validation:
+  - Red check: with `preloadSettings.ts` stashed, the new max-clamp test
+    fails; green with the clamp.
+  - `npx vitest run src/app/mindroom/threads/preloadSettings.test.ts` (4/4),
+    full thread suite, `npm run typecheck`, `npm run build`, `npm run lint`.
+
 ### CINNY-207 P1.5 - Surface cache write failures (2026-07-03)
 
 - Status:

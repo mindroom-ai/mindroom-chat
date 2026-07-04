@@ -504,6 +504,12 @@ new engine-scoped guard file):
 
 ## 9. Status log
 
+- 2026-07-03 — **P1.6 landed** (PR 8): legacy preload setting hard-capped
+  (F11). `MAX_PAGINATION_LIMIT = 10000` enforced in `sanitizePaginationLimit`
+  (covers UI commit and stored-value reads) and reflected in the settings
+  input. Interim guard until the Phase 6 settings replacement (D4).
+  **Phase 1 (P1.1-P1.6) is now fully landed.**
+
 - 2026-07-03 — **P1.5 landed** (PR 7): cache write failures surfaced (F4).
   `cacheHealth.ts` counts every failure, logs the first per scope, and a
   `QuotaExceededError` degrades the session to cache-read-only (writes

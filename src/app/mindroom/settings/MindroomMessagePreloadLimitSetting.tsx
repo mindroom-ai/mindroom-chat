@@ -4,7 +4,11 @@ import { isKeyHotkey } from 'is-hotkey';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
 import { useSetting } from '../../state/hooks/settings';
-import { MIN_PAGINATION_LIMIT, sanitizePaginationLimit } from '../threads/preloadSettings';
+import {
+  MAX_PAGINATION_LIMIT,
+  MIN_PAGINATION_LIMIT,
+  sanitizePaginationLimit,
+} from '../threads/preloadSettings';
 import { mindroomSettingsAtom } from './mindroomSettings';
 
 type MindroomMessagePreloadLimitSettingProps = {
@@ -18,7 +22,7 @@ export function MindroomMessagePreloadLimitSetting({
     <SequenceCard className={className} variant="SurfaceVariant" direction="Column">
       <SettingTile
         title="Message Preload Limit"
-        description="Target number of history entries to preload for rooms and threads. The client fetches them in smaller batches under the hood. Minimum 50. Higher values use more memory."
+        description="Target number of history entries to preload for rooms and threads. The client fetches them in smaller batches under the hood. Minimum 50, maximum 10,000. Higher values use more memory."
         after={<MindroomMessagePreloadLimitInput />}
       />
     </SequenceCard>
@@ -71,6 +75,7 @@ export function MindroomMessagePreloadLimitInput() {
       radii="300"
       type="number"
       min={MIN_PAGINATION_LIMIT.toString()}
+      max={MAX_PAGINATION_LIMIT.toString()}
       value={currentLimit}
       onChange={handleChange}
       onKeyDown={handleKeyDown}

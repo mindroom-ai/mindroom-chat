@@ -1,5 +1,11 @@
 export const DEFAULT_PAGINATION_LIMIT = 10000;
 export const MIN_PAGINATION_LIMIT = 50;
+// CINNY-207 P1.6 (finding F11): interim hard upper clamp — the setting had a
+// minimum but no maximum, so arbitrarily large values drove the unbounded
+// eager-preload loop (F13). The whole setting is replaced by the Phase 6
+// prefetch settings group (D4); until then the cap equals the default, which
+// is already the design's heavy end (~50 sequential /messages calls).
+export const MAX_PAGINATION_LIMIT = 10000;
 export const THREAD_BATCH_SIZE = 200;
 export const ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE = 200;
 
@@ -24,5 +30,5 @@ export const THREAD_EDIT_COMPACTION_DEBOUNCE_MS = 1000;
 
 export const sanitizePaginationLimit = (value: unknown): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_PAGINATION_LIMIT;
-  return Math.max(Math.trunc(value), MIN_PAGINATION_LIMIT);
+  return Math.min(Math.max(Math.trunc(value), MIN_PAGINATION_LIMIT), MAX_PAGINATION_LIMIT);
 };
