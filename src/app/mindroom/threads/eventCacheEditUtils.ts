@@ -118,8 +118,17 @@ export const applyCachedRedactions = (room: Room, events: MatrixEvent[]): Redact
     // is idempotent — re-applying a different cached redaction would only
     // churn `redacted_because` metadata away from whatever the live
     // timeline attached (cached state never wins over the instance's
-    // current state, invariant I2). The deterministic pick below therefore
-    // only decides which redaction to apply to a not-yet-redacted instance.
+    // current state, invariant I2). This also covers the reload case: a
+    // target persisted while redacted carries `unsigned.redacted_because`
+    // in its record, so hydration reconstructs it as redacted and returns
+    // here. The pick below therefore only runs when NO ground truth about
+    // the live-attached redaction exists (standalone redaction records
+    // whose target record predates the redaction). Live SDK semantics for
+    // duplicate redactions are last-arrival-wins and arrival order is not
+    // recoverable from cache, so the D12 ordering is a deterministic proxy
+    // for it; any tied redaction prunes the target identically — only the
+    // `redacted_because` metadata differs, and no choice available at
+    // hydration time can be more faithful.
     if (targetEvent.isRedacted()) return;
 
     const latestRedaction = getLatestEvent(redactionEvents);
