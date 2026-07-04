@@ -193,6 +193,43 @@ export const pickPreferredThreadRenderEvent = (
     }
   }
 
+  // CINNY-207 AC2 render-gap RG5-fix2 (2026-07-04): structural monotonic
+  // preference on the RAW `.replacingEvent()` field, consulted AFTER
+  // the effective-replacement block above so it does not disturb the
+  // D12-style ts→event_id ordering that block enforces when both sides
+  // have an effective replacement. Encodes "repaired state is monotonic
+  // within a thread-open" — a non-repaired same-id instance cannot
+  // displace a repaired one, whether the repair is same-sender-visible
+  // (handled by the effective block) or raw-only (handled here).
+  //
+  // Threat this closes: `handleThreadNewReply` fires AFTER a reconcile
+  // repair with the SYNC-delivered instance for the same target id;
+  // that instance lacks any replacement. If the repaired instance's
+  // `.replacingEvent()` returns non-null but
+  // `getEffectiveReplacementEvent` drops it (e.g. `isSameSenderEditEvent`
+  // filter fails on a foreign-sender edit, or the raw replacement is
+  // one the helper rejects on shape), the block above cannot fire and
+  // the picker previously fell through to `return incomingEvent` —
+  // silently wiping the repair through a different door than the one
+  // RG5's onRepaired hydrated-view fix closed.
+  //
+  // Symmetric asymmetric check: if exactly one side has ANY raw
+  // replacement while the other has none, prefer the one that does.
+  // If both have raw replacements the effective helper rejected, we
+  // fall through to the final incoming-wins tie-break — both sides
+  // are equally "questionable" by the helper's rules; picking either
+  // is defensible and matches pre-fix behavior for this shape.
+  //
+  // One rule, two seams: this picker is used by both `mergeThreadRenderEvents`
+  // (sink merge post-`setSupplementalThreadEvents`) and — transitively —
+  // by `buildThreadEvents`' final merge that combines SDK
+  // `thread.events` and fallback state. The same monotonicity rule
+  // therefore holds at both seams without duplicating logic.
+  const existingHasRawReplacement = !!existingEvent.replacingEvent();
+  const incomingHasRawReplacement = !!incomingEvent.replacingEvent();
+  if (existingHasRawReplacement && !incomingHasRawReplacement) return existingEvent;
+  if (!existingHasRawReplacement && incomingHasRawReplacement) return incomingEvent;
+
   return incomingEvent;
 };
 

@@ -973,4 +973,177 @@ describe('useThreadRenderState', () => {
 
     renderer.unmount();
   });
+
+  // CINNY-207 AC2 render-gap RG5-fix2 (2026-07-04): required regression
+  // test for team-lead's B-approval same-id merge preference addition.
+  //
+  // Two shapes, one rule (structural monotonic preference):
+  //
+  //  (i) COMMON PATH — same-sender edit. The existing pre-fix picker
+  //      already handles this correctly (getEffectiveReplacementEvent
+  //      yields the replacement for the repaired side and
+  //      `preferredReplacement === existingReplacement && !==
+  //      incomingReplacement` returns existingEvent). The fix must NOT
+  //      regress this shape.
+  //
+  //  (ii) EDGE PATH — the effective-replacement helper drops the
+  //       replacement (e.g. sender mismatch on the edit event vs the
+  //       target sender — `isSameSenderEditEvent` filter drops it, or
+  //       `_replacingEvent` was cleared post-apply by an SDK Relations
+  //       recalc while no bundled fallback exists). Pre-fix picker
+  //       falls through to `return incomingEvent` and silently wipes
+  //       the repair. Post-fix, the raw `.replacingEvent()` presence
+  //       check runs BEFORE the effective dance and pins the repaired
+  //       instance.
+  //
+  // Both shapes model the exact production sequence:
+  //   1. Sink call #1 with hydrated view (target + m.replace), the
+  //      internal hydrate mutates target via makeReplaced. This is the
+  //      onRepaired(mergedForHydrate) path from RG5-fix (commit
+  //      52af9eed) — the reconciler-repaired view flowing through the
+  //      sink.
+  //   2. Sink call #2 with a fresh same-id instance, no replacement.
+  //      This is `handleThreadNewReply → setSupplementalThreadEvents(
+  //      threadId, [syncInstance])` — the NewReply late-arrival.
+  //   3. Registry MUST still return an instance whose .replacingEvent()
+  //      is set — no matter which of hydrated or fresh instance the
+  //      picker chose, the survivor must carry the repair.
+  it('AC2 render-gap RG5-fix2: post-repair NewReply with same-sender edit is preserved (CINNY-207 AC2 render-gap RG5-fix2)', () => {
+    // Shape (i) — common path. Both pre- and post-fix pickers must
+    // return the repaired instance for this shape (regression guard).
+    const rootEvent = makeMessageEvent('$root', 1);
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+    const thread = makeThread(rootEvent, []);
+
+    const { getSnapshot, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: true,
+    });
+
+    const hydratedTarget = makeMessageEvent(
+      '$edit-target',
+      3,
+      '@alice:example.org',
+      'edit-target v1'
+    );
+    const editEventC = makeEditEvent('$edit-c', 4, '$edit-target');
+
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [hydratedTarget, editEventC]);
+    });
+    expect(hydratedTarget.replacingEvent()).toBe(editEventC);
+
+    const syncArrivalTarget = makeMessageEvent(
+      '$edit-target',
+      3,
+      '@alice:example.org',
+      'edit-target v1'
+    );
+    expect(syncArrivalTarget.replacingEvent()).toBeNull();
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [syncArrivalTarget]);
+    });
+
+    const afterNewReply = getSnapshot().threadEvents.find(
+      (mEvt) => mEvt.getId() === '$edit-target'
+    );
+    expect(afterNewReply).toBeDefined();
+    expect(afterNewReply?.replacingEvent()).toBe(editEventC);
+
+    renderer.unmount();
+  });
+
+  it('AC2 render-gap RG5-fix2: post-repair NewReply preserves repair even when effective-replacement helper drops the edit (CINNY-207 AC2 render-gap RG5-fix2)', () => {
+    // Shape (ii) — edge path. The repaired instance has
+    // `.replacingEvent()` non-null but the edit event's sender differs
+    // from the target sender, so `getEffectiveReplacementEvent`'s
+    // `isSameSenderEditEvent` filter drops it. Pre-fix picker falls
+    // through to `return incomingEvent` and wipes the repair.
+    // Post-fix, the raw-replacement presence check pins the repaired
+    // instance regardless of the effective helper's decision.
+    //
+    // This scenario also stands in for the RG4d-adjacent shape where
+    // `_replacingEvent` remains set on the fallback instance but the
+    // effective helper independently returns undefined (e.g. an SDK
+    // Relations recalc raced the query, or a bundled fallback is
+    // absent and the raw replacement's shape is one the helper would
+    // reject) — the picker must not silently choose the non-repaired
+    // sibling in any of those subtly-different circumstances.
+    const rootEvent = makeMessageEvent('$root', 1);
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+    const thread = makeThread(rootEvent, []);
+
+    const { getSnapshot, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: true,
+    });
+
+    const targetSender = '@alice:example.org';
+    // Attach a foreign-sender edit event directly via makeReplaced;
+    // sink hydrate would normally apply a same-sender edit, but the
+    // helper's filter drops any replacement whose sender differs.
+    // Pre-fix, this shape lets the non-repaired incoming sibling win
+    // — that is exactly the door the fix closes.
+    const hydratedTarget = makeMessageEvent(
+      '$edit-target',
+      3,
+      targetSender,
+      'edit-target v1'
+    );
+    const foreignSenderEdit = makeEditEvent(
+      '$edit-foreign',
+      4,
+      '$edit-target',
+      '@bob:example.org'
+    );
+    // Bypass the sink's own hydrate (which wouldn't set a foreign-
+    // sender replacement in the first place) by populating the
+    // replacement directly. This isolates the picker's fall-through
+    // behavior from the applier's sender rules.
+    hydratedTarget.makeReplaced(foreignSenderEdit);
+    expect(hydratedTarget.replacingEvent()).toBe(foreignSenderEdit);
+
+    act(() => {
+      // Feed the hydrated target into the sink without the edit event
+      // in the batch — the sink's hydrate scan finds no replace
+      // relation to apply, so the raw `.replacingEvent()` we just set
+      // is what carries into the fallback registry.
+      getSnapshot().setSupplementalThreadEvents('$root', [hydratedTarget]);
+    });
+    expect(hydratedTarget.replacingEvent()).toBe(foreignSenderEdit);
+
+    const syncArrivalTarget = makeMessageEvent(
+      '$edit-target',
+      3,
+      targetSender,
+      'edit-target v1'
+    );
+    expect(syncArrivalTarget.replacingEvent()).toBeNull();
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [syncArrivalTarget]);
+    });
+
+    // Post-fix invariant: the survivor instance carries the raw
+    // replacement (the foreign-sender edit event we attached).
+    // Pre-fix (before the raw-replacement presence check), the picker
+    // would return incomingEvent (syncArrivalTarget) and this
+    // assertion would fail.
+    const afterNewReply = getSnapshot().threadEvents.find(
+      (mEvt) => mEvt.getId() === '$edit-target'
+    );
+    expect(afterNewReply).toBeDefined();
+    expect(afterNewReply?.replacingEvent()).toBe(foreignSenderEdit);
+
+    renderer.unmount();
+  });
 });
