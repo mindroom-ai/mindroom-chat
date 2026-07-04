@@ -458,6 +458,27 @@ const runThreadReconcilePass = async ({
     return { reason, repaired: false, fetchedCount, iterations, aborted: true };
   }
 
+  // CINNY-207 P5 review (greptile P1: paged batch order reverses):
+  // when divergence spans multiple `/relations` pages, each backward
+  // page is reversed internally (older→newer within the page), but
+  // page 1's events are chronologically NEWER than page 2's. Naive
+  // concatenation produces [page1_older..page1_newer, page2_older..
+  // page2_newer] where all of page 2 < all of page 1 — a non-
+  // monotonic array. Downstream consumers benefit from a
+  // chronologically ordered batch: `thread.addEvents(events, false)`
+  // observes the tail in the correct order for SDK aggregation, the
+  // persistence writer builds a monotonic snapshot, and `onRepaired`
+  // hands the render layer a batch that matches the SDK's ordering
+  // invariants. Mirrors the gap-fill executor's post-flatten sort.
+  //
+  // Stable sort by origin_server_ts ascending; ties preserve fetch
+  // order (within a page the reverse already yields chronological
+  // order, so ties across identical timestamps stay in the SDK's
+  // wire order).
+  if (allMapped.length > 1) {
+    allMapped.sort((a, b) => a.getTs() - b.getTs());
+  }
+
   // Zero-fetch fast path — the D7 cheap no-op. When the server returned
   // no events (or all fetches failed) there is nothing to reconcile and
   // no tick to fire.

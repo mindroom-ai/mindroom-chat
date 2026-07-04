@@ -663,6 +663,93 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     expect(result.fetchedCount).toBe(5);
   });
 
+  it('sorts multi-page fetches chronologically before injection (greptile P1: paged batch order reverses)', async () => {
+    // When divergence spans multiple `/relations` pages, each page
+    // comes back backward-paginated (newest→oldest). We reverse each
+    // page's chunk to get oldest→newest WITHIN a page, but page 1
+    // events are still newer than page 2 events. Naively concatenating
+    // yields [page1_oldest..page1_newest, page2_oldest..page2_newest]
+    // where page 2 events are chronologically OLDER than any page 1
+    // event — a non-monotonic array. The SDK's `thread.addEvents`
+    // and the persistence writer both benefit from a chronologically
+    // ordered batch (the full backfill path in `gapFillExecutor.ts`
+    // sorts after flattening for exactly this reason).
+    //
+    // This test proves the fix: the injected/persisted array must be
+    // in origin_server_ts ascending order across page boundaries.
+    const addEvents = vi.fn();
+    const threadStub = {
+      addEvents,
+      getUnfilteredTimelineSet: () => undefined,
+    } as unknown as ReturnType<Room['getThread']>;
+    const roomWithThread = {
+      roomId: '!room:example',
+      findEventById: () => null,
+      getThread: (id: string) => (id === '$thread' ? threadStub : undefined),
+    } as unknown as Room;
+    // Page 1 (newest): ts=200, 300. Page 2 (older tail): ts=50, 100.
+    // Wire order is backward → newest first; the fetcher returns them
+    // in the SDK's raw chunk order (newest→oldest within a page).
+    let iteration = 0;
+    const fetchRelations = vi.fn(async () => {
+      iteration += 1;
+      if (iteration === 1) {
+        return {
+          chunk: [
+            { event_id: '$e-newest', origin_server_ts: 300 },
+            { event_id: '$e-newer', origin_server_ts: 200 },
+          ] as Partial<IEvent>[],
+          next_batch: 'page-2',
+        };
+      }
+      return {
+        chunk: [
+          { event_id: '$e-older', origin_server_ts: 100 },
+          { event_id: '$e-oldest', origin_server_ts: 50 },
+        ] as Partial<IEvent>[],
+        next_batch: undefined,
+      };
+    });
+    const mx = {
+      getRoom: () => roomWithThread,
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        makeFakeEvent({
+          id: (raw.event_id as string) ?? '',
+          ts: (raw.origin_server_ts as number) ?? 0,
+        }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx });
+
+    let onRepairedBatch: readonly MatrixEvent[] | undefined;
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      threadId: '$thread',
+      cachedPage: makeCachedPage([]),
+      reason: 'open-complete-coverage',
+      room: roomWithThread,
+      onRepaired: (batch) => {
+        onRepairedBatch = batch;
+      },
+    });
+
+    expect(result.repaired).toBe(true);
+    expect(fetchRelations).toHaveBeenCalledTimes(2);
+    // Injection call — must be chronologically ordered.
+    expect(addEvents).toHaveBeenCalledTimes(1);
+    const [injectedEvents] = addEvents.mock.calls[0];
+    const injectedTs = (injectedEvents as MatrixEvent[]).map((mEvent) => mEvent.getTs());
+    expect(injectedTs).toEqual([50, 100, 200, 300]);
+    // onRepaired batch — must be the same chronologically ordered
+    // array (both call sites downstream expect the same shape).
+    expect(onRepairedBatch).toBeDefined();
+    const repairedTs = (onRepairedBatch as MatrixEvent[]).map((mEvent) => mEvent.getTs());
+    expect(repairedTs).toEqual([50, 100, 200, 300]);
+  });
+
   // ---------------------------------------------------------------------
   // CINNY-207 P5-GATE-FIX (AC2): observability + SDK injection.
   // ---------------------------------------------------------------------
