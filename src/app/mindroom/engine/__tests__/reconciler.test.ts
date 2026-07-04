@@ -1080,6 +1080,17 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     const [batchArg] = onRepaired.mock.calls[0];
     expect(Array.isArray(batchArg)).toBe(true);
     const batchIds = (batchArg as MatrixEvent[]).map((mEvent) => mEvent.getId());
+    // Shape assertion (F8 restore): the batch's minimum size is 2
+    // (the fetched $edit-v2 + the hydrated cached-snapshot $reply-1).
+    // Without a size floor a regression that stopped merging the
+    // cached-snapshot instances into the batch could leave the sink
+    // receiving only $edit-v2 and still pass `toContain('$reply-1')`
+    // if some other code path happened to add it later. The batch in
+    // this shape actually contains 3 events (edit + reply +
+    // reconciler-mapped root); using `>=2` locks the "both instances
+    // reach the sink" contract without pinning to the exact reconciler
+    // mapping order.
+    expect((batchArg as MatrixEvent[]).length).toBeGreaterThanOrEqual(2);
     expect(batchIds).toContain('$edit-v2');
     expect(batchIds).toContain('$reply-1');
   });

@@ -205,6 +205,20 @@ export const useRoomLiveRenderController = ({
         if (threadId) {
           if (isVisibleThreadActivity) {
             // m.replace edits mutate their target in-place and are filtered during rendering.
+            //
+            // F5 (2026-07-04): this sink call can arrive with an
+            // UNREPAIRED sync-delivered instance for the same target
+            // id the reconciler's onRepaired just landed a repaired
+            // instance for (the AC2 race: reply-through-thread fires
+            // a NewReply overlap that overlaps the reconciler's
+            // hydrated batch). The overlap is absorbed by
+            // `pickPreferredThreadRenderEvent`'s same-id merge
+            // preference (RG5-fix2, commit 3fbe8afd): when both sides
+            // share an eventId key, the raw `.replacingEvent()`-carrying
+            // instance wins over the sibling that lacks it. So the
+            // unrepaired instance never displaces the repaired one at
+            // the render layer, and this sink call remains a no-op for
+            // the overlap case — no explicit guard needed here.
             if (relation?.rel_type !== RelationType.Replace) {
               setSupplementalThreadEvents(threadId, [mEvt]);
             }
