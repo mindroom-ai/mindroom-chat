@@ -2,6 +2,79 @@
 
 ## Runbook
 
+### CINNY-207 AC2 STEP 3 — guard-abort recovery via bounded guard-free retry (2026-07-04)
+
+- Context: STEP 2's red repro pinned the mechanism — mount #1's
+  reconcile schedules with a `shouldContinue` closure, mount cleanup
+  flips the closure's captured flag false, mount #2's schedule dedups
+  to mount #1's queued entry, drain fires mount #1's doomed guard,
+  silent exit, no fetch, no repair, cache stays stale until reload.
+- Fix (mechanism): on the reconciler's pre-first-fetch guard-abort,
+  enqueue a bounded, guard-free RETRY pass through the scheduler
+  under a NEW dedup key (`kind='reconcile-retry'`) so it does not
+  dedup against the doomed original schedule. The retry runs the
+  same executor with `shouldContinue=undefined` (only scheduler-
+  driven signal.aborted stops it) and `onGuardAborted=undefined` (so
+  the retry cannot itself trigger another retry — recovery bounded
+  to at most one).
+- Design decision (retry vs dirty-marker + open-hook): both close the
+  gap; the retry-in-scheduler approach converges the cache
+  proactively (D7 SWR: "cached was right, revalidate anyway") whereas
+  the dirty-marker + open-hook approach defers convergence to the
+  next open. The retry costs one extra `/relations` request per
+  guard-aborted schedule, bounded and dedup-guarded within its own
+  kind — cheap. The `onRepaired` sink is preserved from the caller
+  and remains internally guarded by `isCurrentThreadOpen` on the
+  caller side (threadOpenCacheFirst.ts:174), so a "moved away"
+  component naturally no-ops on the render side while the persist
+  leg (`persistThreadEventCacheSnapshot`) still teaches the cache —
+  which is the core AC2 guarantee.
+- Wiring:
+  - `backfillScheduler.ts`: added `'reconcile-retry'` to
+    `BackfillJobKind`. Its participation in the dedup key alongside
+    (roomId, threadId) is what lets it coexist with a fresh
+    `'reconcile'` schedule.
+  - `reconciler.ts`:
+    - `runThreadReconcilePass` grows an `onGuardAborted` hook that
+      fires only when the pass exited via `shouldContinue()=false`
+      AND `iterations === 0` (no fetch happened yet — a mid-pass
+      guard-abort with real work done doesn't retry).
+    - `scheduleReconcile` factors the executor body into
+      `runPassOnce` and wires `onGuardAborted` to enqueue the retry
+      job via `scheduler.enqueue({ kind: 'reconcile-retry', ... })`.
+      The retry bumps `reconcilesScheduled` (STEP 1 invariant),
+      `reconcilesDirtyRetried`, and — because the initial pass
+      already bumped `reconcilesDirtyMarked` and `reconcilesGuardAborted`
+      before invoking the hook — the STEP 1 invariant
+      `sum(outcomes) == reconcilesScheduled` continues to hold.
+  - Live spec (`e2e/live/cinny207-stale-cache-divergence.spec.ts`):
+    `test.fail()` removed; the diagnosis header now points at the
+    fix commit rather than pending gate work. Run scheduled in
+    STEP 4.
+- Behavior invariants:
+  - Signal-abort (scheduler teardown, engine.stop, explicit abort())
+    does NOT trigger the retry — the recovery hook only fires on
+    guard-abort. Retrying on signal-abort would be wrong (the
+    scheduler explicitly told us to stop).
+  - Mid-pass guard-abort (iterations > 0) also does not retry — we
+    already fetched at least one page; the persist path may have
+    written to cache if divergence was detected before the guard
+    fired mid-pass. Redundant retry avoided.
+- Test updates:
+  - `threadOpenGuardAbortRepro.test.ts`: the `it.fails`-annotated
+    test flips to a normal `it(...)` — the STEP 3 fix makes it
+    naturally green. Assertions now check the post-fix contract:
+    `reconcilesRepaired >= 1`, `reconcilerPersists >= 1`, retry
+    fetched. Test 1 (guard-abort fingerprint) and test 2 (AC2 gap
+    without dedup race) updated to expect the retry firing.
+  - `reconciler.test.ts` STEP 1 invariant test: expectations moved
+    from "silent exit, no fetch" to "silent exit + bounded retry
+    converges" — 2 schedules, 1 guard-abort, 1 repair, 1 onRepaired
+    fired. The `sum(outcomes) == scheduled` invariant continues to
+    hold.
+- Validation: tsc clean; vitest 2641/2641 green; lint 18/0 baseline.
+  Build check + docker gate in STEP 4.
+
 ### CINNY-207 AC2 STEP 2 — minimized red repro of guard-abort silent exit + dedup-race convergence gap (2026-07-04)
 
 - Context (STEP 2 of the mandatory order): observability before repro

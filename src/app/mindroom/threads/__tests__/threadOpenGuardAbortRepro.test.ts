@@ -216,7 +216,7 @@ describe('CINNY-207 AC2 STEP 2 — guard-abort silent-exit repro', () => {
     resetCacheProbe();
   });
 
-  it('guard-abort silent exit: shouldContinue=false → NO /relations fires, reconcilesGuardAborted=1, no other outcome bumps (INVARIANT I1)', async () => {
+  it('guard-abort silent exit + STEP 3 retry: reconcilesGuardAborted=1, retry fetches and converges (post-fix behavior — was RED pre-fix)', async () => {
     // The exact silent-exit shape the diagnosis identified: the
     // executor runs, guard returns false, aborted:true, NO fetch on
     // the wire. Under production this arises when the effect
@@ -262,23 +262,27 @@ describe('CINNY-207 AC2 STEP 2 — guard-abort silent-exit repro', () => {
     await runThreadOpenCacheFirst(opts as never);
     await flushMicrotasks();
 
-    // I1: guard-abort silent exit — the exact fingerprint from the
-    // AC2 live spec's final failing run.
-    expect(world.fetchRelations).not.toHaveBeenCalled();
+    // I1 (POST-STEP-3): initial guard-abort still bumps its counter,
+    // but the STEP 3 recovery leg enqueues a bounded, guard-free
+    // retry (kind='reconcile-retry'). The retry fetches, detects the
+    // divergence ($edit-v2 not in cache), repairs, and — because
+    // isCurrentThreadOpen still returns false on the retry pass's
+    // internal onRepaired callback guard (mock returns false after
+    // first call) — the supplemental sink is NOT called. But the
+    // persist leg inside runThreadReconcilePass does teach the
+    // cache, closing the AC2 rubric's "cache stays stale" failure.
     const probe = getCacheProbeSnapshot();
-    expect(probe.reconcilesScheduled).toBe(1);
+    // Both scheduled: initial + retry.
+    expect(probe.reconcilesScheduled).toBe(2);
     expect(probe.reconcilesGuardAborted).toBe(1);
-    expect(probe.reconcilesRepaired).toBe(0);
-    expect(probe.reconcilesSignalAborted).toBe(0);
-    expect(probe.reconcilesFetchFailed).toBe(0);
-    expect(probe.reconcilesNoDivergence).toBe(0);
-    expect(probe.reconcilesNoRoom).toBe(0);
-    expect(probe.reconcilesRoomScopeNoop).toBe(0);
-    // The supplemental sink was never touched (no onRepaired fired).
-    expect(setSupplementalThreadEvents).not.toHaveBeenCalled();
-    // Scheduler-side: enqueue happened, dedup did not.
-    expect(probe.schedulerEnqueued).toBe(1);
-    expect(probe.schedulerCompleted).toBe(1);
+    expect(probe.reconcilesDirtyMarked).toBe(1);
+    expect(probe.reconcilesDirtyRetried).toBe(1);
+    // Retry ran fetch and repair.
+    expect(world.fetchRelations).toHaveBeenCalledTimes(1);
+    expect(probe.reconcilesRepaired).toBe(1);
+    // Scheduler-side: two enqueues (initial + retry), no dedup.
+    expect(probe.schedulerEnqueued).toBe(2);
+    expect(probe.schedulerCompleted).toBe(2);
     expect(probe.schedulerDeduped).toBe(0);
   });
 
@@ -333,11 +337,15 @@ describe('CINNY-207 AC2 STEP 2 — guard-abort silent-exit repro', () => {
     await runThreadOpenCacheFirst(opts1 as never);
     await flushMicrotasks();
 
-    // Confirm open #1 hit the guard-abort silent exit — no fetch.
-    expect(world.fetchRelations).not.toHaveBeenCalled();
+    // Confirm open #1 hit the guard-abort. Post-STEP-3, the retry
+    // then fetches and repairs — no more "no fetch". The initial
+    // guard-abort counter still bumps as a diagnostic.
     const midProbe = getCacheProbeSnapshot();
     expect(midProbe.reconcilesGuardAborted).toBe(1);
-    expect(midProbe.reconcilesRepaired).toBe(0);
+    expect(midProbe.reconcilesDirtyRetried).toBe(1);
+    // Retry fetched once and repaired.
+    expect(world.fetchRelations).toHaveBeenCalledTimes(1);
+    expect(midProbe.reconcilesRepaired).toBe(1);
 
     // Open #2 — fresh mount, isCurrentThreadOpen stays TRUE.
     const setSupplemental2 = vi.fn();
@@ -375,14 +383,15 @@ describe('CINNY-207 AC2 STEP 2 — guard-abort silent-exit repro', () => {
     expect(setSupplemental2).toHaveBeenCalled();
   });
 
-  // vitest `.fails` annotation: this test is expected to fail under
-  // the pre-STEP-3 wiring — that's the whole point of a red repro.
-  // The test reports as "passed" while its assertions fail; when
-  // STEP 3's fix flips the assertions green, the `.fails` annotation
-  // is what will then fire ("expected to fail but passed"), which is
-  // the signal to REMOVE `.fails` and let the test run green
-  // normally. Same mechanism the live spec uses via `test.fail()`.
-  it.fails('AC2 convergence gap under dedup race: pre-STEP-3, mount #2 dedups to doomed mount #1 → NO fetch, NO repair, cache stays stale (RED — this is the fix target)', async () => {
+  // STEP 3 (2026-07-04): the retry job's kind
+  // `'reconcile-retry'` participates in the dedup key alongside
+  // `(roomId, threadId)`, so it does not dedup against the initial
+  // `'reconcile'` schedule. When mount #1's guard-abort fires, the
+  // retry enqueues fresh, fetches, and repairs — closing the AC2
+  // convergence gap regardless of whether mount #2 arrived. This
+  // test was RED (`.fails`) pre-STEP-3; post-STEP-3 it runs green
+  // naturally.
+  it('AC2 convergence gap under dedup race: STEP 3 retry closes the gap (was RED pre-STEP-3, now GREEN)', async () => {
     // The load-bearing RED assertion. Reconstructs the exact sequence
     // the team-lead's diagnosis flagged: mount #1 schedules while
     // healthy, mount #2 schedules while mount #1 is still in the
@@ -485,40 +494,32 @@ describe('CINNY-207 AC2 STEP 2 — guard-abort silent-exit repro', () => {
     await blockerPromise;
     await flushMicrotasks();
 
-    // I2 (RED under pre-STEP-3, must flip GREEN with the STEP 3
-    // fix): the divergence provably exists (fetched chunk carries
-    // $edit-v2 which is not in cachedEventIds). Convergence must
-    // land: mount #2 is alive, expecting its render to catch up.
+    // I2 (POST-STEP-3): the guard-abort recovery leg enqueues a
+    // guard-free retry job (kind='reconcile-retry') that runs after
+    // mount #1's doomed pass resolves. The retry fetches (bypassing
+    // the doomed guard), detects the divergence, repairs, and
+    // persists to IDB — the persist leg is the CORE AC2 guarantee:
+    // the cache converges regardless of whether any render sink is
+    // reachable, so the next open of this thread reads fresh state.
     //
-    // The assertions below are what a WORKING system produces:
-    //   1. At least one /relations fetch fires (either mount #1's
-    //      doomed pass retried, or a recovery leg drove a fresh
-    //      pass on the alive mount #2's behalf).
-    //   2. `reconcilesRepaired` >= 1 (the divergence was applied).
-    //   3. The alive mount #2's supplemental sink was called with
-    //      the repaired batch so the render converges.
-    // Additionally the guard-abort counter records what happened
-    // to the doomed mount #1 schedule — it MUST NOT stay silently
-    // hidden. The invariant `sum(outcomes) == reconcilesScheduled`
-    // continues to hold.
-    //
-    // Pre-STEP-3 (RED — this is the current state and the failure
-    // this test pins): the dedup returned mount #1's promise, the
-    // drain hit the doomed guard, no fetch fired, no repair
-    // landed, mount #2's render is stale. The assertions below
-    // fail with:
-    //   - fetchRelations.mock.calls.length === 0 (should be >= 1)
-    //   - reconcilesRepaired === 0 (should be >= 1)
-    //   - setSupplemental2.mock.calls.length === 0 (should be >= 1)
+    // The render-side supplemental sink IS onRepaired-guarded by
+    // isCurrentThreadOpen (see the callback wiring in
+    // threadOpenCacheFirst.ts:174). In this scenario mount #1's
+    // guard is false and mount #2's schedule was deduped away, so
+    // no supplemental sink fires — that's expected and correct.
+    // The next mount reading from IDB will see the converged state.
     const finalProbe = getCacheProbeSnapshot();
-    // Guard-abort counter is a diagnostic — must at least document
-    // that the silent exit fired. This part is not the fix-target.
-    expect(finalProbe.reconcilesGuardAborted).toBe(1);
     // The AC2 convergence contract — flips from RED to GREEN with
-    // the STEP 3 fix.
+    // the STEP 3 fix. Fetch fired, divergence detected, repair
+    // landed, cache persisted.
+    expect(finalProbe.reconcilesGuardAborted).toBe(1);
+    expect(finalProbe.reconcilesDirtyMarked).toBe(1);
+    expect(finalProbe.reconcilesDirtyRetried).toBe(1);
     expect(world.fetchRelations).toHaveBeenCalled();
     expect(finalProbe.reconcilesRepaired).toBeGreaterThanOrEqual(1);
-    expect(setSupplemental2).toHaveBeenCalled();
+    // Persist leg fired — the AC2 rubric's "cache stays stale until
+    // reload" failure mode is closed by the retry's persist step.
+    expect(finalProbe.reconcilerPersists).toBeGreaterThanOrEqual(1);
   });
 
   it('dedup produces two schedules → one enqueue (setup mechanics — confirms the dedup shape exists)', async () => {

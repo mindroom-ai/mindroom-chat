@@ -62,7 +62,23 @@ export type BackfillJobKind =
   | 'room-deep-history'
   | 'thread-backfill'
   | 'thread-seed'
-  | 'reconcile';
+  | 'reconcile'
+  // CINNY-207 AC2 STEP 3 (2026-07-04): guard-abort recovery. When a
+  // `'reconcile'` job aborts via `shouldContinue()=false` before
+  // firing any `/relations` fetch, the reconciler enqueues ONE
+  // follow-up job of this kind with `shouldContinue` unwired (only
+  // signal.aborted from scheduler teardown can stop it). This closes
+  // the AC2 dedup-race gap: mount #2 arrives while mount #1's
+  // schedule is queued → dedups → mount #1 aborts silently → the
+  // retry job carries the fetch through and updates the persistent
+  // cache, so mount #2's `onRepaired` sink (if still alive) or the
+  // next open (via the fresh cache snapshot) both converge. Kind
+  // participates in the dedup key alongside (roomId, threadId), so a
+  // retry coexists with future `'reconcile'` schedules on the same
+  // thread by design (they do different things — retry is a
+  // guard-free convergence pass; a fresh `'reconcile'` respects the
+  // fresh mount's guard).
+  | 'reconcile-retry';
 
 /**
  * Priority bands (see module header). Lower number runs first. Within

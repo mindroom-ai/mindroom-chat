@@ -1639,11 +1639,18 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       probe.reconcilesRoomScopeNoop +
       probe.reconcilesRepaired;
 
-    it('reconcilesGuardAborted bumps when shouldContinue flips false BEFORE the first fetch (the leading hypothesis)', async () => {
+    it('reconcilesGuardAborted bumps when shouldContinue flips false BEFORE the first fetch; STEP 3 fix triggers a guard-free retry that converges (bounded, one-shot)', async () => {
       // The exact silent-exit shape from the 6-iteration diagnosis:
       // the reconciler enters the executor, checks shouldContinue,
-      // returns aborted:true — no /relations request on the wire, no
-      // repair.
+      // returns aborted:true — no /relations request on the wire.
+      //
+      // POST-STEP-3: the guard-abort exit fires `onGuardAborted`, which
+      // the outer scheduleReconcile uses to enqueue a bounded
+      // guard-free retry (kind='reconcile-retry'). The retry runs
+      // with shouldContinue=undefined, fetches, detects the
+      // divergence (chunk carries $reply-new not in cache), and
+      // repairs. Net: the AC2 convergence contract holds even when
+      // the initial mount walked away.
       const room = makeFakeRoom();
       const fetchRelations = vi.fn(async () => ({
         chunk: [{ event_id: '$reply-new' }] as Partial<IEvent>[],
@@ -1656,6 +1663,7 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         fetchRelations,
       } as unknown as MatrixClient;
       const scheduler = createBackfillScheduler({ mx });
+      const onRepaired = vi.fn();
 
       await scheduleReconcile({
         mx,
@@ -1665,15 +1673,33 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         threadId: '$thread',
         cachedPage: makeCachedPage([]),
         reason: 'open-complete-coverage',
+        onRepaired,
         // Force the guard to return false — the exit path under test.
         shouldContinue: () => false,
       });
+      // Give the retry job (enqueued from the guard-abort callback)
+      // time to drain. The initial promise resolves before the
+      // retry runs, so we flush.
+      for (let i = 0; i < 8; i += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await Promise.resolve();
+      }
 
-      expect(fetchRelations).not.toHaveBeenCalled();
       const probe = getCacheProbeSnapshot();
-      expect(probe.reconcilesScheduled).toBe(1);
+      // Initial guard-abort: recorded.
       expect(probe.reconcilesGuardAborted).toBe(1);
-      expect(probe.reconcilesRepaired).toBe(0);
+      expect(probe.reconcilesDirtyMarked).toBe(1);
+      // Retry ran: fetched, detected divergence, repaired.
+      expect(fetchRelations).toHaveBeenCalledTimes(1);
+      expect(probe.reconcilesDirtyRetried).toBe(1);
+      expect(probe.reconcilesRepaired).toBe(1);
+      // Two schedules total: the initial guard-abort + the retry.
+      expect(probe.reconcilesScheduled).toBe(2);
+      // The retry ran with the caller's onRepaired sink — the sink
+      // fired for the repaired batch.
+      expect(onRepaired).toHaveBeenCalledTimes(1);
+      // sum-invariant: 2 schedules == 1 guard-abort (initial) + 1
+      // repaired (retry).
       expect(sumOutcomes(probe)).toBe(probe.reconcilesScheduled);
     });
 
