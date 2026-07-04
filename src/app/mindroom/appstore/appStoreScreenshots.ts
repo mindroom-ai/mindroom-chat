@@ -15,7 +15,7 @@ export type AppStoreScreenshotDevice = {
 };
 
 export type AppStoreScreenshotScene = {
-  id: 'welcome' | 'room-overview' | 'thread-view';
+  id: 'personal-workspace' | 'mindroom-explained' | 'campground-monitor';
   order: number;
 };
 
@@ -44,9 +44,9 @@ export const APP_STORE_SCREENSHOT_DEVICES: AppStoreScreenshotDevice[] = [
 ];
 
 export const APP_STORE_SCREENSHOT_SCENES: AppStoreScreenshotScene[] = [
-  { id: 'welcome', order: 0 },
-  { id: 'room-overview', order: 1 },
-  { id: 'thread-view', order: 2 },
+  { id: 'personal-workspace', order: 0 },
+  { id: 'mindroom-explained', order: 1 },
+  { id: 'campground-monitor', order: 2 },
 ];
 
 export const getAppStoreScreenshotFileName = (

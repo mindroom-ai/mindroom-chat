@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { buildLoginPath, getHomeserver, getPrimaryCredentials } from './env';
+import { getHomeserver, getPrimaryCredentials } from './env';
 import { loginWithPassword } from './helpers/auth';
 import {
   createDefaultThreadFilterState,
@@ -18,10 +18,14 @@ import {
 } from '../src/app/mindroom/appstore/appStoreScreenshots';
 
 const FIXTURE_ROOM_ALIAS =
-  process.env.E2E_FIXTURE_ROOM_ALIAS ?? '#mindroom-app-store-screenshots:matrix.localhost';
-const FIXTURE_ROOM_NAME = 'MindRoom Agent Lab';
-const SUMMARY_TEXT =
-  'iOS release plan: screenshots, TestFlight, and reviewer access are ready to review.';
+  process.env.E2E_FIXTURE_ROOM_ALIAS ?? '#mindroom-app-store-personal-showcase:matrix.localhost';
+const FIXTURE_ROOM_NAME = 'Personal';
+const MINDROOM_THREAD_TITLE =
+  'MindRoom overview: chat-native personal agents, tools, memory, and scheduled follow-ups.';
+const CAMPGROUND_THREAD_TITLE =
+  'Campground monitor: daily watcher healthy, no matching openings yet, next scan scheduled.';
+const CAR_THREAD_TITLE =
+  'Car search: shortlist updated with two promising options and one negotiation checklist.';
 
 const sceneById = (id: AppStoreScreenshotScene['id']): AppStoreScreenshotScene => {
   const scene = APP_STORE_SCREENSHOT_SCENES.find((candidate) => candidate.id === id);
@@ -59,6 +63,23 @@ const captureScene = async (
   const outputPath = resolve(process.cwd(), getAppStoreScreenshotRelativePath(device, scene));
   await mkdir(dirname(outputPath), { recursive: true });
   await installAppStoreScreenshotStyles(page);
+  await page.mouse.move(1, 1);
+  await page
+    .getByRole('button', { name: /jump to latest/i })
+    .evaluateAll((buttons) => {
+      buttons.forEach((button) => {
+        (button as HTMLElement).style.display = 'none';
+      });
+    })
+    .catch(() => undefined);
+  await page
+    .getByRole('button', { name: /show less/i })
+    .evaluateAll((buttons) => {
+      buttons.forEach((button) => {
+        (button as HTMLElement).style.display = 'none';
+      });
+    })
+    .catch(() => undefined);
   await expect(page.getByText('Catching up...', { exact: true })).toBeHidden({ timeout: 10_000 });
   await page.waitForTimeout(250);
   await page.screenshot({
@@ -71,18 +92,39 @@ const captureScene = async (
   await expect(readPngSize(outputPath)).resolves.toEqual(device.expectedPixels);
 };
 
-const openFixtureRoom = async (page: Page, roomId: string) => {
-  await page.goto(`/home/${encodeURIComponent(roomId)}`);
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const getThreadEntry = (page: Page, title: string) =>
+  page
+    .getByRole('button', {
+      name: new RegExp(`Open thread:[\\s\\S]*${escapeRegExp(title)}`, 'i'),
+    })
+    .first();
+
+const expectFixtureRoomOverview = async (page: Page) => {
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
   await expect(page.getByText(FIXTURE_ROOM_NAME).first()).toBeVisible({ timeout: 30_000 });
 
-  const threadEntry = page
-    .getByRole('button', {
-      name: new RegExp(`Open thread:[\\s\\S]*${SUMMARY_TEXT}`, 'i'),
-    })
-    .first();
-  await expect(threadEntry).toBeVisible({ timeout: 30_000 });
-  return threadEntry;
+  await expect(getThreadEntry(page, MINDROOM_THREAD_TITLE)).toBeVisible({ timeout: 30_000 });
+  await expect(getThreadEntry(page, CAMPGROUND_THREAD_TITLE)).toBeVisible({ timeout: 30_000 });
+  await expect(getThreadEntry(page, CAR_THREAD_TITLE)).toBeVisible({ timeout: 30_000 });
+};
+
+const openFixtureRoom = async (page: Page, roomId: string) => {
+  await page.goto(`/home/${encodeURIComponent(roomId)}`);
+  await expectFixtureRoomOverview(page);
+};
+
+const returnToFixtureRoomOverview = async (page: Page) => {
+  await page.goBack({ waitUntil: 'domcontentloaded' });
+  await expectFixtureRoomOverview(page);
+};
+
+const expandFirstCollapsedMessage = async (page: Page) => {
+  const showMoreButton = page.getByRole('button', { name: /show more/i }).first();
+  if (await showMoreButton.isVisible().catch(() => false)) {
+    await showMoreButton.click();
+  }
 };
 
 for (const device of APP_STORE_SCREENSHOT_DEVICES) {
@@ -106,10 +148,6 @@ for (const device of APP_STORE_SCREENSHOT_DEVICES) {
         FIXTURE_ROOM_ALIAS
       );
 
-      await page.goto(buildLoginPath(homeserver));
-      await expect(page.locator('input[name="serverInput"]')).toBeVisible({ timeout: 30_000 });
-      await captureScene(page, device, sceneById('welcome'));
-
       await loginWithPassword(page, { homeserver, username, password });
       await seedRoomOverviewState({
         page,
@@ -119,15 +157,36 @@ for (const device of APP_STORE_SCREENSHOT_DEVICES) {
         filterState: createDefaultThreadFilterState(),
       });
 
-      const threadEntry = await openFixtureRoom(page, fixtureRoomId);
-      await captureScene(page, device, sceneById('room-overview'));
-
-      await threadEntry.click();
-      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
-      await expect(page.getByText('Screenshots: capture iPhone 6.9')).toBeVisible({
+      await openFixtureRoom(page, fixtureRoomId);
+      await expect(page.getByText('Today: campground watcher is healthy')).toBeVisible({
         timeout: 30_000,
       });
-      await captureScene(page, device, sceneById('thread-view'));
+      await expect(
+        page.getByText('RouterAgent: I grouped the active personal-agent work')
+      ).toBeVisible();
+      await captureScene(page, device, sceneById('personal-workspace'));
+
+      await getThreadEntry(page, MINDROOM_THREAD_TITLE).click();
+      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByText('MindRoom is a personal AI agent platform')).toBeVisible({
+        timeout: 30_000,
+      });
+      await expandFirstCollapsedMessage(page);
+      await expect(page.getByText('Everyday examples')).toBeVisible();
+      await captureScene(page, device, sceneById('mindroom-explained'));
+
+      await returnToFixtureRoomOverview(page);
+      await getThreadEntry(page, CAMPGROUND_THREAD_TITLE).click();
+      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await expandFirstCollapsedMessage(page);
+      const toolCallsButton = page.getByRole('button', { name: /3 tool calls/i }).first();
+      await expect(toolCallsButton).toBeVisible({ timeout: 30_000 });
+      await toolCallsButton.click();
+      await expect(page.getByText('Tool #1: check campground availability')).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(page.getByText('The monitor is healthy')).toBeVisible();
+      await captureScene(page, device, sceneById('campground-monitor'));
     });
   });
 }

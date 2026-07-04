@@ -34,6 +34,7 @@
     "ios:phone:stop": "node scripts/ios-phone.mjs --stop",
     "ios:icons": "bash scripts/generate-ios-icons.sh",
     "appstore:preflight": "node scripts/appstore-preflight.mjs",
+    "appstore:fixture": "bash scripts/appstore-fixture-up.sh",
     "appstore:screenshots": "bash scripts/appstore-screenshots.sh",
     "release:next-tag": "python3 scripts/fork_release_tag.py"
   },

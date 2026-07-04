@@ -5,8 +5,9 @@
 ### iOS release prep with fastlane screenshot procedure (2026-07-04)
 
 - Status:
-  - Complete locally on `caveman/ios-release-fastlane-20260704`; no App Store
-    Connect upload or review submission was performed in this pass.
+  - Complete locally on
+    `caveman/ios-release-fastlane-20260704`; no App Store Connect upload or
+    review submission was performed in this pass.
 - Summary:
   - Pulled latest GitHub `origin/dev` into a new caveman release branch at
     `108996cc5` (`v4.12.3-mindroom.5`) without rewriting the stale divergent
@@ -18,9 +19,17 @@
     lane.
   - Added a repo-native App Store screenshot capture procedure:
     `npm run appstore:screenshots` starts the local Docker Matrix fixture
-    stack, provisions a disposable account, seeds the screenshot room, starts a
-    fresh Vite server on an available port, and captures iPhone 6.9" plus iPad
-    13" screenshots into `ios/App/fastlane/screenshots/en-US/`.
+    stack, provisions an isolated disposable account and room alias for each
+    run, seeds the screenshot room, starts a fresh Vite server on an available
+    port, and captures iPhone 6.9" plus iPad 13" screenshots into
+    `ios/App/fastlane/screenshots/en-US/`.
+  - Added `npm run appstore:fixture` for setup-only local Matrix seeding. The
+    revised seed data uses a public-safe fake `Personal` workspace with Bas
+    Nijholt as the user, the public `nijho.lt` profile avatar, fake MindRoom
+    agent accounts, uploaded agent avatars, thread summaries, scheduled-task
+    state, tags, AI run metadata, and tool-trace markers. Thread summaries use
+    a `⭐` prefix and varied message counts (`9`, `27`, `34`, `68`, `103`) so
+    the overview reads like an active personal workspace.
   - The screenshot plan is shared through
     `src/app/mindroom/appstore/appStoreScreenshots.ts` and guarded by a
     focused unit test so App Store pixel targets and file naming stay stable.
@@ -31,9 +40,22 @@
     and shared scheme exist.
   - Keep screenshots gitignored; only the procedure, spec, and placeholder
     folder stay in source control.
-  - Hide only the transient client sync-status banner during automated App
-    Store captures via `[data-testid="client-sync-status"]`, and assert
-    `Catching up...` is hidden before writing each PNG.
+  - Hide transient capture-only overlays before writing PNGs: the client
+    sync-status banner, jump-to-latest button, and expanded `Show less`
+    controls. Assert `Catching up...` is hidden before writing each PNG.
+  - Existing/live account screenshot capture is intentionally unsupported. App
+    Store screenshots must use the local isolated fixture so stale rooms,
+    private profiles, or private account state cannot leak into release
+    assets.
+  - Screenshot fixture content must be fake and public-safe. The live
+    `chat.mindroom.chat` personal-room inspection was used for visual patterns
+    (compact thread cards, recent-thread rail, AI summaries, scheduled-task
+    status, tool markers, and agent avatars). One fresh Mind response to the
+    public-safe prompt "explain what MindRoom is and what you can do as a
+    personal agent platform" was intentionally used as fixture content; other
+    personal-agent examples were rewritten as fake public-safe scenarios.
+  - Use Bas Nijholt as the fixture user and source his avatar from the public
+    `nijho.lt` homepage asset, not from private Matrix media.
   - Preserve local `dev` and create a `caveman/...` release branch from
     `origin/dev` because the existing local `dev` branch is ahead 13 and
     behind 164.
@@ -56,6 +78,28 @@
   - Green check:
     `npm test -- src/app/mindroom/appstore/appStoreScreenshots.test.ts`
     (3 tests).
+  - Red fixture-script check:
+    `node --test scripts/appstore-fixture.test.mjs` failed while
+    `scripts/appstore-fixture.mjs` and `scripts/appstore-fixture-up.sh` were
+    missing.
+  - Green fixture-script check:
+    `node --test scripts/appstore-fixture.test.mjs` (13 tests, including
+    Matrix-safe integer metadata, markdown-to-Matrix-HTML formatting,
+    private-term guard, future scheduled task dates, per-run local fixture
+    isolation, live-account mode rejection, starred summaries, and varied
+    realistic thread depths; plus regression coverage that stale exported room
+    aliases cannot override per-run isolation and stale non-dot files are
+    removed from the screenshot locale folder).
+  - Green script syntax checks:
+    `node --check scripts/appstore-fixture.mjs`,
+    `node --check scripts/seed-appstore-screenshot-room.mjs`,
+    `bash -n scripts/appstore-fixture-up.sh`, and
+    `bash -n scripts/appstore-screenshots.sh`.
+  - Green fixture setup via screenshot capture:
+    `npm run appstore:screenshots` started the local Docker Matrix stack,
+    seeded
+    `#mindroom-app-store-personal-showcase-20260704220053-91724:matrix.localhost`,
+    uploaded fake agent avatars, and reported agents `Mind, RouterAgent`.
   - Green release preflight: `npm run appstore:preflight`.
   - Green version resolution: `node scripts/ios-ci-version.mjs` printed
     `marketing_version=4.12.3`, `build_number=5`, and
@@ -63,17 +107,37 @@
   - Green fastlane parse check:
     `PATH=/opt/homebrew/opt/ruby/bin:$PATH BUNDLE_PATH=$HOME/.bundle/mindroom-cinny-ios BUNDLE_APP_CONFIG=$HOME/.bundle/mindroom-cinny-ios-config bundle exec fastlane lanes`
     listed `sync_web`, `beta`, `upload_metadata`, and `upload_screenshots`.
-  - Green screenshot capture:
+  - Initial green screenshot capture before fixture revision:
     `npm run appstore:screenshots` with no `E2E_PORT` set (fresh Vite server on
     an available port, `E2E_REUSE_EXISTING_SERVER=0`) ran 2 Playwright tests and
     regenerated six PNGs.
-  - Screenshot dimensions verified:
+  - Initial screenshot dimensions verified before fixture revision:
     `0_iphone-6-9_welcome.png`, `1_iphone-6-9_room-overview.png`, and
     `2_iphone-6-9_thread-view.png` are `1320x2868`;
     `0_ipad-13_welcome.png`, `1_ipad-13_room-overview.png`, and
     `2_ipad-13_thread-view.png` are `2064x2752`.
-  - Visual spot check: room overview and thread-view screenshots are
-    product-facing and the transient sync banner is absent.
+  - Current green personal-agent screenshot capture:
+    `npm run appstore:screenshots` with no `E2E_PORT` set ran 2 Playwright
+    tests against isolated room alias
+    `#mindroom-app-store-personal-showcase-20260704220053-91724:matrix.localhost`
+    and regenerated six PNGs after expanding `Show more` on Mind's
+    markdown-formatted personal-agent explanation and expanding the campground
+    watcher's tool-call block.
+  - Current screenshot dimensions verified:
+    `0_iphone-6-9_personal-workspace.png`,
+    `1_iphone-6-9_mindroom-explained.png`, and
+    `2_iphone-6-9_campground-monitor.png` are `1320x2868`;
+    `0_ipad-13_personal-workspace.png`,
+    `1_ipad-13_mindroom-explained.png`, and
+    `2_ipad-13_campground-monitor.png` are `2064x2752`.
+  - Current visual spot check: screenshots show fake/public-safe data only,
+    Bas's public `nijho.lt` avatar and agent avatars are visible, iPad sidebar
+    state contains only the isolated `Personal` room, all thread summaries show
+    the requested star, overview message counts range from `9 msgs` to
+    `103 msgs`, Mind's personal-agent explanation uses headings, bullets, and
+    bold text, the campground watcher shows expanded tool-call details plus
+    formatted result/next-update sections, and transient sync/jump/`Show less`
+    overlays are absent.
   - Green typecheck: `npm run typecheck`.
   - Green build: `npm run build`.
   - Green full unit suite: `npm test` (339 files, 2632 tests).
@@ -81,12 +145,20 @@
     errors.
   - Green hygiene: `git diff --check`.
   - Green formatting check:
-    `npx prettier --check --ignore-unknown playwright.config.ts .docs/ios-fastlane.md ios/App/fastlane/screenshots/README.md package.json e2e/app-store-screenshots.spec.ts scripts/appstore-screenshots.sh scripts/seed-appstore-screenshot-room.mjs src/app/mindroom/appstore/appStoreScreenshots.ts src/app/mindroom/appstore/appStoreScreenshots.test.ts src/app/pages/client/ClientRoot.tsx src/app/pages/client/SyncStatus.tsx`.
+    `npx prettier --check --ignore-unknown .docs/ios-fastlane.md package.json e2e/app-store-screenshots.spec.ts ios/App/fastlane/screenshots/README.md scripts/appstore-fixture.mjs scripts/appstore-fixture.test.mjs scripts/appstore-fixture-up.sh scripts/appstore-screenshots.sh scripts/seed-appstore-screenshot-room.mjs src/app/mindroom/appstore/appStoreScreenshots.ts src/app/mindroom/appstore/appStoreScreenshots.test.ts`.
   - Independent review: first pass found stale-server reuse risk in the
     screenshot wrapper; fixed by disabling Playwright server reuse for
-    screenshot capture and choosing an available port. Follow-up review
-    confirmed the stale-server fix; only this runbook completeness update was
-    requested.
+    screenshot capture and choosing an available port. Follow-up review found
+    stale room/sidebar exposure from account reuse, unsafe live-account capture
+    docs/mode, visible `Show less` overlays, and scheduled dates that would
+    expire after July 5, 2026. Fixed by creating a unique local account and
+    room alias per run, rejecting live-account capture, hiding `Show less`
+    during capture, and generating scheduled fixture dates relative to capture
+    time. Final staged review found two remaining footguns: inherited
+    `E2E_FIXTURE_ROOM_ALIAS` could bypass per-run isolation, and screenshot
+    cleanup could leave stale uploadable files. Fixed by deriving the fixture
+    alias unconditionally from `APPSTORE_SCREENSHOT_RUN_ID` and clearing every
+    non-dot file in the locale screenshot folder before capture.
 
 ### CINNY-219 - Timeline minimap: left-edge stripes for human messages (2026-07-03)
 

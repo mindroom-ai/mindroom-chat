@@ -1,22 +1,55 @@
 #!/usr/bin/env node
 
+import { readFile } from 'node:fs/promises';
+import { extname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import {
+  APPSTORE_FIXTURE_ROOM_ALIAS,
+  APPSTORE_FIXTURE_ROOM_NAME,
+  APPSTORE_FIXTURE_ROOM_TOPIC,
+  APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH,
+  APPSTORE_FIXTURE_PRIMARY_DISPLAY_NAME,
+  buildAppStoreFixtureThreads,
+  buildCanonicalThreadTagStateKey,
+  buildScheduledTaskContent,
+  buildThreadTagContent,
+  getAppStoreFixtureAgentDefinitions,
+} from './appstore-fixture.mjs';
+
+const ROOT_DIR = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const HOMESERVER = process.env.E2E_HOMESERVER || 'http://127.0.0.1:28008';
 const USERNAME = process.env.E2E_USERNAME;
 const PASSWORD = process.env.E2E_PASSWORD;
-const ROOM_ALIAS =
-  process.env.E2E_FIXTURE_ROOM_ALIAS || '#mindroom-app-store-screenshots:matrix.localhost';
-const ROOM_ALIAS_LOCAL = /^#([^:]+):.+$/.exec(ROOM_ALIAS)?.[1] ?? 'mindroom-app-store-screenshots';
-const ROOM_NAME = 'MindRoom Agent Lab';
-const ROOM_TOPIC = 'Threads, tool calls, and summaries in one Matrix workspace.';
-const DISPLAY_NAME = 'MindRoom Release';
-const ROOT_BODY = 'Can you prepare the iOS release checklist for today?';
-const SUMMARY_TEXT =
-  'iOS release plan: screenshots, TestFlight, and reviewer access are ready to review.';
+const ROOM_ALIAS = process.env.E2E_FIXTURE_ROOM_ALIAS || APPSTORE_FIXTURE_ROOM_ALIAS;
+const ROOM_ALIAS_LOCAL =
+  /^#([^:]+):.+$/.exec(ROOM_ALIAS)?.[1] ?? 'mindroom-app-store-personal-showcase';
+const SET_PRIMARY_PROFILE = process.env.APPSTORE_FIXTURE_SET_PRIMARY_PROFILE ?? '1';
 
 if (!USERNAME || !PASSWORD) {
   console.error('ERROR: E2E_USERNAME and E2E_PASSWORD must be set');
   process.exit(1);
 }
+
+const log = (message) => {
+  console.error(message);
+};
+
+const sleep = (ms) =>
+  new Promise((resolveSleep) => {
+    setTimeout(resolveSleep, ms);
+  });
+
+const parseJsonResponse = async (response, url) => {
+  const text = await response.text();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Matrix API returned non-JSON for ${url}: ${text.slice(0, 200)}`);
+  }
+};
 
 async function matrixFetch(path, accessToken, options = {}) {
   const url = `${HOMESERVER}/_matrix/client/v3${path}`;
@@ -30,34 +63,220 @@ async function matrixFetch(path, accessToken, options = {}) {
       ...options.headers,
     },
   });
-  const body = await response.json();
+  const body = await parseJsonResponse(response, url);
   if (!response.ok && body.errcode) {
     const error = new Error(`Matrix API error: ${body.errcode} - ${body.error}`);
     error.errcode = body.errcode;
     error.statusCode = response.status;
     throw error;
   }
+  if (!response.ok) {
+    const error = new Error(`Matrix API error: HTTP ${response.status}`);
+    error.statusCode = response.status;
+    throw error;
+  }
   return body;
 }
 
-async function login() {
-  console.log(`Logging in as ${USERNAME}...`);
-  const body = await matrixFetch('/login', null, {
+async function uploadMedia(accessToken, data, contentType, filename) {
+  const uploadBases = ['/_matrix/media/v3', '/_matrix/media/r0'];
+  let lastError;
+
+  for (const uploadBase of uploadBases) {
+    const url = `${HOMESERVER}${uploadBase}/upload?filename=${encodeURIComponent(filename)}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': contentType,
+      },
+      body: data,
+    });
+    const body = await parseJsonResponse(response, url);
+    if (response.ok && typeof body.content_uri === 'string') {
+      return body.content_uri;
+    }
+
+    lastError = body.errcode ? `${body.errcode} - ${body.error}` : `HTTP ${response.status}`;
+  }
+
+  throw new Error(`Matrix media upload failed: ${lastError ?? 'unknown error'}`);
+}
+
+async function login(username, password) {
+  return matrixFetch('/login', null, {
     method: 'POST',
     body: JSON.stringify({
       type: 'm.login.password',
-      identifier: { type: 'm.id.user', user: USERNAME },
-      password: PASSWORD,
+      identifier: { type: 'm.id.user', user: username },
+      password,
+      initial_device_display_name: 'MindRoom App Store Fixture',
     }),
   });
-  return body;
 }
 
-async function setDisplayName(accessToken, userId) {
+async function registerWithDummyAuth(username, password) {
+  const initial = {
+    username,
+    password,
+    initial_device_display_name: 'MindRoom App Store Fixture',
+  };
+
+  try {
+    return await matrixFetch('/register', null, {
+      method: 'POST',
+      body: JSON.stringify(initial),
+    });
+  } catch (error) {
+    if (error.errcode === 'M_USER_IN_USE') {
+      return login(username, password);
+    }
+    if (error.statusCode !== 401) {
+      throw error;
+    }
+
+    const initialResponse = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(initial),
+    });
+    const challenge = await parseJsonResponse(
+      initialResponse,
+      `${HOMESERVER}/_matrix/client/v3/register`
+    );
+    const session = challenge.session;
+    const flows = Array.isArray(challenge.flows) ? challenge.flows : [];
+    const supportsDummyAuth = flows.some((flow) => {
+      const stages = Array.isArray(flow.stages) ? flow.stages : [];
+      return stages.includes('m.login.dummy');
+    });
+
+    if (!session || !supportsDummyAuth) {
+      throw error;
+    }
+
+    return matrixFetch('/register', null, {
+      method: 'POST',
+      body: JSON.stringify({
+        ...initial,
+        auth: {
+          type: 'm.login.dummy',
+          session,
+        },
+      }),
+    });
+  }
+}
+
+async function setDisplayName(accessToken, userId, displayName) {
   await matrixFetch(`/profile/${encodeURIComponent(userId)}/displayname`, accessToken, {
     method: 'PUT',
-    body: JSON.stringify({ displayname: DISPLAY_NAME }),
+    body: JSON.stringify({ displayname: displayName }),
   });
+}
+
+async function setAvatarUrl(accessToken, userId, avatarUrl) {
+  await matrixFetch(`/profile/${encodeURIComponent(userId)}/avatar_url`, accessToken, {
+    method: 'PUT',
+    body: JSON.stringify({ avatar_url: avatarUrl }),
+  });
+}
+
+const contentTypeForPath = (path) => {
+  switch (extname(path).toLowerCase()) {
+    case '.png':
+      return 'image/png';
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg';
+    case '.webp':
+      return 'image/webp';
+    case '.svg':
+      return 'image/svg+xml';
+    default:
+      return 'application/octet-stream';
+  }
+};
+
+async function setUserAvatar(accessToken, userId, avatarAssetPath) {
+  const absolutePath = resolve(ROOT_DIR, avatarAssetPath);
+  const data = await readFile(absolutePath);
+  const avatarUrl = await uploadMedia(
+    accessToken,
+    data,
+    contentTypeForPath(avatarAssetPath),
+    avatarAssetPath.split('/').pop() ?? 'avatar.png'
+  );
+  await setAvatarUrl(accessToken, userId, avatarUrl);
+  return avatarUrl;
+}
+
+async function ensureFixtureUser({ username, password, displayName, avatarAssetPath, required }) {
+  let session;
+  try {
+    session = await login(username, password);
+  } catch (loginError) {
+    try {
+      session = await registerWithDummyAuth(username, password);
+    } catch (registrationError) {
+      if (required) throw registrationError;
+      log(
+        `Skipping optional fixture user ${username}: ${
+          registrationError.message || loginError.message
+        }`
+      );
+      return undefined;
+    }
+  }
+
+  let avatarUrl;
+  if (avatarAssetPath) {
+    avatarUrl = await setUserAvatar(session.access_token, session.user_id, avatarAssetPath);
+  }
+  await setDisplayName(session.access_token, session.user_id, displayName);
+
+  return {
+    accessToken: session.access_token,
+    userId: session.user_id,
+    username,
+    displayName,
+    avatarUrl,
+  };
+}
+
+async function sendStateEvent(accessToken, roomId, eventType, stateKey, content) {
+  await matrixFetch(
+    `/rooms/${encodeURIComponent(roomId)}/state/${encodeURIComponent(
+      eventType
+    )}/${encodeURIComponent(stateKey)}`,
+    accessToken,
+    {
+      method: 'PUT',
+      body: JSON.stringify(content),
+    }
+  );
+}
+
+async function updateMemberProfile(session, roomId) {
+  await sendStateEvent(session.accessToken, roomId, 'm.room.member', session.userId, {
+    membership: 'join',
+    displayname: session.displayName,
+    ...(session.avatarUrl ? { avatar_url: session.avatarUrl } : {}),
+  }).catch((error) => {
+    log(`Could not refresh ${session.displayName} room avatar: ${error.message}`);
+  });
+}
+
+async function joinRoom(accessToken, roomIdOrAlias) {
+  const result = await matrixFetch(`/join/${encodeURIComponent(roomIdOrAlias)}`, accessToken, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  }).catch((error) => {
+    if (error.errcode !== 'M_ALREADY_JOINED') throw error;
+    return { room_id: roomIdOrAlias };
+  });
+
+  return result.room_id;
 }
 
 async function resolveOrCreateRoom(accessToken) {
@@ -66,33 +285,34 @@ async function resolveOrCreateRoom(accessToken) {
       `/directory/room/${encodeURIComponent(ROOM_ALIAS)}`,
       accessToken
     );
-    console.log(`Room alias exists: ${resolved.room_id}`);
-    await matrixFetch(`/join/${encodeURIComponent(resolved.room_id)}`, accessToken, {
-      method: 'POST',
-      body: JSON.stringify({}),
-    }).catch((error) => {
-      if (error.errcode !== 'M_ALREADY_JOINED') throw error;
+    log(`Room alias exists: ${resolved.room_id}`);
+    await joinRoom(accessToken, resolved.room_id);
+    await sendStateEvent(accessToken, resolved.room_id, 'm.room.name', '', {
+      name: APPSTORE_FIXTURE_ROOM_NAME,
+    });
+    await sendStateEvent(accessToken, resolved.room_id, 'm.room.topic', '', {
+      topic: APPSTORE_FIXTURE_ROOM_TOPIC,
     });
     return resolved.room_id;
   } catch (error) {
     if (error.errcode !== 'M_NOT_FOUND') throw error;
   }
 
-  console.log(`Creating App Store screenshot room with alias ${ROOM_ALIAS_LOCAL}...`);
+  log(`Creating App Store screenshot room with alias ${ROOM_ALIAS_LOCAL}...`);
   const created = await matrixFetch('/createRoom', accessToken, {
     method: 'POST',
     body: JSON.stringify({
       room_alias_name: ROOM_ALIAS_LOCAL,
-      name: ROOM_NAME,
-      topic: ROOM_TOPIC,
+      name: APPSTORE_FIXTURE_ROOM_NAME,
+      topic: APPSTORE_FIXTURE_ROOM_TOPIC,
       preset: 'public_chat',
     }),
   });
-  console.log(`Created room: ${created.room_id}`);
+  log(`Created room: ${created.room_id}`);
   return created.room_id;
 }
 
-async function getMessages(accessToken, roomId, limit = 100) {
+async function getMessages(accessToken, roomId, limit = 500) {
   const params = new URLSearchParams({ dir: 'b', limit: String(limit) });
   const result = await matrixFetch(
     `/rooms/${encodeURIComponent(roomId)}/messages?${params}`,
@@ -127,82 +347,153 @@ async function sendMessage(accessToken, roomId, content) {
   return sendEvent(accessToken, roomId, 'm.room.message', content);
 }
 
-async function seedReleaseThread(accessToken, roomId, messages) {
-  const existingRoot = findMessageByBody(messages, ROOT_BODY);
-  if (existingRoot) {
-    console.log(`App Store screenshot thread already seeded (${existingRoot.event_id}).`);
-    return existingRoot.event_id;
+const withThreadRelation = (content, rootId) => ({
+  ...content,
+  'm.relates_to': {
+    rel_type: 'm.thread',
+    event_id: rootId,
+    is_falling_back: true,
+    'm.in_reply_to': { event_id: rootId },
+  },
+});
+
+async function seedThread({ accessToken, roomId, thread, messages, senders, primaryUserId }) {
+  const existingRoot = findMessageByBody(messages, thread.root.body);
+  let rootId = existingRoot?.event_id;
+  if (rootId) {
+    log(`Thread already seeded: ${thread.root.body}`);
+  } else {
+    log(`Seeding thread: ${thread.root.body}`);
+    rootId = await sendMessage(
+      senders[thread.root.sender].accessToken,
+      roomId,
+      thread.root.content
+    );
+    await sleep(250);
   }
 
-  console.log('Sending App Store screenshot thread...');
-  const rootId = await sendMessage(accessToken, roomId, {
-    msgtype: 'm.text',
-    body: ROOT_BODY,
-  });
+  for (const reply of thread.replies) {
+    if (!findMessageByBody(messages, reply.content.body)) {
+      await sendMessage(
+        senders[reply.sender].accessToken,
+        roomId,
+        withThreadRelation(reply.content, rootId)
+      );
+      await sleep(250);
+    }
+  }
 
-  const replies = [
-    'Screenshots: capture iPhone 6.9 and iPad 13 views.',
-    'Fastlane: upload metadata first, then the complete screenshot set.',
-    'Review: add temporary reviewer credentials before submission.',
-  ];
+  if (thread.summary && !findMessageByBody(messages, thread.summary.content.body)) {
+    await sendMessage(
+      senders[thread.summary.sender].accessToken,
+      roomId,
+      withThreadRelation(thread.summary.content, rootId)
+    );
+    await sleep(250);
+  }
 
-  for (const [index, body] of replies.entries()) {
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    await sendMessage(accessToken, roomId, {
-      msgtype: 'm.text',
-      body,
-      'm.relates_to': {
-        rel_type: 'm.thread',
-        event_id: rootId,
-        is_falling_back: true,
-        'm.in_reply_to': { event_id: rootId },
-      },
-    });
-    console.log(`  Reply ${index + 1}: ${body}`);
+  for (const tagName of thread.tags ?? []) {
+    await sendStateEvent(
+      accessToken,
+      roomId,
+      'com.mindroom.thread.tags',
+      buildCanonicalThreadTagStateKey(rootId, tagName),
+      buildThreadTagContent(primaryUserId)
+    );
+  }
+
+  if (thread.scheduledAt) {
+    await sendStateEvent(
+      accessToken,
+      roomId,
+      'com.mindroom.scheduled.task',
+      `appstore-fixture-${thread.id}`,
+      buildScheduledTaskContent(rootId, thread.scheduledAt)
+    );
   }
 
   return rootId;
 }
 
-async function seedSummary(accessToken, roomId, messages, rootId) {
-  if (findMessageByBody(messages, SUMMARY_TEXT)) {
-    console.log('App Store screenshot summary already seeded.');
-    return;
+async function main() {
+  log(`Logging in as ${USERNAME}...`);
+  const primarySessionRaw = await login(USERNAME, PASSWORD);
+  const primarySession = {
+    accessToken: primarySessionRaw.access_token,
+    userId: primarySessionRaw.user_id,
+    username: USERNAME,
+    displayName: APPSTORE_FIXTURE_PRIMARY_DISPLAY_NAME,
+  };
+
+  if (SET_PRIMARY_PROFILE === '1') {
+    primarySession.avatarUrl = await setUserAvatar(
+      primarySession.accessToken,
+      primarySession.userId,
+      APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH
+    );
+    await setDisplayName(
+      primarySession.accessToken,
+      primarySession.userId,
+      primarySession.displayName
+    );
   }
 
-  console.log('Sending App Store screenshot summary...');
-  await sendMessage(accessToken, roomId, {
-    msgtype: 'm.notice',
-    body: SUMMARY_TEXT,
-    format: 'org.matrix.custom.html',
-    formatted_body: `<p>${SUMMARY_TEXT}</p>`,
-    'io.mindroom.thread_summary': {
-      version: 1,
-      topic: 'iOS Release',
-      summary: SUMMARY_TEXT,
-      message_count: 4,
-    },
-    'm.relates_to': {
-      rel_type: 'm.thread',
-      event_id: rootId,
-      is_falling_back: true,
-      'm.in_reply_to': { event_id: rootId },
+  const agentSessions = {};
+  for (const agent of getAppStoreFixtureAgentDefinitions()) {
+    agentSessions[agent.key] = await ensureFixtureUser({
+      ...agent,
+      required: false,
+    });
+  }
+
+  const roomId = await resolveOrCreateRoom(primarySession.accessToken);
+  if (SET_PRIMARY_PROFILE === '1') {
+    await updateMemberProfile(primarySession, roomId);
+  }
+
+  for (const session of Object.values(agentSessions)) {
+    if (!session) continue;
+    await joinRoom(session.accessToken, roomId);
+    await updateMemberProfile(session, roomId);
+  }
+
+  const senders = {
+    primary: primarySession,
+    mind: agentSessions.mind ?? primarySession,
+    router: agentSessions.router ?? primarySession,
+  };
+
+  const threads = buildAppStoreFixtureThreads({
+    primaryUserId: primarySession.userId,
+    agentUserIds: {
+      mind: senders.mind.userId,
+      router: senders.router.userId,
     },
   });
-}
 
-async function main() {
-  const session = await login();
-  await setDisplayName(session.access_token, session.user_id);
-  const roomId = await resolveOrCreateRoom(session.access_token);
-  const messages = await getMessages(session.access_token, roomId);
-  const rootId = await seedReleaseThread(session.access_token, roomId, messages);
-  await seedSummary(session.access_token, roomId, messages, rootId);
+  const messages = await getMessages(primarySession.accessToken, roomId);
+  for (const thread of threads) {
+    await seedThread({
+      accessToken: primarySession.accessToken,
+      roomId,
+      thread,
+      messages,
+      senders,
+      primaryUserId: primarySession.userId,
+    });
+  }
 
-  console.log('\nApp Store screenshot fixture ready.');
-  console.log(`  Room: ${roomId}`);
-  console.log(`  Alias: ${ROOM_ALIAS}`);
-  console.log(`  Summary: ${SUMMARY_TEXT}`);
+  log('\nApp Store screenshot fixture ready.');
+  log(`  Room: ${roomId}`);
+  log(`  Alias: ${ROOM_ALIAS}`);
+  log(
+    `  Agents: ${
+      Object.values(agentSessions)
+        .filter(Boolean)
+        .map((agent) => agent.displayName)
+        .join(', ') || 'primary account fallback'
+    }`
+  );
 }
 
 main().catch((error) => {

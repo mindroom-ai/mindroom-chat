@@ -17,7 +17,8 @@ sizes matter. Required current capture targets:
 | iPad Pro 13" (required if iPad is supported) | 2064 x 2752 |
 
 Ordering: `deliver` sorts filenames alphabetically per device class, so use
-numeric prefixes (`0_welcome.png`, `1_threads.png`, ...).
+numeric prefixes (`0_iphone-6-9_personal-workspace.png`,
+`1_iphone-6-9_mindroom-explained.png`, ...).
 
 Automated capture, from the repository root:
 
@@ -26,21 +27,28 @@ npm run appstore:screenshots
 ```
 
 The command starts the local Docker Matrix fixture stack by default, provisions
-a disposable account, seeds the App Store fixture room, and captures the
-required iPhone 6.9" and iPad 13" PNGs into `en-US/`. It starts a fresh Vite
-server on an available port by default to avoid reusing stale local dependency
-caches.
+an isolated disposable account and room for each run, seeds a public-safe fake
+`Personal` room with Bas Nijholt as the user, uploads the public `nijho.lt`
+profile avatar plus AI agent avatars, and captures the required iPhone 6.9" and
+iPad 13" PNGs into `en-US/`. The fixture shows personal-agent examples: a daily
+workspace overview, Mind's public-safe markdown-formatted explanation of
+MindRoom, and a campground watcher with expanded tool calls. It starts a fresh
+Vite server on an available port by default to avoid reusing stale local
+dependency caches.
 
-To capture against an existing/live fixture account instead:
+To set up only the Matrix fixture without taking screenshots:
 
 ```bash
-APPSTORE_SCREENSHOTS_USE_EXISTING_E2E=1 \
-E2E_HOMESERVER=https://example.org \
-E2E_USERNAME=alice \
-E2E_PASSWORD=... \
-E2E_FIXTURE_ROOM_ALIAS="#mindroom-app-store-screenshots:example.org" \
-npm run appstore:screenshots
+npm run appstore:fixture
 ```
+
+Existing/live account capture is intentionally unsupported for App Store
+screenshots because it can expose private rooms, profiles, or existing account
+state. Use the local fixture path for release assets.
+
+The fixture intentionally gives every thread summary a `⭐` prefix and varied
+message counts, including one long-running watcher around 100 messages, so room
+overview screenshots look like an active personal workspace.
 
 Manual simulator fallback:
 - Pick the matching device (for example iPhone 16 Pro Max for 6.9"), then

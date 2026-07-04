@@ -30,9 +30,9 @@ describe('app store screenshot plan', () => {
   it('keeps screenshot filenames sorted by scene order within each device class', () => {
     expect(APP_STORE_SCREENSHOT_LOCALE).toBe('en-US');
     expect(APP_STORE_SCREENSHOT_SCENES.map((scene) => scene.id)).toEqual([
-      'welcome',
-      'room-overview',
-      'thread-view',
+      'personal-workspace',
+      'mindroom-explained',
+      'campground-monitor',
     ]);
 
     expect(
@@ -40,9 +40,9 @@ describe('app store screenshot plan', () => {
         getAppStoreScreenshotFileName(APP_STORE_SCREENSHOT_DEVICES[0], scene)
       )
     ).toEqual([
-      '0_iphone-6-9_welcome.png',
-      '1_iphone-6-9_room-overview.png',
-      '2_iphone-6-9_thread-view.png',
+      '0_iphone-6-9_personal-workspace.png',
+      '1_iphone-6-9_mindroom-explained.png',
+      '2_iphone-6-9_campground-monitor.png',
     ]);
   });
 
@@ -52,6 +52,6 @@ describe('app store screenshot plan', () => {
         APP_STORE_SCREENSHOT_DEVICES[1],
         APP_STORE_SCREENSHOT_SCENES[2]
       )
-    ).toBe('ios/App/fastlane/screenshots/en-US/2_ipad-13_thread-view.png');
+    ).toBe('ios/App/fastlane/screenshots/en-US/2_ipad-13_campground-monitor.png');
   });
 });
