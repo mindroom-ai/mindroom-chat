@@ -450,7 +450,7 @@ Filled as steps complete. "Before" numbers from P0.3.
 | AC8  | ☐      |                                   |                |                         |      |
 | AC9  | ☐      |                                   |                |                         |      |
 | AC10 | ☐      |                                   |                |                         |      |
-| AC11 | ☐      |                                   |                |                         |      |
+| AC11 | ☐ impl | `npx vitest run src/app/mindroom/threads/cacheHealth.test.ts src/app/mindroom/threads/eventRepository.test.ts` | silent divergence → read-only degrade | (pending reviewer) |      |
 | AC12 | ☐ impl | `npx vitest run src/app/utils/room.test.ts` (tie tests) | order-dependent → id-deterministic | (pending reviewer) |      |
 | AC13 | ☐      |                                   |                |                         |      |
 | AC14 | ☐      |                                   |                |                         |      |
@@ -503,6 +503,14 @@ new engine-scoped guard file):
 (None yet. Record: date, step ID, what changed vs. plan, why, approved by.)
 
 ## 9. Status log
+
+- 2026-07-03 — **P1.5 landed** (PR 7): cache write failures surfaced (F4).
+  `cacheHealth.ts` counts every failure, logs the first per scope, and a
+  `QuotaExceededError` degrades the session to cache-read-only (writes
+  skipped at the persist entry points, reads/reconcile unaffected,
+  `window.__MINDROOM_CACHE_HEALTH__` inspectable). AC11 unit-tested with an
+  injected quota error. Deletes stay ungated; remaining write sites move
+  behind CacheStore in Phase 2.
 
 - 2026-07-03 — **P1.4 landed** (PR 6): edit compaction at the cache write
   boundary (F5/D5). Standalone same-sender `m.replace` records are no longer
