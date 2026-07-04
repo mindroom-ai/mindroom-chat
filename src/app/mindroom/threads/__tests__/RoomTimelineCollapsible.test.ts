@@ -128,8 +128,10 @@ vi.mock('../../../state/hooks/settings', () => ({
         return ['400'];
       case 'dateFormatString':
         return ['MMM D'];
-      case 'paginationLimit':
+      case 'prefetchDepth':
         return [300];
+      case 'prefetchScope':
+        return ['my-server'];
       default:
         return [false];
     }

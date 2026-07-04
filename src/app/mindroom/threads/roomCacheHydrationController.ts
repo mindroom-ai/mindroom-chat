@@ -25,7 +25,7 @@ export const useRoomCacheHydrationController = ({
   room,
   roomDebugTraceId,
   roomIdRef,
-  safePaginationLimit,
+  prefetchDepth,
   scrollToBottomRef,
   sessionId,
   setAtBottom,
@@ -41,7 +41,7 @@ export const useRoomCacheHydrationController = ({
   room: Room;
   roomDebugTraceId: string;
   roomIdRef: MutableRefObject<string>;
-  safePaginationLimit: number;
+  prefetchDepth: number;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   sessionId: string;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
@@ -57,7 +57,7 @@ export const useRoomCacheHydrationController = ({
     const hydrateRoomFromCache = async () => {
       markCacheHydrateStart('room');
       logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-start', {
-        limit: safePaginationLimit,
+        limit: prefetchDepth,
       });
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
@@ -68,7 +68,7 @@ export const useRoomCacheHydrationController = ({
       const hydrationSnapshot = await loadLatestRoomCacheHydrationSnapshot({
         sessionId,
         roomId: room.roomId,
-        limit: safePaginationLimit,
+        limit: prefetchDepth,
         loadedEvents: loadedRoomEvents,
         mapEvent: createPreferLiveEventMapper(room, mapper),
       });
@@ -155,7 +155,7 @@ export const useRoomCacheHydrationController = ({
     room,
     roomDebugTraceId,
     roomIdRef,
-    safePaginationLimit,
+    prefetchDepth,
     scrollToBottomRef,
     sessionId,
     setAtBottom,

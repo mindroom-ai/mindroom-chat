@@ -101,7 +101,7 @@ export const useThreadOpenCacheController = ({
   persistThreadEventCache,
   room,
   roomIdRef,
-  safePaginationLimitRef,
+  prefetchDepthRef,
   scheduler,
   sessionId,
   setSupplementalThreadEvents,
@@ -122,7 +122,7 @@ export const useThreadOpenCacheController = ({
   // call. That method moved to `engine/reconciler.ts` — the reconciler
   // reads the room's timeline set from `room.getThread(...)` when it
   // needs one. The controller no longer touches it.
-  safePaginationLimitRef: MutableRefObject<number>;
+  prefetchDepthRef: MutableRefObject<number>;
   /**
    * CINNY-207 P5.1 Commit 2: `backfillThreadRelationsIntoCache` now
    * routes its `/relations` fetch through the engine's scheduler as a
@@ -141,7 +141,7 @@ export const useThreadOpenCacheController = ({
   const hydrateThreadFromCache = useCallback(
     async (expectedThreadId: string) => {
       logTimelineDebug(debugTraceId, 'thread-cache-hydrate-start', {
-        limit: safePaginationLimitRef.current,
+        limit: prefetchDepthRef.current,
         threadId: expectedThreadId,
       });
       const mapper = mx.getEventMapper();
@@ -149,7 +149,7 @@ export const useThreadOpenCacheController = ({
         sessionId,
         roomId: room.roomId,
         threadId: expectedThreadId,
-        limit: safePaginationLimitRef.current,
+        limit: prefetchDepthRef.current,
         maxPages: MAX_THREAD_FETCH_ITERATIONS,
         mapEvent: createPreferLiveEventMapper(room, mapper),
         shouldContinue: () => alive() && threadIdRef.current === expectedThreadId,
@@ -276,7 +276,7 @@ export const useThreadOpenCacheController = ({
       forceTimelineUpdate,
       mx,
       room,
-      safePaginationLimitRef,
+      prefetchDepthRef,
       sessionId,
       setSupplementalThreadEvents,
       setThreadHasMoreCachedBack,

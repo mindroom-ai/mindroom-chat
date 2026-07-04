@@ -33,7 +33,7 @@ export const useThreadSeedPrewarmController = ({
   room,
   mx,
   sessionId,
-  safePaginationLimitRef,
+  prefetchDepthRef,
   activeThreadId,
   priorityTargets,
   loadThreadOpenSeedSnapshotFromCache: loadThreadOpenSeedSnapshotFromCacheProp,
@@ -42,7 +42,7 @@ export const useThreadSeedPrewarmController = ({
   room: Room;
   mx: MatrixClient;
   sessionId: string;
-  safePaginationLimitRef: MutableRefObject<number>;
+  prefetchDepthRef: MutableRefObject<number>;
   activeThreadId: string | undefined;
   priorityTargets: ThreadSeedPrewarmTarget[];
   loadThreadOpenSeedSnapshotFromCache?: (expectedThreadId: string) => Promise<MatrixEvent[]>;
@@ -83,13 +83,13 @@ export const useThreadSeedPrewarmController = ({
         sessionId,
         roomId: room.roomId,
         threadId: expectedThreadId,
-        limit: safePaginationLimitRef.current,
+        limit: prefetchDepthRef.current,
         maxPages: MAX_THREAD_FETCH_ITERATIONS,
         mapEvent: createPreferLiveEventMapper(room, mapper),
       });
       return cachedSnapshot?.events ?? [];
     },
-    [loadThreadOpenSeedSnapshotFromCacheProp, mx, room, safePaginationLimitRef, sessionId]
+    [loadThreadOpenSeedSnapshotFromCacheProp, mx, room, prefetchDepthRef, sessionId]
   );
 
   // CINNY-207 P4.4: dedup migrated onto the engine's BackfillScheduler.

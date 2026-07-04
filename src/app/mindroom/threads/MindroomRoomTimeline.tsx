@@ -189,7 +189,8 @@ import { useRoomThreadResolutionMap } from './useRoomThreadTags';
 // CINNY-207 P4.3: the eager preload hook was deleted. Deep-history
 // sweep is now a band-4 job on the engine's BackfillScheduler (see
 // engine/deepHistoryJob.ts) and never touches the SDK live timeline.
-import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE, sanitizePaginationLimit } from './preloadSettings';
+import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from './preloadSettings';
+import { sanitizePrefetchDepth } from '../engine/prefetchPolicy';
 import { mindroomSettingsAtom } from '../settings/mindroomSettings';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
 import { type PendingThreadOpen } from './threadOpenTargetEvent';
@@ -331,14 +332,14 @@ export function RoomTimeline({
   const showUrlPreview = room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview;
   const [showHiddenEvents] = useSetting(settingsAtom, 'showHiddenEvents');
   const [showDeveloperTools] = useSetting(settingsAtom, 'developerTools');
-  const [paginationLimitSetting] = useSetting(mindroomSettingsAtom, 'paginationLimit');
-  const safePaginationLimit = sanitizePaginationLimit(paginationLimitSetting);
+  const [prefetchDepthSetting] = useSetting(mindroomSettingsAtom, 'prefetchDepth');
+  const prefetchDepth = sanitizePrefetchDepth(prefetchDepthSetting);
   const interactivePaginationLimit = Math.min(
-    safePaginationLimit,
+    prefetchDepth,
     ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE
   );
-  const safePaginationLimitRef = useRef(safePaginationLimit);
-  safePaginationLimitRef.current = safePaginationLimit;
+  const prefetchDepthRef = useRef(prefetchDepth);
+  prefetchDepthRef.current = prefetchDepth;
 
   const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
   const [dateFormatString] = useSetting(settingsAtom, 'dateFormatString');
@@ -476,7 +477,7 @@ export function RoomTimeline({
   const [timeline, setTimeline] = useState<Timeline>(() =>
     eventId
       ? getEmptyTimeline()
-      : getInitialTimeline(room, safePaginationLimit, {
+      : getInitialTimeline(room, prefetchDepth, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -511,7 +512,7 @@ export function RoomTimeline({
     if (eventId || threadId) return;
 
     setTimeline(
-      getInitialTimeline(room, safePaginationLimit, {
+      getInitialTimeline(room, prefetchDepth, {
         threadId,
         ignoredUsersSet,
         showHiddenEvents,
@@ -524,7 +525,7 @@ export function RoomTimeline({
     eventId,
     threadId,
     room,
-    safePaginationLimit,
+    prefetchDepth,
     ignoredUsersSet,
     showHiddenEvents,
     hideMembershipEvents,
@@ -725,7 +726,7 @@ export function RoomTimeline({
     room,
     roomSurfaceEventEntries,
     roomThreadListThreads,
-    safePaginationLimit,
+    prefetchDepth,
     threadEventsLength: threadEvents.length,
     threadHasMoreCachedBack,
     threadId,
@@ -765,7 +766,7 @@ export function RoomTimeline({
 
     if (wasActive && !roomThreadFilterActive && !threadId) {
       setTimeline(
-        getInitialTimeline(room, safePaginationLimit, {
+        getInitialTimeline(room, prefetchDepth, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -784,7 +785,7 @@ export function RoomTimeline({
     hideMembershipEvents,
     hideNickAvatarEvents,
     showThreadRepliesInRoom,
-    safePaginationLimit,
+    prefetchDepth,
   ]);
 
   const timelineAtLiveEnd = isTimelineAtLiveEnd({
@@ -857,7 +858,7 @@ export function RoomTimeline({
     room,
     roomIdRef,
     roomPaginatingBackRef,
-    safePaginationLimitRef,
+    prefetchDepthRef,
     sessionId,
     setRoomHasMoreCachedBack,
     setTimeline,
@@ -871,6 +872,12 @@ export function RoomTimeline({
   // (roomId, undefined, 'room-deep-history') so remounts (view mode
   // flips, thread open/close) don't fire redundant sweeps. The engine
   // scheduler's abortAll on stop() tears it down on account switch.
+  // CINNY-207 P6.1 / D4: `prefetchDepth` — the user-facing "current
+  // room history depth" setting — is threaded through as the job's
+  // `targetEventCount`. Snapshot at the effect fire (not via ref)
+  // because the dedup key does not include the depth: a mid-focus
+  // depth change won't reset the running job, but the next mount
+  // (room switch, view mode flip) picks up the new value.
   useEffect(() => {
     if (!roomEagerPreloadEnabled) return;
     if (eventId || threadId) return;
@@ -879,10 +886,12 @@ export function RoomTimeline({
       sessionId,
       scheduler: syncEngine.scheduler,
       roomId: room.roomId,
+      targetEventCount: prefetchDepth,
     }).catch(() => undefined);
   }, [
     eventId,
     mx,
+    prefetchDepth,
     room.roomId,
     roomEagerPreloadEnabled,
     sessionId,
@@ -925,7 +934,7 @@ export function RoomTimeline({
     room,
     mx,
     sessionId,
-    safePaginationLimitRef,
+    prefetchDepthRef,
     activeThreadId: threadId,
     priorityTargets: priorityThreadSeedPrewarmRoots,
     debugTraceId: roomDebugTraceId,
@@ -947,7 +956,7 @@ export function RoomTimeline({
     persistThreadEventCache,
     room,
     roomIdRef,
-    safePaginationLimitRef,
+    prefetchDepthRef,
     scheduler: syncEngine.scheduler,
     sessionId,
     setSupplementalThreadEvents,
@@ -1516,8 +1525,8 @@ export function RoomTimeline({
     recalibrateFilterOptsRef,
     roomOverviewOrderActive,
     roomThreadListThreads,
-    safePaginationLimit,
-    safePaginationLimitRef,
+    prefetchDepth,
+    prefetchDepthRef,
     cancelThreadBottomSettle,
     scheduledStatusMap,
     scrollRef,
@@ -1576,7 +1585,7 @@ export function RoomTimeline({
 
   const buildRoomCacheHydratedTimeline = useCallback(
     () =>
-      getInitialTimeline(room, safePaginationLimitRef.current, {
+      getInitialTimeline(room, prefetchDepthRef.current, {
         threadId: undefined,
         ignoredUsersSet: recalibrateFilterOptsRef.current?.ignoredUsersSet ?? new Set(),
         showHiddenEvents: recalibrateFilterOptsRef.current?.showHiddenEvents ?? false,
@@ -1595,7 +1604,7 @@ export function RoomTimeline({
     room,
     roomDebugTraceId,
     roomIdRef,
-    safePaginationLimit,
+    prefetchDepth,
     scrollToBottomRef,
     sessionId,
     setAtBottom,
@@ -1612,7 +1621,7 @@ export function RoomTimeline({
     refreshLatestThreadSlice,
     onRoomRefresh: useCallback(() => {
       setTimeline(
-        getInitialTimeline(room, safePaginationLimit, {
+        getInitialTimeline(room, prefetchDepth, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -1629,7 +1638,7 @@ export function RoomTimeline({
       hideMembershipEvents,
       hideNickAvatarEvents,
       showThreadRepliesInRoom,
-      safePaginationLimit,
+      prefetchDepth,
     ]),
   });
 
@@ -1805,7 +1814,7 @@ export function RoomTimeline({
       navigateRoomThread,
       refreshLatestThreadSlice,
       room,
-      safePaginationLimit,
+      prefetchDepth,
       scrollRef,
       scrollToBottomRef,
       setAtBottom,
