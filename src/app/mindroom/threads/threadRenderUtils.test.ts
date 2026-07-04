@@ -222,7 +222,7 @@ describe('shouldAutoPaginateThreadBack', () => {
     firstRenderedIndex: 10,
     paginatingBack: false,
     showLoadOlder: true,
-    openPinPending: false,
+    hasUserScrollIntent: true,
     triggerRows: 15,
   };
 
@@ -250,10 +250,14 @@ describe('shouldAutoPaginateThreadBack', () => {
     expect(shouldAutoPaginateThreadBack({ ...base, showLoadOlder: false })).toBe(false);
   });
 
-  it('does not misread the open-time pin settle phase as a scroll to top', () => {
-    // During pin-to-bottom settling the virtualizer transiently renders
-    // from index 0; auto-pagination must wait for the settle to finish.
-    expect(shouldAutoPaginateThreadBack({ ...base, openPinPending: true })).toBe(false);
+  it('does not fire before any real user scroll gesture', () => {
+    // Before a gesture, a low rendered index is the open-time pre-pin
+    // transient (the virtualizer briefly renders from index 0), not a
+    // user scrolled to the top. Note this gate is user intent, NOT the
+    // open-lifecycle pending flag — that flag stays true for the whole
+    // open-time backfill chain, which on slow networks is exactly when
+    // a scrolling user needs the trigger live.
+    expect(shouldAutoPaginateThreadBack({ ...base, hasUserScrollIntent: false })).toBe(false);
   });
 });
 

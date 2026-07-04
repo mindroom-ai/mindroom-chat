@@ -154,18 +154,17 @@ test.describe('virtualized thread behaviors', () => {
     await expect(page.getByRole('button', { name: 'Jump to Latest' })).toBeVisible();
   });
 
-  // Guard scope (honest): this asserts the user-facing CONTRACT —
-  // older thread history is reachable by real wheel scrolling alone,
-  // never requiring a "Load Older Messages" chip tap. On this fast
-  // local network the contract is satisfiable by EITHER the
-  // scroll-driven auto-pagination trigger (task #125 fix) OR the
-  // background band backfill, so this test alone cannot isolate the
-  // trigger (verified: it passes with the trigger stashed). The
-  // trigger's own regression coverage is the unit-tested
-  // shouldAutoPaginateThreadBack predicate + its effect wiring; the
-  // trigger's VALUE (prefetch headroom before the loaded-window edge)
-  // only manifests on slow networks where band arrivals lag — the
-  // mobile jag this exists to prevent.
+  // Guards two things: (1) the user-facing CONTRACT — older thread
+  // history is reachable by real wheel scrolling alone, never
+  // requiring a "Load Older Messages" chip tap; (2) the
+  // scroll-driven auto-pagination TRIGGER itself, asserted directly
+  // through the threadAutoPaginateBackFired probe counter. The
+  // counter assertion is what makes this red when the trigger is
+  // removed: on this fast local network the CONTENT assertion alone
+  // is also satisfiable by background band backfill (verified — it
+  // passed with the trigger stashed), which is exactly the loader
+  // that lags on the slow mobile networks where the task #125 jag
+  // manifests.
   test('scrolling up auto-loads older replies without the Load Older chip (task #125)', async ({
     page,
   }) => {
@@ -175,19 +174,38 @@ test.describe('virtualized thread behaviors', () => {
     // More replies than one THREAD_BATCH_SIZE (200) so the open leaves
     // older history unloaded — the shape where mobile scroll-up used
     // to hard-stop at the loaded-window edge (task #125).
-    const seeded = await seedThread(homeserver, session.accessToken, { replyCount: 260 });
+    const seeded = await seedThread(homeserver, session.accessToken, { replyCount: 460 });
 
     await loginWithPassword(page, { homeserver, username, password });
+
+    // Slow down the MATRIX API (not the app assets) before opening the
+    // thread. On an unthrottled local network the background band
+    // backfill loads the ENTIRE thread during the open-settle phase
+    // (verified via gate logging: count reached full before
+    // openPinPending cleared), leaving the trigger nothing to do — the
+    // exact opposite of the slow mobile networks where the task #125
+    // jag manifests. Per-request latency on /_matrix/* keeps older
+    // history unloaded when the walk starts, so the trigger has a real
+    // edge to fire against. (A CDP global throttle is unusable here:
+    // page.goto re-navigates and the vite dev bundle cannot boot
+    // through it.)
+    await page.route('**/_matrix/**', async (route) => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1_200);
+      });
+      await route.continue();
+    });
+
     await openThread(page, seeded);
 
     // Target: a reply OLDER than the initially-loaded window (open
-    // loads the latest THREAD_BATCH_SIZE=200 → replies 61-260), so
-    // reaching it proves scroll-driven back-pagination fired. NOT
+    // loads the latest THREAD_BATCH_SIZE=200 → replies 261-460), so
+    // reaching it proves back-pagination extended the window. NOT
     // reply 1: the oldest ~30 replies of a large thread are
     // unreachable through the current loader (pre-existing gap,
     // documented at the quote-click test below and filed as task
     // #126) — this test proves the auto-trigger, not that gap.
-    const targetReplyId = seeded.replyIds[34]; // "Virt reply 35"
+    const targetReplyId = seeded.replyIds[99]; // "Virt reply 100"
 
     // Sanity: the target must NOT be rendered at open. If it is, the
     // fixture no longer leaves history unloaded and this test can no
@@ -197,22 +215,48 @@ test.describe('virtualized thread behaviors', () => {
 
     // Real wheel input, never touching the "Load Older Messages" chip.
     // Bounded walk: each iteration wheels up; auto-pagination must
-    // extend the window until the target enters the DOM.
+    // extend the window. Exit condition is the MINIMUM mounted reply
+    // number rather than an exact-target mount: prepend anchor
+    // restores can hop the viewport across any single row between
+    // polls, but the minimum mounted number reaching the target depth
+    // proves the loaded window extended ~160+ rows past the initial
+    // batch — impossible without back-pagination.
     const timeline = page.locator('[data-message-item]').first();
     await timeline.hover();
-    let targetPresent = false;
-    for (let i = 0; i < 160 && !targetPresent; i += 1) {
+    const targetReplyNumber = 100;
+    const minMountedReplyNumber = () =>
+      page.evaluate(() => {
+        let min = Number.POSITIVE_INFINITY;
+        document.querySelectorAll('[data-message-item]').forEach((row) => {
+          const match = /Virt reply (\d+)\b/.exec(row.textContent ?? '');
+          if (match) min = Math.min(min, Number(match[1]));
+        });
+        return Number.isFinite(min) ? min : undefined;
+      });
+    let deepest: number | undefined;
+    for (let i = 0; i < 160; i += 1) {
       // eslint-disable-next-line no-await-in-loop
       await page.mouse.wheel(0, -1400);
       // eslint-disable-next-line no-await-in-loop
       await page.waitForTimeout(120);
       // eslint-disable-next-line no-await-in-loop
-      targetPresent = (await page.locator(`[data-message-id="${targetReplyId}"]`).count()) > 0;
+      const min = await minMountedReplyNumber();
+      if (min !== undefined && (deepest === undefined || min < deepest)) deepest = min;
+      if (deepest !== undefined && deepest <= targetReplyNumber) break;
     }
-    expect(targetPresent).toBe(true);
-    await expect(page.getByText('Virt reply 35', { exact: true })).toBeVisible({
-      timeout: 10_000,
+    expect(deepest).toBeLessThanOrEqual(targetReplyNumber);
+
+    // The trigger itself must have fired at least once during the
+    // walk — this is the assertion that distinguishes trigger-driven
+    // loading from band-backfill-driven loading and goes red if the
+    // auto-pagination effect is removed.
+    const autoFires = await page.evaluate(() => {
+      const w = window as Window & {
+        __MINDROOM_CACHE_PROBE__?: { snapshot: () => Record<string, number> };
+      };
+      return w.__MINDROOM_CACHE_PROBE__?.snapshot()?.threadAutoPaginateBackFired ?? 0;
     });
+    expect(autoFires).toBeGreaterThanOrEqual(1);
   });
 
   test('clicking a reply quote targeting a loaded-but-unmounted row scrolls to it', async ({

@@ -54,10 +54,16 @@ type ThreadAutoPaginateBackOpts = {
   // Same condition that shows the "Load Older Messages" chip — older
   // content exists in cache or on the server.
   showLoadOlder: boolean;
-  // The open-time pin-to-bottom has not settled yet. During that phase
-  // the virtualizer transiently renders from index 0, which must not
-  // read as "user scrolled to the top".
-  openPinPending: boolean;
+  // A real user scroll gesture (wheel/touch/keyboard) has happened in
+  // this thread view. Auto-pagination is a RESPONSE to the user
+  // scrolling toward the edge; without a gesture, a low rendered
+  // index is an open-time artifact (the virtualizer transiently
+  // renders from index 0 before the pin-to-bottom lands) and must not
+  // fire. Deliberately NOT the open-lifecycle pending flag: that flag
+  // stays true until the whole open-time backfill chain completes,
+  // which on slow networks spans the entire loading phase — exactly
+  // when a scrolling user needs the trigger live (task #125).
+  hasUserScrollIntent: boolean;
   triggerRows: number;
 };
 
@@ -77,12 +83,12 @@ export const shouldAutoPaginateThreadBack = ({
   firstRenderedIndex,
   paginatingBack,
   showLoadOlder,
-  openPinPending,
+  hasUserScrollIntent,
   triggerRows,
 }: ThreadAutoPaginateBackOpts): boolean =>
   !!threadId &&
   !paginatingBack &&
-  !openPinPending &&
+  hasUserScrollIntent &&
   showLoadOlder &&
   firstRenderedIndex !== undefined &&
   firstRenderedIndex <= triggerRows;

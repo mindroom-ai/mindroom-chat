@@ -194,6 +194,7 @@ import {
   ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
   THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
 } from './preloadSettings';
+import { countCacheProbe } from './cacheProbe';
 import { sanitizePrefetchDepth,
   sanitizePrefetchScope } from '../engine/prefetchPolicy';
 import { mindroomSettingsAtom } from '../settings/mindroomSettings';
@@ -2950,33 +2951,94 @@ export function RoomTimeline({
   // (cache-first IDB page, network fallback, prepend anchor
   // capture/restore) when the top of the rendered window comes within
   // THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS of the loaded edge.
-  // useVirtualizer re-renders on scroll, so firstRenderedIndex is a
-  // fresh read each render; single-flight and settle-phase guards live
-  // in the predicate.
+  //
+  // Guard inputs are STATE values, not refs (greptile P1 on PR #74):
+  // the gating conditions must RE-RUN the effect when they change.
+  // With refs in the dep array the identity is stable, so a
+  // suppressed evaluation would never re-run without an index change.
+  //
+  // The "not an open-time artifact" gate is USER SCROLL INTENT, not
+  // the open-lifecycle pending flag: threadLatestOpenPending stays
+  // true until the whole open-time backfill chain completes (its
+  // clear lives in the chain's finally), which on slow networks spans
+  // the entire loading phase — exactly when a scrolling user needs
+  // the trigger live. A real gesture (the same event set the
+  // pin-settle loop watches) is both necessary and sufficient: before
+  // any gesture, a low rendered index is the pre-pin transient and
+  // must not fire; after one, the user is genuinely navigating.
+  //
+  // Barren-attempt guard (greptile P2): one fire per
+  // (firstRenderedIndex, threadEvents.length) observation. If an
+  // attempt completes without growing the loaded window (exhausted or
+  // miscounted coverage upstream), the identical state must not
+  // re-fire in a loop; the next fire requires the user to scroll
+  // (index changes) or content to land (length changes).
   const threadFirstRenderedIndex = threadId
     ? roomTimelineVirtualizer.getVirtualItems()[0]?.index
     : undefined;
+  const [threadUserScrolled, setThreadUserScrolled] = useState(false);
+  useEffect(() => {
+    setThreadUserScrolled(false);
+    if (!threadId) return undefined;
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return undefined;
+    const gestureEvents = ['wheel', 'touchmove', 'pointerdown', 'keydown'] as const;
+    const markScrolled = () => {
+      setThreadUserScrolled(true);
+      gestureEvents.forEach((eventType) => {
+        scrollEl.removeEventListener(eventType, markScrolled);
+      });
+    };
+    gestureEvents.forEach((eventType) => {
+      scrollEl.addEventListener(eventType, markScrolled, { passive: true });
+    });
+    return () => {
+      gestureEvents.forEach((eventType) => {
+        scrollEl.removeEventListener(eventType, markScrolled);
+      });
+    };
+    // threadInitialRenderMode: the scroll element mounts after the
+    // loading placeholder phase; re-attach once real rows render.
+  }, [threadId, threadInitialRenderMode]);
+  const threadAutoPaginateLastFireRef = useRef<{ index: number; count: number } | null>(null);
+  useEffect(() => {
+    threadAutoPaginateLastFireRef.current = null;
+  }, [threadId]);
   useEffect(() => {
     if (
       !shouldAutoPaginateThreadBack({
         threadId,
         firstRenderedIndex: threadFirstRenderedIndex,
-        paginatingBack: threadPaginatingBackRef.current,
+        paginatingBack: threadPaginatingBack,
         showLoadOlder: showThreadLoadOlderMessages,
-        openPinPending: threadLatestOpenPendingRef.current,
+        hasUserScrollIntent: threadUserScrolled,
         triggerRows: THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
       })
     ) {
       return;
     }
+    const lastFire = threadAutoPaginateLastFireRef.current;
+    if (
+      lastFire &&
+      lastFire.index === threadFirstRenderedIndex &&
+      lastFire.count === threadEvents.length
+    ) {
+      return;
+    }
+    threadAutoPaginateLastFireRef.current = {
+      index: threadFirstRenderedIndex as number,
+      count: threadEvents.length,
+    };
+    countCacheProbe('threadAutoPaginateBackFired');
     handleThreadPaginateBack();
   }, [
     threadFirstRenderedIndex,
     threadId,
     showThreadLoadOlderMessages,
+    threadPaginatingBack,
+    threadUserScrolled,
+    threadEvents.length,
     handleThreadPaginateBack,
-    threadPaginatingBackRef,
-    threadLatestOpenPendingRef,
   ]);
 
   let prevEvent: MatrixEvent | undefined;
