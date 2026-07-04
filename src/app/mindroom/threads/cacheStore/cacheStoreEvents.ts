@@ -266,19 +266,23 @@ export const saveRoomEventsToCache = async (
   // call in its own gate/catch.
   if (!isCacheWritable()) return;
 
-  const db = await openCacheStore(sessionId);
-  if (!db) return;
-
-  const normalizedEvents = normalizeCachedRoomEvents(rawEvents);
-  if (normalizedEvents.length === 0) return;
-
-  countCacheProbe('roomSaveCalls');
-  countCacheProbe('roomEventPuts', normalizedEvents.length);
-  if (beforeTokenForEarliest !== undefined) {
-    countCacheProbe('roomMetaPuts');
-  }
-
+  // CINNY-207 P2 review: the entire body (including the openCacheStore
+  // await) must live inside the error-reporting boundary. Callers
+  // invoke us via `void save(...)` — a rejected open here would escape
+  // as an unhandled rejection and never trip the health gate.
   try {
+    const db = await openCacheStore(sessionId);
+    if (!db) return;
+
+    const normalizedEvents = normalizeCachedRoomEvents(rawEvents);
+    if (normalizedEvents.length === 0) return;
+
+    countCacheProbe('roomSaveCalls');
+    countCacheProbe('roomEventPuts', normalizedEvents.length);
+    if (beforeTokenForEarliest !== undefined) {
+      countCacheProbe('roomMetaPuts');
+    }
+
     await runSaveRoomEventsTxn(db, roomId, normalizedEvents, beforeTokenForEarliest);
   } catch (error) {
     reportCacheWriteError('roomEventCache.save', error);
@@ -380,44 +384,59 @@ export const deleteRoomEventsFromCache = async (
   eventIds: string[]
 ): Promise<void> => {
   if (eventIds.length === 0) return;
-  const db = await openCacheStore(sessionId);
-  if (!db) return;
+  // CINNY-207 P2 review: duplicate event ids would double-decrement the
+  // ledger (bytes underflow via `noteDelete`) because the deletion
+  // schedules read+delete once per id. Dedupe at the entry point so
+  // the ledger accounting stays exact regardless of the caller.
+  const uniqueEventIds = Array.from(new Set(eventIds));
 
-  countCacheProbe('eventDeletes', eventIds.length);
+  // CINNY-207 P2 review: deletes stay UNGATED (they only shrink
+  // storage) but must not produce unhandled rejections. Callers use
+  // `void del(...)` in redaction paths; swallow any open/txn failure
+  // rather than escaping. No `reportCacheWriteError` — deletes
+  // failing does not indicate a full-store condition.
+  try {
+    const db = await openCacheStore(sessionId);
+    if (!db) return;
 
-  await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(
-      [EVENTS_STORE, ROOM_LEDGER_STORE],
-      'readwrite'
-    );
-    const eventStore = transaction.objectStore(EVENTS_STORE);
-    const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
-    const ledger = createLedgerTracker(roomId);
-    ledger.readBaseline(ledgerStore, eventStore, () => {
-      let pendingReads = eventIds.length;
-      const maybeFinalizeLedger = (): void => {
-        pendingReads -= 1;
-        if (pendingReads === 0) ledger.finalize(ledgerStore);
-      };
-      eventIds.forEach((eventId) => {
-        const cacheKey = buildEventCacheKey(roomId, ROOM_SCOPE, eventId);
-        // Read-before-delete so the ledger decrements exactly (only if
-        // the record actually existed).
-        const previousRequest = eventStore.get(cacheKey);
-        previousRequest.onsuccess = () => {
-          const previous = previousRequest.result as CachedEventRecord | undefined;
-          ledger.noteDelete(previous);
-          eventStore.delete(cacheKey);
-          maybeFinalizeLedger();
+    countCacheProbe('eventDeletes', uniqueEventIds.length);
+
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(
+        [EVENTS_STORE, ROOM_LEDGER_STORE],
+        'readwrite'
+      );
+      const eventStore = transaction.objectStore(EVENTS_STORE);
+      const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
+      const ledger = createLedgerTracker(roomId);
+      ledger.readBaseline(ledgerStore, eventStore, () => {
+        let pendingReads = uniqueEventIds.length;
+        const maybeFinalizeLedger = (): void => {
+          pendingReads -= 1;
+          if (pendingReads === 0) ledger.finalize(ledgerStore);
         };
-        previousRequest.onerror = () => reject(previousRequest.error);
+        uniqueEventIds.forEach((eventId) => {
+          const cacheKey = buildEventCacheKey(roomId, ROOM_SCOPE, eventId);
+          // Read-before-delete so the ledger decrements exactly (only if
+          // the record actually existed).
+          const previousRequest = eventStore.get(cacheKey);
+          previousRequest.onsuccess = () => {
+            const previous = previousRequest.result as CachedEventRecord | undefined;
+            ledger.noteDelete(previous);
+            eventStore.delete(cacheKey);
+            maybeFinalizeLedger();
+          };
+          previousRequest.onerror = () => reject(previousRequest.error);
+        });
       });
-    });
 
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
-  });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } catch {
+    // Best-effort — see rationale above. Callers do not consume errors.
+  }
 };
 
 // --- Thread API ---
@@ -551,20 +570,22 @@ export const saveThreadEventsToCache = async (
   // CINNY-207 P2.3: cache health gate (same rationale as the room save).
   if (!isCacheWritable()) return;
 
-  const db = await openCacheStore(sessionId);
-  if (!db) return;
-
-  const normalizedEvents = filterPageableCachedThreadEvents(
-    normalizeCachedThreadEvents(rawEvents),
-    threadId
-  );
-  if (normalizedEvents.length === 0 && !rootEvent) return;
-
-  countCacheProbe('threadSaveCalls');
-  countCacheProbe('threadEventPuts', normalizedEvents.length);
-  countCacheProbe('threadMetaPuts');
-
+  // CINNY-207 P2 review: keep the open inside the error boundary — see
+  // saveRoomEventsToCache for the rationale (callers use `void save`).
   try {
+    const db = await openCacheStore(sessionId);
+    if (!db) return;
+
+    const normalizedEvents = filterPageableCachedThreadEvents(
+      normalizeCachedThreadEvents(rawEvents),
+      threadId
+    );
+    if (normalizedEvents.length === 0 && !rootEvent) return;
+
+    countCacheProbe('threadSaveCalls');
+    countCacheProbe('threadEventPuts', normalizedEvents.length);
+    countCacheProbe('threadMetaPuts');
+
     await runSaveThreadEventsTxn(
       db,
       roomId,
@@ -696,42 +717,52 @@ export const deleteThreadEventsFromCache = async (
   eventIds: string[]
 ): Promise<void> => {
   if (eventIds.length === 0) return;
-  const db = await openCacheStore(sessionId);
-  if (!db) return;
+  // CINNY-207 P2 review: dedupe (same rationale as
+  // deleteRoomEventsFromCache — avoid double-decrementing the ledger).
+  const uniqueEventIds = Array.from(new Set(eventIds));
 
-  countCacheProbe('eventDeletes', eventIds.length);
+  // CINNY-207 P2 review: swallow open/txn failures instead of leaking
+  // as unhandled rejections (deletes are ungated but must be safe).
+  try {
+    const db = await openCacheStore(sessionId);
+    if (!db) return;
 
-  await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(
-      [EVENTS_STORE, ROOM_LEDGER_STORE],
-      'readwrite'
-    );
-    const eventStore = transaction.objectStore(EVENTS_STORE);
-    const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
-    const ledger = createLedgerTracker(roomId);
-    ledger.readBaseline(ledgerStore, eventStore, () => {
-      let pendingReads = eventIds.length;
-      const maybeFinalizeLedger = (): void => {
-        pendingReads -= 1;
-        if (pendingReads === 0) ledger.finalize(ledgerStore);
-      };
-      eventIds.forEach((eventId) => {
-        const cacheKey = buildEventCacheKey(roomId, threadId, eventId);
-        const previousRequest = eventStore.get(cacheKey);
-        previousRequest.onsuccess = () => {
-          const previous = previousRequest.result as CachedEventRecord | undefined;
-          ledger.noteDelete(previous);
-          eventStore.delete(cacheKey);
-          maybeFinalizeLedger();
+    countCacheProbe('eventDeletes', uniqueEventIds.length);
+
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(
+        [EVENTS_STORE, ROOM_LEDGER_STORE],
+        'readwrite'
+      );
+      const eventStore = transaction.objectStore(EVENTS_STORE);
+      const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
+      const ledger = createLedgerTracker(roomId);
+      ledger.readBaseline(ledgerStore, eventStore, () => {
+        let pendingReads = uniqueEventIds.length;
+        const maybeFinalizeLedger = (): void => {
+          pendingReads -= 1;
+          if (pendingReads === 0) ledger.finalize(ledgerStore);
         };
-        previousRequest.onerror = () => reject(previousRequest.error);
+        uniqueEventIds.forEach((eventId) => {
+          const cacheKey = buildEventCacheKey(roomId, threadId, eventId);
+          const previousRequest = eventStore.get(cacheKey);
+          previousRequest.onsuccess = () => {
+            const previous = previousRequest.result as CachedEventRecord | undefined;
+            ledger.noteDelete(previous);
+            eventStore.delete(cacheKey);
+            maybeFinalizeLedger();
+          };
+          previousRequest.onerror = () => reject(previousRequest.error);
+        });
       });
-    });
 
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
-  });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } catch {
+    // Best-effort — see rationale above.
+  }
 };
 
 /**
@@ -800,46 +831,52 @@ export const deleteThreadEventFromCacheByEventId = async (
   roomId: string,
   eventId: string
 ): Promise<void> => {
-  const db = await openCacheStore(sessionId);
-  if (!db) return;
+  // CINNY-207 P2 review: swallow open/txn failures — see
+  // deleteRoomEventsFromCache for the rationale.
+  try {
+    const db = await openCacheStore(sessionId);
+    if (!db) return;
 
-  await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(
-      [EVENTS_STORE, ROOM_LEDGER_STORE],
-      'readwrite'
-    );
-    const eventStore = transaction.objectStore(EVENTS_STORE);
-    const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
-    const ledger = createLedgerTracker(roomId);
-    ledger.readBaseline(ledgerStore, eventStore, () => {
-      const index = eventStore.index(EVENTS_BY_SCOPE_TS_INDEX);
-      const range = IDBKeyRange.bound(
-        [roomId, '', 0, ''],
-        [roomId, MAX_EVENT_ID, MAX_EVENT_TS, MAX_EVENT_ID]
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(
+        [EVENTS_STORE, ROOM_LEDGER_STORE],
+        'readwrite'
       );
+      const eventStore = transaction.objectStore(EVENTS_STORE);
+      const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
+      const ledger = createLedgerTracker(roomId);
+      ledger.readBaseline(ledgerStore, eventStore, () => {
+        const index = eventStore.index(EVENTS_BY_SCOPE_TS_INDEX);
+        const range = IDBKeyRange.bound(
+          [roomId, '', 0, ''],
+          [roomId, MAX_EVENT_ID, MAX_EVENT_TS, MAX_EVENT_ID]
+        );
 
-      const cursorRequest = index.openCursor(range);
-      cursorRequest.onsuccess = () => {
-        const cursor = cursorRequest.result;
-        if (!cursor) {
-          // Cursor exhausted — finalize ledger before txn autocommits.
-          ledger.finalize(ledgerStore);
-          return;
-        }
-        const record = cursor.value as CachedEventRecord;
-        // Skip the room-timeline slice; only clean up thread records.
-        if (record.scope !== '' && record.eventId === eventId) {
-          countCacheProbe('eventDeletes');
-          ledger.noteDelete(record);
-          cursor.delete();
-        }
-        cursor.continue();
-      };
-      cursorRequest.onerror = () => reject(cursorRequest.error);
+        const cursorRequest = index.openCursor(range);
+        cursorRequest.onsuccess = () => {
+          const cursor = cursorRequest.result;
+          if (!cursor) {
+            // Cursor exhausted — finalize ledger before txn autocommits.
+            ledger.finalize(ledgerStore);
+            return;
+          }
+          const record = cursor.value as CachedEventRecord;
+          // Skip the room-timeline slice; only clean up thread records.
+          if (record.scope !== '' && record.eventId === eventId) {
+            countCacheProbe('eventDeletes');
+            ledger.noteDelete(record);
+            cursor.delete();
+          }
+          cursor.continue();
+        };
+        cursorRequest.onerror = () => reject(cursorRequest.error);
+      });
+
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
     });
-
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
-  });
+  } catch {
+    // Best-effort — see rationale above.
+  }
 };

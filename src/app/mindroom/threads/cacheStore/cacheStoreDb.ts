@@ -157,6 +157,19 @@ export const openCacheStore = (
     request.onerror = () => reject(request.error);
   });
 
+  // CINNY-207 P2 review: on rejection, evict the memo entry so the next
+  // caller retries a fresh open instead of receiving the cached
+  // rejected promise forever (one transient open failure would brick
+  // the cache for the session otherwise). The corruption self-heal
+  // path above uses its own `allowRecovery=false` recursion so this
+  // eviction does not create an infinite retry loop — it only enables
+  // retry on the NEXT top-level `openCacheStore` call.
+  dbPromise.catch(() => {
+    if (dbPromiseByName.get(dbName) === dbPromise) {
+      dbPromiseByName.delete(dbName);
+    }
+  });
+
   dbPromiseByName.set(dbName, dbPromise);
   return dbPromise;
 };

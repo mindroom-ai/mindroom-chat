@@ -192,3 +192,37 @@ describe('CINNY-207 P2.2 (F3): beforeTokens pruning', () => {
     }
   });
 });
+
+// CINNY-207 P2 review (defensive): a legacy flat `string | null` value
+// in the beforeTokens map must still surface via `getCachedPaginationToken`
+// (rather than reading as missing) and must be treated as prunable-oldest.
+describe('CINNY-207 P2 review: flat-token map value compatibility', () => {
+  it('getCachedPaginationToken returns the token when the map value is a bare string', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const legacyMap = { $event: 'legacy-flat-token' } as any;
+    expect(getCachedPaginationToken(legacyMap, '$event')).toBe('legacy-flat-token');
+  });
+
+  it('getCachedPaginationToken returns null when the map value is bare null', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const legacyMap = { $event: null } as any;
+    expect(getCachedPaginationToken(legacyMap, '$event')).toBeNull();
+  });
+
+  it('prune treats a flat entry as savedAt=0 so it is evicted before timestamped entries', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mixed: any = {
+      $legacy: 'legacy-flat',
+    };
+    for (let i = 0; i < MAX_CACHE_BEFORE_TOKENS; i += 1) {
+      mixed[`$evt-${i}`] = { token: `token-${i}`, savedAt: 1_000_000 + i };
+    }
+    const pruned = pruneCachedPaginationTokens(mixed, '$evt-0');
+    // Total is MAX+1, prune removes 1 — the oldest, which is the flat legacy entry.
+    expect(pruned.$legacy).toBeUndefined();
+    // All timestamped entries survive.
+    for (let i = 0; i < MAX_CACHE_BEFORE_TOKENS; i += 1) {
+      expect(pruned[`$evt-${i}`]).toBeDefined();
+    }
+  });
+});

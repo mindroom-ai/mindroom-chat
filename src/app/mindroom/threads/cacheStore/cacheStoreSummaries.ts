@@ -21,10 +21,14 @@ export const saveCachedThreadSummary = async (
   // saveRoomEventsToCache / saveThreadEventsToCache.
   if (!isCacheWritable()) return;
 
-  const db = await openCacheStore(sessionId);
-  if (!db || !info.summaryText) return;
-
+  // CINNY-207 P2 review: the openCacheStore await must live inside the
+  // reportCacheWriteError boundary — callers invoke us via `void save`
+  // so a rejected open would escape as an unhandled rejection and
+  // never trip the health gate.
   try {
+    const db = await openCacheStore(sessionId);
+    if (!db || !info.summaryText) return;
+
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(THREAD_SUMMARIES_STORE, 'readwrite');
       const store = transaction.objectStore(THREAD_SUMMARIES_STORE);
