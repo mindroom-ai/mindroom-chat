@@ -567,7 +567,11 @@ describe('collectLegacyStandaloneReplaceIds (CINNY-207 P1.4)', () => {
         content: {},
         unsigned: {
           'm.relations': {
-            [RelationType.Replace]: { event_id: '$edit-2', origin_server_ts: 300 },
+            [RelationType.Replace]: {
+              event_id: '$edit-2',
+              origin_server_ts: 300,
+              sender: '@alice:example.org',
+            },
           },
         },
       },
@@ -601,7 +605,11 @@ describe('collectLegacyStandaloneReplaceIds (CINNY-207 P1.4)', () => {
         content: {},
         unsigned: {
           'm.relations': {
-            [RelationType.Replace]: { event_id: '$edit-1', origin_server_ts: 200 },
+            [RelationType.Replace]: {
+              event_id: '$edit-1',
+              origin_server_ts: 200,
+              sender: '@alice:example.org',
+            },
           },
         },
       },
@@ -642,6 +650,48 @@ describe('collectLegacyStandaloneReplaceIds (CINNY-207 P1.4)', () => {
     ];
 
     expect(collectLegacyStandaloneReplaceIds(events)).toEqual([]);
+  });
+
+  // Round-2 review fix: the bundle only proves supersession if hydration
+  // would actually apply it — same sender as the standalone, nonempty id.
+  it('ignores cross-sender or id-less bundled edits as freshness proof', () => {
+    const standalone = {
+      event_id: '$edit-1',
+      origin_server_ts: 200,
+      sender: '@alice:example.org',
+      content: {
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+      },
+    };
+    const crossSenderBundleTarget = {
+      event_id: '$target',
+      origin_server_ts: 100,
+      sender: '@alice:example.org',
+      content: {},
+      unsigned: {
+        'm.relations': {
+          [RelationType.Replace]: {
+            event_id: '$edit-x',
+            origin_server_ts: 900,
+            sender: '@mallory:example.org',
+          },
+        },
+      },
+    };
+    expect(collectLegacyStandaloneReplaceIds([crossSenderBundleTarget, standalone])).toEqual([]);
+
+    const idlessBundleTarget = {
+      event_id: '$target',
+      origin_server_ts: 100,
+      sender: '@alice:example.org',
+      content: {},
+      unsigned: {
+        'm.relations': {
+          [RelationType.Replace]: { origin_server_ts: 900, sender: '@alice:example.org' },
+        },
+      },
+    };
+    expect(collectLegacyStandaloneReplaceIds([idlessBundleTarget, standalone])).toEqual([]);
   });
 
   it('does not flag cross-sender replaces or replaces whose target is missing', () => {
@@ -685,7 +735,11 @@ describe('loadCachedThreadSnapshot lazy cleanup (CINNY-207 P1.4)', () => {
       content: {},
       unsigned: {
         'm.relations': {
-          [RelationType.Replace]: { event_id: '$edit-2', origin_server_ts: 220 },
+          [RelationType.Replace]: {
+            event_id: '$edit-2',
+            origin_server_ts: 220,
+            sender: '@alice:example.org',
+          },
         },
       },
     };

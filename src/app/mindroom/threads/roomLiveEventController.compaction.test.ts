@@ -100,12 +100,14 @@ const makeEvent = (
     sender = '@alice:example.org',
     isSending = false,
     isRedaction = false,
+    ts = 0,
   }: {
     threadRootId?: string;
     relation?: { rel_type?: string; event_id?: string };
     sender?: string;
     isSending?: boolean;
     isRedaction?: boolean;
+    ts?: number;
   } = {}
 ): FakeEvent => ({
   __id: eventId,
@@ -121,7 +123,7 @@ const makeEvent = (
   getType: () => 'm.room.message',
   getContent: () => ({}),
   getRoomId: () => '!room:example.org',
-  getTs: () => 0,
+  getTs: () => ts,
   isRedaction: () => isRedaction,
   isSending: () => isSending,
   threadRootId,
@@ -401,6 +403,77 @@ describe('roomLiveEventController edit compaction (CINNY-207 P1.4)', () => {
     expect(harness.persistThreadEventCache).toHaveBeenCalledTimes(1);
     const [, events] = harness.persistThreadEventCache.mock.calls[0];
     expect(events).toEqual([edit]);
+
+    harness.unmount();
+  });
+
+  // Round-2 review fix: a target that materializes only during the debounce
+  // window (arm-time miss, fire-time hit) with a cross-sender replace must
+  // still emit the standalone record — the serializer will not bundle a
+  // cross-sender edit onto the target.
+  it('emits the standalone record when a late-materializing target is cross-sender', async () => {
+    const threadId = '$thread-root';
+    const target = makeEvent('$target', {
+      threadRootId: threadId,
+      sender: '@alice:example.org',
+    });
+    const crossSenderEdit = makeEvent('$edit-x', {
+      threadRootId: threadId,
+      sender: '@mallory:example.org',
+      relation: { rel_type: 'm.replace', event_id: '$target' },
+    });
+    let targetLoaded = false;
+    const { harness } = createHarness({
+      threadId,
+      findEventById: (id) => (targetLoaded && id === '$target' ? target : undefined),
+    });
+
+    act(() => {
+      harness.fireLive(crossSenderEdit);
+    });
+    // Arm-time miss: the sender check could not classify, so it scheduled.
+    expect(harness.persistThreadEventCache).not.toHaveBeenCalled();
+    targetLoaded = true;
+
+    await waitCompactionDebounce();
+
+    expect(harness.persistThreadEventCache).toHaveBeenCalledTimes(1);
+    const [, events] = harness.persistThreadEventCache.mock.calls[0];
+    expect(events).toEqual([target, crossSenderEdit]);
+
+    harness.unmount();
+  });
+
+  // Round-2 review fix: the fire-time fallback must persist the D12-latest
+  // replace seen in the window, not the last-arrived one (federation can
+  // deliver a stale replace after a newer one).
+  it('keeps the newest replace when a stale one arrives later in the same window', async () => {
+    const threadId = '$thread-root';
+    const newerEdit = makeEvent('$edit-new', {
+      threadRootId: threadId,
+      ts: 200,
+      relation: { rel_type: 'm.replace', event_id: '$target' },
+    });
+    const staleEdit = makeEvent('$edit-old', {
+      threadRootId: threadId,
+      ts: 150,
+      relation: { rel_type: 'm.replace', event_id: '$target' },
+    });
+    const { harness } = createHarness({
+      threadId,
+      findEventById: () => undefined,
+    });
+
+    act(() => {
+      harness.fireLive(newerEdit);
+      harness.fireLive(staleEdit);
+    });
+
+    await waitCompactionDebounce();
+
+    expect(harness.persistThreadEventCache).toHaveBeenCalledTimes(1);
+    const [, events] = harness.persistThreadEventCache.mock.calls[0];
+    expect(events).toEqual([newerEdit]);
 
     harness.unmount();
   });
