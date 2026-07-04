@@ -538,9 +538,19 @@ describe('eventRepository room cache persistence state', () => {
 // standalone same-sender replace records; hydration lazily cleans up any
 // legacy records that still exist from before compaction landed.
 describe('collectLegacyStandaloneReplaceIds (CINNY-207 P1.4)', () => {
-  it('identifies same-sender replace records whose target is in the same batch', () => {
+  it('identifies replace records whose target already bundles an equal-or-newer edit', () => {
     const events = [
-      { event_id: '$target', origin_server_ts: 100, sender: '@alice:example.org', content: {} },
+      {
+        event_id: '$target',
+        origin_server_ts: 100,
+        sender: '@alice:example.org',
+        content: {},
+        unsigned: {
+          'm.relations': {
+            [RelationType.Replace]: { event_id: '$edit-2', origin_server_ts: 300 },
+          },
+        },
+      },
       {
         event_id: '$edit-1',
         origin_server_ts: 200,
@@ -560,6 +570,58 @@ describe('collectLegacyStandaloneReplaceIds (CINNY-207 P1.4)', () => {
     ];
 
     expect(collectLegacyStandaloneReplaceIds(events)).toEqual(['$edit-1', '$edit-2']);
+  });
+
+  it('keeps standalone replaces newer than the target bundled edit (no data-loss window)', () => {
+    const events = [
+      {
+        event_id: '$target',
+        origin_server_ts: 100,
+        sender: '@alice:example.org',
+        content: {},
+        unsigned: {
+          'm.relations': {
+            [RelationType.Replace]: { event_id: '$edit-1', origin_server_ts: 200 },
+          },
+        },
+      },
+      {
+        event_id: '$edit-1',
+        origin_server_ts: 200,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+      {
+        // Newer than the bundled edit: deleting it would lose the newest
+        // content from cache until a later re-persist.
+        event_id: '$edit-2',
+        origin_server_ts: 300,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+    ];
+
+    expect(collectLegacyStandaloneReplaceIds(events)).toEqual(['$edit-1']);
+  });
+
+  it('keeps all standalone replaces when the target has no bundled edit', () => {
+    const events = [
+      { event_id: '$target', origin_server_ts: 100, sender: '@alice:example.org', content: {} },
+      {
+        event_id: '$edit-1',
+        origin_server_ts: 200,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+    ];
+
+    expect(collectLegacyStandaloneReplaceIds(events)).toEqual([]);
   });
 
   it('does not flag cross-sender replaces or replaces whose target is missing', () => {
@@ -601,6 +663,11 @@ describe('loadCachedThreadSnapshot lazy cleanup (CINNY-207 P1.4)', () => {
       origin_server_ts: 200,
       sender: '@alice:example.org',
       content: {},
+      unsigned: {
+        'm.relations': {
+          [RelationType.Replace]: { event_id: '$edit-2', origin_server_ts: 220 },
+        },
+      },
     };
     const legacyEdit1 = {
       event_id: '$edit-1',

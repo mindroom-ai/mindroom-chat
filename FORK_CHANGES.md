@@ -87,6 +87,18 @@
     inside the `if (legacyReplaceIds.length > 0)` block — 86 tests
     restored without extending the shared mock (kept the shared file
     surface tight).
+- Independent review pass (delivery-process step 4):
+  - Finding (fixed): the lazy cleanup deleted legacy standalone replace
+    records whenever the target record was merely *present* in the batch —
+    but pre-compaction target records do not carry the bundled edit, so
+    the deletion could lose the newest edit from cache until a later
+    re-persist (stale paint on next open). `collectLegacyStandaloneReplaceIds`
+    now only flags a standalone whose target already bundles an
+    equal-or-newer edit under the D12 ordering; new unit tests cover the
+    newer-standalone and no-bundled-edit cases.
+  - Verified clean: sweep seen-set bookkeeping (replaces are marked seen
+    pre-serialization, no endless re-sweep), scheduler unmount flush,
+    fire-at-flush-time closure freshness.
 - Next steps:
   - P1.5 surface write failures (F4).
 - Validation:

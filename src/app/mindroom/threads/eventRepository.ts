@@ -125,13 +125,14 @@ export type CachedThreadSnapshot = CachedThreadEventPage & {
 
 /**
  * CINNY-207 P1.4 (finding F5, decision D5): identify legacy standalone
- * `m.replace` records inside a hydrated batch whose target record is also in
- * the batch. Those are pre-compaction leftovers — the target now carries the
- * bundled edit in `unsigned['m.relations']['m.replace']`, so the standalone
- * record is dead weight and can be lazily deleted after hydration merges its
- * content. Cross-sender replaces are not considered (they might still be
- * meaningful for future policy). Full purge lands with the Phase 2 D8 wipe;
- * this is best-effort cleanup of what happens to be visible in a page.
+ * `m.replace` records inside a hydrated batch that are safe to delete: their
+ * target record is in the same batch AND already carries a bundled edit
+ * (`unsigned['m.relations']['m.replace']`) at least as new as the standalone
+ * record under the D12 ordering (ts, then event id). Deleting a standalone
+ * whose target does NOT yet carry an equal-or-newer bundled edit would lose
+ * the edit from cache until some later re-persist — a stale paint on the
+ * next open — so those are left in place (the Phase 2 D8 wipe purges them).
+ * Cross-sender replaces are never considered.
  */
 export const collectLegacyStandaloneReplaceIds = (
   events: Array<Partial<IEvent> | CachedThreadEvent>
@@ -143,6 +144,28 @@ export const collectLegacyStandaloneReplaceIds = (
       eventsById.set(eventId, rawEvent);
     }
   });
+
+  const isBundledReplaceAtLeastAsNew = (
+    targetEvent: Partial<IEvent>,
+    standaloneEvent: Partial<IEvent>
+  ): boolean => {
+    const relations = (targetEvent.unsigned as Record<string, unknown> | undefined)?.[
+      'm.relations'
+    ] as Record<string, unknown> | undefined;
+    const bundled = relations?.[RelationType.Replace] as Partial<IEvent> | undefined;
+    if (!bundled) return false;
+
+    const bundledTs = bundled.origin_server_ts;
+    const standaloneTs = standaloneEvent.origin_server_ts;
+    if (typeof bundledTs !== 'number' || typeof standaloneTs !== 'number') return false;
+    if (bundledTs !== standaloneTs) return bundledTs > standaloneTs;
+
+    const bundledId = bundled.event_id;
+    const standaloneId = standaloneEvent.event_id;
+    if (typeof bundledId !== 'string' || typeof standaloneId !== 'string') return false;
+    // Equal ids mean the bundled edit IS the standalone record's event.
+    return bundledId >= standaloneId;
+  };
 
   const legacyReplaceIds: string[] = [];
   events.forEach((rawEvent) => {
@@ -157,6 +180,7 @@ export const collectLegacyStandaloneReplaceIds = (
     const targetEvent = eventsById.get(targetEventId);
     if (!targetEvent) return;
     if (targetEvent.sender !== rawEvent.sender) return;
+    if (!isBundledReplaceAtLeastAsNew(targetEvent, rawEvent)) return;
     legacyReplaceIds.push(eventId);
   });
 
