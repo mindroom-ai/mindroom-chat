@@ -65,3 +65,5 @@ export {
 export type { RoomPrefetchTier } from './prefetchPolicy';
 export { createGapFillExecutor } from './gapFillExecutor';
 export type { GapFillExecutor, GapFillExecutorOptions } from './gapFillExecutor';
+export { enqueueRoomDeepHistoryJob } from './deepHistoryJob';
+export type { EnqueueDeepHistoryArgs } from './deepHistoryJob';

@@ -184,18 +184,35 @@ describe('RoomTimeline architecture', () => {
     expect(implementationSource).toContain('loadedRootEntries');
   });
 
-  it('delegates eager room preload orchestration outside RoomTimeline', () => {
+  it('routes deep-history preload through the engine scheduler, not the SDK live timeline', () => {
+    // CINNY-207 P4.3: the `useRoomEagerPreload` hook was deleted.
+    // Deep-history sweep is now a band-4 job on the engine's
+    // BackfillScheduler (`enqueueRoomDeepHistoryJob`) that persists
+    // straight through `saveRoomEventsToCache` and NEVER calls
+    // `mx.paginateEventTimeline` on the room's live timeline. Guard
+    // both invariants: (a) the hook is gone, (b) the enqueue path is
+    // present.
     const source = readRoomTimelineSource();
     const windowControllerSource = readFileSync(
       new URL('../roomTimelineWindowController.ts', import.meta.url),
       'utf8'
     );
 
-    expect(source).toContain('useRoomEagerPreload');
+    expect(source).not.toContain('useRoomEagerPreload');
+    expect(source).toContain('enqueueRoomDeepHistoryJob');
     expect(source).toContain('useRoomTimelineWindowController');
     expect(source).not.toContain("from '../../mindroom/threads/roomPreloadTarget'");
     expect(windowControllerSource).toContain("from './roomPreloadTarget'");
     expect(source).not.toContain('[eager-preload]');
+  });
+
+  it('keeps backfill network fetchers inside the engine (no direct createMessagesRequest in components)', () => {
+    // CINNY-207 P4.3: any /messages fetch has to go through the
+    // engine's BackfillScheduler (via `enqueueRoomDeepHistoryJob`,
+    // `gapFillExecutor`, etc.). RoomTimeline and other render
+    // components must never call `mx.createMessagesRequest` directly.
+    const source = readRoomTimelineSource();
+    expect(source).not.toContain('createMessagesRequest');
   });
 
   it('does not import raw event cache stores directly', () => {

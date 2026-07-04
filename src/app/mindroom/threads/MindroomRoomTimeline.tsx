@@ -186,7 +186,9 @@ import {
   THREAD_OVERVIEW_METADATA_CACHE_LIMIT,
 } from './roomTimelineViewState';
 import { useRoomThreadResolutionMap } from './useRoomThreadTags';
-import { useRoomEagerPreload } from './preloadController';
+// CINNY-207 P4.3: the eager preload hook was deleted. Deep-history
+// sweep is now a band-4 job on the engine's BackfillScheduler (see
+// engine/deepHistoryJob.ts) and never touches the SDK live timeline.
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE, sanitizePaginationLimit } from './preloadSettings';
 import { mindroomSettingsAtom } from '../settings/mindroomSettings';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
@@ -195,7 +197,7 @@ import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
 import { useThreadOpenCacheController } from './threadOpenCacheController';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
 import { useThreadOverviewResumeController } from './threadOverviewResumeController';
-import { useMindroomSyncEngine } from '../engine';
+import { enqueueRoomDeepHistoryJob, useMindroomSyncEngine } from '../engine';
 import { useCompactRootEditBackfillController } from './compactRootEditBackfillController';
 import { useThreadPaginationCommandController } from './threadPaginationCommandController';
 import { useThreadEditBackfillController } from './threadEditBackfillController';
@@ -400,7 +402,6 @@ export function RoomTimeline({
   const [focusItem, setFocusItem] = useState<RoomTimelineFocusItem | undefined>();
   const [threadLoadError, setThreadLoadError] = useState(false);
   const [roomHasMoreCachedBack, setRoomHasMoreCachedBack] = useState(false);
-  const [eagerPreloading, setEagerPreloading] = useState(roomEagerPreloadEnabled);
   const [roomInitialCacheHydratedKey, setRoomInitialCacheHydratedKey] = useState<
     string | undefined
   >();
@@ -430,7 +431,6 @@ export function RoomTimeline({
   } = useThreadBackPaginationController();
   const roomIdRef = useRef(room.roomId);
   const roomPaginatingBackRef = useRef(false);
-  const eagerPreloadDoneForRoomRef = useRef<string | null>(null);
   const threadIdRef = useRef(threadId);
   const threadFilterStateRef = useRef(requestedThreadFilterState);
   const threadEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
@@ -496,14 +496,10 @@ export function RoomTimeline({
       return next;
     });
   }, []);
-  // Reset eagerPreloading when transitioning from event-focused view back to room
-  // (component is reused since key is roomId:threadId, so useState initializer won't re-run)
-  // useLayoutEffect so the reset fires before paint, preventing a single-frame skeleton flash
-  useLayoutEffect(() => {
-    if (!eventId && !threadId) {
-      setEagerPreloading(roomEagerPreloadEnabled);
-    }
-  }, [eventId, roomEagerPreloadEnabled, threadId]);
+  // CINNY-207 P4.3: the eagerPreloading reset layout-effect is gone.
+  // The band-4 deep-history job runs entirely in the engine and does
+  // not gate any rendering signal — the skeleton logic below relies on
+  // cache/live counts alone.
   useLayoutEffect(() => {
     if (prevShowThreadRepliesInRoomRef.current === showThreadRepliesInRoom) return;
     prevShowThreadRepliesInRoomRef.current = showThreadRepliesInRoom;
@@ -742,7 +738,6 @@ export function RoomTimeline({
     activeTimelineRange,
     canPaginateThreadBack,
     canPaginateThreadFront,
-    eagerPreloading,
     eventsLength,
     filteredLength,
     renderableEventCount: renderableEventEntries.length,
@@ -866,24 +861,29 @@ export function RoomTimeline({
     timeline,
   });
 
-  useRoomEagerPreload({
-    alive,
-    enabled: roomEagerPreloadEnabled,
+  // CINNY-207 P4.3: enqueue the band-4 room-deep-history job once per
+  // mounted (roomId, threadId=undefined). The scheduler dedupes by
+  // (roomId, undefined, 'room-deep-history') so remounts (view mode
+  // flips, thread open/close) don't fire redundant sweeps. The engine
+  // scheduler's abortAll on stop() tears it down on account switch.
+  useEffect(() => {
+    if (!roomEagerPreloadEnabled) return;
+    if (eventId || threadId) return;
+    enqueueRoomDeepHistoryJob({
+      mx,
+      sessionId,
+      scheduler: syncEngine.scheduler,
+      roomId: room.roomId,
+    }).catch(() => undefined);
+  }, [
     eventId,
-    eagerPreloadDoneForRoomRef,
     mx,
-    recalibrateFilterOptsRef,
-    room,
-    roomDebugTraceId,
-    roomIdRef,
-    roomPaginatingBackRef,
-    safePaginationLimitRef,
-    setEagerPreloading,
-    setTimeline,
+    room.roomId,
+    roomEagerPreloadEnabled,
+    sessionId,
+    syncEngine,
     threadId,
-    threadIdRef,
-    useSurfacePreloadTarget,
-  });
+  ]);
 
   useRoomCachedBackState({
     alive,
@@ -1569,7 +1569,6 @@ export function RoomTimeline({
   useRoomCacheHydrationController({
     alive,
     buildInitialTimeline: buildRoomCacheHydratedTimeline,
-    eagerPreloadDoneForRoomRef,
     eventId,
     mx,
     room,
@@ -1579,7 +1578,6 @@ export function RoomTimeline({
     scrollToBottomRef,
     sessionId,
     setAtBottom,
-    setEagerPreloading,
     setRoomInitialCacheHydratedKey,
     setTimeline,
     threadId,
@@ -3297,7 +3295,6 @@ export function RoomTimeline({
                       </>
                     ))}
                   {!threadId &&
-                    !eagerPreloading &&
                     (roomHasMoreCachedBack || canPaginateBack || !rangeAtStart) &&
                     (messageLayout === MessageLayout.Compact ? (
                       <>
