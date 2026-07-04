@@ -88,11 +88,33 @@ See `ios/App/fastlane/screenshots/README.md` for required pixel sizes, naming
 conventions, and capture commands. Screenshot binaries are gitignored; the
 directory only tracks documentation.
 
-Follow-up (not yet implemented): fully automated capture with fastlane
-`snapshot` requires adding an Xcode UI-test target to `App.xcodeproj`.
-Alternatively, because the app is a Capacitor webview, Playwright (already in
-this repo for e2e) could render App-Store-sized viewports and write directly
-into `fastlane/screenshots/en-US/`.
+Current automated path, from the repository root:
+
+```bash
+npm run appstore:screenshots
+```
+
+This starts the local Docker Matrix stack, provisions a disposable account,
+seeds the screenshot fixture room, and uses Playwright to render device-scaled
+viewports that write exact iPhone 6.9" (`1320 x 2868`) and iPad 13"
+(`2064 x 2752`) PNGs into `fastlane/screenshots/en-US/`. The wrapper starts a
+fresh Vite server on an available port by default so dependency-cache changes
+cannot reuse a stale localhost build.
+
+For live screenshots, provide an existing seeded account instead:
+
+```bash
+APPSTORE_SCREENSHOTS_USE_EXISTING_E2E=1 \
+E2E_HOMESERVER=https://example.org \
+E2E_USERNAME=alice \
+E2E_PASSWORD=... \
+E2E_FIXTURE_ROOM_ALIAS="#mindroom-app-store-screenshots:example.org" \
+npm run appstore:screenshots
+```
+
+Fastlane `snapshot` remains a future option, but it requires adding an Xcode
+UI-test target and shared scheme to `App.xcodeproj`. The Playwright path is the
+repo-native procedure for this Capacitor webview until that target exists.
 
 ## Signing note
 

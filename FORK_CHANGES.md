@@ -2,6 +2,92 @@
 
 ## Runbook
 
+### iOS release prep with fastlane screenshot procedure (2026-07-04)
+
+- Status:
+  - Complete locally on `caveman/ios-release-fastlane-20260704`; no App Store
+    Connect upload or review submission was performed in this pass.
+- Summary:
+  - Pulled latest GitHub `origin/dev` into a new caveman release branch at
+    `108996cc5` (`v4.12.3-mindroom.5`) without rewriting the stale divergent
+    local `dev` branch.
+  - Audited the checked-in fastlane setup: `upload_metadata` and
+    `upload_screenshots` are metadata/screenshot-only `deliver` lanes with
+    `force: true`; `Deliverfile` keeps `submit_for_review false` and
+    `automatic_release false`; `beta` remains the signed TestFlight upload
+    lane.
+  - Added a repo-native App Store screenshot capture procedure:
+    `npm run appstore:screenshots` starts the local Docker Matrix fixture
+    stack, provisions a disposable account, seeds the screenshot room, starts a
+    fresh Vite server on an available port, and captures iPhone 6.9" plus iPad
+    13" screenshots into `ios/App/fastlane/screenshots/en-US/`.
+  - The screenshot plan is shared through
+    `src/app/mindroom/appstore/appStoreScreenshots.ts` and guarded by a
+    focused unit test so App Store pixel targets and file naming stay stable.
+- Decisions:
+  - Use Playwright for this first automated screenshot procedure because the
+    app is a Capacitor webview and the repo already has Matrix fixture helpers.
+    Fastlane `snapshot` remains a future option once an Xcode UI-test target
+    and shared scheme exist.
+  - Keep screenshots gitignored; only the procedure, spec, and placeholder
+    folder stay in source control.
+  - Hide only the transient client sync-status banner during automated App
+    Store captures via `[data-testid="client-sync-status"]`, and assert
+    `Catching up...` is hidden before writing each PNG.
+  - Preserve local `dev` and create a `caveman/...` release branch from
+    `origin/dev` because the existing local `dev` branch is ahead 13 and
+    behind 164.
+- Risks / open items:
+  - Fastlane commands require Homebrew Ruby in this environment
+    (`PATH=/opt/homebrew/opt/ruby/bin:$PATH`); `/usr/bin/ruby` is 2.6 and
+    cannot satisfy the checked-in Bundler 4.0.11 lock.
+  - Local `xcrun simctl list devices available` hung after printing the Xcode
+    version; simulator-native capture should be validated separately if the
+    team switches from Playwright to Xcode UI tests.
+  - App Review credentials or a one-time registration token still need to be
+    entered manually in App Store Connect before submission.
+  - Unrelated untracked local assets remain in the worktree under `.agents/`
+    and `.docs/google-play-assets/`; they were intentionally left untouched and
+    must stay out of any iOS release commit.
+- Validation:
+  - Red check:
+    `npm test -- src/app/mindroom/appstore/appStoreScreenshots.test.ts`
+    failed while `appStoreScreenshots.ts` did not exist.
+  - Green check:
+    `npm test -- src/app/mindroom/appstore/appStoreScreenshots.test.ts`
+    (3 tests).
+  - Green release preflight: `npm run appstore:preflight`.
+  - Green version resolution: `node scripts/ios-ci-version.mjs` printed
+    `marketing_version=4.12.3`, `build_number=5`, and
+    `build_number_source=head-tag:v4.12.3-mindroom.5`.
+  - Green fastlane parse check:
+    `PATH=/opt/homebrew/opt/ruby/bin:$PATH BUNDLE_PATH=$HOME/.bundle/mindroom-cinny-ios BUNDLE_APP_CONFIG=$HOME/.bundle/mindroom-cinny-ios-config bundle exec fastlane lanes`
+    listed `sync_web`, `beta`, `upload_metadata`, and `upload_screenshots`.
+  - Green screenshot capture:
+    `npm run appstore:screenshots` with no `E2E_PORT` set (fresh Vite server on
+    an available port, `E2E_REUSE_EXISTING_SERVER=0`) ran 2 Playwright tests and
+    regenerated six PNGs.
+  - Screenshot dimensions verified:
+    `0_iphone-6-9_welcome.png`, `1_iphone-6-9_room-overview.png`, and
+    `2_iphone-6-9_thread-view.png` are `1320x2868`;
+    `0_ipad-13_welcome.png`, `1_ipad-13_room-overview.png`, and
+    `2_ipad-13_thread-view.png` are `2064x2752`.
+  - Visual spot check: room overview and thread-view screenshots are
+    product-facing and the transient sync banner is absent.
+  - Green typecheck: `npm run typecheck`.
+  - Green build: `npm run build`.
+  - Green full unit suite: `npm test` (339 files, 2632 tests).
+  - Green lint: `npm run lint` exits 0 with the existing 18 warnings and 0
+    errors.
+  - Green hygiene: `git diff --check`.
+  - Green formatting check:
+    `npx prettier --check --ignore-unknown playwright.config.ts .docs/ios-fastlane.md ios/App/fastlane/screenshots/README.md package.json e2e/app-store-screenshots.spec.ts scripts/appstore-screenshots.sh scripts/seed-appstore-screenshot-room.mjs src/app/mindroom/appstore/appStoreScreenshots.ts src/app/mindroom/appstore/appStoreScreenshots.test.ts src/app/pages/client/ClientRoot.tsx src/app/pages/client/SyncStatus.tsx`.
+  - Independent review: first pass found stale-server reuse risk in the
+    screenshot wrapper; fixed by disabling Playwright server reuse for
+    screenshot capture and choosing an available port. Follow-up review
+    confirmed the stale-server fix; only this runbook completeness update was
+    requested.
+
 ### CINNY-219 - Timeline minimap: left-edge stripes for human messages (2026-07-03)
 
 - Status:
