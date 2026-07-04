@@ -2,6 +2,38 @@
 
 ## Runbook
 
+### CINNY-207 P3.3 review-fix - mergeThreadCacheFlag preserve-on-undefined (2026-07-03)
+
+- Status: Complete locally on `cache-overhaul/10-p3-sync-engine`, one
+  focused commit on top of the P3.3 docs commit `d4731f63`. Team-lead
+  flagged during the P3.3 review that the merge helper downgraded
+  `false → undefined` when the next value was `undefined`, which is
+  contrary to the "engine never writes tailLoaded:false" contract and
+  the "no-downgrade" comment in `engineWriteThrough.ts` (redaction
+  persists intentionally pass `tailLoaded: undefined` and expect the
+  stored value to be preserved).
+- Scope: two files changed (+12 / -4). No production-behavior change
+  today because all consumers of `tailLoaded` / `snapshotComplete` /
+  `relationSnapshotComplete` check `=== true`, so `false` and
+  `undefined` render the same. But the invariant is now enforced at
+  the source: only an explicit next value (`true` or `false`)
+  replaces the current value.
+  - `cacheStoreNormalize.ts`: simplified body from
+    `nextValue === undefined ? (currentValue === true ? true : undefined) : nextValue === true`
+    to `nextValue === undefined ? currentValue : nextValue`. Doc comment
+    extended to name the redaction-persist contract that requires the
+    no-downgrade behavior, so the next reader doesn't re-introduce the
+    old shape "for symmetry".
+  - `cacheStoreNormalize.thread.test.ts`: expanded the two existing
+    cases to cover the full 3×3 matrix — `(true, undefined) → true`,
+    `(false, undefined) → false` (the fix), `(undefined, undefined) →
+    undefined`, plus explicit-next-value replacements in both
+    directions.
+- Validation: focused vitest on the file (21 tests), spot-run of
+  `cacheStore/` + `engine/` (142 tests), full mindroom vitest
+  (225 files / 1944 tests, all green), typecheck clean, lint 18
+  warnings (baseline, zero delta).
+
 ### CINNY-207 P3.3 - Strip component persistence, render-only live controller (2026-07-03)
 
 - Status:
