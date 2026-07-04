@@ -119,11 +119,11 @@ export const useThreadOpenLifecycleController = ({
 }) => {
   useEffect(() => {
     if (!threadId) return undefined;
-    // AC2 STEP 4 iter 2 (2026-07-04): every open of a thread bumps
-    // exactly here. The invariant asserted from a docker probe is that
-    // this counter equals the sum of `threadOpenScheduledCacheFirst +
-    // threadOpenScheduledLifecycle + all threadOpenSkip*` counters —
-    // proving which route(s) each open took.
+    // CINNY-207 AC2 revision (2026-07-04): every open of a thread bumps
+    // exactly here. Post-choke-point invariant asserted from a docker
+    // probe snapshot: threadOpens == threadOpenScheduledCacheFirst +
+    // threadOpenSkipCacheFirstHydrateGuard +
+    // threadOpenSkipCacheFirstPostHydrateGuard.
     countCacheProbe('threadOpens');
     setFocusItem(undefined);
     setThreadLoadError(false);
@@ -218,40 +218,16 @@ export const useThreadOpenLifecycleController = ({
         });
         if (!shouldContinueAfterSdkBootstrap) return;
 
-        // CINNY-207 P5.1 (D7 / AC9): the partial-coverage path also
-        // schedules a reconcile — every open, without exception. The
-        // scheduler dedups against the complete-coverage schedule from
-        // `runThreadOpenCacheFirst` when both fire on the same open,
-        // so the second call returns the in-flight promise identity
-        // rather than firing a duplicate fetch.
-        //
-        // AC2 STEP 4 iter 2 (2026-07-04): probe increment goes BEFORE
-        // the scheduler call for the same reason as the cache-first
-        // site — separate "the open path asked for a reconcile" from
-        // "the reconciler exited via which path" (STEP 1 counters).
-        countCacheProbe('threadOpenScheduledLifecycle');
-        void scheduleReconcile({
-          roomId: room.roomId,
-          room,
-          threadId,
-          cachedPage: cacheFirstResult.hydratedCachedPage,
-          reason: 'open-partial-coverage',
-          // P5-GATE-FIX v3 (AC2 dual-injection, render leg): even on
-          // the partial-coverage path where SDK bootstrap DID run,
-          // routing the repaired batch through
-          // `setSupplementalThreadEvents` keeps the render's fallback
-          // events aligned with the SDK's newly-injected events —
-          // `mergeThreadRenderEvents` inside the sink dedups by
-          // event id so double-injection is a no-op there.
-          onRepaired: (repairedEvents) => {
-            if (!mounted || threadIdRef.current !== threadId) return;
-            if (repairedEvents.length > 0) {
-              setSupplementalThreadEvents(threadId, [...repairedEvents]);
-            }
-            forceTimelineUpdate();
-            setThreadTimelineTick((val) => val + 1);
-          },
-        }).catch(() => undefined);
+        // CINNY-207 AC2 revision (2026-07-04): the lifecycle-level
+        // partial-coverage scheduleReconcile call that used to live here
+        // has been removed. The single choke-point schedule in
+        // `runThreadOpenCacheFirst` (fired immediately after the
+        // post-hydrate guard) covers this path structurally — the
+        // scheduler dedups against any in-flight reconcile so the
+        // partial-coverage flow still gets a converge pass, but without
+        // this extra call site the invariant "every open schedules
+        // exactly one reconcile" is enforced by construction, not by
+        // scheduler-dedup accounting.
 
         // CINNY-207 P5.1 Commit 2: `runThreadOpenPostBootstrapRefresh`
         // was deleted. Its two behaviors are inlined here.

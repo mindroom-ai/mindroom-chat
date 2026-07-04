@@ -80,9 +80,6 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
     if (shouldScrollToLatestOnOpen) {
       pinThreadToBottomOnOpen();
     }
-    // AC2 STEP 4 iter 2 (2026-07-04): SDK bootstrap early-returns before
-    // the lifecycle scheduler gets a chance to schedule a reconcile.
-    countCacheProbe('threadOpenSkipSdkPendingLocalEcho');
     return false;
   }
 
@@ -101,7 +98,6 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
     if (shouldScrollToLatestOnOpen) {
       pinThreadToBottomOnOpen();
     }
-    countCacheProbe('threadOpenSkipSdkZeroReplyRoot');
     return false;
   }
 
@@ -109,7 +105,6 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
   if (!threadModel) {
     const [ctxErr] = await to(mx.getEventTimeline(room.getUnfilteredTimelineSet(), threadId));
     if (!isMounted()) {
-      countCacheProbe('threadOpenSkipSdkContextGuard');
       return false;
     }
     if (ctxErr) {
@@ -120,7 +115,6 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
       if (isThreadNotFoundError(ctxErr)) {
         onThreadLoadError?.(threadId);
       }
-      countCacheProbe('threadOpenSkipSdkContextError');
       return false;
     }
     threadModel = room.getThread(threadId);
@@ -134,7 +128,6 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
       })
     );
     if (!isMounted()) {
-      countCacheProbe('threadOpenSkipSdkRelationsGuard');
       return false;
     }
     if (relErr) {
@@ -145,7 +138,6 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
       if (isThreadNotFoundError(relErr)) {
         onThreadLoadError?.(threadId);
       }
-      countCacheProbe('threadOpenSkipSdkRelationsError');
       return false;
     }
 
@@ -186,7 +178,6 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
   const loadedThreadTimelineSet = threadModel.getUnfilteredTimelineSet();
   const [err] = await to(mx.getThreadTimeline(loadedThreadTimelineSet, threadId));
   if (!isMounted()) {
-    countCacheProbe('threadOpenSkipSdkThreadTimelineGuard');
     return false;
   }
   if (err) {
@@ -212,7 +203,6 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
       })
     );
     if (!isMounted()) {
-      countCacheProbe('threadOpenSkipSdkEmptyRelationsGuard');
       return false;
     }
     if (!relErr && relData?.chunk?.length) {

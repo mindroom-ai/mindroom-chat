@@ -1,40 +1,37 @@
 /**
- * CINNY-207 AC2 STEP 4 iter 2 STEP c (2026-07-04): minimized RED repro
- * of the upstream skip pinned by STEP b's docker run.
+ * CINNY-207 AC2 revision (2026-07-04): rewrite of the STEP c/d repro.
  *
- * STEP b's probe snapshot (extracted from playwright trace,
- * `[cinny-207] ac2-probe t30s` line):
+ * Pre-revision framing: STEP b's docker run pinned that after a
+ * relations-backfill completed with `completed: true`,
+ * `runThreadOpenCacheFirst` returned `shouldContinue: false` without
+ * scheduling a reconcile — the AC2 return-nav open skipped both
+ * schedule call sites (cache-first at the complete-coverage exit AND
+ * lifecycle at the partial-coverage exit) because the backfill-completed
+ * branch was BETWEEN them, and neither fired. STEP d "fixed" this by
+ * adding a THIRD branch-local schedule call at the backfill-completed
+ * exit.
  *
- *   threadOpens = 2
- *   threadOpenSkipCacheFirstBackfillCompleted = 1  ← the return-nav open
- *   threadOpenSkipCacheFirstPostHydrateGuard   = 1  ← first-open cleanup
- *   threadOpenScheduledCacheFirst = 0
- *   threadOpenScheduledLifecycle  = 0
- *   reconcilesScheduled           = 1  (all from noteRoomFocused,
- *                                      the room-scope tripwire)
- *   reconcilesRoomScopeNoop       = 1
+ * The revision rejects the STEP d shape as a defensive bandage
+ * (per-branch schedules that can each independently be missed by a
+ * future path added between them) and instead relocates the reconcile
+ * schedule to a SINGLE choke point at the top of
+ * `runThreadOpenCacheFirst`, right after the two hydrate guards. The
+ * choke-point sits ABOVE every coverage/bootstrap branch, so it is
+ * structurally impossible for the backfill-completed branch (or any
+ * other coverage branch) to bail without a reconcile having been
+ * scheduled.
  *
- * Invariant `threadOpens == sum(scheduled + skip counters)` holds:
- *   2 == 0 + 0 + 1 + 1
- *
- * The pinned mechanism: after a relations-backfill completes with
- * `completed: true` (snapshot deemed complete), `runThreadOpenCacheFirst`
- * returns `shouldContinue: false` WITHOUT scheduling a reconcile — and
- * the lifecycle controller then respects that early-out, so the
- * partial-coverage `scheduleReconcile` at
- * threadOpenLifecycleController.ts:220 never fires either. Any
- * server-side divergence that landed AFTER the backfill window is
- * frozen in the cache until the next full reload.
- *
- * This violates D7: "coverage decides PAINT, never REVALIDATE" — a
- * complete-coverage paint should always still schedule a revalidate.
- *
- * Assertions below are RED against the pre-fix code because we assert
- * that `scheduleReconcile` IS called from the cache-first path when the
- * backfill completes. Once STEP d (the fix) lands, these turn green.
- * The test is committed as passing NOW (using `it.fails`) so a
- * regression that re-introduces the skip fails loudly rather than
- * silently.
+ * This test file now asserts the STRONGER invariant:
+ *   - The choke-point schedule fires BEFORE the coverage branching
+ *     runs, not after — so the reconcile is scheduled even if the
+ *     backfill branch subsequently paints and returns.
+ *   - The backfill-completed branch itself only PAINTS and returns;
+ *     it does NOT carry its own schedule call site anymore.
+ *   - The reason string is the single consolidated
+ *     `'open-thread-choke-point'` (the three earlier open-* variants
+ *     — open-complete-coverage, open-partial-coverage,
+ *     open-backfill-completed — were consolidated when the branch
+ *     schedule sites were deleted).
  */
 import { describe, expect, it, vi } from 'vitest';
 import { makeEvent, makeRoom, makeTimeline } from '../test-utils/RoomTimeline.test.shared';
@@ -70,26 +67,33 @@ const makeBackfillCompletedOptions = () => {
       (events: ReturnType<typeof makeEvent>[]) => events
     ),
   };
+  // The order in which scheduleReconcile and backfillThreadRelationsIntoCache
+  // are called is load-bearing: the choke-point revision REQUIRES the
+  // reconcile to schedule BEFORE any coverage branching runs. Track call
+  // order across the two mocks so we can prove the sequencing in a
+  // dedicated assertion.
+  const callOrder: string[] = [];
   return {
-    // Backfill returns `completed: true` — this is the exact shape that
-    // triggers the skip on the AC2 return-nav open.
-    backfillThreadRelationsIntoCache: vi.fn(async () => ({
-      completed: true,
-      fetchedCount: 25,
-    })),
+    backfillThreadRelationsIntoCache: vi.fn(async () => {
+      callOrder.push('backfill');
+      return { completed: true, fetchedCount: 25 };
+    }),
     debugTraceId: 'test',
     forceTimelineUpdate: vi.fn(),
     hydrateThreadFromCache: vi.fn(),
     isCurrentThreadOpen: vi.fn(() => true),
     mx,
     pinThreadToBottomOnOpen: vi.fn(),
-    scheduleReconcile: vi.fn(async () => ({
-      reason: 'open-complete-coverage' as const,
-      repaired: false,
-      fetchedCount: 0,
-      iterations: 1,
-      aborted: false,
-    })),
+    scheduleReconcile: vi.fn(async () => {
+      callOrder.push('scheduleReconcile');
+      return {
+        reason: 'open-thread-choke-point' as const,
+        repaired: false,
+        fetchedCount: 0,
+        iterations: 1,
+        aborted: false,
+      };
+    }),
     room,
     setSupplementalThreadEvents: vi.fn(),
     setThreadHasMoreCachedBack: vi.fn(),
@@ -100,28 +104,20 @@ const makeBackfillCompletedOptions = () => {
     threadId: '$root',
     threadOpenSeedSession,
     threadTimeline,
+    callOrder,
   };
 };
 
-describe('AC2 STEP 4 iter 2 STEP c/d: relations-backfill-completed reconcile schedule', () => {
-  it('D7 invariant: a completed backfill schedules a reconcile with reason open-backfill-completed', async () => {
-    // STEP d fix (2026-07-04): repurposes the pre-existing
-    // paint-and-bail branch as paint-AND-schedule. Cache page shape
-    // that lands on the partial-coverage branch and triggers
-    // `shouldBackfillThreadRelationsFromCoverage` → the code calls
-    // `backfillThreadRelationsIntoCache` (which returns
-    // `completed: true`), then now BOTH fires `scheduleReconcile` and
-    // early-returns with `shouldContinue: false` at
-    // threadOpenCacheFirst.ts:214-249. Pre-fix: only the early-return
-    // happened, the reconcile never scheduled.
-    //
-    // The critical inputs for this branch:
-    //   - hasCompleteCachedThreadSnapshot = false (partial coverage)
-    //   - shouldBackfillThreadRelationsFromCoverage = true
-    // Achieved by:
-    //   - a hydrated cached page with a non-empty local snapshot
-    //   - coverage that is NOT complete (backwardToken present) but
-    //     otherwise usable — so the partial-coverage backfill kicks in.
+describe('AC2 revision: choke-point reconcile fires before backfill-completed branch paints', () => {
+  it('schedules the reconcile BEFORE the coverage branching runs, not after', async () => {
+    // This is the load-bearing sequencing assertion. Pre-revision, the
+    // backfill-completed branch carried its own scheduleReconcile call
+    // AFTER the backfill returned — so scheduleReconcile always came
+    // after `backfill` in the call log. Post-revision the choke-point
+    // fires immediately after the post-hydrate guard, BEFORE the
+    // coverage branching, so the order must be [scheduleReconcile,
+    // backfill]. A regression that reinstates a per-branch schedule
+    // would flip this order.
     resetCacheProbe();
     const opts = makeBackfillCompletedOptions();
     const cachedPage = {
@@ -144,40 +140,44 @@ describe('AC2 STEP 4 iter 2 STEP c/d: relations-backfill-completed reconcile sch
 
     const result = await runThreadOpenCacheFirst(opts as never);
 
-    // Backfill fired and reported completed, so shouldContinue is
-    // false (the SDK bootstrap is skipped because the cache now has
-    // the full snapshot). This is the pre-existing paint behavior
-    // preserved by the fix.
+    // Backfill fired and reported completed, so shouldContinue=false
+    // (SDK bootstrap is skipped because the cache now has the full
+    // snapshot). This is the pre-existing paint behavior — the branch
+    // is still the same shape, only the schedule call was relocated.
     expect(opts.backfillThreadRelationsIntoCache).toHaveBeenCalledTimes(1);
     expect(result.shouldContinue).toBe(false);
 
-    // D7 invariant assertion: the reconcile was scheduled with a
-    // reason string that names the backfill-completed origin — so a
-    // trace-based diagnosis can distinguish this from the complete-
-    // coverage and partial-coverage schedule call sites.
+    // Choke-point invariant: reconcile scheduled EXACTLY ONCE, and
+    // BEFORE any coverage branching. `scheduleReconcile` must appear
+    // in the call log at index 0, before `backfill`.
     expect(opts.scheduleReconcile).toHaveBeenCalledTimes(1);
+    expect(opts.callOrder[0]).toBe('scheduleReconcile');
+    expect(opts.callOrder[1]).toBe('backfill');
+
+    // Reason is the single consolidated choke-point value.
     const [reconcileArgs] = opts.scheduleReconcile.mock.calls[0] ?? [undefined];
     expect(reconcileArgs).toBeDefined();
     expect(reconcileArgs.roomId).toBe(opts.room.roomId);
     expect(reconcileArgs.threadId).toBe('$root');
-    expect(reconcileArgs.reason).toBe('open-backfill-completed');
+    expect(reconcileArgs.reason).toBe('open-thread-choke-point');
 
-    // Probe: the scheduled-cache-first counter bumped (the new
-    // schedule call site), the skip counter did NOT bump.
+    // Probe accounting: the choke-point scheduled counter bumped
+    // exactly once for this open. The pre-revision counter set had
+    // `threadOpenSkipCacheFirstBackfillCompleted` for the miss shape
+    // and `threadOpenScheduledLifecycle` for the redundant partial-
+    // coverage schedule — both are gone (see cacheProbe.ts revision
+    // comment for the full pruning rationale).
     const snap = getCacheProbeSnapshot();
     expect(snap.threadOpenScheduledCacheFirst).toBe(1);
-    expect(snap.threadOpenSkipCacheFirstBackfillCompleted).toBe(0);
-    expect(snap.threadOpenScheduledLifecycle).toBe(0);
   });
 
   it('onRepaired callback routes fetched events through supplemental sink (render convergence leg)', async () => {
-    // The complete-coverage branch (line ~167 in threadOpenCacheFirst.ts)
-    // wires the reconciler's widened `onRepaired` to
-    // `setSupplementalThreadEvents` for the same reason: SDK bootstrap
-    // is skipped so the render's `fallbackThreadEventsState` is the
-    // only surface that can converge in memory. The STEP d fix uses
-    // the same wiring on the backfill-completed branch — this test
-    // pins that behavior so a future refactor cannot silently drop it.
+    // The choke-point call wires the reconciler's widened `onRepaired`
+    // to `setSupplementalThreadEvents` because the complete-coverage
+    // and backfill-completed branches both skip SDK bootstrap — so
+    // the render's `fallbackThreadEventsState` is the only surface
+    // that can converge in memory on those branches. This test pins
+    // that wiring so a future refactor cannot silently drop it.
     resetCacheProbe();
     const opts = makeBackfillCompletedOptions();
     const cachedPage = {
@@ -205,7 +205,7 @@ describe('AC2 STEP 4 iter 2 STEP c/d: relations-backfill-completed reconcile sch
       const a = args as { onRepaired?: (evts: unknown[]) => void };
       a.onRepaired?.(repaired);
       return {
-        reason: 'open-backfill-completed' as const,
+        reason: 'open-thread-choke-point' as const,
         repaired: true,
         fetchedCount: 1,
         iterations: 1,

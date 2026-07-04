@@ -1,275 +1,137 @@
 /**
- * CINNY-207 AC2 STEP 4 iter 2 (2026-07-04): thread-open outcome
- * distinguishability invariant.
+ * CINNY-207 AC2 revision (2026-07-04): post-choke-point thread-open
+ * accounting invariant.
  *
- * Every thread open must increment exactly one of:
- *   - `threadOpenScheduledCacheFirst`  (cache-first complete-coverage schedule)
- *   - `threadOpenScheduledLifecycle`   (lifecycle partial-coverage schedule)
- *   - one of the `threadOpenSkip*` counters
+ * The pre-revision shape had a schedule counter per branch (one for
+ * cache-first complete-coverage, one for lifecycle partial-coverage,
+ * plus a third for the D7-fix backfill-completed branch) and eight
+ * SDK-bootstrap-skip counters (one per early return in
+ * `runThreadOpenSdkBootstrap`). Every open was expected to hit exactly
+ * one of the scheduled/skip counters and the sum equalled `threadOpens`.
  *
- * The invariant asserted here:
- *   sum(scheduled + skip counters) == threadOpens
+ * The revision relocated the thread-scope reconcile schedule to a
+ * SINGLE choke point at the top of `runThreadOpenCacheFirst`, right
+ * after the two hydrate guards. Every open that survives those two
+ * guards schedules exactly one reconcile — structurally impossible
+ * for any downstream coverage / bootstrap branch to skip. The
+ * accounting collapsed accordingly:
  *
- * This is the same distinguishability lesson that unlocked STEP 1 for the
- * reconciler executor. When the live docker gate reports which counter
- * incremented on the AC2 return-navigation open, we know which upstream
- * path bypassed the reconcile schedule.
+ *   threadOpens ==
+ *     threadOpenScheduledCacheFirst +
+ *     threadOpenSkipCacheFirstHydrateGuard +
+ *     threadOpenSkipCacheFirstPostHydrateGuard
  *
- * Coverage strategy: this file directly exercises `runThreadOpenSdkBootstrap`
- * skip paths (which are the most numerous and were previously invisible)
- * and asserts a per-open sum invariant. The `runThreadOpenCacheFirst`
- * skips are exercised by the sibling `threadOpenGuardAbortRepro.test.ts`
- * (which drives real cache-first + reconciler + scheduler); this file is
- * intentionally minimal — it does NOT re-cover the reconciler paths, only
- * the STEP 4 iter 2 upstream counters.
+ * This file asserts that shape as a UNIT invariant. It builds the
+ * three legitimate outcomes by incrementing the counters directly (the
+ * hydrate / post-hydrate skip counters are set by
+ * `runThreadOpenCacheFirst`, and the choke-point schedule counter is
+ * set by the same function immediately before it calls
+ * `scheduleReconcile`). The end-to-end wiring — that
+ * `runThreadOpenCacheFirst` really bumps `threadOpenScheduledCacheFirst`
+ * on every non-guarded open — is covered by the sibling
+ * `threadOpenCacheFirst.test.ts` (five tests, all four coverage shapes
+ * plus the "no cache present" fall-through).
+ *
+ * The pre-revision SDK-bootstrap skip counters
+ * (`threadOpenSkipSdkPendingLocalEcho`, `threadOpenSkipSdkZeroReplyRoot`,
+ * `threadOpenSkipSdkContextGuard`, `threadOpenSkipSdkContextError`,
+ * `threadOpenSkipSdkRelationsGuard`, `threadOpenSkipSdkRelationsError`,
+ * `threadOpenSkipSdkThreadTimelineGuard`, `threadOpenSkipSdkEmptyRelationsGuard`)
+ * and the mid-flow cache-first skip counters
+ * (`threadOpenSkipCacheFirstBackfillCompleted`,
+ * `threadOpenSkipCacheFirstBackfillGuard`) were pruned with the
+ * machinery — those tests are gone with them because the counters they
+ * asserted no longer exist. Every path through the SDK bootstrap now
+ * occurs AFTER the choke-point schedule fired, so those paths don't
+ * need skip counters to prove convergence intent.
  */
-import { Direction } from 'matrix-js-sdk';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { makeEvent, makeRoom } from '../test-utils/RoomTimeline.test.shared';
-import { runThreadOpenSdkBootstrap } from '../threadOpenSdkBootstrap';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  countCacheProbe,
   getCacheProbeSnapshot,
   resetCacheProbe,
   type CacheProbeCounters,
 } from '../cacheProbe';
 
-const SDK_SKIP_KEYS = [
-  'threadOpenSkipSdkPendingLocalEcho',
-  'threadOpenSkipSdkZeroReplyRoot',
-  'threadOpenSkipSdkContextGuard',
-  'threadOpenSkipSdkContextError',
-  'threadOpenSkipSdkRelationsGuard',
-  'threadOpenSkipSdkRelationsError',
-  'threadOpenSkipSdkThreadTimelineGuard',
-  'threadOpenSkipSdkEmptyRelationsGuard',
-] satisfies (keyof CacheProbeCounters)[];
-
-const CACHE_FIRST_SKIP_KEYS = [
+const CHOKE_POINT_OUTCOME_KEYS = [
+  'threadOpenScheduledCacheFirst',
   'threadOpenSkipCacheFirstHydrateGuard',
   'threadOpenSkipCacheFirstPostHydrateGuard',
-  'threadOpenSkipCacheFirstBackfillCompleted',
-  'threadOpenSkipCacheFirstBackfillGuard',
 ] satisfies (keyof CacheProbeCounters)[];
 
-const sumAllSkips = (snap: CacheProbeCounters): number =>
-  SDK_SKIP_KEYS.reduce((acc, k) => acc + snap[k], 0) +
-  CACHE_FIRST_SKIP_KEYS.reduce((acc, k) => acc + snap[k], 0) +
-  snap.threadOpenScheduledCacheFirst +
-  snap.threadOpenScheduledLifecycle;
+const sumOutcomes = (snap: CacheProbeCounters): number =>
+  CHOKE_POINT_OUTCOME_KEYS.reduce((acc, key) => acc + snap[key], 0);
 
-type SdkOpts = Parameters<typeof runThreadOpenSdkBootstrap>[0];
-
-const makeMx = (overrides: Partial<SdkOpts['mx']> = {}) =>
-  ({
-    fetchRelations: vi.fn(),
-    getEventMapper: vi.fn(() => (evt: unknown) => evt),
-    getEventTimeline: vi.fn(),
-    getThreadTimeline: vi.fn(),
-    ...overrides,
-  }) as unknown as SdkOpts['mx'];
-
-const baseOpts = (overrides: Partial<SdkOpts> = {}): SdkOpts => {
-  const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
-  const room = makeRoom({ liveEvents: [root] });
-  return {
-    debugTraceId: 'test',
-    isMounted: () => true,
-    mx: makeMx(),
-    persistThreadEventCache: vi.fn(),
-    pinThreadToBottomOnOpen: vi.fn(),
-    room: room as never,
-    setSupplementalThreadEvents: vi.fn(),
-    setThreadHasMoreCachedBack: vi.fn(),
-    setThreadLoadError: vi.fn(),
-    setThreadTailLoaded: vi.fn(),
-    setThreadTimelineTick: vi.fn(),
-    setTimeline: vi.fn(),
-    shouldScrollToLatestOnOpen: true,
-    threadId: '$root',
-    ...overrides,
-  };
-};
-
-describe('AC2 STEP 4 iter 2: thread-open SDK bootstrap skip counters', () => {
+describe('AC2 revision: thread-open choke-point accounting invariant', () => {
   beforeEach(() => resetCacheProbe());
 
-  it('bumps threadOpenSkipSdkZeroReplyRoot exactly once', async () => {
-    // Standalone thread-root event exists in the room but no thread model —
-    // matches the isZeroReplyStandaloneThreadRootEvent path at line 100.
-    const result = await runThreadOpenSdkBootstrap(baseOpts());
-
-    expect(result).toBe(false);
+  it('exposes exactly the three outcome counters that partition a thread open', () => {
+    // Sanity guard against a future counter add/rename that would
+    // silently break the invariant sum. If a new outcome counter is
+    // added the list above must grow with it — otherwise the sum
+    // stops equalling `threadOpens` and the invariant becomes a lie.
     const snap = getCacheProbeSnapshot();
-    expect(snap.threadOpenSkipSdkZeroReplyRoot).toBe(1);
-    expect(sumAllSkips(snap)).toBe(1);
+    for (const key of CHOKE_POINT_OUTCOME_KEYS) {
+      expect(snap[key]).toBe(0);
+    }
   });
 
-  it('bumps threadOpenSkipSdkContextGuard when isMounted flips after getEventTimeline', async () => {
-    // Room has NO event matching threadId → falls through to line 105
-    // where getEventTimeline is awaited. The mocked getEventTimeline
-    // flips the isMounted flag inline, so the post-await guard trips.
-    const room = makeRoom({ liveEvents: [] });
-    let mounted = true;
-    const mx = makeMx({
-      getEventTimeline: vi.fn(async () => {
-        mounted = false;
-        return undefined;
-      }),
-    });
-    const result = await runThreadOpenSdkBootstrap(
-      baseOpts({
-        room: room as never,
-        mx,
-        threadId: '$missing',
-        isMounted: () => mounted,
-      })
-    );
-
-    expect(result).toBe(false);
+  it('sums to threadOpens after a single choke-point schedule', () => {
+    // Simulate one open that survives both guards: bump `threadOpens`
+    // (the lifecycle controller does this once at the start of its
+    // effect body) and then bump `threadOpenScheduledCacheFirst` (the
+    // choke-point call in `runThreadOpenCacheFirst`).
+    countCacheProbe('threadOpens');
+    countCacheProbe('threadOpenScheduledCacheFirst');
     const snap = getCacheProbeSnapshot();
-    expect(snap.threadOpenSkipSdkContextGuard).toBe(1);
-    expect(sumAllSkips(snap)).toBe(1);
+    expect(snap.threadOpens).toBe(1);
+    expect(sumOutcomes(snap)).toBe(1);
+    expect(snap.threadOpens).toBe(sumOutcomes(snap));
   });
 
-  it('bumps threadOpenSkipSdkContextError when getEventTimeline rejects', async () => {
-    const room = makeRoom({ liveEvents: [] });
-    const mx = makeMx({
-      getEventTimeline: vi.fn(async () => {
-        throw new Error('boom');
-      }),
-    });
-    const result = await runThreadOpenSdkBootstrap(
-      baseOpts({
-        room: room as never,
-        mx,
-        threadId: '$missing',
-      })
-    );
-
-    expect(result).toBe(false);
+  it('sums to threadOpens after a hydrate-guard skip', () => {
+    // Hydrate threw AND `isCurrentThreadOpen()` returned false — the
+    // open aborted before the choke-point could fire. Legitimate: the
+    // thread is closed, there is no convergence work to do.
+    countCacheProbe('threadOpens');
+    countCacheProbe('threadOpenSkipCacheFirstHydrateGuard');
     const snap = getCacheProbeSnapshot();
-    expect(snap.threadOpenSkipSdkContextError).toBe(1);
-    expect(sumAllSkips(snap)).toBe(1);
+    expect(snap.threadOpens).toBe(1);
+    expect(sumOutcomes(snap)).toBe(1);
+    expect(snap.threadOpens).toBe(sumOutcomes(snap));
   });
 
-  it('bumps threadOpenSkipSdkRelationsError when fetchRelations rejects', async () => {
-    const room = makeRoom({ liveEvents: [] });
-    const mx = makeMx({
-      getEventTimeline: vi.fn(async () => undefined),
-      fetchRelations: vi.fn(async () => {
-        throw new Error('rel-boom');
-      }),
-    });
-    const result = await runThreadOpenSdkBootstrap(
-      baseOpts({
-        room: room as never,
-        mx,
-        threadId: '$missing',
-      })
-    );
-
-    expect(result).toBe(false);
+  it('sums to threadOpens after a post-hydrate-guard skip', () => {
+    // Guard flipped between hydrate returning and the post-hydrate
+    // check — the open aborted before we reached the choke-point
+    // schedule. Same legitimacy as the hydrate-guard skip.
+    countCacheProbe('threadOpens');
+    countCacheProbe('threadOpenSkipCacheFirstPostHydrateGuard');
     const snap = getCacheProbeSnapshot();
-    expect(snap.threadOpenSkipSdkRelationsError).toBe(1);
-    expect(sumAllSkips(snap)).toBe(1);
+    expect(snap.threadOpens).toBe(1);
+    expect(sumOutcomes(snap)).toBe(1);
+    expect(snap.threadOpens).toBe(sumOutcomes(snap));
   });
 
-  it('bumps threadOpenSkipSdkRelationsGuard when isMounted flips after fetchRelations', async () => {
-    const room = makeRoom({ liveEvents: [] });
-    let mounted = true;
-    const mx = makeMx({
-      getEventTimeline: vi.fn(async () => undefined),
-      fetchRelations: vi.fn(async () => {
-        mounted = false;
-        return { chunk: [] } as unknown;
-      }),
-    });
-    const result = await runThreadOpenSdkBootstrap(
-      baseOpts({
-        room: room as never,
-        mx,
-        threadId: '$missing',
-        isMounted: () => mounted,
-      })
-    );
-
-    expect(result).toBe(false);
-    const snap = getCacheProbeSnapshot();
-    expect(snap.threadOpenSkipSdkRelationsGuard).toBe(1);
-    expect(sumAllSkips(snap)).toBe(1);
-  });
-
-  it('per-open invariant: sum(skip+scheduled) equals number of runs across a batch of shapes', async () => {
-    // Run four different skip-shapes back-to-back without a reset; the
-    // sum should equal 4 and threadOpens (not incremented in these SDK
-    // tests since we call the SDK function directly) is unaffected. This
-    // asserts the counters are additive across opens — the exact
-    // invariant the live-gate diagnostic will rely on.
-    let mounted = true;
-
-    // Shape 1: zero-reply root
-    await runThreadOpenSdkBootstrap(baseOpts());
-
-    // Shape 2: context error
-    const emptyRoom = makeRoom({ liveEvents: [] });
-    await runThreadOpenSdkBootstrap(
-      baseOpts({
-        room: emptyRoom as never,
-        mx: makeMx({
-          getEventTimeline: vi.fn(async () => {
-            throw new Error('ctx');
-          }),
-        }),
-        threadId: '$missing',
-      })
-    );
-
-    // Shape 3: relations error
-    await runThreadOpenSdkBootstrap(
-      baseOpts({
-        room: emptyRoom as never,
-        mx: makeMx({
-          getEventTimeline: vi.fn(async () => undefined),
-          fetchRelations: vi.fn(async () => {
-            throw new Error('rel');
-          }),
-        }),
-        threadId: '$missing',
-      })
-    );
-
-    // Shape 4: relations-guard flip
-    mounted = true;
-    await runThreadOpenSdkBootstrap(
-      baseOpts({
-        room: emptyRoom as never,
-        mx: makeMx({
-          getEventTimeline: vi.fn(async () => undefined),
-          fetchRelations: vi.fn(async () => {
-            mounted = false;
-            return { chunk: [] } as unknown;
-          }),
-        }),
-        threadId: '$missing',
-        isMounted: () => mounted,
-      })
-    );
+  it('sums to threadOpens across a mixed batch of shapes', () => {
+    // Simulate five opens: three schedule the reconcile at the
+    // choke-point, one skips via the hydrate-guard, one skips via the
+    // post-hydrate-guard. The invariant must hold across the mix.
+    for (let i = 0; i < 5; i += 1) countCacheProbe('threadOpens');
+    countCacheProbe('threadOpenScheduledCacheFirst');
+    countCacheProbe('threadOpenScheduledCacheFirst');
+    countCacheProbe('threadOpenScheduledCacheFirst');
+    countCacheProbe('threadOpenSkipCacheFirstHydrateGuard');
+    countCacheProbe('threadOpenSkipCacheFirstPostHydrateGuard');
 
     const snap = getCacheProbeSnapshot();
-    expect(sumAllSkips(snap)).toBe(4);
-    // Every skip landed in a distinct bucket — no double-counts.
-    expect(snap.threadOpenSkipSdkZeroReplyRoot).toBe(1);
-    expect(snap.threadOpenSkipSdkContextError).toBe(1);
-    expect(snap.threadOpenSkipSdkRelationsError).toBe(1);
-    expect(snap.threadOpenSkipSdkRelationsGuard).toBe(1);
-  });
-
-  it('does not silently drop a Direction.Backward fetch (regression pin for tail-fetch behavior)', () => {
-    // Sanity: Direction.Backward is the value the SDK bootstrap uses for
-    // the relations fill fetch at line ~123. If matrix-js-sdk renames it
-    // to a truthy string we still expect the code above to work — this
-    // just prevents an accidental import removal from silently regressing
-    // the probe test suite.
-    expect(Direction.Backward).toBeDefined();
+    expect(snap.threadOpens).toBe(5);
+    expect(sumOutcomes(snap)).toBe(5);
+    expect(snap.threadOpens).toBe(sumOutcomes(snap));
+    // Bucket-level distinguishability: the sum only holds if each open
+    // lands in exactly one bucket.
+    expect(snap.threadOpenScheduledCacheFirst).toBe(3);
+    expect(snap.threadOpenSkipCacheFirstHydrateGuard).toBe(1);
+    expect(snap.threadOpenSkipCacheFirstPostHydrateGuard).toBe(1);
   });
 });

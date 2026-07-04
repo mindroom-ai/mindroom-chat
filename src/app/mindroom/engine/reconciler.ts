@@ -82,15 +82,13 @@ const MAX_RECONCILE_ITERATIONS = 25;
  * (D7 revalidation)" from "user opened a fresh room we just hydrated".
  */
 export type ReconcileReason =
-  | 'open-complete-coverage'
-  | 'open-partial-coverage'
-  // CINNY-207 AC2 STEP 4 iter 2 STEP d (2026-07-04): the
-  // relations-backfill-completed branch in
-  // `runThreadOpenCacheFirst` now schedules a reconcile before its
-  // shouldContinue=false early-return. Distinct reason from the
-  // other two open-* variants so a trace can tell the three schedule
-  // call sites apart.
-  | 'open-backfill-completed'
+  // CINNY-207 AC2 revision (2026-07-04): single choke-point schedule
+  // at the top of the thread-open flow (see runThreadOpenCacheFirst).
+  // Replaces the three earlier open-* variants ('open-complete-coverage',
+  // 'open-partial-coverage', 'open-backfill-completed') that each pinned
+  // a branch-local schedule call site — those sites are gone; there is
+  // now exactly one thread-open reconcile per open, structurally.
+  | 'open-thread-choke-point'
   | 'room-open'
   | 'resume';
 
