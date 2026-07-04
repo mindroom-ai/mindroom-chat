@@ -2,6 +2,52 @@
 
 ## Runbook
 
+### CINNY-207 P7.2 audit remediation — gap-fill / deep-history prefer-live persist (2026-07-04)
+
+`engine/reconciler.ts`'s header states every fetched raw event must
+funnel through `createPreferLiveEventMapper` before persistence — the
+Tuwunel un-pruned-copy window is ~10s, and `saveRoomEventsToCache` is
+last-writer-wins on `eventStore.put`. Gap-fill and deep-history both
+bypassed this: they passed the raw `response.chunk` straight to
+`saveRoomEventsToCache`, letting a background sweep during the stale
+window overwrite a cached tombstone with pre-redaction plaintext at
+rest (invariant I2).
+
+- Extracted `persistRoomChunkWithPreferLive` in
+  `threads/eventRepository.ts` — resolves `mx.getEventMapper()`, wraps
+  in `createPreferLiveEventMapper(room, mapper)`, maps each chunk
+  event, and routes through `persistRoomEventCacheSnapshot` (same
+  serialize+save entry point the write-through uses). Forwards
+  `beforeTokenForEarliest` so the paging ledger semantics are
+  preserved. Extraction chosen over inline duplication because both
+  gap-fill and deep-history apply the identical transform, and future
+  callers with the same raw-chunk shape should reuse it.
+
+- `engine/gapFillExecutor.ts`: swapped the awaited
+  `saveRoomEventsToCache(sessionId, roomId, chunk, response.end ?? null)`
+  for `persistRoomChunkWithPreferLive({ mx, sessionId, room, chunk,
+  beforeTokenForEarliest })`. The write is fire-and-forget matching
+  the write-through and reconciler (persistRoomEventCacheSnapshot uses
+  `void save(...)` internally by design).
+
+- `engine/deepHistoryJob.ts`: same swap.
+
+- Red-first test in `gapFillExecutor.test.ts`
+  ("funnels /messages chunks through preferLive so a stale un-pruned
+  copy heals the live redacted instance instead of overwriting the
+  cached tombstone"): simulates the stale-copy scenario — server
+  returns pre-redaction plaintext + `unsigned.redacted_because`, live
+  SDK instance already knows the redaction — and asserts the persisted
+  row is the tombstone shape (empty content) rather than the raw
+  chunk. Verified red on the unfixed code (persisted content was the
+  pre-redaction body), green with the fix.
+
+- Test-mock updates: gapFillExecutor.test.ts and deepHistoryJob.test.ts
+  room stubs grew `findEventById` (preferLive's live-instance branch);
+  clients grew `getEventMapper` returning an identity MatrixEvent-shaped
+  mapper sufficient for the non-redaction, non-replace shape the
+  serializer walks.
+
 ### CINNY-207 P7.2 audit remediation — thread-open lifecycle rejections (2026-07-04)
 
 Two engine-lifecycle audit findings landed as one commit because both

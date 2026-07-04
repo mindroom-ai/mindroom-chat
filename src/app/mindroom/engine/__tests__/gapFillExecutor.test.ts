@@ -21,6 +21,13 @@ const makeMatrixEvent = (senderId: string) =>
     getSender: () => senderId,
   }) as unknown as ReturnType<Room['getLiveTimeline']>;
 
+// CINNY-207 P7.2 audit finding #3: gap-fill now maps each raw chunk
+// event through `createPreferLiveEventMapper` before persisting. Extend
+// the room stub with `findEventById` (preferLive checks whether the
+// SDK already holds a live instance) — returning null keeps the mapper
+// on the "clone the raw event" branch, which is what these tests want.
+// `findEventInTimeline` and `getUnfilteredTimelineSet` are unused by
+// the gap-fill path so they stay off the stub.
 const makeRoomStub = (
   roomId: string,
   createSender: string | undefined,
@@ -28,6 +35,7 @@ const makeRoomStub = (
 ): Room =>
   ({
     roomId,
+    findEventById: () => null,
     hasEncryptionStateEvent: () => encrypted,
     getLiveTimeline: () => ({
       getState: () => ({
@@ -39,6 +47,31 @@ const makeRoomStub = (
     }),
     getLastActiveTimestamp: () => 0,
   }) as unknown as Room;
+
+// CINNY-207 P7.2 audit finding #3: a minimal MatrixEvent shape sufficient
+// for `serializeRoomCacheEvents` (via `hydrateCachedEvents` +
+// `collectStateTargetEvents`). Non-redaction, non-replace events skip
+// every branch except the identity emit — we only need `getId`,
+// `getType`, `getRelation`, `getSender`, and `.event`.
+const identityMapper = (raw: Partial<IEvent>) =>
+  ({
+    getId: () => raw.event_id ?? '',
+    getType: () => raw.type,
+    getTs: () => (raw.origin_server_ts as number) ?? 0,
+    isRedaction: () => raw.type === 'm.room.redaction',
+    isRedacted: () => Boolean(raw.unsigned?.redacted_because),
+    getAssociatedId: () => (raw.content as { redacts?: string } | undefined)?.redacts,
+    getRelation: () => null,
+    getUnsigned: () => raw.unsigned ?? {},
+    getStateKey: () => (raw as { state_key?: string }).state_key,
+    getSender: () => raw.sender,
+    getContent: () => raw.content ?? {},
+    getWireContent: () => raw.content ?? {},
+    makeRedacted: () => undefined,
+    makeReplaced: () => undefined,
+    replacingEvent: () => null,
+    event: raw,
+  }) as unknown as import('matrix-js-sdk').MatrixEvent;
 
 type MockClient = MatrixClient & {
   __rooms: Map<string, Room>;
@@ -63,6 +96,10 @@ const createMockClient = (
   const client = {
     getDomain: () => ourDomain,
     getRoom: (roomId: string) => rooms.get(roomId) ?? null,
+    // CINNY-207 P7.2 audit finding #3: `persistRoomChunkWithPreferLive`
+    // resolves the event mapper up front and wraps it in
+    // `createPreferLiveEventMapper` before persisting each chunk.
+    getEventMapper: () => identityMapper,
     createMessagesRequest: vi
       .fn()
       .mockImplementation(
@@ -378,5 +415,127 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     const snapshot = getCacheProbeSnapshot();
     expect(snapshot.schedulerCompleted).toBe(1);
     expect(snapshot.schedulerFailed).toBe(0);
+  });
+
+  // CINNY-207 P7.2 audit finding #3 (red-first): the raw chunk MUST be
+  // funnelled through `createPreferLiveEventMapper` before persisting.
+  // Simulate the Tuwunel stale-copy scenario: the SDK's live instance is
+  // already redacted (client observed the redaction earlier), but the
+  // homeserver still serves the un-pruned copy on /messages within its
+  // ~10s window. The gap-fill must consult the live instance and heal
+  // via `makeRedacted`; without the mapper the fetched pre-redaction
+  // plaintext lands in cache last-writer-wins and un-redacts the
+  // tombstone at rest (invariant I2).
+  it('funnels /messages chunks through preferLive so a stale un-pruned copy heals the live redacted instance instead of overwriting the cached tombstone', async () => {
+    const preRedactionContent = { body: 'this was said before the redaction' };
+    const staleChunkEvent: Partial<IEvent> = {
+      event_id: '$stale',
+      origin_server_ts: 500,
+      type: 'm.room.message',
+      sender: '@alice:mindroom.chat',
+      room_id: '!room:mindroom.chat',
+      // Server-side proof of redaction is attached but the top-level
+      // content is still the pre-redaction plaintext — Tuwunel's stale
+      // shape. `preferLive` must apply `makeRedacted` on the live copy
+      // so the persisted record is the tombstone shape, not this.
+      content: preRedactionContent,
+      unsigned: {
+        redacted_because: {
+          event_id: '$redaction',
+          type: 'm.room.redaction',
+          sender: '@alice:mindroom.chat',
+          origin_server_ts: 600,
+          content: { redacts: '$stale' } as never,
+        } as never,
+      } as never,
+    };
+
+    // A trackable live instance that is currently NOT redacted; when
+    // preferLive fires, it must call makeRedacted on THIS object and
+    // return it (so `.event` serializes to the healed shape).
+    let liveContent: Record<string, unknown> = preRedactionContent;
+    let liveIsRedacted = false;
+    const liveRedactedBecause: { present?: Partial<IEvent> } = {};
+    const liveEvent = {
+      getId: () => '$stale',
+      getType: () => 'm.room.message',
+      getTs: () => 500,
+      isRedaction: () => false,
+      isRedacted: () => liveIsRedacted,
+      getAssociatedId: () => undefined,
+      getRelation: () => null,
+      getUnsigned: () => (liveRedactedBecause.present ? { redacted_because: liveRedactedBecause.present } : {}),
+      getStateKey: () => undefined,
+      getSender: () => '@alice:mindroom.chat',
+      getContent: () => liveContent,
+      getWireContent: () => liveContent,
+      makeRedacted: (redactionMEvent: { event?: Partial<IEvent> }) => {
+        // Simulate matrix-js-sdk behavior: prune content, mark redacted,
+        // stamp unsigned.redacted_because from the redaction event.
+        liveIsRedacted = true;
+        liveContent = {};
+        liveRedactedBecause.present = redactionMEvent.event;
+        // The .event property is the raw form the serializer reads.
+        (liveEvent as unknown as { event: Partial<IEvent> }).event = {
+          event_id: '$stale',
+          type: 'm.room.message',
+          origin_server_ts: 500,
+          sender: '@alice:mindroom.chat',
+          room_id: '!room:mindroom.chat',
+          content: {},
+          unsigned: { redacted_because: redactionMEvent.event ?? undefined } as never,
+        };
+      },
+      makeReplaced: () => undefined,
+      replacingEvent: () => null,
+      event: {
+        event_id: '$stale',
+        type: 'm.room.message',
+        origin_server_ts: 500,
+        sender: '@alice:mindroom.chat',
+        room_id: '!room:mindroom.chat',
+        content: preRedactionContent,
+      } as Partial<IEvent>,
+    };
+
+    const mx = createMockClient('mindroom.chat', (call) => {
+      if (call === 0) return { chunk: [staleChunkEvent] };
+      return { chunk: [] };
+    });
+    const room = makeRoomStub('!room:mindroom.chat', '@alice:mindroom.chat');
+    // Override findEventById on this specific room stub to return the
+    // trackable live instance for $stale (preferLive's live-instance
+    // branch); other lookups return null.
+    (room as unknown as { findEventById: (id: string) => unknown }).findEventById = (id: string) =>
+      id === '$stale' ? liveEvent : null;
+    mx.__rooms.set('!room:mindroom.chat', room);
+
+    await markRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat', {
+      markedAt: Date.now(),
+      prevBatch: 'tok-stale',
+    });
+
+    const scheduler = createBackfillScheduler({ mx });
+    const gapFillScheduler = createInMemoryGapFillScheduler();
+    gapFillScheduler.enqueueGapFill({
+      roomId: '!room:mindroom.chat',
+      reason: 'limited-sync',
+      markedAt: Date.now(),
+      prevBatch: 'tok-stale',
+    });
+
+    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
+    await flushMicrotasks();
+    await waitForCompleted();
+
+    // The persisted record MUST reflect the redacted tombstone (content
+    // pruned, redacted_because stamped). Before the audit fix, gap-fill
+    // wrote `staleChunkEvent` verbatim into the events store — content
+    // would be `preRedactionContent`, un-redacting the cached row.
+    const cached = await loadCachedRoomEvent(SESSION_ID, '!room:mindroom.chat', '$stale');
+    expect(cached).toBeDefined();
+    expect(cached?.content).toEqual({});
+    expect(liveIsRedacted).toBe(true);
+    expect(liveRedactedBecause.present?.event_id).toBe('$redaction');
   });
 });

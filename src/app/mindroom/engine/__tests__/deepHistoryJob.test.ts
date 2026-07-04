@@ -13,6 +13,11 @@ import { getCacheProbeSnapshot, resetCacheProbe } from '../../threads/cacheProbe
 
 const SESSION_ID = 'session-p43';
 
+// CINNY-207 P7.2 audit finding #3: deep-history now maps each raw
+// chunk event through `createPreferLiveEventMapper` before persisting.
+// `findEventById` is required on the room stub (returns null → mapper
+// stays on the "clone the raw event" branch for these unit fixtures,
+// which never simulate a live SDK instance).
 const makeRoom = (
   roomId: string,
   createSender: string,
@@ -21,6 +26,7 @@ const makeRoom = (
 ): Room =>
   ({
     roomId,
+    findEventById: () => null,
     hasEncryptionStateEvent: () => encrypted,
     getLiveTimeline: () => ({
       getState: () => ({
@@ -50,6 +56,29 @@ const rawEvent = (id: string, ts: number): Partial<IEvent> => ({
   content: { body: id },
 });
 
+// CINNY-207 P7.2 audit finding #3: minimal MatrixEvent shape sufficient
+// for `serializeRoomCacheEvents` on non-redaction, non-replace events —
+// mirrors the identity mapper in the gap-fill test.
+const identityMapper = (raw: Partial<IEvent>) =>
+  ({
+    getId: () => raw.event_id ?? '',
+    getType: () => raw.type,
+    getTs: () => (raw.origin_server_ts as number) ?? 0,
+    isRedaction: () => raw.type === 'm.room.redaction',
+    isRedacted: () => Boolean(raw.unsigned?.redacted_because),
+    getAssociatedId: () => (raw.content as { redacts?: string } | undefined)?.redacts,
+    getRelation: () => null,
+    getUnsigned: () => raw.unsigned ?? {},
+    getStateKey: () => (raw as { state_key?: string }).state_key,
+    getSender: () => raw.sender,
+    getContent: () => raw.content ?? {},
+    getWireContent: () => raw.content ?? {},
+    makeRedacted: () => undefined,
+    makeReplaced: () => undefined,
+    replacingEvent: () => null,
+    event: raw,
+  }) as unknown as import('matrix-js-sdk').MatrixEvent;
+
 const createMockClient = (
   responder: (call: number) => { end?: string; chunk: Partial<IEvent>[] }
 ): MockClient => {
@@ -58,6 +87,9 @@ const createMockClient = (
   const client = {
     getDomain: () => 'mindroom.chat',
     getRoom: (roomId: string) => rooms.get(roomId) ?? null,
+    // CINNY-207 P7.2 audit finding #3: preferLive mapper is resolved via
+    // this hook inside `persistRoomChunkWithPreferLive`.
+    getEventMapper: () => identityMapper,
     createMessagesRequest: vi
       .fn()
       .mockImplementation(

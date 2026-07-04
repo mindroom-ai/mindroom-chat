@@ -28,8 +28,8 @@
 
 import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
 import { Direction } from 'matrix-js-sdk';
-import { saveRoomEventsToCache } from '../threads/cacheStore';
 import { clearRoomTailDiscontinuity } from '../threads/cacheStore';
+import { persistRoomChunkWithPreferLive } from '../threads/eventRepository';
 import type { BackfillScheduler } from './backfillScheduler';
 import type { GapFillJob, GapFillScheduler } from './engineGapTracker';
 import { isRoomEligibleForRawFetch, resolveRoomPrefetchTier } from './prefetchPolicy';
@@ -122,11 +122,25 @@ export const createGapFillExecutor = (
         ? (response.chunk as Partial<IEvent>[])
         : [];
       if (chunk.length > 0) {
-        // The SDK returns chunk from newest to oldest for backward
-        // pagination; saveRoomEventsToCache normalizes ordering
-        // internally via origin_server_ts sorting.
-        // eslint-disable-next-line no-await-in-loop
-        await saveRoomEventsToCache(sessionId, job.roomId, chunk, response.end ?? null);
+        // CINNY-207 P7.2 audit finding #3: chunks must funnel through
+        // `createPreferLiveEventMapper` (see reconciler.ts header + I2)
+        // — Tuwunel serves un-pruned copies of redacted events for
+        // ~10s, and last-writer-wins on `eventStore.put` would let a
+        // gap-fill overwrite a cached tombstone with pre-redaction
+        // plaintext at rest. The shared helper maps every raw event
+        // (either through the mapper to a fresh MatrixEvent, or to the
+        // SDK's live instance with `unsigned.redacted_because` applied)
+        // and persists via `persistRoomEventCacheSnapshot` — the same
+        // serialize+save path the write-through uses. Ordering is
+        // normalized inside `runSaveRoomEventsTxn` via
+        // origin_server_ts sorting.
+        persistRoomChunkWithPreferLive({
+          mx,
+          sessionId,
+          room,
+          chunk,
+          beforeTokenForEarliest: response.end ?? null,
+        });
       }
       // `end === undefined` (or an empty end string) means the SDK has
       // no more history to fetch in this direction.

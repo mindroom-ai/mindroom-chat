@@ -2,6 +2,7 @@ import {
   RelationType,
   type EventTimeline,
   type IEvent,
+  type MatrixClient,
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
@@ -936,4 +937,50 @@ export const persistRoomEventCacheSnapshot = ({
     sourceEventCount: events.length,
     beforeTokenForEarliest,
   };
+};
+
+/**
+ * CINNY-207 P7.2 audit finding #3: gap-fill and deep-history paths
+ * fetch raw `/messages` chunks and persist them to the room cache. Per
+ * `engine/reconciler.ts`'s header, Tuwunel (and any homeserver) can
+ * serve un-pruned copies of redacted events for ~10s after a
+ * redaction; feeding those raw copies directly to `saveRoomEventsToCache`
+ * overwrites a cached tombstone with pre-redaction plaintext at rest,
+ * violating invariant I2.
+ *
+ * Funnel each chunk event through `createPreferLiveEventMapper` (the
+ * same mapper the reconciler uses) which either returns the SDK's live
+ * instance (if it already knows the event) or applies
+ * `unsigned.redacted_because` before persisting. Then serialize through
+ * the shared `serializeRoomCacheEvents` pipeline via
+ * `persistRoomEventCacheSnapshot` — the same path the write-through and
+ * reconciler use for room-scope persistence.
+ *
+ * `beforeTokenForEarliest` is forwarded so the gap-fill executor's
+ * paging semantics (see `runSaveRoomEventsTxn`) are preserved for the
+ * earliest event's ledger.
+ */
+export const persistRoomChunkWithPreferLive = ({
+  mx,
+  sessionId,
+  room,
+  chunk,
+  beforeTokenForEarliest,
+}: {
+  mx: MatrixClient;
+  sessionId: string;
+  room: Room;
+  chunk: Partial<IEvent>[];
+  beforeTokenForEarliest?: string | null;
+}): RoomEventCacheSnapshotWrite | undefined => {
+  if (chunk.length === 0) return undefined;
+  const mapper = mx.getEventMapper();
+  const preferLive = createPreferLiveEventMapper(room, mapper);
+  const mapped = chunk.map(preferLive);
+  return persistRoomEventCacheSnapshot({
+    sessionId,
+    room,
+    events: mapped,
+    beforeTokenForEarliest,
+  });
 };

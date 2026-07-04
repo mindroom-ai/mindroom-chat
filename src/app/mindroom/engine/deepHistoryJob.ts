@@ -31,7 +31,7 @@
 
 import type { IEvent, MatrixClient } from 'matrix-js-sdk';
 import { Direction } from 'matrix-js-sdk';
-import { saveRoomEventsToCache } from '../threads/cacheStore';
+import { persistRoomChunkWithPreferLive } from '../threads/eventRepository';
 import type { BackfillScheduler } from './backfillScheduler';
 import {
   CURRENT_ROOM_DEEP_HISTORY_TARGET,
@@ -104,8 +104,20 @@ export const enqueueRoomDeepHistoryJob = (
           ? (response.chunk as Partial<IEvent>[])
           : [];
         if (chunk.length > 0) {
-          // eslint-disable-next-line no-await-in-loop
-          await saveRoomEventsToCache(sessionId, roomId, chunk, response.end ?? null);
+          // CINNY-207 P7.2 audit finding #3: mirror the gap-fill path —
+          // route every raw chunk event through
+          // `createPreferLiveEventMapper` (via the shared helper) before
+          // persisting. Otherwise a deep-history sweep fetched inside
+          // Tuwunel's ~10s stale window can overwrite a cached tombstone
+          // with the un-pruned pre-redaction copy of a redacted event
+          // (invariant I2, see reconciler.ts header).
+          persistRoomChunkWithPreferLive({
+            mx,
+            sessionId,
+            room,
+            chunk,
+            beforeTokenForEarliest: response.end ?? null,
+          });
           persistedCount += chunk.length;
         }
         if (!response.end) return; // SDK confirmed no more history
