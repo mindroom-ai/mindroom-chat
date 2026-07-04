@@ -990,6 +990,86 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     expect(batchIds).toContain('$reply-1');
   });
 
+  it('still delivers repairedEvents through onRepaired when room.getThread returns null — P5-GATE-FIX v4 AC2 complete-coverage reopen', async () => {
+    // CINNY-207 P5-GATE-FIX v4 (AC2): team-lead diagnosis.
+    //
+    // The exact AC2 shape: on complete-coverage cache-first reopen the
+    // SDK bootstrap is skipped by design (see `threadOpenCacheFirst.ts`),
+    // so `room.getThread(threadId)` is null at the moment the reconciler
+    // wants to inject fetched events into the SDK thread model. The
+    // `liveThread.addEvents(...)` leg no-ops silently — the render on
+    // that path lives entirely on component-owned
+    // `fallbackThreadEventsState.events`. Convergence MUST come through
+    // the widened `onRepaired(repairedEvents)` contract routed by the
+    // component-side callback into `setSupplementalThreadEvents`.
+    //
+    // This test wires `getThread → undefined` (the AC2-live reality) and
+    // asserts:
+    //   1. The pass still returns `repaired: true` (hydration runs
+    //      against `cachedPage.hydratedEvents` regardless of SDK state).
+    //   2. `onRepaired` fires exactly once with the fully-mapped batch —
+    //      the component-side callback needs a non-empty batch to hand
+    //      to `setSupplementalThreadEvents`; an empty batch would leave
+    //      the fallback state stale.
+    //   3. `reconcilesThreadNull` probe counter bumps to 1 — the
+    //      diagnostic that a docker trace can read to prove the code
+    //      reached the "SDK thread absent" branch and did not accidentally
+    //      short-circuit around the render-fallback leg.
+    const roomThreadNull = {
+      roomId: '!room:example',
+      findEventById: () => null,
+      getThread: () => undefined,
+    } as unknown as Room;
+    const fetchRelations = vi.fn(async () => ({
+      chunk: [
+        { event_id: '$edit-v2', type: 'm.room.message' },
+        { event_id: '$reply-1' },
+      ] as Partial<IEvent>[],
+      next_batch: undefined,
+    }));
+    const mx = {
+      getRoom: () => roomThreadNull,
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx });
+    const onRepaired = vi.fn();
+
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$reply-1']),
+      reason: 'open-complete-coverage',
+      room: roomThreadNull,
+      onRepaired,
+    });
+
+    expect(result.repaired).toBe(true);
+    expect(onRepaired).toHaveBeenCalledTimes(1);
+    const [batchArg] = onRepaired.mock.calls[0];
+    expect(Array.isArray(batchArg)).toBe(true);
+    expect(batchArg).toHaveLength(2);
+    const batchIds = (batchArg as MatrixEvent[]).map((mEvent) => mEvent.getId());
+    expect(batchIds).toContain('$edit-v2');
+    expect(batchIds).toContain('$reply-1');
+    // Probe evidence: the diagnostic counter for the "SDK thread was
+    // null at injection time" branch. If this stays 0 while the test
+    // reaches divergence, the code silently short-circuited without
+    // documenting the shape — the exact observability hole team-lead
+    // called out ("observability that isn't emitted isn't observability").
+    const probe = getCacheProbeSnapshot();
+    expect(probe.reconcilesThreadNull).toBe(1);
+    // And the SDK-side leg didn't do anything (there was no thread to
+    // do it against) — repair came entirely through the render-fallback
+    // leg (see `setSupplementalThreadEvents` wiring in the
+    // threadOpenCacheFirst test suite).
+    expect(probe.reconcilesRepaired).toBe(1);
+  });
+
   it('does NOT inject into the SDK thread on the D7 no-op path — P5-GATE-FIX cost guarantee', async () => {
     // D7 promise: when the cache was right, the reconciler is
     // zero-cost. Injecting events into the SDK thread even on the
@@ -1031,5 +1111,256 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
 
     expect(result.repaired).toBe(false);
     expect(addEvents).not.toHaveBeenCalled();
+  });
+
+  it('bumps reconcilesOnRepairedFired only AFTER the onRepaired callback returns — P5-GATE-FIX v4 final: definitive callback-fired evidence', async () => {
+    // Team-lead directive (2026-07-04): reconcilesRepaired bumps BEFORE
+    // `onRepaired(allMapped)` is invoked, so the counter alone cannot
+    // prove the widened component-side callback (the render-fallback
+    // sink into `setSupplementalThreadEvents`) actually ran end-to-end.
+    // A guard-skipped or throwing callback would leave
+    // reconcilesRepaired at N and reconcilesOnRepairedFired at 0 — that
+    // gap is the diagnostic. This test asserts both counters bump
+    // together on the happy path AND that the counter fires strictly
+    // AFTER the callback returns (the callback observes the pre-fire
+    // value 0, the assertion below observes the post-fire value 1).
+    const room = makeFakeRoom();
+    const fetchRelations = vi.fn(async () => ({
+      chunk: [
+        { event_id: '$edit-v2', type: 'm.room.message' },
+        { event_id: '$reply-1' },
+      ] as Partial<IEvent>[],
+      next_batch: undefined,
+    }));
+    const mx = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx });
+    let observedCounterBeforeCallbackReturned = -1;
+    const onRepaired = vi.fn(() => {
+      observedCounterBeforeCallbackReturned = getCacheProbeSnapshot()
+        .reconcilesOnRepairedFired;
+    });
+
+    await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$reply-1']),
+      reason: 'open-complete-coverage',
+      onRepaired,
+    });
+
+    const probe = getCacheProbeSnapshot();
+    expect(probe.reconcilesRepaired).toBe(1);
+    // The load-bearing invariant: the counter bumped strictly AFTER the
+    // callback returned. Ordering matters — a docker trace polling the
+    // probe can distinguish "onRepaired was called and returned" from
+    // "onRepaired was invoked but threw / was reentered". If the
+    // reconciler ever fired this counter before invoking the callback,
+    // this next assertion would fail.
+    expect(observedCounterBeforeCallbackReturned).toBe(0);
+    expect(probe.reconcilesOnRepairedFired).toBe(1);
+  });
+
+  it('persists fetched thread events through the ENGINE PERSIST path on divergence — P5-GATE-FIX v4 final: cache converges independently of SDK sync timing', async () => {
+    // Team-lead directive (2026-07-04): the design seam behind repeated
+    // AC2 red is that the pre-v4 chain converged in MEMORY (SDK
+    // `liveThread.addEvents` + render-side `setSupplementalThreadEvents`
+    // via widened onRepaired) but never taught the CACHE about the
+    // fetched events. So the fix chain was timing-dependent: whichever
+    // of (a) live sync landing the edit into SDK, (b) reconciler
+    // finishing its pass, (c) render re-deriving from the new
+    // supplemental array won a given race decided whether v1 or v2
+    // painted, and NEXT reopen from IDB rehit the same stale window.
+    //
+    // The reconciler's job is to be the deterministic owner: on
+    // divergence, persist the fully-mapped fetched batch through the
+    // engine persist path (thread scope) so subsequent opens hydrate
+    // from a cache that already contains the fetched-and-repaired state.
+    //
+    // This test asserts the persist leg fires when divergence is
+    // detected. The `reconcilerPersists` counter is bumped inside the
+    // reconciler right where it hands the batch to
+    // `persistThreadEventCacheSnapshot`, so the assertion is
+    // counter-based (avoids the fragility of stubbing the IDB layer for
+    // a unit test).
+    const room = makeFakeRoom();
+    const fetchRelations = vi.fn(async () => ({
+      chunk: [
+        { event_id: '$edit-v2', type: 'm.room.message' },
+        { event_id: '$reply-1' },
+      ] as Partial<IEvent>[],
+      next_batch: undefined,
+    }));
+    const mx = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx });
+
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$reply-1']),
+      reason: 'open-complete-coverage',
+    });
+
+    expect(result.repaired).toBe(true);
+    const probe = getCacheProbeSnapshot();
+    // Load-bearing assertion: the persist leg fired exactly once — one
+    // pass, one persist call. Under the pre-v4 code this counter would
+    // stay at 0 (persist path was never invoked from the reconciler).
+    expect(probe.reconcilerPersists).toBe(1);
+  });
+
+  it('detects SDK-vs-cache timing race and STILL persists + injects — P5-GATE-FIX v4 final: cache is what next open paints', async () => {
+    // Team-lead directive (2026-07-04) — the exact timing-nondeterminism
+    // shape the design seam explains:
+    //
+    //   SDK already holds v2 (a live sync landed the m.replace edit
+    //   into the thread model AHEAD of the reconciler's fetch), but
+    //   CACHE still holds v1 (the persist path never wrote v2 to IDB
+    //   because live-mode gates skipped catch-up-sync events by design
+    //   and the gap-fill executor only writes room scope).
+    //
+    // A cache-driven reopen paints v1. The reconciler MUST:
+    //   1. Detect divergence — using CACHE records as ground truth,
+    //      not SDK state. The fetched raw for `$edit-target` carries
+    //      the bundled `m.replace` pointing at `$edit-v2`. The cache
+    //      raw for `$edit-target` has no such bundling. Cache is
+    //      diverged from server → repair.
+    //   2. Persist the fetched batch through the engine path so the
+    //      cache learns about `$edit-v2`.
+    //   3. Inject into the SDK too (idempotent no-op because the SDK
+    //      already had v2 — the SDK dedupes on event_id).
+    //
+    // This is the deterministic-owner contract: convergence is
+    // decoupled from whichever SDK/sync/render race happens to win.
+    const addEvents = vi.fn();
+    const sdkAlreadyHasV2Thread = {
+      addEvents,
+      getUnfilteredTimelineSet: () => undefined,
+    } as unknown as ReturnType<Room['getThread']>;
+    const roomSdkAhead = {
+      roomId: '!room:example',
+      findEventById: () => null,
+      getThread: (id: string) =>
+        id === '$thread' ? sdkAlreadyHasV2Thread : undefined,
+    } as unknown as Room;
+    // Fetched page carries the same-id cached event ($edit-target) but
+    // with a bundled `m.replace` — that is the cache-vs-server
+    // divergence signal (the cache raw record has no bundling; the
+    // fetched raw does). The divergence detector must fire on this,
+    // and the persist must overwrite the cache record with the
+    // fetched version.
+    const fetchRelations = vi.fn(async () => ({
+      chunk: [
+        {
+          event_id: '$edit-target',
+          type: 'm.room.message',
+          unsigned: {
+            'm.relations': { 'm.replace': { event_id: '$edit-v2' } },
+          },
+        },
+        { event_id: '$reply-1' },
+      ] as Partial<IEvent>[],
+      next_batch: undefined,
+    }));
+    const mx = {
+      getRoom: () => roomSdkAhead,
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        makeFakeEvent({
+          id: (raw.event_id as string) ?? '',
+          bundledReplaceId: (raw.unsigned as {
+            'm.relations'?: { 'm.replace'?: { event_id?: string } };
+          } | undefined)?.['m.relations']?.['m.replace']?.event_id,
+        }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx });
+    const onRepaired = vi.fn();
+
+    // Cache holds v1: raw records for `$edit-target` and `$reply-1`,
+    // no bundling. `makeCachedPage` seeds exactly this shape.
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$edit-target', '$reply-1']),
+      reason: 'open-complete-coverage',
+      room: roomSdkAhead,
+      onRepaired,
+    });
+
+    expect(result.repaired).toBe(true);
+    // (1) Detected divergence purely on the cache-vs-fetched comparison
+    //     (SDK state played no role in the diff — the fetched raw
+    //     carries a bundled replace on a cached id, cache raw did not).
+    expect(onRepaired).toHaveBeenCalledTimes(1);
+    // (2) Persist leg fired — cache converges to the fetched shape so
+    //     the NEXT reopen paints v2 from IDB alone.
+    const probe = getCacheProbeSnapshot();
+    expect(probe.reconcilerPersists).toBe(1);
+    // (3) SDK injection also fired (idempotent — SDK's own event_id
+    //     dedup absorbs it as a no-op given the sync-won-the-race
+    //     precondition; the fact that addEvents was called at all is
+    //     the invariant, not what it did with the batch).
+    expect(addEvents).toHaveBeenCalledTimes(1);
+    // (4) Callback-fired counter bumped — the render-fallback sink had
+    //     a chance to run.
+    expect(probe.reconcilesOnRepairedFired).toBe(1);
+    // (5) Repair counter bumped exactly once (one divergent pass).
+    expect(probe.reconcilesRepaired).toBe(1);
+  });
+
+  it('D7 no-op path does NOT persist through the engine path — reconcilerPersists stays at 0 when the cache was right', async () => {
+    // Companion assertion to the persist test above: when the fetched
+    // page overlaps the cache entirely (D7 cheap no-op), the reconciler
+    // must NOT persist. Persisting on the no-op path would (a) waste
+    // an IDB write per open (the AC7 budget concern), and (b) blur the
+    // signal — `reconcilerPersists` should measure "reconciler repaired
+    // AND wrote back", not "reconciler ran". The observability lesson
+    // is the same as the D7 no-op tests for `onRepaired` and
+    // `addEvents`: cheap-no-op paths must stay cheap.
+    const room = makeFakeRoom();
+    const fetchRelations = vi.fn(async () => ({
+      chunk: [{ event_id: '$reply-2' }, { event_id: '$reply-1' }] as Partial<IEvent>[],
+      next_batch: undefined,
+    }));
+    const mx = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx });
+
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
+      reason: 'open-complete-coverage',
+    });
+
+    expect(result.repaired).toBe(false);
+    const probe = getCacheProbeSnapshot();
+    expect(probe.reconcilerPersists).toBe(0);
+    expect(probe.reconcilesOnRepairedFired).toBe(0);
   });
 });

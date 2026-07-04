@@ -478,7 +478,7 @@ Filled as steps complete. "Before" numbers from P0.3.
 | AC   | Status | Evidence (command / spec / probe) | Before → After | Confirmed by (reviewer) | Date |
 | ---- | ------ | --------------------------------- | -------------- | ----------------------- | ---- |
 | AC1  | ☐      |                                   |                |                         |      |
-| AC2  | ☐ impl | Reconciler landed in P5.1 (`engine/reconciler.ts` — `scheduleReconcile({reason:'open-complete-coverage'\|'open-partial-coverage'\|'room-open'\|'resume'})`). Every thread open schedules exactly one reconcile through the P4.1 scheduler under `kind: 'reconcile'` band 0; every room open does the same with `threadId: undefined`. The reconciler fetches `/relations` (recurse, limit 200), pages further until overlap by event id (removes F7's 200-event ceiling), diffs, and runs the P1.2 `hydrateCachedEvents` machinery to apply missed edits / redactions / aggregation cleanup in place, then fires ONE batched `onRepaired` tick. Every raw event is funneled through `createPreferLiveEventMapper` so Tuwunel's ~10s stale-copy window is healed via the SDK's `Relations.BeforeRedaction` cascade (invariant I2). AC2 e2e spec `e2e/live/cinny207-stale-cache-divergence.spec.ts` flipped from `test.fail()` to green-shape: seed thread with M/R/reaction, close client (`page.goto('about:blank')`), REST-edit M to v2 + redact reaction + redact R + 25 filler thread messages (pushes divergence past next-sync window so convergence MUST come from reconciler), reopen thread URL WITHOUT reload, assert `v2 converged` visible, 👍 chip gone, R tombstoned, cache converged via `readThreadEventCacheRecords`, mid-viewport anchor within 8px. Docker gate pending (team-lead). | stale edit/reaction/redaction persist on cache-hit reopen (I2/AC2 pre-P5 — no revalidation path) → cache converges to server truth in place after every open |                         |      |
+| AC2  | ☐ RED (live) | Reconciler landed in P5.1 (`engine/reconciler.ts` — `scheduleReconcile({reason:'open-complete-coverage'\|'open-partial-coverage'\|'room-open'\|'resume'})`). Every thread open schedules exactly one reconcile through the P4.1 scheduler under `kind: 'reconcile'` band 0; every room open does the same with `threadId: undefined`. The reconciler fetches `/relations` (recurse, limit 200), pages further until overlap by event id (removes F7's 200-event ceiling), diffs, and runs the P1.2 `hydrateCachedEvents` machinery to apply missed edits / redactions / aggregation cleanup in place, then fires ONE batched `onRepaired` tick. Every raw event is funneled through `createPreferLiveEventMapper` so Tuwunel's ~10s stale-copy window is healed via the SDK's `Relations.BeforeRedaction` cascade (invariant I2). AC2 e2e spec `e2e/live/cinny207-stale-cache-divergence.spec.ts` flipped from `test.fail()` to green-shape: seed thread with M/R/reaction, close client (`page.goto('about:blank')`), REST-edit M to v2 + redact reaction + redact R + 25 filler thread messages (pushes divergence past next-sync window so convergence MUST come from reconciler), reopen thread URL WITHOUT reload, assert `v2 converged` visible, 👍 chip gone, R tombstoned, cache converged via `readThreadEventCacheRecords`, mid-viewport anchor within 8px. DOCKER GATE RED after 5 fix iterations — spec re-annotated test.fail() with full diagnosis; see §8 Deviations (AC2 expected-RED entry) for the evidence chain and the pending design decision. Unit layer green (18 reconciler units). | stale edit/reaction/redaction persist on cache-hit reopen (I2/AC2 pre-P5 — no revalidation path) → cache converges to server truth in place after every open |                         |      |
 | AC3  | ✓      | e2e `cinny207-stop-emoji-redaction` green on stack tip (55439be8); 3 prior failed runs were env flake (`ERR_NETWORK_CHANGED` storms, failure point wandering login/reload) | reaction resurrected on reopen/reload → gone in all three states | workflow rounds 1-2 + docker e2e run | 2026-07-03 |
 | AC4  | ✓      | e2e `cinny207-streamed-edit-cache` green LIVE on stack tip: probe `editCompactions=1`, `threadEventPuts=3`, 1 target record with bundled final body pre+post reload; unit `npx vitest run src/app/mindroom/threads/eventCacheEditUtils.test.ts src/app/mindroom/threads/editCompactionScheduler.test.ts src/app/mindroom/threads/roomLiveEventController.compaction.test.ts src/app/mindroom/threads/eventRepository.test.ts` | 26 thread-cache records for a 25-edit streamed message (P0.3 spec run) → exactly 1 target record with bundled edit | workflow round 2 (spec traced sound) + docker e2e run | 2026-07-03 |
 | AC5  | ☐ impl | Sweep deleted in P3.3 (`refactor: strip component persistence`); writes-per-live-event are structurally O(1) — the engine's per-event write-through is the only cache-write codepath from live events (no bulk re-serialization exists). Formal probe numbers land with the Phase 3 e2e docker gate on the P3.3 tip. | 26 thread-cache records for a 25-edit streamed message → 1 target record; the "loaded timeline size feeds cache writes" coupling (F2) is gone by construction |                         |      |
@@ -688,6 +688,29 @@ new engine-scoped guard file):
   audit was recorded rather than forced into an empty commit; the
   P7.1 landing is therefore a single docs commit rather than the
   planned two.
+- 2026-07-04 — **AC2 live convergence ships expected-RED pending a design
+  decision (P5.2).** The reconciler's unit layer is green (18 units:
+  dual injection, thread-null fallback, Tuwunel stale-copy re-apply), but
+  the live AC2 spec fails and five gate iterations produced this
+  evidence chain: Tuwunel honors `recurse=true` (verified by direct
+  curl); probe signatures are nondeterministic across clean-network runs
+  (`reconcilesRepaired` flapping 2 → 0 with identical code); in the final
+  failing run the playwright network log contains ZERO reconciler-shaped
+  `/relations` requests (reconciler always sets `limit=200`; only
+  no-limit SDK-machinery requests appear) — the reconcile executor exited
+  BEFORE its first fetch. The pass has three silent exits currently
+  indistinguishable in probes: fetch-failure (`to()` swallow),
+  zero-divergence, and the `shouldContinue` guard abort; the network
+  evidence points at the guard abort during reopen mount churn.
+  **Decision needed from the product owner:** (a) re-schedule once on
+  guard-abort or drop the guard for band-0 reconciles, and (b) whether
+  the engine should persist thread events from the catch-up sync
+  (revisit the liveMode initial-burst gate) or the gap-fill should learn
+  thread scopes — the underlying seam is that on token-resume reopen,
+  thread-scope divergence reaches neither cache path. Spec re-annotated
+  `test.fail()` with the full diagnosis in its header; iteration history
+  in the Runbook ("P5 gate" entries v1-v5 + orchestrator network
+  analysis).
 
 - 2026-07-04 — **P4 gate fix: `gapFillExecutor.enqueue` no longer
   short-circuits on tier.** Original design filtered federated /

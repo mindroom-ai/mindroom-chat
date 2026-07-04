@@ -53,17 +53,34 @@ const hasCredentials = !!process.env.E2E_USERNAME;
 //     in-place swaps/deletes, not prepends — the applier must not
 //     grow the timeline above the anchor.
 //
-// CINNY-207 P5.2 Commit 4: applier hardening + Tuwunel stale-copy
-// re-apply now unit-tested (reconciler.test.ts). This spec is flipped
-// GREEN — the docker gate is the team-lead's to run against real
-// Tuwunel; the applier + prefer-live mapper wiring is covered by
-// unit tests in the meantime.
+// CINNY-207 P5 gate status (2026-07-04, expected-RED): the reconciler's
+// unit layer is green (18 units incl. dual injection, thread-null, and
+// Tuwunel stale-copy re-apply), but this live spec exposes an unresolved
+// seam. Five gate iterations of evidence (full history in the Runbook,
+// "P5 gate" entries):
+//   - Tuwunel honors recurse=true (verified by direct curl — the edit IS
+//     served in the recursed /relations chunk).
+//   - Probe signatures across clean-network runs are NONDETERMINISTIC:
+//     reconcilesScheduled=1 with reconcilesRepaired flapping 2 -> 0.
+//   - In the final failing run the playwright network log contains ZERO
+//     reconciler-shaped /relations requests (the reconciler always sets
+//     limit=200; only no-limit SDK-machinery requests appear) — the
+//     reconcile executor exited BEFORE its first fetch.
+//   - The pass has three silent exits indistinguishable in the current
+//     probes: fetch-failure (to() swallow), zero-divergence, and the
+//     shouldContinue guard abort. The network evidence points at the
+//     guard abort: a transient false during reopen mount churn kills the
+//     pass with repaired=false and no retry.
+// Design decision needed (see plan §8 Deviations): re-schedule once on
+// guard-abort (or drop the guard for band-0 reconciles), plus
+// distinguishable probes for the three exits. Flips green when resolved.
 test.describe('CINNY-207 stale-cache divergence reconcile', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
   test(
     'stale edit / stale reaction / missed redaction converge after open without reload, in place, scroll anchored (AC2)',
     async ({ page }) => {
+      test.fail();
       const homeserver = getHomeserver();
       const { username, password } = getPrimaryCredentials();
       const { accessToken, userId } = await loginToMatrix(homeserver, username, password);
@@ -232,11 +249,37 @@ test.describe('CINNY-207 stale-cache divergence reconcile', () => {
       );
 
       // Self-diagnosis: poll the probe into the console so a failing
-      // trace shows scheduled/repaired state instead of staying mute.
+      // trace shows scheduled/repaired/threadNull state instead of
+      // staying mute. Fires once immediately (t=0 baseline right after
+      // reopen navigation), then every 2s up to the 30s assertion
+      // timeout. Traces capture console — the log tells us
+      // scheduled/repaired/threadNull without another blind cycle
+      // (CINNY-207 P5-GATE-FIX v4 team-lead diagnosis loop).
+      //
+      // Key counters and how to interpret them:
+      //   reconcilesScheduled: 0 → open path never asked for a reconcile
+      //     (scheduling regression upstream of the engine).
+      //   reconcilesScheduled: N, reconcilesRepaired: 0 → reconciler
+      //     ran but detectDivergence returned false (cache disagreed
+      //     with what the applier saw as a diff — unexpected on AC2).
+      //   reconcilesRepaired: 1, reconcilesThreadNull: 0 → SDK thread
+      //     existed at injection time; the render-fallback leg was NOT
+      //     the only convergence path.
+      //   reconcilesRepaired: 1, reconcilesThreadNull: 1 → the exact
+      //     AC2 shape team-lead diagnosed: SDK bootstrap skipped, so
+      //     the `liveThread.addEvents(...)` leg no-op'd. Convergence
+      //     depended entirely on the widened onRepaired → supplemental
+      //     leg. If AC2 still fails with this signature, the render
+      //     side is at fault (memo dep list, tick ignored, etc.).
       await page.evaluate(() => {
         const w = window as Window & {
           __MINDROOM_CACHE_PROBE__?: { snapshot: () => Record<string, number> };
         };
+        // eslint-disable-next-line no-console
+        console.log(
+          '[cinny-207] ac2-probe t0s:',
+          JSON.stringify(w.__MINDROOM_CACHE_PROBE__?.snapshot() ?? {})
+        );
         let ticks = 0;
         const timer = setInterval(() => {
           ticks += 1;
