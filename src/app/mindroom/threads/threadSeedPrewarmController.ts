@@ -5,6 +5,7 @@ import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from './eventRe
 import { mergeThreadBackfillEvents } from './threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
+import { useMindroomSyncEngine } from '../engine';
 
 type ThreadSeedPrewarmTarget = {
   threadId: string;
@@ -47,6 +48,7 @@ export const useThreadSeedPrewarmController = ({
   loadThreadOpenSeedSnapshotFromCache?: (expectedThreadId: string) => Promise<MatrixEvent[]>;
   debugTraceId: string;
 }): ThreadSeedPrewarmController => {
+  const syncEngine = useMindroomSyncEngine();
   const activeThreadIdRef = useRef(activeThreadId);
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
@@ -90,6 +92,18 @@ export const useThreadSeedPrewarmController = ({
     [loadThreadOpenSeedSnapshotFromCacheProp, mx, room, safePaginationLimitRef, sessionId]
   );
 
+  // CINNY-207 P4.4: dedup migrated onto the engine's BackfillScheduler.
+  // The per-controller `prewarmingThreadSeedPromisesRef` map used to be
+  // the F9 dedup point — but it only deduped WITHIN a single
+  // MindroomRoomTimeline mount. Routing the actual work through
+  // `syncEngine.scheduler.enqueue({kind: 'thread-seed', ...})` gives us
+  // client-scoped dedup: concurrent seeds for the same (room, thread)
+  // from any producer (remount, sibling controller, priority target
+  // drain below) share the same in-flight promise. The controller-
+  // local refs are still populated so downstream consumers
+  // (threadOpenSeedController's untargeted-seed wait) continue to work
+  // unchanged — the refs mirror scheduler state, they no longer own
+  // dedup.
   const ensureThreadSeedPrewarm = useCallback(
     (expectedThreadId: string, opts?: EnsureThreadSeedPrewarmOptions): Promise<void> => {
       const existingPromise = prewarmingThreadSeedPromisesRef.current.get(expectedThreadId);
@@ -106,42 +120,50 @@ export const useThreadSeedPrewarmController = ({
         threadId: expectedThreadId,
       });
 
-      const prewarmPromise = (async () => {
-        try {
-          const cachedSeedEvents = await loadThreadOpenSeedSnapshotFromCache(expectedThreadId);
-          if (generation !== threadSeedPrewarmGenerationRef.current) return;
-          if (!opts?.allowWhileThreadOpen && activeThreadIdRef.current) return;
+      const prewarmPromise = syncEngine.scheduler.enqueue<void>({
+        roomId: room.roomId,
+        threadId: expectedThreadId,
+        kind: 'thread-seed',
+        // Priority 3 = thread inventory prewarm band; deep-history
+        // band-4 jobs yield to us so a room-open makes thread-open
+        // fast even if a room-deep-history sweep is running.
+        priority: 3,
+        execute: async () => {
+          try {
+            const cachedSeedEvents = await loadThreadOpenSeedSnapshotFromCache(expectedThreadId);
+            if (generation !== threadSeedPrewarmGenerationRef.current) return;
+            if (!opts?.allowWhileThreadOpen && activeThreadIdRef.current) return;
 
-          if (cachedSeedEvents.length > 0) {
-            const nextSeedEvents = mergeThreadBackfillEvents(
-              getThreadOpenSeedSnapshot(room, expectedThreadId),
-              cachedSeedEvents
-            );
-            saveThreadOpenSeedSnapshot(room, expectedThreadId, nextSeedEvents);
-            logTimelineDebug(traceId, `${logPrefix}-complete`, {
-              cachedCount: cachedSeedEvents.length,
-              seedCount: nextSeedEvents.length,
-              threadId: expectedThreadId,
-            });
-          } else {
-            logTimelineDebug(traceId, `${logPrefix}-empty`, {
+            if (cachedSeedEvents.length > 0) {
+              const nextSeedEvents = mergeThreadBackfillEvents(
+                getThreadOpenSeedSnapshot(room, expectedThreadId),
+                cachedSeedEvents
+              );
+              saveThreadOpenSeedSnapshot(room, expectedThreadId, nextSeedEvents);
+              logTimelineDebug(traceId, `${logPrefix}-complete`, {
+                cachedCount: cachedSeedEvents.length,
+                seedCount: nextSeedEvents.length,
+                threadId: expectedThreadId,
+              });
+            } else {
+              logTimelineDebug(traceId, `${logPrefix}-empty`, {
+                threadId: expectedThreadId,
+              });
+            }
+
+            prewarmedThreadSeedIdsRef.current.add(expectedThreadId);
+          } catch (error) {
+            logTimelineDebug(traceId, `${logPrefix}-error`, {
+              error: error instanceof Error ? error.message : String(error),
               threadId: expectedThreadId,
             });
           }
-
-          prewarmedThreadSeedIdsRef.current.add(expectedThreadId);
-        } catch (error) {
-          logTimelineDebug(traceId, `${logPrefix}-error`, {
-            error: error instanceof Error ? error.message : String(error),
-            threadId: expectedThreadId,
-          });
-        } finally {
-          prewarmingThreadSeedIdsRef.current.delete(expectedThreadId);
-        }
-      })();
+        },
+      });
 
       prewarmingThreadSeedPromisesRef.current.set(expectedThreadId, prewarmPromise);
       void prewarmPromise.finally(() => {
+        prewarmingThreadSeedIdsRef.current.delete(expectedThreadId);
         if (prewarmingThreadSeedPromisesRef.current.get(expectedThreadId) === prewarmPromise) {
           prewarmingThreadSeedPromisesRef.current.delete(expectedThreadId);
         }
@@ -149,7 +171,7 @@ export const useThreadSeedPrewarmController = ({
 
       return prewarmPromise;
     },
-    [debugTraceId, loadThreadOpenSeedSnapshotFromCache, room]
+    [debugTraceId, loadThreadOpenSeedSnapshotFromCache, room, syncEngine]
   );
 
   useEffect(() => {
