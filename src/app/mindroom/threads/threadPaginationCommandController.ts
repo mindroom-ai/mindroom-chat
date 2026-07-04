@@ -16,6 +16,7 @@ import {
   reconcileThreadBackwardPagination,
 } from './threadPaginationUtils';
 import { createPreferLiveEventMapper, loadThreadCachedPaginationSnapshot } from './eventRepository';
+import { waitForScrollQuiescence } from './scrollQuiescence';
 import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 
 type ThreadBackPaginationFinishOptions = {
@@ -105,6 +106,15 @@ export const useThreadPaginationCommandController = ({
             Direction.Backward
           );
         }
+        // Task #125 follow-up: the data is ready, but the RENDER
+        // COMMIT (state writes → prepend offset shift → anchor-restore
+        // scrollTop writes) waits for scroll quiescence. iOS WebKit
+        // kills flick momentum on any programmatic scrollTop write,
+        // and the scroll-driven trigger fires mid-flick by design —
+        // committing immediately stopped every upward flick dead on
+        // finger release.
+        await waitForScrollQuiescence(scrollRef.current);
+        if (threadIdRef.current !== expectedThreadId) return;
         setSupplementalThreadEvents(expectedThreadId, cachedEvents);
         setThreadHasMoreCachedBack(cachedPaginationSnapshot.hasMoreCachedBack);
         forceTimelineUpdate();
@@ -127,12 +137,17 @@ export const useThreadPaginationCommandController = ({
         })
       );
       if (!err && threadIdRef.current === expectedThreadId) {
+        // Persist immediately (IDB write, no render impact) …
         persistThreadEventCache(
           expectedThreadId,
           thread.events,
           thread.rootEvent,
           firstThreadTimeline.getPaginationToken(Direction.Backward)
         );
+        // … but hold the render commit for scroll quiescence, same as
+        // the cache-hit branch (see comment there).
+        await waitForScrollQuiescence(scrollRef.current);
+        if (threadIdRef.current !== expectedThreadId) return;
         reconcileThreadBackwardPagination(
           firstThreadTimeline,
           firstThreadTimeline.getPaginationToken(Direction.Backward),

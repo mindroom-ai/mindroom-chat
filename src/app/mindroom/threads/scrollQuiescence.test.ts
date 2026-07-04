@@ -1,0 +1,97 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { waitForScrollQuiescence } from './scrollQuiescence';
+
+const flushMicrotasks = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+};
+
+describe('waitForScrollQuiescence', () => {
+  let el: HTMLElement;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    el = document.createElement('div');
+    document.body.appendChild(el);
+  });
+
+  afterEach(() => {
+    el.remove();
+    vi.useRealTimers();
+  });
+
+  const settledFlag = (promise: Promise<void>) => {
+    let settled = false;
+    promise.then(() => {
+      settled = true;
+    });
+    return () => settled;
+  };
+
+  it('resolves immediately for a null element', async () => {
+    const isSettled = settledFlag(waitForScrollQuiescence(null));
+    await flushMicrotasks();
+    expect(isSettled()).toBe(true);
+  });
+
+  it('resolves after the idle window when nothing is scrolling', async () => {
+    const isSettled = settledFlag(waitForScrollQuiescence(el, { idleMs: 150 }));
+    await flushMicrotasks();
+    expect(isSettled()).toBe(false);
+    vi.advanceTimersByTime(150);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(true);
+  });
+
+  it('keeps waiting while scroll events arrive (momentum in flight)', async () => {
+    const isSettled = settledFlag(waitForScrollQuiescence(el, { idleMs: 150 }));
+    for (let i = 0; i < 5; i += 1) {
+      vi.advanceTimersByTime(100);
+      el.dispatchEvent(new Event('scroll'));
+    }
+    await flushMicrotasks();
+    expect(isSettled()).toBe(false);
+    // Momentum ends: no more scroll events → idle window elapses.
+    vi.advanceTimersByTime(150);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(true);
+  });
+
+  it('does not resolve while a touch is active, even if the scroll is still', async () => {
+    const isSettled = settledFlag(waitForScrollQuiescence(el, { idleMs: 100 }));
+    el.dispatchEvent(new Event('touchstart'));
+    vi.advanceTimersByTime(500);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(false);
+    // Finger lifts with no momentum → idle window from touchend.
+    el.dispatchEvent(new Event('touchend'));
+    vi.advanceTimersByTime(100);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(true);
+  });
+
+  it('caps the total wait so a continuous scroller is never starved', async () => {
+    const isSettled = settledFlag(waitForScrollQuiescence(el, { idleMs: 150, maxWaitMs: 1000 }));
+    // Scroll events keep arriving faster than the idle window forever.
+    for (let i = 0; i < 9; i += 1) {
+      vi.advanceTimersByTime(100);
+      el.dispatchEvent(new Event('scroll'));
+    }
+    await flushMicrotasks();
+    expect(isSettled()).toBe(false);
+    vi.advanceTimersByTime(100);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(true);
+  });
+
+  it('touchcancel clears the touch-active block like touchend', async () => {
+    const isSettled = settledFlag(waitForScrollQuiescence(el, { idleMs: 100 }));
+    el.dispatchEvent(new Event('touchstart'));
+    vi.advanceTimersByTime(300);
+    el.dispatchEvent(new Event('touchcancel'));
+    vi.advanceTimersByTime(100);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(true);
+  });
+});
