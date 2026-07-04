@@ -1,3 +1,4 @@
+import { openCacheStore } from './cacheStoreDb';
 import {
   EVENTS_BY_SCOPE_TS_INDEX,
   MAX_EVENT_ID,
@@ -199,6 +200,70 @@ export const createLedgerTracker = (roomId: string): LedgerTracker => {
       writeUpdatedLedger(ledgerStore, roomId, baseline, acc);
     },
   };
+};
+
+// ---------- Federated attribution setter (CINNY-207 P4.2) ----------
+
+/**
+ * Record whether a room is federated. Called from the engine's
+ * `noteRoomFocused` after resolving the room's prefetch tier via the
+ * homeserver-detection policy (D3). The write is scoped so it neither
+ * bumps nor decays the ledger's byte/count/activity fields — it only
+ * flips the eviction attribution flag.
+ *
+ * Behavior:
+ *   - Existing ledger row: PATCH the `federated` field, keep every
+ *     other counter untouched. This preserves the LRU-inside-priority
+ *     ordering the eviction job depends on.
+ *   - Missing ledger row: WRITE a minimal row (`approxBytes=0`,
+ *     `eventCount=0`, `lastActivityTs=0`, `federated=<flag>`). The
+ *     next save from the events store's ledger tracker will read this
+ *     row as the baseline and merge in real deltas — the federated
+ *     flag survives via the `baseline.federated !== undefined` branch
+ *     in `writeUpdatedLedger`.
+ *
+ * Silent on any open/txn failure; this is an attribution hint, not
+ * durability-critical.
+ */
+export const noteRoomFederated = async (
+  sessionId: string,
+  roomId: string,
+  federated: boolean
+): Promise<void> => {
+  const db = await openCacheStore(sessionId).catch(() => undefined);
+  if (!db) return;
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(ROOM_LEDGER_STORE, 'readwrite');
+      const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
+      const getRequest = ledgerStore.get(roomId);
+      getRequest.onsuccess = () => {
+        const current = getRequest.result as CachedRoomLedgerRecord | undefined;
+        if (current) {
+          if (current.federated === federated) return; // No-op — already correct.
+          ledgerStore.put({ ...current, federated });
+          return;
+        }
+        // Minimal row so the flag persists until the events store fills
+        // in real deltas on the first save.
+        const bootstrap: CachedRoomLedgerRecord = {
+          roomId,
+          approxBytes: 0,
+          eventCount: 0,
+          lastActivityTs: 0,
+          federated,
+        };
+        ledgerStore.put(bootstrap);
+      };
+      getRequest.onerror = () => reject(getRequest.error);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } catch {
+    // Attribution hint — swallow failures so callers stay resilient.
+  }
 };
 
 // ---------- Read-only accessor used by the eviction job (commit 3) ----------

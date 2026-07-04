@@ -839,6 +839,15 @@ export function RoomTimeline({
     queueRoomThreadCachePersist,
   } = enginePersistForRoom;
 
+  // CINNY-207 P4.2: whenever the mounted room (or the currently open
+  // thread) changes, tell the engine so it can stamp the ledger
+  // federation flag, protect this room from eviction, and bump the
+  // meta lastOpenedTs for both the room and thread scopes. Idempotent
+  // per-call — safe to fire on every render-relevant change.
+  useEffect(() => {
+    syncEngine.noteRoomFocused(room.roomId, threadId);
+  }, [syncEngine, room.roomId, threadId]);
+
   const handleRoomTimelinePagination = useRoomPaginationCommandController({
     alive,
     handleTimelinePagination,

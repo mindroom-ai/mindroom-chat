@@ -115,9 +115,17 @@ describe('CacheStore boundary architecture (CINNY-207 P2.3)', () => {
     // consumers. CINNY-207 P3.2: the engine's gap tracker imports
     // markRoomTailDiscontinuity directly (a cacheStore-native API
     // with no rendering counterpart, so eventRepository would be a
-    // gratuitous pass-through). Any other cacheStore import inside
-    // src/app/mindroom/** is a boundary violation — route it through
-    // eventRepository. The cacheStore module itself is excluded.
+    // gratuitous pass-through). CINNY-207 P4.2: `mindroomSyncEngine`
+    // itself is the D2 owner of Tier-1 writes and needs to stamp the
+    // ledger federation flag / eviction protection registry /
+    // lastOpenedTs on `noteRoomFocused`; `gapFillExecutor` is the
+    // real backfill executor that persists /messages chunks and
+    // clears the tail-discontinuity marker. Both are engine-native
+    // cache orchestrators — routing them through eventRepository
+    // would be a gratuitous pass-through. Any OTHER cacheStore
+    // import inside src/app/mindroom/** is a boundary violation
+    // (route through eventRepository). The cacheStore module itself
+    // is excluded.
     const ALLOWED_CONSUMERS = new Set(
       [
         path.resolve(THREADS_DIR, 'eventRepository.ts'),
@@ -125,6 +133,8 @@ describe('CacheStore boundary architecture (CINNY-207 P2.3)', () => {
         path.resolve(THREADS_DIR, 'threadSummaryState.ts'),
         path.resolve(MINDROOM_ROOT, 'cache', 'sessionCleanup.ts'),
         path.resolve(MINDROOM_ROOT, 'engine', 'engineGapTracker.ts'),
+        path.resolve(MINDROOM_ROOT, 'engine', 'gapFillExecutor.ts'),
+        path.resolve(MINDROOM_ROOT, 'engine', 'mindroomSyncEngine.ts'),
       ].map((absPath) => absPath)
     );
 

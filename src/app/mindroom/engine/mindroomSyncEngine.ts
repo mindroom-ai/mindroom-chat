@@ -35,6 +35,12 @@ import type {
   SyncState,
 } from 'matrix-js-sdk';
 import { createSessionId } from '../../state/sessions';
+import {
+  noteRoomFederated,
+  noteRoomOpened,
+  noteThreadOpened,
+  setEvictionProtectedRoomIds,
+} from '../threads/cacheStore';
 import { createEngineWriteThrough, type EngineWriteThrough } from './engineWriteThrough';
 import { createEngineGapTracker, type EngineGapTracker } from './engineGapTracker';
 import { createEnginePersistFacade, type EnginePersistFacade } from './enginePersistFacade';
@@ -42,6 +48,8 @@ import {
   createBackfillScheduler,
   type BackfillScheduler,
 } from './backfillScheduler';
+import { createGapFillExecutor } from './gapFillExecutor';
+import { resolveRoomPrefetchTier } from './prefetchPolicy';
 import type { EngineLiveEventMeta, MindroomSyncEngine } from './types';
 
 const LIVE_SYNC_STATES: ReadonlySet<string> = new Set(['PREPARED', 'SYNCING', 'CATCHUP']);
@@ -99,6 +107,17 @@ export const createMindroomSyncEngine = ({
   const effectiveScheduler = scheduler ?? createBackfillScheduler({ mx });
   const effectiveGapTracker = gapTracker ?? createEngineGapTracker({ mx, sessionId });
   const effectivePersist = persist ?? createEnginePersistFacade({ sessionId });
+
+  // CINNY-207 P4.2: wire the executor over the gap tracker's queue so
+  // limited-sync / startup jobs actually drain. Test overrides can pass
+  // a stub `gapTracker` — in that case skip the executor (the stub
+  // controls its own queue).
+  const gapFillExecutor = gapTracker
+    ? undefined
+    : createGapFillExecutor(
+        { mx, sessionId, scheduler: effectiveScheduler },
+        effectiveGapTracker.scheduler
+      );
 
   let started = false;
   let liveMode = false;
@@ -225,6 +244,7 @@ export const createMindroomSyncEngine = ({
     bindableDocument?.removeEventListener('visibilitychange', handleVisibilityChange);
 
     effectiveGapTracker.stop();
+    gapFillExecutor?.stop();
 
     // CINNY-207 P4.1: abort every queued/in-flight backfill job on
     // teardown. Callers of `enqueue` receive a rejected promise (with
@@ -236,6 +256,41 @@ export const createMindroomSyncEngine = ({
     liveMode = false;
   };
 
+  /**
+   * CINNY-207 P4.2: consolidate the per-room bookkeeping that was
+   * previously scattered across the P3.3 controllers. Called from
+   * `MindroomRoomTimeline` whenever the mounted room (and optionally
+   * the currently-open thread) changes. Idempotent per-call.
+   *
+   * Bookkeeping performed:
+   *   - Resolve the room's prefetch tier via `resolveRoomPrefetchTier`
+   *     (D3, homeserver-domain comparison; never parses room ids).
+   *   - `noteRoomFederated` — stamp the ledger attribution so eviction
+   *     favors federated rooms first (D9).
+   *   - `setEvictionProtectedRoomIds([roomId])` — single-element v1
+   *     (Deviations §8): only the currently focused room is protected;
+   *     LRU inside priority covers the rest.
+   *   - `noteRoomOpened` / `noteThreadOpened` — bump the meta
+   *     `lastOpenedTs` so the recent-open guard skips this room for
+   *     eviction consideration until the window rolls past.
+   */
+  const noteRoomFocused = (roomId: string, threadId?: string): void => {
+    const room = mx.getRoom?.(roomId);
+    if (!room) return;
+    const tier = resolveRoomPrefetchTier(mx, room);
+    // `background` (create event missing) is treated as federated for
+    // eligibility, but we don't stamp the ledger flag since we don't
+    // yet know the truth — leaves the flag at its previous value.
+    if (tier !== 'background') {
+      noteRoomFederated(sessionId, roomId, tier !== 'own').catch(() => undefined);
+    }
+    setEvictionProtectedRoomIds([roomId]);
+    noteRoomOpened(sessionId, roomId).catch(() => undefined);
+    if (threadId) {
+      noteThreadOpened(sessionId, roomId, threadId).catch(() => undefined);
+    }
+  };
+
   return {
     mx,
     sessionId,
@@ -244,5 +299,6 @@ export const createMindroomSyncEngine = ({
     isLiveMode: () => liveMode,
     persist: effectivePersist,
     scheduler: effectiveScheduler,
+    noteRoomFocused,
   };
 };

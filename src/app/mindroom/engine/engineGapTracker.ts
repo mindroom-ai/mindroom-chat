@@ -39,6 +39,13 @@ export type GapFillJob = {
 export type GapFillScheduler = {
   enqueueGapFill(job: GapFillJob): void;
   pendingJobs(): readonly GapFillJob[];
+  /**
+   * Subscribe to enqueue events. The listener fires once per accepted
+   * enqueue (deduped rejects don't fire). Returns an unsubscribe
+   * function. CINNY-207 P4.2 uses this so `gapFillExecutor` can drain
+   * the queue promptly rather than polling.
+   */
+  onEnqueue(listener: (job: GapFillJob) => void): () => void;
   /** Test-only: drop all queued jobs. */
   clear(): void;
 };
@@ -52,6 +59,7 @@ export type GapFillScheduler = {
  */
 export const createInMemoryGapFillScheduler = (): GapFillScheduler => {
   const jobs = new Map<string, GapFillJob>();
+  const listeners = new Set<(job: GapFillJob) => void>();
   return {
     enqueueGapFill(job) {
       const existing = jobs.get(job.roomId);
@@ -61,8 +69,21 @@ export const createInMemoryGapFillScheduler = (): GapFillScheduler => {
       if (existing && existing.reason === 'limited-sync' && job.reason === 'startup') return;
       jobs.set(job.roomId, job);
       countCacheProbe('gapFillsEnqueued');
+      listeners.forEach((listener) => {
+        try {
+          listener(job);
+        } catch {
+          // A misbehaving subscriber must not break the tracker.
+        }
+      });
     },
     pendingJobs: () => Array.from(jobs.values()),
+    onEnqueue(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
     clear: () => jobs.clear(),
   };
 };

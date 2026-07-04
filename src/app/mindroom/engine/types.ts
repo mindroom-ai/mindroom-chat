@@ -91,4 +91,13 @@ export type MindroomSyncEngine = EngineLifecycle & {
    * wires actual fetches to it; P4.1 lands the queue and dedup.
    */
   readonly scheduler: BackfillScheduler;
+  /**
+   * CINNY-207 P4.2: consolidated per-room "you are here" hook. Called
+   * from `MindroomRoomTimeline` whenever the mounted room changes (or
+   * the currently-open thread changes). Idempotent; runs the ledger
+   * federation stamp (D3), eviction protection registry update, and
+   * lastOpenedTs bumps for both the room and thread scopes. Kept as a
+   * method rather than a hook so non-React callers can invoke it too.
+   */
+  noteRoomFocused(roomId: string, threadId?: string): void;
 };
