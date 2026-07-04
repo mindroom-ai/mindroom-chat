@@ -114,18 +114,16 @@ export const applyCachedRedactions = (room: Room, events: MatrixEvent[]): Redact
     const targetEvent = eventById.get(targetEventId);
     if (!targetEvent) return;
 
+    // An already-redacted instance keeps its existing redaction. Redaction
+    // is idempotent — re-applying a different cached redaction would only
+    // churn `redacted_because` metadata away from whatever the live
+    // timeline attached (cached state never wins over the instance's
+    // current state, invariant I2). The deterministic pick below therefore
+    // only decides which redaction to apply to a not-yet-redacted instance.
+    if (targetEvent.isRedacted()) return;
+
     const latestRedaction = getLatestEvent(redactionEvents);
     if (!latestRedaction) return;
-
-    const currentRedactionEvent = targetEvent.getRedactionEvent();
-    const currentRedactionId =
-      currentRedactionEvent &&
-      typeof currentRedactionEvent === 'object' &&
-      'event_id' in currentRedactionEvent &&
-      typeof currentRedactionEvent.event_id === 'string'
-        ? currentRedactionEvent.event_id
-        : undefined;
-    if (targetEvent.isRedacted() && currentRedactionId === latestRedaction.getId()) return;
 
     const relationTarget = getRedactedRelationTarget(targetEvent);
     if (relationTarget) redactedRelationTargets.push(relationTarget);
