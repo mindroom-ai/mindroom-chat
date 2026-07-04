@@ -106,15 +106,20 @@ the remaining checklist was finished in-session).
   invariant: for any two keys K1, K2 that share an event identity,
   `eventMap.get(K1) === eventMap.get(K2)`. `values()` contains one
   entry per identity, always.
-- Permanent must-stay-0 tripwire per team-lead's directive: new
-  counter `eventMapCanonicalizedDisplacements` bumps once per losing
-  instance the canonicalizer displaces. Not a diagnostic — a
-  regression alarm. Any future change that reintroduces intra-batch
-  duplication of an event identity through the map (bypassing
-  `setEventForKeys`, or a `getThreadRenderEventKeys` extension whose
-  key set omits an identity dimension) bumps this counter. Included
-  in the AC2 spec's `RG-COUNTERS` dump alongside the RG5c
-  registry-swap tripwire.
+- Permanent WORK counter (NOT a must-stay-0 tripwire — see the
+  later "Adversarial review F1-F9" entry for the wording
+  correction team-lead landed after the live flow showed a stable
+  non-zero reading): new counter `eventMapCanonicalizedDisplacements`
+  bumps once per losing instance the canonicalizer displaces. A
+  stable small non-zero reading is HEALTHY — multiple ingestion
+  paths (reconciler `onRepaired` payloads, SDK sync/echo deliveries)
+  legitimately deliver distinct instances of one event identity to
+  the sink, and dedup across overlapping key sets IS the merge's
+  contract. What warrants investigation is a step-change (new
+  duplication source appeared) or a hot-path spike (a
+  `getThreadRenderEventKeys` extension omits an identity dimension
+  and drives per-render bumps) — not the non-zero reading itself.
+  Included in the AC2 spec's `RG-COUNTERS` dump.
 - Required tests: 6 new unit tests in `threadRenderUtils.test.ts`
   (`RG5d key canonicalization` describe): dual-key collapse to one
   instance under both keys carrying the replacement, no bump on
@@ -130,11 +135,13 @@ the remaining checklist was finished in-session).
 - Live gate (two consecutive docker cycles, `/tmp/ac2-rg5d-livegate{,2}.log`):
   3/3 passed each time — AC2 29.5s/30.2s, stop-emoji 49.4s/54.8s,
   streamed-edit 36.6s/36.4s. Counter reads stable:
-  `registrySwappedRepairedForUnrepaired: 0` (RG5c tripwire — the
-  cross-call door stays closed), `eventMapCanonicalizedDisplacements:
-  3` per test (intra-batch duplication was real in the live flow —
-  team-lead's diagnosis confirmed — and is now absorbed by the
-  canonicalizer with no downstream leak).
+  `registrySwappedRepairedForUnrepaired: 0` (RG5c tripwire, deleted
+  later in F1 (`d5f04e90`) along with the registry it lived
+  inside — the cross-call door stayed closed for the two RG5d
+  cycles), `eventMapCanonicalizedDisplacements: 3` per test
+  (intra-batch duplication was real in the live flow — team-lead's
+  diagnosis confirmed — and is now absorbed by the canonicalizer
+  with no downstream leak).
 - Commit `9335739d`.
 
 ### CINNY-207 AC2 render-gap RG5c — registry-swap tripwire confirms X5 not the mechanism, same-id merge preference holds at both seams (2026-07-04)
