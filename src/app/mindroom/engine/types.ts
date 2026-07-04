@@ -10,6 +10,7 @@
 
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { EnginePersistFacade } from './enginePersistFacade';
+import type { BackfillScheduler } from './backfillScheduler';
 
 /**
  * Live event dispatch metadata as observed by the engine. This is a
@@ -80,4 +81,14 @@ export type MindroomSyncEngine = EngineLifecycle & {
    * signatures match the pre-strip props, only the wiring changed.
    */
   readonly persist: EnginePersistFacade;
+  /**
+   * CINNY-207 P4.1: the client-scoped backfill scheduler that
+   * serializes every backfill-shaped network fetch (gap-fill,
+   * room-deep-history, thread-backfill, thread-seed). Enforces AC8
+   * (no duplicate in-flight jobs per (room, thread, kind)) and a
+   * concurrency cap. Callers submit executor callbacks; the scheduler
+   * hands each an AbortSignal for cooperative cancellation. Only P4.2+
+   * wires actual fetches to it; P4.1 lands the queue and dedup.
+   */
+  readonly scheduler: BackfillScheduler;
 };

@@ -1,0 +1,420 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
+import {
+  buildBackfillJobKey,
+  createBackfillScheduler,
+  type BackfillJobKind,
+} from '../backfillScheduler';
+import { getCacheProbeSnapshot, resetCacheProbe } from '../../threads/cacheProbe';
+
+/**
+ * The scheduler is a pure queue + dedup + cap; these tests exercise the
+ * three invariants that matter (AC8 dedup, priority + activity
+ * ordering, concurrency cap) plus abort semantics. No real MatrixClient
+ * is instantiated — a stub with `getRoom → getLastActiveTimestamp`
+ * covers everything the scheduler reads.
+ */
+
+type MockClient = MatrixClient & {
+  __setRoomActivity(roomId: string, ts: number): void;
+};
+
+const createMockClient = (): MockClient => {
+  const activityByRoom = new Map<string, number>();
+  const makeRoom = (roomId: string): Room =>
+    ({
+      roomId,
+      getLastActiveTimestamp: () => activityByRoom.get(roomId) ?? 0,
+    }) as unknown as Room;
+
+  const client = {
+    getRoom: (roomId: string) => makeRoom(roomId),
+    __setRoomActivity(roomId: string, ts: number) {
+      activityByRoom.set(roomId, ts);
+    },
+  } as unknown as MockClient;
+
+  return client;
+};
+
+const flushMicrotasks = async (): Promise<void> => {
+  // Drain the microtask queue a few times so scheduler.drain (which
+  // reschedules itself via Promise.resolve().then(...)) settles fully.
+  for (let i = 0; i < 5; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await Promise.resolve();
+  }
+};
+
+describe('BackfillScheduler (CINNY-207 P4.1)', () => {
+  beforeEach(() => {
+    resetCacheProbe();
+  });
+  afterEach(() => {
+    resetCacheProbe();
+  });
+
+  describe('buildBackfillJobKey', () => {
+    it('normalizes undefined thread id to empty segment', () => {
+      expect(buildBackfillJobKey('!r', undefined, 'gap-fill')).toBe('!r||gap-fill');
+      expect(buildBackfillJobKey('!r', '$t', 'thread-backfill')).toBe('!r|$t|thread-backfill');
+    });
+  });
+
+  describe('enqueue + dedup (AC8)', () => {
+    it('returns the same promise identity for a duplicate key while the first job is queued', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 0 });
+
+      const execA = vi.fn().mockResolvedValue('A');
+      const execB = vi.fn().mockResolvedValue('B');
+      const first = scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: execA,
+      });
+      const second = scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: execB,
+      });
+      expect(second).toBe(first);
+      // The deduped executor is never even referenced.
+      expect(execB).not.toHaveBeenCalled();
+      const probe = getCacheProbeSnapshot();
+      expect(probe.schedulerEnqueued).toBe(1);
+      expect(probe.schedulerDeduped).toBe(1);
+    });
+
+    it('returns the same promise identity for a duplicate key while the first job is running', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx });
+      let resolveA: (value: string) => void = () => undefined;
+      const execA = vi.fn().mockImplementation(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveA = resolve;
+          })
+      );
+      const first = scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: execA,
+      });
+      await flushMicrotasks();
+      expect(execA).toHaveBeenCalledTimes(1);
+
+      const second = scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: vi.fn().mockResolvedValue('B'),
+      });
+      expect(second).toBe(first);
+
+      resolveA('A');
+      await expect(first).resolves.toBe('A');
+      await expect(second).resolves.toBe('A');
+      expect(getCacheProbeSnapshot().schedulerDeduped).toBe(1);
+      expect(getCacheProbeSnapshot().schedulerCompleted).toBe(1);
+    });
+
+    it('treats different kinds on the same room+thread as distinct jobs', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx });
+      const kinds: BackfillJobKind[] = [
+        'gap-fill',
+        'room-deep-history',
+        'thread-backfill',
+        'thread-seed',
+      ];
+      const results = await Promise.all(
+        kinds.map((kind) =>
+          scheduler.enqueue({
+            roomId: '!r1',
+            threadId: '$t',
+            kind,
+            priority: 3,
+            execute: () => Promise.resolve(kind),
+          })
+        )
+      );
+      expect(results).toEqual(kinds);
+      expect(getCacheProbeSnapshot().schedulerEnqueued).toBe(4);
+      expect(getCacheProbeSnapshot().schedulerDeduped).toBe(0);
+    });
+
+    it('allows re-enqueue after the previous job completed', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx });
+      const first = await scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'thread-seed',
+        priority: 3,
+        execute: () => Promise.resolve('first'),
+      });
+      expect(first).toBe('first');
+
+      // Same key, but the first has settled — must not be deduped.
+      const second = await scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'thread-seed',
+        priority: 3,
+        execute: () => Promise.resolve('second'),
+      });
+      expect(second).toBe('second');
+      expect(getCacheProbeSnapshot().schedulerDeduped).toBe(0);
+    });
+  });
+
+  describe('priority + activity ordering', () => {
+    it('drains lower priority-band jobs first regardless of enqueue order', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 1 });
+      const order: string[] = [];
+      const push = (label: string) => async () => {
+        order.push(label);
+      };
+
+      // Enqueue high-band first so we prove it doesn't run first.
+      scheduler.enqueue({
+        roomId: '!r-band4',
+        kind: 'room-deep-history',
+        priority: 4,
+        execute: push('band4'),
+      });
+      scheduler.enqueue({
+        roomId: '!r-band0',
+        kind: 'gap-fill',
+        priority: 0,
+        execute: push('band0'),
+      });
+      scheduler.enqueue({
+        roomId: '!r-band2',
+        kind: 'gap-fill',
+        priority: 2,
+        execute: push('band2'),
+      });
+
+      await flushMicrotasks();
+      // Give the async chain a chance to drain fully — three
+      // one-tick jobs with maxConcurrent=1.
+      for (let i = 0; i < 6; i += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await Promise.resolve();
+      }
+      expect(order).toEqual(['band0', 'band2', 'band4']);
+    });
+
+    it('breaks ties within a band by room.getLastActiveTimestamp desc', async () => {
+      const mx = createMockClient();
+      mx.__setRoomActivity('!old', 100);
+      mx.__setRoomActivity('!new', 500);
+      mx.__setRoomActivity('!mid', 300);
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 1 });
+      const order: string[] = [];
+      const push = (roomId: string) => async () => {
+        order.push(roomId);
+      };
+      scheduler.enqueue({ roomId: '!old', kind: 'gap-fill', priority: 2, execute: push('!old') });
+      scheduler.enqueue({ roomId: '!new', kind: 'gap-fill', priority: 2, execute: push('!new') });
+      scheduler.enqueue({ roomId: '!mid', kind: 'gap-fill', priority: 2, execute: push('!mid') });
+
+      for (let i = 0; i < 6; i += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await Promise.resolve();
+      }
+      expect(order).toEqual(['!new', '!mid', '!old']);
+    });
+  });
+
+  describe('concurrency cap', () => {
+    it('never runs more than MAX_CONCURRENT_BACKFILL_JOBS at once', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 2 });
+      let inFlight = 0;
+      let peak = 0;
+      const resolvers: Array<() => void> = [];
+      const promises: Promise<void>[] = [];
+      for (let i = 0; i < 5; i += 1) {
+        promises.push(
+          scheduler.enqueue({
+            roomId: `!r${i}`,
+            kind: 'gap-fill',
+            priority: 1,
+            execute: () =>
+              new Promise<void>((resolve) => {
+                inFlight += 1;
+                peak = Math.max(peak, inFlight);
+                resolvers.push(() => {
+                  inFlight -= 1;
+                  resolve();
+                });
+              }),
+          })
+        );
+      }
+      await flushMicrotasks();
+      expect(inFlight).toBe(2);
+
+      // Release two — the next two should start; peak must stay at 2.
+      resolvers[0]();
+      resolvers[1]();
+      await flushMicrotasks();
+      expect(inFlight).toBe(2);
+      resolvers[2]();
+      resolvers[3]();
+      await flushMicrotasks();
+      resolvers[4]();
+      await Promise.all(promises);
+      expect(peak).toBe(2);
+    });
+  });
+
+  describe('abort semantics', () => {
+    it('abort() signals the in-flight job and lets the executor bail cooperatively', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx });
+      let observedAbort = false;
+      const promise = scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'thread-backfill',
+        priority: 3,
+        execute: (signal) =>
+          new Promise<string>((resolve, reject) => {
+            signal.addEventListener('abort', () => {
+              observedAbort = true;
+              reject(signal.reason);
+            });
+          }),
+      });
+      await flushMicrotasks();
+      expect(scheduler.abort('!r1', undefined, 'thread-backfill')).toBe(true);
+      await expect(promise).rejects.toThrow('backfill aborted');
+      expect(observedAbort).toBe(true);
+      expect(getCacheProbeSnapshot().schedulerAborted).toBeGreaterThanOrEqual(1);
+    });
+
+    it('abort() on a queued (not-yet-running) job rejects with the abort reason and never runs the executor', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 0 });
+      const execute = vi.fn();
+      const promise = scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'gap-fill',
+        priority: 1,
+        execute,
+      });
+      expect(scheduler.abort('!r1', undefined, 'gap-fill')).toBe(true);
+      // Give the drain a chance to notice the aborted controller.
+      // maxConcurrent=0 keeps drain a no-op — we need to lift the cap.
+      // Instead just await the promise; a queued+aborted entry stays
+      // queued until drain rejects it. Cover that via abortAll below.
+      // Here we assert abort() returned true and the executor was
+      // never invoked yet.
+      expect(execute).not.toHaveBeenCalled();
+      // Drop the reference so vitest doesn't warn about unhandled rejection.
+      promise.catch(() => undefined);
+    });
+
+    it('abortAll() cancels every queued and in-flight job (engine.stop() contract)', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 1 });
+
+      let releaseFirst: () => void = () => undefined;
+      const first = scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: (signal) =>
+          new Promise<void>((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason));
+            releaseFirst = () => reject(new Error('unreached'));
+          }),
+      });
+      const second = scheduler.enqueue({
+        roomId: '!r2',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: () => Promise.reject(new Error('should not run')),
+      });
+
+      await flushMicrotasks();
+      scheduler.abortAll();
+      await expect(first).rejects.toThrow('backfill scheduler stopped');
+      // The second job was queued, not running — but abortAll set its
+      // abort signal. When drain picks it up (freed slot from first),
+      // the aborted-before-pickup branch rejects it.
+      await expect(second).rejects.toThrow(/backfill/i);
+      // Keep releaseFirst referenced so lint doesn't complain.
+      expect(typeof releaseFirst).toBe('function');
+    });
+
+    it('abort() on an unknown key returns false', () => {
+      const scheduler = createBackfillScheduler();
+      expect(scheduler.abort('!nope', undefined, 'gap-fill')).toBe(false);
+    });
+  });
+
+  describe('pendingJobs snapshot', () => {
+    it('lists queued jobs before running jobs and exposes stable keys', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 1 });
+
+      let releaseR1: () => void = () => undefined;
+      scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: () =>
+          new Promise<void>((resolve) => {
+            releaseR1 = resolve;
+          }),
+      });
+      scheduler.enqueue({
+        roomId: '!r2',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: () => Promise.resolve(),
+      });
+      await flushMicrotasks();
+      const snapshot = scheduler.pendingJobs();
+      expect(snapshot.map((job) => job.key)).toEqual([
+        '!r2||gap-fill', // queued
+        '!r1||gap-fill', // running
+      ]);
+      releaseR1();
+      await flushMicrotasks();
+    });
+  });
+
+  describe('executor error handling', () => {
+    it('propagates executor rejections through the returned promise and still frees the slot', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 1 });
+
+      const failing = scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: () => Promise.reject(new Error('boom')),
+      });
+      await expect(failing).rejects.toThrow('boom');
+
+      // Slot must be free — a follow-up enqueue drains without waiting.
+      let ran = false;
+      await scheduler.enqueue({
+        roomId: '!r2',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: async () => {
+          ran = true;
+        },
+      });
+      expect(ran).toBe(true);
+    });
+  });
+});

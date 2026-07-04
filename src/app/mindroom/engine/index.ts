@@ -40,3 +40,17 @@ export type {
   PersistThreadCacheFromRoomEvents,
   QueueRoomThreadCachePersist,
 } from './enginePersistFacade';
+export {
+  MAX_CONCURRENT_BACKFILL_JOBS,
+  buildBackfillJobKey,
+  createBackfillScheduler,
+} from './backfillScheduler';
+export type {
+  BackfillJob,
+  BackfillJobExecutor,
+  BackfillJobKind,
+  BackfillJobPriority,
+  BackfillScheduler,
+  CreateBackfillSchedulerOptions,
+  EnqueueJobArgs,
+} from './backfillScheduler';

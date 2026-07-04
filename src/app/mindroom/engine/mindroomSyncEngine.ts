@@ -38,6 +38,10 @@ import { createSessionId } from '../../state/sessions';
 import { createEngineWriteThrough, type EngineWriteThrough } from './engineWriteThrough';
 import { createEngineGapTracker, type EngineGapTracker } from './engineGapTracker';
 import { createEnginePersistFacade, type EnginePersistFacade } from './enginePersistFacade';
+import {
+  createBackfillScheduler,
+  type BackfillScheduler,
+} from './backfillScheduler';
 import type { EngineLiveEventMeta, MindroomSyncEngine } from './types';
 
 const LIVE_SYNC_STATES: ReadonlySet<string> = new Set(['PREPARED', 'SYNCING', 'CATCHUP']);
@@ -77,6 +81,10 @@ export type CreateMindroomSyncEngineOptions = {
    * Optional persist facade override for tests.
    */
   persist?: EnginePersistFacade;
+  /**
+   * Optional backfill scheduler override for tests.
+   */
+  scheduler?: BackfillScheduler;
 };
 
 export const createMindroomSyncEngine = ({
@@ -84,9 +92,11 @@ export const createMindroomSyncEngine = ({
   writeThrough,
   gapTracker,
   persist,
+  scheduler,
 }: CreateMindroomSyncEngineOptions): MindroomSyncEngine => {
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
   const effectiveWriteThrough = writeThrough ?? createEngineWriteThrough({ sessionId });
+  const effectiveScheduler = scheduler ?? createBackfillScheduler({ mx });
   const effectiveGapTracker = gapTracker ?? createEngineGapTracker({ mx, sessionId });
   const effectivePersist = persist ?? createEnginePersistFacade({ sessionId });
 
@@ -216,6 +226,11 @@ export const createMindroomSyncEngine = ({
 
     effectiveGapTracker.stop();
 
+    // CINNY-207 P4.1: abort every queued/in-flight backfill job on
+    // teardown. Callers of `enqueue` receive a rejected promise (with
+    // the abort reason) so their finally-blocks run.
+    effectiveScheduler.abortAll();
+
     // liveMode resets so a subsequent start() (e.g. account switch)
     // waits for a fresh Prepared/Syncing signal.
     liveMode = false;
@@ -228,5 +243,6 @@ export const createMindroomSyncEngine = ({
     stop,
     isLiveMode: () => liveMode,
     persist: effectivePersist,
+    scheduler: effectiveScheduler,
   };
 };

@@ -21,6 +21,7 @@ import {
   saveThreadOpenSeedSnapshot,
 } from '../threadOpenSeedCache';
 import {
+  createBackfillScheduler,
   createEnginePersistFacade,
   MindroomSyncEngineProvider,
   type MindroomSyncEngine,
@@ -1581,6 +1582,11 @@ const harnessSyncEngine: MindroomSyncEngine = {
   stop: () => undefined,
   isLiveMode: () => true,
   persist: createEnginePersistFacade({ sessionId: HARNESS_TEST_SESSION_ID }),
+  // CINNY-207 P4.1: harness gets a real (empty) scheduler so consumers
+  // that reach for `engine.scheduler.enqueue(...)` in future phases don't
+  // trip a type error here. No mx handoff is required — the scheduler
+  // is only exercised end-to-end in dedicated tests.
+  scheduler: createBackfillScheduler(),
 };
 
 // Pass children as a prop rather than positionally: this file is .ts, not
