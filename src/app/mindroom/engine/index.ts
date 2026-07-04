@@ -73,3 +73,14 @@ export type {
   ReconcileResult,
   ScheduleReconcileArgs,
 } from './reconciler';
+export {
+  fetchAllThreadRelations,
+  MAX_THREAD_FETCH_EVENTS,
+  MAX_THREAD_FETCH_ITERATIONS,
+} from './threadRelationsFetcher';
+export type { ThreadRelationPageResult } from './threadRelationsFetcher';
+export { enqueueThreadBackfillJob } from './threadBackfillJob';
+export type {
+  EnqueueThreadBackfillArgs,
+  ThreadBackfillResult,
+} from './threadBackfillJob';

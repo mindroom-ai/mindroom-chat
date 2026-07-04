@@ -16,7 +16,7 @@ import {
   getLatestThreadSummaryInfoFromEventSources,
   type MindroomThreadSummaryInfo,
 } from '../messages/threadSummary';
-import { fetchAllThreadRelations } from './threadBootstrap';
+import { fetchAllThreadRelations } from '../engine';
 import { isCompleteCachedThreadSnapshot } from './threadCacheSnapshot';
 import { saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { getKnownThreadReplyCount } from './threadRecord';

@@ -721,9 +721,21 @@ describe('RoomTimeline architecture', () => {
       new URL('../threadBootstrap.ts', import.meta.url),
       'utf8'
     );
+    // CINNY-207 P5.1 Commit 2: `fetchAllThreadRelations` moved to
+    // `engine/threadRelationsFetcher.ts` so the `/relations` boundary
+    // can be enforced by the dedicated engine-only guard below.
+    // `threadBootstrap.ts` re-exports the engine symbol for the
+    // existing unit-test surface — the assertion just checks the
+    // symbol is still reachable from this file, not where it's
+    // defined.
+    const threadRelationsFetcherSource = readFileSync(
+      new URL('../../engine/threadRelationsFetcher.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).not.toContain("from '../../mindroom/threads/threadBootstrap'");
-    expect(threadBootstrapSource).toContain('export async function fetchAllThreadRelations');
+    expect(threadRelationsFetcherSource).toContain('export async function fetchAllThreadRelations');
+    expect(threadBootstrapSource).toContain('fetchAllThreadRelations');
     expect(threadBootstrapSource).toContain('export const collectPriorityThreadSeedPrewarmRoots =');
     expect(threadBootstrapSource).toContain('export const getLoadedRoomThreadEvents =');
     expect(threadBootstrapSource).toContain('export const getLoadedRoomThreadSeedEvents =');
@@ -799,20 +811,32 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('hasUsableThreadCacheSnapshot');
   });
 
-  it('delegates thread-open post-bootstrap refresh to MindRoom threads', () => {
+  // CINNY-207 P5.1 Commit 2: `threadOpenPostBootstrapRefresh.ts` was
+  // deleted — its limit-200 fetchRelations is now the reconciler; its
+  // forward-gap check (with the `'thread-open-forward-gap-check'`
+  // log string that this guard used to hunt for) moved inline into
+  // the lifecycle controller so we keep the same tripwire (the log
+  // string remains a useful marker for debugging).
+  it('keeps the forward-gap check + log string in the lifecycle controller (post-bootstrap-refresh deleted)', () => {
     const source = readRoomTimelineSource();
-    const refreshSource = readFileSync(
-      new URL('../threadOpenPostBootstrapRefresh.ts', import.meta.url),
-      'utf8'
-    );
     const lifecycleSource = readFileSync(
       new URL('../threadOpenLifecycleController.ts', import.meta.url),
       'utf8'
     );
 
     expect(source).not.toContain('runThreadOpenPostBootstrapRefresh');
-    expect(lifecycleSource).toContain('runThreadOpenPostBootstrapRefresh');
-    expect(refreshSource).toContain('thread-open-forward-gap-check');
+    // The runner is gone entirely — assert it doesn't reappear as a
+    // module or symbol reference. We check for `import { … } from …`
+    // + `const … = require(…)` rather than raw string containment
+    // so comments citing the pre-P5 name (for historical clarity)
+    // don't trip the guard.
+    expect(source).not.toMatch(/from ['"][^'"]*threadOpenPostBootstrapRefresh['"]/);
+    expect(lifecycleSource).not.toMatch(/from ['"][^'"]*threadOpenPostBootstrapRefresh['"]/);
+    expect(lifecycleSource).not.toMatch(/\brunThreadOpenPostBootstrapRefresh\(/);
+    // Forward-gap check + log string lives in the lifecycle
+    // controller now. The log string stays as-is so existing capture
+    // consumers keep working.
+    expect(lifecycleSource).toContain('thread-open-forward-gap-check');
     expect(source).not.toContain('thread-open-forward-gap-check');
     expect(source).not.toContain('computeReconciliationToken');
   });

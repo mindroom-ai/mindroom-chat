@@ -4,11 +4,11 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from 'react';
+import { Direction } from 'matrix-js-sdk';
 import type { EventTimelineSet, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { logTimelineDebug } from './timelineDebug';
 import { createThreadOpenSeedSession } from './threadOpenSeedController';
 import { runThreadOpenCacheFirst } from './threadOpenCacheFirst';
-import { runThreadOpenPostBootstrapRefresh } from './threadOpenPostBootstrapRefresh';
 import { runThreadOpenSdkBootstrap } from './threadOpenSdkBootstrap';
 import {
   runThreadOpenTargetEvent,
@@ -226,20 +226,37 @@ export const useThreadOpenLifecycleController = ({
           shouldContinue: () => mounted && threadIdRef.current === threadId,
         }).catch(() => undefined);
 
-        const shouldContinueAfterPostBootstrapRefresh = await runThreadOpenPostBootstrapRefresh({
-          debugTraceId: threadDebugTraceId,
-          isCurrentThreadOpen: () => mounted && threadIdRef.current === threadId,
-          mx,
-          persistThreadEventCache,
-          refreshLatestThreadSlice,
-          room,
-          setSupplementalThreadEvents,
-          setThreadHasMoreCachedBack,
-          setThreadTailLoaded,
-          shouldScrollToLatestOnOpen,
-          threadId,
-        });
-        if (!shouldContinueAfterPostBootstrapRefresh) return;
+        // CINNY-207 P5.1 Commit 2: `runThreadOpenPostBootstrapRefresh`
+        // was deleted. Its two behaviors are inlined here.
+        //
+        // shouldScrollToLatestOnOpen=true → the jump-to-latest full
+        // pagination stays as-is (refreshLatestThreadSlice — not the
+        // pre-P5 tail refresh; a genuinely different function that
+        // loads all backward history for the "go to bottom" flow).
+        //
+        // shouldScrollToLatestOnOpen=false → the pre-P5 refresher's
+        // limit-200 fetchRelations is REPLACED by the P5 reconcile
+        // that was scheduled above (see the scheduleReconcile call
+        // after runThreadOpenSdkBootstrap). The forward-gap check +
+        // 'thread-open-forward-gap-check' log still fires from here
+        // so the arch guard can keep asserting the log string exists.
+        if (shouldScrollToLatestOnOpen) {
+          await refreshLatestThreadSlice(threadId);
+          if (!mounted || threadIdRef.current !== threadId) return;
+        } else {
+          const hasForwardGap = !!room
+            .getThread(threadId)
+            ?.getUnfilteredTimelineSet()
+            .getLiveTimeline()
+            .getPaginationToken(Direction.Forward);
+          if (!hasForwardGap) {
+            setThreadTailLoaded(true);
+          }
+          logTimelineDebug(threadDebugTraceId, 'thread-open-forward-gap-check', {
+            hasForwardGap,
+            threadId,
+          });
+        }
 
         setTimeline((ct) => ({ ...ct }));
         setThreadTimelineTick((val) => val + 1);

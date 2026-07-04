@@ -948,6 +948,7 @@ export function RoomTimeline({
     room,
     roomIdRef,
     safePaginationLimitRef,
+    scheduler: syncEngine.scheduler,
     sessionId,
     setSupplementalThreadEvents,
     setThreadHasMoreCachedBack,

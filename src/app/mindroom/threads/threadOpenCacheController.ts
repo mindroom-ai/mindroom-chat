@@ -12,7 +12,11 @@ import { logTimelineDebug } from './timelineDebug';
 import { getLinkedTimelines } from './timelinePagination';
 import { reconcileThreadBackwardPagination } from './threadPaginationUtils';
 import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from './eventRepository';
-import { fetchAllThreadRelations, MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
+import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
+import {
+  enqueueThreadBackfillJob,
+  type BackfillScheduler,
+} from '../engine';
 import {
   getAuthoritativeCachedThreadReplyCount,
   isCompleteCachedThreadSnapshot,
@@ -81,6 +85,7 @@ export const useThreadOpenCacheController = ({
   room,
   roomIdRef,
   safePaginationLimitRef,
+  scheduler,
   sessionId,
   setSupplementalThreadEvents,
   setThreadHasMoreCachedBack,
@@ -101,6 +106,14 @@ export const useThreadOpenCacheController = ({
   // reads the room's timeline set from `room.getThread(...)` when it
   // needs one. The controller no longer touches it.
   safePaginationLimitRef: MutableRefObject<number>;
+  /**
+   * CINNY-207 P5.1 Commit 2: `backfillThreadRelationsIntoCache` now
+   * routes its `/relations` fetch through the engine's scheduler as a
+   * `'thread-backfill'` job (P4.4 dedup domain shared with the
+   * overview-resume producer). Render-state side effects stay in this
+   * controller; the network side lives in engine/threadBackfillJob.ts.
+   */
+  scheduler: BackfillScheduler;
   sessionId: string;
   setSupplementalThreadEvents: (threadId: string, events: MatrixEvent[]) => void;
   setThreadHasMoreCachedBack: Dispatch<SetStateAction<boolean>>;
@@ -375,13 +388,19 @@ export const useThreadOpenCacheController = ({
         threadId: expectedThreadId,
       });
 
-      const relationPageResult = await fetchAllThreadRelations(
+      // CINNY-207 P5.1 Commit 2: fetch through the engine's scheduler.
+      // Dedup domain shared with the P4.4 overview-resume 'thread-backfill'
+      // job — if resume already fetched this thread's relations, the
+      // scheduler returns the in-flight promise identity instead of
+      // firing a second /relations round-trip.
+      const relationPageResult = await enqueueThreadBackfillJob({
         mx,
-        room.roomId,
-        expectedThreadId,
-        THREAD_BATCH_SIZE,
-        () => !alive() || threadIdRef.current !== expectedThreadId
-      );
+        scheduler,
+        room,
+        threadId: expectedThreadId,
+        priority: 0,
+        shouldContinue: () => alive() && threadIdRef.current === expectedThreadId,
+      });
       if (!relationPageResult || !alive() || threadIdRef.current !== expectedThreadId) {
         return undefined;
       }
@@ -458,6 +477,7 @@ export const useThreadOpenCacheController = ({
       mx,
       persistThreadEventCache,
       room,
+      scheduler,
       setSupplementalThreadEvents,
       setThreadHasMoreCachedBack,
       setThreadTailLoaded,
