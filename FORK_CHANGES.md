@@ -30,6 +30,9 @@
 - Next steps:
   - P1.4 edit compaction at the write boundary (depends on this tiebreak).
 - Validation:
+  - Red check: the two new tie tests were run against the pre-fix
+    `room.ts`/`eventCacheEditUtils.ts` (P1.2 tip) and fail there (2 failed —
+    order-reversed candidates flip the winner); green after the fix.
   - Unit: `npx vitest run src/app/utils/room.test.ts` — new same-timestamp
     tie tests assert order-independence (both candidate orders) and
     incumbent-instance retention on full tie.
