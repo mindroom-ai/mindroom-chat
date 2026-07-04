@@ -2,26 +2,211 @@
 
 ## Runbook
 
+### CINNY-207 P3.3 - Strip component persistence, render-only live controller (2026-07-03)
+
+- Status:
+  - Complete locally on `cache-overhaul/10-p3-sync-engine`. Phase 3 is
+    fully landed on this branch. Dual-write window from commits 3-4
+    is CLOSED — the component no longer touches the cache write path.
+    Behavior net: cache writes are now O(1) per live event by
+    structure (no bulk re-serialization codepath exists), all rooms
+    (including background ones) are covered by the engine's
+    client-level listeners, and the `MindroomSyncEngine.persist`
+    facade owns every render-side persist call.
+  - Docker e2e gate is the team-lead's responsibility per the
+    delivery contract. Expected results on the P3.3 tip:
+    background-room-freshness FLIPS GREEN (F1 fixed by client-level
+    listeners); streamed-edit stays green (write path shape
+    unchanged, engine owns edit compaction verbatim from the strip);
+    stop-emoji stays green (redaction lifecycle unchanged, moved
+    into the engine's write-through in commit 3).
+- Commits (in order):
+  - Merge `origin/cache-overhaul/09-p2-cachestore` into this branch
+    to pick up two P2 review-fix commits that landed after this
+    branch forked (`b39ba552` open-failure hardening + eviction
+    key-range + delete dedupe + flat-token compat; `5b0f63fa` e2e
+    seed helper wipes singleton legacy DBs). No conflicts — overlap
+    with commit 4's `cacheStoreDiscontinuity` + optional meta field
+    was zero. Focused vitest post-merge: 139/139 across
+    `cacheStore/` + `engine/`.
+  - `bfda7af6` — `refactor: strip component persistence; render-only
+    live controller (CINNY-207 P3.3)`. Twenty-three files (+1161
+    insertions, -2476 deletions).
+    - DELETE `roomCacheLifecycleController.ts`. Read-only second
+      effect (loadRoomCachedBackStateSnapshot → hasCachedBack UI
+      state + stale backward-token clearing) moved verbatim to
+      `threads/useRoomCachedBackState.ts`.
+    - DELETE `threadCachePersistenceController.ts`. Its three
+      functions become `engine/enginePersistFacade.ts` — pure
+      functions calling the same `eventRepository` entry points,
+      exposed on `engine.persist`. `alive()`/`roomIdRef`/
+      `threadIdRef` staleness guards drop (engine is a client-level
+      singleton; every persist call takes an explicit room, so a
+      stale UI cannot mis-route a write). `queueRoomThreadCachePersist`
+      keeps its microtask batching semantics but per-room now (one
+      pending set + one queued microtask per roomId, unrelated rooms
+      don't interfere).
+    - RENAME `roomLiveEventController.ts` →
+      `roomLiveRenderController.ts` (git-tracked rename). Strip
+      persistence, edit compaction, and redaction cache lifecycle
+      (all owned by engine write-through since commit 3). Keep:
+      local-echo refresh, expand-once ids, supplemental thread
+      events + timeline ticks, thread-tail flag, auto-scroll,
+      read-receipt marking, unread info, thread-summary store,
+      timeline range bumps, F6-C redaction repaint tick, and the
+      `queueRoomThreadCachePersist` call for `!liveEvent`
+      (backward-paginated in-room thread) events — engine's live
+      guard skips those by design.
+    - roomPagination explicit-persist-point (option b): in
+      `roomPaginationCommandController.ts`, after
+      `handleTimelinePagination(true)` completes, batch-persist the
+      newly-fetched slice via `engine.persist.persistRoomEventCache`.
+      One call per pagination completion, not per event. The
+      deleted sweep used to catch these; without a replacement
+      point the paginated slice would land in SDK memory but never
+      reach the cache. Prop `persistRoomEventCache` added to the
+      command controller's signature; wired at MindroomRoomTimeline
+      before the useRoomPaginationCommandController call.
+    - Rewire the eight fetch controllers (compactRootEditBackfill,
+      threadEditBackfill, threadOpenCache, threadOpenLifecycle,
+      threadOpenPostBootstrapRefresh, threadOpenSdkBootstrap,
+      threadOverviewResume, threadPaginationCommand) to obtain
+      persist fns from `useMindroomSyncEngine()` /
+      `engine.persist.forRoom(room)` at the MindroomRoomTimeline
+      wiring level. Prop shapes unchanged — the component passes
+      `engine.persist.*` instead of the deleted controller's fns.
+      For the three files that imported `PersistThreadEventCache`
+      as a type from `threadCachePersistenceController`, the import
+      re-points at `engine/enginePersistFacade`.
+    - Engine types.ts adds `persist: EnginePersistFacade` to
+      `MindroomSyncEngine`; mindroomSyncEngine.ts constructs the
+      default facade (or accepts an override for tests); engine/
+      index.ts re-exports the facade + its bound types.
+    - Test changes:
+      - DELETE the two P1.1 sweep tests in RoomTimeline.cache.test.ts
+        that asserted `saveRoomEventsToCacheMock` after
+        `waitForPersistSweepDebounce` (their subject — the mount-time
+        re-serialization sweep — is gone). Also delete the
+        `vi.mock` of `ROOM_CACHE_PERSIST_DEBOUNCE_MS` and the import
+        (unused after the deletions). `waitForPersistSweepDebounce`
+        stays but becomes a small settle wait; fetch-controller
+        persist calls still need it for post-await microtask drain.
+      - DELETE six sweep-derived room→thread persist tests
+        ("marks room-derived thread cache snapshots complete…",
+        etc.) — the sweep that grouped a room's loaded thread events
+        and called `persistThreadCacheFromRoomEvents` is gone.
+        Unit coverage for `persistThreadCacheFromRoomEventsSnapshot`
+        itself remains in `eventRepository.test.ts`.
+      - DELETE one sweep-derived thread-seed warming test
+        ("warms thread-open seed snapshots from room-preloaded
+        thread events"). Seed warming for opened threads still runs
+        via `threadOpenCacheController` +
+        `threadSeedPrewarmController`. All seven deletions replaced
+        by an explanatory comment block in-place.
+      - DELETE `roomLiveEventController.compaction.test.ts` (13
+        tests). Every behavior is covered by the plain-TS twin at
+        `engine/engineWriteThrough.compaction.test.ts` (also 13):
+        component-1 ↔ engine-1, N-coalesce ↔ N-coalesce, unmount
+        flush ↔ engine flush, non-replace immediate ↔ non-replace
+        immediate, fire-time miss ↔ fire-time miss (probe bumped),
+        late cross-sender ↔ late cross-sender pair emit, D12-latest
+        ↔ D12-latest, arm-time cross-sender direct ↔ arm-time
+        cross-sender direct, thread attribution captured at schedule
+        ↔ thread attribution captured at schedule, non-replace
+        thread events → thread entry point (engine test explicit
+        about no view-branching, semantic diff from the pre-strip
+        room-view-branching write path — same coverage), room-level
+        target upsert ↔ room-level, key isolation ↔ key isolation,
+        visibilitychange flush ↔ flush().
+      - DELETE the P1.1 sweep guard in
+        `RoomTimeline.architecture.test.ts`. Update the "delegates
+        cache persistence snapshots" and "delegates live event
+        arrival policy" arch tests to point at the engine facade
+        and `roomLiveRenderController` respectively.
+      - ADD `engine/__tests__/engine.architecture.test.ts` (3
+        tests): (a) persist entry points
+        (persistThreadEventCacheSnapshot,
+        persistRoomEventCacheSnapshot,
+        persistThreadCacheFromRoomEventsSnapshot) are consumed only
+        by `engine/**` modules — the sole allowlisted non-engine
+        file is `eventRepository.ts` (where they are defined). (b)
+        `roomLiveRenderController` does not import any persist
+        entry point and does not import `cacheStore/`. (c) engine
+        modules do not import `MindroomRoomTimeline` (import
+        statements only — the write-through's file header cites
+        the pre-strip controller by name in a comment, which is
+        fine).
+      - Test harness: shared `RoomTimeline.test.shared.ts` (and the
+        local harness in `RoomTimelineCollapsible.test.ts`) wrap
+        children in a `MindroomSyncEngineProvider` with a stub
+        engine wired to the real persist facade so
+        `useMindroomSyncEngine` resolves without a full ClientRoot
+        mount. Persist writes flow through the mocked cacheStore
+        fns. Small helper `wrapWithSyncEngine(element)` exported for
+        tests that mount `RoomTimeline` directly.
+      - FLIP `e2e/live/cinny207-background-room-freshness.spec.ts`
+        to green (remove test.fail(), update header — F1 fixed by
+        the engine's client-level listeners as of Phase 3).
+    - roomPaginationCommandController test grows one prop
+      (`persistRoomEventCache: vi.fn()`) at three test setup sites.
+- Divergences / open items:
+  - None. Both diverges from the P3.1/P3.2 entry are resolved:
+    Divergence #1 (roomPagination) — option (b) landed here.
+    Divergence #2 (commit-5 scope) — commit 5 + commit 6 landed on
+    this branch in the same session.
+- Decisions:
+  - Kept the persist facade's function shapes identical to the
+    pre-strip props so the eight fetch controllers rewire with no
+    signature churn. The room-bound `.forRoom(room)` sugar is what
+    MindroomRoomTimeline reaches for — the raw facade methods take
+    an explicit `room` first arg for callers with cross-room needs
+    (currently none; kept for the Phase 4 backfill scheduler).
+  - `queueRoomThreadCachePersist` batches per roomId, not globally,
+    so unrelated rooms cannot interfere with each other's flush
+    boundaries. Pre-strip behavior was per-component-instance, which
+    was per-room in practice because MindroomRoomTimeline is
+    per-room; the new per-roomId dictionary preserves that.
+  - `roomLiveRenderController` keeps the `!liveEvent` paginated
+    thread persist because the engine's live guard deliberately
+    skips `toStartOfTimeline=true` events. This is not dual-write:
+    the engine ONLY writes live events, this controller ONLY writes
+    !live paginated events, and roomPaginationCommandController
+    writes the room-level batch after paginate completes. The three
+    write points are disjoint.
+  - Test harness supplies a real `createEnginePersistFacade` under
+    a stub `MindroomSyncEngine`. Tests that mocked `saveXxxToCache`
+    via `vi.mock` continue to work: persist calls go through the
+    engine facade → `persist*Snapshot` (in eventRepository) →
+    `saveXxxToCache` (mocked) — same chain, one more indirection.
+- Validation:
+  - Merge commit: `npx vitest run src/app/mindroom/threads/cacheStore/
+    src/app/mindroom/engine/` → 139/139 green.
+  - Post-strip: `npm run typecheck` clean; `npx vitest run
+    src/app/mindroom/` → 225 files / 1944 tests green; full
+    `npx vitest run` → 331 files / 2505 tests green; `npm run
+    build` clean; `npm run lint` back to the 18-warning baseline
+    (verified zero delta by diffing warning lists pre/post).
+  - Deleted tests: 2 (P1.1 sweep) + 6 (sweep-derived room→thread
+    persist) + 1 (sweep-derived seed warming) + 13 (component
+    compaction) = 22 tests removed. Added 3 (engine architecture)
+    + 1 (useRoomCachedBackState is covered via existing
+    RoomTimeline.cache.test.ts on the harness path). Net delta on
+    the mindroom suite: -19 tests, same architectural coverage.
+- Next steps:
+  - Team-lead docker e2e gate on the P3 tip (streamed-edit +
+    stop-emoji + background-freshness — background-freshness should
+    FLIP GREEN with the strip landed).
+  - Phase 4 (BackfillScheduler): the plan's P4.x steps become the
+    next branch. The engine's write-through and persist facade are
+    the drop-in surfaces the scheduler consumes.
+
 ### CINNY-207 P3.1 + P3.2 - MindroomSyncEngine skeleton, write-through, gap detection (2026-07-03)
 
 - Status:
-  - In progress on `cache-overhaul/10-p3-sync-engine` (branched from
-    the local 09 tip `df16c3b2`). Four of the six planned commits
-    landed; two remain (P3.3 strip + docs). Behavior net today:
-    engine writes are live in parallel with the existing component
-    write path (dual-write is convergent under idempotent IDB
-    upserts, so no user-visible regression). F1 (background room
-    cache freshness) is fixed by the engine's client-level listeners
-    even before the P3.3 strip removes the component-side persist.
-  - Commit 5 (P3.3 strip: delete `roomCacheLifecycleController` and
-    `threadCachePersistenceController`, shrink
-    `roomLiveEventController` to render-only, rewire the eight fetch
-    controllers onto `useMindroomSyncEngine`, delete the P1.1 sweep
-    guard, add engine architecture tests, flip
-    `cinny207-background-room-freshness.spec.ts` to green) has NOT
-    landed. Commit 6 (docs — full plan status log entry, scorecard
-    AC5/AC6 update, Deviations, section 6.4 guard-list update) is
-    pending on commit 5.
+  - Superseded by the P3.3 entry below. Commits 1-4 landed on
+    `cache-overhaul/10-p3-sync-engine`; commit 5 (P3.3 strip) and
+    commit 6 (docs) both landed subsequently. See the P3.3 runbook
+    entry for closing detail. Interim dual-write window is CLOSED.
 - Commits (in order, all green typecheck + focused vitest):
   - `6eb4b1a1` — `feat: MindroomSyncEngine skeleton with lifecycle
     and live-mode gating (CINNY-207 P3.1)`. New
