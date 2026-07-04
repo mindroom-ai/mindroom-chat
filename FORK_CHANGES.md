@@ -2,6 +2,98 @@
 
 ## Runbook
 
+### CINNY-207 AC2 RG5-fix2 — replacement-aware same-id merge preference closes the NewReply-through-a-different-door reopening (2026-07-04)
+
+- Team-lead B-approval required addition after the RG4e counter
+  read: even with `onRepaired(mergedForHydrate)` (RG5-fix at
+  commit `52af9eed`) delivering the reconciler-repaired view
+  through the sink, `handleThreadNewReply` fires AFTER the
+  repair with the SYNC-delivered MatrixEvent instance for the
+  same target id. That sync instance carries no replacement.
+  Prior fall-through in `pickPreferredThreadRenderEvent`
+  (`return incomingEvent`) let the non-repaired sibling
+  overwrite the repaired instance in the fallback registry
+  whenever the effective-replacement helper's sender filter
+  dropped the repaired side — silently wiping the repair
+  through a different door than the one RG5-fix closed. NewReply
+  timing is SDK-owned; we cannot control it, so the fix has to
+  be structural at the merge seam.
+- Structural rule encoded in `pickPreferredThreadRenderEvent`
+  (`src/app/mindroom/threads/threadRenderUtils.ts`): asymmetric
+  raw-`.replacingEvent()` presence check placed AFTER the
+  existing effective-replacement block. The block above still
+  runs the D12-style ts→event_id ordering when both sides have
+  an effective replacement (preserving the `prefers an incoming
+  event with a newer bundled replacement over a stale live edit`
+  test — which fails with a raw-first check because the pre-
+  existing "prefers newer bundle" semantics need the effective
+  block to fire first). The new asymmetric check only fires when
+  exactly one side has ANY raw replacement while the other has
+  none — the exact NewReply-vs-repaired shape.
+- One rule, two seams: the same picker is used by
+  `mergeThreadRenderEvents` (sink merge post-
+  `setSupplementalThreadEvents`) and transitively by the
+  `buildThreadEvents` merge that combines SDK `thread.events`
+  and fallback state. The monotonicity rule ("repaired state is
+  monotonic within a thread-open") holds at BOTH seams without
+  duplicating logic.
+- Regression tests in `useThreadRenderState.test.ts`:
+  1. Common path — same-sender edit. Guardrail: verifies the
+     fix does NOT regress the shape the existing effective
+     block already handled.
+  2. Edge path — foreign-sender edit event on the repaired
+     instance. `getEffectiveReplacementEvent`'s
+     `isSameSenderEditEvent` filter drops it, so the effective
+     block above returns undefined for both sides; pre-fix, the
+     picker fell through to `return incomingEvent`. Verified
+     red without the fix and green with it (via `git stash` on
+     the picker change).
+- Live gate: `/tmp/ac2-rg5fix2-livegate.log` — all three specs
+  `✓ passed` (AC2 30.9s, stop-emoji 48.5s, streamed-edit
+  37.8s). AC2 counter shape stable across the picker change
+  (12 hadReplacement, 308 fallback-never-had, all sunkTarget
+  and lost-replacement counters at 0).
+- Validation bar: tsc clean; vitest 2662/2662 (+2 RG5-fix2
+  tests over 2660); lint 18/0 baseline-neutral; build clean.
+
+### CINNY-207 AC2 render-gap RG4e — name-the-caller sunk-target instrumentation confirms no clearing in the currently-green flow (2026-07-04)
+
+- Team-lead extended prior option (3) to also NAME the caller
+  that clears `_replacingEvent` on sunk edit-target instances.
+  Added three counters
+  (`sunkTargetMakeRedactedCalls`,
+  `sunkTargetMakeReplacedNonNull`,
+  `sunkTargetMakeReplacedCleared`) and
+  `armSunkTargetInstrumentation(eventId, mEvent)` in
+  `src/app/mindroom/threads/cacheProbe.ts` — installs per-
+  instance own-property overrides of `makeRedacted`/
+  `makeReplaced` delegating to the prototype, WeakSet-gated for
+  idempotence. Call site:
+  `useThreadRenderState.setSupplementalThreadEvents`, right
+  after `replaceFallbackInstanceRegistry`, arms only merged
+  events with `.replacingEvent()` non-null right now (the
+  "sunk set — a handful of instances" narrowing per team-lead).
+- Counter reading (two consecutive `✓ 1 passed` docker runs
+  at `/tmp/ac2-rg4e-run{1,2}.log`): all three sunkTarget
+  counters ZERO, `renderTargetLostReplacement` ZERO,
+  `applierMakeReplacedFired` ZERO, `applierMakeReplacedLatestEqualsCurrent`
+  = 8-9, `renderTargetHadReplacement` = 11-12,
+  `reconcilesRepaired` = 1. The "sunk set" is EMPTY at every
+  registration pass in the currently-green shape — no override
+  was ever installed, so counters faithfully report "no
+  clearing happened because no repair was ever installed on a
+  fallback-registered instance in the first place." The 11-12
+  `hadReplacement` observations are on SDK-owned live-timeline
+  instances that carry replacements set by matrix-js-sdk's own
+  `Relations.aggregateChildEvent` on live m.replace ingest.
+- Interpretation reported to team-lead: prior "renderTargetLostReplacement
+  = 178" observation reflected a shape RG4b-fix eliminated
+  (the anchoring rework changed which render passes get
+  measured). Combined with RG5-fix2's monotonic same-id
+  preference, the render-gap the diagnostic track was
+  chasing is closed by construction — RG4e counters are the
+  regression tripwires that will re-arm if the shape returns.
+
 ### CINNY-207 AC2 RG4b-fix — AC2 goes true visible-green after spec rework per owner ruling on pin-to-bottom UX (2026-07-04)
 
 - Owner ruling on RG4b (pin-to-bottom on thread open): this is
