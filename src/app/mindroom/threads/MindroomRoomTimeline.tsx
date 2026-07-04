@@ -1385,19 +1385,22 @@ export function RoomTimeline({
       recaptureThreadId: string | undefined,
       scrollRoot: HTMLElement | null | undefined,
       eventCount?: number
-    ) => {
+    ): boolean => {
       if (!recaptureThreadBackPaginationAnchor(recaptureThreadId, scrollRoot, eventCount)) {
         // Recapture failed (no visible message row — e.g. momentum
         // settled in a virtualized/loading gap). The begin-time anchor
         // is stale by definition here; restoring it would teleport the
-        // viewport back to where pagination fired. Never restore to a
-        // position the user left: drop the anchor and let the prepend
-        // land without a restore (greptile on PR #75).
+        // viewport back to where pagination fired, and committing
+        // WITHOUT a restore would shift the viewport by the prepended
+        // height (greptile rounds 2+3 on PR #75). Drop the anchor and
+        // report failure — the caller skips the commit entirely; the
+        // fetched page is already persisted, so the next gesture
+        // retries as a fast cache-hit once the viewport has rows.
         clearPendingThreadBackPaginationAnchor();
         threadVirtualPrependCaptureRef.current = undefined;
-        return;
+        return false;
       }
-      if (!recaptureThreadId) return;
+      if (!recaptureThreadId) return true;
       const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
       const anchorSeq = getPendingThreadBackPaginationAnchorSeq();
       const anchorIndex =
@@ -1416,6 +1419,7 @@ export function RoomTimeline({
           anchorSeq,
         };
       }
+      return true;
     },
     [
       recaptureThreadBackPaginationAnchor,
@@ -2975,6 +2979,7 @@ export function RoomTimeline({
     useThreadPaginationCommandController({
       beginThreadBackPagination: beginThreadBackPaginationWithCapture,
       recaptureThreadBackPaginationAnchor: recaptureThreadBackPaginationAnchorWithCapture,
+      clearThreadBackPaginationAnchor: clearPendingThreadBackPaginationAnchor,
       finishThreadBackPagination,
       forceTimelineUpdate,
       mx,
