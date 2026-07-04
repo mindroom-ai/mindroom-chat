@@ -1,6 +1,7 @@
 import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  collectLegacyStandaloneReplaceIds,
   collectStateTargetEvents,
   loadRoomCachePersistenceState,
   loadThreadCachedPaginationSnapshot,
@@ -37,6 +38,26 @@ describe('eventRepository cache serialization helpers', () => {
         event.getId()
       )
     ).toEqual(['$edit', '$target', '$redaction']);
+  });
+
+  // CINNY-207 P1.2/P1.4 interplay (round-1 review fix): the redaction
+  // lifecycle DELETES a redacted reaction's records; expanding the pruned
+  // reaction back into the persist batch here would re-insert the record
+  // the same handler just deleted.
+  it('does not pull redacted reaction targets back into the persist batch', () => {
+    const reactionEvent = makeEvent('$reaction', { ts: 100, type: 'm.reaction' });
+    const redactionEvent = makeEvent('$redaction', {
+      associatedId: '$reaction',
+      isRedaction: true,
+      ts: 200,
+    });
+    const room = makeRoom({ liveEvents: [reactionEvent] });
+
+    expect(
+      collectStateTargetEvents(room as never, [redactionEvent] as never).map((event) =>
+        event.getId()
+      )
+    ).toEqual(['$redaction']);
   });
 
   it('serializes room cache payloads without thread-only activity', () => {
@@ -530,5 +551,262 @@ describe('eventRepository room cache persistence state', () => {
     expect(state.beforeTokenForEarliest).toBe('sdk-before');
     expect(state.roomStartKnown).toBe(false);
     expect(state.shouldClearBackwardToken).toBe(false);
+  });
+});
+
+// CINNY-207 P1.4 (finding F5, decision D5): the write boundary excludes
+// standalone same-sender replace records; hydration lazily cleans up any
+// legacy records that still exist from before compaction landed.
+describe('collectLegacyStandaloneReplaceIds (CINNY-207 P1.4)', () => {
+  it('identifies replace records whose target already bundles an equal-or-newer edit', () => {
+    const events = [
+      {
+        event_id: '$target',
+        origin_server_ts: 100,
+        sender: '@alice:example.org',
+        content: {},
+        unsigned: {
+          'm.relations': {
+            [RelationType.Replace]: {
+              event_id: '$edit-2',
+              origin_server_ts: 300,
+              sender: '@alice:example.org',
+            },
+          },
+        },
+      },
+      {
+        event_id: '$edit-1',
+        origin_server_ts: 200,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+      {
+        event_id: '$edit-2',
+        origin_server_ts: 300,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+    ];
+
+    expect(collectLegacyStandaloneReplaceIds(events)).toEqual(['$edit-1', '$edit-2']);
+  });
+
+  it('keeps standalone replaces newer than the target bundled edit (no data-loss window)', () => {
+    const events = [
+      {
+        event_id: '$target',
+        origin_server_ts: 100,
+        sender: '@alice:example.org',
+        content: {},
+        unsigned: {
+          'm.relations': {
+            [RelationType.Replace]: {
+              event_id: '$edit-1',
+              origin_server_ts: 200,
+              sender: '@alice:example.org',
+            },
+          },
+        },
+      },
+      {
+        event_id: '$edit-1',
+        origin_server_ts: 200,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+      {
+        // Newer than the bundled edit: deleting it would lose the newest
+        // content from cache until a later re-persist.
+        event_id: '$edit-2',
+        origin_server_ts: 300,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+    ];
+
+    expect(collectLegacyStandaloneReplaceIds(events)).toEqual(['$edit-1']);
+  });
+
+  it('keeps all standalone replaces when the target has no bundled edit', () => {
+    const events = [
+      { event_id: '$target', origin_server_ts: 100, sender: '@alice:example.org', content: {} },
+      {
+        event_id: '$edit-1',
+        origin_server_ts: 200,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+    ];
+
+    expect(collectLegacyStandaloneReplaceIds(events)).toEqual([]);
+  });
+
+  // Round-2 review fix: the bundle only proves supersession if hydration
+  // would actually apply it — same sender as the standalone, nonempty id.
+  it('ignores cross-sender or id-less bundled edits as freshness proof', () => {
+    const standalone = {
+      event_id: '$edit-1',
+      origin_server_ts: 200,
+      sender: '@alice:example.org',
+      content: {
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+      },
+    };
+    const crossSenderBundleTarget = {
+      event_id: '$target',
+      origin_server_ts: 100,
+      sender: '@alice:example.org',
+      content: {},
+      unsigned: {
+        'm.relations': {
+          [RelationType.Replace]: {
+            event_id: '$edit-x',
+            origin_server_ts: 900,
+            sender: '@mallory:example.org',
+          },
+        },
+      },
+    };
+    expect(collectLegacyStandaloneReplaceIds([crossSenderBundleTarget, standalone])).toEqual([]);
+
+    const idlessBundleTarget = {
+      event_id: '$target',
+      origin_server_ts: 100,
+      sender: '@alice:example.org',
+      content: {},
+      unsigned: {
+        'm.relations': {
+          [RelationType.Replace]: { origin_server_ts: 900, sender: '@alice:example.org' },
+        },
+      },
+    };
+    expect(collectLegacyStandaloneReplaceIds([idlessBundleTarget, standalone])).toEqual([]);
+  });
+
+  it('does not flag cross-sender replaces or replaces whose target is missing', () => {
+    const events = [
+      { event_id: '$target', origin_server_ts: 100, sender: '@alice:example.org', content: {} },
+      {
+        event_id: '$cross-sender',
+        origin_server_ts: 200,
+        sender: '@mallory:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+      {
+        event_id: '$orphan-edit',
+        origin_server_ts: 300,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$missing' },
+        },
+      },
+    ];
+
+    expect(collectLegacyStandaloneReplaceIds(events)).toEqual([]);
+  });
+});
+
+describe('loadCachedThreadSnapshot lazy cleanup (CINNY-207 P1.4)', () => {
+  it('deletes legacy standalone same-sender replace records whose target is in the batch', async () => {
+    const deleteEvents = vi.fn(async () => undefined);
+    const rootEvent = {
+      event_id: '$root',
+      origin_server_ts: 100,
+      sender: '@alice:example.org',
+      content: {},
+    };
+    const targetEvent = {
+      event_id: '$target',
+      origin_server_ts: 200,
+      sender: '@alice:example.org',
+      content: {},
+      unsigned: {
+        'm.relations': {
+          [RelationType.Replace]: {
+            event_id: '$edit-2',
+            origin_server_ts: 220,
+            sender: '@alice:example.org',
+          },
+        },
+      },
+    };
+    const legacyEdit1 = {
+      event_id: '$edit-1',
+      origin_server_ts: 210,
+      sender: '@alice:example.org',
+      content: {
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+      },
+    };
+    const legacyEdit2 = {
+      event_id: '$edit-2',
+      origin_server_ts: 220,
+      sender: '@alice:example.org',
+      content: {
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+      },
+    };
+
+    await loadCachedThreadSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      threadId: '$root',
+      limit: 50,
+      maxPages: 1,
+      loadLatest: async () => ({
+        rootEvent,
+        events: [targetEvent, legacyEdit1, legacyEdit2],
+        hasMoreBefore: false,
+        beforeToken: null,
+      }),
+      deleteEvents,
+    });
+
+    expect(deleteEvents).toHaveBeenCalledTimes(1);
+    expect(deleteEvents).toHaveBeenCalledWith('session', '!room:example.org', '$root', [
+      '$edit-1',
+      '$edit-2',
+    ]);
+  });
+
+  it('does not delete anything when no legacy standalone replaces are present', async () => {
+    const deleteEvents = vi.fn(async () => undefined);
+
+    await loadCachedThreadSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      threadId: '$root',
+      limit: 50,
+      maxPages: 1,
+      loadLatest: async () => ({
+        rootEvent: { event_id: '$root', origin_server_ts: 100, sender: '@a', content: {} },
+        events: [
+          {
+            event_id: '$reply',
+            origin_server_ts: 200,
+            sender: '@a',
+            content: { body: 'hi' },
+          },
+        ],
+        hasMoreBefore: false,
+        beforeToken: null,
+      }),
+      deleteEvents,
+    });
+
+    expect(deleteEvents).not.toHaveBeenCalled();
   });
 });

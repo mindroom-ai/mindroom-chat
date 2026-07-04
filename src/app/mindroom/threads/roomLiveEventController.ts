@@ -1,11 +1,20 @@
 import {
   useCallback,
+  useEffect,
+  useRef,
   type Dispatch,
   type MutableRefObject,
   type RefObject,
   type SetStateAction,
 } from 'react';
 import { type MatrixClient, type MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
+import { isEventOrderedAfter } from '../../utils/room';
+import { countCacheProbe } from './cacheProbe';
+import {
+  createEditCompactionScheduler,
+  type EditCompactionScheduler,
+} from './editCompactionScheduler';
+import { THREAD_EDIT_COMPACTION_DEBOUNCE_MS } from './preloadSettings';
 import {
   getLatestThreadSummaryInfoFromEventSources,
   isMindroomThreadSummaryEvent,
@@ -125,6 +134,60 @@ export const useRoomLiveEventController = ({
     }, [setTimeline])
   );
 
+  // CINNY-207 P1.4 (finding F5, decision D5): per-target trailing debounce
+  // for edit compaction. Streaming edits arrive at 10+/s; each one schedules
+  // an upsert of the TARGET record (with the SDK-aggregated latest edit
+  // bundled by `serializeEventsForCache`), and further edits to the same
+  // target reset the timer. The final trailing fire IS the stream-end flush.
+  // Flushed synchronously on unmount and on document visibility loss.
+  const editCompactionSchedulerRef = useRef<EditCompactionScheduler | null>(null);
+  if (editCompactionSchedulerRef.current === null) {
+    editCompactionSchedulerRef.current = createEditCompactionScheduler(
+      THREAD_EDIT_COMPACTION_DEBOUNCE_MS
+    );
+  }
+  // D12-latest replace captured per compaction key. The fire-time closure
+  // reads this instead of its own captured argument, so an out-of-order
+  // stale replace that re-arms the window cannot shadow a newer replace
+  // captured earlier in the same window.
+  const pendingCompactionReplaceRef = useRef<Map<string, MatrixEvent>>(new Map());
+
+  useEffect(() => {
+    const scheduler = editCompactionSchedulerRef.current;
+    if (!scheduler) return undefined;
+
+    const flushIfHidden = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        scheduler.flushAll();
+      }
+    };
+    const flushAlways = () => scheduler.flushAll();
+    // Guard on the method itself, not just the global: vitest's node env
+    // supplies a stub `document` without addEventListener, and the wire-up
+    // here must not crash node-mode tests.
+    const canBindWindow =
+      typeof window !== 'undefined' && typeof window.addEventListener === 'function';
+    const canBindDocument =
+      typeof document !== 'undefined' && typeof document.addEventListener === 'function';
+
+    if (canBindWindow) {
+      window.addEventListener('pagehide', flushAlways);
+    }
+    if (canBindDocument) {
+      document.addEventListener('visibilitychange', flushIfHidden);
+    }
+
+    return () => {
+      if (canBindWindow) {
+        window.removeEventListener('pagehide', flushAlways);
+      }
+      if (canBindDocument) {
+        document.removeEventListener('visibilitychange', flushIfHidden);
+      }
+      scheduler.flushAll();
+    };
+  }, []);
+
   useLiveEventArrive(
     room,
     useCallback(
@@ -153,6 +216,62 @@ export const useRoomLiveEventController = ({
         if (liveExpandOnceId) {
           liveExpandOnceIds.current.add(liveExpandOnceId);
         }
+
+        // CINNY-207 P1.4 (finding F5, decision D5): shared compaction
+        // scheduling for the three replace persist paths. Returns false when
+        // the replace must persist directly instead: no scheduler, or a
+        // cross-sender replace — the serializer only bundles same-sender
+        // replacements onto the target, so compacting a cross-sender replace
+        // would drop it from cache entirely. At fire time, a target that is
+        // not in SDK memory (e.g. it exists only as a detached
+        // cache-hydrated instance after a cache-first thread open) falls
+        // back to persisting the replace event standalone — the serializer
+        // keeps that shape and hydration applies it — so an edit is never
+        // silently dropped (the miss is counted for observability).
+        const scheduleReplaceCompaction = (
+          key: string,
+          targetEventId: string,
+          replaceEvent: MatrixEvent,
+          persistEvents: (events: MatrixEvent[]) => void
+        ): boolean => {
+          const scheduler = editCompactionSchedulerRef.current;
+          if (!scheduler) return false;
+          const knownTarget = room.findEventById(targetEventId);
+          if (knownTarget && knownTarget.getSender() !== replaceEvent.getSender()) {
+            return false;
+          }
+          const pendingReplaces = pendingCompactionReplaceRef.current;
+          const previousReplace = pendingReplaces.get(key);
+          const capturedReplace =
+            previousReplace && isEventOrderedAfter(previousReplace, replaceEvent)
+              ? previousReplace
+              : replaceEvent;
+          pendingReplaces.set(key, capturedReplace);
+          scheduler.scheduleTargetUpsert(key, () => {
+            const pendingReplace = pendingReplaces.get(key) ?? capturedReplace;
+            pendingReplaces.delete(key);
+            const targetEvent = room.findEventById(targetEventId);
+            countCacheProbe('editCompactions');
+            if (!targetEvent) {
+              // Fire-time miss: persist the replace standalone (the
+              // serializer keeps that shape; hydration applies it) so the
+              // edit is never silently dropped.
+              countCacheProbe('editCompactionTargetMisses');
+              persistEvents([pendingReplace]);
+              return;
+            }
+            if (targetEvent.getSender() !== pendingReplace.getSender()) {
+              // The target materialized only during the debounce window and
+              // the replace turns out to be cross-sender: the serializer
+              // will not bundle it onto the target, so emit the standalone
+              // record alongside the target upsert.
+              persistEvents([targetEvent, pendingReplace]);
+              return;
+            }
+            persistEvents([targetEvent]);
+          });
+          return true;
+        };
 
         // CINNY-207 P1.2 (finding F6): redaction events carry `redacts`, not
         // `m.relates_to`, so the relation-based thread checks below never
@@ -282,13 +401,37 @@ export const useRoomLiveEventController = ({
             if (relation?.rel_type !== RelationType.Replace) {
               setSupplementalThreadEvents(threadId, [mEvt]);
             }
-            persistThreadEventCache(
-              threadId,
-              [mEvt],
-              room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId),
-              undefined,
-              atLiveEndRef.current
-            );
+            // CINNY-207 P1.4 (finding F5, decision D5): replaces do not
+            // persist as their own records. Coalesce upserts of the target
+            // record — `serializeEventsForCache` bundles the latest edit into
+            // `unsigned['m.relations']['m.replace']` at fire time, so the
+            // trailing write always carries the final edit even if more
+            // arrive after the timer is armed.
+            const scheduledThreadCompaction =
+              relation?.rel_type === RelationType.Replace && relation.event_id
+                ? scheduleReplaceCompaction(
+                    `thread|${room.roomId}|${threadId}|${relation.event_id}`,
+                    relation.event_id,
+                    mEvt,
+                    (events) =>
+                      persistThreadEventCache(
+                        threadId,
+                        events,
+                        room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId),
+                        undefined,
+                        atLiveEndRef.current
+                      )
+                  )
+                : false;
+            if (!scheduledThreadCompaction) {
+              persistThreadEventCache(
+                threadId,
+                [mEvt],
+                room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId),
+                undefined,
+                atLiveEndRef.current
+              );
+            }
             if (
               (mEventId === threadId || eventBelongsToThread(mEvt, threadId)) &&
               atLiveEndRef.current
@@ -325,9 +468,35 @@ export const useRoomLiveEventController = ({
         }
 
         if (threadCacheTargetId) {
-          persistThreadCacheFromRoomEvents([mEvt], {
-            tailLoaded: true,
-          });
+          // CINNY-207 P1.4: coalesce room-view replace persists too. The
+          // thread attribution is captured HERE, at schedule time: a
+          // mid-debounce redaction prunes the target's `m.relates_to`, so a
+          // fire-time re-derivation via persistThreadCacheFromRoomEvents'
+          // grouping would fail and the pruned tombstone would never reach
+          // the thread cache. persistThreadEventCache with the captured
+          // thread id writes it regardless.
+          const scheduledRoomViewCompaction =
+            relation?.rel_type === RelationType.Replace && relation.event_id
+              ? scheduleReplaceCompaction(
+                  `thread|${room.roomId}|${threadCacheTargetId}|${relation.event_id}`,
+                  relation.event_id,
+                  mEvt,
+                  (events) =>
+                    persistThreadEventCache(
+                      threadCacheTargetId,
+                      events,
+                      room.getThread(threadCacheTargetId)?.rootEvent ??
+                        room.findEventById(threadCacheTargetId),
+                      undefined,
+                      true
+                    )
+                )
+              : false;
+          if (!scheduledRoomViewCompaction) {
+            persistThreadCacheFromRoomEvents([mEvt], {
+              tailLoaded: true,
+            });
+          }
         }
         if (threadOnlyRoomActivity) {
           if (isMindroomThreadSummaryEvent(mEvt)) {
@@ -348,7 +517,22 @@ export const useRoomLiveEventController = ({
           return;
         }
 
-        persistRoomEventCache([mEvt]);
+        // CINNY-207 P1.4: room-level (non-thread) replaces also coalesce
+        // through the scheduler onto their target's room cache record.
+        {
+          const scheduledRoomCompaction =
+            relation?.rel_type === RelationType.Replace && relation.event_id
+              ? scheduleReplaceCompaction(
+                  `room|${room.roomId}|${relation.event_id}`,
+                  relation.event_id,
+                  mEvt,
+                  (events) => persistRoomEventCache(events)
+                )
+              : false;
+          if (!scheduledRoomCompaction) {
+            persistRoomEventCache([mEvt]);
+          }
+        }
 
         const shouldAutoFollow = shouldAutoScrollRoomOnLiveEvent({
           scrollElement: scrollRef.current,

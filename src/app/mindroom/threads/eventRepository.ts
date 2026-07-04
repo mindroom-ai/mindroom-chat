@@ -15,6 +15,7 @@ import {
   type CachedRoomEventPage,
 } from './roomEventCache';
 import {
+  deleteThreadEventsFromCache as deleteThreadEventsFromCacheToStorage,
   getThreadCursorAnchor as getCachedThreadCursorAnchor,
   loadCachedThreadEventsBefore as loadCachedThreadEventsBeforeFromCache,
   loadLatestCachedThreadEvents as loadLatestCachedThreadEventsFromCache,
@@ -110,10 +111,87 @@ type LoadCachedThreadSnapshotOptions = {
   onPage?: (page: CachedThreadEventPage, pageIndex: number, snapshot: CachedThreadSnapshot) => void;
   loadLatest?: typeof loadLatestCachedThreadEventsFromCache;
   loadBefore?: typeof loadCachedThreadEventsBeforeFromCache;
+  /**
+   * CINNY-207 P1.4: injected so tests can observe/override the lazy cleanup
+   * of legacy standalone m.replace records. Defaults to the storage-backed
+   * delete API.
+   */
+  deleteEvents?: typeof deleteThreadEventsFromCacheToStorage;
 };
 
 export type CachedThreadSnapshot = CachedThreadEventPage & {
   events: CachedThreadEvent[];
+};
+
+/**
+ * CINNY-207 P1.4 (finding F5, decision D5): identify legacy standalone
+ * `m.replace` records inside a hydrated batch that are safe to delete: their
+ * target record is in the same batch AND already carries a bundled edit
+ * (`unsigned['m.relations']['m.replace']`) at least as new as the standalone
+ * record under the D12 ordering (ts, then event id). Deleting a standalone
+ * whose target does NOT yet carry an equal-or-newer bundled edit would lose
+ * the edit from cache until some later re-persist — a stale paint on the
+ * next open — so those are left in place (the Phase 2 D8 wipe purges them).
+ * Cross-sender replaces are never considered.
+ */
+export const collectLegacyStandaloneReplaceIds = (
+  events: Array<Partial<IEvent> | CachedThreadEvent>
+): string[] => {
+  const eventsById = new Map<string, Partial<IEvent>>();
+  events.forEach((rawEvent) => {
+    const eventId = rawEvent.event_id;
+    if (typeof eventId === 'string' && eventId.length > 0) {
+      eventsById.set(eventId, rawEvent);
+    }
+  });
+
+  const isBundledReplaceAtLeastAsNew = (
+    targetEvent: Partial<IEvent>,
+    standaloneEvent: Partial<IEvent>
+  ): boolean => {
+    const relations = (targetEvent.unsigned as Record<string, unknown> | undefined)?.[
+      'm.relations'
+    ] as Record<string, unknown> | undefined;
+    const bundled = relations?.[RelationType.Replace] as Partial<IEvent> | undefined;
+    if (!bundled) return false;
+
+    // The bundle only proves supersession if hydration would actually apply
+    // it: it must carry a nonempty event id and come from the same sender as
+    // the standalone (mirroring the read path's serialized-relation and
+    // same-sender validation). A server-provided cross-sender or id-less
+    // aggregation must not license deleting a record hydration still needs.
+    if (typeof bundled.event_id !== 'string' || bundled.event_id.length === 0) return false;
+    if (bundled.sender !== standaloneEvent.sender) return false;
+
+    const bundledTs = bundled.origin_server_ts;
+    const standaloneTs = standaloneEvent.origin_server_ts;
+    if (typeof bundledTs !== 'number' || typeof standaloneTs !== 'number') return false;
+    if (bundledTs !== standaloneTs) return bundledTs > standaloneTs;
+
+    const standaloneId = standaloneEvent.event_id;
+    if (typeof standaloneId !== 'string') return false;
+    // Equal ids mean the bundled edit IS the standalone record's event.
+    return bundled.event_id >= standaloneId;
+  };
+
+  const legacyReplaceIds: string[] = [];
+  events.forEach((rawEvent) => {
+    const eventId = rawEvent.event_id;
+    if (typeof eventId !== 'string' || eventId.length === 0) return;
+    const relatesTo = rawEvent.content?.['m.relates_to'] as
+      | { rel_type?: string; event_id?: string }
+      | undefined;
+    if (relatesTo?.rel_type !== RelationType.Replace) return;
+    const targetEventId = relatesTo.event_id;
+    if (!targetEventId) return;
+    const targetEvent = eventsById.get(targetEventId);
+    if (!targetEvent) return;
+    if (targetEvent.sender !== rawEvent.sender) return;
+    if (!isBundledReplaceAtLeastAsNew(targetEvent, rawEvent)) return;
+    legacyReplaceIds.push(eventId);
+  });
+
+  return legacyReplaceIds;
 };
 
 export const loadCachedThreadSnapshot = async ({
@@ -126,6 +204,7 @@ export const loadCachedThreadSnapshot = async ({
   onPage,
   loadLatest = loadLatestCachedThreadEventsFromCache,
   loadBefore = loadCachedThreadEventsBeforeFromCache,
+  deleteEvents,
 }: LoadCachedThreadSnapshotOptions): Promise<CachedThreadSnapshot | undefined> => {
   let cachedPage = await loadLatest(sessionId, roomId, threadId, limit);
   const cachedThreadEvents = [...cachedPage.events];
@@ -180,6 +259,20 @@ export const loadCachedThreadSnapshot = async ({
   }
 
   if (shouldContinue && !shouldContinue()) return undefined;
+
+  // CINNY-207 P1.4: lazy cleanup — legacy standalone m.replace records
+  // whose target is present in the same batch are dead weight (the target
+  // now carries the bundled edit). Delete them best-effort; hydration still
+  // sees the replace via the target's bundled edit, and getLatestEdit
+  // (P1.3 / D12) picks the newest deterministically. `deleteEvents` is
+  // resolved lazily so the storage import is not touched when a test-injected
+  // deleter is passed (avoids evaluating the storage identifier under
+  // partial vitest mocks that reject unlisted exports).
+  const legacyReplaceIds = collectLegacyStandaloneReplaceIds(cachedThreadEvents);
+  if (legacyReplaceIds.length > 0) {
+    const resolvedDeleteEvents = deleteEvents ?? deleteThreadEventsFromCacheToStorage;
+    resolvedDeleteEvents(sessionId, roomId, threadId, legacyReplaceIds).catch(() => undefined);
+  }
 
   return {
     ...cachedPage,
@@ -605,9 +698,14 @@ export const collectStateTargetEvents = (room: Room, events: MatrixEvent[]): Mat
     if (!targetEventId || eventsById.has(targetEventId)) return;
 
     const targetEvent = room.findEventById(targetEventId);
-    if (targetEvent?.getId()) {
-      eventsById.set(targetEventId, targetEvent);
-    }
+    if (!targetEvent?.getId()) return;
+    // CINNY-207 P1.2/P1.4 interplay: a redacted reaction's records are
+    // DELETED by the redaction lifecycle (planRedactionCacheCleanup gives
+    // reactions no tombstone). Pulling the pruned reaction back in here
+    // while persisting the redaction event would re-insert the record the
+    // same handler just deleted.
+    if (mEvent.isRedaction() && targetEvent.getType() === 'm.reaction') return;
+    eventsById.set(targetEventId, targetEvent);
   });
 
   return Array.from(eventsById.values());

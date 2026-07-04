@@ -443,7 +443,7 @@ Filled as steps complete. "Before" numbers from P0.3.
 | AC1  | ☐      |                                   |                |                         |      |
 | AC2  | ☐      |                                   |                |                         |      |
 | AC3  | ☐      |                                   |                |                         |      |
-| AC4  | ☐      |                                   |                |                         |      |
+| AC4  | ☐ impl | `npx vitest run src/app/mindroom/threads/eventCacheEditUtils.test.ts src/app/mindroom/threads/editCompactionScheduler.test.ts src/app/mindroom/threads/roomLiveEventController.compaction.test.ts src/app/mindroom/threads/eventRepository.test.ts` (compaction + exclusion + hydration cleanup); e2e `E2E_ENABLE_DEPLOYED_FIXTURE=0 ./scripts/test-e2e-docker-matrix.sh e2e/live/cinny207-streamed-edit-cache.spec.ts` pending (not run this session) | ~EDIT_COUNT+1 records per streamed message → exactly 1 target record with bundled edit | (pending reviewer) |      |
 | AC5  | ☐      |                                   |                |                         |      |
 | AC6  | ☐      |                                   |                |                         |      |
 | AC7  | ☐      |                                   |                |                         |      |
@@ -503,6 +503,21 @@ new engine-scoped guard file):
 (None yet. Record: date, step ID, what changed vs. plan, why, approved by.)
 
 ## 9. Status log
+
+- 2026-07-03 — **P1.4 landed** (PR 6): edit compaction at the cache write
+  boundary (F5/D5). Standalone same-sender `m.replace` records are no longer
+  persisted; instead a per-target trailing-debounced scheduler
+  (`THREAD_EDIT_COMPACTION_DEBOUNCE_MS = 1000`, mockable from
+  `preloadSettings.ts`) upserts the target's cache record with the SDK-
+  aggregated latest edit bundled by `serializeEventsForCache` into
+  `unsigned['m.relations']['m.replace']`. The trailing timer IS the
+  stream-end flush; pending upserts are also flushed synchronously on
+  `pagehide` and `visibilitychange → hidden` and on component unmount.
+  Sweep path is unaffected — bookkeeping still marks skipped-persist ids as
+  seen so replaces cannot cause endless re-sweeps. Hydration lazily deletes
+  legacy standalone replace records whose target is present in the batch
+  (full purge lands with the Phase 2 D8 wipe). AC4 evidence recorded above;
+  e2e run is pending (deferred out of this session per instructions).
 
 - 2026-07-03 — **P1.3 landed** (PR 5): deterministic edit tiebreak (D12).
   Shared comparator `isEventOrderedAfter` (ts, then lexicographic event id,

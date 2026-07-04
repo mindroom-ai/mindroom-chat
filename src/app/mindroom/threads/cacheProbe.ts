@@ -21,6 +21,15 @@ export type CacheProbeCounters = {
   eventDeletes: number;
   writeErrors: number;
   serializedEvents: number;
+  // CINNY-207 P1.4 (AC4 evidence): counts trailing-debounced target upserts
+  // fired by the edit-compaction scheduler. Each streaming burst of N edits
+  // is expected to produce one increment here rather than N standalone
+  // record puts.
+  editCompactions: number;
+  // Counts compaction fires where the replace target was not in SDK memory
+  // and the write fell back to persisting the replace event standalone
+  // (durability fallback — a silent drop would otherwise be invisible).
+  editCompactionTargetMisses: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -33,6 +42,8 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   eventDeletes: 0,
   writeErrors: 0,
   serializedEvents: 0,
+  editCompactions: 0,
+  editCompactionTargetMisses: 0,
 });
 
 let counters = createEmptyCounters();
