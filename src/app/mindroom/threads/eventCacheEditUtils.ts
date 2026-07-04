@@ -5,7 +5,7 @@ import {
   getSerializedRelationEvent,
   isSameSenderEditEvent,
 } from '../../utils/editEvent';
-import { getLatestEdit } from '../../utils/room';
+import { getLatestEdit, isEventOrderedAfter } from '../../utils/room';
 
 export type RedactedRelationTarget = {
   eventId: string;
@@ -40,9 +40,7 @@ const getTargetEventId = (mEvent: MatrixEvent): string | undefined => mEvent.get
 const getLatestEvent = (events: MatrixEvent[]): MatrixEvent | undefined =>
   events.reduce<MatrixEvent | undefined>((latest, mEvent) => {
     if (!latest) return mEvent;
-    if (mEvent.getTs() > latest.getTs()) return mEvent;
-    if (mEvent.getTs() === latest.getTs()) return mEvent;
-    return latest;
+    return isEventOrderedAfter(mEvent, latest) ? mEvent : latest;
   }, undefined);
 
 const getRedactedRelationTarget = (mEvent: MatrixEvent): RedactedRelationTarget | undefined => {
@@ -116,18 +114,25 @@ export const applyCachedRedactions = (room: Room, events: MatrixEvent[]): Redact
     const targetEvent = eventById.get(targetEventId);
     if (!targetEvent) return;
 
+    // An already-redacted instance keeps its existing redaction. Redaction
+    // is idempotent — re-applying a different cached redaction would only
+    // churn `redacted_because` metadata away from whatever the live
+    // timeline attached (cached state never wins over the instance's
+    // current state, invariant I2). This also covers the reload case: a
+    // target persisted while redacted carries `unsigned.redacted_because`
+    // in its record, so hydration reconstructs it as redacted and returns
+    // here. The pick below therefore only runs when NO ground truth about
+    // the live-attached redaction exists (standalone redaction records
+    // whose target record predates the redaction). Live SDK semantics for
+    // duplicate redactions are last-arrival-wins and arrival order is not
+    // recoverable from cache, so the D12 ordering is a deterministic proxy
+    // for it; any tied redaction prunes the target identically — only the
+    // `redacted_because` metadata differs, and no choice available at
+    // hydration time can be more faithful.
+    if (targetEvent.isRedacted()) return;
+
     const latestRedaction = getLatestEvent(redactionEvents);
     if (!latestRedaction) return;
-
-    const currentRedactionEvent = targetEvent.getRedactionEvent();
-    const currentRedactionId =
-      currentRedactionEvent &&
-      typeof currentRedactionEvent === 'object' &&
-      'event_id' in currentRedactionEvent &&
-      typeof currentRedactionEvent.event_id === 'string'
-        ? currentRedactionEvent.event_id
-        : undefined;
-    if (targetEvent.isRedacted() && currentRedactionId === latestRedaction.getId()) return;
 
     const relationTarget = getRedactedRelationTarget(targetEvent);
     if (relationTarget) redactedRelationTargets.push(relationTarget);

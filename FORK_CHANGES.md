@@ -146,6 +146,43 @@
     with `aria-valuetext` is what announces question/answer previews during
     arrow-key navigation; alternative roles lose that or require
     restructuring the presentational stripes into a real listbox.
+### CINNY-207 P1.3 - Deterministic edit tiebreak (2026-07-03)
+
+- Status:
+  - Complete locally (PR 5 of the cache-overhaul stack).
+- Summary:
+  - Finding F8 / decision D12: same-millisecond edit (and redaction)
+    selection was iteration-order dependent — `getLatestEdit` resolved
+    timestamp ties to the *later candidate*, and cached-load order differs
+    from live order, so the rendered edit could flip across reloads at
+    streaming rates.
+  - New shared comparator `isEventOrderedAfter` in `src/app/utils/room.ts`:
+    higher `origin_server_ts` wins; ties broken by lexicographically larger
+    `event_id` (the spec rule for `m.replace` aggregation); a full tie
+    (same logical event seen via two sources) keeps the incumbent instance,
+    so candidate ordering now only picks between instances of the same
+    event, never between logical events.
+  - Applied in `getLatestEdit` (all edit selection paths: render, compact
+    previews, backfill controllers, serialized-replacement hydration) and in
+    `eventCacheEditUtils.getLatestEvent` (cached redaction selection).
+- Decisions:
+  - The old "later candidate wins on tie" contract existed to encode source
+    priority (SDK replacement vs serialized replacement). With D12 the
+    logical winner is id-deterministic; instance preference on a full tie
+    now favors the incumbent, which also avoids redundant `makeReplaced`
+    re-application during hydration.
+- Next steps:
+  - P1.4 edit compaction at the write boundary (depends on this tiebreak).
+- Validation:
+  - Red check: the two new tie tests were run against the pre-fix
+    `room.ts`/`eventCacheEditUtils.ts` (P1.2 tip) and fail there (2 failed —
+    order-reversed candidates flip the winner); green after the fix.
+  - Unit: `npx vitest run src/app/utils/room.test.ts` — new same-timestamp
+    tie tests assert order-independence (both candidate orders) and
+    incumbent-instance retention on full tie.
+  - `npx vitest run src/app/mindroom/threads/__tests__/` (285 tests green),
+    `npm run typecheck`, `npm run build`, `npm run lint`.
+
 ### CINNY-207 P1.2 - Stop-emoji redaction cache lifecycle (2026-07-03)
 
 - Status:

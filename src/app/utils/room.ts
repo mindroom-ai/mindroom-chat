@@ -440,20 +440,33 @@ export const getEventReactions = (timelineSet: EventTimelineSet, eventId: string
 export const getEventEdits = (timelineSet: EventTimelineSet, eventId: string, eventType: string) =>
   timelineSet.relations.getChildEventsForEvent(eventId, RelationType.Replace, eventType);
 
+/**
+ * Deterministic event ordering (CINNY-207 D12): higher `origin_server_ts`
+ * wins; same-millisecond ties are broken by lexicographically larger
+ * `event_id`, matching the spec rule for `m.replace` aggregation. When both
+ * timestamp and event id tie (two instances of the same logical event from
+ * different sources) the incumbent wins, so callers' candidate ordering only
+ * decides which *instance* of an event is kept, never which logical event.
+ */
+export const isEventOrderedAfter = (candidate: MatrixEvent, current: MatrixEvent): boolean => {
+  if (candidate.getTs() !== current.getTs()) return candidate.getTs() > current.getTs();
+  const candidateId = candidate.getId();
+  const currentId = current.getId();
+  if (!candidateId || !currentId) return false;
+  return candidateId > currentId;
+};
+
 export const getLatestEdit = (
   targetEvent: MatrixEvent,
   editEvents: MatrixEvent[]
 ): MatrixEvent | undefined => {
   const targetSender = targetEvent.getSender();
 
-  // Prefer higher timestamp; when equal, prefer the later candidate so callers
-  // can encode source priority by candidate ordering.
   return editEvents.reduce<MatrixEvent | undefined>((latest, editEvent) => {
     if (editEvent.getSender() !== targetSender) return latest;
     if (!latest) return editEvent;
 
-    if (editEvent.getTs() >= latest.getTs()) return editEvent;
-    return latest;
+    return isEventOrderedAfter(editEvent, latest) ? editEvent : latest;
   }, undefined);
 };
 

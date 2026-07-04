@@ -188,16 +188,25 @@ describe('room edit helpers', () => {
     expect(editedEvent?.getId()).toBe('$serialized');
   });
 
-  it('prefers later relations when edits share the same timestamp', () => {
+  it('breaks same-timestamp ties by event id regardless of candidate order (D12)', () => {
     const targetEvent = makeMessageEvent('$target', 1000);
     const firstEdit = makeEditEvent('$edit-1', 2000, '$target');
     const secondEdit = makeEditEvent('$edit-2', 2000, '$target');
 
-    const latest = getLatestEdit(targetEvent, [firstEdit, secondEdit]);
-    expect(latest).toBe(secondEdit);
+    expect(getLatestEdit(targetEvent, [firstEdit, secondEdit])).toBe(secondEdit);
+    expect(getLatestEdit(targetEvent, [secondEdit, firstEdit])).toBe(secondEdit);
   });
 
-  it('prefers the serialized replacement when it ties a relation edit on timestamp', () => {
+  it('keeps the incumbent instance when timestamp and event id both tie', () => {
+    const targetEvent = makeMessageEvent('$target', 1000);
+    const instanceA = makeEditEvent('$edit-1', 2000, '$target');
+    const instanceB = makeEditEvent('$edit-1', 2000, '$target');
+
+    expect(getLatestEdit(targetEvent, [instanceA, instanceB])).toBe(instanceA);
+    expect(getLatestEdit(targetEvent, [instanceB, instanceA])).toBe(instanceB);
+  });
+
+  it('resolves a serialized-replacement/relation-edit timestamp tie by event id', () => {
     const targetEvent = makeMessageEvent('$target', 1000);
     const relationEdit = makeEditEvent('$relation', 3000, '$target');
     attachSerializedReplacement({
