@@ -13,7 +13,7 @@ import { countCacheProbe } from './cacheProbe';
 import {
   createEditCompactionScheduler,
   type EditCompactionScheduler,
-} from './editCompactionScheduler';
+} from '../engine/editCompactionScheduler';
 import { THREAD_EDIT_COMPACTION_DEBOUNCE_MS } from './preloadSettings';
 import {
   getLatestThreadSummaryInfoFromEventSources,
@@ -31,7 +31,7 @@ import {
 import {
   planRedactionCacheCleanup,
   removeAggregatedReactionByEventId,
-} from './redactionCacheLifecycle';
+} from '../engine/redactionCacheLifecycle';
 import { useLiveEventArrive, type TimelineArriveMeta } from './roomLiveEventArrive';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
 import { isRenderableEvent } from './roomTimelineEvents';

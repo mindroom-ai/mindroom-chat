@@ -1,5 +1,5 @@
 import { EventTimelineSet, MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
-import { getThreadCacheTargetId } from './eventRepository';
+import { getThreadCacheTargetId } from '../threads/eventRepository';
 
 /**
  * CINNY-207 P1.2: redaction lifecycle for the MindRoom event caches.

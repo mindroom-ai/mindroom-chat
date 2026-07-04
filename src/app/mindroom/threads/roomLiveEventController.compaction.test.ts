@@ -61,7 +61,7 @@ vi.mock('./eventRepository', () => ({
   getThreadCacheTargetId: (_room: unknown, mEvt: { threadRootId?: string }) =>
     mEvt.threadRootId,
 }));
-vi.mock('./redactionCacheLifecycle', () => ({
+vi.mock('../engine/redactionCacheLifecycle', () => ({
   planRedactionCacheCleanup: () => undefined,
   removeAggregatedReactionByEventId: () => undefined,
 }));
