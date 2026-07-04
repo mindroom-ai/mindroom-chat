@@ -442,20 +442,30 @@ test.describe('CINNY-207 stale-cache divergence reconcile', () => {
         )
         .toBe(`edit-target v2 converged ${stamp}`);
 
-      // Repair-displacement invariant (AC10 as owner defined it):
-      // the reconcile repair itself must NOT displace the anchored
-      // viewport. Capture the anchor top once anchored, force one
-      // React render pass with a synthetic window resize (invalidates
-      // ResizeObservers and layout memos so the timeline re-renders
-      // against the current fallback + SDK snapshot without new
-      // events), let it settle, recapture. Delta must be ≤ 8px
-      // (fallback ≤ 16px per plan §8 if two consecutive docker runs
-      // prove the 8px bound flaky).
+      // Live-mutation displacement invariant (AC10 as owner defined it):
+      // the anchored viewport must not shift when a live in-place edit
+      // arrives for a visible neighbor. This is the streaming-edit
+      // scroll behavior the fork exists to protect — the case a user
+      // hits when an agent's response is streaming edits into a message
+      // one row down from the read position.
       //
-      // This handles both cases from owner's ruling — if the repair
-      // already landed before we anchored, the forced re-render is
-      // what the invariant is measured across; if a further repair
-      // fires during the settle window, we measure across it.
+      // Adversarial review F3 rejected the prior implementation of
+      // this assertion: it sampled `beforeTop` AFTER the reconcile
+      // repair had already completed and forced a re-render with a
+      // synthetic window resize. That measured nothing repair-related —
+      // a resize event alone doesn't invalidate the anchor position
+      // and the assertion passed even with anchoring logic reverted.
+      //
+      // The honest measurement, per team-lead's fix-shape guidance:
+      // capture the anchor top NOW (post-repair, post-anchor), then
+      // apply a SECOND server-side mutation to a visible neighbor
+      // (a further edit of the edit-target — visible below the anchor
+      // in the same thread), wait for the live in-place application
+      // via `expect(getByText).toBeVisible`, then re-sample. The delta
+      // is measured across a real live edit landing at the render
+      // layer while anchored, not across a synthetic ResizeObserver
+      // tick. Any anchor logic regression that fails to preserve the
+      // read position under a live neighbor mutation will fail this.
       const beforeTop = await page.evaluate((expectedReplyId) => {
         const anchorElement = document.querySelector<HTMLElement>(
           `[data-message-id="${CSS.escape(expectedReplyId)}"]`
@@ -464,9 +474,32 @@ test.describe('CINNY-207 stale-cache divergence reconcile', () => {
       }, fixture.replyId);
       expect(Number.isFinite(beforeTop)).toBe(true);
 
-      await page.evaluate(() => {
-        window.dispatchEvent(new Event('resize'));
+      // Third edit of the edit-target — deliberately taller body so a
+      // regression in anchor-preserving layout would produce a
+      // measurable displacement. `sendMessageEdit` is a synchronous
+      // /send call; the response is delivered to the client through
+      // live sync and rendered in place.
+      const stretchBody =
+        `edit-target v3 anchored ${stamp}\n` +
+        `line 2 padding to make this edit visibly taller than v2\n` +
+        `line 3 padding so height grows on live in-place replace`;
+      await sendMessageEdit(
+        homeserver,
+        accessToken,
+        fixture.roomId,
+        editTargetId,
+        stretchBody,
+        'cinny-207-ac2-ac10'
+      );
+      // Wait for the live edit to land at the render layer (in-place
+      // replace of the visible edit-target text). Do NOT scroll to it
+      // — the whole point is that a live mutation of an already-
+      // visible message applies without moving anchored content.
+      await expect(page.getByText(`edit-target v3 anchored ${stamp}`)).toBeVisible({
+        timeout: 30_000,
       });
+      // Two RAF ticks for virtualisation/layout to settle after the
+      // live in-place replace.
       await page.evaluate(
         () =>
           new Promise<void>((resolve) => {
@@ -482,16 +515,22 @@ test.describe('CINNY-207 stale-cache divergence reconcile', () => {
       }, fixture.replyId);
       expect(Number.isFinite(afterTop)).toBe(true);
 
+      // 8px bound is the same bound the prior assertion carried; the
+      // stretch body grows the target's height by tens of pixels, so
+      // a regression that recomputed the scroll offset relative to
+      // the mutating message rather than preserving the anchor top
+      // would produce a delta well above this threshold. If two
+      // consecutive docker cycles prove 8px flaky, the plan §8
+      // fallback is 16px — do NOT raise it silently in code.
       const displacement = Math.abs(afterTop - beforeTop);
       expect(displacement).toBeLessThanOrEqual(8);
 
-      // CINNY-207 AC2 render-gap RG4e/RG5c (2026-07-04): dump the name-
-      // the-caller counters plus the RG5c registry-swap tripwire after
-      // the forced re-render. Team-lead's directive: "one instrumentation
-      // commit + one docker run, then report the counter read before
-      // writing any fix code." Log line goes to the Playwright stdout
-      // stream (`RG-COUNTERS ...`) so the log tee'd to /tmp can be
-      // grepped without a browser DevTools session.
+      // CINNY-207 AC2 (2026-07-04): dump the retained scalar tripwires
+      // after the live edit application. The RG4/RG5c diagnostic
+      // registries were removed post-review (F1+F2); only the
+      // permanent scalar counters remain. Log line goes to the
+      // Playwright stdout stream (`RG-COUNTERS ...`) so the log
+      // tee'd to /tmp can be grepped without a browser DevTools session.
       const counterSnapshot = await page.evaluate(() => {
         const w = window as Window & {
           __MINDROOM_CACHE_PROBE__?: { snapshot: () => Record<string, number> };
