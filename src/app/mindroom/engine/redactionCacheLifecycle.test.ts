@@ -114,6 +114,35 @@ describe('planRedactionCacheCleanup', () => {
     });
   });
 
+  it('honors the SDK-supplied pre-prune threadId hint over every other signal', () => {
+    // CINNY-207 P3 gate (layer 2 — secondary hint): matrix-js-sdk's
+    // `applyEventAsRedaction` captures `redactedEvent.threadRootId` BEFORE
+    // calling `makeRedacted` and passes it as the third arg to
+    // `RoomEvent.Redaction`. That capture happens pre-prune, so it is
+    // reliable even for reactions whose relation has since been stripped.
+    // The plan must honor it as an authoritative attribution — not treat
+    // it as a viewer-side guess.
+    const prunedReaction = makeEvent({ eventId: '$reaction', type: 'm.reaction' });
+    const room = makeRoom({ $reaction: prunedReaction });
+    const redaction = makeEvent({
+      eventId: '$redaction',
+      isRedaction: true,
+      associatedId: '$reaction',
+    });
+
+    const plan = planRedactionCacheCleanup({
+      room,
+      redactionEvent: redaction,
+      sdkThreadIdHint: '$thread-root',
+    });
+    expect(plan).toMatchObject({
+      redactedEventId: '$reaction',
+      threadCacheTargetId: '$thread-root',
+      threadTargetFromFallback: false,
+      deleteRecords: true,
+    });
+  });
+
   it('falls back to the open thread id when the pruned reaction lost its thread hints', () => {
     const prunedReaction = makeEvent({ eventId: '$reaction', type: 'm.reaction' });
     const room = makeRoom({ $reaction: prunedReaction });

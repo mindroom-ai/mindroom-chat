@@ -37,11 +37,30 @@ export type RedactionCacheCleanupPlan = {
 export const planRedactionCacheCleanup = ({
   room,
   redactionEvent,
+  sdkThreadIdHint,
   fallbackThreadId,
 }: {
   room: Room;
   redactionEvent: MatrixEvent;
-  /** Thread the viewer has open, used when the pruned target lost its relation. */
+  /**
+   * CINNY-207 P3 gate re-fix (layer 2): the third arg of the
+   * `RoomEvent.Redaction` emission (matrix-js-sdk 41.7.0). matrix-js-sdk
+   * captures the target's `threadRootId` BEFORE calling `makeRedacted`
+   * (see `applyEventAsRedaction` in room.js). That means this hint is
+   * available even for reactions whose relation has since been stripped —
+   * so it is authoritative attribution, not a viewer-side guess. Highest
+   * priority in the hint chain.
+   */
+  sdkThreadIdHint?: string;
+  /**
+   * Viewer-side guess: the thread the UI has open. Used as a last resort
+   * when neither the SDK emission nor any event-side hint gave us
+   * anything. Callers should also persist the redaction to the room
+   * cache when this signal is what attributed the tombstone (see
+   * `threadTargetFromFallback`). The engine has no notion of an open
+   * thread and never sets this — it is kept for parity with the shape
+   * the pre-strip component controller passed.
+   */
   fallbackThreadId?: string;
 }): RedactionCacheCleanupPlan | undefined => {
   if (!redactionEvent.isRedaction()) return undefined;
@@ -59,21 +78,19 @@ export const planRedactionCacheCleanup = ({
 
   // By the time RoomEvent.Redaction fires the target is already pruned, so
   // its `m.relates_to` (and often its thread association) is gone. Fall back
-  // through every thread hint we have; a caller-side by-event-id scan covers
-  // the case where all of them are missing.
+  // through every attribution signal we have; the engine has a further
+  // cache-derived layer (layer 1) that covers the case where all of these
+  // return undefined.
   const hintedThreadTargetId =
+    sdkThreadIdHint ??
     getThreadCacheTargetId(room, targetEvent) ??
     targetEvent.threadRootId ??
     redactionEvent.threadRootId;
-  // CINNY-207 P3 gate: when every event-side hint is gone (the docker-gate
-  // stop-emoji case — a pruned reaction with no threadRootId, no relation,
-  // on a thread reply), fall back to scanning the SDK's own thread
-  // timelineSets for the redacted event id. The pruned event physically
-  // still lives inside its thread's unfiltered timelineSet, and that
-  // membership IS the event's attribution (not a viewer-side guess), so
-  // callers must not treat this branch as `threadTargetFromFallback`.
-  // Ambiguous (multi-thread) or zero-hit cases keep the previous behavior:
-  // caller-side by-event-id scan + room-scope persist.
+  // Kept for cases where the redacted event IS still threaded at fire time
+  // (e.g. thread messages, whose SDK move-to-main-timeline runs only for
+  // reactions). Harmless leftover — for reactions the SDK has already
+  // called `moveAllRelatedToMainTimeline`, so the scan finds nothing and
+  // the engine falls through to layer 1 (cache-derived scopes).
   const sdkDerivedThreadTargetId = hintedThreadTargetId
     ? undefined
     : findSingleSdkThreadContaining(room, redactedEventId);

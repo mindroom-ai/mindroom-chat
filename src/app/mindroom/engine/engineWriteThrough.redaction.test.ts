@@ -1,30 +1,33 @@
 /**
- * CINNY-207 P3 gate fix: redaction thread attribution derived from SDK
- * thread sets when planRedactionCacheCleanup could not attribute.
+ * CINNY-207 P3 gate fix (round 2): cache-derived redaction thread
+ * attribution — the guaranteed layer.
  *
  * The docker gate on the P3.3 tip caught this: after the strip, the
- * engine no longer had a viewer's "open thread" hint. A redacted
- * reaction on a thread reply is pruned before RoomEvent.Redaction
- * fires — so the target has no m.relates_to and often no threadRootId,
- * and planRedactionCacheCleanup returned threadCacheTargetId:undefined.
- * The consequence: the redaction record persisted to the room cache
- * only, and the P1.2 I2 protection (re-application from the cached
- * redaction against stale un-pruned server copies) was silently lost
- * for thread hydration — the stop-emoji spec asserts this.
+ * engine no longer had a viewer's "open thread" hint. The first fix
+ * attempt (SDK thread-set derivation inside planRedactionCacheCleanup)
+ * modelled the wrong reality — by the time `RoomEvent.Redaction` fires,
+ * matrix-js-sdk has already called `moveAllRelatedToMainTimeline` on
+ * the target, which removes it from the thread's timelineSet AND clears
+ * its `thread` reference. So `thread.getUnfilteredTimelineSet()
+ * .findEventById($reaction)` returns undefined at fire time — the scan
+ * never matches.
  *
- * The fix (consolidated at the plan level): planRedactionCacheCleanup
- * itself scans room.getThreads() for a thread whose unfiltered
- * timelineSet contains the redacted event id via
- * `EventTimelineSet.findEventById`. With exactly one hit, that thread
- * is used for BOTH the record deletion and the redaction-record
- * persist. Ambiguous hits (0 or >1) leave attribution unset so we
- * don't guess. Engine handler stays declarative — it just consumes
- * `plan.threadCacheTargetId`.
+ * The reliable attribution for a redacted THREAD REACTION lives in the
+ * unified cache: the reaction record was written under scope=threadId.
+ * `deleteThreadEventFromCacheByEventId` walks every thread-scoped
+ * record and deletes matches — it already knows the scope(s) it hit.
+ * We surface that as its return value: `string[]` (thread scopes it
+ * deleted from, usually exactly one). The engine handler then persists
+ * the redaction record to each returned scope. This is self-consistent
+ * by construction — the tombstone lands precisely where the reaction
+ * record existed.
  *
- * These are the engine-boundary tests: they exercise the wired-up
- * engine handler end to end (dispatch → plan → deletes + persists),
- * complementing the pure-plan unit tests in
- * `redactionCacheLifecycle.test.ts`.
+ * Layer 2 (secondary hint, kept because it's free): matrix-js-sdk emits
+ * `RoomEvent.Redaction` with a third `threadId?: string` arg captured
+ * BEFORE `makeRedacted` prunes the target. mindroomSyncEngine plumbs
+ * that arg into the plan as `sdkThreadIdHint`. This covers redacted
+ * thread MESSAGES too (they don't hit layer 1 because there is no
+ * reaction record to delete; the tombstone still needs a scope).
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -34,7 +37,8 @@ const persistThreadEventCacheSnapshot = vi.fn();
 const persistRoomEventCacheSnapshot = vi.fn();
 const deleteRoomEventsFromCache = vi.fn().mockResolvedValue(undefined);
 const deleteThreadEventsFromCache = vi.fn().mockResolvedValue(undefined);
-const deleteThreadEventFromCacheByEventId = vi.fn().mockResolvedValue(undefined);
+// Default: return no scopes (nothing in cache). Individual tests override.
+const deleteThreadEventFromCacheByEventId = vi.fn().mockResolvedValue([] as string[]);
 
 vi.mock('../threads/eventRepository', () => ({
   persistThreadEventCacheSnapshot: (...args: unknown[]) =>
@@ -44,10 +48,9 @@ vi.mock('../threads/eventRepository', () => ({
   deleteThreadEventsFromCache: (...args: unknown[]) => deleteThreadEventsFromCache(...args),
   deleteThreadEventFromCacheByEventId: (...args: unknown[]) =>
     deleteThreadEventFromCacheByEventId(...args),
-  // Real getThreadCacheTargetId shape not needed — the pruned redacted
-  // target has neither m.relates_to nor threadRootId, so the plan's
-  // hint chain returns undefined. Mock returns undefined for every
-  // input to force the SDK-derived attribution path.
+  // The pruned redacted target has neither m.relates_to nor threadRootId
+  // by the time we see the redaction, so the plan's hint chain returns
+  // undefined. Mock returns undefined for every input.
   getThreadCacheTargetId: () => undefined,
 }));
 
@@ -95,14 +98,17 @@ const makeEvent = (
   isThreadRoot: false,
 });
 
+/**
+ * Fake thread. Reality at RoomEvent.Redaction fire time: the SDK has
+ * already called moveAllRelatedToMainTimeline on the reaction, which
+ * removes it from this thread's timelineSet — so the reaction is NOT
+ * in `timelineEvents` here. Tests deliberately omit it to model
+ * production behavior.
+ */
 const makeThread = (rootId: string, timelineEvents: FakeEvent[]): Thread =>
   ({
     id: rootId,
     getUnfilteredTimelineSet: () => ({
-      // planRedactionCacheCleanup uses findEventById (SDK's own event
-      // index). Kept `getLiveTimeline().getEvents()` too because the
-      // engine's `collectRoomEventIds` also walks it to build the
-      // candidateParentIds set for the aggregation scrub.
       findEventById: (eventId: string) =>
         timelineEvents.find((mEvent) => mEvent.getId() === eventId) as
           | MatrixEvent
@@ -137,30 +143,50 @@ const makeRoom = ({
       } as never),
   } as unknown as Room);
 
-const redactionMeta = (): EngineLiveEventMeta => ({
+const redactionMeta = (
+  sdkThreadId?: string
+): EngineLiveEventMeta => ({
   kind: 'redaction',
   roomId: '!room:example.org',
+  liveEvent: true,
+  toStartOfTimeline: false,
+  sdkThreadId,
 });
 
-describe('engineWriteThrough redaction thread attribution (CINNY-207 P3 gate)', () => {
+/**
+ * Let queued microtasks (the layer-1 `.then(...)` chain hanging off the
+ * cache-derived delete) run before assertions. Kept as a helper so the
+ * lint rule against reading promise-executor return values doesn't flag
+ * every await.
+ */
+const flushMicrotasks = (): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+
+describe('engineWriteThrough redaction thread attribution (CINNY-207 P3 gate re-fix)', () => {
   beforeEach(() => {
     persistThreadEventCacheSnapshot.mockReset();
     persistRoomEventCacheSnapshot.mockReset();
     deleteRoomEventsFromCache.mockReset().mockResolvedValue(undefined);
     deleteThreadEventsFromCache.mockReset().mockResolvedValue(undefined);
-    deleteThreadEventFromCacheByEventId.mockReset().mockResolvedValue(undefined);
+    deleteThreadEventFromCacheByEventId.mockReset().mockResolvedValue([] as string[]);
   });
 
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  it('persists the redaction to thread scope when the pruned reaction lives in exactly one thread timelineSet (stop-emoji case)', () => {
-    // Reaction is already pruned: no m.relates_to, no threadRootId, but
-    // it's still present in the thread's unfilteredTimelineSet — that
-    // is what the SDK-derived attribution scan finds.
+  it('persists the redaction to the thread scope returned by the by-event-id delete (stop-emoji, cache-derived)', async () => {
+    // Reality at fire time: the reaction has been moved out of the
+    // thread's timelineSet by moveAllRelatedToMainTimeline. No pre-prune
+    // threadId hint from the SDK either (simulating a bridged event or
+    // any code path where the third-arg hint is absent). All the plan's
+    // event-side hints return undefined. The GUARANTEED signal is the
+    // reaction record already sitting in the cache under scope=$thread-root.
     const prunedReaction = makeEvent('$reaction', { type: 'm.reaction' });
-    const thread = makeThread('$thread-root', [prunedReaction]);
+    // Empty thread timelineSet — reaction was already moved to main.
+    const thread = makeThread('$thread-root', []);
     const redaction = makeEvent('$redaction', {
       type: 'm.room.redaction',
       isRedaction: true,
@@ -170,33 +196,69 @@ describe('engineWriteThrough redaction thread attribution (CINNY-207 P3 gate)', 
       events: { $reaction: prunedReaction, $redaction: redaction },
       threads: [thread],
     });
+    // Cache holds the reaction under this thread scope; the delete
+    // walker returns that scope.
+    deleteThreadEventFromCacheByEventId.mockResolvedValueOnce(['$thread-root']);
     const writer = createEngineWriteThrough({ sessionId: 'session' });
 
     writer.handleLiveEvent(redaction as unknown as MatrixEvent, room, redactionMeta());
+    // Engine dispatch schedules the persist after the delete resolves.
+    // Give microtasks a chance to run.
+    await flushMicrotasks();
 
-    // Redaction record persisted to the thread scope (not room-only).
+    // The redaction record lands on the thread scope the cache walker
+    // reported — self-consistent by construction.
     expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
     expect(persistThreadEventCacheSnapshot.mock.calls[0][0].threadId).toBe('$thread-root');
     expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([redaction]);
-    // SDK-derived attribution is authoritative — no belt-and-braces
-    // room persist (that would double-store the redaction).
+    // No belt-and-braces room persist — the derived scope is authoritative.
     expect(persistRoomEventCacheSnapshot).not.toHaveBeenCalled();
-    // Reaction record deleted from the derived thread scope, not the
-    // event-id fallback path.
-    expect(deleteThreadEventsFromCache).toHaveBeenCalledTimes(1);
-    expect(deleteThreadEventsFromCache.mock.calls[0][1]).toBe('!room:example.org');
-    expect(deleteThreadEventsFromCache.mock.calls[0][2]).toBe('$thread-root');
-    expect(deleteThreadEventsFromCache.mock.calls[0][3]).toEqual(['$reaction']);
-    expect(deleteThreadEventFromCacheByEventId).not.toHaveBeenCalled();
+    // We routed through the by-event-id walker (that's how we learned
+    // the scope), not the keyed thread delete.
+    expect(deleteThreadEventFromCacheByEventId).toHaveBeenCalledTimes(1);
+    expect(deleteThreadEventFromCacheByEventId.mock.calls[0][2]).toBe('$reaction');
+    expect(deleteThreadEventsFromCache).not.toHaveBeenCalled();
+    // Room-scoped reaction record (if any) still cleared.
     expect(deleteRoomEventsFromCache).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to the by-event-id delete and room-scope persist when no thread claims the redacted event id (genuine room-level redaction)', () => {
+  it('honors the SDK pre-prune threadId hint from the RoomEvent.Redaction emission (thread MESSAGE redaction)', async () => {
+    // A thread MESSAGE is redacted. deleteRecords=false (we keep the
+    // tombstone), so layer 1 (cache-derived from the delete walker) does
+    // not fire. Layer 2 — the pre-prune sdkThreadId — is what gets the
+    // redaction tombstone into the correct thread scope.
+    const message = makeEvent('$msg', { type: 'm.room.message' });
+    const thread = makeThread('$thread-root', []);
+    const redaction = makeEvent('$redaction', {
+      type: 'm.room.redaction',
+      isRedaction: true,
+      associatedId: '$msg',
+    });
+    const room = makeRoom({
+      events: { $msg: message, $redaction: redaction },
+      threads: [thread],
+    });
+    const writer = createEngineWriteThrough({ sessionId: 'session' });
+
+    writer.handleLiveEvent(
+      redaction as unknown as MatrixEvent,
+      room,
+      redactionMeta('$thread-root')
+    );
+    await flushMicrotasks();
+
+    // Tombstone persists to the pre-prune thread scope.
+    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
+    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].threadId).toBe('$thread-root');
+    expect(persistRoomEventCacheSnapshot).not.toHaveBeenCalled();
+    // No deletion (message target, not reaction).
+    expect(deleteThreadEventFromCacheByEventId).not.toHaveBeenCalled();
+    expect(deleteThreadEventsFromCache).not.toHaveBeenCalled();
+    expect(deleteRoomEventsFromCache).not.toHaveBeenCalled();
+  });
+
+  it('falls back to room-scope persist when the cache walker returns no scopes and there is no SDK hint (genuine room-level redaction)', async () => {
     const prunedTarget = makeEvent('$msg', { type: 'm.room.message' });
-    // No thread timelineSet contains $msg.
-    const otherThread = makeThread('$other-thread', [
-      makeEvent('$unrelated', { type: 'm.room.message' }),
-    ]);
     const redaction = makeEvent('$redaction', {
       type: 'm.room.redaction',
       isRedaction: true,
@@ -204,15 +266,15 @@ describe('engineWriteThrough redaction thread attribution (CINNY-207 P3 gate)', 
     });
     const room = makeRoom({
       events: { $msg: prunedTarget, $redaction: redaction },
-      threads: [otherThread],
+      threads: [],
     });
     const writer = createEngineWriteThrough({ sessionId: 'session' });
 
     writer.handleLiveEvent(redaction as unknown as MatrixEvent, room, redactionMeta());
+    await flushMicrotasks();
 
-    // Target is a message (not reaction) → deleteRecords is false, so
-    // no delete calls. Redaction record persists to room scope only
-    // because no thread attribution exists.
+    // Target is a message (deleteRecords=false), no thread attribution,
+    // no SDK hint → tombstone persists to room scope only.
     expect(deleteThreadEventsFromCache).not.toHaveBeenCalled();
     expect(deleteThreadEventFromCacheByEventId).not.toHaveBeenCalled();
     expect(deleteRoomEventsFromCache).not.toHaveBeenCalled();
@@ -221,14 +283,12 @@ describe('engineWriteThrough redaction thread attribution (CINNY-207 P3 gate)', 
     expect(persistRoomEventCacheSnapshot.mock.calls[0][0].events).toEqual([redaction]);
   });
 
-  it('leaves attribution unset when the redacted event id appears in multiple thread timelineSets (ambiguous — falls back to room scope)', () => {
-    // Defensive guard: an aggregated reaction may end up mirrored
-    // across multiple thread timelineSets in weird SDK states. We
-    // don't want to guess which thread it belongs to; fall back to
-    // room scope so hydration at least has something to work with.
+  it('persists the redaction to every scope the cache walker returns (ambiguous cross-thread reaction)', async () => {
+    // Defensive: a stale reaction record may have been written under
+    // more than one thread scope through legacy migrations. Persist the
+    // tombstone to each returned scope so hydration of either thread
+    // sees the redaction.
     const prunedReaction = makeEvent('$reaction', { type: 'm.reaction' });
-    const threadA = makeThread('$thread-a', [prunedReaction]);
-    const threadB = makeThread('$thread-b', [prunedReaction]);
     const redaction = makeEvent('$redaction', {
       type: 'm.room.redaction',
       isRedaction: true,
@@ -236,20 +296,59 @@ describe('engineWriteThrough redaction thread attribution (CINNY-207 P3 gate)', 
     });
     const room = makeRoom({
       events: { $reaction: prunedReaction, $redaction: redaction },
-      threads: [threadA, threadB],
+      threads: [],
     });
+    deleteThreadEventFromCacheByEventId.mockResolvedValueOnce([
+      '$thread-a',
+      '$thread-b',
+    ]);
     const writer = createEngineWriteThrough({ sessionId: 'session' });
 
     writer.handleLiveEvent(redaction as unknown as MatrixEvent, room, redactionMeta());
+    await flushMicrotasks();
 
-    // No thread-scoped persist — ambiguous.
-    expect(persistThreadEventCacheSnapshot).not.toHaveBeenCalled();
-    // Fell back to the by-event-id delete for the reaction and to
-    // room-scope persist for the redaction record itself.
     expect(deleteThreadEventFromCacheByEventId).toHaveBeenCalledTimes(1);
-    expect(deleteThreadEventFromCacheByEventId.mock.calls[0][2]).toBe('$reaction');
-    expect(deleteThreadEventsFromCache).not.toHaveBeenCalled();
-    expect(persistRoomEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistRoomEventCacheSnapshot.mock.calls[0][0].events).toEqual([redaction]);
+    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(2);
+    const persistedScopes = persistThreadEventCacheSnapshot.mock.calls
+      .map((call) => call[0].threadId as string)
+      .sort();
+    expect(persistedScopes).toEqual(['$thread-a', '$thread-b']);
+    // Ambiguous cache attribution → no room persist (the reaction was
+    // clearly a thread record).
+    expect(persistRoomEventCacheSnapshot).not.toHaveBeenCalled();
+    expect(deleteRoomEventsFromCache).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists the redaction to the plan-derived thread scope when hints resolve directly (no walker needed)', async () => {
+    // When the plan already has an authoritative attribution (e.g. the
+    // sdkThreadId hint), we use the keyed thread delete (not the walker)
+    // and persist the tombstone to that scope. This is the happy path.
+    const prunedReaction = makeEvent('$reaction', { type: 'm.reaction' });
+    const redaction = makeEvent('$redaction', {
+      type: 'm.room.redaction',
+      isRedaction: true,
+      associatedId: '$reaction',
+    });
+    const room = makeRoom({
+      events: { $reaction: prunedReaction, $redaction: redaction },
+      threads: [],
+    });
+    const writer = createEngineWriteThrough({ sessionId: 'session' });
+
+    writer.handleLiveEvent(
+      redaction as unknown as MatrixEvent,
+      room,
+      redactionMeta('$thread-root')
+    );
+    await flushMicrotasks();
+
+    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
+    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].threadId).toBe('$thread-root');
+    expect(persistRoomEventCacheSnapshot).not.toHaveBeenCalled();
+    expect(deleteThreadEventsFromCache).toHaveBeenCalledTimes(1);
+    expect(deleteThreadEventsFromCache.mock.calls[0][2]).toBe('$thread-root');
+    expect(deleteThreadEventsFromCache.mock.calls[0][3]).toEqual(['$reaction']);
+    expect(deleteThreadEventFromCacheByEventId).not.toHaveBeenCalled();
+    expect(deleteRoomEventsFromCache).toHaveBeenCalledTimes(1);
   });
 });

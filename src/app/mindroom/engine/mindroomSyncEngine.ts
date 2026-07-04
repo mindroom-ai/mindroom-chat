@@ -146,15 +146,26 @@ export const createMindroomSyncEngine = ({
 
   const handleRedaction: RoomEventHandlerMap[RoomEvent.Redaction] = (
     event: MatrixEvent,
-    room: Room | undefined
+    room: Room | undefined,
+    threadId?: string
   ) => {
     if (!room || !liveMode) return;
 
+    // CINNY-207 P3 gate re-fix (layer 2): matrix-js-sdk's
+    // `applyEventAsRedaction` captures the redacted target's
+    // `threadRootId` BEFORE calling `makeRedacted` and passes it as
+    // the third arg to this emission. That capture is pre-prune, so
+    // it is a reliable attribution hint for the write-through even
+    // when the redacted target has since been pruned + moved off its
+    // thread. Layer 1 (cache-derived scopes) still runs when this is
+    // absent (e.g. the SDK re-emits redactions through the Timeline
+    // channel without the extra arg).
     const meta: EngineLiveEventMeta = {
       kind: 'redaction',
       roomId: room.roomId,
       liveEvent: true,
       toStartOfTimeline: false,
+      sdkThreadId: threadId,
     };
     effectiveWriteThrough.handleLiveEvent(event, room, meta);
   };

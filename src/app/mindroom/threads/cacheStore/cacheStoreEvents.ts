@@ -823,21 +823,31 @@ export const noteThreadOpened = (
  * room's thread-scoped records (all scopes != '') and delete any record
  * whose `eventId` matches. Room-timeline records (scope=='') are skipped —
  * the redaction path calls `deleteRoomEventsFromCache` separately for
- * those. This is a legacy-faithful port; collapsing the room+thread scan
- * is P2.3's job.
+ * those.
+ *
+ * CINNY-207 P3 gate re-fix: returns the thread scope(s) it deleted from
+ * (deduped). This lets the engine's redaction path use the cache itself
+ * as the authoritative attribution signal — the tombstone is persisted
+ * to precisely the scope(s) where the reaction record lived, even when
+ * matrix-js-sdk has already pruned every event-side thread hint by the
+ * time RoomEvent.Redaction fires (D8 reaction reality: the SDK has
+ * moved the reaction out of the thread's timelineSet AND cleared its
+ * `thread` reference before we ever see the redaction). Returns an
+ * empty array when nothing matched (open failure, or the cache never
+ * held a thread-scoped record for this event id).
  */
 export const deleteThreadEventFromCacheByEventId = async (
   sessionId: string,
   roomId: string,
   eventId: string
-): Promise<void> => {
+): Promise<string[]> => {
   // CINNY-207 P2 review: swallow open/txn failures — see
   // deleteRoomEventsFromCache for the rationale.
   try {
     const db = await openCacheStore(sessionId);
-    if (!db) return;
+    if (!db) return [];
 
-    await new Promise<void>((resolve, reject) => {
+    return await new Promise<string[]>((resolve, reject) => {
       const transaction = db.transaction(
         [EVENTS_STORE, ROOM_LEDGER_STORE],
         'readwrite'
@@ -845,6 +855,7 @@ export const deleteThreadEventFromCacheByEventId = async (
       const eventStore = transaction.objectStore(EVENTS_STORE);
       const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
       const ledger = createLedgerTracker(roomId);
+      const deletedScopes = new Set<string>();
       ledger.readBaseline(ledgerStore, eventStore, () => {
         const index = eventStore.index(EVENTS_BY_SCOPE_TS_INDEX);
         const range = IDBKeyRange.bound(
@@ -865,6 +876,7 @@ export const deleteThreadEventFromCacheByEventId = async (
           if (record.scope !== '' && record.eventId === eventId) {
             countCacheProbe('eventDeletes');
             ledger.noteDelete(record);
+            deletedScopes.add(record.scope);
             cursor.delete();
           }
           cursor.continue();
@@ -872,11 +884,12 @@ export const deleteThreadEventFromCacheByEventId = async (
         cursorRequest.onerror = () => reject(cursorRequest.error);
       });
 
-      transaction.oncomplete = () => resolve();
+      transaction.oncomplete = () => resolve(Array.from(deletedScopes));
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
   } catch {
     // Best-effort — see rationale above.
+    return [];
   }
 };

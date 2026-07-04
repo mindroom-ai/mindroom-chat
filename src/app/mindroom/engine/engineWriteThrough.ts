@@ -202,48 +202,89 @@ export const createEngineWriteThrough = (
     return true;
   };
 
-  const handleRedactionLive = (event: MatrixEvent, room: Room) => {
+  const handleRedactionLive = (event: MatrixEvent, room: Room, meta: EngineLiveEventMeta) => {
+    const sdkThreadIdHint = meta.kind === 'redaction' ? meta.sdkThreadId : undefined;
     const cleanupPlan = planRedactionCacheCleanup({
       room,
       redactionEvent: event,
-      // Engine has no notion of an "open thread"; the cleanup plan
-      // must derive its thread attribution from the redacted target
-      // itself (SDK state) rather than from a UI context.
+      // Layer 2 (secondary): pre-prune threadId captured by matrix-js-sdk
+      // before `makeRedacted` strips the target. Absent for Timeline-
+      // channel re-emits.
+      sdkThreadIdHint,
+      // Engine has no notion of an "open thread" — the pre-strip
+      // component controller set this; we intentionally do not.
       fallbackThreadId: undefined,
     });
     if (!cleanupPlan) return;
 
+    // Room-scoped record for the redacted target (if any) is always
+    // cleared for reactions — a reaction can technically exist as a
+    // room-cache record too if it was ever persisted outside a thread
+    // scope. Cheap, and preserves legacy semantics.
     if (cleanupPlan.deleteRecords) {
-      if (cleanupPlan.threadCacheTargetId) {
-        deleteThreadEventsFromCache(
-          sessionId,
-          room.roomId,
-          cleanupPlan.threadCacheTargetId,
-          [cleanupPlan.redactedEventId]
-        ).catch(() => undefined);
-      } else {
-        deleteThreadEventFromCacheByEventId(
-          sessionId,
-          room.roomId,
-          cleanupPlan.redactedEventId
-        ).catch(() => undefined);
-      }
       deleteRoomEventsFromCache(sessionId, room.roomId, [cleanupPlan.redactedEventId]).catch(
         () => undefined
       );
-
-      const candidateParentIds = collectRoomEventIds(room);
-      removeAggregatedReactionByEventId({
-        timelineSets: collectRedactionTimelineSets(room, cleanupPlan.threadCacheTargetId),
-        candidateParentIds,
-        redactedEventId: cleanupPlan.redactedEventId,
-      });
     }
 
-    // Persist the redaction event itself in every case (see the
-    // I2 comment in the component code we absorbed: homeservers can
-    // serve stale un-pruned copies of the redacted event, so the
-    // cached redaction record lets hydration re-apply it locally).
+    // Reaction record + aggregation scrub. Two dispatch paths:
+    //   (a) Plan already gave us the thread scope → keyed thread delete,
+    //       then persist the redaction tombstone to that scope.
+    //   (b) Plan could not attribute → walk the cache by event id,
+    //       take the returned scopes (this is the guaranteed-correct
+    //       cache-derived attribution, layer 1), and persist the
+    //       redaction tombstone to each. If the walker returned no
+    //       scopes, fall through to room-scope persist.
+    // Aggregation scrub uses the plan's thread scope (undefined ok —
+    // the room's unfiltered timelineSet is still scanned).
+    const candidateParentIds = collectRoomEventIds(room);
+    removeAggregatedReactionByEventId({
+      timelineSets: collectRedactionTimelineSets(room, cleanupPlan.threadCacheTargetId),
+      candidateParentIds,
+      redactedEventId: cleanupPlan.redactedEventId,
+    });
+
+    if (cleanupPlan.deleteRecords && !cleanupPlan.threadCacheTargetId) {
+      // Layer 1: cache-derived attribution.
+      void deleteThreadEventFromCacheByEventId(
+        sessionId,
+        room.roomId,
+        cleanupPlan.redactedEventId
+      )
+        .catch(() => [] as string[])
+        .then((scopes) => {
+          if (scopes.length > 0) {
+            scopes.forEach((threadId) => {
+              persistThreadEvents(
+                sessionId,
+                room,
+                threadId,
+                [event],
+                // No-downgrade: redactions must not assert tail state.
+                undefined
+              );
+            });
+            return;
+          }
+          // Nothing in the cache → the redaction really is unattributed.
+          // Persist to room scope so hydration at least has the tombstone.
+          persistRoomEvents(sessionId, room, [event]);
+        });
+      return;
+    }
+
+    if (cleanupPlan.deleteRecords && cleanupPlan.threadCacheTargetId) {
+      deleteThreadEventsFromCache(
+        sessionId,
+        room.roomId,
+        cleanupPlan.threadCacheTargetId,
+        [cleanupPlan.redactedEventId]
+      ).catch(() => undefined);
+    }
+
+    // Persist the redaction event itself. Every case: homeservers can
+    // serve stale un-pruned copies of the redacted event, so the cached
+    // redaction record lets hydration re-apply it locally (I2).
     if (cleanupPlan.threadCacheTargetId) {
       persistThreadEvents(
         sessionId,
@@ -309,7 +350,7 @@ export const createEngineWriteThrough = (
     countCacheProbe('engineLiveWrites');
 
     if (meta.kind === 'redaction') {
-      handleRedactionLive(event, room);
+      handleRedactionLive(event, room, meta);
       return;
     }
 
@@ -317,7 +358,7 @@ export const createEngineWriteThrough = (
     // Timeline channel (the SDK re-emits them). Route via the
     // redaction lifecycle so the two entry points share cleanup.
     if (event.isRedaction()) {
-      handleRedactionLive(event, room);
+      handleRedactionLive(event, room, meta);
       return;
     }
 

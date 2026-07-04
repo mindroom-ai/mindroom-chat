@@ -29,6 +29,17 @@ export type EngineLiveEventMeta =
       readonly roomId: string;
       readonly liveEvent: true;
       readonly toStartOfTimeline: false;
+      /**
+       * CINNY-207 P3 gate re-fix (layer 2): the third arg of the
+       * `RoomEvent.Redaction` emission — matrix-js-sdk captures the
+       * redacted target's `threadRootId` BEFORE pruning, so this is a
+       * reliable pre-prune attribution hint the write-through hands
+       * straight to `planRedactionCacheCleanup`. Absent for
+       * genuinely non-threaded redactions and for the second entry
+       * point (Timeline-channel re-emit) where the SDK does not
+       * supply it.
+       */
+      readonly sdkThreadId?: string;
     };
 
 export type EngineLiveEventHandler = (
