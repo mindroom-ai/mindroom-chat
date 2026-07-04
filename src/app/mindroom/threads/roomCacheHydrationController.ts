@@ -8,6 +8,7 @@ import { type MatrixClient, type Room } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import { decryptAllTimelineEvent } from '../../utils/room';
 import { hydrateCachedEvents } from './eventCacheEditUtils';
+import { markCacheHydrateEnd, markCacheHydrateStart } from './cacheProbe';
 import { logTimelineDebug } from './timelineDebug';
 import {
   getLinkedTimelines,
@@ -66,6 +67,7 @@ export const useRoomCacheHydrationController = ({
 
     let cancelled = false;
     const hydrateRoomFromCache = async () => {
+      markCacheHydrateStart('room');
       logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-start', {
         limit: safePaginationLimit,
       });
@@ -131,6 +133,7 @@ export const useRoomCacheHydrationController = ({
       scrollToBottomRef.current.count += 1;
       scrollToBottomRef.current.smooth = false;
       setAtBottom(true);
+      markCacheHydrateEnd('room');
       logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-complete', {
         hydratedCount: cachedEvents.length,
         timelineWasEmpty,

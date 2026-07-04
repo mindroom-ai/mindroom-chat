@@ -504,6 +504,14 @@ new engine-scoped guard file):
 
 ## 9. Status log
 
+- 2026-07-03 — **P0.1 + P0.2 landed** (PR 2 of the stack): cache write probe
+  (`cacheProbe.ts`) wired into both save paths and the persist entry points
+  (put/save/error counters, hydrate timing marks, `window.__MINDROOM_CACHE_PROBE__`);
+  matrix e2e helpers for `m.replace` edits and redactions; three red live specs
+  annotated `test.fail()`: `cinny207-stop-emoji-redaction` (AC3, green in P1.2),
+  `cinny207-streamed-edit-cache` (AC4, green in P1.4),
+  `cinny207-background-room-freshness` (AC6, green in Phase 3).
+
 - 2026-07-03 — Rebased onto the v4.12.3-based `dev` (`b7b10b9d`); re-verified
   findings F1-F13 anchors on the new base and updated line references.
 - 2026-07-03 — Plan created from the caching investigation (two mapping

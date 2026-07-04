@@ -10,6 +10,7 @@ import {
   copyLegacyIndexedDbIfTargetStoreEmpty,
   openExistingDatabase,
 } from './cacheDbMigrationUtils';
+import { countCacheProbe } from './cacheProbe';
 
 export const MINDROOM_ROOM_EVENT_CACHE_DB_NAME = 'mindroom-room-event-cache';
 const DB_NAME = MINDROOM_ROOM_EVENT_CACHE_DB_NAME;
@@ -327,6 +328,12 @@ export const saveRoomEventsToCache = async (
 
   const normalizedEvents = normalizeCachedRoomEvents(rawEvents);
   if (normalizedEvents.length === 0) return;
+
+  countCacheProbe('roomSaveCalls');
+  countCacheProbe('roomEventPuts', normalizedEvents.length);
+  if (beforeTokenForEarliest !== undefined) {
+    countCacheProbe('roomMetaPuts');
+  }
 
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction([EVENT_STORE, META_STORE], 'readwrite');

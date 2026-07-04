@@ -146,6 +146,49 @@
     with `aria-valuetext` is what announces question/answer previews during
     arrow-key navigation; alternative roles lose that or require
     restructuring the presentational stripes into a real listbox.
+### CINNY-207 P0 - Cache probe instrumentation and red e2e baselines (2026-07-03)
+
+- Status:
+  - Complete locally (PR 2 of the cache-overhaul stack).
+- Summary:
+  - Added `src/app/mindroom/threads/cacheProbe.ts`: pure counters for cache
+    save calls, event/meta puts, deletes, serialized events, and write errors,
+    wired into `roomEventCache.saveRoomEventsToCache`,
+    `threadEventCache.saveThreadEventsToCache`, and the
+    `eventRepository` persist entry points; hydrate timing marks in
+    `roomCacheHydrationController`; exposed via
+    `window.__MINDROOM_CACHE_PROBE__`. No behavior change (write errors are
+    still swallowed, now counted — surfacing is P1.5).
+  - Added e2e matrix helpers `sendMessageEdit` (m.replace) and `redactEvent`,
+    plus IndexedDB cache readers in `e2e/helpers/storage.ts`.
+  - Added three red live specs (annotated `test.fail()`, so the suite stays
+    green while the redness is executable): stop-emoji redaction lifecycle
+    (AC3, green in P1.2), streamed-edit cache compaction (AC4, green in
+    P1.4), background-room cache freshness (AC6, green in Phase 3).
+- Decisions:
+  - Red specs use `test.fail()` rather than skip so an accidental fix or
+    regression is loud ("passed unexpectedly").
+  - Probe counting inside the swallowed `.catch` handlers is observability
+    only; behavior change is deferred to P1.5 per the plan.
+- Next steps:
+  - P1.1 (kill write amplification), evidence via the new probe (AC5).
+- Validation:
+  - Green: `npm run typecheck`.
+  - Lint: 0 errors; 2 intentional `no-console` warnings in the new e2e specs
+    (baseline-number capture for the plan scorecard).
+  - Green: `npm test -- src/app/mindroom/threads/cacheProbe.test.ts src/app/mindroom/threads/eventRepository.test.ts src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts` (3 files, 108 tests).
+  - Red-as-expected: `E2E_ENABLE_DEPLOYED_FIXTURE=0 ./scripts/test-e2e-docker-matrix.sh e2e/live/cinny207-*.spec.ts --reporter=line`
+    — 3 expected-failure passes; baselines captured: background room cached
+    0 events; streamed 25-edit message left 26 thread-cache records
+    (recorded in the plan scorecard "before" column).
+  - Green: `npm run build` (existing Vite warning classes only).
+  - Independent subagent review: no blockers; applied its should-fix (this
+    build line) and nits (probe docstring "attempted puts" wording,
+    `eventDeletes` marked reserved for P1.2, baseline log in the stop-emoji
+    spec). Lint console-warning count is now 3 with that added log line.
+    Unrelated prettier canonicalization churn in old runbook entries is
+    noted in the commit message.
+
 ### CINNY-207 - Native-feel cache overhaul: investigation and plan (2026-07-03)
 
 - Status:
