@@ -840,8 +840,8 @@ describe('persist entry points honor cache health (CINNY-207 P1.5)', () => {
     });
     expect(roomSave).toHaveBeenCalledTimes(1);
 
-    // Let the rejected save settle and flip the health state.
-    await new Promise((resolve) => { setTimeout(resolve, 0); });
+    // Rejection reactions run as microtasks; one tick settles the catch.
+    await Promise.resolve();
     expect(isCacheWritable()).toBe(false);
 
     persistRoomEventCacheSnapshot({
@@ -873,7 +873,7 @@ describe('persist entry points honor cache health (CINNY-207 P1.5)', () => {
       events: [],
       save: flakySave,
     });
-    await new Promise((resolve) => { setTimeout(resolve, 0); });
+    await Promise.resolve();
     expect(isCacheWritable()).toBe(true);
 
     persistRoomEventCacheSnapshot({
