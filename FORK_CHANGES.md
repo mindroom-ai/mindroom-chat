@@ -2,6 +2,108 @@
 
 ## Runbook
 
+### CINNY-207 AC2 render-gap RG1-RG4a — DIAGNOSIS CORRECTION: no render-gap, the AC2 live-gate failure is a viewport/scroll problem (2026-07-04)
+
+- Preceding assumption (R9 + RG1-RG3): "cache converges + sink
+  fires but `edit-target v2 converged` never renders — the seam
+  between the reconciler's onRepaired and the render-held
+  MatrixEvent must be dropping the repair". Instrumentation was
+  layered progressively: RG1 sink counters, RG2 mergeSaw…
+  counters, RG3 renderTarget…Replacement counters at
+  `getEditedEvent` — the RG3 in-vivo ratio (5 hadReplacement vs
+  380+ lackedReplacement, growing 4/2s) was read as "5 of 385
+  render passes see the repair — the render seam is losing it on
+  every other tick".
+- RG4a instrumentation: per-eventId classifier in
+  `cacheProbe.recordRenderTargetSeen(eventId, mEvent,
+  hasReplacement)` called from `utils/room.ts getEditedEvent`.
+  Classifies each lack-replacement call as
+  `renderTargetRegressedNever` (id never had a replacement yet),
+  `renderTargetRegressedSameInstance` (candidate i: the retained
+  instance had its `_replacingEvent` cleared under us), or
+  `renderTargetRegressedDifferentInstance` (candidate iii: the
+  render seam swapped instances — a sibling MatrixEvent with the
+  same id but no repair).
+- RG4a diagnostic docker run (AC2 spec, `--trace on`, matrix
+  Tuwunel), t~30s snapshot:
+  - `reconcilesRepaired: 1, reconcilesOnRepairedFired: 1,
+    supplementalEventsExecuted: 1` (repair fired end-to-end)
+  - `renderTargetHadReplacement: 5` (flat from t=4s)
+  - `renderTargetLackedReplacement: 384` (grows ~4/2s)
+  - **`renderTargetRegressedNever: 384`** (ALL lack-replacement calls)
+  - **`renderTargetRegressedSameInstance: 0`**
+  - **`renderTargetRegressedDifferentInstance: 0`**
+- Zero regressions means: no id that had a replacement is ever
+  later seen without one. The "5 vs 384" ratio was measuring
+  "how many render calls hit edit-target vs how many hit the
+  other events" (i.e. the ~25 filler messages near-viewport),
+  NOT "how often the target loses its repair". RG1-RG3
+  correctly measured events but incorrectly interpreted the
+  ratio.
+- DOM inspection at t~30s (added as diagnostic to the spec,
+  reverted after run — `git checkout -- e2e/live/...`):
+  - Before programmatic scroll: `allDataMessageIdCount=19` (only
+    fillers #7–#25 attached — the visible viewport window),
+    `document.body.textContent` contains neither `edit-target v2
+    converged` nor `edit-target v1`.
+  - After programmatic `scrollTop=0` on the virtualizer's scroll
+    container: still 19 attached, but body now contains
+    **`edit-target v2 converged`**, does NOT contain `edit-target
+    v1`, does NOT contain `redact-target`. `data-message-id` for
+    edit-target is now present.
+  - Container geometry: `scrollHeight=1523, clientHeight=500`
+    (~3 viewport-heights of content).
+- **Corrected diagnosis: the render is correct.** Edit-target's
+  bundled body is v2 in the DOM when scrolled into view. The
+  repair reaches the render-held instance. Redact-target is
+  redacted out. Convergence semantics are complete.
+  The AC2 live-gate failure is a **viewport/scroll-anchor**
+  problem: after reload with 25 new fillers, the viewport lands
+  at the bottom of the thread, not restored to the anchor
+  position (`fixture.replyId`) captured on first open. Edit-
+  target sits above the fold and is virtualized off (react-
+  virtual only attaches visible + small overscan). Playwright's
+  `toBeVisible` fails because virtualized-out elements aren't
+  in DOM.
+- Candidates from R9's diagnosis surface:
+  - (a) `mergeThreadRenderEvents` dedup dropping the repair —
+        DISPROVEN (`mergeSawEditRelationNoTargetChange: 0`,
+        `hydrateApplierMutated*Instance: 0`).
+  - (b) React batching / memo swallowing tick — DISPROVEN
+        (`renderTargetHadReplacement: 5` proves the tick reaches
+        `getEditedEvent`).
+  - (c) SDK inject leg no-op — irrelevant to the visible
+        failure; the sink-side leg converges correctly on its
+        own.
+  - (i) same-instance-replacement-cleared — DISPROVEN
+        (`renderTargetRegressedSameInstance: 0`).
+  - (iii) instance-swap — DISPROVEN
+        (`renderTargetRegressedDifferentInstance: 0`).
+- All instrumentation (RG1 sink counters, RG2 merge counter,
+  RG3 render-seam counters, RG4a per-eventId classifier) stays
+  merged as always-on observability — the classifier is exactly
+  the discriminator that would have exposed the misreading in
+  one docker cycle instead of three.
+- Validation bar (RG4a commit `bc581d63`): tsc clean; vitest
+  2647/2647 green (unchanged from RG3); lint 18 warnings 0
+  errors (unchanged baseline); build clean.
+- Handoff to team-lead (awaiting direction): three options
+  identified —
+  (A) scroll-anchor restoration fix (address the real UX
+      failure: viewport should land at the captured anchor after
+      reopen, not at the bottom);
+  (B) reframe AC2's visibility assertion (scroll to anchor
+      first, then assert v2 is visible near anchor);
+  (C) both.
+  My recommendation: (A) or (C) per "make the design correct".
+  The AC10 anchor-invariant (`displacement <= 8px`) currently
+  cannot even run because the anchor element is virtualized off
+  before the assertion reaches line 401-410.
+- Commits: `feat(observability): AC2 render-gap RG4a per-eventId
+  regression classifier (CINNY-207 AC2 render-gap RG4a)` at
+  `bc581d63`. RG5 (live gate + regressions) deferred pending
+  team-lead direction on (A)/(B)/(C).
+
 ### CINNY-207 AC2 revision R1-R9 — single choke-point reconcile schedule, defensive machinery reverted (2026-07-04)
 
 - Owner directive: real fixes over defensive layers. STEP 3's
