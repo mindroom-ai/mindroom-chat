@@ -2,6 +2,56 @@
 
 ## Runbook
 
+### CINNY-207 P7.2 audit remediation — thread-open lifecycle rejections (2026-07-04)
+
+Two engine-lifecycle audit findings landed as one commit because both
+originated in the same failure shape: a queued
+`BackfillScheduler.enqueue` promise rejects when `abortAll` fires at
+engine.stop() (logout, account switch, ClientRoot retry), and the
+awaiter has no rejection handler.
+
+- Finding #1 — `threadOpenLifecycleController.ts:308` invoked
+  `loadThreadTimeline();` bare. Its try/finally-only chain
+  (`enqueueThreadBackfillJob` → `runThreadOpenCacheFirst` →
+  `runThreadOpenSdkBootstrap` → `runThreadOpenTargetEvent`) had no
+  catch anywhere; a scheduler-aborted thread-backfill promise reached
+  `window.unhandledrejection` (message
+  `'backfill scheduler stopped'`). Fixed with
+  `loadThreadTimeline().catch(() => undefined)` at the call site —
+  matches the existing swallow shape used inside the same effect
+  for the `scheduleReconcile(...).catch(() => undefined)` call and
+  keeps `onThreadLoadError` routing (invoked from
+  `runThreadOpenSdkBootstrap`) unchanged for user-visible errors.
+
+- Finding #2 — `threadSeedPrewarmController.ts:165` and
+  `threadOpenSeedController.ts:188` used
+  `void p.finally(cb)`. `.finally()` returns a NEW promise that
+  re-rejects with the original reason; the executor swallows its own
+  errors so the only rejection path is the abort. Fixed with
+  `void p.then(cleanup, cleanup)` at both sites so cleanup runs on
+  fulfil and reject without spawning a second rejected promise. Also
+  added `.catch(() => undefined)` at the two `void prewarmThreadSeeds()`
+  entry points (initial call + queueMicrotask requeue) and at the
+  in-loop `await ensureThreadSeedPrewarm(...)` — otherwise the drain
+  loop propagated the rejected scheduler promise out of the try/finally,
+  reaching the same `void` awaiter as a fresh unhandled rejection.
+
+- Sweep result: `grep -rn 'void [a-zA-Z_.]*\\.finally(' src/app/mindroom/`
+  now returns zero hits.
+
+- Red-first test: `threadOpenSeedController.test.ts` grows
+  "does not surface an unhandled rejection when the awaited prewarm
+  promise rejects" — subscribes to `unhandledrejection` (window)
+  AND `unhandledRejection` (process), primes a rejected prewarm
+  promise into the ref map, calls `startUntargetedSeedPrewarmWait`,
+  and asserts the rejection reason never lands in the collected
+  reasons. Verified red-then-green: stashing the fix reproduces
+  `1 error` in the vitest summary; restoring the fix returns to
+  `3 passed`.
+
+- Validation: `npx vitest run src/app/mindroom/threads/threadOpenSeedController.test.ts`
+  green (3 tests). Full validation batch runs at end of remediation.
+
 ### CINNY-207 Phase 6 + Phase 7 - Settings replacement + cleanup + docs (2026-07-04)
 
 - Status: P6.1 + P7.1 landed locally on

@@ -305,7 +305,20 @@ export const useThreadOpenLifecycleController = ({
       }
     };
 
-    loadThreadTimeline();
+    // CINNY-207 P7.2 audit finding #1: the thread-open chain awaits
+    // `enqueueThreadBackfillJob` (threadOpenCacheController.ts) which
+    // rejects with the abort reason when engine.stop() drains the
+    // scheduler (see `abortAll` in `backfillScheduler.ts`). Every layer
+    // in the chain — `backfillThreadRelationsIntoCache`,
+    // `runThreadOpenCacheFirst`, and `loadThreadTimeline`'s try/FINALLY
+    // — lacks a catch, so a queued thread-backfill job aborted during
+    // teardown surfaced as an unhandled promise rejection. Swallow here
+    // so the outer promise settles quietly on both abort and any other
+    // downstream throw; the try/finally inside `loadThreadTimeline`
+    // already clears the pending-open flag, and `onThreadLoadError` is
+    // invoked from `runThreadOpenSdkBootstrap` on the paths where a
+    // user-visible error banner is appropriate.
+    loadThreadTimeline().catch(() => undefined);
 
     return () => {
       mounted = false;
