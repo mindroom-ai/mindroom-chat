@@ -206,4 +206,24 @@ describe('CINNY-207 P6.1 / D4 — legacy preload setting removal', () => {
     const stateSettings = resolve(MINDROOM_DIR, '../state/settings.ts');
     expect(visited.has(stateSettings)).toBe(false);
   });
+
+  it('keeps prefetchDepth OUT of paint-time cache reads (PR #72 greptile P2 pair)', () => {
+    // `prefetchDepth` (default 10_000) is the BACKGROUND deep-history
+    // budget. Open-time cache hydration must page by the interactive
+    // constants or a deep cached room/thread materializes thousands of
+    // IndexedDB records before first paint (AC1 regression).
+    const hydration = readFileSync(
+      resolve(MINDROOM_DIR, 'threads/roomCacheHydrationController.ts'),
+      'utf8'
+    );
+    expect(hydration).not.toMatch(/limit:\s*prefetchDepth/);
+    expect(hydration).toMatch(/limit:\s*ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE/);
+
+    const threadOpen = readFileSync(
+      resolve(MINDROOM_DIR, 'threads/threadOpenCacheController.ts'),
+      'utf8'
+    );
+    expect(threadOpen).not.toMatch(/limit:\s*prefetchDepthRef/);
+    expect(threadOpen).toMatch(/limit:\s*THREAD_BATCH_SIZE/);
+  });
 });

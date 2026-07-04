@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### CINNY-207 PR #72 review — paint-time cache reads decoupled from prefetchDepth (2026-07-04)
+
+- Greptile PR #72 review (both P2s REAL, P1 already fixed by the P7.2 batch): P6.1's consumer flip (09f28b95) wired `prefetchDepth` (default 10_000, clamp [200, 10_000]) into the OPEN-TIME cache reads — `roomCacheHydrationController` page limit and `threadOpenCacheController.hydrateThreadFromCache` per-page limit (× MAX_THREAD_FETCH_ITERATIONS pages). A deep cached room/thread would scan and materialize thousands of IDB records before first paint — an AC1 paint-budget regression. The legacy code paged these by `safePaginationLimit`; the P6.1 swap conflated the background deep-history budget with the interactive paint bound.
+- Fix: room hydration pages by `ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE` (200), thread-open cache snapshot pages by `THREAD_BATCH_SIZE` (200); `prefetchDepth`/`prefetchDepthRef` props removed from both controllers (props were limit-only). `prefetchDepth` remains the budget for `getInitialTimeline` SDK window, pagination commands, and the deep-history job — user-intent history depth, off the paint path.
+- Guard: new source-scan case in `prefetchSettings.architecture.test.ts` ('keeps prefetchDepth OUT of paint-time cache reads') pins `limit:` in both controllers to the interactive constants.
+- Greptile P1 on #72 ("Scope Setting Is Ignored") was independently the P7.2 audit finding #5, already fixed in 9a4dee2c — replied on the PR with the commit.
+- Validation: tsc clean; vitest 337 files / 2615 tests green; lint 18 warnings 0 errors (baseline); build clean.
+
 ### CINNY-207 P7.2 FINAL docker e2e gate — AC3 + AC13 docker-confirmed; AC4 env-blocked (2026-07-04)
 
 - Tip under test: `f7bf06b7` (full final stack: Phases 0-7 + review-fix batch + P7.2 audit remediation + deflake), served from worktree `/tmp/wt-13` via `scripts/test-e2e-docker-matrix.sh`, `E2E_ENABLE_DEPLOYED_FIXTURE=0`.
