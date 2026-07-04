@@ -420,21 +420,68 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
   } = args;
 
   if (!threadId) {
-    // Room-scope pass lands in Commit 3. Kept as an explicit no-op here
-    // so callers can wire the API now without waiting for the room
-    // variant.
-    logTimelineDebug(debugTraceId, 'reconcile-scheduled', {
-      reason,
+    // CINNY-207 P5.1 Commit 3: room-scope reconcile pass.
+    //
+    // Room-open catchup is already covered by two engine-owned
+    // producers wired in Phase 3.2 / Phase 4.2:
+    //
+    //   - `RoomEvent.TimelineReset` writes the durable
+    //     `tailDiscontinuity` marker and enqueues a `'limited-sync'`
+    //     gap-fill job.
+    //   - `Sync -> PREPARED` enqueues a per-room `'startup'` gap-fill
+    //     job for each joined room whose marker is set.
+    //
+    // The P4.2 gap-fill executor consumes both queues and drives a
+    // `mx.createMessagesRequest` catchup, persisting through
+    // `saveRoomEventsToCache` and clearing the marker on completion.
+    // That IS the room-scope convergence path — a room-open reconcile
+    // running its own `/messages` catchup would duplicate the work
+    // (and, thanks to the scheduler's dedup key including `kind`,
+    // would need coordination with the gap-fill kind to avoid it).
+    //
+    // What P5 adds at the room scope is the SCHEDULE tripwire: every
+    // room open passes through the scheduler with `'reconcile'` +
+    // undefined threadId, which gives us observability parity with
+    // the thread path (probe counters bump; a capture confirms the
+    // room-open path never accidentally short-circuits away from the
+    // engine). The executor is intentionally a fast no-op — the real
+    // repair work fires from the gap-fill queue when the marker is
+    // set.
+    return scheduler.enqueue<ReconcileResult>({
       roomId,
-      threadId: null,
-      note: 'room-scope reconcile not implemented until Commit 3',
-    });
-    return Promise.resolve({
-      reason,
-      repaired: false,
-      fetchedCount: 0,
-      iterations: 0,
-      aborted: false,
+      kind: 'reconcile',
+      priority: 0,
+      execute: async (signal) => {
+        if (signal.aborted) {
+          return {
+            reason,
+            repaired: false,
+            fetchedCount: 0,
+            iterations: 0,
+            aborted: true,
+          };
+        }
+        logTimelineDebug(debugTraceId, 'reconcile-complete', {
+          fetchedCount: 0,
+          iterations: 0,
+          reason,
+          repaired: false,
+          roomId,
+          threadId: null,
+          note: 'room-scope reconcile — tail catchup owned by gap-fill executor',
+        });
+        // onRepaired intentionally NOT called: the executor did no
+        // repair work (tail catchup owned by gap-fill). Firing the
+        // tick here would violate the invariant "onRepaired fires
+        // only when a repair was actually applied".
+        return {
+          reason,
+          repaired: false,
+          fetchedCount: 0,
+          iterations: 0,
+          aborted: false,
+        };
+      },
     });
   }
 

@@ -50,6 +50,7 @@ import {
 } from './backfillScheduler';
 import { createGapFillExecutor } from './gapFillExecutor';
 import { resolveRoomPrefetchTier } from './prefetchPolicy';
+import { scheduleReconcile } from './reconciler';
 import type { EngineLiveEventMeta, MindroomSyncEngine } from './types';
 
 const LIVE_SYNC_STATES: ReadonlySet<string> = new Set(['PREPARED', 'SYNCING', 'CATCHUP']);
@@ -289,6 +290,28 @@ export const createMindroomSyncEngine = ({
     if (threadId) {
       noteThreadOpened(sessionId, roomId, threadId).catch(() => undefined);
     }
+    // CINNY-207 P5.1 Commit 3: room-open reconcile.
+    //
+    // Every room focus schedules exactly one room-scope reconcile
+    // through the P4.1 scheduler under kind `'reconcile'` + undefined
+    // threadId. The scheduler dedups on the (roomId, undefined,
+    // 'reconcile') key so repeated `noteRoomFocused` calls (rerender
+    // storms, quick tab switches) collapse to one job. The executor
+    // itself is a fast no-op — the real tail catchup work belongs to
+    // the gap-fill executor (P4.2), which the P3.2 markers +
+    // `Sync -> PREPARED` handler already trigger. This schedule keeps
+    // observability parity with the thread-open path: the D7 "every
+    // open schedules a reconcile" invariant holds at both scopes,
+    // and probe captures can prove no room-open silently short-
+    // circuits away from the engine.
+    scheduleReconcile({
+      mx,
+      sessionId,
+      scheduler: effectiveScheduler,
+      roomId,
+      room,
+      reason: 'room-open',
+    }).catch(() => undefined);
   };
 
   return {

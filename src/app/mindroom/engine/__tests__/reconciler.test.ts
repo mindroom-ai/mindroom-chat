@@ -315,6 +315,128 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     expect(onRepaired).toHaveBeenCalledTimes(1);
   });
 
+  it('room-scope pass (no threadId) enters the scheduler with kind "reconcile" and does not fetch', async () => {
+    // CINNY-207 P5.1 Commit 3: room-open reconcile.
+    //
+    // Room-open catchup is owned by the gap-fill executor (P4.2). The
+    // reconciler's room-scope pass is a schedule tripwire only —
+    // proves the "every open schedules a reconcile" invariant holds
+    // at both scopes and gives probe captures the same observability
+    // handle. The executor is deliberately a no-op; no /messages, no
+    // /relations, no onRepaired tick.
+    const room = makeFakeRoom();
+    const fetchRelations = vi.fn(async () => ({ chunk: [], next_batch: undefined }));
+    const mx = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx });
+    const onRepaired = vi.fn();
+
+    const promise = scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      reason: 'room-open',
+      onRepaired,
+    });
+
+    // Snapshot before drain: the pending job carries `threadId:
+    // undefined`, kind `'reconcile'`, band 0. That's what makes it
+    // dedup independently of a thread-scope reconcile on the same
+    // room (kind participates in the dedup key alongside room+thread).
+    const jobs = scheduler.pendingJobs();
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      roomId: '!room:example',
+      threadId: undefined,
+      kind: 'reconcile',
+      priority: 0,
+    });
+
+    const result = await promise;
+    expect(fetchRelations).not.toHaveBeenCalled();
+    expect(onRepaired).not.toHaveBeenCalled();
+    expect(result.reason).toBe('room-open');
+    expect(result.repaired).toBe(false);
+  });
+
+  it('room-scope pass dedups against another room-scope schedule for the same room', async () => {
+    // The dedup key includes kind + roomId + threadId, so a second
+    // `noteRoomFocused`-driven reconcile while the first is in flight
+    // must return the same promise identity. The executor is
+    // synchronous-fast so this test uses a paused scheduler
+    // (maxConcurrent: 0) to hold the first job in the queue.
+    const room = makeFakeRoom();
+    const mx = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+      fetchRelations: vi.fn(),
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx, maxConcurrent: 0 });
+
+    const first = scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      reason: 'room-open',
+    });
+    const second = scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      reason: 'room-open',
+    });
+    expect(second).toBe(first);
+    const probe = getCacheProbeSnapshot();
+    expect(probe.schedulerEnqueued).toBe(1);
+    expect(probe.schedulerDeduped).toBe(1);
+  });
+
+  it('room-scope and thread-scope reconciles on the same room coexist (different dedup domains)', async () => {
+    // AC8 dedup includes kind AND threadId, so a room-scope reconcile
+    // (threadId=undefined) and a thread-scope reconcile
+    // (threadId=$thread) on the same room map to different keys and
+    // both enter the scheduler.
+    const room = makeFakeRoom();
+    const mx = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+      fetchRelations: vi.fn(async () => ({ chunk: [], next_batch: undefined })),
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx, maxConcurrent: 0 });
+
+    scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      reason: 'room-open',
+    });
+    scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      threadId: '$thread',
+      cachedPage: makeCachedPage([]),
+      reason: 'open-complete-coverage',
+    });
+
+    const jobs = scheduler.pendingJobs();
+    expect(jobs).toHaveLength(2);
+    const kinds = jobs.map((j) => ({ threadId: j.threadId, kind: j.kind }));
+    expect(kinds).toContainEqual({ threadId: undefined, kind: 'reconcile' });
+    expect(kinds).toContainEqual({ threadId: '$thread', kind: 'reconcile' });
+  });
+
   it('pages further past 200 (F7) until the fetched chunk overlaps the cached window', async () => {
     // The pre-P5 tail refresh capped at one limit-200 batch, so a
     // divergence deeper than 200 events never converged. The
