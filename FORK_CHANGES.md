@@ -2,6 +2,96 @@
 
 ## Runbook
 
+### CINNY-207 P2.3 - Direct cacheStore imports + boundary guards (2026-07-04)
+
+- Status:
+  - Complete locally on `cache-overhaul/09-p2-cachestore`. Third and
+    final step of Phase 2 — Phase 2 is fully landed. Follow-ups: Phase
+    3 (`MindroomSyncEngine`), Phase 4 (`BackfillScheduler`), Phase 5
+    (Reconciler), Phase 6+7 (settings replacement, cleanup + final
+    review).
+- Summary:
+  - Commit 1 (`refactor: import cacheStore directly and move the
+    health gate into the store`) — direct-flip callers off the three
+    pure-shim modules onto `./cacheStore`. Deleted
+    `roomEventCache.ts`, `threadEventCache.ts`, `threadSummaryCache.ts`
+    and `cacheDbMigrationUtils.{ts,test.ts}` (the copy-migration
+    machinery + its lone-purpose helpers `runIdbRequest`,
+    `waitForIdbTransaction`, `openExistingDatabase`,
+    `copyLegacyIndexedDbIfTargetStoreEmpty` had no other consumer).
+    Also removed the dead `loadLatestCachedThreadSummaryInfo` API
+    (only re-exported by the shim; no live caller). Health gate
+    (`isCacheWritable()` + `.catch(reportCacheWriteError)`) moved into
+    the cacheStore save entry points (`saveRoomEventsToCache`,
+    `saveThreadEventsToCache`, `saveCachedThreadSummary`) — single
+    write choke point. `eventRepository.persist*` seams are now pure
+    serialization + delegate: they always call the injected `save`.
+    Deletes stay ungated. `sessionCleanup.ts` uses `deleteCacheStoreDb`
+    for the unified DB and calls `indexedDB.deleteDatabase(dbName)`
+    directly for each legacy per-session DB name (from the store's
+    `legacyCacheDbNames` re-exports) so rolled-back installs that
+    never opened v3 still get cleaned up on logout.
+    `threadSummaryStore.ts` / `threadSummaryState.ts` consume summary
+    APIs directly from `./cacheStore`. Pure-helper unit tests moved to
+    `cacheStore/__tests__/cacheStoreNormalize.{room,thread}.test.ts`;
+    the parameterized contract suite collapsed to run only against the
+    unified store (the legacy parity net ends here). New store-level
+    test `cacheStore/__tests__/cacheHealthGate.test.ts` (3 tests)
+    covers "degrade skips subsequent saves" + "deletes stay ungated".
+    `eventRepository.test.ts` reworked to assert the seam-always-
+    delegates contract. Every `vi.mock` string path referencing a
+    deleted shim was flipped (initMatrix, sessionCleanup,
+    RoomTimelineCollapsible, RoomView.threadSummary,
+    useRecentThreadViewModel, RoomTimeline.test.shared,
+    RoomTimeline.cache.test — 26 dynamic imports in that last file).
+    Typecheck + focused vitest green; broader mindroom vitest (1908
+    tests) all pass.
+  - Commit 2 (`test: architecture guards for the CacheStore boundary`) —
+    new `cacheStore/__tests__/cacheStore.architecture.test.ts` (4
+    tests) encoding: (a) the three legacy shim files no longer exist,
+    (b) recursive scan of `src/app/mindroom/**` forbids imports of
+    `./roomEventCache`, `./threadEventCache`, `./threadSummaryCache`
+    (this test and the pre-existing `RoomTimeline.architecture.test.ts`
+    are the only excluded files — they encode the same guards for
+    other purposes), (c) render components (`MindroomRoomTimeline.tsx`
+    + everything under `mindroom/messages/**`) must not contain
+    `from './cacheStore'` or a `/cacheStore` import, (c') the only
+    modules that may import `cacheStore` are the allowlisted seams:
+    `eventRepository.ts`, `threadSummaryStore.ts`,
+    `threadSummaryState.ts`, and `sessionCleanup.ts` (encoded as an
+    exact allowlist). The P1.4 write-boundary guard in the older
+    architecture suite stays green (96/96 tests).
+- Decisions:
+  - Shims deleted outright (not just deprecated) so future consumers
+    physically cannot re-import them. `roomEventCache.ts`,
+    `threadEventCache.ts`, and `threadSummaryCache.ts` never come back.
+  - The legacy per-session-scoped DB delete gesture in `sessionCleanup`
+    is a direct `indexedDB.deleteDatabase(dbName)` (three-way legacy
+    split) rather than routing through the deleted
+    `deleteThreadEventCache` / `deleteRoomEventCache` /
+    `deleteThreadSummaryCache` shims. Same observable behavior for
+    rolled-back installs; no cross-module indirection.
+  - `cacheStore/__tests__/cacheHealthGate.test.ts` mocks
+    `cacheStoreLegacyWipe` with the actual export shape
+    (`performLegacyDbWipe`, `LEGACY_WIPE_MARKER_META_KEY`) — same
+    pattern the ledger/eviction tests use.
+  - Architecture-guard file exclusion list is small and explicit —
+    only `RoomTimeline.architecture.test.ts` and the arch test itself
+    are exempt. Future guards inherit the same exclusion pattern.
+- Next steps:
+  - Phase 3 (`MindroomSyncEngine` extraction, P3.1-P3.3).
+  - Docker e2e gate + PR 9 open are the team-lead's responsibility per
+    the delivery contract.
+- Validation:
+  - `npm run typecheck` clean.
+  - Focused vitest: `cacheStore/`, `eventRepository.test.ts`,
+    `cacheHealth.test.ts`, `sessionCleanup.test.ts` (107 tests, all
+    green including the new architecture and health-gate suites).
+  - Full `npx vitest run src/app/mindroom/` — see final commit.
+  - `npm run build` — see final commit.
+  - `npm run lint` — see final commit (18-warning baseline, verify
+    delta is zero).
+
 ### CINNY-207 P2.2 - Eviction ledger and byte budget (2026-07-04)
 
 - Status:

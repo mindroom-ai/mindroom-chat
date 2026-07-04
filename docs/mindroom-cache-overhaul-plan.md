@@ -1,6 +1,6 @@
 # MindRoom Cache Overhaul Plan (CINNY-207)
 
-Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 P2.1 (unified CacheStore + D8 wipe) landed locally; Phase 2 P2.2 (ledger + `beforeTokens` pruning + 1 GB eviction budget) landed locally, P2.3 pending.**
+Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 fully landed locally (P2.1 unified CacheStore + D8 wipe, P2.2 ledger + `beforeTokens` pruning + 1 GB eviction budget, P2.3 direct-import flip + architecture guards + health-gate move into the store).**
 Phase-1 e2e gate (2026-07-03, stack tip 55439be8): streamed-edit spec green
 live (AC4, probe numbers in scorecard), stop-emoji green (AC3; three failed
 attempts were host `ERR_NETWORK_CHANGED` flake — tracked in the Runbook),
@@ -474,9 +474,15 @@ new engine-scoped guard file):
   landed P1.1 design keeps a debounced delta sweep rather than removing it).
 - The cache write boundary rejects standalone same-sender `m.replace`
   records (Phase 1 — **added**).
-- No imports of legacy cache modules outside CacheStore (Phase 2).
-- Render components do not import CacheStore directly (carried over from
-  `mindroom-cache-strategy.md`).
+- No imports of legacy cache modules outside CacheStore (Phase 2 — **added**
+  in P2.3 as `cacheStore/__tests__/cacheStore.architecture.test.ts`; asserts
+  the three shim files no longer exist AND scans `src/app/mindroom/**` for
+  forbidden import strings).
+- Render components do not import CacheStore directly (Phase 2 — **added**
+  in P2.3 in the same arch test; scans `MindroomRoomTimeline.tsx` and
+  everything under `mindroom/messages/**`; separately, an exact allowlist
+  test enumerates the only sanctioned consumers: `eventRepository.ts`,
+  `threadSummaryStore.ts`, `threadSummaryState.ts`, and `sessionCleanup.ts`).
 - The removed preload setting is not reintroduced (Phase 6).
 
 ### 6.5 Validation environment
@@ -564,6 +570,61 @@ new engine-scoped guard file):
   workflow review round 1; recorded here for product-owner review.
 
 ## 9. Status log
+
+- 2026-07-04 — **Phase 2 fully landed locally** on
+  `cache-overhaul/09-p2-cachestore` after P2.3. Two commits on top of
+  the P2.2 stack:
+
+  1. `refactor: import cacheStore directly and move the health gate
+     into the store` — flipped `eventRepository.ts`, `sessionCleanup.ts`,
+     `threadSummaryStore.ts`, and `threadSummaryState.ts` to import
+     directly from `./cacheStore`. Deleted the three legacy pure-shim
+     files (`roomEventCache.ts`, `threadEventCache.ts`,
+     `threadSummaryCache.ts`), `cacheDbMigrationUtils.{ts,test.ts}`
+     (its copy-migration machinery had no non-shim consumer), and the
+     dead `loadLatestCachedThreadSummaryInfo` API. The cache-write
+     health gate (P1.5 F4) moved OUT of the eventRepository seams and
+     INTO the cacheStore save entry points (`saveRoomEventsToCache`,
+     `saveThreadEventsToCache`, `saveCachedThreadSummary`) —
+     `isCacheWritable()` check up front, `reportCacheWriteError` on
+     failure, single write choke point. Deletes stay ungated.
+     `eventRepository.persist*` are pure serialization seams —
+     always call the injected `save`. `sessionCleanup` deletes each
+     legacy per-session DB directly via `indexedDB.deleteDatabase`
+     (three-way legacy split) alongside `deleteCacheStoreDb`, so
+     rolled-back installs are still cleaned up on logout. The
+     parameterized contract suite collapsed to run only against the
+     unified store (the legacy parity net ends here). New store-
+     level `cacheHealthGate.test.ts` (3 tests) covers "degrade skips
+     subsequent saves" + "deletes stay ungated". Reworked
+     `eventRepository.test.ts` health-gate assertions to the seam-
+     always-delegates contract. Updated every `vi.mock` string
+     targeting a deleted shim (initMatrix, sessionCleanup,
+     RoomTimelineCollapsible, RoomView.threadSummary,
+     useRecentThreadViewModel, RoomTimeline.test.shared,
+     RoomTimeline.cache.test — 26 dynamic imports).
+  2. `test: architecture guards for the CacheStore boundary` — new
+     `cacheStore/__tests__/cacheStore.architecture.test.ts` (4 tests):
+     (a) the three legacy shim files are absent on disk;
+     (b) recursive scan of `src/app/mindroom/**` forbids imports of
+     `./roomEventCache`, `./threadEventCache`, `./threadSummaryCache`
+     (exclusions: this test + `RoomTimeline.architecture.test.ts`);
+     (c) render components (`MindroomRoomTimeline.tsx` +
+     `mindroom/messages/**`) must not contain `from './cacheStore'`
+     or a `/cacheStore` import;
+     (c') the only sanctioned cacheStore consumers are the allowlist
+     [`eventRepository.ts`, `threadSummaryStore.ts`,
+     `threadSummaryState.ts`, `sessionCleanup.ts`].
+     P1.4 write-boundary guard in `RoomTimeline.architecture.test.ts`
+     remains green (96/96).
+
+  Tests: `cacheHealthGate.test.ts` 3/3;
+  `cacheStore.architecture.test.ts` 4/4;
+  `cacheStoreNormalize.{room,thread}.test.ts` moved and green (7 + 21);
+  contract suite trimmed to cacheStore-only (21/21). Regression: full
+  mindroom suite 218 files, all tests green; full vitest — see the
+  final commit; `npm run typecheck`, `npm run build` clean;
+  `npm run lint` 18-warning baseline verified with zero delta.
 
 - 2026-07-04 — **P2.2 landed locally** on
   `cache-overhaul/09-p2-cachestore`: eviction ledger + `beforeTokens`
