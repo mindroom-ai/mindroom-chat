@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### CINNY-207 P7.2 FINAL docker e2e gate — AC3 + AC13 docker-confirmed; AC4 env-blocked (2026-07-04)
+
+- Tip under test: `f7bf06b7` (full final stack: Phases 0-7 + review-fix batch + P7.2 audit remediation + deflake), served from worktree `/tmp/wt-13` via `scripts/test-e2e-docker-matrix.sh`, `E2E_ENABLE_DEPLOYED_FIXTURE=0`.
+- Run 1 (all five cinny207 specs, cold server): stop-emoji (AC3) **PASSED** 51.4s; stale-cache-divergence (AC2) ran expected-RED under `test.fail()` (no unexpected pass); background-freshness, gap-fill-restart, streamed-edit failed — first two at login on the cold vite dev server (serverInput never rendered inside 30s; first-transform stall), streamed-edit at thread paint.
+- Run 2 (three failed specs, warm): background-freshness (AC6) **PASSED** 33.0s; gap-fill-restart (AC13) **PASSED** 42.3s with probe `schedulerCompleted=9, schedulerFailed=0, gapFillsEnqueued=10, schedulerDeduped=3, writeErrors=0`; streamed-edit failed at the post-reload shell.
+- Streamed-edit classification (4 total attempts incl. solo + warmup-ordered): every failure trace-classified as the documented host `ERR_NETWORK_CHANGED` flake — browser console shows 247 (run 2) and 284 (warmup run) `net::ERR_NETWORK_CHANGED` errors with ZERO application errors; blank page = all module/resource fetches died mid-navigation. The flake escalated to continuous by the last attempt (stop-emoji, green an hour earlier, also died at login with the same signature). NOT a code regression.
+- Streamed-edit partial live evidence before the flake killed run 2's reload leg: the spec's own probe printed `live thread cache records: total=1` with `editCompactions=1, editCompactionTargetMisses=0, engineLiveWrites=25, threadEventPuts=4` — the AC4 core compaction claim held on the final tip; only the reload-paint verification leg was lost to env.
+- Scorecard updated: AC3 → ✓ (docker-confirmed, closes the stale-✓ audit finding's remediation loop), AC13 → ✓, AC6 re-confirm appended, AC4 env-block + partial evidence appended, AC2 expected-RED gate confirmation appended. Plan header updated to past-tense the final gate.
+- AC5 note: gate probes recorded `roomEventPuts`/`threadEventPuts` samples (e.g. 25 live events → `threadEventPuts=4, roomSaveCalls=7` in the streamed-edit run); formal before/after table remains the AC5 row's open item.
+- Env failures kept out of evidence: no green claimed for streamed-edit on this tip; prior recorded greens (Phase-1 stack-tip gate, P3.3 gate "streamed-edit stays green") are the standing AC4 evidence.
+
 ### CINNY-207 P7.2 audit remediation — wire prefetchScope into the scheduler (2026-07-04)
 
 Finding #5: `prefetchScope` was stored via `mindroomSettingsAtom` and
