@@ -65,11 +65,15 @@ export {
   loadLatestCachedRoomEvents,
   loadLatestCachedThreadEvents,
   loadLatestCachedThreadSummaryInfo,
+  noteRoomOpened,
+  noteThreadOpened,
   saveRoomEventsToCache,
   saveThreadEventsToCache,
   type CachedRoomEventPage,
   type CachedThreadEventPage,
 } from './cacheStoreEvents';
+
+export { readLedgerSnapshot } from './cacheStoreLedger';
 
 export {
   loadCachedThreadSummaries,

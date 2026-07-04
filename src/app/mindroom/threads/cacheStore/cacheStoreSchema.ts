@@ -89,11 +89,27 @@ export type CachedMetaRecord = {
   legacyWipeCompletedAt?: number;
 };
 
+// CINNY-207 P2.2: per-room byte + activity ledger used by the eviction
+// job (decision D9). Maintained transactionally with event puts/deletes in
+// `cacheStoreEvents`; whole-DB deletes drop the store implicitly.
+//
+// `approxBytes` and `eventCount` are the sum across ALL scopes for the
+// room (room-timeline + every thread scope), because eviction is
+// whole-room granularity. `lastActivityTs` tracks the newest event
+// timestamp seen; the meta store's `lastOpenedTs` is the separate
+// user-opened signal read by the eviction "never evict recently opened
+// threads" guard.
+//
+// `federated` is optional and populated by the Phase 3/4 sync engine via
+// D3 homeserver detection. Left absent today; the eviction policy treats
+// `undefined` as "not federated" so nothing gets an artificial boost
+// before the engine lands.
 export type CachedRoomLedgerRecord = {
   roomId: string;
-  totalBytes: number;
+  approxBytes: number;
+  eventCount: number;
   lastActivityTs: number;
-  isHomeserverRoom?: boolean;
+  federated?: boolean;
 };
 
 export type CachedThreadSummaryRecord = {
