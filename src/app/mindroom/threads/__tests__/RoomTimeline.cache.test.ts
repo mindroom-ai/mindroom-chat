@@ -4165,7 +4165,13 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
-        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
+        // CINNY-207 P5.1 (D7 / AC9): partial-coverage open now
+        // schedules a reconcile pass after the SDK bootstrap in
+        // addition to the existing `backfillThreadRelationsIntoCache`
+        // /relations call, so `fetchRelations` fires twice per open
+        // (once for the backfill, once for the reconcile) rather than
+        // the pre-P5 single call.
+        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
         await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
         expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(

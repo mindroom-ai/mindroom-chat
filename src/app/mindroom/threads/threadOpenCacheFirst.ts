@@ -12,11 +12,24 @@ import type {
   HydratedThreadCachePage,
   ThreadOpenCacheController,
 } from './threadOpenCacheController';
+import type { ReconcileResult, ScheduleReconcileArgs } from '../engine/reconciler';
 
 type ThreadOpenSeedSession = {
   applyInitialUntargetedThreadSeed: () => void;
   mergeWithInitialRoomThreadSeedEvents: (events: MatrixEvent[]) => MatrixEvent[];
 };
+
+/**
+ * Injected scheduler entry point. Component-side callers pre-bind the
+ * engine's mx / sessionId / scheduler so this file does not need to
+ * reach into the engine directly (keeps arch-guard boundaries clean).
+ */
+export type ScheduleReconcileFn = (
+  args: Pick<
+    ScheduleReconcileArgs,
+    'roomId' | 'room' | 'threadId' | 'cachedPage' | 'reason' | 'onRepaired' | 'shouldContinue'
+  >
+) => Promise<ReconcileResult>;
 
 type RunThreadOpenCacheFirstOptions = {
   backfillThreadRelationsIntoCache: ThreadOpenCacheController['backfillThreadRelationsIntoCache'];
@@ -26,8 +39,28 @@ type RunThreadOpenCacheFirstOptions = {
   isCurrentThreadOpen: () => boolean;
   mx: MatrixClient;
   pinThreadToBottomOnOpen: () => void;
-  refreshLatestThreadRelationsTail: ThreadOpenCacheController['refreshLatestThreadRelationsTail'];
+  /**
+   * CINNY-207 P5.1 (D7): replaces the deleted
+   * `refreshLatestThreadRelationsTail`. The complete-coverage path
+   * still schedules a reconcile so a stale cache converges after open
+   * without reload — coverage decides PAINT, never REVALIDATE.
+   */
+  scheduleReconcile: ScheduleReconcileFn;
   room: Room;
+  /**
+   * CINNY-207 P5-GATE-FIX v3 (AC2 dual-injection, render leg): the
+   * reconciler's widened `onRepaired` callback hands us the
+   * fully-mapped batch of fetched events; we route them into the
+   * render's supplemental-events sink so the complete-coverage
+   * cache-first path (SDK bootstrap skipped by design) converges. The
+   * sink itself lives in `useThreadRenderState.setSupplementalThreadEvents`
+   * and dedups by event id, so re-passing an already-known live event
+   * is a no-op there. Kept as a separate injected function so this
+   * module does not import from `useThreadRenderState` and so the
+   * engine boundary stays clean (engine has no knowledge of
+   * `setSupplementalThreadEvents`).
+   */
+  setSupplementalThreadEvents: (expectedThreadId: string, events: MatrixEvent[]) => void;
   setThreadHasMoreCachedBack: Dispatch<SetStateAction<boolean>>;
   setThreadInitialCacheHydrated: Dispatch<SetStateAction<boolean>>;
   setThreadTailLoaded: Dispatch<SetStateAction<boolean>>;
@@ -50,8 +83,9 @@ export const runThreadOpenCacheFirst = async ({
   isCurrentThreadOpen,
   mx,
   pinThreadToBottomOnOpen,
-  refreshLatestThreadRelationsTail,
+  scheduleReconcile,
   room,
+  setSupplementalThreadEvents,
   setThreadHasMoreCachedBack,
   setThreadInitialCacheHydrated,
   setThreadTailLoaded,
@@ -111,7 +145,41 @@ export const runThreadOpenCacheFirst = async ({
       skipNetworkBootstrap: true,
       threadId,
     });
-    void refreshLatestThreadRelationsTail(threadId, hydratedCachedPage).catch(() => undefined);
+    // CINNY-207 P5.1 (D7 / AC9): complete-coverage still schedules a
+    // reconcile. Fire-and-forget from the caller's POV — the reconcile
+    // is deduped in the scheduler and only calls `onRepaired` (which
+    // batches a tick) if it actually applied a repair. When the cache
+    // was right this is a cheap no-op: fetch, diff empty, no writes,
+    // no tick.
+    //
+    // P5-GATE-FIX v3 (AC2 dual-injection, render leg): the widened
+    // `onRepaired` receives the fully-mapped batch the reconciler
+    // fetched. We route it through `setSupplementalThreadEvents`
+    // (defence-in-depth against zero-length batches — the engine
+    // guards this at its side too by only calling `onRepaired` when
+    // repair actually ran, but the component-side wiring must also
+    // skip cleanly to preserve the "one tick per repair" invariant).
+    // Why this is required: on complete-coverage the SDK bootstrap
+    // is skipped by design; `useThreadRenderState.buildThreadEvents`
+    // reads `fallbackThreadEventsState.events` alongside
+    // `thread.events`, and `setSupplementalThreadEvents` is the
+    // component-owned sink for that fallback state.
+    void scheduleReconcile({
+      roomId: room.roomId,
+      room,
+      threadId,
+      cachedPage: hydratedCachedPage,
+      reason: 'open-complete-coverage',
+      onRepaired: (repairedEvents) => {
+        if (!isCurrentThreadOpen()) return;
+        if (repairedEvents.length > 0) {
+          setSupplementalThreadEvents(threadId, [...repairedEvents]);
+        }
+        forceTimelineUpdate();
+        setThreadTimelineTick((val) => val + 1);
+      },
+      shouldContinue: isCurrentThreadOpen,
+    }).catch(() => undefined);
     pinThreadToBottomOnOpen();
     return {
       hydratedCachedPage,

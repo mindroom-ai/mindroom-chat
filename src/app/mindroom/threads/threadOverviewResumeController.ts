@@ -8,7 +8,6 @@ import {
   type SetStateAction,
 } from 'react';
 import { type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
-import { THREAD_BATCH_SIZE } from './preloadSettings';
 import { usePageResume } from './usePageResume';
 import { loadRoomThreads } from './roomThreadList';
 import { logTimelineDebug } from './timelineDebug';
@@ -16,7 +15,7 @@ import {
   getLatestThreadSummaryInfoFromEventSources,
   type MindroomThreadSummaryInfo,
 } from '../messages/threadSummary';
-import { fetchAllThreadRelations } from './threadBootstrap';
+import { enqueueThreadBackfillJob } from '../engine';
 import { isCompleteCachedThreadSnapshot } from './threadCacheSnapshot';
 import { saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { getKnownThreadReplyCount } from './threadRecord';
@@ -127,86 +126,100 @@ export const useThreadOverviewResumeController = ({
   // requests. The rest of the callback (parse response, persist,
   // notify onApplyThreadRelations) stays exactly the same shape it
   // had before; only the fetch is deduped.
+  // CINNY-207 P5 review (greptile P1: dedup returns void):
+  // both this overview-resume producer AND `enqueueThreadBackfillJob`
+  // (the thread-open path in `threadOpenCacheController.ts`) share
+  // scheduler key `(roomId, threadId, 'thread-backfill')`. Before this
+  // refactor they enqueued executors with DIFFERENT return types —
+  // this one `Promise<void>`, the other `Promise<ThreadBackfillResult>`.
+  // If the two callers hit the scheduler in the wrong order, the open
+  // path would receive our void promise, resolve as `undefined`, and
+  // its `!relationPageResult` guard would silently skip applying the
+  // relation page fetched by us.
+  //
+  // Fix: both producers now enqueue through `enqueueThreadBackfillJob`
+  // (single source of truth for the shared kind) so the dedup contract
+  // is: the promise ALWAYS resolves to `ThreadBackfillResult`. Any
+  // caller that needs to do more with the page (persist / notify /
+  // seed) does it in a `.then()` on that promise, using the shared
+  // result. That keeps the dedup benefit — a user-triggered thread
+  // open coalescing with a background overview resume still fires a
+  // single `/relations` round-trip — without the type mismatch.
   const refreshOverviewThreadCacheFromRelations = useCallback(
-    (expectedThreadId: string): Promise<void> =>
-      syncEngine.scheduler.enqueue<void>({
-        roomId: room.roomId,
+    async (expectedThreadId: string): Promise<void> => {
+      const rootEvent =
+        room.getThread(expectedThreadId)?.rootEvent ?? room.findEventById(expectedThreadId);
+      if (!rootEvent) return;
+
+      const relationPageResult = await enqueueThreadBackfillJob({
+        mx,
+        scheduler: syncEngine.scheduler,
+        room,
         threadId: expectedThreadId,
-        kind: 'thread-backfill',
         // Priority 2 = "recently-active my-server tails" band. Overview
         // resume is user-triggered (page focus / online / visibility)
         // so it beats prewarm (band 3) but yields to the current
         // room's own gap-fill (band 0-1).
         priority: 2,
-        execute: async () => {
-          const rootEvent =
-            room.getThread(expectedThreadId)?.rootEvent ?? room.findEventById(expectedThreadId);
-          if (!rootEvent) return;
+        shouldContinue: () =>
+          alive() && (!threadIdRef.current || threadIdRef.current === expectedThreadId),
+      });
+      if (
+        !relationPageResult ||
+        !alive() ||
+        (!!threadIdRef.current && threadIdRef.current !== expectedThreadId)
+      ) {
+        return;
+      }
 
-          const relationPageResult = await fetchAllThreadRelations(
-            mx,
-            room.roomId,
-            expectedThreadId,
-            THREAD_BATCH_SIZE,
-            () => !alive() || (!!threadIdRef.current && threadIdRef.current !== expectedThreadId)
-          );
-          if (
-            !relationPageResult ||
-            !alive() ||
-            (!!threadIdRef.current && threadIdRef.current !== expectedThreadId)
-          ) {
-            return;
-          }
+      const relationEvents = relationPageResult.events;
+      const relationSnapshotComplete = typeof relationPageResult.nextBatchToken !== 'string';
+      const expectedReplyCount = getKnownThreadReplyCount(rootEvent);
+      const snapshotComplete = isCompleteCachedThreadSnapshot({
+        room,
+        threadId: expectedThreadId,
+        rootEvent,
+        cachedRootEvent: rootEvent,
+        cachedEvents: rootEvent ? [rootEvent, ...relationEvents] : relationEvents,
+        beforeToken: relationPageResult.nextBatchToken ?? null,
+        hasMoreBefore: typeof relationPageResult.nextBatchToken === 'string',
+        expectedReplyCount,
+        snapshotComplete: relationSnapshotComplete,
+        tailLoaded: true,
+      });
 
-          const relationEvents = relationPageResult.events;
-          const relationSnapshotComplete = typeof relationPageResult.nextBatchToken !== 'string';
-          const expectedReplyCount = getKnownThreadReplyCount(rootEvent);
-          const snapshotComplete = isCompleteCachedThreadSnapshot({
-            room,
-            threadId: expectedThreadId,
-            rootEvent,
-            cachedRootEvent: rootEvent,
-            cachedEvents: rootEvent ? [rootEvent, ...relationEvents] : relationEvents,
-            beforeToken: relationPageResult.nextBatchToken ?? null,
-            hasMoreBefore: typeof relationPageResult.nextBatchToken === 'string',
-            expectedReplyCount,
-            snapshotComplete: relationSnapshotComplete,
-            tailLoaded: true,
-          });
+      if (relationEvents.length > 0) {
+        saveThreadOpenSeedSnapshot(room, expectedThreadId, relationEvents);
+      }
 
-          if (relationEvents.length > 0) {
-            saveThreadOpenSeedSnapshot(room, expectedThreadId, relationEvents);
-          }
+      onApplyThreadRelations({
+        rootId: expectedThreadId,
+        room,
+        events: relationEvents,
+        rootEvent,
+        beforeToken: relationPageResult.nextBatchToken ?? null,
+        tailLoaded: true,
+        snapshotComplete,
+        expectedReplyCount,
+        relationSnapshotComplete,
+      });
 
-          onApplyThreadRelations({
-            rootId: expectedThreadId,
-            room,
-            events: relationEvents,
-            rootEvent,
-            beforeToken: relationPageResult.nextBatchToken ?? null,
-            tailLoaded: true,
-            snapshotComplete,
-            expectedReplyCount,
-            relationSnapshotComplete,
-          });
+      persistThreadEventCache(
+        expectedThreadId,
+        relationEvents,
+        rootEvent,
+        relationPageResult.nextBatchToken ?? null,
+        true,
+        snapshotComplete,
+        expectedReplyCount,
+        relationSnapshotComplete
+      );
 
-          persistThreadEventCache(
-            expectedThreadId,
-            relationEvents,
-            rootEvent,
-            relationPageResult.nextBatchToken ?? null,
-            true,
-            snapshotComplete,
-            expectedReplyCount,
-            relationSnapshotComplete
-          );
-
-          const summaryInfo = getLatestThreadSummaryInfoFromEventSources(relationEvents);
-          if (summaryInfo?.summaryText) {
-            onStoreThreadSummary(expectedThreadId, summaryInfo);
-          }
-        },
-      }),
+      const summaryInfo = getLatestThreadSummaryInfoFromEventSources(relationEvents);
+      if (summaryInfo?.summaryText) {
+        onStoreThreadSummary(expectedThreadId, summaryInfo);
+      }
+    },
     [
       alive,
       mx,

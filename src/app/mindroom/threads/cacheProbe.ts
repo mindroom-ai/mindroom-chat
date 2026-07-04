@@ -57,6 +57,50 @@ export type CacheProbeCounters = {
   schedulerAborted: number;
   schedulerCompleted: number;
   schedulerFailed: number;
+  // CINNY-207 P5-GATE-FIX (AC2 evidence): reconciler observability.
+  // `reconcilesScheduled` bumps once per `scheduleReconcile` call
+  // (thread-scope or room-scope), giving a trace the ability to
+  // distinguish "the open path never asked for a reconcile" from
+  // "the reconciler ran and found nothing to repair" — the same
+  // observability lesson as schedulerFailed (P4 gate fix).
+  // `reconcilesRepaired` bumps once per pass that actually applied
+  // a repair (i.e. detectDivergence returned true and hydration
+  // ran); the D7 cheap-no-op path leaves it untouched.
+  reconcilesScheduled: number;
+  reconcilesRepaired: number;
+  // CINNY-207 P5-GATE-FIX v4 (AC2 diagnosis): bumps when the reconciler
+  // reached the SDK-injection step with a non-empty mapped batch but
+  // `room.getThread(threadId)` returned null. This is the exact
+  // complete-coverage cache-first reopen shape team-lead flagged: SDK
+  // bootstrap is skipped by design so the thread model does not exist
+  // yet, and `liveThread.addEvents(...)` silently no-ops. A repair still
+  // runs (hydration + supplemental sink via `onRepaired`) — this counter
+  // distinguishes "SDK-only injection worked" from "SDK path no-op'd,
+  // convergence relied entirely on the render-fallback leg" in a docker
+  // trace without another blind cycle.
+  reconcilesThreadNull: number;
+  // CINNY-207 P5-GATE-FIX v4 (final iteration — team-lead directive
+  // 2026-07-04): definitive evidence that the widened `onRepaired`
+  // component-side callback was invoked and returned normally, i.e. the
+  // supplemental sink into `setSupplementalThreadEvents` had a chance to
+  // run. `reconcilesRepaired` bumps BEFORE the callback fires (so a
+  // guard-skipped or throwing callback would still leave reconcilesRepaired
+  // at N and reconcilesOnRepairedFired at 0 — that gap is diagnostic).
+  reconcilesOnRepairedFired: number;
+  // CINNY-207 P5-GATE-FIX v4 (final iteration — team-lead directive
+  // 2026-07-04): counts reconciler repair passes that persisted the
+  // fetched thread events through the engine snapshot writer after
+  // divergence (see `reconciler.ts` for the exact call site). Team-lead's
+  // seam analysis: the pre-v4 chain converged in memory (SDK inject +
+  // render supplemental sink) but never taught the CACHE about the
+  // fetched events — so the next reopen from IDB would re-hit the
+  // same stale window and, if the render preference reads
+  // `fallbackThreadEventsState.events` before the reconciler's next
+  // tick lands, paint v1 again. This counter proves the persist leg
+  // fired on the pass that triggered a repair; it complements
+  // `threadSaveCalls` (which counts ALL persist paths including live
+  // writes) by isolating the reconciler-owned persist.
+  reconcilerPersists: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -78,6 +122,11 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   schedulerAborted: 0,
   schedulerCompleted: 0,
   schedulerFailed: 0,
+  reconcilesScheduled: 0,
+  reconcilesRepaired: 0,
+  reconcilesThreadNull: 0,
+  reconcilesOnRepairedFired: 0,
+  reconcilerPersists: 0,
 });
 
 let counters = createEmptyCounters();

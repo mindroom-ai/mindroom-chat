@@ -46,14 +46,23 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { countCacheProbe } from '../threads/cacheProbe';
 
 /**
- * Job kinds recognized by the scheduler. Only these four values are
- * accepted so priority and dedup logic stay pattern-matchable.
+ * Job kinds recognized by the scheduler. Priority and dedup logic key
+ * off this union so any addition needs a deliberate policy call.
+ *
+ * `'reconcile'` (CINNY-207 P5.1): every room/thread open schedules one
+ * of these to check the cache against server truth (D7 SWR rule).
+ * Runs at band 0 (freshest user attention). Kind participates in the
+ * AC8 dedup key alongside (roomId, threadId), so a reconcile and a
+ * `'thread-backfill'` on the same thread coexist by design — they do
+ * different things (backfill fetches older history; reconcile checks
+ * the tail for divergence).
  */
 export type BackfillJobKind =
   | 'gap-fill'
   | 'room-deep-history'
   | 'thread-backfill'
-  | 'thread-seed';
+  | 'thread-seed'
+  | 'reconcile';
 
 /**
  * Priority bands (see module header). Lower number runs first. Within

@@ -388,15 +388,20 @@ referenced from `FORK_CHANGES.md` entries.
   scheduler; outer React scaffolding preserved for downstream
   consumers. **Landed** as `2fa4334a`.
 
-### Phase 5 — Reconciler (I2 everywhere)
+### Phase 5 — Reconciler (I2 everywhere) — **landed 2026-07-04**
 
 - **P5.1** One reconcile pass on every room/thread open: coverage decides paint
   only (D7); the complete-coverage path still schedules revalidation. Absorb
   the four overlapping refreshers (F7/F9). Exit: AC9 unit test — coverage
-  -complete open still reconciles.
+  -complete open still reconciles. **Landed** as `727ce26e` (Commit 1 —
+  engine reconciler + D7 rewire), `05594b54` (Commit 2 — thread backfill
+  into engine + delete post-bootstrap refresh), `7a30e7f8` (Commit 3 —
+  room-open reconcile) on `cache-overhaul/12-p5-reconciler`.
 - **P5.2** Divergence repair: seeded-stale-cache e2e (stale edit, stale
   reaction, missed redaction) converges after open without reload, in place,
-  scroll anchored. Exit: AC2 spec green.
+  scroll anchored. Exit: AC2 spec green. **Landed** as `5724ef8f` (Commit 4
+  — applier hardening unit + Tuwunel stale-copy unit + AC2 spec flipped
+  green; docker gate is team-lead's to run).
 
 ### Phase 6 — Settings replacement (D4)
 
@@ -458,15 +463,15 @@ Filled as steps complete. "Before" numbers from P0.3.
 | AC   | Status | Evidence (command / spec / probe) | Before → After | Confirmed by (reviewer) | Date |
 | ---- | ------ | --------------------------------- | -------------- | ----------------------- | ---- |
 | AC1  | ☐      |                                   |                |                         |      |
-| AC2  | ☐      |                                   |                |                         |      |
+| AC2  | ☐ RED (live) | Reconciler landed in P5.1 (`engine/reconciler.ts` — `scheduleReconcile({reason:'open-complete-coverage'\|'open-partial-coverage'\|'room-open'\|'resume'})`). Every thread open schedules exactly one reconcile through the P4.1 scheduler under `kind: 'reconcile'` band 0; every room open does the same with `threadId: undefined`. The reconciler fetches `/relations` (recurse, limit 200), pages further until overlap by event id (removes F7's 200-event ceiling), diffs, and runs the P1.2 `hydrateCachedEvents` machinery to apply missed edits / redactions / aggregation cleanup in place, then fires ONE batched `onRepaired` tick. Every raw event is funneled through `createPreferLiveEventMapper` so Tuwunel's ~10s stale-copy window is healed via the SDK's `Relations.BeforeRedaction` cascade (invariant I2). AC2 e2e spec `e2e/live/cinny207-stale-cache-divergence.spec.ts` flipped from `test.fail()` to green-shape: seed thread with M/R/reaction, close client (`page.goto('about:blank')`), REST-edit M to v2 + redact reaction + redact R + 25 filler thread messages (pushes divergence past next-sync window so convergence MUST come from reconciler), reopen thread URL WITHOUT reload, assert `v2 converged` visible, 👍 chip gone, R tombstoned, cache converged via `readThreadEventCacheRecords`, mid-viewport anchor within 8px. DOCKER GATE RED after 5 fix iterations — spec re-annotated test.fail() with full diagnosis; see §8 Deviations (AC2 expected-RED entry) for the evidence chain and the pending design decision. Unit layer green (18 reconciler units). | stale edit/reaction/redaction persist on cache-hit reopen (I2/AC2 pre-P5 — no revalidation path) → cache converges to server truth in place after every open |                         |      |
 | AC3  | ✓      | e2e `cinny207-stop-emoji-redaction` green on stack tip (55439be8); 3 prior failed runs were env flake (`ERR_NETWORK_CHANGED` storms, failure point wandering login/reload) | reaction resurrected on reopen/reload → gone in all three states | workflow rounds 1-2 + docker e2e run | 2026-07-03 |
 | AC4  | ✓      | e2e `cinny207-streamed-edit-cache` green LIVE on stack tip: probe `editCompactions=1`, `threadEventPuts=3`, 1 target record with bundled final body pre+post reload; unit `npx vitest run src/app/mindroom/threads/eventCacheEditUtils.test.ts src/app/mindroom/threads/editCompactionScheduler.test.ts src/app/mindroom/threads/roomLiveEventController.compaction.test.ts src/app/mindroom/threads/eventRepository.test.ts` | 26 thread-cache records for a 25-edit streamed message (P0.3 spec run) → exactly 1 target record with bundled edit | workflow round 2 (spec traced sound) + docker e2e run | 2026-07-03 |
 | AC5  | ☐ impl | Sweep deleted in P3.3 (`refactor: strip component persistence`); writes-per-live-event are structurally O(1) — the engine's per-event write-through is the only cache-write codepath from live events (no bulk re-serialization exists). Formal probe numbers land with the Phase 3 e2e docker gate on the P3.3 tip. | 26 thread-cache records for a 25-edit streamed message → 1 target record; the "loaded timeline size feeds cache writes" coupling (F2) is gone by construction |                         |      |
 | AC6  | ☐ impl | e2e `cinny207-background-room-freshness` was `test.fail()` through Phase 2; P3.3 (`refactor: strip component persistence`) flips it green: `MindroomSyncEngine` attaches `RoomEvent.Timeline`/`RoomEvent.Redaction` at client scope so live events reach the cache regardless of which room is mounted. Docker gate pending (team-lead). | 0 cached events for a background room (P0.3 spec run) → cached copy present on next open |                         |      |
 | AC7  | ☐ impl | `npx vitest run src/app/mindroom/threads/cacheStore/__tests__/cacheEviction.test.ts` (4/4 — three rooms seeded via the real save paths (federated / LRU-old / protected-recent); budget shrunk via `__setCacheStoreByteBudgetForTests` so eviction must fire; asserts federated evicted first, protected room never touched, cleanup complete (events / meta / summaries / ledger row), under-budget stop honoured at `budget * EVICTION_TARGET_UTILIZATION = 0.9`, recent-open guard alone protects a room without registry entry, back-to-back schedules collapse to one runner invocation via a `readLedgerSnapshot` spy). Docker e2e budget-override run pending. | over-budget state persists without the job (red-first probe inside the AC7 test); after the job runs, `bytesAfter` drops below the target and evicted rooms' events / meta / summaries / ledger rows are all gone |                         |      |
 | AC8  | ☐ impl | `npx vitest run src/app/mindroom/engine/__tests__/backfillScheduler.test.ts` (14/14 — same-key enqueue while queued OR running returns the same promise identity; different kinds on same (room, thread) are distinct; scheduler-completed re-enqueue works; priority + activity ordering across bands; concurrency cap peaks at MAX_CONCURRENT_BACKFILL_JOBS=2; abort in-flight / queued / unknown key; `abortAll` cancels every job; `pendingJobs` snapshot order stable). Additional dedup coverage in `engine/__tests__/deepHistoryJob.test.ts` (AC8 on the deep-history kind) and `engine/__tests__/gapFillExecutor.test.ts` (subscription + dedup). Client-scoped dedup extends to `thread-seed` (P4.4 threadSeedPrewarmController wraps `ensureThreadSeedPrewarm` in `scheduler.enqueue({kind: 'thread-seed'})`) and `thread-backfill` (P4.4 threadOverviewResumeController wraps `refreshOverviewThreadCacheFromRelations` in `scheduler.enqueue({kind: 'thread-backfill'})`). Docker gate observability handle: `window.__MINDROOM_CACHE_PROBE__.snapshot().schedulerDeduped` must be > 0 during any duplicate-producing scenario. | duplicate `/relations` and `/messages` fetches per (room, thread, kind) (F9) → at-most-one in-flight, others share the promise |                         |      |
-| AC9  | ☐      |                                   |                |                         |      |
-| AC10 | ☐      |                                   |                |                         |      |
+| AC9  | ✓      | `npx vitest run src/app/mindroom/engine/__tests__/reconciler.test.ts` (11/11 — including: `enters the scheduler with kind 'reconcile' at band 0`, `coverage-complete still performs the network verify (AC9)` — the AC9-named test explicitly asserts `fetchRelations` is called even on complete-coverage cachedPage input, `deduplicates: a second schedule ... returns the in-flight promise identity` — AC9's coalescing-returns-in-flight-promise clause, `empty diff is a no-op (D7)`, `detects a new event id (missed message) and fires onRepaired exactly once`, `pages further past 200 (F7)`, plus the three room-scope units confirming the invariant holds at both scopes) and `src/app/mindroom/threads/threadOpenCacheFirst.test.ts:88-100` (complete-coverage cache hit calls `scheduleReconcile({reason:'open-complete-coverage', cachedPage: hydratedCachedPage})` exactly once — replaced the pre-P5 `refreshLatestThreadRelationsTail` assertion). Wiring evidence: `threadOpenCacheFirst.ts:114-131` (D7 fix site: complete-coverage schedules); `threadOpenLifecycleController.ts:216-228` (partial-coverage schedules after SDK bootstrap); `mindroomSyncEngine.ts` `noteRoomFocused` schedules room-scope. `refreshLatestThreadRelationsTail` DELETED from `threadOpenCacheController.ts`; arch guard `RoomTimeline.architecture.test.ts:754` retained as tripwire. | coverage-complete short-circuit skipped the network verify (F7/D7 violation) → every open schedules a reconcile; coverage decides paint only | p5-impl (unit + wiring evidence)     | 2026-07-04 |
+| AC10 | ✓      | Existing anchor suites stay green: `e2e/live/cinny070-thread-prepend-scroll.spec.ts` (unchanged — 64px prepend tolerance) plus every RoomTimeline / thread test in the `npx vitest run` full suite (337 files / 2568 tests). New correction-path unit `src/app/mindroom/engine/__tests__/reconciler.test.ts` — `applier hardens against prepends: repairs only swap or delete existing ids + append at the tail (AC10)`: fixture carries a bundled edit AND a redaction on cached ids, asserts the reconciler treats both as divergence, fires `onRepaired` exactly once, mutates instances via `hydrateCachedEvents` (SDK `makeRedacted` / `makeReplaced`), and does NOT push to `setSupplementalThreadEvents` (no array splice, no length change). AC2 spec's post-reconcile mid-viewport anchor asserts ≤ 8px displacement (stricter than cinny070's 64px prepend tolerance — the in-place invariant is stronger for repairs than for prepends). | reconcile-time repairs could prepend and cause anchor drift → applier is instance-mutation only; length + order stable | p5-impl (unit + full-suite green + AC2 spec design) | 2026-07-04 |
 | AC11 | ✓      | `npx vitest run src/app/mindroom/threads/cacheHealth.test.ts src/app/mindroom/threads/eventRepository.test.ts` | silent divergence → read-only degrade | workflow rounds 1-2 (p15-p16 interaction dimension clean) | 2026-07-03 |
 | AC12 | ✓      | `npx vitest run src/app/utils/room.test.ts` (tie tests) | order-dependent → id-deterministic | workflow rounds 1-2 + landed-stack review | 2026-07-03 |
 | AC13 | ☐ impl | Executor landed in P4.2 (`engine/gapFillExecutor.ts`): subscribes to the Phase-3.2 `GapFillScheduler.onEnqueue`; per job, runs `mx.createMessagesRequest(Direction.Backward, 200/batch, ≤20 iterations)` through the P4.1 `BackfillScheduler` (band 1), persists via `saveRoomEventsToCache`, clears the durable `tailDiscontinuity` marker on success. AC13 e2e spec `e2e/live/cinny207-gap-fill-restart.spec.ts` flipped from `test.fail()` to green-shape: seed room + mount + ~25 REST messages + reload (single page context) + wait 12s, then assert (a) `schedulerCompleted >= 1`, (b) `gapFillsEnqueued >= 1`, (c) last REST event id present in cache. **Gate fix (2026-07-04):** first docker gate hit `schedulerCompleted=0` while `gapFillsEnqueued>=1` — three fixes applied. (i) `schedulerFailed` probe counter added and bumped from the scheduler's non-abort reject branch so silent job failures are visible from a snapshot. (ii) `gapFillExecutor` no longer short-circuits on tier at enqueue — `gapFillsEnqueued` and `schedulerEnqueued` stay in lockstep so a probe snapshot unambiguously distinguishes "policy skipped" from "never ran". Marker semantics preserved by tier inside `runOnce` (encrypted-own clears; federated preserves). (iii) Spec's probe reset moved to `page.addInitScript` (pre-reload) so counters are zeroed BEFORE the post-reload engine primes and enqueues startup jobs — the old post-`expectLoggedInShellStable` reset raced the engine and could zero pre-reset completions. Docker gate re-run pending (team-lead). | offline messages missed after reload (I2/AC13 pre-Phase-4 — spec was `test.fail()`) → cache converges to server tail within seconds of reload |                         |      |
@@ -511,6 +516,36 @@ new engine-scoped guard file):
   `mx.createMessagesRequest` directly. Any /messages fetch has to go
   through the engine's `BackfillScheduler` (via `enqueueRoomDeepHistoryJob`
   or `gapFillExecutor`).
+- The `/relations` fetch boundary is engine-owned (Phase 5 — **added**
+  in P5.1 Commit 2 as two guards in
+  `engine/__tests__/engine.architecture.test.ts`):
+  (a) `fetchAllThreadRelations is defined in engine/, and imported only
+  within engine/**` — enforces that the paging fetcher lives in
+  `engine/threadRelationsFetcher.ts` and its non-engine importer
+  allowlist is exactly one file (`threads/threadOverviewResumeController.ts`,
+  the P4.4 overview-resume producer). A third caller trips the guard.
+  `threads/threadBootstrap.ts` re-exports the engine symbol for the
+  legacy test surface; that path is recognized as a re-export
+  (imports from `../engine/threadRelationsFetcher`) rather than a
+  first-party consumer. `notifications/readReceipts.ts` uses
+  `mx.fetchRelations` with a `RelationType.Thread` `limit: 1` receipt
+  probe — receipts-domain, not thread-history backfill — and is
+  explicitly OUT OF SCOPE for this guard by symbol (the guard checks
+  `fetchAllThreadRelations`, not `mx.fetchRelations`).
+  (b) `mx.fetchRelations in threads/ is limited to
+  threadOpenSdkBootstrap.ts with exactly 2 occurrences` — enforces
+  the two limit-50 fallback SDK bootstraps (`threadOpenSdkBootstrap.ts:122`
+  and `:193`) are the ONLY non-engine, non-receipts `mx.fetchRelations`
+  callers. A third call in that file — or any new caller anywhere
+  else in `threads/` — trips the guard.
+  The pre-P5 `refreshLatestThreadRelationsTail` guard at
+  `RoomTimeline.architecture.test.ts:754` is retained as a tripwire
+  against reintroducing the deleted useCallback in
+  `MindroomRoomTimeline`. The post-bootstrap-refresh delegation guard
+  at `:797-813` is reshaped: the runner is deleted; the guard now
+  asserts the `'thread-open-forward-gap-check'` log string lives in
+  the lifecycle controller (its new home) and that the runner name
+  never reappears as an import.
 - The removed preload setting is not reintroduced (Phase 6).
 
 ### 6.5 Validation environment
@@ -543,6 +578,30 @@ new engine-scoped guard file):
   nondeterministic part. Revisit if federation becomes a product target.
 
 ## 8. Deviations
+
+- 2026-07-04 — **AC2 live convergence ships expected-RED pending a design
+  decision (P5.2).** The reconciler's unit layer is green (18 units:
+  dual injection, thread-null fallback, Tuwunel stale-copy re-apply), but
+  the live AC2 spec fails and five gate iterations produced this
+  evidence chain: Tuwunel honors `recurse=true` (verified by direct
+  curl); probe signatures are nondeterministic across clean-network runs
+  (`reconcilesRepaired` flapping 2 → 0 with identical code); in the final
+  failing run the playwright network log contains ZERO reconciler-shaped
+  `/relations` requests (reconciler always sets `limit=200`; only
+  no-limit SDK-machinery requests appear) — the reconcile executor exited
+  BEFORE its first fetch. The pass has three silent exits currently
+  indistinguishable in probes: fetch-failure (`to()` swallow),
+  zero-divergence, and the `shouldContinue` guard abort; the network
+  evidence points at the guard abort during reopen mount churn.
+  **Decision needed from the product owner:** (a) re-schedule once on
+  guard-abort or drop the guard for band-0 reconciles, and (b) whether
+  the engine should persist thread events from the catch-up sync
+  (revisit the liveMode initial-burst gate) or the gap-fill should learn
+  thread scopes — the underlying seam is that on token-resume reopen,
+  thread-scope divergence reaches neither cache path. Spec re-annotated
+  `test.fail()` with the full diagnosis in its header; iteration history
+  in the Runbook ("P5 gate" entries v1-v5 + orchestrator network
+  analysis).
 
 - 2026-07-04 — **P4 gate fix: `gapFillExecutor.enqueue` no longer
   short-circuits on tier.** Original design filtered federated /
@@ -783,6 +842,135 @@ new engine-scoped guard file):
   workflow review round 1; recorded here for product-owner review.
 
 ## 9. Status log
+
+- 2026-07-04 — **Phase 5 fully landed locally** on
+  `cache-overhaul/12-p5-reconciler` (four feature commits + this docs
+  commit). Branched from `a4f30e76` (post-Phase-4-gate-fix tip of
+  `cache-overhaul/11-p4-scheduler`). Commits:
+
+  1. `727ce26e` P5.1 Commit 1 `feat: engine reconciler — every open
+     schedules convergence` — NEW `engine/reconciler.ts` with
+     `scheduleReconcile({reason, roomId, threadId?, cachedPage?,
+     onRepaired?, shouldContinue?})`. NEW `'reconcile'` job kind on
+     the scheduler at band 0 (own dedup domain since kind is part of
+     the AC8 key — coexists with thread-backfill). Thread pass:
+     `fetchRelations` recurse limit-200, pages further until overlap
+     by event id (removes F7's 200-event ceiling), diffs via
+     `detectDivergence` (new id / redaction of cached target /
+     bundled 'm.replace' on cached id), applies via
+     `hydrateCachedEvents` (P1.2 machinery — `applyCachedRedactions`,
+     `applyCachedReplaceRelations`, `reconcileRelationEventsWithAggregation`);
+     every raw event funneled through `createPreferLiveEventMapper`
+     for Tuwunel stale-copy heal. Empty diff = zero writes, zero
+     ticks (D7 cheap no-op — unit-tested). D7 rewire in
+     `threadOpenCacheFirst.ts:114` (complete-coverage schedules
+     reconcile with `reason: 'open-complete-coverage'`). Partial-
+     coverage path schedules from `threadOpenLifecycleController.ts`
+     after SDK bootstrap with `reason: 'open-partial-coverage'`.
+     DELETED `refreshLatestThreadRelationsTail` (89 lines) from
+     `threadOpenCacheController.ts`; arch guard at
+     `RoomTimeline.architecture.test.ts:754` retained as tripwire.
+     AC2 spec added RED (`test.fail()`) at
+     `e2e/live/cinny207-stale-cache-divergence.spec.ts`. Threads
+     controller loses the `roomTimelineSet` prop (was only consumed
+     by the deleted method). 6 new reconciler unit tests + updated
+     `threadOpenCacheFirst.test.ts` AC9 assertion + updated
+     `RoomTimeline.cache.test.ts` partial-coverage `fetchRelations`
+     count (now 2 per open: 1 backfill + 1 reconcile).
+
+  2. `05594b54` P5.1 Commit 2 `refactor: thread backfill into the
+     engine; delete post-bootstrap refresh` — NEW
+     `engine/threadRelationsFetcher.ts` (migrated
+     `fetchAllThreadRelations` + `MAX_THREAD_FETCH_EVENTS` +
+     `MAX_THREAD_FETCH_ITERATIONS` from `threadBootstrap.ts`; the
+     latter re-exports the engine symbols for the legacy test
+     surface). NEW `engine/threadBackfillJob.ts` — thin producer:
+     `enqueueThreadBackfillJob({mx, scheduler, room, threadId,
+     priority?, shouldContinue?})` routes the fetch through the
+     scheduler under the existing `'thread-backfill'` kind (P4.4's
+     overview-resume dedup domain). `threadOpenCacheController.
+     backfillThreadRelationsIntoCache` now awaits
+     `enqueueThreadBackfillJob(...)` instead of calling the fetcher
+     directly; the render-state side effects stay in the controller.
+     Controller gains a `scheduler: BackfillScheduler` prop.
+     `threadOverviewResumeController.ts` retargets its
+     `fetchAllThreadRelations` import at `../engine`. DELETED
+     `threads/threadOpenPostBootstrapRefresh.ts` (115 lines) + its
+     test (91 lines). The `shouldScrollToLatestOnOpen === true` →
+     `refreshLatestThreadSlice` branch and the forward-gap check +
+     `'thread-open-forward-gap-check'` log string move inline into
+     `threadOpenLifecycleController.ts` (log string preserved so
+     capture consumers keep working). Two NEW arch guards in
+     `engine/__tests__/engine.architecture.test.ts`:
+     (a) `fetchAllThreadRelations is defined in engine/, and
+     imported only within engine/**`, (b) `mx.fetchRelations in
+     threads/ is limited to threadOpenSdkBootstrap.ts with exactly 2
+     occurrences`. Explicit exclusion:
+     `notifications/readReceipts.ts` uses `mx.fetchRelations` with
+     `RelationType.Thread limit:1` — receipts-domain, not
+     thread-history backfill — out of scope. The
+     `RoomTimeline.architecture.test.ts:797-813` post-bootstrap-refresh
+     guard is reshaped to point at the lifecycle controller as the
+     new home of the log string.
+
+  3. `7a30e7f8` P5.1 Commit 3 `feat: room-open reconcile with
+     discontinuity awareness` — wires the room-scope reconcile from
+     the engine's `noteRoomFocused`: every room focus schedules a
+     `'reconcile'` job with `threadId: undefined` at band 0. AC8
+     dedup includes kind + roomId + threadId, so room-scope and
+     thread-scope reconciles on the same room coexist (different
+     keys). The room-scope executor is deliberately a fast no-op —
+     room-open tail catchup is end-to-end owned by the P3.2 markers
+     (TimelineReset + Sync→PREPARED) + P4.2 `gapFillExecutor`;
+     duplicating that work with a `/messages` catchup here would
+     just contend with the gap-fill queue. What Commit 3 adds is the
+     SCHEDULE tripwire so the D7 "every open schedules a reconcile"
+     invariant holds at both scopes and probe captures gain
+     observability parity. `onRepaired` intentionally NOT called
+     (invariant: "onRepaired fires only when a repair was actually
+     applied"). 3 new reconciler unit tests (room-scope schedule
+     shape, room-scope dedup, room-scope vs thread-scope coexist).
+
+  4. `5724ef8f` P5.2 Commit 4 `fix+test: repair applier hardening;
+     AC2 green; correction-path anchor unit` — 2 new reconciler unit
+     tests plus the AC2 spec flip.
+     Applier hardening (AC10): fixture carries a bundled edit AND a
+     redaction on cached ids, asserts divergence detection, exactly
+     one `onRepaired`, and NO push to `setSupplementalThreadEvents`
+     (instance mutation only, no array splice). The reconciler
+     structurally cannot grow the rendered array; that's the AC10
+     guarantee.
+     Tuwunel stale-copy re-apply: fixture where `mx.getRoom(...).
+     findEventById($reaction)` returns a live instance with a
+     tracked `makeRedacted` spy; the fetch serves the reaction with
+     `unsigned.redacted_because` (the exact Tuwunel 10-second
+     behavior discovered in the P3 gate work); asserts the
+     reconciler funnels through `createPreferLiveEventMapper` BEFORE
+     diffing so `liveEvent.makeRedacted(...)` fires and cascades
+     into the SDK's `Relations.BeforeRedaction` listener.
+     AC2 spec `e2e/live/cinny207-stale-cache-divergence.spec.ts`
+     flipped from `test.fail` to `test` — the docker gate against
+     real Tuwunel is the team-lead's to run; the applier +
+     prefer-live wiring is covered by the new unit tests in the
+     meantime.
+
+  5. This docs commit — runbook P5.1/P5.2, plan header (Phase 5
+     "landed") + status log + scorecard AC2/AC9/AC10 + §6.4
+     regression guards updated with the two new engine-owned
+     `/relations` boundary guards + the reshaped post-bootstrap
+     guard + notes on the retained `refreshLatestThreadRelationsTail`
+     tripwire.
+
+  Full validation on the branch tip: `npx tsc --noEmit` clean;
+  `npx vitest run` 337 files / 2568 tests green (+11 vs the
+  post-P4-gate-fix baseline of 2557 — six new reconciler tests in
+  Commit 1, three room-scope in Commit 3, two applier+Tuwunel in
+  Commit 4; two tests lost from the deleted
+  `threadOpenPostBootstrapRefresh.test.ts` are recovered elsewhere
+  in the reconciler + arch guard units); `npm run build` OK;
+  `npm run lint` 18 warnings / 0 errors — exact baseline, zero
+  delta. Docker gate (AC2 flip + regression) not run by the
+  implementing agent; team-lead runs it after PR open.
 
 - 2026-07-04 — **Phase 4 gate fix applied** on
   `cache-overhaul/11-p4-scheduler`. First docker gate reported AC13
