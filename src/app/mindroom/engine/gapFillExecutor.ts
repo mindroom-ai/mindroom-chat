@@ -32,7 +32,13 @@ import { clearRoomTailDiscontinuity } from '../threads/cacheStore';
 import { persistRoomChunkWithPreferLive } from '../threads/eventRepository';
 import type { BackfillScheduler } from './backfillScheduler';
 import type { GapFillJob, GapFillScheduler } from './engineGapTracker';
-import { isRoomEligibleForRawFetch, resolveRoomPrefetchTier } from './prefetchPolicy';
+import {
+  DEFAULT_PREFETCH_SCOPE,
+  isRoomEligibleForBackgroundPrefetch,
+  isRoomEligibleForRawFetch,
+  resolveRoomPrefetchTier,
+  type PrefetchConfig,
+} from './prefetchPolicy';
 
 // Batch size for the /messages page — matches the app's other backfill
 // batches so the scheduler's cooperative abort granularity is
@@ -51,6 +57,24 @@ export type GapFillExecutorOptions = {
   readonly scheduler: BackfillScheduler;
   /** Priority band for gap-fills on rooms other than the focused one. */
   readonly priority?: 0 | 1 | 2;
+  /**
+   * CINNY-207 P7.2 audit finding #5: supplies the live user
+   * `PrefetchConfig` on every runOnce. The executor consults
+   * `config.scope` via `isRoomEligibleForBackgroundPrefetch` before
+   * fetching, so a user switching to `current-room-only` immediately
+   * suppresses background gap-fills on non-focused rooms.
+   * Optional to preserve back-compat for existing test constructors.
+   * When absent, the executor falls back to the default `my-server`
+   * policy — the historical behavior.
+   */
+  readonly getPrefetchConfig?: () => PrefetchConfig;
+  /**
+   * CINNY-207 P7.2 audit finding #5: returns the currently-focused
+   * room id (populated by `MindroomSyncEngine.noteRoomFocused`). Only
+   * consulted when `config.scope === 'current-room-only'`. Optional
+   * for the same back-compat reason as `getPrefetchConfig`.
+   */
+  readonly getFocusedRoomId?: () => string | undefined;
 };
 
 /**
@@ -72,25 +96,49 @@ export const createGapFillExecutor = (
 ): GapFillExecutor => {
   const { mx, sessionId, scheduler } = options;
   const priority = options.priority ?? 1;
+  const getPrefetchConfig = options.getPrefetchConfig;
+  const getFocusedRoomId = options.getFocusedRoomId ?? (() => undefined);
   let stopped = false;
 
   const runOnce = async (job: GapFillJob, signal: AbortSignal): Promise<void> => {
     const room: Room | null | undefined = mx.getRoom?.(job.roomId);
     if (!room) return;
+
+    // CINNY-207 P7.2 audit finding #5: scope-aware gate. Under
+    // `my-server` (default) this collapses to the historical
+    // `isRoomEligibleForRawFetch` policy (own-tier + not encrypted).
+    // Under `all-rooms` federated rooms become eligible. Under
+    // `current-room-only` only the currently-focused room passes.
+    //
+    // Encrypted rooms are always blocked by the helper — ciphertext is
+    // unusable without decryption context. The marker-clearing branch
+    // below still runs the historical own-tier check because that's
+    // the shape it was designed for (encrypted-own clears, federated
+    // preserves per Deviations §8); scope only affects the gating,
+    // not the marker semantics for skipped rooms.
+    const scope = getPrefetchConfig ? getPrefetchConfig().scope : DEFAULT_PREFETCH_SCOPE;
+    const eligible = isRoomEligibleForBackgroundPrefetch({
+      mx,
+      room,
+      scope,
+      focusedRoomId: getFocusedRoomId(),
+    });
     // Policy gate — federated / encrypted rooms are skipped entirely.
     // The gap-fill queue holds them because the P4 gate fix removed
     // the enqueue-time short-circuit (so `gapFillsEnqueued` and
     // `schedulerEnqueued` stay in lockstep for observability); this is
     // where they actually get filtered out.
-    if (!isRoomEligibleForRawFetch(mx, room)) {
-      // Encrypted-own rooms: clear the marker — we've explicitly
-      // declined to fill them (ciphertext is unusable without
-      // decryption context) so a stale marker would otherwise
-      // accumulate. Federated rooms: preserve the marker per
-      // Deviations §8 (federated rooms are handled by user attention,
-      // not background sweeps; a later user-triggered fill will pick
-      // the marker up).
-      if (resolveRoomPrefetchTier(mx, room) === 'own') {
+    if (!eligible) {
+      // Marker semantics preserved from the pre-#5 shape: encrypted-
+      // own rooms clear their marker (we've declined to fill them
+      // permanently — ciphertext is unusable), federated preserves
+      // per Deviations §8. When `current-room-only` blocks a normally-
+      // eligible room, preserve the marker so a scope-widen later
+      // picks the work back up.
+      if (isRoomEligibleForRawFetch(mx, room)) {
+        // Only reachable under `current-room-only` for a non-focused
+        // eligible room. Marker preserved.
+      } else if (resolveRoomPrefetchTier(mx, room) === 'own') {
         await clearRoomTailDiscontinuity(sessionId, room.roomId).catch(
           () => undefined
         );

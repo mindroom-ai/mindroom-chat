@@ -3,6 +3,7 @@ import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import {
   CURRENT_ROOM_DEEP_HISTORY_TARGET,
   DEFAULT_PREFETCH_SCOPE,
+  isRoomEligibleForBackgroundPrefetch,
   isRoomEligibleForRawFetch,
   resolvePrefetchConfig,
   resolveRoomPrefetchTier,
@@ -20,10 +21,12 @@ const makeCreateEvent = (senderId: string | undefined): MatrixEvent =>
 
 const makeRoom = (
   createSender: string | undefined | 'missing',
-  encrypted = false
+  encrypted = false,
+  roomId = '!room:mindroom.chat'
 ): Room => {
   const stateEvent = createSender === 'missing' ? undefined : makeCreateEvent(createSender);
   return {
+    roomId,
     hasEncryptionStateEvent: () => encrypted,
     getLiveTimeline: () => ({
       getState: () => ({
@@ -194,5 +197,67 @@ describe('resolvePrefetchConfig (CINNY-207 P6.1 / D4)', () => {
       roomTailDepth: ROOM_TAIL_PREFETCH_DEPTH,
       threadInventoryLimit: THREAD_INVENTORY_PREFETCH_LIMIT,
     });
+  });
+});
+
+// CINNY-207 P7.2 audit finding #5: unit coverage for the new
+// scope-aware background prefetch gate. The gap-fill executor consults
+// this helper on every runOnce; each PrefetchScope literal must
+// produce a distinct eligibility decision or the setting is a no-op.
+describe('isRoomEligibleForBackgroundPrefetch (CINNY-207 P7.2)', () => {
+  const mx = makeClient('mindroom.chat');
+  const ownRoom = makeRoom('@alice:mindroom.chat', false, '!own:mindroom.chat');
+  const federatedRoom = makeRoom('@bob:example.org', false, '!fed:example.org');
+  const encryptedOwn = makeRoom('@alice:mindroom.chat', true, '!enc:mindroom.chat');
+
+  it('my-server: admits own-tier, rejects federated, rejects encrypted', () => {
+    expect(
+      isRoomEligibleForBackgroundPrefetch({ mx, room: ownRoom, scope: 'my-server', focusedRoomId: undefined })
+    ).toBe(true);
+    expect(
+      isRoomEligibleForBackgroundPrefetch({ mx, room: federatedRoom, scope: 'my-server', focusedRoomId: undefined })
+    ).toBe(false);
+    expect(
+      isRoomEligibleForBackgroundPrefetch({ mx, room: encryptedOwn, scope: 'my-server', focusedRoomId: undefined })
+    ).toBe(false);
+  });
+
+  it('all-rooms: admits own-tier AND federated, still rejects encrypted', () => {
+    expect(
+      isRoomEligibleForBackgroundPrefetch({ mx, room: ownRoom, scope: 'all-rooms', focusedRoomId: undefined })
+    ).toBe(true);
+    expect(
+      isRoomEligibleForBackgroundPrefetch({ mx, room: federatedRoom, scope: 'all-rooms', focusedRoomId: undefined })
+    ).toBe(true);
+    expect(
+      isRoomEligibleForBackgroundPrefetch({ mx, room: encryptedOwn, scope: 'all-rooms', focusedRoomId: undefined })
+    ).toBe(false);
+  });
+
+  it('current-room-only: admits ONLY the focused room, rejects otherwise', () => {
+    expect(
+      isRoomEligibleForBackgroundPrefetch({
+        mx,
+        room: ownRoom,
+        scope: 'current-room-only',
+        focusedRoomId: '!own:mindroom.chat',
+      })
+    ).toBe(true);
+    expect(
+      isRoomEligibleForBackgroundPrefetch({
+        mx,
+        room: ownRoom,
+        scope: 'current-room-only',
+        focusedRoomId: '!different:mindroom.chat',
+      })
+    ).toBe(false);
+    expect(
+      isRoomEligibleForBackgroundPrefetch({
+        mx,
+        room: ownRoom,
+        scope: 'current-room-only',
+        focusedRoomId: undefined,
+      })
+    ).toBe(false);
   });
 });

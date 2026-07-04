@@ -60,6 +60,7 @@ export {
   PREFETCH_SCOPE,
   ROOM_TAIL_PREFETCH_DEPTH,
   THREAD_INVENTORY_PREFETCH_LIMIT,
+  isRoomEligibleForBackgroundPrefetch,
   isRoomEligibleForRawFetch,
   resolvePrefetchConfig,
   resolveRoomPrefetchTier,

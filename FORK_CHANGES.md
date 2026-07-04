@@ -2,6 +2,66 @@
 
 ## Runbook
 
+### CINNY-207 P7.2 audit remediation — wire prefetchScope into the scheduler (2026-07-04)
+
+Finding #5: `prefetchScope` was stored via `mindroomSettingsAtom` and
+rendered in `MindroomPrefetchSettings.tsx`, but no scheduler / policy
+code read it. `resolvePrefetchConfig` was exported and called only by
+tests. Actual eligibility flowed through the hardcoded
+`isRoomEligibleForRawFetch` (== my-server). A user selecting "All
+rooms" or "Current room only" observed no behavior change — the
+strategy doc and UI copy claimed the setting worked when the delivery
+never wired it.
+
+- `prefetchPolicy.ts`: new `isRoomEligibleForBackgroundPrefetch({ mx,
+  room, scope, focusedRoomId })` — the scope-aware gate. Semantics
+  match the UI selector copy:
+  - `my-server`: own tier only (historical behavior).
+  - `all-rooms`: own + federated + background; encrypted still blocked
+    (unusable ciphertext).
+  - `current-room-only`: only the room whose id matches
+    `focusedRoomId`; every other room suppressed for background bands.
+
+- `mindroomSyncEngine.ts`: `CreateMindroomSyncEngineOptions` grows
+  `getPrefetchConfig?: () => PrefetchConfig`. Snapshot-per-call
+  (not snapshot-at-construction) so mid-session scope changes take
+  effect on the next enqueue. Tracks the current `focusedRoomId`
+  inside the engine closure (updated in `noteRoomFocused`).
+
+- `gapFillExecutor.ts`: constructor grows `getPrefetchConfig` and
+  `getFocusedRoomId` options (both optional — omitted means "assume
+  my-server", preserving pre-#5 shape for tests). `runOnce` now
+  consults `isRoomEligibleForBackgroundPrefetch(...)` instead of the
+  hardcoded my-server helper. Marker-clear semantics preserved:
+  encrypted-own still clears; federated skipped under `my-server`
+  still preserves; `current-room-only` suppression preserves markers
+  so a scope-widen later picks them back up.
+
+- `pages/client/ClientRoot.tsx`: passes
+  `getPrefetchConfig: () => resolvePrefetchConfig(store.get(settingsAtom))`
+  when creating the engine. Reads through the default jotai store on
+  every call — a live scope change takes effect without an engine
+  rebuild.
+
+- Deep-history is unchanged: it only enqueues for the currently-
+  focused room (from `MindroomRoomTimeline`'s effect), so `my-server`
+  and `all-rooms` behave identically for it, and `current-room-only`
+  by definition doesn't suppress it.
+
+- Red-first coverage:
+  - `prefetchPolicy.test.ts`: three cases pin each scope literal's
+    effect on `isRoomEligibleForBackgroundPrefetch` (my-server vs
+    all-rooms federated admission; current-room-only focused vs
+    non-focused vs undefined).
+  - `gapFillExecutor.test.ts`: three end-to-end cases run the
+    executor under each scope value and assert the `/messages` call
+    count + cache row (all-rooms admits federated; current-room-only
+    suppresses a non-focused eligible room and admits the focused
+    one). Verified red on the pre-#5 shape (`2 failed` — the
+    all-rooms and current-room-only suppression cases fail because
+    the hardcoded my-server gate rejected federated and admitted
+    every own-tier room regardless of focus).
+
 ### CINNY-207 P7.2 audit remediation — settings scrub-before-init via module side effect (2026-07-04)
 
 Finding #4: ESM static imports are hoisted — every static import in

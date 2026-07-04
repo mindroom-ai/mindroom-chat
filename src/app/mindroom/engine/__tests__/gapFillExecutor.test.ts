@@ -538,4 +538,163 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     expect(liveIsRedacted).toBe(true);
     expect(liveRedactedBecause.present?.event_id).toBe('$redaction');
   });
+
+  // CINNY-207 P7.2 audit finding #5 — the user-facing `prefetchScope`
+  // setting must actually gate background gap-fills. Three cases pin
+  // the three literal values:
+  //   - my-server: historical behavior (own-tier only, federated skipped).
+  //   - all-rooms: federated rooms admitted for background fills.
+  //   - current-room-only: only the currently-focused room admitted.
+  //
+  // These tests are red-first against the pre-#5 shape (`prefetchScope`
+  // stored + rendered but unread by the scheduler — the executor's
+  // gate was hardcoded to `isRoomEligibleForRawFetch`, which is the
+  // `my-server` policy).
+
+  it('honors prefetchScope=all-rooms by fetching federated rooms that my-server would skip', async () => {
+    const mx = createMockClient('mindroom.chat', (call) => {
+      if (call === 0) return { chunk: [rawEvent('$fed-1', 1)] };
+      return { chunk: [] };
+    });
+    mx.__rooms.set('!fed:example.org', makeRoomStub('!fed:example.org', '@carol:example.org'));
+    await markRoomTailDiscontinuity(SESSION_ID, '!fed:example.org', {
+      markedAt: Date.now(),
+      prevBatch: 'tok-fed',
+    });
+
+    const scheduler = createBackfillScheduler({ mx });
+    const gapFillScheduler = createInMemoryGapFillScheduler();
+    gapFillScheduler.enqueueGapFill({
+      roomId: '!fed:example.org',
+      reason: 'startup',
+      markedAt: Date.now(),
+      prevBatch: 'tok-fed',
+    });
+
+    createGapFillExecutor(
+      {
+        mx,
+        sessionId: SESSION_ID,
+        scheduler,
+        getPrefetchConfig: () => ({
+          scope: 'all-rooms',
+          currentRoomDepth: 10_000,
+          roomTailDepth: 200,
+          threadInventoryLimit: 50,
+        }),
+      },
+      gapFillScheduler
+    );
+    await flushMicrotasks();
+    await waitForCompleted();
+
+    // Under my-server this room would be skipped and no /messages call
+    // would fire. Under all-rooms the fetch runs and the event lands
+    // in cache.
+    expect(mx.__messages.length).toBeGreaterThanOrEqual(1);
+    const cached = await loadCachedRoomEvent(SESSION_ID, '!fed:example.org', '$fed-1');
+    expect(cached?.event_id).toBe('$fed-1');
+  });
+
+  it('honors prefetchScope=current-room-only by suppressing gap-fills on non-focused eligible rooms', async () => {
+    const mx = createMockClient('mindroom.chat', () => ({
+      chunk: [rawEvent('$should-not-persist', 1)],
+    }));
+    mx.__rooms.set(
+      '!other:mindroom.chat',
+      makeRoomStub('!other:mindroom.chat', '@alice:mindroom.chat')
+    );
+    await markRoomTailDiscontinuity(SESSION_ID, '!other:mindroom.chat', {
+      markedAt: Date.now(),
+      prevBatch: 'tok-other',
+    });
+
+    const scheduler = createBackfillScheduler({ mx });
+    const gapFillScheduler = createInMemoryGapFillScheduler();
+    gapFillScheduler.enqueueGapFill({
+      roomId: '!other:mindroom.chat',
+      reason: 'startup',
+      markedAt: Date.now(),
+      prevBatch: 'tok-other',
+    });
+
+    createGapFillExecutor(
+      {
+        mx,
+        sessionId: SESSION_ID,
+        scheduler,
+        getPrefetchConfig: () => ({
+          scope: 'current-room-only',
+          currentRoomDepth: 10_000,
+          roomTailDepth: 200,
+          threadInventoryLimit: 50,
+        }),
+        // The user is looking at a DIFFERENT room; this eligible
+        // my-server room should be suppressed.
+        getFocusedRoomId: () => '!focused:mindroom.chat',
+      },
+      gapFillScheduler
+    );
+    await flushMicrotasks();
+    await waitForCompleted();
+
+    // No /messages call — the scope suppressed the fetch.
+    expect(mx.__messages.length).toBe(0);
+    const cached = await loadCachedRoomEvent(SESSION_ID, '!other:mindroom.chat', '$should-not-persist');
+    expect(cached).toBeUndefined();
+    // Marker preserved so a scope-widen later picks the work back up.
+    const marker = await loadRoomTailDiscontinuity(SESSION_ID, '!other:mindroom.chat');
+    expect(marker).toBeDefined();
+  });
+
+  it('honors prefetchScope=current-room-only by ADMITTING the focused room', async () => {
+    const mx = createMockClient('mindroom.chat', (call) => {
+      if (call === 0) return { chunk: [rawEvent('$focused-1', 1)] };
+      return { chunk: [] };
+    });
+    mx.__rooms.set(
+      '!focused:mindroom.chat',
+      makeRoomStub('!focused:mindroom.chat', '@alice:mindroom.chat')
+    );
+    await markRoomTailDiscontinuity(SESSION_ID, '!focused:mindroom.chat', {
+      markedAt: Date.now(),
+      prevBatch: 'tok-focused',
+    });
+
+    const scheduler = createBackfillScheduler({ mx });
+    const gapFillScheduler = createInMemoryGapFillScheduler();
+    gapFillScheduler.enqueueGapFill({
+      roomId: '!focused:mindroom.chat',
+      reason: 'startup',
+      markedAt: Date.now(),
+      prevBatch: 'tok-focused',
+    });
+
+    createGapFillExecutor(
+      {
+        mx,
+        sessionId: SESSION_ID,
+        scheduler,
+        getPrefetchConfig: () => ({
+          scope: 'current-room-only',
+          currentRoomDepth: 10_000,
+          roomTailDepth: 200,
+          threadInventoryLimit: 50,
+        }),
+        getFocusedRoomId: () => '!focused:mindroom.chat',
+      },
+      gapFillScheduler
+    );
+    await flushMicrotasks();
+    await waitForCompleted();
+
+    // The focused room passes the scope gate — fetch runs, event lands.
+    expect(mx.__messages.length).toBeGreaterThanOrEqual(1);
+    const cached = await loadCachedRoomEvent(
+      SESSION_ID,
+      '!focused:mindroom.chat',
+      '$focused-1'
+    );
+    expect(cached?.event_id).toBe('$focused-1');
+  });
 });

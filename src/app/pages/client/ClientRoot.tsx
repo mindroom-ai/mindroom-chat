@@ -51,8 +51,11 @@ import {
 import {
   createMindroomSyncEngine,
   MindroomSyncEngineProvider,
+  resolvePrefetchConfig,
   type MindroomSyncEngine,
 } from '../../mindroom/engine';
+import { getDefaultStore } from 'jotai';
+import { settingsAtom } from '../../state/settings';
 
 type ClientMatrixClient = Awaited<ReturnType<typeof initClient>> & {
   on: (
@@ -286,7 +289,23 @@ export function ClientRoot({ children }: ClientRootProps) {
       setSyncEngine(undefined);
       return undefined;
     }
-    const engine = createMindroomSyncEngine({ mx });
+    // CINNY-207 P7.2 audit finding #5: supply a live PrefetchConfig
+    // supplier so the gap-fill executor can honor the user's
+    // `prefetchScope` selection (my-server / all-rooms / current-room-
+    // only). Reads through the default jotai store on every call so a
+    // mid-session scope change takes effect on the next enqueue
+    // without an engine rebuild.
+    const store = getDefaultStore();
+    const engine = createMindroomSyncEngine({
+      mx,
+      getPrefetchConfig: () =>
+        resolvePrefetchConfig(
+          store.get(settingsAtom) as unknown as {
+            prefetchScope?: unknown;
+            prefetchDepth?: unknown;
+          }
+        ),
+    });
     engine.start();
     setSyncEngine(engine);
     return () => {

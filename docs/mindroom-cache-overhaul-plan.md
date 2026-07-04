@@ -615,6 +615,63 @@ new engine-scoped guard file):
 
 ## 8. Deviations
 
+- 2026-07-04 — **P7.2 audit remediation batch (five findings).** The
+  final P7.2 adversarial audit surfaced five open findings against
+  branch 13's tip (`bba6013e`). All five landed as focused commits on
+  the same branch after verifying each was still open at tip
+  (findings that had been fixed by the earlier review-fix batch are
+  not recorded here). Summary:
+  - **Finding #1** — Thread-open lifecycle had no rejection handler on
+    the `loadThreadTimeline()` call at
+    `threadOpenLifecycleController.ts:308`. `abortAll()` at engine
+    teardown rejected the queued thread-backfill job, surfacing as
+    `backfill scheduler stopped` unhandled. Fixed with
+    `loadThreadTimeline().catch(() => undefined)`.
+  - **Finding #2** — `void p.finally(cb)` at
+    `threadSeedPrewarmController.ts:165` and
+    `threadOpenSeedController.ts:188` returned NEW promises that
+    re-rejected on scheduler abort. Replaced with
+    `void p.then(cb, cb)`. Also added `.catch(() => undefined)` to
+    the drain-loop `await ensureThreadSeedPrewarm(...)` and both
+    `void prewarmThreadSeeds()` entry points. Sweep of
+    `void [x].finally(` in `src/app/mindroom/` returns zero.
+  - **Finding #3** — `gapFillExecutor.ts:129` and
+    `deepHistoryJob.ts:108` persisted raw `response.chunk` directly
+    via `saveRoomEventsToCache`, letting a background sweep inside
+    Tuwunel's ~10s stale window overwrite a cached tombstone with
+    pre-redaction plaintext at rest (invariant I2). Extracted a
+    shared `persistRoomChunkWithPreferLive` helper in
+    `eventRepository.ts` that routes each chunk event through
+    `createPreferLiveEventMapper` and `persistRoomEventCacheSnapshot`
+    (same serialize+save path the write-through and reconciler use).
+  - **Finding #4** — `dropLegacyMindroomSettings()` called from the
+    top of `src/index.tsx` ran AFTER `state/settings.ts` module init
+    because ES imports are hoisted. Moved the scrub to a
+    module-scope side effect at the bottom of
+    `mindroomSettingsBootstrap.ts` (a leaf module — arch test now
+    asserts it has no transitive import of `state/settings.ts`).
+    Belt-and-braces: `getSettings()` destructure-omits
+    `paginationLimit` at read time so the base atom cannot
+    initialize contaminated. Added a plain-`settingsAtom` write-back
+    test that primes contamination and asserts the saved blob omits
+    the legacy key.
+  - **Finding #5** — `prefetchScope` stored + rendered but never
+    read. `resolvePrefetchConfig` called only by tests. Wired the
+    setting into the actual scheduler decision path: new
+    `isRoomEligibleForBackgroundPrefetch({ mx, room, scope,
+    focusedRoomId })` in `prefetchPolicy.ts`. `MindroomSyncEngine`
+    grows a `getPrefetchConfig?: () => PrefetchConfig` supplier
+    (snapshot-per-call, ClientRoot wires it to
+    `getDefaultStore().get(settingsAtom)`), tracks the current
+    focused room, and hands both into `gapFillExecutor` which now
+    consults the scope-aware gate. Three cases pin each scope
+    literal (my-server / all-rooms / current-room-only) at the
+    unit-policy layer AND end-to-end through the executor.
+  - Validation batch on the branch tip:
+    `npx tsc --noEmit` clean, `npx vitest run` all pass, lint
+    18 warnings 0 errors (zero delta from pre-remediation
+    baseline), `npm run build` clean.
+
 - 2026-07-04 — **P6.1 arch guard 6.4 (b) uses an exemption list, not
   a zero allowlist.** The Commit-4 brief called for a recursive scan
   of `src/app/mindroom/**/*.{ts,tsx}` for

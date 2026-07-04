@@ -207,3 +207,53 @@ export const resolvePrefetchConfig = (settings: {
   roomTailDepth: ROOM_TAIL_PREFETCH_DEPTH,
   threadInventoryLimit: THREAD_INVENTORY_PREFETCH_LIMIT,
 });
+
+/**
+ * CINNY-207 P7.2 audit finding #5: scope-aware eligibility gate for
+ * BACKGROUND prefetch bands (bands 1-3 in the scheduler). Consulted by
+ * the gap-fill executor and any other consumer that decides whether a
+ * given (room, currently-focused-room) pair is allowed to run a
+ * background raw fetch.
+ *
+ * Semantics match the UI selector strings in `MindroomPrefetchSettings.tsx`:
+ *   - `my-server` (default): only rooms whose `create.sender` domain
+ *     matches ours. Encrypted rooms still blocked. This is the
+ *     historical `isRoomEligibleForRawFetch` behavior.
+ *   - `all-rooms`: any joined room, own or federated (background tier
+ *     still counts as federated for policy purposes). Encrypted rooms
+ *     still blocked — ciphertext is unusable without decryption
+ *     context.
+ *   - `current-room-only`: only the currently-focused room is
+ *     eligible. Every other room is suppressed for background bands
+ *     regardless of tier. A user opening a specific room can still
+ *     trigger a band-0 fetch via `noteRoomFocused`.
+ *
+ * `focusedRoomId` is the room id the user is currently looking at (as
+ * tracked by the engine's most recent `noteRoomFocused` call). It is
+ * consulted by the `current-room-only` branch only.
+ *
+ * The band-0 (foreground) path is NOT gated by this function: opening
+ * a room the user actively navigates to is always eligible, otherwise
+ * the client couldn't fill from history in the very room being read.
+ */
+export const isRoomEligibleForBackgroundPrefetch = ({
+  mx,
+  room,
+  scope,
+  focusedRoomId,
+}: {
+  mx: MatrixClient;
+  room: Room;
+  scope: PrefetchScope;
+  focusedRoomId: string | undefined;
+}): boolean => {
+  if (room.hasEncryptionStateEvent?.()) return false;
+  if (scope === 'current-room-only') {
+    return focusedRoomId === room.roomId;
+  }
+  if (scope === 'all-rooms') {
+    return true;
+  }
+  // Default 'my-server': historical behavior — only own-tier rooms.
+  return resolveRoomPrefetchTier(mx, room) === 'own';
+};

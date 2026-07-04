@@ -49,7 +49,11 @@ import {
   type BackfillScheduler,
 } from './backfillScheduler';
 import { createGapFillExecutor } from './gapFillExecutor';
-import { resolveRoomPrefetchTier } from './prefetchPolicy';
+import {
+  DEFAULT_PREFETCH_SCOPE,
+  resolveRoomPrefetchTier,
+  type PrefetchConfig,
+} from './prefetchPolicy';
 import { scheduleReconcile } from './reconciler';
 import type { EngineLiveEventMeta, MindroomSyncEngine } from './types';
 
@@ -94,6 +98,25 @@ export type CreateMindroomSyncEngineOptions = {
    * Optional backfill scheduler override for tests.
    */
   scheduler?: BackfillScheduler;
+  /**
+   * CINNY-207 P7.2 audit finding #5 — supplies the live user
+   * `PrefetchConfig` (scope + depth) to the engine on every check.
+   * Snapshot-per-call rather than snapshot-at-construction so a
+   * mid-session scope change picks up on the next enqueue.
+   *
+   * ClientRoot wires this to a jotai store read of
+   * `mindroomSettingsAtom` (non-React accessor); tests default to
+   * `{ scope: 'my-server', ... }` so behavior is unchanged from the
+   * pre-#5 hardcoded policy.
+   */
+  getPrefetchConfig?: () => PrefetchConfig;
+};
+
+const DEFAULT_PREFETCH_CONFIG: PrefetchConfig = {
+  scope: DEFAULT_PREFETCH_SCOPE,
+  currentRoomDepth: 10_000,
+  roomTailDepth: 200,
+  threadInventoryLimit: 50,
 };
 
 export const createMindroomSyncEngine = ({
@@ -102,12 +125,20 @@ export const createMindroomSyncEngine = ({
   gapTracker,
   persist,
   scheduler,
+  getPrefetchConfig,
 }: CreateMindroomSyncEngineOptions): MindroomSyncEngine => {
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
   const effectiveWriteThrough = writeThrough ?? createEngineWriteThrough({ sessionId });
   const effectiveScheduler = scheduler ?? createBackfillScheduler({ mx });
   const effectiveGapTracker = gapTracker ?? createEngineGapTracker({ mx, sessionId });
   const effectivePersist = persist ?? createEnginePersistFacade({ sessionId });
+
+  // CINNY-207 P7.2 audit finding #5: focused room tracker. Populated
+  // by `noteRoomFocused`; the gap-fill executor consults it via
+  // `getFocusedRoomId` when `prefetchScope === 'current-room-only'`.
+  let focusedRoomId: string | undefined;
+  const getFocusedRoomId = (): string | undefined => focusedRoomId;
+  const effectiveGetPrefetchConfig = getPrefetchConfig ?? (() => DEFAULT_PREFETCH_CONFIG);
 
   // CINNY-207 P4.2: wire the executor over the gap tracker's queue so
   // limited-sync / startup jobs actually drain. Test overrides can pass
@@ -116,7 +147,17 @@ export const createMindroomSyncEngine = ({
   const gapFillExecutor = gapTracker
     ? undefined
     : createGapFillExecutor(
-        { mx, sessionId, scheduler: effectiveScheduler },
+        {
+          mx,
+          sessionId,
+          scheduler: effectiveScheduler,
+          // CINNY-207 P7.2 audit finding #5: thread scope + focus into
+          // the executor so the runtime gate can honor
+          // `current-room-only` (suppress background bands on non-focused
+          // rooms) and `all-rooms` (admit federated tiers).
+          getPrefetchConfig: effectiveGetPrefetchConfig,
+          getFocusedRoomId,
+        },
         effectiveGapTracker.scheduler
       );
 
@@ -278,6 +319,12 @@ export const createMindroomSyncEngine = ({
   const noteRoomFocused = (roomId: string, threadId?: string): void => {
     const room = mx.getRoom?.(roomId);
     if (!room) return;
+    // CINNY-207 P7.2 audit finding #5: record the focus so scope-aware
+    // gates in the gap-fill executor and any other consumer can honor
+    // `current-room-only`. The band-0 (foreground) pathways below run
+    // unconditionally — a room the user actively opens is always
+    // eligible for a foreground fetch.
+    focusedRoomId = roomId;
     const tier = resolveRoomPrefetchTier(mx, room);
     // `background` (create event missing) is treated as federated for
     // eligibility, but we don't stamp the ledger flag since we don't
