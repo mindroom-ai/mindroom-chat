@@ -2977,33 +2977,46 @@ export function RoomTimeline({
     ? roomTimelineVirtualizer.getVirtualItems()[0]?.index
     : undefined;
   const [threadUserScrolled, setThreadUserScrolled] = useState(false);
+  // Bumped by a fresh gesture ONLY while a barren-attempt block is
+  // armed (see below) — a renewed explicit user gesture is what
+  // authorizes retrying after a no-progress attempt. Normal scrolling
+  // never bumps it (zero extra renders on the hot path).
+  const [threadAutoPaginateGestureTick, setThreadAutoPaginateGestureTick] = useState(0);
+  const threadAutoPaginateLastFireRef = useRef<{ index: number; count: number } | null>(null);
   useEffect(() => {
+    // Reset ONLY on thread change (coderabbit on PR #74: resetting on
+    // render-mode transitions would wipe real user intent mid-open).
     setThreadUserScrolled(false);
+    threadAutoPaginateLastFireRef.current = null;
+  }, [threadId]);
+  useEffect(() => {
     if (!threadId) return undefined;
     const scrollEl = scrollRef.current;
     if (!scrollEl) return undefined;
     const gestureEvents = ['wheel', 'touchmove', 'pointerdown', 'keydown'] as const;
-    const markScrolled = () => {
+    const onGesture = () => {
       setThreadUserScrolled(true);
-      gestureEvents.forEach((eventType) => {
-        scrollEl.removeEventListener(eventType, markScrolled);
-      });
+      // Renewed intent clears a barren block (greptile P1 round 2 on
+      // PR #74): a no-progress attempt must not strand the user at
+      // the edge while older history still exists — but retries are
+      // paced by explicit gestures, so an exhausted-but-miscounted
+      // coverage state cannot re-fire in an unattended loop either.
+      if (threadAutoPaginateLastFireRef.current !== null) {
+        threadAutoPaginateLastFireRef.current = null;
+        setThreadAutoPaginateGestureTick((tick) => tick + 1);
+      }
     };
     gestureEvents.forEach((eventType) => {
-      scrollEl.addEventListener(eventType, markScrolled, { passive: true });
+      scrollEl.addEventListener(eventType, onGesture, { passive: true });
     });
     return () => {
       gestureEvents.forEach((eventType) => {
-        scrollEl.removeEventListener(eventType, markScrolled);
+        scrollEl.removeEventListener(eventType, onGesture);
       });
     };
     // threadInitialRenderMode: the scroll element mounts after the
     // loading placeholder phase; re-attach once real rows render.
   }, [threadId, threadInitialRenderMode]);
-  const threadAutoPaginateLastFireRef = useRef<{ index: number; count: number } | null>(null);
-  useEffect(() => {
-    threadAutoPaginateLastFireRef.current = null;
-  }, [threadId]);
   useEffect(() => {
     if (
       !shouldAutoPaginateThreadBack({
@@ -3037,6 +3050,7 @@ export function RoomTimeline({
     showThreadLoadOlderMessages,
     threadPaginatingBack,
     threadUserScrolled,
+    threadAutoPaginateGestureTick,
     threadEvents.length,
     handleThreadPaginateBack,
   ]);

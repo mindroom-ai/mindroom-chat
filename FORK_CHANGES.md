@@ -28,14 +28,21 @@ regions is smooth.
   pin-to-bottom settle phase (`threadLatestOpenPendingRef` — the
   virtualizer transiently renders from index 0 during settle, which
   must not read as "scrolled to top").
-- e2e: new spec in thread-virtualization-behaviors.spec.ts guards the
-  reachability CONTRACT (260-reply thread, real wheel input, no chip
-  tap, older-than-initial-window reply mounts). Honest scope note in
-  the spec: on a fast network the contract is also satisfiable by band
-  backfill (verified pass with the trigger stashed), so the trigger's
-  regression coverage is the unit predicate; the trigger's value shows
-  on slow networks. All four pre-existing virtualization behavior
-  guards stay green (pin-at-latest, no-yank, quote-click, expand-all).
+- e2e: new spec in thread-virtualization-behaviors.spec.ts, made
+  TRIGGER-SPECIFIC in the PR #74 review rounds: 460-reply thread,
+  route-level /_matrix latency (band backfill otherwise loads the
+  whole thread during open-settle on the unthrottled docker network —
+  gate-log verified), real wheel input, no chip tap, and the
+  threadAutoPaginateBackFired probe counter asserted >= 1 (verified
+  red-without-fix: counter 0 with the effect stashed). The review
+  rounds also replaced the settle-phase gate with USER SCROLL INTENT
+  (threadLatestOpenPending clears only when the whole open backfill
+  chain finishes — on slow networks that spans the entire loading
+  phase, exactly when the trigger must be live) and made renewed
+  gestures clear the barren-attempt block (retry paced by explicit
+  user input; no unattended loop on exhausted coverage). All four
+  pre-existing virtualization behavior guards stay green
+  (pin-at-latest, no-yank, quote-click, expand-all).
 - Discovered en route, filed separately: task #126 — pre-existing
   loader gap, the oldest ~30 replies of a large thread are unreachable
   (no chip, no pagination path); also documented at the quote-click
