@@ -2861,6 +2861,7 @@ build`; live: `cinny033` jump-to-latest + permalink, `cinny070` (x2
   | Test/tooling dependencies | `vitest`, `jsdom`, `react-test-renderer`, `@types/react-test-renderer`, `@playwright/test`, `typescript` `5.4.2`, `eslint` `8.57.1`, `@typescript-eslint/eslint-plugin` `6.21.0`, `@typescript-eslint/parser` `6.21.0`, `patch-package`. | Keep Vitest/Playwright/test renderer in a test harness commit. Keep TypeScript/ESLint upgrades either with test/tooling or a separate tooling bump commit. `patch-package` belongs with the Matrix SDK patch commit. |
   | Obsolete candidates, not removed in this audit | `@capacitor/app-launcher`, `@capacitor/haptics`, `@capacitor/splash-screen`. | No direct JS imports or explicit `capacitor.config.ts` plugin config were found, but they are present in generated Android Gradle files, iOS Podfile, and `Podfile.lock`. Removing them would require deliberate `npx cap sync` churn plus Android/iOS validation, so it is not safe as a lockfile-only cleanup. |
   | Inherited unchanged dependencies with no current direct references | `@atlaskit/pragmatic-drag-and-drop-hitbox`, `dateformat`. | Present unchanged in base `v4.11.1`, current fork, and upstream `v4.12.2`. They are not fork-added dependency drift, so leave them to an upstream dependency-cleanup commit unless a separate source audit removes them with upstream parity. |
+
 - Decision:
   - Do not remove dependencies or regenerate `package-lock.json` in this audit.
     The fork-added dependencies are either actively imported, part of the native
