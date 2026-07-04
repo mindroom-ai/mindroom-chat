@@ -492,9 +492,9 @@ test.describe('CINNY-207 stale-cache divergence reconcile', () => {
           // RG5d canonicalization WORK counter — NOT a must-stay-0
           // tripwire. It counts loser instances the canonicalizer
           // displaced; a stable small non-zero (3 in this flow) is
-          // healthy expected dedup work, because the reconciler's
-          // onRepaired payload deliberately contains duplicate
-          // identities (cached snapshot + fetched copies).
+          // healthy expected dedup work: multiple ingestion paths
+          // (onRepaired payloads, sync/echo deliveries) legitimately
+          // hand the sink distinct instances of one identity.
           eventMapCanonicalizedDisplacements: pick(
             'eventMapCanonicalizedDisplacements'
           ),

@@ -279,12 +279,15 @@ export type CacheProbeCounters = {
   // therefore contains one entry per identity, not one per instance.
   //
   // A stable small non-zero reading is HEALTHY, expected dedup work:
-  // the reconciler's onRepaired payload deliberately contains
-  // duplicate identities (cached-snapshot instances alongside fetched
-  // copies of the same events), and dedup across overlapping key sets
+  // multiple ingestion paths legitimately deliver distinct instances
+  // of the same identity to the sink (reconciler onRepaired payloads,
+  // SDK sync/echo deliveries), and dedup across overlapping key sets
   // is exactly the merge's contract. The AC2 live flow reads 3 per
-  // run. What warrants investigation is a step-change in the reading
-  // (a new duplication source appeared) — not the non-zero itself.
+  // run — and still reads 3 with the onRepaired hydrated-view payload
+  // reverted, so the duplication is not attributable to any single
+  // producer. What warrants investigation is a step-change in the
+  // reading (a new duplication source appeared) — not the non-zero
+  // itself.
   eventMapCanonicalizedDisplacements: number;
 };
 

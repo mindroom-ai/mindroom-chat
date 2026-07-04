@@ -268,12 +268,12 @@ export const mergeThreadRenderEvents = (
   //
   // Observability: `eventMapCanonicalizedDisplacements` bumps once per
   // losing instance the canonicalizer had to displace. It is a WORK
-  // counter, not a must-stay-0 tripwire — the reconciler's onRepaired
-  // payload deliberately carries duplicate identities (cached snapshot
-  // + fetched copies), so a stable small non-zero reading is healthy
-  // dedup work (3 per AC2 live run). A step-change in the reading
-  // names a new duplication source. See cacheProbe.ts for the
-  // interpretation block.
+  // counter, not a must-stay-0 tripwire — multiple ingestion paths
+  // legitimately deliver distinct instances of one identity
+  // (onRepaired payloads, sync/echo deliveries), so a stable small
+  // non-zero reading is healthy dedup work (3 per AC2 live run). A
+  // step-change in the reading names a new duplication source. See
+  // cacheProbe.ts for the interpretation block.
   const setEventForKeys = (keys: string[], mEvent: MatrixEvent) => {
     if (keys.length === 0) return;
 
