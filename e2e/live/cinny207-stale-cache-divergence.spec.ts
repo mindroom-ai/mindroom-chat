@@ -231,6 +231,24 @@ test.describe('CINNY-207 stale-cache divergence reconcile', () => {
         `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(threadId)}`
       );
 
+      // Self-diagnosis: poll the probe into the console so a failing
+      // trace shows scheduled/repaired state instead of staying mute.
+      await page.evaluate(() => {
+        const w = window as Window & {
+          __MINDROOM_CACHE_PROBE__?: { snapshot: () => Record<string, number> };
+        };
+        let ticks = 0;
+        const timer = setInterval(() => {
+          ticks += 1;
+          // eslint-disable-next-line no-console
+          console.log(
+            `[cinny-207] ac2-probe t${ticks * 2}s:`,
+            JSON.stringify(w.__MINDROOM_CACHE_PROBE__?.snapshot() ?? {})
+          );
+          if (ticks >= 16) clearInterval(timer);
+        }, 2000);
+      });
+
       // Visible convergence: edit applied, reaction chip gone,
       // redaction tombstoned.
       await expect(page.getByText(`edit-target v2 converged ${stamp}`)).toBeVisible({
