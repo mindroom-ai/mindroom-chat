@@ -11,7 +11,6 @@ import {
 } from './threadRenderUtils';
 import { eventBelongsToThread } from './threadUtils';
 import { logTimelineDebug } from './timelineDebug';
-import { armSunkTargetInstrumentation, replaceFallbackInstanceRegistry } from './cacheProbe';
 
 type UseThreadRenderStateOpts = {
   room: Room;
@@ -191,40 +190,6 @@ export const useThreadRenderState = ({
       };
       fallbackThreadEventsRef.current = nextFallbackState;
       setFallbackThreadEventsState(nextFallbackState);
-      // CINNY-207 AC2 render-gap RG4c (2026-07-04): publish the current
-      // fallback instances to the probe registry so `getEditedEvent`'s
-      // source-tag classifier can identity-compare its render-held
-      // mEvent against the fallback layer's instance. Diagnostic-only;
-      // reset on `resetCacheProbe`. See cacheProbe.ts for the shape
-      // decisions and cost analysis.
-      const registryEntries: Array<readonly [string, { replacingEvent?: () => unknown | null }]> =
-        [];
-      mergedEvents.forEach((mEvent) => {
-        const eventId = mEvent.getId();
-        if (typeof eventId !== 'string' || eventId.length === 0) return;
-        registryEntries.push([
-          eventId,
-          mEvent as unknown as { replacingEvent?: () => unknown | null },
-        ]);
-      });
-      replaceFallbackInstanceRegistry(registryEntries);
-      // CINNY-207 AC2 render-gap RG4e (2026-07-04): arm name-the-caller
-      // instrumentation on the sunk edit-target subset. `hydrateCachedEvents`
-      // above already ran the applier, so any mergedEvent whose
-      // `.replacingEvent()` is non-null right now is a sunk instance —
-      // team-lead's "handful of instances" narrowing. Overrides are
-      // idempotent (WeakSet-gated inside cacheProbe), so repeated
-      // registration passes on the same identity are cheap. See
-      // cacheProbe.ts for the mechanism and interpretation matrix.
-      mergedEvents.forEach((mEvent) => {
-        const eventId = mEvent.getId();
-        if (typeof eventId !== 'string' || eventId.length === 0) return;
-        if (!mEvent.replacingEvent()) return;
-        armSunkTargetInstrumentation(eventId, mEvent as unknown as {
-          makeRedacted?: (...args: unknown[]) => unknown;
-          makeReplaced?: (arg?: unknown, ...rest: unknown[]) => unknown;
-        });
-      });
     },
     [room, roomTimelineSet, threadTimelineSet]
   );
@@ -241,10 +206,6 @@ export const useThreadRenderState = ({
     };
     fallbackThreadEventsRef.current = nextFallbackState;
     setFallbackThreadEventsState(nextFallbackState);
-    // CINNY-207 AC2 render-gap RG4c (2026-07-04): drop the fallback
-    // instance registry alongside — a fresh thread open should start
-    // with an empty source-tag baseline. See cacheProbe.ts.
-    replaceFallbackInstanceRegistry([]);
   }, []);
 
   const fallbackEvents = useMemo(() => {

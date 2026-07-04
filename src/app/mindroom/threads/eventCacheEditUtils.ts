@@ -144,34 +144,13 @@ export const applyCachedRedactions = (room: Room, events: MatrixEvent[]): Redact
   return redactedRelationTargets;
 };
 
-export const applyCachedReplaceRelations = (
-  events: MatrixEvent[],
-  renderHeldEvents?: Set<MatrixEvent>
-): void => {
+export const applyCachedReplaceRelations = (events: MatrixEvent[]): void => {
   const editEventsByTarget = new Map<string, MatrixEvent[]>();
   const eventById = new Map<string, MatrixEvent>();
-  // CINNY-207 AC2 render-gap RG1 (2026-07-04): track whether an
-  // id-collision winner in `eventById` displaced a render-held
-  // sibling. If a render-held instance for the same id appeared
-  // earlier in `events` and got overwritten by a fresh clone in a
-  // later push, the applier will `makeReplaced` on the fresh clone
-  // instead of the render-held one — exactly candidate (a). No
-  // behavior change here; only observability.
-  const displacedRenderHeldByTargetId = new Set<string>();
 
   events.forEach((mEvent) => {
     const eventId = mEvent.getId();
     if (eventId) {
-      const previous = eventById.get(eventId);
-      if (
-        renderHeldEvents &&
-        previous &&
-        previous !== mEvent &&
-        renderHeldEvents.has(previous) &&
-        !renderHeldEvents.has(mEvent)
-      ) {
-        displacedRenderHeldByTargetId.add(eventId);
-      }
       eventById.set(eventId, mEvent);
     }
 
@@ -209,14 +188,6 @@ export const applyCachedReplaceRelations = (
     // fire observability. See cacheProbe.ts for the X1/X2/X3
     // disambiguation matrix.
     countCacheProbe('applierMakeReplacedFired');
-
-    if (renderHeldEvents) {
-      if (renderHeldEvents.has(targetEvent)) {
-        countCacheProbe('hydrateApplierMutatedRenderHeldInstance');
-      } else if (displacedRenderHeldByTargetId.has(targetEventId)) {
-        countCacheProbe('hydrateApplierMutatedFreshInstance');
-      }
-    }
   });
 };
 
@@ -336,24 +307,14 @@ export const hydrateCachedEvents = ({
   events,
   timelineSets,
   seenRelationEventIds,
-  renderHeldEvents,
 }: {
   room: Room;
   events: MatrixEvent[];
   timelineSets?: Array<EventTimelineSet | undefined>;
   seenRelationEventIds?: Set<string>;
-  // CINNY-207 AC2 render-gap RG1 (2026-07-04): optional observability
-  // marker — set of MatrixEvent instances the render layer is
-  // currently holding by reference. Passed only when the caller can
-  // identify those instances (e.g. the reconciler passes
-  // `cachedPage.hydratedEvents` because those are the exact instances
-  // handed to `setSupplementalThreadEvents`). Used purely to bump
-  // observability counters (see applyCachedReplaceRelations) — no
-  // behavior change.
-  renderHeldEvents?: Set<MatrixEvent>;
 }): RedactedRelationTarget[] => {
   const redactedRelationTargets = applyCachedRedactions(room, events);
-  applyCachedReplaceRelations(events, renderHeldEvents);
+  applyCachedReplaceRelations(events);
   applySerializedCachedReplaceRelations(events);
   if (timelineSets) {
     aggregateCachedRelationEvents(events, timelineSets, seenRelationEventIds, redactedRelationTargets);

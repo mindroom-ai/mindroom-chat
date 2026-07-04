@@ -71,10 +71,9 @@ const hasCredentials = !!process.env.E2E_USERNAME;
 //     supplemental sink callback end-to-end.
 //   - RG3 render-seam counters: mergeSawIncomingEditRelation firing
 //     and the merge dedup does keep the incoming (repaired) instance.
-//   - RG4a per-eventId classifier: renderTargetRegressedDifferentInstance=0
-//     and applierMakeReplacedLatestEqualsCurrent > 0 — the render-held
-//     instance for the edit target IS the repaired one, holding the
-//     correct m.replace relation.
+//   - Applier scalar tripwires: applierMakeReplacedLatestEqualsCurrent > 0
+//     — the render-held instance for the edit target IS the repaired one,
+//     holding the correct m.replace relation.
 //   - The prior assertion `edit-target v2 converged … toBeVisible`
 //     was timing out only because the test never scrolled the anchor
 //     into view after the reopen — the fresh open pinned to the
@@ -493,26 +492,13 @@ test.describe('CINNY-207 stale-cache divergence reconcile', () => {
       // writing any fix code." Log line goes to the Playwright stdout
       // stream (`RG-COUNTERS ...`) so the log tee'd to /tmp can be
       // grepped without a browser DevTools session.
-      const rg4eSnapshot = await page.evaluate(() => {
+      const counterSnapshot = await page.evaluate(() => {
         const w = window as Window & {
           __MINDROOM_CACHE_PROBE__?: { snapshot: () => Record<string, number> };
         };
         const snap = w.__MINDROOM_CACHE_PROBE__?.snapshot() ?? {};
         const pick = (key: string): number => Number(snap[key] ?? 0);
         return {
-          sunkTargetMakeRedactedCalls: pick('sunkTargetMakeRedactedCalls'),
-          sunkTargetMakeReplacedNonNull: pick('sunkTargetMakeReplacedNonNull'),
-          sunkTargetMakeReplacedCleared: pick('sunkTargetMakeReplacedCleared'),
-          renderTargetLostReplacement: pick('renderTargetLostReplacement'),
-          renderTargetFallbackNeverHadReplacement: pick(
-            'renderTargetFallbackNeverHadReplacement'
-          ),
-          renderTargetSourceFallbackAlsoLacked: pick(
-            'renderTargetSourceFallbackAlsoLacked'
-          ),
-          renderTargetSourceSdkFallbackRepaired: pick(
-            'renderTargetSourceSdkFallbackRepaired'
-          ),
           renderTargetHadReplacement: pick('renderTargetHadReplacement'),
           renderTargetLackedReplacement: pick('renderTargetLackedReplacement'),
           applierMakeReplacedFired: pick('applierMakeReplacedFired'),
@@ -522,14 +508,8 @@ test.describe('CINNY-207 stale-cache divergence reconcile', () => {
           applierMakeReplacedNoLatestEdit: pick('applierMakeReplacedNoLatestEdit'),
           reconcilesRepaired: pick('reconcilesRepaired'),
           reconcilesScheduled: pick('reconcilesScheduled'),
-          // RG5c registry-swap tripwire — must be 0 in a correct design.
-          // Non-zero names X5 (silent repaired -> unrepaired downgrade at
-          // the fallback registry write path).
-          registrySwappedRepairedForUnrepaired: pick(
-            'registrySwappedRepairedForUnrepaired'
-          ),
           // RG5d canonicalization tripwire — must be 0 in a correct
-          // design. Non-zero names intra-batch duplication that the
+          // design. Non-zero names intra-batch duplication the
           // canonicalizer absorbed (either the SDK stripped a key
           // dimension or a new caller bypassed setEventForKeys).
           eventMapCanonicalizedDisplacements: pick(
@@ -541,7 +521,7 @@ test.describe('CINNY-207 stale-cache divergence reconcile', () => {
       // faithful. Not an assertion — team-lead wants the reading, not
       // a pass/fail on it.
       // eslint-disable-next-line no-console
-      console.log(`RG-COUNTERS ${JSON.stringify(rg4eSnapshot)}`);
+      console.log(`RG-COUNTERS ${JSON.stringify(counterSnapshot)}`);
     }
   );
 });

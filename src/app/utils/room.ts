@@ -35,11 +35,7 @@ import {
   copyMindroomResolvedEditMetadata,
   logMindroomEditDebug,
 } from '../mindroom/messages/editResolution';
-import {
-  countCacheProbe,
-  recordRenderTargetSeen,
-  recordRenderTargetSource,
-} from '../mindroom/threads/cacheProbe';
+import { countCacheProbe } from '../mindroom/threads/cacheProbe';
 
 export const logEditDebug = logMindroomEditDebug;
 
@@ -530,18 +526,6 @@ export const getEditedEvent = (
     countCacheProbe('renderTargetHadReplacement');
   } else {
     countCacheProbe('renderTargetLackedReplacement');
-  }
-  // CINNY-207 AC2 render-gap RG4a (2026-07-04): per-eventId regression
-  // classifier — distinguishes candidate (i) same-instance-replacement-
-  // cleared from candidate (iii) instance-swap. See cacheProbe.ts.
-  recordRenderTargetSeen(mEventId, mEvent, !!replacingEventCandidate);
-  // CINNY-207 AC2 render-gap RG4c (2026-07-04): source-tag + instance-
-  // identity classifier — only meaningful on lack-replacement calls
-  // (a hasReplacement call is trivially "the render sees the repair").
-  // Consults the fallback-instance registry populated by
-  // `useThreadRenderState.setSupplementalThreadEvents`. See cacheProbe.ts.
-  if (!replacingEventCandidate) {
-    recordRenderTargetSource(mEventId, mEvent);
   }
   const replacingEvent = isSameSenderEditEvent(mEvent, replacingEventCandidate)
     ? replacingEventCandidate
