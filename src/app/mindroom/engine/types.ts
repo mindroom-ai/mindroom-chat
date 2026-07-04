@@ -1,0 +1,70 @@
+/**
+ * CINNY-207 P3.1: MindroomSyncEngine — shared types.
+ *
+ * The engine is a client-level singleton that owns every Tier-1 write
+ * (D2). It is created alongside the Matrix client and torn down on
+ * logout, independent of which room is mounted in the UI. This module
+ * is the type surface shared between the engine core, its write-through
+ * layer, and the React context wrapper.
+ */
+
+import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+
+/**
+ * Live event dispatch metadata as observed by the engine. This is a
+ * strict subset of what `RoomEvent.Timeline` exposes plus a
+ * classification tag so downstream code (write-through, gap tracker)
+ * does not need to sniff event types twice.
+ */
+export type EngineLiveEventMeta =
+  | {
+      readonly kind: 'timeline';
+      readonly roomId: string;
+      readonly liveEvent: true;
+      readonly toStartOfTimeline: false;
+    }
+  | {
+      readonly kind: 'redaction';
+      readonly roomId: string;
+      readonly liveEvent: true;
+      readonly toStartOfTimeline: false;
+    };
+
+export type EngineLiveEventHandler = (
+  event: MatrixEvent,
+  room: Room,
+  meta: EngineLiveEventMeta
+) => void;
+
+export type EngineLifecycle = {
+  start(): void;
+  stop(): void;
+};
+
+export type MindroomSyncEngine = EngineLifecycle & {
+  /**
+   * The Matrix client this engine wraps. Kept on the instance so
+   * downstream layers can call SDK helpers without an extra prop.
+   */
+  readonly mx: MatrixClient;
+  /**
+   * The MindRoom cache session id derived from the client's baseUrl
+   * and safe user id (matches the id used everywhere else — see
+   * `createSessionId` in `state/sessions.ts`). Included on the
+   * instance so consumers do not each recompute it.
+   */
+  readonly sessionId: string;
+  /**
+   * True once the client has reached a live sync state (Prepared,
+   * Syncing, or Catchup) at least once. Deliberately does not flip
+   * back to false on Reconnecting/Error — reconnect events are the
+   * ones we most want to persist. Only teardown (stop()) resets it.
+   */
+  isLiveMode(): boolean;
+  /**
+   * Test/debug hook: run a callback under the assumption that the
+   * engine has already flipped to live mode. Intentionally not
+   * exposed in the public typing — it exists on the instance and
+   * tests reach for it directly.
+   */
+};
