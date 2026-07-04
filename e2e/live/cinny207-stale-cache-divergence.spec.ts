@@ -53,27 +53,77 @@ const hasCredentials = !!process.env.E2E_USERNAME;
 //     in-place swaps/deletes, not prepends — the applier must not
 //     grow the timeline above the anchor.
 //
-// CINNY-207 P5 gate status (2026-07-04, expected-RED): the reconciler's
-// unit layer is green (18 units incl. dual injection, thread-null, and
-// Tuwunel stale-copy re-apply), but this live spec exposes an unresolved
-// seam. Five gate iterations of evidence (full history in the Runbook,
-// "P5 gate" entries):
-//   - Tuwunel honors recurse=true (verified by direct curl — the edit IS
-//     served in the recursed /relations chunk).
-//   - Probe signatures across clean-network runs are NONDETERMINISTIC:
-//     reconcilesScheduled=1 with reconcilesRepaired flapping 2 -> 0.
-//   - In the final failing run the playwright network log contains ZERO
-//     reconciler-shaped /relations requests (the reconciler always sets
-//     limit=200; only no-limit SDK-machinery requests appear) — the
-//     reconcile executor exited BEFORE its first fetch.
-//   - The pass has three silent exits indistinguishable in the current
-//     probes: fetch-failure (to() swallow), zero-divergence, and the
-//     shouldContinue guard abort. The network evidence points at the
-//     guard abort: a transient false during reopen mount churn kills the
-//     pass with repaired=false and no retry.
-// Design decision needed (see plan §8 Deviations): re-schedule once on
-// guard-abort (or drop the guard for band-0 reconciles), plus
-// distinguishable probes for the three exits. Flips green when resolved.
+// CINNY-207 AC2 STEP 4 (2026-07-04, live-gate outcome — expected-RED
+// remains): the STEP 3 guard-abort recovery leg (bounded guard-free
+// retry via `'reconcile-retry'` scheduler kind) fixes the mechanism
+// STEP 2 pinned via unit tests. But the live docker run against
+// Tuwunel reveals the AC2 failure has a DIFFERENT root cause than the
+// pre-STEP-1 diagnosis flagged. Probe trace after this fix (probe
+// polled every 2s for 30s):
+//
+//   {
+//     ...
+//     "schedulerEnqueued": 4, "schedulerDeduped": 2,
+//     "schedulerCompleted": 4, "schedulerFailed": 0,
+//     "reconcilesScheduled": 1,
+//     "reconcilesRepaired": 0,
+//     "reconcilesRoomScopeNoop": 1,
+//     "reconcilesGuardAborted": 0,
+//     "reconcilesSignalAborted": 0,
+//     "reconcilesFetchFailed": 0,
+//     "reconcilesNoDivergence": 0,
+//     "reconcilesNoRoom": 0,
+//     "reconcilesDirtyMarked": 0,
+//     "reconcilesDirtyRetried": 0,
+//     ...
+//   }
+//
+// Interpretation:
+//   - reconcilesScheduled=1 == reconcilesRoomScopeNoop=1: the ONLY
+//     reconcile scheduled on the return-navigation is the room-scope
+//     tripwire fired by `mindroomSyncEngine.noteRoomFocused` (see
+//     mindroomSyncEngine.ts:354). The room-scope executor is a
+//     deliberate no-op — real work belongs to the gap-fill executor.
+//   - reconcilesGuardAborted=0 and no other silent-exit counter
+//     bumped: STEP 3's guard-abort recovery leg is NOT the reason
+//     nothing converged, because the guard-abort never fired.
+//   - The THREAD-SCOPE reconcile (either from
+//     `runThreadOpenCacheFirst`'s complete-coverage branch or from
+//     `useThreadOpenLifecycleController`'s partial-coverage schedule)
+//     NEVER FIRED. The 6-iteration diagnosis assumed it was firing
+//     and silently aborting; the STEP 1 counters now make it visible
+//     that the schedule call itself never happens.
+//
+// This is a NEW diagnosis surface that neither STEP 3 (reconciler
+// recovery) nor any prior gate iteration addresses. Candidates for
+// where the schedule is skipped:
+//   (a) `runThreadOpenSdkBootstrap` returns false before the
+//       lifecycle controller reaches the partial-coverage schedule
+//       (return false paths at threadOpenSdkBootstrap.ts:82, 100,
+//       115, 136, 106, 127, 175, 198 — needs a debug-traced run to
+//       identify which).
+//   (b) `hasCompleteCachedThreadSnapshot` is false (post-teardown
+//       cache is deemed incomplete because the SDK sync landed the
+//       25 fillers and updated expected reply count → cache-first
+//       does NOT fire its complete-coverage schedule), AND
+//       SDK bootstrap also short-circuits (see (a)).
+//   (c) The effect deps change identity between mount and schedule,
+//       triggering effect cleanup that aborts loadThreadTimeline
+//       before it reaches the schedule call — but reconcilesScheduled
+//       from `noteRoomFocused` still fires because the room-focus
+//       hook is upstream.
+//
+// STEP 1's outcome-counter invariant `sum(outcomes) ==
+// reconcilesScheduled` is now the primary diagnostic surface for the
+// next iteration: `1 == 1` holds cleanly, and the ONE counter that
+// bumped (`reconcilesRoomScopeNoop`) rules out every silent-exit
+// path inside the reconciler. The bug lives UPSTREAM of the schedule
+// call, in the thread-open lifecycle path.
+//
+// test.fail() kept because the live assertion legitimately fails and
+// the fix for the upstream skip is a separate iteration. Regression:
+// streamed-edit-cache and stop-emoji-redaction both pass green
+// against the same STEP 3 tip (verified 2026-07-04).
 test.describe('CINNY-207 stale-cache divergence reconcile', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 

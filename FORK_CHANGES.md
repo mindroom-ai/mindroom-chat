@@ -2,6 +2,62 @@
 
 ## Runbook
 
+### CINNY-207 AC2 STEP 4 — live-gate outcome: STEP 3 fix ships neutral, AC2 diagnosis moved to a NEW surface (2026-07-04)
+
+- Live gate: `E2E_ENABLE_DEPLOYED_FIXTURE=0 bash scripts/test-e2e-docker-matrix.sh e2e/live/cinny207-stale-cache-divergence.spec.ts` against the docker Tuwunel matrix, STEP 3 tip.
+- Outcome: the AC2 spec's visible convergence assertion still times out. `test.fail()` remains on the spec.
+- Regression: streamed-edit-cache and stop-emoji-redaction both pass green against the same STEP 3 tip (verified 2026-07-04). STEP 3's guard-abort recovery leg is neutral for the passing scenarios (they never guard-abort, so the retry path never fires).
+- LOAD-BEARING NEW DIAGNOSIS from the STEP 1 probe traces:
+  - probe polled every 2s for 30s, values stayed constant after t=2s:
+    `reconcilesScheduled=1`, `reconcilesRoomScopeNoop=1`,
+    `reconcilesRepaired=0`, `reconcilesGuardAborted=0`, and every
+    other silent-exit counter at 0.
+  - The ONE scheduled reconcile is the ROOM-scope tripwire fired by
+    `mindroomSyncEngine.noteRoomFocused` (see
+    `src/app/mindroom/engine/mindroomSyncEngine.ts:354`). Its
+    executor is a deliberate no-op — real work belongs to the
+    gap-fill executor.
+  - The THREAD-SCOPE reconcile (from either
+    `runThreadOpenCacheFirst`'s complete-coverage branch or
+    `useThreadOpenLifecycleController`'s partial-coverage schedule)
+    NEVER FIRED. The 6-iteration diagnosis assumed it was firing
+    and silently aborting; the STEP 1 counters now make it visible
+    that the schedule CALL itself never happens.
+  - STEP 3's fix is CORRECT for the guard-abort mechanism STEP 2's
+    unit repro pinned. It just isn't the mechanism blocking AC2.
+- STEP 1 invariant payoff: `sum(outcomes) == reconcilesScheduled`
+  now holds cleanly (1 == 1) with the room-scope-noop counter
+  accounting for the one scheduled pass. Every silent-exit path
+  ruled out by direct counter observation — the bug lives UPSTREAM
+  of the schedule call, in the thread-open lifecycle path.
+- Suspected upstream skip points (next iteration to instrument):
+  (a) `runThreadOpenSdkBootstrap` returns false before the
+      lifecycle controller reaches the partial-coverage schedule
+      (return false paths at threadOpenSdkBootstrap.ts:82, 100,
+      115, 136, 106, 127, 175, 198).
+  (b) `hasCompleteCachedThreadSnapshot` is false because the SDK
+      sync landed the 25 fillers and updated expected reply count
+      → cache-first path does NOT fire its complete-coverage
+      schedule, AND SDK bootstrap also short-circuits (see (a)).
+  (c) The effect deps change identity between mount and schedule,
+      triggering effect cleanup that aborts loadThreadTimeline
+      before the schedule call fires — but room-focus reconcile
+      still fires because the room-focus hook is upstream.
+- Header updated on the live spec with the full trace snapshot,
+  interpretation, and the load-bearing rule-out reasoning; kept
+  `test.fail()` because the assertion legitimately fails and the
+  fix belongs in a separate iteration that adds observability for
+  the thread-open lifecycle (probe counters for each return-false
+  point in `runThreadOpenSdkBootstrap`, and a
+  `threadOpenScheduleSkipped` counter for the pre-schedule guards
+  in `runThreadOpenCacheFirst` and the lifecycle controller).
+- STEP 3 STAYS SHIPPED: the unit-level guarantee is real — any
+  future guard-abort silent-exit gets recovered by the bounded
+  retry. The mechanism is documented, tested (green units + `.fails`
+  → normal `it()` conversion), and orthogonal to the newly-surfaced
+  AC2 upstream bug. Backing STEP 3 out would remove a documented
+  correctness fix without addressing the new diagnosis.
+
 ### CINNY-207 AC2 STEP 3 — guard-abort recovery via bounded guard-free retry (2026-07-04)
 
 - Context: STEP 2's red repro pinned the mechanism — mount #1's
