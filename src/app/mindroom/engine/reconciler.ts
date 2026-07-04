@@ -59,6 +59,7 @@ import {
   reconcileRelationEventsWithAggregation,
 } from '../threads/eventCacheEditUtils';
 import { logTimelineDebug } from '../threads/timelineDebug';
+import { countCacheProbe } from '../threads/cacheProbe';
 import type { BackfillScheduler } from './backfillScheduler';
 import type { HydratedThreadCachePage } from '../threads/threadOpenCacheController';
 
@@ -347,6 +348,30 @@ const runThreadReconcilePass = async ({
     return { reason, repaired: false, fetchedCount, iterations, aborted: false };
   }
 
+  // P5-GATE-FIX (AC2): inject the fetched, mapped events into the SDK
+  // thread model BEFORE hydration. Without this step, `applyCached*`
+  // mutations either land on fresh clones (when the SDK doesn't yet
+  // know the fetched event id — e.g. a m.replace that happened while
+  // the client was closed) or land on the SDK's live instance but
+  // never surface to render because `useThreadRenderState` reads
+  // `thread.events`, which is populated by `thread.addEvents`, not by
+  // arbitrary MatrixEvent instances in scope.
+  //
+  // This mirrors the pre-P5 `runThreadOpenPostBootstrapRefresh` pattern
+  // (removed in commit 05594b54) which called
+  // `currentThread.addEvents(latestEvents, false)` after `preferLive`
+  // mapping. `thread.addEvents(events, toStartOfTimeline=false)` is
+  // idempotent per event id — the SDK dedupes on `event_id` so
+  // re-injecting a live event we already had is a no-op. The
+  // `toStartOfTimeline=false` argument is correct here: reconcile
+  // fetches the TAIL (dir: Backward starting from HEAD), and each
+  // batch of fetched events is chronologically the "newest end" of
+  // the thread relative to what the SDK currently holds.
+  const liveThread = room.getThread(threadId);
+  if (liveThread && allMapped.length > 0) {
+    liveThread.addEvents(allMapped, false);
+  }
+
   // Repair path: run the same hydration pipeline the persist layer uses
   // (P1.2). `applyCachedRedactions` handles missed redactions (Tuwunel
   // stale copies included via the prefer-live mapper above);
@@ -355,7 +380,12 @@ const runThreadReconcilePass = async ({
   // cache already had the newest); `aggregateCachedRelationEvents`
   // registers new relation events (and removes redacted ones) with the
   // SDK's live indices so reaction chips update in place.
-  const liveThreadTimelineSet = room.getThread(threadId)?.getUnfilteredTimelineSet();
+  //
+  // After the SDK injection above, `liveThread?.getUnfilteredTimelineSet()`
+  // is re-read so any timeline set the SDK created on first addEvents
+  // is captured — otherwise hydration's aggregation step would run
+  // against a stale (empty) timelineSet reference.
+  const liveThreadTimelineSet = liveThread?.getUnfilteredTimelineSet();
   const mergedForHydrate = [...cachedSnapshotEvents, ...allMapped];
   const redactedRelationTargets = collectRedactedRelationTargetsFromLookup(
     allMapped,
@@ -380,6 +410,7 @@ const runThreadReconcilePass = async ({
     );
   }
 
+  countCacheProbe('reconcilesRepaired');
   if (onRepaired) onRepaired();
 
   logTimelineDebug(debugTraceId, 'reconcile-complete', {
@@ -418,6 +449,15 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
     shouldContinue,
     debugTraceId,
   } = args;
+
+  // P5-GATE-FIX (AC2 observability): every scheduleReconcile call
+  // bumps the counter — thread-scope AND room-scope. That gives a
+  // capture the ability to prove the open path fired vs. never fired,
+  // regardless of what the scheduler ends up doing (dedup, abort, etc.
+  // — those have their own counters). Same lesson as `schedulerFailed`
+  // from the P4 gate fix: without a "was it even scheduled?" counter,
+  // trace analysis is guesswork.
+  countCacheProbe('reconcilesScheduled');
 
   if (!threadId) {
     // CINNY-207 P5.1 Commit 3: room-scope reconcile pass.

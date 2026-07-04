@@ -57,6 +57,17 @@ export type CacheProbeCounters = {
   schedulerAborted: number;
   schedulerCompleted: number;
   schedulerFailed: number;
+  // CINNY-207 P5-GATE-FIX (AC2 evidence): reconciler observability.
+  // `reconcilesScheduled` bumps once per `scheduleReconcile` call
+  // (thread-scope or room-scope), giving a trace the ability to
+  // distinguish "the open path never asked for a reconcile" from
+  // "the reconciler ran and found nothing to repair" — the same
+  // observability lesson as schedulerFailed (P4 gate fix).
+  // `reconcilesRepaired` bumps once per pass that actually applied
+  // a repair (i.e. detectDivergence returned true and hydration
+  // ran); the D7 cheap-no-op path leaves it untouched.
+  reconcilesScheduled: number;
+  reconcilesRepaired: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -78,6 +89,8 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   schedulerAborted: 0,
   schedulerCompleted: 0,
   schedulerFailed: 0,
+  reconcilesScheduled: 0,
+  reconcilesRepaired: 0,
 });
 
 let counters = createEmptyCounters();
