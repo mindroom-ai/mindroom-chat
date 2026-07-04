@@ -114,6 +114,12 @@ vi.mock('../app/mindroom/threads/threadSummaryStore', () => ({
   ),
 }));
 
+vi.mock('../app/mindroom/threads/cacheStore', () => ({
+  MINDROOM_CACHE_DB_BASE_NAME: 'mindroom-cache',
+  deleteCacheStoreDb: vi.fn().mockResolvedValue(undefined),
+  getCacheStoreDbName: vi.fn((sessionId: string) => `mindroom-cache::${sessionId}`),
+}));
+
 vi.mock('../app/mindroom/native/iosPush', () => ({
   IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX: 'mindroom_ios_push_',
   clearIOSPushState: vi.fn(),
@@ -722,6 +728,9 @@ describe('clearAllCacheAndReload', () => {
     expect(deleteDatabase.mock.calls.map(([name]) => name)).toEqual([
       'mindroom-room-event-cache',
       'mindroom-thread-event-cache',
+      // CINNY-207 P2.1 (D8): unified `mindroom-cache` singleton +
+      // session-scoped name are also listed in the fallback.
+      'mindroom-cache',
       'matrix-js-sdk:web-sync-store',
       'crypto-store',
       'matrix-js-sdk::matrix-sdk-crypto',
@@ -733,6 +742,7 @@ describe('clearAllCacheAndReload', () => {
       getThreadEventCacheDbName(session.sessionId),
       getRoomEventCacheDbName(session.sessionId),
       getThreadSummaryCacheDbName(session.sessionId),
+      `mindroom-cache::${session.sessionId}`,
     ]);
     expect(replace).toHaveBeenCalledWith('/?clear_cache=6789');
   });

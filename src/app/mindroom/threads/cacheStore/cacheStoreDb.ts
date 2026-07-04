@@ -9,6 +9,7 @@ import {
   THREAD_SUMMARIES_BY_ROOM_INDEX,
   THREAD_SUMMARIES_STORE,
 } from './cacheStoreSchema';
+import { performLegacyDbWipe } from './cacheStoreLegacyWipe';
 
 // CINNY-207 P2.1: single DB, schema v3. The opener follows the corruption
 // self-heal pattern from the legacy `threadEventCache` — if a v3 open
@@ -71,16 +72,21 @@ const applyUpgrade = (db: IDBDatabase): void => {
 };
 
 /**
- * Hook for the D8 legacy-wipe step (installed in P2.1 commit 3). By
- * default a no-op; commit 3 replaces this with a function that performs
- * the one-time wipe of legacy DB names.
+ * Hook for the D8 legacy-wipe step. Runs after schema-v3 open success
+ * and before we hand the DB out to callers. The default implementation
+ * (`performLegacyDbWipe`) deletes the three legacy DB names once per
+ * session and writes an idempotency marker into the meta store, so a
+ * second open is a cheap marker read.
  */
 type LegacyWipeHook = (sessionId: string, db: IDBDatabase) => Promise<void>;
 
-let legacyWipeHook: LegacyWipeHook = async () => undefined;
+const DEFAULT_LEGACY_WIPE_HOOK: LegacyWipeHook = (sessionId, db) =>
+  performLegacyDbWipe(sessionId, db);
+
+let legacyWipeHook: LegacyWipeHook = DEFAULT_LEGACY_WIPE_HOOK;
 
 export const __setLegacyWipeHookForTests = (hook: LegacyWipeHook | undefined): void => {
-  legacyWipeHook = hook ?? (async () => undefined);
+  legacyWipeHook = hook ?? DEFAULT_LEGACY_WIPE_HOOK;
 };
 
 export const setLegacyWipeHook = (hook: LegacyWipeHook): void => {
@@ -166,13 +172,14 @@ export const deleteCacheStoreDb = async (sessionId: string): Promise<void> => {
 };
 
 /**
- * Testing utility — drop all memoized dbPromise entries and reset the
- * legacy-wipe hook to its default no-op. Combined with a fresh
- * `IDBFactory`, this makes each test start from a clean slate.
+ * Testing utility — drop all memoized dbPromise entries and restore the
+ * legacy-wipe hook to its default (`performLegacyDbWipe`). Combined
+ * with a fresh `IDBFactory`, this makes each test start from a clean
+ * slate.
  */
 export const resetCacheStoreForTesting = (): void => {
   dbPromiseByName.clear();
-  legacyWipeHook = async () => undefined;
+  legacyWipeHook = DEFAULT_LEGACY_WIPE_HOOK;
 };
 
 // Re-exported so the wipe hook (P2.1 commit 3) can iterate stored

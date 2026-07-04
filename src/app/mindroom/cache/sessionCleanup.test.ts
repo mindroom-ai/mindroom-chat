@@ -15,6 +15,7 @@ import {
   deleteThreadSummaryCache,
   getThreadSummaryCacheDbName,
 } from '../threads/threadSummaryStore';
+import { deleteCacheStoreDb, getCacheStoreDbName } from '../threads/cacheStore';
 import {
   MINDROOM_OWNED_LOCAL_STORAGE_KEYS,
   MINDROOM_OWNED_LOCAL_STORAGE_PREFIXES,
@@ -80,15 +81,26 @@ vi.mock('../threads/threadSummaryStore', () => ({
   getThreadSummaryCacheDbName: vi.fn((sessionId: string) => `summary-cache::${sessionId}`),
 }));
 
+vi.mock('../threads/cacheStore', () => ({
+  MINDROOM_CACHE_DB_BASE_NAME: 'mindroom-cache',
+  deleteCacheStoreDb: vi.fn().mockResolvedValue(undefined),
+  getCacheStoreDbName: vi.fn((sessionId: string) => `mindroom-cache::${sessionId}`),
+}));
+
 describe('MindRoom session cleanup', () => {
   afterEach(() => {
     vi.clearAllMocks();
   });
 
   it('exposes MindRoom-owned app cleanup keys from one boundary', () => {
+    // CINNY-207 P2.1 (D8): legacy singleton names are RETAINED here so
+    // logout cleanup keeps working on installs that never opened v3
+    // (e.g. rolled-back binaries); the unified `mindroom-cache` name is
+    // listed alongside.
     expect(MINDROOM_SINGLETON_INDEXED_DB_NAMES).toEqual([
       'mindroom-room-event-cache',
       'mindroom-thread-event-cache',
+      'mindroom-cache',
     ]);
     expect(MINDROOM_OWNED_LOCAL_STORAGE_KEYS).toEqual([MINDROOM_EDIT_DEBUG_STORAGE_KEY]);
     expect(MINDROOM_OWNED_LOCAL_STORAGE_PREFIXES).toEqual([IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX]);
@@ -99,10 +111,12 @@ describe('MindRoom session cleanup', () => {
       'thread-cache::session-a',
       'room-cache::session-a',
       'summary-cache::session-a',
+      'mindroom-cache::session-a',
     ]);
     expect(vi.mocked(getThreadEventCacheDbName)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(getRoomEventCacheDbName)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(getThreadSummaryCacheDbName)).toHaveBeenCalledWith('session-a');
+    expect(vi.mocked(getCacheStoreDbName)).toHaveBeenCalledWith('session-a');
   });
 
   it('deletes all MindRoom session caches together', async () => {
@@ -111,6 +125,7 @@ describe('MindRoom session cleanup', () => {
     expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith('session-a');
+    expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith('session-a');
   });
 
   it('clears MindRoom UI, native, and in-memory state', () => {
