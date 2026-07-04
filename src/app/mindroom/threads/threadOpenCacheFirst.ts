@@ -148,9 +148,27 @@ export const runThreadOpenCacheFirst = async ({
     cachedPage: hydratedCachedPage,
     reason: 'open-thread-choke-point',
     onRepaired: (repairedEvents) => {
-      if (!isCurrentThreadOpen()) return;
+      // CINNY-207 AC2 render-gap RG1 (2026-07-04): sink counters.
+      // These three counters partition the outcomes of the
+      // component-side onRepaired callback so a docker probe snapshot
+      // can name which seam the render-gap lives at without another
+      // blind cycle. Invariant asserted by the render-gap
+      // instrumentation:
+      //   reconcilesOnRepairedFired ==
+      //     onRepairedGuardBailed +
+      //     supplementalEventsExecuted +
+      //     supplementalEventsSkippedEmpty
+      // (reconcilesOnRepairedFired is bumped in reconciler.ts BEFORE
+      // this callback is invoked.)
+      if (!isCurrentThreadOpen()) {
+        countCacheProbe('onRepairedGuardBailed');
+        return;
+      }
       if (repairedEvents.length > 0) {
         setSupplementalThreadEvents(threadId, [...repairedEvents]);
+        countCacheProbe('supplementalEventsExecuted');
+      } else {
+        countCacheProbe('supplementalEventsSkippedEmpty');
       }
       forceTimelineUpdate();
       setThreadTimelineTick((val) => val + 1);

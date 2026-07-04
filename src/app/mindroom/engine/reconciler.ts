@@ -626,10 +626,27 @@ const runThreadReconcilePass = async ({
     allMapped,
     cachedSnapshotEvents
   );
+  // CINNY-207 AC2 render-gap RG1 (2026-07-04): pass the exact
+  // MatrixEvent instances the render layer is holding by reference,
+  // so the hydrate applier can bump observability counters when a
+  // fresh clone displaces a render-held sibling in its id map (i.e.
+  // when `makeReplaced` mutates a non-render-held instance for a
+  // target id whose render-held copy is right there in the array).
+  // The set includes `cachedPage.hydratedEvents` and
+  // `cachedPage.hydratedRootEvent` — the same instances handed to
+  // `setSupplementalThreadEvents` at cache-hydrate time.
+  const renderHeldEvents = new Set<MatrixEvent>();
+  if (cachedPage?.hydratedEvents) {
+    cachedPage.hydratedEvents.forEach((mEvent) => renderHeldEvents.add(mEvent));
+  }
+  if (cachedPage?.hydratedRootEvent) {
+    renderHeldEvents.add(cachedPage.hydratedRootEvent);
+  }
   hydrateCachedEvents({
     room,
     events: mergedForHydrate,
     timelineSets: liveThreadTimelineSet ? [liveThreadTimelineSet] : undefined,
+    renderHeldEvents: renderHeldEvents.size > 0 ? renderHeldEvents : undefined,
   });
   // Additional pass to reconcile redactions that the prefer-live mapper
   // healed on the live instance — those still need aggregation cleanup

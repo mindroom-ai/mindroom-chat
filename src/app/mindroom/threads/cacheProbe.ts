@@ -174,6 +174,62 @@ export type CacheProbeCounters = {
   threadOpenScheduledCacheFirst: number;
   threadOpenSkipCacheFirstHydrateGuard: number;
   threadOpenSkipCacheFirstPostHydrateGuard: number;
+  // CINNY-207 AC2 render-gap RG1 (2026-07-04): sink counters that
+  // distinguish the three candidate mechanisms for the render-gap
+  // ("engine converges, edit-target v2 never renders"). Each names a
+  // specific seam between the reconciler's onRepaired batch and the
+  // MatrixEvent instance the render layer actually holds.
+  //
+  //   onRepairedGuardBailed: reconciler fired onRepaired but the
+  //     component-side guard (`isCurrentThreadOpen()`) returned false,
+  //     so `setSupplementalThreadEvents` did NOT run for this batch.
+  //     Diagnostic for candidate (b) / (c): the repair batch reached
+  //     the render seam but was gated out before the sink ran.
+  //     Together with `reconcilesOnRepairedFired` (bumped inside the
+  //     reconciler before calling the callback), the relation
+  //     reconcilesOnRepairedFired == onRepairedGuardBailed +
+  //       supplementalEventsExecuted + supplementalEventsSkippedEmpty
+  //     holds and can be asserted from a probe snapshot.
+  //   supplementalEventsExecuted: reconciler's onRepaired ran end to
+  //     end and called `setSupplementalThreadEvents(threadId, [...])`.
+  //     Diagnostic: sink executed; if v2 still not visible, the gap
+  //     is downstream of the fallback state (candidate (a) or (b)).
+  //   supplementalEventsSkippedEmpty: onRepaired ran but the repaired
+  //     batch was empty, so the sink was intentionally skipped (see
+  //     P5-GATE-FIX v3 cost-guarantee test). Kept separate so a docker
+  //     trace can distinguish "sink skipped because nothing to sink"
+  //     from "sink guarded out".
+  onRepairedGuardBailed: number;
+  supplementalEventsExecuted: number;
+  supplementalEventsSkippedEmpty: number;
+  // CINNY-207 AC2 render-gap RG1 (2026-07-04): mergeThreadRenderEvents
+  // "edit-relation seen but target's replacingEvent() unchanged"
+  // observability. Diagnostic for candidate (b): the merge received an
+  // m.replace event but the target instance it kept has no
+  // `replacingEvent()` set — i.e. the applier mutated some other
+  // instance and this merge is picking the un-repaired copy. See
+  // threadRenderUtils.ts `mergeThreadRenderEvents`.
+  mergeSawEditRelationNoTargetChange: number;
+  // CINNY-207 AC2 render-gap RG1 (2026-07-04): applyCachedReplaceRelations
+  // ("hydrate applier") instance-identity observability. Diagnostic
+  // for candidate (a) — the mechanism where the applier's
+  // last-write-wins `eventById` map causes `makeReplaced` to mutate a
+  // fresh non-render-held clone instead of the render-held one.
+  //
+  //   hydrateApplierMutatedRenderHeldInstance: applier mutated an
+  //     instance that was originally supplied by the caller as a
+  //     "render-held" event (marker set by the caller via
+  //     `hydrateCachedEventsWithRenderHeldMarker` — see
+  //     eventCacheEditUtils.ts). This is the desired shape — the
+  //     mutation lands on the object the render layer holds.
+  //   hydrateApplierMutatedFreshInstance: applier mutated an instance
+  //     whose id has a marked render-held sibling in the same
+  //     `eventById` scan, but the applier picked a different (fresh)
+  //     instance for `makeReplaced`. This is the exact mechanism
+  //     candidate (a) predicts — proves it in vivo if it bumps while
+  //     `reconcilesRepaired` also bumped for the same batch.
+  hydrateApplierMutatedRenderHeldInstance: number;
+  hydrateApplierMutatedFreshInstance: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -209,6 +265,12 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   threadOpenScheduledCacheFirst: 0,
   threadOpenSkipCacheFirstHydrateGuard: 0,
   threadOpenSkipCacheFirstPostHydrateGuard: 0,
+  onRepairedGuardBailed: 0,
+  supplementalEventsExecuted: 0,
+  supplementalEventsSkippedEmpty: 0,
+  mergeSawEditRelationNoTargetChange: 0,
+  hydrateApplierMutatedRenderHeldInstance: 0,
+  hydrateApplierMutatedFreshInstance: 0,
 });
 
 let counters = createEmptyCounters();

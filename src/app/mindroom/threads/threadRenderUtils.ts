@@ -1,7 +1,8 @@
-import { MatrixEvent, Room } from 'matrix-js-sdk';
+import { MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getLatestEdit, reactionOrEditEvent } from '../../utils/room';
 import { inSameDay } from '../../utils/time';
+import { countCacheProbe } from './cacheProbe';
 
 export type ThreadInitialRenderMode = 'loading' | 'cached' | 'live';
 export type ThreadRenderEventEntry<TEvent extends MatrixEvent = MatrixEvent> = {
@@ -238,11 +239,41 @@ export const mergeThreadRenderEvents = (
     setEventForKeys(mergedKeys, preferredEvent);
   });
 
-  return Array.from(new Set(eventMap.values())).sort((a, b) => {
+  const merged = Array.from(new Set(eventMap.values())).sort((a, b) => {
     const tsDiff = a.getTs() - b.getTs();
     if (tsDiff !== 0) return tsDiff;
     return (a.getId() ?? '').localeCompare(b.getId() ?? '');
   });
+
+  // CINNY-207 AC2 render-gap RG1 (2026-07-04): observability at the
+  // merge seam — bumps once per incoming m.replace whose target IS
+  // present in the merged output but has NO `replacingEvent()` set.
+  // That shape is diagnostic for candidate (b) / (a) at the render
+  // layer: the applier ran (or was expected to run) upstream, but the
+  // instance the merge kept for the target does not carry the
+  // repaired replacement. See engine/reconciler.ts and
+  // threads/eventCacheEditUtils.ts for the upstream applier path.
+  //
+  // We deliberately measure this here (post-merge), not inside the
+  // dedup loop, because the "target has a replacement" state is only
+  // meaningful against the final chosen instance per key.
+  const mergedById = new Map<string, MatrixEvent>();
+  merged.forEach((mEvent) => {
+    const eventId = mEvent.getId();
+    if (eventId) mergedById.set(eventId, mEvent);
+  });
+  incomingEvents.forEach((mEvent) => {
+    if (mEvent.getRelation()?.rel_type !== RelationType.Replace) return;
+    const targetEventId = mEvent.getRelation()?.event_id;
+    if (!targetEventId) return;
+    const target = mergedById.get(targetEventId);
+    if (!target) return;
+    if (!target.replacingEvent()) {
+      countCacheProbe('mergeSawEditRelationNoTargetChange');
+    }
+  });
+
+  return merged;
 };
 
 export const dedupeThreadRenderEventEntries = <
