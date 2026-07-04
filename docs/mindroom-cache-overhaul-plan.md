@@ -1,6 +1,6 @@
 # MindRoom Cache Overhaul Plan (CINNY-207)
 
-Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 fully landed locally (P2.1 unified CacheStore + D8 wipe, P2.2 ledger + `beforeTokens` pruning + 1 GB eviction budget, P2.3 direct-import flip + architecture guards + health-gate move into the store); Phase 3 fully landed locally (P3.1 engine skeleton + Tier-1 write-through, P3.2 gap detection + queue stub, P3.3 strip the component's persistence responsibilities); Phase 4 fully landed locally (P4.1 BackfillScheduler with priority + dedup + abort, P4.2 prefetch policy + gap-fill executor + AC13 spec green-shaped + `noteRoomFederated` + `engine.noteRoomFocused`, P4.3 delete preloadController + deep history as band-4 scheduler job, P4.4 absorb thread-seed + overview-resume fetch dedup onto the scheduler). Phase 5 (Reconciler) is next.**
+Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 fully landed locally (P2.1 unified CacheStore + D8 wipe, P2.2 ledger + `beforeTokens` pruning + 1 GB eviction budget, P2.3 direct-import flip + architecture guards + health-gate move into the store); Phase 3 fully landed locally (P3.1 engine skeleton + Tier-1 write-through, P3.2 gap detection + queue stub, P3.3 strip the component's persistence responsibilities); Phase 4 fully landed locally (P4.1 BackfillScheduler with priority + dedup + abort, P4.2 prefetch policy + gap-fill executor + AC13 spec green-shaped + `noteRoomFederated` + `engine.noteRoomFocused`, P4.3 delete preloadController + deep history as band-4 scheduler job, P4.4 absorb thread-seed + overview-resume fetch dedup onto the scheduler); Phase 5 (Reconciler) fully landed locally (P5.1 engine reconciler + D7 rewire + thread backfill into engine + room-open reconcile, P5.2 applier hardening + AC2 spec flipped green + Tuwunel stale-copy unit); Phase 6+7 fully landed locally (P6.1 prefetch settings replacement + legacy scrub + arch guard, P7.1 dead-code audit + cache-strategy doc rewrite). P7.2 (final adversarial review + Scorecard audit) is the orchestrator's.**
 Phase-1 e2e gate (2026-07-03, stack tip 55439be8): streamed-edit spec green
 live (AC4, probe numbers in scorecard), stop-emoji green (AC3; three failed
 attempts were host `ERR_NETWORK_CHANGED` flake — tracked in the Runbook).
@@ -403,11 +403,21 @@ referenced from `FORK_CHANGES.md` entries.
   — applier hardening unit + Tuwunel stale-copy unit + AC2 spec flipped
   green; docker gate is team-lead's to run).
 
-### Phase 6 — Settings replacement (D4)
+### Phase 6 — Settings replacement (D4) — **landed 2026-07-04**
 
 - **P6.1** New prefetch settings group (scope + depth); remove
   `MindroomMessagePreloadLimitSetting` and `paginationLimit` plumbing; drop
-  stored legacy values; update settings tests.
+  stored legacy values; update settings tests. **Landed** as commits
+  `07fb8555` (resolvers + transitional fields), `2bcbe724`
+  (`MindroomPrefetchSettings` UI + arch guard flip), `09f28b95`
+  (consumers onto `prefetchDepth`, `timelinePagination` parameter
+  renamed to `windowLimit`), `a27aedf7` (delete
+  `MindroomMessagePreloadLimitSetting.*` + `preloadSettings.test.ts` +
+  legacy sanitizers, add `mindroomSettingsBootstrap.dropLegacyMindroomSettings`
+  scrub + wire it into `src/index.tsx` before `state/settings.ts`
+  initializes, rewrite `mindroomSettings.test.ts`, install
+  `prefetchSettings.architecture.test.ts` guard) on
+  `cache-overhaul/13-p6p7-settings-cleanup`.
 
 ### Phase 7 — Cleanup and documentation
 
@@ -415,7 +425,12 @@ referenced from `FORK_CHANGES.md` entries.
   `docs/mindroom-cache-strategy.md` (write owners → engine components; eager
   preload section; forbidden patterns — the "no cross-room eager preload from a
   room screen" rule remains true because cross-room work lives in the engine).
-- **P7.2** Final adversarial review + full Scorecard audit (see Section 6).
+  **Landed** as a single docs commit (Commits 5+6 folded per Deviations §8 —
+  the dead-code audit produced zero verified-dead orphans). Commit
+  rewrites `docs/mindroom-cache-strategy.md` and adds this Phase 6+7
+  runbook entry.
+- **P7.2** Final adversarial review + full Scorecard audit (see Section 6) —
+  orchestrator's responsibility, not part of the P6+P7 branch.
 
 ## 6. Accountability: how we verify we built the right thing
 
@@ -546,7 +561,28 @@ new engine-scoped guard file):
   asserts the `'thread-open-forward-gap-check'` log string lives in
   the lifecycle controller (its new home) and that the runner name
   never reappears as an import.
-- The removed preload setting is not reintroduced (Phase 6).
+- The removed preload setting is not reintroduced (Phase 6 —
+  **added** in P6.1 Commit 4 as
+  `src/app/mindroom/settings/prefetchSettings.architecture.test.ts`,
+  5 tests): (a) `MindroomMessagePreloadLimitSetting.tsx` + test
+  absent from disk; (b) recursive scan of `src/app/mindroom/` for
+  `/paginationLimit|PreloadLimit|PAGINATION_LIMIT/` with an
+  exemption list of NON-CONSUMERS — this arch test itself, the D4
+  drop machinery (`mindroomSettings.ts` +
+  `mindroomSettingsBootstrap.ts` + `mindroomSettings.test.ts`),
+  legacy-negation guards elsewhere (`RoomTimeline.architecture.test.ts`,
+  `RoomTimeline.cache.test.ts`, `MindroomPrefetchSettings.test.ts`),
+  and the `preloadSettings.ts` historical header. The Commit-3
+  rename of `timelinePagination.ts`'s `paginationLimit` parameter
+  to `windowLimit` closed the last LIVE consumer; the exemption
+  list is the honest reading of "no live consumer" (see
+  Deviations §8). (c) Positive: `settingsExtensions.tsx` imports
+  `MindroomPrefetchSettings`; `mindroomSettings.ts` declares
+  `prefetchScope` + `prefetchDepth` + imports from
+  `../engine/prefetchPolicy`. (d) `mindroomSettings.test.ts`
+  contains the four D4 case titles. Written RED FIRST — 3 tests
+  failed against the pre-Commit-4 tree, all pass after the
+  removals.
 
 ### 6.5 Validation environment
 
@@ -578,6 +614,80 @@ new engine-scoped guard file):
   nondeterministic part. Revisit if federation becomes a product target.
 
 ## 8. Deviations
+
+- 2026-07-04 — **P6.1 arch guard 6.4 (b) uses an exemption list, not
+  a zero allowlist.** The Commit-4 brief called for a recursive scan
+  of `src/app/mindroom/**/*.{ts,tsx}` for
+  `/paginationLimit|PreloadLimit|PAGINATION_LIMIT/` with ZERO
+  allowlist. That is not achievable in the D4 shape: the drop code
+  MUST name the key it strips (the destructure-omit
+  `const { paginationLimit: _dropped, ...rest }` in `withMindroomSettings`
+  and the `hasOwnProperty` check in `dropLegacyMindroomSettings` are
+  load-bearing — remove them and the scrub can't happen), and the
+  D4 tests that assert the drop MUST name the key too. The honest
+  reading of "no live consumer" is: no source module reads the
+  legacy field, imports a `PreloadLimit` symbol, or references a
+  `_PAGINATION_LIMIT` constant — which is exactly what the guard
+  checks after exempting: (a) this arch test itself, (b) the D4 drop
+  machinery, (c) the D4 tests, (d) legacy-negation guards elsewhere
+  in the tree, (e) the `preloadSettings.ts` historical header. Every
+  exempted file's justification is spelled out in the guard's doc
+  header. Alternative considered: rewrite the drop code to fingerprint
+  the key some other way (e.g. hash equality). Rejected — obscures
+  the intent, doesn't remove the need for the D4 tests to name the
+  field, and doesn't survive a subsequent audit of the drop code.
+
+- 2026-07-04 — **P6.1 deep-history depth wired via `targetEventCount`
+  snapshot at effect fire, not via a scheduler-key or a `noteRoomFocused`
+  setter.** `MindroomRoomTimeline` reads the user's `prefetchDepth`
+  and passes it as `targetEventCount` when it enqueues the band-4
+  `'room-deep-history'` job. The scheduler dedup key does NOT
+  include the depth, so a mid-focus depth change won't cancel and
+  re-enqueue the running job — the new value picks up on the next
+  mount (room switch, view mode flip). Chosen because the executor
+  already accepts `targetEventCount` (P4.3); the alternative of
+  plumbing a depth setter through `engine.noteRoomFocused` would
+  require a new engine construction argument without adding any
+  behavior. Recorded so P7.2 review doesn't flag the missing
+  in-flight update.
+
+- 2026-07-04 — **P6.1 D4 semantics: stored `paginationLimit` value is
+  DROPPED, never mapped to `prefetchDepth`.** The two settings have
+  incompatible semantics: the old one was an eager-preload target
+  of any positive integer (P1.6 clamped to
+  `[MIN_PAGINATION_LIMIT=50, MAX_PAGINATION_LIMIT=10000]`); the new
+  one is a scrollback depth clamped to
+  `[ROOM_TAIL_PREFETCH_DEPTH=200, CURRENT_ROOM_DEEP_HISTORY_TARGET=10000]`
+  with the SAME default (10000). A user with `paginationLimit: 120`
+  who upgrades will get `prefetchDepth: 10000` (the default) rather
+  than `prefetchDepth: 200` (a naive clamp of the stored value)
+  because 120 was a valid preload target under the old sanitizer
+  but is below the new sanitizer's minimum. Silently changing to
+  200 would surprise a user who deliberately lowered the setting;
+  dropping to the default and letting the user re-set is the safer
+  behavior. The drop happens twice: on read (destructure-omit in
+  `withMindroomSettings`) and on the persisted blob (`dropLegacyMindroomSettings`
+  called from `src/index.tsx` BEFORE `state/settings.ts`
+  initializes).
+
+- 2026-07-04 — **P7.1 dead-code sweep folded into the docs commit.**
+  The audit (`npx ts-prune | rg app/mindroom` +
+  `rg -n "from '\./(preloadController|roomCacheLifecycleController|threadCachePersistenceController|threadSeedPrewarmController|threadOpenPostBootstrapRefresh)'" src/`)
+  produced ZERO verified-dead orphans in `mindroom/threads/`. Every
+  ts-prune "unused" candidate is either alive via a test file (test
+  helpers like `resetPendingThreadTagsForTests`,
+  `resetCacheHealthForTesting`, `loadRoomCachePersistenceState`,
+  `computeReconciliationToken`, `getRoomPreloadCounts`,
+  `getLatestLoadedRoomEvent`), alive as a legacy-surface re-export
+  required by an existing arch guard (`fetchAllThreadRelations` and
+  constants re-exported through `threadBootstrap.ts` per the P5.1
+  Commit 2 note), or an intentional optional API
+  (`useMindroomSyncEngineOptional`). The three legacy cache shim
+  files were already deleted in P2.3. Per the brief's "be
+  conservative — when in doubt, leave and note" direction, the
+  audit was recorded rather than forced into an empty commit; the
+  P7.1 landing is therefore a single docs commit rather than the
+  planned two.
 
 - 2026-07-04 — **P4 gate fix: `gapFillExecutor.enqueue` no longer
   short-circuits on tier.** Original design filtered federated /
@@ -818,6 +928,114 @@ new engine-scoped guard file):
   workflow review round 1; recorded here for product-owner review.
 
 ## 9. Status log
+
+- 2026-07-04 — **Phase 6 + Phase 7 fully landed locally** on
+  `cache-overhaul/13-p6p7-settings-cleanup`, branched from the
+  Phase 5 tip (`52e37491`). Six commits total (P6.1 x4 + P7.1 x2
+  folded into a single docs commit — see Deviations §8 for the
+  fold justification).
+
+  1. `07fb8555` P6.1 Commit 1 `feat: prefetch settings resolvers
+     and transitional fields` — `engine/prefetchPolicy.ts` grows
+     `PrefetchScope` literal + `DEFAULT_PREFETCH_SCOPE` +
+     `sanitizePrefetchScope` + `sanitizePrefetchDepth` (clamp
+     [`ROOM_TAIL_PREFETCH_DEPTH=200`,
+     `CURRENT_ROOM_DEEP_HISTORY_TARGET=10000`]) + pure
+     `resolvePrefetchConfig(settings)` -> `{scope,
+     currentRoomDepth, roomTailDepth, threadInventoryLimit}`.
+     `mindroomSettings.ts` grows `prefetchScope` + `prefetchDepth`
+     ALONGSIDE the legacy `paginationLimit` — transitional so the
+     tree stays green. 17 new sanitizer/resolver tests
+     (prefetchPolicy 20/20 total).
+
+  2. `2bcbe724` P6.1 Commit 2 `feat: prefetch settings UI` — new
+     `MindroomPrefetchSettings.tsx` (two SequenceCards; folds
+     PopOut+FocusTrap+Menu selector cloned from `SelectMessageLayout`
+     in `features/settings/general/General.tsx` ~762-820; depth
+     input shaped like the pre-D4 preload input). Wired through
+     `settingsExtensions.tsx`. Arch guard flipped
+     (`RoomTimeline.architecture.test.ts:1656` now requires
+     `MindroomPrefetchSettings` in `settingsExtensionsSource`;
+     `settingsMenuExtensionsSource` still forbids both symbols). 6
+     new component tests (`MindroomPrefetchSettings.test.ts`).
+
+  3. `09f28b95` P6.1 Commit 3 `refactor: consumers onto
+     prefetchDepth` — `MindroomRoomTimeline.tsx` (~22 refs) +
+     seven controllers renamed `safePaginationLimit` ->
+     `prefetchDepth` and `safePaginationLimitRef` ->
+     `prefetchDepthRef` (`roomCacheHydrationController`,
+     `roomEventOpenController`, `roomPaginationCommandController`,
+     `roomTimelineNavigationController`,
+     `roomTimelineWindowController`, `threadOpenCacheController`,
+     `threadSeedPrewarmController`). `timelinePagination.ts`'s
+     `paginationLimit` parameter renamed to `windowLimit`
+     (mechanical). Deep-history wiring: depth snapshot at effect
+     fire, passed as `targetEventCount` to
+     `enqueueRoomDeepHistoryJob` (Deviations §8). Test shims
+     updated. `RoomTimeline.cache.test.ts` "keeps first visible
+     anchored" case adjusted for the new 200 minimum (pre-D4 value
+     100 is not representable under the new sanitizer).
+     `src/app/pages/client/inbox/Notifications.tsx` NOT touched
+     (its `paginationLimit` is an unrelated upstream param).
+
+  4. `a27aedf7` P6.1 Commit 4 `refactor: remove the legacy preload
+     setting; drop stored values (D4)` — DELETE
+     `MindroomMessagePreloadLimitSetting.tsx` + test,
+     `preloadSettings.test.ts`. From `preloadSettings.ts` remove
+     `DEFAULT_PAGINATION_LIMIT` / `MIN_PAGINATION_LIMIT` /
+     `MAX_PAGINATION_LIMIT` / `sanitizePaginationLimit`; also
+     remove `ROOM_CACHE_PERSIST_DEBOUNCE_MS` (P1.1 sweep debounce
+     — its subject was deleted in P3.3, no live consumers).
+     Survivors kept in-file: `THREAD_BATCH_SIZE`,
+     `ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE`,
+     `THREAD_EDIT_COMPACTION_DEBOUNCE_MS` (three live callers each).
+     `mindroomSettings.ts` drops `paginationLimit` from the type,
+     destructure-omits it on every read. NEW leaf module
+     `mindroomSettingsBootstrap.ts` (NO transitive import of
+     `state/settings.ts`) with `dropLegacyMindroomSettings()`
+     scrub — imported at the top of `src/index.tsx` BEFORE the
+     App/state import chain triggers the settings atom.
+     `mindroomSettings.test.ts` rewritten (7 tests: drop test,
+     garbage-scope test, no-paginationLimit-key-after-write test,
+     scrub test + three no-op cases). NEW 6.4 arch guard
+     `prefetchSettings.architecture.test.ts` (RED FIRST — three
+     tests failed pre-Commit-4, all pass post-Commit-4; exempts
+     the D4 drop machinery + tests + legacy-negation guards —
+     Deviations §8).
+
+  5+6. `[this commit]` P7.1 dead-code audit + docs rewrite
+     (folded — Deviations §8). Dead-code recipe:
+     `npx ts-prune | rg app/mindroom` +
+     `rg -n "from '\./(preloadController|roomCacheLifecycleController|threadCachePersistenceController|threadSeedPrewarmController|threadOpenPostBootstrapRefresh)'" src/`.
+     Zero verified-dead orphans (Deviations §8). Docs commit:
+     `docs/mindroom-cache-strategy.md` full rewrite (Core Model
+     diagram shows the engine's four components; Cache Layers
+     collapses to one `cacheStore/` row; Write Owners names the
+     four engine writers + inverse rule that render components own
+     ZERO writes; Read Owners rewritten around thread-open ->
+     reconciler and hydration helpers; Coverage Semantics gains
+     D7 verbatim; Main Flows drops "Eager Preload" entirely and
+     adds a "Tiered Prefetch" section; Forbidden Patterns keeps
+     the cross-room-preload rule with the updated justification
+     and adds three new prohibitions; Review Checklist gains the
+     scheduler-dedup and "reconcile scheduled even on complete
+     coverage (D7)" questions). `FORK_CHANGES.md` gains a Phase
+     6+7 runbook entry. This plan gains the header status marker,
+     this §9 entry, §6.4 guard row, and four new Deviations §8
+     entries.
+
+  Full validation on the branch tip: `npx tsc --noEmit` clean;
+  focused vitest (`prefetchPolicy` 20/20, `mindroomSettings` 7/7,
+  `MindroomPrefetchSettings` 6/6, `prefetchSettings.architecture`
+  5/5, `RoomTimeline.architecture` 96/96, `RoomTimeline.cache`
+  76/76, `RoomTimeline.navigation` 22/22,
+  `RoomTimelineCollapsible` 12/12,
+  `roomPaginationCommandController` 4/4, `state/settings` 4/4);
+  full mindroom + state/settings 232 files / 2036 tests green
+  after Commit 4; full-repo `npx vitest run` + build + lint land
+  with this docs commit. P7.2 (final adversarial review + full
+  Scorecard audit) is the orchestrator's, not part of this
+  branch.
 
 - 2026-07-04 — **Phase 5 fully landed locally** on
   `cache-overhaul/12-p5-reconciler` (four feature commits + this docs

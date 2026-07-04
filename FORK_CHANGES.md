@@ -2,6 +2,186 @@
 
 ## Runbook
 
+### CINNY-207 Phase 6 + Phase 7 - Settings replacement + cleanup + docs (2026-07-04)
+
+- Status: P6.1 + P7.1 landed locally on
+  `cache-overhaul/13-p6p7-settings-cleanup`, branched from the Phase 5
+  tip (`52e37491`, `fix(reconciler): widen onRepaired to carry batch`).
+  Six commits (P6.1 x4, P7.1 x2). Final adversarial review + full
+  Scorecard audit (P7.2) is the orchestrator's, not part of this
+  branch.
+
+- Phase 6.1 rationale: the P1.6 preload setting was an interim clamp
+  on a design (unbounded eager preload) the Phase 3/4 engine
+  extraction supplanted. D4 replaces the field with a shape aligned
+  to the tier model — a scope selector (`my-server` default /
+  `all-rooms` / `current-room-only`) and a current-room depth cap.
+  Stored `paginationLimit` values are DROPPED, not mapped: the two
+  settings have incompatible semantics (unbounded target vs. clamped
+  [200, 10000] scrollback depth with a different default), so
+  translating forward would give users a silent behavior change.
+
+- Phase 6.1 commits:
+
+  1. `feat: prefetch settings resolvers and transitional fields
+     (CINNY-207 P6.1)` — `engine/prefetchPolicy.ts` grows
+     `PrefetchScope` (literal type + `DEFAULT_PREFETCH_SCOPE`),
+     `sanitizePrefetchScope` (whitelist coerce, silent fallback),
+     `sanitizePrefetchDepth` (clamp [`ROOM_TAIL_PREFETCH_DEPTH`,
+     `CURRENT_ROOM_DEEP_HISTORY_TARGET`], integer, silent fallback —
+     same shape as the P1.6 sanitizer it replaces), and pure
+     `resolvePrefetchConfig(settings)` returning `{scope,
+     currentRoomDepth, roomTailDepth, threadInventoryLimit}`.
+     `mindroomSettings.ts` grows `prefetchScope` and `prefetchDepth`
+     ALONGSIDE the legacy `paginationLimit` so the tree stays green
+     while consumers migrate. 17 new sanitizer/resolver tests.
+
+  2. `feat: prefetch settings UI (CINNY-207 P6.1)` — new
+     `MindroomPrefetchSettings.tsx` (two `SequenceCard`s: scope
+     selector cloned from `SelectMessageLayout` in
+     `features/settings/general/General.tsx` ~762-820; depth input
+     shaped like the pre-D4 preload input — Escape resets, Enter/blur
+     commits via `sanitizePrefetchDepth`, Success variant while
+     dirty). `settingsExtensions.tsx` swap. Arch guard flipped:
+     `RoomTimeline.architecture.test.ts` now asserts
+     `settingsExtensionsSource` contains `MindroomPrefetchSettings`
+     (previously asserted `MindroomMessagePreloadLimitSetting`). 6
+     new component tests (render two tiles, clamp below MIN, clamp
+     above MAX, Escape reset, scope selection writes literal, Enter
+     commits).
+
+  3. `refactor: consumers onto prefetchDepth (CINNY-207 P6.1)` —
+     `MindroomRoomTimeline.tsx` (~22 refs), `roomCacheHydrationController.ts`,
+     `roomEventOpenController.ts`, `roomPaginationCommandController.ts`,
+     `roomTimelineNavigationController.ts`,
+     `roomTimelineWindowController.ts`, `threadOpenCacheController.ts`,
+     `threadSeedPrewarmController.ts` renamed `safePaginationLimit`
+     -> `prefetchDepth` and `safePaginationLimitRef` ->
+     `prefetchDepthRef`. `timelinePagination.ts`'s `paginationLimit`
+     parameter renamed to `windowLimit` (mechanical — the parameter
+     is a slice length, not a user setting; the rename enabled the
+     zero-allowlist 6.4 guard in Commit 4). Deep-history wiring:
+     `MindroomRoomTimeline` snapshots `prefetchDepth` at effect fire
+     and passes it as `targetEventCount` to `enqueueRoomDeepHistoryJob`
+     (dedup key doesn't include depth — a mid-focus change picks up
+     on next mount; simplest wiring that doesn't require a new
+     engine setter). Test shims updated:
+     `RoomTimeline.test.shared.ts` and `RoomTimelineCollapsible.test.ts`
+     return prefetchDepth + prefetchScope='my-server' from the
+     `useSetting` mock; `RoomTimeline.navigation.test.ts` and
+     `RoomTimeline.cache.test.ts` reference `settingsState.prefetchDepth`.
+     Cache test's "keeps first visible classic room message anchored"
+     case updated: pre-D4 `paginationLimit: 100` doesn't survive the
+     new clamp (200 min); the test now uses 200 with the resulting
+     `{start:100,end:300}` range assertion.
+     `src/app/pages/client/inbox/Notifications.tsx` NOT touched — its
+     `paginationLimit` is an unrelated upstream notification-fetch
+     batch size parameter.
+
+  4. `refactor: remove the legacy preload setting; drop stored values
+     (CINNY-207 P6.1/D4)` — DELETE
+     `MindroomMessagePreloadLimitSetting.tsx` + test,
+     `preloadSettings.test.ts`. From `preloadSettings.ts`: remove
+     `DEFAULT_PAGINATION_LIMIT` / `MIN_PAGINATION_LIMIT` /
+     `MAX_PAGINATION_LIMIT` / `sanitizePaginationLimit`, and
+     `ROOM_CACHE_PERSIST_DEBOUNCE_MS` (P1.1 sweep debounce — its
+     subject was deleted in P3.3, no live consumers). Survivors:
+     `THREAD_BATCH_SIZE`, `ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE`,
+     `THREAD_EDIT_COMPACTION_DEBOUNCE_MS`. `mindroomSettings.ts`
+     drops `paginationLimit` from the type and destructure-omits it
+     on every read via `withMindroomSettings`. NEW
+     `mindroomSettingsBootstrap.ts` (leaf module — NO transitive
+     import of `state/settings.ts`) with
+     `dropLegacyMindroomSettings()`; wired into `src/index.tsx` BEFORE
+     any transitive settings import so the atom initializes clean.
+     `mindroomSettings.test.ts` rewritten (7 tests: drop test,
+     garbage-scope test, no-paginationLimit-key-after-write test,
+     scrub test + three no-op cases). NEW 6.4 arch guard
+     `prefetchSettings.architecture.test.ts` (written RED FIRST —
+     three tests failed against the pre-Commit-4 tree; landed green
+     after this commit's removals): (a) both legacy files absent,
+     (b) recursive scan of `src/app/mindroom/` for
+     `/paginationLimit|PreloadLimit|PAGINATION_LIMIT/` with an
+     exemption list of non-consumers (this arch test itself, the D4
+     drop machinery in `mindroomSettings.ts` +
+     `mindroomSettingsBootstrap.ts`, the D4 tests, legacy-negation
+     guards elsewhere, and the `preloadSettings.ts` historical
+     header), (c) `settingsExtensions.tsx` contains
+     `MindroomPrefetchSettings`; `mindroomSettings.ts` declares
+     `prefetchScope` + `prefetchDepth` + imports from
+     `../engine/prefetchPolicy`, (d) `mindroomSettings.test.ts`
+     contains the four D4 case titles. Divergence recorded in plan
+     Deviations §8: the brief called for "zero allowlist" on (b) but
+     the D4 drop code MUST name the key it strips (destructure-omit
+     is load-bearing); the exemption list is the honest reading of
+     "no live consumer" and every entry is justified in the guard's
+     doc header.
+
+- Phase 7.1 rationale: after the P6.1 removals the code base is at a
+  new equilibrium. P7.1 audits for stragglers and rewrites the cache
+  strategy doc to describe the engine architecture rather than the
+  pre-overhaul controller graph.
+
+- Phase 7.1 commit (dead-code sweep, folded into this docs commit):
+  Ran `npx ts-prune 2>/dev/null | rg app/mindroom` and
+  `rg -n "from '\./(preloadController|roomCacheLifecycleController|threadCachePersistenceController|threadSeedPrewarmController|threadOpenPostBootstrapRefresh)'" src/`.
+  Result: the three legacy cache shim files (`roomEventCache.ts` /
+  `threadEventCache.ts` / `threadSummaryCache.ts`) were already
+  deleted in P2.3. The four post-P3.3 deleted controllers show zero
+  hits in the recipe grep — the remaining `threadSeedPrewarmController`
+  hit is the alive React scaffolding preserved by P4.4 (documented in
+  Deviations §8). Every ts-prune "unused" candidate in
+  `mindroom/threads/` is either: alive via a test file
+  (`resetPendingThreadTagsForTests`, `resetCacheHealthForTesting`,
+  `loadRoomCachePersistenceState`, `computeReconciliationToken`,
+  `getRoomPreloadCounts`, `getLatestLoadedRoomEvent`); alive as a
+  legacy-surface re-export required by an existing arch guard
+  (`fetchAllThreadRelations` and the constants re-exported through
+  `threadBootstrap.ts` per the P5.1 Commit 2 note); or an intentional
+  optional API (`useMindroomSyncEngineOptional`). No verified-dead
+  orphans found. The dead-code sweep produces zero code changes; per
+  the instructions ("be conservative — when in doubt, leave and
+  note") this outcome is recorded here rather than as an empty
+  commit. Divergence from the six-commit brief: Commit 5 and Commit
+  6 are combined into a single docs commit because Commit 5's
+  technical content would have been empty; the sweep results are
+  documented in this runbook entry and no auditable behavior is lost.
+
+- Phase 7.1 commit (docs — this commit): `docs/mindroom-cache-strategy.md`
+  full rewrite per the P7.1 outline (Core Model diagram now shows the
+  engine's four components; Cache Layers table collapses the three
+  legacy IDB rows into one `cacheStore/` row for the unified
+  `mindroom-cache::<sessionId>` DB schema v3; Write Owners section
+  names the four engine writers and explicitly declares the inverse
+  rule — render components and per-room controllers own ZERO writes;
+  Read Owners rewritten around thread-open → reconciler and hydration
+  helpers; Coverage Semantics gains D7 verbatim; Main Flows drops the
+  Eager Preload section entirely and gains a new Tiered Prefetch
+  section describing the scheduler + D3 detection + depth targets;
+  Forbidden Patterns keeps the "no cross-room eager preload from a
+  room screen" rule with the updated justification — cross-room
+  prefetch exists but is owned exclusively by the engine's scheduler
+  under the user's scope policy — plus new prohibitions on bypassing
+  `cacheStore`, on history fetches outside the scheduler/reconciler,
+  and on reintroducing a preload-limit-style setting; Review
+  Checklist gains the "scheduler dedup domain" and "reconcile
+  scheduled even on complete coverage (D7)" questions). `FORK_CHANGES.md`
+  gains this Phase 6+7 entry. `docs/mindroom-cache-overhaul-plan.md`
+  gains a Phase 6+7 landed marker, §9 status log entry, §6.4 guard
+  update, and a Scorecard note that P7.2 is the orchestrator's
+  responsibility.
+
+- Validation: `npx tsc --noEmit` clean; focused vitest
+  (`prefetchPolicy` 20/20, `mindroomSettings` 7/7,
+  `MindroomPrefetchSettings` 6/6, `prefetchSettings.architecture` 5/5,
+  `RoomTimeline.architecture` 96/96, `RoomTimeline.cache` 76/76,
+  `RoomTimeline.navigation` 22/22, `RoomTimelineCollapsible` 12/12,
+  `roomPaginationCommandController` 4/4, `state/settings` 4/4); full
+  mindroom + state/settings 232 files / 2036 tests green after Commit
+  4; full-repo `npx vitest run` and `npm run build` + `npm run lint`
+  land with this docs commit. Docker e2e gate on the branch tip is
+  the team-lead's / orchestrator's to run.
+
 ### CINNY-207 P5-GATE-FIX v3 - reconciler dual-injection: SDK + render-fallback via widened onRepaired (2026-07-04)
 
 - Status: Fix implemented on `cache-overhaul/12-p5-reconciler`,
