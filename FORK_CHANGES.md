@@ -2,6 +2,116 @@
 
 ## Runbook
 
+### CINNY-207 P1.4 - Edit compaction at the write boundary (2026-07-03)
+
+- Status:
+  - Complete locally (PR 6 of the cache-overhaul stack). Docker e2e run
+    against the P0.2 spec is pending — the docker suite takes ~14 min and
+    must not run with a dirty `src/` tree, so it is intentionally deferred
+    to a separate session.
+- Summary:
+  - Finding F5 / decision D5: streaming AI messages (10+ edits/sec) used to
+    persist every intermediate `m.replace` as its own cache record, so a
+    logical message ended up with ~N+1 records; page limits filled with
+    invisible edits, storage grew unbounded.
+  - `serializeEventsForCache` now excludes standalone same-sender `m.replace`
+    events from its output. The target record already carries the latest
+    replacement bundled into `unsigned['m.relations']['m.replace']` via
+    `setSerializedReplacement`, so the standalone record is just duplication.
+    Cross-sender replaces and replaces whose target is not in the batch are
+    still emitted (nothing to bundle onto).
+  - New `editCompactionScheduler.ts`: per-target trailing-debounced upsert
+    engine. `scheduleTargetUpsert(key, upsertFn)` replaces any pending
+    upsert for the same key and resets the timer; `flushAll` and
+    `flushTarget` fire pending upserts synchronously. The upsert closure
+    reads the current target instance from the SDK at fire time, so the
+    write always reflects the very latest bundled edit even if more edits
+    arrive after the timer is armed.
+  - `THREAD_EDIT_COMPACTION_DEBOUNCE_MS = 1000` lives in `preloadSettings.ts`
+    (leaf module) so tests can mock it the same way `ROOM_CACHE_PERSIST_DEBOUNCE_MS`
+    is mocked (P1.1). The 1 s trailing timer IS the stream-end flush —
+    incoming edits keep deferring, and the last one lands ≤1 s after the
+    stream ends.
+  - `roomLiveEventController.ts`: for every `RelationType.Replace` live
+    arrival, the direct `persistThreadEventCache` /
+    `persistThreadCacheFromRoomEvents` / `persistRoomEventCache` call is
+    replaced by a `scheduler.scheduleTargetUpsert(...)` keyed on
+    `thread|room|target|target` or `room|room|target`. Non-replace paths
+    are unchanged. Pending upserts flush synchronously on unmount and on
+    `pagehide` / `visibilitychange → hidden`. Global guards check for
+    `document.addEventListener` (not just the global) so the wire-up does
+    not crash vitest's node-mode stub `document`.
+  - Sweep path (`roomCacheLifecycleController.ts`) is unchanged: it already
+    marks every persisted event id (including replaces that
+    `serializeEventsForCache` would have filtered) as seen, so a replace
+    cannot cause endless re-sweeps.
+  - `loadCachedThreadSnapshot` (hydration entry) lazily deletes legacy
+    standalone same-sender `m.replace` records whose target is in the same
+    batch (`collectLegacyStandaloneReplaceIds` + `deleteThreadEventsFromCache`).
+    Full purge arrives with the Phase 2 D8 wipe; this handles what shows up
+    on next open. Deleter is resolved lazily inside the `if
+    (legacyReplaceIds.length > 0)` block so the storage import identifier
+    is not evaluated in vitest environments whose partial mocks reject
+    unlisted exports.
+  - `cacheProbe`: new `editCompactions` counter (incremented once per fired
+    coalesced upsert) so AC4 evidence can be captured from the browser
+    probe. Existing `threadEventPuts`/`roomEventPuts` still count real
+    puts.
+  - P0.2 spec `e2e/live/cinny207-streamed-edit-cache.spec.ts`: `test.fail()`
+    removed. Assertion tightened to "no standalone replace records remain
+    for the streamed reply (target + optional root only)". Body-visible
+    reload assertion unchanged.
+- Decisions:
+  - The scheduler is stateful only about *what upsert to fire*, not *what
+    to persist*. Each edit passes a fresh closure that reads the target
+    from the SDK at fire time. This keeps the write correct even if the
+    SDK aggregates additional edits between the arming and firing calls.
+  - Cross-sender replaces are still emitted as their own records
+    (potentially meaningful in the future); only same-sender replaces
+    compact.
+  - Redaction interaction (D5 documented limitation): if the latest
+    bundled edit is redacted, the P1.2 redaction path persists the
+    redaction record; the bundled-edit record falls back to prior content
+    on the next reconcile. Nothing crashes when the bundled edit is
+    redacted (verified via `serializeEventsForCache` already writing a
+    redacted target as a pruned tombstone), but the fallback to prior
+    content is not implemented yet — that belongs to the reconciler.
+  - Edit selection uses the shared `getLatestEdit` / `isEventOrderedAfter`
+    from `src/app/utils/room.ts` (P1.3 / D12) — no new ts comparison.
+  - Discovery during test run: vitest's partial `vi.mock` implementation
+    throws when unlisted exports are accessed. Placing
+    `deleteEvents = deleteThreadEventsFromCacheToStorage` as a destructured
+    default triggered that throw on every hydration call in
+    `RoomTimeline.cache.test.ts` because the shared mock does not list
+    `deleteThreadEventsFromCache`. Fixed by resolving the deleter lazily
+    inside the `if (legacyReplaceIds.length > 0)` block — 86 tests
+    restored without extending the shared mock (kept the shared file
+    surface tight).
+- Next steps:
+  - P1.5 surface write failures (F4).
+- Validation:
+  - Red check: unit — reverted only `serializeEventsForCache` and ran the
+    new exclusion tests → 1 failed (`serialized.map(...)` still contained
+    the two edit ids), pre-fix confirmed red. Then reverted only the
+    controller and ran the new `roomLiveEventController.compaction.test.ts`
+    → all 4 failed with immediate/synchronous persists, pre-fix confirmed
+    red. Not red-checked separately: the hydration lazy-cleanup test and
+    the `collectLegacyStandaloneReplaceIds` unit — both are new logic
+    with no prior implementation to revert; their assertions match the
+    obvious pre-P1.4 behavior (no delete calls).
+  - Green: `npx vitest run src/app/mindroom/threads/editCompactionScheduler.test.ts`
+    (7/7), `npx vitest run src/app/mindroom/threads/eventCacheEditUtils.test.ts`
+    (14/14), `npx vitest run src/app/mindroom/threads/eventRepository.test.ts`
+    (21/21), `npx vitest run src/app/mindroom/threads/roomLiveEventController.compaction.test.ts`
+    (4/4), `npx vitest run src/app/mindroom/threads/` (1017/1017),
+    `npx vitest run src/app/utils/room.test.ts` (14/14).
+  - `npm run typecheck`, `npm run build` (existing Vite warning classes
+    only), `npm run lint` (0 errors, 18 pre-existing warnings; nothing
+    new from this step).
+  - **NOT run this session**: `E2E_ENABLE_DEPLOYED_FIXTURE=0 ./scripts/test-e2e-docker-matrix.sh e2e/live/cinny207-streamed-edit-cache.spec.ts`
+    — docker suite deferred per instructions (dirty `src/` invalidates it,
+    and this branch is intended to hand off to a separate spec run).
+
 ### CINNY-207 P1.3 - Deterministic edit tiebreak (2026-07-03)
 
 - Status:
