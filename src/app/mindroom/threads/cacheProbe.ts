@@ -202,6 +202,14 @@ export type CacheProbeCounters = {
   onRepairedGuardBailed: number;
   supplementalEventsExecuted: number;
   supplementalEventsSkippedEmpty: number;
+  // Task #125 (2026-07-04): bumps once per scroll-driven thread
+  // back-pagination auto-fire (the effect in MindroomRoomTimeline that
+  // fires the chip pipeline when the rendered window's top edge enters
+  // the trigger headroom). Lets the e2e reachability test assert the
+  // TRIGGER fired — background band backfill can satisfy the content
+  // assertion on fast networks, so without this scalar the e2e cannot
+  // distinguish trigger-driven from band-driven loading.
+  threadAutoPaginateBackFired: number;
   // CINNY-207 AC2 render-gap RG1 (2026-07-04): mergeThreadRenderEvents
   // "edit-relation seen but target's replacingEvent() unchanged"
   // observability. Diagnostic for candidate (b): the merge received an
@@ -356,6 +364,7 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   onRepairedGuardBailed: 0,
   supplementalEventsExecuted: 0,
   supplementalEventsSkippedEmpty: 0,
+  threadAutoPaginateBackFired: 0,
   mergeSawEditRelationNoTargetChange: 0,
   mergeSawIncomingEditRelation: 0,
   renderTargetHadReplacement: 0,

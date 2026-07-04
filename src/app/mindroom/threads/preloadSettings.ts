@@ -20,6 +20,21 @@ export const THREAD_BATCH_SIZE = 200;
 // the initial batch is bounded so the render pass stays fast.
 export const ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE = 200;
 
+// Scroll-driven thread back-pagination headroom, in virtual rows. When
+// the FIRST rendered virtual row's index drops to or below this value
+// while older content exists, back-pagination auto-fires — the same
+// cache-first, anchor-restoring pipeline as the "Load Older Messages"
+// chip, started ~2 mobile viewports (15 rows × ~96-144px estimates)
+// BEFORE the user's momentum scroll slams into the top of the loaded
+// window. Rooms have always had this via useVirtualPaginator's
+// IntersectionObserver sentinel; threads bypass that paginator
+// (virtualizer count is threadEvents.length), so the thread path needs
+// its own trigger. Without it, upward scrolling on a slow connection
+// hard-stops at the loaded-window edge until a manual chip tap or a
+// background band arrival extends the window — the jagged
+// stop-load-continue reported on mobile (task #125).
+export const THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS = 15;
+
 // CINNY-207 P1.4: per-target trailing debounce for edit-compaction
 // upserts. The live path never persists standalone m.replace records;
 // it instead coalesces upserts of the target's cache record with the

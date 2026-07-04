@@ -44,6 +44,55 @@ export const shouldPinThreadToBottomOnOpen = ({
   threadInitialRenderMode !== 'loading' &&
   threadEventCount > 0;
 
+type ThreadAutoPaginateBackOpts = {
+  threadId?: string;
+  // Index of the FIRST virtual row currently rendered (top of the
+  // overscan window). undefined when nothing is rendered yet.
+  firstRenderedIndex: number | undefined;
+  // Single-flight: a back-pagination is already in progress.
+  paginatingBack: boolean;
+  // Same condition that shows the "Load Older Messages" chip — older
+  // content exists in cache or on the server.
+  showLoadOlder: boolean;
+  // A real user scroll gesture (wheel/touch/keyboard) has happened in
+  // this thread view. Auto-pagination is a RESPONSE to the user
+  // scrolling toward the edge; without a gesture, a low rendered
+  // index is an open-time artifact (the virtualizer transiently
+  // renders from index 0 before the pin-to-bottom lands) and must not
+  // fire. Deliberately NOT the open-lifecycle pending flag: that flag
+  // stays true until the whole open-time backfill chain completes,
+  // which on slow networks spans the entire loading phase — exactly
+  // when a scrolling user needs the trigger live (task #125).
+  hasUserScrollIntent: boolean;
+  triggerRows: number;
+};
+
+// Scroll-driven thread back-pagination predicate (task #125). Pure so
+// the trigger condition is unit-testable apart from the effect wiring.
+// Fires when the rendered window's top edge is within `triggerRows` of
+// the loaded content's start — early enough that the cache-first
+// pagination pipeline (IDB read, then network fallback) completes
+// before momentum scrolling reaches the edge. Re-firing after a
+// completed pagination is naturally throttled: the prepend anchor
+// restore pushes firstRenderedIndex back up by the prepended count, so
+// the predicate only becomes true again when the user scrolls further
+// up (or the remaining history is shorter than the headroom, in which
+// case it drains the tail — bounded by showLoadOlder flipping false).
+export const shouldAutoPaginateThreadBack = ({
+  threadId,
+  firstRenderedIndex,
+  paginatingBack,
+  showLoadOlder,
+  hasUserScrollIntent,
+  triggerRows,
+}: ThreadAutoPaginateBackOpts): boolean =>
+  !!threadId &&
+  !paginatingBack &&
+  hasUserScrollIntent &&
+  showLoadOlder &&
+  firstRenderedIndex !== undefined &&
+  firstRenderedIndex <= triggerRows;
+
 export const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
   const mEventId = mEvt.getId();
   const relationTargetId = mEvt.getRelation()?.event_id;

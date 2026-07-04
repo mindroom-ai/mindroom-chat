@@ -138,6 +138,7 @@ import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
   primeTimelineRenderContextBefore,
+  shouldAutoPaginateThreadBack,
 } from './threadRenderUtils';
 import {
   useTimelineDebugRangeController,
@@ -189,7 +190,11 @@ import { useRoomThreadResolutionMap } from './useRoomThreadTags';
 // CINNY-207 P4.3: the eager preload hook was deleted. Deep-history
 // sweep is now a band-4 job on the engine's BackfillScheduler (see
 // engine/deepHistoryJob.ts) and never touches the SDK live timeline.
-import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from './preloadSettings';
+import {
+  ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
+  THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
+} from './preloadSettings';
+import { countCacheProbe } from './cacheProbe';
 import { sanitizePrefetchDepth,
   sanitizePrefetchScope } from '../engine/prefetchPolicy';
 import { mindroomSettingsAtom } from '../settings/mindroomSettings';
@@ -2936,6 +2941,119 @@ export function RoomTimeline({
       threadId,
       threadIdRef,
     });
+
+  // Scroll-driven thread back-pagination (task #125). Threads bypass
+  // useVirtualPaginator (its count is 0 for threads), so unlike the
+  // room view they had NO scroll trigger — older content only arrived
+  // via the "Load Older Messages" chip or background band fills, and
+  // upward momentum scrolling hard-stopped at the loaded-window edge
+  // on slow connections. This effect fires the SAME chip pipeline
+  // (cache-first IDB page, network fallback, prepend anchor
+  // capture/restore) when the top of the rendered window comes within
+  // THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS of the loaded edge.
+  //
+  // Guard inputs are STATE values, not refs (greptile P1 on PR #74):
+  // the gating conditions must RE-RUN the effect when they change.
+  // With refs in the dep array the identity is stable, so a
+  // suppressed evaluation would never re-run without an index change.
+  //
+  // The "not an open-time artifact" gate is USER SCROLL INTENT, not
+  // the open-lifecycle pending flag: threadLatestOpenPending stays
+  // true until the whole open-time backfill chain completes (its
+  // clear lives in the chain's finally), which on slow networks spans
+  // the entire loading phase — exactly when a scrolling user needs
+  // the trigger live. A real gesture (the same event set the
+  // pin-settle loop watches) is both necessary and sufficient: before
+  // any gesture, a low rendered index is the pre-pin transient and
+  // must not fire; after one, the user is genuinely navigating.
+  //
+  // Barren-attempt guard (greptile P2): one fire per
+  // (firstRenderedIndex, threadEvents.length) observation. If an
+  // attempt completes without growing the loaded window (exhausted or
+  // miscounted coverage upstream), the identical state must not
+  // re-fire in a loop; the next fire requires the user to scroll
+  // (index changes) or content to land (length changes).
+  const threadFirstRenderedIndex = threadId
+    ? roomTimelineVirtualizer.getVirtualItems()[0]?.index
+    : undefined;
+  const [threadUserScrolled, setThreadUserScrolled] = useState(false);
+  // Bumped by a fresh gesture ONLY while a barren-attempt block is
+  // armed (see below) — a renewed explicit user gesture is what
+  // authorizes retrying after a no-progress attempt. Normal scrolling
+  // never bumps it (zero extra renders on the hot path).
+  const [threadAutoPaginateGestureTick, setThreadAutoPaginateGestureTick] = useState(0);
+  const threadAutoPaginateLastFireRef = useRef<{ index: number; count: number } | null>(null);
+  useEffect(() => {
+    // Reset ONLY on thread change (coderabbit on PR #74: resetting on
+    // render-mode transitions would wipe real user intent mid-open).
+    setThreadUserScrolled(false);
+    threadAutoPaginateLastFireRef.current = null;
+  }, [threadId]);
+  useEffect(() => {
+    if (!threadId) return undefined;
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return undefined;
+    const gestureEvents = ['wheel', 'touchmove', 'pointerdown', 'keydown'] as const;
+    const onGesture = () => {
+      setThreadUserScrolled(true);
+      // Renewed intent clears a barren block (greptile P1 round 2 on
+      // PR #74): a no-progress attempt must not strand the user at
+      // the edge while older history still exists — but retries are
+      // paced by explicit gestures, so an exhausted-but-miscounted
+      // coverage state cannot re-fire in an unattended loop either.
+      if (threadAutoPaginateLastFireRef.current !== null) {
+        threadAutoPaginateLastFireRef.current = null;
+        setThreadAutoPaginateGestureTick((tick) => tick + 1);
+      }
+    };
+    gestureEvents.forEach((eventType) => {
+      scrollEl.addEventListener(eventType, onGesture, { passive: true });
+    });
+    return () => {
+      gestureEvents.forEach((eventType) => {
+        scrollEl.removeEventListener(eventType, onGesture);
+      });
+    };
+    // threadInitialRenderMode: the scroll element mounts after the
+    // loading placeholder phase; re-attach once real rows render.
+  }, [threadId, threadInitialRenderMode]);
+  useEffect(() => {
+    if (
+      !shouldAutoPaginateThreadBack({
+        threadId,
+        firstRenderedIndex: threadFirstRenderedIndex,
+        paginatingBack: threadPaginatingBack,
+        showLoadOlder: showThreadLoadOlderMessages,
+        hasUserScrollIntent: threadUserScrolled,
+        triggerRows: THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
+      })
+    ) {
+      return;
+    }
+    const lastFire = threadAutoPaginateLastFireRef.current;
+    if (
+      lastFire &&
+      lastFire.index === threadFirstRenderedIndex &&
+      lastFire.count === threadEvents.length
+    ) {
+      return;
+    }
+    threadAutoPaginateLastFireRef.current = {
+      index: threadFirstRenderedIndex as number,
+      count: threadEvents.length,
+    };
+    countCacheProbe('threadAutoPaginateBackFired');
+    handleThreadPaginateBack();
+  }, [
+    threadFirstRenderedIndex,
+    threadId,
+    showThreadLoadOlderMessages,
+    threadPaginatingBack,
+    threadUserScrolled,
+    threadAutoPaginateGestureTick,
+    threadEvents.length,
+    handleThreadPaginateBack,
+  ]);
 
   let prevEvent: MatrixEvent | undefined;
   let prevRenderedEventAbsoluteIndex: number | undefined;
