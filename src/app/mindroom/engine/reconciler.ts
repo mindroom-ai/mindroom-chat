@@ -49,10 +49,7 @@
 import { Direction } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import to from 'await-to-js';
-import {
-  createPreferLiveEventMapper,
-  mapCachedThreadPageEvents,
-} from '../threads/eventRepository';
+import { createPreferLiveEventMapper } from '../threads/eventRepository';
 import {
   collectRedactedRelationTargetsFromLookup,
   hydrateCachedEvents,
@@ -140,6 +137,99 @@ export type ReconcileResult = {
   readonly iterations: number;
   /** True when the executor short-circuited on abort. */
   readonly aborted: boolean;
+};
+
+/**
+ * CINNY-207 P5-GATE-FIX v2 (AC2 instance-race): resolve the MatrixEvent
+ * instances the repair pipeline should mutate.
+ *
+ * Contract:
+ *   - When `cachedPage.hydratedEvents` is populated (the standard
+ *     complete-coverage cache-first path), we operate on THOSE
+ *     instances — the render layer is holding exactly the same
+ *     object references via `fallbackThreadEventsState.events` (see
+ *     `useThreadRenderState.buildThreadEvents`), so a `makeReplaced`
+ *     or `makeRedacted` call here becomes visible on the next tick.
+ *   - Additionally, for each hydrated instance we consult `preferLive`
+ *     — if the SDK has a newer live instance for the same event id
+ *     (e.g. a live sync just landed the m.replace target update while
+ *     the cache still held an older copy), we prefer the live one so
+ *     the repair sees the freshest state. This mirrors P1.2's
+ *     both-ways-heal contract and keeps the cache path aligned with
+ *     the SDK-live path.
+ *   - Absent `hydratedEvents` (defensive fallback), we re-hydrate the
+ *     raw JSON via `preferLive` — the prior P5.1 behavior. On
+ *     complete-coverage this branch is unreachable in production
+ *     because `hydrateThreadFromCache` always sets `hydratedEvents`.
+ *
+ * Root event handling: `hydratedRootEvent` follows the same rule; when
+ * absent we fall back to remapping `cachedPage.rootEvent`. Kept
+ * ordered "root first, then events" to match the array shape
+ * `mapCachedThreadPageEvents` produced pre-fix.
+ */
+const resolveCachedSnapshotEventsForRepair = ({
+  cachedPage,
+  preferLive,
+  room,
+}: {
+  cachedPage: HydratedThreadCachePage;
+  preferLive: (rawEvent: Partial<IEvent>) => MatrixEvent;
+  room: Room;
+}): MatrixEvent[] => {
+  // Prefer the SDK live instance only when the SDK actually knows the
+  // id — otherwise `preferLive` would return a fresh clone (via the
+  // wrapped `mapEvent`), which would defeat the whole point of this
+  // helper by reintroducing the fresh-clone race the fix is closing.
+  // A live-instance win here is the P1.2 both-ways-heal case (SDK's
+  // live copy is newer than what the cache clone has); we accept that
+  // trade because the SDK subsequently notifies the render layer
+  // through the standard thread events + re-render tick.
+  const preferredForInstance = (mEvent: MatrixEvent): MatrixEvent => {
+    const eventId = mEvent.getId();
+    if (!eventId) return mEvent;
+    const liveInstance = room.findEventById(eventId);
+    return liveInstance ?? mEvent;
+  };
+
+  if (cachedPage.hydratedEvents && cachedPage.hydratedEvents.length > 0) {
+    const collected: MatrixEvent[] = [];
+    if (cachedPage.hydratedRootEvent) {
+      collected.push(preferredForInstance(cachedPage.hydratedRootEvent));
+    } else if (cachedPage.rootEvent) {
+      collected.push(preferLive(cachedPage.rootEvent));
+    }
+    for (const mEvent of cachedPage.hydratedEvents) {
+      // Skip a hydrated instance whose id matches the root we already
+      // pushed (defensive — the hydrated events list from
+      // `hydrateThreadFromCache` typically does not contain the root
+      // as a separate entry, but check for identity to avoid a double
+      // entry into the applier's id-to-target map).
+      const eventId = mEvent.getId();
+      if (
+        eventId &&
+        cachedPage.hydratedRootEvent &&
+        cachedPage.hydratedRootEvent.getId() === eventId
+      ) {
+        continue;
+      }
+      collected.push(preferredForInstance(mEvent));
+    }
+    return collected;
+  }
+
+  // Defensive fallback: no hydratedEvents on the page. Rebuild via
+  // preferLive from raw JSON — the prior P5.1 behavior. On any path
+  // that reaches this branch, the render is not currently holding
+  // cache-clone instances (e.g. room-scope reconcile with no thread
+  // context), so the object-identity contract does not apply.
+  const collected: MatrixEvent[] = [];
+  if (cachedPage.rootEvent) {
+    collected.push(preferLive(cachedPage.rootEvent));
+  }
+  for (const rawEvent of cachedPage.events) {
+    collected.push(preferLive(rawEvent));
+  }
+  return collected;
 };
 
 const buildCachedEventIdSet = (cachedPage: HydratedThreadCachePage): Set<string> => {
@@ -320,14 +410,6 @@ const runThreadReconcilePass = async ({
     return { reason, repaired: false, fetchedCount, iterations, aborted: false };
   }
 
-  const cachedSnapshotEvents = cachedPage
-    ? mapCachedThreadPageEvents({
-        events: cachedPage.events,
-        rootEvent: cachedPage.rootEvent,
-        mapEvent: preferLive,
-      })
-    : [];
-
   // Deterministic divergence check: does the fetched page introduce
   // anything the cache does not already agree with? Uses the same
   // event-ID and bundled-relation shape the applier will act on, so a
@@ -386,6 +468,30 @@ const runThreadReconcilePass = async ({
   // is captured — otherwise hydration's aggregation step would run
   // against a stale (empty) timelineSet reference.
   const liveThreadTimelineSet = liveThread?.getUnfilteredTimelineSet();
+  // P5-GATE-FIX v2 (AC2 instance-race): the render layer on the
+  // complete-coverage cache-first path holds the MatrixEvent instances
+  // that `hydrateThreadFromCache` handed to `setSupplementalThreadEvents`
+  // (SDK bootstrap is skipped by design when the cache is complete —
+  // see `threadOpenCacheFirst.ts`). Those instances are exposed on
+  // `cachedPage.hydratedEvents`; the P1.2 hydration pipeline builds
+  // `applyCachedReplaceRelations`'s event-id → target map from
+  // whatever we pass in, and calls `makeReplaced` on the matching
+  // entry. To make the repair visible in render, we MUST pass THOSE
+  // instances (or, where the SDK has a newer live copy, that live
+  // instance via `preferLive` — the P1.2 both-ways-heal spirit).
+  //
+  // Fallback (`hydratedEvents` absent): re-hydrate the raw JSON via
+  // `preferLive`. Kept for defense-in-depth against future callers
+  // that skip hydratedEvents, and for the room-scope path — but on
+  // complete-coverage today, `hydratedEvents` is always populated by
+  // `hydrateThreadFromCache`.
+  const cachedSnapshotEvents = cachedPage
+    ? resolveCachedSnapshotEventsForRepair({
+        cachedPage,
+        preferLive,
+        room,
+      })
+    : [];
   const mergedForHydrate = [...cachedSnapshotEvents, ...allMapped];
   const redactedRelationTargets = collectRedactedRelationTargetsFromLookup(
     allMapped,

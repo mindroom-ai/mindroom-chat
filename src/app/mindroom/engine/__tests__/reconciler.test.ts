@@ -39,31 +39,55 @@ type FakeEventInit = {
   id: string;
   redaction?: { targetId: string };
   bundledReplaceId?: string;
+  /**
+   * When set, this event is an m.replace edit event whose
+   * `getRelation()` returns `{ rel_type: 'm.replace', event_id }`.
+   * Matches the shape `applyCachedReplaceRelations` inspects when
+   * scanning for edit events targeting an existing event.
+   */
+  replaceTargetId?: string;
+  ts?: number;
+  sender?: string;
 };
 
-const makeFakeEvent = ({ id, redaction, bundledReplaceId }: FakeEventInit): MatrixEvent => {
+const makeFakeEvent = ({
+  id,
+  redaction,
+  bundledReplaceId,
+  replaceTargetId,
+  ts = 0,
+  sender = '@bob:example',
+}: FakeEventInit): MatrixEvent => {
   const raw: Partial<IEvent> = {
     event_id: id,
     type: redaction ? 'm.room.redaction' : 'm.room.message',
-    origin_server_ts: 0,
+    origin_server_ts: ts,
     unsigned: bundledReplaceId
       ? { 'm.relations': { 'm.replace': { event_id: bundledReplaceId } } as never }
       : undefined,
-    content: {},
+    content: replaceTargetId
+      ? ({
+          'm.new_content': { body: 'new body', msgtype: 'm.text' },
+          'm.relates_to': { rel_type: 'm.replace', event_id: replaceTargetId },
+        } as never)
+      : {},
   };
   return {
     getId: () => id,
     getType: () => raw.type,
-    getTs: () => 0,
+    getTs: () => ts,
     isRedaction: () => !!redaction,
     isRedacted: () => false,
     getAssociatedId: () => redaction?.targetId,
-    getRelation: () => null,
+    getRelation: () =>
+      replaceTargetId ? { rel_type: 'm.replace', event_id: replaceTargetId } : null,
     getUnsigned: () => raw.unsigned ?? {},
     makeRedacted: () => undefined,
     makeReplaced: () => undefined,
     replacingEvent: () => null,
-    getSender: () => '@bob:example',
+    getSender: () => sender,
+    getContent: () => raw.content ?? {},
+    getWireContent: () => raw.content ?? {},
     event: raw,
   } as unknown as MatrixEvent;
 };
@@ -780,6 +804,125 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     const injectedIds = injectedEvents.map((mEvent: MatrixEvent) => mEvent.getId());
     expect(injectedIds).toContain('$edit-v2');
     expect(injectedIds).toContain('$reply-1');
+  });
+
+  it('mutates the render-held cachedPage.hydratedEvents instances directly, not fresh clones — P5-GATE-FIX v2 AC2 instance-race root cause', async () => {
+    // CINNY-207 P5-GATE-FIX v2 (AC2 instance-race): the real reason AC2
+    // failed on tip 4aa3c194 even with `thread.addEvents` injection.
+    //
+    // Complete-coverage cache-first path (the exact AC2 scenario) SKIPS
+    // SDK bootstrap by design. `useThreadRenderState`'s render source
+    // is `fallbackThreadEventsState.events` — MatrixEvent clones handed
+    // to `setSupplementalThreadEvents` when the cache was hydrated.
+    //
+    // The pre-P5 tail refresh applied its repair against
+    // `hydratedCachedPage` — the render's OWN instances. P5 lost that:
+    // it re-mapped `cachedPage.events` via `mapCachedThreadPageEvents`,
+    // producing a SECOND clone set. `applyCachedReplaceRelations`
+    // mutated the second clone; the render kept holding the first.
+    // The onRepaired tick re-ran the render, saw unchanged instances,
+    // painted v1 forever.
+    //
+    // Fix: reconciler MUST apply the P1.2 pipeline against
+    // `cachedPage.hydratedEvents` (falling back to `preferLive` where
+    // the SDK has a newer live instance — the P1.2 both-ways-heal
+    // spirit). This test models the render-holds-detached-clones
+    // reality and asserts the fetched bundled edit lands on the
+    // render's instance.
+    const room = makeFakeRoom();
+    // The render's clone of $edit-target — this is the instance
+    // `useThreadRenderState` reads via fallbackEvents. Its
+    // `makeReplaced` spy will only fire if the reconciler operates on
+    // THIS object identity.
+    const renderTargetMakeReplaced = vi.fn();
+    const renderHeldEditTarget = {
+      ...makeFakeEvent({ id: '$edit-target' }),
+      makeReplaced: renderTargetMakeReplaced,
+      // A fresh clone (which is what the reconciler would create if it
+      // re-mapped from raw JSON) would have a different makeReplaced
+      // spy that would NEVER be called under the bug.
+      getRelation: () => null,
+      replacingEvent: () => null,
+      isRedaction: () => false,
+      isRedacted: () => false,
+    } as unknown as MatrixEvent;
+    const renderHeldReply = makeFakeEvent({ id: '$reply-1' });
+
+    // The fetched page carries a standalone m.replace edit event
+    // ($edit-v2) whose `rel_type` targets $edit-target. This mirrors
+    // what Tuwunel returns from /relations?recurse=true — verified
+    // empirically via curl (team-lead's H#1 disproof). The applier's
+    // `applyCachedReplaceRelations` scans events for a Replace
+    // relation, then calls `makeReplaced` on WHICHEVER instance of
+    // the target id is in its id-to-event map. If the reconciler
+    // passes a fresh clone of $edit-target, the fresh clone gets
+    // mutated. If it passes the render-held instance, the render
+    // sees the mutation.
+    const fetchRelations = vi.fn(async () => ({
+      chunk: [
+        {
+          event_id: '$edit-v2',
+          type: 'm.room.message',
+          content: {
+            'm.new_content': { body: 'edit-target v2 converged', msgtype: 'm.text' },
+            'm.relates_to': { rel_type: 'm.replace', event_id: '$edit-target' },
+          },
+        },
+      ] as Partial<IEvent>[],
+      next_batch: undefined,
+    }));
+    const mx = {
+      getRoom: () => room,
+      // If the reconciler falls back to re-mapping raw JSON for the
+      // CACHE snapshot (the bug), it will call this mapper on the
+      // cached $edit-target raw JSON and produce a fresh clone with
+      // its OWN makeReplaced (a no-op vi.fn()). Under the bug, that
+      // clone is what gets mutated. The assertion below
+      // (renderTargetMakeReplaced called) fails, exposing the race.
+      getEventMapper: () => (raw: Partial<IEvent>) => {
+        const relatesTo = (raw.content as
+          | { 'm.relates_to'?: { rel_type?: string; event_id?: string } }
+          | undefined)?.['m.relates_to'];
+        const isReplace = relatesTo?.rel_type === 'm.replace';
+        return makeFakeEvent({
+          id: (raw.event_id as string) ?? '',
+          replaceTargetId: isReplace ? relatesTo?.event_id : undefined,
+        });
+      },
+      fetchRelations,
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx });
+
+    // Cache page with hydratedEvents populated — mirrors the shape
+    // `hydrateThreadFromCache` now returns after this fix. The raw
+    // `events` field still carries the JSON records (for the id set
+    // used by detectDivergence — $edit-v2 is new, so divergence
+    // fires) but the hydrated instances are what the reconciler
+    // must operate on.
+    const cachedPage: HydratedThreadCachePage = {
+      ...makeCachedPage(['$edit-target', '$reply-1']),
+      hydratedEvents: [renderHeldEditTarget, renderHeldReply],
+      hydratedRootEvent: undefined,
+    };
+
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      threadId: '$thread',
+      cachedPage,
+      reason: 'open-complete-coverage',
+      room,
+    });
+
+    expect(result.repaired).toBe(true);
+    // The load-bearing assertion: mutation lands on the render's
+    // instance, not on a fresh clone. Under the pre-fix reconciler,
+    // this call count is 0 (fresh clone from mapCachedThreadPageEvents
+    // captures the makeReplaced call; render-held instance is never
+    // touched). Under the fix, it is 1.
+    expect(renderTargetMakeReplaced).toHaveBeenCalledTimes(1);
   });
 
   it('does NOT inject into the SDK thread on the D7 no-op path — P5-GATE-FIX cost guarantee', async () => {

@@ -35,6 +35,23 @@ export type HydratedThreadCachePage = {
   beforeToken?: string | null;
   cacheCoverage: ThreadCacheCoverage;
   events: Partial<IEvent>[];
+  /**
+   * CINNY-207 P5-GATE-FIX v2 (AC2 instance-race): the SAME MatrixEvent
+   * instances that were handed to `setSupplementalThreadEvents` on cache
+   * hydrate — i.e. the objects the render layer is holding via
+   * `fallbackThreadEventsState.events`. The reconciler needs identity
+   * with these to make `applyCachedReplaceRelations`/`makeRedacted`
+   * mutations actually visible in the render, instead of mutating a
+   * fresh clone nobody reads. Undefined on the empty-cache branch.
+   */
+  hydratedEvents?: MatrixEvent[];
+  /**
+   * Companion to `hydratedEvents` for the root event. Same identity
+   * contract: this is the instance the render will pick up when
+   * `thread?.rootEvent` is unavailable (e.g. cold cache-first reopen
+   * with an empty SDK thread model).
+   */
+  hydratedRootEvent?: MatrixEvent;
   expectedReplyCount?: number;
   hasMoreBefore: boolean;
   relationSnapshotComplete: boolean;
@@ -235,10 +252,19 @@ export const useThreadOpenCacheController = ({
         tailLoaded,
         threadId: expectedThreadId,
       });
+      // CINNY-207 P5-GATE-FIX v2 (AC2 instance-race): expose the exact
+      // MatrixEvent instances the render layer just received via
+      // `setSupplementalThreadEvents`. On complete-coverage cache-first
+      // reopens the SDK bootstrap is skipped by design, so these clones
+      // ARE the render's source of truth — the reconciler must apply
+      // `makeReplaced`/`makeRedacted` against them (not fresh remaps)
+      // for the repair to become visible. See engine/reconciler.ts.
       return {
         ...cachedPage,
         cacheCoverage,
         expectedReplyCount: authoritativeExpectedReplyCount,
+        hydratedEvents: cachedEvents,
+        hydratedRootEvent: cachedRootMatrixEvent,
         relationSnapshotComplete: cachedRelationSnapshotComplete,
         snapshotComplete,
         tailLoaded,

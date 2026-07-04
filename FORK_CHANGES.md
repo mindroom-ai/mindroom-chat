@@ -2,6 +2,164 @@
 
 ## Runbook
 
+### CINNY-207 P5-GATE-FIX v2 - reconciler instance-race (AC2 still red on tip 4aa3c194) (2026-07-04)
+
+- Status: Fix implemented on `cache-overhaul/12-p5-reconciler`,
+  branched from `4aa3c194` (v1 tip). Awaiting team-lead docker AC2
+  re-run.
+
+- What the v1 fix (4aa3c194) still missed: `thread.addEvents(fetched,
+  false)` DID land the fetched m.replace in the SDK thread model,
+  but on the complete-coverage cache-first path the render layer
+  does NOT read the SDK thread's mutated target instance — it reads
+  the MatrixEvent clones that `hydrateThreadFromCache` handed to
+  `setSupplementalThreadEvents`. The reconciler then re-mapped
+  `cachedPage.events` (raw JSON) via `mapCachedThreadPageEvents`,
+  producing a SECOND clone set; `applyCachedReplaceRelations`
+  mutated the second clone; the render kept holding the first.
+  Ticking never repainted the correct content — v1 forever.
+
+- Hypothesis #1 (RECURSE) tested and REFUTED with server evidence.
+  Team-lead curled the live docker Tuwunel: `GET
+  /v1/rooms/.../relations/{root}?dir=b&limit=200&recurse=true`
+  returns BOTH the m.thread reply and the m.replace edit
+  (`recursion_depth: 1`); without recurse only the reply. So the
+  reconciler's fetch already receives the edit. Confirms the bug
+  is downstream of network — inside `runThreadReconcilePass`.
+
+- Hypothesis #2 (SCHEDULING / instance race) CONFIRMED as root
+  cause. Team-lead's sharpening: "the render's events are the
+  CACHE-HYDRATED DETACHED instances held in the render state (SDK
+  bootstrap is skipped by design), and the OLD
+  refreshLatestThreadRelationsTail worked precisely because it
+  applied its reconcile against `hydratedCachedPage` — the
+  render's OWN instances." Verified against source:
+  `useThreadRenderState.buildThreadEvents` in `'live'` mode reads
+  `thread?.events` PLUS `fallbackEvents` (from
+  `fallbackThreadEventsState.events` — set only by
+  `setSupplementalThreadEvents`). On complete-coverage,
+  `hydrateThreadFromCache` sets `fallbackThreadEventsState.events`
+  to the cache-hydrated MatrixEvent instances and skips SDK
+  bootstrap. Those clones ARE the render's source of truth. The
+  reconciler must mutate THOSE, not fresh clones.
+
+- Hypothesis #3 (REPAIR-WITHOUT-REPAINT) subsumed by #2: repaint
+  did fire (`forceTimelineUpdate` + `setThreadTimelineTick`), the
+  render just re-read the same unmutated instance. Fix #2 solves
+  it end-to-end.
+
+- Fix mechanics (files touched):
+  - `src/app/mindroom/threads/threadOpenCacheController.ts`
+    - Extended `HydratedThreadCachePage` with two new optional
+      fields: `hydratedEvents?: MatrixEvent[]` and
+      `hydratedRootEvent?: MatrixEvent`. These carry the EXACT
+      instances handed to `setSupplementalThreadEvents` — same
+      object identity as `fallbackThreadEventsState.events`.
+    - `hydrateThreadFromCache` now populates both on the
+      non-empty-cache return path (the branch that already calls
+      `setSupplementalThreadEvents(expectedThreadId, cachedEvents)`
+      — same `cachedEvents` reference feeds both).
+  - `src/app/mindroom/engine/reconciler.ts`
+    - Deleted the `mapCachedThreadPageEvents(...)` re-map (which
+      produced fresh clones the render never saw) and replaced it
+      with a new helper `resolveCachedSnapshotEventsForRepair`
+      that prefers `cachedPage.hydratedEvents` when populated.
+    - For each hydrated instance, checks `room.findEventById(id)`
+      directly and prefers the SDK live instance when it exists
+      (P1.2 both-ways-heal: the SDK may hold a newer live copy
+      from a mid-session sync). Guarded so a fresh-clone from
+      `preferLive`'s `mapEvent` fallback never wins over the
+      render's instance — that would reintroduce the very race
+      this fix closes.
+    - Defensive fallback: when `hydratedEvents` is absent
+      (currently unreachable from complete-coverage in
+      production, but retained for future callers and room-scope
+      paths), falls back to the prior remap-via-preferLive
+      behavior.
+    - The v1 `thread.addEvents(allMapped, false)` injection is
+      retained. It is still correct — the SDK's Thread model
+      needs the new edit event so its own downstream listeners
+      fire (relation aggregation, `Relations` container, etc.),
+      and so applier code that reaches into `room.findEventById`
+      for a fetched id gets the SDK instance rather than a
+      third clone.
+  - `src/app/mindroom/engine/__tests__/reconciler.test.ts`
+    - Extended `makeFakeEvent` to support `replaceTargetId` —
+      builds a proper m.replace event with `getRelation()`
+      returning `{ rel_type: 'm.replace', event_id }`, matching
+      what Tuwunel returns via `/relations?recurse=true`
+      (verified via curl, see H#1 disproof above).
+    - Added new red-first test:
+      "mutates the render-held cachedPage.hydratedEvents
+      instances directly, not fresh clones — P5-GATE-FIX v2 AC2
+      instance-race root cause". Models the exact detached-render
+      shape: a `renderHeldEditTarget` instance with its own
+      `vi.fn()` `makeReplaced` spy, passed via
+      `cachedPage.hydratedEvents`. Fetched chunk is a standalone
+      m.replace event targeting `$edit-target`. The assertion
+      `renderTargetMakeReplaced toHaveBeenCalledTimes(1)` FAILS
+      when the reconciler re-maps to fresh clones (count 0) and
+      PASSES only when it operates on the render's instance.
+
+- Observability retained: `reconcilesScheduled` and
+  `reconcilesRepaired` probe counters from v1 still bump exactly
+  the same way. If AC2 still fails despite the instance-race fix,
+  those counters are the single fastest disambiguation
+  ("scheduled but never repaired" vs "repaired but repaint didn't
+  land" — the latter would be a genuinely new bug).
+
+- Red-first evidence (with fix stashed):
+  - `git stash push -- src/app/mindroom/engine/reconciler.ts`
+  - `npx vitest run src/app/mindroom/engine/__tests__/reconciler.test.ts`
+    → 15 passed, 1 FAILED (the new instance-race test:
+    `expected "spy" to be called 1 times, but got 0 times` on
+    `renderTargetMakeReplaced`). The other 15 tests all still
+    pass — the v1 fix's `addEvents` injection is intact when
+    the file is stashed except for the `resolveCachedSnapshotEventsForRepair`
+    call, which was the only reconciler-side change. Restored via
+    `git stash pop`; 16 of 16 pass.
+  - Root-cause chain proved: without the fix, the repair pipeline
+    receives clones the render is not holding; with the fix, it
+    receives the render's own instances.
+
+- Full validation:
+  - `npm run typecheck`: clean.
+  - `npx vitest run`: 337/337 files, 2573/2573 tests. First run
+    showed one intermittent failure in
+    `src/app/mindroom/engine/__tests__/noteRoomFocused.test.ts`
+    (`row?.federated` was `undefined`, expected `false`); repro'd
+    a re-run in isolation → passed cleanly, and a second full-suite
+    run passed all 2573. Documented as pre-existing fake-indexeddb
+    cross-test flake, not caused by these changes (test file
+    unchanged, my diff is limited to reconciler.ts /
+    threadOpenCacheController.ts / reconciler.test.ts).
+  - `npm run build`: OK in ~46s.
+  - `npm run lint`: 0 errors, 18 warnings — exact baseline, zero
+    delta from tip 4aa3c194.
+
+- Expected AC2 behavior post-fix: the reopen path hydrates
+  `hydratedCachedPage.hydratedEvents` with the render's instances,
+  schedules a reconcile with `reason: 'open-complete-coverage'`,
+  fetches `/relations?recurse=true` (which returns the m.replace
+  and both redactions per team-lead's curl), and the repair
+  pipeline mutates the exact `edit-target` instance the render is
+  holding via `makeReplaced($edit-v2)`. `onRepaired` fires
+  `forceTimelineUpdate` + `setThreadTimelineTick`; the render
+  re-runs `buildThreadEvents`, reads the now-mutated
+  `fallbackEvents[i]`, and `getSerializedReplacementEvent` on the
+  mutated target yields the new-content `edit-target v2 converged`.
+  Spec assertion at line 236 passes within its 30s timeout.
+
+- AC10 anchor invariant preserved: `resolveCachedSnapshotEventsForRepair`
+  does NOT splice new ids into the render array (the render still
+  reads `fallbackThreadEventsState.events`, which is set once
+  during cache hydrate and not re-set by the reconciler). The
+  mutations are in-place on existing instances — same guarantee
+  as the v1 P5.2 anchor unit test. Length + order of rendered
+  events is untouched.
+
+- Not pushed. Docker AC2 re-run is team-lead's.
+
 ### CINNY-207 P5-GATE-FIX - AC2 stale-edit convergence + reconciler observability (2026-07-04)
 
 - Status: Fix implemented on `cache-overhaul/12-p5-reconciler`,
