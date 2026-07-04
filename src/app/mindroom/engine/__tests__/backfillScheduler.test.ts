@@ -416,5 +416,53 @@ describe('BackfillScheduler (CINNY-207 P4.1)', () => {
       });
       expect(ran).toBe(true);
     });
+
+    it('counts non-abort executor rejections on the schedulerFailed probe (P4 gate fix)', async () => {
+      // AC13 debugging in the docker gate would have been impossible if
+      // `schedulerCompleted=0, schedulerAborted=0, schedulerFailed=0`
+      // was the only signal — that snapshot is ambiguous between "job
+      // never ran" and "job rejected silently". This test locks in the
+      // third counter so the failure mode is visible from a snapshot.
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 1 });
+
+      const failing = scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: () => Promise.reject(new Error('network down')),
+      });
+      await expect(failing).rejects.toThrow('network down');
+      await flushMicrotasks();
+
+      const snapshot = getCacheProbeSnapshot();
+      expect(snapshot.schedulerEnqueued).toBe(1);
+      expect(snapshot.schedulerFailed).toBe(1);
+      expect(snapshot.schedulerCompleted).toBe(0);
+      expect(snapshot.schedulerAborted).toBe(0);
+    });
+
+    it('an executor rejection that WAS caused by an abort counts as schedulerAborted, not schedulerFailed', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 1 });
+
+      const running = scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: (signal) =>
+          new Promise<void>((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason));
+          }),
+      });
+      await flushMicrotasks();
+      scheduler.abort('!r1', undefined, 'gap-fill');
+      await expect(running).rejects.toThrow(/backfill/i);
+      await flushMicrotasks();
+
+      const snapshot = getCacheProbeSnapshot();
+      expect(snapshot.schedulerAborted).toBeGreaterThanOrEqual(1);
+      expect(snapshot.schedulerFailed).toBe(0);
+    });
   });
 });

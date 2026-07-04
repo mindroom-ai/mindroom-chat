@@ -2,6 +2,78 @@
 
 ## Runbook
 
+### CINNY-207 Phase 4 gate fix - schedulerFailed probe + executor lockstep + spec probe-reset race (2026-07-04)
+
+- Status: Applied on `cache-overhaul/11-p4-scheduler` as a single
+  hotfix commit on top of the merged Phase 4 branch. Ready for
+  docker-gate re-run of `cinny207-gap-fill-restart` (AC13).
+- Trigger: docker gate at the branch tip reported AC13 failing at
+  spec:130 with `schedulerCompleted >= 1` receiving 0. The earlier
+  assertion `gapFillsEnqueued >= 1` passed, so the tracker enqueued
+  jobs after the reset but nothing appeared to complete. Three
+  contributing gaps identified.
+- Fixes:
+  - `src/app/mindroom/engine/backfillScheduler.ts`: added
+    `schedulerFailed` probe counter, bumped from the non-abort
+    branch of the run try/catch. Previously a `createMessagesRequest`
+    reject (or any executor throw) counted as neither completed nor
+    aborted; a probe snapshot could show `0/0/0` for the same job
+    the tracker enqueued, making silent job failure indistinguishable
+    from "job never ran". Team-lead's explicit ask ("regardless").
+  - `src/app/mindroom/engine/gapFillExecutor.ts`: removed the
+    tier short-circuit inside the enqueue callback so every
+    `gapFillsEnqueued` becomes a `schedulerEnqueued` in lockstep.
+    The `resolveRoomPrefetchTier !== 'own'` check that used to skip
+    federated rooms BEFORE the scheduler now runs inside `runOnce`
+    via `isRoomEligibleForRawFetch`, which still no-ops fetch and
+    returns void. Marker semantics preserved by tier: encrypted-own
+    rooms clear the marker (unusable ciphertext, no retry point);
+    federated rooms preserve the marker (Deviations §8 - handled by
+    user attention). Net effect: every tracker enqueue produces a
+    `schedulerCompleted` bump, so a probe snapshot with
+    `gapFillsEnqueued=N, schedulerCompleted<N` is now unambiguously
+    a real execution failure (with `schedulerFailed` telling you
+    which).
+  - `e2e/live/cinny207-gap-fill-restart.spec.ts`: moved the probe
+    reset from a post-`expectLoggedInShellStable` `page.evaluate` to
+    a pre-reload `page.addInitScript`. The old order zeroed
+    counters AFTER the engine had already primed and quite possibly
+    completed its startup jobs — so the assertion window relied on
+    a NEW enqueue arriving in the following 12s, which is racy on a
+    well-caught-up sync. Init-script runs on the fresh document
+    BEFORE the app JS mounts; the probe module installs itself on
+    import and the script resets it via microtask + rAF fallback,
+    so every counter delta is attributable to the post-reload
+    engine. Also added a `schedulerFailed === 0` assertion with a
+    diagnostic message so the next gate iteration doesn't need log
+    spelunking.
+- Tests:
+  - `engine/__tests__/backfillScheduler.test.ts` (+2): non-abort
+    reject bumps `schedulerFailed` and NOT `schedulerCompleted` /
+    `schedulerAborted`; an abort-caused reject bumps
+    `schedulerAborted` and NOT `schedulerFailed`.
+  - `engine/__tests__/gapFillExecutor.test.ts` (+1): AC13 mechanism
+    test — a startup job for an own-server room with `prevBatch =
+    undefined` (the cold-reload shape from `handleSyncPrepared`)
+    still enters the scheduler and completes (`schedulerEnqueued=1`,
+    `schedulerCompleted=1`, `schedulerFailed=0`), with the SDK
+    call landing on `fromToken=null`. Also updated the federated-
+    room test to assert the new lockstep behavior (marker preserved,
+    no /messages call, but `schedulerEnqueued=1` and
+    `schedulerCompleted=1`).
+- Validation: `npx tsc --noEmit` clean; `npx vitest run` 337 files /
+  2557 tests green (+4 vs the Phase 4 baseline 2553); `npm run build`
+  OK; `npm run lint` 18 warnings / 0 errors (exact baseline, zero
+  delta).
+- Followups: `runOnce`'s createMessagesRequest catch still swallows
+  the error to keep the scheduler slot recyclable, so a network
+  failure counts as `schedulerCompleted` not `schedulerFailed`.
+  That's intentional (the marker is preserved for retry) but means
+  `schedulerFailed` only fires when the executor itself throws
+  synchronously or a follow-up write inside the try rejects. If we
+  want per-attempt observability of network failures, threading a
+  `schedulerRetried` counter through the catch is a future win.
+
 ### CINNY-207 Phase 4 - BackfillScheduler + prefetch policy (2026-07-04)
 
 - Status: Complete locally on `cache-overhaul/11-p4-scheduler`. Four
@@ -55,8 +127,9 @@
     20 iterations) — first caller of that SDK method in the fork
     (Deviations). Persists via `saveRoomEventsToCache`, clears the
     durable `tailDiscontinuity` marker on success. Federated rooms
-    short-circuited before scheduler; encrypted own-server rooms
-    pass the tier gate but the raw-fetch gate rejects and clears.
+    and encrypted own-server rooms are filtered at `runOnce` (not at
+    enqueue) so `gapFillsEnqueued` and `schedulerEnqueued` stay in
+    lockstep — see the P4 gate fix entry above for the reasoning.
   - `src/app/mindroom/threads/cacheStore/cacheStoreLedger.ts`:
     `noteRoomFederated(sessionId, roomId, flag)` new — patch-only
     setter for the ledger's federated field. Existing rows: single-

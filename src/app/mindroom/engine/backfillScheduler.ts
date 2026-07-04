@@ -35,8 +35,11 @@
  * authedRequest({abortSignal})` migration is a recorded follow-up.
  *
  * The observability counters (`schedulerEnqueued`, `schedulerDeduped`,
- * `schedulerAborted`, `schedulerCompleted`) on
- * `window.__MINDROOM_CACHE_PROBE__` are the AC8 evidence handle.
+ * `schedulerAborted`, `schedulerCompleted`, `schedulerFailed`) on
+ * `window.__MINDROOM_CACHE_PROBE__` are the AC8 evidence handle. A
+ * non-abort executor rejection increments `schedulerFailed` — added in
+ * the P4 gate fix so a silent job failure is visible from a probe
+ * snapshot rather than requiring log spelunking.
  */
 
 import type { MatrixClient, Room } from 'matrix-js-sdk';
@@ -237,6 +240,12 @@ export const createBackfillScheduler = (
           entry.reject(error);
           if (entry.controller.signal.aborted) {
             countCacheProbe('schedulerAborted');
+          } else {
+            // P4 gate fix: previously we counted nothing on non-abort
+            // errors, which made a silent createMessagesRequest /
+            // saveRoomEventsToCache reject impossible to distinguish
+            // from "job never ran" in an AC13 probe snapshot.
+            countCacheProbe('schedulerFailed');
           }
         } finally {
           running.delete(entry.key);

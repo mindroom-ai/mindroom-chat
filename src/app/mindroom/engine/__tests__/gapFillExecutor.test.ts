@@ -153,7 +153,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     expect(marker).toBeUndefined();
   });
 
-  it('skips federated rooms and clears the marker so they do not accumulate', async () => {
+  it('skips federated rooms at runOnce (marker preserved, no network fetch, still counted by the scheduler)', async () => {
     const mx = createMockClient('mindroom.chat', () => ({ chunk: [] }));
     mx.__rooms.set('!fed:example.org', makeRoomStub('!fed:example.org', '@carol:example.org'));
     await markRoomTailDiscontinuity(SESSION_ID, '!fed:example.org', {
@@ -163,9 +163,11 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
 
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
-    // The executor's `enqueue` path short-circuits federated rooms
-    // BEFORE they enter the backfill scheduler, so the marker will
-    // NOT be cleared for a room that policy says we should not touch.
+    // P4 gate fix: the executor's `enqueue` no longer short-circuits
+    // on tier. Every tracker enqueue enters the backfill scheduler so
+    // `gapFillsEnqueued` and `schedulerEnqueued` stay in lockstep —
+    // otherwise a probe snapshot of the AC13 fail path is ambiguous
+    // (silent policy skip vs. real execution failure).
     gapFillScheduler.enqueueGapFill({
       roomId: '!fed:example.org',
       reason: 'startup',
@@ -174,9 +176,15 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
 
     createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     await flushMicrotasks();
+    await waitForCompleted();
 
+    // Scheduler saw the job and ran it to completion (runOnce returned
+    // void via the policy gate) — completion counter bumps.
+    expect(getCacheProbeSnapshot().schedulerEnqueued).toBe(1);
+    expect(getCacheProbeSnapshot().schedulerCompleted).toBe(1);
+    // But no /messages call: the policy gate rejects federated rooms
+    // BEFORE any fetch — the whole point of the tier check.
     expect(mx.__messages.length).toBe(0);
-    expect(getCacheProbeSnapshot().schedulerEnqueued).toBe(0);
     // Marker remains — the room was skipped, not filled. Deviations §8
     // covers this: federated rooms are handled by user attention, not
     // background sweeps.
@@ -244,6 +252,43 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     expect(cached?.event_id).toBe('$e2');
   });
 
+  it('a startup job for an own-server room with no prevBatch still enters the scheduler and completes (AC13 mechanism)', async () => {
+    // This is the AC13 shape: Sync→PREPARED enqueues a `startup` job
+    // per joined room, with `prevBatch = getPaginationToken(Backward)`
+    // which is often undefined on a cold reload. The executor MUST
+    // hand the job to the scheduler and drive runOnce to completion —
+    // otherwise the docker probe reads `schedulerCompleted=0` and the
+    // gate fails.
+    const mx = createMockClient('mindroom.chat', () => ({ chunk: [] })); // end undefined → reached end
+    mx.__rooms.set(
+      '!own:mindroom.chat',
+      makeRoomStub('!own:mindroom.chat', '@alice:mindroom.chat')
+    );
+
+    const scheduler = createBackfillScheduler({ mx });
+    const gapFillScheduler = createInMemoryGapFillScheduler();
+    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
+
+    // No prevBatch — mirrors handleSyncPrepared's initial state.
+    gapFillScheduler.enqueueGapFill({
+      roomId: '!own:mindroom.chat',
+      reason: 'startup',
+      markedAt: Date.now(),
+      // prevBatch intentionally omitted
+    });
+    await flushMicrotasks();
+    await waitForCompleted();
+
+    const snapshot = getCacheProbeSnapshot();
+    expect(snapshot.schedulerEnqueued).toBe(1);
+    expect(snapshot.schedulerCompleted).toBe(1);
+    expect(snapshot.schedulerFailed).toBe(0);
+    // /messages was called with fromToken=null (no from param → SDK
+    // starts from live tip backward, per the spec-legal default).
+    expect(mx.__messages.length).toBe(1);
+    expect(mx.__messages[0].fromToken).toBeNull();
+  });
+
   it('leaves the durable marker in place when the network request fails', async () => {
     const mx = createMockClient('mindroom.chat', () => {
       throw new Error('network down');
@@ -265,10 +310,19 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
 
     createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     await flushMicrotasks();
+    // The executor's runOnce catches the createMessagesRequest reject
+    // internally (marker preserved, void return), so the job resolves
+    // gracefully — schedulerCompleted bumps, schedulerFailed stays 0.
+    // The point of the executor's catch is to keep the scheduler slot
+    // recyclable, so this shape is intentional.
     await waitForCompleted();
 
     // Marker still present — next boot will retry.
     const marker = await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat');
     expect(marker).toBeDefined();
+    // Job resolved (executor caught the reject) — not schedulerFailed.
+    const snapshot = getCacheProbeSnapshot();
+    expect(snapshot.schedulerFailed).toBe(0);
+    expect(snapshot.schedulerCompleted).toBe(1);
   });
 });

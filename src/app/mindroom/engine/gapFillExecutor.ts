@@ -78,13 +78,23 @@ export const createGapFillExecutor = (
     const room: Room | null | undefined = mx.getRoom?.(job.roomId);
     if (!room) return;
     // Policy gate — federated / encrypted rooms are skipped entirely.
-    // The gap-fill queue may still hold them (the tracker enqueues
-    // per-joined-room on Sync->PREPARED without policy checks) so this
-    // is the correct gate.
+    // The gap-fill queue holds them because the P4 gate fix removed
+    // the enqueue-time short-circuit (so `gapFillsEnqueued` and
+    // `schedulerEnqueued` stay in lockstep for observability); this is
+    // where they actually get filtered out.
     if (!isRoomEligibleForRawFetch(mx, room)) {
-      // Clear the marker so a federated room with a stale marker
-      // doesn't accumulate — we've explicitly declined to fill it.
-      await clearRoomTailDiscontinuity(sessionId, room.roomId).catch(() => undefined);
+      // Encrypted-own rooms: clear the marker — we've explicitly
+      // declined to fill them (ciphertext is unusable without
+      // decryption context) so a stale marker would otherwise
+      // accumulate. Federated rooms: preserve the marker per
+      // Deviations §8 (federated rooms are handled by user attention,
+      // not background sweeps; a later user-triggered fill will pick
+      // the marker up).
+      if (resolveRoomPrefetchTier(mx, room) === 'own') {
+        await clearRoomTailDiscontinuity(sessionId, room.roomId).catch(
+          () => undefined
+        );
+      }
       return;
     }
 
@@ -147,10 +157,15 @@ export const createGapFillExecutor = (
 
   const enqueue = (job: GapFillJob): void => {
     if (stopped) return;
-    const room = mx.getRoom?.(job.roomId);
-    if (!room) return;
-    // Policy short-circuit — never even enqueue for a federated room.
-    if (resolveRoomPrefetchTier(mx, room) !== 'own') return;
+    // P4 gate fix: NO tier short-circuit here. Every tracker enqueue
+    // must produce a scheduler enqueue so `gapFillsEnqueued` and
+    // `schedulerEnqueued` stay in lockstep — otherwise a probe snapshot
+    // showing `gapFillsEnqueued>=1, schedulerCompleted=0` is ambiguous
+    // (silent policy skip vs. real execution failure). The runOnce
+    // policy gate (`isRoomEligibleForRawFetch`) still rejects federated
+    // and encrypted rooms; those runs resolve fast (marker cleared for
+    // encrypted-own, marker preserved for federated per Deviations §8)
+    // and count as `schedulerCompleted`.
     scheduler
       .enqueue({
         roomId: job.roomId,

@@ -107,13 +107,37 @@ test.describe('CINNY-207 gap-fill after restart', () => {
     }
 
     // Restart: reload the page (fresh mx client + cold cache hydration).
-    // Reset the probe on the fresh page so the counters we assert on
-    // are attributable to the post-restart run alone.
+    //
+    // The probe reset MUST land before the engine starts on the fresh
+    // page. The old code called `page.evaluate(reset)` AFTER
+    // `expectLoggedInShellStable` — by which point the engine had
+    // already primed liveMode, enqueued startup jobs on Sync→PREPARED,
+    // and quite possibly completed them. Whatever counter deltas that
+    // pass produced were then zeroed by the reset, and the 12s wait
+    // that followed relied on a fresh limited-sync enqueue to produce
+    // any new deltas — which is racy on a well-caught-up sync.
+    //
+    // The fix is `addInitScript`, which runs on every fresh document
+    // *before* app JS. The probe is created on module load in
+    // cacheProbe.ts; we run reset() in a microtask so it lands right
+    // after the module install and before the engine mounts. Every
+    // enqueue and every completion on the post-reload page is then
+    // attributable to counters that started at zero.
+    await page.addInitScript(() => {
+      const tryReset = (): void => {
+        const probe = window.__MINDROOM_CACHE_PROBE__;
+        if (probe) probe.reset();
+      };
+      // Run once via microtask (probe module is imported eagerly during
+      // app bootstrap) and once via requestAnimationFrame as a belt-
+      // and-braces fallback for very slow bundlers.
+      Promise.resolve().then(tryReset);
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(tryReset);
+      }
+    });
     await page.reload();
     await expectLoggedInShellStable(page);
-    await page.evaluate(() => {
-      window.__MINDROOM_CACHE_PROBE__?.reset();
-    });
 
     // Wait long enough for /sync to complete plus the gap-fill executor
     // to run its `createMessagesRequest` catchup.
@@ -126,10 +150,19 @@ test.describe('CINNY-207 gap-fill after restart', () => {
       probe
     );
 
+    // Diagnostic: surface silent scheduler failures in the assertion
+    // failure output so the next gate iteration doesn't require log
+    // spelunking. `schedulerFailed` was added in the P4 gate fix
+    // exactly to make this case visible.
+    const probeCounters = probe as Record<string, number>;
+    expect(
+      probeCounters.schedulerFailed ?? 0,
+      `schedulerFailed=${probeCounters.schedulerFailed ?? 0}; a non-zero value indicates the executor rejected without an abort — inspect createMessagesRequest / saveRoomEventsToCache for the underlying error.`
+    ).toBe(0);
     // (a) executor completed at least one gap-fill job for this session
-    expect((probe as Record<string, number>).schedulerCompleted ?? 0).toBeGreaterThanOrEqual(1);
+    expect(probeCounters.schedulerCompleted ?? 0).toBeGreaterThanOrEqual(1);
     // (b) tracker enqueued a gap-fill (startup or limited-sync)
-    expect((probe as Record<string, number>).gapFillsEnqueued ?? 0).toBeGreaterThanOrEqual(1);
+    expect(probeCounters.gapFillsEnqueued ?? 0).toBeGreaterThanOrEqual(1);
     // (c) user-observable outcome: the message reached the cache
     expect(cachedEventIds).toContain(offlineEventId);
   });

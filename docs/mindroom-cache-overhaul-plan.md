@@ -469,7 +469,7 @@ Filled as steps complete. "Before" numbers from P0.3.
 | AC10 | ☐      |                                   |                |                         |      |
 | AC11 | ✓      | `npx vitest run src/app/mindroom/threads/cacheHealth.test.ts src/app/mindroom/threads/eventRepository.test.ts` | silent divergence → read-only degrade | workflow rounds 1-2 (p15-p16 interaction dimension clean) | 2026-07-03 |
 | AC12 | ✓      | `npx vitest run src/app/utils/room.test.ts` (tie tests) | order-dependent → id-deterministic | workflow rounds 1-2 + landed-stack review | 2026-07-03 |
-| AC13 | ☐ impl | Executor landed in P4.2 (`engine/gapFillExecutor.ts`): subscribes to the Phase-3.2 `GapFillScheduler.onEnqueue`; per job, runs `mx.createMessagesRequest(Direction.Backward, 200/batch, ≤20 iterations)` through the P4.1 `BackfillScheduler` (band 1), persists via `saveRoomEventsToCache`, clears the durable `tailDiscontinuity` marker on success. AC13 e2e spec `e2e/live/cinny207-gap-fill-restart.spec.ts` flipped from `test.fail()` to green-shape: seed room + mount + ~25 REST messages + reload (single page context) + reset probe + wait 12s, then assert (a) `schedulerCompleted >= 1`, (b) `gapFillsEnqueued >= 1`, (c) last REST event id present in cache. Docker gate pending (team-lead). | offline messages missed after reload (I2/AC13 pre-Phase-4 — spec was `test.fail()`) → cache converges to server tail within seconds of reload |                         |      |
+| AC13 | ☐ impl | Executor landed in P4.2 (`engine/gapFillExecutor.ts`): subscribes to the Phase-3.2 `GapFillScheduler.onEnqueue`; per job, runs `mx.createMessagesRequest(Direction.Backward, 200/batch, ≤20 iterations)` through the P4.1 `BackfillScheduler` (band 1), persists via `saveRoomEventsToCache`, clears the durable `tailDiscontinuity` marker on success. AC13 e2e spec `e2e/live/cinny207-gap-fill-restart.spec.ts` flipped from `test.fail()` to green-shape: seed room + mount + ~25 REST messages + reload (single page context) + wait 12s, then assert (a) `schedulerCompleted >= 1`, (b) `gapFillsEnqueued >= 1`, (c) last REST event id present in cache. **Gate fix (2026-07-04):** first docker gate hit `schedulerCompleted=0` while `gapFillsEnqueued>=1` — three fixes applied. (i) `schedulerFailed` probe counter added and bumped from the scheduler's non-abort reject branch so silent job failures are visible from a snapshot. (ii) `gapFillExecutor` no longer short-circuits on tier at enqueue — `gapFillsEnqueued` and `schedulerEnqueued` stay in lockstep so a probe snapshot unambiguously distinguishes "policy skipped" from "never ran". Marker semantics preserved by tier inside `runOnce` (encrypted-own clears; federated preserves). (iii) Spec's probe reset moved to `page.addInitScript` (pre-reload) so counters are zeroed BEFORE the post-reload engine primes and enqueues startup jobs — the old post-`expectLoggedInShellStable` reset raced the engine and could zero pre-reset completions. Docker gate re-run pending (team-lead). | offline messages missed after reload (I2/AC13 pre-Phase-4 — spec was `test.fail()`) → cache converges to server tail within seconds of reload |                         |      |
 | AC14 | ☐ impl | `npx vitest run src/app/mindroom/threads/cacheStore/__tests__/cacheStoreDb.wipe.test.ts` (2/2 — legacy DB names gone from `indexedDB.databases()` on first v3 open, marker present in `meta`, reopen after `resetCacheStoreForTesting()` performs zero further `deleteDatabase` calls; multi-session gate leaves shared singletons alone). Docker e2e post-upgrade paint verification pending. | six legacy DBs present pre-open → all six absent + unified DB present post-open |                         |      |
 
 ### 6.4 Regression guards (architecture tests)
@@ -543,6 +543,54 @@ new engine-scoped guard file):
   nondeterministic part. Revisit if federation becomes a product target.
 
 ## 8. Deviations
+
+- 2026-07-04 — **P4 gate fix: `gapFillExecutor.enqueue` no longer
+  short-circuits on tier.** Original design filtered federated /
+  encrypted rooms BEFORE the backfill scheduler saw them. First
+  docker gate on AC13 reported `schedulerCompleted=0` while
+  `gapFillsEnqueued>=1` — indistinguishable in a probe snapshot
+  from "silent job failure" because there was no `schedulerEnqueued`
+  either. Fix: every tracker enqueue now enters the scheduler and
+  the tier check runs inside `runOnce` (`isRoomEligibleForRawFetch`)
+  with the same net behavior — no network fetch for federated /
+  encrypted rooms — but with `schedulerEnqueued` and
+  `schedulerCompleted` bumping in lockstep with `gapFillsEnqueued`.
+  Marker semantics preserved by tier inside `runOnce`: encrypted-own
+  clears the marker (unusable ciphertext, no retry point); federated
+  preserves the marker (Deviations §8 policy — user attention only).
+  Net cost: one extra scheduler pass per federated / encrypted-own
+  gap-fill enqueue (a Map lookup + a microtask). Alternative
+  considered: keep the short-circuit and add a separate
+  `gapFillsSkippedByPolicy` counter. Rejected because it multiplies
+  counters without simplifying the AC13 assertion shape — the
+  lockstep invariant is the durable observability win.
+
+- 2026-07-04 — **P4 gate fix: `schedulerFailed` counter added.**
+  Previously the scheduler counted `schedulerAborted` (on abort-
+  caused rejects only) and `schedulerCompleted` (on natural
+  completion); a non-abort executor reject counted as neither.
+  That made silent job failure invisible from a probe snapshot,
+  which is exactly what turned AC13 gate debugging into log
+  spelunking. Fix: the scheduler's run try/catch bumps
+  `schedulerFailed` on the non-abort branch. AC13 spec asserts
+  `schedulerFailed === 0` with a diagnostic message pointing at
+  `createMessagesRequest` / `saveRoomEventsToCache` as the likely
+  culprits, so the next iteration doesn't need log inspection to
+  narrow the failure surface.
+
+- 2026-07-04 — **P4 gate fix: AC13 probe reset moved from
+  `page.evaluate` to `page.addInitScript`.** The old order zeroed
+  the probe AFTER `expectLoggedInShellStable`, by which point the
+  post-reload engine had already primed, enqueued startup jobs on
+  Sync→PREPARED, and possibly completed them — so `schedulerCompleted`
+  bumps produced during that window were wiped and the assertion
+  relied on a NEW enqueue firing in the following 12s (racy on a
+  well-caught-up sync). Init-script runs on the fresh document
+  before app JS mounts; the probe module installs itself on import
+  and the script resets it via microtask + rAF fallback so every
+  counter delta is attributable to the post-reload engine. Recorded
+  so the spec's pattern (init-script over evaluate for pre-mount
+  state) becomes a reference point for future e2e gates.
 
 - 2026-07-04 — **P4.1 cooperative abort v1: executors check between
   batches only.** The SDK helpers `mx.fetchRelations` and
@@ -735,6 +783,29 @@ new engine-scoped guard file):
   workflow review round 1; recorded here for product-owner review.
 
 ## 9. Status log
+
+- 2026-07-04 — **Phase 4 gate fix applied** on
+  `cache-overhaul/11-p4-scheduler`. First docker gate reported AC13
+  (cinny207-gap-fill-restart) failing with `schedulerCompleted=0`
+  after 12s while `gapFillsEnqueued>=1` — the ambiguous silent-
+  failure snapshot. Single hotfix commit lands three converging
+  fixes: (1) `schedulerFailed` probe counter (from the scheduler's
+  non-abort reject branch) so silent job failures are visible from a
+  snapshot; (2) `gapFillExecutor.enqueue` no longer short-circuits
+  on tier — every tracker enqueue enters the scheduler so
+  `gapFillsEnqueued` and `schedulerEnqueued` stay in lockstep, with
+  tier-based marker semantics preserved inside `runOnce` (encrypted-
+  own clears; federated preserves); (3) AC13 spec moves the probe
+  reset from a post-`expectLoggedInShellStable` `page.evaluate` to a
+  pre-reload `page.addInitScript` so counters are zeroed before the
+  post-reload engine primes and enqueues startup jobs. Three new
+  Deviations §8 entries. Tests: +2 scheduler (schedulerFailed
+  coverage), +1 gapFillExecutor (AC13-mechanism startup-job path
+  with `prevBatch=undefined`), +1 updated (federated-room lockstep
+  behavior). Validation: typecheck clean, `npx vitest run` 337 files
+  / 2557 tests green (+4 vs Phase 4 baseline), build OK, lint 18
+  warnings / 0 errors (exact baseline, zero delta). Docker gate re-
+  run pending (team-lead).
 
 - 2026-07-04 — **Phase 4 fully landed locally** on
   `cache-overhaul/11-p4-scheduler` (four feature commits + docs).
