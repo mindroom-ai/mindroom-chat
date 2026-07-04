@@ -56,13 +56,21 @@ export type {
 } from './backfillScheduler';
 export {
   CURRENT_ROOM_DEEP_HISTORY_TARGET,
+  DEFAULT_PREFETCH_SCOPE,
   PREFETCH_SCOPE,
   ROOM_TAIL_PREFETCH_DEPTH,
   THREAD_INVENTORY_PREFETCH_LIMIT,
   isRoomEligibleForRawFetch,
+  resolvePrefetchConfig,
   resolveRoomPrefetchTier,
+  sanitizePrefetchDepth,
+  sanitizePrefetchScope,
 } from './prefetchPolicy';
-export type { RoomPrefetchTier } from './prefetchPolicy';
+export type {
+  PrefetchConfig,
+  PrefetchScope,
+  RoomPrefetchTier,
+} from './prefetchPolicy';
 export { createGapFillExecutor } from './gapFillExecutor';
 export type { GapFillExecutor, GapFillExecutorOptions } from './gapFillExecutor';
 export { enqueueRoomDeepHistoryJob } from './deepHistoryJob';

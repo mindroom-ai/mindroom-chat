@@ -40,6 +40,21 @@ import { getStateEvent } from '../../utils/room';
 export const PREFETCH_SCOPE = 'my-server' as const;
 
 /**
+ * User-selectable prefetch scope (settings D4 / Phase 6.1). The literal
+ * strings are stored verbatim in the settings blob — anything else
+ * (older values, hand-edited JSON) is coerced to the default via
+ * `sanitizePrefetchScope`. The default matches PREFETCH_SCOPE — the
+ * conservative "friendly to remote homeservers" policy from D2.
+ */
+export type PrefetchScope = 'my-server' | 'all-rooms' | 'current-room-only';
+export const DEFAULT_PREFETCH_SCOPE: PrefetchScope = 'my-server';
+const PREFETCH_SCOPE_VALUES: ReadonlyArray<PrefetchScope> = [
+  'my-server',
+  'all-rooms',
+  'current-room-only',
+];
+
+/**
  * Depth (in raw events) of the background room-tail prefetch job for
  * my-server rooms other than the currently focused one. Kept modest
  * so a fresh session doesn't hammer the server.
@@ -123,3 +138,72 @@ export const isRoomEligibleForRawFetch = (
   if (room.hasEncryptionStateEvent?.()) return false;
   return true;
 };
+
+// ---------- User settings resolvers (Phase 6.1 / D4) ----------
+
+/**
+ * Coerce an arbitrary settings value into a valid `PrefetchScope`.
+ * Anything not on the whitelist — including older enum values, hand-
+ * edited JSON, or genuine `undefined` — becomes the default. Same
+ * shape as the sanitizers in `state/settings.ts` (silent fallback,
+ * not throwing) so a corrupted storage blob never crashes the app.
+ */
+export const sanitizePrefetchScope = (value: unknown): PrefetchScope => {
+  if (typeof value !== 'string') return DEFAULT_PREFETCH_SCOPE;
+  return (PREFETCH_SCOPE_VALUES as ReadonlyArray<string>).includes(value)
+    ? (value as PrefetchScope)
+    : DEFAULT_PREFETCH_SCOPE;
+};
+
+/**
+ * Depth cap for the current-room deep-history sweep. Matches the shape
+ * of the sanitizer P1.6 replaced (silent fallback, integer, clamp to
+ * [ROOM_TAIL_PREFETCH_DEPTH, CURRENT_ROOM_DEEP_HISTORY_TARGET]).
+ * The lower bound is ROOM_TAIL_PREFETCH_DEPTH (200) rather than the
+ * legacy 50 because anything shallower defeats the "bottomless
+ * scrollback" goal of the current-room job — the room-tail depth is
+ * the smallest number that keeps the design coherent. The upper bound
+ * is CURRENT_ROOM_DEEP_HISTORY_TARGET (10_000) — the same generous cap
+ * the eager preload used, sized so a user opening a mid-history event
+ * can still scroll around without a fresh fetch.
+ */
+export const sanitizePrefetchDepth = (value: unknown): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return CURRENT_ROOM_DEEP_HISTORY_TARGET;
+  }
+  return Math.min(
+    Math.max(Math.trunc(value), ROOM_TAIL_PREFETCH_DEPTH),
+    CURRENT_ROOM_DEEP_HISTORY_TARGET
+  );
+};
+
+/**
+ * The runtime prefetch config the scheduler / executors consume.
+ * Two of the four fields are user-facing (scope, currentRoomDepth);
+ * the other two are non-user-visible constants surfaced here so
+ * callers have a single place to reach for policy numbers.
+ */
+export type PrefetchConfig = {
+  readonly scope: PrefetchScope;
+  readonly currentRoomDepth: number;
+  readonly roomTailDepth: number;
+  readonly threadInventoryLimit: number;
+};
+
+/**
+ * Pure resolver: build a `PrefetchConfig` from a settings snapshot.
+ * Anything shape-adjacent works — the caller passes in whatever holds
+ * `prefetchScope` and `prefetchDepth`, and the function coerces via
+ * the sanitizers above. Kept pure so the engine's `noteRoomFocused` /
+ * scheduler / tests can compute the same config off any snapshot
+ * without pulling jotai into non-React modules.
+ */
+export const resolvePrefetchConfig = (settings: {
+  prefetchScope?: unknown;
+  prefetchDepth?: unknown;
+}): PrefetchConfig => ({
+  scope: sanitizePrefetchScope(settings.prefetchScope),
+  currentRoomDepth: sanitizePrefetchDepth(settings.prefetchDepth),
+  roomTailDepth: ROOM_TAIL_PREFETCH_DEPTH,
+  threadInventoryLimit: THREAD_INVENTORY_PREFETCH_LIMIT,
+});
