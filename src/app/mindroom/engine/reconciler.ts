@@ -387,6 +387,47 @@ const runThreadReconcilePass = async ({
     const page = await fetchThreadRelationPage(mx, roomId, threadId, fromToken);
     if (!page) break;
 
+    // P5-GATE-FIX v4 (final iteration — team-lead directive 2026-07-04):
+    // per-page chunk-triple log. Signature (A) from the last docker run
+    // (reconcilesScheduled=1, reconcilesRepaired=0, detectDivergence
+    // returned FALSE) leaves two indistinguishable possibilities:
+    //   (i)  the fetched chunk does not carry $edit-v2 (fetch/pagination/
+    //        bundling issue — Tuwunel's `/relations recurse=true` may not
+    //        stream m.replace edits back on every schedule window), or
+    //   (ii) the chunk contains it but comparison returned false anyway.
+    // Emitting (event_id, type, rel_type) triples per page makes those
+    // two shapes readable at a glance in the next capture — no need for
+    // another gate-fix iteration to answer the question.
+    //
+    // Read directly off the raw event JSON (pre-mapper): the mapper
+    // returns MatrixEvent instances, and interrogating them for rel_type
+    // requires an accessor per event; the raw shape is what the server
+    // returned and is what would need to be persisted regardless. Cheap:
+    // `logTimelineDebug` is gated on both a present traceId AND the
+    // `mindroom.debug.timeline` localStorage flag — no work in prod.
+    if (debugTraceId) {
+      const triples = page.events.map((raw) => {
+        const relatesTo = (raw.content as Record<string, unknown> | undefined)?.[
+          'm.relates_to'
+        ] as { rel_type?: string } | undefined;
+        const bundled = (raw.unsigned as Record<string, unknown> | undefined)?.[
+          'm.relations'
+        ] as Record<string, unknown> | undefined;
+        return {
+          event_id: raw.event_id,
+          type: raw.type,
+          rel_type: relatesTo?.rel_type,
+          bundled_relations: bundled ? Object.keys(bundled) : undefined,
+        };
+      });
+      logTimelineDebug(debugTraceId, 'reconcile-chunk', {
+        iteration: iterations,
+        chunkSize: page.events.length,
+        nextToken: page.nextToken ? 'present' : 'absent',
+        triples,
+      });
+    }
+
     // Map each fetched raw event through the prefer-live mapper. This
     // is the Tuwunel stale-copy heal path: if the raw event carries
     // `unsigned.redacted_because` and the live SDK instance does not

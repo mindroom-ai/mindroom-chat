@@ -1363,4 +1363,169 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     expect(probe.reconcilerPersists).toBe(0);
     expect(probe.reconcilesOnRepairedFired).toBe(0);
   });
+
+  it('logs per-page (event_id, type, rel_type, bundled_relations) triples when debug is enabled — P5-GATE-FIX v4-follow-through', async () => {
+    // Team-lead directive (2026-07-04, post-Signature-A): the docker
+    // trace showed `reconcilesRepaired=0` from ONE clean-network run,
+    // leaving two indistinguishable explanations — (i) the fetched
+    // chunk did not carry the edit at all, or (ii) it did but the
+    // detector's comparison baseline already knew about it. Emit the
+    // raw chunk shape per iteration so the next trace answers the
+    // question without another gate-fix iteration.
+    //
+    // The log is gated on BOTH `debugTraceId` presence AND the
+    // `mindroom.debug.timeline` localStorage flag — this test asserts
+    // (a) it fires when both are on, (b) the payload carries the four
+    // useful axes: event_id, type, rel_type, and the bundled relation
+    // keys (so a bundled m.replace is visible even when the top-level
+    // event is not itself a replace event).
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const originalLocalStorage = globalThis.localStorage;
+    const debugStorage = {
+      getItem: vi.fn((key: string) => (key === 'mindroom.debug.timeline' ? '1' : null)),
+    };
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: debugStorage,
+    });
+
+    try {
+      const room = makeFakeRoom();
+      const fetchRelations = vi.fn(async () => ({
+        chunk: [
+          {
+            event_id: '$edit-v2',
+            type: 'm.room.message',
+            content: {
+              'm.new_content': { body: 'new body', msgtype: 'm.text' },
+              'm.relates_to': { rel_type: 'm.replace', event_id: '$edit-target' },
+            },
+          },
+          {
+            event_id: '$edit-target',
+            type: 'm.room.message',
+            unsigned: {
+              'm.relations': { 'm.replace': { event_id: '$edit-v2' } },
+            },
+          },
+          { event_id: '$reply-1', type: 'm.room.message' },
+        ] as Partial<IEvent>[],
+        next_batch: undefined,
+      }));
+      const mx = {
+        getRoom: () => room,
+        getEventMapper: () => (raw: Partial<IEvent>) =>
+          makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+        fetchRelations,
+      } as unknown as MatrixClient;
+      const scheduler = createBackfillScheduler({ mx });
+
+      await scheduleReconcile({
+        mx,
+        sessionId: 'session',
+        scheduler,
+        roomId: '!room:example',
+        threadId: '$thread',
+        cachedPage: makeCachedPage(['$reply-1']),
+        reason: 'open-complete-coverage',
+        debugTraceId: 'test-trace-1',
+      });
+
+      const chunkLogs = consoleLogSpy.mock.calls.filter((args) => {
+        const first = args[0];
+        return typeof first === 'string' && first.includes('reconcile-chunk');
+      });
+      // Exactly one page fetched → exactly one chunk log.
+      expect(chunkLogs.length).toBe(1);
+      const [, payload] = chunkLogs[0] as [string, Record<string, unknown>];
+      expect(payload.iteration).toBe(1);
+      expect(payload.chunkSize).toBe(3);
+      expect(payload.nextToken).toBe('absent');
+      const triples = payload.triples as Array<{
+        event_id: string;
+        type: string;
+        rel_type?: string;
+        bundled_relations?: string[];
+      }>;
+      // Triple 1 — the standalone m.replace edit event.
+      expect(triples[0]).toMatchObject({
+        event_id: '$edit-v2',
+        type: 'm.room.message',
+        rel_type: 'm.replace',
+      });
+      // Triple 2 — the edit target with bundled m.replace metadata.
+      expect(triples[1]).toMatchObject({
+        event_id: '$edit-target',
+        type: 'm.room.message',
+        bundled_relations: ['m.replace'],
+      });
+      // Triple 3 — plain reply, no relation.
+      expect(triples[2]).toMatchObject({
+        event_id: '$reply-1',
+        type: 'm.room.message',
+      });
+      expect(triples[2].rel_type).toBeUndefined();
+      expect(triples[2].bundled_relations).toBeUndefined();
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: originalLocalStorage,
+      });
+      consoleLogSpy.mockRestore();
+    }
+  });
+
+  it('does NOT log reconcile-chunk when debugTraceId is absent — cheap-in-prod invariant', async () => {
+    // Companion to the debug-enabled test above: with no traceId, the
+    // early-return branch inside the reconcile loop must skip the
+    // triple-building work AND the `logTimelineDebug` call. Assertion
+    // is on console.log receiving no `reconcile-chunk` line even if
+    // localStorage flag is set (traceId absence alone is sufficient).
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const originalLocalStorage = globalThis.localStorage;
+    const debugStorage = {
+      getItem: vi.fn((key: string) => (key === 'mindroom.debug.timeline' ? '1' : null)),
+    };
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: debugStorage,
+    });
+
+    try {
+      const room = makeFakeRoom();
+      const mx = {
+        getRoom: () => room,
+        getEventMapper: () => (raw: Partial<IEvent>) =>
+          makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+        fetchRelations: vi.fn(async () => ({
+          chunk: [{ event_id: '$reply-1' }] as Partial<IEvent>[],
+          next_batch: undefined,
+        })),
+      } as unknown as MatrixClient;
+      const scheduler = createBackfillScheduler({ mx });
+
+      await scheduleReconcile({
+        mx,
+        sessionId: 'session',
+        scheduler,
+        roomId: '!room:example',
+        threadId: '$thread',
+        cachedPage: makeCachedPage(['$reply-1']),
+        reason: 'open-complete-coverage',
+        // debugTraceId intentionally omitted.
+      });
+
+      const chunkLogs = consoleLogSpy.mock.calls.filter((args) => {
+        const first = args[0];
+        return typeof first === 'string' && first.includes('reconcile-chunk');
+      });
+      expect(chunkLogs.length).toBe(0);
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: originalLocalStorage,
+      });
+      consoleLogSpy.mockRestore();
+    }
+  });
 });
