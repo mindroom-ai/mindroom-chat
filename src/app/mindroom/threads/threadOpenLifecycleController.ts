@@ -18,6 +18,7 @@ import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 import type { Timeline } from './timelinePagination';
 import type { ThreadOpenCacheController } from './threadOpenCacheController';
 import type { ThreadSeedPrewarmController } from './threadSeedPrewarmController';
+import type { ScheduleReconcileFn } from './threadOpenCacheFirst';
 
 type ScrollToBottomState = {
   count: number;
@@ -45,8 +46,8 @@ export const useThreadOpenLifecycleController = ({
   prewarmingThreadSeedIdsRef,
   prewarmingThreadSeedPromisesRef,
   queuedThreadSeedIdsRef,
-  refreshLatestThreadRelationsTail,
   refreshLatestThreadSlice,
+  scheduleReconcile,
   resetThreadBackPagination,
   resetThreadRenderState,
   room,
@@ -83,8 +84,15 @@ export const useThreadOpenLifecycleController = ({
   prewarmingThreadSeedIdsRef: MutableRefObject<Set<string>>;
   prewarmingThreadSeedPromisesRef: MutableRefObject<Map<string, Promise<void>>>;
   queuedThreadSeedIdsRef: MutableRefObject<Set<string>>;
-  refreshLatestThreadRelationsTail: ThreadOpenCacheController['refreshLatestThreadRelationsTail'];
   refreshLatestThreadSlice: ThreadOpenCacheController['refreshLatestThreadSlice'];
+  /**
+   * CINNY-207 P5.1: replaces the deleted
+   * `refreshLatestThreadRelationsTail`. Both the cache-first path (see
+   * `runThreadOpenCacheFirst`) and this lifecycle controller schedule
+   * a reconcile pass on every open — coverage decides paint, never
+   * revalidation.
+   */
+  scheduleReconcile: ScheduleReconcileFn;
   resetThreadBackPagination: () => void;
   resetThreadRenderState: (nextThreadId?: string) => void;
   room: Room;
@@ -166,7 +174,7 @@ export const useThreadOpenLifecycleController = ({
           isCurrentThreadOpen: () => mounted && threadIdRef.current === threadId,
           mx,
           pinThreadToBottomOnOpen,
-          refreshLatestThreadRelationsTail,
+          scheduleReconcile,
           room,
           setThreadHasMoreCachedBack,
           setThreadInitialCacheHydrated,
@@ -197,6 +205,26 @@ export const useThreadOpenLifecycleController = ({
           threadId,
         });
         if (!shouldContinueAfterSdkBootstrap) return;
+
+        // CINNY-207 P5.1 (D7 / AC9): the partial-coverage path also
+        // schedules a reconcile — every open, without exception. The
+        // scheduler dedups against the complete-coverage schedule from
+        // `runThreadOpenCacheFirst` when both fire on the same open,
+        // so the second call returns the in-flight promise identity
+        // rather than firing a duplicate fetch.
+        void scheduleReconcile({
+          roomId: room.roomId,
+          room,
+          threadId,
+          cachedPage: cacheFirstResult.hydratedCachedPage,
+          reason: 'open-partial-coverage',
+          onRepaired: () => {
+            if (!mounted || threadIdRef.current !== threadId) return;
+            forceTimelineUpdate();
+            setThreadTimelineTick((val) => val + 1);
+          },
+          shouldContinue: () => mounted && threadIdRef.current === threadId,
+        }).catch(() => undefined);
 
         const shouldContinueAfterPostBootstrapRefresh = await runThreadOpenPostBootstrapRefresh({
           debugTraceId: threadDebugTraceId,
@@ -265,8 +293,8 @@ export const useThreadOpenLifecycleController = ({
     prewarmingThreadSeedIdsRef,
     prewarmingThreadSeedPromisesRef,
     queuedThreadSeedIdsRef,
-    refreshLatestThreadRelationsTail,
     refreshLatestThreadSlice,
+    scheduleReconcile,
     resetThreadBackPagination,
     resetThreadRenderState,
     room,

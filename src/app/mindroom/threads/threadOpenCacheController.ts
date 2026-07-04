@@ -1,7 +1,6 @@
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import {
   Direction,
-  type EventTimelineSet,
   type IEvent,
   type MatrixClient,
   type MatrixEvent,
@@ -11,16 +10,8 @@ import to from 'await-to-js';
 import { THREAD_BATCH_SIZE } from './preloadSettings';
 import { logTimelineDebug } from './timelineDebug';
 import { getLinkedTimelines } from './timelinePagination';
-import {
-  collectRedactedRelationTargetsFromLookup,
-  reconcileRelationEventsWithAggregation,
-} from './eventCacheEditUtils';
 import { reconcileThreadBackwardPagination } from './threadPaginationUtils';
-import {
-  createPreferLiveEventMapper,
-  loadThreadCachedSnapshot,
-  mapCachedThreadPageEvents,
-} from './eventRepository';
+import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from './eventRepository';
 import { fetchAllThreadRelations, MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
 import {
   getAuthoritativeCachedThreadReplyCount,
@@ -69,10 +60,10 @@ export type ThreadOpenCacheController = {
   hydrateThreadFromCache: (
     expectedThreadId: string
   ) => Promise<HydratedThreadCachePage | undefined>;
-  refreshLatestThreadRelationsTail: (
-    expectedThreadId: string,
-    cachedPage: HydratedThreadCachePage
-  ) => Promise<boolean>;
+  // CINNY-207 P5.1: `refreshLatestThreadRelationsTail` is gone — the
+  // engine reconciler (`scheduleReconcile`) owns the post-open server
+  // verify. This controller only reads/paints now; write-side is fully
+  // engine-owned.
   refreshLatestThreadSlice: (
     expectedThreadId: string,
     opts?: {
@@ -89,7 +80,6 @@ export const useThreadOpenCacheController = ({
   persistThreadEventCache,
   room,
   roomIdRef,
-  roomTimelineSet,
   safePaginationLimitRef,
   sessionId,
   setSupplementalThreadEvents,
@@ -105,7 +95,11 @@ export const useThreadOpenCacheController = ({
   persistThreadEventCache: PersistThreadEventCache;
   room: Room;
   roomIdRef: MutableRefObject<string>;
-  roomTimelineSet: EventTimelineSet;
+  // CINNY-207 P5.1: `roomTimelineSet` used to be plumbed through here
+  // for `refreshLatestThreadRelationsTail`'s aggregation reconcile
+  // call. That method moved to `engine/reconciler.ts` — the reconciler
+  // reads the room's timeline set from `room.getThread(...)` when it
+  // needs one. The controller no longer touches it.
   safePaginationLimitRef: MutableRefObject<number>;
   sessionId: string;
   setSupplementalThreadEvents: (threadId: string, events: MatrixEvent[]) => void;
@@ -472,101 +466,9 @@ export const useThreadOpenCacheController = ({
     ]
   );
 
-  const refreshLatestThreadRelationsTail = useCallback(
-    async (expectedThreadId: string, cachedPage: HydratedThreadCachePage): Promise<boolean> => {
-      const [err, relData] = await to(
-        mx.fetchRelations(room.roomId, expectedThreadId, null, null, {
-          dir: Direction.Backward,
-          limit: THREAD_BATCH_SIZE,
-          recurse: true,
-        })
-      );
-      if (err || !relData || !alive() || threadIdRef.current !== expectedThreadId) {
-        return false;
-      }
-
-      const mapper = mx.getEventMapper();
-      const latestRelationEvents = relData.chunk
-        .slice()
-        .reverse()
-        .map(createPreferLiveEventMapper(room, mapper));
-      if (latestRelationEvents.length === 0) {
-        logTimelineDebug(debugTraceId, 'thread-refresh-latest-tail-empty', {
-          threadId: expectedThreadId,
-        });
-        return false;
-      }
-
-      const cachedSnapshotEvents = mapCachedThreadPageEvents({
-        events: cachedPage.events,
-        rootEvent: cachedPage.rootEvent,
-        mapEvent: createPreferLiveEventMapper(room, mapper),
-      });
-      const liveThreadTimelineSet = room.getThread(expectedThreadId)?.getUnfilteredTimelineSet();
-      const redactedRelationTargets = collectRedactedRelationTargetsFromLookup(
-        latestRelationEvents,
-        cachedSnapshotEvents
-      );
-      reconcileRelationEventsWithAggregation(
-        latestRelationEvents,
-        [
-          { relations: roomTimelineSet.relations, timelineSet: roomTimelineSet },
-          liveThreadTimelineSet
-            ? { relations: liveThreadTimelineSet.relations, timelineSet: liveThreadTimelineSet }
-            : undefined,
-        ],
-        undefined,
-        redactedRelationTargets
-      );
-      const mergedEvents = mergeThreadBackfillEvents(cachedSnapshotEvents, latestRelationEvents);
-      const liveRootEvent =
-        room.getThread(expectedThreadId)?.rootEvent ?? room.findEventById(expectedThreadId);
-      const mappedCachedRootEvent =
-        !liveRootEvent && cachedPage.rootEvent ? mapper(cachedPage.rootEvent) : undefined;
-      const rootEvent =
-        liveRootEvent ??
-        mappedCachedRootEvent ??
-        mergedEvents.find((mEvent) => mEvent.getId() === expectedThreadId);
-
-      setSupplementalThreadEvents(expectedThreadId, mergedEvents);
-      saveThreadOpenSeedSnapshot(room, expectedThreadId, mergedEvents);
-      persistThreadEventCache(
-        expectedThreadId,
-        mergedEvents,
-        rootEvent,
-        cachedPage.beforeToken ?? null,
-        cachedPage.tailLoaded === true,
-        cachedPage.snapshotComplete === true,
-        cachedPage.expectedReplyCount,
-        cachedPage.relationSnapshotComplete === true
-      );
-      forceTimelineUpdate();
-      setThreadTimelineTick((val) => val + 1);
-      logTimelineDebug(debugTraceId, 'thread-refresh-latest-tail-complete', {
-        fetchedCount: latestRelationEvents.length,
-        mergedCount: mergedEvents.length,
-        threadId: expectedThreadId,
-      });
-      return true;
-    },
-    [
-      alive,
-      debugTraceId,
-      forceTimelineUpdate,
-      mx,
-      persistThreadEventCache,
-      room,
-      roomTimelineSet,
-      setSupplementalThreadEvents,
-      setThreadTimelineTick,
-      threadIdRef,
-    ]
-  );
-
   return {
     backfillThreadRelationsIntoCache,
     hydrateThreadFromCache,
-    refreshLatestThreadRelationsTail,
     refreshLatestThreadSlice,
   };
 };

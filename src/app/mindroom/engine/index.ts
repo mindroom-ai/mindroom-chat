@@ -67,3 +67,9 @@ export { createGapFillExecutor } from './gapFillExecutor';
 export type { GapFillExecutor, GapFillExecutorOptions } from './gapFillExecutor';
 export { enqueueRoomDeepHistoryJob } from './deepHistoryJob';
 export type { EnqueueDeepHistoryArgs } from './deepHistoryJob';
+export { scheduleReconcile } from './reconciler';
+export type {
+  ReconcileReason,
+  ReconcileResult,
+  ScheduleReconcileArgs,
+} from './reconciler';

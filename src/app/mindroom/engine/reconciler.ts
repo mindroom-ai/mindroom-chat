@@ -1,0 +1,477 @@
+/**
+ * CINNY-207 P5.1: engine reconciler.
+ *
+ * Every room and thread open schedules one reconcile pass through the
+ * P4.1 `BackfillScheduler`. Coverage decides what to PAINT (D7); the
+ * reconciler decides what to REPAIR. When cache and server agree the
+ * pass is a cheap no-op (fetch, diff, empty). When they diverge (a
+ * missed edit, a missed redaction, a reaction that was removed while
+ * the client was closed) the pass applies the repair in place using
+ * the P1.2 machinery (`hydrateCachedEvents` → `applyCachedRedactions`,
+ * `applyCachedReplaceRelations`, `reconcileRelationEventsWithAggregation`)
+ * and fires a single `onRepaired` tick so the render layer picks up
+ * the change without per-repair flicker.
+ *
+ * Scheduler wiring:
+ *   - Kind: `'reconcile'` (own dedup domain). Because AC8's dedup key
+ *     includes `kind`, a reconcile job and a `'thread-backfill'` job
+ *     on the same thread coexist by design — they do different things
+ *     (backfill fetches older history; reconcile checks the tail for
+ *     server-truth divergence).
+ *   - Priority: band 0 (the user is looking at this room / thread
+ *     right now; a reconcile that trails a `noteRoomFocused` is the
+ *     freshest signal we have).
+ *   - Coalescing: falls out of the scheduler for free — a second
+ *     `scheduleReconcile` while the first is in-flight returns the
+ *     same promise identity, `schedulerDeduped` bumps.
+ *
+ * Tuwunel stale-copy handling (P3 gate work):
+ *   Empirically the docker Tuwunel homeserver serves un-pruned redacted
+ *   events on `/relations` and `/messages` for ~10 seconds after a
+ *   redaction. `createPreferLiveEventMapper` (see `eventRepository.ts`)
+ *   is the single source of truth for re-applying that redaction onto
+ *   the SDK live instance (cascades through the SDK's
+ *   `Relations.BeforeRedaction` listener and removes stale reaction
+ *   chips). The reconciler MUST funnel every fetched raw event through
+ *   that mapper — bypassing it would let a stale server copy un-repair
+ *   a fresh redaction the client already knew about.
+ *
+ * F7 removal: the pre-P5 tail refresh (`refreshLatestThreadRelationsTail`)
+ * capped at a single limit-200 batch, so a divergence more than 200
+ * events deep never converged after open. The reconciler pages further:
+ * it keeps requesting until the returned chunk overlaps the cached
+ * window by event id, or the SDK signals "no more", or the abort signal
+ * fires. Bounded above by `MAX_RECONCILE_ITERATIONS` for the same
+ * reason `fetchAllThreadRelations` has a cap — a pathological
+ * homeserver can otherwise stream tokens indefinitely.
+ */
+
+import { Direction } from 'matrix-js-sdk';
+import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import to from 'await-to-js';
+import {
+  createPreferLiveEventMapper,
+  mapCachedThreadPageEvents,
+} from '../threads/eventRepository';
+import {
+  collectRedactedRelationTargetsFromLookup,
+  hydrateCachedEvents,
+  reconcileRelationEventsWithAggregation,
+} from '../threads/eventCacheEditUtils';
+import { logTimelineDebug } from '../threads/timelineDebug';
+import type { BackfillScheduler } from './backfillScheduler';
+import type { HydratedThreadCachePage } from '../threads/threadOpenCacheController';
+
+/** Batch size for each `/relations` page — matches THREAD_BATCH_SIZE. */
+const RECONCILE_BATCH_SIZE = 200;
+
+/**
+ * Cap on `/relations` pages the reconciler will fetch per pass. The
+ * pre-P5 tail refresh capped at 1 (single 200-event page — this is
+ * finding F7). Setting the cap at 25 keeps the total per-pass fetch
+ * budget the same as `fetchAllThreadRelations` and matches its
+ * MAX_THREAD_FETCH_ITERATIONS constant so unusually deep divergence
+ * still converges without unbounded network use.
+ */
+const MAX_RECONCILE_ITERATIONS = 25;
+
+/**
+ * Why the reconcile pass was scheduled. Included in probe logs so a
+ * capture can distinguish "user opened a thread we already had cached
+ * (D7 revalidation)" from "user opened a fresh room we just hydrated".
+ */
+export type ReconcileReason =
+  | 'open-complete-coverage'
+  | 'open-partial-coverage'
+  | 'room-open'
+  | 'resume';
+
+export type ScheduleReconcileArgs = {
+  readonly mx: MatrixClient;
+  readonly sessionId: string;
+  readonly scheduler: BackfillScheduler;
+  readonly roomId: string;
+  /**
+   * Optional pre-resolved room. When present the reconciler uses it
+   * directly instead of `mx.getRoom(roomId)` — required for test
+   * harnesses whose mock client's `getRoom` returns null (and cheaper
+   * than an extra Map lookup in production).
+   */
+  readonly room?: Room;
+  /**
+   * When set, this is a thread-scoped reconcile. Undefined means the
+   * room-scope pass (P5.1 Commit 3 wires that variant).
+   */
+  readonly threadId?: string;
+  /**
+   * Hydrated cache page from the open path. Used to diff the fetched
+   * server page against what we already have. Absent for the room-open
+   * variant.
+   */
+  readonly cachedPage?: HydratedThreadCachePage;
+  readonly reason: ReconcileReason;
+  /**
+   * Fired at most once per pass, and only when the reconciler actually
+   * applied a repair. The intent is a batched render tick — the caller
+   * does not need to distinguish which repair changed what.
+   */
+  readonly onRepaired?: () => void;
+  /**
+   * Optional predicate to abort mid-pass. Wired so a component unmount
+   * (thread closed, room switched) can stop a straggling reconcile
+   * without waiting for the scheduler's own abort signal to propagate.
+   */
+  readonly shouldContinue?: () => boolean;
+  /**
+   * Optional debug trace id. When present, reconciler observability
+   * events (`reconcile-scheduled`, `reconcile-complete`) attach it so
+   * a capture can be correlated with the surrounding thread-open flow.
+   */
+  readonly debugTraceId?: string;
+};
+
+export type ReconcileResult = {
+  readonly reason: ReconcileReason;
+  readonly repaired: boolean;
+  /** Total mapped events fetched across all iterations. */
+  readonly fetchedCount: number;
+  /** Number of `/relations` pages actually issued (bounded above). */
+  readonly iterations: number;
+  /** True when the executor short-circuited on abort. */
+  readonly aborted: boolean;
+};
+
+const buildCachedEventIdSet = (cachedPage: HydratedThreadCachePage): Set<string> => {
+  const ids = new Set<string>();
+  if (cachedPage.rootEvent?.event_id) {
+    ids.add(cachedPage.rootEvent.event_id as string);
+  }
+  cachedPage.events.forEach((rawEvent) => {
+    const id = rawEvent.event_id;
+    if (typeof id === 'string' && id.length > 0) ids.add(id);
+  });
+  return ids;
+};
+
+/**
+ * True when the diff between the fetched page and the cache introduces
+ * an in-place change: a new event id, a redaction whose target was in
+ * cache, or an edit whose target was in cache. The reconciler only
+ * fires `onRepaired` when this returns true; a diff of pure "same ids,
+ * same content" costs zero ticks (the D7 cheap no-op).
+ */
+const detectDivergence = (
+  fetched: MatrixEvent[],
+  cachedIds: Set<string>
+): boolean => {
+  for (const mEvent of fetched) {
+    const id = mEvent.getId();
+    if (!id) continue;
+
+    // New event we did not have. Covers "message the server has that
+    // we missed" and "reaction added while offline".
+    if (!cachedIds.has(id)) return true;
+
+    // A redaction event whose target is in cache — the applier needs
+    // to prune the target and its aggregations.
+    if (mEvent.isRedaction()) {
+      const targetId = mEvent.getAssociatedId();
+      if (targetId && cachedIds.has(targetId)) return true;
+    }
+
+    // The same-id event may carry a bundled edit newer than what we
+    // have; treating any bundled edit on a cached id as potential
+    // divergence keeps the check cheap. `applyCachedReplaceRelations`
+    // is a no-op if the target's `replacingEvent()` already points at
+    // the newer edit (getLatestEdit / D12 idempotence).
+    const raw = mEvent.event as Partial<IEvent> | undefined;
+    const bundled = (raw?.unsigned as Record<string, unknown> | undefined)?.[
+      'm.relations'
+    ] as Record<string, unknown> | undefined;
+    if (bundled && bundled['m.replace']) return true;
+  }
+  return false;
+};
+
+/**
+ * Fetch a single page of thread relations. Kept separate so the abort
+ * check between iterations lands in one place.
+ */
+const fetchThreadRelationPage = async (
+  mx: MatrixClient,
+  roomId: string,
+  threadId: string,
+  fromToken: string | undefined
+): Promise<{ events: Partial<IEvent>[]; nextToken?: string } | undefined> => {
+  const [err, relData] = await to(
+    mx.fetchRelations(roomId, threadId, null, null, {
+      dir: Direction.Backward,
+      limit: RECONCILE_BATCH_SIZE,
+      recurse: true,
+      ...(fromToken ? { from: fromToken } : {}),
+    })
+  );
+  if (err || !relData) return undefined;
+  return {
+    events: (relData.chunk ?? []) as Partial<IEvent>[],
+    nextToken: relData.next_batch ?? undefined,
+  };
+};
+
+/**
+ * Executor for a thread reconcile pass. Fetches `/relations` pages
+ * (bounded by MAX_RECONCILE_ITERATIONS) until either the fetched chunk
+ * overlaps the cached window by event id (server-truth caught up with
+ * cache), the SDK signals `next_batch=undefined`, or an abort fires.
+ * Then hydrates the merged event set through the P1.2 machinery to
+ * apply any missed edits / redactions / aggregation changes in place.
+ *
+ * Return value flows back to the reconciler's outer promise so tests
+ * (and future callers) can observe whether the pass repaired anything.
+ */
+const runThreadReconcilePass = async ({
+  mx,
+  room,
+  roomId,
+  threadId,
+  cachedPage,
+  onRepaired,
+  shouldContinue,
+  signal,
+  reason,
+  debugTraceId,
+}: {
+  mx: MatrixClient;
+  room: Room;
+  roomId: string;
+  threadId: string;
+  cachedPage: HydratedThreadCachePage | undefined;
+  onRepaired: (() => void) | undefined;
+  shouldContinue: (() => boolean) | undefined;
+  signal: AbortSignal;
+  reason: ReconcileReason;
+  debugTraceId: string | undefined;
+}): Promise<ReconcileResult> => {
+  const cachedIds = cachedPage ? buildCachedEventIdSet(cachedPage) : new Set<string>();
+  const mapper = mx.getEventMapper();
+  const preferLive = createPreferLiveEventMapper(room, mapper);
+
+  let fetchedCount = 0;
+  let iterations = 0;
+  let fromToken: string | undefined;
+  const allMapped: MatrixEvent[] = [];
+
+  while (iterations < MAX_RECONCILE_ITERATIONS) {
+    if (signal.aborted) {
+      return { reason, repaired: false, fetchedCount, iterations, aborted: true };
+    }
+    if (shouldContinue && !shouldContinue()) {
+      return { reason, repaired: false, fetchedCount, iterations, aborted: true };
+    }
+
+    iterations += 1;
+    // eslint-disable-next-line no-await-in-loop
+    const page = await fetchThreadRelationPage(mx, roomId, threadId, fromToken);
+    if (!page) break;
+
+    // Map each fetched raw event through the prefer-live mapper. This
+    // is the Tuwunel stale-copy heal path: if the raw event carries
+    // `unsigned.redacted_because` and the live SDK instance does not
+    // yet know it's redacted, `createPreferLiveEventMapper` applies
+    // `makeRedacted` immediately, which cascades into the SDK's
+    // relation aggregation cleanup. See P1.2 F6-B decision.
+    const pageMapped = page.events.slice().reverse().map(preferLive);
+    fetchedCount += pageMapped.length;
+    allMapped.push(...pageMapped);
+
+    // Convergence check: any event id in the fetched page that we
+    // already have in cache means the server tail has caught up with
+    // (or overlaps) what the cache knows. Removes F7's 200-event
+    // ceiling — the reconciler pages further only when the divergence
+    // is deeper than the current batch.
+    const overlap = pageMapped.some((mEvent) => {
+      const id = mEvent.getId();
+      return typeof id === 'string' && cachedIds.has(id);
+    });
+    if (overlap) break;
+
+    if (!page.nextToken) break;
+    if (page.nextToken === fromToken) break;
+    fromToken = page.nextToken;
+  }
+
+  if (signal.aborted) {
+    return { reason, repaired: false, fetchedCount, iterations, aborted: true };
+  }
+
+  // Zero-fetch fast path — the D7 cheap no-op. When the server returned
+  // no events (or all fetches failed) there is nothing to reconcile and
+  // no tick to fire.
+  if (allMapped.length === 0) {
+    logTimelineDebug(debugTraceId, 'reconcile-complete', {
+      fetchedCount: 0,
+      iterations,
+      reason,
+      repaired: false,
+      roomId,
+      threadId,
+    });
+    return { reason, repaired: false, fetchedCount, iterations, aborted: false };
+  }
+
+  const cachedSnapshotEvents = cachedPage
+    ? mapCachedThreadPageEvents({
+        events: cachedPage.events,
+        rootEvent: cachedPage.rootEvent,
+        mapEvent: preferLive,
+      })
+    : [];
+
+  // Deterministic divergence check: does the fetched page introduce
+  // anything the cache does not already agree with? Uses the same
+  // event-ID and bundled-relation shape the applier will act on, so a
+  // negative here proves the applier would be a no-op — skip both the
+  // hydrate call and the onRepaired tick to keep the "cached was right"
+  // path zero-cost.
+  const diverged = detectDivergence(allMapped, cachedIds);
+
+  if (!diverged) {
+    logTimelineDebug(debugTraceId, 'reconcile-complete', {
+      fetchedCount,
+      iterations,
+      reason,
+      repaired: false,
+      roomId,
+      threadId,
+    });
+    return { reason, repaired: false, fetchedCount, iterations, aborted: false };
+  }
+
+  // Repair path: run the same hydration pipeline the persist layer uses
+  // (P1.2). `applyCachedRedactions` handles missed redactions (Tuwunel
+  // stale copies included via the prefer-live mapper above);
+  // `applyCachedReplaceRelations` + `applySerializedCachedReplaceRelations`
+  // apply missed edits under D12 ordering (idempotent — no change when
+  // cache already had the newest); `aggregateCachedRelationEvents`
+  // registers new relation events (and removes redacted ones) with the
+  // SDK's live indices so reaction chips update in place.
+  const liveThreadTimelineSet = room.getThread(threadId)?.getUnfilteredTimelineSet();
+  const mergedForHydrate = [...cachedSnapshotEvents, ...allMapped];
+  const redactedRelationTargets = collectRedactedRelationTargetsFromLookup(
+    allMapped,
+    cachedSnapshotEvents
+  );
+  hydrateCachedEvents({
+    room,
+    events: mergedForHydrate,
+    timelineSets: liveThreadTimelineSet ? [liveThreadTimelineSet] : undefined,
+  });
+  // Additional pass to reconcile redactions that the prefer-live mapper
+  // healed on the live instance — those still need aggregation cleanup
+  // against the live timeline's `Relations` container.
+  if (liveThreadTimelineSet && redactedRelationTargets.length > 0) {
+    reconcileRelationEventsWithAggregation(
+      allMapped,
+      [
+        { relations: liveThreadTimelineSet.relations, timelineSet: liveThreadTimelineSet },
+      ],
+      undefined,
+      redactedRelationTargets
+    );
+  }
+
+  if (onRepaired) onRepaired();
+
+  logTimelineDebug(debugTraceId, 'reconcile-complete', {
+    fetchedCount,
+    iterations,
+    reason,
+    repaired: true,
+    roomId,
+    threadId,
+  });
+  return { reason, repaired: true, fetchedCount, iterations, aborted: false };
+};
+
+/**
+ * Schedule a reconcile pass. Producer of a `BackfillScheduler` job of
+ * kind `'reconcile'` at band 0.
+ *
+ * D7 rule enforced here: SCHEDULING is unconditional (every open
+ * schedules exactly one reconcile — that's AC9). COALESCING happens
+ * inside the scheduler — a second call for the same
+ * (roomId, threadId, 'reconcile') key while the first is in-flight
+ * returns the same promise identity, and `schedulerDeduped` bumps.
+ * That gives the "cached was right" path zero extra network use even
+ * when multiple UI events (thread open + tab focus) both call in.
+ */
+export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<ReconcileResult> => {
+  const {
+    mx,
+    scheduler,
+    roomId,
+    room: providedRoom,
+    threadId,
+    cachedPage,
+    reason,
+    onRepaired,
+    shouldContinue,
+    debugTraceId,
+  } = args;
+
+  if (!threadId) {
+    // Room-scope pass lands in Commit 3. Kept as an explicit no-op here
+    // so callers can wire the API now without waiting for the room
+    // variant.
+    logTimelineDebug(debugTraceId, 'reconcile-scheduled', {
+      reason,
+      roomId,
+      threadId: null,
+      note: 'room-scope reconcile not implemented until Commit 3',
+    });
+    return Promise.resolve({
+      reason,
+      repaired: false,
+      fetchedCount: 0,
+      iterations: 0,
+      aborted: false,
+    });
+  }
+
+  logTimelineDebug(debugTraceId, 'reconcile-scheduled', {
+    reason,
+    roomId,
+    threadId,
+  });
+
+  return scheduler.enqueue<ReconcileResult>({
+    roomId,
+    threadId,
+    kind: 'reconcile',
+    priority: 0,
+    execute: (signal) => {
+      const room = providedRoom ?? mx.getRoom?.(roomId);
+      if (!room) {
+        return Promise.resolve({
+          reason,
+          repaired: false,
+          fetchedCount: 0,
+          iterations: 0,
+          aborted: false,
+        });
+      }
+      return runThreadReconcilePass({
+        mx,
+        room,
+        roomId,
+        threadId,
+        cachedPage,
+        onRepaired,
+        shouldContinue,
+        signal,
+        reason,
+        debugTraceId,
+      });
+    },
+  });
+};

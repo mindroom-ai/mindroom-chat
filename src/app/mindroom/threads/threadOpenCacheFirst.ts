@@ -12,11 +12,24 @@ import type {
   HydratedThreadCachePage,
   ThreadOpenCacheController,
 } from './threadOpenCacheController';
+import type { ReconcileResult, ScheduleReconcileArgs } from '../engine/reconciler';
 
 type ThreadOpenSeedSession = {
   applyInitialUntargetedThreadSeed: () => void;
   mergeWithInitialRoomThreadSeedEvents: (events: MatrixEvent[]) => MatrixEvent[];
 };
+
+/**
+ * Injected scheduler entry point. Component-side callers pre-bind the
+ * engine's mx / sessionId / scheduler so this file does not need to
+ * reach into the engine directly (keeps arch-guard boundaries clean).
+ */
+export type ScheduleReconcileFn = (
+  args: Pick<
+    ScheduleReconcileArgs,
+    'roomId' | 'room' | 'threadId' | 'cachedPage' | 'reason' | 'onRepaired' | 'shouldContinue'
+  >
+) => Promise<ReconcileResult>;
 
 type RunThreadOpenCacheFirstOptions = {
   backfillThreadRelationsIntoCache: ThreadOpenCacheController['backfillThreadRelationsIntoCache'];
@@ -26,7 +39,13 @@ type RunThreadOpenCacheFirstOptions = {
   isCurrentThreadOpen: () => boolean;
   mx: MatrixClient;
   pinThreadToBottomOnOpen: () => void;
-  refreshLatestThreadRelationsTail: ThreadOpenCacheController['refreshLatestThreadRelationsTail'];
+  /**
+   * CINNY-207 P5.1 (D7): replaces the deleted
+   * `refreshLatestThreadRelationsTail`. The complete-coverage path
+   * still schedules a reconcile so a stale cache converges after open
+   * without reload — coverage decides PAINT, never REVALIDATE.
+   */
+  scheduleReconcile: ScheduleReconcileFn;
   room: Room;
   setThreadHasMoreCachedBack: Dispatch<SetStateAction<boolean>>;
   setThreadInitialCacheHydrated: Dispatch<SetStateAction<boolean>>;
@@ -50,7 +69,7 @@ export const runThreadOpenCacheFirst = async ({
   isCurrentThreadOpen,
   mx,
   pinThreadToBottomOnOpen,
-  refreshLatestThreadRelationsTail,
+  scheduleReconcile,
   room,
   setThreadHasMoreCachedBack,
   setThreadInitialCacheHydrated,
@@ -111,7 +130,25 @@ export const runThreadOpenCacheFirst = async ({
       skipNetworkBootstrap: true,
       threadId,
     });
-    void refreshLatestThreadRelationsTail(threadId, hydratedCachedPage).catch(() => undefined);
+    // CINNY-207 P5.1 (D7 / AC9): complete-coverage still schedules a
+    // reconcile. Fire-and-forget from the caller's POV — the reconcile
+    // is deduped in the scheduler and only calls `onRepaired` (which
+    // batches a tick) if it actually applied a repair. When the cache
+    // was right this is a cheap no-op: fetch, diff empty, no writes,
+    // no tick.
+    void scheduleReconcile({
+      roomId: room.roomId,
+      room,
+      threadId,
+      cachedPage: hydratedCachedPage,
+      reason: 'open-complete-coverage',
+      onRepaired: () => {
+        if (!isCurrentThreadOpen()) return;
+        forceTimelineUpdate();
+        setThreadTimelineTick((val) => val + 1);
+      },
+      shouldContinue: isCurrentThreadOpen,
+    }).catch(() => undefined);
     pinThreadToBottomOnOpen();
     return {
       hydratedCachedPage,

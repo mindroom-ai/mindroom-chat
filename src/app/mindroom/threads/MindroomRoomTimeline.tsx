@@ -197,7 +197,12 @@ import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
 import { useThreadOpenCacheController } from './threadOpenCacheController';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
 import { useThreadOverviewResumeController } from './threadOverviewResumeController';
-import { enqueueRoomDeepHistoryJob, useMindroomSyncEngine } from '../engine';
+import {
+  enqueueRoomDeepHistoryJob,
+  scheduleReconcile as scheduleEngineReconcile,
+  useMindroomSyncEngine,
+} from '../engine';
+import type { ScheduleReconcileFn } from './threadOpenCacheFirst';
 import { useCompactRootEditBackfillController } from './compactRootEditBackfillController';
 import { useThreadPaginationCommandController } from './threadPaginationCommandController';
 import { useThreadEditBackfillController } from './threadEditBackfillController';
@@ -933,7 +938,6 @@ export function RoomTimeline({
   const {
     backfillThreadRelationsIntoCache,
     hydrateThreadFromCache,
-    refreshLatestThreadRelationsTail,
     refreshLatestThreadSlice,
   } = useThreadOpenCacheController({
     alive,
@@ -943,7 +947,6 @@ export function RoomTimeline({
     persistThreadEventCache,
     room,
     roomIdRef,
-    roomTimelineSet,
     safePaginationLimitRef,
     sessionId,
     setSupplementalThreadEvents,
@@ -952,6 +955,23 @@ export function RoomTimeline({
     setThreadTimelineTick,
     threadIdRef,
   });
+
+  // CINNY-207 P5.1 (D7 / AC9): bound `scheduleReconcile` binding for
+  // the thread-open flow. Every open (complete or partial coverage)
+  // schedules exactly one reconcile against server truth — the
+  // scheduler dedups so an open followed immediately by a re-focus
+  // does not fire duplicate `/relations` fetches.
+  const scheduleReconcile = useCallback<ScheduleReconcileFn>(
+    (args) =>
+      scheduleEngineReconcile({
+        mx,
+        sessionId: syncEngine.sessionId,
+        scheduler: syncEngine.scheduler,
+        debugTraceId: threadDebugTraceId,
+        ...args,
+      }),
+    [mx, syncEngine, threadDebugTraceId]
+  );
 
   const getScrollElement = useCallback(() => scrollRef.current, []);
   const getTimelineItemElement = useCallback(
@@ -1704,8 +1724,8 @@ export function RoomTimeline({
     prewarmingThreadSeedIdsRef,
     prewarmingThreadSeedPromisesRef,
     queuedThreadSeedIdsRef,
-    refreshLatestThreadRelationsTail,
     refreshLatestThreadSlice,
+    scheduleReconcile,
     resetThreadBackPagination,
     resetThreadRenderState,
     room,

@@ -43,7 +43,16 @@ const makeDefaultOptions = () => {
     isCurrentThreadOpen: vi.fn(() => true),
     mx,
     pinThreadToBottomOnOpen: vi.fn(),
-    refreshLatestThreadRelationsTail: vi.fn(async () => true),
+    // CINNY-207 P5.1 (AC9): D7 rewire — `refreshLatestThreadRelationsTail`
+    // was deleted; the complete-coverage path now schedules a reconcile
+    // through the engine.
+    scheduleReconcile: vi.fn(async () => ({
+      reason: 'open-complete-coverage' as const,
+      repaired: false,
+      fetchedCount: 0,
+      iterations: 1,
+      aborted: false,
+    })),
     room,
     setThreadHasMoreCachedBack: vi.fn(),
     setThreadInitialCacheHydrated: vi.fn(),
@@ -86,7 +95,19 @@ describe('runThreadOpenCacheFirst', () => {
     expect(opts.setThreadHasMoreCachedBack).toHaveBeenCalledWith(false);
     expect(opts.setThreadTailLoaded).toHaveBeenCalledWith(true);
     expect(opts.forceTimelineUpdate).toHaveBeenCalledTimes(1);
-    expect(opts.refreshLatestThreadRelationsTail).toHaveBeenCalledWith('$root', cachedPage);
+    // CINNY-207 P5.1 (D7 / AC9): coverage gates PAINT, never
+    // REVALIDATE. Even on a complete-coverage cache hit the reconciler
+    // is scheduled — when the cache was right, the reconcile is a
+    // cheap no-op (fetch, diff empty, no writes, no tick).
+    expect(opts.scheduleReconcile).toHaveBeenCalledTimes(1);
+    expect(opts.scheduleReconcile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roomId: opts.room.roomId,
+        threadId: '$root',
+        cachedPage,
+        reason: 'open-complete-coverage',
+      })
+    );
     expect(opts.pinThreadToBottomOnOpen).toHaveBeenCalledTimes(1);
     expect(opts.backfillThreadRelationsIntoCache).not.toHaveBeenCalled();
   });
@@ -134,7 +155,11 @@ describe('runThreadOpenCacheFirst', () => {
       1
     );
     expect(opts.pinThreadToBottomOnOpen).toHaveBeenCalledTimes(1);
-    expect(opts.refreshLatestThreadRelationsTail).not.toHaveBeenCalled();
+    // CINNY-207 P5.1: partial-coverage and no-cache paths let the
+    // lifecycle controller schedule the reconcile after
+    // `runThreadOpenSdkBootstrap`; the cache-first function itself
+    // only schedules on the complete-coverage exit.
+    expect(opts.scheduleReconcile).not.toHaveBeenCalled();
   });
 
   it('applies the initial seed and continues when no usable cache exists', async () => {
@@ -147,6 +172,10 @@ describe('runThreadOpenCacheFirst', () => {
     expect(opts.threadOpenSeedSession.applyInitialUntargetedThreadSeed).toHaveBeenCalledTimes(1);
     expect(opts.setThreadInitialCacheHydrated).toHaveBeenCalledWith(true);
     expect(opts.backfillThreadRelationsIntoCache).not.toHaveBeenCalled();
-    expect(opts.refreshLatestThreadRelationsTail).not.toHaveBeenCalled();
+    // CINNY-207 P5.1: partial-coverage and no-cache paths let the
+    // lifecycle controller schedule the reconcile after
+    // `runThreadOpenSdkBootstrap`; the cache-first function itself
+    // only schedules on the complete-coverage exit.
+    expect(opts.scheduleReconcile).not.toHaveBeenCalled();
   });
 });

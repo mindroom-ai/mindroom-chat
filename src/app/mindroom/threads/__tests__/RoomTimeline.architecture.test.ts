@@ -751,6 +751,11 @@ describe('RoomTimeline architecture', () => {
     expect(source).toContain("from '../../mindroom/threads/threadOpenCacheController'");
     expect(source).not.toContain('const refreshLatestThreadSlice = useCallback');
     expect(source).not.toContain('const backfillThreadRelationsIntoCache = useCallback');
+    // CINNY-207 P5.1: `refreshLatestThreadRelationsTail` was deleted
+    // from `threadOpenCacheController` — the reconciler owns the
+    // post-open server verify now. The assertion stays so a future
+    // "quick fix" that reintroduces it via a useCallback in the
+    // component tripwires immediately.
     expect(source).not.toContain('const refreshLatestThreadRelationsTail = useCallback');
     expect(source).not.toContain('const hydrateThreadFromCache = useCallback');
   });
