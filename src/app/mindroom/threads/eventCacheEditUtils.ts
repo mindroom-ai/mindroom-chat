@@ -5,7 +5,7 @@ import {
   getSerializedRelationEvent,
   isSameSenderEditEvent,
 } from '../../utils/editEvent';
-import { getLatestEdit } from '../../utils/room';
+import { getLatestEdit, isEventOrderedAfter } from '../../utils/room';
 
 export type RedactedRelationTarget = {
   eventId: string;
@@ -40,9 +40,7 @@ const getTargetEventId = (mEvent: MatrixEvent): string | undefined => mEvent.get
 const getLatestEvent = (events: MatrixEvent[]): MatrixEvent | undefined =>
   events.reduce<MatrixEvent | undefined>((latest, mEvent) => {
     if (!latest) return mEvent;
-    if (mEvent.getTs() > latest.getTs()) return mEvent;
-    if (mEvent.getTs() === latest.getTs()) return mEvent;
-    return latest;
+    return isEventOrderedAfter(mEvent, latest) ? mEvent : latest;
   }, undefined);
 
 const getRedactedRelationTarget = (mEvent: MatrixEvent): RedactedRelationTarget | undefined => {

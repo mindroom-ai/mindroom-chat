@@ -451,7 +451,7 @@ Filled as steps complete. "Before" numbers from P0.3.
 | AC9  | ☐      |                                   |                |                         |      |
 | AC10 | ☐      |                                   |                |                         |      |
 | AC11 | ☐      |                                   |                |                         |      |
-| AC12 | ☐      |                                   |                |                         |      |
+| AC12 | ☐ impl | `npx vitest run src/app/utils/room.test.ts` (tie tests) | order-dependent → id-deterministic | (pending reviewer) |      |
 | AC13 | ☐      |                                   |                |                         |      |
 | AC14 | ☐      |                                   |                |                         |      |
 
@@ -503,6 +503,12 @@ new engine-scoped guard file):
 (None yet. Record: date, step ID, what changed vs. plan, why, approved by.)
 
 ## 9. Status log
+
+- 2026-07-03 — **P1.3 landed** (PR 5): deterministic edit tiebreak (D12).
+  Shared comparator `isEventOrderedAfter` (ts, then lexicographic event id,
+  full tie keeps the incumbent instance) used by `getLatestEdit` and the
+  cached-redaction selector. AC12 unit tests assert order-independence for
+  same-millisecond edits.
 
 - 2026-07-03 — **P1.2 landed** (PR 4): redaction cache lifecycle. Reaction
   records deleted (with by-event-id scan fallback), redaction events
