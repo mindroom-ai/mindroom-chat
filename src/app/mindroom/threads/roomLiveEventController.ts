@@ -8,6 +8,7 @@ import {
   type SetStateAction,
 } from 'react';
 import { type MatrixClient, type MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
+import { isEventOrderedAfter } from '../../utils/room';
 import { countCacheProbe } from './cacheProbe';
 import {
   createEditCompactionScheduler,
@@ -145,6 +146,11 @@ export const useRoomLiveEventController = ({
       THREAD_EDIT_COMPACTION_DEBOUNCE_MS
     );
   }
+  // D12-latest replace captured per compaction key. The fire-time closure
+  // reads this instead of its own captured argument, so an out-of-order
+  // stale replace that re-arms the window cannot shadow a newer replace
+  // captured earlier in the same window.
+  const pendingCompactionReplaceRef = useRef<Map<string, MatrixEvent>>(new Map());
 
   useEffect(() => {
     const scheduler = editCompactionSchedulerRef.current;
@@ -234,13 +240,35 @@ export const useRoomLiveEventController = ({
           if (knownTarget && knownTarget.getSender() !== replaceEvent.getSender()) {
             return false;
           }
+          const pendingReplaces = pendingCompactionReplaceRef.current;
+          const previousReplace = pendingReplaces.get(key);
+          const capturedReplace =
+            previousReplace && isEventOrderedAfter(previousReplace, replaceEvent)
+              ? previousReplace
+              : replaceEvent;
+          pendingReplaces.set(key, capturedReplace);
           scheduler.scheduleTargetUpsert(key, () => {
+            const pendingReplace = pendingReplaces.get(key) ?? capturedReplace;
+            pendingReplaces.delete(key);
             const targetEvent = room.findEventById(targetEventId);
-            if (!targetEvent) {
-              countCacheProbe('editCompactionTargetMisses');
-            }
             countCacheProbe('editCompactions');
-            persistEvents([targetEvent ?? replaceEvent]);
+            if (!targetEvent) {
+              // Fire-time miss: persist the replace standalone (the
+              // serializer keeps that shape; hydration applies it) so the
+              // edit is never silently dropped.
+              countCacheProbe('editCompactionTargetMisses');
+              persistEvents([pendingReplace]);
+              return;
+            }
+            if (targetEvent.getSender() !== pendingReplace.getSender()) {
+              // The target materialized only during the debounce window and
+              // the replace turns out to be cross-sender: the serializer
+              // will not bundle it onto the target, so emit the standalone
+              // record alongside the target upsert.
+              persistEvents([targetEvent, pendingReplace]);
+              return;
+            }
+            persistEvents([targetEvent]);
           });
           return true;
         };

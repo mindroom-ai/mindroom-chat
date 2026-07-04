@@ -8,8 +8,11 @@
  * skipped at the persist entry points instead of failing one by one, reads
  * keep painting (I1), and the reconcile path keeps correcting from the
  * network (I2) — the cache simply stops claiming it can keep up. The state
- * is session-scoped; a reload retries writing (browsers may have freed
- * space, and eviction proper lands with D9 in Phase 2).
+ * is page-lifetime-scoped ON PURPOSE, including across in-page Matrix
+ * session switches: storage quota is an ORIGIN-level condition, so a new
+ * session writing to this origin's IndexedDB hits the same wall. A reload
+ * retries writing (browsers may have freed space, and eviction proper
+ * lands with D9 in Phase 2).
  *
  * Inspectable from DevTools via `window.__MINDROOM_CACHE_HEALTH__.get()`.
  */
@@ -29,9 +32,19 @@ const loggedScopes = new Set<string>();
 
 const isQuotaExceededError = (error: unknown): boolean => {
   if (!error || typeof error !== 'object') return false;
-  const { name } = error as { name?: unknown };
+  const { name, code, message } = error as {
+    name?: unknown;
+    code?: unknown;
+    message?: unknown;
+  };
   // Firefox legacy name kept for completeness.
-  return name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED';
+  if (name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED') return true;
+  // Legacy DOMException code for QUOTA_EXCEEDED_ERR.
+  if (code === 22) return true;
+  // Wrapped/re-thrown storage errors from IDB helpers may keep only the
+  // message; a quota mention is a strong enough signal to stop hammering a
+  // full store (the degrade is page-scoped and a reload retries).
+  return typeof message === 'string' && /quota/i.test(message);
 };
 
 export const getCacheHealth = (): CacheHealth => ({ ...health });

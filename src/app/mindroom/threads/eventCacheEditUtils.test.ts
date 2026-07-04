@@ -302,6 +302,24 @@ describe('applyCachedRedactions', () => {
       event_id: '$redact',
     });
   });
+
+  // Greptile review (PR 5): the instance's existing redaction must win —
+  // re-applying a different cached redaction would churn `redacted_because`
+  // metadata away from what the live timeline attached.
+  it('keeps the existing redaction on an already-redacted instance', () => {
+    const targetEvent = makeMessageEvent('$target', 1000, '@alice:example.org', 'visible');
+    const liveRedaction = makeRedactionEvent('$redact-live', 2000, '$target');
+    targetEvent.makeRedacted(liveRedaction, room);
+    // Same timestamp, lexicographically larger id — would win the D12 pick
+    // if the tie-break were (wrongly) allowed to override live state.
+    const cachedRedaction = makeRedactionEvent('$redact-zzz', 2000, '$target');
+
+    applyCachedRedactions(room, [targetEvent, cachedRedaction]);
+
+    expect(targetEvent.getRedactionEvent()).toMatchObject({
+      event_id: '$redact-live',
+    });
+  });
 });
 
 describe('aggregateCachedRelationEvents', () => {

@@ -56,4 +56,18 @@ describe('cacheHealth (CINNY-207 P1.5)', () => {
     reportCacheWriteError('threadEventCache.save', new Error('transient'));
     expect(isCacheWritable()).toBe(true);
   });
+
+  // Review follow-up: wrapped/re-thrown storage errors may carry only the
+  // legacy DOMException code or a quota mention in the message.
+  it('detects legacy code-22 and wrapped quota-message errors', () => {
+    reportCacheWriteError('threadEventCache.save', Object.assign(new Error('db'), { code: 22 }));
+    expect(isCacheWritable()).toBe(false);
+
+    resetCacheHealthForTesting();
+    reportCacheWriteError(
+      'roomEventCache.save',
+      new Error('IDB put failed: exceeded storage quota for origin')
+    );
+    expect(isCacheWritable()).toBe(false);
+  });
 });
