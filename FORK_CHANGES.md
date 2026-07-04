@@ -2,6 +2,56 @@
 
 ## Runbook
 
+### CINNY-207 P7.2 audit remediation — settings scrub-before-init via module side effect (2026-07-04)
+
+Finding #4: ESM static imports are hoisted — every static import in
+`src/index.tsx` (including the transitive graph that reaches
+`state/settings.ts` via `themeBootstrap` and `App`) evaluates BEFORE
+any top-level statement in `index.tsx` runs. So the `dropLegacyMindroomSettings()`
+call at `index.tsx:18` fired AFTER `state/settings.ts`'s module-scope
+`const baseSettings = atom(getSettings())` had already read the
+pre-scrub blob. The atom held the contaminated `paginationLimit` for
+the whole session, and any settings write through the plain
+`settingsAtom` (people-drawer toggle, theme change, general toggles)
+spread that value back into localStorage — the D4 "stored legacy
+values are dropped" invariant never converged in practice.
+
+- `mindroomSettingsBootstrap.ts`: run `dropLegacyMindroomSettings()`
+  as a MODULE-SCOPE SIDE EFFECT at the bottom of the file. Extended
+  the module header with a full explanation of why a call from
+  `index.tsx` cannot fulfil the guarantee.
+
+- `src/index.tsx`: kept the import (so module evaluation runs) and
+  removed the top-level call. Replaced with `void dropLegacyMindroomSettings;`
+  to keep the identifier live for TypeScript's unused-import check
+  and explained the constraint in the comment above the import.
+
+- `src/app/state/settings.ts` (belt-and-braces): `getSettings()`
+  destructure-omits `paginationLimit` from the parsed blob before
+  merging. Guards the plain `settingsAtom` write-back path — even
+  without the bootstrap scrub, the base atom can never initialize
+  with a contaminated value, and `setSettings(atomValue)` cannot
+  re-persist the legacy key.
+
+- `mindroomSettings.test.ts` grows a "never writes a paginationLimit
+  key back via the plain settingsAtom write-back path" case that
+  imports `state/settings.ts` DIRECTLY (bypassing `mindroomSettings`),
+  primes storage with `paginationLimit: 120`, spreads the atom value
+  through a non-mindroom toggle (isPeopleDrawer), and asserts the
+  saved blob omits the legacy key.
+
+- `prefetchSettings.architecture.test.ts` grows a case that (1)
+  asserts the bootstrap module has a bare
+  `dropLegacyMindroomSettings();` call at module scope, and (2)
+  recursively walks the bootstrap's imports (staying inside `src/`)
+  and asserts `state/settings.ts` is never reached — the two
+  properties that make the module-side-effect guarantee actually
+  hold.
+
+- Verified red-first: stashing bootstrap side-effect + belt-and-braces
+  + index.tsx changes reproduces `2 failed` in the two suites;
+  restoring returns `13 passed`.
+
 ### CINNY-207 P7.2 audit remediation — gap-fill / deep-history prefer-live persist (2026-07-04)
 
 `engine/reconciler.ts`'s header states every fetched raw event must

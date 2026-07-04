@@ -114,4 +114,40 @@ describe('mindroom settings (CINNY-207 P6.1 / D4)', () => {
     expect(() => dropLegacyMindroomSettings()).not.toThrow();
     expect(storageValue).toBe('["array"]');
   });
+
+  // CINNY-207 P7.2 audit finding #4 — belt-and-braces guard: even if
+  // the bootstrap scrub has NOT run (older stored blob, tests, race),
+  // the plain `settingsAtom` write-back path must not resurrect the
+  // legacy `paginationLimit` key. The existing "never writes" test at
+  // the top of this file exercises the mindroom-aware
+  // `mindroomSettingsAtom`; this case covers the plain `settingsAtom`
+  // path used by every non-mindroom settings toggle in the app.
+  it('never writes a paginationLimit key back via the plain settingsAtom write-back path', async () => {
+    storageValue = JSON.stringify({
+      pageZoom: 100,
+      paginationLimit: 120,
+      isPeopleDrawer: true,
+    });
+    // Note: this test imports state/settings.ts DIRECTLY (bypassing
+    // mindroomSettings) — that's the failure surface finding #4
+    // describes. `getSettings()` must strip `paginationLimit` at read
+    // time so a later `setSettings(atomValue)` cannot re-persist it.
+    const { settingsAtom } = await import('../../state/settings');
+    const store = createStore();
+    const snapshot = store.get(settingsAtom);
+    expect((snapshot as StorageRecord).paginationLimit).toBeUndefined();
+
+    // Simulate any non-mindroom settings toggle: flip isPeopleDrawer,
+    // spread the current atom value, write back. The write path is the
+    // one that would spread a contaminated atom back to storage.
+    store.set(settingsAtom, {
+      ...snapshot,
+      isPeopleDrawer: false,
+    });
+
+    const saved = JSON.parse(storageValue ?? '{}') as StorageRecord;
+    expect(saved.pageZoom).toBe(100);
+    expect(saved.isPeopleDrawer).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(saved, 'paginationLimit')).toBe(false);
+  });
 });

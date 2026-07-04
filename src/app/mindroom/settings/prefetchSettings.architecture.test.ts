@@ -145,4 +145,65 @@ describe('CINNY-207 P6.1 / D4 — legacy preload setting removal', () => {
       'scrubs a legacy paginationLimit key from stored settings at module import'
     );
   });
+
+  // CINNY-207 P7.2 audit finding #4 — the scrub-before-init guarantee
+  // is enforced by module evaluation ordering, not by a top-level
+  // statement in `src/index.tsx` (ES import hoisting defeats that).
+  // `mindroomSettingsBootstrap.ts` therefore MUST run the scrub as a
+  // module-scope side effect, AND MUST NOT import anything that
+  // transitively reaches `state/settings.ts` — otherwise the atom
+  // could initialize first via the same import graph.
+  //
+  // This test proves both properties by static inspection:
+  //   1. The bootstrap module's source ends with a bare
+  //      `dropLegacyMindroomSettings();` call outside of any function.
+  //   2. Recursively following the bootstrap module's `import`
+  //      statements (staying inside `src/`) never lands on
+  //      `state/settings`.
+  it('runs the scrub as a module-scope side effect and has no transitive import of state/settings.ts', () => {
+    const bootstrapPath = resolve(MINDROOM_DIR, 'settings/mindroomSettingsBootstrap.ts');
+    const source = readFileSync(bootstrapPath, 'utf8');
+    // Property 1: the scrub is invoked outside any function scope. The
+    // bootstrap file's structure (const arrow assigned to
+    // `dropLegacyMindroomSettings`, followed by a bare call) means a
+    // line matching `dropLegacyMindroomSettings();` at column 0 is the
+    // side-effect call. A call indented inside a block would not.
+    const bareCall = /^dropLegacyMindroomSettings\(\);$/m;
+    expect(source).toMatch(bareCall);
+
+    // Property 2: crawl imports recursively and assert no path
+    // reaches `state/settings`. Only relative imports inside src/
+    // are followed; matrix-js-sdk, jotai, node_modules, etc. are
+    // skipped by the relative-import filter.
+    const importRegex = /^import[^'"]*['"]([^'"]+)['"]/gm;
+    const visited = new Set<string>();
+    const stack = [bootstrapPath];
+    while (stack.length > 0) {
+      const file = stack.pop() as string;
+      if (visited.has(file)) continue;
+      visited.add(file);
+      const src = readFileSync(file, 'utf8');
+      let match: RegExpExecArray | null;
+      // eslint-disable-next-line no-cond-assign
+      while ((match = importRegex.exec(src)) !== null) {
+        const spec = match[1];
+        if (!spec.startsWith('.') && !spec.startsWith('/')) continue;
+        const dir = dirname(file);
+        // Try each of the common extensions vite/tsc would resolve.
+        const bases = [
+          resolve(dir, spec),
+          resolve(dir, `${spec}.ts`),
+          resolve(dir, `${spec}.tsx`),
+          resolve(dir, spec, 'index.ts'),
+          resolve(dir, spec, 'index.tsx'),
+        ];
+        const resolved = bases.find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
+        if (!resolved) continue;
+        if (visited.has(resolved)) continue;
+        stack.push(resolved);
+      }
+    }
+    const stateSettings = resolve(MINDROOM_DIR, '../state/settings.ts');
+    expect(visited.has(stateSettings)).toBe(false);
+  });
 });

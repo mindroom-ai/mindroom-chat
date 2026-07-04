@@ -7,15 +7,23 @@ import '@fontsource/inter/variable.css';
 import 'folds/dist/style.css';
 import 'katex/dist/katex.min.css';
 
-// CINNY-207 P6.1 / D4 (Commit 4): scrub the deleted `paginationLimit`
-// key from stored settings BEFORE any module that reads
-// `state/settings.ts` initializes. `mindroomSettingsBootstrap` is a
-// leaf module with no transitive import of `state/settings.ts` —
-// importing `mindroomSettings.ts` here would defeat the "before init"
-// contract because that module IS the settings atom.
+// CINNY-207 P6.1 / D4 (Commit 4) + P7.2 audit finding #4: scrub the
+// deleted `paginationLimit` key from stored settings BEFORE any module
+// that reads `state/settings.ts` initializes.
+// `mindroomSettingsBootstrap` is a leaf module with no transitive
+// import of `state/settings.ts` — importing `mindroomSettings.ts` here
+// would defeat the "before init" contract because that module IS the
+// settings atom. The scrub runs as a MODULE-SCOPE SIDE EFFECT inside
+// `mindroomSettingsBootstrap.ts`; a call from here would be hoisted
+// AFTER every static import graph evaluates (including the transitive
+// paths from `themeBootstrap` and `App` that reach `state/settings.ts`),
+// so the scrub would land after the settings atom had already read
+// the contaminated blob. The unused import here forces module
+// evaluation before any subsequent import; the `void` reference keeps
+// the identifier live for TypeScript's unused-import check.
 import { dropLegacyMindroomSettings } from './app/mindroom/settings/mindroomSettingsBootstrap';
 
-dropLegacyMindroomSettings();
+void dropLegacyMindroomSettings;
 
 enableMapSet();
 

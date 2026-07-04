@@ -18,6 +18,31 @@
  * `prefetchDepth`. The two settings have incompatible semantics (see
  * mindroomSettings.ts) and mapping the old value forward would give
  * users a silent behavior change on upgrade.
+ *
+ * CINNY-207 P7.2 audit finding #4 — scrub-before-init guarantee is
+ * enforced by MODULE EVALUATION, not by a statement in src/index.tsx.
+ * ES module imports are hoisted: every static import in `index.tsx` —
+ * including the transitive graph that reaches `state/settings.ts` via
+ * `themeBootstrap` and `App` — evaluates before any top-level
+ * statement runs. A `dropLegacyMindroomSettings()` CALL at the top of
+ * `index.tsx` therefore ran AFTER `state/settings.ts`'s
+ * `const baseSettings = atom(getSettings())` had already read the
+ * pre-scrub blob. The atom then held the contaminated value for the
+ * whole session, and any settings write via `settingsAtom` spread it
+ * back to localStorage (the D4 invariant "stored legacy values are
+ * dropped" never converged).
+ *
+ * Fix: run the scrub as a module-scope side effect at the bottom of
+ * THIS file. `src/index.tsx` imports this module first (before
+ * themeBootstrap, sessions, or App), and this module has no
+ * transitive import of `state/settings.ts` (verified by the arch
+ * test in `settingsExtensions.architecture.test.ts`), so evaluating
+ * the scrub as a side effect guarantees it runs before the settings
+ * atom initializes regardless of how imports are hoisted downstream.
+ *
+ * The `dropLegacyMindroomSettings` export is retained so the existing
+ * unit tests can invoke it explicitly without relying on module
+ * evaluation ordering inside a test runner.
  */
 
 export const LEGACY_MINDROOM_SETTINGS_STORAGE_KEY = 'settings';
@@ -49,3 +74,8 @@ export const dropLegacyMindroomSettings = (): void => {
     // drop `paginationLimit` via `withMindroomSettings`.
   }
 };
+
+// CINNY-207 P7.2 audit finding #4: module-scope side effect. See the
+// header for why this MUST live inside module evaluation of this leaf
+// module and cannot be a call from `src/index.tsx`.
+dropLegacyMindroomSettings();
