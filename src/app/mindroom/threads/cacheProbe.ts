@@ -417,6 +417,54 @@ export type CacheProbeCounters = {
   //     `reconcilesRepaired` also bumped for the same batch.
   hydrateApplierMutatedRenderHeldInstance: number;
   hydrateApplierMutatedFreshInstance: number;
+  // CINNY-207 AC2 render-gap RG5b (2026-07-04): unconditional applier
+  // observability. RG5-fix expanded the fallback registry coverage but
+  // renderTargetFallbackNeverHadReplacement stayed high (196), meaning
+  // the applier still isn't setting `.replacingEvent()` on the target
+  // instance the fallback layer holds. Static trace narrows to three
+  // shapes we cannot distinguish without a probe:
+  //   X1. applier's noop-guard (`if (!latestEdit || latestEdit ===
+  //     replacingEvent) return;`) fires — target already has the same
+  //     edit or getLatestEdit chose nothing.
+  //   X2. applier's target lookup fires but editEventsByTarget is empty
+  //     for that target — the m.replace event was not in the applier's
+  //     scan set.
+  //   X3. applier's makeReplaced fires, then something OUTSIDE clears
+  //     `_replacingEvent`.
+  //
+  // These two counters together disambiguate:
+  //   applierMakeReplacedFired: bumped once per makeReplaced call in
+  //     applyCachedReplaceRelations. Regardless of renderHeldEvents.
+  //   applierMakeReplacedNoOpGuardFired: bumped when the guard bails
+  //     out (target had latestEdit but it was already the current
+  //     replacement, or no candidate edit was chosen).
+  //
+  // Interpretation: if `applierMakeReplacedFired == 0` across a docker
+  // run for a target we know is in the fallback registry, X2 is
+  // proven (fix goes back into merge/hydrate scope). If > 0 with
+  // renderTargetFallbackNeverHadReplacement still high, X3 is
+  // proven (hunt what clears `_replacingEvent` post-apply — needs a
+  // setter-watch on a specific instance, likely SDK aggregation).
+  applierMakeReplacedFired: number;
+  applierMakeReplacedNoOpGuardFired: number;
+  // CINNY-207 AC2 render-gap RG5b (2026-07-04): split of the noop-guard
+  // into its two mutually-exclusive sub-cases. Invariant:
+  //   applierMakeReplacedNoOpGuardFired ==
+  //     applierMakeReplacedNoLatestEdit +
+  //     applierMakeReplacedLatestEqualsCurrent
+  //   applierMakeReplacedNoLatestEdit: getLatestEdit returned
+  //     undefined. Only happens when every editEvent in the candidate
+  //     list has `sender !== target.sender` (see getLatestEdit sender
+  //     filter). Diagnostic: the edit-target and its m.replace child
+  //     disagree on `sender` after the mapper — likely a hydration
+  //     issue or a cross-sender edit path.
+  //   applierMakeReplacedLatestEqualsCurrent: the picked latestEdit
+  //     equals the target's current `replacingEvent()`. The applier
+  //     is a no-op because the target ALREADY has the replacement.
+  //     If this dominates while renderTargetFallbackNeverHadReplacement
+  //     is also high, X3 (something clears post-apply) is the shape.
+  applierMakeReplacedNoLatestEdit: number;
+  applierMakeReplacedLatestEqualsCurrent: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -470,6 +518,10 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   renderTargetLostReplacement: 0,
   hydrateApplierMutatedRenderHeldInstance: 0,
   hydrateApplierMutatedFreshInstance: 0,
+  applierMakeReplacedFired: 0,
+  applierMakeReplacedNoOpGuardFired: 0,
+  applierMakeReplacedNoLatestEdit: 0,
+  applierMakeReplacedLatestEqualsCurrent: 0,
 });
 
 let counters = createEmptyCounters();

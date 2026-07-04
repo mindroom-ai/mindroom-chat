@@ -192,8 +192,23 @@ export const applyCachedReplaceRelations = (
     const candidateEvents = replacingEvent ? [replacingEvent, ...editEvents] : editEvents;
     const latestEdit = getLatestEdit(targetEvent, candidateEvents);
 
-    if (!latestEdit || latestEdit === replacingEvent) return;
+    if (!latestEdit || latestEdit === replacingEvent) {
+      // CINNY-207 AC2 render-gap RG5b (2026-07-04): unconditional
+      // noop-guard observability. See cacheProbe.ts for interpretation
+      // decisions (distinguishes X1 from X2/X3 in one docker cycle).
+      countCacheProbe('applierMakeReplacedNoOpGuardFired');
+      if (!latestEdit) {
+        countCacheProbe('applierMakeReplacedNoLatestEdit');
+      } else {
+        countCacheProbe('applierMakeReplacedLatestEqualsCurrent');
+      }
+      return;
+    }
     targetEvent.makeReplaced(latestEdit);
+    // CINNY-207 AC2 render-gap RG5b (2026-07-04): unconditional applier-
+    // fire observability. See cacheProbe.ts for the X1/X2/X3
+    // disambiguation matrix.
+    countCacheProbe('applierMakeReplacedFired');
 
     if (renderHeldEvents) {
       if (renderHeldEvents.has(targetEvent)) {
