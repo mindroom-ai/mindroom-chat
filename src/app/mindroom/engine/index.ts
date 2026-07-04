@@ -14,7 +14,7 @@ export {
 } from './engineContext';
 export type { MindroomSyncEngineProviderProps } from './engineContext';
 export { createEngineWriteThrough } from './engineWriteThrough';
-export type { EngineWriteThrough } from './engineWriteThrough';
+export type { EngineWriteThrough, EngineWriteThroughOptions } from './engineWriteThrough';
 export { createEngineGapTracker } from './engineGapTracker';
 export type { EngineGapTracker } from './engineGapTracker';
 export type {

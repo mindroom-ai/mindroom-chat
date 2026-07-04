@@ -55,8 +55,26 @@ const createMockClient = (initialSyncState: SyncState | null = null): MockClient
   return client;
 };
 
-const makeRoom = (roomId: string): Room => ({ roomId } as unknown as Room);
-const makeEvent = (): MatrixEvent => ({} as unknown as MatrixEvent);
+const makeRoom = (roomId: string): Room =>
+  ({
+    roomId,
+    findEventById: () => undefined,
+    getThread: () => undefined,
+    getLiveTimeline: () => ({ getEvents: () => [] }),
+    getUnfilteredTimelineSet: () => undefined,
+    getThreads: () => [],
+  }) as unknown as Room;
+
+const makeEvent = (): MatrixEvent =>
+  ({
+    getId: () => '$id',
+    getRelation: () => undefined,
+    getSender: () => '@alice:example.org',
+    getTs: () => 0,
+    isRedaction: () => false,
+    getAssociatedId: () => undefined,
+    threadRootId: undefined,
+  }) as unknown as MatrixEvent;
 
 describe('MindroomSyncEngine (CINNY-207 P3.1)', () => {
   beforeEach(() => {
@@ -113,25 +131,31 @@ describe('MindroomSyncEngine (CINNY-207 P3.1)', () => {
 
   it('skips live event dispatch until sync state reaches Prepared/Syncing/Catchup (liveMode gate)', () => {
     const mx = createMockClient();
-    const engine = createMindroomSyncEngine({ mx });
+    // Use a stub write-through so the plumbing test does not exercise
+    // the real persist path (which needs richer event stubs).
+    const writeThrough: EngineWriteThrough = {
+      handleLiveEvent: vi.fn(),
+      flush: vi.fn(),
+    };
+    const engine = createMindroomSyncEngine({ mx, writeThrough });
     engine.start();
 
     // Pre-Prepared: the timeline event should NOT reach write-through.
     mx.__emit(RoomEvent.Timeline, makeEvent(), makeRoom('!r1'), false, false, {
       liveEvent: true,
     });
-    expect(getCacheProbeSnapshot().engineLiveWrites).toBe(0);
+    expect(writeThrough.handleLiveEvent).not.toHaveBeenCalled();
     expect(engine.isLiveMode()).toBe(false);
 
     // Flip live via Sync -> PREPARED
     mx.__emit(ClientEvent.Sync, SyncState.Prepared, null);
     expect(engine.isLiveMode()).toBe(true);
 
-    // Now live events should dispatch and bump the probe.
+    // Now live events should dispatch.
     mx.__emit(RoomEvent.Timeline, makeEvent(), makeRoom('!r1'), false, false, {
       liveEvent: true,
     });
-    expect(getCacheProbeSnapshot().engineLiveWrites).toBe(1);
+    expect(writeThrough.handleLiveEvent).toHaveBeenCalledTimes(1);
 
     // Simulate a reconnect. liveMode must NOT flip back false — reconnect
     // events are exactly the ones we want to keep persisting.
@@ -141,29 +165,43 @@ describe('MindroomSyncEngine (CINNY-207 P3.1)', () => {
     mx.__emit(RoomEvent.Timeline, makeEvent(), makeRoom('!r1'), false, false, {
       liveEvent: true,
     });
-    expect(getCacheProbeSnapshot().engineLiveWrites).toBe(2);
+    expect(writeThrough.handleLiveEvent).toHaveBeenCalledTimes(2);
 
     engine.stop();
     // After stop(), liveMode resets so a subsequent start() waits for a
     // fresh Prepared/Syncing signal (account switch semantics).
     expect(engine.isLiveMode()).toBe(false);
+
+    // Probe counter is bumped by the real write-through; this test uses
+    // a stub, so the probe stays at zero (verified elsewhere in
+    // engineWriteThrough.compaction.test.ts).
+    expect(getCacheProbeSnapshot().engineLiveWrites).toBe(0);
   });
 
   it('primes liveMode from getSyncState() on start() for warm clients', () => {
     const mx = createMockClient(SyncState.Syncing);
-    const engine = createMindroomSyncEngine({ mx });
+    const writeThrough: EngineWriteThrough = {
+      handleLiveEvent: vi.fn(),
+      flush: vi.fn(),
+    };
+    const engine = createMindroomSyncEngine({ mx, writeThrough });
     engine.start();
     expect(engine.isLiveMode()).toBe(true);
 
     mx.__emit(RoomEvent.Timeline, makeEvent(), makeRoom('!r1'), false, false, {
       liveEvent: true,
     });
-    expect(getCacheProbeSnapshot().engineLiveWrites).toBe(1);
+    expect(writeThrough.handleLiveEvent).toHaveBeenCalledTimes(1);
+    engine.stop();
   });
 
   it('ignores non-live events even after liveMode: backfill, removed, non-liveEvent, missing room', () => {
     const mx = createMockClient(SyncState.Syncing);
-    const engine = createMindroomSyncEngine({ mx });
+    const writeThrough: EngineWriteThrough = {
+      handleLiveEvent: vi.fn(),
+      flush: vi.fn(),
+    };
+    const engine = createMindroomSyncEngine({ mx, writeThrough });
     engine.start();
 
     // Missing room
@@ -177,7 +215,8 @@ describe('MindroomSyncEngine (CINNY-207 P3.1)', () => {
     // Missing data
     mx.__emit(RoomEvent.Timeline, makeEvent(), makeRoom('!r1'), false, false, undefined);
 
-    expect(getCacheProbeSnapshot().engineLiveWrites).toBe(0);
+    expect(writeThrough.handleLiveEvent).not.toHaveBeenCalled();
+    engine.stop();
   });
 
   it('dispatches redactions through the write-through layer once live', () => {
@@ -185,12 +224,24 @@ describe('MindroomSyncEngine (CINNY-207 P3.1)', () => {
     const engine = createMindroomSyncEngine({ mx });
     engine.start();
 
+    // Redaction events carry `redacts` but no relation; the real
+    // engine routes them through the redaction lifecycle. For this
+    // dispatch-plumbing test we swap in a WT double that counts
+    // handleLiveEvent calls without exercising the full cleanup plan.
+    engine.stop();
+    const writeThrough = { handleLiveEvent: vi.fn(), flush: vi.fn() };
+    const engine2 = createMindroomSyncEngine({ mx, writeThrough });
+    engine2.start();
+
     mx.__emit(RoomEvent.Redaction, makeEvent(), makeRoom('!r1'));
-    expect(getCacheProbeSnapshot().engineLiveWrites).toBe(1);
+    expect(writeThrough.handleLiveEvent).toHaveBeenCalledTimes(1);
+    expect(writeThrough.handleLiveEvent.mock.calls[0][2].kind).toBe('redaction');
 
     // Redaction without a room is a no-op.
     mx.__emit(RoomEvent.Redaction, makeEvent(), undefined);
-    expect(getCacheProbeSnapshot().engineLiveWrites).toBe(1);
+    expect(writeThrough.handleLiveEvent).toHaveBeenCalledTimes(1);
+
+    engine2.stop();
   });
 
   it('drives the gap tracker on TimelineReset and Sync=PREPARED', () => {

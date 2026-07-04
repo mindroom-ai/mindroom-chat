@@ -80,7 +80,7 @@ export const createMindroomSyncEngine = ({
   gapTracker,
 }: CreateMindroomSyncEngineOptions): MindroomSyncEngine => {
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
-  const effectiveWriteThrough = writeThrough ?? createEngineWriteThrough();
+  const effectiveWriteThrough = writeThrough ?? createEngineWriteThrough({ sessionId });
   const effectiveGapTracker = gapTracker ?? createEngineGapTracker();
 
   let started = false;
