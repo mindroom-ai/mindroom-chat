@@ -18,6 +18,7 @@ import React, { MouseEventHandler, ReactNode, useEffect, useMemo, useState } fro
 import { Navigate } from 'react-router-dom';
 import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import type { HttpApiEventHandlerMap } from 'matrix-js-sdk/lib/http-api/interface';
+import { getDefaultStore } from 'jotai';
 import {
   ClientBootstrapSession,
   clearAllCacheAndReload,
@@ -54,7 +55,6 @@ import {
   resolvePrefetchConfig,
   type MindroomSyncEngine,
 } from '../../mindroom/engine';
-import { getDefaultStore } from 'jotai';
 import { settingsAtom } from '../../state/settings';
 
 type ClientMatrixClient = Awaited<ReturnType<typeof initClient>> & {
