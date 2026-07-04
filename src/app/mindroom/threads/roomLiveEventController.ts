@@ -1,11 +1,19 @@
 import {
   useCallback,
+  useEffect,
+  useRef,
   type Dispatch,
   type MutableRefObject,
   type RefObject,
   type SetStateAction,
 } from 'react';
 import { type MatrixClient, type MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
+import { countCacheProbe } from './cacheProbe';
+import {
+  createEditCompactionScheduler,
+  type EditCompactionScheduler,
+} from './editCompactionScheduler';
+import { THREAD_EDIT_COMPACTION_DEBOUNCE_MS } from './preloadSettings';
 import {
   getLatestThreadSummaryInfoFromEventSources,
   isMindroomThreadSummaryEvent,
@@ -124,6 +132,55 @@ export const useRoomLiveEventController = ({
       setTimeline((current) => ({ ...current }));
     }, [setTimeline])
   );
+
+  // CINNY-207 P1.4 (finding F5, decision D5): per-target trailing debounce
+  // for edit compaction. Streaming edits arrive at 10+/s; each one schedules
+  // an upsert of the TARGET record (with the SDK-aggregated latest edit
+  // bundled by `serializeEventsForCache`), and further edits to the same
+  // target reset the timer. The final trailing fire IS the stream-end flush.
+  // Flushed synchronously on unmount and on document visibility loss.
+  const editCompactionSchedulerRef = useRef<EditCompactionScheduler | null>(null);
+  if (editCompactionSchedulerRef.current === null) {
+    editCompactionSchedulerRef.current = createEditCompactionScheduler(
+      THREAD_EDIT_COMPACTION_DEBOUNCE_MS
+    );
+  }
+
+  useEffect(() => {
+    const scheduler = editCompactionSchedulerRef.current;
+    if (!scheduler) return undefined;
+
+    const flushIfHidden = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        scheduler.flushAll();
+      }
+    };
+    const flushAlways = () => scheduler.flushAll();
+    // Guard on the method itself, not just the global: vitest's node env
+    // supplies a stub `document` without addEventListener, and the wire-up
+    // here must not crash node-mode tests.
+    const canBindWindow =
+      typeof window !== 'undefined' && typeof window.addEventListener === 'function';
+    const canBindDocument =
+      typeof document !== 'undefined' && typeof document.addEventListener === 'function';
+
+    if (canBindWindow) {
+      window.addEventListener('pagehide', flushAlways);
+    }
+    if (canBindDocument) {
+      document.addEventListener('visibilitychange', flushIfHidden);
+    }
+
+    return () => {
+      if (canBindWindow) {
+        window.removeEventListener('pagehide', flushAlways);
+      }
+      if (canBindDocument) {
+        document.removeEventListener('visibilitychange', flushIfHidden);
+      }
+      scheduler.flushAll();
+    };
+  }, []);
 
   useLiveEventArrive(
     room,
@@ -282,13 +339,39 @@ export const useRoomLiveEventController = ({
             if (relation?.rel_type !== RelationType.Replace) {
               setSupplementalThreadEvents(threadId, [mEvt]);
             }
-            persistThreadEventCache(
-              threadId,
-              [mEvt],
-              room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId),
-              undefined,
-              atLiveEndRef.current
-            );
+            // CINNY-207 P1.4 (finding F5, decision D5): replaces do not
+            // persist as their own records. Coalesce upserts of the target
+            // record — `serializeEventsForCache` bundles the latest edit into
+            // `unsigned['m.relations']['m.replace']` at fire time, so the
+            // trailing write always carries the final edit even if more
+            // arrive after the timer is armed.
+            const scheduler = editCompactionSchedulerRef.current;
+            if (relation?.rel_type === RelationType.Replace && scheduler) {
+              const targetEventId = relation.event_id;
+              if (targetEventId) {
+                const key = `thread|${room.roomId}|${threadId}|${targetEventId}`;
+                scheduler.scheduleTargetUpsert(key, () => {
+                  const targetEvent = room.findEventById(targetEventId);
+                  if (!targetEvent) return;
+                  countCacheProbe('editCompactions');
+                  persistThreadEventCache(
+                    threadId,
+                    [targetEvent],
+                    room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId),
+                    undefined,
+                    atLiveEndRef.current
+                  );
+                });
+              }
+            } else {
+              persistThreadEventCache(
+                threadId,
+                [mEvt],
+                room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId),
+                undefined,
+                atLiveEndRef.current
+              );
+            }
             if (
               (mEventId === threadId || eventBelongsToThread(mEvt, threadId)) &&
               atLiveEndRef.current
@@ -325,9 +408,27 @@ export const useRoomLiveEventController = ({
         }
 
         if (threadCacheTargetId) {
-          persistThreadCacheFromRoomEvents([mEvt], {
-            tailLoaded: true,
-          });
+          // CINNY-207 P1.4: coalesce room-view replace persists too. The
+          // target's cache record gets the bundled latest edit at fire time.
+          const scheduler = editCompactionSchedulerRef.current;
+          if (relation?.rel_type === RelationType.Replace && scheduler) {
+            const targetEventId = relation.event_id;
+            if (targetEventId) {
+              const key = `thread|${room.roomId}|${threadCacheTargetId}|${targetEventId}`;
+              scheduler.scheduleTargetUpsert(key, () => {
+                const targetEvent = room.findEventById(targetEventId);
+                if (!targetEvent) return;
+                countCacheProbe('editCompactions');
+                persistThreadCacheFromRoomEvents([targetEvent], {
+                  tailLoaded: true,
+                });
+              });
+            }
+          } else {
+            persistThreadCacheFromRoomEvents([mEvt], {
+              tailLoaded: true,
+            });
+          }
         }
         if (threadOnlyRoomActivity) {
           if (isMindroomThreadSummaryEvent(mEvt)) {
@@ -348,7 +449,25 @@ export const useRoomLiveEventController = ({
           return;
         }
 
-        persistRoomEventCache([mEvt]);
+        // CINNY-207 P1.4: room-level (non-thread) replaces also coalesce
+        // through the scheduler onto their target's room cache record.
+        {
+          const scheduler = editCompactionSchedulerRef.current;
+          if (relation?.rel_type === RelationType.Replace && scheduler) {
+            const targetEventId = relation.event_id;
+            if (targetEventId) {
+              const key = `room|${room.roomId}|${targetEventId}`;
+              scheduler.scheduleTargetUpsert(key, () => {
+                const targetEvent = room.findEventById(targetEventId);
+                if (!targetEvent) return;
+                countCacheProbe('editCompactions');
+                persistRoomEventCache([targetEvent]);
+              });
+            }
+          } else {
+            persistRoomEventCache([mEvt]);
+          }
+        }
 
         const shouldAutoFollow = shouldAutoScrollRoomOnLiveEvent({
           scrollElement: scrollRef.current,

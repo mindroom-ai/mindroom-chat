@@ -11,6 +11,17 @@ export const ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE = 200;
 // controller module graph ahead of their mocks.
 export const ROOM_CACHE_PERSIST_DEBOUNCE_MS = 250;
 
+// CINNY-207 P1.4: per-target trailing debounce for edit-compaction upserts.
+// The live path never persists standalone m.replace records; it instead
+// coalesces upserts of the target's cache record with the latest bundled edit
+// (finding F5 / decision D5). This IS the stream-end flush: each new edit
+// resets the timer, so the trailing write always carries the final content of
+// the stream, landing ≤1 s after the last edit. Unmount and
+// pagehide/visibilitychange-hidden also flush pending upserts synchronously.
+// Lives in this leaf module so tests can mock it the same way the P1.1
+// constant is mocked.
+export const THREAD_EDIT_COMPACTION_DEBOUNCE_MS = 1000;
+
 export const sanitizePaginationLimit = (value: unknown): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_PAGINATION_LIMIT;
   return Math.max(Math.trunc(value), MIN_PAGINATION_LIMIT);

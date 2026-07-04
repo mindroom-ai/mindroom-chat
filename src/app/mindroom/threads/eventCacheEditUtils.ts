@@ -299,6 +299,27 @@ export const hydrateCachedEvents = ({
   return redactedRelationTargets;
 };
 
+/**
+ * CINNY-207 P1.4 (finding F5, decision D5): standalone same-sender `m.replace`
+ * events are excluded from the serialized output. Their content is bundled
+ * into the target record via `setSerializedReplacement` below, so persisting
+ * them as their own cache records would just duplicate storage (a message
+ * streamed with N edits used to leave ~N+1 records). Cross-sender replaces
+ * are still emitted so hydration can decide what to do with them.
+ */
+const isStandaloneSameSenderReplace = (
+  mEvent: MatrixEvent,
+  eventsById: Map<string, MatrixEvent>
+): boolean => {
+  const relation = mEvent.getRelation();
+  if (relation?.rel_type !== RelationType.Replace) return false;
+  const targetEventId = relation.event_id;
+  if (!targetEventId) return false;
+  const targetEvent = eventsById.get(targetEventId);
+  if (!targetEvent) return false;
+  return targetEvent.getSender() === mEvent.getSender();
+};
+
 export const serializeEventsForCache = (room: Room, events: MatrixEvent[]): Partial<IEvent>[] => {
   hydrateCachedEvents({ room, events });
 
@@ -307,11 +328,19 @@ export const serializeEventsForCache = (room: Room, events: MatrixEvent[]): Part
 
   events.forEach((mEvent) => {
     const eventId = mEvent.getId();
+    if (eventId) {
+      eventById.set(eventId, mEvent);
+    }
+  });
+
+  events.forEach((mEvent) => {
+    const eventId = mEvent.getId();
     const rawEvent = mEvent.event as Partial<IEvent> | undefined;
     if (!eventId || !rawEvent) return;
 
+    if (isStandaloneSameSenderReplace(mEvent, eventById)) return;
+
     serializedEvents.set(eventId, cloneRawEvent(rawEvent));
-    eventById.set(eventId, mEvent);
   });
 
   eventById.forEach((mEvent, eventId) => {

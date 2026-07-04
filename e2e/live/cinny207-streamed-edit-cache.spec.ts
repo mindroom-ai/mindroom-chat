@@ -14,16 +14,16 @@ import { readThreadEventCacheRecords } from '../helpers/storage';
 const hasCredentials = !!process.env.E2E_USERNAME;
 const EDIT_COUNT = 25;
 
-// CINNY-207 P0.2: red spec for finding F5 (every intermediate streaming edit
-// is persisted as its own cache record). Flips green in P1.4 (edit
-// compaction). See docs/mindroom-cache-overhaul-plan.md (AC4).
+// CINNY-207 P1.4 (AC4): edit compaction at the write boundary. Streaming a
+// message with N edits must produce exactly one cached record for the logical
+// message (the target with the bundled latest edit in
+// `unsigned['m.relations']['m.replace']`) plus at most the root event; reload
+// must paint the final content. Was P0.2-red (test.fail); flipped to real
+// green in P1.4. See docs/mindroom-cache-overhaul-plan.md (AC4).
 test.describe('CINNY-207 streamed edit cache compaction', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
   test('a streamed message leaves one cached record with the final content', async ({ page }) => {
-    // Expected red until P1.4: today the cache holds ~EDIT_COUNT records.
-    test.fail();
-
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const { accessToken, userId } = await loginToMatrix(homeserver, username, password);
@@ -91,14 +91,21 @@ test.describe('CINNY-207 streamed edit cache compaction', () => {
     await expect(replyItem.getByText(finalBody)).toBeVisible({ timeout: 30_000 });
 
     const cachedRecords = await readThreadEventCacheRecords(page, roomId, rootId);
-    const replaceRecords = cachedRecords.filter((record) => record.eventId !== replyId);
-    // Baseline capture for the plan scorecard (AC4 "before" column).
+    const nonTargetRecords = cachedRecords.filter((record) => record.eventId !== replyId);
+    // Evidence capture for the plan scorecard (AC4 "after" column).
     console.log(
-      `[cinny-207] thread cache records for streamed thread: total=${cachedRecords.length} standalone-non-target=${replaceRecords.length}`
+      `[cinny-207] thread cache records for streamed thread: total=${cachedRecords.length} non-target=${nonTargetRecords.length}`
     );
 
     // AC4: exactly one record for the logical message (the target with the
-    // bundled latest edit); allow the root event as a second record.
-    expect(cachedRecords.length).toBeLessThanOrEqual(2);
+    // bundled latest edit). No standalone m.replace records must remain
+    // (they compact into the target). The root event and the target may
+    // both be present — pre-P1.4 this was EDIT_COUNT+1 records.
+    const replyRecord = cachedRecords.find((record) => record.eventId === replyId);
+    expect(replyRecord).toBeDefined();
+    const standaloneReplaceRecords = cachedRecords.filter(
+      (record) => record.eventId !== replyId && record.eventId !== rootId
+    );
+    expect(standaloneReplaceRecords).toEqual([]);
   });
 });

@@ -1,6 +1,7 @@
 import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  collectLegacyStandaloneReplaceIds,
   collectStateTargetEvents,
   loadRoomCachePersistenceState,
   loadThreadCachedPaginationSnapshot,
@@ -530,5 +531,141 @@ describe('eventRepository room cache persistence state', () => {
     expect(state.beforeTokenForEarliest).toBe('sdk-before');
     expect(state.roomStartKnown).toBe(false);
     expect(state.shouldClearBackwardToken).toBe(false);
+  });
+});
+
+// CINNY-207 P1.4 (finding F5, decision D5): the write boundary excludes
+// standalone same-sender replace records; hydration lazily cleans up any
+// legacy records that still exist from before compaction landed.
+describe('collectLegacyStandaloneReplaceIds (CINNY-207 P1.4)', () => {
+  it('identifies same-sender replace records whose target is in the same batch', () => {
+    const events = [
+      { event_id: '$target', origin_server_ts: 100, sender: '@alice:example.org', content: {} },
+      {
+        event_id: '$edit-1',
+        origin_server_ts: 200,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+      {
+        event_id: '$edit-2',
+        origin_server_ts: 300,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+    ];
+
+    expect(collectLegacyStandaloneReplaceIds(events)).toEqual(['$edit-1', '$edit-2']);
+  });
+
+  it('does not flag cross-sender replaces or replaces whose target is missing', () => {
+    const events = [
+      { event_id: '$target', origin_server_ts: 100, sender: '@alice:example.org', content: {} },
+      {
+        event_id: '$cross-sender',
+        origin_server_ts: 200,
+        sender: '@mallory:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+      {
+        event_id: '$orphan-edit',
+        origin_server_ts: 300,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$missing' },
+        },
+      },
+    ];
+
+    expect(collectLegacyStandaloneReplaceIds(events)).toEqual([]);
+  });
+});
+
+describe('loadCachedThreadSnapshot lazy cleanup (CINNY-207 P1.4)', () => {
+  it('deletes legacy standalone same-sender replace records whose target is in the batch', async () => {
+    const deleteEvents = vi.fn(async () => undefined);
+    const rootEvent = {
+      event_id: '$root',
+      origin_server_ts: 100,
+      sender: '@alice:example.org',
+      content: {},
+    };
+    const targetEvent = {
+      event_id: '$target',
+      origin_server_ts: 200,
+      sender: '@alice:example.org',
+      content: {},
+    };
+    const legacyEdit1 = {
+      event_id: '$edit-1',
+      origin_server_ts: 210,
+      sender: '@alice:example.org',
+      content: {
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+      },
+    };
+    const legacyEdit2 = {
+      event_id: '$edit-2',
+      origin_server_ts: 220,
+      sender: '@alice:example.org',
+      content: {
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+      },
+    };
+
+    await loadCachedThreadSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      threadId: '$root',
+      limit: 50,
+      maxPages: 1,
+      loadLatest: async () => ({
+        rootEvent,
+        events: [targetEvent, legacyEdit1, legacyEdit2],
+        hasMoreBefore: false,
+        beforeToken: null,
+      }),
+      deleteEvents,
+    });
+
+    expect(deleteEvents).toHaveBeenCalledTimes(1);
+    expect(deleteEvents).toHaveBeenCalledWith('session', '!room:example.org', '$root', [
+      '$edit-1',
+      '$edit-2',
+    ]);
+  });
+
+  it('does not delete anything when no legacy standalone replaces are present', async () => {
+    const deleteEvents = vi.fn(async () => undefined);
+
+    await loadCachedThreadSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      threadId: '$root',
+      limit: 50,
+      maxPages: 1,
+      loadLatest: async () => ({
+        rootEvent: { event_id: '$root', origin_server_ts: 100, sender: '@a', content: {} },
+        events: [
+          {
+            event_id: '$reply',
+            origin_server_ts: 200,
+            sender: '@a',
+            content: { body: 'hi' },
+          },
+        ],
+        hasMoreBefore: false,
+        beforeToken: null,
+      }),
+      deleteEvents,
+    });
+
+    expect(deleteEvents).not.toHaveBeenCalled();
   });
 });

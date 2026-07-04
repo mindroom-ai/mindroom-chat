@@ -15,6 +15,7 @@ import {
   type CachedRoomEventPage,
 } from './roomEventCache';
 import {
+  deleteThreadEventsFromCache as deleteThreadEventsFromCacheToStorage,
   getThreadCursorAnchor as getCachedThreadCursorAnchor,
   loadCachedThreadEventsBefore as loadCachedThreadEventsBeforeFromCache,
   loadLatestCachedThreadEvents as loadLatestCachedThreadEventsFromCache,
@@ -110,10 +111,56 @@ type LoadCachedThreadSnapshotOptions = {
   onPage?: (page: CachedThreadEventPage, pageIndex: number, snapshot: CachedThreadSnapshot) => void;
   loadLatest?: typeof loadLatestCachedThreadEventsFromCache;
   loadBefore?: typeof loadCachedThreadEventsBeforeFromCache;
+  /**
+   * CINNY-207 P1.4: injected so tests can observe/override the lazy cleanup
+   * of legacy standalone m.replace records. Defaults to the storage-backed
+   * delete API.
+   */
+  deleteEvents?: typeof deleteThreadEventsFromCacheToStorage;
 };
 
 export type CachedThreadSnapshot = CachedThreadEventPage & {
   events: CachedThreadEvent[];
+};
+
+/**
+ * CINNY-207 P1.4 (finding F5, decision D5): identify legacy standalone
+ * `m.replace` records inside a hydrated batch whose target record is also in
+ * the batch. Those are pre-compaction leftovers — the target now carries the
+ * bundled edit in `unsigned['m.relations']['m.replace']`, so the standalone
+ * record is dead weight and can be lazily deleted after hydration merges its
+ * content. Cross-sender replaces are not considered (they might still be
+ * meaningful for future policy). Full purge lands with the Phase 2 D8 wipe;
+ * this is best-effort cleanup of what happens to be visible in a page.
+ */
+export const collectLegacyStandaloneReplaceIds = (
+  events: Array<Partial<IEvent> | CachedThreadEvent>
+): string[] => {
+  const eventsById = new Map<string, Partial<IEvent>>();
+  events.forEach((rawEvent) => {
+    const eventId = rawEvent.event_id;
+    if (typeof eventId === 'string' && eventId.length > 0) {
+      eventsById.set(eventId, rawEvent);
+    }
+  });
+
+  const legacyReplaceIds: string[] = [];
+  events.forEach((rawEvent) => {
+    const eventId = rawEvent.event_id;
+    if (typeof eventId !== 'string' || eventId.length === 0) return;
+    const relatesTo = rawEvent.content?.['m.relates_to'] as
+      | { rel_type?: string; event_id?: string }
+      | undefined;
+    if (relatesTo?.rel_type !== RelationType.Replace) return;
+    const targetEventId = relatesTo.event_id;
+    if (!targetEventId) return;
+    const targetEvent = eventsById.get(targetEventId);
+    if (!targetEvent) return;
+    if (targetEvent.sender !== rawEvent.sender) return;
+    legacyReplaceIds.push(eventId);
+  });
+
+  return legacyReplaceIds;
 };
 
 export const loadCachedThreadSnapshot = async ({
@@ -126,6 +173,7 @@ export const loadCachedThreadSnapshot = async ({
   onPage,
   loadLatest = loadLatestCachedThreadEventsFromCache,
   loadBefore = loadCachedThreadEventsBeforeFromCache,
+  deleteEvents,
 }: LoadCachedThreadSnapshotOptions): Promise<CachedThreadSnapshot | undefined> => {
   let cachedPage = await loadLatest(sessionId, roomId, threadId, limit);
   const cachedThreadEvents = [...cachedPage.events];
@@ -180,6 +228,20 @@ export const loadCachedThreadSnapshot = async ({
   }
 
   if (shouldContinue && !shouldContinue()) return undefined;
+
+  // CINNY-207 P1.4: lazy cleanup — legacy standalone m.replace records
+  // whose target is present in the same batch are dead weight (the target
+  // now carries the bundled edit). Delete them best-effort; hydration still
+  // sees the replace via the target's bundled edit, and getLatestEdit
+  // (P1.3 / D12) picks the newest deterministically. `deleteEvents` is
+  // resolved lazily so the storage import is not touched when a test-injected
+  // deleter is passed (avoids evaluating the storage identifier under
+  // partial vitest mocks that reject unlisted exports).
+  const legacyReplaceIds = collectLegacyStandaloneReplaceIds(cachedThreadEvents);
+  if (legacyReplaceIds.length > 0) {
+    const resolvedDeleteEvents = deleteEvents ?? deleteThreadEventsFromCacheToStorage;
+    resolvedDeleteEvents(sessionId, roomId, threadId, legacyReplaceIds).catch(() => undefined);
+  }
 
   return {
     ...cachedPage,
