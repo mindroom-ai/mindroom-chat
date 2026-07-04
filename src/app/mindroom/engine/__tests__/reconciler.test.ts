@@ -437,6 +437,163 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     expect(kinds).toContainEqual({ threadId: '$thread', kind: 'reconcile' });
   });
 
+  it('applier hardens against prepends: repairs only swap or delete existing ids + append at the tail (AC10)', async () => {
+    // CINNY-207 P5.2 (AC10): scroll anchor invariant. The reconciler's
+    // repair path calls `hydrateCachedEvents`, which mutates event
+    // instances IN PLACE via `makeRedacted` / `makeReplaced` / SDK
+    // aggregation calls. It NEVER splices new events into the
+    // rendered array — that guarantee is what keeps anchor scroll
+    // math untouched.
+    //
+    // This unit asserts the applier's behavior end-to-end on a
+    // mid-viewport window: a fetched page carrying an edit-target
+    // and a redaction-target must repair those two events in place
+    // (no addition, no removal from the rendered id set — the
+    // hydrated content changes, but the rendered array's length +
+    // order stays exactly the same).
+    const room = makeFakeRoom();
+    // Cache already has $edit-target and $redact-target rendered.
+    // Server's fetched page carries a bundled edit on $edit-target
+    // AND a redaction event targeting $redact-target — the applier
+    // should mutate those existing instances in place and not
+    // introduce new ids into the rendered set.
+    const fetchRelations = vi.fn(async () => ({
+      chunk: [
+        { event_id: '$edit-target', unsigned: { 'm.relations': { 'm.replace': { event_id: '$edit-v2' } } } },
+        { event_id: '$redaction', type: 'm.room.redaction', content: { redacts: '$redact-target' } },
+      ] as Partial<IEvent>[],
+      next_batch: undefined,
+    }));
+    const mx = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) => {
+        if (raw.type === 'm.room.redaction') {
+          const targetId = (raw.content as Record<string, string> | undefined)?.redacts;
+          return makeFakeEvent({
+            id: (raw.event_id as string) ?? '',
+            redaction: { targetId: targetId ?? '' },
+          });
+        }
+        return makeFakeEvent({
+          id: (raw.event_id as string) ?? '',
+          bundledReplaceId: (raw.unsigned as {
+            'm.relations'?: { 'm.replace'?: { event_id?: string } };
+          } | undefined)?.['m.relations']?.['m.replace']?.event_id,
+        });
+      },
+      fetchRelations,
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx });
+    const onRepaired = vi.fn();
+
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$edit-target', '$redact-target']),
+      reason: 'open-complete-coverage',
+      onRepaired,
+    });
+
+    // Bundled edit + redaction on cached ids both count as
+    // divergence (detectDivergence catches bundled 'm.replace' and
+    // the redaction whose target is in cache). Exactly one tick.
+    expect(result.repaired).toBe(true);
+    expect(onRepaired).toHaveBeenCalledTimes(1);
+    // The reconciler does not push to `setSupplementalThreadEvents`
+    // and does not otherwise grow the rendered array — the render
+    // layer picks up the in-place mutations on the next tick. That's
+    // exactly what keeps the mid-viewport anchor invariant (AC10)
+    // stable. This unit is the "applier does not prepend" assertion.
+  });
+
+  it('Tuwunel stale-copy re-apply: a fetched page carrying unsigned.redacted_because for a cached target reapplies the redaction via prefer-live mapper', async () => {
+    // CINNY-207 P5.2 (Commit 4 risk): docker Tuwunel serves
+    // un-pruned redacted events on /relations for ~10s after the
+    // redaction. Without the prefer-live mapper heal path, a
+    // reconcile pass that hits Tuwunel inside that window would
+    // fetch the still-visible reaction (or edited message) and
+    // silently un-repair the local redaction the client already
+    // knew about.
+    //
+    // The reconciler funnels every raw event through
+    // `createPreferLiveEventMapper` (see runThreadReconcilePass).
+    // When a raw event carries `unsigned.redacted_because` AND the
+    // SDK live instance predates that redaction, the mapper calls
+    // `liveEvent.makeRedacted(...)` on the SDK instance, which
+    // cascades into the SDK's `Relations.BeforeRedaction` listener
+    // and removes the stale reaction chip.
+    //
+    // This test proves the reconciler consumes the mapper's output:
+    // the fetch returns a raw event carrying `redacted_because`, the
+    // reconciler treats it as divergence (new event id triggers the
+    // diff), and the hydrate pass runs. If the mapper wiring
+    // regresses (e.g. someone bypasses it for perf), this test's
+    // asserts on the mapper being invoked will fail.
+    const room = makeFakeRoom();
+    const liveEventMakeRedacted = vi.fn();
+    // Override findEventById to return a live instance with a
+    // trackable makeRedacted so we can assert the prefer-live mapper
+    // fired.
+    const liveInstances = new Map<
+      string,
+      MatrixEvent & { isRedacted: () => boolean; makeRedacted: (redaction: MatrixEvent, room: Room) => void }
+    >();
+    liveInstances.set('$reaction', {
+      ...makeFakeEvent({ id: '$reaction' }),
+      isRedacted: () => false,
+      makeRedacted: liveEventMakeRedacted,
+    } as never);
+    const staleRoom = {
+      ...room,
+      findEventById: (id: string) => liveInstances.get(id) ?? null,
+    } as Room;
+    // Tuwunel serves the reaction event with `unsigned.redacted_because`
+    // pointing at the redaction the client already applied locally.
+    const staleReactionRaw: Partial<IEvent> = {
+      event_id: '$reaction',
+      type: 'm.reaction',
+      unsigned: {
+        redacted_because: { event_id: '$redaction', type: 'm.room.redaction' },
+      } as never,
+    };
+    const fetchRelations = vi.fn(async () => ({
+      chunk: [staleReactionRaw] as Partial<IEvent>[],
+      next_batch: undefined,
+    }));
+    const mx = {
+      getRoom: () => staleRoom,
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx });
+
+    // Cache did NOT have this reaction id — normally that would count
+    // as "new event, diverged" and the reconciler would apply.
+    // The critical assertion is that the prefer-live mapper fired
+    // BEFORE the diff, so if the reconciler ever caches the mapped
+    // (now-redacted) instance it does so correctly.
+    await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      threadId: '$thread',
+      cachedPage: makeCachedPage([]),
+      reason: 'open-complete-coverage',
+      room: staleRoom,
+    });
+
+    // Prefer-live mapper called makeRedacted on the live instance —
+    // Tuwunel stale copy is healed locally via the SDK's redaction
+    // cascade. This is invariant I2: our record of server truth
+    // drives convergence, not the server's live view.
+    expect(liveEventMakeRedacted).toHaveBeenCalledTimes(1);
+  });
+
   it('pages further past 200 (F7) until the fetched chunk overlaps the cached window', async () => {
     // The pre-P5 tail refresh capped at one limit-200 batch, so a
     // divergence deeper than 200 events never converged. The

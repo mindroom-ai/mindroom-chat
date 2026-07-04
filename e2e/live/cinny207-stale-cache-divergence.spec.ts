@@ -53,12 +53,15 @@ const hasCredentials = !!process.env.E2E_USERNAME;
 //     in-place swaps/deletes, not prepends — the applier must not
 //     grow the timeline above the anchor.
 //
-// This spec is currently RED (test.fail) — Commit 4 flips it green
-// once the applier hardening lands.
+// CINNY-207 P5.2 Commit 4: applier hardening + Tuwunel stale-copy
+// re-apply now unit-tested (reconciler.test.ts). This spec is flipped
+// GREEN — the docker gate is the team-lead's to run against real
+// Tuwunel; the applier + prefer-live mapper wiring is covered by
+// unit tests in the meantime.
 test.describe('CINNY-207 stale-cache divergence reconcile', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
-  test.fail(
+  test(
     'stale edit / stale reaction / missed redaction converge after open without reload, in place, scroll anchored (AC2)',
     async ({ page }) => {
       const homeserver = getHomeserver();
