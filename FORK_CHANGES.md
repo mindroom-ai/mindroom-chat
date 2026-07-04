@@ -2,6 +2,176 @@
 
 ## Runbook
 
+### CINNY-207 P3.1 + P3.2 - MindroomSyncEngine skeleton, write-through, gap detection (2026-07-03)
+
+- Status:
+  - In progress on `cache-overhaul/10-p3-sync-engine` (branched from
+    the local 09 tip `df16c3b2`). Four of the six planned commits
+    landed; two remain (P3.3 strip + docs). Behavior net today:
+    engine writes are live in parallel with the existing component
+    write path (dual-write is convergent under idempotent IDB
+    upserts, so no user-visible regression). F1 (background room
+    cache freshness) is fixed by the engine's client-level listeners
+    even before the P3.3 strip removes the component-side persist.
+  - Commit 5 (P3.3 strip: delete `roomCacheLifecycleController` and
+    `threadCachePersistenceController`, shrink
+    `roomLiveEventController` to render-only, rewire the eight fetch
+    controllers onto `useMindroomSyncEngine`, delete the P1.1 sweep
+    guard, add engine architecture tests, flip
+    `cinny207-background-room-freshness.spec.ts` to green) has NOT
+    landed. Commit 6 (docs — full plan status log entry, scorecard
+    AC5/AC6 update, Deviations, section 6.4 guard-list update) is
+    pending on commit 5.
+- Commits (in order, all green typecheck + focused vitest):
+  - `6eb4b1a1` — `feat: MindroomSyncEngine skeleton with lifecycle
+    and live-mode gating (CINNY-207 P3.1)`. New
+    `src/app/mindroom/engine/`: `types.ts`,
+    `mindroomSyncEngine.ts` (create/start/stop, idempotent,
+    liveMode flips on Prepared/Syncing/Catchup, never flips back on
+    Reconnecting, resets on stop for account-switch semantics,
+    primes from `getSyncState()` on warm start), `engineContext.tsx`
+    (provider + hook), `engineWriteThrough.ts` (skeleton at this
+    commit — only bumps `engineLiveWrites` probe),
+    `engineGapTracker.ts` (stub at this commit), `index.ts`. Engine
+    effect wired in `ClientRoot.tsx` immediately BEFORE the
+    startClient effect (React effect declaration order guarantees
+    listeners attach before startClient begins delivering events).
+    `MindroomSyncEngineProvider` wraps ready content inside
+    `MatrixClientProvider`. `cacheProbe.ts` gains `engineLiveWrites`
+    counter (AC6 evidence). `ClientRoot.test.ts` mock extended with
+    `getHomeserverUrl`/`getSafeUserId`. Tests: 9 lifecycle/gating
+    (start/stop idempotency, full listener symmetry, liveMode gate
+    pre/post-Prepared, reconnect keeps live, warm-client priming,
+    ignore rules, redaction dispatch, gap-tracker wiring, flush
+    contract). 12/12 pre-existing ClientRoot tests still green.
+  - `8dd59f10` — `refactor: move compaction scheduler and redaction
+    lifecycle into the engine (CINNY-207 P3.1)`. Pure moves + import
+    updates only. Git-tracked renames (100%/98%):
+    `threads/editCompactionScheduler.{ts,test.ts}` and
+    `threads/redactionCacheLifecycle.{ts,test.ts}` → `engine/`.
+    Consumer imports updated in `roomLiveEventController.ts`,
+    `useThreadRenderState.ts`, `roomLiveEventController.compaction.test.ts`
+    (vi.mock retargeted), `engine/redactionCacheLifecycle.ts`
+    (`eventRepository` still in `threads/`). No behavior change.
+    31 relocated + consumer tests green (7 + 11 + 13); 96/96 arch.
+  - `8a39be9c` — `feat: global Tier-1 write-through with compaction
+    and redaction lifecycle (CINNY-207 P3.1)`. Full
+    `engineWriteThrough` implementation. Owns its own scheduler +
+    `pendingCompactionReplace` map. `scheduleReplaceCompaction`
+    preserves verbatim: arm-time cross-sender direct persist,
+    D12-latest capture, fire-time target-miss standalone fallback
+    with `editCompactionTargetMisses` probe, fire-time cross-sender
+    `[target, replace]` pair emit, thread attribution captured at
+    schedule time. Redaction lifecycle absorbed:
+    `planRedactionCacheCleanup` with `fallbackThreadId: undefined`
+    (engine has no "open thread"; attribution derives from SDK
+    state); `candidateParentIds` collected from room live timeline
+    ids + every thread timelineSet's ids;
+    `removeAggregatedReactionByEventId` over
+    `[threadTimelineSet, roomUnfilteredTimelineSet]`; persist the
+    redaction event itself in every case (I2 comment — stale
+    unpruned copies converge via our cached redaction record).
+    Semantic changes per plan (Deviations pending in commit 6):
+    live thread appends persist `tailLoaded: true` always; redaction
+    persists use `tailLoaded: undefined` (no-downgrade). Timeline
+    dispatch also routes redactions through the redaction lifecycle
+    (SDK re-emits on the Timeline channel). Dual-write with the
+    component controllers expected and convergent under idempotent
+    IDB upserts. Tests: 13 plain-TS compaction (rewrite of the old
+    15-mock component suite, no react-test-renderer — every
+    behavior preserved: arm-time miss, fire-time miss, D12, cross-
+    sender direct, late-cross-sender pair, key isolation, N-coalesce,
+    flush) + 2 F1 all-rooms-coverage (two rooms neither mounted,
+    both persist). Component-side `roomLiveEventController.compaction.test.ts`
+    still passes (13/13) — proves the dual-write is a no-op change
+    to the component contract. 207/207 across ClientRoot + cache +
+    arch + render-state + compaction.
+  - `65fce38b` — `feat: limited-sync gap detection with gap-fill
+    queue stub (CINNY-207 P3.2)`.
+    `cacheStoreSchema.CachedMetaRecord` gains optional additive
+    `tailDiscontinuity: { markedAt, prevBatch? }` (no schema bump;
+    older readers ignore unknown fields).
+    `cacheStoreDiscontinuity.ts` (new) —
+    `markRoomTailDiscontinuity` / `clearRoomTailDiscontinuity` /
+    `loadRoomTailDiscontinuity` writing the marker on the
+    room-timeline meta row (scope=''), safe to call before any
+    events are cached. `engineGapTracker.ts` replaces the Commit-1
+    stub: `RoomEvent.TimelineReset` on the room's UNFILTERED
+    timelineSet marks + enqueues a `limited-sync` job with the
+    current backward pagination token; resets on other timelinesets
+    (thread rebuild) are ignored; `ClientEvent.Sync → PREPARED`
+    enqueues `startup` jobs per joined room (skips leave/invite/
+    others). `GapFillScheduler` interface + in-memory
+    implementation with roomId dedup + priority (`limited-sync`
+    supersedes `startup`; later `startup` cannot downgrade an
+    in-flight `limited-sync`). `gapFillsEnqueued` probe (AC13
+    evidence). `engine/engineGapTracker.ts` added to the
+    `cacheStore.architecture` allowlist (marker APIs are
+    cacheStore-native with no rendering counterpart, so routing
+    through `eventRepository` would be a gratuitous pass-through).
+    AC13 red spec `e2e/live/cinny207-gap-fill-restart.spec.ts` with
+    `test.fail()` (flips green in Phase 4 when the executor drains
+    the queue). Tests: 9 gap tracker + 8 discontinuity storage
+    (both suites all green). 80/80 P2 arch + contract + eviction +
+    ledger still pass.
+- Divergences / open items:
+  - Divergence #1 (roomPagination): `roomPaginationCommandController.ts`
+    exists but does NOT reference persist fns today (plan spec
+    counted nine, reality is eight). Team-lead was asked to pick
+    option (a) — accept 8 and Deviation — or option (b) — add an
+    engine persist call so paginated room events survive the P3.3
+    sweep deletion. Answer still pending; default is (b) at
+    commit 5.
+  - Divergence #2 (Commit 5 scope): commit 5 is a ~500-line delta
+    to production write semantics. Team-lead was asked to pick
+    (A) land 5 + 6 in this same PR tonight, or (B) ship commits
+    1-4 as PR now, defer 5 + 6 to a follow-up on top. Answer
+    pending; default is (A). If deferring, the next session's
+    resume point is task #26 (P3.3 Commit 5) on this branch —
+    dual-write is safe to leave in place indefinitely because
+    the component and engine persist paths agree on record shape
+    under idempotent IDB upserts.
+- Decisions:
+  - Engine effect declaration order matters (verified in
+    ClientRoot.tsx as placed between the loadClient effect (296)
+    and the startClient effect (347) — React commits effects
+    top-down). Do not reorder without re-verifying.
+  - `sessionId = createSessionId(mx.getHomeserverUrl(),
+    mx.getSafeUserId())` matches the id used everywhere else
+    (`MindroomRoomTimeline.tsx:297`, six other sites) — engine
+    writes and everyone else's reads agree on DB name.
+  - Live-mode gate deliberately does NOT flip false on
+    Reconnecting/Error — mid-session reconnect events are exactly
+    the ones we most want to persist. Only `stop()` (teardown /
+    logout / account switch) resets the flag.
+  - `tailLoaded: true` for live thread appends is the plan's
+    semantic change (product-owner-accepted). Safe because
+    `mergeThreadCacheFlag` never downgrades true→false.
+    Redaction persists use `tailLoaded: undefined` (no-downgrade).
+  - `RoomEvent.TimelineReset` on non-unfiltered timelineSets is
+    NOT a gap event (threads rebuild for other reasons).
+  - Gap-fill queue uses roomId dedup with `limited-sync > startup`
+    priority. Phase 4 executor consumes `pendingJobs()` and calls
+    `clearRoomTailDiscontinuity` after a successful fill.
+- Validation cadence:
+  - Per commit: `npm run typecheck` clean + focused vitest green.
+  - After commit 3: 207/207 across ClientRoot + cacheStore arch +
+    cache + render-state + compaction (proved dual-write does not
+    regress any existing test).
+  - After commit 4: 92/92 across cacheStore arch + ClientRoot +
+    all P2 storage suites (proved allowlist update + schema
+    additive field are backwards-compatible).
+- Next steps:
+  - Commit 5 (P3.3 strip) as described above.
+  - Commit 6 (docs: full plan status log entry, header status
+    update, scorecard AC5/AC6 rows, Deviations for tailLoaded
+    semantics + P3.2 exit scope + liveMode initial-sync skip
+    bridged by startup jobs + encrypted-rooms parity, §6.4
+    guard-list update).
+  - Team-lead docker e2e gate on the P3 tip (streamed-edit +
+    stop-emoji + background-freshness — the last should flip
+    green with the engine active even before commit 5).
+
 ### CINNY-207 P2.3 - Direct cacheStore imports + boundary guards (2026-07-04)
 
 - Status:
