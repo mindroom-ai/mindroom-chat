@@ -925,6 +925,71 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     expect(renderTargetMakeReplaced).toHaveBeenCalledTimes(1);
   });
 
+  it('widens onRepaired to carry the repaired events batch — P5-GATE-FIX v3 dual-injection contract', async () => {
+    // Team-lead directive: engine widens `onRepaired` to
+    // `(repairedEvents: readonly MatrixEvent[]) => void`. Component-side
+    // callbacks call `setSupplementalThreadEvents(threadId, batch)`,
+    // which is the render-side leg of the dual-injection fix (SDK-side
+    // leg is `liveThread.addEvents(allMapped, false)` above).
+    //
+    // Why this matters: on the complete-coverage cache-first path the
+    // SDK bootstrap is skipped by design; the render leans on
+    // `fallbackThreadEventsState.events`, populated by
+    // `setSupplementalThreadEvents`. An SDK-only injection leaves that
+    // path painting v1 forever, which is exactly the AC2 regression
+    // the v2 (instance-race) fix addressed for cache-clone identity
+    // but did not fix for the SDK-doesn't-know-the-id case.
+    //
+    // The batch handed to onRepaired is the fully-mapped, prefer-live
+    // fetched event set — the same set the SDK receives via
+    // addEvents. That mirrors the SDK's own dedup guarantee: the
+    // render's `setSupplementalThreadEvents` merges by event id via
+    // `mergeThreadRenderEvents`, so re-passing a live-known event is
+    // a no-op there too.
+    const room = makeFakeRoom();
+    const fetchRelations = vi.fn(async () => ({
+      chunk: [
+        { event_id: '$edit-v2', type: 'm.room.message' },
+        { event_id: '$reply-1' },
+      ] as Partial<IEvent>[],
+      next_batch: undefined,
+    }));
+    const mx = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx });
+    const onRepaired = vi.fn();
+
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$reply-1']),
+      reason: 'open-complete-coverage',
+      onRepaired,
+    });
+
+    expect(result.repaired).toBe(true);
+    expect(onRepaired).toHaveBeenCalledTimes(1);
+    // The load-bearing assertion: onRepaired receives the repaired
+    // batch as its first argument. Under the pre-v3 zero-arg wiring,
+    // `onRepaired.mock.calls[0][0]` is undefined — the component-side
+    // callback has nothing to hand to `setSupplementalThreadEvents`,
+    // so the fallback event state cannot converge. Under v3 the
+    // callback receives the full mapped batch.
+    const [batchArg] = onRepaired.mock.calls[0];
+    expect(Array.isArray(batchArg)).toBe(true);
+    expect(batchArg).toHaveLength(2);
+    const batchIds = (batchArg as MatrixEvent[]).map((mEvent) => mEvent.getId());
+    expect(batchIds).toContain('$edit-v2');
+    expect(batchIds).toContain('$reply-1');
+  });
+
   it('does NOT inject into the SDK thread on the D7 no-op path — P5-GATE-FIX cost guarantee', async () => {
     // D7 promise: when the cache was right, the reconciler is
     // zero-cost. Injecting events into the SDK thread even on the

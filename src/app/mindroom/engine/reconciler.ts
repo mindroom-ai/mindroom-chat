@@ -110,10 +110,27 @@ export type ScheduleReconcileArgs = {
   readonly reason: ReconcileReason;
   /**
    * Fired at most once per pass, and only when the reconciler actually
-   * applied a repair. The intent is a batched render tick — the caller
-   * does not need to distinguish which repair changed what.
+   * applied a repair. Receives the fully-mapped, prefer-live event
+   * batch the reconciler fetched — the SAME set that was injected
+   * into the SDK thread model via `liveThread.addEvents(batch, false)`
+   * on the SDK-side leg of the P5-GATE-FIX v3 dual-injection.
+   *
+   * Why the batch is handed to the callback (P5-GATE-FIX v3): the
+   * complete-coverage cache-first path skips SDK bootstrap by design;
+   * `useThreadRenderState.buildThreadEvents` reads the SDK-populated
+   * `thread.events` AND the component-owned
+   * `fallbackThreadEventsState.events`. SDK-only injection leaves the
+   * fallback state stale on that path. The component-side callback
+   * routes this batch through `setSupplementalThreadEvents(threadId,
+   * batch)`, whose internal `mergeThreadRenderEvents` dedups by event
+   * id — so re-passing a live-known event is a no-op. Keeping this
+   * boundary out of the engine preserves the P3.3 render-only
+   * invariant (engine does NOT import `setSupplementalThreadEvents`).
+   *
+   * The intent remains a single batched render tick — the caller does
+   * not need to distinguish which repair changed what.
    */
-  readonly onRepaired?: () => void;
+  readonly onRepaired?: (repairedEvents: readonly MatrixEvent[]) => void;
   /**
    * Optional predicate to abort mid-pass. Wired so a component unmount
    * (thread closed, room switched) can stop a straggling reconcile
@@ -337,7 +354,7 @@ const runThreadReconcilePass = async ({
   roomId: string;
   threadId: string;
   cachedPage: HydratedThreadCachePage | undefined;
-  onRepaired: (() => void) | undefined;
+  onRepaired: ((repairedEvents: readonly MatrixEvent[]) => void) | undefined;
   shouldContinue: (() => boolean) | undefined;
   signal: AbortSignal;
   reason: ReconcileReason;
@@ -517,7 +534,16 @@ const runThreadReconcilePass = async ({
   }
 
   countCacheProbe('reconcilesRepaired');
-  if (onRepaired) onRepaired();
+  // P5-GATE-FIX v3 (AC2 dual-injection, render leg): hand the
+  // fully-mapped, prefer-live batch to the caller. Component-side
+  // callback routes it through `setSupplementalThreadEvents(threadId,
+  // batch)` — the render's fallback-events sink. This keeps the
+  // engine free of any knowledge of `setSupplementalThreadEvents`
+  // (P3.3 render-only boundary invariant) while making both render
+  // paths converge on the same tick: SDK-populated `thread.events`
+  // (from `liveThread.addEvents(allMapped, false)` above) AND the
+  // component-owned `fallbackThreadEventsState.events`.
+  if (onRepaired) onRepaired(allMapped);
 
   logTimelineDebug(debugTraceId, 'reconcile-complete', {
     fetchedCount,

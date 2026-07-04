@@ -176,6 +176,11 @@ export const useThreadOpenLifecycleController = ({
           pinThreadToBottomOnOpen,
           scheduleReconcile,
           room,
+          // CINNY-207 P5-GATE-FIX v3 (AC2 dual-injection, render leg):
+          // wire the render's supplemental-events sink into the
+          // cache-first path so the reconciler's widened `onRepaired`
+          // batch can converge the complete-coverage fallback state.
+          setSupplementalThreadEvents,
           setThreadHasMoreCachedBack,
           setThreadInitialCacheHydrated,
           setThreadTailLoaded,
@@ -218,8 +223,18 @@ export const useThreadOpenLifecycleController = ({
           threadId,
           cachedPage: cacheFirstResult.hydratedCachedPage,
           reason: 'open-partial-coverage',
-          onRepaired: () => {
+          // P5-GATE-FIX v3 (AC2 dual-injection, render leg): even on
+          // the partial-coverage path where SDK bootstrap DID run,
+          // routing the repaired batch through
+          // `setSupplementalThreadEvents` keeps the render's fallback
+          // events aligned with the SDK's newly-injected events —
+          // `mergeThreadRenderEvents` inside the sink dedups by
+          // event id so double-injection is a no-op there.
+          onRepaired: (repairedEvents) => {
             if (!mounted || threadIdRef.current !== threadId) return;
+            if (repairedEvents.length > 0) {
+              setSupplementalThreadEvents(threadId, [...repairedEvents]);
+            }
             forceTimelineUpdate();
             setThreadTimelineTick((val) => val + 1);
           },
