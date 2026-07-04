@@ -357,6 +357,22 @@ vi.mock('../../../features/room/RoomTimeline.css', () => ({
   TimelineFloat: () => 'TimelineFloat',
 }));
 
+vi.mock('../TimelineMinimap.css', () => ({
+  MinimapContainer: 'MinimapContainer',
+  MinimapBody: 'MinimapBody',
+  MinimapRail: 'MinimapRail',
+  MinimapRailLine: 'MinimapRailLine',
+  MinimapStrip: {
+    Rest: 'MinimapStripRest',
+    Near: 'MinimapStripNear',
+    Close: 'MinimapStripClose',
+    Active: 'MinimapStripActive',
+  },
+  MinimapPreviewCard: 'MinimapPreviewCard',
+  MinimapPreviewTitle: 'MinimapPreviewTitle',
+  MinimapPreviewBody: 'MinimapPreviewBody',
+}));
+
 vi.mock('../../../utils/matrix', () => ({
   eventWithShortcode: (_packs: unknown, body: string) => body,
   factoryEventSentBy: () => false,

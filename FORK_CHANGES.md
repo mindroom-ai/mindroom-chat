@@ -2,6 +2,151 @@
 
 ## Runbook
 
+### CINNY-219 - Timeline minimap: left-edge stripes for human messages (2026-07-03)
+
+- Status:
+  - Complete locally, verified live against the local Tuwunel fixtures;
+    rebased onto the v4.12.3-based `dev` (originally authored as CINNY-207 on
+    the pre-replay branch; renumbered because `dev` already uses CINNY-207).
+- Summary:
+  - Ported the t3code conversation minimap (`TimelineMinimap` in
+    `apps/web/src/components/chat/MessagesTimeline.tsx` of
+    github.com/pingdotgg/t3code) to the MindRoom timeline: vertical stripes on
+    the left edge of the room/thread message stream, one stripe per rendered
+    `m.room.message` that was NOT sent by a MindRoom agent.
+  - Hovering the rail grows nearby stripes (dock effect) and shows a floating
+    preview card pairing the human message (single-line, bold) with the final
+    agent reply before the next human message (3-line clamp). Clicking jumps
+    the timeline to that message via `handleOpenEvent`; arrow keys / Home /
+    End / Enter navigate the rail when focused. Stripes light up via a
+    `data-in-view` attribute mutated on scroll frames without React
+    re-renders.
+  - New files: `src/app/mindroom/matrix/agentIdentity.ts` (agent detection),
+    `src/app/mindroom/threads/timelineMinimapViewModel.ts` (+ tests, pure
+    geometry/derivation ported 1:1 from t3code `MessagesTimeline.logic.ts`),
+    `src/app/mindroom/threads/TimelineMinimap.tsx` (+ `.css.ts`), and
+    `e2e/live/minimap-verify.spec.ts` with
+    `e2e/live/fixtures/minimap-fixture.sh`.
+  - Wiring in `MindroomRoomTimeline.tsx` is ~25 lines: items derive from
+    `threadEvents` (thread mode) or `threadFilteredEvents` (room mode), and
+    the overlay mounts as a sibling of `<Scroll>` inside the relative Box.
+- Decisions:
+  - Agent detection: sender localpart prefix `mindroom_` (mirrors the
+    platform's `matrix_identifiers.agent_username_localpart`) OR presence of
+    `io.mindroom.ai_run` / `io.mindroom.stream_status` /
+    `io.mindroom.tool_trace` content metadata (covers renamed/bridged
+    senders). Every other `m.room.message` gets a stripe, so other humans in
+    a room are represented — per the product ask "one stripe for every
+    message that is not made by a MindRoom agent".
+  - Geometry adaptation: the rail hit area is 16px wide at the far-left edge
+    (t3code uses 40px at x=12) because this timeline has no empty side
+    gutter — a wider rail would swallow avatar clicks. Stripe spacing (8px),
+    min items (2), max rail height (`calc(100vh - 18rem)`), proximity widths
+    (8/10/16/24px), and pointer-to-index rounding are copied exactly.
+  - The minimap is always visible when eligible (t3code's persistent-gutter
+    mode); t3code's hover-to-reveal fallback and gutter-width probe were
+    dropped since our layout never has the gutter it probes for.
+  - Fine-pointer only, enforced in JS (`matchMedia('(pointer: fine)')`) and
+    CSS: touch devices skip item derivation, scroll tracking, and rendering.
+  - Trailing agent events with empty previews (e.g. tool traces) do not wipe
+    the paired agent reply preview (deliberate deviation from t3code, which
+    overwrites with the last assistant text).
+  - Jump uses `handleOpenEvent(eventId, /* highlight */ false)` to match
+    t3code's no-highlight jump; the existing controller handles lazy loading
+    and virtualizer coordination.
+  - Logic module named `timelineMinimapViewModel.ts` because
+    `timelineMinimap.ts` collides with `TimelineMinimap.tsx` on macOS's
+    case-insensitive filesystem (TS1149).
+- Risks:
+  - Stripes only cover loaded events: thread mode initially loads the root +
+    ~10 tail events, so older human messages gain stripes as pagination
+    loads them. Verified acceptable (t3code always has full history; we
+    surface what is loaded, and clicks still lazy-load via
+    `handleOpenEvent`).
+  - The 16px rail intercepts clicks in a small far-left band at mid-height;
+    message rows have ~16px left padding there so no interactive elements
+    are covered.
+  - In-view tracking does one `querySelectorAll('[data-message-id]')` pass
+    per scroll frame; fine at current sizes, an IntersectionObserver is the
+    next step if very large unvirtualized threads make it show up in traces.
+- Next steps:
+  - Consider stripes/preview for image-only human messages (currently shows
+    the msgtype fallback text like "Image").
+  - Consider an IntersectionObserver-based in-view tracker (see Risks).
+- Review:
+  - Independent subagent review (general-purpose agent) flagged: per-item
+    DOM scans per scroll frame (fixed: single `querySelectorAll` pass
+    building an in-view id set), stale scroll element after compact-view
+    toggles (fixed: `enabled` flag re-keys the effect on
+    `showCompactRoomView`), touch devices paying hidden costs (fixed: JS
+    `matchMedia` gate), opaque single-button a11y (fixed: `role="slider"`
+    with `aria-valuenow`/`aria-valuetext`), invalid `<div>` inside
+    `<button>` (fixed: `<span>`), hardcoded shadow + unitless width in CSS
+    (fixed: `config.shadow.E400`, `toRem(1)`), and the fixture script living
+    in /tmp (fixed: committed to `e2e/live/fixtures/`).
+  - Reviewer verified: stripMap lifecycle is leak-free (component remounts
+    per `roomId:threadId` key), event-array choices match both render paths,
+    `handleOpenEvent` is the correct jump API, and no z-index conflicts with
+    `TimelineFloat` (1) or the `[+all]` button (2); minimap uses 3 with a
+    `pointer-events: none` container.
+- Validation:
+  - Green: `npm test -- src/app/mindroom/threads/timelineMinimapViewModel.test.ts`
+    (9 tests: geometry, agent identity, item derivation).
+  - Green: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts`
+    (93 tests).
+  - Green: `npm test` (full suite), `npm run typecheck`, `npm run lint`,
+    `npm run build`.
+  - Green live check: `e2e/live/minimap-verify.spec.ts` against local
+    Tuwunel :8008 fixtures + Vite dev server — asserts stripe count per
+    loaded human message, hover preview card content (question + paired
+    answer), click-jump both directions, and `data-in-view` flag
+    transitions. Screenshots in `ui-audit/minimap-{rest,hover,clicked}.png`.
+  - Re-validated after the rebase onto the v4.12.3-based `dev` (typecheck,
+    focused + architecture tests, lint, build, live spec, full `npm test`:
+    316 files, 2376 tests).
+  - Rebase follow-up: the RoomTimeline integration harnesses execute the
+    real `MindroomRoomTimeline` module graph under vitest's node
+    environment, so the new `TimelineMinimap.css` needed the same explicit
+    `vi.mock` the harnesses already use for `RoomTimeline.css` (added to
+    `test-utils/RoomTimeline.test.shared.ts` and
+    `__tests__/RoomTimelineCollapsible.test.ts`), and the
+    `matchMedia('(pointer: fine)')` probe gained a `typeof window` guard for
+    window-less test environments.
+- PR #62 review remediation (2026-07-03):
+  - Gemini claimed the in-view hook's scroll listener never attaches because
+    `scrollRef.current` is null on mount — incorrect: React assigns DOM refs
+    during the commit phase before effects run, and the only path where
+    `<Scroll>` isn't mounted (compact view) also flips `enabled`, which is in
+    the dependency array. Skipped with that rationale on the PR thread.
+  - Fixed (greptile): `aria-valuenow` is now omitted (undefined) when no
+    stripe is active instead of announcing 0; fixture passwords in
+    `minimap-fixture.sh` are env-overridable (`E2E_HUMAN_PASSWORD` /
+    `E2E_AGENT_PASSWORD`) with the local-dev defaults kept inline.
+  - Second independent subagent review found no real bugs; three minor
+    findings fixed:
+    - In-view highlighting now uses ranges (each stripe's anchor extends to
+      the next stripe's message top), so scrolling through an agent reply
+      taller than the viewport keeps its question's stripe lit instead of
+      showing no position at all.
+    - A `ResizeObserver` on the scroll container + its content re-runs the
+      in-view pass on layout changes without scroll events (window resize,
+      collapsible expand, media load).
+    - A redacted human question no longer leaks the following agent reply
+      into the previous question's preview: redacted non-agent
+      `m.room.message` events terminate the pairing run (classified by
+      sender only, since redaction strips content metadata). Regression
+      tests added for both redacted-question and redacted-agent cases.
+  - Nit follow-ups (same PR): the `(pointer: fine)` probe now subscribes to
+    the media query's `change` event (same pattern as `useSystemThemeKind`),
+    so attaching/detaching a mouse toggles the minimap without a room
+    switch; the fixture script builds login JSON via `json.dumps` so
+    overridden passwords with quotes/backslashes can't produce invalid
+    request bodies.
+  - Accepted as-is: slider semantics with Enter-to-jump — `role="slider"`
+    with `aria-valuetext` is what announces question/answer previews during
+    arrow-key navigation; alternative roles lose that or require
+    restructuring the presentational stripes into a real listbox.
+
 ### Thread overview toolbar: top spacing + inline tag filters (2026-07-03)
 
 - Status:
