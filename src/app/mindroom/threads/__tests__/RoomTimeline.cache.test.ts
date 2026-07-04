@@ -1046,68 +1046,16 @@ describe('RoomTimeline', () => {
     // (13 tests) and `src/app/mindroom/engine/__tests__/engineAllRoomsCoverage.test.ts`
     // (2 tests).
 
-    it('keeps eager-preloading past fifty batches in thread-heavy rooms until the configured limit is reached', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      settingsState.paginationLimit = 60;
-
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-      const liveEvents = [makeEvent('$visible-0', { ts: 1_000 })];
-      const liveTimeline = makeTimeline(liveEvents, {
-        backwardToken: 'page-0',
-      });
-      const room = makeRoom({ liveTimeline });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      const preloadTarget = 59;
-      let page = 0;
-      let renderer: ReturnType<typeof create> | undefined;
-
-      matrixClientMock.paginateEventTimeline.mockImplementation(async () => {
-        page += 1;
-        liveEvents.unshift(
-          makeEvent(`$visible-${page}`, { ts: 1_000 - page * 10 }),
-          ...Array.from({ length: 4 }, (_, index) =>
-            makeEvent(`$thread-${page}-${index}`, {
-              ts: 1_000 - page * 10 - index - 1,
-              threadRootId: `$root-${page}`,
-            })
-          )
-        );
-        liveTimeline.__paginationTokens.backward = page < preloadTarget ? `page-${page}` : null;
-        return true;
-      });
-
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-          await new Promise((resolve) => {
-            setTimeout(resolve, 150);
-          });
-          await flushAsyncWork(10);
-        });
-
-        await act(async () => {
-          await waitForCondition(
-            () => matrixClientMock.paginateEventTimeline.mock.calls.length >= preloadTarget,
-            800
-          );
-          await flushAsyncWork(20);
-        });
-
-        expect(matrixClientMock.paginateEventTimeline).toHaveBeenCalledTimes(preloadTarget);
-        expect(page).toBe(preloadTarget);
-        expect(virtualPaginatorState.lastOptions?.count).toBe(60);
-      } finally {
-        consoleLogSpy.mockRestore();
-        await act(async () => {
-          renderer?.unmount();
-          await flushAsyncWork(1);
-        });
-      }
-    });
+    // CINNY-207 P4.3: the "keeps eager-preloading past fifty batches"
+    // test asserted the deleted `useRoomEagerPreload` loop drove
+    // `mx.paginateEventTimeline` iteratively against the SDK live
+    // timeline. That loop is gone — deep-history sweep runs in the
+    // engine as a band-4 `BackfillScheduler` job that calls
+    // `mx.createMessagesRequest` and persists straight to IDB. The
+    // scheduler-side behavior is covered by
+    // `src/app/mindroom/engine/__tests__/deepHistoryJob.test.ts`,
+    // and the "no direct createMessagesRequest in RoomTimeline"
+    // guard in `RoomTimeline.architecture.test.ts` pins the boundary.
 
     it('renders the room thread overview outside thread view', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');

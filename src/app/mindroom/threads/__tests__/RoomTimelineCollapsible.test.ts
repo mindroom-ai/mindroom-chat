@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessageEvent } from '../../../../types/matrix/room';
 import { createDefaultThreadFilterState } from '../roomThreadOverviewModel';
 import {
+  createBackfillScheduler,
   createEnginePersistFacade,
   MindroomSyncEngineProvider,
   type MindroomSyncEngine,
@@ -999,6 +1000,12 @@ const harnessSyncEngine: MindroomSyncEngine = {
   stop: () => undefined,
   isLiveMode: () => true,
   persist: createEnginePersistFacade({ sessionId: HARNESS_TEST_SESSION_ID }),
+  // CINNY-207 P4.1 / P4.2: harness engine needs a scheduler + a
+  // noteRoomFocused no-op so the RoomTimeline useEffect that fires
+  // per-mount doesn't crash when TypeScript's structural check happens
+  // to pass but the real object lacks the field.
+  scheduler: createBackfillScheduler(),
+  noteRoomFocused: () => undefined,
 };
 
 const findCollapseModeForEvent = (renderer: ReactTestRenderer, eventId: string) =>

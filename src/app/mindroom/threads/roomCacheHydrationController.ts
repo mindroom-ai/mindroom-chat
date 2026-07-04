@@ -20,7 +20,6 @@ type ScrollToBottomState = {
 export const useRoomCacheHydrationController = ({
   alive,
   buildInitialTimeline,
-  eagerPreloadDoneForRoomRef,
   eventId,
   mx,
   room,
@@ -30,7 +29,6 @@ export const useRoomCacheHydrationController = ({
   scrollToBottomRef,
   sessionId,
   setAtBottom,
-  setEagerPreloading,
   setRoomInitialCacheHydratedKey,
   setTimeline,
   threadId,
@@ -38,7 +36,6 @@ export const useRoomCacheHydrationController = ({
 }: {
   alive: () => boolean;
   buildInitialTimeline: () => Timeline;
-  eagerPreloadDoneForRoomRef: MutableRefObject<string | null>;
   eventId?: string;
   mx: MatrixClient;
   room: Room;
@@ -48,7 +45,6 @@ export const useRoomCacheHydrationController = ({
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   sessionId: string;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
-  setEagerPreloading: Dispatch<SetStateAction<boolean>>;
   setRoomInitialCacheHydratedKey: Dispatch<SetStateAction<string | undefined>>;
   setTimeline: Dispatch<SetStateAction<Timeline>>;
   threadId: string | undefined;
@@ -143,12 +139,10 @@ export const useRoomCacheHydrationController = ({
         if (!cancelled && alive() && roomIdRef.current === room.roomId && !threadIdRef.current) {
           setRoomInitialCacheHydratedKey(room.roomId);
         }
-        // On re-entry (preload already done for this room), clear eagerPreloading
-        // regardless of whether cache hydration ran. On initial mount the preload
-        // effect handles clearing it, so only clear when preload is already done.
-        if (!cancelled && eagerPreloadDoneForRoomRef.current === room.roomId) {
-          setEagerPreloading(false);
-        }
+        // CINNY-207 P4.3: the old preload-done bookkeeping (used to
+        // clear the eagerPreloading state when re-entering a room)
+        // is gone with `useRoomEagerPreload`. Deep history now runs
+        // in the engine's scheduler and does not gate rendering.
       });
     return () => {
       cancelled = true;
@@ -156,7 +150,6 @@ export const useRoomCacheHydrationController = ({
   }, [
     alive,
     buildInitialTimeline,
-    eagerPreloadDoneForRoomRef,
     eventId,
     mx,
     room,
@@ -166,7 +159,6 @@ export const useRoomCacheHydrationController = ({
     scrollToBottomRef,
     sessionId,
     setAtBottom,
-    setEagerPreloading,
     setRoomInitialCacheHydratedKey,
     setTimeline,
     threadId,

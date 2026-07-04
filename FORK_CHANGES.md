@@ -146,6 +146,246 @@
     with `aria-valuetext` is what announces question/answer previews during
     arrow-key navigation; alternative roles lose that or require
     restructuring the presentational stripes into a real listbox.
+### CINNY-207 Phase 4 gate fix - schedulerFailed probe + executor lockstep + spec probe-reset race (2026-07-04)
+
+- Status: Applied on `cache-overhaul/11-p4-scheduler` as a single
+  hotfix commit on top of the merged Phase 4 branch. Ready for
+  docker-gate re-run of `cinny207-gap-fill-restart` (AC13).
+- Trigger: docker gate at the branch tip reported AC13 failing at
+  spec:130 with `schedulerCompleted >= 1` receiving 0. The earlier
+  assertion `gapFillsEnqueued >= 1` passed, so the tracker enqueued
+  jobs after the reset but nothing appeared to complete. Three
+  contributing gaps identified.
+- Fixes:
+  - `src/app/mindroom/engine/backfillScheduler.ts`: added
+    `schedulerFailed` probe counter, bumped from the non-abort
+    branch of the run try/catch. Previously a `createMessagesRequest`
+    reject (or any executor throw) counted as neither completed nor
+    aborted; a probe snapshot could show `0/0/0` for the same job
+    the tracker enqueued, making silent job failure indistinguishable
+    from "job never ran". Team-lead's explicit ask ("regardless").
+  - `src/app/mindroom/engine/gapFillExecutor.ts`: removed the
+    tier short-circuit inside the enqueue callback so every
+    `gapFillsEnqueued` becomes a `schedulerEnqueued` in lockstep.
+    The `resolveRoomPrefetchTier !== 'own'` check that used to skip
+    federated rooms BEFORE the scheduler now runs inside `runOnce`
+    via `isRoomEligibleForRawFetch`, which still no-ops fetch and
+    returns void. Marker semantics preserved by tier: encrypted-own
+    rooms clear the marker (unusable ciphertext, no retry point);
+    federated rooms preserve the marker (Deviations §8 - handled by
+    user attention). Net effect: every tracker enqueue produces a
+    `schedulerCompleted` bump, so a probe snapshot with
+    `gapFillsEnqueued=N, schedulerCompleted<N` is now unambiguously
+    a real execution failure (with `schedulerFailed` telling you
+    which).
+  - `e2e/live/cinny207-gap-fill-restart.spec.ts`: moved the probe
+    reset from a post-`expectLoggedInShellStable` `page.evaluate` to
+    a pre-reload `page.addInitScript`. The old order zeroed
+    counters AFTER the engine had already primed and quite possibly
+    completed its startup jobs — so the assertion window relied on
+    a NEW enqueue arriving in the following 12s, which is racy on a
+    well-caught-up sync. Init-script runs on the fresh document
+    BEFORE the app JS mounts; the probe module installs itself on
+    import and the script resets it via microtask + rAF fallback,
+    so every counter delta is attributable to the post-reload
+    engine. Also added a `schedulerFailed === 0` assertion with a
+    diagnostic message so the next gate iteration doesn't need log
+    spelunking.
+- Tests:
+  - `engine/__tests__/backfillScheduler.test.ts` (+2): non-abort
+    reject bumps `schedulerFailed` and NOT `schedulerCompleted` /
+    `schedulerAborted`; an abort-caused reject bumps
+    `schedulerAborted` and NOT `schedulerFailed`.
+  - `engine/__tests__/gapFillExecutor.test.ts` (+1): AC13 mechanism
+    test — a startup job for an own-server room with `prevBatch =
+    undefined` (the cold-reload shape from `handleSyncPrepared`)
+    still enters the scheduler and completes (`schedulerEnqueued=1`,
+    `schedulerCompleted=1`, `schedulerFailed=0`), with the SDK
+    call landing on `fromToken=null`. Also updated the federated-
+    room test to assert the new lockstep behavior (marker preserved,
+    no /messages call, but `schedulerEnqueued=1` and
+    `schedulerCompleted=1`).
+- Validation: `npx tsc --noEmit` clean; `npx vitest run` 337 files /
+  2557 tests green (+4 vs the Phase 4 baseline 2553); `npm run build`
+  OK; `npm run lint` 18 warnings / 0 errors (exact baseline, zero
+  delta).
+- Followups: `runOnce`'s createMessagesRequest catch still swallows
+  the error to keep the scheduler slot recyclable, so a network
+  failure counts as `schedulerCompleted` not `schedulerFailed`.
+  That's intentional (the marker is preserved for retry) but means
+  `schedulerFailed` only fires when the executor itself throws
+  synchronously or a follow-up write inside the try rejects. If we
+  want per-attempt observability of network failures, threading a
+  `schedulerRetried` counter through the catch is a future win.
+
+### CINNY-207 Phase 4 - BackfillScheduler + prefetch policy (2026-07-04)
+
+- Status: Complete locally on `cache-overhaul/11-p4-scheduler`. Four
+  feature commits (P4.1-P4.4) + this docs commit; the docker gate
+  (AC13 flip + regression trio) is the team-lead's responsibility
+  and runs after PR open.
+- Commits:
+  - `4f74dafa` P4.1 `feat: BackfillScheduler with priority queue,
+    dedup, and abort`.
+  - `0bc82add` P4.2 `feat: prefetch policy with homeserver detection`.
+  - `549e891a` P4.3 `refactor: delete the eager-preload loop; deep
+    history as scheduler job`.
+  - `2fa4334a` P4.4 `refactor: absorb thread seed prewarm and
+    overview resume into the scheduler`.
+- P4.1 - BackfillScheduler:
+  - `src/app/mindroom/engine/backfillScheduler.ts` (new): the
+    single client-scoped queue that serializes every backfill-shaped
+    network fetch. Job kinds are `gap-fill`, `room-deep-history`,
+    `thread-backfill`, `thread-seed`. AC8 dedup: ONE Map covers
+    queued AND in-flight, so enqueuing a duplicate
+    (roomId, threadId, kind) key returns the same promise identity
+    (`schedulerDeduped` bump). Priority bands 0-4 with within-band
+    ordering by `room.getLastActiveTimestamp()` desc.
+    `MAX_CONCURRENT_BACKFILL_JOBS = 2`. Cooperative abort v1:
+    executors get an AbortSignal, must check `signal.aborted`
+    between batches (SDK helpers don't take a signal today).
+  - Engine wired: `createMindroomSyncEngine` instantiates the
+    scheduler alongside write-through + gap tracker, exposes it on
+    the returned instance, calls `abortAll()` from `stop()`.
+  - Probe: 4 new counters (`schedulerEnqueued`, `schedulerDeduped`,
+    `schedulerAborted`, `schedulerCompleted`) — AC8 evidence handle
+    on `window.__MINDROOM_CACHE_PROBE__`.
+  - Tests: `engine/__tests__/backfillScheduler.test.ts` (14) covers
+    dedup, priority + activity ordering, concurrency cap, abort
+    semantics (in-flight, queued, unknown key, abortAll),
+    `pendingJobs` snapshot, executor error propagation.
+- P4.2 - prefetch policy + gap-fill executor + AC13:
+  - `src/app/mindroom/engine/prefetchPolicy.ts` (new): D3 policy.
+    `resolveRoomPrefetchTier(mx, room)` compares
+    `m.room.create.sender` domain to `mx.getDomain()` — NEVER parses
+    room ids (room v12 / MSC4291-safe). Tiers: `own`, `federated`,
+    `background`. Constants: PREFETCH_SCOPE='my-server',
+    ROOM_TAIL_PREFETCH_DEPTH=200, THREAD_INVENTORY_PREFETCH_LIMIT=50,
+    CURRENT_ROOM_DEEP_HISTORY_TARGET=10000. Encrypted rooms
+    rejected from raw-fetch prefetch (unusable ciphertext).
+  - `src/app/mindroom/engine/gapFillExecutor.ts` (new): over the
+    P4.1 scheduler + the Phase 3.2 gap tracker's queue. Subscribes
+    via new `GapFillScheduler.onEnqueue(...)` so a fresh
+    limited-sync reset dispatches immediately. Fetches via
+    `mx.createMessagesRequest` (Direction.Backward, 200/batch, up to
+    20 iterations) — first caller of that SDK method in the fork
+    (Deviations). Persists via `saveRoomEventsToCache`, clears the
+    durable `tailDiscontinuity` marker on success. Federated rooms
+    and encrypted own-server rooms are filtered at `runOnce` (not at
+    enqueue) so `gapFillsEnqueued` and `schedulerEnqueued` stay in
+    lockstep — see the P4 gate fix entry above for the reasoning.
+  - `src/app/mindroom/threads/cacheStore/cacheStoreLedger.ts`:
+    `noteRoomFederated(sessionId, roomId, flag)` new — patch-only
+    setter for the ledger's federated field. Existing rows: single-
+    field replace preserving counters. Missing rows: minimal
+    bootstrap. Fills the P2.2-deferred writer gap.
+  - `src/app/mindroom/engine/mindroomSyncEngine.ts`:
+    `noteRoomFocused(roomId, threadId?)` new. Resolves tier (skip
+    stamp for `background`), `noteRoomFederated`,
+    `setEvictionProtectedRoomIds([roomId])` (single-element v1,
+    Deviations), `noteRoomOpened` + `noteThreadOpened`.
+    MindroomRoomTimeline calls it from a useEffect keyed
+    [syncEngine, room.roomId, threadId] placed under the
+    enginePersistForRoom useMemo.
+  - E2E `e2e/live/cinny207-gap-fill-restart.spec.ts` tightened per
+    team-lead-approved divergence-3: seed a room, mount it, POST
+    ~25 REST messages while page is still mounted, reload, reset
+    probe on fresh page, wait 12s, assert
+    `schedulerCompleted >= 1`, `gapFillsEnqueued >= 1`, cached
+    event ids contain the last REST id. `test.fail()` removed.
+  - Architecture guard `cacheStore.architecture.test.ts` allowlist
+    extended with `engine/mindroomSyncEngine.ts` and
+    `engine/gapFillExecutor.ts` (D2 engine-native orchestrators).
+  - Tests: prefetchPolicy (10), gapFillExecutor (5),
+    noteRoomFocused (4).
+- P4.3 - delete preloadController; deep history as scheduler job:
+  - `src/app/mindroom/threads/preloadController.ts` (deleted, 317
+    lines). The `useRoomEagerPreload` hook and its recalibrate +
+    stall-guard state machine are gone.
+  - `src/app/mindroom/engine/deepHistoryJob.ts` (new):
+    `enqueueRoomDeepHistoryJob({mx, sessionId, scheduler, roomId,
+    targetEventCount?})` submits a band-4 job that fetches
+    `/messages` via `mx.createMessagesRequest` (Direction.Backward,
+    200/batch) up to CURRENT_ROOM_DEEP_HISTORY_TARGET (10000) and
+    persists through `saveRoomEventsToCache`. The SDK live timeline
+    is NEVER touched — the cache hydration path picks up the
+    records on next mount.
+  - `MindroomRoomTimeline.tsx`: dropped
+    `[eagerPreloading, setEagerPreloading]`, the reset
+    useLayoutEffect, `eagerPreloadDoneForRoomRef`, the
+    `!eagerPreloading` term in the skeleton gate, the
+    `eagerPreloading` field on the debug controller. New useEffect
+    keyed [eventId, mx, room.roomId, roomEagerPreloadEnabled,
+    sessionId, syncEngine, threadId] enqueues the band-4 job.
+  - `roomCacheHydrationController.ts` sheds the preload-done ref
+    and the eagerPreloading setter; its `.finally()` block no
+    longer clears a preload flag.
+  - `timelineDebugController.ts` drops the `eagerPreloading` prop
+    and the corresponding log field.
+  - Architecture guards updated: "delegates eager room preload
+    orchestration outside RoomTimeline" rewritten to
+    "routes deep-history preload through the engine scheduler, not
+    the SDK live timeline"; NEW guard "keeps backfill network
+    fetchers inside the engine (no direct createMessagesRequest in
+    components)". `deepHistoryJob.ts` added to the cacheStore-
+    consumer allowlist.
+  - Tests: deepHistoryJob (4) covers the request loop, encrypted
+    skip, AC8 dedup, live-timeline backward-token restoration.
+    Deleted the "keeps eager-preloading past fifty batches" test
+    from `RoomTimeline.cache.test.ts` (it asserted the deleted
+    hook's iteration count on `mx.paginateEventTimeline`).
+- P4.4 - absorb thread seed prewarm and overview resume:
+  - `threadSeedPrewarmController.ts`: `ensureThreadSeedPrewarm`
+    now wraps its cache-first seed load in
+    `syncEngine.scheduler.enqueue({kind: 'thread-seed', priority:
+    3})`. Client-scoped dedup replaces the controller-local
+    `prewarmingThreadSeedPromisesRef` map as the F9 dedup point;
+    the ref is still populated so downstream consumers
+    (threadOpenSeedController) don't change.
+  - `threadOverviewResumeController.ts`:
+    `refreshOverviewThreadCacheFromRelations` now wraps its
+    `fetchAllThreadRelations` + persist call in
+    `syncEngine.scheduler.enqueue({kind: 'thread-backfill',
+    priority: 2})`. The two in-flight/pending refs are gone; the
+    1s rate-limit on the outer trigger stays. Priority 2 sits
+    between gap-fill (0-1) and prewarm (3).
+  - The two controller files keep their outer React shape — this
+    commit relocates fetch dedup onto the scheduler, it does not
+    delete controllers. Follow-up in a later phase can enqueue
+    seed jobs directly from `engine.noteRoomFocused` (recorded in
+    Deviations).
+- Validation:
+  - `npx tsc --noEmit` clean.
+  - `npx vitest run src/app/mindroom/` 231 files / 1992 tests
+    green (+7 vs P3.3 tip = 373 engine+threads tests).
+  - `npx vitest run` full 337 files / 2553 tests green (+48 vs
+    P3.3 baseline of 2505).
+  - `npm run build` OK.
+  - `npm run lint` 18 warnings / 0 errors — matches P3 baseline
+    exactly (zero delta).
+- Docker gate: not run by this agent; team-lead runs the AC13 flip
+  + regression trio. The AC13 spec is now green-shaped (single-page
+  fixture, ~25 REST messages, probe + cache assertions) and is
+  expected to pass when Tuwunel declares `limited=true` on the
+  post-reload sync (or when the scheduler drains the fallback
+  `startup` job).
+- Followups recorded as Deviations §8 entries in this commit:
+  - Cooperative abort v1 (executors check between batches; SDK
+    fetchers don't take a signal — migration to
+    `mx.http.authedRequest({abortSignal})` is future work).
+  - Progressive-render recalibration NOT replicated (events land
+    in IDB; next mount surfaces them at once).
+  - Federated `noteRoomFederated` setter is patch-only.
+  - AC13 spec tightened to ~25 REST messages (single-page).
+  - `createMessagesRequest` is the new raw-fetch primitive in
+    the fork (gapFillExecutor + deepHistoryJob).
+  - `setEvictionProtectedRoomIds` v1 is single-element; LRU
+    inside priority covers the rest.
+  - P4.4 does not fully delete threadSeedPrewarmController /
+    threadOverviewResumeController; scheduler dedup is wired but
+    the React scaffolding remains. Follow-up simplification is
+    open.
+
 ### CINNY-207 P3 gate - Cache-derived redaction attribution (2026-07-03, round 2)
 
 - Status: Complete locally on `cache-overhaul/10-p3-sync-engine`. Second

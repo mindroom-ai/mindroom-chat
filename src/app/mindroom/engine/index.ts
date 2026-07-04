@@ -40,3 +40,30 @@ export type {
   PersistThreadCacheFromRoomEvents,
   QueueRoomThreadCachePersist,
 } from './enginePersistFacade';
+export {
+  MAX_CONCURRENT_BACKFILL_JOBS,
+  buildBackfillJobKey,
+  createBackfillScheduler,
+} from './backfillScheduler';
+export type {
+  BackfillJob,
+  BackfillJobExecutor,
+  BackfillJobKind,
+  BackfillJobPriority,
+  BackfillScheduler,
+  CreateBackfillSchedulerOptions,
+  EnqueueJobArgs,
+} from './backfillScheduler';
+export {
+  CURRENT_ROOM_DEEP_HISTORY_TARGET,
+  PREFETCH_SCOPE,
+  ROOM_TAIL_PREFETCH_DEPTH,
+  THREAD_INVENTORY_PREFETCH_LIMIT,
+  isRoomEligibleForRawFetch,
+  resolveRoomPrefetchTier,
+} from './prefetchPolicy';
+export type { RoomPrefetchTier } from './prefetchPolicy';
+export { createGapFillExecutor } from './gapFillExecutor';
+export type { GapFillExecutor, GapFillExecutorOptions } from './gapFillExecutor';
+export { enqueueRoomDeepHistoryJob } from './deepHistoryJob';
+export type { EnqueueDeepHistoryArgs } from './deepHistoryJob';

@@ -43,6 +43,20 @@ export type CacheProbeCounters = {
   // RoomEvent.TimelineReset for the room's unfiltered timelineSet.
   // The Phase 4 executor will drain the queue and clear the marker.
   gapFillsEnqueued: number;
+  // CINNY-207 P4.1 (AC8 evidence): BackfillScheduler observability.
+  // `schedulerEnqueued` bumps on every accepted enqueue, `schedulerDeduped`
+  // on the rejected duplicate (same-key AC8 dedup path), `schedulerAborted`
+  // on cooperative abort teardown, `schedulerCompleted` on natural job
+  // completion, and `schedulerFailed` on job executor rejection that
+  // wasn't caused by an abort (P4 gate fix: silent job failures were
+  // invisible from a trace and turned AC13 debugging into guesswork).
+  // Together they measure the "no duplicate in-flight jobs per (room,
+  // thread, kind)" invariant.
+  schedulerEnqueued: number;
+  schedulerDeduped: number;
+  schedulerAborted: number;
+  schedulerCompleted: number;
+  schedulerFailed: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -59,6 +73,11 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   editCompactionTargetMisses: 0,
   engineLiveWrites: 0,
   gapFillsEnqueued: 0,
+  schedulerEnqueued: 0,
+  schedulerDeduped: 0,
+  schedulerAborted: 0,
+  schedulerCompleted: 0,
+  schedulerFailed: 0,
 });
 
 let counters = createEmptyCounters();

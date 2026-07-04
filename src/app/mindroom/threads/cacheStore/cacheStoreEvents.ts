@@ -367,6 +367,16 @@ const runSaveRoomEventsTxn = async (
           tailLoaded: currentMeta?.tailLoaded,
           updatedAt: Date.now(),
           lastOpenedTs: currentMeta?.lastOpenedTs,
+          // CINNY-207 P5 review (greptile P1: gap marker clears early):
+          // preserve the durable `tailDiscontinuity` marker across meta
+          // writes. Every persisted batch during a gap-fill run calls
+          // through here with a `beforeTokenForEarliest` token, which
+          // used to silently strip the marker on the FIRST batch —
+          // long before the gap was actually closed. Callers that
+          // want to clear the marker (`clearRoomTailDiscontinuity`)
+          // do so through the dedicated helper, which is now the only
+          // path that removes the field.
+          tailDiscontinuity: currentMeta?.tailDiscontinuity,
         };
         metaStore.put(nextMeta);
       };
