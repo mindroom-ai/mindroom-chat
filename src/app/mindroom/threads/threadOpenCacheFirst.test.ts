@@ -161,11 +161,19 @@ describe('runThreadOpenCacheFirst', () => {
       1
     );
     expect(opts.pinThreadToBottomOnOpen).toHaveBeenCalledTimes(1);
-    // CINNY-207 P5.1: partial-coverage and no-cache paths let the
-    // lifecycle controller schedule the reconcile after
-    // `runThreadOpenSdkBootstrap`; the cache-first function itself
-    // only schedules on the complete-coverage exit.
-    expect(opts.scheduleReconcile).not.toHaveBeenCalled();
+    // CINNY-207 AC2 STEP 4 iter 2 STEP d (2026-07-04): the
+    // backfill-completed branch used to bail without scheduling a
+    // reconcile — pinned by the STEP b docker probe as the AC2
+    // convergence miss. The fix schedules a reconcile with reason
+    // `open-backfill-completed` on the same paint that skips SDK
+    // bootstrap (D7: coverage decides PAINT, never REVALIDATE). The
+    // no-cache and partial-coverage-without-completed-backfill paths
+    // still let the lifecycle controller schedule the reconcile
+    // after `runThreadOpenSdkBootstrap`.
+    expect(opts.scheduleReconcile).toHaveBeenCalledTimes(1);
+    const [reconcileArgs] = opts.scheduleReconcile.mock.calls[0];
+    expect(reconcileArgs.reason).toBe('open-backfill-completed');
+    expect(reconcileArgs.threadId).toBe('$root');
   });
 
   it('routes the reconciler onRepaired batch through setSupplementalThreadEvents + tick (CINNY-207 P5-GATE-FIX v3 AC2 dual-injection)', async () => {

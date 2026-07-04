@@ -2,6 +2,55 @@
 
 ## Runbook
 
+### CINNY-207 AC2 STEP 4 iter 2 STEP d — D7 fix for the backfill-completed skip (2026-07-04)
+
+- Fix (mechanism): `runThreadOpenCacheFirst`'s
+  relations-backfill-completed branch (previously a paint-and-bail
+  early-return at `threadOpenCacheFirst.ts:213`) now
+  paint-AND-schedule. The new schedule fires
+  `scheduleReconcile({..., reason: 'open-backfill-completed'})`
+  with the same `onRepaired → setSupplementalThreadEvents` wiring
+  the complete-coverage branch already uses, then returns
+  `shouldContinue: false` unchanged. The scheduler dedups against
+  any in-flight thread-scope reconcile from the pre-hydrated
+  complete-coverage path (both live at `kind='reconcile'`), so the
+  addition is safe unconditionally.
+- Rationale (D7): "coverage decides PAINT, never REVALIDATE" — a
+  complete-coverage paint (from either the pre-hydrated cache
+  snapshot OR the just-completed backfill snapshot) must ALWAYS
+  still schedule a reconcile so a stale cache converges without
+  reload. The pre-fix branch violated this by construction: the
+  backfill completed (paint OK) but revalidation was suppressed.
+- Reason string: new `open-backfill-completed` variant in the
+  `ReconcileReason` union at `reconciler.ts:88`. Kept distinct
+  from `open-complete-coverage` and `open-partial-coverage` so a
+  future trace can name each of the three schedule call sites
+  independently.
+- STEP c test flip: `it.fails` marker removed from the D7
+  invariant assertion; both tests in
+  `threadOpenBackfillCompletedSkip.test.ts` now green. New second
+  test pins the `onRepaired → setSupplementalThreadEvents` render
+  convergence leg so a future refactor cannot silently drop it.
+- Two existing tests updated for the post-fix count:
+  - `threadOpenCacheFirst.test.ts`: the
+    "backfills incomplete cached thread relations" test asserted
+    `scheduleReconcile` was NOT called on the backfill-completed
+    path — that assertion was documenting the exact bug the fix
+    closes. Now asserts one call with
+    `reason='open-backfill-completed'`.
+  - `RoomTimeline.cache.test.ts`: the
+    "fills incomplete cached thread snapshots" integration test
+    asserted `fetchRelations` was called ONCE (the backfill). The
+    reconcile now fires a second `/relations` fetch (backfill +
+    reconcile — both in `kind='reconcile'` dedup domain but from
+    different call sites, so no dedup collapse).
+- Validation: `npx tsc --noEmit` clean; `npx vitest run` 2650/2650
+  passed (2648 pre-STEP-d + 2 new); `npm run lint` 18 warnings
+  0 errors; no other files touched.
+- Next: STEP e — live docker gate; expected-failure-but-passed =
+  success → remove `test.fail()` + refresh spec header; then
+  regression run of streamed-edit and stop-emoji specs.
+
 ### CINNY-207 AC2 STEP 4 iter 2 STEP b+c — skip named, RED repro (2026-07-04)
 
 - STEP b: one docker run of the AC2 spec against the Tuwunel matrix

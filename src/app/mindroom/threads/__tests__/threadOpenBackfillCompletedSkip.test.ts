@@ -103,15 +103,17 @@ const makeBackfillCompletedOptions = () => {
   };
 };
 
-describe('AC2 STEP 4 iter 2 STEP c: relations-backfill-completed skip', () => {
-  it('reproduces the skip: backfill completes, probe counter bumps, no thread-scope reconcile scheduled (pre-fix)', async () => {
-    resetCacheProbe();
-    const opts = makeBackfillCompletedOptions();
-    // Cache page shape that lands on the partial-coverage branch and
-    // triggers `shouldBackfillThreadRelationsFromCoverage` → the code
-    // calls `backfillThreadRelationsIntoCache` (which returns
-    // `completed: true`), then early-returns with `shouldContinue:
-    // false` at threadOpenCacheFirst.ts:213.
+describe('AC2 STEP 4 iter 2 STEP c/d: relations-backfill-completed reconcile schedule', () => {
+  it('D7 invariant: a completed backfill schedules a reconcile with reason open-backfill-completed', async () => {
+    // STEP d fix (2026-07-04): repurposes the pre-existing
+    // paint-and-bail branch as paint-AND-schedule. Cache page shape
+    // that lands on the partial-coverage branch and triggers
+    // `shouldBackfillThreadRelationsFromCoverage` → the code calls
+    // `backfillThreadRelationsIntoCache` (which returns
+    // `completed: true`), then now BOTH fires `scheduleReconcile` and
+    // early-returns with `shouldContinue: false` at
+    // threadOpenCacheFirst.ts:214-249. Pre-fix: only the early-return
+    // happened, the reconcile never scheduled.
     //
     // The critical inputs for this branch:
     //   - hasCompleteCachedThreadSnapshot = false (partial coverage)
@@ -120,6 +122,8 @@ describe('AC2 STEP 4 iter 2 STEP c: relations-backfill-completed skip', () => {
     //   - a hydrated cached page with a non-empty local snapshot
     //   - coverage that is NOT complete (backwardToken present) but
     //     otherwise usable — so the partial-coverage backfill kicks in.
+    resetCacheProbe();
+    const opts = makeBackfillCompletedOptions();
     const cachedPage = {
       cacheCoverage: buildThreadCacheCoverage({
         eventCount: 2,
@@ -140,67 +144,80 @@ describe('AC2 STEP 4 iter 2 STEP c: relations-backfill-completed skip', () => {
 
     const result = await runThreadOpenCacheFirst(opts as never);
 
-    // Pre-fix state: backfill fired and reported completed, so
-    // shouldContinue is false (the pre-existing early-out).
+    // Backfill fired and reported completed, so shouldContinue is
+    // false (the SDK bootstrap is skipped because the cache now has
+    // the full snapshot). This is the pre-existing paint behavior
+    // preserved by the fix.
     expect(opts.backfillThreadRelationsIntoCache).toHaveBeenCalledTimes(1);
     expect(result.shouldContinue).toBe(false);
 
-    // Pre-fix bug: the skip counter bumps and NEITHER schedule fires.
+    // D7 invariant assertion: the reconcile was scheduled with a
+    // reason string that names the backfill-completed origin — so a
+    // trace-based diagnosis can distinguish this from the complete-
+    // coverage and partial-coverage schedule call sites.
+    expect(opts.scheduleReconcile).toHaveBeenCalledTimes(1);
+    const [reconcileArgs] = opts.scheduleReconcile.mock.calls[0] ?? [undefined];
+    expect(reconcileArgs).toBeDefined();
+    expect(reconcileArgs.roomId).toBe(opts.room.roomId);
+    expect(reconcileArgs.threadId).toBe('$root');
+    expect(reconcileArgs.reason).toBe('open-backfill-completed');
+
+    // Probe: the scheduled-cache-first counter bumped (the new
+    // schedule call site), the skip counter did NOT bump.
     const snap = getCacheProbeSnapshot();
-    expect(snap.threadOpenSkipCacheFirstBackfillCompleted).toBe(1);
-    expect(snap.threadOpenScheduledCacheFirst).toBe(0);
+    expect(snap.threadOpenScheduledCacheFirst).toBe(1);
+    expect(snap.threadOpenSkipCacheFirstBackfillCompleted).toBe(0);
     expect(snap.threadOpenScheduledLifecycle).toBe(0);
-    expect(opts.scheduleReconcile).not.toHaveBeenCalled();
   });
 
-  it.fails(
-    'D7 invariant: a completed backfill still schedules a reconcile (RED pre-fix, GREEN post-fix)',
-    async () => {
-      resetCacheProbe();
-      const opts = makeBackfillCompletedOptions();
-      const cachedPage = {
-        cacheCoverage: buildThreadCacheCoverage({
-          eventCount: 2,
-          backwardToken: 'partial-back-token',
-          hasMoreBackward: true,
-          relationSnapshotComplete: false,
-          snapshotComplete: false,
-          tailLoaded: true,
-        }),
-        events: [{ event_id: '$reply', origin_server_ts: 2 }],
-        hasMoreBefore: true,
+  it('onRepaired callback routes fetched events through supplemental sink (render convergence leg)', async () => {
+    // The complete-coverage branch (line ~167 in threadOpenCacheFirst.ts)
+    // wires the reconciler's widened `onRepaired` to
+    // `setSupplementalThreadEvents` for the same reason: SDK bootstrap
+    // is skipped so the render's `fallbackThreadEventsState` is the
+    // only surface that can converge in memory. The STEP d fix uses
+    // the same wiring on the backfill-completed branch — this test
+    // pins that behavior so a future refactor cannot silently drop it.
+    resetCacheProbe();
+    const opts = makeBackfillCompletedOptions();
+    const cachedPage = {
+      cacheCoverage: buildThreadCacheCoverage({
+        eventCount: 2,
+        backwardToken: 'partial-back-token',
+        hasMoreBackward: true,
         relationSnapshotComplete: false,
-        rootEvent: { event_id: '$root', origin_server_ts: 1 },
         snapshotComplete: false,
         tailLoaded: true,
+      }),
+      events: [{ event_id: '$reply', origin_server_ts: 2 }],
+      hasMoreBefore: true,
+      relationSnapshotComplete: false,
+      rootEvent: { event_id: '$root', origin_server_ts: 1 },
+      snapshotComplete: false,
+      tailLoaded: true,
+    };
+    opts.hydrateThreadFromCache.mockResolvedValue(cachedPage);
+
+    // Wire scheduleReconcile to invoke onRepaired with a synthetic
+    // repaired batch so we can observe the sink routing.
+    const repaired = [makeEvent('$repaired-v2', { ts: 3 })];
+    opts.scheduleReconcile.mockImplementation(async (args: never) => {
+      const a = args as { onRepaired?: (evts: unknown[]) => void };
+      a.onRepaired?.(repaired);
+      return {
+        reason: 'open-backfill-completed' as const,
+        repaired: true,
+        fetchedCount: 1,
+        iterations: 1,
+        aborted: false,
       };
-      opts.hydrateThreadFromCache.mockResolvedValue(cachedPage);
+    });
 
-      await runThreadOpenCacheFirst(opts as never);
+    await runThreadOpenCacheFirst(opts as never);
 
-      // This is the D7 invariant that MUST hold post-fix: any open
-      // that paints (from cache OR backfill-completed) must still
-      // schedule a reconcile so a stale cache converges. Pre-fix this
-      // assertion fails (scheduleReconcile called 0 times); post-fix
-      // it passes (called ≥ 1 time, with a reason describing the
-      // backfill-completed origin — checked below).
-      expect(opts.scheduleReconcile).toHaveBeenCalled();
-      const [reconcileArgs] = opts.scheduleReconcile.mock.calls[0] ?? [undefined];
-      expect(reconcileArgs).toBeDefined();
-      expect(reconcileArgs.roomId).toBe(opts.room.roomId);
-      expect(reconcileArgs.threadId).toBe('$root');
-      // Reason string documents WHERE the schedule came from so a
-      // trace-based diagnosis can distinguish backfill-completed
-      // reconciles from complete-coverage and partial-coverage ones.
-      expect(reconcileArgs.reason).toBe('open-backfill-completed');
-
-      // Post-fix probe: the scheduled-cache-first counter bumped (this
-      // is the new schedule call site), the skip counter did NOT
-      // bump (because the fix repurposes the "backfill completed"
-      // path as a paint-and-schedule, not a paint-and-bail).
-      const snap = getCacheProbeSnapshot();
-      expect(snap.threadOpenScheduledCacheFirst).toBe(1);
-      expect(snap.threadOpenSkipCacheFirstBackfillCompleted).toBe(0);
-    }
-  );
+    expect(opts.setSupplementalThreadEvents).toHaveBeenCalledTimes(1);
+    const [threadId, events] = opts.setSupplementalThreadEvents.mock.calls[0] ?? [];
+    expect(threadId).toBe('$root');
+    expect(events).toEqual(repaired);
+  });
 });

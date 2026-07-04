@@ -4024,7 +4024,15 @@ describe('RoomTimeline', () => {
         await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
 
-        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
+        // CINNY-207 AC2 STEP 4 iter 2 STEP d (2026-07-04): after the fix,
+        // the backfill-completed branch schedules a reconcile with
+        // reason='open-backfill-completed', which fires a second
+        // `/relations` via the reconciler's page fetch. Pre-fix this
+        // was 1; post-fix it is 2 (backfill + reconcile). Both live in
+        // the same dedup domain (`kind='reconcile'`) but originate
+        // from different call sites (backfill uses `thread-backfill`),
+        // so no dedup collapses them.
+        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
         expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
         expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
         expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();

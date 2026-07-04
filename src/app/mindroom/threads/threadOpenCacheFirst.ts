@@ -244,13 +244,41 @@ export const runThreadOpenCacheFirst = async ({
         threadId,
       });
       pinThreadToBottomOnOpen();
-      // AC2 STEP 4 iter 2 (2026-07-04): the relations-backfill
-      // completed-early path is the single pre-existing bail that
-      // returns shouldContinue=false WITHOUT scheduling a reconcile
-      // and WITHOUT going through the SDK bootstrap. If the AC2 live
-      // failure lands here on the return navigation, this counter
-      // will name it — see the invariant comment on `threadOpens`.
-      countCacheProbe('threadOpenSkipCacheFirstBackfillCompleted');
+      // CINNY-207 AC2 STEP 4 iter 2 STEP d (2026-07-04): D7 fix.
+      // The pre-fix code returned shouldContinue=false here without
+      // scheduling a reconcile — which STEP b's docker gate pinned as
+      // the exact skip that lets stale post-backfill divergence stay
+      // frozen in the cache. D7 says coverage decides PAINT, never
+      // REVALIDATE — a complete-coverage paint (whether from the
+      // pre-hydrated snapshot at line ~167 or from the just-completed
+      // backfill here) must ALWAYS still schedule a reconcile so a
+      // stale cache converges without reload.
+      //
+      // Mechanics mirror the complete-coverage schedule call site
+      // above: fire-and-forget through the scheduler (deduped by
+      // roomId|threadId|kind=reconcile), and wire onRepaired through
+      // the render-fallback supplemental-events sink so the "one tick
+      // per repair" invariant holds. The scheduler dedups against any
+      // in-flight thread-scope reconcile from the pre-hydrated
+      // complete-coverage path (both live at kind='reconcile'), so
+      // this is safe to add unconditionally.
+      countCacheProbe('threadOpenScheduledCacheFirst');
+      void scheduleReconcile({
+        roomId: room.roomId,
+        room,
+        threadId,
+        cachedPage: hydratedCachedPage,
+        reason: 'open-backfill-completed',
+        onRepaired: (repairedEvents) => {
+          if (!isCurrentThreadOpen()) return;
+          if (repairedEvents.length > 0) {
+            setSupplementalThreadEvents(threadId, [...repairedEvents]);
+          }
+          forceTimelineUpdate();
+          setThreadTimelineTick((val) => val + 1);
+        },
+        shouldContinue: isCurrentThreadOpen,
+      }).catch(() => undefined);
       return {
         hydratedCachedPage,
         shouldContinue: false,

@@ -84,6 +84,13 @@ const MAX_RECONCILE_ITERATIONS = 25;
 export type ReconcileReason =
   | 'open-complete-coverage'
   | 'open-partial-coverage'
+  // CINNY-207 AC2 STEP 4 iter 2 STEP d (2026-07-04): the
+  // relations-backfill-completed branch in
+  // `runThreadOpenCacheFirst` now schedules a reconcile before its
+  // shouldContinue=false early-return. Distinct reason from the
+  // other two open-* variants so a trace can tell the three schedule
+  // call sites apart.
+  | 'open-backfill-completed'
   | 'room-open'
   | 'resume';
 
