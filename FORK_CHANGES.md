@@ -146,6 +146,54 @@
     with `aria-valuetext` is what announces question/answer previews during
     arrow-key navigation; alternative roles lose that or require
     restructuring the presentational stripes into a real listbox.
+### CINNY-207 - Native-feel cache overhaul: investigation and plan (2026-07-03)
+
+- Status:
+  - Plan complete and approved in discussion; no implementation step started.
+- Summary:
+  - Investigated the front-end caching/prefetch architecture (two mapping
+    passes plus direct reading of the cache data plane) against the product
+    goal of native-feel instant rooms/threads.
+  - Wrote the canonical living plan: `docs/mindroom-cache-overhaul-plan.md`
+    (findings F1-F13, decisions D1-D14, target MindroomSyncEngine
+    architecture, phases P0-P7, acceptance criteria AC1-AC14 with an
+    accountability scorecard).
+  - Headline findings: all cache maintenance is scoped to the mounted room
+    (no cross-room prefetch, background rooms go stale); full-timeline
+    re-persist on every live event including streaming `m.replace` (write
+    amplification); intermediate streaming edits persisted forever (~10x
+    storage amplification); no eviction or quota handling with silently
+    swallowed write failures; stale-while-revalidate violated by the
+    complete-coverage network short-circuit; stop-emoji redaction bug
+    explained by three mechanisms (missing cache delete path + redaction
+    events failing thread-relevance checks, clone-instance relation
+    aggregation, missing repaint tick).
+- Decisions:
+  - Invariants: instant paint from cache (I1) and guaranteed convergence to
+    server truth (I2); coverage flags gate painting, never revalidation.
+  - Tiered prefetch: global sync write-through for all rooms (unconditional),
+    background backfill for own-homeserver rooms by default (policy setting),
+    deep history for the current room only; homeserver detection via the
+    `m.room.create` sender domain.
+  - Cache only placeholder + latest bundled edit (no standalone `m.replace`
+    records), coalesced writes with synchronous flush on stream end.
+  - Redactions become first-class cache lifecycle (global handling, record
+    deletion, aggregation reconciled by event id).
+  - Replace the legacy message-preload-limit setting with a new prefetch
+    scope/depth settings group; wipe-and-rebuild cache migration on schema
+    bump; 1 GB storage budget on all platforms with policy-ordered eviction;
+    quick-wins-first sequencing.
+- Risks:
+  - Documented in the plan (engine extraction in a ~3,400-line component,
+    post-upgrade rebuild burst, browser quota grants below budget, SDK
+    relations instance-identity coupling, known flaky e2e specs).
+- Next steps:
+  - P0.1: cache/IO instrumentation probes and baseline capture.
+  - P0.2: red e2e specs (stop-emoji redaction three-state, streamed-edit
+    cache, background-room freshness) against the local Tuwunel fixture.
+- Validation:
+  - Documentation-only change; no source touched. Plan document and this
+    runbook entry checked with prettier.
 
 ### Thread overview toolbar: top spacing + inline tag filters (2026-07-03)
 
@@ -2907,13 +2955,14 @@ build`; live: `cinny033` jump-to-latest + permalink, `cinny070` (x2
     explicit base without touching `package.json` or `package-lock.json`.
 - Dependency ownership buckets:
   | Bucket | Dependencies / scripts | Ownership note |
-  | --- | --- | --- |
+  | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
   | Upstream dependency upgrades to adopt during rebase | `matrix-js-sdk` `38.2.0 -> 41.5.0`, `matrix-widget-api` `1.13.0 -> 1.16.1`, `sanitize-html` `2.12.1 -> 2.17.4`, `@types/sanitize-html` `2.9.0 -> 2.16.1`, `@element-hq/element-call-embedded` `0.16.3 -> 0.19.1`; upstream-only `cz-conventional-changelog`, `husky`, `lint-staged`, `bump`, `commit`, and `prepare` scripts. | Keep these in an upstream-adoption/rebase commit. Re-evaluate `patches/matrix-js-sdk+38.2.0.patch` when adopting the newer SDK because the patch is version-tied to `38.2.0`. |
   | MindRoom product/runtime dependencies | `@basnijholt/particular-drift`, `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@tabler/icons-react`, `fuse.js`, `katex`, plus `workbox-precaching` and `workbox-routing` for the forked service worker. | These are fork-owned product/runtime choices with direct imports from `src/**` or `src/sw.ts`. |
   | Native mobile dependencies | `@capacitor/android`, `@capacitor/app`, `@capacitor/browser`, `@capacitor/core`, `@capacitor/ios`, `@capacitor/keyboard`, `@capacitor/push-notifications`, `@capacitor/status-bar`, `@capacitor/cli`; generated native references also include `@capacitor/app-launcher`, `@capacitor/haptics`, and `@capacitor/splash-screen`. | Keep native packaging in a mobile-owned commit together with `capacitor.config.ts`, `android/**`, `ios/**`, and `npx cap sync` output. |
   | Test/tooling dependencies | `vitest`, `jsdom`, `react-test-renderer`, `@types/react-test-renderer`, `@playwright/test`, `typescript` `5.4.2`, `eslint` `8.57.1`, `@typescript-eslint/eslint-plugin` `6.21.0`, `@typescript-eslint/parser` `6.21.0`, `patch-package`. | Keep Vitest/Playwright/test renderer in a test harness commit. Keep TypeScript/ESLint upgrades either with test/tooling or a separate tooling bump commit. `patch-package` belongs with the Matrix SDK patch commit. |
   | Obsolete candidates, not removed in this audit | `@capacitor/app-launcher`, `@capacitor/haptics`, `@capacitor/splash-screen`. | No direct JS imports or explicit `capacitor.config.ts` plugin config were found, but they are present in generated Android Gradle files, iOS Podfile, and `Podfile.lock`. Removing them would require deliberate `npx cap sync` churn plus Android/iOS validation, so it is not safe as a lockfile-only cleanup. |
   | Inherited unchanged dependencies with no current direct references | `@atlaskit/pragmatic-drag-and-drop-hitbox`, `dateformat`. | Present unchanged in base `v4.11.1`, current fork, and upstream `v4.12.2`. They are not fork-added dependency drift, so leave them to an upstream dependency-cleanup commit unless a separate source audit removes them with upstream parity. |
+
 - Decision:
   - Do not remove dependencies or regenerate `package-lock.json` in this audit.
     The fork-added dependencies are either actively imported, part of the native
