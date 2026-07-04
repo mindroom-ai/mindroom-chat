@@ -16,7 +16,11 @@ import {
   reconcileRelationEventsWithAggregation,
 } from './eventCacheEditUtils';
 import { reconcileThreadBackwardPagination } from './threadPaginationUtils';
-import { loadThreadCachedSnapshot, mapCachedThreadPageEvents } from './eventRepository';
+import {
+  createPreferLiveEventMapper,
+  loadThreadCachedSnapshot,
+  mapCachedThreadPageEvents,
+} from './eventRepository';
 import { fetchAllThreadRelations, MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
 import {
   getAuthoritativeCachedThreadReplyCount,
@@ -62,7 +66,9 @@ export type ThreadOpenCacheController = {
     baselineEvents?: MatrixEvent[],
     expectedReplyCount?: number
   ) => Promise<{ completed: boolean; fetchedCount: number } | undefined>;
-  hydrateThreadFromCache: (expectedThreadId: string) => Promise<HydratedThreadCachePage | undefined>;
+  hydrateThreadFromCache: (
+    expectedThreadId: string
+  ) => Promise<HydratedThreadCachePage | undefined>;
   refreshLatestThreadRelationsTail: (
     expectedThreadId: string,
     cachedPage: HydratedThreadCachePage
@@ -121,7 +127,7 @@ export const useThreadOpenCacheController = ({
         threadId: expectedThreadId,
         limit: safePaginationLimitRef.current,
         maxPages: MAX_THREAD_FETCH_ITERATIONS,
-        mapEvent: (rawEvent) => mapper(rawEvent),
+        mapEvent: createPreferLiveEventMapper(room, mapper),
         shouldContinue: () => alive() && threadIdRef.current === expectedThreadId,
         onPage: (page, pageIndex, snapshot) => {
           logTimelineDebug(debugTraceId, 'thread-cache-hydrate-page', {
@@ -483,7 +489,7 @@ export const useThreadOpenCacheController = ({
       const latestRelationEvents = relData.chunk
         .slice()
         .reverse()
-        .map((rawEvent) => mapper(rawEvent));
+        .map(createPreferLiveEventMapper(room, mapper));
       if (latestRelationEvents.length === 0) {
         logTimelineDebug(debugTraceId, 'thread-refresh-latest-tail-empty', {
           threadId: expectedThreadId,
@@ -494,7 +500,7 @@ export const useThreadOpenCacheController = ({
       const cachedSnapshotEvents = mapCachedThreadPageEvents({
         events: cachedPage.events,
         rootEvent: cachedPage.rootEvent,
-        mapEvent: (rawEvent) => mapper(rawEvent),
+        mapEvent: createPreferLiveEventMapper(room, mapper),
       });
       const liveThreadTimelineSet = room.getThread(expectedThreadId)?.getUnfilteredTimelineSet();
       const redactedRelationTargets = collectRedactedRelationTargetsFromLookup(

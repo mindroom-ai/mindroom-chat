@@ -11,21 +11,19 @@ import {
   sendReaction,
   sendRoomMessage,
 } from '../helpers/matrix';
+import { readThreadEventCacheRecords } from '../helpers/storage';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
 
-// CINNY-207 P0.2: red spec for finding F6 (stop-emoji persists after
-// redaction). Documents the three failure states; flips green in P1.2.
-// See docs/mindroom-cache-overhaul-plan.md (AC3).
+// CINNY-207 P0.2/P1.2: spec for finding F6 (stop-emoji persisted after
+// redaction). Written red in P0.2; green since the P1.2 redaction cache
+// lifecycle fix. See docs/mindroom-cache-overhaul-plan.md (AC3).
 test.describe('CINNY-207 stop-emoji redaction lifecycle', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
   test('redacted stop reaction disappears in-session, after reopen, and after reload', async ({
     page,
   }) => {
-    // Expected red until P1.2 (mechanisms F6-A/B/C in the plan doc).
-    test.fail();
-
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const { accessToken, userId } = await loginToMatrix(homeserver, username, password);
@@ -110,6 +108,14 @@ test.describe('CINNY-207 stop-emoji redaction lifecycle', () => {
 
     // State A — in-session: the chip must disappear without any navigation.
     await expect(stopChip).toHaveCount(0, { timeout: 15_000 });
+
+    // The cache must hold the redaction record (it is what re-redacts stale
+    // un-pruned copies the homeserver may still serve) and no active copy.
+    await page.waitForTimeout(2_000);
+    const postRedactionRecords = await readThreadEventCacheRecords(page, roomId, rootId);
+    expect(postRedactionRecords.some((record) => record.eventType === 'm.room.redaction')).toBe(
+      true
+    );
 
     // State B — reopen: leave the thread, come back, chip must stay gone.
     await page.goto(`/home/${encodeURIComponent(roomId)}`);

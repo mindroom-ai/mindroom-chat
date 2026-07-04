@@ -146,6 +146,67 @@
     with `aria-valuetext` is what announces question/answer previews during
     arrow-key navigation; alternative roles lose that or require
     restructuring the presentational stripes into a real listbox.
+### CINNY-207 P1.2 - Stop-emoji redaction cache lifecycle (2026-07-03)
+
+- Status:
+  - Complete locally (PR 4 of the cache-overhaul stack); AC3 e2e green in all
+    three states (in-session, thread reopen, full reload).
+- Summary:
+  - Root causes fixed for finding F6 (redacted stop reaction persisting):
+    - `redactionCacheLifecycle.ts`: `planRedactionCacheCleanup` classifies a
+      redaction's cache consequences (reaction → delete records; message →
+      re-persist pruned tombstone; unknown target → left to the reconcile
+      pass), with thread-target fallbacks because a pruned reaction loses its
+      `m.relates_to` before `RoomEvent.Redaction` fires.
+    - Live handler branch in `roomLiveEventController.ts`: deletes redacted
+      reaction records (new `deleteThreadEventsFromCache` /
+      `deleteRoomEventsFromCache` APIs, plus a room-scoped by-event-id scan
+      fallback), scrubs relation aggregations by event id, persists the
+      redaction event itself, and drives an explicit repaint tick (F6-C).
+    - `createPreferLiveEventMapper` in `eventRepository.ts`: hydration
+      prefers the SDK's live instance over cache-mapped clones (F6-B) and
+      heals stale live instances when a raw copy carries
+      `unsigned.redacted_because` (applies `makeRedacted`, which cascades
+      into the SDK's Relations cleanup). Applied at the cache-hydration and
+      tail-refresh mapper sites; `threadOpenSdkBootstrap`/`fetchAllThreadRelations`
+      still map clones and are covered by the render-state scrub below.
+    - `useThreadRenderState.setSupplementalThreadEvents` scrubs reaction
+      aggregations for every redaction target known to the merged render set.
+- Decisions:
+  - Empirically discovered server behavior (docker-matrix Tuwunel): for
+    ~10 seconds after a redaction, `/relations` and thread `/messages` still
+    serve the redacted reaction **un-pruned**, and a reload's gappy `/sync`
+    can return empty without redelivering the redaction. The client therefore
+    persists the redaction record and re-applies it locally to any
+    late-arriving stale copy (invariant I2: our own record of server truth
+    drives convergence).
+  - A redacted message record is kept as a pruned tombstone, never deleted.
+  - Unknown-target redactions (target not in SDK memory) are left to the
+    Phase 5 reconcile pass; documented limitation.
+  - Review follow-ups applied: room-view redaction persistence no longer
+    downgrades a thread's cached `tailLoaded` (only the open thread's
+    live-end state is passed); ambiguous fallback thread attribution also
+    persists the redaction record to the room cache
+    (`threadTargetFromFallback`); `room` added to two hook dependency arrays
+    the mapper change started closing over.
+  - Note for P1.4: hydration now mutates real SDK instances
+    (`makeReplaced`/`makeRedacted` on prefer-live events), so the edit
+    tiebreak fix (P1.3) must land before compaction relies on it.
+- Next steps:
+  - P1.3 deterministic edit tiebreak.
+- Validation:
+  - Red check: P0.2 spec failed at reopen/reload before the fix; three
+    intermediate diagnosis loops recorded resurrection sources (cache record
+    → deleted; clone aggregation → prefer-live mapper; stale server copies →
+    redaction-record re-application + aggregation scrub).
+  - Green: `E2E_ENABLE_DEPLOYED_FIXTURE=0 ./scripts/test-e2e-docker-matrix.sh e2e/live/cinny207-*.spec.ts`
+    — stop-emoji spec genuinely green (test.fail removed), other two still
+    expected-fail as designed.
+  - Green: `npm run typecheck`; full `npm test` (2383 tests); lint 0 errors
+    (added `sessionId` hook dep after warning).
+  - Green: `npm run build` (recorded in PR 4).
+  - Independent subagent review: recorded in PR 4.
+
 ### CINNY-207 P1.1 - Delta + debounced room-cache persist sweep (2026-07-03)
 
 - Status:

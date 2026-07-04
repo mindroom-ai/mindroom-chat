@@ -23,6 +23,7 @@ import {
   type Timeline,
 } from './timelinePagination';
 import {
+  createPreferLiveEventMapper,
   getEarliestLoadedRoomEvent,
   loadRoomCachedPaginationSnapshot,
   resolveHydratedRoomBeforeToken,
@@ -106,7 +107,7 @@ export const useRoomPaginationCommandController = ({
           roomId: room.roomId,
           earliestLoadedEvent,
           limit: cachePageLimit,
-          mapEvent: (rawEvent) => mapper(rawEvent),
+          mapEvent: createPreferLiveEventMapper(room, mapper),
         });
 
         if (!alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;

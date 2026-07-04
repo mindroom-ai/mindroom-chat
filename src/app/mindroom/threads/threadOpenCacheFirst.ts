@@ -2,7 +2,7 @@ import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matri
 import type { Dispatch, SetStateAction } from 'react';
 import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from './timelineDebug';
-import { mapCachedThreadPageEvents } from './eventRepository';
+import { createPreferLiveEventMapper, mapCachedThreadPageEvents } from './eventRepository';
 import {
   hasUsableThreadCacheSnapshot,
   isCompleteThreadCacheCoverage,
@@ -131,7 +131,7 @@ export const runThreadOpenCacheFirst = async ({
     const cachedSnapshotEvents = mapCachedThreadPageEvents({
       events: hydratedCachedPage.events,
       rootEvent: hydratedCachedPage.rootEvent,
-      mapEvent: (rawEvent) => mapper(rawEvent),
+      mapEvent: createPreferLiveEventMapper(room, mapper),
     });
     const baselineBackfillEvents =
       threadOpenSeedSession.mergeWithInitialRoomThreadSeedEvents(cachedSnapshotEvents);

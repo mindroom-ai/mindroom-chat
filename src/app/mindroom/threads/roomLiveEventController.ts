@@ -13,7 +13,16 @@ import {
 } from '../messages/threadSummary';
 import { markMainTimelineAsRead } from '../notifications/readReceipts';
 import { getLiveCollapsibleMessageExpandId } from './threadCollapsibleMessages';
-import { getThreadCacheTargetId } from './eventRepository';
+import {
+  deleteRoomEventsFromCache,
+  deleteThreadEventFromCacheByEventId,
+  deleteThreadEventsFromCache,
+  getThreadCacheTargetId,
+} from './eventRepository';
+import {
+  planRedactionCacheCleanup,
+  removeAggregatedReactionByEventId,
+} from './redactionCacheLifecycle';
 import { useLiveEventArrive, type TimelineArriveMeta } from './roomLiveEventArrive';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
 import { isRenderableEvent } from './roomTimelineEvents';
@@ -63,6 +72,7 @@ export const useRoomLiveEventController = ({
   roomThreadFilterActive,
   scrollRef,
   scrollToBottomRef,
+  sessionId,
   setSupplementalThreadEvents,
   setThreadTailLoaded,
   setThreadTimelineTick,
@@ -95,6 +105,7 @@ export const useRoomLiveEventController = ({
   roomThreadFilterActive: boolean;
   scrollRef: RefObject<HTMLDivElement>;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
+  sessionId: string;
   setSupplementalThreadEvents: (expectedThreadId: string, events: MatrixEvent[]) => void;
   setThreadTailLoaded: Dispatch<SetStateAction<boolean>>;
   setThreadTimelineTick: Dispatch<SetStateAction<number>>;
@@ -141,6 +152,97 @@ export const useRoomLiveEventController = ({
           !!(relationTargetId && threadEventIndexMapRef.current.has(relationTargetId));
         if (liveExpandOnceId) {
           liveExpandOnceIds.current.add(liveExpandOnceId);
+        }
+
+        // CINNY-207 P1.2 (finding F6): redaction events carry `redacts`, not
+        // `m.relates_to`, so the relation-based thread checks below never
+        // match them. Handle their cache lifecycle explicitly: delete
+        // redacted reaction records, drop clone aggregations by event id,
+        // re-persist pruned message targets, and repaint.
+        if (timelineMeta.liveEvent && mEvt.isRedaction()) {
+          const cleanupPlan = planRedactionCacheCleanup({
+            room,
+            redactionEvent: mEvt,
+            fallbackThreadId: threadId,
+          });
+          if (cleanupPlan) {
+            if (cleanupPlan.deleteRecords) {
+              if (cleanupPlan.threadCacheTargetId) {
+                deleteThreadEventsFromCache(
+                  sessionId,
+                  room.roomId,
+                  cleanupPlan.threadCacheTargetId,
+                  [cleanupPlan.redactedEventId]
+                ).catch(() => undefined);
+              } else {
+                // Pruned reactions can lose every thread hint; fall back to a
+                // room-scoped scan by event id.
+                deleteThreadEventFromCacheByEventId(
+                  sessionId,
+                  room.roomId,
+                  cleanupPlan.redactedEventId
+                ).catch(() => undefined);
+              }
+              deleteRoomEventsFromCache(sessionId, room.roomId, [
+                cleanupPlan.redactedEventId,
+              ]).catch(() => undefined);
+
+              const threadTimelineSet = cleanupPlan.threadCacheTargetId
+                ? room.getThread(cleanupPlan.threadCacheTargetId)?.getUnfilteredTimelineSet()
+                : undefined;
+              const candidateParentIds = new Set<string>(threadEventIndexMapRef.current.keys());
+              room
+                .getLiveTimeline()
+                .getEvents()
+                .forEach((timelineEvent) => {
+                  const timelineEventId = timelineEvent.getId();
+                  if (timelineEventId) candidateParentIds.add(timelineEventId);
+                });
+              removeAggregatedReactionByEventId({
+                timelineSets: [threadTimelineSet, room.getUnfilteredTimelineSet()],
+                candidateParentIds,
+                redactedEventId: cleanupPlan.redactedEventId,
+              });
+            }
+
+            // Persist the redaction event itself in every case. Homeservers
+            // can serve stale un-pruned copies of the redacted event for a
+            // while (observed on Tuwunel /relations), so the cached redaction
+            // record is what lets hydration re-apply the redaction locally
+            // when such a copy arrives later (I2: server truth converges via
+            // our own record of it).
+            if (cleanupPlan.threadCacheTargetId) {
+              persistThreadEventCache(
+                cleanupPlan.threadCacheTargetId,
+                [mEvt],
+                room.getThread(cleanupPlan.threadCacheTargetId)?.rootEvent ??
+                  room.findEventById(cleanupPlan.threadCacheTargetId),
+                undefined,
+                // Only the open thread's live-end state is a meaningful tail
+                // signal; anything else must not downgrade the cached flag.
+                threadId && cleanupPlan.threadCacheTargetId === threadId
+                  ? atLiveEndRef.current
+                  : undefined
+              );
+            }
+            if (!cleanupPlan.threadCacheTargetId || cleanupPlan.threadTargetFromFallback) {
+              // Room-level target, unknown target, or ambiguous fallback
+              // attribution: the redaction record plus the pruned target
+              // reach the room cache via collectStateTargetEvents in the
+              // serializer.
+              persistRoomEventCache([mEvt]);
+            }
+          }
+
+          // Repaint so redaction-driven state (reaction chips, pruned
+          // content) leaves the screen without waiting for an unrelated
+          // event (finding F6-C).
+          if (threadId) {
+            setThreadTimelineTick((val) => val + 1);
+          } else {
+            setTimeline((ct) => ({ ...ct }));
+          }
+          return;
         }
 
         if (!timelineMeta.liveEvent) {
@@ -320,6 +422,7 @@ export const useRoomLiveEventController = ({
         roomThreadFilterActive,
         scrollRef,
         scrollToBottomRef,
+        sessionId,
         setSupplementalThreadEvents,
         setThreadTailLoaded,
         setThreadTimelineTick,

@@ -1,21 +1,13 @@
-import {
-  useEffect,
-  type Dispatch,
-  type MutableRefObject,
-  type SetStateAction,
-} from 'react';
+import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import { type MatrixClient, type Room } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import { decryptAllTimelineEvent } from '../../utils/room';
 import { hydrateCachedEvents } from './eventCacheEditUtils';
 import { markCacheHydrateEnd, markCacheHydrateStart } from './cacheProbe';
 import { logTimelineDebug } from './timelineDebug';
+import { getLinkedTimelines, getLiveTimeline, type Timeline } from './timelinePagination';
 import {
-  getLinkedTimelines,
-  getLiveTimeline,
-  type Timeline,
-} from './timelinePagination';
-import {
+  createPreferLiveEventMapper,
   getMainTimelineCacheEvents,
   loadLatestRoomCacheHydrationSnapshot,
 } from './eventRepository';
@@ -82,7 +74,7 @@ export const useRoomCacheHydrationController = ({
         roomId: room.roomId,
         limit: safePaginationLimit,
         loadedEvents: loadedRoomEvents,
-        mapEvent: (rawEvent) => mapper(rawEvent),
+        mapEvent: createPreferLiveEventMapper(room, mapper),
       });
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;

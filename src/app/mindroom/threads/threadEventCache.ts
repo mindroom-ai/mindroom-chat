@@ -79,9 +79,7 @@ const getEventTs = (rawEvent: Partial<IEvent>): number =>
     ? rawEvent.origin_server_ts
     : 0;
 
-const hasRequiredThreadEventCacheStores = (
-  db: Pick<IDBDatabase, 'objectStoreNames'>
-): boolean =>
+const hasRequiredThreadEventCacheStores = (db: Pick<IDBDatabase, 'objectStoreNames'>): boolean =>
   db.objectStoreNames.contains(EVENT_STORE) && db.objectStoreNames.contains(META_STORE);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -103,9 +101,9 @@ const getRawTransactionId = (rawEvent: Partial<IEvent>): string | undefined => {
     typeof rawEvent.txn_id === 'string' && rawEvent.txn_id.length > 0
       ? rawEvent.txn_id
       : typeof rawEvent.unsigned?.transaction_id === 'string' &&
-          rawEvent.unsigned.transaction_id.length > 0
-        ? rawEvent.unsigned.transaction_id
-        : undefined;
+        rawEvent.unsigned.transaction_id.length > 0
+      ? rawEvent.unsigned.transaction_id
+      : undefined;
 
   return txnId;
 };
@@ -607,7 +605,8 @@ export const saveThreadEventsToCache = async (
           earliestEventId,
           beforeTokenForEarliest
         ),
-        rootEvent: (rootEvent && !isRawLocalEchoEvent(rootEvent)) ? rootEvent : currentMeta?.rootEvent,
+        rootEvent:
+          rootEvent && !isRawLocalEchoEvent(rootEvent) ? rootEvent : currentMeta?.rootEvent,
         expectedReplyCount: normalizedExpectedReplyCount ?? currentMeta?.expectedReplyCount,
         snapshotComplete: mergeThreadCacheFlag(currentMeta?.snapshotComplete, snapshotComplete),
         relationSnapshotComplete: mergeThreadCacheFlag(
@@ -620,6 +619,71 @@ export const saveThreadEventsToCache = async (
       metaStore.put(nextMeta);
     };
     metaRequest.onerror = () => reject(metaRequest.error);
+
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+};
+
+// CINNY-207 P1.2: targeted record deletion — a redacted reaction's record
+// must leave the cache or hydration resurrects the chip (finding F6-A).
+export const deleteThreadEventsFromCache = async (
+  sessionId: string,
+  roomId: string,
+  threadId: string,
+  eventIds: string[]
+): Promise<void> => {
+  if (eventIds.length === 0) return;
+  const db = await openThreadEventCache(sessionId);
+  if (!db) return;
+
+  countCacheProbe('eventDeletes', eventIds.length);
+
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(EVENT_STORE, 'readwrite');
+    const eventStore = transaction.objectStore(EVENT_STORE);
+    eventIds.forEach((eventId) => {
+      eventStore.delete(getEventCacheKey(roomId, threadId, eventId));
+    });
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+};
+
+// Fallback for redaction cleanup when the pruned target no longer reveals
+// which thread its record lives under: scan the room's records by event id.
+// Redactions are rare, so the room-scoped cursor walk is acceptable.
+export const deleteThreadEventFromCacheByEventId = async (
+  sessionId: string,
+  roomId: string,
+  eventId: string
+): Promise<void> => {
+  const db = await openThreadEventCache(sessionId);
+  if (!db) return;
+
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(EVENT_STORE, 'readwrite');
+    const eventStore = transaction.objectStore(EVENT_STORE);
+    const index = eventStore.index(EVENT_THREAD_TS_INDEX);
+    const range = IDBKeyRange.bound(
+      [roomId, '', 0, ''],
+      [roomId, MAX_EVENT_ID, MAX_EVENT_TS, MAX_EVENT_ID]
+    );
+
+    const cursorRequest = index.openCursor(range);
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) return;
+      const record = cursor.value as CachedThreadEventRecord;
+      if (record.eventId === eventId) {
+        countCacheProbe('eventDeletes');
+        cursor.delete();
+      }
+      cursor.continue();
+    };
+    cursorRequest.onerror = () => reject(cursorRequest.error);
 
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
