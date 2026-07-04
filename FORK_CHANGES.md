@@ -2,6 +2,108 @@
 
 ## Runbook
 
+### CINNY-207 P2.1 - Unified CacheStore (2026-07-03)
+
+- Status:
+  - Complete locally (PR 9 of the cache-overhaul stack). First step of
+    Phase 2. Follow-ups: P2.2 (eviction ledger + 1 GB budget), P2.3
+    (flip remaining direct callers off the shims + architecture guard
+    forbidding legacy imports outside cacheStore).
+- Summary:
+  - Finding F12 / decision D8: the three legacy per-domain cache
+    modules (`roomEventCache.ts`, `threadEventCache.ts`,
+    `threadSummaryCache.ts`) collapsed into a single unified module at
+    `src/app/mindroom/threads/cacheStore/` backed by one IndexedDB
+    (base name `mindroom-cache`, schema version 3, session-scoped
+    `mindroom-cache::<sessionId>`).
+  - Storage layout: one `events` object store keyed by
+    `${roomId}|${scope}|${eventId}` with a single
+    `by_scope_ts = [roomId, scope, ts, eventId]` index — `scope = ''`
+    for room-timeline records, `scope = threadId` for thread records.
+    One `meta` store keyed by `${roomId}|${scope}` carrying pagination
+    tokens, root event, meta flags. One empty `room_ledger` store
+    (created for the P2.2 eviction ledger). One `thread_summaries`
+    store keyed by `${roomId}|${threadRootId}` with a `by_room` index.
+  - Single scoped-cursor core (`runScopedCursor`) drives both room and
+    thread reads/writes. Legacy-faithful behaviors preserved: room
+    cursor skips local-echo records inside the cursor without counting
+    them toward the limit; thread cursor skips `eventId === threadId`.
+    Meta asymmetry preserved: room save writes meta only when
+    `beforeTokenForEarliest !== undefined`; thread save always writes
+    meta with `mergeThreadCacheFlag` semantics. All existing legacy
+    API signatures are preserved for shim compatibility.
+  - Pure helpers (`normalizeCachedRoomEvents`,
+    `normalizeCachedThreadEvents`, cursor anchors, filter/merge
+    helpers, thread-summary decoder) moved verbatim into
+    `cacheStoreNormalize.ts`. The two normalizers were intentionally
+    NOT unified — the thread version has txn-id dedup and local-echo
+    preference logic the room version does not; unifying them would be
+    a behavior change out of scope for P2.1.
+  - D8 wipe-and-rebuild: `cacheStoreLegacyWipe.ts` runs between
+    schema-v3 open success and the memoized promise resolving. On the
+    first open per session it deletes the three session-scoped legacy
+    DBs, plus the three unsuffixed singletons when the app has 0 or 1
+    stored sessions (mirrors the pre-existing legacy migration gate).
+    A marker record is written into the `meta` store; subsequent opens
+    read the marker and skip the wipe (exactly-once per session).
+    `deleteDatabase` is idempotent so this is safe on installs that
+    never had the legacy DBs.
+  - Legacy per-domain files became pure re-export shims. They still
+    contain the legacy DB name strings (re-exported from
+    `legacyCacheDbNames.ts`) so `sessionCleanup`, `initMatrix`, and
+    the architecture tests keep compiling. `deleteRoomEventCache`,
+    `deleteThreadEventCache`, `deleteThreadSummaryCache` all delegate
+    to `deleteCacheStoreDb` — the three DBs shared a lifecycle in
+    practice (logout always deleted them together), so collapsing has
+    no observable effect on callers.
+  - `sessionCleanup.ts`: `MINDROOM_SINGLETON_INDEXED_DB_NAMES` gains
+    `mindroom-cache`; `getMindroomSessionIndexedDbNames` and
+    `deleteMindroomSessionCaches` gain the session-scoped
+    `mindroom-cache::<sessionId>` name plus `deleteCacheStoreDb`.
+    Legacy names remain in both lists so logout works even on installs
+    that never opened v3 (rolled-back binaries).
+  - `e2e/helpers/storage.ts`: `readRoomEventCacheEventIds` and
+    `readThreadEventCacheRecords` now read from
+    `mindroom-cache::<sessionId>` → `events` store with `scope === ''`
+    or `scope === threadId` filters. Returned record shapes are
+    identical, so the cinny207 P0.2 specs (streamed edit cache,
+    stop-emoji, background-room-freshness) keep working without spec
+    changes. `seedThreadSummaryCache` writes to the unified DB and
+    pre-seeds the D8 wipe marker so its data survives the first app
+    open.
+- Decisions:
+  - Kept the two normalizers separate (see above). Unifying them
+    changes edit-dedup behavior; that lives in a later step.
+  - The `deleteThreadEventFromCacheByEventId` walk still skips
+    `scope === ''` records — this is a legacy-faithful port. Room
+    deletes go through `deleteRoomEventsFromCache` separately. P2.3
+    collapses the room+thread redaction fan-out.
+  - `resetCacheStoreForTesting()` restores the wipe hook to the
+    default (`performLegacyDbWipe`) rather than to a no-op. The AC14
+    test relies on the second open still going through the real hook
+    so it can verify the marker short-circuit — see the deviation note
+    in plan §8.
+- Next steps:
+  - P2.2 eviction ledger + 1 GB budget (D9) — the `room_ledger` store
+    and `estimateRawEventBytes` write-time counter are already in
+    place for this.
+- Validation:
+  - Red-before-green analog: commit 1 adds a parameterized round-trip
+    contract suite that first runs green against the legacy modules
+    (pinning behavior). Commits 2-4 extend it to also run against
+    cacheStore; both must stay green through every subsequent commit.
+  - `npx vitest run src/app/mindroom/threads/cacheStore/__tests__/`
+    (44/44 — contract suite 42/42 (21 legacy + 21 cacheStore), AC14
+    wipe test 2/2).
+  - `npx vitest run src/app/mindroom/` (216 files, 1908 tests).
+  - `npx vitest run` (322 files, 2469 tests).
+  - `npm run typecheck` (clean).
+  - `npm run build` (clean).
+  - `npm run lint` (0 errors, 18 pre-existing warnings — none from the
+    P2.1 changes).
+  - Docker e2e run against the P0.2 specs is deferred to the review /
+    integration session (the docker suite must not run mid-edit).
+
 ### CINNY-207 Phase 1 e2e gate (2026-07-03)
 
 - Status:

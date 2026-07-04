@@ -1,6 +1,6 @@
 # MindRoom Cache Overhaul Plan (CINNY-207)
 
-Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 (CacheStore consolidation) in progress.**
+Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 P2.1 (unified CacheStore + D8 wipe) landed locally, P2.2 / P2.3 pending.**
 Phase-1 e2e gate (2026-07-03, stack tip 55439be8): streamed-edit spec green
 live (AC4, probe numbers in scorecard), stop-emoji green (AC3; three failed
 attempts were host `ERR_NETWORK_CHANGED` flake — tracked in the Runbook),
@@ -460,7 +460,7 @@ Filled as steps complete. "Before" numbers from P0.3.
 | AC11 | ✓      | `npx vitest run src/app/mindroom/threads/cacheHealth.test.ts src/app/mindroom/threads/eventRepository.test.ts` | silent divergence → read-only degrade | workflow rounds 1-2 (p15-p16 interaction dimension clean) | 2026-07-03 |
 | AC12 | ✓      | `npx vitest run src/app/utils/room.test.ts` (tie tests) | order-dependent → id-deterministic | workflow rounds 1-2 + landed-stack review | 2026-07-03 |
 | AC13 | ☐      |                                   |                |                         |      |
-| AC14 | ☐      |                                   |                |                         |      |
+| AC14 | ☐ impl | `npx vitest run src/app/mindroom/threads/cacheStore/__tests__/cacheStoreDb.wipe.test.ts` (2/2 — legacy DB names gone from `indexedDB.databases()` on first v3 open, marker present in `meta`, reopen after `resetCacheStoreForTesting()` performs zero further `deleteDatabase` calls; multi-session gate leaves shared singletons alone). Docker e2e post-upgrade paint verification pending. | six legacy DBs present pre-open → all six absent + unified DB present post-open |                         |      |
 
 ### 6.4 Regression guards (architecture tests)
 
@@ -510,6 +510,18 @@ new engine-scoped guard file):
 
 ## 8. Deviations
 
+- 2026-07-03 — **P2.1 / D8 wipe lands before Tier 1 exists (Phases
+  3-4).** The D8 legacy-DB wipe fires on first v3 open at the end of
+  P2.1, before the sync-engine write-through (P3.1) and the
+  backfill scheduler (P4) exist to rebuild the cache. Post-upgrade
+  first-open of each room is therefore a network paint — equivalent to
+  a fresh login — until the engine repopulates. This is a transient I1
+  regression accepted for sequencing: D8 has to land as part of the
+  CacheStore consolidation so the shim flip is safe and the new
+  schema owns the DB names. It flips green again with P3.1 +
+  P3.2/P4.1. Recorded here so the AC1 gate is not signed off on the
+  P2.1 landing.
+
 - 2026-07-03 — **P1.4 / D5 "synchronous flush on stream end"** reinterpreted:
   the implementation has no stream-end *detection*; the per-target trailing
   debounce (1 s) is the stream-end flush — each edit re-arms the timer, so
@@ -523,6 +535,43 @@ new engine-scoped guard file):
   workflow review round 1; recorded here for product-owner review.
 
 ## 9. Status log
+
+- 2026-07-03 — **P2.1 landed** (PR 9): unified CacheStore module
+  consolidating `roomEventCache.ts`, `threadEventCache.ts`, and
+  `threadSummaryCache.ts` behind a single-DB schema v3 (finding F12,
+  decisions D8 + D9-prep). Storage lives in
+  `src/app/mindroom/threads/cacheStore/`: one `events` store keyed by
+  `${roomId}|${scope}|${eventId}` with a shared
+  `by_scope_ts = [roomId, scope, ts, eventId]` index (`scope=''` for
+  room-timeline, `scope=threadId` for threads); one `meta` store; one
+  empty `room_ledger` store prepared for the P2.2 eviction ledger; one
+  `thread_summaries` store with a `by_room` index. A single scoped-
+  cursor core drives both room and thread reads/writes while preserving
+  the two legacy-faithful behaviors the contract suite pins (room
+  cursor skips local-echo inside the cursor without counting toward
+  the limit; thread cursor skips `eventId === threadId`) and the meta
+  asymmetry (room meta written only when a before-token was supplied;
+  thread meta always written with `mergeThreadCacheFlag` semantics).
+  D8 wipe fires on first v3 open: deletes the three session-scoped
+  legacy DBs plus the three unsuffixed singletons (gated to 0-or-1
+  stored sessions, matching the pre-existing legacy migration gate),
+  writes an idempotency marker into `meta`, exactly-once per session.
+  The three legacy modules became pure re-export shims; the legacy
+  DB name strings are retained via `legacyCacheDbNames.ts` for logout
+  cleanup on rolled-back installs. `sessionCleanup` and
+  `initMatrix` both gained the unified `mindroom-cache` /
+  `mindroom-cache::<sessionId>` names alongside the legacy ones.
+  `e2e/helpers/storage.ts` was flipped to read the unified DB (scope
+  filter for room vs. thread) while returning the same record shapes
+  so the cinny207 P0.2 specs need no changes; `seedThreadSummaryCache`
+  writes to the unified DB and pre-seeds the wipe marker so its data
+  survives the first app open. AC14 evidence recorded above (wipe
+  test 2/2; docker verification pending). Deferred from this step:
+  P2.2 eviction ledger + 1 GB budget; P2.3 direct-import flip +
+  architecture guard forbidding legacy imports outside cacheStore.
+  Contract suite: 42/42 (21 legacy + 21 cacheStore). Full mindroom
+  suite: 216 files / 1908 tests. Full vitest: 322 files / 2469 tests.
+  Section 8 records the D8-before-Tier-1 sequencing deviation.
 
 - 2026-07-03 — **P1.6 landed** (PR 8): legacy preload setting hard-capped
   (F11). `MAX_PAGINATION_LIMIT = 10000` enforced in `sanitizePaginationLimit`

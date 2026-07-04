@@ -21,11 +21,17 @@ export const readIndexedDbNames = async (page: Page): Promise<string[]> =>
       .sort();
   });
 
-const THREAD_SUMMARY_CACHE_DB = 'mindroom-thread-summary-cache';
+// CINNY-207 P2.1 (D8): the legacy summary DB `mindroom-thread-summary-cache`
+// was consolidated into the unified `mindroom-cache` DB (schema v3),
+// which wipes the legacy names on first open. E2e seed operations
+// therefore write directly into the unified DB so seeded data
+// survives app boot.
 const SESSION_DB_PREFIX = '::';
+const UNIFIED_CACHE_DB = 'mindroom-cache';
+const UNIFIED_CACHE_DB_VERSION = 3;
 
 export const getThreadSummaryCacheDbName = (sessionId: string): string =>
-  `${THREAD_SUMMARY_CACHE_DB}${SESSION_DB_PREFIX}${sessionId}`;
+  `${UNIFIED_CACHE_DB}${SESSION_DB_PREFIX}${sessionId}`;
 
 export const createIndexedDbNames = async (page: Page, names: string[]): Promise<void> => {
   await page.evaluate(async (dbNames) => {
@@ -67,23 +73,43 @@ export const seedThreadSummaryCache = async ({
   messageCount?: number;
 }): Promise<void> => {
   await page.evaluate(
-    async ({ dbName, room, rootId, summary, generatedAt, count }) => {
+    async ({ dbName, dbVersion, room, rootId, summary, generatedAt, count }) => {
       await new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open(dbName, 1);
+        const request = indexedDB.open(dbName, dbVersion);
 
+        // If this seed opens the DB before the app does, create the
+        // full v3 schema (all four stores) so the app's corruption
+        // self-heal path does not delete-and-recreate on boot.
         request.onupgradeneeded = () => {
           const db = request.result;
+          if (!db.objectStoreNames.contains('events')) {
+            const events = db.createObjectStore('events', { keyPath: 'cacheKey' });
+            events.createIndex('by_scope_ts', ['roomId', 'scope', 'ts', 'eventId'], {
+              unique: false,
+            });
+          }
+          if (!db.objectStoreNames.contains('meta')) {
+            db.createObjectStore('meta', { keyPath: 'metaKey' });
+          }
+          if (!db.objectStoreNames.contains('room_ledger')) {
+            db.createObjectStore('room_ledger', { keyPath: 'roomId' });
+          }
           if (!db.objectStoreNames.contains('thread_summaries')) {
-            const store = db.createObjectStore('thread_summaries', { keyPath: 'cacheKey' });
-            store.createIndex('by_room', 'roomId', { unique: false });
+            const summaries = db.createObjectStore('thread_summaries', { keyPath: 'cacheKey' });
+            summaries.createIndex('by_room', 'roomId', { unique: false });
           }
         };
 
         request.onerror = () => reject(request.error ?? new Error(`Failed to open ${dbName}`));
         request.onsuccess = () => {
           const db = request.result;
-          const transaction = db.transaction('thread_summaries', 'readwrite');
+          // Pre-populate the D8 wipe marker so the app's first open
+          // skips the legacy-wipe step (there is nothing to wipe in an
+          // e2e clean-slate scenario, and we do not want the wipe to
+          // race the seed on a warm profile).
+          const transaction = db.transaction(['thread_summaries', 'meta'], 'readwrite');
           const store = transaction.objectStore('thread_summaries');
+          const metaStore = transaction.objectStore('meta');
 
           store.put({
             cacheKey: `${room}|${rootId}`,
@@ -93,6 +119,13 @@ export const seedThreadSummaryCache = async ({
             generatedTs: generatedAt,
             messageCount: count,
             updatedAt: Date.now(),
+          });
+          metaStore.put({
+            metaKey: '__cacheStore|migration',
+            roomId: '__cacheStore',
+            scope: 'migration',
+            updatedAt: Date.now(),
+            legacyWipeCompletedAt: Date.now(),
           });
 
           transaction.oncomplete = () => {
@@ -107,6 +140,7 @@ export const seedThreadSummaryCache = async ({
     },
     {
       dbName: getThreadSummaryCacheDbName(sessionId),
+      dbVersion: UNIFIED_CACHE_DB_VERSION,
       room: roomId,
       rootId: threadRootId,
       summary: summaryText,
@@ -200,6 +234,16 @@ const readStoreRecords = async (
     { names: dbNames, store: storeName }
   );
 
+// CINNY-207 P2.1 (D8): the two legacy per-domain DBs (`mindroom-room-event-cache`,
+// `mindroom-thread-event-cache`) were consolidated into a single
+// `mindroom-cache` DB with an `events` store. Records now carry a
+// `scope` field: empty string for room-timeline records, threadId for
+// thread records. The e2e helpers still return the same record shapes
+// so cinny207 specs that assert against them keep working after the
+// storage flip.
+const UNIFIED_CACHE_DB_PREFIX = 'mindroom-cache';
+const UNIFIED_EVENTS_STORE = 'events';
+
 export const readThreadEventCacheRecords = async (
   page: Page,
   roomId: string,
@@ -212,10 +256,10 @@ export const readThreadEventCacheRecords = async (
     bundledReplaceBody?: string;
   }[]
 > => {
-  const dbNames = await findMindroomCacheDbNames(page, 'mindroom-thread-event-cache');
-  const records = await readStoreRecords(page, dbNames, 'thread_events');
+  const dbNames = await findMindroomCacheDbNames(page, UNIFIED_CACHE_DB_PREFIX);
+  const records = await readStoreRecords(page, dbNames, UNIFIED_EVENTS_STORE);
   return records
-    .filter((record) => record.roomId === roomId && record.threadId === threadId)
+    .filter((record) => record.roomId === roomId && record.scope === threadId)
     .map((record) => {
       const rawEvent = record.rawEvent as
         | {
@@ -241,9 +285,9 @@ export const readThreadEventCacheRecords = async (
 };
 
 export const readRoomEventCacheEventIds = async (page: Page, roomId: string): Promise<string[]> => {
-  const dbNames = await findMindroomCacheDbNames(page, 'mindroom-room-event-cache');
-  const records = await readStoreRecords(page, dbNames, 'room_events');
+  const dbNames = await findMindroomCacheDbNames(page, UNIFIED_CACHE_DB_PREFIX);
+  const records = await readStoreRecords(page, dbNames, UNIFIED_EVENTS_STORE);
   return records
-    .filter((record) => record.roomId === roomId)
+    .filter((record) => record.roomId === roomId && record.scope === '')
     .map((record) => String(record.eventId ?? ''));
 };
