@@ -126,16 +126,18 @@ const evictRoom = (db: IDBDatabase, roomId: string): Promise<number> =>
     };
     eventsCursor.onerror = () => reject(eventsCursor.error);
 
-    // Meta: walk and delete every meta row whose roomId matches. No
-    // per-roomId index today (the metaKey is `${roomId}|${scope}`);
-    // walking works because the meta store is small (one row per
-    // scope per room).
-    const metaCursor = metaStore.openCursor();
+    // Meta: the primary key is `${roomId}|${scope}`, so a bounded key
+    // range confines the cursor to this room's rows instead of walking
+    // the whole meta store. Upper bound uses U+FFFF as a sentinel above
+    // any valid scope character (matches the sentinel used for the
+    // events-by-scope index in the eviction sweep above).
+    // CINNY-207 P2 review: was `openCursor()` (full-store walk).
+    const metaRange = IDBKeyRange.bound(`${roomId}|`, `${roomId}|￿`);
+    const metaCursor = metaStore.openCursor(metaRange);
     metaCursor.onsuccess = () => {
       const cursor = metaCursor.result;
       if (!cursor) return;
-      const record = cursor.value as CachedMetaRecord;
-      if (record.roomId === roomId) cursor.delete();
+      cursor.delete();
       cursor.continue();
     };
     metaCursor.onerror = () => reject(metaCursor.error);

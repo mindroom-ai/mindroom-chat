@@ -46,6 +46,26 @@ export const mergeCachedPaginationTokens = (
 };
 
 /**
+ * Coerce a beforeTokens map value into the timestamped shape.
+ *
+ * CINNY-207 P2 review (defensive): the v3 DB has always written
+ * `{token, savedAt}` — no shipped commit ever persisted a flat
+ * `string | null` value. Still, if a caller (a hand-crafted seed, a
+ * future migration, or a data-file replay) surfaces a flat entry, we
+ * tolerate it rather than treating the token as missing. Flat entries
+ * are treated as savedAt=0 so the prune path evicts them first.
+ */
+const normalizeTokenEntry = (
+  value: CachedPaginationTokenEntry | string | null | undefined
+): CachedPaginationTokenEntry | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null || typeof value === 'string') {
+    return { token: value, savedAt: 0 };
+  }
+  return value;
+};
+
+/**
  * Cap the map to `MAX_CACHE_BEFORE_TOKENS` entries, evicting the oldest
  * by `savedAt`. `protectedEventId` (the earliest anchor being written
  * on this save) is retained even if it happens to be the oldest.
@@ -57,10 +77,15 @@ export const pruneCachedPaginationTokens = (
   const entries = Object.entries(tokens);
   if (entries.length <= MAX_CACHE_BEFORE_TOKENS) return tokens;
 
+  // Normalize any legacy flat values (savedAt=0 makes them prunable-oldest).
+  const normalizedEntries: Array<[string, CachedPaginationTokenEntry]> = entries.map(
+    ([id, entry]) => [id, normalizeTokenEntry(entry) ?? { token: null, savedAt: 0 }]
+  );
+
   // Sort oldest → newest by savedAt. Ties (equal savedAt from batched
   // writes) fall back to lexicographic event_id for deterministic
   // eviction across load orders.
-  entries.sort(([leftId, leftEntry], [rightId, rightEntry]) => {
+  normalizedEntries.sort(([leftId, leftEntry], [rightId, rightEntry]) => {
     const diff = leftEntry.savedAt - rightEntry.savedAt;
     if (diff !== 0) return diff;
     return leftId.localeCompare(rightId);
@@ -68,9 +93,9 @@ export const pruneCachedPaginationTokens = (
 
   // Peel off oldest until we're at the cap. Skip evicting the
   // protected id so we don't lose the anchor the current write needs.
-  let toEvict = entries.length - MAX_CACHE_BEFORE_TOKENS;
+  let toEvict = normalizedEntries.length - MAX_CACHE_BEFORE_TOKENS;
   const kept: CachedPaginationTokenMap = {};
-  for (const [id, entry] of entries) {
+  for (const [id, entry] of normalizedEntries) {
     if (toEvict > 0 && id !== protectedEventId) {
       toEvict -= 1;
       continue;
@@ -85,7 +110,11 @@ export const getCachedPaginationToken = (
   eventId: string | undefined
 ): string | null | undefined => {
   if (!eventId) return undefined;
-  const entry = currentTokens?.[eventId];
+  // CINNY-207 P2 review (defensive): tolerate a legacy flat
+  // `string | null` map value — see `normalizeTokenEntry`.
+  const entry = normalizeTokenEntry(
+    currentTokens?.[eventId] as CachedPaginationTokenEntry | string | null | undefined
+  );
   return entry ? entry.token : undefined;
 };
 
