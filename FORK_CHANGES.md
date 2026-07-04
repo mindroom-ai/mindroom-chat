@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### CINNY-207 Phase 1 e2e gate (2026-07-03)
+
+- Status:
+  - Complete. Docker-matrix run on the stack tip (55439be8):
+    `cinny207-streamed-edit-cache` **green live** (AC4 — probe
+    `editCompactions=1`, `threadEventPuts=3`, exactly 1 target record with
+    the bundled final body asserted before AND after reload);
+    `cinny207-stop-emoji-redaction` **green** (AC3);
+    `cinny207-background-room-freshness` expected-red as designed (AC6,
+    flips in Phase 3).
+- Flake log (plan section 7 policy):
+  - The stop-emoji spec failed 3 times before passing, each at a
+    *different* stage (login form, post-reload paint), with 24-73
+    `net::ERR_NETWORK_CHANGED` console errors per failed run — host
+    network-interface flapping starving Chromium, not app behavior. No
+    uncaught app exceptions in any trace. Treat further failures with
+    ERR_NETWORK_CHANGED storms as environment flake; investigate only if a
+    run fails without them.
+- Next steps:
+  - Phase 2 (P2.1 CacheStore consolidation) begins; PRs are phase-sized
+    from here on (product-owner instruction).
+
 ### CINNY-207 P1.6 - Cap the legacy preload setting (2026-07-03)
 
 - Status:

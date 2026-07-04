@@ -1,8 +1,12 @@
 # MindRoom Cache Overhaul Plan (CINNY-207)
 
-Status: **Phase 1 (P1.1–P1.6) landed; Phase 2 (CacheStore consolidation) next.**
-Outstanding before Phase 2: P0.3 formal baseline capture on a seeded large
-room, and the docker e2e run of the P1.4-flipped streamed-edit spec.
+Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 (CacheStore consolidation) in progress.**
+Phase-1 e2e gate (2026-07-03, stack tip 55439be8): streamed-edit spec green
+live (AC4, probe numbers in scorecard), stop-emoji green (AC3; three failed
+attempts were host `ERR_NETWORK_CHANGED` flake — tracked in the Runbook),
+background-freshness expected-red until Phase 3 (AC6). P0.3 large-room probe
+baseline still pending; AC5 formal measurement happens with the Phase 3
+engine work.
 Created: 2026-07-03. Living document — see "How to use this document".
 
 This is the canonical plan for making MindRoom feel like a native app: every room
@@ -445,16 +449,16 @@ Filled as steps complete. "Before" numbers from P0.3.
 | ---- | ------ | --------------------------------- | -------------- | ----------------------- | ---- |
 | AC1  | ☐      |                                   |                |                         |      |
 | AC2  | ☐      |                                   |                |                         |      |
-| AC3  | ☐      |                                   |                |                         |      |
-| AC4  | ☐ impl | `npx vitest run src/app/mindroom/threads/eventCacheEditUtils.test.ts src/app/mindroom/threads/editCompactionScheduler.test.ts src/app/mindroom/threads/roomLiveEventController.compaction.test.ts src/app/mindroom/threads/eventRepository.test.ts` (compaction + exclusion + hydration cleanup); e2e `E2E_ENABLE_DEPLOYED_FIXTURE=0 ./scripts/test-e2e-docker-matrix.sh e2e/live/cinny207-streamed-edit-cache.spec.ts` pending (not run this session) | 26 thread-cache records for a 25-edit streamed message (P0.3 spec run) → exactly 1 target record with bundled edit | (pending reviewer) |      |
+| AC3  | ✓      | e2e `cinny207-stop-emoji-redaction` green on stack tip (55439be8); 3 prior failed runs were env flake (`ERR_NETWORK_CHANGED` storms, failure point wandering login/reload) | reaction resurrected on reopen/reload → gone in all three states | workflow rounds 1-2 + docker e2e run | 2026-07-03 |
+| AC4  | ✓      | e2e `cinny207-streamed-edit-cache` green LIVE on stack tip: probe `editCompactions=1`, `threadEventPuts=3`, 1 target record with bundled final body pre+post reload; unit `npx vitest run src/app/mindroom/threads/eventCacheEditUtils.test.ts src/app/mindroom/threads/editCompactionScheduler.test.ts src/app/mindroom/threads/roomLiveEventController.compaction.test.ts src/app/mindroom/threads/eventRepository.test.ts` | 26 thread-cache records for a 25-edit streamed message (P0.3 spec run) → exactly 1 target record with bundled edit | workflow round 2 (spec traced sound) + docker e2e run | 2026-07-03 |
 | AC5  | ☐      |                                   |                |                         |      |
 | AC6  | ☐      | e2e `cinny207-background-room-freshness` (red until Phase 3) | 0 cached events for a background room (P0.3 spec run) |                         |      |
 | AC7  | ☐      |                                   |                |                         |      |
 | AC8  | ☐      |                                   |                |                         |      |
 | AC9  | ☐      |                                   |                |                         |      |
 | AC10 | ☐      |                                   |                |                         |      |
-| AC11 | ☐ impl | `npx vitest run src/app/mindroom/threads/cacheHealth.test.ts src/app/mindroom/threads/eventRepository.test.ts` | silent divergence → read-only degrade | (pending reviewer) |      |
-| AC12 | ☐ impl | `npx vitest run src/app/utils/room.test.ts` (tie tests) | order-dependent → id-deterministic | (pending reviewer) |      |
+| AC11 | ✓      | `npx vitest run src/app/mindroom/threads/cacheHealth.test.ts src/app/mindroom/threads/eventRepository.test.ts` | silent divergence → read-only degrade | workflow rounds 1-2 (p15-p16 interaction dimension clean) | 2026-07-03 |
+| AC12 | ✓      | `npx vitest run src/app/utils/room.test.ts` (tie tests) | order-dependent → id-deterministic | workflow rounds 1-2 + landed-stack review | 2026-07-03 |
 | AC13 | ☐      |                                   |                |                         |      |
 | AC14 | ☐      |                                   |                |                         |      |
 
