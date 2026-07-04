@@ -1715,9 +1715,9 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       // scheduler side owns that outcome via `schedulerAborted`.
       // What we CAN drive from here is a signal.aborted observed
       // INSIDE the executor's loop, which is the reconciler's own
-      // exit path. Simulate that by making shouldContinue return true
-      // (guard passes) but resolving fetch AFTER the caller aborts
-      // the specific job.
+      // exit path. Simulate that by holding the fetch promise open
+      // and resolving it only AFTER the caller aborts the specific
+      // job, so the loop's own signal check trips mid-pass.
       const room = makeFakeRoom();
       let capturedAbort: (() => void) | undefined;
       const fetchRelations = vi.fn(

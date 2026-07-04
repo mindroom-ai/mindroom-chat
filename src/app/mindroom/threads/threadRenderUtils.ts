@@ -239,6 +239,27 @@ export const mergeThreadRenderEvents = (
   resolveConfirmedId?: (txnId: string) => string | undefined
 ): MatrixEvent[] => {
   const eventMap = new Map<string, MatrixEvent>();
+  // Reverse index: every key an instance currently holds in `eventMap`.
+  // Maintained on every write so loser-key reclamation is O(keys) per
+  // loser instead of a full-map scan (PR #73 review). The index tracks
+  // HELD keys explicitly, so it stays correct even when an instance's
+  // derivable keys change under it (local echoes mutate their event id
+  // in place on confirmation). Both maps are function-local and die
+  // with this call — no retention hazard.
+  const keysByInstance = new Map<MatrixEvent, Set<string>>();
+
+  const indexedSet = (key: string, mEvent: MatrixEvent) => {
+    const previous = eventMap.get(key);
+    if (previous === mEvent) return;
+    if (previous) keysByInstance.get(previous)?.delete(key);
+    eventMap.set(key, mEvent);
+    let heldKeys = keysByInstance.get(mEvent);
+    if (!heldKeys) {
+      heldKeys = new Set<string>();
+      keysByInstance.set(mEvent, heldKeys);
+    }
+    heldKeys.add(key);
+  };
 
   // CINNY-207 AC2 render-gap RG5d (2026-07-04): canonicalize on write.
   //
@@ -309,7 +330,7 @@ export const mergeThreadRenderEvents = (
 
     if (conflicts.size === 0) {
       // Fast path — no conflict. Plain multi-set.
-      keys.forEach((key) => eventMap.set(key, mEvent));
+      keys.forEach((key) => indexedSet(key, mEvent));
       return;
     }
 
@@ -340,26 +361,22 @@ export const mergeThreadRenderEvents = (
     });
     if (winner !== mEvent) losers.add(mEvent);
 
-    // Snapshot every key any loser currently occupies BEFORE deleting,
-    // so the winner can reclaim them. Then delete those entries.
-    //
-    // The full-map scan below is deliberate, not an oversight: a
-    // loser's CURRENT map keys are not derivable from the instance
-    // (local echoes mutate their event id in place on confirmation,
-    // stranding entries under keys `getThreadRenderEventKeys` no
-    // longer returns). It only runs on the conflict path (losers
-    // present — single-digit occurrences per thread open in the
-    // measured live flow), never on the fast path above.
+    // Reclaim every key any loser currently occupies BEFORE deleting,
+    // so the winner inherits them. The reverse index gives the HELD
+    // key set per loser directly — a loser's current map keys are not
+    // derivable from the instance (local echoes mutate their event id
+    // in place on confirmation, stranding entries under keys
+    // `getThreadRenderEventKeys` no longer returns), which is why the
+    // index tracks writes rather than recomputing keys.
     const unionKeys = new Set<string>(keys);
     getThreadRenderEventKeys(winner, resolveConfirmedId).forEach((k) => unionKeys.add(k));
     if (losers.size > 0) {
-      const loserKeys: string[] = [];
-      eventMap.forEach((held, heldKey) => {
-        if (losers.has(held)) loserKeys.push(heldKey);
-      });
-      loserKeys.forEach((key) => {
-        unionKeys.add(key);
-        eventMap.delete(key);
+      losers.forEach((loser) => {
+        keysByInstance.get(loser)?.forEach((key) => {
+          unionKeys.add(key);
+          eventMap.delete(key);
+        });
+        keysByInstance.delete(loser);
       });
       losers.forEach(() => countCacheProbe('eventMapCanonicalizedDisplacements'));
       // CINNY-207 AC2 render-gap RG5c (re-homed post-F1): permanent
@@ -384,7 +401,7 @@ export const mergeThreadRenderEvents = (
       }
     }
 
-    unionKeys.forEach((key) => eventMap.set(key, winner));
+    unionKeys.forEach((key) => indexedSet(key, winner));
   };
 
   existingEvents.forEach((mEvent) => {
