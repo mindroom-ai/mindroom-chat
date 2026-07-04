@@ -2,6 +2,95 @@
 
 ## Runbook
 
+### CINNY-207 AC2 STEP 2 — minimized red repro of guard-abort silent exit + dedup-race convergence gap (2026-07-04)
+
+- Context (STEP 2 of the mandatory order): observability before repro
+  before fix. STEP 1 made the three silent exits distinguishable via
+  counters; STEP 2 pins the mechanism with a targeted unit that drives
+  the real code paths.
+- New file: `src/app/mindroom/threads/__tests__/threadOpenGuardAbortRepro.test.ts`.
+- Setup: REAL `runThreadOpenCacheFirst` + REAL `scheduleReconcile`
+  (engine reconciler) + REAL `createBackfillScheduler`. No mocks
+  "force" the bug — the guard-abort exit is driven via the injected
+  `isCurrentThreadOpen` closure, which is exactly the surface
+  production wires from the lifecycle controller
+  (`() => mounted && threadIdRef.current === threadId`).
+- Four tests:
+  1. **guard-abort silent exit** (I1, GREEN): the reconciler exits via
+     `shouldContinue()=false` → `reconcilesGuardAborted=1`, ZERO
+     `/relations` requests, all other outcome counters at 0.
+     Confirms the STEP 1 fingerprint fires from an end-to-end run
+     through the real chain.
+  2. **AC2 convergence gap without dedup race** (GREEN pre-STEP-3):
+     when open #2 runs cleanly (no dedup), it drives its own fresh
+     reconcile and convergence lands. This documents that a single
+     guard-abort in isolation isn't the AC2 failure — the AC2 gap
+     requires the dedup race across opens.
+  3. **AC2 convergence gap under dedup race** (RED pre-STEP-3, `.fails`
+     annotated): the load-bearing test. Uses a `maxConcurrent=1`
+     scheduler + a pre-loaded blocker so both mounts' reconciles
+     queue behind the block. Mount #1 flips its guard flag false
+     between schedule and drain (matches the "React cleanup mid-open"
+     production trigger the diagnosis identified). Mount #2 arrives
+     while mount #1's schedule is queued → DEDUPS (same
+     `(roomId, threadId, kind='reconcile')` key), returns mount #1's
+     doomed promise. Blocker released, scheduler drains, mount #1's
+     executor aborts silently — no fetch, no repair, mount #2's alive
+     supplemental sink never called. This is the AC2 failure mode
+     captured as a pure unit. Marked `it.fails(...)` so CI stays
+     green; when STEP 3's fix lands, the `.fails` annotation flips
+     (test naturally passes → annotation reports "expected fail but
+     passed") which is the signal to remove the annotation and let
+     it run green normally.
+  4. **dedup smoke test** (GREEN): confirms the dedup mechanics fire
+     as expected in isolation (two `scheduleReconcile` calls, one
+     `schedulerEnqueued`, one `schedulerDeduped`). Guards the dedup
+     shape the RED test depends on against a future scheduler-key
+     refactor.
+- Why drive the guard-abort directly rather than reconstructing the
+  exact production trigger: the 6-iteration diagnosis history spent
+  significant effort trying to characterize which trigger fires (React
+  effect cleanup, dep-change re-run, StrictMode double-mount) — none
+  of them are individually deterministic in a unit environment
+  because React scheduler timing / StrictMode config / effect-dep
+  identity churn vary. What IS deterministic is the SILENT EXIT
+  once the guard is false; the repro pins that behavior because it's
+  what the fix needs to address anyway. The dedup-race test is the
+  independent piece that shows the convergence gap even survives
+  onto a second alive mount — the piece STEP 3 must close.
+- Attempts documented (in the test comments):
+  - Initial "flip mount ref after `await runThreadOpenCacheFirst`"
+    approach: the scheduler drain runs BEFORE our test continuation
+    because microtasks are FIFO; guard passed, fetch fired. Not a
+    reproduction of the production timing without React in the loop.
+  - "Controllable hydrate promise" approach: flipping mount flag
+    before hydrate resolves means the pre-schedule guard at
+    threadOpenCacheFirst.ts:104 short-circuits before scheduleReconcile
+    fires — again not the production race. What works is the
+    paused-scheduler + explicit guard-flip approach in test 3.
+- Not-confident items:
+  - The unit env can't reproduce React mount churn timing exactly, so
+    the "real" production trigger for the guard flip remains inferred
+    from the diagnosis history rather than proven from first principles
+    here. What IS proven: given the flip happens, the exit is silent
+    and no convergence follows.
+  - Test 2 passes pre-STEP-3, which means a single non-dedup-race
+    guard-abort followed by any subsequent open converges "for free" —
+    matching the "reconcilesRepaired flapped 2 → 0" nondeterminism
+    the diagnosis history recorded. The failure mode is fundamentally
+    a race, not a persistent broken state.
+- Validation: tsc clean; vitest 2641/2641 green (baseline 2629 + 12
+  new: 8 STEP-1 + 4 STEP-2); the `.fails`-annotated RED test is
+  reported as "passed" because its assertions fail as expected. Lint
+  / full build to run before commit.
+- STEP 3 next: implement the guard-abort recovery leg. The simplest
+  shape that closes test 3: when the reconciler exits via guard-abort,
+  mark the thread dirty in a per-engine in-memory map, and have the
+  reconciler's dedup key include the shouldContinue closure identity
+  so a fresh mount's schedule bypasses the dedup and drives its own
+  fetch. Alternative: add a scheduler-level "retry queued but doomed
+  jobs" pass triggered when a guard-abort resolves the promise.
+
 ### CINNY-207 AC2 STEP 1 — distinguishable reconciler exit-path counters (2026-07-04)
 
 - Context: the pre-STEP-1 probe collapsed three silent exit paths in
