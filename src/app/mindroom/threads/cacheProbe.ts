@@ -291,11 +291,11 @@ export type CacheProbeCounters = {
   //
   // Bookkeeping (in getEditedEvent, per-eventId, consulted only on
   // lack-replacement paths — cheap):
-  //   - `registerFallbackInstance(eventId, mEvent)` is called by
-  //     `useThreadRenderState.setSupplementalThreadEvents` for every
-  //     mEvent in the merged fallback state (post-hydrate). The registry
-  //     is the source of truth for "which MatrixEvent instance the
-  //     fallback layer holds for this id, right now".
+  //   - `replaceFallbackInstanceRegistry([[id, mEvent], ...])` is called
+  //     by `useThreadRenderState.setSupplementalThreadEvents` for the
+  //     merged fallback state (post-hydrate). The registry is the source
+  //     of truth for "which MatrixEvent instance the fallback layer
+  //     holds for this id, right now".
   //   - On a lack-replacement call in getEditedEvent, we look up the
   //     registry for this id and instance-identity-compare against
   //     `mEvent`.
@@ -342,6 +342,61 @@ export type CacheProbeCounters = {
   renderTargetSourceFallbackAlsoLacked: number;
   renderTargetSourceSdkFallbackAlsoLacked: number;
   renderTargetSourceSdkFallbackRepaired: number;
+  // CINNY-207 AC2 render-gap RG4d (2026-07-04): temporal replacement-cleared
+  // detector on the fallback-REGISTERED instance. Team-lead's RG4c review:
+  // the fourth-shape (renderTargetSourceSdkFallbackRepaired) came back 0
+  // AND renderTargetSourceFallbackAlsoLacked came back 178 (out of 382
+  // lack-replacement calls). Read together: on 178 render calls the render
+  // WAS holding the fallback's registered instance AND that instance's
+  // `.replacingEvent()` was null AT RENDER TIME. But `mergeSawIncomingEditRelation`
+  // was >0 (the merge saw the edit event) and `renderTargetHadReplacement`
+  // reached 5 (some calls DID see a non-null replacement early), so the
+  // replacement was set at some point on the registered instance and then
+  // observed null on later calls for the same id and instance identity.
+  //
+  // The named clearing-mechanism candidate is `MatrixEvent.makeRedacted`
+  // (matrix-js-sdk lib/models/event.js line 1040: `this._replacingEvent = null;`).
+  // This counter is the decisive tripwire — it distinguishes "the applier
+  // never set the replacement on the fallback instance in the first place"
+  // (bump renderTargetFallbackNeverHadReplacement per pass) from "the
+  // applier set it, and then something on the same instance cleared it"
+  // (bump renderTargetLostReplacement). If the LOST counter dominates, the
+  // fix must prevent the clear (or reset the replacement afterwards); if
+  // NEVER dominates, the fix must reach the fallback instance from the
+  // applier in the first place.
+  //
+  // Bookkeeping (per registered fallback eventId, updated on every
+  // getEditedEvent call — cheap, one Map lookup):
+  //   - `everHadReplacementOnRegistered`: bit that latches on the first
+  //     time we observe `.replacingEvent()` non-null on the CURRENT
+  //     registered instance for this id.
+  //   - Reset when `replaceFallbackInstanceRegistry` installs a fresh
+  //     instance for this id (different identity → the tracker is about a
+  //     new instance, prior latch is no longer meaningful).
+  //
+  // Increment rules (mutually exclusive, both count the same set of
+  // lack-replacement calls where render holds the registered fallback
+  // instance, so
+  //   renderTargetSourceFallbackAlsoLacked ==
+  //     renderTargetFallbackNeverHadReplacement +
+  //     renderTargetLostReplacement
+  // holds and is asserted in tests):
+  //   renderTargetFallbackNeverHadReplacement: this call lacks
+  //     replacement, render holds the registered fallback instance, AND
+  //     we have NEVER observed `.replacingEvent()` non-null on this
+  //     registered instance. The applier never reached this instance —
+  //     the seam is between hydrateCachedEvents/applier and the fallback
+  //     merge, not between fallback and render.
+  //   renderTargetLostReplacement: this call lacks replacement, render
+  //     holds the registered fallback instance, AND we PREVIOUSLY
+  //     observed `.replacingEvent()` non-null on this same registered
+  //     instance. The applier reached it, and then something cleared
+  //     `_replacingEvent`. Named-mechanism-decisive: on the very next
+  //     iteration we hunt WHO calls makeRedacted or otherwise mutates
+  //     `_replacingEvent = null` on this instance between sink and
+  //     render.
+  renderTargetFallbackNeverHadReplacement: number;
+  renderTargetLostReplacement: number;
   // CINNY-207 AC2 render-gap RG1 (2026-07-04): applyCachedReplaceRelations
   // ("hydrate applier") instance-identity observability. Diagnostic
   // for candidate (a) — the mechanism where the applier's
@@ -411,6 +466,8 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   renderTargetSourceFallbackAlsoLacked: 0,
   renderTargetSourceSdkFallbackAlsoLacked: 0,
   renderTargetSourceSdkFallbackRepaired: 0,
+  renderTargetFallbackNeverHadReplacement: 0,
+  renderTargetLostReplacement: 0,
   hydrateApplierMutatedRenderHeldInstance: 0,
   hydrateApplierMutatedFreshInstance: 0,
 });
@@ -499,11 +556,16 @@ export const recordRenderTargetSeen = (
 type FallbackTargetProbe = {
   replacingEvent?: () => unknown | null | undefined;
 };
-const fallbackInstanceById = new Map<string, FallbackTargetProbe>();
-
-export const registerFallbackInstance = (eventId: string, mEvent: FallbackTargetProbe): void => {
-  fallbackInstanceById.set(eventId, mEvent);
+type FallbackRegistryEntry = {
+  instance: FallbackTargetProbe;
+  // CINNY-207 AC2 render-gap RG4d (2026-07-04): latch bit for the temporal
+  // lost-replacement detector. Set to `true` the first time we observe
+  // `.replacingEvent()` non-null on THIS instance in `recordRenderTargetSource`.
+  // Reset (via `replaceFallbackInstanceRegistry`) when a fresh instance is
+  // registered for this id — the bit is per-instance, not per-id.
+  everHadReplacement: boolean;
 };
+const fallbackInstanceById = new Map<string, FallbackRegistryEntry>();
 
 // Called from `useThreadRenderState.setSupplementalThreadEvents` after
 // the merged batch is produced. Replaces the registry contents with the
@@ -511,37 +573,64 @@ export const registerFallbackInstance = (eventId: string, mEvent: FallbackTarget
 // new set is intentionally dropped so a subsequent lack-replacement call
 // classifies as `renderTargetSourceNoFallback` (which is truthful:
 // the fallback layer no longer holds that id).
+//
+// RG4d: for ids whose instance identity is unchanged across the replace,
+// carry the `everHadReplacement` latch forward; only reset when the
+// instance itself changes (identity swap).
 export const replaceFallbackInstanceRegistry = (
   entries: ReadonlyArray<readonly [string, FallbackTargetProbe]>
 ): void => {
-  fallbackInstanceById.clear();
+  const nextRegistry = new Map<string, FallbackRegistryEntry>();
   entries.forEach(([eventId, mEvent]) => {
-    fallbackInstanceById.set(eventId, mEvent);
+    const prev = fallbackInstanceById.get(eventId);
+    if (prev && prev.instance === mEvent) {
+      nextRegistry.set(eventId, prev);
+    } else {
+      nextRegistry.set(eventId, { instance: mEvent, everHadReplacement: false });
+    }
   });
+  fallbackInstanceById.clear();
+  nextRegistry.forEach((entry, eventId) => fallbackInstanceById.set(eventId, entry));
 };
 
 // Exported for use by the render-pipeline seam (utils/room.ts). Called
 // once per getEditedEvent lack-replacement pass to classify the source
 // of the render-held instance.
+//
+// RG4d: as a side effect, updates the fallback registry entry's
+// `everHadReplacement` latch when we observe `.replacingEvent()` non-null
+// on the registered instance (regardless of whether render is holding it
+// or an SDK sibling — the latch is about the fallback INSTANCE's history,
+// not about which instance the render just picked). On the same-instance
+// lack-replacement path, the latch state decides never-had vs lost.
 export const recordRenderTargetSource = (eventId: string, mEvent: object): void => {
   const fallback = fallbackInstanceById.get(eventId);
   if (!fallback) {
     countCacheProbe('renderTargetSourceNoFallback');
     return;
   }
-  const fallbackHasReplacement = !!fallback.replacingEvent?.();
-  if ((fallback as unknown as object) === mEvent) {
+  const fallbackHasReplacement = !!fallback.instance.replacingEvent?.();
+  if (fallbackHasReplacement && !fallback.everHadReplacement) {
+    // Latch the positive observation for future lack-replacement passes.
+    fallback.everHadReplacement = true;
+  }
+  if ((fallback.instance as unknown as object) === mEvent) {
     // Render is holding the fallback instance itself.
-    if (fallbackHasReplacement) {
-      // Contradicts the outer lack-replacement caller — if this bumps we
-      // have a real inconsistency (mEvent === fallback and fallback has
-      // replacement, but the caller said mEvent.replacingEvent() was
-      // null). Fold into the "also-lacked" bucket to keep the invariant
-      // whole; the contradiction would show as a discrepancy between
-      // this counter and the applier counters.
-      countCacheProbe('renderTargetSourceFallbackAlsoLacked');
+    countCacheProbe('renderTargetSourceFallbackAlsoLacked');
+    // RG4d split: on the same-instance-also-lacked path, the latch
+    // decides never-had vs lost. Invariant across a docker run:
+    //   renderTargetSourceFallbackAlsoLacked ==
+    //     renderTargetFallbackNeverHadReplacement +
+    //     renderTargetLostReplacement
+    // The rare "contradiction" case (`fallbackHasReplacement && mEvent
+    // === fallback.instance` — outer caller said `.replacingEvent()`
+    // was null but the registry's identical instance now says non-null,
+    // implying an intra-call flip) is treated as "lost" because the
+    // latch was just armed above; that's honest for the invariant.
+    if (fallback.everHadReplacement) {
+      countCacheProbe('renderTargetLostReplacement');
     } else {
-      countCacheProbe('renderTargetSourceFallbackAlsoLacked');
+      countCacheProbe('renderTargetFallbackNeverHadReplacement');
     }
     return;
   }
