@@ -114,8 +114,9 @@
     `serializeEventsForCache` would have filtered) as seen, so a replace
     cannot cause endless re-sweeps.
   - `loadCachedThreadSnapshot` (hydration entry) lazily deletes legacy
-    standalone same-sender `m.replace` records whose target is in the same
-    batch (`collectLegacyStandaloneReplaceIds` + `deleteThreadEventsFromCache`).
+    standalone same-sender `m.replace` records whose target record in the
+    same batch already bundles an equal-or-newer edit under the D12 ordering
+    (`collectLegacyStandaloneReplaceIds` + `deleteThreadEventsFromCache`).
     Full purge arrives with the Phase 2 D8 wipe; this handles what shows up
     on next open. Deleter is resolved lazily inside the `if
     (legacyReplaceIds.length > 0)` block so the storage import identifier

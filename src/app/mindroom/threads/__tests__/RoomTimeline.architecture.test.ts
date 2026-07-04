@@ -2403,3 +2403,35 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('normalizeCachedRoomEvents');
   });
 });
+
+// CINNY-207 plan section 6.4: Phase 1 regression guards. Source-scan style,
+// matching this file's idiom — behavioral coverage lives in the dedicated
+// unit suites (RoomTimeline.cache.test.ts, eventCacheEditUtils.test.ts,
+// roomLiveEventController.compaction.test.ts).
+describe('CINNY-207 Phase 1 cache guards', () => {
+  it('keeps the room-cache persist sweep debounced and delta-only (P1.1)', () => {
+    const source = readFileSync(
+      new URL('../roomCacheLifecycleController.ts', import.meta.url),
+      'utf8'
+    );
+
+    // Debounced: the sweep must be armed via the shared leaf-module constant,
+    // never run synchronously from the effect body.
+    expect(source).toContain('ROOM_CACHE_PERSIST_DEBOUNCE_MS');
+    expect(source).toMatch(/setTimeout\(\(\) => \{\s*persistCurrentRoomCache\(\);/);
+    // Delta-only: already-persisted event ids must be tracked and skipped so
+    // the full-timeline re-serialization sweep (finding F2) cannot return.
+    expect(source).toContain('persistedRoomCacheEventIdsRef');
+    expect(source).toContain('persistedThreadCacheEventIdsRef');
+  });
+
+  it('keeps the cache write boundary rejecting standalone same-sender m.replace records (P1.4)', () => {
+    const serializerSource = readFileSync(
+      new URL('../eventCacheEditUtils.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(serializerSource).toContain('isStandaloneSameSenderReplace');
+    expect(serializerSource).toMatch(/if \(isStandaloneSameSenderReplace\(mEvent, eventById\)\) return;/);
+  });
+});
