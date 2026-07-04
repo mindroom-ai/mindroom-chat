@@ -209,14 +209,25 @@ export const useRoomPaginationCommandController = ({
           afterFirstTimeline.getNeighbouringTimeline(Direction.Backward) ??
           afterFirstTimeline;
         const backfilledEvents = backfilledTimeline.getEvents();
+        // Newly fetched events are OLDER than the pre-fetch earliest: the
+        // SDK either prepends them into the same timeline (walk from the
+        // oldest end and stop when the pre-fetch earliest is reached) or
+        // places them in a separate backward neighbour timeline (the
+        // pre-fetch earliest is absent and the whole slice is new).
         const eventsToPersist: MatrixEvent[] = [];
-        for (let idx = backfilledEvents.length - 1; idx >= 0; idx -= 1) {
+        for (let idx = 0; idx < backfilledEvents.length; idx += 1) {
           const mEvent = backfilledEvents[idx];
           if (mEvent.getId() === preFetchEarliestId) break;
-          eventsToPersist.unshift(mEvent);
+          eventsToPersist.push(mEvent);
         }
         if (eventsToPersist.length > 0) {
-          persistRoomEventCache(eventsToPersist);
+          // The batch contains the new overall-earliest cached event, so the
+          // timeline's backward token is its continuity proof — the deleted
+          // P1.1 sweep used to write exactly this pairing; without it a
+          // reload cannot trust cached back-pagination past this point.
+          // `null` is meaningful (room-start proof) and must flow through.
+          const backwardToken = backfilledTimeline.getPaginationToken(Direction.Backward);
+          persistRoomEventCache(eventsToPersist, backwardToken);
         }
       } finally {
         roomPaginatingBackRef.current = false;
