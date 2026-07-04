@@ -75,12 +75,17 @@ export const seedThreadSummaryCache = async ({
   // CINNY-207 P2 review: pre-seeding the D8 wipe marker would suppress
   // the legacy wipe on a warm profile. E2e contexts are always fresh
   // (deleteDatabase is a no-op on names that don't exist), but delete
-  // the three legacy session-scoped names first so the seed is
-  // truthful about what the D8 wipe would have done.
+  // every name the app wipe would delete — the three session-scoped
+  // legacy DBs AND the unsuffixed singletons (the seeded profile has a
+  // single session, so the app's single-session gate would be open) —
+  // so the seed is truthful about what the D8 wipe would have done.
   const legacyDbNames = [
     `mindroom-room-event-cache${SESSION_DB_PREFIX}${sessionId}`,
     `mindroom-thread-event-cache${SESSION_DB_PREFIX}${sessionId}`,
     `mindroom-thread-summary-cache${SESSION_DB_PREFIX}${sessionId}`,
+    'mindroom-room-event-cache',
+    'mindroom-thread-event-cache',
+    'mindroom-thread-summary-cache',
   ];
   await page.evaluate(async (names) => {
     await Promise.all(
