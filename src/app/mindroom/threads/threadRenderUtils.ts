@@ -266,13 +266,14 @@ export const mergeThreadRenderEvents = (
   // `eventMap.get(K1) === eventMap.get(K2)`. `values()` therefore
   // contains one entry per identity, always.
   //
-  // Diagnostic: `eventMapCanonicalizedDisplacements` bumps once per
-  // losing instance the canonicalizer had to displace. It's a permanent
-  // must-stay-0 tripwire in a fully-keyed test corpus — non-zero names
-  // either an identity dimension the key extractor missed or a live
-  // shape where the SDK strips the txnId before the confirmed event
-  // arrives at the merge. See cacheProbe.ts for the interpretation
-  // block.
+  // Observability: `eventMapCanonicalizedDisplacements` bumps once per
+  // losing instance the canonicalizer had to displace. It is a WORK
+  // counter, not a must-stay-0 tripwire — the reconciler's onRepaired
+  // payload deliberately carries duplicate identities (cached snapshot
+  // + fetched copies), so a stable small non-zero reading is healthy
+  // dedup work (3 per AC2 live run). A step-change in the reading
+  // names a new duplication source. See cacheProbe.ts for the
+  // interpretation block.
   const setEventForKeys = (keys: string[], mEvent: MatrixEvent) => {
     if (keys.length === 0) return;
 

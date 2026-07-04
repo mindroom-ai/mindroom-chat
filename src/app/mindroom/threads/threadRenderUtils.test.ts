@@ -187,6 +187,32 @@ describe('pickPreferredThreadRenderEvent', () => {
 
     expect(pickPreferredThreadRenderEvent(existingEvent, incomingEvent)).toBe(existingEvent);
   });
+
+  // Review candidate-3 (2026-07-04): the picker's local-echo branch
+  // returns early, BEFORE the replacement-preference rules. A repaired
+  // cache-hydrated instance has a real event id and isSending()=false,
+  // so it must never classify as a local echo and lose to an
+  // unrepaired sync-delivered instance — even when it carries local
+  // send metadata (unsigned.transaction_id persisted at seed time),
+  // which makes its key set intersect the incoming instance's on both
+  // the event and txn dimensions.
+  it('keeps a repaired confirmed instance over an unrepaired sync instance despite txn metadata', () => {
+    const repairedHydrated = makeMessageEvent('$target');
+    repairedHydrated.event.unsigned = { transaction_id: 'txn-repair-1' };
+    // Foreign-sender raw replacement: the effective-replacement block
+    // yields nothing for either side (sender-mismatch filter), so the
+    // decision falls through the local-echo branch and the effective
+    // block to the asymmetric raw-presence rule.
+    const foreignEdit = makeEditEvent('$target', '$edit-2', 2);
+    foreignEdit.event.sender = '@mallory:example.org';
+    repairedHydrated.makeReplaced(foreignEdit);
+    const syncInstance = makeMessageEvent('$target');
+
+    expect(repairedHydrated.isSending()).toBe(false);
+    expect(syncInstance.isSending()).toBe(false);
+    expect(pickPreferredThreadRenderEvent(repairedHydrated, syncInstance)).toBe(repairedHydrated);
+    expect(pickPreferredThreadRenderEvent(syncInstance, repairedHydrated)).toBe(repairedHydrated);
+  });
 });
 
 describe('shouldPinThreadToBottomOnOpen', () => {
