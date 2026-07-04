@@ -2,6 +2,97 @@
 
 ## Runbook
 
+### CINNY-207 review-fix batch - PRs #69/#70/#71 bot comments addressed (2026-07-04)
+
+- Status: review-fix pass over all outstanding top-level bot comments
+  on the CINNY-207 stack. Commits landed:
+  - Branch `cache-overhaul/11-p4-scheduler` (PR #70): `c7226501`
+  - Branch `cache-overhaul/12-p5-reconciler` (PR #71): `ba55bdb0`
+    (before merge-up of `c7226501`)
+- PR #69 (Phase 3 engine): 1 outstanding comment (pagination token
+  missing on `roomPaginationCommandController.ts:219`) verified
+  already fixed at tip `af73904d` by commit "fix: persist the
+  correct back-pagination slice with its continuity token (CINNY-207
+  P3.3 review)". Replied citing the fix commit; no code change.
+- PR #70 (Phase 4 scheduler): 4 outstanding comments, ALL real, all
+  fixed in `c7226501`:
+  - Greptile P1 gap marker clears early: two-layer bug.
+    `gapFillExecutor.runOnce` cleared the marker on
+    `persistedAnyBatch || reachedEnd` (dropped after 4,000 events
+    even with more history available); AND `runSaveRoomEventsTxn` in
+    the meta writer silently stripped `tailDiscontinuity` on every
+    meta rewrite. Fix: clear only on `reachedEnd`; propagate
+    `tailDiscontinuity` through meta writes;
+    `clearRoomTailDiscontinuity` remains the sole removal path.
+    Red test: `preserves the durable marker when max iterations
+    exhaust without reaching the server-tail end`.
+  - Greptile P1 queued aborts stay pending: `abortAll` only aborted
+    signals and relied on a later `drain` (which never fires if all
+    running executors ignore the signal), leaving queued entries in
+    `byKey` forever and trapping same-key follow-up enqueues into
+    dangling promises. Fix: reject and delete queued entries
+    synchronously in `abortAll`; running entries still cooperate
+    via signal+finally. Red test: `abortAll() rejects queued jobs
+    synchronously even when running executors never observe the
+    signal`.
+  - Gemini critical sync-throw slot leak: an executor throwing
+    synchronously ran the IIFE's finally block synchronously during
+    its initial evaluation — `running.delete(key)` fired BEFORE the
+    following-line `running.set(key, ...)`, so the failed job's key
+    stuck in `running` forever. Fix: `running.set` before invoking
+    the IIFE with a placeholder promise, then patch in the real
+    `runPromise`. Red test: `a synchronously-thrown non-async
+    executor does not leak a running slot`.
+  - Gemini high missing useEffect cleanup: room-deep-history job
+    (up to 10,000 events) was never aborted on room switch. Fix:
+    useEffect returns cleanup calling
+    `syncEngine.scheduler.abort(roomId, undefined, 'room-deep-history')`.
+- PR #71 (Phase 5 reconciler): 9 outstanding comments (3 pairs of
+  duplicate greptile findings from a re-review + 3 gemini criticals):
+  - Greptile P1 paged batch order reverses (reconciler.ts:393/398,
+    duplicated): fixed in `ba55bdb0` on branch 12. Each backward
+    page was reversed internally but appended newest-page first,
+    yielding [page1_older→newer, page2_older→newer] where all of
+    page2 < all of page1. Fix: stable sort by `origin_server_ts`
+    after the pagination loop. Red test:
+    `sorts multi-page fetches chronologically before injection`.
+  - Greptile P1 dedup returns void (threadOpenCacheController.ts:429,
+    duplicated): fixed in `ba55bdb0`. Two producers shared scheduler
+    key `(roomId, threadId, 'thread-backfill')` with different
+    return types — overview-resume executor was `Promise<void>`,
+    thread-open expected `Promise<ThreadBackfillResult>`. If
+    overview-resume enqueued first, the open path deduped to a
+    void promise cast as ThreadBackfillResult and silently skipped.
+    Fix: routed `refreshOverviewThreadCacheFromRelations` through
+    `enqueueThreadBackfillJob` so both callers get a uniform
+    `ThreadBackfillResult | null`. Arch guard updated: no non-engine
+    importers of `fetchAllThreadRelations` remain.
+  - Greptile P1 guard aborts reconcile (threadOpenCacheFirst.ts:181,
+    duplicated): REFUTED as a documented seam. Points at the AC2
+    gate-closure entry below and plan §8 Deviations: `test.fail()`
+    ships expected-red per plan rule 6.1; retry-on-guard-abort /
+    drop-guard-for-band-0 is a product-owner design decision for a
+    follow-up phase, not something to patch in this PR.
+  - Gemini 3× critical claims on `forceTimelineUpdate` /
+    `setThreadTimelineTick` "undefined at runtime": REFUTED at tip
+    `572c09ad`. Both are destructured from options
+    (`threadOpenLifecycleController.ts:39,66`), typed on the options
+    object (`:77,111`), AND passed by the caller
+    (`MindroomRoomTimeline.tsx:1718,1746`). Gemini reviewed against
+    an intermediate diff state (see the earlier P5-GATE-FIX v3
+    entries below for how the plumbing rolled in across commits).
+- Merge-up done: `origin/cache-overhaul/11-p4-scheduler`
+  (`c7226501`) merged into branch 12 with the 'ort' strategy
+  (auto-merge, no conflicts) → branch 12 tip `7d6cfe5b`, pushed.
+- Validation: focused vitest suites pass on both branches (branch 11:
+  engine 106 pass, full mindroom 1999 pass; branch 12: engine 133
+  pass after merge). Typecheck clean on both. Lint 18 warnings
+  baseline, zero delta on both. Docker e2e not run (per project
+  policy — host has known ERR_NETWORK_CHANGED flake).
+- Follow-ups: none from this batch. The AC2 documented seam remains
+  the sole outstanding item on PR #71 and is intentionally deferred
+  per plan §8 Deviations.
+
 ### CINNY-207 P5-GATE-FIX v4-follow-through - chunk-triple log + verified fix completeness (2026-07-04)
 
 - Status: implementation on top of the v4-final commit `572c09ad`
