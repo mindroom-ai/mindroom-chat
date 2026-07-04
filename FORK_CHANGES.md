@@ -5,11 +5,24 @@
 ### CINNY-207 P2.3 - Direct cacheStore imports + boundary guards (2026-07-04)
 
 - Status:
-  - Complete locally on `cache-overhaul/09-p2-cachestore`. Third and
-    final step of Phase 2 — Phase 2 is fully landed. Follow-ups: Phase
-    3 (`MindroomSyncEngine`), Phase 4 (`BackfillScheduler`), Phase 5
+  - Complete locally on `cache-overhaul/09-p2-cachestore` (PR 9 = #68).
+    Third and final step of Phase 2 — Phase 2 is fully landed. Follow-ups:
+    Phase 3 (`MindroomSyncEngine`), Phase 4 (`BackfillScheduler`), Phase 5
     (Reconciler), Phase 6+7 (settings replacement, cleanup + final
     review).
+- E2e gate note (honest status):
+  - The unified-storage layout has a green docker run from the P2.1 tip
+    (streamed-edit passed with probe parity `editCompactions=1`,
+    `threadEventPuts=3`, 1 bundled record; stop-emoji passed on the same
+    layout).
+  - Four gate attempts on the P2.3 tip all failed on the documented host
+    `ERR_NETWORK_CHANGED` flake (20-256 network resets per run; failure
+    points wandering between the login form and mid-spec — never a cache
+    assertion). P2.3 changes only import paths, the health-gate location,
+    and test seams; behavior is pinned by the 2473-test suite including
+    the 21-scenario storage contract. Decision: proceed to Phase 3, whose
+    own gate re-runs the full trio (and flips background-freshness);
+    re-verify there on a stable network window.
 - Summary:
   - Commit 1 (`refactor: import cacheStore directly and move the
     health gate into the store`) — direct-flip callers off the three
