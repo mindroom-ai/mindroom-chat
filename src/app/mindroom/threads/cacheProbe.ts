@@ -37,6 +37,12 @@ export type CacheProbeCounters = {
   // that is not currently mounted still contributes when its live events
   // arrive, which is the whole point of Tier-1 write-through.
   engineLiveWrites: number;
+  // CINNY-207 P3.2 (AC13 evidence): counts gap-fill jobs enqueued by
+  // the engine's gap tracker. Bumped once per job — startup jobs on
+  // Sync→Prepared per joined room, plus limited-sync jobs on
+  // RoomEvent.TimelineReset for the room's unfiltered timelineSet.
+  // The Phase 4 executor will drain the queue and clear the marker.
+  gapFillsEnqueued: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -52,6 +58,7 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   editCompactions: 0,
   editCompactionTargetMisses: 0,
   engineLiveWrites: 0,
+  gapFillsEnqueued: 0,
 });
 
 let counters = createEmptyCounters();

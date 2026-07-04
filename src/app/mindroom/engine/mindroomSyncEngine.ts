@@ -81,7 +81,7 @@ export const createMindroomSyncEngine = ({
 }: CreateMindroomSyncEngineOptions): MindroomSyncEngine => {
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
   const effectiveWriteThrough = writeThrough ?? createEngineWriteThrough({ sessionId });
-  const effectiveGapTracker = gapTracker ?? createEngineGapTracker();
+  const effectiveGapTracker = gapTracker ?? createEngineGapTracker({ mx, sessionId });
 
   let started = false;
   let liveMode = false;
@@ -152,9 +152,12 @@ export const createMindroomSyncEngine = ({
     effectiveWriteThrough.handleLiveEvent(event, room, meta);
   };
 
-  const handleTimelineReset: RoomEventHandlerMap[RoomEvent.TimelineReset] = () => {
-    // Commit 4 (P3.2) turns this into real limited-sync gap detection.
-    effectiveGapTracker.handleTimelineReset();
+  const handleTimelineReset: RoomEventHandlerMap[RoomEvent.TimelineReset] = (
+    room,
+    timelineSet,
+    resetAllTimelines
+  ) => {
+    effectiveGapTracker.handleTimelineReset(room, timelineSet, resetAllTimelines);
   };
 
   const start = () => {
