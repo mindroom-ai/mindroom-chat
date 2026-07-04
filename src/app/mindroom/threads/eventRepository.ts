@@ -35,6 +35,7 @@ import {
 } from './threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { countCacheProbe } from './cacheProbe';
+import { isCacheWritable, reportCacheWriteError } from './cacheHealth';
 
 export {
   deleteRoomEventsFromCache,
@@ -767,21 +768,25 @@ export const persistThreadEventCacheSnapshot = ({
     : undefined;
 
   countCacheProbe('serializedEvents', rawEvents.length);
-  save(
-    sessionId,
-    room.roomId,
-    threadId,
-    rawEvents,
-    rawRootEvent,
-    beforeTokenForEarliest,
-    tailLoaded,
-    snapshotComplete,
-    persistedExpectedReplyCount,
-    relationSnapshotComplete
-  ).catch(() => {
-    countCacheProbe('writeErrors');
-    return undefined;
-  });
+  // CINNY-207 P1.5 (F4): failures are surfaced, and after a quota error the
+  // session is cache-read-only — skip the write instead of failing again.
+  if (isCacheWritable()) {
+    save(
+      sessionId,
+      room.roomId,
+      threadId,
+      rawEvents,
+      rawRootEvent,
+      beforeTokenForEarliest,
+      tailLoaded,
+      snapshotComplete,
+      persistedExpectedReplyCount,
+      relationSnapshotComplete
+    ).catch((error) => {
+      reportCacheWriteError('threadEventCache.save', error);
+      return undefined;
+    });
+  }
 
   return {
     rawEvents,
@@ -913,10 +918,13 @@ export const persistRoomEventCacheSnapshot = ({
   const rawEvents = serializeRoomCacheEvents(room, events);
 
   countCacheProbe('serializedEvents', rawEvents.length);
-  save(sessionId, room.roomId, rawEvents, beforeTokenForEarliest).catch(() => {
-    countCacheProbe('writeErrors');
-    return undefined;
-  });
+  // CINNY-207 P1.5 (F4): same surfacing/read-only gate as the thread path.
+  if (isCacheWritable()) {
+    save(sessionId, room.roomId, rawEvents, beforeTokenForEarliest).catch((error) => {
+      reportCacheWriteError('roomEventCache.save', error);
+      return undefined;
+    });
+  }
 
   return {
     rawEvents,

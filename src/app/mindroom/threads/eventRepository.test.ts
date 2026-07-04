@@ -1,5 +1,6 @@
 import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { isCacheWritable, resetCacheHealthForTesting } from './cacheHealth';
 import {
   collectLegacyStandaloneReplaceIds,
   collectStateTargetEvents,
@@ -734,5 +735,79 @@ describe('loadCachedThreadSnapshot lazy cleanup (CINNY-207 P1.4)', () => {
     });
 
     expect(deleteEvents).not.toHaveBeenCalled();
+  });
+});
+
+// CINNY-207 P1.5 (finding F4, AC11): after an injected quota failure the
+// session degrades to cache-read-only and the persist entry points skip
+// their saves instead of failing silently one by one.
+describe('persist entry points honor cache health (CINNY-207 P1.5)', () => {
+  beforeEach(() => {
+    resetCacheHealthForTesting();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    resetCacheHealthForTesting();
+    vi.restoreAllMocks();
+  });
+
+  it('degrades on quota failure and skips subsequent room and thread saves', async () => {
+    const quotaError = Object.assign(new Error('quota'), { name: 'QuotaExceededError' });
+    const roomSave = vi.fn().mockRejectedValue(quotaError);
+    const room = makeRoom({ liveEvents: [] });
+
+    persistRoomEventCacheSnapshot({
+      sessionId: 'session',
+      room: room as never,
+      events: [],
+      save: roomSave,
+    });
+    expect(roomSave).toHaveBeenCalledTimes(1);
+
+    // Let the rejected save settle and flip the health state.
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+    expect(isCacheWritable()).toBe(false);
+
+    persistRoomEventCacheSnapshot({
+      sessionId: 'session',
+      room: room as never,
+      events: [],
+      save: roomSave,
+    });
+    expect(roomSave).toHaveBeenCalledTimes(1);
+
+    const threadSave = vi.fn().mockResolvedValue(undefined);
+    persistThreadEventCacheSnapshot({
+      sessionId: 'session',
+      room: room as never,
+      threadId: '$root',
+      events: [],
+      save: threadSave,
+    });
+    expect(threadSave).not.toHaveBeenCalled();
+  });
+
+  it('keeps saving after non-quota failures', async () => {
+    const flakySave = vi.fn().mockRejectedValue(new Error('transient'));
+    const room = makeRoom({ liveEvents: [] });
+
+    persistRoomEventCacheSnapshot({
+      sessionId: 'session',
+      room: room as never,
+      events: [],
+      save: flakySave,
+    });
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+    expect(isCacheWritable()).toBe(true);
+
+    persistRoomEventCacheSnapshot({
+      sessionId: 'session',
+      room: room as never,
+      events: [],
+      save: flakySave,
+    });
+    expect(flakySave).toHaveBeenCalledTimes(2);
   });
 });

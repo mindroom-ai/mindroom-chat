@@ -2,6 +2,46 @@
 
 ## Runbook
 
+### CINNY-207 P1.5 - Surface cache write failures (2026-07-03)
+
+- Status:
+  - Complete locally (PR 7 of the cache-overhaul stack).
+- Summary:
+  - Finding F4: every cache write was fire-and-forget with swallowed
+    errors; a `QuotaExceededError` silently stopped persistence while the
+    app kept trusting the cache (silent divergence).
+  - New `cacheHealth.ts`: `reportCacheWriteError(scope, error)` counts every
+    failure (probe `writeErrors`), logs the first failure per scope (no
+    console spam at streaming rates), and on a quota error degrades the
+    session to a `read-only` cache health state with a one-time error log.
+    Inspectable via `window.__MINDROOM_CACHE_HEALTH__.get()`.
+  - The two persist entry points (`persistThreadEventCacheSnapshot`,
+    `persistRoomEventCacheSnapshot` in `eventRepository.ts`) route their
+    catch handlers through `reportCacheWriteError` and skip the save when
+    the session is read-only. Reads keep painting (I1); the reconcile path
+    keeps converging from the network (I2).
+- Decisions:
+  - Read-only is session-scoped: a reload retries writes (space may have
+    been freed; proactive eviction is D9 / Phase 2). Delete operations are
+    NOT gated — they free space and keep the cache consistent with server
+    truth (redaction path).
+  - Other write sites (thread summary cache, seed snapshots) are left for
+    the Phase 2 CacheStore consolidation, which centralizes all writes
+    behind one API; this step covers the two event-cache entry points every
+    event write flows through.
+- Next steps:
+  - P1.6 cap the legacy preload setting.
+- Validation:
+  - Red check: with only the `eventRepository.ts` gating stashed, the new
+    quota test fails (save still called after degradation) — confirmed red,
+    then green with the gate restored.
+  - Unit (AC11): `npx vitest run src/app/mindroom/threads/cacheHealth.test.ts
+    src/app/mindroom/threads/eventRepository.test.ts` — injected quota error
+    flips health to read-only, skips subsequent room+thread saves; non-quota
+    failures keep saving; first-per-scope logging asserted.
+  - `npx vitest run src/app/mindroom/threads/ src/app/utils/room.test.ts`,
+    `npm run typecheck`, `npm run build`, `npm run lint`.
+
 ### CINNY-207 P1.4 - Edit compaction at the write boundary (2026-07-03)
 
 - Status:
