@@ -553,10 +553,17 @@ new engine-scoped guard file):
   Workflow review round 1 follow-ups: fire-time target misses now fall back
   to persisting the replace standalone (`editCompactionTargetMisses` probe),
   room-view thread attribution is captured at schedule time (mid-debounce
-  redaction tombstones land), cross-sender replaces persist directly, and
-  `collectStateTargetEvents` no longer re-expands pruned redacted reactions.
+  redaction tombstones land), and `collectStateTargetEvents` no longer
+  re-expands pruned redacted reactions. Round 2 follow-ups: cross-sender
+  replaces are always emitted as standalone records — direct persist when
+  the target is known at arming, fire-time sender re-check when the target
+  materializes only during the debounce window — and the window keeps the
+  D12-latest replace rather than the last-arrived one.
 
 - 2026-07-03 — **P1.3 landed** (PR 5): deterministic edit tiebreak (D12).
+  Review follow-up: `applyCachedRedactions` never re-applies a cached
+  redaction over an already-redacted instance (the live-attached redaction
+  wins; the D12 pick only orders redactions for a not-yet-redacted target).
   Shared comparator `isEventOrderedAfter` (ts, then lexicographic event id,
   full tie keeps the incumbent instance) used by `getLatestEdit` and the
   cached-redaction selector. AC12 unit tests assert order-independence for

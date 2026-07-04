@@ -156,6 +156,26 @@
     inside the `if (legacyReplaceIds.length > 0)` block — 86 tests
     restored without extending the shared mock (kept the shared file
     surface tight).
+- Workflow review round 2 + greptile pass (confirmed findings fixed):
+  - Fire-time TOCTOU (greptile P1 + round-2): a cross-sender replace
+    scheduled while its target was unknown (arm-time miss) compacted to
+    `[target]` alone if the target materialized during the debounce
+    window, dropping the standalone record. The fire-time closure now
+    re-checks the sender and emits `[target, replace]` in that case.
+  - Arrival-order dependence: the target-miss fallback captured the
+    last-arrived replace; a stale replace delivered after a newer one
+    (federation reordering) within one window would shadow it. Pending
+    replaces are now kept per key as the D12-latest (`isEventOrderedAfter`)
+    and read at fire time.
+  - Lazy-cleanup freshness gate hardened: the bundled edit must be one
+    hydration would actually apply (nonempty event id, same sender as the
+    standalone) before licensing a delete.
+  - Also in this round, on sibling PRs: cached redactions never re-apply
+    over an already-redacted instance (PR 5), quota detection broadened +
+    origin-scoped degrade documented (PR 7).
+  - Green after round 2: compaction 13/13, eventRepository 27/27,
+    eventCacheEditUtils 15/15, cacheHealth 4/4, threads suite 1033/1033
+    (supersedes the pre-round-1 counts recorded in Validation below).
 - Workflow review round 1 (adversarial multi-agent review of the whole
   stack; confirmed code findings fixed here):
   - Critical: all three compaction closures silently dropped an edit when
