@@ -2,6 +2,7 @@ import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matri
 import type { Dispatch, SetStateAction } from 'react';
 import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from './timelineDebug';
+import { countCacheProbe } from './cacheProbe';
 import { createPreferLiveEventMapper, mapCachedThreadPageEvents } from './eventRepository';
 import {
   hasUsableThreadCacheSnapshot,
@@ -98,10 +99,21 @@ export const runThreadOpenCacheFirst = async ({
   try {
     hydratedCachedPage = await hydrateThreadFromCache(threadId);
   } catch {
-    if (!isCurrentThreadOpen()) return { shouldContinue: false };
+    if (!isCurrentThreadOpen()) {
+      // AC2 STEP 4 iter 2 (2026-07-04): hydrate threw and the guard
+      // says the thread has been closed/re-navigated in the meantime.
+      // No scheduleReconcile fires — count this skip.
+      countCacheProbe('threadOpenSkipCacheFirstHydrateGuard');
+      return { shouldContinue: false };
+    }
     hydratedCachedPage = undefined;
   }
-  if (!isCurrentThreadOpen()) return { shouldContinue: false };
+  if (!isCurrentThreadOpen()) {
+    // AC2 STEP 4 iter 2 (2026-07-04): guard flipped between hydrate
+    // returning and this check — no scheduleReconcile fires.
+    countCacheProbe('threadOpenSkipCacheFirstPostHydrateGuard');
+    return { shouldContinue: false };
+  }
 
   const cachedThreadHasLocalSnapshot =
     !!hydratedCachedPage &&
@@ -164,6 +176,13 @@ export const runThreadOpenCacheFirst = async ({
     // reads `fallbackThreadEventsState.events` alongside
     // `thread.events`, and `setSupplementalThreadEvents` is the
     // component-owned sink for that fallback state.
+    // AC2 STEP 4 iter 2 (2026-07-04): the complete-coverage
+    // scheduleReconcile call site. Bump BEFORE the scheduler call so a
+    // synchronous throw inside `scheduleReconcile` still leaves the
+    // counter representing "the open path asked for a reconcile" —
+    // separating the "asked" question from the "reconciler exit path"
+    // question that STEP 1 counters answer.
+    countCacheProbe('threadOpenScheduledCacheFirst');
     void scheduleReconcile({
       roomId: room.roomId,
       room,
@@ -209,7 +228,14 @@ export const runThreadOpenCacheFirst = async ({
       baselineBackfillEvents,
       hydratedCachedPage.expectedReplyCount
     );
-    if (!isCurrentThreadOpen()) return { shouldContinue: false };
+    if (!isCurrentThreadOpen()) {
+      // AC2 STEP 4 iter 2 (2026-07-04): backfill returned but the
+      // guard flipped — no scheduleReconcile from either cache-first
+      // (we're on the partial-coverage branch here) or from lifecycle
+      // (we're returning shouldContinue=false).
+      countCacheProbe('threadOpenSkipCacheFirstBackfillGuard');
+      return { shouldContinue: false };
+    }
     if (relationBackfill?.completed) {
       logTimelineDebug(debugTraceId, 'thread-open-complete', {
         completedBy: 'relations-backfill',
@@ -218,6 +244,13 @@ export const runThreadOpenCacheFirst = async ({
         threadId,
       });
       pinThreadToBottomOnOpen();
+      // AC2 STEP 4 iter 2 (2026-07-04): the relations-backfill
+      // completed-early path is the single pre-existing bail that
+      // returns shouldContinue=false WITHOUT scheduling a reconcile
+      // and WITHOUT going through the SDK bootstrap. If the AC2 live
+      // failure lands here on the return navigation, this counter
+      // will name it — see the invariant comment on `threadOpens`.
+      countCacheProbe('threadOpenSkipCacheFirstBackfillCompleted');
       return {
         hydratedCachedPage,
         shouldContinue: false,

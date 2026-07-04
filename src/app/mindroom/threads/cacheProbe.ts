@@ -147,6 +147,74 @@ export type CacheProbeCounters = {
   // converges without a page reload.
   reconcilesDirtyMarked: number;
   reconcilesDirtyRetried: number;
+  // CINNY-207 AC2 STEP 4 iteration 2 (2026-07-04): distinguishable
+  // upstream thread-open path counters. Together these prove which
+  // route a thread open took, and specifically WHETHER the thread-scope
+  // reconcile schedule was reached. The invariant asserted from a
+  // docker probe snapshot is:
+  //
+  //   threadOpens ==
+  //     threadOpenScheduledCacheFirst + threadOpenScheduledLifecycle +
+  //     threadOpenSkipCacheFirstHydrateGuard +
+  //     threadOpenSkipCacheFirstPostHydrateGuard +
+  //     threadOpenSkipCacheFirstBackfillCompleted +
+  //     threadOpenSkipCacheFirstBackfillGuard +
+  //     threadOpenSkipSdkPendingLocalEcho +
+  //     threadOpenSkipSdkZeroReplyRoot +
+  //     threadOpenSkipSdkContextGuard + threadOpenSkipSdkContextError +
+  //     threadOpenSkipSdkRelationsGuard + threadOpenSkipSdkRelationsError +
+  //     threadOpenSkipSdkThreadTimelineGuard +
+  //     threadOpenSkipSdkEmptyRelationsGuard
+  //
+  // `threadOpens` bumps once at the start of the useEffect body for
+  // every open (guarded to skip the no-thread cleanup effect). Each
+  // early exit or scheduled-reconcile call site bumps exactly one of
+  // the outcome counters. This is the same distinguishability lesson
+  // that unlocked STEP 1 for the reconciler executor.
+  //
+  //   threadOpenScheduledCacheFirst:  cache-first complete-coverage
+  //     path called scheduleReconcile at threadOpenCacheFirst.ts:167.
+  //   threadOpenScheduledLifecycle:   lifecycle partial-coverage path
+  //     called scheduleReconcile at threadOpenLifecycleController.ts:220.
+  //   threadOpenSkipCacheFirstHydrateGuard: hydrate threw and
+  //     isCurrentThreadOpen() returned false (line ~101).
+  //   threadOpenSkipCacheFirstPostHydrateGuard: post-hydrate
+  //     isCurrentThreadOpen() returned false (line ~104).
+  //   threadOpenSkipCacheFirstBackfillCompleted: relations-backfill
+  //     completed and returned early with shouldContinue=false
+  //     (line ~213) — the pre-existing gap where NEITHER schedule
+  //     fires; a likely candidate.
+  //   threadOpenSkipCacheFirstBackfillGuard: post-backfill
+  //     isCurrentThreadOpen() returned false (line ~212).
+  //   threadOpenSkipSdkPendingLocalEcho:   SDK bootstrap line 82.
+  //   threadOpenSkipSdkZeroReplyRoot:      SDK bootstrap line 100.
+  //   threadOpenSkipSdkContextGuard:       SDK bootstrap line 106
+  //     (isMounted after getEventTimeline).
+  //   threadOpenSkipSdkContextError:       SDK bootstrap line 115
+  //     (ctxErr from getEventTimeline).
+  //   threadOpenSkipSdkRelationsGuard:     SDK bootstrap line 127
+  //     (isMounted after fetchRelations).
+  //   threadOpenSkipSdkRelationsError:     SDK bootstrap line 136
+  //     (relErr from fetchRelations).
+  //   threadOpenSkipSdkThreadTimelineGuard: SDK bootstrap line 175
+  //     (isMounted after getThreadTimeline).
+  //   threadOpenSkipSdkEmptyRelationsGuard: SDK bootstrap line 198
+  //     (isMounted after empty-thread fetchRelations).
+  threadOpens: number;
+  threadOpenScheduledCacheFirst: number;
+  threadOpenScheduledLifecycle: number;
+  threadOpenSkipCacheFirstHydrateGuard: number;
+  threadOpenSkipCacheFirstPostHydrateGuard: number;
+  threadOpenSkipCacheFirstBackfillCompleted: number;
+  threadOpenSkipCacheFirstBackfillGuard: number;
+  threadOpenSkipSdkPendingLocalEcho: number;
+  threadOpenSkipSdkZeroReplyRoot: number;
+  threadOpenSkipSdkContextGuard: number;
+  threadOpenSkipSdkContextError: number;
+  threadOpenSkipSdkRelationsGuard: number;
+  threadOpenSkipSdkRelationsError: number;
+  threadOpenSkipSdkThreadTimelineGuard: number;
+  threadOpenSkipSdkEmptyRelationsGuard: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -181,6 +249,21 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   reconcilesRoomScopeNoop: 0,
   reconcilesDirtyMarked: 0,
   reconcilesDirtyRetried: 0,
+  threadOpens: 0,
+  threadOpenScheduledCacheFirst: 0,
+  threadOpenScheduledLifecycle: 0,
+  threadOpenSkipCacheFirstHydrateGuard: 0,
+  threadOpenSkipCacheFirstPostHydrateGuard: 0,
+  threadOpenSkipCacheFirstBackfillCompleted: 0,
+  threadOpenSkipCacheFirstBackfillGuard: 0,
+  threadOpenSkipSdkPendingLocalEcho: 0,
+  threadOpenSkipSdkZeroReplyRoot: 0,
+  threadOpenSkipSdkContextGuard: 0,
+  threadOpenSkipSdkContextError: 0,
+  threadOpenSkipSdkRelationsGuard: 0,
+  threadOpenSkipSdkRelationsError: 0,
+  threadOpenSkipSdkThreadTimelineGuard: 0,
+  threadOpenSkipSdkEmptyRelationsGuard: 0,
 });
 
 let counters = createEmptyCounters();

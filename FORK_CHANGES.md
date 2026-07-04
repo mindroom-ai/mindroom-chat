@@ -2,6 +2,48 @@
 
 ## Runbook
 
+### CINNY-207 AC2 STEP 4 iter 2 STEP a — upstream thread-open probe counters (2026-07-04)
+
+- Context: STEP 4 iter 1 proved the reconciler exit-path counters
+  hold cleanly (STEP 1 invariant) and, together, ruled out every
+  reconciler-internal path — the AC2 miss is UPSTREAM of the
+  reconcile schedule. Following the same discipline as STEP 1
+  (observability first, then repro, then fix), iter 2 begins by
+  making every upstream thread-open path distinguishable.
+- Added distinct counters for every code path that can complete a
+  thread open (see `cacheProbe.ts` `threadOpen*` block for the full
+  list and the invariant contract). Two scheduling counters — one
+  at each schedule call site — separate "the open path asked for
+  a reconcile" from "the reconciler exit path" (STEP 1's question):
+  - `threadOpenScheduledCacheFirst` at `threadOpenCacheFirst.ts:167`
+    (complete-coverage schedule), and
+  - `threadOpenScheduledLifecycle` at
+    `threadOpenLifecycleController.ts:220` (partial-coverage
+    schedule).
+- Skip counters cover every early return from
+  `runThreadOpenCacheFirst` (hydrate guard, post-hydrate guard,
+  backfill guard, backfill-completed early-out) and every
+  `return false` in `runThreadOpenSdkBootstrap` (pending local
+  echo, zero-reply root, context guard/error, relations
+  guard/error, thread-timeline guard, empty-relations guard).
+- Additionally, `threadOpens` bumps once per open at the top of the
+  useEffect body in `useThreadOpenLifecycleController`, so the
+  invariant `threadOpens == sum(scheduled + skip)` can be asserted
+  from a live docker probe snapshot.
+- Unit test: `threadOpenInvariant.test.ts` (7 tests, all green)
+  drives the 5 easily-reachable SDK-bootstrap skip shapes and
+  asserts sum-of-buckets equals number of runs — proving each
+  skip lands in exactly one bucket with no double-counts. The
+  cache-first skip paths are already exercised end-to-end by the
+  sibling `threadOpenGuardAbortRepro.test.ts` (which drives real
+  cache-first + reconciler + scheduler); this new file is
+  intentionally minimal.
+- Validation: `npx tsc --noEmit` clean; `npx vitest run` 2648/2648
+  passed (baseline 2641 + 7 new); `npm run lint` 18 warnings 0
+  errors; no behavior change (counters are pure observability).
+- Next: STEP b — one docker AC2 run polling the new counters; the
+  skip path will name itself.
+
 ### CINNY-207 AC2 STEP 4 — live-gate outcome: STEP 3 fix ships neutral, AC2 diagnosis moved to a NEW surface (2026-07-04)
 
 - Live gate: `E2E_ENABLE_DEPLOYED_FIXTURE=0 bash scripts/test-e2e-docker-matrix.sh e2e/live/cinny207-stale-cache-divergence.spec.ts` against the docker Tuwunel matrix, STEP 3 tip.

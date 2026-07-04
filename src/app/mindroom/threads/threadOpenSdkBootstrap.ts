@@ -19,6 +19,7 @@ import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from './timelineDebug';
 import { getThreadCursorAnchor } from './eventRepository';
 import { isThreadNotFoundError } from './threadBootstrap';
+import { countCacheProbe } from './cacheProbe';
 import type { HydratedThreadCachePage } from './threadOpenCacheController';
 
 type PersistThreadEventCache = (
@@ -79,6 +80,9 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
     if (shouldScrollToLatestOnOpen) {
       pinThreadToBottomOnOpen();
     }
+    // AC2 STEP 4 iter 2 (2026-07-04): SDK bootstrap early-returns before
+    // the lifecycle scheduler gets a chance to schedule a reconcile.
+    countCacheProbe('threadOpenSkipSdkPendingLocalEcho');
     return false;
   }
 
@@ -97,13 +101,17 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
     if (shouldScrollToLatestOnOpen) {
       pinThreadToBottomOnOpen();
     }
+    countCacheProbe('threadOpenSkipSdkZeroReplyRoot');
     return false;
   }
 
   let threadModel = room.getThread(threadId);
   if (!threadModel) {
     const [ctxErr] = await to(mx.getEventTimeline(room.getUnfilteredTimelineSet(), threadId));
-    if (!isMounted()) return false;
+    if (!isMounted()) {
+      countCacheProbe('threadOpenSkipSdkContextGuard');
+      return false;
+    }
     if (ctxErr) {
       logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-context-error', {
         threadId,
@@ -112,6 +120,7 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
       if (isThreadNotFoundError(ctxErr)) {
         onThreadLoadError?.(threadId);
       }
+      countCacheProbe('threadOpenSkipSdkContextError');
       return false;
     }
     threadModel = room.getThread(threadId);
@@ -124,7 +133,10 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
         limit: 50,
       })
     );
-    if (!isMounted()) return false;
+    if (!isMounted()) {
+      countCacheProbe('threadOpenSkipSdkRelationsGuard');
+      return false;
+    }
     if (relErr) {
       logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-relations-error', {
         threadId,
@@ -133,6 +145,7 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
       if (isThreadNotFoundError(relErr)) {
         onThreadLoadError?.(threadId);
       }
+      countCacheProbe('threadOpenSkipSdkRelationsError');
       return false;
     }
 
@@ -172,7 +185,10 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
 
   const loadedThreadTimelineSet = threadModel.getUnfilteredTimelineSet();
   const [err] = await to(mx.getThreadTimeline(loadedThreadTimelineSet, threadId));
-  if (!isMounted()) return false;
+  if (!isMounted()) {
+    countCacheProbe('threadOpenSkipSdkThreadTimelineGuard');
+    return false;
+  }
   if (err) {
     logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-get-thread-timeline-error', {
       error: err,
@@ -195,7 +211,10 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
         limit: 50,
       })
     );
-    if (!isMounted()) return false;
+    if (!isMounted()) {
+      countCacheProbe('threadOpenSkipSdkEmptyRelationsGuard');
+      return false;
+    }
     if (!relErr && relData?.chunk?.length) {
       const mapper = mx.getEventMapper();
       const mappedEvents = relData.chunk

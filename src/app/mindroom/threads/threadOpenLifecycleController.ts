@@ -7,6 +7,7 @@ import {
 import { Direction } from 'matrix-js-sdk';
 import type { EventTimelineSet, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { logTimelineDebug } from './timelineDebug';
+import { countCacheProbe } from './cacheProbe';
 import { createThreadOpenSeedSession } from './threadOpenSeedController';
 import { runThreadOpenCacheFirst } from './threadOpenCacheFirst';
 import { runThreadOpenSdkBootstrap } from './threadOpenSdkBootstrap';
@@ -118,6 +119,12 @@ export const useThreadOpenLifecycleController = ({
 }) => {
   useEffect(() => {
     if (!threadId) return undefined;
+    // AC2 STEP 4 iter 2 (2026-07-04): every open of a thread bumps
+    // exactly here. The invariant asserted from a docker probe is that
+    // this counter equals the sum of `threadOpenScheduledCacheFirst +
+    // threadOpenScheduledLifecycle + all threadOpenSkip*` counters —
+    // proving which route(s) each open took.
+    countCacheProbe('threadOpens');
     setFocusItem(undefined);
     setThreadLoadError(false);
     setThreadHasMoreCachedBack(false);
@@ -217,6 +224,12 @@ export const useThreadOpenLifecycleController = ({
         // `runThreadOpenCacheFirst` when both fire on the same open,
         // so the second call returns the in-flight promise identity
         // rather than firing a duplicate fetch.
+        //
+        // AC2 STEP 4 iter 2 (2026-07-04): probe increment goes BEFORE
+        // the scheduler call for the same reason as the cache-first
+        // site — separate "the open path asked for a reconcile" from
+        // "the reconciler exited via which path" (STEP 1 counters).
+        countCacheProbe('threadOpenScheduledLifecycle');
         void scheduleReconcile({
           roomId: room.roomId,
           room,
