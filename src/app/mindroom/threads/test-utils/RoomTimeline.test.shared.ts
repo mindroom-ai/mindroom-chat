@@ -52,7 +52,6 @@ const {
   loadCachedRoomEventsBeforeMock,
   loadCachedRoomPaginationTokenMock,
   loadLatestCachedRoomEventsMock,
-  loadLatestCachedThreadSummaryInfoMock,
   loadCachedThreadSummariesMock,
   saveRoomEventsToCacheMock,
   saveCachedThreadSummaryMock,
@@ -114,7 +113,6 @@ const {
   loadCachedRoomEventsBeforeMock: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
   loadCachedRoomPaginationTokenMock: vi.fn(async () => undefined),
   loadLatestCachedRoomEventsMock: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  loadLatestCachedThreadSummaryInfoMock: vi.fn(async () => undefined),
   loadCachedThreadSummariesMock: vi.fn(async () => new Map()),
   saveRoomEventsToCacheMock: vi.fn(async () => undefined),
   saveCachedThreadSummaryMock: vi.fn(async () => undefined),
@@ -1037,21 +1035,34 @@ vi.mock('../useThreadRenderState', () => ({
   useThreadRenderState: () => threadRenderStateMock,
 }));
 
-vi.mock('../threadEventCache', () => ({
-  getThreadCursorAnchor: vi.fn((rawEvent?: { event_id?: string; origin_server_ts?: number }) =>
-    rawEvent?.event_id
-      ? {
-          eventId: rawEvent.event_id,
-          ts: rawEvent.origin_server_ts ?? 0,
-        }
-      : undefined
-  ),
-  loadCachedThreadEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  loadLatestCachedThreadSummaryInfo: loadLatestCachedThreadSummaryInfoMock,
-  loadLatestCachedThreadEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  normalizeCachedThreadEvents: (events: unknown[]) => events,
-  saveThreadEventsToCache: vi.fn(async () => undefined),
-}));
+// CINNY-207 P2.3: eventRepository imports thread APIs directly from
+// `./cacheStore` (the shim modules are gone), so the mock target is
+// the cacheStore barrel. `loadLatestCachedThreadSummaryInfo` was dead
+// code and is no longer exported.
+vi.mock('../cacheStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../cacheStore')>();
+  return {
+    ...actual,
+    getThreadCursorAnchor: vi.fn((rawEvent?: { event_id?: string; origin_server_ts?: number }) =>
+      rawEvent?.event_id
+        ? {
+            eventId: rawEvent.event_id,
+            ts: rawEvent.origin_server_ts ?? 0,
+          }
+        : undefined
+    ),
+    loadCachedThreadEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+    loadLatestCachedThreadEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+    normalizeCachedThreadEvents: (events: unknown[]) => events,
+    saveThreadEventsToCache: vi.fn(async () => undefined),
+    loadCachedThreadSummaries: loadCachedThreadSummariesMock,
+    saveCachedThreadSummary: saveCachedThreadSummaryMock,
+    loadCachedRoomEventsBefore: loadCachedRoomEventsBeforeMock,
+    loadCachedRoomPaginationToken: loadCachedRoomPaginationTokenMock,
+    loadLatestCachedRoomEvents: loadLatestCachedRoomEventsMock,
+    saveRoomEventsToCache: saveRoomEventsToCacheMock,
+  };
+});
 
 vi.mock('../threadPaginationUtils', () => ({
   computeReconciliationToken: () => undefined,
@@ -1064,21 +1075,9 @@ vi.mock('../eventCacheTokenUtils', async (importOriginal) => {
   return actual;
 });
 
-vi.mock('../threadSummaryCache', () => ({
-  loadCachedThreadSummaries: loadCachedThreadSummariesMock,
-  saveCachedThreadSummary: saveCachedThreadSummaryMock,
-}));
-
-vi.mock('../roomEventCache', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../roomEventCache')>();
-  return {
-    ...actual,
-    loadCachedRoomEventsBefore: loadCachedRoomEventsBeforeMock,
-    loadCachedRoomPaginationToken: loadCachedRoomPaginationTokenMock,
-    loadLatestCachedRoomEvents: loadLatestCachedRoomEventsMock,
-    saveRoomEventsToCache: saveRoomEventsToCacheMock,
-  };
-});
+// CINNY-207 P2.3: legacy `threadSummaryCache` / `roomEventCache` shim
+// mocks are folded into the `../cacheStore` mock above (single choke
+// point).
 
 vi.mock('../eventCacheEditUtils', () => ({
   aggregateCachedRelationEvents: vi.fn(),
@@ -1423,7 +1422,6 @@ beforeEach(() => {
   loadCachedRoomEventsBeforeMock.mockResolvedValue({ events: [], hasMoreBefore: false });
   loadCachedRoomPaginationTokenMock.mockResolvedValue(undefined);
   loadLatestCachedRoomEventsMock.mockResolvedValue({ events: [], hasMoreBefore: false });
-  loadLatestCachedThreadSummaryInfoMock.mockResolvedValue(undefined);
   loadCachedThreadSummariesMock.mockResolvedValue(new Map());
   saveRoomEventsToCacheMock.mockResolvedValue(undefined);
   saveCachedThreadSummaryMock.mockResolvedValue(undefined);
@@ -1714,7 +1712,6 @@ export {
   loadCachedRoomPaginationTokenMock,
   loadCachedThreadSummariesMock,
   loadLatestCachedRoomEventsMock,
-  loadLatestCachedThreadSummaryInfoMock,
   makeCachedRoomEvent,
   makeEvent,
   makeRoom,

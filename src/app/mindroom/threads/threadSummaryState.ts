@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { type MindroomThreadSummaryInfo } from '../messages/threadSummary';
-import { loadCachedThreadSummaries, saveCachedThreadSummary } from './threadSummaryCache';
+import { loadCachedThreadSummaries, saveCachedThreadSummary } from './cacheStore';
 import {
   buildPreferredThreadSummaryMap,
   shouldWriteThreadSummaryToCache,

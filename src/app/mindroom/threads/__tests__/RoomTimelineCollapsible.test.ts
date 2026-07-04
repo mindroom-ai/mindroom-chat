@@ -670,31 +670,41 @@ vi.mock('../useThreadRenderState', async () => {
   };
 });
 
-vi.mock('../threadEventCache', () => ({
-  getThreadCursorAnchor: () => undefined,
-  loadCachedThreadEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  loadLatestCachedThreadEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  normalizeCachedThreadEvents: (events: unknown[]) => events,
-  saveThreadEventsToCache: vi.fn(async () => undefined),
-}));
+// CINNY-207 P2.3: cache APIs now come from `../cacheStore` (single
+// choke point). The legacy `threadEventCache` / `roomEventCache` /
+// `threadSummaryCache` shim files were deleted.
+vi.mock('../cacheStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../cacheStore')>();
+  return {
+    ...actual,
+    getThreadCursorAnchor: () => undefined,
+    loadCachedThreadEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+    loadLatestCachedThreadEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+    normalizeCachedThreadEvents: (events: unknown[]) => events,
+    saveThreadEventsToCache: vi.fn(async () => undefined),
+    getRoomCursorAnchor: () => undefined,
+    loadCachedRoomEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+    loadLatestCachedRoomEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+    loadCachedRoomPaginationToken: vi.fn(async () => undefined),
+    normalizeCachedRoomEvents: (events: unknown[]) => events,
+    saveRoomEventsToCache: vi.fn(async () => undefined),
+    loadCachedThreadSummaries: vi.fn(async () => new Map()),
+    saveCachedThreadSummary: vi.fn(async () => undefined),
+  };
+});
 
-vi.mock('../eventCacheTokenUtils', () => ({
-  compareCachedPaginationAnchors: () => 0,
-}));
-
-vi.mock('../roomEventCache', () => ({
-  getRoomCursorAnchor: () => undefined,
-  loadCachedRoomEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  loadLatestCachedRoomEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  loadCachedRoomPaginationToken: vi.fn(async () => undefined),
-  normalizeCachedRoomEvents: (events: unknown[]) => events,
-  saveRoomEventsToCache: vi.fn(async () => undefined),
-}));
-
-vi.mock('../threadSummaryCache', () => ({
-  loadCachedThreadSummaries: vi.fn(async () => new Map()),
-  saveCachedThreadSummary: vi.fn(async () => undefined),
-}));
+// CINNY-207 P2.3: partial mock — cacheStore's barrel re-exports
+// `MAX_CACHE_BEFORE_TOKENS` from this module, so a fully synthetic
+// mock breaks the `../cacheStore` mock above (which uses
+// `importOriginal`). Keep the real module intact and only override
+// the comparison helper.
+vi.mock('../eventCacheTokenUtils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../eventCacheTokenUtils')>();
+  return {
+    ...actual,
+    compareCachedPaginationAnchors: () => 0,
+  };
+});
 
 vi.mock('../eventCacheEditUtils', () => ({
   aggregateCachedRelationEvents: vi.fn(),

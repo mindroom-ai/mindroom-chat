@@ -1,6 +1,6 @@
 # MindRoom Cache Overhaul Plan (CINNY-207)
 
-Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 (CacheStore consolidation) in progress.**
+Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 fully landed locally (P2.1 unified CacheStore + D8 wipe, P2.2 ledger + `beforeTokens` pruning + 1 GB eviction budget, P2.3 direct-import flip + architecture guards + health-gate move into the store).**
 Phase-1 e2e gate (2026-07-03, stack tip 55439be8): streamed-edit spec green
 live (AC4, probe numbers in scorecard), stop-emoji green (AC3; three failed
 attempts were host `ERR_NETWORK_CHANGED` flake — tracked in the Runbook),
@@ -453,14 +453,14 @@ Filled as steps complete. "Before" numbers from P0.3.
 | AC4  | ✓      | e2e `cinny207-streamed-edit-cache` green LIVE on stack tip: probe `editCompactions=1`, `threadEventPuts=3`, 1 target record with bundled final body pre+post reload; unit `npx vitest run src/app/mindroom/threads/eventCacheEditUtils.test.ts src/app/mindroom/threads/editCompactionScheduler.test.ts src/app/mindroom/threads/roomLiveEventController.compaction.test.ts src/app/mindroom/threads/eventRepository.test.ts` | 26 thread-cache records for a 25-edit streamed message (P0.3 spec run) → exactly 1 target record with bundled edit | workflow round 2 (spec traced sound) + docker e2e run | 2026-07-03 |
 | AC5  | ☐      |                                   |                |                         |      |
 | AC6  | ☐      | e2e `cinny207-background-room-freshness` (red until Phase 3) | 0 cached events for a background room (P0.3 spec run) |                         |      |
-| AC7  | ☐      |                                   |                |                         |      |
+| AC7  | ☐ impl | `npx vitest run src/app/mindroom/threads/cacheStore/__tests__/cacheEviction.test.ts` (4/4 — three rooms seeded via the real save paths (federated / LRU-old / protected-recent); budget shrunk via `__setCacheStoreByteBudgetForTests` so eviction must fire; asserts federated evicted first, protected room never touched, cleanup complete (events / meta / summaries / ledger row), under-budget stop honoured at `budget * EVICTION_TARGET_UTILIZATION = 0.9`, recent-open guard alone protects a room without registry entry, back-to-back schedules collapse to one runner invocation via a `readLedgerSnapshot` spy). Docker e2e budget-override run pending. | over-budget state persists without the job (red-first probe inside the AC7 test); after the job runs, `bytesAfter` drops below the target and evicted rooms' events / meta / summaries / ledger rows are all gone |                         |      |
 | AC8  | ☐      |                                   |                |                         |      |
 | AC9  | ☐      |                                   |                |                         |      |
 | AC10 | ☐      |                                   |                |                         |      |
 | AC11 | ✓      | `npx vitest run src/app/mindroom/threads/cacheHealth.test.ts src/app/mindroom/threads/eventRepository.test.ts` | silent divergence → read-only degrade | workflow rounds 1-2 (p15-p16 interaction dimension clean) | 2026-07-03 |
 | AC12 | ✓      | `npx vitest run src/app/utils/room.test.ts` (tie tests) | order-dependent → id-deterministic | workflow rounds 1-2 + landed-stack review | 2026-07-03 |
 | AC13 | ☐      |                                   |                |                         |      |
-| AC14 | ☐      |                                   |                |                         |      |
+| AC14 | ☐ impl | `npx vitest run src/app/mindroom/threads/cacheStore/__tests__/cacheStoreDb.wipe.test.ts` (2/2 — legacy DB names gone from `indexedDB.databases()` on first v3 open, marker present in `meta`, reopen after `resetCacheStoreForTesting()` performs zero further `deleteDatabase` calls; multi-session gate leaves shared singletons alone). Docker e2e post-upgrade paint verification pending. | six legacy DBs present pre-open → all six absent + unified DB present post-open |                         |      |
 
 ### 6.4 Regression guards (architecture tests)
 
@@ -474,9 +474,15 @@ new engine-scoped guard file):
   landed P1.1 design keeps a debounced delta sweep rather than removing it).
 - The cache write boundary rejects standalone same-sender `m.replace`
   records (Phase 1 — **added**).
-- No imports of legacy cache modules outside CacheStore (Phase 2).
-- Render components do not import CacheStore directly (carried over from
-  `mindroom-cache-strategy.md`).
+- No imports of legacy cache modules outside CacheStore (Phase 2 — **added**
+  in P2.3 as `cacheStore/__tests__/cacheStore.architecture.test.ts`; asserts
+  the three shim files no longer exist AND scans `src/app/mindroom/**` for
+  forbidden import strings).
+- Render components do not import CacheStore directly (Phase 2 — **added**
+  in P2.3 in the same arch test; scans `MindroomRoomTimeline.tsx` and
+  everything under `mindroom/messages/**`; separately, an exact allowlist
+  test enumerates the only sanctioned consumers: `eventRepository.ts`,
+  `threadSummaryStore.ts`, `threadSummaryState.ts`, and `sessionCleanup.ts`).
 - The removed preload setting is not reintroduced (Phase 6).
 
 ### 6.5 Validation environment
@@ -510,6 +516,47 @@ new engine-scoped guard file):
 
 ## 8. Deviations
 
+- 2026-07-04 — **P2.2 eviction ships with federated-flag population,
+  protected-room registry, and `lastOpenedTs` stamping deferred to
+  Phase 3/4.** The eviction policy (D9) reads three signals it does
+  not yet own the write side of: `ledger.federated`, the module-level
+  protected room registry (`setEvictionProtectedRoomIds`), and
+  `meta.lastOpenedTs`. All three landed as read-only inputs in P2.2
+  with the eviction job wired to consume them; their populators wire
+  in with the Phase 3/4 sync engine. Consequence today: (a) no room
+  is flagged federated so the policy degrades to pure LRU order —
+  acceptable because we're single-homeserver in production, (b) the
+  registry is empty so the "current room never evicted" invariant is
+  carried by the LRU order alone (the actively-open room is by
+  definition the room with the highest `lastActivityTs`; new events
+  arriving to it keep it at the tail), (c) with no `lastOpenedTs`
+  stamps the recent-open guard is a no-op — again acceptable because
+  LRU is a reasonable fallback. `noteRoomOpened`, `noteThreadOpened`,
+  and `setEvictionProtectedRoomIds` are exported now with unit tests
+  so Phase 3/4 has drop-in hooks. Recorded here so P2.2 review does
+  not count these as gaps.
+
+- 2026-07-04 — **P2.2 D9 "never evict recently opened threads"
+  implemented at whole-room granularity in v1.** The recent-open
+  guard skips the entire room if ANY of its thread scopes'
+  `meta.lastOpenedTs` is inside `EVICTION_RECENT_OPEN_WINDOW_MS =
+  24h`. Because eviction is whole-room granularity (per D9), a finer
+  per-thread guard would still boil down to a room-level decision.
+  Documented so the AC7 gate is not signed off on a partial
+  interpretation.
+
+- 2026-07-03 — **P2.1 / D8 wipe lands before Tier 1 exists (Phases
+  3-4).** The D8 legacy-DB wipe fires on first v3 open at the end of
+  P2.1, before the sync-engine write-through (P3.1) and the
+  backfill scheduler (P4) exist to rebuild the cache. Post-upgrade
+  first-open of each room is therefore a network paint — equivalent to
+  a fresh login — until the engine repopulates. This is a transient I1
+  regression accepted for sequencing: D8 has to land as part of the
+  CacheStore consolidation so the shim flip is safe and the new
+  schema owns the DB names. It flips green again with P3.1 +
+  P3.2/P4.1. Recorded here so the AC1 gate is not signed off on the
+  P2.1 landing.
+
 - 2026-07-03 — **P1.4 / D5 "synchronous flush on stream end"** reinterpreted:
   the implementation has no stream-end *detection*; the per-target trailing
   debounce (1 s) is the stream-end flush — each edit re-arms the timer, so
@@ -523,6 +570,145 @@ new engine-scoped guard file):
   workflow review round 1; recorded here for product-owner review.
 
 ## 9. Status log
+
+- 2026-07-04 — **Phase 2 fully landed locally** on
+  `cache-overhaul/09-p2-cachestore` after P2.3. Two commits on top of
+  the P2.2 stack:
+
+  1. `refactor: import cacheStore directly and move the health gate
+     into the store` — flipped `eventRepository.ts`, `sessionCleanup.ts`,
+     `threadSummaryStore.ts`, and `threadSummaryState.ts` to import
+     directly from `./cacheStore`. Deleted the three legacy pure-shim
+     files (`roomEventCache.ts`, `threadEventCache.ts`,
+     `threadSummaryCache.ts`), `cacheDbMigrationUtils.{ts,test.ts}`
+     (its copy-migration machinery had no non-shim consumer), and the
+     dead `loadLatestCachedThreadSummaryInfo` API. The cache-write
+     health gate (P1.5 F4) moved OUT of the eventRepository seams and
+     INTO the cacheStore save entry points (`saveRoomEventsToCache`,
+     `saveThreadEventsToCache`, `saveCachedThreadSummary`) —
+     `isCacheWritable()` check up front, `reportCacheWriteError` on
+     failure, single write choke point. Deletes stay ungated.
+     `eventRepository.persist*` are pure serialization seams —
+     always call the injected `save`. `sessionCleanup` deletes each
+     legacy per-session DB directly via `indexedDB.deleteDatabase`
+     (three-way legacy split) alongside `deleteCacheStoreDb`, so
+     rolled-back installs are still cleaned up on logout. The
+     parameterized contract suite collapsed to run only against the
+     unified store (the legacy parity net ends here). New store-
+     level `cacheHealthGate.test.ts` (3 tests) covers "degrade skips
+     subsequent saves" + "deletes stay ungated". Reworked
+     `eventRepository.test.ts` health-gate assertions to the seam-
+     always-delegates contract. Updated every `vi.mock` string
+     targeting a deleted shim (initMatrix, sessionCleanup,
+     RoomTimelineCollapsible, RoomView.threadSummary,
+     useRecentThreadViewModel, RoomTimeline.test.shared,
+     RoomTimeline.cache.test — 26 dynamic imports).
+  2. `test: architecture guards for the CacheStore boundary` — new
+     `cacheStore/__tests__/cacheStore.architecture.test.ts` (4 tests):
+     (a) the three legacy shim files are absent on disk;
+     (b) recursive scan of `src/app/mindroom/**` forbids imports of
+     `./roomEventCache`, `./threadEventCache`, `./threadSummaryCache`
+     (exclusions: this test + `RoomTimeline.architecture.test.ts`);
+     (c) render components (`MindroomRoomTimeline.tsx` +
+     `mindroom/messages/**`) must not contain `from './cacheStore'`
+     or a `/cacheStore` import;
+     (c') the only sanctioned cacheStore consumers are the allowlist
+     [`eventRepository.ts`, `threadSummaryStore.ts`,
+     `threadSummaryState.ts`, `sessionCleanup.ts`].
+     P1.4 write-boundary guard in `RoomTimeline.architecture.test.ts`
+     remains green (96/96).
+
+  Tests: `cacheHealthGate.test.ts` 3/3;
+  `cacheStore.architecture.test.ts` 4/4;
+  `cacheStoreNormalize.{room,thread}.test.ts` moved and green (7 + 21);
+  contract suite trimmed to cacheStore-only (21/21). Regression: full
+  mindroom suite 218 files, all tests green; full vitest — see the
+  final commit; `npm run typecheck`, `npm run build` clean;
+  `npm run lint` 18-warning baseline verified with zero delta.
+
+- 2026-07-04 — **P2.2 landed locally** on
+  `cache-overhaul/09-p2-cachestore`: eviction ledger + `beforeTokens`
+  pruning + 1 GB byte-budget eviction job (finding F3, decision D9,
+  AC7). Three commits on top of the P2.1 stack:
+
+  1. `feat: maintain the room byte/activity ledger on cache writes` —
+     `cacheStoreLedger.ts` tracks per-room
+     `{approxBytes, eventCount, lastActivityTs, federated?}` rows in
+     the `room_ledger` store, updated transactionally with event
+     puts/deletes. Read-before-write / read-before-delete for exact
+     deltas; one-time lazy bootstrap (bounded to the touched room)
+     seeds pre-P2.2 records; whole-DB delete implicitly clears; room-
+     and thread-scope writes populate the SAME per-room row (whole-
+     room eviction). Meta-only saves leave the ledger untouched.
+     Exposed `noteRoomOpened` / `noteThreadOpened` — meta upserts
+     that stamp `lastOpenedTs` while preserving other fields
+     (callers wire in Phase 3/4).
+  2. `feat: prune beforeTokens maps on meta writes` (F3) — reshaped
+     `CachedPaginationTokenMap` to
+     `Record<eventId, {token, savedAt}>`. Every merge stamps
+     `savedAt = Date.now()` and prunes to
+     `MAX_CACHE_BEFORE_TOKENS = 50`, oldest first with lexicographic
+     event-id tiebreak; the entry being written is never pruned.
+     Public `getCachedPaginationToken` return shape unchanged.
+  3. `feat: cache eviction job with 1 GB budget` (D9/AC7) — new
+     `cacheEviction.ts`. `runCacheEvictionIfOverBudget(sessionId)`
+     reads the ledger snapshot, and if over budget evicts whole
+     rooms until below `budget * 0.9`. Order: `federated === true`
+     first, then ascending `lastActivityTs`. Skip: protected registry
+     + rooms with any `meta.lastOpenedTs` inside 24 h. Eviction
+     deletes events / meta / thread summaries / ledger row for the
+     room; `eventDeletes` probe counts the events removed. Save-path
+     `maybeScheduleEvictionCheck` fire-and-forget with module-level
+     debounce (60 s per session, no timers held open).
+
+  Tests: `cacheStoreLedger.test.ts` 10/10;
+  `eventCacheTokenUtils.test.ts` 16/16;
+  `cacheEviction.test.ts` 4/4. Regression: contract suite 42/42, D8
+  wipe 2/2, full mindroom suite 218 files / 1929 tests, full vitest
+  324 files / 2490 tests. `npm run typecheck`, `npm run build`
+  clean; `npm run lint` 0 errors (19 pre-existing warnings). Section
+  8 records the deferred federated-flag / registry / stamp
+  populators and the whole-room recent-open interpretation.
+  Deferred from this step: docker e2e run (separate gate); P2.3
+  direct-import flip + architecture guard forbidding legacy imports
+  outside cacheStore.
+
+- 2026-07-03 — **P2.1 landed** (PR 9): unified CacheStore module
+  consolidating `roomEventCache.ts`, `threadEventCache.ts`, and
+  `threadSummaryCache.ts` behind a single-DB schema v3 (finding F12,
+  decisions D8 + D9-prep). Storage lives in
+  `src/app/mindroom/threads/cacheStore/`: one `events` store keyed by
+  `${roomId}|${scope}|${eventId}` with a shared
+  `by_scope_ts = [roomId, scope, ts, eventId]` index (`scope=''` for
+  room-timeline, `scope=threadId` for threads); one `meta` store; one
+  empty `room_ledger` store prepared for the P2.2 eviction ledger; one
+  `thread_summaries` store with a `by_room` index. A single scoped-
+  cursor core drives both room and thread reads/writes while preserving
+  the two legacy-faithful behaviors the contract suite pins (room
+  cursor skips local-echo inside the cursor without counting toward
+  the limit; thread cursor skips `eventId === threadId`) and the meta
+  asymmetry (room meta written only when a before-token was supplied;
+  thread meta always written with `mergeThreadCacheFlag` semantics).
+  D8 wipe fires on first v3 open: deletes the three session-scoped
+  legacy DBs plus the three unsuffixed singletons (gated to 0-or-1
+  stored sessions, matching the pre-existing legacy migration gate),
+  writes an idempotency marker into `meta`, exactly-once per session.
+  The three legacy modules became pure re-export shims; the legacy
+  DB name strings are retained via `legacyCacheDbNames.ts` for logout
+  cleanup on rolled-back installs. `sessionCleanup` and
+  `initMatrix` both gained the unified `mindroom-cache` /
+  `mindroom-cache::<sessionId>` names alongside the legacy ones.
+  `e2e/helpers/storage.ts` was flipped to read the unified DB (scope
+  filter for room vs. thread) while returning the same record shapes
+  so the cinny207 P0.2 specs need no changes; `seedThreadSummaryCache`
+  writes to the unified DB and pre-seeds the wipe marker so its data
+  survives the first app open. AC14 evidence recorded above (wipe
+  test 2/2; docker verification pending). Deferred from this step:
+  P2.2 eviction ledger + 1 GB budget; P2.3 direct-import flip +
+  architecture guard forbidding legacy imports outside cacheStore.
+  Contract suite: 42/42 (21 legacy + 21 cacheStore). Full mindroom
+  suite: 216 files / 1908 tests. Full vitest: 322 files / 2469 tests.
+  Section 8 records the D8-before-Tier-1 sequencing deviation.
 
 - 2026-07-03 — **P1.6 landed** (PR 8): legacy preload setting hard-capped
   (F11). `MAX_PAGINATION_LIMIT = 10000` enforced in `sanitizePaginationLimit`

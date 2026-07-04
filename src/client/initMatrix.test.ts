@@ -30,18 +30,16 @@ import {
   putSession,
   setActiveSession,
 } from '../app/state/sessions';
+// CINNY-207 P2.3: cache module APIs now come directly from `./cacheStore`.
+// The three legacy shim files are gone; the legacy per-session DB name
+// accessors are re-exported by the store's `legacyCacheDbNames` barrel
+// so logout cleanup keeps working for rolled-back installs.
 import {
-  deleteThreadEventCache,
-  getThreadEventCacheDbName,
-} from '../app/mindroom/threads/threadEventCache';
-import {
-  deleteRoomEventCache,
-  getRoomEventCacheDbName,
-} from '../app/mindroom/threads/roomEventCache';
-import {
-  deleteThreadSummaryCache,
-  getThreadSummaryCacheDbName,
-} from '../app/mindroom/threads/threadSummaryStore';
+  deleteCacheStoreDb,
+  getLegacyRoomEventCacheDbName as getRoomEventCacheDbName,
+  getLegacyThreadEventCacheDbName as getThreadEventCacheDbName,
+  getLegacyThreadSummaryCacheDbName as getThreadSummaryCacheDbName,
+} from '../app/mindroom/threads/cacheStore';
 import { clearIOSPushState } from '../app/mindroom/native/iosPush';
 import { clearRecentThreadsStore } from '../app/mindroom/recent-threads/recentThreads';
 import { clearRecentThreadsPanelHeightStore } from '../app/mindroom/recent-threads/recentThreadsPanelHeight';
@@ -93,25 +91,31 @@ vi.mock('../app/mindroom/threads/roomThreadFilterState', () => ({
   clearRoomThreadFiltersStore: vi.fn(),
 }));
 
-vi.mock('../app/mindroom/threads/threadEventCache', () => ({
-  MINDROOM_THREAD_EVENT_CACHE_DB_NAME: 'mindroom-thread-event-cache',
-  deleteThreadEventCache: vi.fn().mockResolvedValue(undefined),
-  getThreadEventCacheDbName: vi.fn(
+// CINNY-207 P2.3: single mock covers every cache-module accessor
+// initMatrix (or the sessionCleanup facade it consumes) needs. Legacy
+// name accessors are STILL exported by the store — rolled-back installs
+// must keep getting their per-session legacy DBs deleted on logout.
+vi.mock('../app/mindroom/threads/cacheStore', () => ({
+  LEGACY_MINDROOM_ROOM_EVENT_CACHE_DB_NAME: 'mindroom-room-event-cache',
+  LEGACY_MINDROOM_THREAD_EVENT_CACHE_DB_NAME: 'mindroom-thread-event-cache',
+  LEGACY_MINDROOM_THREAD_SUMMARY_CACHE_DB_NAME: 'mindroom-thread-summary-cache',
+  MINDROOM_CACHE_DB_BASE_NAME: 'mindroom-cache',
+  deleteCacheStoreDb: vi.fn().mockResolvedValue(undefined),
+  getCacheStoreDbName: vi.fn((sessionId: string) => `mindroom-cache::${sessionId}`),
+  getLegacyRoomEventCacheDbName: vi.fn(
+    (sessionId: string) => `mindroom-room-event-cache::${sessionId}`
+  ),
+  getLegacyThreadEventCacheDbName: vi.fn(
     (sessionId: string) => `mindroom-thread-event-cache::${sessionId}`
   ),
-}));
-
-vi.mock('../app/mindroom/threads/roomEventCache', () => ({
-  MINDROOM_ROOM_EVENT_CACHE_DB_NAME: 'mindroom-room-event-cache',
-  deleteRoomEventCache: vi.fn().mockResolvedValue(undefined),
-  getRoomEventCacheDbName: vi.fn((sessionId: string) => `mindroom-room-event-cache::${sessionId}`),
-}));
-
-vi.mock('../app/mindroom/threads/threadSummaryStore', () => ({
-  deleteThreadSummaryCache: vi.fn().mockResolvedValue(undefined),
-  getThreadSummaryCacheDbName: vi.fn(
+  getLegacyThreadSummaryCacheDbName: vi.fn(
     (sessionId: string) => `mindroom-thread-summary-cache::${sessionId}`
   ),
+  getLegacySessionScopedCacheDbNames: vi.fn((sessionId: string) => [
+    `mindroom-room-event-cache::${sessionId}`,
+    `mindroom-thread-event-cache::${sessionId}`,
+    `mindroom-thread-summary-cache::${sessionId}`,
+  ]),
 }));
 
 vi.mock('../app/mindroom/native/iosPush', () => ({
@@ -722,6 +726,9 @@ describe('clearAllCacheAndReload', () => {
     expect(deleteDatabase.mock.calls.map(([name]) => name)).toEqual([
       'mindroom-room-event-cache',
       'mindroom-thread-event-cache',
+      // CINNY-207 P2.1 (D8): unified `mindroom-cache` singleton +
+      // session-scoped name are also listed in the fallback.
+      'mindroom-cache',
       'matrix-js-sdk:web-sync-store',
       'crypto-store',
       'matrix-js-sdk::matrix-sdk-crypto',
@@ -733,6 +740,7 @@ describe('clearAllCacheAndReload', () => {
       getThreadEventCacheDbName(session.sessionId),
       getRoomEventCacheDbName(session.sessionId),
       getThreadSummaryCacheDbName(session.sessionId),
+      `mindroom-cache::${session.sessionId}`,
     ]);
     expect(replace).toHaveBeenCalledWith('/?clear_cache=6789');
   });
@@ -976,9 +984,11 @@ describe('clearCacheAndReload', () => {
     expect(clearStores).toHaveBeenCalledWith({
       cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),
     });
-    expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(session.sessionId);
-    expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(session.sessionId);
-    expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith(session.sessionId);
+    // CINNY-207 P2.3: the three legacy delete-cache functions collapsed
+    // to a single deleteCacheStoreDb call inside sessionCleanup; the
+    // legacy per-session DB names are also deleted via
+    // indexedDB.deleteDatabase directly (see the deleteDatabase mock).
+    expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith(session.sessionId);
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(session.userId);
     expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(session.userId);
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(
@@ -1041,9 +1051,11 @@ describe('clearCacheAndReload', () => {
         deviceId,
       }),
     });
-    expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(sessionId);
-    expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(sessionId);
-    expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith(sessionId);
+    // CINNY-207 P2.3: the three legacy delete-cache functions collapsed
+    // to a single deleteCacheStoreDb call inside sessionCleanup; the
+    // legacy per-session DB names are also deleted via
+    // indexedDB.deleteDatabase directly (see the deleteDatabase mock).
+    expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith(sessionId);
     expect(reload).toHaveBeenCalledTimes(1);
   });
 });
@@ -1158,9 +1170,11 @@ describe('logoutClient', () => {
     const legacyRustCryptoStoreNames = getLegacySessionRustCryptoStoreNames({ sessionId });
     expect(deleteDatabase).toHaveBeenCalledWith(legacyRustCryptoStoreNames[0]);
     expect(deleteDatabase).toHaveBeenCalledWith(legacyRustCryptoStoreNames[1]);
-    expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(sessionId);
-    expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(sessionId);
-    expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith(sessionId);
+    // CINNY-207 P2.3: the three legacy delete-cache functions collapsed
+    // to a single deleteCacheStoreDb call inside sessionCleanup; the
+    // legacy per-session DB names are also deleted via
+    // indexedDB.deleteDatabase directly (see the deleteDatabase mock).
+    expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith(sessionId);
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(userId);
     expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(userId);
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(userId);
@@ -1295,6 +1309,10 @@ describe('clearLoginData', () => {
 
     await clearLoginData();
 
+    // CINNY-207 P2.3: sessionCleanup also fires
+    // indexedDB.deleteDatabase(dbName) for each legacy per-session DB
+    // (three-way legacy split) so rolled-back installs that never
+    // opened v3 still get their per-session DBs deleted on logout.
     expect(deletedDatabaseNames).toEqual([
       getSessionIndexedDbStoreName(session).sync,
       'matrix-js-sdk:web-sync-store',
@@ -1306,10 +1324,11 @@ describe('clearLoginData', () => {
       'matrix-js-sdk::matrix-sdk-crypto-meta',
       'mindroom-room-event-cache',
       'mindroom-thread-event-cache',
+      `mindroom-room-event-cache::${session.sessionId}`,
+      `mindroom-thread-event-cache::${session.sessionId}`,
+      `mindroom-thread-summary-cache::${session.sessionId}`,
     ]);
-    expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(session.sessionId);
-    expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(session.sessionId);
-    expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith(session.sessionId);
+    expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith(session.sessionId);
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(session.userId);
     expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(session.userId);
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(
@@ -1401,6 +1420,10 @@ describe('clearLoginData', () => {
 
     await clearLoginData();
 
+    // CINNY-207 P2.3: sessionCleanup now deletes each legacy per-session
+    // DB directly (three-way legacy split) alongside the unified store,
+    // so the logout gesture picks up rolled-back installs that never
+    // opened v3.
     expect(deletedDatabaseNames).toEqual([
       getSessionIndexedDbStoreName(session).sync,
       getSessionRustCryptoStoreNames(session)[0],
@@ -1408,6 +1431,9 @@ describe('clearLoginData', () => {
       getSessionIndexedDbStoreName(session).crypto,
       'mindroom-room-event-cache',
       'mindroom-thread-event-cache',
+      `mindroom-room-event-cache::${session.sessionId}`,
+      `mindroom-thread-event-cache::${session.sessionId}`,
+      `mindroom-thread-summary-cache::${session.sessionId}`,
     ]);
     expect(reload).toHaveBeenCalledTimes(1);
   });
@@ -1626,9 +1652,11 @@ describe('removeStoredSession', () => {
     const legacyRustCryptoStoreNames = getLegacySessionRustCryptoStoreNames(inactiveSession);
     expect(deleteDatabase).toHaveBeenCalledWith(legacyRustCryptoStoreNames[0]);
     expect(deleteDatabase).toHaveBeenCalledWith(legacyRustCryptoStoreNames[1]);
-    expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(inactiveSession.sessionId);
-    expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(inactiveSession.sessionId);
-    expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith(inactiveSession.sessionId);
+    // CINNY-207 P2.3: the three legacy delete-cache functions collapsed
+    // to a single deleteCacheStoreDb call inside sessionCleanup; the
+    // legacy per-session DB names are also deleted via
+    // indexedDB.deleteDatabase directly (see the deleteDatabase mock).
+    expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith(inactiveSession.sessionId);
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(inactiveSession.userId);
     expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(
       inactiveSession.userId

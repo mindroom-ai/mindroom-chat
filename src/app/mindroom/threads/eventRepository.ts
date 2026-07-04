@@ -6,24 +6,22 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import {
+  deleteThreadEventsFromCache as deleteThreadEventsFromCacheToStorage,
   getRoomCursorAnchor,
+  getThreadCursorAnchor as getCachedThreadCursorAnchor,
   loadCachedRoomEventsBefore as loadCachedRoomEventsBeforeFromCache,
   loadCachedRoomPaginationToken as loadCachedRoomPaginationTokenFromCache,
-  loadLatestCachedRoomEvents as loadLatestCachedRoomEventsFromCache,
-  normalizeCachedRoomEvents,
-  saveRoomEventsToCache as saveRoomEventsToCacheToStorage,
-  type CachedRoomEventPage,
-} from './roomEventCache';
-import {
-  deleteThreadEventsFromCache as deleteThreadEventsFromCacheToStorage,
-  getThreadCursorAnchor as getCachedThreadCursorAnchor,
   loadCachedThreadEventsBefore as loadCachedThreadEventsBeforeFromCache,
+  loadLatestCachedRoomEvents as loadLatestCachedRoomEventsFromCache,
   loadLatestCachedThreadEvents as loadLatestCachedThreadEventsFromCache,
+  normalizeCachedRoomEvents,
   normalizeCachedThreadEvents,
+  saveRoomEventsToCache as saveRoomEventsToCacheToStorage,
   saveThreadEventsToCache as saveThreadEventsToCacheToStorage,
+  type CachedRoomEventPage,
   type CachedThreadEvent,
   type CachedThreadEventPage,
-} from './threadEventCache';
+} from './cacheStore';
 import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
 import { serializeEventsForCache } from './eventCacheEditUtils';
 import { isThreadOnlyRoomActivity } from './threadRenderUtils';
@@ -35,8 +33,11 @@ import {
 } from './threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { countCacheProbe } from './cacheProbe';
-import { isCacheWritable, reportCacheWriteError } from './cacheHealth';
 
+// CINNY-207 P2.3: the write-boundary now lives inside cacheStore save
+// entry points (single choke point). eventRepository is a serialization
+// seam only — it does NOT wrap the save with its own health gate or
+// catch. Callers still import from here and see the same return shape.
 export {
   deleteRoomEventsFromCache,
   getRoomCursorAnchor,
@@ -48,7 +49,7 @@ export {
   saveRoomEventsToCache,
   type CachedRoomEvent,
   type CachedRoomEventPage,
-} from './roomEventCache';
+} from './cacheStore';
 
 export {
   deleteThreadEventFromCacheByEventId,
@@ -61,7 +62,7 @@ export {
   saveThreadEventsToCache,
   type CachedThreadEvent,
   type CachedThreadEventPage,
-} from './threadEventCache';
+} from './cacheStore';
 
 /**
  * CINNY-207 P1.2 (finding F6-B): prefer the SDK's live event instance over a
@@ -780,25 +781,21 @@ export const persistThreadEventCacheSnapshot = ({
     : undefined;
 
   countCacheProbe('serializedEvents', rawEvents.length);
-  // CINNY-207 P1.5 (F4): failures are surfaced, and after a quota error the
-  // session is cache-read-only — skip the write instead of failing again.
-  if (isCacheWritable()) {
-    save(
-      sessionId,
-      room.roomId,
-      threadId,
-      rawEvents,
-      rawRootEvent,
-      beforeTokenForEarliest,
-      tailLoaded,
-      snapshotComplete,
-      persistedExpectedReplyCount,
-      relationSnapshotComplete
-    ).catch((error) => {
-      reportCacheWriteError('threadEventCache.save', error);
-      return undefined;
-    });
-  }
+  // CINNY-207 P2.3: health gate + failure surfacing moved into the
+  // cacheStore save entry point (single choke point). This seam only
+  // serializes and delegates.
+  void save(
+    sessionId,
+    room.roomId,
+    threadId,
+    rawEvents,
+    rawRootEvent,
+    beforeTokenForEarliest,
+    tailLoaded,
+    snapshotComplete,
+    persistedExpectedReplyCount,
+    relationSnapshotComplete
+  );
 
   return {
     rawEvents,
@@ -930,13 +927,9 @@ export const persistRoomEventCacheSnapshot = ({
   const rawEvents = serializeRoomCacheEvents(room, events);
 
   countCacheProbe('serializedEvents', rawEvents.length);
-  // CINNY-207 P1.5 (F4): same surfacing/read-only gate as the thread path.
-  if (isCacheWritable()) {
-    save(sessionId, room.roomId, rawEvents, beforeTokenForEarliest).catch((error) => {
-      reportCacheWriteError('roomEventCache.save', error);
-      return undefined;
-    });
-  }
+  // CINNY-207 P2.3: same as the thread path — gating/surfacing lives
+  // in the cacheStore save entry point.
+  void save(sessionId, room.roomId, rawEvents, beforeTokenForEarliest);
 
   return {
     rawEvents,
