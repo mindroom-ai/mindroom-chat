@@ -2,6 +2,104 @@
 
 ## Runbook
 
+### CINNY-207 AC2 revision R1-R9 — single choke-point reconcile schedule, defensive machinery reverted (2026-07-04)
+
+- Owner directive: real fixes over defensive layers. STEP 3's
+  bounded guard-abort retry (`reconciler.ts` state machine) and
+  STEP 4 iter 2 STEP d's per-branch schedule bandage
+  (backfill-completed schedule call site) were both symptoms of
+  the same anti-pattern — bolting compensating machinery onto
+  places where the reconciler had gone missing, instead of moving
+  the schedule to a point where it structurally could not be
+  missed. The revision reverts both and replaces them with one
+  choke-point schedule.
+- Choke-point placement: at the top of `runThreadOpenCacheFirst`,
+  immediately after the two hydrate guards (`hydrateThreadFromCache`
+  try/catch + post-hydrate `isCurrentThreadOpen` check) and ABOVE
+  every coverage/bootstrap conditional. Every open that survives
+  the two guards schedules exactly one reconcile with reason
+  `open-thread-choke-point`. The reconciler's dedup key
+  (`roomId|threadId|kind=reconcile`) coalesces this call against
+  any in-flight reconcile from a prior tab/focus event so the
+  addition is safe unconditionally.
+- Reconciler decoupled from component mount state: the paired R1
+  revert removed the `shouldContinue` guard-abort machinery, so
+  the reconciler now runs to completion regardless of navigation.
+  Component-mount checks live inside `onRepaired` so a moved-away
+  component no-ops on render while the persist leg still teaches
+  the cache — realizing invariant I2 (engine convergence to
+  server truth is independent of component navigation).
+- Skip counters collapsed to the three-bucket invariant:
+  `threadOpens == threadOpenScheduledCacheFirst +
+  threadOpenSkipCacheFirstHydrateGuard +
+  threadOpenSkipCacheFirstPostHydrateGuard`. The pre-revision
+  counter set had twelve additional skip counters (SDK-bootstrap
+  early-returns + mid-flow cache-first paths) that guarded
+  now-impossible skip shapes; those were pruned with the
+  machinery.
+- Live gate (docker Tuwunel matrix, trace on) — AC2 spec:
+  - Probe (t2s snapshot): `threadOpens=2,
+    threadOpenScheduledCacheFirst=1,
+    threadOpenSkipCacheFirstPostHydrateGuard=1` — invariant sum
+    holds cleanly (first-open cleanup skipped legitimately, the
+    return-nav open scheduled the reconcile).
+  - Engine: `reconcilesScheduled=2, reconcilesRepaired=1,
+    reconcilerPersists=1, reconcilesOnRepairedFired=1,
+    reconcilesThreadNull=0` — the reconciler ran, detected
+    divergence, repaired, persisted the converged snapshot, and
+    invoked the widened `onRepaired` sink.
+  - Visible assertion outcome: `edit-target v2 converged` still
+    never becomes visible within 30s (`element(s) not found`
+    timeout). `test.fail()` remains on the spec — the choke-point
+    revision advanced the engine convergence guarantee but did
+    NOT close the render gap.
+- Regression: `cinny207-streamed-edit-cache.spec.ts` and
+  `cinny207-stop-emoji-redaction.spec.ts` both pass green under
+  the revision. stop-emoji's probe shows the same invariant
+  holding: `threadOpens=2 == threadOpenScheduledCacheFirst=1 +
+  threadOpenSkipCacheFirstPostHydrateGuard=1` with
+  `reconcilesRepaired=1, reconcilerPersists=1`.
+- Validation bar: tsc clean; vitest 2644/2644 green (2650
+  baseline minus 6 tests deleted with the pruned SDK-bootstrap
+  skip invariant machinery); lint 18 warnings 0 errors; build
+  clean.
+- KNOWN REMAINING GAP (render side, unchanged by the revision):
+  cache convergence + `onRepaired` firing are both proven above,
+  but `edit-target v2 converged` never becomes visible. Same
+  three candidates the STEP e outcome named:
+  - (a) `mergeThreadRenderEvents` dedups by event id keeping the
+        first instance seen; if the cached `edit-target-v1` is
+        already in fallback events and the incoming batch contains
+        only the m.replace edit-relation event (not the target),
+        the render only shows v2 if `hydrateCachedEvents`
+        mutates the kept instance's bundled body in place.
+  - (b) React batching / memo selector might swallow the tick
+        bumped inside the `onRepaired` callback.
+  - (c) SDK inject leg (`liveThread.addEvents`) runs against the
+        live thread but SDK bootstrap was skipped by the
+        backfill-completed path — inherited from the pre-existing
+        complete-coverage schedule seam.
+- Next iteration: add sink-side counters (`onRepaired-guard-bailed`
+  vs `setSupplementalThreadEvents-executed`, plus "merge saw
+  edit-relation but no bundled-body change" inside
+  `mergeThreadRenderEvents`) to name which of the three candidates
+  is at fault; the fix idiom for candidate (a) is
+  "repair-reaches-the-render-held-instance" per `P5-GATE-FIX v3/v5`
+  runbook entries and the `makeReplaced-on-render-instance`
+  reconciler test.
+- Commits on the revision branch (`cache-overhaul/ac2-reconcile-fix`):
+  - `revert(reconciler): remove guard-abort retry machinery`
+    (R1) — reverted STEP 3's state-machine retry idiom.
+  - `refactor(threads): AC2 single choke-point reconcile schedule`
+    (R2-R6) — this commit; replaces the three per-branch
+    schedule call sites with a single choke-point call above
+    coverage branching, prunes the twelve now-impossible skip
+    counters, rewrites the STEP c backfill-completed skip repro
+    to assert the STRONGER "schedule fires BEFORE coverage
+    branching" invariant, updates the integration test's
+    fetchRelations mock to serve both the choke-point reconciler
+    and the backfill.
+
 ### CINNY-207 AC2 STEP 4 iter 2 STEP e — live-gate outcome: STEP d ships neutral-to-positive, new render-side diagnosis surface (2026-07-04)
 
 - Live gate: `E2E_ENABLE_DEPLOYED_FIXTURE=0 bash

@@ -19,7 +19,6 @@ import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from './timelineDebug';
 import { getThreadCursorAnchor } from './eventRepository';
 import { isThreadNotFoundError } from './threadBootstrap';
-import { countCacheProbe } from './cacheProbe';
 import type { HydratedThreadCachePage } from './threadOpenCacheController';
 
 type PersistThreadEventCache = (
