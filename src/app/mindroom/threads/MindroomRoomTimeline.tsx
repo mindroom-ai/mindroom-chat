@@ -1386,7 +1386,17 @@ export function RoomTimeline({
       scrollRoot: HTMLElement | null | undefined,
       eventCount?: number
     ) => {
-      if (!recaptureThreadBackPaginationAnchor(recaptureThreadId, scrollRoot, eventCount)) return;
+      if (!recaptureThreadBackPaginationAnchor(recaptureThreadId, scrollRoot, eventCount)) {
+        // Recapture failed (no visible message row — e.g. momentum
+        // settled in a virtualized/loading gap). The begin-time anchor
+        // is stale by definition here; restoring it would teleport the
+        // viewport back to where pagination fired. Never restore to a
+        // position the user left: drop the anchor and let the prepend
+        // land without a restore (greptile on PR #75).
+        clearPendingThreadBackPaginationAnchor();
+        threadVirtualPrependCaptureRef.current = undefined;
+        return;
+      }
       if (!recaptureThreadId) return;
       const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
       const anchorSeq = getPendingThreadBackPaginationAnchorSeq();
@@ -1409,6 +1419,7 @@ export function RoomTimeline({
     },
     [
       recaptureThreadBackPaginationAnchor,
+      clearPendingThreadBackPaginationAnchor,
       getPendingThreadBackPaginationAnchorEventId,
       getPendingThreadBackPaginationAnchorSeq,
       threadEventIndexMapRef,

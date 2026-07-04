@@ -619,7 +619,12 @@ describe('RoomTimeline', () => {
       };
       // Prepending 100 rows above the viewport unmounts the anchor row in
       // production (virtual indexes shift while scrollTop stays), which is the
-      // case the coarse scrollToIndex compensation exists for.
+      // case the coarse scrollToIndex compensation exists for. The flag stays
+      // TRUE through the begin-time capture AND the commit-time recapture
+      // (task #125 follow-up: in production the prepend has not rendered when
+      // either capture runs, so the anchor row is still mounted) and flips
+      // FALSE when the test applies the prepend render — exactly when the
+      // unmount happens in production.
       let anchorMounted = true;
       const scrollElement = {
         addEventListener: vi.fn(),
@@ -633,15 +638,14 @@ describe('RoomTimeline', () => {
       };
       // The thread-open bootstrap may also paginate; only the explicit
       // Load Older Messages pagination should prepend the older rows.
-      let prependOnPaginate = false;
-      matrixClientMock.paginateEventTimeline.mockImplementation(async () => {
-        if (prependOnPaginate) {
-          prependOnPaginate = false;
-          anchorMounted = false;
-          setThreadEvents(prependedThreadEvents);
-        }
-        return false;
-      });
+      // Task #125 follow-up sequencing: the paginate mock must NOT
+      // apply the prepend to the RENDER state — in production the
+      // paginate mutates only the SDK timeline, and the render list /
+      // index map update at the (quiescence-deferred) commit. The
+      // commit-time anchor recapture must read the PRE-prepend index
+      // map; the test applies the prepend afterwards, as the commit's
+      // re-render does in production.
+      matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       let renderer: ReturnType<typeof create> | undefined;
 
@@ -661,16 +665,34 @@ describe('RoomTimeline', () => {
 
         const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
         await act(async () => {
-          prependOnPaginate = true;
           loadOlderChip.props.onClick();
           await flushAsyncWork(10);
           // Task #125 follow-up: the prepend RENDER COMMIT waits for
           // scroll quiescence (150ms with no scroll events, wall
           // clock) before it lands — see scrollQuiescence.ts. This
-          // suite section runs real timers, so wait it out.
+          // suite section runs real timers, so wait it out; the
+          // commit-time recapture runs here against the pre-prepend
+          // index map.
           await new Promise((resolve) => {
             setTimeout(resolve, 250);
           });
+          await flushAsyncWork(10);
+        });
+
+        // The commit's re-render delivers the prepended render state in
+        // production; the harness applies it explicitly. The prepend
+        // unmounts the anchor row (virtual indexes shift while
+        // scrollTop stays) — the case the coarse scrollToIndex exists
+        // for.
+        await act(async () => {
+          anchorMounted = false;
+          setThreadEvents(prependedThreadEvents);
+          renderer!.update(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            })
+          );
           await flushAsyncWork(10);
         });
 

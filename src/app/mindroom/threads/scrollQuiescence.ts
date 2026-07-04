@@ -118,8 +118,11 @@ export const waitForScrollQuiescence = (
     function onTouchStart() {
       touchActive = true;
     }
-    function onTouchEnd() {
-      touchActive = false;
+    function onTouchEnd(event: Event) {
+      // Derive from REMAINING touches (coderabbit on PR #75): lifting
+      // one finger of a multi-touch gesture must not clear the flag
+      // while another is still down.
+      touchActive = ((event as TouchEvent).touches?.length ?? 0) > 0;
       armIdleTimer();
     }
 
