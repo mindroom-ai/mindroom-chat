@@ -2,6 +2,64 @@
 
 ## Runbook
 
+### CINNY-207 AC2 STEP 4 iter 2 STEP e — live-gate outcome: STEP d ships neutral-to-positive, new render-side diagnosis surface (2026-07-04)
+
+- Live gate: `E2E_ENABLE_DEPLOYED_FIXTURE=0 bash
+  scripts/test-e2e-docker-matrix.sh
+  e2e/live/cinny207-stale-cache-divergence.spec.ts --trace on`
+  against the docker Tuwunel matrix, STEP d tip.
+- Outcome: the AC2 spec's visible convergence assertion still
+  times out — `test.fail()` remains on the spec. But the STEP d
+  fix advanced the state materially and both probe invariants
+  (STEP a and STEP 1) hold cleanly.
+- Post-fix probe snapshot vs pre-fix:
+  - `threadOpenScheduledCacheFirst`      : 0 → 1   ← NEW schedule fires
+  - `threadOpenSkipCacheFirstBackfillCompleted`: 1 → 0 ← skip closed
+  - `reconcilesScheduled`               : 1 → 2   ← thread-scope schedule added
+  - `reconcilesRepaired`                : 0 → 1   ← reconciler REPAIRED
+  - `reconcilerPersists`                : 0 → 1   ← cache PERSISTED
+  - `reconcilesOnRepairedFired`         : 0 → 1   ← render sink invoked
+  - Invariants: `threadOpens (2) == scheduled (1) + skips (1)` ✓;
+                `reconcilesScheduled (2) == reconcilesRoomScopeNoop (1)
+                 + reconcilesRepaired (1)` ✓.
+- What STEP d fixed: the D7-violating skip is closed — the
+  thread-scope reconcile now fires on the AC2 return-nav open,
+  detects divergence, repairs, persists, and invokes the widened
+  `onRepaired` callback.
+- What STEP d did NOT close: `edit-target v2 converged` still
+  never becomes visible in the render within 30s. Cache
+  convergence + `setSupplementalThreadEvents` invocation are both
+  proven; the failure is DOWNSTREAM of the reconciler and the
+  sink, in the render pipeline consuming
+  `fallbackThreadEventsState.events` and `thread.events`.
+- New diagnosis surface (documented in the spec header):
+  (a) `mergeThreadRenderEvents` dedups by event id keeping the
+      first instance seen; if the cached `edit-target-v1` instance
+      is kept and the incoming batch contains only the m.replace
+      edit-relation event (not the target itself), the render
+      only shows v2 if `hydrateCachedEvents` mutates the kept
+      instance's bundled body in place;
+  (b) React batching / memo selector might swallow the tick
+      bumped inside the `onRepaired` callback;
+  (c) SDK inject leg (`liveThread.addEvents`) runs against the
+      live thread but SDK bootstrap was skipped by the backfill-
+      completed path — STEP d inherits this seam from the pre-
+      existing complete-coverage schedule.
+- STEP d STAYS SHIPPED: closes a real, D7-violating skip that any
+  future open on the AC2 shape would otherwise silently freeze the
+  cache. The unit-level guarantee is proven (2650 vitest tests
+  including the new backfill-completed schedule assertion). The
+  render-side gap is orthogonal — backing STEP d out would re-open
+  the cache-freeze bug without fixing the render.
+- Regression: streamed-edit-cache (`✓ 42.2s`) and stop-emoji-
+  redaction (`✓ 56.8s`) both pass green against the STEP d tip.
+  Their probe traces show the invariant hold too: streamed-edit's
+  `threadOpens=2 == threadOpenScheduledLifecycle=1 +
+  threadOpenSkipCacheFirstPostHydrateGuard=1`.
+- Spec header rewritten with the STEP e probe snapshot,
+  interpretation, and the three render-side candidates for the
+  next iteration.
+
 ### CINNY-207 AC2 STEP 4 iter 2 STEP d — D7 fix for the backfill-completed skip (2026-07-04)
 
 - Fix (mechanism): `runThreadOpenCacheFirst`'s
