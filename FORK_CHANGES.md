@@ -112,6 +112,34 @@
     `__tests__/RoomTimelineCollapsible.test.ts`), and the
     `matchMedia('(pointer: fine)')` probe gained a `typeof window` guard for
     window-less test environments.
+- PR #62 review remediation (2026-07-03):
+  - Gemini claimed the in-view hook's scroll listener never attaches because
+    `scrollRef.current` is null on mount — incorrect: React assigns DOM refs
+    during the commit phase before effects run, and the only path where
+    `<Scroll>` isn't mounted (compact view) also flips `enabled`, which is in
+    the dependency array. Skipped with that rationale on the PR thread.
+  - Fixed (greptile): `aria-valuenow` is now omitted (undefined) when no
+    stripe is active instead of announcing 0; fixture passwords in
+    `minimap-fixture.sh` are env-overridable (`E2E_HUMAN_PASSWORD` /
+    `E2E_AGENT_PASSWORD`) with the local-dev defaults kept inline.
+  - Second independent subagent review found no real bugs; three minor
+    findings fixed:
+    - In-view highlighting now uses ranges (each stripe's anchor extends to
+      the next stripe's message top), so scrolling through an agent reply
+      taller than the viewport keeps its question's stripe lit instead of
+      showing no position at all.
+    - A `ResizeObserver` on the scroll container + its content re-runs the
+      in-view pass on layout changes without scroll events (window resize,
+      collapsible expand, media load).
+    - A redacted human question no longer leaks the following agent reply
+      into the previous question's preview: redacted non-agent
+      `m.room.message` events terminate the pairing run (classified by
+      sender only, since redaction strips content metadata). Regression
+      tests added for both redacted-question and redacted-agent cases.
+  - Accepted as-is: `matchMedia('(pointer: fine)')` sampled once per mount
+    (matches reference implementation; remount per room/thread re-samples),
+    and slider semantics with Enter-to-jump (focus always sets an index, so
+    a focused slider always has a value).
 
 ### Thread overview toolbar: top spacing + inline tag filters (2026-07-03)
 

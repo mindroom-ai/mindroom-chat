@@ -1,5 +1,5 @@
 import { EventType } from 'matrix-js-sdk';
-import { isMindroomAgentMessageEvent } from '../matrix/agentIdentity';
+import { isMindroomAgentMessageEvent, isMindroomAgentUserId } from '../matrix/agentIdentity';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
 
 export const TIMELINE_MINIMAP_ITEM_SPACING = 8;
@@ -57,10 +57,16 @@ const compactMinimapPreview = (text: string | null | undefined): string | null =
   return compact.length > 0 ? compact : null;
 };
 
-type MinimapSourceKind = 'user' | 'agent' | 'other';
+type MinimapSourceKind = 'user' | 'agent' | 'redactedUser' | 'other';
 
 const resolveMinimapSourceKind = (mEvent: TimelineMinimapEvent): MinimapSourceKind => {
-  if (mEvent.getType() !== EventType.RoomMessage || mEvent.isRedacted?.()) return 'other';
+  if (mEvent.getType() !== EventType.RoomMessage) return 'other';
+  if (mEvent.isRedacted?.()) {
+    // Redaction strips the content metadata, so only the sender convention is
+    // left to classify. A redacted human question gets no stripe but must
+    // still end the previous question's reply-pairing run.
+    return isMindroomAgentUserId(mEvent.getSender?.()) ? 'other' : 'redactedUser';
+  }
   return isMindroomAgentMessageEvent(mEvent) ? 'agent' : 'user';
 };
 
@@ -88,7 +94,7 @@ export const deriveTimelineMinimapItems = (
 
     let agentText: string | null = null;
     for (let cursor = index + 1; cursor < events.length; cursor += 1) {
-      if (kinds[cursor] === 'user') break;
+      if (kinds[cursor] === 'user' || kinds[cursor] === 'redactedUser') break;
       if (kinds[cursor] === 'agent') {
         agentText = resolveMinimapPreviewText(events[cursor]) ?? agentText;
       }

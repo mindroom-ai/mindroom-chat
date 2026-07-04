@@ -30,18 +30,29 @@ export const useTimelineMinimapInView = (
     const scrollElement = scrollRef.current;
     if (!enabled || !scrollElement || items.length < TIMELINE_MINIMAP_MIN_ITEMS) return undefined;
 
+    const itemIds = new Set(items.map((item) => item.id));
     let frame = 0;
     const update = () => {
       frame = 0;
       const containerRect = scrollElement.getBoundingClientRect();
-      // Single DOM pass per frame: collect visible message ids, then flag
-      // stripes from that set instead of querying per item.
-      const inViewIds = new Set<string>();
+      // Single DOM pass per frame: anchor each stripe at its message's top
+      // edge and extend its range down to the next stripe's anchor, so
+      // scrolling through a tall agent reply still highlights the question
+      // that reply belongs to.
+      const anchors: { id: string; top: number }[] = [];
       scrollElement.querySelectorAll<HTMLElement>('[data-message-id]').forEach((element) => {
-        const rect = element.getBoundingClientRect();
-        if (rect.bottom > containerRect.top && rect.top < containerRect.bottom) {
-          const messageId = element.getAttribute('data-message-id');
-          if (messageId) inViewIds.add(messageId);
+        const messageId = element.getAttribute('data-message-id');
+        if (messageId && itemIds.has(messageId)) {
+          anchors.push({ id: messageId, top: element.getBoundingClientRect().top });
+        }
+      });
+      anchors.sort((a, b) => a.top - b.top);
+      const inViewIds = new Set<string>();
+      anchors.forEach((anchor, index) => {
+        const rangeEnd =
+          index + 1 < anchors.length ? anchors[index + 1].top : Number.POSITIVE_INFINITY;
+        if (rangeEnd > containerRect.top && anchor.top < containerRect.bottom) {
+          inViewIds.add(anchor.id);
         }
       });
       items.forEach((item) => {
@@ -56,8 +67,17 @@ export const useTimelineMinimapInView = (
 
     schedule();
     scrollElement.addEventListener('scroll', schedule, { passive: true });
+    // Layout can shift without a scroll event (window resize, collapsibles
+    // expanding, media loading), so track container and content size too.
+    let resizeObserver: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(schedule);
+      resizeObserver.observe(scrollElement);
+      if (scrollElement.firstElementChild) resizeObserver.observe(scrollElement.firstElementChild);
+    }
     return () => {
       scrollElement.removeEventListener('scroll', schedule);
+      resizeObserver?.disconnect();
       if (frame !== 0) cancelAnimationFrame(frame);
     };
   }, [scrollRef, items, stripMap, enabled]);
@@ -122,7 +142,7 @@ export function TimelineMinimap({ items, stripMap, onSelect }: TimelineMinimapPr
           aria-orientation="vertical"
           aria-valuemin={0}
           aria-valuemax={items.length - 1}
-          aria-valuenow={resolvedActiveIndex ?? 0}
+          aria-valuenow={resolvedActiveIndex ?? undefined}
           aria-valuetext={
             activeItem
               ? [activeItem.userText ?? 'Message', activeItem.agentText].filter(Boolean).join(' — ')

@@ -163,6 +163,37 @@ describe('deriveTimelineMinimapItems', () => {
     expect(items).toEqual([{ id: '$u1', userText: 'question', agentText: 'the answer' }]);
   });
 
+  it('does not pair an agent reply across a redacted question', () => {
+    const items = deriveTimelineMinimapItems([
+      userMessage('$u1', 'first question'),
+      agentMessage('$a1', 'answer one'),
+      makeEvent({
+        id: '$u2',
+        sender: '@bas:server',
+        content: {},
+        redacted: true,
+      }),
+      agentMessage('$a2', 'answer two'),
+    ]);
+
+    expect(items).toEqual([{ id: '$u1', userText: 'first question', agentText: 'answer one' }]);
+  });
+
+  it('still pairs across redacted agent messages', () => {
+    const items = deriveTimelineMinimapItems([
+      userMessage('$u1', 'question'),
+      makeEvent({
+        id: '$a1',
+        sender: '@mindroom_assistant:server',
+        content: {},
+        redacted: true,
+      }),
+      agentMessage('$a2', 'the answer'),
+    ]);
+
+    expect(items).toEqual([{ id: '$u1', userText: 'question', agentText: 'the answer' }]);
+  });
+
   it('ignores non-message events, redacted messages, and events without ids', () => {
     const items = deriveTimelineMinimapItems([
       makeEvent({ id: '$m1', type: 'm.room.member', sender: '@bas:server' }),
