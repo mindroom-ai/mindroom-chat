@@ -2,6 +2,110 @@
 
 ## Runbook
 
+### CINNY-207 P5-GATE-FIX v4 (final iteration) - reconciler as deterministic owner: cache-diff + ENGINE PERSIST leg (2026-07-04)
+
+- Status: Implementation-complete atop the P5 gate-closure tip
+  (`d5b2d345`) on `cache-overhaul/12-p5-reconciler`. Team-lead time-boxed
+  ONE more iteration attempt before the honest-red package (which is
+  already in place) becomes the shipping state; this entry describes
+  that attempt end-to-end so a future re-runner has full context.
+- Trigger (team-lead 2026-07-04): latest clean-network AC2 evidence
+  identified the design seam as the interaction of three factors —
+  (a) engine liveMode initial-burst gate skipping catch-up-sync events
+  by design, (b) gap-fill persisting only room-scope on that path, and
+  (c) render source preference in cache-first mode compounding it. The
+  divergence backlog on token-resume reopen never reaches the thread
+  cache scope, so a cache-first re-open re-hits the stale window even
+  when in-memory paths eventually converge. Time-box directive: smallest
+  coherent cut that makes the reconciler the deterministic owner it was
+  designed to be; if AC2 still red on docker re-run, keep the
+  already-shipped honest-red package.
+- What changed (behavior):
+  - `src/app/mindroom/engine/reconciler.ts` — after divergence is
+    detected and the hydration pipeline runs, the reconciler now
+    persists the fully-mapped, prefer-live fetched batch through
+    `persistThreadEventCacheSnapshot` (the same engine-owned snapshot
+    writer the write-through uses). The cache converges to the fetched
+    shape on this pass; the NEXT reopen from IDB paints the fetched
+    state directly without waiting for another reconciler cycle. This
+    closes the timing-dependent seam where in-memory chain (SDK inject +
+    render-side supplemental sink) converged only ephemerally.
+  - Divergence is (and always was) computed from CACHE records — the
+    `cachedIds` set is built from `cachedPage.rootEvent` +
+    `cachedPage.events` raw JSON, not from SDK state. Team-lead's
+    "cache-diff not SDK-diff" directive is already the semantic; the
+    fix is that we now WRITE back to the cache on divergence, making
+    convergence deterministic regardless of whether the SDK sync won
+    the timing race or not.
+  - `src/app/mindroom/threads/cacheProbe.ts` — two new counters:
+    - `reconcilerPersists`: bumps once per repair pass that persisted
+      via the engine snapshot writer. Complements `threadSaveCalls`
+      (which counts ALL persist paths) by isolating the
+      reconciler-owned persist for docker trace analysis.
+    - `reconcilesOnRepairedFired`: bumps AFTER `onRepaired(allMapped)`
+      returns normally. `reconcilesRepaired` bumps BEFORE the callback,
+      so the gap between the two is diagnostic — a guard-skipped or
+      throwing callback shows up as (reconcilesRepaired=N,
+      reconcilesOnRepairedFired=0). This is the definitive
+      callback-fired counter I flagged in the v5 report.
+- Unit tests (reconciler.test.ts, 22 tests total, +3 red-first):
+  - "persists fetched thread events through the ENGINE PERSIST path on
+    divergence" — asserts `reconcilerPersists === 1` when a new event id
+    triggers divergence.
+  - "detects SDK-vs-cache timing race and STILL persists + injects" —
+    the timing-nondeterminism case team-lead named: SDK already holds
+    v2 (sync won the race, `getThread(id).addEvents` spy fires), cache
+    holds v1 (raw record has no bundled `m.replace`). The fetched raw
+    for the same id carries the bundled replace → divergence detected
+    against CACHE truth, persist + inject both fire, callback batches
+    reach the render sink.
+  - "bumps reconcilesOnRepairedFired only AFTER the onRepaired callback
+    returns" — asserts the ordering invariant: the callback observes
+    the pre-fire counter value 0, the outer assertion observes 1.
+  - "D7 no-op path does NOT persist through the engine path" — cost
+    guarantee: cheap-no-op paths stay cheap (no IDB write, no callback,
+    no counter bump).
+  - Also updated: the pre-existing "still delivers repairedEvents when
+    getThread → null" test now co-asserts on the new counters.
+- Validation:
+  - `npm run typecheck` — clean.
+  - `npx vitest run` — 337/337 files, 2581/2581 tests. (Reconciler
+    suite: 22/22.)
+  - `npm run build` — 10868 modules main + 67 sw, no errors, warnings
+    are pre-existing tanstack sourcemap notices.
+  - `npm run lint` — 18 warnings, 0 errors (exact baseline, zero delta).
+- Not changed (deliberately):
+  - AC2 spec (`e2e/live/cinny207-stale-cache-divergence.spec.ts`) still
+    annotated `test.fail()`. Team-lead runs the docker gate; if AC2
+    passes on this fix the annotation should come off (a
+    `test.fail()`-marked test that passes fails Playwright). If AC2
+    still red, the honest-red package stays as-is and this entry
+    records the sixth attempt for the runbook history.
+  - The three probe distinguishers I recommended in the v5 gate-closure
+    entry (`reconcilesAborted`, `reconcilesFetchFailed`, chunk-triple
+    log) are still open follow-ups — orthogonal to this fix, and
+    covered by the plan's §8 Deviations item on guard-abort observability.
+- Design rationale (for future readers of this stack):
+  - The engine persist path is the missing leg because it's the only
+    path that writes to the THREAD scope of the cache. Live write-through
+    covers live events; gap-fill executor writes room scope on
+    catch-up; nothing in the pre-v4 chain persisted thread-scope
+    reconciler output. That's the exact design-seam gap team-lead's
+    three-factor analysis identified.
+  - The reconciler already had `sessionId` in its args (unused prior
+    to v4) — landing the persist call requires no new plumbing on the
+    caller side; both `threadOpenCacheFirst.ts` and
+    `threadOpenLifecycleController.ts` already thread it through.
+  - `persistThreadEventCacheSnapshot` is invoked with `tailLoaded`
+    undefined so the no-downgrade merge in `saveThreadEventsToCache`
+    preserves the open path's asserted tail state; `snapshotComplete`
+    and `beforeTokenForEarliest` are similarly left unset (the
+    reconciler is not making claims about the earliest end of the
+    thread — it's writing back what the server said was at the tail).
+  - Architecture guard (`engine.architecture.test.ts`) still holds:
+    the persist entry point is called from the engine layer
+    (`reconciler.ts` is in `engine/`), not from the render side.
+
 ### CINNY-207 P5 gate closure - AC2 ships expected-RED with network-evidence diagnosis (2026-07-04)
 
 - Status:

@@ -49,7 +49,10 @@
 import { Direction } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import to from 'await-to-js';
-import { createPreferLiveEventMapper } from '../threads/eventRepository';
+import {
+  createPreferLiveEventMapper,
+  persistThreadEventCacheSnapshot,
+} from '../threads/eventRepository';
 import {
   collectRedactedRelationTargetsFromLookup,
   hydrateCachedEvents,
@@ -339,6 +342,7 @@ const fetchThreadRelationPage = async (
  */
 const runThreadReconcilePass = async ({
   mx,
+  sessionId,
   room,
   roomId,
   threadId,
@@ -350,6 +354,7 @@ const runThreadReconcilePass = async ({
   debugTraceId,
 }: {
   mx: MatrixClient;
+  sessionId: string;
   room: Room;
   roomId: string;
   threadId: string;
@@ -552,6 +557,55 @@ const runThreadReconcilePass = async ({
   }
 
   countCacheProbe('reconcilesRepaired');
+
+  // P5-GATE-FIX v4 (final iteration — team-lead directive 2026-07-04):
+  // persist the fetched thread events through the ENGINE PERSIST path.
+  //
+  // The pre-v4 chain (SDK inject + widened onRepaired supplemental sink)
+  // converged in MEMORY but never taught the CACHE about the fetched
+  // events. That created a design seam: convergence was timing-
+  // dependent (which of live-sync / reconciler / render tick won a
+  // given race decided whether v1 or v2 painted), and — crucially —
+  // the NEXT reopen from IDB rehit the same stale window because the
+  // gap-fill executor only writes room scope and the live-mode gates
+  // skip catch-up-sync bursts by design.
+  //
+  // Making the reconciler the deterministic owner: on divergence we
+  // write the fully-mapped, prefer-live batch to the thread cache
+  // scope via `persistThreadEventCacheSnapshot` (same entry point the
+  // engine's write-through uses). This gives us two invariants that
+  // hold regardless of sync timing:
+  //   (a) A cache-first reopen after this pass paints the fetched
+  //       state directly, without waiting for the reconciler to run
+  //       again.
+  //   (b) The `fallbackThreadEventsState.events` sink populated by
+  //       `setSupplementalThreadEvents` (fired via onRepaired below)
+  //       and the cache-hydrate-on-reopen path agree — no more
+  //       "renderPreference decides which stale side to paint".
+  //
+  // Contract details:
+  //   - Uses the SAME snapshot writer as the write-through so seed
+  //     snapshots / tokens / reply counts follow the shape the rest
+  //     of the system expects. `tailLoaded` is left undefined so the
+  //     no-downgrade merge in `saveThreadEventsToCache` preserves the
+  //     open path's asserted tail state.
+  //   - Root event is resolved through `room.getThread(threadId)?.rootEvent`
+  //     falling back to `room.findEventById(threadId)` — identical to
+  //     the persist logic in `engineWriteThrough.persistThreadEvents`.
+  //   - Fire-and-forget: the return value is the serialized shape,
+  //     not a promise; the actual IDB write is dispatched inside the
+  //     snapshot writer via `void save(...)`.
+  const rootEvent =
+    room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId) ?? undefined;
+  persistThreadEventCacheSnapshot({
+    sessionId,
+    room,
+    threadId,
+    events: allMapped,
+    rootEvent,
+  });
+  countCacheProbe('reconcilerPersists');
+
   // P5-GATE-FIX v3 (AC2 dual-injection, render leg): hand the
   // fully-mapped, prefer-live batch to the caller. Component-side
   // callback routes it through `setSupplementalThreadEvents(threadId,
@@ -561,7 +615,20 @@ const runThreadReconcilePass = async ({
   // paths converge on the same tick: SDK-populated `thread.events`
   // (from `liveThread.addEvents(allMapped, false)` above) AND the
   // component-owned `fallbackThreadEventsState.events`.
-  if (onRepaired) onRepaired(allMapped);
+  if (onRepaired) {
+    onRepaired(allMapped);
+    // P5-GATE-FIX v4 (final iteration): definitive callback-fired
+    // evidence. `reconcilesRepaired` bumped BEFORE this line, so a
+    // guard-skipped or throwing callback would leave
+    // reconcilesOnRepairedFired at 0 while reconcilesRepaired at N.
+    // That gap is diagnostic for docker traces: it distinguishes
+    // "hydration ran but callback was gated out (isCurrentThreadOpen,
+    // mounted ref, threadIdRef mismatch)" from "callback ran end to
+    // end but render still stale". If we ever wrap this in a try, the
+    // increment must stay inside — a throw before the bump would be
+    // silently invisible in probe traces.
+    countCacheProbe('reconcilesOnRepairedFired');
+  }
 
   logTimelineDebug(debugTraceId, 'reconcile-complete', {
     fetchedCount,
@@ -589,6 +656,7 @@ const runThreadReconcilePass = async ({
 export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<ReconcileResult> => {
   const {
     mx,
+    sessionId,
     scheduler,
     roomId,
     room: providedRoom,
@@ -699,6 +767,7 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
       }
       return runThreadReconcilePass({
         mx,
+        sessionId,
         room,
         roomId,
         threadId,
