@@ -138,6 +138,7 @@ import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
   primeTimelineRenderContextBefore,
+  shouldAutoPaginateThreadBack,
 } from './threadRenderUtils';
 import {
   useTimelineDebugRangeController,
@@ -189,7 +190,10 @@ import { useRoomThreadResolutionMap } from './useRoomThreadTags';
 // CINNY-207 P4.3: the eager preload hook was deleted. Deep-history
 // sweep is now a band-4 job on the engine's BackfillScheduler (see
 // engine/deepHistoryJob.ts) and never touches the SDK live timeline.
-import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from './preloadSettings';
+import {
+  ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
+  THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
+} from './preloadSettings';
 import { sanitizePrefetchDepth,
   sanitizePrefetchScope } from '../engine/prefetchPolicy';
 import { mindroomSettingsAtom } from '../settings/mindroomSettings';
@@ -2936,6 +2940,44 @@ export function RoomTimeline({
       threadId,
       threadIdRef,
     });
+
+  // Scroll-driven thread back-pagination (task #125). Threads bypass
+  // useVirtualPaginator (its count is 0 for threads), so unlike the
+  // room view they had NO scroll trigger — older content only arrived
+  // via the "Load Older Messages" chip or background band fills, and
+  // upward momentum scrolling hard-stopped at the loaded-window edge
+  // on slow connections. This effect fires the SAME chip pipeline
+  // (cache-first IDB page, network fallback, prepend anchor
+  // capture/restore) when the top of the rendered window comes within
+  // THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS of the loaded edge.
+  // useVirtualizer re-renders on scroll, so firstRenderedIndex is a
+  // fresh read each render; single-flight and settle-phase guards live
+  // in the predicate.
+  const threadFirstRenderedIndex = threadId
+    ? roomTimelineVirtualizer.getVirtualItems()[0]?.index
+    : undefined;
+  useEffect(() => {
+    if (
+      !shouldAutoPaginateThreadBack({
+        threadId,
+        firstRenderedIndex: threadFirstRenderedIndex,
+        paginatingBack: threadPaginatingBackRef.current,
+        showLoadOlder: showThreadLoadOlderMessages,
+        openPinPending: threadLatestOpenPendingRef.current,
+        triggerRows: THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
+      })
+    ) {
+      return;
+    }
+    handleThreadPaginateBack();
+  }, [
+    threadFirstRenderedIndex,
+    threadId,
+    showThreadLoadOlderMessages,
+    handleThreadPaginateBack,
+    threadPaginatingBackRef,
+    threadLatestOpenPendingRef,
+  ]);
 
   let prevEvent: MatrixEvent | undefined;
   let prevRenderedEventAbsoluteIndex: number | undefined;

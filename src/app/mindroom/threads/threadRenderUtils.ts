@@ -44,6 +44,49 @@ export const shouldPinThreadToBottomOnOpen = ({
   threadInitialRenderMode !== 'loading' &&
   threadEventCount > 0;
 
+type ThreadAutoPaginateBackOpts = {
+  threadId?: string;
+  // Index of the FIRST virtual row currently rendered (top of the
+  // overscan window). undefined when nothing is rendered yet.
+  firstRenderedIndex: number | undefined;
+  // Single-flight: a back-pagination is already in progress.
+  paginatingBack: boolean;
+  // Same condition that shows the "Load Older Messages" chip — older
+  // content exists in cache or on the server.
+  showLoadOlder: boolean;
+  // The open-time pin-to-bottom has not settled yet. During that phase
+  // the virtualizer transiently renders from index 0, which must not
+  // read as "user scrolled to the top".
+  openPinPending: boolean;
+  triggerRows: number;
+};
+
+// Scroll-driven thread back-pagination predicate (task #125). Pure so
+// the trigger condition is unit-testable apart from the effect wiring.
+// Fires when the rendered window's top edge is within `triggerRows` of
+// the loaded content's start — early enough that the cache-first
+// pagination pipeline (IDB read, then network fallback) completes
+// before momentum scrolling reaches the edge. Re-firing after a
+// completed pagination is naturally throttled: the prepend anchor
+// restore pushes firstRenderedIndex back up by the prepended count, so
+// the predicate only becomes true again when the user scrolls further
+// up (or the remaining history is shorter than the headroom, in which
+// case it drains the tail — bounded by showLoadOlder flipping false).
+export const shouldAutoPaginateThreadBack = ({
+  threadId,
+  firstRenderedIndex,
+  paginatingBack,
+  showLoadOlder,
+  openPinPending,
+  triggerRows,
+}: ThreadAutoPaginateBackOpts): boolean =>
+  !!threadId &&
+  !paginatingBack &&
+  !openPinPending &&
+  showLoadOlder &&
+  firstRenderedIndex !== undefined &&
+  firstRenderedIndex <= triggerRows;
+
 export const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
   const mEventId = mEvt.getId();
   const relationTargetId = mEvt.getRelation()?.event_id;

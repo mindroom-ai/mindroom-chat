@@ -9,6 +9,7 @@ import {
   mergeThreadRenderEvents,
   pickPreferredThreadRenderEvent,
   primeTimelineRenderContextBefore,
+  shouldAutoPaginateThreadBack,
   shouldPinThreadToBottomOnOpen,
 } from './threadRenderUtils';
 
@@ -212,6 +213,47 @@ describe('pickPreferredThreadRenderEvent', () => {
     expect(syncInstance.isSending()).toBe(false);
     expect(pickPreferredThreadRenderEvent(repairedHydrated, syncInstance)).toBe(repairedHydrated);
     expect(pickPreferredThreadRenderEvent(syncInstance, repairedHydrated)).toBe(repairedHydrated);
+  });
+});
+
+describe('shouldAutoPaginateThreadBack', () => {
+  const base = {
+    threadId: '$thread',
+    firstRenderedIndex: 10,
+    paginatingBack: false,
+    showLoadOlder: true,
+    openPinPending: false,
+    triggerRows: 15,
+  };
+
+  it('fires when the rendered window top is within the trigger headroom', () => {
+    expect(shouldAutoPaginateThreadBack(base)).toBe(true);
+    expect(shouldAutoPaginateThreadBack({ ...base, firstRenderedIndex: 15 })).toBe(true);
+    expect(shouldAutoPaginateThreadBack({ ...base, firstRenderedIndex: 0 })).toBe(true);
+  });
+
+  it('does not fire while the rendered window is deeper than the headroom', () => {
+    expect(shouldAutoPaginateThreadBack({ ...base, firstRenderedIndex: 16 })).toBe(false);
+    expect(shouldAutoPaginateThreadBack({ ...base, firstRenderedIndex: 400 })).toBe(false);
+  });
+
+  it('does not fire outside a thread or before anything rendered', () => {
+    expect(shouldAutoPaginateThreadBack({ ...base, threadId: undefined })).toBe(false);
+    expect(shouldAutoPaginateThreadBack({ ...base, firstRenderedIndex: undefined })).toBe(false);
+  });
+
+  it('is single-flight: does not re-fire while a back-pagination is in progress', () => {
+    expect(shouldAutoPaginateThreadBack({ ...base, paginatingBack: true })).toBe(false);
+  });
+
+  it('does not fire when no older content exists (chip condition is false)', () => {
+    expect(shouldAutoPaginateThreadBack({ ...base, showLoadOlder: false })).toBe(false);
+  });
+
+  it('does not misread the open-time pin settle phase as a scroll to top', () => {
+    // During pin-to-bottom settling the virtualizer transiently renders
+    // from index 0; auto-pagination must wait for the settle to finish.
+    expect(shouldAutoPaginateThreadBack({ ...base, openPinPending: true })).toBe(false);
   });
 });
 

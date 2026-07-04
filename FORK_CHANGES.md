@@ -2,6 +2,45 @@
 
 ## Runbook
 
+### Task #125 — scroll-driven thread back-pagination (2026-07-04, team lead)
+
+Prod report (Brave iOS, slow connection, chat.mindroom.chat): scrolling
+UP in a long thread hard-stops abruptly at the edge of loaded content,
+then continues after a load; scrolling down and re-scrolling loaded
+regions is smooth.
+
+- Root cause: threads had NO scroll-driven pagination. `useVirtualPaginator`
+  (the room view's IntersectionObserver sentinel with ~1 viewport of
+  headroom) is bypassed for threads (`count: threadId ? 0 : ...`), so
+  older thread content only arrived via the manual "Load Older
+  Messages" chip or background band backfill. On slow networks the
+  user's scroll outruns band arrivals and clamps at the loaded-window
+  edge — the reported jag. iOS momentum-kill on clamp makes it feel
+  broken.
+- Fix: `shouldAutoPaginateThreadBack` predicate (threadRenderUtils.ts,
+  unit-tested) + an effect in MindroomRoomTimeline.tsx that fires the
+  SAME chip pipeline (cache-first IDB page → network fallback →
+  prepend anchor capture/restore) when the first rendered virtual
+  row's index drops within `THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS`
+  (15 rows ≈ 2 mobile viewports, preloadSettings.ts) of the loaded
+  edge. Guards: single-flight (`threadPaginatingBackRef`), chip
+  condition (`showThreadLoadOlderMessages`), and the open-time
+  pin-to-bottom settle phase (`threadLatestOpenPendingRef` — the
+  virtualizer transiently renders from index 0 during settle, which
+  must not read as "scrolled to top").
+- e2e: new spec in thread-virtualization-behaviors.spec.ts guards the
+  reachability CONTRACT (260-reply thread, real wheel input, no chip
+  tap, older-than-initial-window reply mounts). Honest scope note in
+  the spec: on a fast network the contract is also satisfiable by band
+  backfill (verified pass with the trigger stashed), so the trigger's
+  regression coverage is the unit predicate; the trigger's value shows
+  on slow networks. All four pre-existing virtualization behavior
+  guards stay green (pin-at-latest, no-yank, quote-click, expand-all).
+- Discovered en route, filed separately: task #126 — pre-existing
+  loader gap, the oldest ~30 replies of a large thread are unreachable
+  (no chip, no pagination path); also documented at the quote-click
+  test since before this change.
+
 ### CINNY-207 AC2 review close-out — F1-F9 + fix-B load-bearing check + lint pin-down + final gate (2026-07-04, team lead)
 
 Executed directly by the team lead (subagent messaging had become

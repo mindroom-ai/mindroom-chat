@@ -22,7 +22,7 @@ type Seeded = { roomId: string; rootId: string; replyIds: string[] };
 const seedThread = async (
   homeserver: string,
   accessToken: string,
-  opts: { longBodies?: boolean; quoteTargetIndex?: number } = {}
+  opts: { longBodies?: boolean; quoteTargetIndex?: number; replyCount?: number } = {}
 ): Promise<Seeded> => {
   const roomId = await createPrivateRoom(homeserver, accessToken, {
     name: `Virtualization behaviors ${Date.now()}`,
@@ -32,7 +32,8 @@ const seedThread = async (
     body: 'Virtualization behaviors root',
   });
   const replyIds: string[] = [];
-  for (let i = 1; i <= REPLY_COUNT; i += 1) {
+  const replyCount = opts.replyCount ?? REPLY_COUNT;
+  for (let i = 1; i <= replyCount; i += 1) {
     const longSuffix = opts.longBodies
       ? `\n${Array.from({ length: 12 }, (_v, l) => `long collapsible line ${l} of reply ${i}`).join(
           '\n'
@@ -46,7 +47,7 @@ const seedThread = async (
     };
     const quoteTarget =
       opts.quoteTargetIndex !== undefined ? replyIds[opts.quoteTargetIndex] : undefined;
-    if (quoteTarget && i === REPLY_COUNT) {
+    if (quoteTarget && i === replyCount) {
       relatesTo.is_falling_back = false;
       relatesTo['m.in_reply_to'] = { event_id: quoteTarget };
     }
@@ -151,6 +152,67 @@ test.describe('virtualized thread behaviors', () => {
     expect(Math.abs(after.scrollTop - before.scrollTop)).toBeLessThan(200);
     expect(after.scrollTop + after.clientHeight).toBeLessThan(after.scrollHeight - 300);
     await expect(page.getByRole('button', { name: 'Jump to Latest' })).toBeVisible();
+  });
+
+  // Guard scope (honest): this asserts the user-facing CONTRACT —
+  // older thread history is reachable by real wheel scrolling alone,
+  // never requiring a "Load Older Messages" chip tap. On this fast
+  // local network the contract is satisfiable by EITHER the
+  // scroll-driven auto-pagination trigger (task #125 fix) OR the
+  // background band backfill, so this test alone cannot isolate the
+  // trigger (verified: it passes with the trigger stashed). The
+  // trigger's own regression coverage is the unit-tested
+  // shouldAutoPaginateThreadBack predicate + its effect wiring; the
+  // trigger's VALUE (prefetch headroom before the loaded-window edge)
+  // only manifests on slow networks where band arrivals lag — the
+  // mobile jag this exists to prevent.
+  test('scrolling up auto-loads older replies without the Load Older chip (task #125)', async ({
+    page,
+  }) => {
+    const homeserver = getHomeserver();
+    const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    // More replies than one THREAD_BATCH_SIZE (200) so the open leaves
+    // older history unloaded — the shape where mobile scroll-up used
+    // to hard-stop at the loaded-window edge (task #125).
+    const seeded = await seedThread(homeserver, session.accessToken, { replyCount: 260 });
+
+    await loginWithPassword(page, { homeserver, username, password });
+    await openThread(page, seeded);
+
+    // Target: a reply OLDER than the initially-loaded window (open
+    // loads the latest THREAD_BATCH_SIZE=200 → replies 61-260), so
+    // reaching it proves scroll-driven back-pagination fired. NOT
+    // reply 1: the oldest ~30 replies of a large thread are
+    // unreachable through the current loader (pre-existing gap,
+    // documented at the quote-click test below and filed as task
+    // #126) — this test proves the auto-trigger, not that gap.
+    const targetReplyId = seeded.replyIds[34]; // "Virt reply 35"
+
+    // Sanity: the target must NOT be rendered at open. If it is, the
+    // fixture no longer leaves history unloaded and this test can no
+    // longer prove auto-pagination — fail loudly rather than pass
+    // vacuously.
+    expect(await page.locator(`[data-message-id="${targetReplyId}"]`).count()).toBe(0);
+
+    // Real wheel input, never touching the "Load Older Messages" chip.
+    // Bounded walk: each iteration wheels up; auto-pagination must
+    // extend the window until the target enters the DOM.
+    const timeline = page.locator('[data-message-item]').first();
+    await timeline.hover();
+    let targetPresent = false;
+    for (let i = 0; i < 160 && !targetPresent; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await page.mouse.wheel(0, -1400);
+      // eslint-disable-next-line no-await-in-loop
+      await page.waitForTimeout(120);
+      // eslint-disable-next-line no-await-in-loop
+      targetPresent = (await page.locator(`[data-message-id="${targetReplyId}"]`).count()) > 0;
+    }
+    expect(targetPresent).toBe(true);
+    await expect(page.getByText('Virt reply 35', { exact: true })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test('clicking a reply quote targeting a loaded-but-unmounted row scrolls to it', async ({
