@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { SyncState } from 'matrix-js-sdk';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
@@ -81,12 +81,16 @@ describe('engine.noteRoomFocused (CINNY-207 P4.2)', () => {
     const engine = createMindroomSyncEngine({ mx });
 
     engine.noteRoomFocused('!own:mindroom.chat');
-    // Let the async ledger + meta writes settle.
-    await new Promise((resolve) => {
-      setTimeout(resolve, 20);
-    });
-
-    const row = await readLedgerRow(engine.sessionId, '!own:mindroom.chat');
+    // The ledger write is async with no returned promise; poll until it
+    // lands. A fixed sleep flakes under full-suite CPU contention.
+    const row = await vi.waitFor(
+      async () => {
+        const candidate = await readLedgerRow(engine.sessionId, '!own:mindroom.chat');
+        expect(candidate).toBeDefined();
+        return candidate;
+      },
+      { timeout: 2000, interval: 10 }
+    );
     expect(row?.federated).toBe(false);
     expect(getEvictionProtectedRoomIds()).toEqual(['!own:mindroom.chat']);
   });
@@ -98,11 +102,15 @@ describe('engine.noteRoomFocused (CINNY-207 P4.2)', () => {
     const engine = createMindroomSyncEngine({ mx });
 
     engine.noteRoomFocused('!fed:example.org');
-    await new Promise((resolve) => {
-      setTimeout(resolve, 20);
-    });
-
-    const row = await readLedgerRow(engine.sessionId, '!fed:example.org');
+    // Poll — see the same-server test above for why a fixed sleep flakes.
+    const row = await vi.waitFor(
+      async () => {
+        const candidate = await readLedgerRow(engine.sessionId, '!fed:example.org');
+        expect(candidate).toBeDefined();
+        return candidate;
+      },
+      { timeout: 2000, interval: 10 }
+    );
     expect(row?.federated).toBe(true);
     expect(getEvictionProtectedRoomIds()).toEqual(['!fed:example.org']);
   });
@@ -114,8 +122,10 @@ describe('engine.noteRoomFocused (CINNY-207 P4.2)', () => {
     const engine = createMindroomSyncEngine({ mx });
 
     engine.noteRoomFocused('!bg:unknown');
+    // Absence can't be polled-for; give the (should-not-happen) write a
+    // generous settle window instead of the flaky 20ms.
     await new Promise((resolve) => {
-      setTimeout(resolve, 20);
+      setTimeout(resolve, 100);
     });
 
     const row = await readLedgerRow(engine.sessionId, '!bg:unknown');

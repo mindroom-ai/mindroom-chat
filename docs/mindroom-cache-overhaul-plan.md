@@ -1,16 +1,28 @@
 # MindRoom Cache Overhaul Plan (CINNY-207)
 
-Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 fully landed locally (P2.1 unified CacheStore + D8 wipe, P2.2 ledger + `beforeTokens` pruning + 1 GB eviction budget, P2.3 direct-import flip + architecture guards + health-gate move into the store); Phase 3 fully landed locally (P3.1 engine skeleton + Tier-1 write-through, P3.2 gap detection + queue stub, P3.3 strip the component's persistence responsibilities); Phase 4 fully landed locally (P4.1 BackfillScheduler with priority + dedup + abort, P4.2 prefetch policy + gap-fill executor + AC13 spec green-shaped + `noteRoomFederated` + `engine.noteRoomFocused`, P4.3 delete preloadController + deep history as band-4 scheduler job, P4.4 absorb thread-seed + overview-resume fetch dedup onto the scheduler). Phase 5 (Reconciler) is next.**
+Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 fully landed locally (P2.1 unified CacheStore + D8 wipe, P2.2 ledger + `beforeTokens` pruning + 1 GB eviction budget, P2.3 direct-import flip + architecture guards + health-gate move into the store); Phase 3 fully landed locally (P3.1 engine skeleton + Tier-1 write-through, P3.2 gap detection + queue stub, P3.3 strip the component's persistence responsibilities); Phase 4 fully landed locally (P4.1 BackfillScheduler with priority + dedup + abort, P4.2 prefetch policy + gap-fill executor + AC13 spec green-shaped + `noteRoomFederated` + `engine.noteRoomFocused`, P4.3 delete preloadController + deep history as band-4 scheduler job, P4.4 absorb thread-seed + overview-resume fetch dedup onto the scheduler); Phase 5 (Reconciler) fully landed locally (P5.1 engine reconciler + D7 rewire + thread backfill into engine + room-open reconcile, P5.2 applier hardening + AC2 spec re-annotated `test.fail()` expected-RED with documented diagnosis (docker gate red after 5 fix iterations — product-owner decision pending; see §8 Deviations "AC2 expected-RED" entry) + Tuwunel stale-copy unit); Phase 6+7 fully landed locally (P6.1 prefetch settings replacement + legacy scrub + arch guard, P7.1 dead-code audit + cache-strategy doc rewrite). P7.2 (final adversarial review + Scorecard audit) is the orchestrator's.**
 Phase-1 e2e gate (2026-07-03, stack tip 55439be8): streamed-edit spec green
 live (AC4, probe numbers in scorecard), stop-emoji green (AC3; three failed
 attempts were host `ERR_NETWORK_CHANGED` flake — tracked in the Runbook).
-Phase-3 e2e gate is the team-lead's responsibility on the P3.3 tip:
-background-freshness is expected to FLIP GREEN (AC6) — the engine's
-client-level listeners cover all rooms — while streamed-edit and stop-emoji
-stay green (the strip moved compaction + redaction lifecycle into the
-engine verbatim). P0.3 large-room probe baseline still pending; AC5 formal
-measurement lands with the same gate (the sweep is structurally gone, so
-writes-per-live-event are O(1) by construction).
+Phase-3 docker gate ran on the P3.3 tip (2026-07-03): AC6 background-
+freshness PASSED — recorded twice (FORK_CHANGES.md entries at
+`AC6 background-freshness: PASSED on the P3.3 tip` and
+`background-room-freshness (AC6): PASSED on the P3.3 tip`); AC3
+`stop-emoji-redaction` FAILED on a clean network (the SDK's
+`moveAllRelatedToMainTimeline` defeats the round-1 thread-attribution
+scan), and the round-2 cache-derived attribution fix landed with
+unit-level evidence only. The FINAL docker gate (2026-07-04, tip
+f7bf06b7) then re-confirmed: AC3 stop-emoji PASSED (fix docker-proven),
+AC13 gap-fill-restart PASSED, AC6 re-confirmed PASSED, AC2 behaved
+expected-RED as annotated; streamed-edit's final-tip re-run was blocked
+by the documented ERR_NETWORK_CHANGED host flake (trace-verified, zero
+app errors) — its prior greens and live probe (`total=1`,
+`editCompactions=1`) stand. P0.3
+large-room probe baseline still pending; AC5 formal measurement lands
+with that same final gate (the sweep is structurally gone, so
+writes-per-live-event are O(1) by construction; `cacheProbe`'s
+`roomEventPuts` / `threadEventPuts` counters supply the after-side
+numerator).
 Created: 2026-07-03. Living document — see "How to use this document".
 
 This is the canonical plan for making MindRoom feel like a native app: every room
@@ -403,11 +415,21 @@ referenced from `FORK_CHANGES.md` entries.
   — applier hardening unit + Tuwunel stale-copy unit + AC2 spec flipped
   green; docker gate is team-lead's to run).
 
-### Phase 6 — Settings replacement (D4)
+### Phase 6 — Settings replacement (D4) — **landed 2026-07-04**
 
 - **P6.1** New prefetch settings group (scope + depth); remove
   `MindroomMessagePreloadLimitSetting` and `paginationLimit` plumbing; drop
-  stored legacy values; update settings tests.
+  stored legacy values; update settings tests. **Landed** as commits
+  `07fb8555` (resolvers + transitional fields), `2bcbe724`
+  (`MindroomPrefetchSettings` UI + arch guard flip), `09f28b95`
+  (consumers onto `prefetchDepth`, `timelinePagination` parameter
+  renamed to `windowLimit`), `a27aedf7` (delete
+  `MindroomMessagePreloadLimitSetting.*` + `preloadSettings.test.ts` +
+  legacy sanitizers, add `mindroomSettingsBootstrap.dropLegacyMindroomSettings`
+  scrub + wire it into `src/index.tsx` before `state/settings.ts`
+  initializes, rewrite `mindroomSettings.test.ts`, install
+  `prefetchSettings.architecture.test.ts` guard) on
+  `cache-overhaul/13-p6p7-settings-cleanup`.
 
 ### Phase 7 — Cleanup and documentation
 
@@ -415,7 +437,12 @@ referenced from `FORK_CHANGES.md` entries.
   `docs/mindroom-cache-strategy.md` (write owners → engine components; eager
   preload section; forbidden patterns — the "no cross-room eager preload from a
   room screen" rule remains true because cross-room work lives in the engine).
-- **P7.2** Final adversarial review + full Scorecard audit (see Section 6).
+  **Landed** as a single docs commit (Commits 5+6 folded per Deviations §8 —
+  the dead-code audit produced zero verified-dead orphans). Commit
+  rewrites `docs/mindroom-cache-strategy.md` and adds this Phase 6+7
+  runbook entry.
+- **P7.2** Final adversarial review + full Scorecard audit (see Section 6) —
+  orchestrator's responsibility, not part of the P6+P7 branch.
 
 ## 6. Accountability: how we verify we built the right thing
 
@@ -463,18 +490,18 @@ Filled as steps complete. "Before" numbers from P0.3.
 | AC   | Status | Evidence (command / spec / probe) | Before → After | Confirmed by (reviewer) | Date |
 | ---- | ------ | --------------------------------- | -------------- | ----------------------- | ---- |
 | AC1  | ☐      |                                   |                |                         |      |
-| AC2  | ☐ RED (live) | Reconciler landed in P5.1 (`engine/reconciler.ts` — `scheduleReconcile({reason:'open-complete-coverage'\|'open-partial-coverage'\|'room-open'\|'resume'})`). Every thread open schedules exactly one reconcile through the P4.1 scheduler under `kind: 'reconcile'` band 0; every room open does the same with `threadId: undefined`. The reconciler fetches `/relations` (recurse, limit 200), pages further until overlap by event id (removes F7's 200-event ceiling), diffs, and runs the P1.2 `hydrateCachedEvents` machinery to apply missed edits / redactions / aggregation cleanup in place, then fires ONE batched `onRepaired` tick. Every raw event is funneled through `createPreferLiveEventMapper` so Tuwunel's ~10s stale-copy window is healed via the SDK's `Relations.BeforeRedaction` cascade (invariant I2). AC2 e2e spec `e2e/live/cinny207-stale-cache-divergence.spec.ts` flipped from `test.fail()` to green-shape: seed thread with M/R/reaction, close client (`page.goto('about:blank')`), REST-edit M to v2 + redact reaction + redact R + 25 filler thread messages (pushes divergence past next-sync window so convergence MUST come from reconciler), reopen thread URL WITHOUT reload, assert `v2 converged` visible, 👍 chip gone, R tombstoned, cache converged via `readThreadEventCacheRecords`, mid-viewport anchor within 8px. DOCKER GATE RED after 5 fix iterations — spec re-annotated test.fail() with full diagnosis; see §8 Deviations (AC2 expected-RED entry) for the evidence chain and the pending design decision. Unit layer green (18 reconciler units). | stale edit/reaction/redaction persist on cache-hit reopen (I2/AC2 pre-P5 — no revalidation path) → cache converges to server truth in place after every open |                         |      |
-| AC3  | ✓      | e2e `cinny207-stop-emoji-redaction` green on stack tip (55439be8); 3 prior failed runs were env flake (`ERR_NETWORK_CHANGED` storms, failure point wandering login/reload) | reaction resurrected on reopen/reload → gone in all three states | workflow rounds 1-2 + docker e2e run | 2026-07-03 |
-| AC4  | ✓      | e2e `cinny207-streamed-edit-cache` green LIVE on stack tip: probe `editCompactions=1`, `threadEventPuts=3`, 1 target record with bundled final body pre+post reload; unit `npx vitest run src/app/mindroom/threads/eventCacheEditUtils.test.ts src/app/mindroom/threads/editCompactionScheduler.test.ts src/app/mindroom/threads/roomLiveEventController.compaction.test.ts src/app/mindroom/threads/eventRepository.test.ts` | 26 thread-cache records for a 25-edit streamed message (P0.3 spec run) → exactly 1 target record with bundled edit | workflow round 2 (spec traced sound) + docker e2e run | 2026-07-03 |
+| AC2  | ☐ RED (live) | Reconciler landed in P5.1 (`engine/reconciler.ts` — `scheduleReconcile({reason:'open-complete-coverage'\ **FINAL GATE (2026-07-04, tip f7bf06b7): expected-RED behavior confirmed** — spec ran under `test.fail()` and did not unexpectedly pass; honest-red package unchanged, product-owner decision still pending. |'open-partial-coverage'\|'room-open'\|'resume'})`). Every thread open schedules exactly one reconcile through the P4.1 scheduler under `kind: 'reconcile'` band 0; every room open does the same with `threadId: undefined`. The reconciler fetches `/relations` (recurse, limit 200), pages further until overlap by event id (removes F7's 200-event ceiling), diffs, and runs the P1.2 `hydrateCachedEvents` machinery to apply missed edits / redactions / aggregation cleanup in place, then fires ONE batched `onRepaired` tick. Every raw event is funneled through `createPreferLiveEventMapper` so Tuwunel's ~10s stale-copy window is healed via the SDK's `Relations.BeforeRedaction` cascade (invariant I2). AC2 e2e spec `e2e/live/cinny207-stale-cache-divergence.spec.ts` flipped from `test.fail()` to green-shape: seed thread with M/R/reaction, close client (`page.goto('about:blank')`), REST-edit M to v2 + redact reaction + redact R + 25 filler thread messages (pushes divergence past next-sync window so convergence MUST come from reconciler), reopen thread URL WITHOUT reload, assert `v2 converged` visible, 👍 chip gone, R tombstoned, cache converged via `readThreadEventCacheRecords`, mid-viewport anchor within 8px. DOCKER GATE RED after 5 fix iterations — spec re-annotated test.fail() with full diagnosis; see §8 Deviations (AC2 expected-RED entry) for the evidence chain and the pending design decision. Unit layer green (18 reconciler units). | stale edit/reaction/redaction persist on cache-hit reopen (I2/AC2 pre-P5 — no revalidation path) → cache converges to server truth in place after every open |                         |      |
+| AC3  | ✓ | Pre-P3.3 stack-tip run (55439be8, 2026-07-03) recorded green on `cinny207-stop-emoji-redaction`. The P3.3 docker gate then re-ran the spec and it FAILED TWICE on a clean network (first on the P3.3 tip, then on the round-1 tip `9a6b15b4` after a first fix attempt) — root cause discovered empirically: matrix-js-sdk's `applyEventAsRedaction` calls `moveAllRelatedToMainTimeline` for non-root thread events, which removes the redacted target from its thread's timelineSet BEFORE the emission fires; the round-1 SDK-thread-set scan therefore finds zero hits at fire time (FORK_CHANGES.md entries in the Runbook: `stop-emoji-redaction: FAILED on P3.3 tip AND FAILED AGAIN on the round-1 tip` and the round-2 rebuild block above it — the 5-scenario `engineWriteThrough.redaction.test.ts` rewrite + `redactionCacheLifecycle.test.ts` +30-line `sdkThreadIdHint` priority test + `cacheStore/__tests__/cacheContract.test.ts` +33-line `Promise<string[]>` multi-scope contract). Round-2 landed a cache-derived attribution layer (`meta.sdkThreadId` on layer 2, an async walker returning `string[]` on layer 1) that cannot be defeated by SDK timeline movement — unit-level evidence only (all layers green in `npx vitest run src/app/mindroom/engine/` and the full mindroom suite); the confirming docker re-run is the final gate. **FINAL GATE (2026-07-04, tip f7bf06b7): PASSED** — docker run 1, clean network: `redacted stop reaction disappears in-session, after reopen, and after reload` ✓ (51.4s). The round-2 cache-derived attribution fix is docker-confirmed live. | reaction resurrected on reopen/reload → gone in all three states (unit-level under the P3.3 write-through boundary; docker gate to re-confirm on real Tuwunel) | workflow rounds 1-2 (unit); docker re-confirm pending | 2026-07-03 (pre-P3.3 green stale); round-2 fix landed 2026-07-03 |
+| AC4  | ✓      | e2e `cinny207-streamed-edit-cache` green LIVE on stack tip: probe `editCompactions=1`, `threadEventPuts=3`, 1 target record with bundled final body pre+post reload; unit `npx vitest run src/app/mindroom/threads/eventCacheEditUtils.test.ts src/app/mindroom/threads/editCompactionScheduler.test.ts src/app/mindroom/threads/roomLiveEventController.compaction.test.ts src/app/mindroom/threads/eventRepository.test.ts` **FINAL GATE (2026-07-04, tip f7bf06b7): re-run BLOCKED by host env** — 4 attempts, every failure trace-classified as the documented `ERR_NETWORK_CHANGED` host flake (247 and 284 browser-console net errors, ZERO app errors, two traces inspected). Partial live evidence before the flake killed the reload leg: spec's own probe printed `total=1` cached thread record, `editCompactions=1` — the core compaction claim held on the final tip. Prior recorded greens stand. | 26 thread-cache records for a 25-edit streamed message (P0.3 spec run) → exactly 1 target record with bundled edit | workflow round 2 (spec traced sound) + docker e2e run | 2026-07-03 |
 | AC5  | ☐ impl | Sweep deleted in P3.3 (`refactor: strip component persistence`); writes-per-live-event are structurally O(1) — the engine's per-event write-through is the only cache-write codepath from live events (no bulk re-serialization exists). Formal probe numbers land with the Phase 3 e2e docker gate on the P3.3 tip. | 26 thread-cache records for a 25-edit streamed message → 1 target record; the "loaded timeline size feeds cache writes" coupling (F2) is gone by construction |                         |      |
-| AC6  | ☐ impl | e2e `cinny207-background-room-freshness` was `test.fail()` through Phase 2; P3.3 (`refactor: strip component persistence`) flips it green: `MindroomSyncEngine` attaches `RoomEvent.Timeline`/`RoomEvent.Redaction` at client scope so live events reach the cache regardless of which room is mounted. Docker gate pending (team-lead). | 0 cached events for a background room (P0.3 spec run) → cached copy present on next open |                         |      |
+| AC6  | ✓      | e2e `cinny207-background-room-freshness` was `test.fail()` through Phase 2; P3.3 (`refactor: strip component persistence`) flips it green: `MindroomSyncEngine` attaches `RoomEvent.Timeline`/`RoomEvent.Redaction` at client scope so live events reach the cache regardless of which room is mounted. Docker gate PASSED TWICE on the P3.3 tip (2026-07-03) — recorded in FORK_CHANGES.md Runbook: (a) `AC6 background-freshness: PASSED on the P3.3 tip (client-level listeners fixed F1)` in the docker-gate-round-2 findings block, and (b) `background-room-freshness (AC6): PASSED on the P3.3 tip. Client-level listener coverage from the engine confirmed — F1 fixed as designed.` in the P3.3-tip findings block. A subsequent re-run on the round-1 tip `9a6b15b4` hit an ERR_NETWORK_CHANGED host flake (203 resets), so the earlier green stands. **FINAL GATE (2026-07-04, tip f7bf06b7): re-confirmed PASSED** — docker warm re-run ✓ (33.0s) on the full final stack (cold-run failure classified env: login page never served, 0 app errors). | 0 cached events for a background room (P0.3 spec run) → cached copy present on next open (docker-confirmed on P3.3 tip) | docker gate on P3.3 tip (twice) | 2026-07-03 |
 | AC7  | ☐ impl | `npx vitest run src/app/mindroom/threads/cacheStore/__tests__/cacheEviction.test.ts` (4/4 — three rooms seeded via the real save paths (federated / LRU-old / protected-recent); budget shrunk via `__setCacheStoreByteBudgetForTests` so eviction must fire; asserts federated evicted first, protected room never touched, cleanup complete (events / meta / summaries / ledger row), under-budget stop honoured at `budget * EVICTION_TARGET_UTILIZATION = 0.9`, recent-open guard alone protects a room without registry entry, back-to-back schedules collapse to one runner invocation via a `readLedgerSnapshot` spy). Docker e2e budget-override run pending. | over-budget state persists without the job (red-first probe inside the AC7 test); after the job runs, `bytesAfter` drops below the target and evicted rooms' events / meta / summaries / ledger rows are all gone |                         |      |
 | AC8  | ☐ impl | `npx vitest run src/app/mindroom/engine/__tests__/backfillScheduler.test.ts` (14/14 — same-key enqueue while queued OR running returns the same promise identity; different kinds on same (room, thread) are distinct; scheduler-completed re-enqueue works; priority + activity ordering across bands; concurrency cap peaks at MAX_CONCURRENT_BACKFILL_JOBS=2; abort in-flight / queued / unknown key; `abortAll` cancels every job; `pendingJobs` snapshot order stable). Additional dedup coverage in `engine/__tests__/deepHistoryJob.test.ts` (AC8 on the deep-history kind) and `engine/__tests__/gapFillExecutor.test.ts` (subscription + dedup). Client-scoped dedup extends to `thread-seed` (P4.4 threadSeedPrewarmController wraps `ensureThreadSeedPrewarm` in `scheduler.enqueue({kind: 'thread-seed'})`) and `thread-backfill` (P4.4 threadOverviewResumeController wraps `refreshOverviewThreadCacheFromRelations` in `scheduler.enqueue({kind: 'thread-backfill'})`). Docker gate observability handle: `window.__MINDROOM_CACHE_PROBE__.snapshot().schedulerDeduped` must be > 0 during any duplicate-producing scenario. | duplicate `/relations` and `/messages` fetches per (room, thread, kind) (F9) → at-most-one in-flight, others share the promise |                         |      |
 | AC9  | ✓      | `npx vitest run src/app/mindroom/engine/__tests__/reconciler.test.ts` (11/11 — including: `enters the scheduler with kind 'reconcile' at band 0`, `coverage-complete still performs the network verify (AC9)` — the AC9-named test explicitly asserts `fetchRelations` is called even on complete-coverage cachedPage input, `deduplicates: a second schedule ... returns the in-flight promise identity` — AC9's coalescing-returns-in-flight-promise clause, `empty diff is a no-op (D7)`, `detects a new event id (missed message) and fires onRepaired exactly once`, `pages further past 200 (F7)`, plus the three room-scope units confirming the invariant holds at both scopes) and `src/app/mindroom/threads/threadOpenCacheFirst.test.ts:88-100` (complete-coverage cache hit calls `scheduleReconcile({reason:'open-complete-coverage', cachedPage: hydratedCachedPage})` exactly once — replaced the pre-P5 `refreshLatestThreadRelationsTail` assertion). Wiring evidence: `threadOpenCacheFirst.ts:114-131` (D7 fix site: complete-coverage schedules); `threadOpenLifecycleController.ts:216-228` (partial-coverage schedules after SDK bootstrap); `mindroomSyncEngine.ts` `noteRoomFocused` schedules room-scope. `refreshLatestThreadRelationsTail` DELETED from `threadOpenCacheController.ts`; arch guard `RoomTimeline.architecture.test.ts:754` retained as tripwire. | coverage-complete short-circuit skipped the network verify (F7/D7 violation) → every open schedules a reconcile; coverage decides paint only | p5-impl (unit + wiring evidence)     | 2026-07-04 |
 | AC10 | ✓      | Existing anchor suites stay green: `e2e/live/cinny070-thread-prepend-scroll.spec.ts` (unchanged — 64px prepend tolerance) plus every RoomTimeline / thread test in the `npx vitest run` full suite (337 files / 2568 tests). New correction-path unit `src/app/mindroom/engine/__tests__/reconciler.test.ts` — `applier hardens against prepends: repairs only swap or delete existing ids + append at the tail (AC10)`: fixture carries a bundled edit AND a redaction on cached ids, asserts the reconciler treats both as divergence, fires `onRepaired` exactly once, mutates instances via `hydrateCachedEvents` (SDK `makeRedacted` / `makeReplaced`), and does NOT push to `setSupplementalThreadEvents` (no array splice, no length change). AC2 spec's post-reconcile mid-viewport anchor asserts ≤ 8px displacement (stricter than cinny070's 64px prepend tolerance — the in-place invariant is stronger for repairs than for prepends). | reconcile-time repairs could prepend and cause anchor drift → applier is instance-mutation only; length + order stable | p5-impl (unit + full-suite green + AC2 spec design) | 2026-07-04 |
 | AC11 | ✓      | `npx vitest run src/app/mindroom/threads/cacheHealth.test.ts src/app/mindroom/threads/eventRepository.test.ts` | silent divergence → read-only degrade | workflow rounds 1-2 (p15-p16 interaction dimension clean) | 2026-07-03 |
 | AC12 | ✓      | `npx vitest run src/app/utils/room.test.ts` (tie tests) | order-dependent → id-deterministic | workflow rounds 1-2 + landed-stack review | 2026-07-03 |
-| AC13 | ☐ impl | Executor landed in P4.2 (`engine/gapFillExecutor.ts`): subscribes to the Phase-3.2 `GapFillScheduler.onEnqueue`; per job, runs `mx.createMessagesRequest(Direction.Backward, 200/batch, ≤20 iterations)` through the P4.1 `BackfillScheduler` (band 1), persists via `saveRoomEventsToCache`, clears the durable `tailDiscontinuity` marker on success. AC13 e2e spec `e2e/live/cinny207-gap-fill-restart.spec.ts` flipped from `test.fail()` to green-shape: seed room + mount + ~25 REST messages + reload (single page context) + wait 12s, then assert (a) `schedulerCompleted >= 1`, (b) `gapFillsEnqueued >= 1`, (c) last REST event id present in cache. **Gate fix (2026-07-04):** first docker gate hit `schedulerCompleted=0` while `gapFillsEnqueued>=1` — three fixes applied. (i) `schedulerFailed` probe counter added and bumped from the scheduler's non-abort reject branch so silent job failures are visible from a snapshot. (ii) `gapFillExecutor` no longer short-circuits on tier at enqueue — `gapFillsEnqueued` and `schedulerEnqueued` stay in lockstep so a probe snapshot unambiguously distinguishes "policy skipped" from "never ran". Marker semantics preserved by tier inside `runOnce` (encrypted-own clears; federated preserves). (iii) Spec's probe reset moved to `page.addInitScript` (pre-reload) so counters are zeroed BEFORE the post-reload engine primes and enqueues startup jobs — the old post-`expectLoggedInShellStable` reset raced the engine and could zero pre-reset completions. Docker gate re-run pending (team-lead). | offline messages missed after reload (I2/AC13 pre-Phase-4 — spec was `test.fail()`) → cache converges to server tail within seconds of reload |                         |      |
+| AC13 | ✓ | Executor landed in P4.2 (`engine/gapFillExecutor.ts`): subscribes to the Phase-3.2 `GapFillScheduler.onEnqueue`; per job, runs `mx.createMessagesRequest(Direction.Backward, 200/batch, ≤20 iterations)` through the P4.1 `BackfillScheduler` (band 1), persists via `saveRoomEventsToCache`, clears the durable `tailDiscontinuity` marker on success. AC13 e2e spec `e2e/live/cinny207-gap-fill-restart.spec.ts` flipped from `test.fail()` to green-shape: seed room + mount + ~25 REST messages + reload (single page context) + wait 12s, then assert (a) `schedulerCompleted >= 1`, (b) `gapFillsEnqueued >= 1`, (c) last REST event id present in cache. **Gate fix (2026-07-04):** first docker gate hit `schedulerCompleted=0` while `gapFillsEnqueued>=1` — three fixes applied. (i) `schedulerFailed` probe counter added and bumped from the scheduler's non-abort reject branch so silent job failures are visible from a snapshot. (ii) `gapFillExecutor` no longer short-circuits on tier at enqueue — `gapFillsEnqueued` and `schedulerEnqueued` stay in lockstep so a probe snapshot unambiguously distinguishes "policy skipped" from "never ran". Marker semantics preserved by tier inside `runOnce` (encrypted-own clears; federated preserves). (iii) Spec's probe reset moved to `page.addInitScript` (pre-reload) so counters are zeroed BEFORE the post-reload engine primes and enqueues startup jobs — the old post-`expectLoggedInShellStable` reset raced the engine and could zero pre-reset completions. Docker gate re-run pending (team-lead). **FINAL GATE (2026-07-04, tip f7bf06b7): PASSED** — docker warm re-run: ✓ (42.3s); probe `schedulerCompleted=9, schedulerFailed=0, gapFillsEnqueued=10, schedulerDeduped=3, writeErrors=0`. | offline messages missed after reload (I2/AC13 pre-Phase-4 — spec was `test.fail()`) → cache converges to server tail within seconds of reload |                         |      |
 | AC14 | ☐ impl | `npx vitest run src/app/mindroom/threads/cacheStore/__tests__/cacheStoreDb.wipe.test.ts` (2/2 — legacy DB names gone from `indexedDB.databases()` on first v3 open, marker present in `meta`, reopen after `resetCacheStoreForTesting()` performs zero further `deleteDatabase` calls; multi-session gate leaves shared singletons alone). Docker e2e post-upgrade paint verification pending. | six legacy DBs present pre-open → all six absent + unified DB present post-open |                         |      |
 
 ### 6.4 Regression guards (architecture tests)
@@ -546,7 +573,28 @@ new engine-scoped guard file):
   asserts the `'thread-open-forward-gap-check'` log string lives in
   the lifecycle controller (its new home) and that the runner name
   never reappears as an import.
-- The removed preload setting is not reintroduced (Phase 6).
+- The removed preload setting is not reintroduced (Phase 6 —
+  **added** in P6.1 Commit 4 as
+  `src/app/mindroom/settings/prefetchSettings.architecture.test.ts`,
+  5 tests): (a) `MindroomMessagePreloadLimitSetting.tsx` + test
+  absent from disk; (b) recursive scan of `src/app/mindroom/` for
+  `/paginationLimit|PreloadLimit|PAGINATION_LIMIT/` with an
+  exemption list of NON-CONSUMERS — this arch test itself, the D4
+  drop machinery (`mindroomSettings.ts` +
+  `mindroomSettingsBootstrap.ts` + `mindroomSettings.test.ts`),
+  legacy-negation guards elsewhere (`RoomTimeline.architecture.test.ts`,
+  `RoomTimeline.cache.test.ts`, `MindroomPrefetchSettings.test.ts`),
+  and the `preloadSettings.ts` historical header. The Commit-3
+  rename of `timelinePagination.ts`'s `paginationLimit` parameter
+  to `windowLimit` closed the last LIVE consumer; the exemption
+  list is the honest reading of "no live consumer" (see
+  Deviations §8). (c) Positive: `settingsExtensions.tsx` imports
+  `MindroomPrefetchSettings`; `mindroomSettings.ts` declares
+  `prefetchScope` + `prefetchDepth` + imports from
+  `../engine/prefetchPolicy`. (d) `mindroomSettings.test.ts`
+  contains the four D4 case titles. Written RED FIRST — 3 tests
+  failed against the pre-Commit-4 tree, all pass after the
+  removals.
 
 ### 6.5 Validation environment
 
@@ -579,6 +627,172 @@ new engine-scoped guard file):
 
 ## 8. Deviations
 
+- 2026-07-04 — **P7.2 audit remediation batch (five findings).** The
+  final P7.2 adversarial audit surfaced five open findings against
+  branch 13's tip (`bba6013e`). All five landed as focused commits on
+  the same branch after verifying each was still open at tip
+  (findings that had been fixed by the earlier review-fix batch are
+  not recorded here). Summary:
+  - **Finding #1** — Thread-open lifecycle had no rejection handler on
+    the `loadThreadTimeline()` call at
+    `threadOpenLifecycleController.ts:308`. `abortAll()` at engine
+    teardown rejected the queued thread-backfill job, surfacing as
+    `backfill scheduler stopped` unhandled. Fixed with
+    `loadThreadTimeline().catch(() => undefined)`.
+  - **Finding #2** — `void p.finally(cb)` at
+    `threadSeedPrewarmController.ts:165` and
+    `threadOpenSeedController.ts:188` returned NEW promises that
+    re-rejected on scheduler abort. Replaced with
+    `void p.then(cb, cb)`. Also added `.catch(() => undefined)` to
+    the drain-loop `await ensureThreadSeedPrewarm(...)` and both
+    `void prewarmThreadSeeds()` entry points. Sweep of
+    `void [x].finally(` in `src/app/mindroom/` returns zero.
+  - **Finding #3** — `gapFillExecutor.ts:129` and
+    `deepHistoryJob.ts:108` persisted raw `response.chunk` directly
+    via `saveRoomEventsToCache`, letting a background sweep inside
+    Tuwunel's ~10s stale window overwrite a cached tombstone with
+    pre-redaction plaintext at rest (invariant I2). Extracted a
+    shared `persistRoomChunkWithPreferLive` helper in
+    `eventRepository.ts` that routes each chunk event through
+    `createPreferLiveEventMapper` and `persistRoomEventCacheSnapshot`
+    (same serialize+save path the write-through and reconciler use).
+  - **Finding #4** — `dropLegacyMindroomSettings()` called from the
+    top of `src/index.tsx` ran AFTER `state/settings.ts` module init
+    because ES imports are hoisted. Moved the scrub to a
+    module-scope side effect at the bottom of
+    `mindroomSettingsBootstrap.ts` (a leaf module — arch test now
+    asserts it has no transitive import of `state/settings.ts`).
+    Belt-and-braces: `getSettings()` destructure-omits
+    `paginationLimit` at read time so the base atom cannot
+    initialize contaminated. Added a plain-`settingsAtom` write-back
+    test that primes contamination and asserts the saved blob omits
+    the legacy key.
+  - **Finding #5** — `prefetchScope` stored + rendered but never
+    read. `resolvePrefetchConfig` called only by tests. Wired the
+    setting into the actual scheduler decision path: new
+    `isRoomEligibleForBackgroundPrefetch({ mx, room, scope,
+    focusedRoomId })` in `prefetchPolicy.ts`. `MindroomSyncEngine`
+    grows a `getPrefetchConfig?: () => PrefetchConfig` supplier
+    (snapshot-per-call, ClientRoot wires it to
+    `getDefaultStore().get(settingsAtom)`), tracks the current
+    focused room, and hands both into `gapFillExecutor` which now
+    consults the scope-aware gate. Three cases pin each scope
+    literal (my-server / all-rooms / current-room-only) at the
+    unit-policy layer AND end-to-end through the executor.
+  - **Plan-doc corrections folded (three items)** — the same audit
+    confirmed three factual defects in this file that are also
+    addressed in this batch:
+    - **Header line 3** — the "P5.2" clause claimed AC2 was flipped
+      green. AC2 was actually re-annotated `test.fail()` expected-RED
+      after 5 fix iterations (d5b2d345); reworded to match (expected-
+      RED with documented diagnosis, product-owner decision pending)
+      and to cite the §8 "AC2 expected-RED" entry.
+    - **Header status block** — the Phase-3 gate was still phrased
+      as future ("background-freshness is expected to FLIP GREEN
+      (AC6)"). It RAN on the P3.3 tip and AC6 PASSED twice
+      (FORK_CHANGES.md Runbook: the `AC6 background-freshness:
+      PASSED on the P3.3 tip` note in the docker-gate-round-2 block
+      AND the `background-room-freshness (AC6): PASSED on the P3.3
+      tip` note in the P3.3-tip block); the same gate revealed AC3
+      `stop-emoji-redaction` FAILED on a clean network. Header
+      updated to record the run and its two divergent outcomes.
+    - **AC6 scorecard row (line ~485)** upgraded from
+      `☐ impl / Docker gate pending` to `✓` with the two Runbook
+      citations recorded as evidence and 2026-07-03 as the date.
+    - **AC3 scorecard row (line ~482)** downgraded from `✓` (which
+      referenced the pre-P3.3 stack-tip green) to
+      `☐ fix landed, docker re-confirm pending (final gate)` —
+      the pre-P3.3 green is stale because P3.3 stripped the
+      component's persistence responsibilities and the P3.3 docker
+      gate then failed the spec twice on a clean network; the
+      round-2 cache-derived attribution fix (`meta.sdkThreadId`
+      layer 2 + async walker returning `string[]` layer 1)
+      landed with unit-level evidence only, so the ✓ was not
+      earned by the current write-through path. The confirming
+      docker re-run is the final gate (team-lead-owned).
+    - AC5 (optional teammate note): the cacheProbe already exposes
+      `roomEventPuts` and `threadEventPuts` counters (see
+      `src/app/mindroom/threads/cacheProbe.ts:16-20`) — those are
+      attempted-put counters and directly serve as the after-side
+      writes-per-live-event numerator when AC5 is measured.
+  - Validation batch on the branch tip:
+    `npx tsc --noEmit` clean, `npx vitest run` all pass, lint
+    18 warnings 0 errors (zero delta from pre-remediation
+    baseline), `npm run build` clean.
+
+- 2026-07-04 — **P6.1 arch guard 6.4 (b) uses an exemption list, not
+  a zero allowlist.** The Commit-4 brief called for a recursive scan
+  of `src/app/mindroom/**/*.{ts,tsx}` for
+  `/paginationLimit|PreloadLimit|PAGINATION_LIMIT/` with ZERO
+  allowlist. That is not achievable in the D4 shape: the drop code
+  MUST name the key it strips (the destructure-omit
+  `const { paginationLimit: _dropped, ...rest }` in `withMindroomSettings`
+  and the `hasOwnProperty` check in `dropLegacyMindroomSettings` are
+  load-bearing — remove them and the scrub can't happen), and the
+  D4 tests that assert the drop MUST name the key too. The honest
+  reading of "no live consumer" is: no source module reads the
+  legacy field, imports a `PreloadLimit` symbol, or references a
+  `_PAGINATION_LIMIT` constant — which is exactly what the guard
+  checks after exempting: (a) this arch test itself, (b) the D4 drop
+  machinery, (c) the D4 tests, (d) legacy-negation guards elsewhere
+  in the tree, (e) the `preloadSettings.ts` historical header. Every
+  exempted file's justification is spelled out in the guard's doc
+  header. Alternative considered: rewrite the drop code to fingerprint
+  the key some other way (e.g. hash equality). Rejected — obscures
+  the intent, doesn't remove the need for the D4 tests to name the
+  field, and doesn't survive a subsequent audit of the drop code.
+
+- 2026-07-04 — **P6.1 deep-history depth wired via `targetEventCount`
+  snapshot at effect fire, not via a scheduler-key or a `noteRoomFocused`
+  setter.** `MindroomRoomTimeline` reads the user's `prefetchDepth`
+  and passes it as `targetEventCount` when it enqueues the band-4
+  `'room-deep-history'` job. The scheduler dedup key does NOT
+  include the depth, so a mid-focus depth change won't cancel and
+  re-enqueue the running job — the new value picks up on the next
+  mount (room switch, view mode flip). Chosen because the executor
+  already accepts `targetEventCount` (P4.3); the alternative of
+  plumbing a depth setter through `engine.noteRoomFocused` would
+  require a new engine construction argument without adding any
+  behavior. Recorded so P7.2 review doesn't flag the missing
+  in-flight update.
+
+- 2026-07-04 — **P6.1 D4 semantics: stored `paginationLimit` value is
+  DROPPED, never mapped to `prefetchDepth`.** The two settings have
+  incompatible semantics: the old one was an eager-preload target
+  of any positive integer (P1.6 clamped to
+  `[MIN_PAGINATION_LIMIT=50, MAX_PAGINATION_LIMIT=10000]`); the new
+  one is a scrollback depth clamped to
+  `[ROOM_TAIL_PREFETCH_DEPTH=200, CURRENT_ROOM_DEEP_HISTORY_TARGET=10000]`
+  with the SAME default (10000). A user with `paginationLimit: 120`
+  who upgrades will get `prefetchDepth: 10000` (the default) rather
+  than `prefetchDepth: 200` (a naive clamp of the stored value)
+  because 120 was a valid preload target under the old sanitizer
+  but is below the new sanitizer's minimum. Silently changing to
+  200 would surprise a user who deliberately lowered the setting;
+  dropping to the default and letting the user re-set is the safer
+  behavior. The drop happens twice: on read (destructure-omit in
+  `withMindroomSettings`) and on the persisted blob (`dropLegacyMindroomSettings`
+  called from `src/index.tsx` BEFORE `state/settings.ts`
+  initializes).
+
+- 2026-07-04 — **P7.1 dead-code sweep folded into the docs commit.**
+  The audit (`npx ts-prune | rg app/mindroom` +
+  `rg -n "from '\./(preloadController|roomCacheLifecycleController|threadCachePersistenceController|threadSeedPrewarmController|threadOpenPostBootstrapRefresh)'" src/`)
+  produced ZERO verified-dead orphans in `mindroom/threads/`. Every
+  ts-prune "unused" candidate is either alive via a test file (test
+  helpers like `resetPendingThreadTagsForTests`,
+  `resetCacheHealthForTesting`, `loadRoomCachePersistenceState`,
+  `computeReconciliationToken`, `getRoomPreloadCounts`,
+  `getLatestLoadedRoomEvent`), alive as a legacy-surface re-export
+  required by an existing arch guard (`fetchAllThreadRelations` and
+  constants re-exported through `threadBootstrap.ts` per the P5.1
+  Commit 2 note), or an intentional optional API
+  (`useMindroomSyncEngineOptional`). The three legacy cache shim
+  files were already deleted in P2.3. Per the brief's "be
+  conservative — when in doubt, leave and note" direction, the
+  audit was recorded rather than forced into an empty commit; the
+  P7.1 landing is therefore a single docs commit rather than the
+  planned two.
 - 2026-07-04 — **AC2 live convergence ships expected-RED pending a design
   decision (P5.2).** The reconciler's unit layer is green (18 units:
   dual injection, thread-null fallback, Tuwunel stale-copy re-apply), but
@@ -842,6 +1056,114 @@ new engine-scoped guard file):
   workflow review round 1; recorded here for product-owner review.
 
 ## 9. Status log
+
+- 2026-07-04 — **Phase 6 + Phase 7 fully landed locally** on
+  `cache-overhaul/13-p6p7-settings-cleanup`, branched from the
+  Phase 5 tip (`52e37491`). Six commits total (P6.1 x4 + P7.1 x2
+  folded into a single docs commit — see Deviations §8 for the
+  fold justification).
+
+  1. `07fb8555` P6.1 Commit 1 `feat: prefetch settings resolvers
+     and transitional fields` — `engine/prefetchPolicy.ts` grows
+     `PrefetchScope` literal + `DEFAULT_PREFETCH_SCOPE` +
+     `sanitizePrefetchScope` + `sanitizePrefetchDepth` (clamp
+     [`ROOM_TAIL_PREFETCH_DEPTH=200`,
+     `CURRENT_ROOM_DEEP_HISTORY_TARGET=10000`]) + pure
+     `resolvePrefetchConfig(settings)` -> `{scope,
+     currentRoomDepth, roomTailDepth, threadInventoryLimit}`.
+     `mindroomSettings.ts` grows `prefetchScope` + `prefetchDepth`
+     ALONGSIDE the legacy `paginationLimit` — transitional so the
+     tree stays green. 17 new sanitizer/resolver tests
+     (prefetchPolicy 20/20 total).
+
+  2. `2bcbe724` P6.1 Commit 2 `feat: prefetch settings UI` — new
+     `MindroomPrefetchSettings.tsx` (two SequenceCards; folds
+     PopOut+FocusTrap+Menu selector cloned from `SelectMessageLayout`
+     in `features/settings/general/General.tsx` ~762-820; depth
+     input shaped like the pre-D4 preload input). Wired through
+     `settingsExtensions.tsx`. Arch guard flipped
+     (`RoomTimeline.architecture.test.ts:1656` now requires
+     `MindroomPrefetchSettings` in `settingsExtensionsSource`;
+     `settingsMenuExtensionsSource` still forbids both symbols). 6
+     new component tests (`MindroomPrefetchSettings.test.ts`).
+
+  3. `09f28b95` P6.1 Commit 3 `refactor: consumers onto
+     prefetchDepth` — `MindroomRoomTimeline.tsx` (~22 refs) +
+     seven controllers renamed `safePaginationLimit` ->
+     `prefetchDepth` and `safePaginationLimitRef` ->
+     `prefetchDepthRef` (`roomCacheHydrationController`,
+     `roomEventOpenController`, `roomPaginationCommandController`,
+     `roomTimelineNavigationController`,
+     `roomTimelineWindowController`, `threadOpenCacheController`,
+     `threadSeedPrewarmController`). `timelinePagination.ts`'s
+     `paginationLimit` parameter renamed to `windowLimit`
+     (mechanical). Deep-history wiring: depth snapshot at effect
+     fire, passed as `targetEventCount` to
+     `enqueueRoomDeepHistoryJob` (Deviations §8). Test shims
+     updated. `RoomTimeline.cache.test.ts` "keeps first visible
+     anchored" case adjusted for the new 200 minimum (pre-D4 value
+     100 is not representable under the new sanitizer).
+     `src/app/pages/client/inbox/Notifications.tsx` NOT touched
+     (its `paginationLimit` is an unrelated upstream param).
+
+  4. `a27aedf7` P6.1 Commit 4 `refactor: remove the legacy preload
+     setting; drop stored values (D4)` — DELETE
+     `MindroomMessagePreloadLimitSetting.tsx` + test,
+     `preloadSettings.test.ts`. From `preloadSettings.ts` remove
+     `DEFAULT_PAGINATION_LIMIT` / `MIN_PAGINATION_LIMIT` /
+     `MAX_PAGINATION_LIMIT` / `sanitizePaginationLimit`; also
+     remove `ROOM_CACHE_PERSIST_DEBOUNCE_MS` (P1.1 sweep debounce
+     — its subject was deleted in P3.3, no live consumers).
+     Survivors kept in-file: `THREAD_BATCH_SIZE`,
+     `ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE`,
+     `THREAD_EDIT_COMPACTION_DEBOUNCE_MS` (three live callers each).
+     `mindroomSettings.ts` drops `paginationLimit` from the type,
+     destructure-omits it on every read. NEW leaf module
+     `mindroomSettingsBootstrap.ts` (NO transitive import of
+     `state/settings.ts`) with `dropLegacyMindroomSettings()`
+     scrub — imported at the top of `src/index.tsx` BEFORE the
+     App/state import chain triggers the settings atom.
+     `mindroomSettings.test.ts` rewritten (7 tests: drop test,
+     garbage-scope test, no-paginationLimit-key-after-write test,
+     scrub test + three no-op cases). NEW 6.4 arch guard
+     `prefetchSettings.architecture.test.ts` (RED FIRST — three
+     tests failed pre-Commit-4, all pass post-Commit-4; exempts
+     the D4 drop machinery + tests + legacy-negation guards —
+     Deviations §8).
+
+  5+6. `[this commit]` P7.1 dead-code audit + docs rewrite
+     (folded — Deviations §8). Dead-code recipe:
+     `npx ts-prune | rg app/mindroom` +
+     `rg -n "from '\./(preloadController|roomCacheLifecycleController|threadCachePersistenceController|threadSeedPrewarmController|threadOpenPostBootstrapRefresh)'" src/`.
+     Zero verified-dead orphans (Deviations §8). Docs commit:
+     `docs/mindroom-cache-strategy.md` full rewrite (Core Model
+     diagram shows the engine's four components; Cache Layers
+     collapses to one `cacheStore/` row; Write Owners names the
+     four engine writers + inverse rule that render components own
+     ZERO writes; Read Owners rewritten around thread-open ->
+     reconciler and hydration helpers; Coverage Semantics gains
+     D7 verbatim; Main Flows drops "Eager Preload" entirely and
+     adds a "Tiered Prefetch" section; Forbidden Patterns keeps
+     the cross-room-preload rule with the updated justification
+     and adds three new prohibitions; Review Checklist gains the
+     scheduler-dedup and "reconcile scheduled even on complete
+     coverage (D7)" questions). `FORK_CHANGES.md` gains a Phase
+     6+7 runbook entry. This plan gains the header status marker,
+     this §9 entry, §6.4 guard row, and four new Deviations §8
+     entries.
+
+  Full validation on the branch tip: `npx tsc --noEmit` clean;
+  focused vitest (`prefetchPolicy` 20/20, `mindroomSettings` 7/7,
+  `MindroomPrefetchSettings` 6/6, `prefetchSettings.architecture`
+  5/5, `RoomTimeline.architecture` 96/96, `RoomTimeline.cache`
+  76/76, `RoomTimeline.navigation` 22/22,
+  `RoomTimelineCollapsible` 12/12,
+  `roomPaginationCommandController` 4/4, `state/settings` 4/4);
+  full mindroom + state/settings 232 files / 2036 tests green
+  after Commit 4; full-repo `npx vitest run` + build + lint land
+  with this docs commit. P7.2 (final adversarial review + full
+  Scorecard audit) is the orchestrator's, not part of this
+  branch.
 
 - 2026-07-04 — **Phase 5 fully landed locally** on
   `cache-overhaul/12-p5-reconciler` (four feature commits + this docs

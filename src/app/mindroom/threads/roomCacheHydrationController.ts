@@ -5,6 +5,7 @@ import { decryptAllTimelineEvent } from '../../utils/room';
 import { hydrateCachedEvents } from './eventCacheEditUtils';
 import { markCacheHydrateEnd, markCacheHydrateStart } from './cacheProbe';
 import { logTimelineDebug } from './timelineDebug';
+import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from './preloadSettings';
 import { getLinkedTimelines, getLiveTimeline, type Timeline } from './timelinePagination';
 import {
   createPreferLiveEventMapper,
@@ -25,7 +26,6 @@ export const useRoomCacheHydrationController = ({
   room,
   roomDebugTraceId,
   roomIdRef,
-  safePaginationLimit,
   scrollToBottomRef,
   sessionId,
   setAtBottom,
@@ -41,7 +41,6 @@ export const useRoomCacheHydrationController = ({
   room: Room;
   roomDebugTraceId: string;
   roomIdRef: MutableRefObject<string>;
-  safePaginationLimit: number;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   sessionId: string;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
@@ -57,7 +56,7 @@ export const useRoomCacheHydrationController = ({
     const hydrateRoomFromCache = async () => {
       markCacheHydrateStart('room');
       logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-start', {
-        limit: safePaginationLimit,
+        limit: ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
       });
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
@@ -68,7 +67,12 @@ export const useRoomCacheHydrationController = ({
       const hydrationSnapshot = await loadLatestRoomCacheHydrationSnapshot({
         sessionId,
         roomId: room.roomId,
-        limit: safePaginationLimit,
+        // CINNY-207 PR #72 review (greptile P2): paint-time hydration
+        // reads the interactive bound, not `prefetchDepth` (default
+        // 10_000, which scanned/materialized thousands of IDB records
+        // before first paint). Background depth belongs to the
+        // deep-history job alone.
+        limit: ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
         loadedEvents: loadedRoomEvents,
         mapEvent: createPreferLiveEventMapper(room, mapper),
       });
@@ -155,7 +159,6 @@ export const useRoomCacheHydrationController = ({
     room,
     roomDebugTraceId,
     roomIdRef,
-    safePaginationLimit,
     scrollToBottomRef,
     sessionId,
     setAtBottom,

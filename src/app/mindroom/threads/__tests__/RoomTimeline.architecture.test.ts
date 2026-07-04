@@ -1653,10 +1653,14 @@ describe('RoomTimeline architecture', () => {
     expect(settingsRendererSource).toContain('renderLocalMindroomSettingsPage');
     expect(settingsRendererSource).toContain('LocalMindroom');
     expect(settingsExtensionsSource).toContain("from '../local-mindroom/settingsRenderer'");
-    expect(settingsExtensionsSource).toContain('MindroomMessagePreloadLimitSetting');
+    // CINNY-207 P6.1 / D4: the "Message Preload Limit" tile was replaced
+    // by MindroomPrefetchSettings (scope + current-room depth). The
+    // settings extension entry point now points at that instead.
+    expect(settingsExtensionsSource).toContain('MindroomPrefetchSettings');
     expect(settingsMenuExtensionsSource).toContain("from '../local-mindroom/settingsMenu'");
     expect(settingsMenuExtensionsSource).toContain("from '../local-mindroom/settingsPage'");
     expect(settingsMenuExtensionsSource).not.toContain('MindroomMessagePreloadLimitSetting');
+    expect(settingsMenuExtensionsSource).not.toContain('MindroomPrefetchSettings');
   });
 
   it('keeps the Local MindRoom sidebar shortcut in the MindRoom namespace', () => {

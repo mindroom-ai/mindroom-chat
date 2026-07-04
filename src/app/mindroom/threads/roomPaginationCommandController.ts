@@ -43,7 +43,7 @@ export const useRoomPaginationCommandController = ({
   room,
   roomIdRef,
   roomPaginatingBackRef,
-  safePaginationLimitRef,
+  prefetchDepthRef,
   sessionId,
   setRoomHasMoreCachedBack,
   setTimeline,
@@ -59,7 +59,7 @@ export const useRoomPaginationCommandController = ({
   room: Room;
   roomIdRef: MutableRefObject<string>;
   roomPaginatingBackRef: MutableRefObject<boolean>;
-  safePaginationLimitRef: MutableRefObject<number>;
+  prefetchDepthRef: MutableRefObject<number>;
   sessionId: string;
   setRoomHasMoreCachedBack: Dispatch<SetStateAction<boolean>>;
   setTimeline: Dispatch<SetStateAction<RoomTimelineState>>;
@@ -102,7 +102,7 @@ export const useRoomPaginationCommandController = ({
         const earliestLoadedEvent = getEarliestLoadedRoomEvent(room, currentLinkedTimelines);
         const mapper = mx.getEventMapper();
         const cachePageLimit = Math.min(
-          safePaginationLimitRef.current,
+          prefetchDepthRef.current,
           ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE
         );
         const cachedPaginationSnapshot = await loadRoomCachedPaginationSnapshot({
@@ -242,7 +242,7 @@ export const useRoomPaginationCommandController = ({
       room,
       roomIdRef,
       roomPaginatingBackRef,
-      safePaginationLimitRef,
+      prefetchDepthRef,
       sessionId,
       setRoomHasMoreCachedBack,
       setTimeline,

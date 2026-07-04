@@ -101,7 +101,6 @@ export const useThreadOpenCacheController = ({
   persistThreadEventCache,
   room,
   roomIdRef,
-  safePaginationLimitRef,
   scheduler,
   sessionId,
   setSupplementalThreadEvents,
@@ -122,7 +121,6 @@ export const useThreadOpenCacheController = ({
   // call. That method moved to `engine/reconciler.ts` — the reconciler
   // reads the room's timeline set from `room.getThread(...)` when it
   // needs one. The controller no longer touches it.
-  safePaginationLimitRef: MutableRefObject<number>;
   /**
    * CINNY-207 P5.1 Commit 2: `backfillThreadRelationsIntoCache` now
    * routes its `/relations` fetch through the engine's scheduler as a
@@ -141,7 +139,7 @@ export const useThreadOpenCacheController = ({
   const hydrateThreadFromCache = useCallback(
     async (expectedThreadId: string) => {
       logTimelineDebug(debugTraceId, 'thread-cache-hydrate-start', {
-        limit: safePaginationLimitRef.current,
+        limit: THREAD_BATCH_SIZE,
         threadId: expectedThreadId,
       });
       const mapper = mx.getEventMapper();
@@ -149,7 +147,12 @@ export const useThreadOpenCacheController = ({
         sessionId,
         roomId: room.roomId,
         threadId: expectedThreadId,
-        limit: safePaginationLimitRef.current,
+        // CINNY-207 PR #72 review (greptile P2): paint-time cache reads
+        // use the interactive batch bound. `prefetchDepth` (default
+        // 10_000) governs only the BACKGROUND deep-history job — using
+        // it here paged thousands of IDB records into memory before
+        // first paint on deep threads.
+        limit: THREAD_BATCH_SIZE,
         maxPages: MAX_THREAD_FETCH_ITERATIONS,
         mapEvent: createPreferLiveEventMapper(room, mapper),
         shouldContinue: () => alive() && threadIdRef.current === expectedThreadId,
@@ -276,7 +279,6 @@ export const useThreadOpenCacheController = ({
       forceTimelineUpdate,
       mx,
       room,
-      safePaginationLimitRef,
       sessionId,
       setSupplementalThreadEvents,
       setThreadHasMoreCachedBack,

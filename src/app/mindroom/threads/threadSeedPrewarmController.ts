@@ -33,7 +33,7 @@ export const useThreadSeedPrewarmController = ({
   room,
   mx,
   sessionId,
-  safePaginationLimitRef,
+  prefetchDepthRef,
   activeThreadId,
   priorityTargets,
   loadThreadOpenSeedSnapshotFromCache: loadThreadOpenSeedSnapshotFromCacheProp,
@@ -42,7 +42,7 @@ export const useThreadSeedPrewarmController = ({
   room: Room;
   mx: MatrixClient;
   sessionId: string;
-  safePaginationLimitRef: MutableRefObject<number>;
+  prefetchDepthRef: MutableRefObject<number>;
   activeThreadId: string | undefined;
   priorityTargets: ThreadSeedPrewarmTarget[];
   loadThreadOpenSeedSnapshotFromCache?: (expectedThreadId: string) => Promise<MatrixEvent[]>;
@@ -83,13 +83,13 @@ export const useThreadSeedPrewarmController = ({
         sessionId,
         roomId: room.roomId,
         threadId: expectedThreadId,
-        limit: safePaginationLimitRef.current,
+        limit: prefetchDepthRef.current,
         maxPages: MAX_THREAD_FETCH_ITERATIONS,
         mapEvent: createPreferLiveEventMapper(room, mapper),
       });
       return cachedSnapshot?.events ?? [];
     },
-    [loadThreadOpenSeedSnapshotFromCacheProp, mx, room, safePaginationLimitRef, sessionId]
+    [loadThreadOpenSeedSnapshotFromCacheProp, mx, room, prefetchDepthRef, sessionId]
   );
 
   // CINNY-207 P4.4: dedup migrated onto the engine's BackfillScheduler.
@@ -162,12 +162,20 @@ export const useThreadSeedPrewarmController = ({
       });
 
       prewarmingThreadSeedPromisesRef.current.set(expectedThreadId, prewarmPromise);
-      void prewarmPromise.finally(() => {
+      // CINNY-207 P7.2 audit finding #2: `void p.finally(cb)` returns a
+      // NEW promise that re-rejects with the original reason and is
+      // unhandled. The 'thread-seed' executor swallows its own errors,
+      // so the promise only ever rejects via the scheduler's queued-abort
+      // path (`abortAll` at engine teardown / logout). Route cleanup
+      // through `.then(cb, cb)` so cleanup fires on both fulfil and
+      // reject without producing a further unhandled rejection.
+      const cleanupPrewarmRefs = () => {
         prewarmingThreadSeedIdsRef.current.delete(expectedThreadId);
         if (prewarmingThreadSeedPromisesRef.current.get(expectedThreadId) === prewarmPromise) {
           prewarmingThreadSeedPromisesRef.current.delete(expectedThreadId);
         }
-      });
+      };
+      void prewarmPromise.then(cleanupPrewarmRefs, cleanupPrewarmRefs);
 
       return prewarmPromise;
     },
@@ -201,11 +209,21 @@ export const useThreadSeedPrewarmController = ({
           if (prewarmedThreadSeedIdsRef.current.has(expectedThreadId)) continue;
           if (prewarmingThreadSeedIdsRef.current.has(expectedThreadId)) continue;
 
+          // CINNY-207 P7.2 audit finding #2: ensureThreadSeedPrewarm
+          // returns the scheduler promise verbatim; that promise
+          // rejects with the abort reason when the scheduler drains
+          // a queued 'thread-seed' job at engine.stop(). Swallow the
+          // rejection so the drain loop keeps going (the aborted job
+          // is discarded, the next queued id gets a fresh enqueue) and
+          // the outer `void prewarmThreadSeeds()` never sees an unhandled
+          // rejection. Non-abort errors in the executor are already
+          // logged via the try/catch inside execute() and never
+          // surface here.
           await ensureThreadSeedPrewarm(expectedThreadId, {
             generation,
             logPrefix: 'room-thread-seed-prewarm',
             traceId: debugTraceId,
-          });
+          }).catch(() => undefined);
         }
       } finally {
         if (generation === threadSeedPrewarmGenerationRef.current) {
@@ -219,13 +237,13 @@ export const useThreadSeedPrewarmController = ({
           queueMicrotask(() => {
             if (threadSeedPrewarmRunningRef.current) return;
             threadSeedPrewarmRunningRef.current = true;
-            void prewarmThreadSeeds();
+            void prewarmThreadSeeds().catch(() => undefined);
           });
         }
       }
     };
 
-    void prewarmThreadSeeds();
+    void prewarmThreadSeeds().catch(() => undefined);
 
     return undefined;
   }, [activeThreadId, debugTraceId, ensureThreadSeedPrewarm, priorityTargets]);

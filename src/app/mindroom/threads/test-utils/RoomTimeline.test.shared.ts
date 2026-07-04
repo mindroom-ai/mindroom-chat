@@ -124,7 +124,7 @@ const {
   saveCachedThreadSummaryMock: vi.fn(async () => undefined),
   isTimelineAtLiveEndMock: vi.fn(() => true),
   settingsState: {
-    paginationLimit: 300,
+    prefetchDepth: 300,
   },
   virtualPaginatorState: {
     lastOptions: undefined as
@@ -229,8 +229,10 @@ vi.mock('../../../state/hooks/settings', () => ({
         return ['400'];
       case 'dateFormatString':
         return ['MMM D'];
-      case 'paginationLimit':
-        return [settingsState.paginationLimit];
+      case 'prefetchDepth':
+        return [settingsState.prefetchDepth];
+      case 'prefetchScope':
+        return ['my-server'];
       default:
         return [false];
     }
@@ -1431,7 +1433,7 @@ beforeEach(() => {
   loadCachedThreadSummariesMock.mockResolvedValue(new Map());
   saveRoomEventsToCacheMock.mockResolvedValue(undefined);
   saveCachedThreadSummaryMock.mockResolvedValue(undefined);
-  settingsState.paginationLimit = 300;
+  settingsState.prefetchDepth = 300;
   virtualPaginatorState.lastOptions = undefined;
   virtualPaginatorState.callCount = 0;
   virtualPaginatorState.renderItems = true;

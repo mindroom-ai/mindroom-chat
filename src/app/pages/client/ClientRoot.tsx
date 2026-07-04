@@ -18,6 +18,7 @@ import React, { MouseEventHandler, ReactNode, useEffect, useMemo, useState } fro
 import { Navigate } from 'react-router-dom';
 import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import type { HttpApiEventHandlerMap } from 'matrix-js-sdk/lib/http-api/interface';
+import { getDefaultStore } from 'jotai';
 import {
   ClientBootstrapSession,
   clearAllCacheAndReload,
@@ -51,8 +52,10 @@ import {
 import {
   createMindroomSyncEngine,
   MindroomSyncEngineProvider,
+  resolvePrefetchConfig,
   type MindroomSyncEngine,
 } from '../../mindroom/engine';
+import { mindroomSettingsAtom } from '../../mindroom/settings/mindroomSettings';
 
 type ClientMatrixClient = Awaited<ReturnType<typeof initClient>> & {
   on: (
@@ -286,7 +289,21 @@ export function ClientRoot({ children }: ClientRootProps) {
       setSyncEngine(undefined);
       return undefined;
     }
-    const engine = createMindroomSyncEngine({ mx });
+    // CINNY-207 P7.2 audit finding #5: supply a live PrefetchConfig
+    // supplier so the gap-fill executor can honor the user's
+    // `prefetchScope` selection (my-server / all-rooms / current-room-
+    // only). Reads through the default jotai store on every call so a
+    // mid-session scope change takes effect on the next enqueue
+    // without an engine rebuild.
+    const store = getDefaultStore();
+    const engine = createMindroomSyncEngine({
+      mx,
+      // Read through `mindroomSettingsAtom` (derived from the base
+      // settings atom via `withMindroomSettings`) so the prefetch
+      // fields are present and sanitized BY TYPE — no cast asserting
+      // that the base `Settings` shape happens to carry them.
+      getPrefetchConfig: () => resolvePrefetchConfig(store.get(mindroomSettingsAtom)),
+    });
     engine.start();
     setSyncEngine(engine);
     return () => {

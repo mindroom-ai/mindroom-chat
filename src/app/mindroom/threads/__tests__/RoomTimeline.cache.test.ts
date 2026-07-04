@@ -331,7 +331,7 @@ describe('RoomTimeline', () => {
       const editor = {} as Editor;
       let renderer: ReturnType<typeof create> | undefined;
 
-      settingsState.paginationLimit = 10000;
+      settingsState.prefetchDepth = 10000;
       roomTimelineVirtualizerState.virtualIndexes = [295, 296, 297, 298, 299];
 
       try {
@@ -784,7 +784,12 @@ describe('RoomTimeline', () => {
       };
       let renderer: ReturnType<typeof create> | undefined;
 
-      settingsState.paginationLimit = 100;
+      // CINNY-207 P6.1 / D4: prefetchDepth sanitizer clamps to
+      // [ROOM_TAIL_PREFETCH_DEPTH=200, CURRENT_ROOM_DEEP_HISTORY_TARGET=10000].
+      // Setting the minimum here yields the same "smaller than the
+      // 300-event total" behavior the pre-D4 `paginationLimit: 100`
+      // did — just at the smallest value the new setting permits.
+      settingsState.prefetchDepth = 200;
       roomTimelineVirtualizerState.virtualIndexes = [0, 1, 2];
 
       try {
@@ -820,7 +825,7 @@ describe('RoomTimeline', () => {
           await flushAsyncWork();
         });
 
-        expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 200, end: 300 });
+        expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 100, end: 300 });
 
         await act(async () => {
           virtualPaginatorState.lastOptions?.onRangeChange({ start: 0, end: 300 });
