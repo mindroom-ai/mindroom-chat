@@ -524,6 +524,36 @@ describe('mergeThreadRenderEvents RG5d key canonicalization', () => {
     scenarios.forEach((run) => run());
     expect(getCacheProbeSnapshot().registrySwappedRepairedForUnrepaired).toBe(0);
   });
+
+  // Greptile P2 on PR #73: two DISTINCT confirmed events that happen to
+  // share a transaction_id (server misbehavior / cross-device
+  // coincidence) are separate identities. The shared `txn:` key must
+  // not let one displace the other's `event:` entry — pre-fix, the
+  // conflict scan treated any key collision as same-identity and
+  // silently dropped one real message from the merge output.
+  it('keeps two distinct confirmed events that share a transaction id', () => {
+    const first = makeMessageEvent('$distinct-1', 10);
+    first.event.unsigned = { transaction_id: 'txn-shared' };
+    const second = makeMessageEvent('$distinct-2', 11);
+    second.event.unsigned = { transaction_id: 'txn-shared' };
+
+    const merged = mergeThreadRenderEvents([first], [second]);
+
+    expect(merged).toHaveLength(2);
+    expect(merged).toContain(first);
+    expect(merged).toContain(second);
+    // Distinct identities — no displacement work should be counted.
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(0);
+  });
+
+  it('still collapses a local echo with its own confirmed event across a shared txn key', () => {
+    const { localEcho, remoteEcho } = makeLocalEchoPair('txn-collapse');
+
+    const merged = mergeThreadRenderEvents([localEcho], [remoteEcho]);
+
+    expect(merged).toEqual([remoteEcho]);
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(1);
+  });
 });
 
 describe('buildResolveConfirmedEventId', () => {

@@ -274,15 +274,37 @@ export const mergeThreadRenderEvents = (
   // non-zero reading is healthy dedup work (3 per AC2 live run). A
   // step-change in the reading names a new duplication source. See
   // cacheProbe.ts for the interpretation block.
+  // A key collision only implies the SAME event identity when the two
+  // instances can actually be the same event: equal event ids, a
+  // missing id on either side (txn key is the only identity), or a
+  // local echo awaiting its confirmed id. Two CONFIRMED events with
+  // different real ids that happen to share a `txn:` key (server
+  // misbehavior or cross-device coincidence) are distinct events —
+  // treating them as one identity would silently drop a real thread
+  // message from the render (greptile P2 on PR #73).
+  const isSameEventIdentity = (a: MatrixEvent, b: MatrixEvent): boolean => {
+    const aId = getThreadRenderEventId(a);
+    const bId = getThreadRenderEventId(b);
+    if (!aId || !bId) return true;
+    if (aId === bId) return true;
+    return isLocalEchoEvent(a) || isLocalEchoEvent(b);
+  };
+
   const setEventForKeys = (keys: string[], mEvent: MatrixEvent) => {
     if (keys.length === 0) return;
 
     // Collect every distinct existing instance the incoming write
-    // conflicts with via any of its keys.
+    // conflicts with via any of its keys — but only same-identity
+    // instances participate in displacement. A distinct-identity
+    // instance sharing a key keeps its other entries; the contested
+    // key goes to the incoming write (plain last-write semantics for
+    // cross-identity key collisions).
     const conflicts = new Set<MatrixEvent>();
     keys.forEach((key) => {
       const existing = eventMap.get(key);
-      if (existing && existing !== mEvent) conflicts.add(existing);
+      if (existing && existing !== mEvent && isSameEventIdentity(existing, mEvent)) {
+        conflicts.add(existing);
+      }
     });
 
     if (conflicts.size === 0) {
@@ -298,7 +320,13 @@ export const mergeThreadRenderEvents = (
     // the conflict as the `existing` argument and the winner-so-far as
     // the `incoming` argument — so the final incoming `mEvent` retains
     // tie-break priority over prior conflicts, matching the prior
-    // `existingEvents → incomingEvents` iteration order.
+    // `existingEvents → incomingEvents` iteration order. The fold is
+    // order-SENSITIVE but fully deterministic: `conflicts` is a Set,
+    // and Set iteration is insertion order, which is the caller's key
+    // order — the same inputs always produce the same winner.
+    // (>1 same-identity conflict additionally requires a key set that
+    // bridges two previously-separate entries, which the identity
+    // check above bounds to local-echo confirmation shapes.)
     let winner = mEvent;
     conflicts.forEach((conflict) => {
       winner = pickPreferredThreadRenderEvent(conflict, winner, resolveConfirmedId);
@@ -314,6 +342,14 @@ export const mergeThreadRenderEvents = (
 
     // Snapshot every key any loser currently occupies BEFORE deleting,
     // so the winner can reclaim them. Then delete those entries.
+    //
+    // The full-map scan below is deliberate, not an oversight: a
+    // loser's CURRENT map keys are not derivable from the instance
+    // (local echoes mutate their event id in place on confirmation,
+    // stranding entries under keys `getThreadRenderEventKeys` no
+    // longer returns). It only runs on the conflict path (losers
+    // present — single-digit occurrences per thread open in the
+    // measured live flow), never on the fast path above.
     const unionKeys = new Set<string>(keys);
     getThreadRenderEventKeys(winner, resolveConfirmedId).forEach((k) => unionKeys.add(k));
     if (losers.size > 0) {
