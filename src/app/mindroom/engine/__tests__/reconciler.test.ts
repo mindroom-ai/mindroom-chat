@@ -990,6 +990,86 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     expect(batchIds).toContain('$reply-1');
   });
 
+  it('still delivers repairedEvents through onRepaired when room.getThread returns null — P5-GATE-FIX v4 AC2 complete-coverage reopen', async () => {
+    // CINNY-207 P5-GATE-FIX v4 (AC2): team-lead diagnosis.
+    //
+    // The exact AC2 shape: on complete-coverage cache-first reopen the
+    // SDK bootstrap is skipped by design (see `threadOpenCacheFirst.ts`),
+    // so `room.getThread(threadId)` is null at the moment the reconciler
+    // wants to inject fetched events into the SDK thread model. The
+    // `liveThread.addEvents(...)` leg no-ops silently — the render on
+    // that path lives entirely on component-owned
+    // `fallbackThreadEventsState.events`. Convergence MUST come through
+    // the widened `onRepaired(repairedEvents)` contract routed by the
+    // component-side callback into `setSupplementalThreadEvents`.
+    //
+    // This test wires `getThread → undefined` (the AC2-live reality) and
+    // asserts:
+    //   1. The pass still returns `repaired: true` (hydration runs
+    //      against `cachedPage.hydratedEvents` regardless of SDK state).
+    //   2. `onRepaired` fires exactly once with the fully-mapped batch —
+    //      the component-side callback needs a non-empty batch to hand
+    //      to `setSupplementalThreadEvents`; an empty batch would leave
+    //      the fallback state stale.
+    //   3. `reconcilesThreadNull` probe counter bumps to 1 — the
+    //      diagnostic that a docker trace can read to prove the code
+    //      reached the "SDK thread absent" branch and did not accidentally
+    //      short-circuit around the render-fallback leg.
+    const roomThreadNull = {
+      roomId: '!room:example',
+      findEventById: () => null,
+      getThread: () => undefined,
+    } as unknown as Room;
+    const fetchRelations = vi.fn(async () => ({
+      chunk: [
+        { event_id: '$edit-v2', type: 'm.room.message' },
+        { event_id: '$reply-1' },
+      ] as Partial<IEvent>[],
+      next_batch: undefined,
+    }));
+    const mx = {
+      getRoom: () => roomThreadNull,
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx });
+    const onRepaired = vi.fn();
+
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: '!room:example',
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$reply-1']),
+      reason: 'open-complete-coverage',
+      room: roomThreadNull,
+      onRepaired,
+    });
+
+    expect(result.repaired).toBe(true);
+    expect(onRepaired).toHaveBeenCalledTimes(1);
+    const [batchArg] = onRepaired.mock.calls[0];
+    expect(Array.isArray(batchArg)).toBe(true);
+    expect(batchArg).toHaveLength(2);
+    const batchIds = (batchArg as MatrixEvent[]).map((mEvent) => mEvent.getId());
+    expect(batchIds).toContain('$edit-v2');
+    expect(batchIds).toContain('$reply-1');
+    // Probe evidence: the diagnostic counter for the "SDK thread was
+    // null at injection time" branch. If this stays 0 while the test
+    // reaches divergence, the code silently short-circuited without
+    // documenting the shape — the exact observability hole team-lead
+    // called out ("observability that isn't emitted isn't observability").
+    const probe = getCacheProbeSnapshot();
+    expect(probe.reconcilesThreadNull).toBe(1);
+    // And the SDK-side leg didn't do anything (there was no thread to
+    // do it against) — repair came entirely through the render-fallback
+    // leg (see `setSupplementalThreadEvents` wiring in the
+    // threadOpenCacheFirst test suite).
+    expect(probe.reconcilesRepaired).toBe(1);
+  });
+
   it('does NOT inject into the SDK thread on the D7 no-op path — P5-GATE-FIX cost guarantee', async () => {
     // D7 promise: when the cache was right, the reconciler is
     // zero-cost. Injecting events into the SDK thread even on the

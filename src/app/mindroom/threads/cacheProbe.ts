@@ -68,6 +68,17 @@ export type CacheProbeCounters = {
   // ran); the D7 cheap-no-op path leaves it untouched.
   reconcilesScheduled: number;
   reconcilesRepaired: number;
+  // CINNY-207 P5-GATE-FIX v4 (AC2 diagnosis): bumps when the reconciler
+  // reached the SDK-injection step with a non-empty mapped batch but
+  // `room.getThread(threadId)` returned null. This is the exact
+  // complete-coverage cache-first reopen shape team-lead flagged: SDK
+  // bootstrap is skipped by design so the thread model does not exist
+  // yet, and `liveThread.addEvents(...)` silently no-ops. A repair still
+  // runs (hydration + supplemental sink via `onRepaired`) — this counter
+  // distinguishes "SDK-only injection worked" from "SDK path no-op'd,
+  // convergence relied entirely on the render-fallback leg" in a docker
+  // trace without another blind cycle.
+  reconcilesThreadNull: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -91,6 +102,7 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   schedulerFailed: 0,
   reconcilesScheduled: 0,
   reconcilesRepaired: 0,
+  reconcilesThreadNull: 0,
 });
 
 let counters = createEmptyCounters();

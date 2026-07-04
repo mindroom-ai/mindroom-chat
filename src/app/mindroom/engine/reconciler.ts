@@ -469,6 +469,24 @@ const runThreadReconcilePass = async ({
   const liveThread = room.getThread(threadId);
   if (liveThread && allMapped.length > 0) {
     liveThread.addEvents(allMapped, false);
+  } else if (!liveThread && allMapped.length > 0) {
+    // P5-GATE-FIX v4 (AC2 diagnosis): the complete-coverage cache-first
+    // reopen path deliberately skips SDK bootstrap, so `room.getThread`
+    // returns null here even though a repair is needed. The SDK
+    // injection above no-ops silently in that case — convergence must
+    // come entirely from the render-fallback leg (widened `onRepaired`
+    // → `setSupplementalThreadEvents`). Bump a probe counter and emit
+    // a debug log so a failing docker trace can distinguish this shape
+    // from "SDK thread present, injection ran but render still stale".
+    countCacheProbe('reconcilesThreadNull');
+    logTimelineDebug(debugTraceId, 'reconcile-thread-null', {
+      reason,
+      roomId,
+      threadId,
+      mappedCount: allMapped.length,
+      note:
+        'room.getThread returned null at injection time — SDK bootstrap skipped by complete-coverage cache-first path; convergence relies on the render-fallback leg via onRepaired',
+    });
   }
 
   // Repair path: run the same hydration pipeline the persist layer uses

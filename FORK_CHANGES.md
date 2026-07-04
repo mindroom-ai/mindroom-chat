@@ -2,6 +2,95 @@
 
 ## Runbook
 
+### CINNY-207 P5-GATE-FIX v4 - thread-null observability + AC2 self-diagnosis polling (2026-07-04)
+
+- Status: Fix implemented on `cache-overhaul/12-p5-reconciler`,
+  atop v3 tip `52e37491`. Awaiting team-lead docker AC2 re-run.
+- Context: v3 landed the dual-injection contract (engine did the
+  SDK-side `liveThread.addEvents(...)` and the widened
+  `onRepaired(repairedEvents)` was routed by both call sites into
+  `setSupplementalThreadEvents`). Team-lead ran docker AC2
+  against `52e37491` on a CLEAN network (0 resets) and reported
+  it still failed at line 236 — with the observation that in the
+  complete-coverage cache-first reopen shape,
+  `room.getThread(threadId)` is null by design at injection time,
+  so the SDK leg no-ops silently. If the render still paints v1
+  under that shape, convergence had to fail on the render-fallback
+  leg — but the AC2 spec's probe log was too muted to distinguish
+  "SDK leg no-op'd, fallback carried it" from "fallback never
+  fired" from "scheduled but never repaired". The v4 patch is
+  observability-first: add a diagnostic counter for the thread-null
+  branch and improve the spec's probe polling so the next docker
+  run distinguishes those shapes without another blind cycle.
+- Boundary/wiring:
+  - `src/app/mindroom/threads/cacheProbe.ts` — new counter
+    `reconcilesThreadNull` (exposed via
+    `window.__MINDROOM_CACHE_PROBE__.snapshot()`). Documented in
+    the type comment as the diagnostic for the complete-coverage
+    cache-first shape where SDK bootstrap is skipped by design.
+  - `src/app/mindroom/engine/reconciler.ts` — the SDK-injection
+    branch now has an `else if (!liveThread && allMapped.length > 0)`
+    arm that bumps `reconcilesThreadNull` and emits a timeline
+    debug log
+    (`reconcile-thread-null` with `mappedCount`). The repair
+    itself still proceeds; the render-fallback leg via
+    `onRepaired(allMapped)` remains the convergence path in that
+    shape. The v3 contract is unchanged.
+  - `e2e/live/cinny207-stale-cache-divergence.spec.ts` — probe
+    polling extended with a t=0 baseline log fired immediately
+    after reopen navigation (not just at t=2s), and an inline
+    interpretation guide in the comment above so a failing docker
+    trace can be diagnosed from the log alone: (a) 0 scheduled →
+    open-path scheduling regression upstream; (b) scheduled but 0
+    repaired → detectDivergence returned false; (c) repaired with
+    threadNull=0 → SDK thread present, injection ran; (d)
+    repaired with threadNull=1 → the exact AC2 shape (fallback
+    leg was the only path). Signature (d) shifts the burden from
+    "is the fix wired?" to "did the render pick it up?" (memo
+    dep list, tick handling, etc.).
+- Red-first evidence (thread-null onRepaired coverage — the
+  team-lead-requested unit):
+  - New unit
+    `reconciler.test.ts:'still delivers repairedEvents through onRepaired when room.getThread returns null — P5-GATE-FIX v4 AC2 complete-coverage reopen'`.
+    Stashing just `src/app/mindroom/engine/reconciler.ts` and
+    running the test file: `expected +0 to be 1` on
+    `expect(probe.reconcilesThreadNull).toBe(1)` (pre-fix the
+    executor never bumped the counter). Restore the fix: 18/18
+    reconciler tests pass. The test also asserts that
+    `onRepaired` still fires with the full mapped batch even
+    when `getThread → undefined`, and that
+    `reconcilesRepaired` bumped — proof the hydrate path
+    survives the SDK-thread-absent branch.
+- Docker AC2 diagnosis fork (for the next failing trace):
+  - If the log stream from t=0..30s shows
+    `reconcilesScheduled: 0` throughout → the open path never
+    scheduled (regression upstream of the engine — check
+    `threadOpenCacheFirst` and `threadOpenLifecycleController`
+    for a missing/skipped `scheduleReconcile` call).
+  - If it shows `reconcilesScheduled: 1, reconcilesRepaired: 0` →
+    the reconciler ran but `detectDivergence` returned false
+    (unexpected on AC2 given filler messages push $edit-v2 past
+    the sync window). Inspect `fetchRelations` response shape
+    on the trace — the fetched chunk may not carry the new event
+    id we expect, e.g. Tuwunel serving the raw m.replace event
+    without the target being present in the same window.
+  - If it shows `reconcilesRepaired: 1, reconcilesThreadNull: 1`
+    → the v4 signature: SDK bootstrap skipped, fallback leg
+    was the sole convergence path. AC2 still failing under this
+    signature means the render side did not pick up the
+    supplemental-events tick — check `useThreadRenderState`
+    memo dep list, `forceTimelineUpdate`, or the render loop.
+  - If it shows `reconcilesRepaired: 1, reconcilesThreadNull: 0`
+    → SDK thread WAS present at injection; both legs ran. AC2
+    still failing here means the applier or hydration is not
+    doing what the code claims — the fix chain is at fault
+    (revisit v2 instance-race patch).
+- Validation:
+  - `npm run typecheck` — clean.
+  - `npx vitest run src/app/mindroom/engine/__tests__/reconciler.test.ts` — 18/18 pass.
+  - `npx vitest run src/app/mindroom/threads/cacheProbe.test.ts` — 5/5 pass (shape-agnostic — no snapshot needs bumping).
+  - Full suite + build + lint: see the report at commit time (target: 2576+1 tests, build OK, lint at 18-warning baseline zero delta).
+
 ### CINNY-207 P5-GATE-FIX v3 - reconciler dual-injection: SDK + render-fallback via widened onRepaired (2026-07-04)
 
 - Status: Fix implemented on `cache-overhaul/12-p5-reconciler`,
