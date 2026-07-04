@@ -44,9 +44,9 @@ import { mindroomSettingsAtom } from './mindroomSettings';
 //
 // The scope selector mirrors `SelectMessageLayout` in
 // features/settings/general/General.tsx (~762-820): folds PopOut +
-// FocusTrap + Menu. The depth input mirrors the shape of the deleted
-// `MindroomMessagePreloadLimitInput` (Escape resets, Enter/blur
-// commits via `sanitizePrefetchDepth`, Success variant while dirty).
+// FocusTrap + Menu. The depth input follows the same shape the
+// pre-D4 preload-limit input used: Escape resets, Enter/blur commits
+// via `sanitizePrefetchDepth`, Success variant while dirty.
 
 type MindroomPrefetchSettingsProps = {
   className?: string;

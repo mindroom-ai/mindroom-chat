@@ -2,11 +2,11 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// CINNY-207 P6.1 / D4: mirrors the deleted MindroomMessagePreloadLimitSetting
-// test — mocks folds, sequence-card, setting-tile, and useSetting so we can
-// assert the tile shape + input semantics without booting the settings tree.
-// The scope selector uses a folds PopOut + FocusTrap; we mock both so the
-// selector click simply drives the setter through the MenuItem children.
+// CINNY-207 P6.1 / D4: mocks folds, sequence-card, setting-tile, and
+// useSetting so we can assert the tile shape + input semantics without
+// booting the settings tree. The scope selector uses a folds PopOut +
+// FocusTrap; both are mocked so the selector click simply drives the
+// setter through the MenuItem children.
 
 const state = vi.hoisted(() => ({
   prefetchScope: 'my-server' as 'my-server' | 'all-rooms' | 'current-room-only',

@@ -7,6 +7,16 @@ import '@fontsource/inter/variable.css';
 import 'folds/dist/style.css';
 import 'katex/dist/katex.min.css';
 
+// CINNY-207 P6.1 / D4 (Commit 4): scrub the deleted `paginationLimit`
+// key from stored settings BEFORE any module that reads
+// `state/settings.ts` initializes. `mindroomSettingsBootstrap` is a
+// leaf module with no transitive import of `state/settings.ts` —
+// importing `mindroomSettings.ts` here would defeat the "before init"
+// contract because that module IS the settings atom.
+import { dropLegacyMindroomSettings } from './app/mindroom/settings/mindroomSettingsBootstrap';
+
+dropLegacyMindroomSettings();
+
 enableMapSet();
 
 import './index.css';
