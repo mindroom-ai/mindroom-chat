@@ -100,7 +100,6 @@ export const createGapFillExecutor = (
 
     let fromToken: string | null = job.prevBatch ?? null;
     let iterations = 0;
-    let persistedAnyBatch = false;
     let reachedEnd = false;
     while (iterations < GAP_FILL_MAX_ITERATIONS) {
       if (signal.aborted) return;
@@ -128,7 +127,6 @@ export const createGapFillExecutor = (
         // internally via origin_server_ts sorting.
         // eslint-disable-next-line no-await-in-loop
         await saveRoomEventsToCache(sessionId, job.roomId, chunk, response.end ?? null);
-        persistedAnyBatch = true;
       }
       // `end === undefined` (or an empty end string) means the SDK has
       // no more history to fetch in this direction.
@@ -150,7 +148,23 @@ export const createGapFillExecutor = (
       }
     }
 
-    if (persistedAnyBatch || reachedEnd) {
+    // CINNY-207 P5 review (greptile P1: gap marker clears early):
+    // only clear the marker when the server has signaled "no more
+    // history in this direction" (reachedEnd). Previously we cleared
+    // as soon as ANY batch persisted, which meant a gap larger than
+    // GAP_FILL_MAX_ITERATIONS × GAP_FILL_BATCH_SIZE (= 4,000 events)
+    // dropped the marker while the tail was still incomplete —
+    // removing the only durable retry signal for the remaining gap.
+    //
+    // With this contract, if we hit the iteration cap with more
+    // history still available (response.end still present after
+    // batch 20), the marker survives and a subsequent boot / focus-
+    // triggered run picks up from where we stopped. `prevBatch` on
+    // the marker still points at the ORIGINAL gap boundary — the
+    // executor re-fetches from there each run — so the next attempt
+    // walks forward using the same paging contract until reachedEnd
+    // is observed or the gap is truly closed.
+    if (reachedEnd) {
       await clearRoomTailDiscontinuity(sessionId, job.roomId).catch(() => undefined);
     }
   };

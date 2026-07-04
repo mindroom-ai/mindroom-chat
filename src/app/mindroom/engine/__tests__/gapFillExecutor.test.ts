@@ -325,4 +325,58 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     expect(snapshot.schedulerFailed).toBe(0);
     expect(snapshot.schedulerCompleted).toBe(1);
   });
+
+  it('preserves the durable marker when max iterations exhaust without reaching the server-tail end (greptile P1: gap marker clears early)', async () => {
+    // Greptile: a limited-sync or startup gap larger than
+    // (GAP_FILL_MAX_ITERATIONS × GAP_FILL_BATCH_SIZE) = 4,000 events
+    // used to clear the marker after any batch persisted, even when
+    // the iteration cap was hit with more history available. That
+    // dropped the only durable retry signal for the remaining gap.
+    // Fix: the marker must survive until either the server signals
+    // no more history (reachedEnd) OR we can otherwise prove the
+    // gap is closed. Hitting the iteration cap with more history
+    // available proves neither.
+    let call = 0;
+    const mx = createMockClient('mindroom.chat', () => {
+      call += 1;
+      // Every response has an `end` token, i.e. more history is
+      // available; we never signal reachedEnd. Emit one event per
+      // batch to trigger `persistedAnyBatch`.
+      return {
+        end: `tok-${call}`,
+        chunk: [
+          { event_id: `$e-${call}`, origin_server_ts: 1000 + call } as Partial<IEvent>,
+        ],
+      };
+    });
+    mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat', '@alice:mindroom.chat'));
+    await markRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat', {
+      markedAt: Date.now(),
+      prevBatch: 'tok-0',
+    });
+
+    const scheduler = createBackfillScheduler({ mx });
+    const gapFillScheduler = createInMemoryGapFillScheduler();
+    gapFillScheduler.enqueueGapFill({
+      roomId: '!room:mindroom.chat',
+      reason: 'limited-sync',
+      markedAt: Date.now(),
+      prevBatch: 'tok-0',
+    });
+
+    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
+    await flushMicrotasks();
+    await waitForCompleted();
+
+    // The executor stopped at GAP_FILL_MAX_ITERATIONS (20) because
+    // /messages kept returning a next-token. The marker MUST still
+    // be present so a later run picks up from where we left off.
+    const marker = await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat');
+    expect(marker).toBeDefined();
+    // Sanity: we did hit the cap.
+    expect(mx.__messages.length).toBe(20);
+    const snapshot = getCacheProbeSnapshot();
+    expect(snapshot.schedulerCompleted).toBe(1);
+    expect(snapshot.schedulerFailed).toBe(0);
+  });
 });

@@ -227,6 +227,23 @@ export const createBackfillScheduler = (
         continue;
       }
 
+      // CINNY-207 P5 review (gemini PR #70 critical): register the
+      // running entry BEFORE invoking the executor. An async IIFE that
+      // wraps `await entry.args.execute(signal)` catches a synchronous
+      // throw from the executor and runs its `finally` block
+      // synchronously within the IIFE's initial evaluation — before
+      // control returns to this scope to `running.set(...)`. That
+      // ordering would delete-before-set, leaving the failed job in
+      // `running` forever and leaking a concurrency slot.
+      //
+      // Fix: set the running entry with a placeholder promise first,
+      // then patch in the real runPromise. The `finally` block's
+      // `running.delete` now always runs AFTER the corresponding set,
+      // regardless of whether the executor throws synchronously, runs
+      // to completion synchronously, or actually awaits.
+      const runningEntry: RunningEntry = { ...entry, runPromise: Promise.resolve() };
+      running.set(entry.key, runningEntry);
+
       const runPromise = (async () => {
         try {
           const value = await entry.args.execute(entry.controller.signal);
@@ -256,8 +273,7 @@ export const createBackfillScheduler = (
         }
       })();
 
-      const runningEntry: RunningEntry = { ...entry, runPromise };
-      running.set(entry.key, runningEntry);
+      runningEntry.runPromise = runPromise;
     }
   };
 
@@ -311,7 +327,25 @@ export const createBackfillScheduler = (
   };
 
   const abortAll = (): void => {
+    // CINNY-207 P5 review (greptile PR #70 P1: queued aborts stay
+    // pending): aborting only the signals relies on the drain loop to
+    // eventually reject queued jobs — but the drain loop is triggered
+    // by a running job's `finally` block. If every running executor
+    // is stuck inside an SDK request that never observes the signal,
+    // no drain fires, and queued entries stay pending in `byKey`
+    // forever. A follow-up enqueue on the same key would then dedup
+    // to that dangling promise.
+    //
+    // Fix: for queued (not-yet-running) entries, actively reject the
+    // caller's promise and remove them from `byKey` here. Running
+    // entries still cooperate through the AbortSignal — the executor
+    // that DOES observe the signal completes normally via its
+    // finally block (which also removes from `byKey`); the ones that
+    // DON'T remain in `running` until they eventually settle, but no
+    // longer block queued work from being cleared and no longer
+    // trap same-key follow-up enqueues.
     // Snapshot first — abort() mutates queue/running via reject paths.
+    const runningKeys = new Set(running.keys());
     const keys = Array.from(byKey.keys());
     keys.forEach((key) => {
       const entry = byKey.get(key);
@@ -319,6 +353,16 @@ export const createBackfillScheduler = (
       if (!entry.controller.signal.aborted) {
         entry.controller.abort(new Error('backfill scheduler stopped'));
       }
+      // Running entries are cleaned by the drain finally-block on
+      // executor completion; only clean queued ones here.
+      if (runningKeys.has(key)) return;
+      // Remove from the queue array so a later drain doesn't
+      // double-process it.
+      const queueIndex = queue.indexOf(entry);
+      if (queueIndex >= 0) queue.splice(queueIndex, 1);
+      countCacheProbe('schedulerAborted');
+      entry.reject(entry.controller.signal.reason ?? new Error('backfill scheduler stopped'));
+      byKey.delete(key);
     });
   };
 

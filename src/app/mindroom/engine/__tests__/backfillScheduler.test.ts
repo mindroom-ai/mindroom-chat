@@ -357,6 +357,65 @@ describe('BackfillScheduler (CINNY-207 P4.1)', () => {
       const scheduler = createBackfillScheduler();
       expect(scheduler.abort('!nope', undefined, 'gap-fill')).toBe(false);
     });
+
+    it('abortAll() rejects queued jobs synchronously even when running executors never observe the signal (greptile PR #70 P1)', async () => {
+      // Greptile: if every running job is stuck inside an SDK request
+      // that never observes the AbortSignal, the drain loop never
+      // fires again — so queued jobs stay pending in `byKey` forever.
+      // A follow-up enqueue on the same key would then dedup to that
+      // dangling promise. abortAll() must clean queued entries out
+      // synchronously, regardless of whether the running executors
+      // ever cooperate with the abort.
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 1 });
+
+      // First job: never observes the signal — sits pending forever.
+      let firstResolve: (() => void) | undefined;
+      const first = scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: () =>
+          new Promise<void>((resolve) => {
+            firstResolve = resolve;
+          }),
+      });
+      // Second job: queued behind the first. Never runs.
+      const second = scheduler.enqueue({
+        roomId: '!r2',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: () => Promise.reject(new Error('should not run')),
+      });
+      // Silence the first promise for the linter — we intentionally
+      // never observe its resolution here.
+      first.catch(() => undefined);
+
+      await flushMicrotasks();
+      scheduler.abortAll();
+      // The queued second job must reject WITHOUT needing the first
+      // one to complete — running executors don't cooperate.
+      await expect(second).rejects.toThrow(/backfill scheduler stopped/i);
+
+      // A follow-up enqueue on the same key must NOT dedup to a
+      // dangling entry — the queued key was cleaned out of byKey by
+      // abortAll. It goes on the queue as a fresh promise and drains
+      // once the still-running first slot frees up.
+      let followUpRan = false;
+      const followUp = scheduler.enqueue({
+        roomId: '!r2',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: async () => {
+          followUpRan = true;
+        },
+      });
+      // Release the first (stuck) job so drain can pick up the follow-up.
+      if (firstResolve) firstResolve();
+      // Second run must be a fresh promise, not the aborted one.
+      await expect(followUp).resolves.toBeUndefined();
+      expect(followUpRan).toBe(true);
+    });
   });
 
   describe('pendingJobs snapshot', () => {
@@ -439,6 +498,56 @@ describe('BackfillScheduler (CINNY-207 P4.1)', () => {
       expect(snapshot.schedulerEnqueued).toBe(1);
       expect(snapshot.schedulerFailed).toBe(1);
       expect(snapshot.schedulerCompleted).toBe(0);
+      expect(snapshot.schedulerAborted).toBe(0);
+    });
+
+    it('a synchronously-thrown non-async executor does not leak a running slot (gemini PR #70 critical)', async () => {
+      // Gemini claim: if the executor throws synchronously (before
+      // returning a promise), the `finally` block runs `running.delete`
+      // before `running.set` — leaking a slot forever. This is not
+      // possible with the current shape because `execute` is called
+      // via `await` inside an `async` IIFE: async functions convert
+      // sync throws in their body into promise rejections that are
+      // processed as microtasks AFTER the IIFE has synchronously
+      // returned and `running.set(...)` has run. Locking that
+      // invariant with a test so a future refactor that inlines the
+      // executor call outside the async body can't reintroduce the
+      // leak.
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 1 });
+
+      const failing = scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'gap-fill',
+        priority: 1,
+        // Non-async, throws synchronously — the exact shape gemini
+        // called out. Note: the executor signature returns
+        // `Promise<T>`, but a synchronous throw is still allowed here
+        // because the caller uses `await execute(...)`; the throw is
+        // caught by the async IIFE's own try/catch.
+        execute: (() => {
+          throw new Error('sync boom');
+        }) as unknown as () => Promise<void>,
+      });
+      await expect(failing).rejects.toThrow('sync boom');
+      await flushMicrotasks();
+
+      // Slot must be free — a follow-up enqueue on the same key runs.
+      let ran = false;
+      await scheduler.enqueue({
+        roomId: '!r1',
+        kind: 'gap-fill',
+        priority: 1,
+        execute: async () => {
+          ran = true;
+        },
+      });
+      expect(ran).toBe(true);
+
+      const snapshot = getCacheProbeSnapshot();
+      expect(snapshot.schedulerEnqueued).toBe(2);
+      expect(snapshot.schedulerFailed).toBe(1);
+      expect(snapshot.schedulerCompleted).toBe(1);
       expect(snapshot.schedulerAborted).toBe(0);
     });
 
