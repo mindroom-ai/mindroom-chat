@@ -146,6 +146,58 @@
     with `aria-valuetext` is what announces question/answer previews during
     arrow-key navigation; alternative roles lose that or require
     restructuring the presentational stripes into a real listbox.
+### CINNY-207 P1.1 - Delta + debounced room-cache persist sweep (2026-07-03)
+
+- Status:
+  - Complete locally (PR 3 of the cache-overhaul stack).
+- Summary:
+  - The room-cache persist sweep in `roomCacheLifecycleController.ts`
+    previously re-serialized and re-persisted the entire loaded room timeline
+    (up to the 10k preload target) plus every thread snapshot on every
+    `eventsLength` change — including every streaming `m.replace` (finding F2,
+    write amplification).
+  - The sweep is now (a) trailing-debounced
+    (`ROOM_CACHE_PERSIST_DEBOUNCE_MS = 250`, exported from the leaf module
+    `preloadSettings.ts` so tests can import it without preempting their
+    module mocks) and (b) a delta pass: room events already persisted by a
+    prior sweep are skipped, and thread groups are only re-persisted when
+    they contain an unseen event (full groups are persisted so per-thread
+    derived metadata stays computed from the whole loaded slice).
+  - Cached backward tokens are only passed when the delta contains the
+    overall-earliest loaded event, so the token map cannot key the room-start
+    proof to the wrong event.
+  - Live events remain covered by the incremental paths in
+    `roomLiveEventController` (unchanged); edit targets are refreshed via
+    `collectStateTargetEvents` in those incremental persists.
+- Decisions:
+  - Pure trailing debounce: sustained streaming keeps deferring the sweep,
+    which is intentional — live events are already persisted incrementally;
+    the sweep only needs pagination batches and drift.
+  - A tab close or room/thread switch within the debounce window can lose
+    the last unswept pagination batch from the cache; accepted (cache is
+    rebuildable, D8).
+  - The read-side `refreshRoomCachedBackState` effect is intentionally left
+    un-debounced in this step (reads were not the amplification; keeps the
+    step bounded).
+- Next steps:
+  - P1.2 stop-emoji redaction lifecycle fix.
+- Validation:
+  - Red check: after introducing the debounce, 59/86 cache tests failed via
+    a test-file import of the controller preempting shared mocks; fixed by
+    moving the constant to `preloadSettings.ts` (leaf module).
+  - Green: `npm test -- src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts` (86 tests) after adding
+    `waitForPersistSweepDebounce` waits to the nine sweep-dependent tests.
+  - Green: `npm run typecheck`, full `npm test` (316 files, 2372 tests),
+    `npm run build`.
+  - Independent subagent review: no blockers; two should-fixes applied and
+    re-validated: (S1) a backward-token proof arriving with no unseen room
+    events (e.g. an all-thread-replies or empty pagination batch discovering
+    room start) is now force-persisted by re-including the overall-earliest
+    event, and (S2) backward-token/forward-tail transitions now mark all
+    thread groups affected so per-thread completeness flags upgrade without
+    a remount. Sweep token/tail state is tracked in
+    `lastSweepTokenStateRef` and reset on room change.
+
 ### CINNY-207 P0 - Cache probe instrumentation and red e2e baselines (2026-07-03)
 
 - Status:
