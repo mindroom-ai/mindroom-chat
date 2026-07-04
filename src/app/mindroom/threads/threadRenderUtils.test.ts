@@ -554,6 +554,39 @@ describe('mergeThreadRenderEvents RG5d key canonicalization', () => {
     expect(merged).toEqual([remoteEcho]);
     expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(1);
   });
+
+  // Greptile P1 on PR #73: an echo whose txn already RESOLVES to a
+  // known confirmed id must not collapse a DIFFERENT confirmed event
+  // that reuses its transaction key — the echo-confirmation bridge
+  // only applies to the echo's own confirmation.
+  it('does not let a resolved local echo collapse a different confirmed event reusing its txn key', () => {
+    const localEcho = makeMessageEvent('~local-txn-x', 10);
+    localEcho.setTxnId('txn-x');
+    const impostor = makeMessageEvent('$real-b', 11);
+    impostor.event.unsigned = { transaction_id: 'txn-x' };
+    // Resolver knows txn-x confirms to $real-a — NOT the impostor.
+    const resolver = (txnId: string) => (txnId === 'txn-x' ? '$real-a' : undefined);
+
+    const merged = mergeThreadRenderEvents([localEcho], [impostor], resolver);
+
+    expect(merged).toHaveLength(2);
+    expect(merged).toContain(localEcho);
+    expect(merged).toContain(impostor);
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(0);
+  });
+
+  it('collapses an unresolved local echo with a same-txn confirmed arrival (the confirmation)', () => {
+    const localEcho = makeMessageEvent('~local-txn-y', 10);
+    localEcho.setTxnId('txn-y');
+    const confirmation = makeMessageEvent('$real-y', 10);
+    confirmation.event.unsigned = { transaction_id: 'txn-y' };
+    // No resolver: the echo's confirmed id is not yet known, so a
+    // same-txn confirmed arrival IS the confirmation by definition.
+    const merged = mergeThreadRenderEvents([localEcho], [confirmation]);
+
+    expect(merged).toEqual([confirmation]);
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(1);
+  });
 });
 
 describe('buildResolveConfirmedEventId', () => {

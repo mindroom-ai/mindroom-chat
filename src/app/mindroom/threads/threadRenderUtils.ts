@@ -308,7 +308,26 @@ export const mergeThreadRenderEvents = (
     const bId = getThreadRenderEventId(b);
     if (!aId || !bId) return true;
     if (aId === bId) return true;
-    return isLocalEchoEvent(a) || isLocalEchoEvent(b);
+    const aEcho = isLocalEchoEvent(a);
+    const bEcho = isLocalEchoEvent(b);
+    if (!aEcho && !bEcho) return false;
+    if (aEcho && bEcho) {
+      // Two echoes with different provisional ids sharing a txn key:
+      // duplicate sends of one transaction — same identity.
+      return true;
+    }
+    // Echo-vs-confirmed across a shared txn key is the confirmation
+    // bridge ONLY when the echo's resolved confirmed id matches the
+    // confirmed side (or is not yet known — a same-txn confirmed
+    // arrival is then the confirmation by definition). If the echo
+    // already resolves to a DIFFERENT confirmed id, the pair are two
+    // distinct events that merely share a txn key (greptile P1 on
+    // PR #73) and must not collapse.
+    const echo = aEcho ? a : b;
+    const confirmedSideId = aEcho ? bId : aId;
+    const txnId = getThreadRenderTransactionId(echo);
+    const resolvedId = txnId ? resolveConfirmedId?.(txnId) : undefined;
+    return resolvedId === undefined || resolvedId === confirmedSideId;
   };
 
   const setEventForKeys = (keys: string[], mEvent: MatrixEvent) => {
