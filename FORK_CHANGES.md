@@ -2,6 +2,13 @@
 
 ## Runbook
 
+### CINNY-207 PR #72 review round 2 — deep-history gate made scope-aware (2026-07-04)
+
+- Greptile re-review (4/5, one outside-diff finding, REAL): the P7.2 finding-#5 fix wired `prefetchScope` into gap-fill but left `deepHistoryJob`'s eligibility on the old own-server-only `isRoomEligibleForRawFetch` gate. Under `all-rooms`, a federated room the user is actively reading got gap-fill but NO deep-history sweep. The remediation batch's "deep-history untouched: only enqueued for the focused room, so scope changes don't affect it" reasoning covered the ENQUEUE path but not the eligibility gate.
+- Fix: `EnqueueDeepHistoryArgs` grows optional `scope?: PrefetchScope` (omitted → `my-server`, preserving historical behavior for legacy callers/tests); the executor gates via `isRoomEligibleForBackgroundPrefetch({ mx, room, scope, focusedRoomId: roomId })` — deep-history targets the focused room by construction, so the room is its own focusedRoomId: `current-room-only` and `all-rooms` admit it (encrypted still blocked), `my-server` stays own-tier-only. `MindroomRoomTimeline` reads `prefetchScope` via `sanitizePrefetchScope` and passes it at enqueue; scope joins `prefetchDepth` in the effect deps (mid-focus change picks up on next mount — same documented semantics as depth).
+- Red-first: three new units in `deepHistoryJob.test.ts` — federated + default scope skips (0 network calls), federated + `all-rooms` sweeps (>0 calls; fails pre-fix), federated + `current-room-only` sweeps (>0 calls; fails pre-fix).
+- Validation: tsc clean; vitest 337 files / 2618 tests green; lint 18 warnings 0 errors (baseline); build clean.
+
 ### CINNY-207 PR #72 review — paint-time cache reads decoupled from prefetchDepth (2026-07-04)
 
 - Greptile PR #72 review (both P2s REAL, P1 already fixed by the P7.2 batch): P6.1's consumer flip (09f28b95) wired `prefetchDepth` (default 10_000, clamp [200, 10_000]) into the OPEN-TIME cache reads — `roomCacheHydrationController` page limit and `threadOpenCacheController.hydrateThreadFromCache` per-page limit (× MAX_THREAD_FETCH_ITERATIONS pages). A deep cached room/thread would scan and materialize thousands of IDB records before first paint — an AC1 paint-budget regression. The legacy code paged these by `safePaginationLimit`; the P6.1 swap conflated the background deep-history budget with the interactive paint bound.

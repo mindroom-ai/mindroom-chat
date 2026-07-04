@@ -190,7 +190,8 @@ import { useRoomThreadResolutionMap } from './useRoomThreadTags';
 // sweep is now a band-4 job on the engine's BackfillScheduler (see
 // engine/deepHistoryJob.ts) and never touches the SDK live timeline.
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from './preloadSettings';
-import { sanitizePrefetchDepth } from '../engine/prefetchPolicy';
+import { sanitizePrefetchDepth,
+  sanitizePrefetchScope } from '../engine/prefetchPolicy';
 import { mindroomSettingsAtom } from '../settings/mindroomSettings';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
 import { type PendingThreadOpen } from './threadOpenTargetEvent';
@@ -334,6 +335,8 @@ export function RoomTimeline({
   const [showDeveloperTools] = useSetting(settingsAtom, 'developerTools');
   const [prefetchDepthSetting] = useSetting(mindroomSettingsAtom, 'prefetchDepth');
   const prefetchDepth = sanitizePrefetchDepth(prefetchDepthSetting);
+  const [prefetchScopeSetting] = useSetting(mindroomSettingsAtom, 'prefetchScope');
+  const prefetchScope = sanitizePrefetchScope(prefetchScopeSetting);
   const interactivePaginationLimit = Math.min(
     prefetchDepth,
     ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE
@@ -887,6 +890,7 @@ export function RoomTimeline({
       scheduler: syncEngine.scheduler,
       roomId: room.roomId,
       targetEventCount: prefetchDepth,
+      scope: prefetchScope,
     }).catch(() => undefined);
     // CINNY-207 P4.3 review (gemini PR #70 high): abort the deep
     // history job on room switch / unmount. Without this, opening a
@@ -905,6 +909,7 @@ export function RoomTimeline({
     eventId,
     mx,
     prefetchDepth,
+    prefetchScope,
     room.roomId,
     roomEagerPreloadEnabled,
     sessionId,

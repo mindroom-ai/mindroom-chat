@@ -35,7 +35,9 @@ import { persistRoomChunkWithPreferLive } from '../threads/eventRepository';
 import type { BackfillScheduler } from './backfillScheduler';
 import {
   CURRENT_ROOM_DEEP_HISTORY_TARGET,
-  isRoomEligibleForRawFetch,
+  DEFAULT_PREFETCH_SCOPE,
+  isRoomEligibleForBackgroundPrefetch,
+  type PrefetchScope,
 } from './prefetchPolicy';
 
 const DEEP_HISTORY_BATCH_SIZE = 200;
@@ -51,6 +53,16 @@ export type EnqueueDeepHistoryArgs = {
    * executor still yields on `signal.aborted` between batches.
    */
   readonly targetEventCount?: number;
+  /**
+   * CINNY-207 PR #72 review (greptile, outside-diff): the user's
+   * `prefetchScope` at enqueue time. Deep-history only ever targets
+   * the focused room, so the gate passes `focusedRoomId: roomId` —
+   * under `current-room-only` and `all-rooms` the focused room is
+   * eligible (encrypted still blocked); `my-server` keeps the
+   * historical own-tier-only behavior. Omitted (tests / legacy
+   * callers) defaults to `my-server`, matching the pre-scope gate.
+   */
+  readonly scope?: PrefetchScope;
 };
 
 /**
@@ -62,6 +74,7 @@ export const enqueueRoomDeepHistoryJob = (
   args: EnqueueDeepHistoryArgs
 ): Promise<void> => {
   const { mx, sessionId, scheduler, roomId } = args;
+  const scope = args.scope ?? DEFAULT_PREFETCH_SCOPE;
   const target = args.targetEventCount ?? CURRENT_ROOM_DEEP_HISTORY_TARGET;
   return scheduler.enqueue<void>({
     roomId,
@@ -70,9 +83,13 @@ export const enqueueRoomDeepHistoryJob = (
     execute: async (signal) => {
       const room = mx.getRoom?.(roomId);
       if (!room) return;
-      // Encrypted / federated / background rooms are skipped for the
-      // same reason as gap-fill (see prefetchPolicy.ts).
-      if (!isRoomEligibleForRawFetch(mx, room)) return;
+      // Same scope-aware gate as gap-fill (see prefetchPolicy.ts).
+      // Deep-history targets the focused room by construction, so the
+      // room itself is the focusedRoomId.
+      if (
+        !isRoomEligibleForBackgroundPrefetch({ mx, room, scope, focusedRoomId: roomId })
+      )
+        return;
 
       // Start from the current backward token on the room's live
       // timeline, if any — matches the old preload loop's saved-token

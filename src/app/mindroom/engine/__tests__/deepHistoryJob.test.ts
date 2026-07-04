@@ -159,6 +159,54 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
     expect(mx.__calls.length).toBe(0);
   });
 
+  it('skips a federated room under the default my-server scope (historical gate)', async () => {
+    const mx = createMockClient(() => ({ chunk: [] }));
+    mx.__rooms.set('!fed:example.org', makeRoom('!fed:example.org', '@carol:example.org'));
+    const scheduler = createBackfillScheduler({ mx });
+
+    await enqueueRoomDeepHistoryJob({
+      mx,
+      sessionId: SESSION_ID,
+      scheduler,
+      roomId: '!fed:example.org',
+    });
+
+    expect(mx.__calls.length).toBe(0);
+  });
+
+  it('sweeps a federated focused room under all-rooms scope (PR #72 greptile: deep history skipped scope)', async () => {
+    const mx = createMockClient(() => ({ chunk: [] }));
+    mx.__rooms.set('!fed:example.org', makeRoom('!fed:example.org', '@carol:example.org'));
+    const scheduler = createBackfillScheduler({ mx });
+
+    await enqueueRoomDeepHistoryJob({
+      mx,
+      sessionId: SESSION_ID,
+      scheduler,
+      roomId: '!fed:example.org',
+      scope: 'all-rooms',
+    });
+
+    // Gate passes -> at least one backward /messages request fires.
+    expect(mx.__calls.length).toBeGreaterThan(0);
+  });
+
+  it('sweeps a federated focused room under current-room-only scope (deep history always targets the focused room)', async () => {
+    const mx = createMockClient(() => ({ chunk: [] }));
+    mx.__rooms.set('!fed:example.org', makeRoom('!fed:example.org', '@carol:example.org'));
+    const scheduler = createBackfillScheduler({ mx });
+
+    await enqueueRoomDeepHistoryJob({
+      mx,
+      sessionId: SESSION_ID,
+      scheduler,
+      roomId: '!fed:example.org',
+      scope: 'current-room-only',
+    });
+
+    expect(mx.__calls.length).toBeGreaterThan(0);
+  });
+
   it('deduplicates concurrent deep-history requests (AC8)', async () => {
     // Slow-response mock so both enqueues land while the first job is
     // still in-flight.
