@@ -55,7 +55,7 @@ import {
   resolvePrefetchConfig,
   type MindroomSyncEngine,
 } from '../../mindroom/engine';
-import { settingsAtom } from '../../state/settings';
+import { mindroomSettingsAtom } from '../../mindroom/settings/mindroomSettings';
 
 type ClientMatrixClient = Awaited<ReturnType<typeof initClient>> & {
   on: (
@@ -298,13 +298,11 @@ export function ClientRoot({ children }: ClientRootProps) {
     const store = getDefaultStore();
     const engine = createMindroomSyncEngine({
       mx,
-      getPrefetchConfig: () =>
-        resolvePrefetchConfig(
-          store.get(settingsAtom) as unknown as {
-            prefetchScope?: unknown;
-            prefetchDepth?: unknown;
-          }
-        ),
+      // Read through `mindroomSettingsAtom` (derived from the base
+      // settings atom via `withMindroomSettings`) so the prefetch
+      // fields are present and sanitized BY TYPE — no cast asserting
+      // that the base `Settings` shape happens to carry them.
+      getPrefetchConfig: () => resolvePrefetchConfig(store.get(mindroomSettingsAtom)),
     });
     engine.start();
     setSyncEngine(engine);

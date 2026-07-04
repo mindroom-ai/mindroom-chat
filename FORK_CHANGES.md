@@ -2,6 +2,13 @@
 
 ## Runbook
 
+### CINNY-207 PR #72 review round 3 — engine prefetch config reads the typed mindroom atom (2026-07-04)
+
+- Greptile re-review reasoning ("engine still reads prefetch config from a settings object that does not include the new MindRoom fields"): runtime-correct but type-dishonest — `getSettings()` spreads the parsed blob so persisted `prefetchScope`/`prefetchDepth` DO survive into `settingsAtom`, and `mindroomSettingsAtom` writes carry them; the wiring worked. But ClientRoot asserted that via `store.get(settingsAtom) as unknown as {prefetchScope?: unknown; ...}` — a cast claiming what the type system could enforce.
+- Fix: `getPrefetchConfig` now reads `store.get(mindroomSettingsAtom)` — the derived atom whose read IS `withMindroomSettings(get(settingsAtom))`, so the prefetch fields are present and sanitized by construction and by type. Cast deleted; `settingsAtom` import dropped from ClientRoot (no remaining uses).
+- Live-update semantics unchanged: per-call store read, mid-session scope changes picked up on next enqueue.
+- Validation: tsc clean; vitest 337 files / 2618 tests green; lint 18 warnings 0 errors (baseline); build clean.
+
 ### CINNY-207 PR #72 review round 2 — deep-history gate made scope-aware (2026-07-04)
 
 - Greptile re-review (4/5, one outside-diff finding, REAL): the P7.2 finding-#5 fix wired `prefetchScope` into gap-fill but left `deepHistoryJob`'s eligibility on the old own-server-only `isRoomEligibleForRawFetch` gate. Under `all-rooms`, a federated room the user is actively reading got gap-fill but NO deep-history sweep. The remediation batch's "deep-history untouched: only enqueued for the focused room, so scope changes don't affect it" reasoning covered the ENQUEUE path but not the eligibility gate.
