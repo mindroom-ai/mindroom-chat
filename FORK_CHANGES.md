@@ -2,6 +2,58 @@
 
 ## Runbook
 
+### CINNY-207 AC2 STEP 1 — distinguishable reconciler exit-path counters (2026-07-04)
+
+- Context: the pre-STEP-1 probe collapsed three silent exit paths in
+  `runThreadReconcilePass` into a single "scheduled=N, repaired=0"
+  signature — the 6-iteration diagnosis pinned that ambiguity as the
+  reason each gate-fix iteration was flying blind. Team-lead directive
+  (STEP 1 of the mandatory order: observability before repro before
+  fix): every return path must bump exactly one counter, and the
+  invariant `reconcilesScheduled == sum(outcome counters)` must be
+  assertable from a probe snapshot.
+- New counters on `window.__MINDROOM_CACHE_PROBE__`:
+  - `reconcilesGuardAborted`: `shouldContinue()` returned false inside
+    the fetch loop BEFORE the first fetch. This is the exact silent-exit
+    shape the diagnosis identified as the leading hypothesis (zero
+    `/relations` requests on the wire, `reconcilesRepaired=0`).
+  - `reconcilesSignalAborted`: `signal.aborted` observed (loop or
+    post-loop). Distinguishes scheduler-driven aborts (engine teardown,
+    explicit abort()) from component-boundary flips (guard-aborted).
+  - `reconcilesFetchFailed`: `fetchThreadRelationPage` returned
+    undefined (SDK threw) OR the merged batch was empty (all pages
+    returned empty chunks). Single bucket by design — both are silent
+    exits with no divergence assessment possible.
+  - `reconcilesNoDivergence`: fetch produced a non-empty batch,
+    `detectDivergence` returned false — the D7 no-op zero-cost path.
+  - `reconcilesNoRoom`: schedule reached the executor but
+    `mx.getRoom(roomId)` returned null (rare — room unloaded between
+    schedule and drain).
+  - `reconcilesRoomScopeNoop`: room-scope reconcile (no threadId)
+    completed its scheduler tripwire without fetching (tail catchup
+    owned by gap-fill executor).
+  - `reconcilesDirtyMarked` / `reconcilesDirtyRetried`: reserved for
+    STEP 3's guard-abort-recovery retry logic; ship with STEP 1 so the
+    probe surface stays stable.
+- Reconciler wiring: `reconciler.ts` bumps each counter at the exact
+  return point (in-loop signal-abort, in-loop guard-abort, post-loop
+  signal-abort, empty batch, no-divergence, no-room fallback,
+  room-scope executor, and the pre-existing `reconcilesRepaired` on
+  the repair path). The `fetchFailedOccurred` flag threads into the
+  reconcile-complete debug log so a docker capture can tell "SDK threw
+  at least once" from "server returned empty pages" without an extra
+  counter.
+- New units in `reconciler.test.ts` — 8 tests, one per exit path plus
+  the "repaired" path, all asserting
+  `sumOutcomes(probe) === reconcilesScheduled`. Every new counter
+  fires exactly once from a targeted scenario.
+- Validation: tsc clean; vitest reconciler suite 33/33 green (was 25,
+  +8 STEP 1 tests); no behavior change (only observability). Lint /
+  full build to run before commit boundary.
+- STEP 2 next: build the minimized red repro that drives the
+  guard-abort path from a plausible open-flow sequence. STEP 3 fix is
+  gated on that repro pinning the mechanism.
+
 ### CINNY-219 - Timeline minimap: left-edge stripes for human messages (2026-07-03)
 
 - Status:

@@ -101,6 +101,52 @@ export type CacheProbeCounters = {
   // `threadSaveCalls` (which counts ALL persist paths including live
   // writes) by isolating the reconciler-owned persist.
   reconcilerPersists: number;
+  // CINNY-207 AC2 STEP 1 (2026-07-04): distinguishable exit-path
+  // counters for `runThreadReconcilePass`. Together with the existing
+  // `reconcilesRepaired`, EVERY code path out of the executor increments
+  // exactly one counter, so the invariant
+  //   reconcilesScheduled ==
+  //     reconcilesGuardAborted + reconcilesSignalAborted +
+  //     reconcilesFetchFailed + reconcilesNoDivergence +
+  //     reconcilesNoRoom + reconcilesRoomScopeNoop +
+  //     reconcilesRepaired
+  // holds and can be asserted from a docker probe snapshot.
+  //
+  //   reconcilesGuardAborted: `shouldContinue()` returned false inside
+  //     the fetch loop — the "guard-abort" leading hypothesis from
+  //     the 6-iteration diagnosis (silent exit with no /relations
+  //     request on the wire).
+  //   reconcilesSignalAborted: `signal.aborted` was observed (in the
+  //     loop or post-loop). Distinguishing this from guard-abort
+  //     tells us whether the abort came from the scheduler
+  //     (abort/abortAll on engine teardown) or from the component
+  //     boundary (isCurrentThreadOpen flipping mid-open).
+  //   reconcilesFetchFailed: fetchThreadRelationPage returned
+  //     undefined (SDK threw) OR the fetch succeeded but the merged
+  //     batch was empty (all pages returned empty chunks). Either way
+  //     no divergence could be assessed.
+  //   reconcilesNoDivergence: fetch produced a non-empty batch, but
+  //     detectDivergence returned false — the "cached was right"
+  //     zero-cost path (D7 no-op).
+  //   reconcilesNoRoom: schedule reached the executor but
+  //     `mx.getRoom(roomId)` returned null (rare — room unloaded
+  //     between schedule and drain).
+  //   reconcilesRoomScopeNoop: room-scope reconcile (no threadId)
+  //     completed its scheduler tripwire without fetching (tail
+  //     catchup is owned by the gap-fill executor).
+  reconcilesGuardAborted: number;
+  reconcilesSignalAborted: number;
+  reconcilesFetchFailed: number;
+  reconcilesNoDivergence: number;
+  reconcilesNoRoom: number;
+  reconcilesRoomScopeNoop: number;
+  // CINNY-207 AC2 STEP 3 (2026-07-04): bumps whenever the guard-abort
+  // recovery path marks a thread dirty for a retry on the next open.
+  // Complements `reconcilesGuardAborted` — every guard-abort should
+  // set the dirty marker so a subsequent open re-schedules once and
+  // converges without a page reload.
+  reconcilesDirtyMarked: number;
+  reconcilesDirtyRetried: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -127,6 +173,14 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   reconcilesThreadNull: 0,
   reconcilesOnRepairedFired: 0,
   reconcilerPersists: 0,
+  reconcilesGuardAborted: 0,
+  reconcilesSignalAborted: 0,
+  reconcilesFetchFailed: 0,
+  reconcilesNoDivergence: 0,
+  reconcilesNoRoom: 0,
+  reconcilesRoomScopeNoop: 0,
+  reconcilesDirtyMarked: 0,
+  reconcilesDirtyRetried: 0,
 });
 
 let counters = createEmptyCounters();

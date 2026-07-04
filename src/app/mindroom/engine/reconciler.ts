@@ -374,18 +374,38 @@ const runThreadReconcilePass = async ({
   let fromToken: string | undefined;
   const allMapped: MatrixEvent[] = [];
 
+  // Set by the fetch loop when it observed a fetch failure that
+  // produced no usable page (SDK threw / returned undefined). Used
+  // AFTER the loop to distinguish "empty response" from "everything
+  // failed" — both surface as allMapped.length === 0.
+  let fetchFailedOccurred = false;
+
   while (iterations < MAX_RECONCILE_ITERATIONS) {
     if (signal.aborted) {
+      // CINNY-207 AC2 STEP 1 (2026-07-04): signal-abort in the loop
+      // is distinct from guard-abort — the scheduler drove this via
+      // controller.abort (engine teardown / abort() call), NOT the
+      // component boundary.
+      countCacheProbe('reconcilesSignalAborted');
       return { reason, repaired: false, fetchedCount, iterations, aborted: true };
     }
     if (shouldContinue && !shouldContinue()) {
+      // CINNY-207 AC2 STEP 1 (2026-07-04): guard-abort — the exact
+      // leading hypothesis from the 6-iteration diagnosis. This is
+      // the ONLY silent exit that produces "zero /relations requests
+      // on the wire" in a docker trace, because the guard check
+      // runs BEFORE `iterations += 1` and `fetchThreadRelationPage`.
+      countCacheProbe('reconcilesGuardAborted');
       return { reason, repaired: false, fetchedCount, iterations, aborted: true };
     }
 
     iterations += 1;
     // eslint-disable-next-line no-await-in-loop
     const page = await fetchThreadRelationPage(mx, roomId, threadId, fromToken);
-    if (!page) break;
+    if (!page) {
+      fetchFailedOccurred = true;
+      break;
+    }
 
     // P5-GATE-FIX v4 (final iteration — team-lead directive 2026-07-04):
     // per-page chunk-triple log. Signature (A) from the last docker run
@@ -455,6 +475,8 @@ const runThreadReconcilePass = async ({
   }
 
   if (signal.aborted) {
+    // Post-loop signal-abort — same class as in-loop signal-abort.
+    countCacheProbe('reconcilesSignalAborted');
     return { reason, repaired: false, fetchedCount, iterations, aborted: true };
   }
 
@@ -483,6 +505,17 @@ const runThreadReconcilePass = async ({
   // no events (or all fetches failed) there is nothing to reconcile and
   // no tick to fire.
   if (allMapped.length === 0) {
+    // CINNY-207 AC2 STEP 1 (2026-07-04): treat "fetch failed with no
+    // usable pages" AND "server returned empty chunks" as the same
+    // outcome bucket for probe purposes — both are silent exits with
+    // no divergence assessment possible. `fetchFailedOccurred` flags
+    // the first (SDK threw at least once), but both branches must
+    // increment a counter so the invariant
+    //   reconcilesScheduled == sum(outcome counters)
+    // holds. Using a single bucket keeps that arithmetic honest;
+    // splitting SDK-threw vs empty-chunk would require another
+    // counter and the diagnosis value is low.
+    countCacheProbe('reconcilesFetchFailed');
     logTimelineDebug(debugTraceId, 'reconcile-complete', {
       fetchedCount: 0,
       iterations,
@@ -490,6 +523,7 @@ const runThreadReconcilePass = async ({
       repaired: false,
       roomId,
       threadId,
+      fetchFailedOccurred,
     });
     return { reason, repaired: false, fetchedCount, iterations, aborted: false };
   }
@@ -503,6 +537,11 @@ const runThreadReconcilePass = async ({
   const diverged = detectDivergence(allMapped, cachedIds);
 
   if (!diverged) {
+    // CINNY-207 AC2 STEP 1 (2026-07-04): the D7 no-op path — the
+    // reconciler ran end to end and confirmed the cache agreed with
+    // server truth. Cheap by design; the counter separates this from
+    // silent failures upstream.
+    countCacheProbe('reconcilesNoDivergence');
     logTimelineDebug(debugTraceId, 'reconcile-complete', {
       fetchedCount,
       iterations,
@@ -773,6 +812,10 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
       priority: 0,
       execute: async (signal) => {
         if (signal.aborted) {
+          // CINNY-207 AC2 STEP 1 (2026-07-04): signal-abort on the
+          // room-scope tripwire — same class as the thread-scope
+          // signal-abort exit.
+          countCacheProbe('reconcilesSignalAborted');
           return {
             reason,
             repaired: false,
@@ -781,6 +824,12 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
             aborted: true,
           };
         }
+        // CINNY-207 AC2 STEP 1 (2026-07-04): the room-scope executor
+        // is a deliberate no-op (tail catchup is owned by the gap-fill
+        // executor). Counting it separately keeps the invariant
+        //   reconcilesScheduled == sum(outcome counters)
+        // honest for room-open reconciles.
+        countCacheProbe('reconcilesRoomScopeNoop');
         logTimelineDebug(debugTraceId, 'reconcile-complete', {
           fetchedCount: 0,
           iterations: 0,
@@ -819,6 +868,11 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
     execute: (signal) => {
       const room = providedRoom ?? mx.getRoom?.(roomId);
       if (!room) {
+        // CINNY-207 AC2 STEP 1 (2026-07-04): room lookup returned null
+        // between schedule and drain (rare — room unloaded after
+        // scheduleReconcile fired). Track distinctly so a probe
+        // capture can distinguish this from the guard-abort exit.
+        countCacheProbe('reconcilesNoRoom');
         return Promise.resolve({
           reason,
           repaired: false,

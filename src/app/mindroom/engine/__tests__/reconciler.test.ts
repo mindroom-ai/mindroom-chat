@@ -1615,4 +1615,295 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       consoleLogSpy.mockRestore();
     }
   });
+
+  // CINNY-207 AC2 STEP 1 (2026-07-04): the distinguishable exit-path
+  // counters make the invariant
+  //   reconcilesScheduled ==
+  //     reconcilesGuardAborted + reconcilesSignalAborted +
+  //     reconcilesFetchFailed + reconcilesNoDivergence +
+  //     reconcilesNoRoom + reconcilesRoomScopeNoop +
+  //     reconcilesRepaired
+  // observable from a probe snapshot. This suite drives every
+  // reachable outcome and asserts the sum stays balanced — that way a
+  // future regression that introduces a new silent exit path breaks
+  // the invariant instead of being invisible in a docker trace.
+  describe('exit-path outcome counters (AC2 STEP 1 invariant)', () => {
+    const sumOutcomes = (
+      probe: ReturnType<typeof getCacheProbeSnapshot>
+    ): number =>
+      probe.reconcilesGuardAborted +
+      probe.reconcilesSignalAborted +
+      probe.reconcilesFetchFailed +
+      probe.reconcilesNoDivergence +
+      probe.reconcilesNoRoom +
+      probe.reconcilesRoomScopeNoop +
+      probe.reconcilesRepaired;
+
+    it('reconcilesGuardAborted bumps when shouldContinue flips false BEFORE the first fetch (the leading hypothesis)', async () => {
+      // The exact silent-exit shape from the 6-iteration diagnosis:
+      // the reconciler enters the executor, checks shouldContinue,
+      // returns aborted:true — no /relations request on the wire, no
+      // repair.
+      const room = makeFakeRoom();
+      const fetchRelations = vi.fn(async () => ({
+        chunk: [{ event_id: '$reply-new' }] as Partial<IEvent>[],
+        next_batch: undefined,
+      }));
+      const mx = {
+        getRoom: () => room,
+        getEventMapper: () => (raw: Partial<IEvent>) =>
+          makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+        fetchRelations,
+      } as unknown as MatrixClient;
+      const scheduler = createBackfillScheduler({ mx });
+
+      await scheduleReconcile({
+        mx,
+        sessionId: 'session',
+        scheduler,
+        roomId: '!room:example',
+        threadId: '$thread',
+        cachedPage: makeCachedPage([]),
+        reason: 'open-complete-coverage',
+        // Force the guard to return false — the exit path under test.
+        shouldContinue: () => false,
+      });
+
+      expect(fetchRelations).not.toHaveBeenCalled();
+      const probe = getCacheProbeSnapshot();
+      expect(probe.reconcilesScheduled).toBe(1);
+      expect(probe.reconcilesGuardAborted).toBe(1);
+      expect(probe.reconcilesRepaired).toBe(0);
+      expect(sumOutcomes(probe)).toBe(probe.reconcilesScheduled);
+    });
+
+    it('reconcilesSignalAborted bumps when the scheduler aborts the job before it runs', async () => {
+      // Aborted-before-pickup branch inside the scheduler: the
+      // executor never runs, the queued entry settles via the drain's
+      // aborted branch, and no reconciler counter increments — the
+      // scheduler side owns that outcome via `schedulerAborted`.
+      // What we CAN drive from here is a signal.aborted observed
+      // INSIDE the executor's loop, which is the reconciler's own
+      // exit path. Simulate that by making shouldContinue return true
+      // (guard passes) but resolving fetch AFTER the caller aborts
+      // the specific job.
+      const room = makeFakeRoom();
+      let capturedAbort: (() => void) | undefined;
+      const fetchRelations = vi.fn(
+        () =>
+          new Promise<{ chunk: Array<Partial<IEvent>>; next_batch?: string }>(
+            (resolve) => {
+              capturedAbort = () => resolve({ chunk: [], next_batch: undefined });
+            }
+          )
+      );
+      const mx = {
+        getRoom: () => room,
+        getEventMapper: () => (raw: Partial<IEvent>) =>
+          makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+        fetchRelations,
+      } as unknown as MatrixClient;
+      const scheduler = createBackfillScheduler({ mx });
+
+      const promise = scheduleReconcile({
+        mx,
+        sessionId: 'session',
+        scheduler,
+        roomId: '!room:example',
+        threadId: '$thread',
+        cachedPage: makeCachedPage([]),
+        reason: 'open-complete-coverage',
+      });
+      await flushMicrotasks();
+
+      // Abort the specific reconcile job. The executor is mid-fetch;
+      // the fetch resolves empty, the post-loop signal.aborted check
+      // fires (or the next-iteration check if we happen to get one).
+      scheduler.abort('!room:example', '$thread', 'reconcile');
+      capturedAbort?.();
+      await promise;
+
+      const probe = getCacheProbeSnapshot();
+      expect(probe.reconcilesScheduled).toBe(1);
+      // The signal was observed post-loop (fetch resolved before
+      // aborted check), so the counter falls into the signal-abort
+      // bucket. Guard-abort MUST be zero — the guard was never
+      // touched in this scenario.
+      expect(probe.reconcilesGuardAborted).toBe(0);
+      expect(probe.reconcilesSignalAborted).toBe(1);
+      expect(sumOutcomes(probe)).toBe(probe.reconcilesScheduled);
+    });
+
+    it('reconcilesFetchFailed bumps when fetchRelations throws (page returns undefined)', async () => {
+      const room = makeFakeRoom();
+      const fetchRelations = vi.fn(async () => {
+        throw new Error('network died');
+      });
+      const mx = {
+        getRoom: () => room,
+        getEventMapper: () => (raw: Partial<IEvent>) =>
+          makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+        fetchRelations,
+      } as unknown as MatrixClient;
+      const scheduler = createBackfillScheduler({ mx });
+
+      await scheduleReconcile({
+        mx,
+        sessionId: 'session',
+        scheduler,
+        roomId: '!room:example',
+        threadId: '$thread',
+        cachedPage: makeCachedPage([]),
+        reason: 'open-complete-coverage',
+      });
+
+      const probe = getCacheProbeSnapshot();
+      expect(probe.reconcilesScheduled).toBe(1);
+      expect(probe.reconcilesFetchFailed).toBe(1);
+      expect(sumOutcomes(probe)).toBe(probe.reconcilesScheduled);
+    });
+
+    it('reconcilesFetchFailed bumps when fetchRelations returns an empty chunk (no divergence assessable)', async () => {
+      const room = makeFakeRoom();
+      const fetchRelations = vi.fn(async () => ({
+        chunk: [] as Partial<IEvent>[],
+        next_batch: undefined,
+      }));
+      const mx = {
+        getRoom: () => room,
+        getEventMapper: () => (raw: Partial<IEvent>) =>
+          makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+        fetchRelations,
+      } as unknown as MatrixClient;
+      const scheduler = createBackfillScheduler({ mx });
+
+      await scheduleReconcile({
+        mx,
+        sessionId: 'session',
+        scheduler,
+        roomId: '!room:example',
+        threadId: '$thread',
+        cachedPage: makeCachedPage(['$reply-1']),
+        reason: 'open-complete-coverage',
+      });
+
+      const probe = getCacheProbeSnapshot();
+      expect(probe.reconcilesScheduled).toBe(1);
+      expect(probe.reconcilesFetchFailed).toBe(1);
+      expect(sumOutcomes(probe)).toBe(probe.reconcilesScheduled);
+    });
+
+    it('reconcilesNoDivergence bumps when the fetched page overlaps the cache (D7 no-op)', async () => {
+      const room = makeFakeRoom();
+      const fetchRelations = vi.fn(async () => ({
+        chunk: [{ event_id: '$reply-2' }, { event_id: '$reply-1' }] as Partial<IEvent>[],
+        next_batch: undefined,
+      }));
+      const mx = {
+        getRoom: () => room,
+        getEventMapper: () => (raw: Partial<IEvent>) =>
+          makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+        fetchRelations,
+      } as unknown as MatrixClient;
+      const scheduler = createBackfillScheduler({ mx });
+
+      await scheduleReconcile({
+        mx,
+        sessionId: 'session',
+        scheduler,
+        roomId: '!room:example',
+        threadId: '$thread',
+        cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
+        reason: 'open-complete-coverage',
+      });
+
+      const probe = getCacheProbeSnapshot();
+      expect(probe.reconcilesScheduled).toBe(1);
+      expect(probe.reconcilesNoDivergence).toBe(1);
+      expect(probe.reconcilesRepaired).toBe(0);
+      expect(sumOutcomes(probe)).toBe(probe.reconcilesScheduled);
+    });
+
+    it('reconcilesNoRoom bumps when mx.getRoom returns null and no room was provided', async () => {
+      const mx = {
+        getRoom: () => null,
+        getEventMapper: () => (raw: Partial<IEvent>) =>
+          makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+        fetchRelations: vi.fn(),
+      } as unknown as MatrixClient;
+      const scheduler = createBackfillScheduler({ mx });
+
+      await scheduleReconcile({
+        mx,
+        sessionId: 'session',
+        scheduler,
+        roomId: '!room:example',
+        threadId: '$thread',
+        cachedPage: makeCachedPage([]),
+        reason: 'open-complete-coverage',
+      });
+
+      const probe = getCacheProbeSnapshot();
+      expect(probe.reconcilesScheduled).toBe(1);
+      expect(probe.reconcilesNoRoom).toBe(1);
+      expect(sumOutcomes(probe)).toBe(probe.reconcilesScheduled);
+    });
+
+    it('reconcilesRoomScopeNoop bumps for a room-scope reconcile (no threadId)', async () => {
+      const room = makeFakeRoom();
+      const fetchRelations = vi.fn();
+      const mx = {
+        getRoom: () => room,
+        getEventMapper: () => (raw: Partial<IEvent>) =>
+          makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+        fetchRelations,
+      } as unknown as MatrixClient;
+      const scheduler = createBackfillScheduler({ mx });
+
+      await scheduleReconcile({
+        mx,
+        sessionId: 'session',
+        scheduler,
+        roomId: '!room:example',
+        reason: 'room-open',
+      });
+
+      expect(fetchRelations).not.toHaveBeenCalled();
+      const probe = getCacheProbeSnapshot();
+      expect(probe.reconcilesScheduled).toBe(1);
+      expect(probe.reconcilesRoomScopeNoop).toBe(1);
+      expect(sumOutcomes(probe)).toBe(probe.reconcilesScheduled);
+    });
+
+    it('reconcilesRepaired bumps when detectDivergence returns true (existing behavior; balances the invariant)', async () => {
+      const room = makeFakeRoom();
+      const fetchRelations = vi.fn(async () => ({
+        chunk: [{ event_id: '$reply-new' }] as Partial<IEvent>[],
+        next_batch: undefined,
+      }));
+      const mx = {
+        getRoom: () => room,
+        getEventMapper: () => (raw: Partial<IEvent>) =>
+          makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+        fetchRelations,
+      } as unknown as MatrixClient;
+      const scheduler = createBackfillScheduler({ mx });
+
+      await scheduleReconcile({
+        mx,
+        sessionId: 'session',
+        scheduler,
+        roomId: '!room:example',
+        threadId: '$thread',
+        cachedPage: makeCachedPage(['$reply-1']),
+        reason: 'open-complete-coverage',
+        onRepaired: () => undefined,
+      });
+
+      const probe = getCacheProbeSnapshot();
+      expect(probe.reconcilesScheduled).toBe(1);
+      expect(probe.reconcilesRepaired).toBe(1);
+      expect(sumOutcomes(probe)).toBe(probe.reconcilesScheduled);
+    });
+  });
 });
