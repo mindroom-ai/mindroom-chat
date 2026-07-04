@@ -201,8 +201,13 @@ describe('RoomTimeline architecture', () => {
   it('does not import raw event cache stores directly', () => {
     const source = readRoomTimelineSource();
 
+    // CINNY-207 P2.3: the legacy `roomEventCache` / `threadEventCache`
+    // shim files were deleted; the unified store is `./cacheStore`.
+    // Neither the store nor the eventRepository seam may be imported
+    // by the render component.
     expect(source).not.toContain("from './roomEventCache'");
     expect(source).not.toContain("from './threadEventCache'");
+    expect(source).not.toContain("from './cacheStore'");
     expect(source).not.toContain("from '../../mindroom/threads/eventRepository'");
   });
 
@@ -1221,7 +1226,11 @@ describe('RoomTimeline architecture', () => {
       new URL('../useRoomViewThreadState.ts', import.meta.url),
       'utf8'
     );
-    const cacheSource = readFileSync(new URL('../threadSummaryCache.ts', import.meta.url), 'utf8');
+    // CINNY-207 P2.3: the standalone `threadSummaryCache.ts` shim was
+    // deleted — its exports moved into the unified `./cacheStore`
+    // module. Summary state (`threadSummaryState.ts`) and the facade
+    // (`threadSummaryStore.ts`) still live here and consume the store
+    // directly.
     const stateSource = readFileSync(new URL('../threadSummaryState.ts', import.meta.url), 'utf8');
     const storeSource = readFileSync(new URL('../threadSummaryStore.ts', import.meta.url), 'utf8');
     const publishControllerSource = readFileSync(
@@ -1237,10 +1246,10 @@ describe('RoomTimeline architecture', () => {
       "from '../../mindroom/threads/threadSummaryPublishController'"
     );
     expect(timelineSource).not.toContain('threadSummaryInfoMap.forEach');
-    expect(storeSource).toContain("from './threadSummaryCache'");
+    expect(storeSource).toContain("from './cacheStore'");
     expect(storeSource).toContain("from './threadSummaryState'");
     expect(storeSource).toContain("from './useRoomThreadSummaryState'");
-    expect(cacheSource).toContain('loadCachedThreadSummaries');
+    expect(stateSource).toContain("from './cacheStore'");
     expect(stateSource).toContain('storeThreadSummaryInState');
     expect(publishControllerSource).toContain('useThreadSummaryPublishController');
   });
@@ -2146,10 +2155,18 @@ describe('RoomTimeline architecture', () => {
     expect(implementationSource).toContain('reconcileRelationEventsWithAggregation');
   });
 
-  it('keeps raw event cache stores in MindRoom threads', () => {
-    const roomStoreSource = readFileSync(new URL('../roomEventCache.ts', import.meta.url), 'utf8');
-    const threadStoreSource = readFileSync(
-      new URL('../threadEventCache.ts', import.meta.url),
+  it('keeps raw event cache stores in MindRoom threads under cacheStore', () => {
+    // CINNY-207 P2.3: the legacy `roomEventCache.ts` / `threadEventCache.ts`
+    // shim modules were deleted. The unified `./cacheStore` module owns
+    // the DB name and every read/write API. `eventRepository.ts` is the
+    // only sanctioned consumer besides sessionCleanup and
+    // threadSummaryState (encoded here as an allowlist).
+    const legacyNamesSource = readFileSync(
+      new URL('../cacheStore/legacyCacheDbNames.ts', import.meta.url),
+      'utf8'
+    );
+    const cacheStoreBarrelSource = readFileSync(
+      new URL('../cacheStore/index.ts', import.meta.url),
       'utf8'
     );
     const repositorySource = readFileSync(
@@ -2157,10 +2174,12 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(roomStoreSource).toContain('mindroom-room-event-cache');
-    expect(threadStoreSource).toContain('mindroom-thread-event-cache');
-    expect(repositorySource).toContain("from './roomEventCache'");
-    expect(repositorySource).toContain("from './threadEventCache'");
+    expect(legacyNamesSource).toContain('mindroom-room-event-cache');
+    expect(legacyNamesSource).toContain('mindroom-thread-event-cache');
+    expect(cacheStoreBarrelSource).toContain("from './cacheStoreEvents'");
+    expect(repositorySource).toContain("from './cacheStore'");
+    expect(repositorySource).not.toContain("from './roomEventCache'");
+    expect(repositorySource).not.toContain("from './threadEventCache'");
     expect(repositorySource).not.toContain('../../features/room/roomEventCache');
     expect(repositorySource).not.toContain('../../features/room/threadEventCache');
   });

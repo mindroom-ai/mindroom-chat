@@ -1,6 +1,6 @@
 import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isCacheWritable, resetCacheHealthForTesting } from './cacheHealth';
+import { resetCacheHealthForTesting } from './cacheHealth';
 import {
   collectLegacyStandaloneReplaceIds,
   collectStateTargetEvents,
@@ -812,10 +812,13 @@ describe('loadCachedThreadSnapshot lazy cleanup (CINNY-207 P1.4)', () => {
   });
 });
 
-// CINNY-207 P1.5 (finding F4, AC11): after an injected quota failure the
-// session degrades to cache-read-only and the persist entry points skip
-// their saves instead of failing silently one by one.
-describe('persist entry points honor cache health (CINNY-207 P1.5)', () => {
+// CINNY-207 P2.3: the cache-write health gate moved OUT of the
+// eventRepository seam and INTO the cacheStore save entry points
+// (single choke point). The seam now unconditionally delegates to the
+// injected `save`; per-save gating is exercised at the store level
+// (see cacheStore/__tests__/cacheHealthGate.test.ts) and cacheHealth
+// classification is exercised in cacheHealth.test.ts.
+describe('persist entry points always delegate to the injected save (CINNY-207 P2.3)', () => {
   beforeEach(() => {
     resetCacheHealthForTesting();
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -827,43 +830,7 @@ describe('persist entry points honor cache health (CINNY-207 P1.5)', () => {
     vi.restoreAllMocks();
   });
 
-  it('degrades on quota failure and skips subsequent room and thread saves', async () => {
-    const quotaError = Object.assign(new Error('quota'), { name: 'QuotaExceededError' });
-    const roomSave = vi.fn().mockRejectedValue(quotaError);
-    const room = makeRoom({ liveEvents: [] });
-
-    persistRoomEventCacheSnapshot({
-      sessionId: 'session',
-      room: room as never,
-      events: [],
-      save: roomSave,
-    });
-    expect(roomSave).toHaveBeenCalledTimes(1);
-
-    // Rejection reactions run as microtasks; one tick settles the catch.
-    await Promise.resolve();
-    expect(isCacheWritable()).toBe(false);
-
-    persistRoomEventCacheSnapshot({
-      sessionId: 'session',
-      room: room as never,
-      events: [],
-      save: roomSave,
-    });
-    expect(roomSave).toHaveBeenCalledTimes(1);
-
-    const threadSave = vi.fn().mockResolvedValue(undefined);
-    persistThreadEventCacheSnapshot({
-      sessionId: 'session',
-      room: room as never,
-      threadId: '$root',
-      events: [],
-      save: threadSave,
-    });
-    expect(threadSave).not.toHaveBeenCalled();
-  });
-
-  it('keeps saving after non-quota failures', async () => {
+  it('calls the injected room save even after a prior save rejected', async () => {
     const flakySave = vi.fn().mockRejectedValue(new Error('transient'));
     const room = makeRoom({ liveEvents: [] });
 
@@ -873,8 +840,9 @@ describe('persist entry points honor cache health (CINNY-207 P1.5)', () => {
       events: [],
       save: flakySave,
     });
+    // First call landed; wait for microtasks to settle the (ignored)
+    // rejection — the seam does not catch it.
     await Promise.resolve();
-    expect(isCacheWritable()).toBe(true);
 
     persistRoomEventCacheSnapshot({
       sessionId: 'session',
@@ -883,5 +851,21 @@ describe('persist entry points honor cache health (CINNY-207 P1.5)', () => {
       save: flakySave,
     });
     expect(flakySave).toHaveBeenCalledTimes(2);
+  });
+
+  it('always calls the injected thread save (no seam-level gating)', () => {
+    const threadSave = vi.fn().mockResolvedValue(undefined);
+    const room = makeRoom({ liveEvents: [] });
+
+    persistThreadEventCacheSnapshot({
+      sessionId: 'session',
+      room: room as never,
+      threadId: '$root',
+      events: [],
+      save: threadSave,
+    });
+    // Meta-only save (no replies) still triggers a delegated save call —
+    // the store is responsible for its own idle-check / gating semantics.
+    expect(threadSave).toHaveBeenCalledTimes(1);
   });
 });

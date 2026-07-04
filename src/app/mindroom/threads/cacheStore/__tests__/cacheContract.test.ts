@@ -1,15 +1,15 @@
 /**
- * CINNY-207 P2.1 (red-before-green analog): parameterized round-trip contract
- * suite. The same scenarios run against the CURRENT legacy modules
- * (`roomEventCache`, `threadEventCache`, `threadSummaryCache`) — pinning their
- * observable behavior BEFORE the unified `cacheStore` rewrite lands — and, in
- * commit 2, will be extended to also drive the new module so the two are
- * proven equivalent by identical passing scenarios rather than by inspection.
+ * CINNY-207 P2.1 → P2.3: round-trip contract suite for the unified
+ * `cacheStore` module. Originally parameterized against both the legacy
+ * per-domain shims AND the unified store (proving equivalence before the
+ * shim flip); after P2.3 the legacy modules are gone, so the suite runs
+ * only against `cacheStore`. The scenarios remain the observable contract
+ * — future changes to the store must keep them passing.
  *
  * Environment: `fake-indexeddb/auto` boots a fresh IndexedDB implementation
- * per test via `resetIndexedDb` (see beforeEach). Each implementation must
- * expose a `resetSingletons` hook to drop any memoized `dbPromiseByName`
- * entries so the fresh factory is picked up.
+ * per test via `resetIndexedDb` (see beforeEach). The adapter's
+ * `resetSingletons` hook drops any memoized `dbPromiseByName` entries so
+ * the fresh factory is picked up.
  */
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
@@ -141,21 +141,9 @@ type CacheContract = {
   ) => Promise<Map<string, { summaryText: string; generatedTs?: number; messageCount?: number }>>;
 };
 
-// ---------- Legacy adapter ----------
-
-const buildLegacyContract = async (): Promise<CacheContract> => {
-  const roomModule = await import('../../roomEventCache');
-  const threadModule = await import('../../threadEventCache');
-  const summaryModule = await import('../../threadSummaryCache');
-
-  return buildContractFromModules('legacy', roomModule, threadModule, summaryModule);
-};
-
 // ---------- CacheStore adapter ----------
 
 const buildCacheStoreContract = async (): Promise<CacheContract> => {
-  // Same public function signatures across both adapters — the shim
-  // step (P2.1 commit 4) makes the two identical at the type level.
   const cacheStoreModule = await import('../index');
   return buildContractFromModules(
     'cacheStore',
@@ -165,33 +153,33 @@ const buildCacheStoreContract = async (): Promise<CacheContract> => {
   );
 };
 
-type LegacyLike = {
-  saveRoomEventsToCache: typeof import('../../roomEventCache')['saveRoomEventsToCache'];
-  loadLatestCachedRoomEvents: typeof import('../../roomEventCache')['loadLatestCachedRoomEvents'];
-  loadCachedRoomEventsBefore: typeof import('../../roomEventCache')['loadCachedRoomEventsBefore'];
-  loadCachedRoomEvent: typeof import('../../roomEventCache')['loadCachedRoomEvent'];
-  loadCachedRoomPaginationToken: typeof import('../../roomEventCache')['loadCachedRoomPaginationToken'];
-  deleteRoomEventsFromCache: typeof import('../../roomEventCache')['deleteRoomEventsFromCache'];
+type RoomLike = {
+  saveRoomEventsToCache: typeof import('../index')['saveRoomEventsToCache'];
+  loadLatestCachedRoomEvents: typeof import('../index')['loadLatestCachedRoomEvents'];
+  loadCachedRoomEventsBefore: typeof import('../index')['loadCachedRoomEventsBefore'];
+  loadCachedRoomEvent: typeof import('../index')['loadCachedRoomEvent'];
+  loadCachedRoomPaginationToken: typeof import('../index')['loadCachedRoomPaginationToken'];
+  deleteRoomEventsFromCache: typeof import('../index')['deleteRoomEventsFromCache'];
 };
 
 type ThreadLike = {
-  saveThreadEventsToCache: typeof import('../../threadEventCache')['saveThreadEventsToCache'];
-  loadLatestCachedThreadEvents: typeof import('../../threadEventCache')['loadLatestCachedThreadEvents'];
-  loadCachedThreadEventsBefore: typeof import('../../threadEventCache')['loadCachedThreadEventsBefore'];
-  loadCachedThreadEvent: typeof import('../../threadEventCache')['loadCachedThreadEvent'];
-  loadCachedThreadPaginationToken: typeof import('../../threadEventCache')['loadCachedThreadPaginationToken'];
-  deleteThreadEventsFromCache: typeof import('../../threadEventCache')['deleteThreadEventsFromCache'];
-  deleteThreadEventFromCacheByEventId: typeof import('../../threadEventCache')['deleteThreadEventFromCacheByEventId'];
+  saveThreadEventsToCache: typeof import('../index')['saveThreadEventsToCache'];
+  loadLatestCachedThreadEvents: typeof import('../index')['loadLatestCachedThreadEvents'];
+  loadCachedThreadEventsBefore: typeof import('../index')['loadCachedThreadEventsBefore'];
+  loadCachedThreadEvent: typeof import('../index')['loadCachedThreadEvent'];
+  loadCachedThreadPaginationToken: typeof import('../index')['loadCachedThreadPaginationToken'];
+  deleteThreadEventsFromCache: typeof import('../index')['deleteThreadEventsFromCache'];
+  deleteThreadEventFromCacheByEventId: typeof import('../index')['deleteThreadEventFromCacheByEventId'];
 };
 
 type SummaryLike = {
-  saveCachedThreadSummary: typeof import('../../threadSummaryCache')['saveCachedThreadSummary'];
-  loadCachedThreadSummaries: typeof import('../../threadSummaryCache')['loadCachedThreadSummaries'];
+  saveCachedThreadSummary: typeof import('../index')['saveCachedThreadSummary'];
+  loadCachedThreadSummaries: typeof import('../index')['loadCachedThreadSummaries'];
 };
 
 const buildContractFromModules = (
   name: string,
-  roomModule: LegacyLike,
+  roomModule: RoomLike,
   threadModule: ThreadLike,
   summaryModule: SummaryLike
 ): CacheContract => {
@@ -689,5 +677,6 @@ const runContract = (label: string, buildContract: () => Promise<CacheContract>)
   });
 };
 
-runContract('legacy', buildLegacyContract);
+// CINNY-207 P2.3: legacy parity net removed with the shim files. The
+// suite now runs only against the unified cacheStore.
 runContract('cacheStore', buildCacheStoreContract);

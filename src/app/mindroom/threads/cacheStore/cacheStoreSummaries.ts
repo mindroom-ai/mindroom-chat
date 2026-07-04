@@ -1,4 +1,5 @@
 import type { MindroomThreadSummaryInfo } from '../../messages/threadSummary';
+import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
 import { openCacheStore } from './cacheStoreDb';
 import {
   THREAD_SUMMARIES_BY_ROOM_INDEX,
@@ -16,29 +17,37 @@ export const saveCachedThreadSummary = async (
   threadRootId: string,
   info: MindroomThreadSummaryInfo
 ): Promise<void> => {
+  // CINNY-207 P2.3: cache health gate — same choke-point pattern as
+  // saveRoomEventsToCache / saveThreadEventsToCache.
+  if (!isCacheWritable()) return;
+
   const db = await openCacheStore(sessionId);
   if (!db || !info.summaryText) return;
 
-  await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(THREAD_SUMMARIES_STORE, 'readwrite');
-    const store = transaction.objectStore(THREAD_SUMMARIES_STORE);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(THREAD_SUMMARIES_STORE, 'readwrite');
+      const store = transaction.objectStore(THREAD_SUMMARIES_STORE);
 
-    const record: CachedThreadSummaryRecord = {
-      cacheKey: buildSummaryCacheKey(roomId, threadRootId),
-      roomId,
-      threadRootId,
-      // Guarded above (`!info.summaryText` returns early).
-      summaryText: info.summaryText!,
-      generatedTs: info.generatedTs,
-      messageCount: info.messageCount,
-      updatedAt: Date.now(),
-    };
-    store.put(record);
+      const record: CachedThreadSummaryRecord = {
+        cacheKey: buildSummaryCacheKey(roomId, threadRootId),
+        roomId,
+        threadRootId,
+        // Guarded above (`!info.summaryText` returns early).
+        summaryText: info.summaryText!,
+        generatedTs: info.generatedTs,
+        messageCount: info.messageCount,
+        updatedAt: Date.now(),
+      };
+      store.put(record);
 
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
-  });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } catch (error) {
+    reportCacheWriteError('threadSummaryCache.save', error);
+  }
 };
 
 export const loadCachedThreadSummaries = async (

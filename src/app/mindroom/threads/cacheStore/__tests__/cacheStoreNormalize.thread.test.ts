@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest';
+// CINNY-207 P2.3: pure-helper coverage relocated from the removed
+// `threadEventCache.ts` shim; the helpers themselves live in
+// `cacheStoreNormalize.ts` / `cacheStoreEvents.ts` and are re-exported
+// through the barrel.
 import {
   filterPageableCachedThreadEvents,
   getCachedThreadSummaryInfoFromRawEvent,
@@ -6,7 +10,7 @@ import {
   loadCachedThreadPaginationToken,
   mergeThreadCacheFlag,
   normalizeCachedThreadEvents,
-} from './threadEventCache';
+} from '../index';
 
 describe('normalizeCachedThreadEvents', () => {
   it('sorts events chronologically and deduplicates by event id', () => {

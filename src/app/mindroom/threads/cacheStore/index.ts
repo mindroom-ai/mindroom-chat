@@ -65,7 +65,6 @@ export {
   loadCachedThreadPaginationToken,
   loadLatestCachedRoomEvents,
   loadLatestCachedThreadEvents,
-  loadLatestCachedThreadSummaryInfo,
   noteRoomOpened,
   noteThreadOpened,
   saveRoomEventsToCache,

@@ -1,10 +1,10 @@
 import type { IEvent } from 'matrix-js-sdk';
 import { countCacheProbe } from '../cacheProbe';
+import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
 import {
   getCachedPaginationToken,
   mergeCachedPaginationTokens,
 } from '../eventCacheTokenUtils';
-import type { MindroomThreadSummaryInfo } from '../../messages/threadSummary';
 import { maybeScheduleEvictionCheck } from './cacheEviction';
 import { openCacheStore } from './cacheStoreDb';
 import { createLedgerTracker } from './cacheStoreLedger';
@@ -24,7 +24,6 @@ import {
 } from './cacheStoreSchema';
 import {
   filterPageableCachedThreadEvents,
-  getCachedThreadSummaryInfoFromRawEvent,
   isRawLocalEchoEventPublic,
   mergeThreadCacheFlag,
   normalizeCachedRoomEvents,
@@ -260,6 +259,13 @@ export const saveRoomEventsToCache = async (
   rawEvents: Partial<IEvent>[],
   beforeTokenForEarliest?: string | null
 ): Promise<void> => {
+  // CINNY-207 P2.3: cache health gate lives at the single write choke
+  // point. After a quota failure the session is cache-read-only —
+  // skip further writes silently. Deletes stay ungated (they only
+  // shrink storage). The eventRepository seam no longer wraps this
+  // call in its own gate/catch.
+  if (!isCacheWritable()) return;
+
   const db = await openCacheStore(sessionId);
   if (!db) return;
 
@@ -272,7 +278,25 @@ export const saveRoomEventsToCache = async (
     countCacheProbe('roomMetaPuts');
   }
 
-  await new Promise<void>((resolve, reject) => {
+  try {
+    await runSaveRoomEventsTxn(db, roomId, normalizedEvents, beforeTokenForEarliest);
+  } catch (error) {
+    reportCacheWriteError('roomEventCache.save', error);
+    return;
+  }
+
+  // CINNY-207 P2.2 commit 3: cheap over-budget probe after saves.
+  // Fire-and-forget, module-level debounced.
+  maybeScheduleEvictionCheck(sessionId);
+};
+
+const runSaveRoomEventsTxn = async (
+  db: IDBDatabase,
+  roomId: string,
+  normalizedEvents: CachedRoomEvent[],
+  beforeTokenForEarliest: string | null | undefined
+): Promise<void> =>
+  new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(
       [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE],
       'readwrite'
@@ -349,11 +373,6 @@ export const saveRoomEventsToCache = async (
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });
-
-  // CINNY-207 P2.2 commit 3: cheap over-budget probe after saves.
-  // Fire-and-forget, module-level debounced.
-  maybeScheduleEvictionCheck(sessionId);
-};
 
 export const deleteRoomEventsFromCache = async (
   sessionId: string,
@@ -517,50 +536,6 @@ export const loadCachedThreadEvent = async (
   });
 };
 
-export const loadLatestCachedThreadSummaryInfo = async (
-  sessionId: string,
-  roomId: string,
-  threadId: string
-): Promise<MindroomThreadSummaryInfo | undefined> => {
-  const db = await openCacheStore(sessionId);
-  if (!db) return undefined;
-
-  return new Promise<MindroomThreadSummaryInfo | undefined>((resolve, reject) => {
-    const transaction = db.transaction(EVENTS_STORE, 'readonly');
-    const eventStore = transaction.objectStore(EVENTS_STORE);
-    const index = eventStore.index(EVENTS_BY_SCOPE_TS_INDEX);
-    const range = IDBKeyRange.bound(
-      [roomId, threadId, 0, ''],
-      [roomId, threadId, MAX_EVENT_TS, MAX_EVENT_ID]
-    );
-
-    let summaryInfo: MindroomThreadSummaryInfo | undefined;
-
-    const cursorRequest = index.openCursor(range, 'prev');
-    cursorRequest.onsuccess = () => {
-      const cursor = cursorRequest.result;
-      if (!cursor || summaryInfo?.summaryText) return;
-
-      const record = cursor.value as CachedEventRecord;
-      if (record.eventId === threadId) {
-        cursor.continue();
-        return;
-      }
-      const info = getCachedThreadSummaryInfoFromRawEvent(record.rawEvent);
-      if (!info?.summaryText) {
-        cursor.continue();
-        return;
-      }
-      summaryInfo = info;
-    };
-    cursorRequest.onerror = () => reject(cursorRequest.error);
-
-    transaction.oncomplete = () => resolve(summaryInfo);
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
-  });
-};
-
 export const saveThreadEventsToCache = async (
   sessionId: string,
   roomId: string,
@@ -573,6 +548,9 @@ export const saveThreadEventsToCache = async (
   expectedReplyCount?: number,
   relationSnapshotComplete?: boolean
 ): Promise<void> => {
+  // CINNY-207 P2.3: cache health gate (same rationale as the room save).
+  if (!isCacheWritable()) return;
+
   const db = await openCacheStore(sessionId);
   if (!db) return;
 
@@ -586,7 +564,41 @@ export const saveThreadEventsToCache = async (
   countCacheProbe('threadEventPuts', normalizedEvents.length);
   countCacheProbe('threadMetaPuts');
 
-  await new Promise<void>((resolve, reject) => {
+  try {
+    await runSaveThreadEventsTxn(
+      db,
+      roomId,
+      threadId,
+      normalizedEvents,
+      rootEvent,
+      beforeTokenForEarliest,
+      tailLoaded,
+      snapshotComplete,
+      expectedReplyCount,
+      relationSnapshotComplete
+    );
+  } catch (error) {
+    reportCacheWriteError('threadEventCache.save', error);
+    return;
+  }
+
+  // CINNY-207 P2.2 commit 3: same debounced over-budget probe.
+  maybeScheduleEvictionCheck(sessionId);
+};
+
+const runSaveThreadEventsTxn = async (
+  db: IDBDatabase,
+  roomId: string,
+  threadId: string,
+  normalizedEvents: CachedThreadEvent[],
+  rootEvent: Partial<IEvent> | undefined,
+  beforeTokenForEarliest: string | null | undefined,
+  tailLoaded: boolean | undefined,
+  snapshotComplete: boolean | undefined,
+  expectedReplyCount: number | undefined,
+  relationSnapshotComplete: boolean | undefined
+): Promise<void> =>
+  new Promise<void>((resolve, reject) => {
     // Only include ROOM_LEDGER_STORE in the txn when we actually have
     // event puts — a rootEvent-only meta-only save leaves the ledger
     // untouched (per plan: "ledger untouched by meta-only writes").
@@ -676,10 +688,6 @@ export const saveThreadEventsToCache = async (
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });
-
-  // CINNY-207 P2.2 commit 3: same debounced over-budget probe.
-  maybeScheduleEvictionCheck(sessionId);
-};
 
 export const deleteThreadEventsFromCache = async (
   sessionId: string,

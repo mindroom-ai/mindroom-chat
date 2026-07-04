@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MINDROOM_EDIT_DEBUG_STORAGE_KEY } from '../messages/editDebug';
 import { clearMindroomLongTextHydrationCache } from '../messages/longText';
 import { IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX, clearIOSPushState } from '../native/iosPush';
@@ -9,13 +9,14 @@ import { clearCrossRoomThreadFiltersStore } from '../cross-room-threads/crossRoo
 import { clearLastOpenThreadStore } from '../threads/lastOpenThread';
 import { clearRecentThreadViewModelSharedState } from '../threads/recentThreadViewModel';
 import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
-import { deleteRoomEventCache, getRoomEventCacheDbName } from '../threads/roomEventCache';
-import { deleteThreadEventCache, getThreadEventCacheDbName } from '../threads/threadEventCache';
 import {
-  deleteThreadSummaryCache,
-  getThreadSummaryCacheDbName,
-} from '../threads/threadSummaryStore';
-import { deleteCacheStoreDb, getCacheStoreDbName } from '../threads/cacheStore';
+  deleteCacheStoreDb,
+  getCacheStoreDbName,
+  getLegacyRoomEventCacheDbName,
+  getLegacySessionScopedCacheDbNames,
+  getLegacyThreadEventCacheDbName,
+  getLegacyThreadSummaryCacheDbName,
+} from '../threads/cacheStore';
 import {
   MINDROOM_OWNED_LOCAL_STORAGE_KEYS,
   MINDROOM_OWNED_LOCAL_STORAGE_PREFIXES,
@@ -64,39 +65,59 @@ vi.mock('../threads/roomThreadFilterState', () => ({
   clearRoomThreadFiltersStore: vi.fn(),
 }));
 
-vi.mock('../threads/roomEventCache', () => ({
-  MINDROOM_ROOM_EVENT_CACHE_DB_NAME: 'mindroom-room-event-cache',
-  deleteRoomEventCache: vi.fn().mockResolvedValue(undefined),
-  getRoomEventCacheDbName: vi.fn((sessionId: string) => `room-cache::${sessionId}`),
-}));
-
-vi.mock('../threads/threadEventCache', () => ({
-  MINDROOM_THREAD_EVENT_CACHE_DB_NAME: 'mindroom-thread-event-cache',
-  deleteThreadEventCache: vi.fn().mockResolvedValue(undefined),
-  getThreadEventCacheDbName: vi.fn((sessionId: string) => `thread-cache::${sessionId}`),
-}));
-
-vi.mock('../threads/threadSummaryStore', () => ({
-  deleteThreadSummaryCache: vi.fn().mockResolvedValue(undefined),
-  getThreadSummaryCacheDbName: vi.fn((sessionId: string) => `summary-cache::${sessionId}`),
-}));
-
+// CINNY-207 P2.3: sessionCleanup now imports directly from `cacheStore`
+// (the shim modules are gone). This single mock covers every accessor
+// the module needs. Legacy DB name accessors are STILL exported by the
+// store (via the `legacyCacheDbNames` submodule) so logout cleanup
+// keeps working for rolled-back installs that never opened v3.
 vi.mock('../threads/cacheStore', () => ({
+  LEGACY_MINDROOM_ROOM_EVENT_CACHE_DB_NAME: 'mindroom-room-event-cache',
+  LEGACY_MINDROOM_THREAD_EVENT_CACHE_DB_NAME: 'mindroom-thread-event-cache',
+  LEGACY_MINDROOM_THREAD_SUMMARY_CACHE_DB_NAME: 'mindroom-thread-summary-cache',
   MINDROOM_CACHE_DB_BASE_NAME: 'mindroom-cache',
   deleteCacheStoreDb: vi.fn().mockResolvedValue(undefined),
   getCacheStoreDbName: vi.fn((sessionId: string) => `mindroom-cache::${sessionId}`),
+  getLegacyRoomEventCacheDbName: vi.fn((sessionId: string) => `room-cache::${sessionId}`),
+  getLegacyThreadEventCacheDbName: vi.fn((sessionId: string) => `thread-cache::${sessionId}`),
+  getLegacyThreadSummaryCacheDbName: vi.fn((sessionId: string) => `summary-cache::${sessionId}`),
+  getLegacySessionScopedCacheDbNames: vi.fn((sessionId: string) => [
+    `room-cache::${sessionId}`,
+    `thread-cache::${sessionId}`,
+    `summary-cache::${sessionId}`,
+  ]),
 }));
 
 describe('MindRoom session cleanup', () => {
+  const originalIndexedDB = (globalThis as { indexedDB?: unknown }).indexedDB;
+  let deleteCalls: string[];
+
+  beforeEach(() => {
+    deleteCalls = [];
+    (globalThis as { indexedDB?: unknown }).indexedDB = {
+      deleteDatabase: vi.fn((dbName: string) => {
+        deleteCalls.push(dbName);
+        const request: {
+          onsuccess?: () => void;
+          onerror?: () => void;
+          onblocked?: () => void;
+        } = {};
+        queueMicrotask(() => request.onsuccess?.());
+        return request;
+      }),
+    };
+  });
+
   afterEach(() => {
+    (globalThis as { indexedDB?: unknown }).indexedDB = originalIndexedDB;
     vi.clearAllMocks();
   });
 
   it('exposes MindRoom-owned app cleanup keys from one boundary', () => {
-    // CINNY-207 P2.1 (D8): legacy singleton names are RETAINED here so
-    // logout cleanup keeps working on installs that never opened v3
-    // (e.g. rolled-back binaries); the unified `mindroom-cache` name is
-    // listed alongside.
+    // CINNY-207 P2.1 (D8) / P2.3: legacy singleton names are RETAINED
+    // here so logout cleanup keeps working on installs that never opened
+    // v3 (e.g. rolled-back binaries); the unified `mindroom-cache` name
+    // is listed alongside. The legacy summary DB is deleted per-session
+    // via `getLegacySessionScopedCacheDbNames`, not through this list.
     expect(MINDROOM_SINGLETON_INDEXED_DB_NAMES).toEqual([
       'mindroom-room-event-cache',
       'mindroom-thread-event-cache',
@@ -113,19 +134,25 @@ describe('MindRoom session cleanup', () => {
       'summary-cache::session-a',
       'mindroom-cache::session-a',
     ]);
-    expect(vi.mocked(getThreadEventCacheDbName)).toHaveBeenCalledWith('session-a');
-    expect(vi.mocked(getRoomEventCacheDbName)).toHaveBeenCalledWith('session-a');
-    expect(vi.mocked(getThreadSummaryCacheDbName)).toHaveBeenCalledWith('session-a');
+    expect(vi.mocked(getLegacyThreadEventCacheDbName)).toHaveBeenCalledWith('session-a');
+    expect(vi.mocked(getLegacyRoomEventCacheDbName)).toHaveBeenCalledWith('session-a');
+    expect(vi.mocked(getLegacyThreadSummaryCacheDbName)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(getCacheStoreDbName)).toHaveBeenCalledWith('session-a');
   });
 
-  it('deletes all MindRoom session caches together', async () => {
+  it('deletes the unified DB plus every legacy per-session DB together', async () => {
     await deleteMindroomSessionCaches('session-a');
 
-    expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith('session-a');
-    expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith('session-a');
-    expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith('session-a');
+    // The unified deleteCacheStoreDb still gets called through the store
+    // API. Every legacy per-session DB is deleted directly via the
+    // origin's indexedDB.deleteDatabase gesture — the three-way legacy
+    // split collapsed to a single unified DB in P2.1, but the logout
+    // gesture must still target rolled-back installs.
     expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith('session-a');
+    expect(vi.mocked(getLegacySessionScopedCacheDbNames)).toHaveBeenCalledWith('session-a');
+    expect(deleteCalls.sort()).toEqual(
+      ['room-cache::session-a', 'summary-cache::session-a', 'thread-cache::session-a'].sort()
+    );
   });
 
   it('clears MindRoom UI, native, and in-memory state', () => {

@@ -16,10 +16,17 @@ const {
   getCompactThreadRootBodyPreviewTextMock: vi.fn(),
 }));
 
-vi.mock('./threadSummaryCache', () => ({
-  loadCachedThreadSummaries: loadCachedThreadSummariesMock,
-  saveCachedThreadSummary: saveCachedThreadSummaryMock,
-}));
+// CINNY-207 P2.3: threadSummaryState imports summary APIs directly from
+// `./cacheStore` (the `threadSummaryCache` shim is gone), so the mock
+// target moves to the store barrel.
+vi.mock('./cacheStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./cacheStore')>();
+  return {
+    ...actual,
+    loadCachedThreadSummaries: loadCachedThreadSummariesMock,
+    saveCachedThreadSummary: saveCachedThreadSummaryMock,
+  };
+});
 
 vi.mock('../messages/threadSummary', () => ({
   getLatestThreadSummaryInfoFromEventSources: getLatestThreadSummaryInfoFromEventSourcesMock,

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { getRoomCursorAnchor, normalizeCachedRoomEvents } from './roomEventCache';
+// CINNY-207 P2.3: pure-helper coverage relocated from the removed
+// `roomEventCache.ts` shim; the helpers themselves live in
+// `cacheStoreNormalize.ts` and are re-exported through the barrel.
+import { getRoomCursorAnchor, normalizeCachedRoomEvents } from '../index';
 
 describe('normalizeCachedRoomEvents', () => {
   it('sorts events chronologically and deduplicates by event id', () => {
