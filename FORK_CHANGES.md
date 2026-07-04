@@ -2,6 +2,74 @@
 
 ## Runbook
 
+### CINNY-207 AC2 review close-out — F1-F9 + fix-B load-bearing check + lint pin-down + final gate (2026-07-04, team lead)
+
+Executed directly by the team lead (subagent messaging had become
+unreliable — directives were arriving out of order or not at all, so
+the remaining checklist was finished in-session).
+
+- **F1+F2+F7 (commit d5f04e90, by agent)**: deleted all
+  instance-retaining diagnostic machinery (-1135/+29):
+  `renderTargetSeenById`, `fallbackInstanceById`,
+  `replaceFallbackInstanceRegistry`, source tags, RG4d latch,
+  `armSunkTargetInstrumentation`, `renderHeldEvents` param. Scalar
+  counters, the RG5c registry tripwire concept, and the RG5d
+  canonicalizer stay. This closes the reviewer's HIGH findings: a
+  production memory leak (strong MatrixEvent refs held forever) and
+  per-NewReply full registry rebuilds on the streaming hot path.
+- **F3 disposition (B) (commit 2b8e12d3)**: the displacement assertion
+  is DELETED from the AC2 spec, with the history recorded in-file. Two
+  implementations were tried: the synthetic-resize version was vacuous
+  (sampled after the repair completed); the honest live-second-edit
+  version measured a REAL 25px shift — but the shift is pin-to-bottom
+  reasserting over a programmatic scrollIntoView that never set
+  user-scroll intent, a pre-existing UX question (filed as task #119:
+  should programmatic navigation — including quote-click — set scroll
+  intent?), not a reconcile property. Repair-induced displacement is
+  not measurable in this flow (repair completes before the anchor can
+  be scrolled into the virtualised window). Canonical anchor coverage:
+  thread-virtualization-behaviors.spec.ts ("streaming edits do not
+  yank a scrolled-up reader"), green under wheel intent.
+- **F4 (5842c02f, by agent)**: threadOpenInvariant.test.ts rewritten to
+  drive `runThreadOpenCacheFirst`; the prior version asserted its own
+  arithmetic. **F5/F6/F8/F9 (947f77ef, by agent)**: overlap comment,
+  choke-point catch warn, batch shape >=2, zero-alloc merge scan.
+- **Candidate-3 picker test (2b8e12d3)**: repaired confirmed instance
+  (real id, isSending()=false, txn metadata present → key sets
+  intersect on both dimensions) beats an unrepaired sync instance in
+  both argument orders — locks the local-echo early-return
+  fall-through into the RG5-fix2 raw-presence rule.
+- **Counter semantics correction (2b8e12d3 + follow-up)**:
+  `eventMapCanonicalizedDisplacements` relabeled from "must-stay-0
+  tripwire" to WORK counter — it reads 3 per AC2 live run and that is
+  healthy dedup (multiple ingestion paths legitimately deliver
+  distinct instances of one identity). Notably it STILL reads 3 with
+  fix B reverted, so the duplication is not attributable to the
+  onRepaired payload alone.
+- **Fix-B load-bearing check (EXTRA-1)**: throwaway branch, `git
+  revert --no-commit 52af9eed`, clean revert, tsc clean, one docker
+  AC2 run: **PASSED without fix B** (/tmp/ac2-fixb-revert-check.log,
+  counters identical shape). Verdict: fix B is a correctness
+  improvement (the reconciler hands its repaired view, not raw fetch
+  output — semantically right payload), NOT load-bearing for AC2
+  green. The agent's earlier load-bearing inference is corrected by
+  this empirical run. Fix B stays.
+- **Lint pin-down (EXTRA-2)**: `npx eslint .` measured identically
+  (fresh detached worktree + shared node_modules) on branch tip AND
+  dev: **26 warnings / 0 errors on BOTH** — the branch adds zero. The
+  "18" figures in earlier agent reports were an agent-environment
+  quirk; the comparable pair settles the bar.
+- **FINAL gate (/tmp/ac2-final-gate.log)**: AC2 + stop-emoji-redaction
+  + streamed-edit-cache, one docker run, **3/3 passed** (30.3s / 60s /
+  39.2s). Counters: reconcilesScheduled=2, reconcilesRepaired=1,
+  applierNoLatestEdit=0, eventMapCanonicalizedDisplacements=3.
+- Validation bar: tsc clean; vitest full suite (see commit); lint
+  26/0 == dev baseline; build clean.
+- Follow-ups on record: #94 (bandage sweep of merged cache work, incl.
+  cacheStoreNormalize.ts pre-canonicalizer setEventForKeys variant),
+  #106 (reaction-chip redaction reach), #119 (programmatic-scroll
+  intent / 25px), AC1 + AC5 measurement items.
+
 ### CINNY-207 AC2 RG5d — canonicalize eventMap keys as merge invariant (2026-07-04)
 
 - Team-lead's RG5c-approval directive: fix the intra-merge duplicated-
