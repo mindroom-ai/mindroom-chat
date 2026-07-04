@@ -127,6 +127,36 @@
     inside the `if (legacyReplaceIds.length > 0)` block — 86 tests
     restored without extending the shared mock (kept the shared file
     surface tight).
+- Workflow review round 1 (adversarial multi-agent review of the whole
+  stack; confirmed code findings fixed here):
+  - Critical: all three compaction closures silently dropped an edit when
+    `room.findEventById(target)` missed at fire time (target only present
+    as a detached cache-hydrated instance after a cache-first thread open,
+    or simply not loaded) — a durability regression vs. the pre-P1.4
+    standalone persist, invisible to telemetry. Fixed: shared
+    `scheduleReplaceCompaction` helper falls back to persisting the replace
+    event standalone (the serializer keeps that shape; hydration applies
+    it) and counts `editCompactionTargetMisses`.
+  - Major: the room-view thread branch re-derived thread attribution at
+    fire time via `persistThreadCacheFromRoomEvents` grouping; a
+    mid-debounce redaction prunes `m.relates_to`, so the pruned tombstone
+    never reached the thread cache. Fixed: thread attribution is captured
+    at schedule time and the upsert goes through `persistThreadEventCache`.
+  - Major: the live path compacted cross-sender replaces, dropping them
+    from cache (the serializer only bundles same-sender). Fixed: known
+    cross-sender replaces persist directly as standalone records.
+  - Minor: the redaction handler deleted a redacted reaction's records and
+    then `collectStateTargetEvents` pulled the pruned reaction straight
+    back in while persisting the redaction record. Fixed: redaction
+    targets of type `m.reaction` are excluded from batch expansion.
+  - Test gaps closed: room-view thread-target and room-level compaction
+    branches, key isolation across branches, non-replace immediate-persist
+    control, target-miss fallback, cross-sender direct persist.
+  - E2e spec reworked: edits now sent while the client session is live (the
+    scheduler path actually runs), probe counters and the compacted
+    record's bundled FINAL body asserted before reload, compacted shape
+    re-asserted after reload. Cache-only paint proof deferred to the AC1
+    offline-reload harness (Phase 3), noted in the spec header.
 - Independent review pass (delivery-process step 4):
   - Finding (fixed): the lazy cleanup deleted legacy standalone replace
     records whenever the target record was merely *present* in the batch —

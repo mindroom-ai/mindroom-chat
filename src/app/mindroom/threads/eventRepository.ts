@@ -692,9 +692,14 @@ export const collectStateTargetEvents = (room: Room, events: MatrixEvent[]): Mat
     if (!targetEventId || eventsById.has(targetEventId)) return;
 
     const targetEvent = room.findEventById(targetEventId);
-    if (targetEvent?.getId()) {
-      eventsById.set(targetEventId, targetEvent);
-    }
+    if (!targetEvent?.getId()) return;
+    // CINNY-207 P1.2/P1.4 interplay: a redacted reaction's records are
+    // DELETED by the redaction lifecycle (planRedactionCacheCleanup gives
+    // reactions no tombstone). Pulling the pruned reaction back in here
+    // while persisting the redaction event would re-insert the record the
+    // same handler just deleted.
+    if (mEvent.isRedaction() && targetEvent.getType() === 'm.reaction') return;
+    eventsById.set(targetEventId, targetEvent);
   });
 
   return Array.from(eventsById.values());
