@@ -2,6 +2,110 @@
 
 ## Runbook
 
+### CINNY-207 AC2 RG5d — canonicalize eventMap keys as merge invariant (2026-07-04)
+
+- Team-lead's RG5c-approval directive: fix the intra-merge duplicated-
+  instance shape at the ROOT — key canonicalization in
+  `setEventForKeys`. "When writing an event under its key set, any
+  existing entry under ANY of those keys that is a different instance
+  must be fully displaced from ALL of its keys ... Which instance wins
+  the displacement is the replacement-preferring rule already specified
+  ... That makes 'one instance per event identity' a map invariant
+  instead of a post-pass."
+- Root cause the prior code missed: `mergeThreadRenderEvents`' inner
+  `setEventForKeys` was a plain multi-set — it wrote the new event
+  under each of its keys without touching entries for other keys any
+  conflicting instance already held. When two instances of the same
+  event id arrived under disjoint key sets (e.g. existingEvents
+  contained a bare-txnId sending echo AND an eventId-only confirmed
+  instance whose SDK-provided `unsigned` payload had already dropped
+  the txnId), the map ended up with orphan entries and
+  `Array.from(new Set(eventMap.values()))` at the tail contained both
+  instances — one identity, two MatrixEvent references. Every
+  downstream consumer (applier, fallback-instance registry,
+  `mergedById` diagnostics, any reader iterating `values()`) inherited
+  the same hazard.
+- Fix (structural, no bandage): `setEventForKeys` becomes
+  canonicalizing. Collects every distinct existing instance the
+  incoming write conflicts with via any of its keys; reduces
+  `(conflicts + incoming)` through `pickPreferredThreadRenderEvent`
+  (chained left-fold with the conflict as the `existing` arg so the
+  final incoming `mEvent` retains tie-break priority, matching prior
+  `existingEvents → incomingEvents` iteration semantics); snapshots
+  every key any loser currently occupies BEFORE deleting; unions with
+  incoming keys and the winner's own extractor output; deletes loser
+  entries; writes the winner under the full union. Post-canonicalization
+  invariant: for any two keys K1, K2 that share an event identity,
+  `eventMap.get(K1) === eventMap.get(K2)`. `values()` contains one
+  entry per identity, always.
+- Permanent must-stay-0 tripwire per team-lead's directive: new
+  counter `eventMapCanonicalizedDisplacements` bumps once per losing
+  instance the canonicalizer displaces. Not a diagnostic — a
+  regression alarm. Any future change that reintroduces intra-batch
+  duplication of an event identity through the map (bypassing
+  `setEventForKeys`, or a `getThreadRenderEventKeys` extension whose
+  key set omits an identity dimension) bumps this counter. Included
+  in the AC2 spec's `RG-COUNTERS` dump alongside the RG5c
+  registry-swap tripwire.
+- Required tests: 6 new unit tests in `threadRenderUtils.test.ts`
+  (`RG5d key canonicalization` describe): dual-key collapse to one
+  instance under both keys carrying the replacement, no bump on
+  no-conflict / re-registration, loser's unique key reclaimed onto
+  winner + second-pass reachability, 3-way conflict with counter=2
+  (per-instance not per-key — verified red-without-fix: array length
+  2 vs expected 1), symmetric replacement-carrier-wins whether
+  existing or incoming. NewReply-after-repair regression tests
+  already exist from RG5-fix2 (`useThreadRenderState.test.ts` lines
+  977-1056), satisfying team-lead's requirement (b).
+- Validation bar: tsc clean, vitest 2675/2675 (+6 RG5d tests), lint
+  18/0 baseline-neutral, build clean.
+- Live gate (two consecutive docker cycles, `/tmp/ac2-rg5d-livegate{,2}.log`):
+  3/3 passed each time — AC2 29.5s/30.2s, stop-emoji 49.4s/54.8s,
+  streamed-edit 36.6s/36.4s. Counter reads stable:
+  `registrySwappedRepairedForUnrepaired: 0` (RG5c tripwire — the
+  cross-call door stays closed), `eventMapCanonicalizedDisplacements:
+  3` per test (intra-batch duplication was real in the live flow —
+  team-lead's diagnosis confirmed — and is now absorbed by the
+  canonicalizer with no downstream leak).
+- Commit `9335739d`.
+
+### CINNY-207 AC2 render-gap RG5c — registry-swap tripwire confirms X5 not the mechanism, same-id merge preference holds at both seams (2026-07-04)
+
+- Team-lead directive after RG4e: extend the counter cycle to cover
+  X5 — the fallback-registry SWAP door team-lead flagged when
+  approving fix B. Also confirm applier guard splits.
+- Answer to team-lead's direct question: yes, the same-id merge
+  preference (B-approval step 2) landed in commit `3fbe8afd`
+  (asymmetric raw-`.replacingEvent()` presence check at the tail of
+  `pickPreferredThreadRenderEvent`, consulted AFTER the effective-
+  replacement block so the D12 ts→event_id ordering still wins when
+  both sides carry an effective replacement). Applier guard splits
+  (`applierMakeReplacedNoLatestEdit` vs `applierMakeReplacedLatestEqualsCurrent`)
+  already existed in `eventCacheEditUtils.ts:200-203` from RG5b, so
+  no new instrumentation needed there.
+- New counter: `registrySwappedRepairedForUnrepaired` in
+  `replaceFallbackInstanceRegistry`. Bumps when overwriting an
+  existing entry whose previous instance had `.replacingEvent()`
+  non-null with a new instance whose `.replacingEvent()` is null.
+  Must-stay-0 tripwire — non-zero names X5. 7 new unit tests in
+  `cacheProbe.test.ts` cover fast-path (identity-stable), brand-new
+  id, repaired->repaired swap, unrepaired->anything, exact X5 shape
+  (bumps 1), idempotent double-write (no double-bump), multi-id batch.
+- Live gate (two docker cycles): AC2 30-33s each, 1 passed each.
+  Counter read stable: `registrySwappedRepairedForUnrepaired: 0`,
+  `applierMakeReplacedLatestEqualsCurrent: 9`,
+  `applierMakeReplacedNoLatestEdit: 0`, `applierMakeReplacedFired: 0`.
+  Reading: X5 is not the mechanism (the picker guard from `3fbe8afd`
+  is holding at both seams — sink merge and buildThreadEvents SDK-vs-
+  fallback merge). AC2 stays GREEN.
+- Assessment reported to team-lead: alreadyCurrent=9 with swap=0 and
+  still NEVER-HAD=314-331 pointed at registered-instance-differs-from-
+  hydrate-scope, but the shape was not causing user-visible failure
+  under the current RG4b-fix AC2 assertions. Team-lead approved
+  RG5c and directed the RG5d canonicalization fix at the root
+  (setEventForKeys map invariant) as the structural resolution.
+- Commit `b6982868`.
+
 ### CINNY-207 AC2 RG5-fix2 — replacement-aware same-id merge preference closes the NewReply-through-a-different-door reopening (2026-07-04)
 
 - Team-lead B-approval required addition after the RG4e counter
