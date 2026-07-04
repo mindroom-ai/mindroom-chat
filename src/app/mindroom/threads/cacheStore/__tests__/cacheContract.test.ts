@@ -148,8 +148,56 @@ const buildLegacyContract = async (): Promise<CacheContract> => {
   const threadModule = await import('../../threadEventCache');
   const summaryModule = await import('../../threadSummaryCache');
 
+  return buildContractFromModules('legacy', roomModule, threadModule, summaryModule);
+};
+
+// ---------- CacheStore adapter ----------
+
+const buildCacheStoreContract = async (): Promise<CacheContract> => {
+  // Same public function signatures across both adapters — the shim
+  // step (P2.1 commit 4) makes the two identical at the type level.
+  const cacheStoreModule = await import('../index');
+  return buildContractFromModules(
+    'cacheStore',
+    cacheStoreModule,
+    cacheStoreModule,
+    cacheStoreModule
+  );
+};
+
+type LegacyLike = {
+  saveRoomEventsToCache: typeof import('../../roomEventCache')['saveRoomEventsToCache'];
+  loadLatestCachedRoomEvents: typeof import('../../roomEventCache')['loadLatestCachedRoomEvents'];
+  loadCachedRoomEventsBefore: typeof import('../../roomEventCache')['loadCachedRoomEventsBefore'];
+  loadCachedRoomEvent: typeof import('../../roomEventCache')['loadCachedRoomEvent'];
+  loadCachedRoomPaginationToken: typeof import('../../roomEventCache')['loadCachedRoomPaginationToken'];
+  deleteRoomEventsFromCache: typeof import('../../roomEventCache')['deleteRoomEventsFromCache'];
+};
+
+type ThreadLike = {
+  saveThreadEventsToCache: typeof import('../../threadEventCache')['saveThreadEventsToCache'];
+  loadLatestCachedThreadEvents: typeof import('../../threadEventCache')['loadLatestCachedThreadEvents'];
+  loadCachedThreadEventsBefore: typeof import('../../threadEventCache')['loadCachedThreadEventsBefore'];
+  loadCachedThreadEvent: typeof import('../../threadEventCache')['loadCachedThreadEvent'];
+  loadCachedThreadPaginationToken: typeof import('../../threadEventCache')['loadCachedThreadPaginationToken'];
+  deleteThreadEventsFromCache: typeof import('../../threadEventCache')['deleteThreadEventsFromCache'];
+  deleteThreadEventFromCacheByEventId: typeof import('../../threadEventCache')['deleteThreadEventFromCacheByEventId'];
+};
+
+type SummaryLike = {
+  saveCachedThreadSummary: typeof import('../../threadSummaryCache')['saveCachedThreadSummary'];
+  loadCachedThreadSummaries: typeof import('../../threadSummaryCache')['loadCachedThreadSummaries'];
+};
+
+const buildContractFromModules = (
+  name: string,
+  roomModule: LegacyLike,
+  threadModule: ThreadLike,
+  summaryModule: SummaryLike
+): CacheContract => {
+
   return {
-    name: 'legacy',
+    name,
     resetSingletons: () => {
       // Force reload of the memoized dbPromiseByName Maps by clearing module cache.
       vi.resetModules();
@@ -642,3 +690,4 @@ const runContract = (label: string, buildContract: () => Promise<CacheContract>)
 };
 
 runContract('legacy', buildLegacyContract);
+runContract('cacheStore', buildCacheStoreContract);
