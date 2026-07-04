@@ -1,6 +1,12 @@
 # MindRoom Cache Overhaul Plan (CINNY-207)
 
-Status: **Planned — no implementation step started yet.**
+Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 (CacheStore consolidation) in progress.**
+Phase-1 e2e gate (2026-07-03, stack tip 55439be8): streamed-edit spec green
+live (AC4, probe numbers in scorecard), stop-emoji green (AC3; three failed
+attempts were host `ERR_NETWORK_CHANGED` flake — tracked in the Runbook),
+background-freshness expected-red until Phase 3 (AC6). P0.3 large-room probe
+baseline still pending; AC5 formal measurement happens with the Phase 3
+engine work.
 Created: 2026-07-03. Living document — see "How to use this document".
 
 This is the canonical plan for making MindRoom feel like a native app: every room
@@ -320,7 +326,8 @@ referenced from `FORK_CHANGES.md` entries.
   standalone `m.replace` records; upsert targets with bundled latest edit;
   per-target coalescing with flush on stream end/unmount/visibility loss.
   Includes lazy cleanup: hydration deletes legacy standalone replace records
-  whose targets exist (full purge arrives with D8 wipe in Phase 2). Exit:
+  whose target record already bundles an equal-or-newer edit (D12 ordering;
+  full purge arrives with D8 wipe in Phase 2). Exit:
   streamed message with N edits produces exactly 1 event record; reload paints
   final content.
 - **P1.5** Surface write failures (F4): stop swallowing; failure counter +
@@ -442,16 +449,16 @@ Filled as steps complete. "Before" numbers from P0.3.
 | ---- | ------ | --------------------------------- | -------------- | ----------------------- | ---- |
 | AC1  | ☐      |                                   |                |                         |      |
 | AC2  | ☐      |                                   |                |                         |      |
-| AC3  | ☐      |                                   |                |                         |      |
-| AC4  | ☐ impl | `npx vitest run src/app/mindroom/threads/eventCacheEditUtils.test.ts src/app/mindroom/threads/editCompactionScheduler.test.ts src/app/mindroom/threads/roomLiveEventController.compaction.test.ts src/app/mindroom/threads/eventRepository.test.ts` (compaction + exclusion + hydration cleanup); e2e `E2E_ENABLE_DEPLOYED_FIXTURE=0 ./scripts/test-e2e-docker-matrix.sh e2e/live/cinny207-streamed-edit-cache.spec.ts` pending (not run this session) | ~EDIT_COUNT+1 records per streamed message → exactly 1 target record with bundled edit | (pending reviewer) |      |
+| AC3  | ✓      | e2e `cinny207-stop-emoji-redaction` green on stack tip (55439be8); 3 prior failed runs were env flake (`ERR_NETWORK_CHANGED` storms, failure point wandering login/reload) | reaction resurrected on reopen/reload → gone in all three states | workflow rounds 1-2 + docker e2e run | 2026-07-03 |
+| AC4  | ✓      | e2e `cinny207-streamed-edit-cache` green LIVE on stack tip: probe `editCompactions=1`, `threadEventPuts=3`, 1 target record with bundled final body pre+post reload; unit `npx vitest run src/app/mindroom/threads/eventCacheEditUtils.test.ts src/app/mindroom/threads/editCompactionScheduler.test.ts src/app/mindroom/threads/roomLiveEventController.compaction.test.ts src/app/mindroom/threads/eventRepository.test.ts` | 26 thread-cache records for a 25-edit streamed message (P0.3 spec run) → exactly 1 target record with bundled edit | workflow round 2 (spec traced sound) + docker e2e run | 2026-07-03 |
 | AC5  | ☐      |                                   |                |                         |      |
-| AC6  | ☐      |                                   |                |                         |      |
+| AC6  | ☐      | e2e `cinny207-background-room-freshness` (red until Phase 3) | 0 cached events for a background room (P0.3 spec run) |                         |      |
 | AC7  | ☐      |                                   |                |                         |      |
 | AC8  | ☐      |                                   |                |                         |      |
 | AC9  | ☐      |                                   |                |                         |      |
 | AC10 | ☐      |                                   |                |                         |      |
-| AC11 | ☐ impl | `npx vitest run src/app/mindroom/threads/cacheHealth.test.ts src/app/mindroom/threads/eventRepository.test.ts` | silent divergence → read-only degrade | (pending reviewer) |      |
-| AC12 | ☐ impl | `npx vitest run src/app/utils/room.test.ts` (tie tests) | order-dependent → id-deterministic | (pending reviewer) |      |
+| AC11 | ✓      | `npx vitest run src/app/mindroom/threads/cacheHealth.test.ts src/app/mindroom/threads/eventRepository.test.ts` | silent divergence → read-only degrade | workflow rounds 1-2 (p15-p16 interaction dimension clean) | 2026-07-03 |
+| AC12 | ✓      | `npx vitest run src/app/utils/room.test.ts` (tie tests) | order-dependent → id-deterministic | workflow rounds 1-2 + landed-stack review | 2026-07-03 |
 | AC13 | ☐      |                                   |                |                         |      |
 | AC14 | ☐      |                                   |                |                         |      |
 
@@ -461,9 +468,12 @@ Added as their phases land, in
 `src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts` (or a
 new engine-scoped guard file):
 
-- No full-timeline persist sweep from a React effect keyed on event counts
-  (Phase 1).
-- The cache save path rejects standalone `m.replace` records (Phase 1).
+- The room-cache persist sweep stays debounced and delta-only — armed via
+  `ROOM_CACHE_PERSIST_DEBOUNCE_MS`, already-persisted event ids skipped
+  (Phase 1 — **added**; reworded from "no full-timeline sweep" because the
+  landed P1.1 design keeps a debounced delta sweep rather than removing it).
+- The cache write boundary rejects standalone same-sender `m.replace`
+  records (Phase 1 — **added**).
 - No imports of legacy cache modules outside CacheStore (Phase 2).
 - Render components do not import CacheStore directly (carried over from
   `mindroom-cache-strategy.md`).
@@ -500,9 +510,25 @@ new engine-scoped guard file):
 
 ## 8. Deviations
 
-(None yet. Record: date, step ID, what changed vs. plan, why, approved by.)
+- 2026-07-03 — **P1.4 / D5 "synchronous flush on stream end"** reinterpreted:
+  the implementation has no stream-end *detection*; the per-target trailing
+  debounce (1 s) is the stream-end flush — each edit re-arms the timer, so
+  the trailing write carries the final content ≤1 s after the last edit.
+  Synchronous flushes exist on unmount, `pagehide`, and
+  `visibilitychange → hidden`. Difference vs. the literal D5 wording: a hard
+  tab kill inside the 1 s window can lose the last pending upsert (the
+  target's previous record remains; reconcile converges it). Reason:
+  MindRoom emits no explicit end-of-stream marker on the wire today, and the
+  stop-emoji redaction is not guaranteed for uncancelled streams. Flagged by
+  workflow review round 1; recorded here for product-owner review.
 
 ## 9. Status log
+
+- 2026-07-03 — **P1.6 landed** (PR 8): legacy preload setting hard-capped
+  (F11). `MAX_PAGINATION_LIMIT = 10000` enforced in `sanitizePaginationLimit`
+  (covers UI commit and stored-value reads) and reflected in the settings
+  input. Interim guard until the Phase 6 settings replacement (D4).
+  **Phase 1 (P1.1-P1.6) is now fully landed.**
 
 - 2026-07-03 — **P1.5 landed** (PR 7): cache write failures surfaced (F4).
   `cacheHealth.ts` counts every failure, logs the first per scope, and a
@@ -523,11 +549,25 @@ new engine-scoped guard file):
   `pagehide` and `visibilitychange → hidden` and on component unmount.
   Sweep path is unaffected — bookkeeping still marks skipped-persist ids as
   seen so replaces cannot cause endless re-sweeps. Hydration lazily deletes
-  legacy standalone replace records whose target is present in the batch
-  (full purge lands with the Phase 2 D8 wipe). AC4 evidence recorded above;
+  legacy standalone replace records whose target record already bundles an
+  equal-or-newer edit under the D12 ordering (independent-review tightening;
+  deleting eagerly could lose the newest edit until a later re-persist; full
+  purge lands with the Phase 2 D8 wipe). AC4 evidence recorded above;
   e2e run is pending (deferred out of this session per instructions).
+  Workflow review round 1 follow-ups: fire-time target misses now fall back
+  to persisting the replace standalone (`editCompactionTargetMisses` probe),
+  room-view thread attribution is captured at schedule time (mid-debounce
+  redaction tombstones land), and `collectStateTargetEvents` no longer
+  re-expands pruned redacted reactions. Round 2 follow-ups: cross-sender
+  replaces are always emitted as standalone records — direct persist when
+  the target is known at arming, fire-time sender re-check when the target
+  materializes only during the debounce window — and the window keeps the
+  D12-latest replace rather than the last-arrived one.
 
 - 2026-07-03 — **P1.3 landed** (PR 5): deterministic edit tiebreak (D12).
+  Review follow-up: `applyCachedRedactions` never re-applies a cached
+  redaction over an already-redacted instance (the live-attached redaction
+  wins; the D12 pick only orders redactions for a not-yet-redacted target).
   Shared comparator `isEventOrderedAfter` (ts, then lexicographic event id,
   full tie keeps the incumbent instance) used by `getLatestEdit` and the
   cached-redaction selector. AC12 unit tests assert order-independence for

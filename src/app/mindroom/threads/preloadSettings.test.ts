@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_PAGINATION_LIMIT,
+  MAX_PAGINATION_LIMIT,
   MIN_PAGINATION_LIMIT,
   sanitizePaginationLimit,
 } from './preloadSettings';
@@ -21,6 +22,15 @@ describe('sanitizePaginationLimit', () => {
     expect(sanitizePaginationLimit(10)).toBe(MIN_PAGINATION_LIMIT);
     expect(sanitizePaginationLimit(49)).toBe(MIN_PAGINATION_LIMIT);
     expect(sanitizePaginationLimit(-100)).toBe(MIN_PAGINATION_LIMIT);
+  });
+
+  // CINNY-207 P1.6 (finding F11): the setting had no maximum, so arbitrarily
+  // large stored values drove the unbounded eager-preload loop.
+  it('clamps values above the maximum', () => {
+    expect(sanitizePaginationLimit(10001)).toBe(MAX_PAGINATION_LIMIT);
+    expect(sanitizePaginationLimit(1_000_000)).toBe(MAX_PAGINATION_LIMIT);
+    expect(sanitizePaginationLimit(Number.MAX_SAFE_INTEGER)).toBe(MAX_PAGINATION_LIMIT);
+    expect(sanitizePaginationLimit(MAX_PAGINATION_LIMIT)).toBe(MAX_PAGINATION_LIMIT);
   });
 
   it('truncates decimals and passes through valid integers', () => {

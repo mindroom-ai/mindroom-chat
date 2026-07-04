@@ -146,6 +146,56 @@
     with `aria-valuetext` is what announces question/answer previews during
     arrow-key navigation; alternative roles lose that or require
     restructuring the presentational stripes into a real listbox.
+### CINNY-207 Phase 1 e2e gate (2026-07-03)
+
+- Status:
+  - Complete. Docker-matrix run on the stack tip (55439be8):
+    `cinny207-streamed-edit-cache` **green live** (AC4 — probe
+    `editCompactions=1`, `threadEventPuts=3`, exactly 1 target record with
+    the bundled final body asserted before AND after reload);
+    `cinny207-stop-emoji-redaction` **green** (AC3);
+    `cinny207-background-room-freshness` expected-red as designed (AC6,
+    flips in Phase 3).
+- Flake log (plan section 7 policy):
+  - The stop-emoji spec failed 3 times before passing, each at a
+    *different* stage (login form, post-reload paint), with 24-73
+    `net::ERR_NETWORK_CHANGED` console errors per failed run — host
+    network-interface flapping starving Chromium, not app behavior. No
+    uncaught app exceptions in any trace. Treat further failures with
+    ERR_NETWORK_CHANGED storms as environment flake; investigate only if a
+    run fails without them.
+- Next steps:
+  - Phase 2 (P2.1 CacheStore consolidation) begins; PRs are phase-sized
+    from here on (product-owner instruction).
+
+### CINNY-207 P1.6 - Cap the legacy preload setting (2026-07-03)
+
+- Status:
+  - Complete locally (PR 8 of the cache-overhaul stack). Phase 1 is now
+    fully landed (P1.1-P1.6).
+- Summary:
+  - Finding F11: `sanitizePaginationLimit` had a minimum (50) but no
+    maximum, so arbitrarily large stored values drove the unbounded
+    eager-preload loop (F13) — hundreds of sequential `/messages` calls.
+  - New `MAX_PAGINATION_LIMIT = 10000` (equals the default — already the
+    design's heavy end at ~50 sequential batches); `sanitizePaginationLimit`
+    clamps both ends, which covers the settings UI commit path and every
+    stored-value read (`MindroomRoomTimeline` sanitizes on read).
+  - Settings UI: `max` attribute on the number input; description says
+    "Minimum 50, maximum 10,000."
+- Decisions:
+  - Interim guard only — the setting is removed entirely in Phase 6 (D4)
+    in favor of the tiered prefetch settings group.
+- Next steps:
+  - Phase 1 complete. Next: P0.3 baseline capture (Scorecard "before"
+    numbers) + docker e2e run of the P1.4-flipped spec, then Phase 2
+    (CacheStore consolidation, P2.1).
+- Validation:
+  - Red check: with `preloadSettings.ts` stashed, the new max-clamp test
+    fails; green with the clamp.
+  - `npx vitest run src/app/mindroom/threads/preloadSettings.test.ts` (4/4),
+    full thread suite, `npm run typecheck`, `npm run build`, `npm run lint`.
+
 ### CINNY-207 P1.5 - Surface cache write failures (2026-07-03)
 
 - Status:
@@ -230,8 +280,9 @@
     `serializeEventsForCache` would have filtered) as seen, so a replace
     cannot cause endless re-sweeps.
   - `loadCachedThreadSnapshot` (hydration entry) lazily deletes legacy
-    standalone same-sender `m.replace` records whose target is in the same
-    batch (`collectLegacyStandaloneReplaceIds` + `deleteThreadEventsFromCache`).
+    standalone same-sender `m.replace` records whose target record in the
+    same batch already bundles an equal-or-newer edit under the D12 ordering
+    (`collectLegacyStandaloneReplaceIds` + `deleteThreadEventsFromCache`).
     Full purge arrives with the Phase 2 D8 wipe; this handles what shows up
     on next open. Deleter is resolved lazily inside the `if
     (legacyReplaceIds.length > 0)` block so the storage import identifier
@@ -271,6 +322,26 @@
     inside the `if (legacyReplaceIds.length > 0)` block — 86 tests
     restored without extending the shared mock (kept the shared file
     surface tight).
+- Workflow review round 2 + greptile pass (confirmed findings fixed):
+  - Fire-time TOCTOU (greptile P1 + round-2): a cross-sender replace
+    scheduled while its target was unknown (arm-time miss) compacted to
+    `[target]` alone if the target materialized during the debounce
+    window, dropping the standalone record. The fire-time closure now
+    re-checks the sender and emits `[target, replace]` in that case.
+  - Arrival-order dependence: the target-miss fallback captured the
+    last-arrived replace; a stale replace delivered after a newer one
+    (federation reordering) within one window would shadow it. Pending
+    replaces are now kept per key as the D12-latest (`isEventOrderedAfter`)
+    and read at fire time.
+  - Lazy-cleanup freshness gate hardened: the bundled edit must be one
+    hydration would actually apply (nonempty event id, same sender as the
+    standalone) before licensing a delete.
+  - Also in this round, on sibling PRs: cached redactions never re-apply
+    over an already-redacted instance (PR 5), quota detection broadened +
+    origin-scoped degrade documented (PR 7).
+  - Green after round 2: compaction 13/13, eventRepository 27/27,
+    eventCacheEditUtils 15/15, cacheHealth 4/4, threads suite 1033/1033
+    (supersedes the pre-round-1 counts recorded in Validation below).
 - Workflow review round 1 (adversarial multi-agent review of the whole
   stack; confirmed code findings fixed here):
   - Critical: all three compaction closures silently dropped an edit when
