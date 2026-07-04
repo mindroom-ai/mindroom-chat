@@ -12,16 +12,16 @@ import { readRoomEventCacheEventIds } from '../helpers/storage';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
 
-// CINNY-207 P0.2: red spec for finding F1 (cache write-through only exists
-// for the mounted room; background rooms go stale). Flips green in Phase 3
-// (global sync write-through). See docs/mindroom-cache-overhaul-plan.md (AC6).
+// CINNY-207 P0.2 → P3.3: F1 (cache write-through only existed for the
+// mounted room) is fixed. `MindroomSyncEngine` attaches
+// `RoomEvent.Timeline`/`RoomEvent.Redaction` listeners at the client
+// scope and writes every live event through the shared write-through,
+// regardless of which room is mounted. Expected green on and after
+// Phase 3 (AC6). See docs/mindroom-cache-overhaul-plan.md.
 test.describe('CINNY-207 background room cache freshness', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
   test('events arriving in a background room reach its cache', async ({ page }) => {
-    // Expected red until Phase 3: today nothing writes background-room events
-    // through to IndexedDB, so the cache misses them until the room is opened.
-    test.fail();
 
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();

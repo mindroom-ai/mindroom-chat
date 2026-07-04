@@ -96,6 +96,13 @@ export {
 } from './cacheStoreSummaries';
 
 export {
+  markRoomTailDiscontinuity,
+  clearRoomTailDiscontinuity,
+  loadRoomTailDiscontinuity,
+  type TailDiscontinuityMarker,
+} from './cacheStoreDiscontinuity';
+
+export {
   LEGACY_MINDROOM_ROOM_EVENT_CACHE_DB_NAME,
   LEGACY_MINDROOM_THREAD_EVENT_CACHE_DB_NAME,
   LEGACY_MINDROOM_THREAD_SUMMARY_CACHE_DB_NAME,

@@ -127,7 +127,7 @@ type CacheContract = {
     sessionId: string,
     roomId: string,
     eventId: string
-  ) => Promise<void>;
+  ) => Promise<string[]>;
 
   saveSummary: (
     sessionId: string,
@@ -615,11 +615,58 @@ const runContract = (label: string, buildContract: () => Promise<CacheContract>)
 
       // Redaction handler doesn't know which thread the target belongs to;
       // the by-event-id fallback walks all thread records in the room.
-      await contract.deleteThreadEventByEventId(SESSION_ID, ROOM_ID, '$reaction');
+      // CINNY-207 P3 gate re-fix: the walker returns the thread scopes it
+      // deleted from (deduped) so the engine can persist the redaction
+      // tombstone to precisely those scopes.
+      const deletedScopes = await contract.deleteThreadEventByEventId(
+        SESSION_ID,
+        ROOM_ID,
+        '$reaction'
+      );
+      expect(deletedScopes).toEqual(['$threadA']);
       const pageA = await contract.loadLatestThread(SESSION_ID, ROOM_ID, '$threadA', 10);
       expect(pageA.events.map((e) => e.event_id)).toEqual([]);
       const pageB = await contract.loadLatestThread(SESSION_ID, ROOM_ID, '$threadB', 10);
       expect(pageB.events.map((e) => e.event_id)).toEqual(['$other']);
+    });
+
+    it('deleteThreadEventByEventId returns every scope when the same event id lives under multiple thread scopes (CINNY-207 P3 gate)', async () => {
+      // Defensive: a stale reaction record can end up mirrored across
+      // multiple thread scopes. The walker returns all of them so the
+      // caller can persist the redaction tombstone to each — otherwise
+      // hydration of the unattributed thread would miss the redaction.
+      const rootA = makeRawEvent('$threadX', 50);
+      const rootB = makeRawEvent('$threadY', 60);
+      await contract.saveThreadEvents({
+        sessionId: SESSION_ID,
+        roomId: ROOM_ID,
+        threadId: '$threadX',
+        events: [rootA, makeRawEvent('$reactionDup', 100)],
+        rootEvent: rootA,
+      });
+      await contract.saveThreadEvents({
+        sessionId: SESSION_ID,
+        roomId: ROOM_ID,
+        threadId: '$threadY',
+        events: [rootB, makeRawEvent('$reactionDup', 110)],
+        rootEvent: rootB,
+      });
+
+      const deletedScopes = await contract.deleteThreadEventByEventId(
+        SESSION_ID,
+        ROOM_ID,
+        '$reactionDup'
+      );
+      expect(deletedScopes.sort()).toEqual(['$threadX', '$threadY']);
+    });
+
+    it('deleteThreadEventByEventId returns empty when nothing matched', async () => {
+      const scopes = await contract.deleteThreadEventByEventId(
+        SESSION_ID,
+        ROOM_ID,
+        '$never-existed'
+      );
+      expect(scopes).toEqual([]);
     });
 
     it('scopes thread lookups by room', async () => {

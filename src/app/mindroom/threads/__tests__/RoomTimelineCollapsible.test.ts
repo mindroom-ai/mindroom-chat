@@ -4,6 +4,11 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessageEvent } from '../../../../types/matrix/room';
 import { createDefaultThreadFilterState } from '../roomThreadOverviewModel';
+import {
+  createEnginePersistFacade,
+  MindroomSyncEngineProvider,
+  type MindroomSyncEngine,
+} from '../../engine';
 
 const RELATION_ANNOTATION = 'm.annotation';
 const RELATION_REPLACE = 'm.replace';
@@ -953,29 +958,47 @@ const createControlledRoomTimelineHarness = (
     room: ReturnType<typeof makeRoom>;
     threadId?: string;
   }) {
-    return React.createElement(RoomTimelineComponent, {
-      room,
-      threadId,
-      summaryMap: new Map(),
-      onStoreThreadSummary: vi.fn(),
-      threadFilterState: defaultThreadFilterState,
-      threadSortFreezeState: null,
-      onToggle: vi.fn(),
-      onSortDirectionChange: vi.fn(),
-      onToggleThreadSortFreeze: vi.fn(),
-      setThreadSortFreezeState: vi.fn(),
-      onCycleTag: vi.fn(),
-      onAddTag: vi.fn(),
-      onRemoveTag: vi.fn(),
-      onReset: vi.fn(),
-      onApplyPreset: vi.fn(),
-      onSearchQueryChange: vi.fn(),
-      viewMode: 'threaded',
-      onViewModeChange: vi.fn(),
-      roomInputRef,
-      editor,
+    // CINNY-207 P3.3: wrap in a MindroomSyncEngine provider so the
+    // component's `useMindroomSyncEngine` resolves. The persist facade
+    // is real; its writes route through the mocked cacheStore fns
+    // used by these tests' own vi.mock setup.
+    // eslint-disable-next-line react/no-children-prop
+    return React.createElement(MindroomSyncEngineProvider, {
+      engine: harnessSyncEngine,
+      children: React.createElement(RoomTimelineComponent, {
+        room,
+        threadId,
+        summaryMap: new Map(),
+        onStoreThreadSummary: vi.fn(),
+        threadFilterState: defaultThreadFilterState,
+        threadSortFreezeState: null,
+        onToggle: vi.fn(),
+        onSortDirectionChange: vi.fn(),
+        onToggleThreadSortFreeze: vi.fn(),
+        setThreadSortFreezeState: vi.fn(),
+        onCycleTag: vi.fn(),
+        onAddTag: vi.fn(),
+        onRemoveTag: vi.fn(),
+        onReset: vi.fn(),
+        onApplyPreset: vi.fn(),
+        onSearchQueryChange: vi.fn(),
+        viewMode: 'threaded',
+        onViewModeChange: vi.fn(),
+        roomInputRef,
+        editor,
+      }),
     });
   };
+};
+
+const HARNESS_TEST_SESSION_ID = 'test-session';
+const harnessSyncEngine: MindroomSyncEngine = {
+  mx: {} as MindroomSyncEngine['mx'],
+  sessionId: HARNESS_TEST_SESSION_ID,
+  start: () => undefined,
+  stop: () => undefined,
+  isLiveMode: () => true,
+  persist: createEnginePersistFacade({ sessionId: HARNESS_TEST_SESSION_ID }),
 };
 
 const findCollapseModeForEvent = (renderer: ReactTestRenderer, eventId: string) =>

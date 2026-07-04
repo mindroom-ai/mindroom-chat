@@ -146,6 +146,545 @@
     with `aria-valuetext` is what announces question/answer previews during
     arrow-key navigation; alternative roles lose that or require
     restructuring the presentational stripes into a real listbox.
+### CINNY-207 P3 gate - Cache-derived redaction attribution (2026-07-03, round 2)
+
+- Status: Complete locally on `cache-overhaul/10-p3-sync-engine`. Second
+  commit on top of the round-1 attempt (`9a6b15b4`), which the docker
+  gate re-run proved was model-mismatched. Round 1 assumed the redacted
+  reaction was still present in the thread's `unfilteredTimelineSet` at
+  `RoomEvent.Redaction` fire time and derived attribution by scanning
+  those sets. Reality (verified against matrix-js-sdk 41.7.0):
+  `applyEventAsRedaction` (room.js:2254) calls `makeRedacted` which for
+  non-root thread events invokes `moveAllRelatedToMainTimeline`
+  (event.js:1071) → `moveToMainTimeline` (event.js:1092) →
+  `thread.timelineSet.removeEvent(id)` + `setThread(undefined)`. So by
+  the time the emission reaches us the reaction is NEITHER in the
+  thread's timelineSet NOR carries a `thread` reference. Round 1's
+  scan finds zero hits; the derived path never fires. Round-1 unit
+  tests faked threads that still contained the event, which is why
+  they went green under a model that does not match production.
+- Fix (two layers; the primary one is guaranteed by construction):
+  - Layer 1 (PRIMARY, cache-derived — CANNOT be defeated by SDK
+    timeline movement): `deleteThreadEventFromCacheByEventId` in
+    `cacheStore/cacheStoreEvents.ts` now returns `Promise<string[]>` —
+    the thread scopes it deleted from (deduped, empty when nothing
+    matched). The engine's redaction handler, when the plan yields no
+    `threadCacheTargetId`, awaits this walker and persists the
+    redaction tombstone to each returned scope. This is
+    self-consistent by construction: the tombstone lands precisely
+    where the reaction record physically lived. Multi-scope returns
+    (defensive) persist to each. Empty return falls through to
+    room-scope persist.
+  - Layer 2 (SECONDARY hint, kept because it costs nothing): the
+    `RoomEvent.Redaction` emission's third arg is `threadId?: string`
+    — matrix-js-sdk captures `redactedEvent.threadRootId` at
+    room.js:2255 BEFORE calling `makeRedacted`, i.e. pre-prune. That
+    capture IS reliable for thread reactions and thread messages
+    alike. `mindroomSyncEngine.handleRedaction` now plumbs this arg
+    into `EngineLiveEventMeta.sdkThreadId`; the write-through hands
+    it to `planRedactionCacheCleanup` as `sdkThreadIdHint`, which
+    sits at the top of the hint chain (authoritative, not
+    `threadTargetFromFallback`). Absent on the Timeline-channel
+    re-emit path (the SDK does not supply it there) — layer 1 covers
+    that case.
+  - Round-1's plan-level SDK-thread-set scan is kept as a
+    harmless leftover for cases where the redacted event IS still
+    threaded at fire time (e.g. thread MESSAGE targets never hit
+    `moveAllRelatedToMainTimeline`, only reactions do). For thread
+    reactions the scan finds nothing at fire time and the engine
+    falls through to layer 1.
+- Scope: five files changed under `engine/` + `threads/cacheStore/`.
+  - `cacheStore/cacheStoreEvents.ts` (+16 / -6): walker returns a
+    deduped `string[]` of thread scopes it deleted from; error path
+    returns `[]`. Doc block expanded to name the D8 reaction reality
+    (SDK moves the event before we see the redaction).
+  - `engine/types.ts` (+11): `sdkThreadId?: string` added to the
+    redaction meta variant, doc-commented to name the source of the
+    capture and when it's absent.
+  - `engine/mindroomSyncEngine.ts` (+8 / -1): `handleRedaction` now
+    accepts and forwards the third arg from `RoomEvent.Redaction`.
+  - `engine/redactionCacheLifecycle.ts` (+13 / -3): `sdkThreadIdHint`
+    added to the plan; hint chain is `sdkThreadIdHint →
+    getThreadCacheTargetId → target.threadRootId →
+    redactionEvent.threadRootId → sdkDerivedThreadTargetId →
+    fallbackThreadId`. Header comment for the derivation helper
+    updated to name it as a harmless leftover for the still-threaded
+    case.
+  - `engine/engineWriteThrough.ts` (+43 / -19): `handleRedactionLive`
+    now consumes `meta.sdkThreadId` (layer 2). When the plan yields
+    no attribution, awaits the walker (layer 1) and persists the
+    tombstone to each returned scope; falls back to room persist
+    when the walker returned nothing. Aggregation-scrub still runs.
+- Test changes:
+  - `engineWriteThrough.redaction.test.ts` (rewritten): five engine-
+    boundary tests modelling REALITY — the reaction is NOT in the
+    thread timelineSet at fire time. Covers (1) layer-1 stop-emoji
+    with `sdkThreadId` absent + walker returns `['$thread-root']`;
+    (2) layer-2 thread-message redaction with `sdkThreadId` present
+    + no walker call; (3) both layers empty → room-scope persist
+    only; (4) walker returns multiple scopes → tombstone persisted
+    to each; (5) plan-hint happy path uses keyed thread delete, not
+    walker.
+  - `redactionCacheLifecycle.test.ts` (+30): new test asserting
+    `sdkThreadIdHint` sits above every other signal in the hint
+    chain. Round-1 plan-level tests kept (they cover a real
+    scenario — still-threaded targets — and document the harmless
+    leftover behavior).
+  - `cacheStore/__tests__/cacheContract.test.ts` (+33): contract
+    type updated to `Promise<string[]>`; new scenarios assert the
+    single-scope return, the multi-scope defensive return, and the
+    empty return on no-match.
+- Red-first evidence: before the layer-1 code landed on
+  `engineWriteThrough.ts` and the walker returned `string[]`, the
+  five engine-boundary tests + the plan-level `sdkThreadIdHint` test
+  failed exactly as designed (`persistThreadEventCacheSnapshot`
+  called 0 times where 1-2 was expected; plan returned
+  `threadCacheTargetId: undefined` where `'$thread-root'` was
+  expected). Ambiguous / zero-hit cases still pass, confirming the
+  fallback behavior is preserved.
+- Validation:
+  - `npx vitest run src/app/mindroom/engine/` and
+    `src/app/mindroom/threads/cacheStore/` → 153/153 green (+13
+    tests: +5 engine redaction, +1 plan sdk-hint, +2 cache contract,
+    round-1 counts absorbed).
+  - `npx vitest run src/app/mindroom/` → 226 files / 1955 tests
+    green (round-1 tip was 1950; +5 net from this round).
+  - `npm run typecheck` clean.
+  - `npm run lint` → 18 warnings, 0 errors — baseline, zero delta.
+- Docker gate findings (docker gate re-run on `9a6b15b4`, round-1 tip):
+  - AC6 background-freshness: PASSED on the P3.3 tip (client-level
+    listeners fixed F1); on the re-run it hit a documented ERR_
+    NETWORK_CHANGED host flake (203 resets), so the earlier green
+    stands.
+  - Streamed-edit: PASSED on the re-run (was a host flake on the
+    prior run).
+  - Stop-emoji: FAILED AGAIN at spec line 116 on a CLEAN network
+    (0 resets). Root cause was NOT the round-1 SDK-thread-set scan
+    — that scan finds zero hits at fire time because
+    `moveAllRelatedToMainTimeline` has already moved the reaction
+    off the thread. Round 2 addresses this with a cache-derived
+    attribution layer that CANNOT be defeated by SDK timeline
+    movement (the record was written under the thread scope; the
+    tombstone follows it there).
+- Deviations: none. Layer 2's use of the SDK's own pre-prune
+  threadId capture is stronger than any inference we could make
+  post-emission and is what the pre-P3.3 controller effectively had
+  via viewer state. Layer 1 is a new invariant made possible by the
+  P2 unified cache: the store IS the source of truth for
+  attribution once the SDK has pruned everything else. If a future
+  contributor wants to remove the plan-level SDK-thread-set scan
+  (round-1's residue), that is safe — it only ever fires for
+  still-threaded targets, which get hit by either layer 2 (thread
+  messages) or layer 1 (any thread reaction after the SDK move).
+
+### CINNY-207 P3.3 review-fix - mergeThreadCacheFlag preserve-on-undefined (2026-07-03)
+
+- Status: Complete locally on `cache-overhaul/10-p3-sync-engine`, one
+  focused commit on top of the P3.3 docs commit `d4731f63`. Team-lead
+  flagged during the P3.3 review that the merge helper downgraded
+  `false → undefined` when the next value was `undefined`, which is
+  contrary to the "engine never writes tailLoaded:false" contract and
+  the "no-downgrade" comment in `engineWriteThrough.ts` (redaction
+  persists intentionally pass `tailLoaded: undefined` and expect the
+  stored value to be preserved).
+- Scope: two files changed (+12 / -4). No production-behavior change
+  today because all consumers of `tailLoaded` / `snapshotComplete` /
+  `relationSnapshotComplete` check `=== true`, so `false` and
+  `undefined` render the same. But the invariant is now enforced at
+  the source: only an explicit next value (`true` or `false`)
+  replaces the current value.
+  - `cacheStoreNormalize.ts`: simplified body from
+    `nextValue === undefined ? (currentValue === true ? true : undefined) : nextValue === true`
+    to `nextValue === undefined ? currentValue : nextValue`. Doc comment
+    extended to name the redaction-persist contract that requires the
+    no-downgrade behavior, so the next reader doesn't re-introduce the
+    old shape "for symmetry".
+  - `cacheStoreNormalize.thread.test.ts`: expanded the two existing
+    cases to cover the full 3×3 matrix — `(true, undefined) → true`,
+    `(false, undefined) → false` (the fix), `(undefined, undefined) →
+    undefined`, plus explicit-next-value replacements in both
+    directions.
+- Validation: focused vitest on the file (21 tests), spot-run of
+  `cacheStore/` + `engine/` (142 tests), full mindroom vitest
+  (225 files / 1944 tests, all green), typecheck clean, lint 18
+  warnings (baseline, zero delta).
+
+### CINNY-207 P3.3 - Strip component persistence, render-only live controller (2026-07-03)
+
+- Status:
+  - Complete locally on `cache-overhaul/10-p3-sync-engine`. Phase 3 is
+    fully landed on this branch. Dual-write window from commits 3-4
+    is CLOSED — the component no longer touches the cache write path.
+    Behavior net: cache writes are now O(1) per live event by
+    structure (no bulk re-serialization codepath exists), all rooms
+    (including background ones) are covered by the engine's
+    client-level listeners, and the `MindroomSyncEngine.persist`
+    facade owns every render-side persist call.
+  - Docker e2e gate is the team-lead's responsibility per the
+    delivery contract. Expected results on the P3.3 tip:
+    background-room-freshness FLIPS GREEN (F1 fixed by client-level
+    listeners); streamed-edit stays green (write path shape
+    unchanged, engine owns edit compaction verbatim from the strip);
+    stop-emoji stays green (redaction lifecycle unchanged, moved
+    into the engine's write-through in commit 3).
+- Commits (in order):
+  - Merge `origin/cache-overhaul/09-p2-cachestore` into this branch
+    to pick up two P2 review-fix commits that landed after this
+    branch forked (`b39ba552` open-failure hardening + eviction
+    key-range + delete dedupe + flat-token compat; `5b0f63fa` e2e
+    seed helper wipes singleton legacy DBs). No conflicts — overlap
+    with commit 4's `cacheStoreDiscontinuity` + optional meta field
+    was zero. Focused vitest post-merge: 139/139 across
+    `cacheStore/` + `engine/`.
+  - `bfda7af6` — `refactor: strip component persistence; render-only
+    live controller (CINNY-207 P3.3)`. Twenty-three files (+1161
+    insertions, -2476 deletions).
+    - DELETE `roomCacheLifecycleController.ts`. Read-only second
+      effect (loadRoomCachedBackStateSnapshot → hasCachedBack UI
+      state + stale backward-token clearing) moved verbatim to
+      `threads/useRoomCachedBackState.ts`.
+    - DELETE `threadCachePersistenceController.ts`. Its three
+      functions become `engine/enginePersistFacade.ts` — pure
+      functions calling the same `eventRepository` entry points,
+      exposed on `engine.persist`. `alive()`/`roomIdRef`/
+      `threadIdRef` staleness guards drop (engine is a client-level
+      singleton; every persist call takes an explicit room, so a
+      stale UI cannot mis-route a write). `queueRoomThreadCachePersist`
+      keeps its microtask batching semantics but per-room now (one
+      pending set + one queued microtask per roomId, unrelated rooms
+      don't interfere).
+    - RENAME `roomLiveEventController.ts` →
+      `roomLiveRenderController.ts` (git-tracked rename). Strip
+      persistence, edit compaction, and redaction cache lifecycle
+      (all owned by engine write-through since commit 3). Keep:
+      local-echo refresh, expand-once ids, supplemental thread
+      events + timeline ticks, thread-tail flag, auto-scroll,
+      read-receipt marking, unread info, thread-summary store,
+      timeline range bumps, F6-C redaction repaint tick, and the
+      `queueRoomThreadCachePersist` call for `!liveEvent`
+      (backward-paginated in-room thread) events — engine's live
+      guard skips those by design.
+    - roomPagination explicit-persist-point (option b): in
+      `roomPaginationCommandController.ts`, after
+      `handleTimelinePagination(true)` completes, batch-persist the
+      newly-fetched slice via `engine.persist.persistRoomEventCache`.
+      One call per pagination completion, not per event. The
+      deleted sweep used to catch these; without a replacement
+      point the paginated slice would land in SDK memory but never
+      reach the cache. Prop `persistRoomEventCache` added to the
+      command controller's signature; wired at MindroomRoomTimeline
+      before the useRoomPaginationCommandController call.
+    - Rewire the eight fetch controllers (compactRootEditBackfill,
+      threadEditBackfill, threadOpenCache, threadOpenLifecycle,
+      threadOpenPostBootstrapRefresh, threadOpenSdkBootstrap,
+      threadOverviewResume, threadPaginationCommand) to obtain
+      persist fns from `useMindroomSyncEngine()` /
+      `engine.persist.forRoom(room)` at the MindroomRoomTimeline
+      wiring level. Prop shapes unchanged — the component passes
+      `engine.persist.*` instead of the deleted controller's fns.
+      For the three files that imported `PersistThreadEventCache`
+      as a type from `threadCachePersistenceController`, the import
+      re-points at `engine/enginePersistFacade`.
+    - Engine types.ts adds `persist: EnginePersistFacade` to
+      `MindroomSyncEngine`; mindroomSyncEngine.ts constructs the
+      default facade (or accepts an override for tests); engine/
+      index.ts re-exports the facade + its bound types.
+    - Test changes:
+      - DELETE the two P1.1 sweep tests in RoomTimeline.cache.test.ts
+        that asserted `saveRoomEventsToCacheMock` after
+        `waitForPersistSweepDebounce` (their subject — the mount-time
+        re-serialization sweep — is gone). Also delete the
+        `vi.mock` of `ROOM_CACHE_PERSIST_DEBOUNCE_MS` and the import
+        (unused after the deletions). `waitForPersistSweepDebounce`
+        stays but becomes a small settle wait; fetch-controller
+        persist calls still need it for post-await microtask drain.
+      - DELETE six sweep-derived room→thread persist tests
+        ("marks room-derived thread cache snapshots complete…",
+        etc.) — the sweep that grouped a room's loaded thread events
+        and called `persistThreadCacheFromRoomEvents` is gone.
+        Unit coverage for `persistThreadCacheFromRoomEventsSnapshot`
+        itself remains in `eventRepository.test.ts`.
+      - DELETE one sweep-derived thread-seed warming test
+        ("warms thread-open seed snapshots from room-preloaded
+        thread events"). Seed warming for opened threads still runs
+        via `threadOpenCacheController` +
+        `threadSeedPrewarmController`. All seven deletions replaced
+        by an explanatory comment block in-place.
+      - DELETE `roomLiveEventController.compaction.test.ts` (13
+        tests). Every behavior is covered by the plain-TS twin at
+        `engine/engineWriteThrough.compaction.test.ts` (also 13):
+        component-1 ↔ engine-1, N-coalesce ↔ N-coalesce, unmount
+        flush ↔ engine flush, non-replace immediate ↔ non-replace
+        immediate, fire-time miss ↔ fire-time miss (probe bumped),
+        late cross-sender ↔ late cross-sender pair emit, D12-latest
+        ↔ D12-latest, arm-time cross-sender direct ↔ arm-time
+        cross-sender direct, thread attribution captured at schedule
+        ↔ thread attribution captured at schedule, non-replace
+        thread events → thread entry point (engine test explicit
+        about no view-branching, semantic diff from the pre-strip
+        room-view-branching write path — same coverage), room-level
+        target upsert ↔ room-level, key isolation ↔ key isolation,
+        visibilitychange flush ↔ flush().
+      - DELETE the P1.1 sweep guard in
+        `RoomTimeline.architecture.test.ts`. Update the "delegates
+        cache persistence snapshots" and "delegates live event
+        arrival policy" arch tests to point at the engine facade
+        and `roomLiveRenderController` respectively.
+      - ADD `engine/__tests__/engine.architecture.test.ts` (3
+        tests): (a) persist entry points
+        (persistThreadEventCacheSnapshot,
+        persistRoomEventCacheSnapshot,
+        persistThreadCacheFromRoomEventsSnapshot) are consumed only
+        by `engine/**` modules — the sole allowlisted non-engine
+        file is `eventRepository.ts` (where they are defined). (b)
+        `roomLiveRenderController` does not import any persist
+        entry point and does not import `cacheStore/`. (c) engine
+        modules do not import `MindroomRoomTimeline` (import
+        statements only — the write-through's file header cites
+        the pre-strip controller by name in a comment, which is
+        fine).
+      - Test harness: shared `RoomTimeline.test.shared.ts` (and the
+        local harness in `RoomTimelineCollapsible.test.ts`) wrap
+        children in a `MindroomSyncEngineProvider` with a stub
+        engine wired to the real persist facade so
+        `useMindroomSyncEngine` resolves without a full ClientRoot
+        mount. Persist writes flow through the mocked cacheStore
+        fns. Small helper `wrapWithSyncEngine(element)` exported for
+        tests that mount `RoomTimeline` directly.
+      - FLIP `e2e/live/cinny207-background-room-freshness.spec.ts`
+        to green (remove test.fail(), update header — F1 fixed by
+        the engine's client-level listeners as of Phase 3).
+    - roomPaginationCommandController test grows one prop
+      (`persistRoomEventCache: vi.fn()`) at three test setup sites.
+- Divergences / open items:
+  - None. Both diverges from the P3.1/P3.2 entry are resolved:
+    Divergence #1 (roomPagination) — option (b) landed here.
+    Divergence #2 (commit-5 scope) — commit 5 + commit 6 landed on
+    this branch in the same session.
+- Decisions:
+  - Kept the persist facade's function shapes identical to the
+    pre-strip props so the eight fetch controllers rewire with no
+    signature churn. The room-bound `.forRoom(room)` sugar is what
+    MindroomRoomTimeline reaches for — the raw facade methods take
+    an explicit `room` first arg for callers with cross-room needs
+    (currently none; kept for the Phase 4 backfill scheduler).
+  - `queueRoomThreadCachePersist` batches per roomId, not globally,
+    so unrelated rooms cannot interfere with each other's flush
+    boundaries. Pre-strip behavior was per-component-instance, which
+    was per-room in practice because MindroomRoomTimeline is
+    per-room; the new per-roomId dictionary preserves that.
+  - `roomLiveRenderController` keeps the `!liveEvent` paginated
+    thread persist because the engine's live guard deliberately
+    skips `toStartOfTimeline=true` events. This is not dual-write:
+    the engine ONLY writes live events, this controller ONLY writes
+    !live paginated events, and roomPaginationCommandController
+    writes the room-level batch after paginate completes. The three
+    write points are disjoint.
+  - Test harness supplies a real `createEnginePersistFacade` under
+    a stub `MindroomSyncEngine`. Tests that mocked `saveXxxToCache`
+    via `vi.mock` continue to work: persist calls go through the
+    engine facade → `persist*Snapshot` (in eventRepository) →
+    `saveXxxToCache` (mocked) — same chain, one more indirection.
+- Validation:
+  - Merge commit: `npx vitest run src/app/mindroom/threads/cacheStore/
+    src/app/mindroom/engine/` → 139/139 green.
+  - Post-strip: `npm run typecheck` clean; `npx vitest run
+    src/app/mindroom/` → 225 files / 1944 tests green; full
+    `npx vitest run` → 331 files / 2505 tests green; `npm run
+    build` clean; `npm run lint` back to the 18-warning baseline
+    (verified zero delta by diffing warning lists pre/post).
+  - Deleted tests: 2 (P1.1 sweep) + 6 (sweep-derived room→thread
+    persist) + 1 (sweep-derived seed warming) + 13 (component
+    compaction) = 22 tests removed. Added 3 (engine architecture)
+    + 1 (useRoomCachedBackState is covered via existing
+    RoomTimeline.cache.test.ts on the harness path). Net delta on
+    the mindroom suite: -19 tests, same architectural coverage.
+- Docker gate findings (P3.3 tip and round-1 tip, 2026-07-03):
+  - `background-room-freshness` (AC6): PASSED on the P3.3 tip.
+    Client-level listener coverage from the engine confirmed — F1
+    fixed as designed. Docker re-run on the round-1 tip (`9a6b15b4`)
+    hit an ERR_NETWORK_CHANGED host flake, so the earlier green
+    stands.
+  - `stop-emoji-redaction`: FAILED on P3.3 tip AND FAILED AGAIN on
+    the round-1 tip after a first fix attempt (`9a6b15b4`). Round 1
+    modelled the wrong reality: it derived attribution by scanning
+    `room.getThreads()` timelineSets for the redacted event id, but
+    matrix-js-sdk's `applyEventAsRedaction` (room.js:2254) calls
+    `moveAllRelatedToMainTimeline` for non-root thread events which
+    removes the redacted target from its thread's timelineSet before
+    the emission fires. Round-1 unit tests faked threads that still
+    contained the event, so they went green under a model that does
+    not match production. Round 2 replaces this with a
+    cache-derived attribution layer that CANNOT be defeated by SDK
+    timeline movement — see the P3-gate round-2 runbook entry above
+    for the commit, tests, validation, and rationale.
+  - `streamed-edit-cache-compaction`: FAILED on the P3.3 run as a
+    host-side flake (`ERR_NETWORK_CHANGED`); PASSED on the round-1
+    re-run — confirmed environmental, not a P3 regression.
+- Next steps:
+  - Team-lead re-run of docker e2e after the P3 gate fix (round 2)
+    lands, to confirm the stop-emoji flip.
+  - Phase 4 (BackfillScheduler): the plan's P4.x steps become the
+    next branch. The engine's write-through and persist facade are
+    the drop-in surfaces the scheduler consumes.
+
+### CINNY-207 P3.1 + P3.2 - MindroomSyncEngine skeleton, write-through, gap detection (2026-07-03)
+
+- Status:
+  - Superseded by the P3.3 entry below. Commits 1-4 landed on
+    `cache-overhaul/10-p3-sync-engine`; commit 5 (P3.3 strip) and
+    commit 6 (docs) both landed subsequently. See the P3.3 runbook
+    entry for closing detail. Interim dual-write window is CLOSED.
+- Commits (in order, all green typecheck + focused vitest):
+  - `6eb4b1a1` — `feat: MindroomSyncEngine skeleton with lifecycle
+    and live-mode gating (CINNY-207 P3.1)`. New
+    `src/app/mindroom/engine/`: `types.ts`,
+    `mindroomSyncEngine.ts` (create/start/stop, idempotent,
+    liveMode flips on Prepared/Syncing/Catchup, never flips back on
+    Reconnecting, resets on stop for account-switch semantics,
+    primes from `getSyncState()` on warm start), `engineContext.tsx`
+    (provider + hook), `engineWriteThrough.ts` (skeleton at this
+    commit — only bumps `engineLiveWrites` probe),
+    `engineGapTracker.ts` (stub at this commit), `index.ts`. Engine
+    effect wired in `ClientRoot.tsx` immediately BEFORE the
+    startClient effect (React effect declaration order guarantees
+    listeners attach before startClient begins delivering events).
+    `MindroomSyncEngineProvider` wraps ready content inside
+    `MatrixClientProvider`. `cacheProbe.ts` gains `engineLiveWrites`
+    counter (AC6 evidence). `ClientRoot.test.ts` mock extended with
+    `getHomeserverUrl`/`getSafeUserId`. Tests: 9 lifecycle/gating
+    (start/stop idempotency, full listener symmetry, liveMode gate
+    pre/post-Prepared, reconnect keeps live, warm-client priming,
+    ignore rules, redaction dispatch, gap-tracker wiring, flush
+    contract). 12/12 pre-existing ClientRoot tests still green.
+  - `8dd59f10` — `refactor: move compaction scheduler and redaction
+    lifecycle into the engine (CINNY-207 P3.1)`. Pure moves + import
+    updates only. Git-tracked renames (100%/98%):
+    `threads/editCompactionScheduler.{ts,test.ts}` and
+    `threads/redactionCacheLifecycle.{ts,test.ts}` → `engine/`.
+    Consumer imports updated in `roomLiveEventController.ts`,
+    `useThreadRenderState.ts`, `roomLiveEventController.compaction.test.ts`
+    (vi.mock retargeted), `engine/redactionCacheLifecycle.ts`
+    (`eventRepository` still in `threads/`). No behavior change.
+    31 relocated + consumer tests green (7 + 11 + 13); 96/96 arch.
+  - `8a39be9c` — `feat: global Tier-1 write-through with compaction
+    and redaction lifecycle (CINNY-207 P3.1)`. Full
+    `engineWriteThrough` implementation. Owns its own scheduler +
+    `pendingCompactionReplace` map. `scheduleReplaceCompaction`
+    preserves verbatim: arm-time cross-sender direct persist,
+    D12-latest capture, fire-time target-miss standalone fallback
+    with `editCompactionTargetMisses` probe, fire-time cross-sender
+    `[target, replace]` pair emit, thread attribution captured at
+    schedule time. Redaction lifecycle absorbed:
+    `planRedactionCacheCleanup` with `fallbackThreadId: undefined`
+    (engine has no "open thread"; attribution derives from SDK
+    state); `candidateParentIds` collected from room live timeline
+    ids + every thread timelineSet's ids;
+    `removeAggregatedReactionByEventId` over
+    `[threadTimelineSet, roomUnfilteredTimelineSet]`; persist the
+    redaction event itself in every case (I2 comment — stale
+    unpruned copies converge via our cached redaction record).
+    Semantic changes per plan (Deviations pending in commit 6):
+    live thread appends persist `tailLoaded: true` always; redaction
+    persists use `tailLoaded: undefined` (no-downgrade). Timeline
+    dispatch also routes redactions through the redaction lifecycle
+    (SDK re-emits on the Timeline channel). Dual-write with the
+    component controllers expected and convergent under idempotent
+    IDB upserts. Tests: 13 plain-TS compaction (rewrite of the old
+    15-mock component suite, no react-test-renderer — every
+    behavior preserved: arm-time miss, fire-time miss, D12, cross-
+    sender direct, late-cross-sender pair, key isolation, N-coalesce,
+    flush) + 2 F1 all-rooms-coverage (two rooms neither mounted,
+    both persist). Component-side `roomLiveEventController.compaction.test.ts`
+    still passes (13/13) — proves the dual-write is a no-op change
+    to the component contract. 207/207 across ClientRoot + cache +
+    arch + render-state + compaction.
+  - `65fce38b` — `feat: limited-sync gap detection with gap-fill
+    queue stub (CINNY-207 P3.2)`.
+    `cacheStoreSchema.CachedMetaRecord` gains optional additive
+    `tailDiscontinuity: { markedAt, prevBatch? }` (no schema bump;
+    older readers ignore unknown fields).
+    `cacheStoreDiscontinuity.ts` (new) —
+    `markRoomTailDiscontinuity` / `clearRoomTailDiscontinuity` /
+    `loadRoomTailDiscontinuity` writing the marker on the
+    room-timeline meta row (scope=''), safe to call before any
+    events are cached. `engineGapTracker.ts` replaces the Commit-1
+    stub: `RoomEvent.TimelineReset` on the room's UNFILTERED
+    timelineSet marks + enqueues a `limited-sync` job with the
+    current backward pagination token; resets on other timelinesets
+    (thread rebuild) are ignored; `ClientEvent.Sync → PREPARED`
+    enqueues `startup` jobs per joined room (skips leave/invite/
+    others). `GapFillScheduler` interface + in-memory
+    implementation with roomId dedup + priority (`limited-sync`
+    supersedes `startup`; later `startup` cannot downgrade an
+    in-flight `limited-sync`). `gapFillsEnqueued` probe (AC13
+    evidence). `engine/engineGapTracker.ts` added to the
+    `cacheStore.architecture` allowlist (marker APIs are
+    cacheStore-native with no rendering counterpart, so routing
+    through `eventRepository` would be a gratuitous pass-through).
+    AC13 red spec `e2e/live/cinny207-gap-fill-restart.spec.ts` with
+    `test.fail()` (flips green in Phase 4 when the executor drains
+    the queue). Tests: 9 gap tracker + 8 discontinuity storage
+    (both suites all green). 80/80 P2 arch + contract + eviction +
+    ledger still pass.
+- Divergences / open items:
+  - Divergence #1 (roomPagination): `roomPaginationCommandController.ts`
+    exists but does NOT reference persist fns today (plan spec
+    counted nine, reality is eight). Team-lead was asked to pick
+    option (a) — accept 8 and Deviation — or option (b) — add an
+    engine persist call so paginated room events survive the P3.3
+    sweep deletion. Answer still pending; default is (b) at
+    commit 5.
+  - Divergence #2 (Commit 5 scope): commit 5 is a ~500-line delta
+    to production write semantics. Team-lead was asked to pick
+    (A) land 5 + 6 in this same PR tonight, or (B) ship commits
+    1-4 as PR now, defer 5 + 6 to a follow-up on top. Answer
+    pending; default is (A). If deferring, the next session's
+    resume point is task #26 (P3.3 Commit 5) on this branch —
+    dual-write is safe to leave in place indefinitely because
+    the component and engine persist paths agree on record shape
+    under idempotent IDB upserts.
+- Decisions:
+  - Engine effect declaration order matters (verified in
+    ClientRoot.tsx as placed between the loadClient effect (296)
+    and the startClient effect (347) — React commits effects
+    top-down). Do not reorder without re-verifying.
+  - `sessionId = createSessionId(mx.getHomeserverUrl(),
+    mx.getSafeUserId())` matches the id used everywhere else
+    (`MindroomRoomTimeline.tsx:297`, six other sites) — engine
+    writes and everyone else's reads agree on DB name.
+  - Live-mode gate deliberately does NOT flip false on
+    Reconnecting/Error — mid-session reconnect events are exactly
+    the ones we most want to persist. Only `stop()` (teardown /
+    logout / account switch) resets the flag.
+  - `tailLoaded: true` for live thread appends is the plan's
+    semantic change (product-owner-accepted). Safe because
+    `mergeThreadCacheFlag` never downgrades true→false.
+    Redaction persists use `tailLoaded: undefined` (no-downgrade).
+  - `RoomEvent.TimelineReset` on non-unfiltered timelineSets is
+    NOT a gap event (threads rebuild for other reasons).
+  - Gap-fill queue uses roomId dedup with `limited-sync > startup`
+    priority. Phase 4 executor consumes `pendingJobs()` and calls
+    `clearRoomTailDiscontinuity` after a successful fill.
+- Validation cadence:
+  - Per commit: `npm run typecheck` clean + focused vitest green.
+  - After commit 3: 207/207 across ClientRoot + cacheStore arch +
+    cache + render-state + compaction (proved dual-write does not
+    regress any existing test).
+  - After commit 4: 92/92 across cacheStore arch + ClientRoot +
+    all P2 storage suites (proved allowlist update + schema
+    additive field are backwards-compatible).
+- Next steps:
+  - Commit 5 (P3.3 strip) as described above.
+  - Commit 6 (docs: full plan status log entry, header status
+    update, scorecard AC5/AC6 rows, Deviations for tailLoaded
+    semantics + P3.2 exit scope + liveMode initial-sync skip
+    bridged by startup jobs + encrypted-rooms parity, §6.4
+    guard-list update).
+  - Team-lead docker e2e gate on the P3 tip (streamed-edit +
+    stop-emoji + background-freshness — the last should flip
+    green with the engine active even before commit 5).
+
 ### CINNY-207 P2.3 - Direct cacheStore imports + boundary guards (2026-07-04)
 
 - Status:

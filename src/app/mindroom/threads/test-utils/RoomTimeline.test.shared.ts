@@ -20,6 +20,11 @@ import {
   getThreadOpenSeedSnapshot,
   saveThreadOpenSeedSnapshot,
 } from '../threadOpenSeedCache';
+import {
+  createEnginePersistFacade,
+  MindroomSyncEngineProvider,
+  type MindroomSyncEngine,
+} from '../../engine';
 import type { useThreadAwareTimelineRefresh } from '../useThreadAwareTimelineRefresh';
 
 const {
@@ -1577,6 +1582,30 @@ const threadFilterStateFromLegacy = (
   }
 };
 
+// CINNY-207 P3.3: shared stub sync engine wired to the real persist
+// facade. `useMindroomSyncEngine` inside RoomTimeline consumers
+// resolves to this object, so persist calls flow through the real
+// `persist*Snapshot` seams and hit the already-mocked
+// `save…ToCache` fns. Only `persist` is exercised by these tests
+// (the real client-level engine and its listeners live under
+// ClientRoot, out of scope here).
+const HARNESS_TEST_SESSION_ID = 'test-session';
+const harnessSyncEngine: MindroomSyncEngine = {
+  mx: matrixClientMock as unknown as MindroomSyncEngine['mx'],
+  sessionId: HARNESS_TEST_SESSION_ID,
+  start: () => undefined,
+  stop: () => undefined,
+  isLiveMode: () => true,
+  persist: createEnginePersistFacade({ sessionId: HARNESS_TEST_SESSION_ID }),
+};
+
+// Pass children as a prop rather than positionally: this file is .ts, not
+// .tsx, so avoiding JSX keeps its import shape unchanged.
+const wrapWithSyncEngine = (element: React.ReactElement): React.ReactElement => {
+  const props = { engine: harnessSyncEngine, children: element };
+  return React.createElement(MindroomSyncEngineProvider, props);
+};
+
 const createControlledRoomTimelineHarness = (
   RoomTimelineComponent: (props: Record<string, unknown>) => React.ReactElement | null
 ) => {
@@ -1659,27 +1688,36 @@ const createControlledRoomTimelineHarness = (
       );
     }, []);
 
-    return React.createElement(RoomTimelineComponent, {
-      room,
-      eventId,
-      focusEventInRoom,
-      threadId,
-      summaryMap,
-      onStoreThreadSummary,
-      threadFilterState,
-      threadSortFreezeState,
-      onToggle,
-      onSortDirectionChange,
-      onToggleThreadSortFreeze,
-      setThreadSortFreezeState,
-      onCycleTag: vi.fn(),
-      onAddTag: vi.fn(),
-      onRemoveTag: vi.fn(),
-      onReset,
-      viewMode,
-      onViewModeChange: setViewMode,
-      roomInputRef,
-      editor,
+    // CINNY-207 P3.3: the room timeline consumes the persist facade
+    // off `useMindroomSyncEngine`. Wrap the harness with a stub engine
+    // provider so tests exercise the real persist snapshot seams
+    // (which delegate to the already-mocked `save…ToCache` fns) without
+    // requiring a full ClientRoot mount.
+    // eslint-disable-next-line react/no-children-prop
+    return React.createElement(MindroomSyncEngineProvider, {
+      engine: harnessSyncEngine,
+      children: React.createElement(RoomTimelineComponent, {
+        room,
+        eventId,
+        focusEventInRoom,
+        threadId,
+        summaryMap,
+        onStoreThreadSummary,
+        threadFilterState,
+        threadSortFreezeState,
+        onToggle,
+        onSortDirectionChange,
+        onToggleThreadSortFreeze,
+        setThreadSortFreezeState,
+        onCycleTag: vi.fn(),
+        onAddTag: vi.fn(),
+        onRemoveTag: vi.fn(),
+        onReset,
+        viewMode,
+        onViewModeChange: setViewMode,
+        roomInputRef,
+        editor,
+      }),
     });
   };
 };
@@ -1742,5 +1780,6 @@ export {
   roomTimelineVirtualizerState,
   virtualPaginatorState,
   waitForCondition,
+  wrapWithSyncEngine,
   isTimelineAtLiveEndMock,
 };

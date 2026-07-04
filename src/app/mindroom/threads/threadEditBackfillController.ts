@@ -12,7 +12,7 @@ import { logMindroomEditDebug as logEditDebug } from '../messages/editDebug';
 import { getLinkedTimelines } from './timelinePagination';
 import { isScrollNearBottom } from './timelineScrollUtils';
 import { markThreadEditBackfillAttempted, shouldFetchThreadEditBackfill } from './threadEditBackfill';
-import type { PersistThreadEventCache } from './threadCachePersistenceController';
+import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 
 type ScrollToBottomState = {
   count: number;

@@ -48,6 +48,11 @@ import {
   isInitialClientCatchupInProgress,
   type ClientSyncStateData,
 } from '../../hooks/useInitialClientCatchup';
+import {
+  createMindroomSyncEngine,
+  MindroomSyncEngineProvider,
+  type MindroomSyncEngine,
+} from '../../mindroom/engine';
 
 type ClientMatrixClient = Awaited<ReturnType<typeof initClient>> & {
   on: (
@@ -266,6 +271,30 @@ export function ClientRoot({ children }: ClientRootProps) {
 
   useLogoutListener(mx, activeSession);
 
+  // CINNY-207 P3.1: MindroomSyncEngine is the client-level owner of
+  // Tier-1 cache writes (D2). It is created alongside the Matrix client
+  // and torn down on logout / client swap, independent of which room is
+  // mounted. Attaching listeners here — BEFORE the startClient effect
+  // below — is deliberate: React runs effects in declaration order at
+  // commit, so this effect binds mx.on(RoomEvent.*) before startClient
+  // begins delivering sync events. Missing an event because the engine
+  // wasn't listening yet is the exact regression class this ordering
+  // guards against.
+  const [syncEngine, setSyncEngine] = useState<MindroomSyncEngine | undefined>(undefined);
+  useEffect(() => {
+    if (!mx) {
+      setSyncEngine(undefined);
+      return undefined;
+    }
+    const engine = createMindroomSyncEngine({ mx });
+    engine.start();
+    setSyncEngine(engine);
+    return () => {
+      engine.stop();
+      setSyncEngine((current) => (current === engine ? undefined : current));
+    };
+  }, [mx]);
+
   const [hasCachedShell, setHasCachedShell] = useState(false);
   const [syncStateData, setSyncStateData] = useState<ClientSyncStateData>({
     current: null,
@@ -402,19 +431,23 @@ export function ClientRoot({ children }: ClientRootProps) {
   const readyContent = mx ? (
     <ClientStartupProvider hasCompletedInitialSync={hasCompletedInitialCatchup}>
       <MatrixClientProvider value={mx as never}>
-        <ServerConfigsLoader mx={mx}>
-          {(serverConfigs) => (
-            <CapabilitiesProvider value={serverConfigs.capabilities ?? {}}>
-              <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>
-                <AuthMetadataProvider value={serverConfigs.authMetadata}>
-                  <AutoDiscovery userId={activeSession.userId} baseUrl={activeSession.baseUrl}>
-                    {children}
-                  </AutoDiscovery>
-                </AuthMetadataProvider>
-              </MediaConfigProvider>
-            </CapabilitiesProvider>
-          )}
-        </ServerConfigsLoader>
+        {syncEngine ? (
+          <MindroomSyncEngineProvider engine={syncEngine}>
+            <ServerConfigsLoader mx={mx}>
+              {(serverConfigs) => (
+                <CapabilitiesProvider value={serverConfigs.capabilities ?? {}}>
+                  <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>
+                    <AuthMetadataProvider value={serverConfigs.authMetadata}>
+                      <AutoDiscovery userId={activeSession.userId} baseUrl={activeSession.baseUrl}>
+                        {children}
+                      </AutoDiscovery>
+                    </AuthMetadataProvider>
+                  </MediaConfigProvider>
+                </CapabilitiesProvider>
+              )}
+            </ServerConfigsLoader>
+          </MindroomSyncEngineProvider>
+        ) : null}
       </MatrixClientProvider>
     </ClientStartupProvider>
   ) : null;

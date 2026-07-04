@@ -1,12 +1,16 @@
 # MindRoom Cache Overhaul Plan (CINNY-207)
 
-Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 fully landed locally (P2.1 unified CacheStore + D8 wipe, P2.2 ledger + `beforeTokens` pruning + 1 GB eviction budget, P2.3 direct-import flip + architecture guards + health-gate move into the store).**
+Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 fully landed locally (P2.1 unified CacheStore + D8 wipe, P2.2 ledger + `beforeTokens` pruning + 1 GB eviction budget, P2.3 direct-import flip + architecture guards + health-gate move into the store); Phase 3 fully landed locally (P3.1 engine skeleton + Tier-1 write-through, P3.2 gap detection + queue stub, P3.3 strip the component's persistence responsibilities). Phase 4 (BackfillScheduler) is next.**
 Phase-1 e2e gate (2026-07-03, stack tip 55439be8): streamed-edit spec green
 live (AC4, probe numbers in scorecard), stop-emoji green (AC3; three failed
-attempts were host `ERR_NETWORK_CHANGED` flake — tracked in the Runbook),
-background-freshness expected-red until Phase 3 (AC6). P0.3 large-room probe
-baseline still pending; AC5 formal measurement happens with the Phase 3
-engine work.
+attempts were host `ERR_NETWORK_CHANGED` flake — tracked in the Runbook).
+Phase-3 e2e gate is the team-lead's responsibility on the P3.3 tip:
+background-freshness is expected to FLIP GREEN (AC6) — the engine's
+client-level listeners cover all rooms — while streamed-edit and stop-emoji
+stay green (the strip moved compaction + redaction lifecycle into the
+engine verbatim). P0.3 large-room probe baseline still pending; AC5 formal
+measurement lands with the same gate (the sweep is structurally gone, so
+writes-per-live-event are O(1) by construction).
 Created: 2026-07-03. Living document — see "How to use this document".
 
 This is the canonical plan for making MindRoom feel like a native app: every room
@@ -451,8 +455,8 @@ Filled as steps complete. "Before" numbers from P0.3.
 | AC2  | ☐      |                                   |                |                         |      |
 | AC3  | ✓      | e2e `cinny207-stop-emoji-redaction` green on stack tip (55439be8); 3 prior failed runs were env flake (`ERR_NETWORK_CHANGED` storms, failure point wandering login/reload) | reaction resurrected on reopen/reload → gone in all three states | workflow rounds 1-2 + docker e2e run | 2026-07-03 |
 | AC4  | ✓      | e2e `cinny207-streamed-edit-cache` green LIVE on stack tip: probe `editCompactions=1`, `threadEventPuts=3`, 1 target record with bundled final body pre+post reload; unit `npx vitest run src/app/mindroom/threads/eventCacheEditUtils.test.ts src/app/mindroom/threads/editCompactionScheduler.test.ts src/app/mindroom/threads/roomLiveEventController.compaction.test.ts src/app/mindroom/threads/eventRepository.test.ts` | 26 thread-cache records for a 25-edit streamed message (P0.3 spec run) → exactly 1 target record with bundled edit | workflow round 2 (spec traced sound) + docker e2e run | 2026-07-03 |
-| AC5  | ☐      |                                   |                |                         |      |
-| AC6  | ☐      | e2e `cinny207-background-room-freshness` (red until Phase 3) | 0 cached events for a background room (P0.3 spec run) |                         |      |
+| AC5  | ☐ impl | Sweep deleted in P3.3 (`refactor: strip component persistence`); writes-per-live-event are structurally O(1) — the engine's per-event write-through is the only cache-write codepath from live events (no bulk re-serialization exists). Formal probe numbers land with the Phase 3 e2e docker gate on the P3.3 tip. | 26 thread-cache records for a 25-edit streamed message → 1 target record; the "loaded timeline size feeds cache writes" coupling (F2) is gone by construction |                         |      |
+| AC6  | ☐ impl | e2e `cinny207-background-room-freshness` was `test.fail()` through Phase 2; P3.3 (`refactor: strip component persistence`) flips it green: `MindroomSyncEngine` attaches `RoomEvent.Timeline`/`RoomEvent.Redaction` at client scope so live events reach the cache regardless of which room is mounted. Docker gate pending (team-lead). | 0 cached events for a background room (P0.3 spec run) → cached copy present on next open |                         |      |
 | AC7  | ☐ impl | `npx vitest run src/app/mindroom/threads/cacheStore/__tests__/cacheEviction.test.ts` (4/4 — three rooms seeded via the real save paths (federated / LRU-old / protected-recent); budget shrunk via `__setCacheStoreByteBudgetForTests` so eviction must fire; asserts federated evicted first, protected room never touched, cleanup complete (events / meta / summaries / ledger row), under-budget stop honoured at `budget * EVICTION_TARGET_UTILIZATION = 0.9`, recent-open guard alone protects a room without registry entry, back-to-back schedules collapse to one runner invocation via a `readLedgerSnapshot` spy). Docker e2e budget-override run pending. | over-budget state persists without the job (red-first probe inside the AC7 test); after the job runs, `bytesAfter` drops below the target and evicted rooms' events / meta / summaries / ledger rows are all gone |                         |      |
 | AC8  | ☐      |                                   |                |                         |      |
 | AC9  | ☐      |                                   |                |                         |      |
@@ -468,10 +472,17 @@ Added as their phases land, in
 `src/app/mindroom/threads/__tests__/RoomTimeline.architecture.test.ts` (or a
 new engine-scoped guard file):
 
-- The room-cache persist sweep stays debounced and delta-only — armed via
-  `ROOM_CACHE_PERSIST_DEBOUNCE_MS`, already-persisted event ids skipped
-  (Phase 1 — **added**; reworded from "no full-timeline sweep" because the
-  landed P1.1 design keeps a debounced delta sweep rather than removing it).
+- The Phase 1 P1.1 "sweep debounced and delta-only" guard is
+  **removed in P3.3**. The sweep it guarded is deleted; O(1)-per-
+  live-event writes are now enforced structurally by the engine's
+  per-event write-through (no bulk re-serialization codepath
+  exists). Successor guards live in
+  `src/app/mindroom/engine/__tests__/engine.architecture.test.ts`:
+  (a) persist entry points are consumed only by `engine/**` modules
+  (allowlist: engine + `eventRepository.ts` itself), (b) the
+  render-only `roomLiveRenderController` imports no persist entry
+  point and no `cacheStore/`, (c) engine modules do not import
+  `MindroomRoomTimeline`.
 - The cache write boundary rejects standalone same-sender `m.replace`
   records (Phase 1 — **added**).
 - No imports of legacy cache modules outside CacheStore (Phase 2 — **added**
@@ -515,6 +526,54 @@ new engine-scoped guard file):
   nondeterministic part. Revisit if federation becomes a product target.
 
 ## 8. Deviations
+
+- 2026-07-03 — **P3.1/P3.3 live thread appends persist
+  `tailLoaded: true` always.** The pre-strip component controller
+  passed `atLiveEndRef.current` — an atomic snapshot of whether the
+  UI's scroll was at the tail — as the tailLoaded arg into
+  persistThreadEventCache. The engine's write-through has no UI
+  notion of "at the tail" because it isn't the UI, so it passes
+  `true` unconditionally for live thread appends. This is safe
+  because `mergeThreadCacheFlag` never downgrades `true → false`,
+  and a live event by definition is at the tail (the SDK delivered
+  it as the newest event in the thread's timeline). Product-owner-
+  accepted per team-lead direction.
+
+- 2026-07-03 — **P3.2 gap-fill executor is deferred to Phase 4.**
+  P3.2 landed the queue with tracking, priority, and dedup, but the
+  worker that drains `pendingJobs()`, issues the fill fetches, and
+  calls `clearRoomTailDiscontinuity` after success is Phase 4 work
+  (P4.1 BackfillScheduler). Consequence today: gap markers land on
+  Prepared + on TimelineReset, but nothing consumes them. Cached
+  paint still returns cached events; there's simply no
+  gap-repair-in-flight after a limited sync until Phase 4 ships.
+  AC13's e2e spec stays `test.fail()` per plan.
+
+- 2026-07-03 — **P3.1 engine `liveMode` gate skips the initial
+  sync's `RoomEvent.Timeline` fires.** The engine flips `liveMode`
+  true only when `ClientEvent.Sync` reaches Prepared/Syncing/Catchup.
+  Live events delivered synchronously as sync data is being applied
+  arrive on `RoomEvent.Timeline` BEFORE the sync-state event does,
+  so the guard drops them. This is intentional: without the guard,
+  the initial catchup would flood every joined room with per-event
+  writes at startup. The gap is bridged by the startup `GapFillJob`s
+  the gap-tracker enqueues on Prepared (P3.2) — Phase 4's scheduler
+  drains them and back-fills the rooms via `/messages` batches.
+  Until Phase 4 lands, background rooms are covered from the first
+  post-startup live event forward, not from the startup snapshot;
+  cached paint still shows the pre-startup slice, so no user-visible
+  regression relative to the pre-P3 baseline.
+
+- 2026-07-03 — **P3.3 encrypted-rooms parity.** The engine writes
+  live events for encrypted rooms the same way it does for
+  unencrypted rooms — `RoomEvent.Timeline` and
+  `RoomEvent.Redaction` fire post-decryption at client scope for
+  both. `MegolmDecryption` re-emits `Event.Decrypted`, which the
+  SDK translates back into a `Timeline` fire for the decrypted
+  event; the engine's write-through sees the decrypted payload and
+  the same edit-compaction / redaction-lifecycle paths apply. No
+  encrypted-specific branch. Docker gate exercises this via
+  encrypted room fixtures in the existing e2e suite.
 
 - 2026-07-04 — **P2.2 eviction ships with federated-flag population,
   protected-room registry, and `lastOpenedTs` stamping deferred to
@@ -570,6 +629,54 @@ new engine-scoped guard file):
   workflow review round 1; recorded here for product-owner review.
 
 ## 9. Status log
+
+- 2026-07-03 — **Phase 3 fully landed locally** on
+  `cache-overhaul/10-p3-sync-engine` after P3.3. Six commits
+  on top of the P2.3 tip:
+
+  1-4. `MindroomSyncEngine` skeleton (P3.1 commit 1), move
+       compaction scheduler + redaction lifecycle into `engine/`
+       (P3.1 commit 2), global Tier-1 write-through with the two
+       verbatim (P3.1 commit 3), limited-sync gap detection +
+       gap-fill queue stub (P3.2 commit 4). All landed on this
+       branch pre-strip; see the P3.1/P3.2 runbook entry for
+       detail. Behavior net after commit 4 was dual-write:
+       engine writes were live in parallel with the component
+       write path, convergent under idempotent IDB upserts. F1
+       (background-room cache freshness) was fixed by the
+       client-level listeners even before the strip.
+  5. `refactor: strip component persistence; render-only live
+     controller (CINNY-207 P3.3)` — DELETE
+     `roomCacheLifecycleController` and
+     `threadCachePersistenceController`, RENAME
+     `roomLiveEventController` → `roomLiveRenderController`
+     with persistence stripped, rewire the eight fetch
+     controllers onto `useMindroomSyncEngine`/
+     `engine.persist.forRoom`. Explicit-persist-point (option b)
+     in `roomPaginationCommandController` batch-persists the
+     backfilled slice after `handleTimelinePagination(true)` so
+     paginated history still reaches cache. Test churn: -22
+     tests (2 P1.1 sweep, 6 sweep-derived room→thread persist,
+     1 sweep-derived thread-seed warming, 13 component
+     compaction — every behavior twinned in the engine plain-TS
+     suite); +3 engine architecture guards. Test harness gains
+     a `MindroomSyncEngineProvider` wrap so
+     `useMindroomSyncEngine` resolves without a full ClientRoot
+     mount. `cinny207-background-room-freshness.spec.ts`
+     flipped to green.
+  6. `docs: Phase 3 complete — runbook, scorecard, deviations
+     (CINNY-207)` — this entry, the P3.3 runbook entry,
+     scorecard AC5/AC6 updates, four Deviations for tailLoaded
+     semantics + P3.2 exit scope + liveMode initial-sync skip
+     + encrypted-rooms parity, §6.4 guard-list update.
+
+  Validation: `npm run typecheck` clean; full `npx vitest run`
+  → 331 files / 2505 tests green; `npm run build` clean;
+  `npm run lint` back to the 18-warning baseline (zero delta).
+  Deferred from this phase: docker e2e gate on the P3.3 tip
+  (team-lead) — expected to flip
+  `cinny207-background-room-freshness` green (AC6) and stay
+  green on streamed-edit + stop-emoji.
 
 - 2026-07-04 — **Phase 2 fully landed locally** on
   `cache-overhaul/09-p2-cachestore` after P2.3. Two commits on top of

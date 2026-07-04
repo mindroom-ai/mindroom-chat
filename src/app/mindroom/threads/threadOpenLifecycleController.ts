@@ -14,7 +14,7 @@ import {
   runThreadOpenTargetEvent,
   type PendingThreadOpen,
 } from './threadOpenTargetEvent';
-import type { PersistThreadEventCache } from './threadCachePersistenceController';
+import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 import type { Timeline } from './timelinePagination';
 import type { ThreadOpenCacheController } from './threadOpenCacheController';
 import type { ThreadSeedPrewarmController } from './threadSeedPrewarmController';

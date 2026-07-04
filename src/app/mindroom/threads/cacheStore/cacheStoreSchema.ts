@@ -109,6 +109,19 @@ export type CachedMetaRecord = {
   // The D8 wipe marker record carries this field; regular records leave
   // it undefined.
   legacyWipeCompletedAt?: number;
+  // CINNY-207 P3.2: marks a room whose latest sync came back
+  // `limited: true`, meaning events between our last sync token and
+  // the server's current state may have been dropped. The engine
+  // records this on the room-timeline meta row (scope=='') alongside
+  // the SDK's live-timeline pagination token at the moment of the
+  // reset; the Phase 4 backfill scheduler consumes it via the
+  // gap-fill executor. Optional additive field — no schema bump
+  // needed because IndexedDB records are JSON blobs and older
+  // readers ignore unknown fields.
+  tailDiscontinuity?: {
+    markedAt: number;
+    prevBatch?: string | null;
+  };
 };
 
 // CINNY-207 P2.2: per-room byte + activity ledger used by the eviction

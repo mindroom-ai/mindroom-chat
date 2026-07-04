@@ -112,15 +112,19 @@ describe('CacheStore boundary architecture (CINNY-207 P2.3)', () => {
     // The eventRepository seam is the primary sanctioned consumer;
     // sessionCleanup (session logout) and threadSummaryState /
     // threadSummaryStore (summary state facade) are the other allowed
-    // consumers. Any other cacheStore import inside src/app/mindroom/**
-    // is a boundary violation — route it through eventRepository.
-    // The cacheStore module itself is excluded from the scan.
+    // consumers. CINNY-207 P3.2: the engine's gap tracker imports
+    // markRoomTailDiscontinuity directly (a cacheStore-native API
+    // with no rendering counterpart, so eventRepository would be a
+    // gratuitous pass-through). Any other cacheStore import inside
+    // src/app/mindroom/** is a boundary violation — route it through
+    // eventRepository. The cacheStore module itself is excluded.
     const ALLOWED_CONSUMERS = new Set(
       [
         path.resolve(THREADS_DIR, 'eventRepository.ts'),
         path.resolve(THREADS_DIR, 'threadSummaryStore.ts'),
         path.resolve(THREADS_DIR, 'threadSummaryState.ts'),
         path.resolve(MINDROOM_ROOT, 'cache', 'sessionCleanup.ts'),
+        path.resolve(MINDROOM_ROOT, 'engine', 'engineGapTracker.ts'),
       ].map((absPath) => absPath)
     );
 

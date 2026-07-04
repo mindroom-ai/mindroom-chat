@@ -195,14 +195,14 @@ import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
 import { useThreadOpenCacheController } from './threadOpenCacheController';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
 import { useThreadOverviewResumeController } from './threadOverviewResumeController';
-import { useThreadCachePersistenceController } from './threadCachePersistenceController';
+import { useMindroomSyncEngine } from '../engine';
 import { useCompactRootEditBackfillController } from './compactRootEditBackfillController';
 import { useThreadPaginationCommandController } from './threadPaginationCommandController';
 import { useThreadEditBackfillController } from './threadEditBackfillController';
 import { useRoomPaginationCommandController } from './roomPaginationCommandController';
-import { useRoomCacheLifecycleController } from './roomCacheLifecycleController';
+import { useRoomCachedBackState } from './useRoomCachedBackState';
 import { useRoomCacheHydrationController } from './roomCacheHydrationController';
-import { useRoomLiveEventController } from './roomLiveEventController';
+import { useRoomLiveRenderController } from './roomLiveRenderController';
 import { useThreadOpenLifecycleController } from './threadOpenLifecycleController';
 import { useRoomTimelineWindowController } from './roomTimelineWindowController';
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
@@ -826,10 +826,26 @@ export function RoomTimeline({
     recalibrateFilterOptsRef
   );
 
+  // CINNY-207 P3.3: persistence moved into the MindroomSyncEngine
+  // write-through (client-level, all rooms). The component reads the
+  // room-bound persist facade off the engine and hands the fns down
+  // to the fetch controllers (same shapes as the pre-strip props).
+  const syncEngine = useMindroomSyncEngine();
+  const enginePersistForRoom = useMemo(
+    () => syncEngine.persist.forRoom(room),
+    [syncEngine, room]
+  );
+  const {
+    persistRoomEventCache,
+    persistThreadEventCache,
+    queueRoomThreadCachePersist,
+  } = enginePersistForRoom;
+
   const handleRoomTimelinePagination = useRoomPaginationCommandController({
     alive,
     handleTimelinePagination,
     mx,
+    persistRoomEventCache,
     recalibrateFilterOptsRef,
     room,
     roomIdRef,
@@ -862,24 +878,11 @@ export function RoomTimeline({
     useSurfacePreloadTarget,
   });
 
-  const { persistThreadCacheFromRoomEvents, persistThreadEventCache, queueRoomThreadCachePersist } =
-    useThreadCachePersistenceController({
-      alive,
-      room,
-      roomDebugTraceId,
-      roomIdRef,
-      sessionId,
-      threadDebugTraceId,
-      threadIdRef,
-    });
-
-  const { persistRoomEventCache } = useRoomCacheLifecycleController({
+  useRoomCachedBackState({
     alive,
     eventId,
     eventsLength,
-    persistThreadCacheFromRoomEvents,
     room,
-    roomDebugTraceId,
     roomIdRef,
     sessionId,
     setRoomHasMoreCachedBack,
@@ -1512,7 +1515,7 @@ export function RoomTimeline({
     threadSummaryInfoMap,
   });
 
-  useRoomLiveEventController({
+  useRoomLiveRenderController({
     atBottomRef,
     atLiveEndRef,
     effectiveThreadFilterState,
@@ -1524,16 +1527,12 @@ export function RoomTimeline({
     mx,
     normalThreadRecordMap,
     onStoreThreadSummary,
-    persistRoomEventCache,
-    persistThreadCacheFromRoomEvents,
-    persistThreadEventCache,
     queueRoomThreadCachePersist,
     room,
     roomDebugTraceId,
     roomThreadFilterActive,
     scrollRef,
     scrollToBottomRef,
-    sessionId,
     setSupplementalThreadEvents,
     setThreadTailLoaded,
     setThreadTimelineTick,

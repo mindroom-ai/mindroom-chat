@@ -1,5 +1,5 @@
 import { EventTimelineSet, MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
-import { getThreadCacheTargetId } from './eventRepository';
+import { getThreadCacheTargetId } from '../threads/eventRepository';
 
 /**
  * CINNY-207 P1.2: redaction lifecycle for the MindRoom event caches.
@@ -37,11 +37,30 @@ export type RedactionCacheCleanupPlan = {
 export const planRedactionCacheCleanup = ({
   room,
   redactionEvent,
+  sdkThreadIdHint,
   fallbackThreadId,
 }: {
   room: Room;
   redactionEvent: MatrixEvent;
-  /** Thread the viewer has open, used when the pruned target lost its relation. */
+  /**
+   * CINNY-207 P3 gate re-fix (layer 2): the third arg of the
+   * `RoomEvent.Redaction` emission (matrix-js-sdk 41.7.0). matrix-js-sdk
+   * captures the target's `threadRootId` BEFORE calling `makeRedacted`
+   * (see `applyEventAsRedaction` in room.js). That means this hint is
+   * available even for reactions whose relation has since been stripped —
+   * so it is authoritative attribution, not a viewer-side guess. Highest
+   * priority in the hint chain.
+   */
+  sdkThreadIdHint?: string;
+  /**
+   * Viewer-side guess: the thread the UI has open. Used as a last resort
+   * when neither the SDK emission nor any event-side hint gave us
+   * anything. Callers should also persist the redaction to the room
+   * cache when this signal is what attributed the tombstone (see
+   * `threadTargetFromFallback`). The engine has no notion of an open
+   * thread and never sets this — it is kept for parity with the shape
+   * the pre-strip component controller passed.
+   */
   fallbackThreadId?: string;
 }): RedactionCacheCleanupPlan | undefined => {
   if (!redactionEvent.isRedaction()) return undefined;
@@ -59,22 +78,59 @@ export const planRedactionCacheCleanup = ({
 
   // By the time RoomEvent.Redaction fires the target is already pruned, so
   // its `m.relates_to` (and often its thread association) is gone. Fall back
-  // through every thread hint we have; a caller-side by-event-id scan covers
-  // the case where all of them are missing.
+  // through every attribution signal we have; the engine has a further
+  // cache-derived layer (layer 1) that covers the case where all of these
+  // return undefined.
   const hintedThreadTargetId =
+    sdkThreadIdHint ??
     getThreadCacheTargetId(room, targetEvent) ??
     targetEvent.threadRootId ??
     redactionEvent.threadRootId;
-  const threadCacheTargetId = hintedThreadTargetId ?? fallbackThreadId;
+  // Kept for cases where the redacted event IS still threaded at fire time
+  // (e.g. thread messages, whose SDK move-to-main-timeline runs only for
+  // reactions). Harmless leftover — for reactions the SDK has already
+  // called `moveAllRelatedToMainTimeline`, so the scan finds nothing and
+  // the engine falls through to layer 1 (cache-derived scopes).
+  const sdkDerivedThreadTargetId = hintedThreadTargetId
+    ? undefined
+    : findSingleSdkThreadContaining(room, redactedEventId);
+  const threadCacheTargetId =
+    hintedThreadTargetId ?? sdkDerivedThreadTargetId ?? fallbackThreadId;
   const isReaction = targetEvent.getType() === 'm.reaction';
 
   return {
     redactedEventId,
     targetEvent,
     threadCacheTargetId,
-    threadTargetFromFallback: !hintedThreadTargetId && !!fallbackThreadId,
+    threadTargetFromFallback:
+      !hintedThreadTargetId && !sdkDerivedThreadTargetId && !!fallbackThreadId,
     deleteRecords: isReaction,
   };
+};
+
+/**
+ * Return the thread id whose unfiltered timelineSet contains the given
+ * event id, only when exactly one thread contains it. Multiple hits
+ * (ambiguous) or zero hits both return undefined so the caller falls
+ * through to its existing by-event-id scan + room-scope persist path
+ * instead of guessing an attribution.
+ *
+ * Uses `EventTimelineSet.findEventById` (SDK's own event index) rather
+ * than iterating live-timeline slices, so it stays O(threads).
+ */
+const findSingleSdkThreadContaining = (
+  room: Room,
+  redactedEventId: string
+): string | undefined => {
+  const threads = room.getThreads?.() ?? [];
+  let match: string | undefined;
+  for (const thread of threads) {
+    const found = thread.getUnfilteredTimelineSet().findEventById(redactedEventId);
+    if (!found) continue;
+    if (match) return undefined;
+    match = thread.id;
+  }
+  return match;
 };
 
 type RelationsLike = {

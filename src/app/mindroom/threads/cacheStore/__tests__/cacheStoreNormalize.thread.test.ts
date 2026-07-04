@@ -241,14 +241,18 @@ describe('getCachedThreadSummaryInfoFromRawEvent', () => {
 });
 
 describe('mergeThreadCacheFlag', () => {
-  it('preserves true when there is no explicit replacement flag', () => {
+  it('preserves the current value when the next value is undefined', () => {
     expect(mergeThreadCacheFlag(true, undefined)).toBe(true);
+    expect(mergeThreadCacheFlag(false, undefined)).toBe(false);
     expect(mergeThreadCacheFlag(undefined, undefined)).toBeUndefined();
   });
 
-  it('lets explicit false clear a previously true cache flag', () => {
+  it('lets an explicit next value replace the current value', () => {
     expect(mergeThreadCacheFlag(true, false)).toBe(false);
     expect(mergeThreadCacheFlag(false, false)).toBe(false);
     expect(mergeThreadCacheFlag(undefined, false)).toBe(false);
+    expect(mergeThreadCacheFlag(false, true)).toBe(true);
+    expect(mergeThreadCacheFlag(true, true)).toBe(true);
+    expect(mergeThreadCacheFlag(undefined, true)).toBe(true);
   });
 });

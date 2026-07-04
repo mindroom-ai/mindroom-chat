@@ -16,7 +16,7 @@ import {
   reconcileThreadBackwardPagination,
 } from './threadPaginationUtils';
 import { createPreferLiveEventMapper, loadThreadCachedPaginationSnapshot } from './eventRepository';
-import type { PersistThreadEventCache } from './threadCachePersistenceController';
+import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 
 type ThreadBackPaginationFinishOptions = {
   currentThreadId?: string;

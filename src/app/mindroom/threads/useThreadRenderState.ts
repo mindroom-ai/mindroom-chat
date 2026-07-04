@@ -1,7 +1,7 @@
 import { MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EventTimelineSet, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { aggregateCachedRelationEvents, hydrateCachedEvents } from './eventCacheEditUtils';
-import { removeAggregatedReactionByEventId } from './redactionCacheLifecycle';
+import { removeAggregatedReactionByEventId } from '../engine/redactionCacheLifecycle';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 import {
   buildResolveConfirmedEventId,

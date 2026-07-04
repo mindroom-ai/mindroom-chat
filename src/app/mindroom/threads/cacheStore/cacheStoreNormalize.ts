@@ -195,12 +195,16 @@ export const getThreadCursorAnchor = (
  * `undefined` on the next value keeps the current value (retain semantics);
  * `true` and `false` are explicit sets. Used for meta flags that some save
  * call sites don't touch (`snapshotComplete`, `tailLoaded`, etc.).
+ *
+ * The engine's write-through passes `tailLoaded: undefined` for redaction
+ * persists (see engineWriteThrough.ts header); the helper must not
+ * downgrade a stored `true` or `false` to `undefined` when the next value
+ * is `undefined`. Only an explicit next value replaces the current value.
  */
 export const mergeThreadCacheFlag = (
   currentValue: boolean | undefined,
   nextValue: boolean | undefined
-): boolean | undefined =>
-  nextValue === undefined ? (currentValue === true ? true : undefined) : nextValue === true;
+): boolean | undefined => (nextValue === undefined ? currentValue : nextValue);
 
 export const normalizeExpectedReplyCount = (
   value: number | undefined

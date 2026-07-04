@@ -250,19 +250,22 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('serializeEventsForCache(');
   });
 
-  it('delegates cache persistence snapshots to the event repository', () => {
+  it('delegates cache persistence to the MindroomSyncEngine facade', () => {
+    // CINNY-207 P3.3: the pre-strip
+    // `useRoomCacheLifecycleController` / `useThreadCachePersistenceController`
+    // hooks are gone; persistence is owned by MindroomSyncEngine (all
+    // rooms, client-level). The component only consumes the persist
+    // facade via `useMindroomSyncEngine` / `engine.persist.forRoom`
+    // and hands the fns down to the fetch controllers.
     const source = readRoomTimelineSource();
-    const roomCacheLifecycleSource = readFileSync(
-      new URL('../roomCacheLifecycleController.ts', import.meta.url),
-      'utf8'
-    );
 
     expect(source).not.toContain('persistRoomEventCacheSnapshot');
-    expect(roomCacheLifecycleSource).toContain('persistRoomEventCacheSnapshot');
-    expect(source).toContain('useRoomCacheLifecycleController');
-    expect(source).toContain('useThreadCachePersistenceController');
-    expect(source).toContain("from '../../mindroom/threads/threadCachePersistenceController'");
-    expect(source).toContain("from '../../mindroom/threads/roomCacheLifecycleController'");
+    expect(source).not.toContain('useRoomCacheLifecycleController');
+    expect(source).not.toContain('useThreadCachePersistenceController');
+    expect(source).not.toContain("from '../../mindroom/threads/threadCachePersistenceController'");
+    expect(source).not.toContain("from '../../mindroom/threads/roomCacheLifecycleController'");
+    expect(source).toContain('useMindroomSyncEngine');
+    expect(source).toContain('syncEngine.persist.forRoom');
     expect(source).not.toContain('saveRoomEventsToCache(');
     expect(source).not.toContain('saveThreadEventsToCache(');
     expect(source).not.toContain('serializeRoomCacheEvents(room');
@@ -2347,16 +2350,16 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
     const controllerSource = readFileSync(
-      new URL('../roomLiveEventController.ts', import.meta.url),
+      new URL('../roomLiveRenderController.ts', import.meta.url),
       'utf8'
     );
 
-    expect(source).toContain("from '../../mindroom/threads/roomLiveEventController'");
+    expect(source).toContain("from '../../mindroom/threads/roomLiveRenderController'");
     expect(source).not.toContain('const useLiveEventArrive');
     expect(source).not.toContain('EventTimelineSetHandlerMap');
     expect(source).not.toContain('getLiveCollapsibleMessageExpandId');
     expect(source).not.toContain('room-thread-cache-persist-paginated');
-    expect(controllerSource).toContain('useRoomLiveEventController');
+    expect(controllerSource).toContain('useRoomLiveRenderController');
     expect(controllerSource).toContain('useLiveEventArrive');
     expect(controllerSource).toContain("from './roomLocalEchoRefresh'");
     expect(controllerSource).toContain('useRoomLocalEchoRefresh');
@@ -2426,24 +2429,15 @@ describe('RoomTimeline architecture', () => {
 // CINNY-207 plan section 6.4: Phase 1 regression guards. Source-scan style,
 // matching this file's idiom — behavioral coverage lives in the dedicated
 // unit suites (RoomTimeline.cache.test.ts, eventCacheEditUtils.test.ts,
-// roomLiveEventController.compaction.test.ts).
+// and the engine suites at src/app/mindroom/engine/).
+//
+// The P1.1 room-cache persist sweep guard was removed in P3.3: the sweep
+// itself is deleted; O(1)-per-live-event writes are now enforced
+// structurally by the engine's per-event write-through (no bulk
+// re-serialization codepath exists). Live-event coverage is asserted in
+// `engine/engineWriteThrough.compaction.test.ts` and
+// `engine/__tests__/engineAllRoomsCoverage.test.ts`.
 describe('CINNY-207 Phase 1 cache guards', () => {
-  it('keeps the room-cache persist sweep debounced and delta-only (P1.1)', () => {
-    const source = readFileSync(
-      new URL('../roomCacheLifecycleController.ts', import.meta.url),
-      'utf8'
-    );
-
-    // Debounced: the sweep must be armed via the shared leaf-module constant,
-    // never run synchronously from the effect body.
-    expect(source).toContain('ROOM_CACHE_PERSIST_DEBOUNCE_MS');
-    expect(source).toMatch(/setTimeout\(\(\) => \{\s*persistCurrentRoomCache\(\);/);
-    // Delta-only: already-persisted event ids must be tracked and skipped so
-    // the full-timeline re-serialization sweep (finding F2) cannot return.
-    expect(source).toContain('persistedRoomCacheEventIdsRef');
-    expect(source).toContain('persistedThreadCacheEventIdsRef');
-  });
-
   it('keeps the cache write boundary rejecting standalone same-sender m.replace records (P1.4)', () => {
     const serializerSource = readFileSync(
       new URL('../eventCacheEditUtils.ts', import.meta.url),
