@@ -50,6 +50,23 @@ export const CACHE_BYTE_BUDGET_BYTES = 1_073_741_824;
 // schema constants module is the single source of truth for tunables.
 export { MAX_CACHE_BEFORE_TOKENS } from '../eventCacheTokenUtils';
 
+// CINNY-207 P2.2 commit 3 (D9/AC7): eviction tunables.
+//
+// - `EVICTION_TARGET_UTILIZATION` — the eviction pass runs until
+//   `sum(approxBytes) <= budget * this`. 0.9 gives a 10% headroom
+//   so save-time bursts don't immediately re-trigger eviction.
+// - `EVICTION_RECENT_OPEN_WINDOW_MS` — rooms with any meta row whose
+//   `lastOpenedTs` is inside this window are protected from
+//   eviction (D9's "never evict recently opened threads" — v1
+//   interpretation: whole-room granularity, any thread scope
+//   counting).
+// - `EVICTION_CHECK_MIN_INTERVAL_MS` — the save-time auto-trigger
+//   dedupes back-to-back checks; a check is scheduled at most this
+//   often per session.
+export const EVICTION_TARGET_UTILIZATION = 0.9;
+export const EVICTION_RECENT_OPEN_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const EVICTION_CHECK_MIN_INTERVAL_MS = 60_000;
+
 let cacheByteBudgetOverride: number | undefined;
 export const getCacheStoreByteBudget = (): number =>
   cacheByteBudgetOverride ?? CACHE_BYTE_BUDGET_BYTES;

@@ -2,6 +2,123 @@
 
 ## Runbook
 
+### CINNY-207 P2.2 - Eviction ledger and byte budget (2026-07-04)
+
+- Status:
+  - Complete locally on `cache-overhaul/09-p2-cachestore`. Second step
+    of Phase 2. Follow-up: P2.3 (flip remaining direct callers off the
+    shims + architecture guard forbidding legacy imports outside
+    cacheStore).
+- Summary:
+  - Commit 1 (`feat: maintain the room byte/activity ledger on cache
+    writes`) — `cacheStoreLedger.ts` maintains a per-room
+    `{approxBytes, eventCount, lastActivityTs, federated?}` row in the
+    `room_ledger` store transactionally with event puts/deletes. Every
+    save/delete in `cacheStoreEvents.ts` opens the ledger store in the
+    same readwrite txn. Deltas are computed via read-before-write
+    (put) and read-before-delete so overwrites and no-op deletes are
+    accounted for exactly. Room-scope and thread-scope puts populate
+    the SAME per-room row (eviction is whole-room granularity).
+    Meta-only saves (rootEvent-only thread saves) leave the ledger
+    untouched by excluding `ROOM_LEDGER_STORE` from the txn scope.
+    One-time lazy bootstrap: if a room has events but no ledger row on
+    first touch (upgraded install with pre-P2.2 data), the tracker's
+    `readBaseline` sum-scans just that room via `by_scope_ts` before
+    the current put/delete lands, so the bootstrap sum reflects only
+    pre-write state and never double-counts the current writes. Rows
+    drop to `undefined` when the last event is deleted so eviction can
+    skip empty rooms cheaply. `federated` is optional and left absent;
+    the Phase 3/4 sync engine populates it via D3 detection. Also
+    exposed `noteRoomOpened(sessionId, roomId)` /
+    `noteThreadOpened(sessionId, roomId, threadId)` — meta upserts
+    that stamp `lastOpenedTs = Date.now()` while preserving every
+    other meta field. Callers wire in with Phase 3/4 (empty today);
+    exported now so the P2.2 eviction guard has the field to read.
+    Unit tests (`cacheStoreLedger.test.ts`, 10/10 green): put deltas
+    exact on fresh insert + overwrite, delete deltas exact including
+    ghost deletes, bootstrap sum matches, meta-only writes untouched,
+    thread + room writes share the per-room row, `noteRoomOpened` /
+    `noteThreadOpened` preserve other meta fields.
+  - Commit 2 (`feat: prune beforeTokens maps on meta writes`, F3) —
+    reshaped `CachedPaginationTokenMap` from
+    `Record<eventId, string | null>` to
+    `Record<eventId, {token, savedAt}>` in `eventCacheTokenUtils.ts`.
+    `mergeCachedPaginationTokens` now stamps `savedAt = Date.now()`
+    and calls `pruneCachedPaginationTokens` if the map would exceed
+    `MAX_CACHE_BEFORE_TOKENS = 50`. Eviction is by ascending
+    `savedAt`, with lexicographic event id as a deterministic
+    tiebreak on equal timestamps. The entry whose `eventId` matches
+    the current earliest anchor being written is NEVER pruned — it
+    is exactly the token the next paginate-before call reads.
+    `getCachedPaginationToken`'s return shape unchanged
+    (`string | null | undefined`) so callers don't change. Constant
+    also re-exported from `cacheStore/cacheStoreSchema.ts` so the
+    CacheStore schema module is the single source of truth for
+    tunables. No production DBs carry the old flat shape (D8 wipe in
+    P2.1 clears legacy DBs on first v3 open; P2.1 landed with the new
+    unified DB fresh). Unit tests (`eventCacheTokenUtils.test.ts`,
+    16/16 green): 50-entry cap enforced across 60 sequential merges,
+    newest survives, protected id survives even when oldest,
+    lexicographic tiebreak deterministic, existing basics reshaped
+    to the new record shape.
+  - Commit 3 (`feat: cache eviction job with 1 GB budget`, D9/AC7) —
+    new `cacheEviction.ts`. `runCacheEvictionIfOverBudget(sessionId)`
+    reads the ledger snapshot, and if `sum(approxBytes) > budget`
+    evicts whole rooms in policy order until below
+    `budget * EVICTION_TARGET_UTILIZATION = 0.9` (10% headroom).
+    Policy: `federated === true` first (Phase 3/4 populates the flag
+    via D3 detection; empty today), then ascending `lastActivityTs`
+    (LRU). Two protected classes are skipped: rooms in the module-
+    level protected registry (`setEvictionProtectedRoomIds` — wired
+    from `noteRoomFocused` in the Phase 3/4 engine; empty today,
+    which is safe because LRU order naturally keeps the active room
+    last), and rooms with any meta row's `lastOpenedTs` inside
+    `EVICTION_RECENT_OPEN_WINDOW_MS = 24h`. Eviction of a room
+    deletes: all events across scopes (via `by_scope_ts` cursor),
+    all meta rows for the room (meta store walk), all thread
+    summaries for the room (via `by_room` index), and the ledger row
+    itself. `eventDeletes` probe is bumped by the deleted event
+    count. Save-path auto-trigger via `maybeScheduleEvictionCheck` —
+    fire-and-forget, module-level timestamp per session, dedupes to
+    at most one runner invocation per
+    `EVICTION_CHECK_MIN_INTERVAL_MS = 60s`. No timers are held open.
+    Integration test (`cacheEviction.test.ts`, 4/4 green): three
+    rooms seeded via real save paths (federated / LRU-old /
+    protected-recent), budget shrunk so eviction must fire; asserts
+    federated evicted first, protected room never touched, cleanup
+    complete (events / meta / summaries / ledger), under-budget stop
+    honored, recent-open guard alone protects a room without
+    registry entry, back-to-back schedules collapse to one runner
+    invocation via `readLedgerSnapshot` spy. Red-first probe:
+    without invoking the runner, the ledger stays over-budget.
+- Decisions:
+  - `federated` populated by the Phase 3/4 sync engine, not P2.2.
+    Left absent today; the eviction policy treats absent as "not
+    federated" so nothing gets an artificial boost before the engine
+    lands. Documented as a deviation in the plan.
+  - `setEvictionProtectedRoomIds` wired by `noteRoomFocused` in the
+    Phase 3/4 engine. Empty today is acceptable because the LRU
+    ordering naturally keeps the active/recently-active room last.
+  - `lastOpenedTs` stamping (`noteRoomOpened`, `noteThreadOpened`)
+    wired by the open controllers in Phase 3/4. Exported now with
+    unit tests; the recent-open eviction guard degrades gracefully
+    to LRU-only when no stamp exists.
+  - D9's "never evict recently opened threads" implemented at
+    whole-room granularity in v1 — any thread scope of a room
+    stamped inside the window protects the whole room. Documented as
+    a deviation.
+- Next steps:
+  - P2.3: flip remaining direct callers off the legacy shims onto
+    `cacheStore` directly (`eventRepository.ts`, edit compaction,
+    room live event controller, cache health); add architecture
+    guard forbidding legacy cache imports outside cacheStore.
+- Validation:
+  - Full mindroom vitest: 218 files / 1929 tests green.
+  - Full vitest: 324 files / 2490 tests green.
+  - `npm run typecheck`, `npm run build` clean.
+  - `npm run lint`: 0 errors, 19 pre-existing warnings.
+  - Docker e2e: gated separately after review per delivery process.
+
 ### CINNY-207 P2.1 - Unified CacheStore (2026-07-03)
 
 - Status:

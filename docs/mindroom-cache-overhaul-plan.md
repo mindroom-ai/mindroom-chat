@@ -1,6 +1,6 @@
 # MindRoom Cache Overhaul Plan (CINNY-207)
 
-Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 P2.1 (unified CacheStore + D8 wipe) landed locally, P2.2 / P2.3 pending.**
+Status: **Phase 1 (P1.1–P1.6) landed and e2e-gated; Phase 2 P2.1 (unified CacheStore + D8 wipe) landed locally; Phase 2 P2.2 (ledger + `beforeTokens` pruning + 1 GB eviction budget) landed locally, P2.3 pending.**
 Phase-1 e2e gate (2026-07-03, stack tip 55439be8): streamed-edit spec green
 live (AC4, probe numbers in scorecard), stop-emoji green (AC3; three failed
 attempts were host `ERR_NETWORK_CHANGED` flake — tracked in the Runbook),
@@ -453,7 +453,7 @@ Filled as steps complete. "Before" numbers from P0.3.
 | AC4  | ✓      | e2e `cinny207-streamed-edit-cache` green LIVE on stack tip: probe `editCompactions=1`, `threadEventPuts=3`, 1 target record with bundled final body pre+post reload; unit `npx vitest run src/app/mindroom/threads/eventCacheEditUtils.test.ts src/app/mindroom/threads/editCompactionScheduler.test.ts src/app/mindroom/threads/roomLiveEventController.compaction.test.ts src/app/mindroom/threads/eventRepository.test.ts` | 26 thread-cache records for a 25-edit streamed message (P0.3 spec run) → exactly 1 target record with bundled edit | workflow round 2 (spec traced sound) + docker e2e run | 2026-07-03 |
 | AC5  | ☐      |                                   |                |                         |      |
 | AC6  | ☐      | e2e `cinny207-background-room-freshness` (red until Phase 3) | 0 cached events for a background room (P0.3 spec run) |                         |      |
-| AC7  | ☐      |                                   |                |                         |      |
+| AC7  | ☐ impl | `npx vitest run src/app/mindroom/threads/cacheStore/__tests__/cacheEviction.test.ts` (4/4 — three rooms seeded via the real save paths (federated / LRU-old / protected-recent); budget shrunk via `__setCacheStoreByteBudgetForTests` so eviction must fire; asserts federated evicted first, protected room never touched, cleanup complete (events / meta / summaries / ledger row), under-budget stop honoured at `budget * EVICTION_TARGET_UTILIZATION = 0.9`, recent-open guard alone protects a room without registry entry, back-to-back schedules collapse to one runner invocation via a `readLedgerSnapshot` spy). Docker e2e budget-override run pending. | over-budget state persists without the job (red-first probe inside the AC7 test); after the job runs, `bytesAfter` drops below the target and evicted rooms' events / meta / summaries / ledger rows are all gone |                         |      |
 | AC8  | ☐      |                                   |                |                         |      |
 | AC9  | ☐      |                                   |                |                         |      |
 | AC10 | ☐      |                                   |                |                         |      |
@@ -510,6 +510,35 @@ new engine-scoped guard file):
 
 ## 8. Deviations
 
+- 2026-07-04 — **P2.2 eviction ships with federated-flag population,
+  protected-room registry, and `lastOpenedTs` stamping deferred to
+  Phase 3/4.** The eviction policy (D9) reads three signals it does
+  not yet own the write side of: `ledger.federated`, the module-level
+  protected room registry (`setEvictionProtectedRoomIds`), and
+  `meta.lastOpenedTs`. All three landed as read-only inputs in P2.2
+  with the eviction job wired to consume them; their populators wire
+  in with the Phase 3/4 sync engine. Consequence today: (a) no room
+  is flagged federated so the policy degrades to pure LRU order —
+  acceptable because we're single-homeserver in production, (b) the
+  registry is empty so the "current room never evicted" invariant is
+  carried by the LRU order alone (the actively-open room is by
+  definition the room with the highest `lastActivityTs`; new events
+  arriving to it keep it at the tail), (c) with no `lastOpenedTs`
+  stamps the recent-open guard is a no-op — again acceptable because
+  LRU is a reasonable fallback. `noteRoomOpened`, `noteThreadOpened`,
+  and `setEvictionProtectedRoomIds` are exported now with unit tests
+  so Phase 3/4 has drop-in hooks. Recorded here so P2.2 review does
+  not count these as gaps.
+
+- 2026-07-04 — **P2.2 D9 "never evict recently opened threads"
+  implemented at whole-room granularity in v1.** The recent-open
+  guard skips the entire room if ANY of its thread scopes'
+  `meta.lastOpenedTs` is inside `EVICTION_RECENT_OPEN_WINDOW_MS =
+  24h`. Because eviction is whole-room granularity (per D9), a finer
+  per-thread guard would still boil down to a room-level decision.
+  Documented so the AC7 gate is not signed off on a partial
+  interpretation.
+
 - 2026-07-03 — **P2.1 / D8 wipe lands before Tier 1 exists (Phases
   3-4).** The D8 legacy-DB wipe fires on first v3 open at the end of
   P2.1, before the sync-engine write-through (P3.1) and the
@@ -535,6 +564,53 @@ new engine-scoped guard file):
   workflow review round 1; recorded here for product-owner review.
 
 ## 9. Status log
+
+- 2026-07-04 — **P2.2 landed locally** on
+  `cache-overhaul/09-p2-cachestore`: eviction ledger + `beforeTokens`
+  pruning + 1 GB byte-budget eviction job (finding F3, decision D9,
+  AC7). Three commits on top of the P2.1 stack:
+
+  1. `feat: maintain the room byte/activity ledger on cache writes` —
+     `cacheStoreLedger.ts` tracks per-room
+     `{approxBytes, eventCount, lastActivityTs, federated?}` rows in
+     the `room_ledger` store, updated transactionally with event
+     puts/deletes. Read-before-write / read-before-delete for exact
+     deltas; one-time lazy bootstrap (bounded to the touched room)
+     seeds pre-P2.2 records; whole-DB delete implicitly clears; room-
+     and thread-scope writes populate the SAME per-room row (whole-
+     room eviction). Meta-only saves leave the ledger untouched.
+     Exposed `noteRoomOpened` / `noteThreadOpened` — meta upserts
+     that stamp `lastOpenedTs` while preserving other fields
+     (callers wire in Phase 3/4).
+  2. `feat: prune beforeTokens maps on meta writes` (F3) — reshaped
+     `CachedPaginationTokenMap` to
+     `Record<eventId, {token, savedAt}>`. Every merge stamps
+     `savedAt = Date.now()` and prunes to
+     `MAX_CACHE_BEFORE_TOKENS = 50`, oldest first with lexicographic
+     event-id tiebreak; the entry being written is never pruned.
+     Public `getCachedPaginationToken` return shape unchanged.
+  3. `feat: cache eviction job with 1 GB budget` (D9/AC7) — new
+     `cacheEviction.ts`. `runCacheEvictionIfOverBudget(sessionId)`
+     reads the ledger snapshot, and if over budget evicts whole
+     rooms until below `budget * 0.9`. Order: `federated === true`
+     first, then ascending `lastActivityTs`. Skip: protected registry
+     + rooms with any `meta.lastOpenedTs` inside 24 h. Eviction
+     deletes events / meta / thread summaries / ledger row for the
+     room; `eventDeletes` probe counts the events removed. Save-path
+     `maybeScheduleEvictionCheck` fire-and-forget with module-level
+     debounce (60 s per session, no timers held open).
+
+  Tests: `cacheStoreLedger.test.ts` 10/10;
+  `eventCacheTokenUtils.test.ts` 16/16;
+  `cacheEviction.test.ts` 4/4. Regression: contract suite 42/42, D8
+  wipe 2/2, full mindroom suite 218 files / 1929 tests, full vitest
+  324 files / 2490 tests. `npm run typecheck`, `npm run build`
+  clean; `npm run lint` 0 errors (19 pre-existing warnings). Section
+  8 records the deferred federated-flag / registry / stamp
+  populators and the whole-room recent-open interpretation.
+  Deferred from this step: docker e2e run (separate gate); P2.3
+  direct-import flip + architecture guard forbidding legacy imports
+  outside cacheStore.
 
 - 2026-07-03 — **P2.1 landed** (PR 9): unified CacheStore module
   consolidating `roomEventCache.ts`, `threadEventCache.ts`, and

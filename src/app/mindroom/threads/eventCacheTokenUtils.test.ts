@@ -165,8 +165,8 @@ describe('CINNY-207 P2.2 (F3): beforeTokens pruning', () => {
     let map = mergeCachedPaginationTokens(undefined, '$a', 'token-a-v1');
     vi.setSystemTime(2_000_000);
     map = mergeCachedPaginationTokens(map, '$a', 'token-a-v2');
-    expect(map?.['$a']?.savedAt).toBe(2_000_000);
-    expect(map?.['$a']?.token).toBe('token-a-v2');
+    expect(map?.$a?.savedAt).toBe(2_000_000);
+    expect(map?.$a?.token).toBe('token-a-v2');
   });
 
   it('breaks equal-savedAt ties lexicographically for deterministic eviction', () => {

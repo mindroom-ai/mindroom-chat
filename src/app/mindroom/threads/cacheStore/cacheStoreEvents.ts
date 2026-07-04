@@ -5,6 +5,7 @@ import {
   mergeCachedPaginationTokens,
 } from '../eventCacheTokenUtils';
 import type { MindroomThreadSummaryInfo } from '../../messages/threadSummary';
+import { maybeScheduleEvictionCheck } from './cacheEviction';
 import { openCacheStore } from './cacheStoreDb';
 import { createLedgerTracker } from './cacheStoreLedger';
 import {
@@ -348,6 +349,10 @@ export const saveRoomEventsToCache = async (
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });
+
+  // CINNY-207 P2.2 commit 3: cheap over-budget probe after saves.
+  // Fire-and-forget, module-level debounced.
+  maybeScheduleEvictionCheck(sessionId);
 };
 
 export const deleteRoomEventsFromCache = async (
@@ -671,6 +676,9 @@ export const saveThreadEventsToCache = async (
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });
+
+  // CINNY-207 P2.2 commit 3: same debounced over-budget probe.
+  maybeScheduleEvictionCheck(sessionId);
 };
 
 export const deleteThreadEventsFromCache = async (

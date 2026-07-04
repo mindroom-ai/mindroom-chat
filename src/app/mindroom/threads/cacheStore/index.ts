@@ -77,6 +77,21 @@ export {
 export { readLedgerSnapshot } from './cacheStoreLedger';
 
 export {
+  runCacheEvictionIfOverBudget,
+  maybeScheduleEvictionCheck,
+  setEvictionProtectedRoomIds,
+  getEvictionProtectedRoomIds,
+  __resetEvictionForTests,
+  type EvictionResult,
+} from './cacheEviction';
+
+export {
+  EVICTION_TARGET_UTILIZATION,
+  EVICTION_RECENT_OPEN_WINDOW_MS,
+  EVICTION_CHECK_MIN_INTERVAL_MS,
+} from './cacheStoreSchema';
+
+export {
   loadCachedThreadSummaries,
   saveCachedThreadSummary,
 } from './cacheStoreSummaries';
