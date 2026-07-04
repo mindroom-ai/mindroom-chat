@@ -27,6 +27,7 @@ type ThreadBackPaginationFinishOptions = {
 
 export const useThreadPaginationCommandController = ({
   beginThreadBackPagination,
+  recaptureThreadBackPaginationAnchor,
   finishThreadBackPagination,
   forceTimelineUpdate,
   mx,
@@ -50,6 +51,15 @@ export const useThreadPaginationCommandController = ({
     scrollRoot: HTMLElement | null,
     eventCount?: number
   ) => boolean;
+  // Task #125 follow-up: refresh the prepend restore anchor to the
+  // user's CURRENT position after the quiescence wait — the begin-time
+  // anchor goes stale while the user keeps scrolling between fire and
+  // commit, and restoring it would teleport them back.
+  recaptureThreadBackPaginationAnchor: (
+    threadId: string,
+    scrollRoot: HTMLElement | null,
+    eventCount?: number
+  ) => void;
   finishThreadBackPagination: (options: ThreadBackPaginationFinishOptions) => void;
   forceTimelineUpdate: () => void;
   mx: MatrixClient;
@@ -115,6 +125,11 @@ export const useThreadPaginationCommandController = ({
         // finger release.
         await waitForScrollQuiescence(scrollRef.current);
         if (threadIdRef.current !== expectedThreadId) return;
+        recaptureThreadBackPaginationAnchor(
+          expectedThreadId,
+          scrollRef.current,
+          threadEvents.length
+        );
         setSupplementalThreadEvents(expectedThreadId, cachedEvents);
         setThreadHasMoreCachedBack(cachedPaginationSnapshot.hasMoreCachedBack);
         forceTimelineUpdate();
@@ -148,6 +163,11 @@ export const useThreadPaginationCommandController = ({
         // the cache-hit branch (see comment there).
         await waitForScrollQuiescence(scrollRef.current);
         if (threadIdRef.current !== expectedThreadId) return;
+        recaptureThreadBackPaginationAnchor(
+          expectedThreadId,
+          scrollRef.current,
+          threadEvents.length
+        );
         reconcileThreadBackwardPagination(
           firstThreadTimeline,
           firstThreadTimeline.getPaginationToken(Direction.Backward),
@@ -166,6 +186,7 @@ export const useThreadPaginationCommandController = ({
     }
   }, [
     beginThreadBackPagination,
+    recaptureThreadBackPaginationAnchor,
     finishThreadBackPagination,
     forceTimelineUpdate,
     mx,

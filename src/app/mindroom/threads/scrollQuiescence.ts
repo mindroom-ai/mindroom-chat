@@ -28,15 +28,50 @@ export type WaitForScrollQuiescenceOptions = {
   maxWaitMs?: number;
 };
 
+// Window-level active-touch tracker (greptile P1 on PR #75): a wait
+// that starts while a finger is ALREADY down would otherwise see no
+// touchstart and no scroll events (drag-hold), and resolve mid-touch.
+// The tracker observes touches from module load, so the initial
+// touchActive state is correct regardless of call ordering. Listeners
+// are passive and capture-phase (they must see touches that targets
+// stopPropagation on).
+let windowActiveTouches = 0;
+let touchTrackerInstalled = false;
+const installTouchTracker = () => {
+  if (touchTrackerInstalled || typeof window === 'undefined') return;
+  touchTrackerInstalled = true;
+  // `touches` is read defensively: synthetic Events (tests, exotic
+  // embedders) may lack it.
+  const readActiveTouches = (event: Event): number =>
+    (event as TouchEvent).touches?.length ?? 0;
+  window.addEventListener(
+    'touchstart',
+    (event) => {
+      windowActiveTouches = Math.max(readActiveTouches(event), 1);
+    },
+    { passive: true, capture: true }
+  );
+  const onTouchSettle = (event: Event) => {
+    windowActiveTouches = readActiveTouches(event);
+  };
+  window.addEventListener('touchend', onTouchSettle, { passive: true, capture: true });
+  window.addEventListener('touchcancel', onTouchSettle, { passive: true, capture: true });
+};
+installTouchTracker();
+
 export const waitForScrollQuiescence = (
   scrollElement: HTMLElement | null,
   { idleMs = 150, maxWaitMs = 2500 }: WaitForScrollQuiescenceOptions = {}
 ): Promise<void> => {
-  if (!scrollElement) return Promise.resolve();
+  // Detached elements can't scroll and their touchend may never fire —
+  // resolve immediately (gemini on PR #75).
+  if (!scrollElement || !scrollElement.isConnected) return Promise.resolve();
 
   return new Promise<void>((resolve) => {
     let idleTimer: ReturnType<typeof setTimeout> | undefined;
     let capTimer: ReturnType<typeof setTimeout> | undefined;
+    // Element-scoped touch state; pre-existing/global touches are
+    // covered by the window tracker consulted in the idle check.
     let touchActive = false;
     let settled = false;
 
@@ -59,8 +94,21 @@ export const waitForScrollQuiescence = (
     const armIdleTimer = () => {
       if (idleTimer !== undefined) clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
-        if (!touchActive) settle();
-        // With a finger down, stay armed: the next touchend re-arms.
+        // Element unmounted mid-wait: its touchend may never fire —
+        // settle rather than ride out the cap (gemini on PR #75).
+        if (!scrollElement.isConnected) {
+          settle();
+          return;
+        }
+        if (!touchActive && windowActiveTouches === 0) {
+          settle();
+          return;
+        }
+        // Blocked by an active touch (element-level or a pre-existing
+        // one only the window tracker sees): re-arm and poll at idle
+        // granularity — a window-level touchend has no element event
+        // to re-arm through. Bounded by the cap timer.
+        armIdleTimer();
       }, idleMs);
     };
 

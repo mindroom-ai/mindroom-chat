@@ -25,6 +25,11 @@ export type ThreadBackPaginationController = {
   ) => boolean;
   finish: (opts: { didPaginateBack: boolean; threadId: string; currentThreadId?: string }) => void;
   clearPendingAnchor: () => void;
+  recaptureAnchor: (
+    threadId: string | undefined,
+    scrollRoot: HTMLElement | null | undefined,
+    eventCount?: number
+  ) => boolean;
   getPendingAnchorEventId: () => string | undefined;
   getPendingAnchorSeq: () => number | undefined;
   restorePendingAnchor: (
@@ -97,6 +102,33 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
     []
   );
 
+  // Task #125 follow-up: with the prepend render commit deferred to
+  // scroll quiescence, the begin-time anchor goes stale — the user
+  // keeps scrolling between fire and commit, and restoring the old
+  // anchor would teleport them back to the fire position. Re-capture
+  // just before the commit so the restore targets where the user
+  // actually is. Only valid while a pagination is in flight.
+  const recaptureAnchor = useCallback(
+    (
+      threadId: string | undefined,
+      scrollRoot: HTMLElement | null | undefined,
+      eventCount?: number
+    ): boolean => {
+      if (!threadId || !isPaginatingBackRef.current) return false;
+      const capturedAnchor = captureThreadPrependScrollAnchor(scrollRoot);
+      if (!capturedAnchor) return false;
+      pendingAnchorSeqRef.current += 1;
+      pendingAnchorRef.current = {
+        ...capturedAnchor,
+        eventCount,
+        threadId,
+        seq: pendingAnchorSeqRef.current,
+      };
+      return true;
+    },
+    []
+  );
+
   const getPendingAnchorEventId = useCallback(() => pendingAnchorRef.current?.eventId, []);
 
   const getPendingAnchorSeq = useCallback(() => pendingAnchorRef.current?.seq, []);
@@ -143,6 +175,7 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
     begin,
     finish,
     clearPendingAnchor,
+    recaptureAnchor,
     getPendingAnchorEventId,
     getPendingAnchorSeq,
     restorePendingAnchor,

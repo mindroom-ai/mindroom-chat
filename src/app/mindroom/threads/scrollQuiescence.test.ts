@@ -94,4 +94,42 @@ describe('waitForScrollQuiescence', () => {
     await flushMicrotasks();
     expect(isSettled()).toBe(true);
   });
+
+  it('blocks when a touch was already active BEFORE the wait started', async () => {
+    // Greptile P1 on PR #75: the fetch can complete while the finger
+    // is already down (drag-hold). The window-level tracker supplies
+    // the initial touch state; without it the idle window would
+    // resolve mid-touch and the restore write would fight the drag.
+    window.dispatchEvent(new Event('touchstart'));
+    const isSettled = settledFlag(waitForScrollQuiescence(el, { idleMs: 100 }));
+    vi.advanceTimersByTime(500);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(false);
+    window.dispatchEvent(new Event('touchend'));
+    // The wait's own element listeners don't see a window-dispatched
+    // touchend; the tracker does, and the next idle tick settles.
+    vi.advanceTimersByTime(200);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(true);
+  });
+
+  it('resolves immediately for a detached element', async () => {
+    const detached = document.createElement('div');
+    const isSettled = settledFlag(waitForScrollQuiescence(detached));
+    await flushMicrotasks();
+    expect(isSettled()).toBe(true);
+  });
+
+  it('settles at the next idle tick when the element unmounts mid-wait', async () => {
+    const isSettled = settledFlag(
+      waitForScrollQuiescence(el, { idleMs: 100, maxWaitMs: 10_000 })
+    );
+    el.dispatchEvent(new Event('scroll'));
+    el.remove();
+    vi.advanceTimersByTime(100);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(true);
+    // Re-append for afterEach cleanup symmetry.
+    document.body.appendChild(el);
+  });
 });

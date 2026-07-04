@@ -444,6 +444,7 @@ export function RoomTimeline({
     getPendingAnchorEventId: getPendingThreadBackPaginationAnchorEventId,
     getPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq,
     restorePendingAnchor: restorePendingThreadBackPaginationAnchor,
+    recaptureAnchor: recaptureThreadBackPaginationAnchor,
   } = useThreadBackPaginationController();
   const roomIdRef = useRef(room.roomId);
   const roomPaginatingBackRef = useRef(false);
@@ -1369,6 +1370,45 @@ export function RoomTimeline({
     },
     [
       beginThreadBackPagination,
+      getPendingThreadBackPaginationAnchorEventId,
+      getPendingThreadBackPaginationAnchorSeq,
+      threadEventIndexMapRef,
+    ]
+  );
+  // Task #125 follow-up: re-capture just before the (quiescence-
+  // deferred) prepend commit, so the restore targets the row the user
+  // actually stopped on rather than where the fire happened. Mirrors
+  // beginThreadBackPaginationWithCapture's component-side bookkeeping
+  // (the coarse scrollToIndex leg reads threadVirtualPrependCaptureRef).
+  const recaptureThreadBackPaginationAnchorWithCapture = useCallback(
+    (
+      recaptureThreadId: string | undefined,
+      scrollRoot: HTMLElement | null | undefined,
+      eventCount?: number
+    ) => {
+      if (!recaptureThreadBackPaginationAnchor(recaptureThreadId, scrollRoot, eventCount)) return;
+      if (!recaptureThreadId) return;
+      const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
+      const anchorSeq = getPendingThreadBackPaginationAnchorSeq();
+      const anchorIndex =
+        anchorEventId === undefined
+          ? undefined
+          : threadEventIndexMapRef.current.get(anchorEventId);
+      if (
+        anchorEventId !== undefined &&
+        anchorSeq !== undefined &&
+        typeof anchorIndex === 'number'
+      ) {
+        threadVirtualPrependCaptureRef.current = {
+          threadId: recaptureThreadId,
+          anchorEventId,
+          anchorIndex,
+          anchorSeq,
+        };
+      }
+    },
+    [
+      recaptureThreadBackPaginationAnchor,
       getPendingThreadBackPaginationAnchorEventId,
       getPendingThreadBackPaginationAnchorSeq,
       threadEventIndexMapRef,
@@ -2923,6 +2963,7 @@ export function RoomTimeline({
   const { handleThreadPaginateBack, handleThreadPaginateFront } =
     useThreadPaginationCommandController({
       beginThreadBackPagination: beginThreadBackPaginationWithCapture,
+      recaptureThreadBackPaginationAnchor: recaptureThreadBackPaginationAnchorWithCapture,
       finishThreadBackPagination,
       forceTimelineUpdate,
       mx,
