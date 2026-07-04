@@ -35,7 +35,7 @@ import {
   copyMindroomResolvedEditMetadata,
   logMindroomEditDebug,
 } from '../mindroom/messages/editResolution';
-import { countCacheProbe } from '../mindroom/threads/cacheProbe';
+import { countCacheProbe, recordRenderTargetSeen } from '../mindroom/threads/cacheProbe';
 
 export const logEditDebug = logMindroomEditDebug;
 
@@ -527,6 +527,10 @@ export const getEditedEvent = (
   } else {
     countCacheProbe('renderTargetLackedReplacement');
   }
+  // CINNY-207 AC2 render-gap RG4a (2026-07-04): per-eventId regression
+  // classifier — distinguishes candidate (i) same-instance-replacement-
+  // cleared from candidate (iii) instance-swap. See cacheProbe.ts.
+  recordRenderTargetSeen(mEventId, mEvent, !!replacingEventCandidate);
   const replacingEvent = isSameSenderEditEvent(mEvent, replacingEventCandidate)
     ? replacingEventCandidate
     : undefined;

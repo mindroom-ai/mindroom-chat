@@ -238,6 +238,40 @@ export type CacheProbeCounters = {
   // between "merge output stored in state" and "render reads state".
   renderTargetHadReplacement: number;
   renderTargetLackedReplacement: number;
+  // CINNY-207 AC2 render-gap RG4a (2026-07-04): per-eventId regression
+  // observability. Distinguishes candidate (i) "replacement was cleared
+  // on the retained instance" from candidate (iii) "instance was
+  // swapped — render picked a non-repaired sibling for the same id".
+  //
+  // Bookkeeping (all inside utils/room.ts getEditedEvent, per-eventId):
+  //   - remember whether ANY prior getEditedEvent for this event id
+  //     had `replacingEvent() != null` ("ever seen repaired for id X").
+  //   - remember the LAST MatrixEvent instance passed for this id
+  //     ("last instance for id X") via a WeakRef so we don't hold live
+  //     event objects hostage in a counters module.
+  //
+  // Increment rules (mutually exclusive within a single call, so
+  // renderTargetLackedReplacement == renderTargetRegressedNever +
+  //   renderTargetRegressedSameInstance +
+  //   renderTargetRegressedDifferentInstance holds):
+  //   renderTargetRegressedNever: current call lacks replacement AND
+  //     no prior call for this id had replacement. Not a regression —
+  //     just a target that never had a repair applied yet.
+  //   renderTargetRegressedSameInstance: current call lacks replacement,
+  //     a prior call for this id had one, AND `mEvent` is the SAME
+  //     MatrixEvent instance we saw before. This is candidate (i):
+  //     the retained instance had its `_replacingEvent` cleared under
+  //     us (e.g. a makeReplaced(null) somewhere, or SDK aggregation
+  //     resetting it).
+  //   renderTargetRegressedDifferentInstance: current call lacks
+  //     replacement, a prior call for this id had one, AND `mEvent` is
+  //     a DIFFERENT MatrixEvent instance than the one we last saw for
+  //     this id. This is candidate (iii): the render seam swapped
+  //     instances — a sibling MatrixEvent with the same id but no
+  //     repair is being handed to the renderer.
+  renderTargetRegressedNever: number;
+  renderTargetRegressedSameInstance: number;
+  renderTargetRegressedDifferentInstance: number;
   // CINNY-207 AC2 render-gap RG1 (2026-07-04): applyCachedReplaceRelations
   // ("hydrate applier") instance-identity observability. Diagnostic
   // for candidate (a) — the mechanism where the applier's
@@ -300,6 +334,9 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   mergeSawIncomingEditRelation: 0,
   renderTargetHadReplacement: 0,
   renderTargetLackedReplacement: 0,
+  renderTargetRegressedNever: 0,
+  renderTargetRegressedSameInstance: 0,
+  renderTargetRegressedDifferentInstance: 0,
   hydrateApplierMutatedRenderHeldInstance: 0,
   hydrateApplierMutatedFreshInstance: 0,
 });
@@ -314,8 +351,67 @@ export const countCacheProbe = (key: keyof CacheProbeCounters, amount = 1): void
 
 export const getCacheProbeSnapshot = (): CacheProbeCounters => ({ ...counters });
 
+// CINNY-207 AC2 render-gap RG4a (2026-07-04): per-eventId bookkeeping for
+// the "previously had replacement, now lacks" probe. Held here (not in
+// utils/room.ts) so `resetCacheProbe()` also resets the render-gap state
+// — otherwise a docker session's second thread-open would inherit history
+// from the first and inflate the regression counters.
+//
+// Design note: this map holds STRONG refs to MatrixEvent instances by
+// design. This is a diagnostic-only probe (removed once RG4b lands); the
+// pinning bounds the identity signal to precisely what we need — "same
+// object we saw before?" — without the ambiguity WeakRef introduces (a
+// GC'd prior instance is indistinguishable from a fresh instance). Since
+// tsconfig.json targets ES2016 (no WeakRef in the type lib) and the
+// render layer keeps these events alive for their render lifetime
+// anyway, strong refs cost nothing in the diagnostic window.
+type RenderTargetSeen = {
+  everHadReplacement: boolean;
+  lastInstance: object;
+};
+const renderTargetSeenById = new Map<string, RenderTargetSeen>();
+
+// Exported for use by the render-pipeline seam (utils/room.ts).
+// Not on the countCacheProbe surface because it needs the mEvent instance
+// identity, not just a key name.
+export const recordRenderTargetSeen = (
+  eventId: string,
+  mEvent: object,
+  hasReplacement: boolean
+): void => {
+  const prev = renderTargetSeenById.get(eventId);
+  if (hasReplacement) {
+    // Positive observation: (re-)arm the tracker with this instance.
+    renderTargetSeenById.set(eventId, { everHadReplacement: true, lastInstance: mEvent });
+    return;
+  }
+  // Negative observation: classify the regression (or lack thereof).
+  if (!prev || !prev.everHadReplacement) {
+    countCacheProbe('renderTargetRegressedNever');
+    renderTargetSeenById.set(eventId, {
+      everHadReplacement: false,
+      lastInstance: mEvent,
+    });
+    return;
+  }
+  if (prev.lastInstance === mEvent) {
+    countCacheProbe('renderTargetRegressedSameInstance');
+    // No map update — same instance, same state (regressed).
+  } else {
+    countCacheProbe('renderTargetRegressedDifferentInstance');
+    // Update lastInstance so subsequent calls with THIS new instance are
+    // classified as "same" — otherwise every re-render with the swapped
+    // instance would keep bumping "different" and drown the signal.
+    renderTargetSeenById.set(eventId, {
+      everHadReplacement: true,
+      lastInstance: mEvent,
+    });
+  }
+};
+
 export const resetCacheProbe = (): void => {
   counters = createEmptyCounters();
+  renderTargetSeenById.clear();
   // Clear the hydrate timeline too, so a reset defines a clean measurement
   // window for both counters and timings.
   if (typeof performance !== 'undefined') {
