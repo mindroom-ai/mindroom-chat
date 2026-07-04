@@ -2,6 +2,120 @@
 
 ## Runbook
 
+### CINNY-207 P5-GATE-FIX v5 - honest root-cause writeup: v3 supplemental-array delivery is load-bearing; v1/v2 were real but insufficient (2026-07-04)
+
+- Status: Documentation-only entry atop v4 tip `c1367008` on
+  `cache-overhaul/12-p5-reconciler`. No behavior change — the
+  load-bearing fix (widened `onRepaired(repairedEvents)` routed
+  by both call sites into
+  `setSupplementalThreadEvents(threadId, [...repairedEvents])`)
+  is already in place from v3+v4.
+- Trigger: team-lead ran instrumented docker AC2 (their
+  spec-polling commit — kept in the branch) against v4 and
+  reported decisive probe data at failure time:
+  `reconcilesScheduled=3, reconcilesRepaired=2, schedulerCompleted=6, schedulerFailed=0, engineLiveWrites=0`.
+  The reconciler scheduled AND repaired — twice — yet v1 kept
+  painting. That excludes three earlier hypothesis layers and
+  narrows the load-bearing surface.
+- Root-cause statement (honest, for the runbook and future
+  debuggers reading this stack of gate-fix entries):
+  - v1 (SDK `liveThread.addEvents(allMapped, false)` injection):
+    real and correct on the partial-coverage path where the SDK
+    thread model exists. NOT load-bearing on the AC2
+    complete-coverage cache-first shape, because that path skips
+    SDK bootstrap by design (`useThreadRenderState.buildThreadEvents`
+    reads `thread?.events` only in `initialRenderMode === 'live'`,
+    and complete-coverage takes the `cached` branch). v4's
+    `reconcilesThreadNull` counter is the diagnostic for that
+    shape — the addEvents call no-ops silently there.
+  - v2 (repair the render's `cachedPage.hydratedEvents` instances,
+    not fresh clones): real and correct as an object-identity
+    contract — without it, `applyCachedReplaceRelations` mutates
+    a clone the render doesn't hold, so `replacingEvent()` on the
+    render-held instance would still return null. NOT load-bearing
+    by itself, because React memos on the
+    `fallbackThreadEventsState.events` ARRAY reference — in-place
+    mutation of instances within an array whose reference hasn't
+    changed cannot re-derive `threadEvents`. The pre-P5 tail
+    refresh converged because
+    `setSupplementalThreadEvents(threadId, latestEvents)` delivered
+    a NEW ARRAY: state change → memo bust → re-derive. v2 without
+    v3 is a mutation the render's memoization would not observe.
+  - v3 (widen `onRepaired` to carry `repairedEvents`; both call
+    sites route through
+    `setSupplementalThreadEvents(threadId, [...repairedEvents])`
+    + tick): THIS is the load-bearing fix. The spread creates a
+    new outer array; the sink builds `mergedEvents` via
+    `mergeThreadRenderEvents` (which returns a fresh array via
+    `Array.from(new Set(eventMap.values()))`); the state setter
+    delivers a new `.events` reference; the `fallbackEvents` memo
+    (deps `[fallbackThreadEventsState.events, fallbackThreadEventsState.threadId, threadId]`)
+    re-runs; the `threadEvents` memo (deps `[fallbackEvents, room, thread, threadEventRefreshTick, threadId, threadInitialCacheHydrated]`)
+    re-runs; `buildThreadEvents` re-invokes `hydrateCachedEvents`
+    which re-applies edits/redactions on the merged set. That's
+    the invalidation chain the pre-P5 refresh had for free by
+    virtue of always delivering a new array.
+- Memo-key audit (documenting what would break in-place-only fixes,
+  per team-lead request):
+  - `useThreadRenderState.ts:211` `fallbackEvents` memo — deps
+    are `[fallbackThreadEventsState.events, fallbackThreadEventsState.threadId, threadId]`.
+    Reference-identity comparison on `.events`. In-place instance
+    mutation with the same array reference: NO re-derive.
+  - `useThreadRenderState.ts:218` `threadEvents` memo — deps are
+    `[fallbackEvents, room, thread, threadEventRefreshTick, threadId, threadInitialCacheHydrated]`.
+    Reference-identity comparison on `fallbackEvents`; secondary
+    tick escape via `threadEventRefreshTick` (bumped only by
+    `useThreadEventRefresh` in response to SDK events, NOT by
+    the reconciler's `forceTimelineUpdate`/`setThreadTimelineTick`
+    which touch `timeline` state and a component-owned counter
+    unused by this memo).
+  - Consequence: the reconciler's `forceTimelineUpdate` +
+    `setThreadTimelineTick` alone are NOT enough to re-derive
+    `threadEvents`. The `setSupplementalThreadEvents` call is
+    what actually invalidates the fallback dep. This is why v3
+    is load-bearing and v1/v2 without v3 could not converge on
+    the AC2 shape.
+- Why v1 and v2 were still worth landing (not walked back):
+  - v1 remains correct for the partial-coverage path where the
+    SDK thread exists; without it, the SDK's own listeners
+    (`RoomEvent.Timeline`, `Thread.Update`) never see the fetched
+    event, and downstream code that reads `thread.events` directly
+    stays stale. Its no-op on complete-coverage is the correct
+    behavior for that shape (nothing to add to a null thread).
+  - v2's object-identity contract remains a correctness
+    requirement — the merged set that flows through
+    `buildThreadEvents → hydrateCachedEvents` at re-render
+    contains the render-held instances; if v2 had been skipped,
+    `applyCachedReplaceRelations` at that re-render would run
+    on those instances (since v2 makes the reconciler operate
+    on them too — see the invariant test), so the invariant
+    survives. But v2's own pre-render pass in the reconciler is
+    what makes the merged set INCLUDE the updated instance in
+    the first place.
+- What's expected on team-lead's next AC2 re-run against
+  `c1367008` (the v4 tip with the wiring intact):
+  - Best case: AC2 converges. The load-bearing fix has been in
+    place since `52e37491` and the probe data proves it fires;
+    the earlier "still failing" runs may have been picking up
+    an older SHA or a caching artifact.
+  - If still failing with `reconcilesRepaired ≥ 1,
+    reconcilesThreadNull = 1`: the fallback-array delivery
+    happened but the render still didn't converge. That points
+    at (a) the cell-level virtualization cache (the row renderer
+    holds a stale rendered fragment keyed on event id, not on
+    `replacingEvent()` identity), or (b) `mergeThreadRenderEvents`
+    picking the wrong preferred event on the merge — e.g. the
+    incoming `$edit-v2` gets deduped against the existing
+    `$edit-target` by `pickPreferredThreadRenderEvent` in a way
+    that drops the edit. Confirm by adding a one-time log of
+    `mergedEvents.map(e => [e.getId(), e.replacingEvent()?.getId()])`
+    inside `setSupplementalThreadEvents`.
+  - If still failing with `reconcilesThreadNull = 0`: SDK
+    bootstrap DID run (unexpected on complete-coverage AC2 — but
+    possible under different timing). Both legs fired; the v2
+    instance-race patch needs re-audit.
+- Files touched: FORK_CHANGES.md only. No code change.
+
 ### CINNY-207 P5-GATE-FIX v4 - thread-null observability + AC2 self-diagnosis polling (2026-07-04)
 
 - Status: Fix implemented on `cache-overhaul/12-p5-reconciler`,
