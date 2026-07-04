@@ -11,7 +11,7 @@ import {
 } from './threadRenderUtils';
 import { eventBelongsToThread } from './threadUtils';
 import { logTimelineDebug } from './timelineDebug';
-import { replaceFallbackInstanceRegistry } from './cacheProbe';
+import { armSunkTargetInstrumentation, replaceFallbackInstanceRegistry } from './cacheProbe';
 
 type UseThreadRenderStateOpts = {
   room: Room;
@@ -208,6 +208,23 @@ export const useThreadRenderState = ({
         ]);
       });
       replaceFallbackInstanceRegistry(registryEntries);
+      // CINNY-207 AC2 render-gap RG4e (2026-07-04): arm name-the-caller
+      // instrumentation on the sunk edit-target subset. `hydrateCachedEvents`
+      // above already ran the applier, so any mergedEvent whose
+      // `.replacingEvent()` is non-null right now is a sunk instance —
+      // team-lead's "handful of instances" narrowing. Overrides are
+      // idempotent (WeakSet-gated inside cacheProbe), so repeated
+      // registration passes on the same identity are cheap. See
+      // cacheProbe.ts for the mechanism and interpretation matrix.
+      mergedEvents.forEach((mEvent) => {
+        const eventId = mEvent.getId();
+        if (typeof eventId !== 'string' || eventId.length === 0) return;
+        if (!mEvent.replacingEvent()) return;
+        armSunkTargetInstrumentation(eventId, mEvent as unknown as {
+          makeRedacted?: (...args: unknown[]) => unknown;
+          makeReplaced?: (arg?: unknown, ...rest: unknown[]) => unknown;
+        });
+      });
     },
     [room, roomTimelineSet, threadTimelineSet]
   );

@@ -465,6 +465,55 @@ export type CacheProbeCounters = {
   //     is also high, X3 (something clears post-apply) is the shape.
   applierMakeReplacedNoLatestEdit: number;
   applierMakeReplacedLatestEqualsCurrent: number;
+  // CINNY-207 AC2 render-gap RG4e (2026-07-04): name-the-caller probe on
+  // fallback-registered edit-target instances only ("the sunk set"). RG4d
+  // proved on 2026-07-04 (see docs/mindroom-cache-overhaul-plan.md AC2
+  // scorecard) that `.replacingEvent()` was set on the sunk instance and
+  // then observed null on a later render pass for the SAME instance —
+  // renderTargetLostReplacement was non-zero. What we don't yet know: who
+  // cleared it. Team-lead's prime suspect is matrix-js-sdk's Relations
+  // aggregation for m.replace, which calls
+  // `targetEvent.makeReplaced(lastReplacement)` on every relation-set
+  // recalculation (redaction, timeline insert, decryption tick) and
+  // `lastReplacement` can be undefined — our applier sets the replacement
+  // manually, so the SDK's live Relations container for that target does
+  // NOT contain our repaired edit, and any recalculation resolves to "no
+  // replacement" and clears it via makeReplaced(undefined).
+  //
+  // Mechanism: for each fallback-registered instance whose
+  // `.replacingEvent()` is non-null at registration time (i.e. the applier
+  // has already sunk a repair into it), install per-instance own-property
+  // overrides of `makeRedacted` and `makeReplaced` that bump the counters
+  // below BEFORE delegating to the prototype method. Idempotent per
+  // instance (a WeakSet prevents double-arming).
+  //
+  //   sunkTargetMakeRedactedCalls: prototype `makeRedacted` was invoked
+  //     on a sunk instance. makeRedacted also nulls `_replacingEvent`
+  //     (matrix-js-sdk lib/models/event.js line 1040) — so a non-zero
+  //     reading names redaction as ONE clearing path. If zero, redaction
+  //     is not the mechanism.
+  //   sunkTargetMakeReplacedNonNull: `makeReplaced(x)` was called with a
+  //     non-null argument. Diagnostic for benign flow — e.g. the SDK is
+  //     aggregating a fresh replacement it knows about, or our applier
+  //     itself re-fires. Does NOT explain a clear.
+  //   sunkTargetMakeReplacedCleared: `makeReplaced(nullish)` was called.
+  //     This is team-lead's prime suspect: the SDK's Relations
+  //     aggregation running on a target whose live Relations index has
+  //     no replacement, resolving to `lastReplacement === undefined` and
+  //     clearing our manually-set replacement. If this bumps while
+  //     renderTargetLostReplacement is also non-zero, the mechanism is
+  //     PROVEN — the fix direction is then non-bandage: the repaired
+  //     edit must enter the SDK's relations aggregation (or the render
+  //     must not depend on `_replacingEvent` for repaired-fallback
+  //     instances), not "re-apply after clearing".
+  //
+  // The existing `renderTargetLostReplacement` counter (RG4d, above) is
+  // the catch-all in case something writes `_replacingEvent` directly
+  // without going through either method. If lost > 0 but all three
+  // sunkTarget counters are 0, the mechanism is a direct field write.
+  sunkTargetMakeRedactedCalls: number;
+  sunkTargetMakeReplacedNonNull: number;
+  sunkTargetMakeReplacedCleared: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -522,6 +571,9 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   applierMakeReplacedNoOpGuardFired: 0,
   applierMakeReplacedNoLatestEdit: 0,
   applierMakeReplacedLatestEqualsCurrent: 0,
+  sunkTargetMakeRedactedCalls: 0,
+  sunkTargetMakeReplacedNonNull: 0,
+  sunkTargetMakeReplacedCleared: 0,
 });
 
 let counters = createEmptyCounters();
@@ -693,6 +745,119 @@ export const recordRenderTargetSource = (eventId: string, mEvent: object): void 
   } else {
     countCacheProbe('renderTargetSourceSdkFallbackAlsoLacked');
   }
+};
+
+// CINNY-207 AC2 render-gap RG4e (2026-07-04): name-the-caller instance-
+// level overrides on fallback-registered edit-target instances (the sunk
+// set). See CacheProbeCounters block above for full mechanism and
+// interpretation notes.
+//
+// Contract:
+//   - Caller decides which instances qualify as "sunk" (has a repaired
+//     replacement now). Typical call site: `replaceFallbackInstanceRegistry`
+//     iterates its entries and, for each whose `.replacingEvent()` is
+//     non-null right now, calls `armSunkTargetInstrumentation(eventId,
+//     mEvent)`.
+//   - Idempotent per instance. A module-level WeakSet holds every
+//     instance already armed so re-registration of the same instance is
+//     a no-op — we don't stack overrides or re-install identical own
+//     properties.
+//   - Diagnostic-only: does not change semantics. The overrides delegate
+//     to the prototype method with the same `this` and arguments; the
+//     counter bump happens BEFORE delegation so a throwing prototype
+//     method still leaves an accurate call record. Return value of the
+//     prototype method (undefined for both `makeRedacted` and
+//     `makeReplaced` on current matrix-js-sdk) is forwarded verbatim.
+//   - No `try/catch` swallowing: per no-defensive-bandages rule, if the
+//     prototype method throws, the exception propagates unchanged to the
+//     original caller.
+//
+// Duck-typed on the SDK surface — we only need callable
+// `makeRedacted`/`makeReplaced` and a prototype chain to look them up.
+// This keeps cacheProbe decoupled from the SDK type surface and side-
+// steps a circular import (cacheProbe is imported by callers all over
+// the render pipeline; importing MatrixEvent here would drag the SDK
+// into every one of them via chained resolution).
+type SunkTargetProbe = {
+  makeRedacted?: (...args: unknown[]) => unknown;
+  makeReplaced?: (arg?: unknown, ...rest: unknown[]) => unknown;
+};
+
+// Symbol used to store the ORIGINAL prototype method reference on the
+// instance's own property alongside the override, so we don't rebind or
+// re-look-up on every call. Also used as the "armed" marker via a
+// property presence check when the WeakSet is undefined-tolerant.
+const ARMED_MARKER = Symbol('mindroom:sunk-target-armed');
+
+// WeakSet so armed instances don't retain lifetime beyond what the
+// render/fallback layer holds. If GC reclaims the instance, our record
+// vanishes too — that's honest for a diagnostic probe.
+const armedInstances = new WeakSet<object>();
+
+export const armSunkTargetInstrumentation = (
+  eventId: string,
+  mEvent: SunkTargetProbe
+): void => {
+  if (typeof eventId !== 'string' || eventId.length === 0) return;
+  if (!mEvent || typeof mEvent !== 'object') return;
+  if (armedInstances.has(mEvent)) return;
+
+  // Look up the prototype methods once. If the SDK shape ever drops
+  // one of these, we skip that override cleanly (no throw, and the
+  // counter for that method simply stays 0 — signaling absence).
+  const proto = Object.getPrototypeOf(mEvent) as SunkTargetProbe | null;
+  const protoMakeRedacted = proto?.makeRedacted;
+  const protoMakeReplaced = proto?.makeReplaced;
+
+  if (typeof protoMakeRedacted === 'function') {
+    // Own-property override delegating to the prototype.
+    Object.defineProperty(mEvent, 'makeRedacted', {
+      configurable: true,
+      writable: true,
+      enumerable: false,
+      value: function makeRedactedOverride(this: object, ...args: unknown[]): unknown {
+        countCacheProbe('sunkTargetMakeRedactedCalls');
+        return protoMakeRedacted.apply(this, args);
+      },
+    });
+  }
+
+  if (typeof protoMakeReplaced === 'function') {
+    Object.defineProperty(mEvent, 'makeReplaced', {
+      configurable: true,
+      writable: true,
+      enumerable: false,
+      value: function makeReplacedOverride(
+        this: object,
+        arg?: unknown,
+        ...rest: unknown[]
+      ): unknown {
+        // Team-lead's prime-suspect classification: any nullish argument
+        // is a "cleared" call. matrix-js-sdk's Relations aggregation
+        // resolves `lastReplacement` to undefined when the SDK's live
+        // Relations container has no replacement — that's the exact
+        // shape we're hunting.
+        if (arg === null || arg === undefined) {
+          countCacheProbe('sunkTargetMakeReplacedCleared');
+        } else {
+          countCacheProbe('sunkTargetMakeReplacedNonNull');
+        }
+        return protoMakeReplaced.apply(this, [arg, ...rest]);
+      },
+    });
+  }
+
+  // Mark the instance so subsequent registrations skip re-arming, even
+  // if defineProperty above did nothing (e.g. missing prototype
+  // method). Also stash the marker as an own property purely for
+  // debuggability (a devtools inspect on the instance shows it's armed).
+  armedInstances.add(mEvent);
+  Object.defineProperty(mEvent as object, ARMED_MARKER, {
+    configurable: true,
+    writable: false,
+    enumerable: false,
+    value: eventId,
+  });
 };
 
 export const resetCacheProbe = (): void => {

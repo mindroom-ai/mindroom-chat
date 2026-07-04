@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  armSunkTargetInstrumentation,
   countCacheProbe,
   getCacheProbeSnapshot,
   markCacheHydrateEnd,
@@ -224,5 +225,121 @@ describe('cacheProbe RG4c/RG4d classifier', () => {
     // Post-reset, no registry entry.
     expect(getCacheProbeSnapshot().renderTargetSourceNoFallback).toBe(1);
     expect(getCacheProbeSnapshot().renderTargetSourceFallbackAlsoLacked).toBe(0);
+  });
+});
+
+// CINNY-207 AC2 render-gap RG4e (2026-07-04): name-the-caller instance-
+// level overrides on sunk edit-target instances. Verifies:
+//  - `makeRedacted` and `makeReplaced` on the instance become own
+//    properties after arming, and delegate to the prototype method.
+//  - Bump distinct counters based on argument shape (null/undefined vs
+//    non-null for makeReplaced).
+//  - Idempotent per instance — arming twice does not re-install and does
+//    not double-bump counters for a single method call.
+//  - Skips instances whose prototype lacks the method (defensive against
+//    SDK-shape drift, does not throw).
+describe('cacheProbe RG4e sunk-target name-the-caller', () => {
+  beforeEach(() => {
+    resetCacheProbe();
+  });
+
+  const makeSunkTargetInstance = () => {
+    // Emulate a MatrixEvent-like object with prototype methods so
+    // armSunkTargetInstrumentation can walk the prototype chain.
+    class SunkTargetProto {
+      redactCalls: number = 0;
+
+      replaceCalls: unknown[] = [];
+
+      makeRedacted(...args: unknown[]) {
+        this.redactCalls += 1;
+        void args;
+      }
+
+      makeReplaced(arg?: unknown) {
+        this.replaceCalls.push(arg);
+      }
+    }
+    return new SunkTargetProto();
+  };
+
+  it('bumps sunkTargetMakeRedactedCalls and delegates to the prototype', () => {
+    const instance = makeSunkTargetInstance();
+    armSunkTargetInstrumentation('$sunk', instance);
+    instance.makeRedacted('reason');
+    instance.makeRedacted('reason2');
+
+    const snap = getCacheProbeSnapshot();
+    expect(snap.sunkTargetMakeRedactedCalls).toBe(2);
+    // Prototype method still ran — delegation preserves semantics.
+    expect(instance.redactCalls).toBe(2);
+  });
+
+  it('classifies makeReplaced by argument nullish-ness', () => {
+    const instance = makeSunkTargetInstance();
+    armSunkTargetInstrumentation('$sunk', instance);
+    instance.makeReplaced({ id: '$edit' });
+    instance.makeReplaced(undefined);
+    instance.makeReplaced(null);
+    instance.makeReplaced({ id: '$other' });
+
+    const snap = getCacheProbeSnapshot();
+    expect(snap.sunkTargetMakeReplacedNonNull).toBe(2);
+    expect(snap.sunkTargetMakeReplacedCleared).toBe(2);
+    // All four calls reached the prototype method.
+    expect(instance.replaceCalls).toEqual([
+      { id: '$edit' },
+      undefined,
+      null,
+      { id: '$other' },
+    ]);
+  });
+
+  it('is idempotent per instance across repeated arming', () => {
+    const instance = makeSunkTargetInstance();
+    armSunkTargetInstrumentation('$sunk', instance);
+    // Second arm on the same instance must be a no-op — otherwise a
+    // subsequent single method call would double-bump.
+    armSunkTargetInstrumentation('$sunk', instance);
+    instance.makeRedacted();
+    instance.makeReplaced(null);
+
+    const snap = getCacheProbeSnapshot();
+    expect(snap.sunkTargetMakeRedactedCalls).toBe(1);
+    expect(snap.sunkTargetMakeReplacedCleared).toBe(1);
+    expect(instance.redactCalls).toBe(1);
+  });
+
+  it('does not throw when the prototype lacks the target method', () => {
+    // Emulate an SDK-shape-drift instance: only makeReplaced on the
+    // prototype, no makeRedacted. Arming must skip the missing one
+    // cleanly and still install the present one.
+    class HalfShape {
+      seen: unknown[] = [];
+
+      makeReplaced(arg?: unknown) {
+        this.seen.push(arg);
+      }
+    }
+    const instance = new HalfShape();
+    expect(() => armSunkTargetInstrumentation('$half', instance)).not.toThrow();
+    instance.makeReplaced('x');
+    const snap = getCacheProbeSnapshot();
+    expect(snap.sunkTargetMakeReplacedNonNull).toBe(1);
+    expect(snap.sunkTargetMakeRedactedCalls).toBe(0);
+  });
+
+  it('preserves counter accumulation across resetCacheProbe (own-property overrides survive)', () => {
+    // The overrides are per-instance own properties; resetCacheProbe
+    // clears counters but does NOT strip installed overrides — an
+    // instance the render layer still holds continues bumping the
+    // reset counters. That's the intended behavior for a diagnostic
+    // that runs across multiple measurement windows.
+    const instance = makeSunkTargetInstance();
+    armSunkTargetInstrumentation('$sunk', instance);
+    instance.makeReplaced(null);
+    resetCacheProbe();
+    instance.makeReplaced(null);
+    expect(getCacheProbeSnapshot().sunkTargetMakeReplacedCleared).toBe(1);
   });
 });
