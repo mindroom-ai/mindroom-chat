@@ -550,6 +550,36 @@ export type CacheProbeCounters = {
   // change semantics. Duck-typed via the existing FallbackTargetProbe
   // shape (`.replacingEvent?()` present on the instance).
   registrySwappedRepairedForUnrepaired: number;
+  // CINNY-207 AC2 render-gap RG5d (2026-07-04): permanent must-stay-0
+  // tripwire on the eventMap merge invariant. `mergeThreadRenderEvents`
+  // now canonicalizes on write in `setEventForKeys` — when writing an
+  // event under its key set, any existing instance reachable under ANY
+  // of the incoming keys is displaced from ALL of its map keys before
+  // the winner is written under the union. This counter bumps once per
+  // losing instance that had to be displaced.
+  //
+  // Invariant: after `mergeThreadRenderEvents` returns, every event
+  // identity in `eventMap` maps to exactly one instance, and that
+  // instance is reachable under every key both the winner and any
+  // loser held. `Array.from(new Set(eventMap.values()))` (used by both
+  // the merge output and any downstream consumer that walks the map)
+  // therefore contains one entry per identity, not one per instance.
+  //
+  // This is a permanent tripwire, not a diagnostic. It stays in as a
+  // regression alarm: any future change that reintroduces intra-batch
+  // duplication of an event identity through the map — including new
+  // callers of `setEventForKeys` that bypass the canonicalization
+  // path, or a `getThreadRenderEventKeys` extension whose key set
+  // omits an identity dimension — will bump this counter. Non-zero in
+  // production is a bug.
+  //
+  // Zero in a correct design means: no intra-batch duplication was
+  // observed across all `mergeThreadRenderEvents` calls in the
+  // measurement window. Non-zero names either (a) the invariant was
+  // violated by a new code path, or (b) an existing path produces
+  // duplicated instances that the canonicalization successfully
+  // absorbs — either way worth investigating.
+  eventMapCanonicalizedDisplacements: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -611,6 +641,7 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   sunkTargetMakeReplacedNonNull: 0,
   sunkTargetMakeReplacedCleared: 0,
   registrySwappedRepairedForUnrepaired: 0,
+  eventMapCanonicalizedDisplacements: 0,
 });
 
 let counters = createEmptyCounters();

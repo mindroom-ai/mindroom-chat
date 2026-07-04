@@ -240,10 +240,94 @@ export const mergeThreadRenderEvents = (
 ): MatrixEvent[] => {
   const eventMap = new Map<string, MatrixEvent>();
 
+  // CINNY-207 AC2 render-gap RG5d (2026-07-04): canonicalize on write.
+  //
+  // The prior `setEventForKeys` was a plain multi-set: it wrote the new
+  // event under each of its keys without touching entries for other keys
+  // any conflicting instance already held. That left orphan entries when
+  // two instances of the same event identity arrived with only partially
+  // overlapping key sets (e.g. a bare-txnId sending echo alongside an
+  // eventId-only confirmed instance whose key sets happen not to overlap
+  // because the SDK dropped the txnId from the confirmed instance's
+  // unsigned payload). `Array.from(new Set(eventMap.values()))` at the
+  // tail would then contain both instances — one identity, two
+  // MatrixEvent references — and every downstream consumer (the applier,
+  // the fallback-instance registry, `mergedById` diagnostics, and any
+  // other reader iterating values) inherited the same hazard.
+  //
+  // The fix is a map invariant, not a post-pass rescue: any write for a
+  // key set collects EVERY existing instance reachable through ANY key
+  // (both the incoming keys and every key each conflict currently
+  // occupies in the map), picks a single winner via
+  // `pickPreferredThreadRenderEvent` (chained across 3+ conflicts), and
+  // installs the winner under the full union of keys after fully
+  // deleting each loser's entries. Post-canonicalization the map
+  // invariant is: for any two keys K1, K2 that share an event identity,
+  // `eventMap.get(K1) === eventMap.get(K2)`. `values()` therefore
+  // contains one entry per identity, always.
+  //
+  // Diagnostic: `eventMapCanonicalizedDisplacements` bumps once per
+  // losing instance the canonicalizer had to displace. It's a permanent
+  // must-stay-0 tripwire in a fully-keyed test corpus — non-zero names
+  // either an identity dimension the key extractor missed or a live
+  // shape where the SDK strips the txnId before the confirmed event
+  // arrives at the merge. See cacheProbe.ts for the interpretation
+  // block.
   const setEventForKeys = (keys: string[], mEvent: MatrixEvent) => {
+    if (keys.length === 0) return;
+
+    // Collect every distinct existing instance the incoming write
+    // conflicts with via any of its keys.
+    const conflicts = new Set<MatrixEvent>();
     keys.forEach((key) => {
-      eventMap.set(key, mEvent);
+      const existing = eventMap.get(key);
+      if (existing && existing !== mEvent) conflicts.add(existing);
     });
+
+    if (conflicts.size === 0) {
+      // Fast path — no conflict. Plain multi-set.
+      keys.forEach((key) => eventMap.set(key, mEvent));
+      return;
+    }
+
+    // Reduce (conflicts + incoming) through the picker to a single
+    // winner. The picker's contract is `(existing, incoming)` with
+    // incoming winning ties. To preserve the pre-canonicalization
+    // semantics ("last write with the same key wins ties"), fold with
+    // the conflict as the `existing` argument and the winner-so-far as
+    // the `incoming` argument — so the final incoming `mEvent` retains
+    // tie-break priority over prior conflicts, matching the prior
+    // `existingEvents → incomingEvents` iteration order.
+    let winner = mEvent;
+    conflicts.forEach((conflict) => {
+      winner = pickPreferredThreadRenderEvent(conflict, winner, resolveConfirmedId);
+    });
+
+    // Every non-winner instance among (conflicts ∪ {mEvent}) is a
+    // loser and must be fully displaced.
+    const losers = new Set<MatrixEvent>();
+    conflicts.forEach((c) => {
+      if (c !== winner) losers.add(c);
+    });
+    if (winner !== mEvent) losers.add(mEvent);
+
+    // Snapshot every key any loser currently occupies BEFORE deleting,
+    // so the winner can reclaim them. Then delete those entries.
+    const unionKeys = new Set<string>(keys);
+    getThreadRenderEventKeys(winner, resolveConfirmedId).forEach((k) => unionKeys.add(k));
+    if (losers.size > 0) {
+      const loserKeys: string[] = [];
+      eventMap.forEach((held, heldKey) => {
+        if (losers.has(held)) loserKeys.push(heldKey);
+      });
+      loserKeys.forEach((key) => {
+        unionKeys.add(key);
+        eventMap.delete(key);
+      });
+      losers.forEach(() => countCacheProbe('eventMapCanonicalizedDisplacements'));
+    }
+
+    unionKeys.forEach((key) => eventMap.set(key, winner));
   };
 
   const findExistingEvent = (keys: string[]): MatrixEvent | undefined =>
@@ -265,15 +349,9 @@ export const mergeThreadRenderEvents = (
       return;
     }
 
-    const preferredEvent = pickPreferredThreadRenderEvent(
-      existingEvent,
-      mEvent,
-      resolveConfirmedId
-    );
-    const mergedKeys = Array.from(
-      new Set([...getThreadRenderEventKeys(existingEvent, resolveConfirmedId), ...incomingKeys])
-    );
-    setEventForKeys(mergedKeys, preferredEvent);
+    // setEventForKeys now handles the pick + displacement internally;
+    // the caller just provides the new event and its keys.
+    setEventForKeys(incomingKeys, mEvent);
   });
 
   const merged = Array.from(new Set(eventMap.values())).sort((a, b) => {

@@ -528,6 +528,13 @@ test.describe('CINNY-207 stale-cache divergence reconcile', () => {
           registrySwappedRepairedForUnrepaired: pick(
             'registrySwappedRepairedForUnrepaired'
           ),
+          // RG5d canonicalization tripwire — must be 0 in a correct
+          // design. Non-zero names intra-batch duplication that the
+          // canonicalizer absorbed (either the SDK stripped a key
+          // dimension or a new caller bypassed setEventForKeys).
+          eventMapCanonicalizedDisplacements: pick(
+            'eventMapCanonicalizedDisplacements'
+          ),
         };
       });
       // Structured single-line log so the grep is trivial and copy-paste
