@@ -2,6 +2,32 @@
 
 ## Runbook
 
+### Task #125 follow-up — prepend commit at scroll quiescence (2026-07-04, team lead)
+
+Post-deploy mobile report: upward flicks stopped DEAD on finger
+release (no inertia/deceleration); downward scrolling kept momentum.
+
+- Mechanism: iOS WebKit cancels flick momentum on any programmatic
+  `scrollTop` write. The back-pagination prepend pipeline restores the
+  scroll anchor with exactly such writes, and the scroll-driven
+  trigger fires mid-flick BY DESIGN (prefetch headroom) — so every
+  upward flick near the loaded edge ended with a mid-momentum prepend
+  commit + restore write. Downward scrolling never prepends.
+- Fix: split fetch from commit. `waitForScrollQuiescence`
+  (scrollQuiescence.ts, unit-tested with fake timers: idle window,
+  momentum-in-flight, touch-active block, touchcancel, starvation
+  cap) — data is fetched during the flick, but the RENDER COMMIT
+  (state writes → offset shift → anchor-restore writes) waits until
+  no scroll events for 150ms and no active touch, capped at 2.5s so a
+  continuous scroller is never starved (a capped commit is at worst
+  the pre-fix behavior, once). Applied to both pagination paths in
+  threadPaginationCommandController.ts; the IDB persist stays
+  immediate (no render impact). A scroller clamped at the loaded edge
+  stops emitting scroll events, so the out-of-runway case resolves
+  through the same idle path.
+- All five virtualization behavior guards green in one docker run
+  (including the throttled trigger-specific auto-paginate test).
+
 ### Task #125 — scroll-driven thread back-pagination (2026-07-04, team lead)
 
 Prod report (Brave iOS, slow connection, chat.mindroom.chat): scrolling

@@ -444,6 +444,7 @@ export function RoomTimeline({
     getPendingAnchorEventId: getPendingThreadBackPaginationAnchorEventId,
     getPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq,
     restorePendingAnchor: restorePendingThreadBackPaginationAnchor,
+    recaptureAnchor: recaptureThreadBackPaginationAnchor,
   } = useThreadBackPaginationController();
   const roomIdRef = useRef(room.roomId);
   const roomPaginatingBackRef = useRef(false);
@@ -1369,6 +1370,60 @@ export function RoomTimeline({
     },
     [
       beginThreadBackPagination,
+      getPendingThreadBackPaginationAnchorEventId,
+      getPendingThreadBackPaginationAnchorSeq,
+      threadEventIndexMapRef,
+    ]
+  );
+  // Task #125 follow-up: re-capture just before the (quiescence-
+  // deferred) prepend commit, so the restore targets the row the user
+  // actually stopped on rather than where the fire happened. Mirrors
+  // beginThreadBackPaginationWithCapture's component-side bookkeeping
+  // (the coarse scrollToIndex leg reads threadVirtualPrependCaptureRef).
+  const recaptureThreadBackPaginationAnchorWithCapture = useCallback(
+    (
+      recaptureThreadId: string | undefined,
+      scrollRoot: HTMLElement | null | undefined,
+      eventCount?: number
+    ): boolean => {
+      if (!recaptureThreadBackPaginationAnchor(recaptureThreadId, scrollRoot, eventCount)) {
+        // Recapture failed (no visible message row — e.g. momentum
+        // settled in a virtualized/loading gap). The begin-time anchor
+        // is stale by definition here; restoring it would teleport the
+        // viewport back to where pagination fired, and committing
+        // WITHOUT a restore would shift the viewport by the prepended
+        // height (greptile rounds 2+3 on PR #75). Drop the anchor and
+        // report failure — the caller skips the commit entirely; the
+        // fetched page is already persisted, so the next gesture
+        // retries as a fast cache-hit once the viewport has rows.
+        clearPendingThreadBackPaginationAnchor();
+        threadVirtualPrependCaptureRef.current = undefined;
+        return false;
+      }
+      if (!recaptureThreadId) return true;
+      const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
+      const anchorSeq = getPendingThreadBackPaginationAnchorSeq();
+      const anchorIndex =
+        anchorEventId === undefined
+          ? undefined
+          : threadEventIndexMapRef.current.get(anchorEventId);
+      if (
+        anchorEventId !== undefined &&
+        anchorSeq !== undefined &&
+        typeof anchorIndex === 'number'
+      ) {
+        threadVirtualPrependCaptureRef.current = {
+          threadId: recaptureThreadId,
+          anchorEventId,
+          anchorIndex,
+          anchorSeq,
+        };
+      }
+      return true;
+    },
+    [
+      recaptureThreadBackPaginationAnchor,
+      clearPendingThreadBackPaginationAnchor,
       getPendingThreadBackPaginationAnchorEventId,
       getPendingThreadBackPaginationAnchorSeq,
       threadEventIndexMapRef,
@@ -2923,6 +2978,8 @@ export function RoomTimeline({
   const { handleThreadPaginateBack, handleThreadPaginateFront } =
     useThreadPaginationCommandController({
       beginThreadBackPagination: beginThreadBackPaginationWithCapture,
+      recaptureThreadBackPaginationAnchor: recaptureThreadBackPaginationAnchorWithCapture,
+      clearThreadBackPaginationAnchor: clearPendingThreadBackPaginationAnchor,
       finishThreadBackPagination,
       forceTimelineUpdate,
       mx,
