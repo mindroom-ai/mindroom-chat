@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { Direction, MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useThreadEditBackfillController } from '../threadEditBackfillController';
 
@@ -48,7 +48,13 @@ type Deferred = { promise: Promise<{ events: MatrixEvent[] }>; resolve: () => vo
 const makeHarness = () => {
   // One deferred per target so tests control fetch completion timing.
   const deferreds = new Map<string, Deferred>();
+  // Targets whose NEXT fetch should reject once (transient error).
+  const failOnce = new Set<string>();
   const relations = vi.fn((_room: string, targetId: string) => {
+    if (failOnce.has(targetId)) {
+      failOnce.delete(targetId);
+      return Promise.reject(new Error('transient'));
+    }
     let resolveFn!: () => void;
     const editResult = { events: [makeEditFor(targetId, `$edit-${targetId}`, 2000, 'resolved')] };
     const promise = new Promise<{ events: MatrixEvent[] }>((res) => {
@@ -66,7 +72,7 @@ const makeHarness = () => {
     getThread: () => undefined,
     findEventById: () => undefined,
   } as never;
-  return { deferreds, relations, mx, room };
+  return { deferreds, failOnce, relations, mx, room };
 };
 
 const makeProps = (harness: ReturnType<typeof makeHarness>, threadEvents: MatrixEvent[]) => {
@@ -137,15 +143,15 @@ describe('useThreadEditBackfillController (task #129)', () => {
     act(() => renderer.unmount());
   });
 
-  it('still resolves an event whose first fetch was cancelled by churn', async () => {
-    // The core band bug. Old code marked attempted UP FRONT, so after a
-    // threadEvents change cancelled the first in-flight batch, the gate
-    // refused to re-select the event → the second run never refetched →
-    // the edit was never applied → permanent placeholder. Fixed code
-    // does not mark on start, so the churn-triggered re-run refetches
-    // and resolves it.
-    //   old code : relations called 1x, replacingEvent() undefined
-    //   fixed    : relations called 2x, edit applied
+  it('resolves an event across a threadEvents churn without stranding or duplicating the fetch', async () => {
+    // The core band bug. Old code marked attempted UP FRONT and cancelled
+    // the in-flight batch on any threadEvents change → the gate refused
+    // to re-select the event → permanent placeholder. Fixed code does not
+    // cancel on churn (the pending fetch stays valid) and does not mark
+    // before it resolves, so the edit is applied by the ORIGINAL fetch —
+    // exactly once — despite the churn.
+    //   old code : replacingEvent() undefined (stranded)
+    //   fixed    : edit applied, relations called exactly 1x
     const harness = makeHarness();
     const target = makePlaceholder('$t2');
     const { props } = makeProps(harness, [target]);
@@ -157,16 +163,15 @@ describe('useThreadEditBackfillController (task #129)', () => {
     });
     expect(harness.relations).toHaveBeenCalledTimes(1);
 
-    // Churn: new threadEvents array (same instance) → cleanup cancels
-    // the first batch; the re-run must launch a fresh fetch because the
-    // event was never marked attempted.
+    // Churn while the fetch is pending: must not cancel it, must not
+    // launch a duplicate (the id is in-flight).
     await act(async () => {
       renderer.update(React.createElement(Harness, { ...props, threadEvents: [target] }));
       await flush();
     });
-    expect(harness.relations).toHaveBeenCalledTimes(2);
+    expect(harness.relations).toHaveBeenCalledTimes(1);
 
-    // Resolve the second (live) fetch → definitive → edit applied.
+    // The original fetch resolves → edit applied.
     await act(async () => {
       harness.deferreds.get('$t2')!.resolve();
       await flush();
@@ -176,10 +181,46 @@ describe('useThreadEditBackfillController (task #129)', () => {
     act(() => renderer.unmount());
   });
 
-  it('does not refetch an event whose fetch is already in flight across churn', async () => {
-    // In-flight guard: repeated effect re-runs while a fetch is pending
-    // must not launch duplicate fetches (would be a request storm now
-    // that the upfront mark is gone).
+  it('retries after a transient fetch error (never marks a failed fetch attempted)', async () => {
+    // A failed fetch is non-definitive: it must not mark attempted, so a
+    // later effect run refetches and resolves. Old code marked up front,
+    // so a fetch error left the event marked → never retried.
+    //   old code : relations 1x, replacingEvent() undefined
+    //   fixed    : relations 2x, edit applied
+    const harness = makeHarness();
+    const target = makePlaceholder('$t4');
+    harness.failOnce.add('$t4');
+    const { props } = makeProps(harness, [target]);
+
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(Harness, props));
+      await flush();
+    });
+    // First fetch rejected → not applied, not marked.
+    expect(harness.relations).toHaveBeenCalledTimes(1);
+    expect(target.replacingEvent()).toBeFalsy();
+
+    // Churn re-runs the effect → refetch (now succeeds) → resolve.
+    await act(async () => {
+      renderer.update(React.createElement(Harness, { ...props, threadEvents: [target] }));
+      await flush();
+    });
+    expect(harness.relations).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      harness.deferreds.get('$t4')!.resolve();
+      await flush();
+    });
+    expect(target.replacingEvent()?.getId()).toBe('$edit-$t4');
+
+    act(() => renderer.unmount());
+  });
+
+  it('does not refetch an event whose fetch is still in flight when the effect re-runs', async () => {
+    // In-flight guard: while a fetch is pending, a churn-triggered effect
+    // re-run must NOT launch a duplicate fetch for the same event id
+    // (would be a request storm now that the upfront mark is gone). The
+    // token-map keyed by event id enforces this across overlapping runs.
     const harness = makeHarness();
     const target = makePlaceholder('$t3');
     const { props } = makeProps(harness, [target]);
@@ -189,18 +230,23 @@ describe('useThreadEditBackfillController (task #129)', () => {
       renderer = create(React.createElement(Harness, props));
       await flush();
     });
-    // Re-render several times WITHOUT cancelling long enough to settle;
-    // the in-flight guard should keep the fetch count at 1 until the
-    // cleanup of each run frees the event — but since each cleanup frees
-    // and the next run re-adds, the guard that matters is within a run.
-    // The invariant we assert: no duplicate concurrent fetch is issued
-    // for the same still-pending instance within a single run.
     expect(harness.relations).toHaveBeenCalledTimes(1);
 
+    // Churn while the fetch is STILL pending (deferred not resolved):
+    // the re-run sees the id in-flight and must issue no second fetch.
+    await act(async () => {
+      renderer.update(React.createElement(Harness, { ...props, threadEvents: [target] }));
+      await flush();
+    });
+    expect(harness.relations).toHaveBeenCalledTimes(1);
+
+    // Resolve → the (now-cancelled first) fetch releases its claim
+    // without marking; a later churn is free to retry.
     await act(async () => {
       harness.deferreds.get('$t3')!.resolve();
       await flush();
     });
+
     act(() => renderer.unmount());
   });
 });
