@@ -1177,8 +1177,24 @@ export function RoomTimeline({
     },
     []
   );
+  // First-enqueue timestamp of the current deferred batch: caps the
+  // total defer so a touch held anywhere in the window (another pane,
+  // an unrelated control) cannot starve the flush indefinitely
+  // (greptile on PR #76). A capped flush while a finger rests
+  // elsewhere is harmless — this scroller has been idle the whole
+  // window, so there is no momentum to kill.
+  const threadMeasureDeferStartRef = useRef<number | undefined>(undefined);
   useEffect(() => {
+    // Thread switch: drop the previous thread's queue AND its flush
+    // timer — a stale timer firing against the new thread would flush
+    // on the old thread's activity timing (gemini on PR #76).
     pendingThreadMeasuresRef.current.clear();
+    threadMeasureDeferStartRef.current = undefined;
+    threadLastScrollActivityRef.current = 0;
+    if (threadMeasureFlushTimerRef.current !== undefined) {
+      clearTimeout(threadMeasureFlushTimerRef.current);
+      threadMeasureFlushTimerRef.current = undefined;
+    }
   }, [threadId]);
   const isThreadMeasureDeferred = useCallback(
     () =>
@@ -1191,17 +1207,29 @@ export function RoomTimeline({
       }),
     [threadIdRef]
   );
+  const THREAD_MEASURE_DEFER_CAP_MS = 2500;
   const scheduleThreadMeasureFlush = useCallback(() => {
     if (threadMeasureFlushTimerRef.current !== undefined) return;
     threadMeasureFlushTimerRef.current = setTimeout(() => {
       threadMeasureFlushTimerRef.current = undefined;
-      if (pendingThreadMeasuresRef.current.size === 0) return;
-      if (isThreadMeasureDeferred()) {
+      if (pendingThreadMeasuresRef.current.size === 0) {
+        threadMeasureDeferStartRef.current = undefined;
+        return;
+      }
+      const deferStart = threadMeasureDeferStartRef.current ?? Date.now();
+      const capped = Date.now() - deferStart >= THREAD_MEASURE_DEFER_CAP_MS;
+      if (!capped && isThreadMeasureDeferred()) {
         scheduleThreadMeasureFlush();
         return;
       }
+      threadMeasureDeferStartRef.current = undefined;
       const pending = Array.from(pendingThreadMeasuresRef.current);
       pendingThreadMeasuresRef.current.clear();
+      // Disconnected rows are dropped WITHOUT measuring: measuring a
+      // detached element reads height 0 and would poison the learned
+      // row-size stats. A dropped row that later remounts re-enters
+      // this same gated path, so its eventual correction is still
+      // deferred to quiescence — no momentum-killing write can result.
       pending.forEach((element) => {
         if (element.isConnected) performThreadTileMeasure(element);
       });
@@ -1211,6 +1239,9 @@ export function RoomTimeline({
     (element: Element | null) => {
       if (!element) return;
       if (isThreadMeasureDeferred()) {
+        if (threadMeasureDeferStartRef.current === undefined) {
+          threadMeasureDeferStartRef.current = Date.now();
+        }
         pendingThreadMeasuresRef.current.add(element);
         scheduleThreadMeasureFlush();
         return;
@@ -3125,7 +3156,12 @@ export function RoomTimeline({
       threadLastScrollActivityRef.current = Date.now();
     };
     scrollEl.addEventListener('scroll', onScrollActivity, { passive: true });
-    const gestureEvents = ['wheel', 'touchmove', 'pointerdown', 'keydown'] as const;
+    // 'touchstart' included (greptile on PR #76): an iOS flick can
+    // produce scroll activity before the first touchmove is seen, and
+    // the measurement-deferral gate must already know a user gesture
+    // began. pointerdown covers this on PointerEvent browsers;
+    // touchstart is the belt for the rest.
+    const gestureEvents = ['wheel', 'touchstart', 'touchmove', 'pointerdown', 'keydown'] as const;
     const onGesture = () => {
       setThreadUserScrolled(true);
       threadUserScrolledRef.current = true;
