@@ -188,3 +188,70 @@ describe('CINNY-207 P3.3 engine boundary architecture', () => {
     });
   });
 });
+
+/**
+ * Engine framework-agnostic boundary.
+ *
+ * The engine is domain logic layered over matrix-js-sdk. It must stay
+ * React-free so it can be reasoned about — and one day lifted into a
+ * standalone package — independent of Cinny's render tree. These guards
+ * pin that property so a stray `useEffect` or a sideways import into the
+ * render/adapter layer fails CI instead of silently coupling the engine
+ * to the UI.
+ *
+ * The SOLE allowed React seam is `engineContext.tsx`, the thin
+ * Provider/hook wrapper that hands the singleton engine to the tree.
+ * The engine may still reach DOWN to pure, React-free primitives/types
+ * that happen to live under `threads/` (cacheStore, cacheProbe,
+ * eventRepository, eventCacheEditUtils, timelineDebug, preloadSettings,
+ * types) — those are the cache layer, not the render layer. What it must
+ * not do is reach SIDEWAYS into `threads/*Controller*` hooks or `.tsx`
+ * components. `HydratedThreadCachePage` was moved to `threads/types.ts`
+ * exactly so the reconciler stopped importing the
+ * `threadOpenCacheController` hook module for its type.
+ */
+describe('engine framework-agnostic boundary (library-extraction guard)', () => {
+  const REACT_SEAM_ALLOWLIST = ['engineContext.tsx'];
+
+  // Match an actual `import ... from 'react'` statement, not prose.
+  const importsReact = (source: string): boolean =>
+    /(?:^|\n)\s*import[^\n]*from\s+['"]react['"]/.test(source);
+
+  const engineReactImporters = (): string[] => {
+    const importers: string[] = [];
+    for (const file of engineModulePaths()) {
+      const rel = relative(engineRoot, file).replace(/\\/g, '/');
+      if (importsReact(readFileSync(file, 'utf8'))) importers.push(rel);
+    }
+    return importers;
+  };
+
+  it('no engine/** module imports react except the engineContext.tsx seam', () => {
+    const offenders = engineReactImporters().filter(
+      (rel) => !REACT_SEAM_ALLOWLIST.includes(rel)
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('engineContext.tsx is the only engine react seam (allowlist stays intentional)', () => {
+    // If the engine ever legitimately needs a second React seam, add it
+    // to REACT_SEAM_ALLOWLIST deliberately — do not let one appear by
+    // accident. Equality (not subset) keeps the allowlist honest.
+    expect(engineReactImporters()).toEqual(REACT_SEAM_ALLOWLIST);
+  });
+
+  it('no engine/** module imports a threads/ React adapter (a *Controller* hook or a .tsx component)', () => {
+    // Only matches `import ... from '<path with Controller or .tsx>'`,
+    // so comment/docstring mentions of a controller are fine.
+    const adapterImport = /import[^\n]*from\s+['"][^'"]*(?:Controller|\.tsx)['"]/;
+    const offenders: string[] = [];
+    for (const file of engineModulePaths()) {
+      const rel = relative(engineRoot, file).replace(/\\/g, '/');
+      const source = readFileSync(file, 'utf8');
+      for (const line of source.split('\n')) {
+        if (adapterImport.test(line)) offenders.push(`${rel}: ${line.trim()}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});

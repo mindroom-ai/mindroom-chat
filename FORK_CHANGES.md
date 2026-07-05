@@ -2,6 +2,58 @@
 
 ## Runbook
 
+### Engine framework-agnostic boundary guard (2026-07-05, team lead)
+
+**Why.** Considered extracting the CINNY-207 cache/sync layer into a
+standalone library. Verdict: not yet — only one real client consumes it
+(the element fork is being retired), it is still churning (six scroll/edit
+PRs this week), and it is a fork we rebase onto upstream Cinny. But the
+property a library would guarantee — the engine is framework-agnostic
+domain logic over matrix-js-sdk — is *already true* (only
+`engine/engineContext.tsx` touches React) and was *unenforced*. This
+change pins it so a future `useEffect` in `reconciler.ts`, or a sideways
+import into the render layer, fails CI instead of silently coupling the
+engine to the UI. Makes an eventual `git subtree split` an afternoon's
+work rather than an archaeology project.
+
+**What changed.**
+
+- Relocated the `HydratedThreadCachePage` type out of the React hook
+  module `threads/threadOpenCacheController.ts` into the pure types
+  module `threads/types.ts` (where its `ThreadCacheCoverage` dependency
+  already lives). This removed the engine's last adapter-shaped import:
+  `reconciler.ts` previously imported the type from a `*Controller*`
+  hook module. Updated the four importers (reconciler, reconciler.test,
+  threadOpenSdkBootstrap, threadOpenCacheFirst) to the single source of
+  truth in `threads/types.ts`; no re-export left behind.
+- Extended `engine/__tests__/engine.architecture.test.ts` with a new
+  `describe('engine framework-agnostic boundary …')` holding three
+  guards: (1) no `engine/**` module imports `react` except the
+  allowlisted seam `engineContext.tsx`; (2) equality check that
+  `engineContext.tsx` is the *only* react seam (keeps the allowlist
+  honest); (3) no `engine/**` module imports a `threads/` React adapter
+  (a `*Controller*` hook or a `.tsx` component). The engine may still
+  reach *down* to pure primitives/types under `threads/` (cacheStore,
+  cacheProbe, eventRepository, eventCacheEditUtils, timelineDebug,
+  preloadSettings, types) — those are the cache layer, not the render
+  layer.
+
+**Deliberately NOT done.** No mass file-move of the cache primitives
+into `engine/`. Investigation showed `cacheStore`/`cacheProbe`/
+`eventRepository` are shared primitives imported by `cache/`, `client/`,
+and `utils/room` too, and are already allowlisted by the existing
+CINNY-207 P3.3 persist-boundary guard. Pulling them into `engine/` would
+spread the engine dependency wider, not narrow it, and churn load-bearing
+guards for a cosmetic gain. The correct layering is
+`threads/ (render) → engine/ (domain) → cache/ + primitives`, and the
+engine already respects it.
+
+**Validation.** `npm run typecheck` ✓, `npm run build` ✓,
+`eslint` on all changed files ✓, `vitest run` on engine + affected
+thread-open suites ✓ (170 tests). Verified the new guard regexes have
+teeth (they match the pre-move `*Controller*` import and a `.tsx`
+import, and do not match the new `types` import or comment mentions).
+
 ### Task #127 — remembered collapse-overflow verdicts (2026-07-05, team lead)
 
 Post-fu2 mobile report: momentum kill persists (correlated with a

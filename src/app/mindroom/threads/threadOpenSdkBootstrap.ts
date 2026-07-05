@@ -19,7 +19,7 @@ import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from './timelineDebug';
 import { getThreadCursorAnchor } from './eventRepository';
 import { isThreadNotFoundError } from './threadBootstrap';
-import type { HydratedThreadCachePage } from './threadOpenCacheController';
+import type { HydratedThreadCachePage } from './types';
 
 type PersistThreadEventCache = (
   expectedThreadId: string,
