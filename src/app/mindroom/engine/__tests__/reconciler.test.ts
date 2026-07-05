@@ -27,7 +27,7 @@ import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { createBackfillScheduler } from '../backfillScheduler';
 import { scheduleReconcile } from '../reconciler';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../threads/cacheProbe';
-import type { HydratedThreadCachePage } from '../../threads/threadOpenCacheController';
+import type { HydratedThreadCachePage } from '../../threads/types';
 
 // ---------------------------------------------------------------------------
 // Minimal fixtures — a MatrixEvent-shaped stub the reconciler can consume via

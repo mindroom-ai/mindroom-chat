@@ -1,3 +1,4 @@
+import type { IEvent, MatrixEvent } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 
 export type ThreadId = {
@@ -42,6 +43,44 @@ export type ThreadCacheCoverage = {
   relationSnapshotComplete: boolean;
   tailLoaded: boolean;
   expectedReplyCount?: number;
+};
+
+/**
+ * The result of hydrating a thread's page from the MindRoom cache.
+ *
+ * Defined here (a pure, React-free types module) rather than in the
+ * `threadOpenCacheController` hook that produces it: the engine
+ * reconciler is an authoritative consumer, and the engine must not
+ * import from the React adapter layer (`threads/*Controller*`) —
+ * enforced by `engine/__tests__/engine.architecture.test.ts`.
+ */
+export type HydratedThreadCachePage = {
+  beforeToken?: string | null;
+  cacheCoverage: ThreadCacheCoverage;
+  events: Partial<IEvent>[];
+  /**
+   * CINNY-207 P5-GATE-FIX v2 (AC2 instance-race): the SAME MatrixEvent
+   * instances that were handed to `setSupplementalThreadEvents` on cache
+   * hydrate — i.e. the objects the render layer is holding via
+   * `fallbackThreadEventsState.events`. The reconciler needs identity
+   * with these to make `applyCachedReplaceRelations`/`makeRedacted`
+   * mutations actually visible in the render, instead of mutating a
+   * fresh clone nobody reads. Undefined on the empty-cache branch.
+   */
+  hydratedEvents?: MatrixEvent[];
+  /**
+   * Companion to `hydratedEvents` for the root event. Same identity
+   * contract: this is the instance the render will pick up when
+   * `thread?.rootEvent` is unavailable (e.g. cold cache-first reopen
+   * with an empty SDK thread model).
+   */
+  hydratedRootEvent?: MatrixEvent;
+  expectedReplyCount?: number;
+  hasMoreBefore: boolean;
+  relationSnapshotComplete: boolean;
+  rootEvent?: Partial<IEvent>;
+  snapshotComplete: boolean;
+  tailLoaded: boolean;
 };
 
 export type ThreadRecord = ThreadId & {

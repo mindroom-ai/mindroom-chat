@@ -61,7 +61,7 @@ import {
 import { logTimelineDebug } from '../threads/timelineDebug';
 import { countCacheProbe } from '../threads/cacheProbe';
 import type { BackfillScheduler } from './backfillScheduler';
-import type { HydratedThreadCachePage } from '../threads/threadOpenCacheController';
+import type { HydratedThreadCachePage } from '../threads/types';
 
 /** Batch size for each `/relations` page — matches THREAD_BATCH_SIZE. */
 const RECONCILE_BATCH_SIZE = 200;
