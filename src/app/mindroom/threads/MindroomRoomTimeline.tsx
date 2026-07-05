@@ -1180,14 +1180,18 @@ export function RoomTimeline({
   // First-enqueue timestamp of the current deferred batch: caps the
   // total defer so a touch held anywhere in the window (another pane,
   // an unrelated control) cannot starve the flush indefinitely
-  // (greptile on PR #76). A capped flush while a finger rests
-  // elsewhere is harmless — this scroller has been idle the whole
-  // window, so there is no momentum to kill.
+  // (greptile on PR #76). The cap only defeats the TOUCH condition —
+  // the flush still requires this scroller's own quiet window (see
+  // scheduleThreadMeasureFlush), so it can never land mid-flick.
   const threadMeasureDeferStartRef = useRef<number | undefined>(undefined);
-  useEffect(() => {
-    // Thread switch: drop the previous thread's queue AND its flush
-    // timer — a stale timer firing against the new thread would flush
-    // on the old thread's activity timing (gemini on PR #76).
+  // Thread switch: drop the previous thread's queue, flush timer, and
+  // activity timing at RENDER time (coderabbit on PR #76 — a
+  // [threadId] effect runs after the new thread's first tiles have
+  // already gone through measureThreadTile with stale state). Same
+  // pattern as the threadIdRef render-time assignment above.
+  const threadMeasureResetForThreadRef = useRef(threadId);
+  if (threadMeasureResetForThreadRef.current !== threadId) {
+    threadMeasureResetForThreadRef.current = threadId;
     pendingThreadMeasuresRef.current.clear();
     threadMeasureDeferStartRef.current = undefined;
     threadLastScrollActivityRef.current = 0;
@@ -1195,7 +1199,7 @@ export function RoomTimeline({
       clearTimeout(threadMeasureFlushTimerRef.current);
       threadMeasureFlushTimerRef.current = undefined;
     }
-  }, [threadId]);
+  }
   const isThreadMeasureDeferred = useCallback(
     () =>
       shouldDeferThreadTileMeasure({
@@ -1218,7 +1222,14 @@ export function RoomTimeline({
       }
       const deferStart = threadMeasureDeferStartRef.current ?? Date.now();
       const capped = Date.now() - deferStart >= THREAD_MEASURE_DEFER_CAP_MS;
-      if (!capped && isThreadMeasureDeferred()) {
+      // The cap only overrides GLOBAL-touch starvation (a finger held
+      // on another pane). This scroller's own quiet window is never
+      // bypassed (greptile round 2 on PR #76): a long flick that is
+      // still emitting scroll events when the cap expires must not be
+      // interrupted by a measurement correction.
+      const scrollerQuiet =
+        Date.now() - threadLastScrollActivityRef.current >= SCROLL_QUIESCENCE_IDLE_MS;
+      if ((capped && !scrollerQuiet) || (!capped && isThreadMeasureDeferred())) {
         scheduleThreadMeasureFlush();
         return;
       }
