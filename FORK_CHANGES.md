@@ -2,6 +2,33 @@
 
 ## Runbook
 
+### Task #125 follow-up 2 — thread row measurement at scroll quiescence (2026-07-04, team lead)
+
+Post-#75 mobile report: upward flicks still lose momentum through
+never-visited regions; revisited regions are smooth — "smooth only up
+to where I scrolled before". That boundary is the row-measurement
+cache: measuring a newly mounted row ABOVE the viewport makes
+react-virtual correct scrollTop for the estimate-vs-real height error
+(a programmatic scroll write → iOS momentum kill), and it only happens
+while scrolling up through unmeasured territory.
+
+- Fix: same principle as #75, one layer deeper — measurements are
+  QUEUED while the scroll is live and flushed when it goes quiet.
+  Pure gate `shouldDeferThreadTileMeasure` (threadRenderUtils.ts,
+  unit-tested): thread view + real user gesture seen + (active touch
+  or scroll event within SCROLL_QUIESCENCE_IDLE_MS). The open-time
+  pin/settle scrolls programmatically with no user gesture, so it
+  always measures immediately. Flush loop polls at idle granularity,
+  drops disconnected elements, and the single scroll correction lands
+  with no momentum to kill. Rows keep estimated sizes until the flush
+  (transient mis-spacing during a fast flick vs a dead stop).
+- scrollQuiescence.ts exports the shared idle constant and
+  `hasActiveWindowTouches` (window-level tracker as single source of
+  truth).
+- All five virtualization behavior guards green in docker with the
+  deferral live (the wheel-driven tests exercise the queue+flush).
+- Verification limit: real iOS momentum is only testable on-device.
+
 ### Task #125 follow-up — prepend commit at scroll quiescence (2026-07-04, team lead)
 
 Post-deploy mobile report: upward flicks stopped DEAD on finger

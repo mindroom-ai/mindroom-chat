@@ -20,6 +20,9 @@
  * starved; a capped commit is at worst the pre-fix behavior, once.
  */
 
+// The shared "quiet window" used by every scroll-quiescence consumer.
+export const SCROLL_QUIESCENCE_IDLE_MS = 150;
+
 export type WaitForScrollQuiescenceOptions = {
   // Quiet window with no scroll events (and no active touch) that
   // counts as quiescent.
@@ -59,9 +62,13 @@ const installTouchTracker = () => {
 };
 installTouchTracker();
 
+// Consulted by callers that need an instantaneous read of the global
+// touch state (e.g. the thread tile measurement gate).
+export const hasActiveWindowTouches = (): boolean => windowActiveTouches > 0;
+
 export const waitForScrollQuiescence = (
   scrollElement: HTMLElement | null,
-  { idleMs = 150, maxWaitMs = 2500 }: WaitForScrollQuiescenceOptions = {}
+  { idleMs = SCROLL_QUIESCENCE_IDLE_MS, maxWaitMs = 2500 }: WaitForScrollQuiescenceOptions = {}
 ): Promise<void> => {
   // Detached elements can't scroll and their touchend may never fire —
   // resolve immediately (gemini on PR #75).

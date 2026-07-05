@@ -139,7 +139,9 @@ import {
   dedupeThreadRenderEventEntries,
   primeTimelineRenderContextBefore,
   shouldAutoPaginateThreadBack,
+  shouldDeferThreadTileMeasure,
 } from './threadRenderUtils';
+import { hasActiveWindowTouches, SCROLL_QUIESCENCE_IDLE_MS } from './scrollQuiescence';
 import {
   useTimelineDebugRangeController,
   useTimelineDebugTraceIds,
@@ -1133,9 +1135,8 @@ export function RoomTimeline({
       return threadFilteredEventEntries[item]?.event.getId() ?? item ?? index;
     },
   });
-  const measureThreadTile = useCallback(
-    (element: Element | null) => {
-      if (!element) return;
+  const performThreadTileMeasure = useCallback(
+    (element: Element) => {
       roomTimelineVirtualizer.measureElement(element);
       const height = (element as HTMLElement).offsetHeight;
       // Null-rendering edit/reaction rows measure 0 and are deliberately
@@ -1150,6 +1151,73 @@ export function RoomTimeline({
       }
     },
     [maybeAdoptLearnedThreadRowSize, roomTimelineVirtualizer]
+  );
+  // Task #125 follow-up 2: measuring a row above the viewport makes the
+  // virtualizer correct scrollTop for the estimate-vs-real height
+  // error — a programmatic scroll write, which iOS answers by killing
+  // flick momentum. Upward flicks through never-measured rows hit this
+  // on every release; revisited regions are already measured and stay
+  // smooth — the reported "smooth only up to where I scrolled before"
+  // boundary. While the scroll is live (per shouldDeferThreadTileMeasure),
+  // measurements are queued and flushed once the scroller goes quiet,
+  // where the single correction lands with no momentum to kill. Rows
+  // keep their estimated size until the flush; transient mis-spacing
+  // during a fast flick is imperceptible next to a dead stop. The gate
+  // requires a real user gesture first, so the open-time pin/settle
+  // (which scrolls programmatically) always measures immediately.
+  const threadLastScrollActivityRef = useRef(0);
+  const threadUserScrolledRef = useRef(false);
+  const pendingThreadMeasuresRef = useRef<Set<Element>>(new Set());
+  const threadMeasureFlushTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(
+    () => () => {
+      if (threadMeasureFlushTimerRef.current !== undefined) {
+        clearTimeout(threadMeasureFlushTimerRef.current);
+      }
+    },
+    []
+  );
+  useEffect(() => {
+    pendingThreadMeasuresRef.current.clear();
+  }, [threadId]);
+  const isThreadMeasureDeferred = useCallback(
+    () =>
+      shouldDeferThreadTileMeasure({
+        threadId: threadIdRef.current,
+        userScrolled: threadUserScrolledRef.current,
+        msSinceLastScrollActivity: Date.now() - threadLastScrollActivityRef.current,
+        hasActiveTouch: hasActiveWindowTouches(),
+        idleMs: SCROLL_QUIESCENCE_IDLE_MS,
+      }),
+    [threadIdRef]
+  );
+  const scheduleThreadMeasureFlush = useCallback(() => {
+    if (threadMeasureFlushTimerRef.current !== undefined) return;
+    threadMeasureFlushTimerRef.current = setTimeout(() => {
+      threadMeasureFlushTimerRef.current = undefined;
+      if (pendingThreadMeasuresRef.current.size === 0) return;
+      if (isThreadMeasureDeferred()) {
+        scheduleThreadMeasureFlush();
+        return;
+      }
+      const pending = Array.from(pendingThreadMeasuresRef.current);
+      pendingThreadMeasuresRef.current.clear();
+      pending.forEach((element) => {
+        if (element.isConnected) performThreadTileMeasure(element);
+      });
+    }, SCROLL_QUIESCENCE_IDLE_MS + 10);
+  }, [isThreadMeasureDeferred, performThreadTileMeasure]);
+  const measureThreadTile = useCallback(
+    (element: Element | null) => {
+      if (!element) return;
+      if (isThreadMeasureDeferred()) {
+        pendingThreadMeasuresRef.current.add(element);
+        scheduleThreadMeasureFlush();
+        return;
+      }
+      performThreadTileMeasure(element);
+    },
+    [isThreadMeasureDeferred, performThreadTileMeasure, scheduleThreadMeasureFlush]
   );
   useLayoutEffect(() => {
     const anchor = roomVirtualPrependAnchorRef.current;
@@ -3044,15 +3112,23 @@ export function RoomTimeline({
     // Reset ONLY on thread change (coderabbit on PR #74: resetting on
     // render-mode transitions would wipe real user intent mid-open).
     setThreadUserScrolled(false);
+    threadUserScrolledRef.current = false;
     threadAutoPaginateLastFireRef.current = null;
   }, [threadId]);
   useEffect(() => {
     if (!threadId) return undefined;
     const scrollEl = scrollRef.current;
     if (!scrollEl) return undefined;
+    // Feeds the measurement-deferral gate: any scroll event (user or
+    // momentum) marks the scroller as live for the idle window.
+    const onScrollActivity = () => {
+      threadLastScrollActivityRef.current = Date.now();
+    };
+    scrollEl.addEventListener('scroll', onScrollActivity, { passive: true });
     const gestureEvents = ['wheel', 'touchmove', 'pointerdown', 'keydown'] as const;
     const onGesture = () => {
       setThreadUserScrolled(true);
+      threadUserScrolledRef.current = true;
       // Renewed intent clears a barren block (greptile P1 round 2 on
       // PR #74): a no-progress attempt must not strand the user at
       // the edge while older history still exists — but retries are
@@ -3067,6 +3143,7 @@ export function RoomTimeline({
       scrollEl.addEventListener(eventType, onGesture, { passive: true });
     });
     return () => {
+      scrollEl.removeEventListener('scroll', onScrollActivity);
       gestureEvents.forEach((eventType) => {
         scrollEl.removeEventListener(eventType, onGesture);
       });

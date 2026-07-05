@@ -93,6 +93,37 @@ export const shouldAutoPaginateThreadBack = ({
   firstRenderedIndex !== undefined &&
   firstRenderedIndex <= triggerRows;
 
+type ThreadTileMeasureDeferOpts = {
+  threadId?: string;
+  // A real user gesture has happened in this thread view. The
+  // open-time pin/settle performs programmatic scrolls that fire
+  // scroll events; deferral must not engage before the user takes
+  // over, or the settle would run on unmeasured estimates.
+  userScrolled: boolean;
+  msSinceLastScrollActivity: number;
+  hasActiveTouch: boolean;
+  idleMs: number;
+};
+
+// Task #125 follow-up 2: gate for deferring thread row measurement
+// while the scroll is LIVE. Measuring a row that sits above the
+// viewport makes the virtualizer correct the scroll position for the
+// estimate-vs-real height error — a programmatic scroll write, which
+// iOS answers by killing flick momentum. Upward flicks through
+// never-measured territory triggered this on every release; revisited
+// (already-measured) regions were smooth, which is exactly the
+// reported "smooth only up to where I scrolled before" boundary.
+// Deferred measurements are queued and flushed when the scroller goes
+// quiet, where the single correction lands with no momentum to kill.
+export const shouldDeferThreadTileMeasure = ({
+  threadId,
+  userScrolled,
+  msSinceLastScrollActivity,
+  hasActiveTouch,
+  idleMs,
+}: ThreadTileMeasureDeferOpts): boolean =>
+  !!threadId && userScrolled && (hasActiveTouch || msSinceLastScrollActivity < idleMs);
+
 export const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
   const mEventId = mEvt.getId();
   const relationTargetId = mEvt.getRelation()?.event_id;
