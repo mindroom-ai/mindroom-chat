@@ -248,6 +248,13 @@ export const useThreadPaginationCommandController = ({
         forceTimelineUpdate();
         setThreadTimelineTick((val) => val + 1);
         didPaginateBack = true;
+      } else if (threadIdRef.current !== expectedThreadId) {
+        // Network error AND the user switched away: finish() skips
+        // clearing on mismatch, so the begin-time anchor of this
+        // never-committed pagination must be dropped here too
+        // (greptile round 6 on PR #75). Same-thread errors are
+        // cleared by finish()'s didPaginateBack=false path.
+        clearThreadBackPaginationAnchor();
       }
     } finally {
       finishThreadBackPagination({
