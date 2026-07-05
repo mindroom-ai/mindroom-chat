@@ -70,18 +70,12 @@ export const waitForScrollQuiescence = (
   return new Promise<void>((resolve) => {
     let idleTimer: ReturnType<typeof setTimeout> | undefined;
     let capTimer: ReturnType<typeof setTimeout> | undefined;
-    // Element-scoped touch state; pre-existing/global touches are
-    // covered by the window tracker consulted in the idle check.
-    let touchActive = false;
     let settled = false;
 
     const cleanup = () => {
       if (idleTimer !== undefined) clearTimeout(idleTimer);
       if (capTimer !== undefined) clearTimeout(capTimer);
       scrollElement.removeEventListener('scroll', onActivity);
-      scrollElement.removeEventListener('touchstart', onTouchStart);
-      scrollElement.removeEventListener('touchend', onTouchEnd);
-      scrollElement.removeEventListener('touchcancel', onTouchEnd);
     };
 
     const settle = () => {
@@ -91,23 +85,28 @@ export const waitForScrollQuiescence = (
       resolve();
     };
 
+    // Touch state has a SINGLE source of truth: the window-level
+    // tracker (counts remaining touches, capture phase, observing from
+    // module load). A per-wait element flag was removed after PR #75
+    // review round 7 — any local boolean can wedge (stuck true blocks
+    // until the cap; stuck false is covered by the tracker anyway),
+    // and the tracker sees every touch the element would.
     const armIdleTimer = () => {
       if (idleTimer !== undefined) clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
-        // Element unmounted mid-wait: its touchend may never fire —
-        // settle rather than ride out the cap (gemini on PR #75).
+        // Element unmounted mid-wait: settle rather than ride out the
+        // cap (gemini on PR #75).
         if (!scrollElement.isConnected) {
           settle();
           return;
         }
-        if (!touchActive && windowActiveTouches === 0) {
+        if (windowActiveTouches === 0) {
           settle();
           return;
         }
-        // Blocked by an active touch (element-level or a pre-existing
-        // one only the window tracker sees): re-arm and poll at idle
-        // granularity — a window-level touchend has no element event
-        // to re-arm through. Bounded by the cap timer.
+        // A finger is still down: re-arm and poll at idle granularity
+        // (a touchend elsewhere has no element event to re-arm
+        // through). Bounded by the cap timer.
         armIdleTimer();
       }, idleMs);
     };
@@ -115,21 +114,8 @@ export const waitForScrollQuiescence = (
     function onActivity() {
       armIdleTimer();
     }
-    function onTouchStart() {
-      touchActive = true;
-    }
-    function onTouchEnd(event: Event) {
-      // Derive from REMAINING touches (coderabbit on PR #75): lifting
-      // one finger of a multi-touch gesture must not clear the flag
-      // while another is still down.
-      touchActive = ((event as TouchEvent).touches?.length ?? 0) > 0;
-      armIdleTimer();
-    }
 
     scrollElement.addEventListener('scroll', onActivity, { passive: true });
-    scrollElement.addEventListener('touchstart', onTouchStart, { passive: true });
-    scrollElement.addEventListener('touchend', onTouchEnd, { passive: true });
-    scrollElement.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
     capTimer = setTimeout(settle, maxWaitMs);
     armIdleTimer();
