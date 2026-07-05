@@ -97,6 +97,25 @@ export const useThreadPaginationCommandController = ({
       return;
     const expectedThreadId = threadId;
 
+    // Bounded recapture retry: a failed capture means no message row
+    // intersects the viewport (virtualized/loading gap) — a transient
+    // state that usually resolves within a frame or two as rows mount.
+    const recaptureAnchorWithRetry = async (forThreadId: string): Promise<boolean> => {
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        if (threadIdRef.current !== forThreadId) return false;
+        if (
+          recaptureThreadBackPaginationAnchor(forThreadId, scrollRef.current, threadEvents.length)
+        ) {
+          return true;
+        }
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((resolve) => {
+          setTimeout(resolve, 50);
+        });
+      }
+      return false;
+    };
+
     setThreadLatestOpenPending(false);
     let didPaginateBack = false;
     try {
@@ -147,15 +166,14 @@ export const useThreadPaginationCommandController = ({
           clearThreadBackPaginationAnchor();
           return;
         }
-        if (
-          !recaptureThreadBackPaginationAnchor(
-            expectedThreadId,
-            scrollRef.current,
-            threadEvents.length
-          )
-        ) {
-          // No valid anchor → no commit. The page stays cached; the
-          // next gesture retries as a cache-hit.
+        if (!(await recaptureAnchorWithRetry(expectedThreadId))) {
+          if (threadIdRef.current !== expectedThreadId) {
+            clearThreadBackPaginationAnchor();
+          }
+          // No valid anchor → no commit. This path is truly atomic
+          // (the supplemental sink only fires on commit), so skipping
+          // is safe: the page stays cached and the next gesture
+          // retries as a cache-hit.
           return;
         }
         setSupplementalThreadEvents(expectedThreadId, cachedEvents);
@@ -194,15 +212,20 @@ export const useThreadPaginationCommandController = ({
           clearThreadBackPaginationAnchor();
           return;
         }
-        if (
-          !recaptureThreadBackPaginationAnchor(
-            expectedThreadId,
-            scrollRef.current,
-            threadEvents.length
-          )
-        ) {
-          // No valid anchor → no commit (page persisted above; next
-          // gesture retries as a cache-hit).
+        // The network path must ALWAYS commit (greptile round 4 on
+        // PR #75): paginateEventTimeline already grew the SDK
+        // timeline, so skipping the commit would leave the fetched
+        // rows to leak into any later render WITHOUT the anchor
+        // correction — render/SDK desync is worse than any scroll
+        // artifact. The recapture is best-effort with a bounded
+        // retry; in the terminal no-anchor case (viewport has shown
+        // no rows for the whole retry window) the anchor is cleared
+        // and the commit lands without a restore — an uncorrected
+        // shift in a rowless viewport is imperceptible, and state
+        // consistency wins.
+        await recaptureAnchorWithRetry(expectedThreadId);
+        if (threadIdRef.current !== expectedThreadId) {
+          clearThreadBackPaginationAnchor();
           return;
         }
         reconcileThreadBackwardPagination(
