@@ -92,12 +92,32 @@ const isContentOverflowing = (el: HTMLDivElement, expanded: boolean): boolean | 
 // Only the first-ever encounter of a row can still two-pass (initial
 // guess stays `true`, correct for genuinely-overflowing content).
 // Values are booleans keyed by string — no element/event retention.
+//
+// The cache is a WARM-START HINT for the initial render only; it is
+// never the source of truth. Every mount still runs the layout check,
+// the ResizeObserver, and the viewport-entry IntersectionObserver,
+// each of which re-measures the real DOM and calls
+// `applyOverflowVerdict` — so a stale hint (e.g. the same message
+// rendered at a different container width) self-corrects within a
+// layout pass and updates the cache. `measurementKey` already varies
+// by event id, redaction state, edit event id, and collapse mode
+// (see getCollapsibleMessageMeasurementKey), so content edits and
+// redactions produce a fresh key rather than a stale hit.
 const overflowVerdictCache = new Map<string, boolean>();
 const OVERFLOW_VERDICT_CACHE_LIMIT = 4000;
 const rememberOverflowVerdict = (measurementKey: string | undefined, verdict: boolean) => {
   if (measurementKey === undefined) return;
+  // Bounded FIFO eviction rather than a full clear: dropping the whole
+  // cache at the limit would make every currently-virtualized row lose
+  // its hint at once (a re-measure cliff). Map preserves insertion
+  // order, so deleting from the front evicts the oldest keys — the ones
+  // least likely to be on screen — while keeping recent verdicts warm.
   if (overflowVerdictCache.size >= OVERFLOW_VERDICT_CACHE_LIMIT) {
-    overflowVerdictCache.clear();
+    const evictTo = Math.floor(OVERFLOW_VERDICT_CACHE_LIMIT * 0.75);
+    for (const key of overflowVerdictCache.keys()) {
+      if (overflowVerdictCache.size <= evictTo) break;
+      overflowVerdictCache.delete(key);
+    }
   }
   overflowVerdictCache.set(measurementKey, verdict);
 };
@@ -131,6 +151,11 @@ export function CollapsibleMessage({
   const needsFocusOnCollapseRef = useRef(false);
   const expandAllInit = useContext(ExpandAllInitContext);
   const [overflowing, setOverflowing] = useState(() => {
+    // forceOverflowing is a prop-driven override (lazily-hydrated
+    // collapsed content) and must win over any cached verdict — a row
+    // that previously cached `false` must still show the affordance
+    // when forced. Not cached: it is not a measured verdict.
+    if (forceOverflowing) return true;
     if (measurementKey !== undefined) {
       const remembered = overflowVerdictCache.get(measurementKey);
       if (remembered !== undefined) return remembered;

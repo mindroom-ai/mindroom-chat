@@ -877,6 +877,31 @@ describe('CollapsibleMessage', () => {
     });
   });
 
+  it('forceOverflowing overrides a cached non-overflowing verdict on remount', () => {
+    const shortContent = { clientHeight: 40, scrollHeight: 40 };
+    const key = `verdict-cache-force-${Date.now()}`;
+
+    // Seed the cache with a non-overflowing verdict for this key.
+    const first = renderCollapsibleMessage({ measurementKey: key }, shortContent);
+    expect(findExpandZones(first)).toHaveLength(0);
+    act(() => {
+      first.unmount();
+    });
+
+    // Remount with forceOverflowing: the affordance must show despite
+    // the cached `false` (greptile PR #77: force override must win over
+    // a stale cached verdict). Zero layout so only initial state decides.
+    const unmeasured = { clientHeight: 0, scrollHeight: 0 };
+    const forced = renderCollapsibleMessage(
+      { measurementKey: key, forceOverflowing: true },
+      unmeasured
+    );
+    expect(findExpandZones(forced)).toHaveLength(1);
+    act(() => {
+      forced.unmount();
+    });
+  });
+
   it('remounts with the remembered overflowing verdict as well', () => {
     const longContent = { clientHeight: 72, scrollHeight: 160 };
     const key = `verdict-cache-long-${Date.now()}`;
