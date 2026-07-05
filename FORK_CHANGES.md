@@ -2,6 +2,51 @@
 
 ## Runbook
 
+### Thread tiles measure immediately — PR #76 deferral removed (2026-07-05, task #128)
+
+Report (iOS, chat.mindroom.chat): scrolling **up** in a thread leaves large
+white/blank areas that only fill in when the scroll stops, and the rows that
+were visible mid-scroll shrink slightly at that moment. Worst on folded
+("Show more") collapsible messages.
+
+- Root cause: PR #76 deferred thread-row measurement to scroll quiescence.
+  react-virtual's contract is estimate → render → measure-on-mount → correct
+  the same frame; with the measurement queued, unmeasured/underestimated rows
+  sat at estimated offsets for the whole live scroll (white gaps) and the
+  stop-time flush applied all corrections at once (the visible shrink).
+  Collapsible messages are the worst case because their folded height exists
+  only after mount — under deferral the virtualizer never learned it until
+  the scroller went quiet. The classic room timeline measures immediately
+  and has none of these symptoms.
+- Fix: removed the deferral outright (no replacement layer — this was a
+  bandage over root causes that have since been fixed by #73/#75/#77).
+  Thread tiles now measure immediately, exactly like the room timeline:
+  `measureThreadTile` calls `roomTimelineVirtualizer.measureElement` directly
+  and keeps only the learned row-size stats feed. Deleted: the pending-measure
+  queue, flush timer + defer cap, render-time thread-switch reset,
+  `isThreadMeasureDeferred`, the scroll-activity listener and the
+  `threadUserScrolledRef` mirror (the `threadUserScrolled` **state** stays —
+  back-auto-pagination intent still needs it), `shouldDeferThreadTileMeasure`
+  in `threadRenderUtils.ts` (+ its tests), and the now-consumerless
+  `hasActiveWindowTouches` export in `scrollQuiescence.ts`.
+  `waitForScrollQuiescence` and the window touch tracker are untouched — the
+  PR #75 prepend-commit path (`threadPaginationCommandController.ts`) still
+  uses them.
+- Accepted risk (the reason #76 existed): measuring an above-viewport row
+  makes react-virtual write `scrollTop`, which iOS answers by killing flick
+  momentum. The premise of task #128 is that the aggravating roots (cache
+  churn #73, prepend-commit timing #75, collapse two-pass #77) are fixed and
+  the blanket defer is redundant. **Must be re-tested on a real iOS device**
+  after deploy: (a) white areas gone, (b) flick momentum still smooth. If
+  momentum regresses, the follow-up is a *targeted* fix (suppress only the
+  above-viewport scroll adjustment, or better per-row estimates) — not
+  reinstating the defer.
+- Validation: `npm run typecheck` ✅, `npm run build` ✅, eslint on touched
+  files ✅, `npx vitest run src/app/mindroom/threads` — 115 files,
+  1122 tests ✅. Independent review pass on the diff.
+- Next: deploy to chat.mindroom.chat and device-test on iOS (white areas +
+  momentum); then continue the #79/#94 bandage sweep.
+
 ### Light-mode WebGL splash/auth palette inversion (2026-07-05)
 
 Report: in light mode the WebGL loading/auth background stayed the dark-mode

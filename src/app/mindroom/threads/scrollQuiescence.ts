@@ -62,10 +62,6 @@ const installTouchTracker = () => {
 };
 installTouchTracker();
 
-// Consulted by callers that need an instantaneous read of the global
-// touch state (e.g. the thread tile measurement gate).
-export const hasActiveWindowTouches = (): boolean => windowActiveTouches > 0;
-
 export const waitForScrollQuiescence = (
   scrollElement: HTMLElement | null,
   { idleMs = SCROLL_QUIESCENCE_IDLE_MS, maxWaitMs = 2500 }: WaitForScrollQuiescenceOptions = {}

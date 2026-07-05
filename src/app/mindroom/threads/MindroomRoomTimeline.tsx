@@ -139,9 +139,7 @@ import {
   dedupeThreadRenderEventEntries,
   primeTimelineRenderContextBefore,
   shouldAutoPaginateThreadBack,
-  shouldDeferThreadTileMeasure,
 } from './threadRenderUtils';
-import { hasActiveWindowTouches, SCROLL_QUIESCENCE_IDLE_MS } from './scrollQuiescence';
 import {
   useTimelineDebugRangeController,
   useTimelineDebugTraceIds,
@@ -1135,8 +1133,18 @@ export function RoomTimeline({
       return threadFilteredEventEntries[item]?.event.getId() ?? item ?? index;
     },
   });
-  const performThreadTileMeasure = useCallback(
-    (element: Element) => {
+  // Thread tiles measure immediately on mount, same as the room timeline
+  // below (task #128). react-virtual's contract is estimate → render →
+  // measure → correct within the same frame; deferring the measurement
+  // leaves unmeasured rows positioned by their estimate during a live
+  // scroll — white gaps while scrolling up that only fill (and visibly
+  // re-space) once the scroller stops. Collapsible messages are the worst
+  // case: their folded height exists only after mount, so it MUST reach
+  // the virtualizer right away. This wrapper exists only to feed the
+  // learned row-size estimate above.
+  const measureThreadTile = useCallback(
+    (element: Element | null) => {
+      if (!element) return;
       roomTimelineVirtualizer.measureElement(element);
       const height = (element as HTMLElement).offsetHeight;
       // Null-rendering edit/reaction rows measure 0 and are deliberately
@@ -1151,115 +1159,6 @@ export function RoomTimeline({
       }
     },
     [maybeAdoptLearnedThreadRowSize, roomTimelineVirtualizer]
-  );
-  // Task #125 follow-up 2: measuring a row above the viewport makes the
-  // virtualizer correct scrollTop for the estimate-vs-real height
-  // error — a programmatic scroll write, which iOS answers by killing
-  // flick momentum. Upward flicks through never-measured rows hit this
-  // on every release; revisited regions are already measured and stay
-  // smooth — the reported "smooth only up to where I scrolled before"
-  // boundary. While the scroll is live (per shouldDeferThreadTileMeasure),
-  // measurements are queued and flushed once the scroller goes quiet,
-  // where the single correction lands with no momentum to kill. Rows
-  // keep their estimated size until the flush; transient mis-spacing
-  // during a fast flick is imperceptible next to a dead stop. The gate
-  // requires a real user gesture first, so the open-time pin/settle
-  // (which scrolls programmatically) always measures immediately.
-  const threadLastScrollActivityRef = useRef(0);
-  const threadUserScrolledRef = useRef(false);
-  const pendingThreadMeasuresRef = useRef<Set<Element>>(new Set());
-  const threadMeasureFlushTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(
-    () => () => {
-      if (threadMeasureFlushTimerRef.current !== undefined) {
-        clearTimeout(threadMeasureFlushTimerRef.current);
-      }
-    },
-    []
-  );
-  // First-enqueue timestamp of the current deferred batch: caps the
-  // total defer so a touch held anywhere in the window (another pane,
-  // an unrelated control) cannot starve the flush indefinitely
-  // (greptile on PR #76). The cap only defeats the TOUCH condition —
-  // the flush still requires this scroller's own quiet window (see
-  // scheduleThreadMeasureFlush), so it can never land mid-flick.
-  const threadMeasureDeferStartRef = useRef<number | undefined>(undefined);
-  // Thread switch: drop the previous thread's queue, flush timer, and
-  // activity timing at RENDER time (coderabbit on PR #76 — a
-  // [threadId] effect runs after the new thread's first tiles have
-  // already gone through measureThreadTile with stale state). Same
-  // pattern as the threadIdRef render-time assignment above.
-  const threadMeasureResetForThreadRef = useRef(threadId);
-  if (threadMeasureResetForThreadRef.current !== threadId) {
-    threadMeasureResetForThreadRef.current = threadId;
-    pendingThreadMeasuresRef.current.clear();
-    threadMeasureDeferStartRef.current = undefined;
-    threadLastScrollActivityRef.current = 0;
-    if (threadMeasureFlushTimerRef.current !== undefined) {
-      clearTimeout(threadMeasureFlushTimerRef.current);
-      threadMeasureFlushTimerRef.current = undefined;
-    }
-  }
-  const isThreadMeasureDeferred = useCallback(
-    () =>
-      shouldDeferThreadTileMeasure({
-        threadId: threadIdRef.current,
-        userScrolled: threadUserScrolledRef.current,
-        msSinceLastScrollActivity: Date.now() - threadLastScrollActivityRef.current,
-        hasActiveTouch: hasActiveWindowTouches(),
-        idleMs: SCROLL_QUIESCENCE_IDLE_MS,
-      }),
-    [threadIdRef]
-  );
-  const THREAD_MEASURE_DEFER_CAP_MS = 2500;
-  const scheduleThreadMeasureFlush = useCallback(() => {
-    if (threadMeasureFlushTimerRef.current !== undefined) return;
-    threadMeasureFlushTimerRef.current = setTimeout(() => {
-      threadMeasureFlushTimerRef.current = undefined;
-      if (pendingThreadMeasuresRef.current.size === 0) {
-        threadMeasureDeferStartRef.current = undefined;
-        return;
-      }
-      const deferStart = threadMeasureDeferStartRef.current ?? Date.now();
-      const capped = Date.now() - deferStart >= THREAD_MEASURE_DEFER_CAP_MS;
-      // The cap only overrides GLOBAL-touch starvation (a finger held
-      // on another pane). This scroller's own quiet window is never
-      // bypassed (greptile round 2 on PR #76): a long flick that is
-      // still emitting scroll events when the cap expires must not be
-      // interrupted by a measurement correction.
-      const scrollerQuiet =
-        Date.now() - threadLastScrollActivityRef.current >= SCROLL_QUIESCENCE_IDLE_MS;
-      if ((capped && !scrollerQuiet) || (!capped && isThreadMeasureDeferred())) {
-        scheduleThreadMeasureFlush();
-        return;
-      }
-      threadMeasureDeferStartRef.current = undefined;
-      const pending = Array.from(pendingThreadMeasuresRef.current);
-      pendingThreadMeasuresRef.current.clear();
-      // Disconnected rows are dropped WITHOUT measuring: measuring a
-      // detached element reads height 0 and would poison the learned
-      // row-size stats. A dropped row that later remounts re-enters
-      // this same gated path, so its eventual correction is still
-      // deferred to quiescence — no momentum-killing write can result.
-      pending.forEach((element) => {
-        if (element.isConnected) performThreadTileMeasure(element);
-      });
-    }, SCROLL_QUIESCENCE_IDLE_MS + 10);
-  }, [isThreadMeasureDeferred, performThreadTileMeasure]);
-  const measureThreadTile = useCallback(
-    (element: Element | null) => {
-      if (!element) return;
-      if (isThreadMeasureDeferred()) {
-        if (threadMeasureDeferStartRef.current === undefined) {
-          threadMeasureDeferStartRef.current = Date.now();
-        }
-        pendingThreadMeasuresRef.current.add(element);
-        scheduleThreadMeasureFlush();
-        return;
-      }
-      performThreadTileMeasure(element);
-    },
-    [isThreadMeasureDeferred, performThreadTileMeasure, scheduleThreadMeasureFlush]
   );
   useLayoutEffect(() => {
     const anchor = roomVirtualPrependAnchorRef.current;
@@ -3154,28 +3053,19 @@ export function RoomTimeline({
     // Reset ONLY on thread change (coderabbit on PR #74: resetting on
     // render-mode transitions would wipe real user intent mid-open).
     setThreadUserScrolled(false);
-    threadUserScrolledRef.current = false;
     threadAutoPaginateLastFireRef.current = null;
   }, [threadId]);
   useEffect(() => {
     if (!threadId) return undefined;
     const scrollEl = scrollRef.current;
     if (!scrollEl) return undefined;
-    // Feeds the measurement-deferral gate: any scroll event (user or
-    // momentum) marks the scroller as live for the idle window.
-    const onScrollActivity = () => {
-      threadLastScrollActivityRef.current = Date.now();
-    };
-    scrollEl.addEventListener('scroll', onScrollActivity, { passive: true });
-    // 'touchstart' included (greptile on PR #76): an iOS flick can
-    // produce scroll activity before the first touchmove is seen, and
-    // the measurement-deferral gate must already know a user gesture
-    // began. pointerdown covers this on PointerEvent browsers;
-    // touchstart is the belt for the rest.
+    // 'touchstart' included: an iOS flick can produce scroll activity
+    // before the first touchmove is seen, and user-scroll intent must
+    // already be marked by then. pointerdown covers this on PointerEvent
+    // browsers; touchstart is the belt for the rest.
     const gestureEvents = ['wheel', 'touchstart', 'touchmove', 'pointerdown', 'keydown'] as const;
     const onGesture = () => {
       setThreadUserScrolled(true);
-      threadUserScrolledRef.current = true;
       // Renewed intent clears a barren block (greptile P1 round 2 on
       // PR #74): a no-progress attempt must not strand the user at
       // the edge while older history still exists — but retries are
@@ -3190,7 +3080,6 @@ export function RoomTimeline({
       scrollEl.addEventListener(eventType, onGesture, { passive: true });
     });
     return () => {
-      scrollEl.removeEventListener('scroll', onScrollActivity);
       gestureEvents.forEach((eventType) => {
         scrollEl.removeEventListener(eventType, onGesture);
       });

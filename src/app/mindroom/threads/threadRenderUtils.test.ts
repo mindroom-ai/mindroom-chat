@@ -10,7 +10,6 @@ import {
   pickPreferredThreadRenderEvent,
   primeTimelineRenderContextBefore,
   shouldAutoPaginateThreadBack,
-  shouldDeferThreadTileMeasure,
   shouldPinThreadToBottomOnOpen,
 } from './threadRenderUtils';
 
@@ -259,44 +258,6 @@ describe('shouldAutoPaginateThreadBack', () => {
     // open-time backfill chain, which on slow networks is exactly when
     // a scrolling user needs the trigger live.
     expect(shouldAutoPaginateThreadBack({ ...base, hasUserScrollIntent: false })).toBe(false);
-  });
-});
-
-describe('shouldDeferThreadTileMeasure', () => {
-  const base = {
-    threadId: '$thread',
-    userScrolled: true,
-    msSinceLastScrollActivity: 50,
-    hasActiveTouch: false,
-    idleMs: 150,
-  };
-
-  it('defers while scroll activity is recent (momentum in flight)', () => {
-    expect(shouldDeferThreadTileMeasure(base)).toBe(true);
-  });
-
-  it('defers while a finger is down even if the scroll is still', () => {
-    expect(
-      shouldDeferThreadTileMeasure({
-        ...base,
-        msSinceLastScrollActivity: 5_000,
-        hasActiveTouch: true,
-      })
-    ).toBe(true);
-  });
-
-  it('measures immediately once the scroller is quiet', () => {
-    expect(
-      shouldDeferThreadTileMeasure({ ...base, msSinceLastScrollActivity: 151 })
-    ).toBe(false);
-  });
-
-  it('never defers before a real user gesture (open-time pin/settle scrolls programmatically)', () => {
-    expect(shouldDeferThreadTileMeasure({ ...base, userScrolled: false })).toBe(false);
-  });
-
-  it('never defers outside a thread', () => {
-    expect(shouldDeferThreadTileMeasure({ ...base, threadId: undefined })).toBe(false);
   });
 });
 
