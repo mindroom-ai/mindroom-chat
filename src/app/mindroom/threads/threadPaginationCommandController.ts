@@ -197,7 +197,14 @@ export const useThreadPaginationCommandController = ({
           limit: THREAD_BATCH_SIZE,
         })
       );
-      if (!err && threadIdRef.current === expectedThreadId) {
+      if (!err) {
+        if (threadIdRef.current !== expectedThreadId) {
+          // Thread switched while the network request was in flight:
+          // finish() skips clearing on mismatch, so drop the anchor
+          // here (greptile round 5 on PR #75).
+          clearThreadBackPaginationAnchor();
+          return;
+        }
         // Persist immediately (IDB write, no render impact) …
         persistThreadEventCache(
           expectedThreadId,
@@ -219,14 +226,19 @@ export const useThreadPaginationCommandController = ({
         // correction — render/SDK desync is worse than any scroll
         // artifact. The recapture is best-effort with a bounded
         // retry; in the terminal no-anchor case (viewport has shown
-        // no rows for the whole retry window) the anchor is cleared
-        // and the commit lands without a restore — an uncorrected
-        // shift in a rowless viewport is imperceptible, and state
-        // consistency wins.
-        await recaptureAnchorWithRetry(expectedThreadId);
+        // no rows for the whole retry window) the commit lands
+        // without a restore — an uncorrected shift in a rowless
+        // viewport is imperceptible, and state consistency wins.
+        const didRecaptureAnchor = await recaptureAnchorWithRetry(expectedThreadId);
         if (threadIdRef.current !== expectedThreadId) {
           clearThreadBackPaginationAnchor();
           return;
+        }
+        if (!didRecaptureAnchor) {
+          // The recapture wrapper already dropped the stale anchor on
+          // failure; this makes the no-restore-commit invariant
+          // explicit and idempotent at the call site.
+          clearThreadBackPaginationAnchor();
         }
         reconcileThreadBackwardPagination(
           firstThreadTimeline,
