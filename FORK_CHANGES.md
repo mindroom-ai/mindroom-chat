@@ -2,6 +2,37 @@
 
 ## Runbook
 
+### Task #127 — remembered collapse-overflow verdicts (2026-07-05, team lead)
+
+Post-fu2 mobile report: momentum kill persists (correlated with a
+small visible jump at the stop), plus a NEW shape — at a narrow range
+of scroll positions the view rapidly oscillates between two positions
+~20-40px apart ("a couple of Show more banners").
+
+- Root cause: `CollapsibleMessage`'s `overflowing` state initialized
+  to `true` on EVERY mount, so each virtualized remount of a short row
+  rendered capped-with-banner first and shrank one layout pass later —
+  a two-pass height per remount. Every pass makes the virtualizer
+  correct scrollTop for rows above the viewport; in regions dense with
+  collapsible rows the corrections shift the virtual window, remount
+  neighbours, and their two-pass heights correct back — the observed
+  oscillation (possibly sustained at ~SCROLL_QUIESCENCE_IDLE_MS period
+  by the fu2 flush loop). The same flip firing from the viewport-entry
+  IntersectionObserver re-check lands mid-scroll and kills iOS flick
+  momentum with the small jump the reporter saw.
+- Fix: overflow verdicts are REMEMBERED per `measurementKey`
+  (module-level Map<string, boolean>, size-capped, boolean values —
+  no element retention). Remounts initialize from the remembered
+  verdict and render their final height in one pass; viewport-entry
+  re-checks confirm instead of flip. Only a row's first-ever encounter
+  can still two-pass (initial guess stays `true`). Detection sites
+  (layout check, ResizeObserver, IntersectionObserver) route through
+  one caching setter; the `forceOverflowing` prop override and the
+  collapse-all transient reset are deliberately NOT cached.
+- Red-verified regression tests: remount initializes from the cached
+  verdict in both directions, proven by giving the remount zero layout
+  so only the initial state can decide.
+
 ### Task #125 follow-up 2 — thread row measurement at scroll quiescence (2026-07-04, team lead)
 
 Post-#75 mobile report: upward flicks still lose momentum through

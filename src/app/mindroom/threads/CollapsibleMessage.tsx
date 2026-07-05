@@ -74,6 +74,34 @@ const isContentOverflowing = (el: HTMLDivElement, expanded: boolean): boolean | 
   return !expanded && el.scrollHeight > el.clientHeight + 1;
 };
 
+// Task #127: remembered overflow verdicts, keyed by measurementKey.
+//
+// `overflowing` used to initialize to `true` on EVERY mount, so every
+// virtualized remount of a short row rendered capped-with-banner first
+// and shrank one layout pass later — a two-pass height per remount.
+// Each pass makes the virtualizer re-measure and correct scrollTop for
+// rows above the viewport; in regions dense with collapsible rows the
+// corrections shift the virtual window, remounting neighbours, whose
+// own two-pass heights correct back — the observed rapid oscillation
+// between two positions. The same flip firing from the viewport-entry
+// IntersectionObserver re-check lands mid-scroll and kills iOS flick
+// momentum with a visible small jump.
+//
+// With the verdict cached, a remounting row renders its final height
+// in ONE pass, and viewport-entry re-checks confirm instead of flip.
+// Only the first-ever encounter of a row can still two-pass (initial
+// guess stays `true`, correct for genuinely-overflowing content).
+// Values are booleans keyed by string — no element/event retention.
+const overflowVerdictCache = new Map<string, boolean>();
+const OVERFLOW_VERDICT_CACHE_LIMIT = 4000;
+const rememberOverflowVerdict = (measurementKey: string | undefined, verdict: boolean) => {
+  if (measurementKey === undefined) return;
+  if (overflowVerdictCache.size >= OVERFLOW_VERDICT_CACHE_LIMIT) {
+    overflowVerdictCache.clear();
+  }
+  overflowVerdictCache.set(measurementKey, verdict);
+};
+
 export type CollapsibleMessageCollapseMode = 'default' | 'always-expanded' | 'initially-expanded';
 
 type CollapsibleMessageProps = {
@@ -102,7 +130,20 @@ export function CollapsibleMessage({
   const previousCollapseModeRef = useRef<CollapsibleMessageCollapseMode | undefined>(undefined);
   const needsFocusOnCollapseRef = useRef(false);
   const expandAllInit = useContext(ExpandAllInitContext);
-  const [overflowing, setOverflowing] = useState(true);
+  const [overflowing, setOverflowing] = useState(() => {
+    if (measurementKey !== undefined) {
+      const remembered = overflowVerdictCache.get(measurementKey);
+      if (remembered !== undefined) return remembered;
+    }
+    return true;
+  });
+  const applyOverflowVerdict = useCallback(
+    (verdict: boolean) => {
+      rememberOverflowVerdict(measurementKey, verdict);
+      setOverflowing(verdict);
+    },
+    [measurementKey]
+  );
   const [expanded, setExpanded] = useState(() => {
     // Live-expand-once rows must mount expanded even under an active
     // collapse-all override; the mount effect would correct this anyway, but
@@ -121,6 +162,7 @@ export function CollapsibleMessage({
   const checkOverflow = useCallback(() => {
     if (isExempt) return;
     if (forceOverflowing) {
+      // Prop-driven override, not a detected verdict — not cached.
       setOverflowing(true);
       return;
     }
@@ -128,9 +170,9 @@ export function CollapsibleMessage({
     if (!el) return;
     const result = isContentOverflowing(el, expanded);
     if (result !== null) {
-      setOverflowing(result);
+      applyOverflowVerdict(result);
     }
-  }, [expanded, forceOverflowing, isExempt]);
+  }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt]);
 
   useEffect(() => {
     if (
@@ -154,12 +196,12 @@ export function CollapsibleMessage({
     const observer = new ResizeObserver(() => {
       const result = isContentOverflowing(el, expanded);
       if (result !== null) {
-        setOverflowing(result);
+        applyOverflowVerdict(result);
       }
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [expanded, forceOverflowing, isExempt]);
+  }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt]);
 
   // IntersectionObserver: re-check overflow when element enters the viewport.
   // Catches elements that had zero scrollHeight when first measured off-screen.
@@ -178,7 +220,7 @@ export function CollapsibleMessage({
         if (entries[0]?.isIntersecting) {
           const result = isContentOverflowing(el, expanded);
           if (result !== null) {
-            setOverflowing(result);
+            applyOverflowVerdict(result);
           }
         }
       },
@@ -186,7 +228,7 @@ export function CollapsibleMessage({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [expanded, forceOverflowing, isExempt]);
+  }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt]);
 
   // Subscribe to global expand/collapse events
   const handleGlobalToggle = useCallback((expand: boolean) => {

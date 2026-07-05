@@ -844,4 +844,54 @@ describe('CollapsibleMessage', () => {
       exemptRenderer.unmount();
     });
   });
+
+  // Task #127: the overflow verdict is remembered per measurementKey so
+  // a virtualized REMOUNT renders its final height in one pass. The
+  // old always-true initial guess made every remount of a short row
+  // render capped-with-banner first and shrink a layout pass later —
+  // the per-remount height flip behind the scroll-position oscillation
+  // and the mid-scroll momentum-killing corrections on mobile.
+  it('remounts with the remembered non-overflowing verdict (single-pass height)', () => {
+    const shortContent = { clientHeight: 40, scrollHeight: 40 };
+    const key = `verdict-cache-${Date.now()}`;
+
+    // First encounter: initial guess is overflowing (gradient shown),
+    // layout measurement corrects to non-overflowing.
+    const first = renderCollapsibleMessage({ measurementKey: key }, shortContent);
+    expect(findExpandZones(first)).toHaveLength(0);
+    act(() => {
+      first.unmount();
+    });
+
+    // Remount (virtualized re-entry): must initialize from the cached
+    // verdict — no expand zone even BEFORE any measurement runs, which
+    // we force by giving the content zero layout (scrollHeight 0 makes
+    // isContentOverflowing return null, so only the initial state can
+    // decide).
+    const unmeasured = { clientHeight: 0, scrollHeight: 0 };
+    const second = renderCollapsibleMessage({ measurementKey: key }, unmeasured);
+    expect(findExpandZones(second)).toHaveLength(0);
+    expect(findGradientOverlays(second)).toHaveLength(0);
+    act(() => {
+      second.unmount();
+    });
+  });
+
+  it('remounts with the remembered overflowing verdict as well', () => {
+    const longContent = { clientHeight: 72, scrollHeight: 160 };
+    const key = `verdict-cache-long-${Date.now()}`;
+
+    const first = renderCollapsibleMessage({ measurementKey: key }, longContent);
+    expect(findExpandZones(first)).toHaveLength(1);
+    act(() => {
+      first.unmount();
+    });
+
+    const unmeasured = { clientHeight: 0, scrollHeight: 0 };
+    const second = renderCollapsibleMessage({ measurementKey: key }, unmeasured);
+    expect(findExpandZones(second)).toHaveLength(1);
+    act(() => {
+      second.unmount();
+    });
+  });
 });
