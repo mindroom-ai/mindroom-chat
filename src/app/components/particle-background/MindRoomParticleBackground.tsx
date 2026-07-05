@@ -5,7 +5,8 @@ import classNames from 'classnames';
 
 import { MINDROOM_CLIENT_BRANDING } from '../../mindroom/branding/clientBranding';
 import * as css from './MindRoomParticleBackground.css';
-import { PARTICLE_BACKGROUND_COLOR, PARTICLE_COLOR } from './particleBackgroundTheme';
+import { PARTICLE_THEMES } from './particleBackgroundTheme';
+import { useParticleThemeKind } from './useParticleThemeKind';
 
 const DESKTOP_PARTICLE_COUNT = 80000;
 const BALANCED_PARTICLE_COUNT = 52000;
@@ -40,6 +41,7 @@ export function MindRoomParticleBackground({
   position = 'absolute',
 }: MindRoomParticleBackgroundProps) {
   const particleCount = React.useMemo(resolveMindRoomParticleCount, []);
+  const particleTheme = PARTICLE_THEMES[useParticleThemeKind()];
   const options = React.useMemo<ParticularDriftUserOptions>(
     () => ({
       imageFit: 'contain',
@@ -47,8 +49,8 @@ export function MindRoomParticleBackground({
       cursorMode: 'repel',
       cursorRadius: 0.14,
       cursorStrength: 1.25,
-      backgroundColor: PARTICLE_BACKGROUND_COLOR,
-      particleColor: PARTICLE_COLOR,
+      backgroundColor: particleTheme.backgroundColor,
+      particleColor: particleTheme.particleColor,
       particleCount,
       particleOpacity: 0.46,
       particleSize: 1.15,
@@ -58,7 +60,7 @@ export function MindRoomParticleBackground({
       flowFieldScale: 4,
       maxDevicePixelRatio: 1.25,
     }),
-    [particleCount]
+    [particleCount, particleTheme]
   );
 
   return (

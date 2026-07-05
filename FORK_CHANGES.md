@@ -2,6 +2,38 @@
 
 ## Runbook
 
+### Light-mode WebGL splash/auth palette inversion (2026-07-05)
+
+Report: in light mode the WebGL loading/auth background stayed the dark-mode
+deep-purple, so theme-driven dark text (splash message, footer, auth footer)
+rendered on a dark canvas and was unreadable.
+
+- Fix: the particle background is now theme-aware. Dark themes keep the
+  existing palette (deep-purple `#0f0d2e` background, golden `#dda290`
+  particles); light themes get the inverted palette (golden `#f6e8d6`
+  background, purple `#5636a3` particles), with matching radial gradient and
+  light auth-card colors (translucent white card, dark text).
+- Mechanism:
+  - `particleBackgroundTheme.ts` restructured into `DARK_PARTICLE_THEME` /
+    `LIGHT_PARTICLE_THEME` / `PARTICLE_THEMES` (old flat constants removed).
+  - New `particleBackgroundTheme.css.ts` defines CSS vars: dark values on
+    `:root`, light values under `:root.light-theme, :root.silver-theme` — the
+    theme id classes the index.html bootstrap puts on `<html>` before first
+    paint, so the splash is correct from frame one. `SplashScreen.css.ts`,
+    `MindRoomParticleBackground.css.ts`, and `pages/auth/styles.css.ts` now
+    consume the vars.
+  - New `useParticleThemeKind` hook resolves light/dark from the `<html>`
+    theme class (MutationObserver keeps it live; prefers-color-scheme
+    fallback) because the particle background renders both inside and outside
+    `ThemeContextProvider`. `MindRoomParticleBackground` feeds the palette
+    into the WebGL options (`backgroundColor` / `particleColor`).
+- Validation: `npm run typecheck` ✅, `npm run build` ✅ (built CSS contains
+  the `:root.light-theme,:root.silver-theme` var overrides), eslint on
+  touched files ✅, vitest: splash-screen suites + RoomTimeline architecture
+  test (105 tests) ✅.
+- Next: none — visual check in a browser (light + dark) recommended when
+  convenient.
+
 ### Task #127 — remembered collapse-overflow verdicts (2026-07-05, team lead)
 
 Post-fu2 mobile report: momentum kill persists (correlated with a
