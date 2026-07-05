@@ -2,6 +2,46 @@
 
 ## Runbook
 
+### Suppress measurement scrollTop corrections during live scroll (2026-07-05, task #128 follow-up)
+
+Device test of the immediate-measurement change (entry below) confirmed the
+predicted risk: iOS flick momentum dies again. Root mechanism, verified in
+`@tanstack/virtual-core` 3.2.0 source: measuring an above-viewport row makes
+`resizeItem` write `scrollTop` (via `scrollToFn`/`elementScroll`) to keep the
+viewport anchored over the estimate-vs-real height error, and iOS kills
+momentum on ANY programmatic scrollTop write.
+
+- Fix (the targeted one pre-planned in the entry below — NOT a reinstated
+  measurement deferral): a custom `scrollToFn` on the timeline virtualizer
+  that skips only the anchoring DOM write while the user's scroll is live.
+  Measurement always proceeds — heights and positions stay real, so the
+  white-gap/shrink fix below is preserved.
+- Mechanism/safety:
+  - Measurement corrections are the only `scrollToFn` calls with a numeric
+    `adjustments`; intentional scrolls (open-time pin/settle,
+    scroll-to-index, mount sync) pass `undefined` and are never suppressed.
+  - Skipping is self-healing: virtual-core's `observeElementOffset` re-syncs
+    `scrollOffset` from the element and zeroes `scrollAdjustments` on the
+    very next scroll event (continuous during momentum).
+  - Gate = `shouldSuppressMeasurementScrollAdjustment` in
+    `threadRenderUtils.ts` (same shape as the old defer gate, now gating a
+    one-line write instead of the measurement pipeline): thread only, after
+    a real user gesture, while touch is down or scroll events are within
+    `SCROLL_QUIESCENCE_IDLE_MS`. Restored the `hasActiveWindowTouches`
+    export, the scroll-activity listener, the `threadUserScrolledRef`
+    mirror, and a render-time thread-switch reset (the PR #76 coderabbit
+    race: first tiles of a new thread measure before `[threadId]` effects
+    run).
+- Accepted cost: mid-flick the content drifts by the per-row estimate error
+  instead of staying pixel-anchored (the learned row-size mean keeps this
+  small). At quiescence corrections land normally.
+- Validation: typecheck ✅, build ✅, eslint on touched files ✅,
+  `npx vitest run src/app/mindroom/threads` — 115 files, 1128 tests ✅
+  (6 new gate tests). Device re-test required: momentum must survive AND
+  white gaps must stay gone.
+- Next: if drift is visible on folded rows, layer better per-row estimates
+  (fixed folded-collapsible height / persisted per-event heights) on top.
+
 ### Thread tiles measure immediately — PR #76 deferral removed (2026-07-05, task #128)
 
 Report (iOS, chat.mindroom.chat): scrolling **up** in a thread leaves large

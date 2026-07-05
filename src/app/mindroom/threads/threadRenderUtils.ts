@@ -93,6 +93,43 @@ export const shouldAutoPaginateThreadBack = ({
   firstRenderedIndex !== undefined &&
   firstRenderedIndex <= triggerRows;
 
+type MeasurementScrollAdjustmentSuppressOpts = {
+  threadId?: string;
+  // virtual-core passes a numeric `adjustments` to scrollToFn ONLY for
+  // measurement-correction writes (resizeItem anchoring the viewport over
+  // an estimate error); every intentional scroll — open-time pin/settle,
+  // scroll-to-index, mount sync — passes undefined and must never be
+  // suppressed.
+  isMeasurementAdjustment: boolean;
+  // A real user gesture has happened in this thread view. The open-time
+  // pin/settle performs programmatic scrolls that fire scroll events;
+  // suppression must not engage before the user takes over, or the settle
+  // would land on uncorrected offsets.
+  userScrolled: boolean;
+  msSinceLastScrollActivity: number;
+  hasActiveTouch: boolean;
+  idleMs: number;
+};
+
+// Task #128 follow-up: gate for suppressing the virtualizer's
+// measurement-correction scrollTop write while the scroll is LIVE. The
+// write is what iOS answers by killing flick momentum; the measurement
+// itself always proceeds (heights stay real — no white gaps), and the
+// skipped anchoring self-heals on the next scroll event when virtual-core
+// re-syncs scrollOffset from the element and zeroes scrollAdjustments.
+export const shouldSuppressMeasurementScrollAdjustment = ({
+  threadId,
+  isMeasurementAdjustment,
+  userScrolled,
+  msSinceLastScrollActivity,
+  hasActiveTouch,
+  idleMs,
+}: MeasurementScrollAdjustmentSuppressOpts): boolean =>
+  isMeasurementAdjustment &&
+  !!threadId &&
+  userScrolled &&
+  (hasActiveTouch || msSinceLastScrollActivity < idleMs);
+
 export const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
   const mEventId = mEvt.getId();
   const relationTargetId = mEvt.getRelation()?.event_id;
