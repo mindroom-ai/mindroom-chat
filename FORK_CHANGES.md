@@ -2,6 +2,51 @@
 
 ## Runbook
 
+### Task #129 — thread edit-backfill race (mid-thread "Thinking…" placeholder band) (2026-07-05, team lead)
+
+Prod report: a contiguous band of mid-thread messages stuck on the
+MindRoom "Thinking…" streaming placeholder; messages above and below
+resolved; does not self-repair across reopen.
+
+Diagnosed against a copy of production data (isolated local Tuwunel;
+see the private `dev` meta-repo notes). Findings:
+
+- The fork's Tuwunel serves NO bundled `m.replace` aggregations and
+  does NOT advertise recurse, and its edit-purge keeps only the final
+  edit. So the thread-open supply (`/relations` `m.thread`) returns
+  replies WITHOUT their edits; the final edit is reachable only via a
+  per-reply `/relations` `m.replace` fetch — which the client's
+  `useThreadEditBackfillController` performs. Verified on real data:
+  that per-reply fetch resolves the placeholders (2/2 sampled).
+- So the content is reachable and the client mechanism exists — the
+  band is a RACE in that controller: it marked every candidate
+  attempted SYNCHRONOUSLY before the async fetch, and its effect
+  (dependency: `threadEvents`) cancels the in-flight batch on any
+  change. The cache overhaul greatly increased `threadEvents` churn
+  (supplemental events, scroll-driven pagination, reconciler
+  `onRepaired`, canonicalization/measurement ticks), so batches were
+  frequently cancelled after marking-but-before-resolving. The gate
+  then refused to retry (`lastAttemptPhase >= currentPhase`) →
+  permanent placeholders, contiguous because it is whichever batch was
+  in flight at a churn.
+
+Fix (`threadEditBackfillController.ts`): mark attempted only on a
+DEFINITIVE fetch outcome (edit applied, or fetch succeeded and no newer
+edit exists); never on cancel/error. An in-flight `WeakSet` guard
+prevents churn re-runs from refetching a pending event (the marking
+used to serve that role). Cleanup releases in-flight candidates so a
+cancelled batch is retried. Works with old Tuwunel (no bundle/recurse
+needed); server-side bundling (separate `mindroom-tuwunel` PR) is
+defense-in-depth that will make this backfill a rare fallback.
+
+Regression tests (`__tests__/threadEditBackfillController.test.ts`,
+hermetic/synthetic): (a) an event is not marked attempted before its
+fetch resolves; (b) an event whose first fetch is cancelled by churn
+still resolves on the re-run (red-without-fix: old code fetched once,
+never applied the edit). A follow-up client cache schema bump is
+tracked separately to heal already-poisoned caches once the server
+serves bundles.
+
 ### Task #125 follow-up 2 — thread row measurement at scroll quiescence (2026-07-04, team lead)
 
 Post-#75 mobile report: upward flicks still lose momentum through

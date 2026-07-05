@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   type Dispatch,
   type MutableRefObject,
   type RefObject,
@@ -50,17 +51,32 @@ export const useThreadEditBackfillController = ({
   threadIdRef: MutableRefObject<string | undefined>;
   threadTailLoaded: boolean;
 }): void => {
+  // Task #129: events currently being backfilled, so a re-run of this
+  // effect (its dep list includes `threadEvents`, which our cache work
+  // churns frequently) does not re-enqueue an in-flight fetch. This
+  // replaces the old "mark attempted up front" approach, which stranded
+  // events permanently: the effect marked every candidate attempted
+  // BEFORE the async fetch, then any threadEvents change cancelled the
+  // in-flight batch — leaving events marked-but-unresolved that the gate
+  // then refused to retry, producing contiguous mid-thread "Thinking…"
+  // placeholder bands that never self-repair. We now mark attempted only
+  // after a DEFINITIVE outcome (edit applied, or confirmed no newer edit
+  // exists) and never on cancel/error, so a cancelled batch is retried.
+  const inFlightRef = useRef<WeakSet<MatrixEvent>>(new WeakSet());
   useEffect(() => {
     if (!threadId || threadEvents.length === 0) return undefined;
     const targetedOpen = !!eventId;
+    const inFlight = inFlightRef.current;
 
-    const missingEditEvents = threadEvents.filter((mEvent) =>
-      shouldFetchThreadEditBackfill(
-        mEvent,
-        threadEditFetchAttemptedRef.current,
-        threadTailLoaded,
-        targetedOpen
-      )
+    const missingEditEvents = threadEvents.filter(
+      (mEvent) =>
+        !inFlight.has(mEvent) &&
+        shouldFetchThreadEditBackfill(
+          mEvent,
+          threadEditFetchAttemptedRef.current,
+          threadTailLoaded,
+          targetedOpen
+        )
     );
     if (missingEditEvents.length === 0) {
       logEditDebug('threadBackfill:noneMissing', {
@@ -80,13 +96,7 @@ export const useThreadEditBackfillController = ({
       threadTailLoaded,
     });
 
-    missingEditEvents.forEach((mEvent) => {
-      markThreadEditBackfillAttempted(
-        mEvent,
-        threadEditFetchAttemptedRef.current,
-        threadTailLoaded
-      );
-    });
+    missingEditEvents.forEach((mEvent) => inFlight.add(mEvent));
 
     let cancelled = false;
     const loadMissingThreadEdits = async () => {
@@ -102,7 +112,10 @@ export const useThreadEditBackfillController = ({
 
           const mEvent = missingEditEvents[currentIndex];
           const targetEventId = mEvent.getId();
-          if (!targetEventId) continue;
+          if (!targetEventId) {
+            inFlight.delete(mEvent);
+            continue;
+          }
 
           const [relErr, relData] = await to(
             mx.relations(room.roomId, targetEventId, RelationType.Replace, mEvent.getType(), {
@@ -110,63 +123,86 @@ export const useThreadEditBackfillController = ({
               limit: 100,
             })
           );
-          if (cancelled) continue;
+          // Cancel/error are NON-definitive: clear in-flight so a later
+          // pass retries, but do NOT mark attempted (task #129 — marking
+          // here is exactly what stranded the placeholder band).
+          if (cancelled) {
+            inFlight.delete(mEvent);
+            continue;
+          }
           if (relErr) {
             logEditDebug('threadBackfill:fetchError', {
               threadId,
               eventId: targetEventId,
               error: String(relErr),
             });
-            continue;
-          }
-          const currentReplacement = mEvent.replacingEvent() ?? undefined;
-          const relationEvents = relData?.events ?? [];
-          if (relationEvents.length === 0 && !currentReplacement) {
-            logEditDebug('threadBackfill:noRelations', {
-              threadId,
-              eventId: targetEventId,
-            });
+            inFlight.delete(mEvent);
             continue;
           }
 
-          const latestEdit = getLatestEdit(
-            mEvent,
-            currentReplacement ? [currentReplacement, ...relationEvents] : relationEvents
-          );
-          if (!latestEdit) continue;
-          if (latestEdit === currentReplacement) {
-            logEditDebug('threadBackfill:alreadyLatest', {
-              threadId,
-              eventId: targetEventId,
-              editEventId: currentReplacement?.getId(),
-              relationCount: relationEvents.length,
-            });
-            continue;
-          }
+          // From here every exit is DEFINITIVE (the fetch succeeded, so
+          // the server's edit state for this event is known): apply if
+          // there is a newer same-sender edit, then mark attempted so we
+          // do not refetch (the target's own body stays "Thinking…" even
+          // after a successful makeReplaced — the edit lives in
+          // replacingEvent() — so the gate would otherwise loop forever).
+          try {
+            const currentReplacement = mEvent.replacingEvent() ?? undefined;
+            const relationEvents = relData?.events ?? [];
+            if (relationEvents.length === 0 && !currentReplacement) {
+              logEditDebug('threadBackfill:noRelations', { threadId, eventId: targetEventId });
+              continue;
+            }
 
-          // Keep sender guard aligned with edit auth semantics.
-          if (latestEdit.getSender() !== mEvent.getSender()) {
-            logEditDebug('threadBackfill:senderMismatch', {
+            const latestEdit = getLatestEdit(
+              mEvent,
+              currentReplacement ? [currentReplacement, ...relationEvents] : relationEvents
+            );
+            if (!latestEdit) continue;
+            if (latestEdit === currentReplacement) {
+              logEditDebug('threadBackfill:alreadyLatest', {
+                threadId,
+                eventId: targetEventId,
+                editEventId: currentReplacement?.getId(),
+                relationCount: relationEvents.length,
+              });
+              continue;
+            }
+
+            // Keep sender guard aligned with edit auth semantics.
+            if (latestEdit.getSender() !== mEvent.getSender()) {
+              logEditDebug('threadBackfill:senderMismatch', {
+                threadId,
+                eventId: targetEventId,
+                editEventId: latestEdit.getId(),
+                editSender: latestEdit.getSender(),
+                targetSender: mEvent.getSender(),
+              });
+              continue;
+            }
+
+            mEvent.makeReplaced(latestEdit);
+            didUpdate = true;
+            updatedCount += 1;
+            logEditDebug('threadBackfill:applied', {
               threadId,
               eventId: targetEventId,
               editEventId: latestEdit.getId(),
-              editSender: latestEdit.getSender(),
-              targetSender: mEvent.getSender(),
+              editTs: latestEdit.getTs(),
+              previousEditEventId: currentReplacement?.getId(),
+              relationCount: relationEvents.length,
             });
-            continue;
+          } finally {
+            // Definitive outcome reached (not cancelled, not errored):
+            // record the attempt so the gate stops re-selecting this
+            // instance, and clear in-flight.
+            markThreadEditBackfillAttempted(
+              mEvent,
+              threadEditFetchAttemptedRef.current,
+              threadTailLoaded
+            );
+            inFlight.delete(mEvent);
           }
-
-          mEvent.makeReplaced(latestEdit);
-          didUpdate = true;
-          updatedCount += 1;
-          logEditDebug('threadBackfill:applied', {
-            threadId,
-            eventId: targetEventId,
-            editEventId: latestEdit.getId(),
-            editTs: latestEdit.getTs(),
-            previousEditEventId: currentReplacement?.getId(),
-            relationCount: relationEvents.length,
-          });
         }
       };
 
@@ -217,6 +253,11 @@ export const useThreadEditBackfillController = ({
 
     return () => {
       cancelled = true;
+      // Release every candidate from in-flight so the next pass can
+      // retry them. Events already resolved deleted themselves; events
+      // still queued or mid-fetch (the ones the old code stranded) are
+      // freed here without ever being marked attempted (task #129).
+      missingEditEvents.forEach((mEvent) => inFlight.delete(mEvent));
     };
   }, [
     atLiveEndRef,
