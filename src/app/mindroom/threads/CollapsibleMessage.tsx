@@ -74,6 +74,54 @@ const isContentOverflowing = (el: HTMLDivElement, expanded: boolean): boolean | 
   return !expanded && el.scrollHeight > el.clientHeight + 1;
 };
 
+// Task #127: remembered overflow verdicts, keyed by measurementKey.
+//
+// `overflowing` used to initialize to `true` on EVERY mount, so every
+// virtualized remount of a short row rendered capped-with-banner first
+// and shrank one layout pass later — a two-pass height per remount.
+// Each pass makes the virtualizer re-measure and correct scrollTop for
+// rows above the viewport; in regions dense with collapsible rows the
+// corrections shift the virtual window, remounting neighbours, whose
+// own two-pass heights correct back — the observed rapid oscillation
+// between two positions. The same flip firing from the viewport-entry
+// IntersectionObserver re-check lands mid-scroll and kills iOS flick
+// momentum with a visible small jump.
+//
+// With the verdict cached, a remounting row renders its final height
+// in ONE pass, and viewport-entry re-checks confirm instead of flip.
+// Only the first-ever encounter of a row can still two-pass (initial
+// guess stays `true`, correct for genuinely-overflowing content).
+// Values are booleans keyed by string — no element/event retention.
+//
+// The cache is a WARM-START HINT for the initial render only; it is
+// never the source of truth. Every mount still runs the layout check,
+// the ResizeObserver, and the viewport-entry IntersectionObserver,
+// each of which re-measures the real DOM and calls
+// `applyOverflowVerdict` — so a stale hint (e.g. the same message
+// rendered at a different container width) self-corrects within a
+// layout pass and updates the cache. `measurementKey` already varies
+// by event id, redaction state, edit event id, and collapse mode
+// (see getCollapsibleMessageMeasurementKey), so content edits and
+// redactions produce a fresh key rather than a stale hit.
+const overflowVerdictCache = new Map<string, boolean>();
+const OVERFLOW_VERDICT_CACHE_LIMIT = 4000;
+const rememberOverflowVerdict = (measurementKey: string | undefined, verdict: boolean) => {
+  if (measurementKey === undefined) return;
+  // Bounded FIFO eviction rather than a full clear: dropping the whole
+  // cache at the limit would make every currently-virtualized row lose
+  // its hint at once (a re-measure cliff). Map preserves insertion
+  // order, so deleting from the front evicts the oldest keys — the ones
+  // least likely to be on screen — while keeping recent verdicts warm.
+  if (overflowVerdictCache.size >= OVERFLOW_VERDICT_CACHE_LIMIT) {
+    const evictTo = Math.floor(OVERFLOW_VERDICT_CACHE_LIMIT * 0.75);
+    for (const key of overflowVerdictCache.keys()) {
+      if (overflowVerdictCache.size <= evictTo) break;
+      overflowVerdictCache.delete(key);
+    }
+  }
+  overflowVerdictCache.set(measurementKey, verdict);
+};
+
 export type CollapsibleMessageCollapseMode = 'default' | 'always-expanded' | 'initially-expanded';
 
 type CollapsibleMessageProps = {
@@ -102,7 +150,25 @@ export function CollapsibleMessage({
   const previousCollapseModeRef = useRef<CollapsibleMessageCollapseMode | undefined>(undefined);
   const needsFocusOnCollapseRef = useRef(false);
   const expandAllInit = useContext(ExpandAllInitContext);
-  const [overflowing, setOverflowing] = useState(true);
+  const [overflowing, setOverflowing] = useState(() => {
+    // forceOverflowing is a prop-driven override (lazily-hydrated
+    // collapsed content) and must win over any cached verdict — a row
+    // that previously cached `false` must still show the affordance
+    // when forced. Not cached: it is not a measured verdict.
+    if (forceOverflowing) return true;
+    if (measurementKey !== undefined) {
+      const remembered = overflowVerdictCache.get(measurementKey);
+      if (remembered !== undefined) return remembered;
+    }
+    return true;
+  });
+  const applyOverflowVerdict = useCallback(
+    (verdict: boolean) => {
+      rememberOverflowVerdict(measurementKey, verdict);
+      setOverflowing(verdict);
+    },
+    [measurementKey]
+  );
   const [expanded, setExpanded] = useState(() => {
     // Live-expand-once rows must mount expanded even under an active
     // collapse-all override; the mount effect would correct this anyway, but
@@ -121,6 +187,7 @@ export function CollapsibleMessage({
   const checkOverflow = useCallback(() => {
     if (isExempt) return;
     if (forceOverflowing) {
+      // Prop-driven override, not a detected verdict — not cached.
       setOverflowing(true);
       return;
     }
@@ -128,9 +195,9 @@ export function CollapsibleMessage({
     if (!el) return;
     const result = isContentOverflowing(el, expanded);
     if (result !== null) {
-      setOverflowing(result);
+      applyOverflowVerdict(result);
     }
-  }, [expanded, forceOverflowing, isExempt]);
+  }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt]);
 
   useEffect(() => {
     if (
@@ -154,12 +221,12 @@ export function CollapsibleMessage({
     const observer = new ResizeObserver(() => {
       const result = isContentOverflowing(el, expanded);
       if (result !== null) {
-        setOverflowing(result);
+        applyOverflowVerdict(result);
       }
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [expanded, forceOverflowing, isExempt]);
+  }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt]);
 
   // IntersectionObserver: re-check overflow when element enters the viewport.
   // Catches elements that had zero scrollHeight when first measured off-screen.
@@ -178,7 +245,7 @@ export function CollapsibleMessage({
         if (entries[0]?.isIntersecting) {
           const result = isContentOverflowing(el, expanded);
           if (result !== null) {
-            setOverflowing(result);
+            applyOverflowVerdict(result);
           }
         }
       },
@@ -186,7 +253,7 @@ export function CollapsibleMessage({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [expanded, forceOverflowing, isExempt]);
+  }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt]);
 
   // Subscribe to global expand/collapse events
   const handleGlobalToggle = useCallback((expand: boolean) => {
