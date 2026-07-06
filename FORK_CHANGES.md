@@ -2,6 +2,46 @@
 
 ## Runbook
 
+### Snap-back ROOT FOUND AND FIXED: backfill events treated as live expand-once (2026-07-06)
+
+The remaining −688 shrinker is dead. Full e2e-driven chain (each probe
+round narrowing it): not adoption (probe=0), not scroll writes, not key
+churn (ids stable across the drop), not virtual-core RO mis-attribution
+(guard changed nothing) — the open-time TALL-TILE sampler caught it:
+~16 long rows rendering at ~768px (full height, uncapped) for a ~250ms
+window during thread open, then vanishing.
+
+- Mechanism: `useLiveEventArrive` fires for open-time BACKFILL too, and
+  the expand-once tracker (`liveExpandOnceIds`) added every collapsible
+  backfill event without the `timelineMeta.liveEvent` check that the
+  redaction branch right below it uses. The pre-pin transient (virtualizer
+  briefly renders from index 0 before the bottom pin) therefore mounted
+  old long rows with `collapseMode: 'initially-expanded'` → full height →
+  measured → the pin unmounted them with ~768 cached. Scrolling up later
+  remounted them collapsed (~80): −688 per row, dropped compensation
+  (live-scroll gate), browser clamps the reader to the bottom.
+- Fix: one line — expand-once tracking now requires
+  `timelineMeta.liveEvent`, restoring the tracker's actual intent
+  (messages that arrive while the user watches). 5/5 snap-back e2e runs
+  green against the production build, tall-tile sampler reports ZERO
+  oversized tiles.
+- Also fixed (device report, same family): long-text sidecar messages
+  auto-unfolded once their attachment hydrated —
+  `getCollapsibleMessageMode` returned 'always-expanded' for hydrated
+  long-text keys, fed by an automatic on-render hydration callback. The
+  whole pipeline is removed (mode branch, collapse-key helper, timeline
+  state/marker, `onLongTextHydratedMessageExtrasRendered` prop through
+  RenderMessageContent/renderMindroomMessageContent): long-text messages
+  now fold like every other long message ('default' +
+  force-overflow "Show more"), and their measurement keys stay stable
+  for life. Tests updated to pin the folded behavior.
+- Kept diagnostics: open-time tall-tile sampler + verdict probes +
+  per-step tile/key/count traces in the e2e (they found this bug; they
+  stay).
+- Validation: typecheck ✅, FULL vitest 343 files / 2701 tests ✅, build ✅,
+  eslint ✅; e2e ios-momentum-invariants FULL SPEC 4× consecutive 3/3
+  PASS against the production build.
+
 ### Content-based per-row estimates replace the learned mean; shrinker hunt narrowed to key churn (2026-07-06)
 
 The e2e tile-level tracing identified the dominant snap-back shrinker:

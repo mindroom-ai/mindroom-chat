@@ -131,7 +131,6 @@ import {
   consumeLiveExpandOnceId,
   getCollapsibleMessageMeasurementKey,
   getCollapsibleMessageMode,
-  getHydratedLongTextExtrasCollapseKey,
   shouldForceCollapsibleMessageOverflow,
 } from './threadCollapsibleMessages';
 import {
@@ -412,9 +411,6 @@ export function RoomTimeline({
   const [expandAllOverride, setExpandAllOverride] = useState<boolean | undefined>(undefined);
   const atBottomRef = useRef(atBottom);
   const liveExpandOnceIds = useRef(new Set<string>());
-  const [hydratedLongTextExtrasCollapseKeys, setHydratedLongTextExtrasCollapseKeys] = useState<
-    ReadonlySet<string>
-  >(() => new Set());
   atBottomRef.current = atBottom;
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -505,17 +501,7 @@ export function RoomTimeline({
   const threadResolutionMap = useRoomThreadResolutionMap(room);
   useEffect(() => {
     liveExpandOnceIds.current.clear();
-    setHydratedLongTextExtrasCollapseKeys((current) => (current.size === 0 ? current : new Set()));
   }, [room.roomId, threadId]);
-  const markHydratedLongTextExtrasCollapsedExempt = useCallback((collapseKey: string) => {
-    setHydratedLongTextExtrasCollapseKeys((current) => {
-      if (current.has(collapseKey)) return current;
-
-      const next = new Set(current);
-      next.add(collapseKey);
-      return next;
-    });
-  }, []);
   // CINNY-207 P4.3: the eagerPreloading reset layout-effect is gone.
   // The band-4 deep-history job runs entirely in the engine and does
   // not gate any rendering signal — the skeleton logic below relies on
@@ -2096,12 +2082,7 @@ export function RoomTimeline({
         const collapseMode = getCollapsibleMessageMode(
           mEventId,
           resolvedContent,
-          liveExpandOnceIds.current,
-          hydratedLongTextExtrasCollapseKeys
-        );
-        const hydratedLongTextExtrasCollapseKey = getHydratedLongTextExtrasCollapseKey(
-          mEventId,
-          resolvedContent
+          liveExpandOnceIds.current
         );
         const forceCollapsibleOverflow = shouldForceCollapsibleMessageOverflow(resolvedContent);
         const onInitialExpandConsumed =
@@ -2219,14 +2200,6 @@ export function RoomTimeline({
                   linkifyOpts={linkifyOpts}
                   outlineAttachment={messageLayout === MessageLayout.Bubble}
                   hydrateLongText={hydrateLongText}
-                  onLongTextHydratedMessageExtrasRendered={
-                    hydratedLongTextExtrasCollapseKey
-                      ? () =>
-                          markHydratedLongTextExtrasCollapsedExempt(
-                            hydratedLongTextExtrasCollapseKey
-                          )
-                      : undefined
-                  }
                 />
               );
               const content = renderContent();
@@ -2513,12 +2486,7 @@ export function RoomTimeline({
                   const collapseMode = getCollapsibleMessageMode(
                     mEventId,
                     resolvedContent,
-                    liveExpandOnceIds.current,
-                    hydratedLongTextExtrasCollapseKeys
-                  );
-                  const hydratedLongTextExtrasCollapseKey = getHydratedLongTextExtrasCollapseKey(
-                    mEventId,
-                    resolvedContent
+                    liveExpandOnceIds.current
                   );
                   const forceCollapsibleOverflow =
                     shouldForceCollapsibleMessageOverflow(resolvedContent);
@@ -2553,14 +2521,6 @@ export function RoomTimeline({
                       linkifyOpts={linkifyOpts}
                       outlineAttachment={messageLayout === MessageLayout.Bubble}
                       hydrateLongText={hydrateLongText}
-                      onLongTextHydratedMessageExtrasRendered={
-                        hydratedLongTextExtrasCollapseKey
-                          ? () =>
-                              markHydratedLongTextExtrasCollapsedExempt(
-                                hydratedLongTextExtrasCollapseKey
-                              )
-                          : undefined
-                      }
                     />
                   );
                   const messageContent = renderMessageContent();

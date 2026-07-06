@@ -333,11 +333,76 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       await sendReply(body);
     }
 
+    // Open-time anomaly sampler: record any virtual tile that ever renders
+    // taller than 400px (real rows are ~80 short / ~200 folded), with the
+    // frame time — catches rows transiently rendering EXPANDED during
+    // hydration, whose oversized measurements poison the size cache.
+    await page.addInitScript(() => {
+      const w = window as Window & {
+        __tallTiles?: Record<string, { hMax: number; first: number; last: number }>;
+      };
+      w.__tallTiles = {};
+      const sample = () => {
+        document.querySelectorAll('[data-index]').forEach((tile) => {
+          const height = tile.getBoundingClientRect().height;
+          if (height > 400) {
+            const id =
+              tile.querySelector('[data-message-id]')?.getAttribute('data-message-id') ??
+              `idx${tile.getAttribute('data-index')}`;
+            const entry = (w.__tallTiles![id] as {
+              hMax: number;
+              first: number;
+              last: number;
+              html?: string;
+            }) ?? {
+              hMax: 0,
+              first: performance.now(),
+              last: 0,
+            };
+            entry.hMax = Math.max(entry.hMax, Math.round(height));
+            entry.last = performance.now();
+            if (!entry.html) {
+              const chain: string[] = [];
+              let node: Element | null = tile;
+              for (let depth = 0; depth < 7 && node; depth += 1) {
+                let tallest: Element | null = null;
+                let tallestH = 0;
+                Array.from(node.children).forEach((c) => {
+                  const ch = c.getBoundingClientRect().height;
+                  if (ch > tallestH) {
+                    tallestH = ch;
+                    tallest = c;
+                  }
+                });
+                if (!tallest || tallestH < 300) break;
+                const el = tallest as Element;
+                chain.push(
+                  `${el.tagName.toLowerCase()}.${(el.className || '')
+                    .toString()
+                    .slice(0, 40)}=${Math.round(tallestH)}`
+                );
+                node = tallest;
+              }
+              entry.html = chain.join(' > ');
+            }
+            w.__tallTiles![id] = entry;
+          }
+        });
+        window.requestAnimationFrame(sample);
+      };
+      window.requestAnimationFrame(sample);
+    });
+
     await loginWithPassword(page, { homeserver, username, password });
     await page.setViewportSize(iphone.viewport);
     await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
     await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
     await page.waitForTimeout(3_000);
+    const tallTiles = await page.evaluate(
+      () => (window as Window & { __tallTiles?: unknown }).__tallTiles
+    );
+    // eslint-disable-next-line no-console
+    console.log(`IOS-SNAP-BACK-TALL ${JSON.stringify(tallTiles)}`);
 
     // Leave the bottom with a driver-tagged upward stream and start a
     // scrollTop trajectory sampler.
@@ -384,6 +449,8 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       const readTiles = () =>
         Array.from(scroller.querySelectorAll('[data-index]')).map((tile) => ({
           i: tile.getAttribute('data-index'),
+          id: tile.querySelector('[data-message-id]')?.getAttribute('data-message-id') ?? null,
+          top: Math.round((tile as HTMLElement).offsetTop),
           h: Math.round(tile.getBoundingClientRect().height),
         }));
       const readTotal = () =>
