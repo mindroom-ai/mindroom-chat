@@ -817,4 +817,395 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     // may follow the growing composer.
     expect(outcome.finalDistFromBottom).toBeGreaterThan(300);
   });
+
+  test('prepend commit during a flick pause lands in one paint — no reverse-flash', async ({
+    page,
+  }, testInfo) => {
+    // Device report (2026-07-06, round 9): momentum right, end position
+    // right, but short jumps get "applied again in reverse" mid-ride. The
+    // momentum spec's 80ms inter-flick pauses sit BELOW the 150ms scroll
+    // quiescence threshold, so the deferred prepend commit never fires
+    // inside its measured stream — real thumb pauses exceed 150ms and the
+    // commit's anchor restore lands under the reader's eyes. This test
+    // makes the pauses realistic (450ms) over a thread that genuinely
+    // requires back-pagination and keeps the per-frame anchor sampler
+    // running THROUGH the pauses: the prepend commit must land in one
+    // paint, with zero visible anchor motion.
+    const homeserver = getHomeserver();
+    const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    const roomId = await createPrivateRoom(homeserver, session.accessToken, {
+      name: `iOS prepend one-paint ${Date.now()}`,
+    });
+    const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
+      msgtype: 'm.text',
+      body: 'iOS prepend one-paint root',
+    });
+    const PREPEND_REPLY_COUNT = 360;
+    for (let i = 1; i <= PREPEND_REPLY_COUNT; i += 1) {
+      // Same mixed-height fixture as the momentum stream: the prepended
+      // page must carry realistic estimate error into the anchor restore.
+      const isExtras = i % 5 === 0;
+      const body =
+        // eslint-disable-next-line no-nested-ternary
+        isExtras
+          ? `agent answer ${i}\n${Array.from(
+              { length: 12 },
+              (_v, line) => `streamed answer line ${line} of reply ${i} with wrapping text`
+            ).join('\n')}`
+          : i % 3 === 0
+          ? `short reply ${i}`
+          : `long reply ${i}\n${Array.from(
+              { length: 24 },
+              (_v, line) => `line ${line} of reply ${i} with enough text to wrap on a phone screen`
+            ).join('\n')}`;
+      // eslint-disable-next-line no-await-in-loop
+      await sendRoomMessage(homeserver, session.accessToken, roomId, {
+        msgtype: 'm.text',
+        body,
+        ...(isExtras
+          ? {
+              'com.mindroom.message_extras': {
+                version: 2,
+                sections: [
+                  {
+                    title: `Tool call ${i}.1`,
+                    content_type: 'text/markdown',
+                    content: `tool output for reply ${i}, section 1`,
+                  },
+                ],
+              },
+            }
+          : {}),
+        'm.relates_to': {
+          rel_type: 'm.thread',
+          event_id: rootId,
+          is_falling_back: true,
+          'm.in_reply_to': { event_id: rootId },
+        },
+      });
+    }
+
+    // A thread "requiring back-pagination": abort /relations CONTINUATION
+    // pages (from= param) during the open, so the open-time drain stops
+    // after the first interactive page — the rendered window stays partial
+    // with a live backward token, exactly the state a slow real-world
+    // connection leaves a long thread in. First pages (no from=) pass, so
+    // the open itself renders normally.
+    const relationsContinuation = (url: URL) =>
+      url.pathname.includes('/relations/') && url.searchParams.has('from');
+    await page.route(relationsContinuation, (route) => route.abort());
+
+    // App-originated write log (driver-tagged), for the failure photograph:
+    // the coarse/fine anchor-restore two-step shows up here as a scrollTo
+    // followed by a scrollBy/scrollTop a frame later.
+    await page.addInitScript(() => {
+      const w = window as Window & {
+        __appScrollWrites?: AppScrollWrite[];
+        __driverDepth?: number;
+      };
+      type AppScrollWrite = { kind: string; value: number; t: number };
+      w.__appScrollWrites = [];
+      w.__driverDepth = 0;
+      const record = (kind: string, el: unknown, value: number) => {
+        if ((w.__driverDepth ?? 0) > 0) return;
+        if (!(el instanceof HTMLElement) || el.dataset.e2eScroller !== '1') return;
+        w.__appScrollWrites!.push({ kind, value, t: performance.now() });
+      };
+      const scrollTopDesc = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+      if (scrollTopDesc?.set && scrollTopDesc.get) {
+        Object.defineProperty(Element.prototype, 'scrollTop', {
+          configurable: true,
+          get() {
+            return scrollTopDesc.get!.call(this);
+          },
+          set(value: number) {
+            record('scrollTop', this, value);
+            scrollTopDesc.set!.call(this, value);
+          },
+        });
+      }
+      const wrapScrollMethod = (name: 'scrollTo' | 'scrollBy') => {
+        const original = Element.prototype[name];
+        Element.prototype[name] = function wrapped(this: Element, ...args: unknown[]) {
+          const first = args[0];
+          const top =
+            typeof first === 'object' && first !== null
+              ? (first as { top?: number }).top
+              : (args[1] as number | undefined);
+          if (typeof top === 'number') record(name, this, top);
+          return (original as (...a: unknown[]) => unknown).apply(this, args);
+        } as typeof original;
+      };
+      wrapScrollMethod('scrollTo');
+      wrapScrollMethod('scrollBy');
+    });
+
+    // Timeline debug logs + console capture: the pagination pipeline has
+    // several silent early-return paths (no SDK token, stale thread, error)
+    // — when the prepend precondition fails, these lines say which one.
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('mindroom.debug.timeline', '1');
+      } catch {
+        // ignore
+      }
+    });
+    const debugLines: string[] = [];
+    page.on('console', (message) => {
+      const text = message.text();
+      if (text.includes('[timeline-debug]')) debugLines.push(text);
+    });
+    const relationRequests: { url: string; phase: string; status?: number }[] = [];
+    let requestPhase = 'open';
+    page.on('response', (response) => {
+      const url = response.url();
+      if (!url.includes('/relations/')) return;
+      relationRequests.push({
+        url: url.replace(/^.*\/_matrix/, '/_matrix').slice(0, 160),
+        phase: requestPhase,
+        status: response.status(),
+      });
+    });
+    page.on('requestfailed', (request) => {
+      const url = request.url();
+      if (!url.includes('/relations/')) return;
+      relationRequests.push({
+        url: `FAILED(${request.failure()?.errorText}) ${url
+          .replace(/^.*\/_matrix/, '/_matrix')
+          .slice(0, 140)}`,
+        phase: requestPhase,
+      });
+    });
+
+    await loginWithPassword(page, { homeserver, username, password });
+    await page.setViewportSize(iphone.viewport);
+    await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
+    await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
+    // Let the (deliberately truncated) open chain finish and the pin settle.
+    await page.waitForTimeout(3_000);
+    // Back-pagination may fetch again from here on.
+    await page.unroute(relationsContinuation);
+    requestPhase = 'stream';
+
+    const report = (await page.evaluate(async () => {
+      const w = window as Window & {
+        __appScrollWrites?: { kind: string; value: number; t: number }[];
+        __driverDepth?: number;
+        __MINDROOM_CACHE_PROBE__?: {
+          snapshot: () => Record<string, number | undefined>;
+        };
+      };
+      const row = document.querySelector('[data-message-item]');
+      let candidate: HTMLElement | null = row?.parentElement ?? null;
+      while (candidate) {
+        const { overflowY } = getComputedStyle(candidate);
+        if (
+          (overflowY === 'auto' || overflowY === 'scroll') &&
+          candidate.scrollHeight > candidate.clientHeight
+        ) {
+          break;
+        }
+        candidate = candidate.parentElement;
+      }
+      const scroller = candidate;
+      if (!scroller) return { error: 'no scroller found' };
+      scroller.dataset.e2eScroller = '1';
+
+      const raf = () =>
+        new Promise<void>((resolve) => {
+          window.requestAnimationFrame(() => resolve());
+        });
+      const readThreadCount = () =>
+        Number(
+          (scroller.querySelector('[data-thread-count]') as HTMLElement | null)?.dataset
+            .threadCount ?? -1
+        );
+      const readAutoPaginateFired = () =>
+        w.__MINDROOM_CACHE_PROBE__?.snapshot().threadAutoPaginateBackFired ?? 0;
+      const readPaginateExitCounters = () => {
+        const snapshot = w.__MINDROOM_CACHE_PROBE__?.snapshot() ?? {};
+        return Object.fromEntries(
+          Object.entries(snapshot).filter(([key]) => key.startsWith('threadPaginateBack'))
+        );
+      };
+
+      const pickAnchor = (): Element | null => {
+        const rows = Array.from(document.querySelectorAll('[data-message-item]'));
+        const mid = window.innerHeight / 2;
+        let best: Element | null = null;
+        let bestDistance = Infinity;
+        rows.forEach((r) => {
+          const rect = r.getBoundingClientRect();
+          const distance = Math.abs((rect.top + rect.bottom) / 2 - mid);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = r;
+          }
+        });
+        return best;
+      };
+
+      type TileSnap = { i: string | null; id: string | null; top: number; h: number };
+      const readTileSnaps = (): TileSnap[] =>
+        Array.from(scroller.querySelectorAll('[data-index]')).map((tile) => ({
+          i: tile.getAttribute('data-index'),
+          id:
+            tile.querySelector('[data-message-id]')?.getAttribute('data-message-id')?.slice(0, 12) ??
+            null,
+          top: Math.round((tile as HTMLElement).offsetTop),
+          h: Math.round(tile.getBoundingClientRect().height),
+        }));
+
+      let jumpAnchor: Element | null = null;
+      let jumpAnchorTop = 0;
+      const jumps: number[] = [];
+      let lastTileSnaps = readTileSnaps();
+      const jumpEvents: { jump: number; before: TileSnap[]; after: TileSnap[] }[] = [];
+      const sampleJump = (drivenDelta: number) => {
+        if (jumpAnchor && jumpAnchor.isConnected) {
+          const rect = jumpAnchor.getBoundingClientRect();
+          if (rect.bottom > -800 && rect.top < window.innerHeight + 800) {
+            const jump = Math.abs(rect.top - jumpAnchorTop - drivenDelta);
+            jumps.push(jump);
+            jumpAnchorTop = rect.top;
+            const tiles = readTileSnaps();
+            if (jump > 30 && jumpEvents.length < 6) {
+              jumpEvents.push({ jump: Math.round(jump), before: lastTileSnaps, after: tiles });
+            }
+            lastTileSnaps = tiles;
+            return;
+          }
+        }
+        jumpAnchor = pickAnchor();
+        jumpAnchorTop = jumpAnchor?.getBoundingClientRect().top ?? 0;
+        lastTileSnaps = readTileSnaps();
+      };
+
+      const threadCountStart = readThreadCount();
+      const autoPaginateFiredStart = readAutoPaginateFired();
+      const writes = w.__appScrollWrites!;
+      const writesBefore = writes.length;
+
+      // Teleport into the auto-paginate trigger zone near the top of the
+      // partial window (driver-tagged; the flick realism matters only for
+      // the measured stream that follows). Deep enough that the gentle
+      // flicks below cannot slam into the absolute top before the prepend
+      // lands — a clamped scroller at offset 0 measures edge artifacts,
+      // not the commit under test. NO gesture yet: the auto-paginate
+      // trigger keys on user scroll intent, and the commit must land
+      // inside the SAMPLED stream below, not in this settle window.
+      w.__driverDepth! += 1;
+      scroller.scrollTop = 1800;
+      w.__driverDepth! -= 1;
+      // Let the teleport's mount wave settle OUTSIDE the sampled stream:
+      // landing mid-row in never-measured territory makes a straddling
+      // row correct its estimate on first measurement, which reflows in
+      // place by design (a different surface from the prepend commit this
+      // test pins — jump-to-message owns that geometry).
+      const settleUntil = performance.now() + 600;
+      while (performance.now() < settleUntil) {
+        // eslint-disable-next-line no-await-in-loop
+        await raf();
+      }
+      sampleJump(0);
+
+      // Flick + REALISTIC pause cycles. Pauses exceed the 150ms scroll
+      // quiescence threshold, so the deferred prepend commit fires inside
+      // the sampled stream — the sampler keeps running through the pauses
+      // with an expected anchor movement of exactly zero. Each cycle
+      // starts with a fresh gesture (finger back on glass), which is also
+      // what re-authorizes the auto-paginate trigger after a barren
+      // attempt.
+      for (let cycle = 0; cycle < 4; cycle += 1) {
+        scroller.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }));
+        for (let step = 0; step < 8; step += 1) {
+          const prevTop = scroller.scrollTop;
+          w.__driverDepth! += 1;
+          scroller.scrollTop -= 90;
+          w.__driverDepth! -= 1;
+          // eslint-disable-next-line no-await-in-loop
+          await raf();
+          // Actual driven delta (the write clamps near the window top
+          // until the prepend lands).
+          sampleJump(prevTop - scroller.scrollTop);
+        }
+        const pauseUntil = performance.now() + 500;
+        while (performance.now() < pauseUntil) {
+          // eslint-disable-next-line no-await-in-loop
+          await raf();
+          sampleJump(0);
+        }
+      }
+
+      return {
+        threadCountStart,
+        threadCountEnd: readThreadCount(),
+        autoPaginateFired: readAutoPaginateFired() - autoPaginateFiredStart,
+        paginateExits: readPaginateExitCounters(),
+        appWrites: writes.slice(writesBefore),
+        maxJumpPx: Math.round(Math.max(...jumps, 0)),
+        totalJumpPx: Math.round(jumps.reduce((sum, jump) => sum + jump, 0)),
+        jumpFrames: jumps.length,
+        jumpEvents,
+        settledTop: scroller.scrollTop,
+      };
+    })) as {
+      error?: string;
+      threadCountStart: number;
+      threadCountEnd: number;
+      autoPaginateFired: number;
+      paginateExits: Record<string, number>;
+      appWrites: AppScrollWrite[];
+      maxJumpPx: number;
+      totalJumpPx: number;
+      jumpFrames: number;
+      jumpEvents: StreamReport['jumpEvents'];
+      settledTop: number;
+    };
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `IOS-PREPEND-ONE-PAINT ${JSON.stringify({
+        threadCountStart: report.threadCountStart,
+        threadCountEnd: report.threadCountEnd,
+        autoPaginateFired: report.autoPaginateFired,
+        paginateExits: report.paginateExits,
+        maxJumpPx: report.maxJumpPx,
+        totalJumpPx: report.totalJumpPx,
+        jumpFrames: report.jumpFrames,
+        appWrites: report.appWrites,
+      })}`
+    );
+    if (report.jumpEvents && report.jumpEvents.length > 0) {
+      // eslint-disable-next-line no-console
+      console.log(`IOS-PREPEND-JUMPS ${JSON.stringify(report.jumpEvents)}`);
+    }
+    // eslint-disable-next-line no-console
+    console.log(`IOS-PREPEND-RELATIONS ${JSON.stringify(relationRequests)}`);
+    await testInfo.attach('ios-prepend-one-paint.json', {
+      body: JSON.stringify({ report, relationRequests, debugLines }, null, 2),
+      contentType: 'application/json',
+    });
+
+    expect(report.error).toBeUndefined();
+
+    // Preconditions — the test proves nothing unless the prepend commit
+    // actually landed INSIDE the sampled stream:
+    // the open rendered a partial window (the continuation abort worked)...
+    expect(report.threadCountStart).toBeGreaterThan(0);
+    expect(report.threadCountStart).toBeLessThan(PREPEND_REPLY_COUNT);
+    // ...the scroll-driven trigger fired the chip pipeline...
+    expect(report.autoPaginateFired).toBeGreaterThan(0);
+    // ...and older rows were prepended while the sampler ran.
+    expect(report.threadCountEnd).toBeGreaterThan(report.threadCountStart);
+    expect(report.jumpFrames).toBeGreaterThan(60);
+
+    // THE invariant: the same ride-smoothness budget as the momentum
+    // stream, now measured ACROSS the prepend commit. The anchor restore
+    // must land in one paint — a coarse write painted a frame before its
+    // fine correction shows up here as a jump pair.
+    expect(report.maxJumpPx).toBeLessThan(40);
+    expect(report.totalJumpPx).toBeLessThan(120);
+  });
 });

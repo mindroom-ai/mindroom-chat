@@ -32,6 +32,13 @@ export type ThreadBackPaginationController = {
   ) => boolean;
   getPendingAnchorEventId: () => string | undefined;
   getPendingAnchorSeq: () => number | undefined;
+  // Captured viewport-coordinate top of the pending anchor row. The
+  // prepend coarse restore needs it to compute the anchor's target
+  // scrollTop EXACTLY (anchor start offset minus its captured viewport
+  // offset) — aligning the anchor to the viewport top instead paints one
+  // frame displaced by that offset, which the rect-based fine correction
+  // then visibly reverses (the reverse-flash device report).
+  getPendingAnchorClientTop: () => number | undefined;
   restorePendingAnchor: (
     scrollRoot: HTMLElement | null | undefined,
     threadId: string | undefined,
@@ -133,6 +140,8 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
 
   const getPendingAnchorSeq = useCallback(() => pendingAnchorRef.current?.seq, []);
 
+  const getPendingAnchorClientTop = useCallback(() => pendingAnchorRef.current?.top, []);
+
   const clearPendingAnchor = useCallback(() => {
     pendingAnchorRef.current = undefined;
   }, []);
@@ -178,6 +187,7 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
     recaptureAnchor,
     getPendingAnchorEventId,
     getPendingAnchorSeq,
+    getPendingAnchorClientTop,
     restorePendingAnchor,
   };
 };

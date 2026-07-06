@@ -2,6 +2,73 @@
 
 ## Runbook
 
+### Prepend commit lands in ONE paint; barren root-only cache-hit fixed (2026-07-06, device round 9)
+
+Report: momentum right, end position right, but short jumps "applied
+again in reverse" mid-ride. Handoff suspect confirmed test-first: the
+prepend-commit anchor restore two-step (coarse estimate-derived write,
+rect-based fine correction a frame later) — the momentum spec never saw
+it because its 80ms inter-flick pauses sit below the 150ms quiescence
+threshold, so the deferred commit never fired inside its measured
+stream.
+
+- New e2e (4th test in `ios-momentum-invariants.spec.ts`): a thread
+  that genuinely requires back-pagination (route aborts `/relations`
+  continuations — `from=` param — during open, leaving a 101-row window
+  with a live back token, the state a slow connection leaves any long
+  thread in), then flick + REALISTIC 500ms pauses with the per-frame
+  anchor sampler running through the pauses. Preconditions pin the
+  causal chain: partial window, `threadAutoPaginateBackFired`, thread
+  count growth inside the sampled stream. Budget: same maxJump<40 /
+  total<120 as the momentum ride. First run measured maxJump 648 — the
+  two-step, photographed (coarse `scrollTo` one paint before its fine
+  correction, tile layout identical, pure viewport displacement).
+- BUG 1 (found by the test's preconditions, real on devices): the
+  pagination attempts committed "cache-hits" forever without growing
+  anything. `loadThreadCachedPaginationSnapshot` judged hit/miss on the
+  root-AUGMENTED mapped list (`normalizeCachedThreadEvents` folds the
+  root into every page, and the storage loaders return `rootEvent` even
+  for empty pages) — a root-only page is an eternal barren cache-hit,
+  and the network leg (the only source of genuinely older events) never
+  runs: a partially-opened thread is permanently un-paginatable from
+  scroll. Fixed: status judged on the RAW older-reply page
+  (`cachedPage.events`). Unit test pins it. New exit-path probe
+  counters (`threadPaginateBack*` family, reconciler-counters lesson)
+  made this diagnosable in one run and stay in.
+- BUG 2 (the reverse-flash): the thread coarse restore write was wrong
+  by THREE terms, peeled off one measured residual at a time
+  (648 → 456 → 72 → 0):
+  1. It aligned the anchor row to the viewport TOP (`'start'`) instead
+     of its captured viewport offset (up to the anchor row's own height;
+     the room path already had this term).
+  2. It computed the target in item space while the compensation
+     transform was ACTIVE (visual space differs by the accumulated
+     `translateY`). Fixed by SETTLING the compensation synchronously in
+     the commit's layout effect before computing the target — settle is
+     invisible by construction, and this also resolves the previously
+     flagged settle-vs-commit quiescence race by construction (the armed
+     settle later finds zero pending px).
+  3. `getOffsetForIndex` is in virtual-container space, but the thread
+     scroller has a DYNAMIC block above the container (chip/padding —
+     the virtualizer is configured without `scrollMargin`); converted
+     with the container's live offset (a constant 72px in the fixture).
+  With all three terms the commit paints at the final position and the
+  rAF fine-correction chain degenerates to a ≤1px no-write verifier
+  (appWrites show settle + one exact `scrollTo` in the same tick, no
+  correction after).
+- Known separate surface (NOT this flow, seen while stabilizing the
+  driver): landing mid-row in never-measured territory (teleport /
+  jump-to-message class) lets a STRADDLING row correct its estimate on
+  first measurement, reflowing in place by design (~72px once). The
+  driver settles its teleport outside the sampled stream; the
+  jump-to-message geometry owns that if it ever surfaces on device.
+  The ROOM prepend path keeps its own coarse+fine two-step (crude flat
+  estimate, has the viewport-offset term, lacks the other two) — no
+  device report, needs its own spec before touching.
+- Validation: typecheck ✅, FULL vitest 343 files / 2705 tests ✅,
+  build ✅, eslint ✅ (0 errors); new e2e 6× consecutive PASS at
+  jump metrics 0/0 against the production build; full 4-test spec 4/4.
+
 ### Transform compensation: estimate error invisible by construction (2026-07-06, device round 8)
 
 Report: still small jumps, now shifting UP (over-estimation: raw tool

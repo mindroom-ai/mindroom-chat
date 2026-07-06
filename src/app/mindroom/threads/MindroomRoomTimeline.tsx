@@ -441,6 +441,7 @@ export function RoomTimeline({
     clearPendingAnchor: clearPendingThreadBackPaginationAnchor,
     getPendingAnchorEventId: getPendingThreadBackPaginationAnchorEventId,
     getPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq,
+    getPendingAnchorClientTop: getPendingThreadBackPaginationAnchorClientTop,
     restorePendingAnchor: restorePendingThreadBackPaginationAnchor,
     recaptureAnchor: recaptureThreadBackPaginationAnchor,
   } = useThreadBackPaginationController();
@@ -1524,11 +1525,52 @@ export function RoomTimeline({
     // arms a rAF reconcile loop that keeps re-asserting align-start for up
     // to 5s, fighting the fine correction below (which aligns the anchor to
     // its captured viewport offset, not to the top). getOffsetForIndex gives
-    // the same coarse target without arming the loop.
+    // the coarse start offset without arming the loop.
+    //
+    // The target subtracts the anchor's CAPTURED viewport offset (its rect
+    // top relative to the scroller at capture time): the write must land
+    // the anchor where the reader had it, not at the viewport top. Without
+    // the term, this frame PAINTS displaced by that offset (up to the
+    // anchor row's own height — 648px on the tallest fixture rows) and the
+    // rect-based fine correction then moves the content back a frame later:
+    // the "short jumps applied again in reverse" device report, measured by
+    // the prepend one-paint e2e. With it, the paint is correct by
+    // construction and the fine pass degenerates to a ≤1px no-write check.
     if (!getEventElementById(scrollRef.current, anchorEventId)) {
+      // Any active compensation transform maps item space to visual space;
+      // the virtualizer's offsets know nothing about it (measured on the
+      // e2e as the exact residual between the coarse write and the fine
+      // target). Settling is invisible by construction — the transform
+      // removal and scrollTop shift cancel in one layout pass — so settle
+      // FIRST and compute the target in transform-free coordinates. This
+      // also settles the settle-vs-commit quiescence race by construction:
+      // the armed quiescence settle later finds zero pending compensation.
+      settleScrollCompensation();
       const coarse = roomTimelineVirtualizer.getOffsetForIndex(anchorIndex, 'start');
-      if (coarse) {
-        scrollRef.current?.scrollTo({ top: coarse[0], behavior: 'instant' });
+      const scrollElement = scrollRef.current;
+      // The anchor's captured client top cannot be missing here (the
+      // eventId/seq equality above proved the pending anchor exists) —
+      // but a coarse write WITHOUT the offset term would reintroduce the
+      // align-to-viewport-top flash, so bail rather than guess.
+      const anchorClientTop = getPendingThreadBackPaginationAnchorClientTop();
+      if (coarse && scrollElement && anchorClientTop !== undefined) {
+        const scrollElementRect = scrollElement.getBoundingClientRect();
+        const anchorViewportOffset = anchorClientTop - scrollElementRect.top;
+        // getOffsetForIndex is in virtual-container space (the virtualizer
+        // is configured without scrollMargin, and the chip/padding block
+        // above the container is DYNAMIC); convert to scroller space with
+        // the container's live offset. Without the term the write is short
+        // by exactly that block — a constant the e2e measured at 72px.
+        const innerElement = virtualInnerRef.current;
+        const containerOffsetTop = innerElement
+          ? innerElement.getBoundingClientRect().top -
+            scrollElementRect.top +
+            scrollElement.scrollTop
+          : 0;
+        scrollElement.scrollTo({
+          top: Math.max(containerOffsetTop + coarse[0] - anchorViewportOffset, 0),
+          behavior: 'instant',
+        });
       }
     }
 
@@ -1565,11 +1607,13 @@ export function RoomTimeline({
   }, [
     cancelThreadPrependRetry,
     clearPendingThreadBackPaginationAnchor,
+    getPendingThreadBackPaginationAnchorClientTop,
     getPendingThreadBackPaginationAnchorEventId,
     getPendingThreadBackPaginationAnchorSeq,
     restorePendingThreadBackPaginationAnchor,
     roomTimelineVirtualizer,
     scrollRef,
+    settleScrollCompensation,
     threadEventIndexMapRef,
     threadEvents,
     threadId,
