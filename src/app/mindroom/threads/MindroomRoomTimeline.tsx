@@ -141,6 +141,7 @@ import {
   primeTimelineRenderContextBefore,
   shouldAutoPaginateThreadBack,
 } from './threadRenderUtils';
+import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
 import {
   hasActiveWindowTouches,
   isIOSWebKitDevice,
@@ -1186,6 +1187,19 @@ export function RoomTimeline({
       inner.style.transform = transform;
     }
   });
+  // On-device ride tracing (`?ridetrace=1`): per-frame invariant recorder
+  // with a one-tap export overlay — the phone captures the same trace the
+  // e2e recorder samples, for the device-only symptom classes the desktop
+  // harness cannot reproduce. Off (one localStorage read) otherwise.
+  useEffect(() => {
+    if (!isRideTraceEnabled()) return undefined;
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return undefined;
+    return installRideTraceRecorder(scrollEl, () => virtualInnerRef.current, {
+      roomId: room.roomId,
+      threadId,
+    });
+  }, [room.roomId, scrollRef, threadId]);
   // Thread/room switch drops the pending compensation at RENDER time: the
   // new view's first tiles measure during the commit, before any effect
   // could reset stale state (same pattern as the other render-time resets).
