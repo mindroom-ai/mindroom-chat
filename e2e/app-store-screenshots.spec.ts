@@ -55,6 +55,17 @@ const installAppStoreScreenshotStyles = async (page: Page) => {
   });
 };
 
+const waitForNextPaint = async (page: Page) => {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolvePaint) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolvePaint());
+        });
+      })
+  );
+};
+
 const captureScene = async (
   page: Page,
   device: AppStoreScreenshotDevice,
@@ -81,7 +92,7 @@ const captureScene = async (
     })
     .catch(() => undefined);
   await expect(page.getByText('Catching up...', { exact: true })).toBeHidden({ timeout: 10_000 });
-  await page.waitForTimeout(250);
+  await waitForNextPaint(page);
   await page.screenshot({
     path: outputPath,
     fullPage: false,

@@ -5,10 +5,14 @@
 ### iOS release prep with fastlane screenshot procedure (2026-07-05)
 
 - Status:
-  - Refreshed on `caveman/ios-release-fastlane-20260704` from current
+  - Refreshed on `caveman/ios-release-fastlane-20260705` from current
     `origin/dev` (`v4.12.3-mindroom.13`). App Store Connect upload/review
     submission is being handled as a follow-up release task, not by this
     commit.
+  - PR review follow-up: media upload fallback now continues across Matrix
+    media endpoint parse/network failures, dummy-auth registration reuses the
+    parsed Matrix challenge from `matrixFetch`, and screenshot capture waits
+    for a render frame instead of a fixed delay.
 - Summary:
   - Adds a repo-native App Store screenshot capture flow:
     `npm run appstore:screenshots` starts the local Docker Matrix fixture,
@@ -47,6 +51,10 @@
   - Current screenshots regenerated into `ios/App/fastlane/screenshots/en-US/`
     with the expected dimensions: iPhone 6.9" `1320x2868`; iPad 13"
     `2064x2752`.
+  - PR review follow-up validation: `node --test
+    scripts/appstore-fixture.test.mjs`, `node --check
+    scripts/seed-appstore-screenshot-room.mjs`, Prettier check on touched
+    review files, and `npm run appstore:screenshots`.
 
 ### Light-mode WebGL splash/auth palette inversion (2026-07-05)
 

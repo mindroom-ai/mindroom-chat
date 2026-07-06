@@ -19,6 +19,7 @@ import {
 const SETUP_SCRIPT_URL = new URL('./appstore-fixture-up.sh', import.meta.url);
 const SETUP_SCRIPT_PATH = fileURLToPath(SETUP_SCRIPT_URL);
 const SCREENSHOT_SCRIPT_URL = new URL('./appstore-screenshots.sh', import.meta.url);
+const SEED_SCRIPT_URL = new URL('./seed-appstore-screenshot-room.mjs', import.meta.url);
 
 test('declares the public-safe App Store screenshot fixture room', () => {
   assert.equal(
@@ -217,6 +218,27 @@ test('standalone setup script does not inherit stale room aliases', async () => 
   const script = await readFile(SETUP_SCRIPT_URL, 'utf8');
 
   assert.doesNotMatch(script, /E2E_FIXTURE_ROOM_ALIAS:-/);
+});
+
+test('seeder keeps Matrix media upload fallback resilient', async () => {
+  const script = await readFile(SEED_SCRIPT_URL, 'utf8');
+
+  assert.match(script, /for \(const uploadBase of uploadBases\) {\n\s+try {/);
+  assert.match(
+    script,
+    /catch \(error\) {\n\s+lastError = error instanceof Error \? error\.message : String\(error\);/
+  );
+});
+
+test('seeder reuses parsed registration challenge bodies', async () => {
+  const script = await readFile(SEED_SCRIPT_URL, 'utf8');
+
+  assert.match(script, /error\.body = body;/);
+  assert.match(script, /const challenge = error\.body \?\? {};/);
+  assert.doesNotMatch(
+    script,
+    /const initialResponse = await fetch\(`\$\{HOMESERVER\}\/_matrix\/client\/v3\/register`/
+  );
 });
 
 test('screenshot capture removes every stale file from the locale folder', async () => {

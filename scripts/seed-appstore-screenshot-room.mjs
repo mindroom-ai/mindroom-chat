@@ -68,11 +68,13 @@ async function matrixFetch(path, accessToken, options = {}) {
     const error = new Error(`Matrix API error: ${body.errcode} - ${body.error}`);
     error.errcode = body.errcode;
     error.statusCode = response.status;
+    error.body = body;
     throw error;
   }
   if (!response.ok) {
     const error = new Error(`Matrix API error: HTTP ${response.status}`);
     error.statusCode = response.status;
+    error.body = body;
     throw error;
   }
   return body;
@@ -83,21 +85,25 @@ async function uploadMedia(accessToken, data, contentType, filename) {
   let lastError;
 
   for (const uploadBase of uploadBases) {
-    const url = `${HOMESERVER}${uploadBase}/upload?filename=${encodeURIComponent(filename)}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': contentType,
-      },
-      body: data,
-    });
-    const body = await parseJsonResponse(response, url);
-    if (response.ok && typeof body.content_uri === 'string') {
-      return body.content_uri;
-    }
+    try {
+      const url = `${HOMESERVER}${uploadBase}/upload?filename=${encodeURIComponent(filename)}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': contentType,
+        },
+        body: data,
+      });
+      const body = await parseJsonResponse(response, url);
+      if (response.ok && typeof body.content_uri === 'string') {
+        return body.content_uri;
+      }
 
-    lastError = body.errcode ? `${body.errcode} - ${body.error}` : `HTTP ${response.status}`;
+      lastError = body.errcode ? `${body.errcode} - ${body.error}` : `HTTP ${response.status}`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
   }
 
   throw new Error(`Matrix media upload failed: ${lastError ?? 'unknown error'}`);
@@ -135,15 +141,7 @@ async function registerWithDummyAuth(username, password) {
       throw error;
     }
 
-    const initialResponse = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(initial),
-    });
-    const challenge = await parseJsonResponse(
-      initialResponse,
-      `${HOMESERVER}/_matrix/client/v3/register`
-    );
+    const challenge = error.body ?? {};
     const session = challenge.session;
     const flows = Array.isArray(challenge.flows) ? challenge.flows : [];
     const supportsDummyAuth = flows.some((flow) => {
