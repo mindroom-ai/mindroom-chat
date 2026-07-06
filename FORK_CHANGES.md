@@ -2,6 +2,68 @@
 
 ## Runbook
 
+### DEVICE TRACE DIAGNOSIS: transform compensation is unsound on iOS; three blank/jump mechanisms identified (2026-07-06, round 10 conclusion)
+
+First on-device ride trace captured (`?ridetrace=1` recorder, iPhone
+iOS 18.7, real 732-event thread, 40s ride; trace file in
+`~/ride-trace-1783377085460.json`, not committed). It is dispositive:
+30% OF THE RIDE (12.1s of 40s) shows DOM-level full-region coverage
+holes (gap=393px = the entire sampled band, 16 runs, longest 2.97s) —
+NOT raster starvation; the desktop harness measured gap≤26 in the same
+scenario because all three mechanisms below are device-conditional.
+
+1. TRANSFORM DIVERGENCE (blanks while scrolling): the round-8
+   compensation transform accumulates to ±3000px between settles on
+   real content (profile: 0 → 485 → 1086 → −925 → 1837 → 2997 → …) —
+   real rows' estimate error is far larger than the synthetic
+   fixture's, and long continuous rides never hit the 150ms quiet
+   window. virtual-core computes the mounted window from scrollOffset
+   but tiles PAINT at +transform: at |px| beyond the overscan slack
+   (~1000px) the viewport shows unrendered layout space = blank. The
+   desktop ride never accumulated enough px to cross the slack.
+2. NON-ATOMIC SETTLE (the huge jumps): the settle's "same synchronous
+   block cancels exactly" assumption is FALSE on iOS mid-momentum:
+   frame 1777 shows the transform removal (3646→0) painting one frame
+   BEFORE the scrollTop compensation lands (42540→38903 the NEXT
+   frame) — a full-screen-height visible jump. iOS WebKit's compositor
+   owns the scroll position during momentum; the style write applies
+   immediately, the scroll write does not. Round 8's "tiny jumps" are
+   this same mechanism with smaller px; the 2.5s quiescence cap fires
+   settles mid-momentum on long rides.
+3. WINDOW-UPDATE LAG ON TELEPORTS (blank at the bottom): user's
+   jump-to-latest tap moved scrollTop 0 → 54391 (exact bottom) in one
+   frame; the viewport stayed FULLY blank for ~3s while the device
+   mounted the far-away rows (transform=0 — independent of mechanisms
+   1/2, and the same class as any big jump into unmounted territory).
+
+Consequences:
+- Production ROLLED BACK to 3964b870 again (the instrumented round-9
+  build was live only for the capture session). Round 8 carries
+  mechanisms 2 and 3 too — its reported "tiny jumps" are mechanism 2
+  small-px settles — just with less exposure than round 9's activated
+  prepends.
+- The drop-and-compensate-by-transform architecture (round 8) cannot
+  be patched into correctness: it requires an atomic
+  transform+scrollTop swap that iOS does not offer mid-momentum, and
+  it desynchronizes paint from the virtualizer's window math by
+  design. Replacement direction for the next session, in order of
+  promise: (a) make the pending compensation part of the WINDOW MATH
+  instead of paint (fold accumulated px into the virtualizer's
+  coordinate space — e.g. dynamic scrollMargin, which shifts range
+  computation and tile positions coherently without touching
+  scrollTop), settling the residual only at TRUE rest (touch-free
+  AND momentum-free, no 2.5s cap write mid-ride); (b) shrink the
+  per-row error the machinery must absorb (real-content estimate
+  calibration — the trace's 210 fold-verdict rows are where the error
+  lives); (c) mechanism 3 needs mount-ahead for teleports
+  (jump-to-latest pre-mounts the target window before the scroll
+  write, or an interim skeleton).
+- The ride-trace recorder stays: it produced in one capture what nine
+  desktop rounds could not. Next fixes should be validated by
+  BEFORE/AFTER device traces, not desktop e2e alone.
+
+### Device round 10: REGRESSION on device, rollback, environment-realism harness (2026-07-06)
+
 ### Device round 10: REGRESSION on device, rollback, environment-realism harness (2026-07-06)
 
 Device report AFTER round 9 deployed: "many more blank screens when
