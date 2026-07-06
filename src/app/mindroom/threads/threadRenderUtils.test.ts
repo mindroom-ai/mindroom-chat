@@ -11,7 +11,6 @@ import {
   primeTimelineRenderContextBefore,
   shouldAutoPaginateThreadBack,
   shouldPinThreadToBottomOnOpen,
-  shouldSuppressMeasurementScrollAdjustment,
 } from './threadRenderUtils';
 
 const makeMessageEvent = (eventId: string, ts = 1) =>
@@ -259,59 +258,6 @@ describe('shouldAutoPaginateThreadBack', () => {
     // open-time backfill chain, which on slow networks is exactly when
     // a scrolling user needs the trigger live.
     expect(shouldAutoPaginateThreadBack({ ...base, hasUserScrollIntent: false })).toBe(false);
-  });
-});
-
-describe('shouldSuppressMeasurementScrollAdjustment', () => {
-  const base = {
-    threadId: '$thread',
-    isMeasurementAdjustment: true,
-    userScrolled: true,
-    msSinceLastScrollActivity: 50,
-    hasActiveTouch: false,
-    idleMs: 150,
-  };
-
-  it('suppresses the correction while scroll activity is recent (momentum in flight)', () => {
-    expect(shouldSuppressMeasurementScrollAdjustment(base)).toBe(true);
-  });
-
-  it('suppresses while a finger is down even if the scroll is still', () => {
-    expect(
-      shouldSuppressMeasurementScrollAdjustment({
-        ...base,
-        msSinceLastScrollActivity: 5_000,
-        hasActiveTouch: true,
-      })
-    ).toBe(true);
-  });
-
-  it('lets corrections land once the scroller is quiet', () => {
-    expect(
-      shouldSuppressMeasurementScrollAdjustment({ ...base, msSinceLastScrollActivity: 151 })
-    ).toBe(false);
-  });
-
-  it('never suppresses intentional scrolls (pin/settle, scroll-to-index) even mid-flick', () => {
-    expect(
-      shouldSuppressMeasurementScrollAdjustment({
-        ...base,
-        isMeasurementAdjustment: false,
-        hasActiveTouch: true,
-      })
-    ).toBe(false);
-  });
-
-  it('never suppresses before a real user gesture (open-time pin/settle scrolls programmatically)', () => {
-    expect(shouldSuppressMeasurementScrollAdjustment({ ...base, userScrolled: false })).toBe(
-      false
-    );
-  });
-
-  it('never suppresses outside a thread', () => {
-    expect(shouldSuppressMeasurementScrollAdjustment({ ...base, threadId: undefined })).toBe(
-      false
-    );
   });
 });
 

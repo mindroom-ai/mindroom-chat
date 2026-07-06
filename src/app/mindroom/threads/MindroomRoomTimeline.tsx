@@ -18,7 +18,7 @@ import classNames from 'classnames';
 import { ReactEditor } from 'slate-react';
 import { Editor } from 'slate';
 import { type SessionMembershipData } from 'matrix-js-sdk/lib/matrixrtc/membershipData';
-import { elementScroll, useVirtualizer } from '@tanstack/react-virtual';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAtomValue, useSetAtom } from 'jotai';
 import {
   Badge,
@@ -139,9 +139,7 @@ import {
   dedupeThreadRenderEventEntries,
   primeTimelineRenderContextBefore,
   shouldAutoPaginateThreadBack,
-  shouldSuppressMeasurementScrollAdjustment,
 } from './threadRenderUtils';
-import { hasActiveWindowTouches, SCROLL_QUIESCENCE_IDLE_MS } from './scrollQuiescence';
 import {
   useTimelineDebugRangeController,
   useTimelineDebugTraceIds,
@@ -1078,7 +1076,9 @@ export function RoomTimeline({
   // estimate is far off for expanded rows (96/144 vs several hundred px), and
   // every mount-above then corrects offsets by that error — visible as
   // flicker/jumps during fast upward scrolling. Mechanics on virtual-core
-  // 3.2.0: estimateSize is NOT a virtualizer memo dependency; new estimates
+  // 3.17.3 (re-verified at the 3.2.0 → 3.17.3 upgrade; getMeasurements is
+  // additionally keyed on itemSizeCacheVersion there, which changes
+  // nothing below): estimateSize is NOT a virtualizer memo dependency; new estimates
   // reach unmeasured rows because (i) state guarantees a render (a ref write
   // from the measure callback might never trigger one) and (ii) the inline
   // getItemKey arrow below invalidates memoOptions -> getMeasurements every
@@ -1122,64 +1122,18 @@ export function RoomTimeline({
       return mean;
     });
   }, [defaultRowEstimate, threadLatestOpenPendingRef]);
-  // Fed by the thread gesture/scroll listeners below; read lazily inside
-  // scrollToFn, so declaration order relative to the listeners is irrelevant.
-  const threadLastScrollActivityRef = useRef(0);
-  const threadUserScrolledRef = useRef(false);
-  // Thread switch: reset at RENDER time, not in a [threadId] effect — the
-  // new thread's first tiles measure during the commit BEFORE effects run,
-  // and stale "user was flicking the previous thread" state must not
-  // suppress the open-time corrections (same race coderabbit flagged on
-  // PR #76's queue reset).
-  const threadScrollSuppressResetForThreadRef = useRef(threadId);
-  if (threadScrollSuppressResetForThreadRef.current !== threadId) {
-    threadScrollSuppressResetForThreadRef.current = threadId;
-    threadLastScrollActivityRef.current = 0;
-    threadUserScrolledRef.current = false;
-  }
+  // No fork-side momentum protection here anymore (task #128): rows measure
+  // immediately, and virtual-core ≥3.17 natively defers the resulting
+  // scrollTop anchoring writes on iOS WebKit while a scroll/touch is live
+  // (isIOSWebKit() + _iosDeferredAdjustment in applyScrollAdjustment),
+  // replaying them at quiescence. That is the same mechanism two earlier
+  // fork layers approximated — PR #76's measurement deferral (caused white
+  // gaps) and the interim custom scrollToFn suppression — both now deleted.
   const roomTimelineVirtualizer = useVirtualizer({
     count: threadId ? threadEvents.length : timelineItems.length,
     getScrollElement,
     estimateSize: estimateRoomTimelineItemSize,
     overscan: 10,
-    // Task #128 follow-up: measuring an above-viewport row makes
-    // virtual-core 3.2.0's resizeItem write scrollTop to keep the viewport
-    // anchored over the estimate-vs-real height error. iOS answers ANY
-    // programmatic scrollTop write mid-flick by killing momentum — the
-    // reason PR #76 deferred measurement wholesale (and caused the white
-    // gaps that PR removed). The targeted fix: measure immediately
-    // (heights stay real) but SKIP only the anchoring write while the
-    // user's scroll is live. Cost: mid-flick the content drifts by the
-    // per-row estimate error instead of staying pixel-anchored.
-    // Measurement corrections are the ONLY scrollToFn calls with a numeric
-    // `adjustments`; intentional scrolls (open-time pin/settle,
-    // scroll-to-index, mount sync) pass undefined and are never
-    // suppressed.
-    scrollToFn: (offset, options, instance) => {
-      if (
-        shouldSuppressMeasurementScrollAdjustment({
-          threadId: threadIdRef.current,
-          isMeasurementAdjustment: options.adjustments !== undefined,
-          userScrolled: threadUserScrolledRef.current,
-          msSinceLastScrollActivity: Date.now() - threadLastScrollActivityRef.current,
-          hasActiveTouch: hasActiveWindowTouches(),
-          idleMs: SCROLL_QUIESCENCE_IDLE_MS,
-        })
-      ) {
-        // resizeItem accumulated the suppressed write's delta into
-        // scrollAdjustments BEFORE calling scrollToFn. Zero it — exactly
-        // what observeElementOffset does on every scroll event — so a
-        // correction landing after quiescence can't replay phantom deltas
-        // as a visible snap (a flick can end without any further scroll
-        // event inside the idle window). Newer virtual-core skips the
-        // accumulation itself when shouldAdjustScrollPositionOnItemSizeChange
-        // returns false; this cast reproduces those semantics on 3.2.0,
-        // where the field is compile-time private.
-        (instance as unknown as { scrollAdjustments: number }).scrollAdjustments = 0;
-        return;
-      }
-      elementScroll(offset, options, instance);
-    },
     getItemKey: (index) => {
       if (threadId) {
         return threadEvents[index]?.getId() ?? index;
@@ -3114,13 +3068,6 @@ export function RoomTimeline({
     if (!threadId) return undefined;
     const scrollEl = scrollRef.current;
     if (!scrollEl) return undefined;
-    // Feeds the measurement-correction suppression gate in scrollToFn: any
-    // scroll event (user or momentum) marks the scroller as live for the
-    // idle window.
-    const onScrollActivity = () => {
-      threadLastScrollActivityRef.current = Date.now();
-    };
-    scrollEl.addEventListener('scroll', onScrollActivity, { passive: true });
     // 'touchstart' included: an iOS flick can produce scroll activity
     // before the first touchmove is seen, and user-scroll intent must
     // already be marked by then. pointerdown covers this on PointerEvent
@@ -3128,7 +3075,6 @@ export function RoomTimeline({
     const gestureEvents = ['wheel', 'touchstart', 'touchmove', 'pointerdown', 'keydown'] as const;
     const onGesture = () => {
       setThreadUserScrolled(true);
-      threadUserScrolledRef.current = true;
       // Renewed intent clears a barren block (greptile P1 round 2 on
       // PR #74): a no-progress attempt must not strand the user at
       // the edge while older history still exists — but retries are
@@ -3143,7 +3089,6 @@ export function RoomTimeline({
       scrollEl.addEventListener(eventType, onGesture, { passive: true });
     });
     return () => {
-      scrollEl.removeEventListener('scroll', onScrollActivity);
       gestureEvents.forEach((eventType) => {
         scrollEl.removeEventListener(eventType, onGesture);
       });

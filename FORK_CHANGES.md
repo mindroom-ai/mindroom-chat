@@ -2,6 +2,53 @@
 
 ## Runbook
 
+### react-virtual 3.2.0 → 3.14.5: native iOS momentum protection replaces the fork's (2026-07-05, task #128 conclusion)
+
+While planning to move the interim `scrollToFn` suppression (entry below)
+onto the official `shouldAdjustScrollPositionOnItemSizeChange` hook, we
+discovered `@tanstack/virtual-core` ≥3.17 ships the whole mechanism
+natively — the same shape as the tuwunel edit-bundling story: fork built
+it, upstream already had it, adopt upstream.
+
+- What upstream does (virtual-core 3.17.3, `applyScrollAdjustment`):
+  on iOS WebKit (`isIOSWebKit()` — UA `iP(hone|od|ad)`, so every iOS
+  browser incl. Brave, plus iPadOS desktop mode), while a scroll/touch is
+  live (`isScrolling` via native `scrollend` or 150 ms debounce fallback,
+  plus its own scroll-element touch listeners and a 300 ms post-touchend
+  window), measurement-correction scrollTop writes are deferred into
+  `_iosDeferredAdjustment` and replayed once at quiescence. Rows still
+  measure immediately (ResizeObserver path measures during live scroll),
+  so the white-gap fix is untouched.
+- Fork changes: upgraded `@tanstack/react-virtual` to 3.14.5 and deleted
+  the entire interim layer — custom `scrollToFn`, the private-field
+  `scrollAdjustments` cast, `shouldSuppressMeasurementScrollAdjustment`
+  (+ tests), the scroll-activity listener, `threadUserScrolledRef`
+  mirror, render-time reset, and the `hasActiveWindowTouches` export
+  (again). Net: ZERO fork-side momentum-protection code.
+- Upgrade audit (subagent, against installed 3.17.3 source): the
+  learned-row-size mechanics still hold (inline `getItemKey` still forces
+  the full measurements rebuild that propagates new estimates; measured
+  sizes persist in `itemSizeCache`; the "do NOT memoize getItemKey"
+  warning stands — comment updated in place); non-smooth `scrollToOffset`
+  makes a single direct write (no reconcile loop), so the prepend-anchor
+  restore doesn't fight it; `measureElement(null)` now prunes
+  disconnected cache entries (callback refs benefit); no breaking option
+  changes for our usage. New `anchorTo: 'end'` option (native chat
+  bottom-anchoring) noted as a possible future simplification.
+- Upstream bug found during the audit, being sent as a TanStack/virtual
+  PR (tuwunel-#495/496/497-style): `cleanup()` does not reset
+  `_iosDeferredAdjustment` / `_iosTouching` / `_iosJustTouchEnded` /
+  the touch-end timer, so a scroll-element swap mid-deferral (e.g. a
+  thread switch during a flick) can replay a stale delta on the next
+  element's first flush.
+- Validation: typecheck ✅, build ✅, eslint on touched files ✅, FULL
+  vitest suite (342 files, 2685 tests) ✅ — the upgrade affects every
+  `useVirtualizer` view (members, lobby, notifications, …), hence the
+  full run. Device re-test on iOS required (momentum + white gaps +
+  stop-time behavior: upstream replays the deferred delta at quiescence
+  rather than dropping it, which may read differently from the interim
+  build).
+
 ### Suppress measurement scrollTop corrections during live scroll (2026-07-05, task #128 follow-up)
 
 Device test of the immediate-measurement change (entry below) confirmed the

@@ -62,11 +62,6 @@ const installTouchTracker = () => {
 };
 installTouchTracker();
 
-// Consulted by callers that need an instantaneous read of the global touch
-// state (e.g. the measurement-correction suppression gate in the thread
-// timeline's scrollToFn).
-export const hasActiveWindowTouches = (): boolean => windowActiveTouches > 0;
-
 export const waitForScrollQuiescence = (
   scrollElement: HTMLElement | null,
   { idleMs = SCROLL_QUIESCENCE_IDLE_MS, maxWaitMs = 2500 }: WaitForScrollQuiescenceOptions = {}
