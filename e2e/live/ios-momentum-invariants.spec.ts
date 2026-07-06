@@ -404,9 +404,22 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     // eslint-disable-next-line no-console
     console.log(`IOS-SNAP-BACK-SCROLLUP ${JSON.stringify(scrollUp)}`);
     expect((scrollUp as { error?: string }).error).toBeUndefined();
-    expect(
-      (scrollUp as { distFromBottomAfterUp: number }).distFromBottomAfterUp
-    ).toBeGreaterThan(500);
+    const up = scrollUp as {
+      scrollTopBefore: number;
+      steps: { scrollTop: number; scrollHeight: number }[];
+      distFromBottomAfterUp: number;
+    };
+    // THE invariant: the app never moves the user's scroll position. Every
+    // step lands exactly where the driver put it — a clamp (scrollHeight
+    // collapsing below scrollTop, the adoption-teleport bug) shows up as a
+    // step losing more than its driven 80px. Gradual scrollHeight erosion
+    // from estimate error is accepted drift and does NOT touch scrollTop.
+    up.steps.forEach((step, index) => {
+      expect(Math.abs(step.scrollTop - (up.scrollTopBefore - 80 * (index + 1)))).toBeLessThan(4);
+    });
+    // Belt: even with accepted drift, the viewport must remain clearly
+    // away from the bottom after 640px of driving.
+    expect(up.distFromBottomAfterUp).toBeGreaterThan(150);
 
     // Streaming pressure: new replies land while the user is scrolled up.
     for (let i = 0; i < 3; i += 1) {
@@ -446,5 +459,138 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     expect(outcome.samples).toBeGreaterThan(40);
     expect(outcome.finalDistFromBottom).toBeGreaterThan(300);
     expect(outcome.minDistAfterLeavingBottom).toBeGreaterThan(150);
+  });
+
+  test('composer growth right after leaving the bottom must not re-pin the view', async ({
+    page,
+  }, testInfo) => {
+    // The editor ResizeObserver re-pins to the bottom "if at bottom". The
+    // atBottom state's false-transition is debounced ~1s, so a composer
+    // resize within that window after scrolling up would yank the reader
+    // back down — same stale-state class as the adoption teleport.
+    const homeserver = getHomeserver();
+    const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    const roomId = await createPrivateRoom(homeserver, session.accessToken, {
+      name: `Composer re-pin repro ${Date.now()}`,
+    });
+    const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
+      msgtype: 'm.text',
+      body: 'Composer re-pin root',
+    });
+    for (let i = 1; i <= 40; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await sendRoomMessage(homeserver, session.accessToken, roomId, {
+        msgtype: 'm.text',
+        body: `reply ${i}\n${Array.from(
+          { length: 16 },
+          (_v, line) => `line ${line} of reply ${i} with enough text to wrap on a phone`
+        ).join('\n')}`,
+        'm.relates_to': {
+          rel_type: 'm.thread',
+          event_id: rootId,
+          is_falling_back: true,
+          'm.in_reply_to': { event_id: rootId },
+        },
+      });
+    }
+
+    await loginWithPassword(page, { homeserver, username, password });
+    await page.setViewportSize(iphone.viewport);
+    await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
+    await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
+    await page.waitForTimeout(3_000);
+
+    // Leave the bottom...
+    const afterUp = await page.evaluate(async () => {
+      const row = document.querySelector('[data-message-item]');
+      let candidate: HTMLElement | null = row?.parentElement ?? null;
+      while (candidate) {
+        const { overflowY } = getComputedStyle(candidate);
+        if (
+          (overflowY === 'auto' || overflowY === 'scroll') &&
+          candidate.scrollHeight > candidate.clientHeight
+        ) {
+          break;
+        }
+        candidate = candidate.parentElement;
+      }
+      const scroller = candidate;
+      if (!scroller) return { error: 'no scroller found' };
+      (window as Window & { __repinScroller?: HTMLElement }).__repinScroller = scroller;
+      const raf = () =>
+        new Promise<void>((resolve) => {
+          window.requestAnimationFrame(() => resolve());
+        });
+      // Gesture fidelity: a real drag fires touch events, and the app's
+      // "user took over" logic (open-time settle, scroll intent) keys on
+      // gestures, not bare scroll events.
+      const touch = (type: string) =>
+        scroller.dispatchEvent(new TouchEvent(type, { bubbles: true }));
+      touch('touchstart');
+      const readAdoptions = () =>
+        (
+          window as Window & {
+            __MINDROOM_CACHE_PROBE__?: { snapshot: () => { threadRowSizeAdopted?: number } };
+          }
+        ).__MINDROOM_CACHE_PROBE__?.snapshot().threadRowSizeAdopted ?? -1;
+      const steps: { scrollTop: number; scrollHeight: number; adoptions: number }[] = [];
+      for (let step = 0; step < 8; step += 1) {
+        touch('touchmove');
+        scroller.scrollTop -= 80;
+        // eslint-disable-next-line no-await-in-loop
+        await raf();
+        steps.push({
+          scrollTop: scroller.scrollTop,
+          scrollHeight: scroller.scrollHeight,
+          adoptions: readAdoptions(),
+        });
+      }
+      touch('touchend');
+      return {
+        steps,
+        distFromBottomAfterUp:
+          scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+      };
+    });
+    // eslint-disable-next-line no-console
+    console.log(`COMPOSER-REPIN-SCROLLUP ${JSON.stringify(afterUp)}`);
+    expect((afterUp as { error?: string }).error).toBeUndefined();
+    const upPhase = afterUp as {
+      steps: { scrollTop: number; scrollHeight: number; adoptions: number }[];
+      distFromBottomAfterUp: number;
+    };
+    // Same invariant as the snap-back test: the app never moves the user's
+    // scroll position (estimate-drift erodes scrollHeight, never scrollTop).
+    upPhase.steps.forEach((step, index) => {
+      expect(
+        Math.abs(step.scrollTop - (upPhase.steps[0].scrollTop - 80 * index))
+      ).toBeLessThan(4);
+    });
+    expect(upPhase.distFromBottomAfterUp).toBeGreaterThan(300);
+
+    // ...and grow the composer INSIDE the debounce window: focus + newlines.
+    const composer = page.getByRole('textbox').last();
+    await composer.click();
+    await composer.press('Shift+Enter');
+    await composer.press('Shift+Enter');
+    await composer.press('Shift+Enter');
+    await page.waitForTimeout(1_500);
+
+    const outcome = await page.evaluate(() => {
+      const scroller = (window as Window & { __repinScroller?: HTMLElement }).__repinScroller!;
+      return {
+        finalDistFromBottom:
+          scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+      };
+    });
+    await testInfo.attach('composer-repin.json', {
+      body: JSON.stringify({ afterUp, outcome }, null, 2),
+      contentType: 'application/json',
+    });
+
+    // The reader stays where they were; only a genuinely bottom-pinned view
+    // may follow the growing composer.
+    expect(outcome.finalDistFromBottom).toBeGreaterThan(300);
   });
 });

@@ -2,6 +2,47 @@
 
 ## Runbook
 
+### atBottom stale-state audit: live-bottom primitive; one shrinker still open (2026-07-06)
+
+Follow-through on the bandage audit ("fix it and keep the code clean"):
+the atBottom state's false-transition is debounced ~1s (read-receipt
+controller), so scroll-BEHAVIOR consumers reading it can act on a stale
+"pinned" for a second after the user leaves the bottom.
+
+- New primitive `isViewportAtBottomNow(slackPx?)` (single live viewport
+  reading over `isScrollNearBottom`). Consumers audited:
+  - learned-estimate adoption → live primitive, AND the
+    `threadLatestOpenPending` bypass removed entirely — the e2e caught the
+    teleport firing through that branch when a user takes over before the
+    open settles; during an undisturbed settle the view IS at the bottom,
+    so the live reading already admits adoption. `threadLatestOpenPendingRef`
+    became consumerless and was deleted. Adoption now counts a probe
+    (`threadRowSizeAdopted`) readable from e2e via
+    `__MINDROOM_CACHE_PROBE__.snapshot()`.
+  - editor-resize re-pin → live primitive with a growth-slack argument
+    (a composer growing by d moves the bottom away by d for a pinned
+    user; previousHeight tracked in the RO closure). The e2e's composer
+    test measured dist 0 (yank) before this fix when its up-phase
+    survived.
+  - `timelineReadReceiptController` (auto-mark-read on focus) and
+    `roomLiveRenderController` (re-render nudge) keep the debounced
+    state deliberately — debounce is correct for those semantics.
+- **Open bug, isolated but not yet fixed:** the snap-back class has a
+  second, timing-dependent shrinker. E2e evidence: repeatable
+  `scrollHeight` drops of exactly ~688px during scroll-up (one per
+  event, sometimes twice per run), with the adoption probe at 0 and no
+  app scroll writes — the browser clamp to the shrunken max produces
+  the snap. Not adoption, not scroll writes, not (per code reading)
+  the collapse first-mount (rows mount pre-collapsed by default).
+  Next: probe `applyOverflowVerdict` transitions and row identity
+  changes in the harness. Tests 2 and 3 of
+  `ios-momentum-invariants.spec.ts` are left RED as standing
+  reproducers (e2e/live is not CI-gated); test 1 (momentum invariants)
+  is green.
+- Validation: typecheck ✅, build ✅, eslint ✅, threads suite 116 files /
+  1132 tests ✅; e2e: test 1 ✅, tests 2/3 red-by-design against the open
+  shrinker.
+
 ### Snap-back-to-bottom on scroll-up: adoption teleport, found+fixed via new e2e (2026-07-06, device round 5)
 
 Report: a thread opens correctly pinned to the bottom, but scrolling up a

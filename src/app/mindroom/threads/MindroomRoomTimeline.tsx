@@ -433,11 +433,6 @@ export function RoomTimeline({
   const [threadPaginatingFront, setThreadPaginatingFront] = useState(false);
   const [threadInitialCacheHydrated, setThreadInitialCacheHydrated] = useState(false);
   const [threadLatestOpenPending, setThreadLatestOpenPending] = useState(false);
-  // Mirrored for callbacks that must keep a stable identity (measureThreadTile
-  // is every VirtualTile's ref; an identity change re-attaches all mounted
-  // rows and double-counts their heights in the row-size stats).
-  const threadLatestOpenPendingRef = useRef(threadLatestOpenPending);
-  threadLatestOpenPendingRef.current = threadLatestOpenPending;
   const [threadTimelineTick, setThreadTimelineTick] = useState(0);
   const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
   const {
@@ -1016,6 +1011,27 @@ export function RoomTimeline({
   );
 
   const getScrollElement = useCallback(() => scrollRef.current, []);
+  // Live viewport-bottom reading for SCROLL-BEHAVIOR decisions. Deliberately
+  // not the atBottom state: its false-transition is debounced ~1s for
+  // read-receipt/UI stability, which is exactly wrong for anything that
+  // moves the viewport — a user who just left the bottom must never be
+  // treated as pinned (device round 5 / the ios-momentum-invariants e2e).
+  // `slackPx` lets a caller allow for a layout change it KNOWS just
+  // happened (e.g. the composer growing moves the bottom away by its own
+  // delta for a user who was pinned).
+  const isViewportAtBottomNow = useCallback(
+    (slackPx = 0) => {
+      const scrollElement = getScrollElement();
+      if (!scrollElement) return false;
+      return isScrollNearBottom({
+        scrollHeight: scrollElement.scrollHeight,
+        scrollTop: scrollElement.scrollTop,
+        clientHeight: scrollElement.clientHeight,
+        thresholdPx: 24 + slackPx,
+      });
+    },
+    [getScrollElement]
+  );
   const getTimelineItemElement = useCallback(
     (index: number) =>
       (scrollRef.current?.querySelector(`[data-message-item="${index}"]`) as HTMLElement) ??
@@ -1116,36 +1132,32 @@ export function RoomTimeline({
     const stats = threadRowSizeStatsRef.current;
     if (stats.count < 8) return;
     // Adopting a new estimate shifts every unmeasured row's offset with no
-    // scroll compensation. That is invisible while pinned at the bottom (the
-    // settle loop re-pins) but teleports a mid-thread reader, so defer
-    // adoption until the view is bottom-anchored again.
+    // scroll compensation — invisible while pinned at the bottom (the
+    // settle loop re-pins), but it teleports a mid-thread reader:
+    // scrollHeight can shrink below their scrollTop and the browser clamps
+    // the position straight back to the bottom (device round 5; pinned by
+    // the ios-momentum-invariants snap-back e2e).
     //
-    // LIVE bottom reading, deliberately not the atBottom state: that
-    // state's false-transition is debounced by 1s (read-receipt
-    // controller), and a user who has just scrolled up still reads as
-    // atBottom. Adopting then re-estimates the whole unmeasured region
-    // under them — scrollHeight can shrink below their scrollTop and the
-    // browser clamps the position straight back to the bottom (device
-    // round 5; reproduced by the ios-momentum-invariants snap-back e2e).
-    if (!threadLatestOpenPendingRef.current) {
-      const scrollElement = getScrollElement();
-      if (!scrollElement) return;
-      const liveAtBottom = isScrollNearBottom({
-        scrollHeight: scrollElement.scrollHeight,
-        scrollTop: scrollElement.scrollTop,
-        clientHeight: scrollElement.clientHeight,
-      });
-      if (!liveAtBottom) return;
-    }
+    // The gate is a LIVE viewport reading, with no exceptions:
+    // - not the atBottom state — its false-transition is debounced ~1s
+    //   (read-receipt controller), so a user who just scrolled up still
+    //   reads as pinned;
+    // - not bypassed while the open lifecycle is pending — a user can take
+    //   over scrolling before the open settles (the e2e reproduced the
+    //   teleport through exactly that branch), and during an undisturbed
+    //   settle the view IS at the bottom, so the live reading already
+    //   admits adoption there.
+    if (!isViewportAtBottomNow()) return;
     const mean = Math.round(stats.total / stats.count);
     setLearnedThreadRowSize((current) => {
       const reference = current ?? defaultRowEstimate;
       // Hysteresis: only adopt when the learned mean is materially different,
       // so the virtualizer is not recomputed on every measurement.
       if (Math.abs(mean - reference) / reference < 0.25) return current;
+      countCacheProbe('threadRowSizeAdopted');
       return mean;
     });
-  }, [defaultRowEstimate, getScrollElement, threadLatestOpenPendingRef]);
+  }, [defaultRowEstimate, isViewportAtBottomNow]);
   // Rows measure immediately (task #128); the momentum question is only
   // what happens to the compensating scrollTop write for an above-viewport
   // resize. virtual-core ≥3.17 would natively DEFER those on iOS and replay
@@ -1814,22 +1826,31 @@ export function RoomTimeline({
   useResizeObserver(
     useMemo(() => {
       let mounted = false;
+      let previousHeight = 0;
       return (entries) => {
+        if (!roomInputRef.current) return;
+        const editorBaseEntry = getResizeObserverEntry(roomInputRef.current, entries);
+        if (!editorBaseEntry) return;
+        const height = editorBaseEntry.contentRect.height;
+        const growth = Math.max(0, height - previousHeight);
+        previousHeight = height;
         if (!mounted) {
           // skip initial mounting call
           mounted = true;
           return;
         }
-        if (!roomInputRef.current) return;
-        const editorBaseEntry = getResizeObserverEntry(roomInputRef.current, entries);
         const scrollElement = getScrollElement();
-        if (!editorBaseEntry || !scrollElement) return;
+        if (!scrollElement) return;
 
-        if (atBottomRef.current) {
+        // Live reading, not the ~1s-stale atBottom state (a composer resize
+        // right after the user scrolled up must not yank them back down).
+        // The growth slack reconstructs the pre-resize position: a composer
+        // growing by d moves the bottom away by d for a pinned user.
+        if (isViewportAtBottomNow(growth)) {
           scrollToBottom(scrollElement);
         }
       };
-    }, [getScrollElement, roomInputRef]),
+    }, [getScrollElement, isViewportAtBottomNow, roomInputRef]),
     useCallback(() => roomInputRef.current, [roomInputRef])
   );
 

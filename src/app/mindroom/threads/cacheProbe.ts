@@ -12,6 +12,9 @@
  */
 
 export type CacheProbeCounters = {
+  // Learned thread row-size estimate adoptions (each one re-lays-out every
+  // unmeasured row with no scroll compensation; diagnosable from e2e).
+  threadRowSizeAdopted: number;
   roomSaveCalls: number;
   roomEventPuts: number;
   roomMetaPuts: number;
@@ -329,6 +332,7 @@ export type CacheProbeCounters = {
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
+  threadRowSizeAdopted: 0,
   roomSaveCalls: 0,
   roomEventPuts: 0,
   roomMetaPuts: 0,
