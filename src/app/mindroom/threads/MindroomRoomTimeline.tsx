@@ -137,8 +137,8 @@ import {
 import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
+  buildMeasurementScrollCorrectionHook,
   primeTimelineRenderContextBefore,
-  shouldApplyMeasurementScrollCorrection,
   shouldAutoPaginateThreadBack,
 } from './threadRenderUtils';
 import { hasActiveWindowTouches, isIOSWebKitDevice } from './scrollQuiescence';
@@ -235,6 +235,11 @@ import {
 import { useRoomTimelineNavigationController } from './roomTimelineNavigationController';
 import { buildMindroomRoomTimelineReplyDraft } from './roomTimelineReplyDraft';
 import { useThreadTimelineState } from './useThreadTimelineState';
+
+const measurementScrollCorrectionHook = buildMeasurementScrollCorrectionHook({
+  isIOSWebKitDevice,
+  hasActiveTouches: hasActiveWindowTouches,
+});
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -1147,14 +1152,9 @@ export function RoomTimeline({
     },
   });
   // Instance property, not an option (mirrors how virtual-core consults it:
-  // `this.shouldAdjust...`, set on the instance). Reassigned every render;
-  // only the latest closure is ever consulted.
-  roomTimelineVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) =>
-    shouldApplyMeasurementScrollCorrection({
-      itemAboveViewport: item.start < (instance.scrollOffset ?? 0),
-      isIOSWebKitDevice: isIOSWebKitDevice(),
-      scrollLive: instance.isScrolling || hasActiveWindowTouches(),
-    });
+  // `this.shouldAdjust...`, set on the instance).
+  roomTimelineVirtualizer.shouldAdjustScrollPositionOnItemSizeChange =
+    measurementScrollCorrectionHook;
   // Thread tiles measure immediately on mount, same as the room timeline
   // below (task #128). react-virtual's contract is estimate → render →
   // measure → correct within the same frame; deferring the measurement

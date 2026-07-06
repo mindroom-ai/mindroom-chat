@@ -121,6 +121,31 @@ export const shouldApplyMeasurementScrollCorrection = ({
 }: MeasurementScrollCorrectionOpts): boolean =>
   itemAboveViewport && !(isIOS && scrollLive);
 
+type MeasurementScrollCorrectionHookDeps = {
+  // Read lazily per correction: iOS detection is cached module state and
+  // touch state changes continuously.
+  isIOSWebKitDevice: () => boolean;
+  hasActiveTouches: () => boolean;
+};
+
+// Builds the exact shouldAdjustScrollPositionOnItemSizeChange closure the
+// timeline installs on its virtualizer instance. Extracted so the iOS
+// scroll contract test (virtualizerIOSScrollContract.test.ts) exercises the
+// production closure against the real, unmocked virtual-core — not a
+// re-implementation that could drift.
+export const buildMeasurementScrollCorrectionHook =
+  ({ isIOSWebKitDevice, hasActiveTouches }: MeasurementScrollCorrectionHookDeps) =>
+  (
+    item: { start: number },
+    _delta: number,
+    instance: { scrollOffset: number | null; isScrolling: boolean }
+  ): boolean =>
+    shouldApplyMeasurementScrollCorrection({
+      itemAboveViewport: item.start < (instance.scrollOffset ?? 0),
+      isIOSWebKitDevice: isIOSWebKitDevice(),
+      scrollLive: instance.isScrolling || hasActiveTouches(),
+    });
+
 export const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
   const mEventId = mEvt.getId();
   const relationTargetId = mEvt.getRelation()?.event_id;

@@ -2,6 +2,37 @@
 
 ## Runbook
 
+### iOS scroll contract tests — device-free coverage for the momentum bug class (2026-07-06)
+
+User mandate: stop using the iPhone as the test rig. The physics (momentum
+kill, lurch) only reproduces on a device, but its CAUSE is fully observable
+anywhere: every scroll write goes through `scrollToFn`. New
+`virtualizerIOSScrollContract.test.ts` pins the invariant against the REAL
+(unmocked, locally patched) virtual-core:
+
+- With the production hook (extracted as
+  `buildMeasurementScrollCorrectionHook` in `threadRenderUtils.ts` so tests
+  exercise the exact closure the component installs): an upward multi-flick
+  gesture through fresh territory issues ZERO scroll writes during the
+  stream, banks nothing, writes nothing at quiescence, and still applies
+  all measurements (total size reflects real heights — the white-gap
+  regression guard).
+- Detector test: the same gesture WITHOUT the hook reproduces the exact
+  device bug (2100 px banked, replayed as one write at quiescence) —
+  proving this harness catches the lurch class.
+- Quiet-state iOS anchoring and non-iOS mid-scroll anchoring keep working.
+
+What this can and cannot prove: any regression that would kill momentum or
+lurch (writes while live / banked replay) now fails CI; true scroll physics
+and visual feel still need a device, but only as a final confirmation, not
+as the discovery loop. Candidate next layers if wanted: Playwright WebKit
+with iPhone emulation against the local prod-data Tuwunel (renders real
+layout — would catch white gaps and anchor-restore misses), and a
+BrowserStack real-device run for actual momentum physics.
+
+Validation: typecheck ✅, eslint ✅, threads suite 116 files / 1130 tests ✅,
+build ✅.
+
 ### Drop, don't replay: end-of-momentum lurch fix (2026-07-06, task #128 device round 3)
 
 Device report on the 3.14.5 build, clarified by the user: while scrolling
