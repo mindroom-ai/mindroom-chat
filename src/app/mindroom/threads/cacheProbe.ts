@@ -332,6 +332,22 @@ export type CacheProbeCounters = {
   // downstream of the picker call or the picker itself has a code
   // path that returns the unrepaired sibling.
   registrySwappedRepairedForUnrepaired: number;
+  // Thread back-pagination exit-path observability (2026-07-06, prepend
+  // one-paint work). `handleThreadPaginateBack` has several silent
+  // no-commit exits; a device/e2e trace must be able to distinguish
+  // "cache page committed" / "network page committed" from each bail-out
+  // — the same observability lesson as the reconciler exit counters.
+  threadPaginateBackCacheCommits: number;
+  threadPaginateBackNetworkCommits: number;
+  // Cache had nothing older than the rendered window → network leg entered.
+  threadPaginateBackCacheMisses: number;
+  threadPaginateBackNoThread: number;
+  threadPaginateBackNoToken: number;
+  threadPaginateBackNetworkErrors: number;
+  // Cache-hit commit skipped: no restore anchor could be captured.
+  threadPaginateBackCommitSkippedNoAnchor: number;
+  // Thread switched mid-flight; pagination abandoned.
+  threadPaginateBackStaleThreadBails: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -383,6 +399,14 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   applierMakeReplacedLatestEqualsCurrent: 0,
   eventMapCanonicalizedDisplacements: 0,
   registrySwappedRepairedForUnrepaired: 0,
+  threadPaginateBackCacheCommits: 0,
+  threadPaginateBackNetworkCommits: 0,
+  threadPaginateBackCacheMisses: 0,
+  threadPaginateBackNoThread: 0,
+  threadPaginateBackNoToken: 0,
+  threadPaginateBackNetworkErrors: 0,
+  threadPaginateBackCommitSkippedNoAnchor: 0,
+  threadPaginateBackStaleThreadBails: 0,
 });
 
 let counters = createEmptyCounters();
