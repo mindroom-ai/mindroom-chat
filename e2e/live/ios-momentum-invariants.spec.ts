@@ -388,19 +388,17 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       expect(report.anchorDriftPx).toBeLessThan(60);
     }
 
-    // 4. Ride-smoothness budget: per-frame content jumps opposite to the
-    // scroll direction are estimate error surfacing under the reader
-    // (device report: "small jumps, a couple of lines"). Before the
-    // content-aware estimates covered always-expanded rows this measured
-    // maxJump 482 / total 2710 EVERY run; typical runs now measure 0/0.
-    // The budget below is the pinned guarantee: it fails on any return of
-    // the repeated couple-line-jump class. A smaller intermittent residual
-    // remains (~72px quanta, grouping-variant measurement suspected —
-    // jumpEvents photographs it when it occurs); tightening toward 48/250
-    // is the standing goal and this sampler is the instrument.
+    // 4. Ride-smoothness budget: per-frame content jumps are estimate
+    // error surfacing under the reader (device reports: "small jumps").
+    // History of this metric: 482/2710 every run (fold-capped estimates
+    // for always-expanded rows) → 0/0 typical with content-aware
+    // estimates, but intermittent ~72-214px residuals remained. The
+    // transform-compensation layer now cancels EVERY dropped correction
+    // visually regardless of estimate quality, so the budget is tight:
+    // under two text lines, per frame and per ride.
     expect(report.jumpFrames).toBeGreaterThan(30);
-    expect(report.maxJumpPx).toBeLessThan(250);
-    expect(report.totalJumpPx).toBeLessThan(900);
+    expect(report.maxJumpPx).toBeLessThan(40);
+    expect(report.totalJumpPx).toBeLessThan(120);
   });
 
   test('scrolling up from the bottom stays up — no snap back while new replies stream in', async ({

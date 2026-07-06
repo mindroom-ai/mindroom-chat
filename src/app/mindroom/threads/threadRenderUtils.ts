@@ -135,6 +135,11 @@ type MeasurementScrollCorrectionHookDeps = {
   // touch state changes continuously.
   isIOSWebKitDevice: () => boolean;
   hasActiveTouches: () => boolean;
+  // Fired for every fully-above correction that is DROPPED because the
+  // scroll is live. The delta is what virtual-core would have added to
+  // scrollTop; the caller compensates it visually (container transform)
+  // so estimate error never shifts content under the reader.
+  onDroppedCorrection: (deltaPx: number) => void;
 };
 
 // Builds the exact shouldAdjustScrollPositionOnItemSizeChange closure the
@@ -143,17 +148,26 @@ type MeasurementScrollCorrectionHookDeps = {
 // production closure against the real, unmocked virtual-core — not a
 // re-implementation that could drift.
 export const buildMeasurementScrollCorrectionHook =
-  ({ isIOSWebKitDevice, hasActiveTouches }: MeasurementScrollCorrectionHookDeps) =>
+  ({ isIOSWebKitDevice, hasActiveTouches, onDroppedCorrection }: MeasurementScrollCorrectionHookDeps) =>
   (
     item: { end: number },
-    _delta: number,
+    delta: number,
     instance: { scrollOffset: number | null; isScrolling: boolean }
-  ): boolean =>
-    shouldApplyMeasurementScrollCorrection({
-      itemFullyAboveViewport: item.end <= (instance.scrollOffset ?? 0),
+  ): boolean => {
+    const itemFullyAboveViewport = item.end <= (instance.scrollOffset ?? 0);
+    const apply = shouldApplyMeasurementScrollCorrection({
+      itemFullyAboveViewport,
       isIOSWebKitDevice: isIOSWebKitDevice(),
       scrollLive: instance.isScrolling || hasActiveTouches(),
     });
+    // Only fully-above drops are compensated: a visible (straddling) row's
+    // resize is SUPPOSED to reflow in place, and non-iOS/quiet corrections
+    // are applied by virtual-core itself.
+    if (!apply && itemFullyAboveViewport) {
+      onDroppedCorrection(delta);
+    }
+    return apply;
+  };
 
 // Per-row virtualizer estimates from event CONTENT. Thread rows are
 // bimodal — one-liners (~80px) and fold-capped long messages (~150px,

@@ -2,6 +2,42 @@
 
 ## Runbook
 
+### Transform compensation: estimate error invisible by construction (2026-07-06, device round 8)
+
+Report: still small jumps, now shifting UP (over-estimation: raw tool
+markup priced as text lines while the renderer compacts it). Mandate:
+iron out ALL known bugs — so stop tuning estimator constants per row
+type (a losing game on heterogeneous real data) and remove the
+mechanism that turns estimate error into visible motion.
+
+- Design: when the correction hook drops a fully-above scrollTop
+  correction mid-scroll (iOS momentum protection), the dropped delta is
+  now CANCELLED VISUALLY: a `translateY(-Σdelta)` on the inner virtual
+  container (composited, no layout, no scrollTop write). At scroll
+  quiescence (`waitForScrollQuiescence`) the accumulated compensation is
+  settled: transform removed and `scrollTop += Σdelta` in the same
+  synchronous block — the two cancel exactly, one invisible write at
+  rest. Estimate error can no longer shift content under the reader,
+  regardless of how wrong any estimate is.
+- Wiring: `buildMeasurementScrollCorrectionHook` gained
+  `onDroppedCorrection(deltaPx)` (fired only for fully-above drops;
+  straddling rows still reflow in place by design). Component keeps
+  `scrollCompensationPxRef` + `virtualInnerRef` (attached to both room
+  and thread inner containers) + a render-time reset on room/thread
+  switch. Known bound: a large SHRINK burst near the bottom edge can
+  still browser-clamp scrollTop before settle (transform does not change
+  layout); with content-aware estimates the residuals are far too small
+  for that, and the snap-back e2e's scrollTop-integrity assertion watches
+  it.
+- Contract test extended: dropped deltas reported for compensation match
+  the geometry (fully-above only — first 4 rows of the sequence straddle).
+- E2e budget TIGHTENED to maxJump<40 / total<120 (was 250/900): 5×
+  consecutive full-spec 3/3 PASS with jump metrics 0/0 in every run —
+  including the timing patterns that previously produced the 72–214px
+  residual class. That class is gone, not budgeted around.
+- Validation: typecheck ✅, threads suite 116 files / 1140 tests ✅,
+  build ✅, eslint ✅, e2e 5× 3/3 against the production build.
+
 ### Ride-smoothness budget + always-expanded row estimates (2026-07-06, device round 7)
 
 Report: momentum fine, but scrolling up from the latest message still

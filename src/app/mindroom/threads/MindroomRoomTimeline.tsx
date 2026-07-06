@@ -141,7 +141,11 @@ import {
   primeTimelineRenderContextBefore,
   shouldAutoPaginateThreadBack,
 } from './threadRenderUtils';
-import { hasActiveWindowTouches, isIOSWebKitDevice } from './scrollQuiescence';
+import {
+  hasActiveWindowTouches,
+  isIOSWebKitDevice,
+  waitForScrollQuiescence,
+} from './scrollQuiescence';
 import {
   useTimelineDebugRangeController,
   useTimelineDebugTraceIds,
@@ -235,11 +239,6 @@ import {
 import { useRoomTimelineNavigationController } from './roomTimelineNavigationController';
 import { buildMindroomRoomTimelineReplyDraft } from './roomTimelineReplyDraft';
 import { useThreadTimelineState } from './useThreadTimelineState';
-
-const measurementScrollCorrectionHook = buildMeasurementScrollCorrectionHook({
-  isIOSWebKitDevice,
-  hasActiveTouches: hasActiveWindowTouches,
-});
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -1134,10 +1133,65 @@ export function RoomTimeline({
       return threadFilteredEventEntries[item]?.event.getId() ?? item ?? index;
     },
   });
+  // Visual compensation for corrections dropped mid-scroll: estimate error
+  // for a fully-above row would otherwise shift the content under the
+  // reader (small jumps with the scroll direction for over-estimates,
+  // against it for under-estimates). The dropped delta is cancelled with a
+  // translateY on the inner virtual container — composited, cheap, and no
+  // scrollTop write to kill iOS momentum — then settled into one real
+  // scrollTop adjustment at quiescence, where removing the transform and
+  // moving scrollTop cancel exactly. Estimate error becomes invisible by
+  // construction instead of by ever-better guessing.
+  const scrollCompensationPxRef = useRef(0);
+  const virtualInnerRef = useRef<HTMLDivElement | null>(null);
+  const compensationSettleArmedRef = useRef(false);
+  const settleScrollCompensation = useCallback(() => {
+    compensationSettleArmedRef.current = false;
+    const px = scrollCompensationPxRef.current;
+    const inner = virtualInnerRef.current;
+    const scrollElement = getScrollElement();
+    if (px === 0 || !inner || !scrollElement) return;
+    scrollCompensationPxRef.current = 0;
+    // Same synchronous block: the transform removal and the scrollTop
+    // shift land in one layout pass and cancel visually.
+    inner.style.transform = '';
+    scrollElement.scrollTop += px;
+  }, [getScrollElement]);
+  const handleDroppedCorrection = useCallback(
+    (deltaPx: number) => {
+      scrollCompensationPxRef.current += deltaPx;
+      const inner = virtualInnerRef.current;
+      if (inner) {
+        const px = scrollCompensationPxRef.current;
+        inner.style.transform = px === 0 ? '' : `translateY(${-px}px)`;
+      }
+      if (!compensationSettleArmedRef.current) {
+        compensationSettleArmedRef.current = true;
+        waitForScrollQuiescence(getScrollElement()).then(settleScrollCompensation);
+      }
+    },
+    [getScrollElement, settleScrollCompensation]
+  );
+  // Thread/room switch drops the pending compensation at RENDER time: the
+  // new view's first tiles measure during the commit, before any effect
+  // could reset stale state (same pattern as the other render-time resets).
+  const compensationResetKeyRef = useRef(`${room.roomId}|${threadId ?? ''}`);
+  if (compensationResetKeyRef.current !== `${room.roomId}|${threadId ?? ''}`) {
+    compensationResetKeyRef.current = `${room.roomId}|${threadId ?? ''}`;
+    scrollCompensationPxRef.current = 0;
+    if (virtualInnerRef.current) virtualInnerRef.current.style.transform = '';
+  }
   // Instance property, not an option (mirrors how virtual-core consults it:
   // `this.shouldAdjust...`, set on the instance).
-  roomTimelineVirtualizer.shouldAdjustScrollPositionOnItemSizeChange =
-    measurementScrollCorrectionHook;
+  roomTimelineVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = useMemo(
+    () =>
+      buildMeasurementScrollCorrectionHook({
+        isIOSWebKitDevice,
+        hasActiveTouches: hasActiveWindowTouches,
+        onDroppedCorrection: handleDroppedCorrection,
+      }),
+    [handleDroppedCorrection]
+  );
   useLayoutEffect(() => {
     const anchor = roomVirtualPrependAnchorRef.current;
     if (!anchor || threadId) return;
@@ -3274,6 +3328,7 @@ export function RoomTimeline({
 
     return (
       <div
+        ref={virtualInnerRef}
         style={{
           height: roomTimelineVirtualizer.getTotalSize(),
           position: 'relative',
@@ -3341,6 +3396,7 @@ export function RoomTimeline({
 
     return (
       <div
+        ref={virtualInnerRef}
         data-thread-count={threadEvents.length}
         style={{
           height: roomTimelineVirtualizer.getTotalSize(),

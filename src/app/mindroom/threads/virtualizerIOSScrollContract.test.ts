@@ -120,10 +120,12 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     withFakeIOSUserAgent(() => {
       const scrollToFn = vi.fn();
       const { virtualizer, scroll } = makeVirtualizer(scrollToFn);
+      const droppedDeltas: number[] = [];
       virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook(
         {
           isIOSWebKitDevice: () => true,
           hasActiveTouches: () => false,
+          onDroppedCorrection: (deltaPx) => droppedDeltas.push(deltaPx),
         }
       );
 
@@ -138,6 +140,18 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
       // Measurements were APPLIED, not deferred (the PR #76 white-gap
       // failure mode stays dead): total size reflects the real row heights.
       expect(virtualizer.getTotalSize()).toBe(COUNT * ROW_ESTIMATE + BANKED_ERROR);
+
+      // Every FULLY-ABOVE dropped correction was reported for visual
+      // compensation (the transform layer cancels exactly what scrollTop
+      // never received). The first four rows of the sequence still
+      // straddle the viewport top (row end = 5000-50k vs offset =
+      // 4960-40k → fully above only from k=4), and straddling rows
+      // reflow in place by design — no compensation.
+      const straddlingRows = 4;
+      expect(droppedDeltas).toHaveLength(MEASURED_ROWS - straddlingRows);
+      expect(droppedDeltas.reduce((sum, deltaPx) => sum + deltaPx, 0)).toBe(
+        BANKED_ERROR - straddlingRows * (ROW_ACTUAL - ROW_ESTIMATE)
+      );
     });
   });
 
@@ -164,10 +178,12 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     withFakeIOSUserAgent(() => {
       const scrollToFn = vi.fn();
       const { virtualizer, scroll } = makeVirtualizer(scrollToFn);
+      const droppedDeltas: number[] = [];
       virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook(
         {
           isIOSWebKitDevice: () => true,
           hasActiveTouches: () => false,
+          onDroppedCorrection: (deltaPx) => droppedDeltas.push(deltaPx),
         }
       );
 
@@ -186,10 +202,12 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     withFakeIOSUserAgent(() => {
       const scrollToFn = vi.fn();
       const { virtualizer, scroll } = makeVirtualizer(scrollToFn);
+      const droppedDeltas: number[] = [];
       virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook(
         {
           isIOSWebKitDevice: () => true,
           hasActiveTouches: () => false,
+          onDroppedCorrection: (deltaPx) => droppedDeltas.push(deltaPx),
         }
       );
 
@@ -241,6 +259,7 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook({
       isIOSWebKitDevice: () => false,
       hasActiveTouches: () => false,
+      onDroppedCorrection: () => {},
     });
 
     scroll(START_OFFSET - 40, true);
