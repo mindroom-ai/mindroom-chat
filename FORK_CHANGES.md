@@ -2,6 +2,68 @@
 
 ## Runbook
 
+### Eager thread cache — cold-start sweep teaches thread scopes (2026-07-06)
+
+Report: after clearing cache + reloading, Cinny visibly downloads lots of
+history in the background ("all threads show in the compact view"), yet
+opening a thread STILL downloads its entire message history (observed on a
+282-msg thread spanning a month). Product direction (user, this session —
+**supersedes** the "lean thread open" task queued in HANDOFF.md §3, which
+had the intent BACKWARDS): threads should be downloaded *before* they are
+opened — background prefetch owns the network cost (full content, visible
+threads first, then the rest); opening is instant from cache.
+
+- Root cause (the refactor miss): CINNY-207 P4.3 replaced the old
+  `useRoomEagerPreload` loop with the engine deep-history job. The old loop
+  paginated the SDK live timeline, whose events flowed through the
+  SDK-timeline persist paths and were grouped into thread cache scopes
+  (`persistThreadCacheFromRoomEvents`). The new deep-history job (and the
+  P4.2 gap-fill executor) persist chunks via `persistRoomChunkWithPreferLive`
+  → `persistRoomEventCacheSnapshot` ONLY — and `serializeRoomCacheEvents`
+  deliberately filters thread activity out of the room scope. Net effect:
+  the sweep downloads every thread's replies over `/messages` and THROWS
+  THEM AWAY; thread caches stay empty; the open-time drain re-downloads
+  what the sweep already fetched. The grouping helper survived the refactor
+  with only the live/pagination callers — the background-job leg was
+  dropped.
+- Step A (this entry): `persistRoomChunkWithPreferLive` now also persists
+  the mapped chunk through `persistThreadCacheFromRoomEventsSnapshot` with
+  `roomTailLoaded: true` — both callers (deep-history, gap-fill) page
+  backward from the room's live tail, so every encountered thread's newest
+  replies are covered; the claim is what lets read-time reply-count math
+  (`isCompleteCachedThreadSnapshot`) prove a swept thread complete. No
+  `roomStartKnown`/`snapshotComplete` per-chunk claim (a chunk under-counts
+  a thread; an explicit false would downgrade a proven flag). Seed
+  snapshots are deliberately NOT written from sweep chunks (a 10k-event
+  sweep would pin its whole mapped batch in the in-memory seed store).
+  Known best-effort gap: deep reactions/edits whose relation target is not
+  SDK-resolvable at sweep time are dropped from the thread group (bundled
+  edits survive on their targets); the open/reconcile paths heal these.
+- Also this session: reverted an initial (wrong-direction) cap of
+  `refreshLatestThreadSlice` to one page; instead its drain-to-exhaustion
+  behavior is now pinned by regression tests
+  (`threadOpenCacheController.test.ts`) as the *fallback* downloader for
+  threads the background prefetch has not covered yet.
+- Validation: typecheck ✓, eslint (touched files) ✓, vitest engine+threads
+  full sweep 130 files / 1296 tests ✓, new red-first regression tests in
+  `deepHistoryJob.test.ts` + `gapFillExecutor.test.ts` (thread replies from
+  chunks land in thread scopes, tailLoaded=true, no seed pinning, room
+  scope unchanged).
+- Next steps (queued as tasks):
+  - Step B: thread-seed prewarm band should network-fetch (band-3
+    'thread-backfill' jobs, dedup-shared with the open path) threads whose
+    cached snapshot is incomplete — visible threads first; extract the
+    fetch→persist→seed helper from
+    `threadOverviewResumeController.refreshOverviewThreadCacheFromRelations`.
+    Do NOT nest scheduler enqueues inside a job executor (concurrency-cap
+    deadlock risk) — chain from the component-side drain loop.
+  - Step C: coverage policy — `isCompleteThreadCacheCoverage` currently
+    also requires `relationSnapshotComplete` (only provable by a
+    `/relations` drain), so sweep-warmed threads still trigger the
+    open-time full backfill; count-proven complete + tailLoaded should
+    count as complete for paint, with the choke-point reconcile as the
+    revalidator (D7).
+
 ### Light-mode WebGL splash/auth palette inversion (2026-07-05)
 
 Report: in light mode the WebGL loading/auth background stayed the dark-mode
