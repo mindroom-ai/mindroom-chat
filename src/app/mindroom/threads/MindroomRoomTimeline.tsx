@@ -1122,11 +1122,28 @@ export function RoomTimeline({
   // DROPS above-viewport corrections while an iOS scroll/touch is live
   // (bounded invisible drift instead), and applies them immediately when
   // quiet and on every other platform, like the pre-3.17 default.
+  // Offset ledger for corrections dropped mid-scroll (device round 10):
+  // estimate error for a fully-above row would otherwise shift the content
+  // under the reader. The dropped delta is folded into the virtualizer's
+  // OWN coordinate space: the inner container gets a real marginTop of
+  // -px and options.scrollMargin tracks the same value, so the window
+  // math and the painted positions move together — no scrollTop write to
+  // kill iOS momentum, and no paint/window divergence at ANY accumulated
+  // magnitude (the round-8 transform shifted paint only; the on-device
+  // trace measured ±3000px of divergence rendering the viewport blank
+  // for 30% of a 40s ride). The offset-ledger coherence contract in
+  // virtualizerIOSScrollContract.test.ts pins this against the real
+  // virtual-core. The ledger settles into one exactly-cancelling
+  // scrollTop write ONLY at true rest — never via a timeout cap
+  // mid-momentum (the trace's full-screen settle flash): an unsettled
+  // ledger is coherent, so it can wait indefinitely.
+  const scrollCompensationPxRef = useRef(0);
   const roomTimelineVirtualizer = useVirtualizer({
     count: threadId ? threadEvents.length : timelineItems.length,
     getScrollElement,
     estimateSize: estimateRoomTimelineItemSize,
     overscan: 10,
+    scrollMargin: -scrollCompensationPxRef.current,
     getItemKey: (index) => {
       if (threadId) {
         return threadEvents[index]?.getId() ?? index;
@@ -1135,35 +1152,29 @@ export function RoomTimeline({
       return threadFilteredEventEntries[item]?.event.getId() ?? item ?? index;
     },
   });
-  // Visual compensation for corrections dropped mid-scroll: estimate error
-  // for a fully-above row would otherwise shift the content under the
-  // reader (small jumps with the scroll direction for over-estimates,
-  // against it for under-estimates). The dropped delta is cancelled with a
-  // translateY on the inner virtual container — composited, cheap, and no
-  // scrollTop write to kill iOS momentum — then settled into one real
-  // scrollTop adjustment at quiescence, where removing the transform and
-  // moving scrollTop cancel exactly. Estimate error becomes invisible by
-  // construction instead of by ever-better guessing.
-  const scrollCompensationPxRef = useRef(0);
   const virtualInnerRef = useRef<HTMLDivElement | null>(null);
   const compensationSettleArmedRef = useRef(false);
+  const pendingLedgerSettlePxRef = useRef(0);
+  const [, setLedgerSettleTick] = useState(0);
+  // Settling is a COMMIT, not a synchronous side-channel write: the margin
+  // removal (every-commit sync effect below), the scrollMargin option
+  // (read at render) and the cancelling scrollTop shift (settle effect
+  // below) must land in ONE paint — the sustained-ride e2e measured a
+  // 212px flash from the one-frame window where a synchronous settle left
+  // the option stale until the next render.
   const settleScrollCompensation = useCallback(() => {
     compensationSettleArmedRef.current = false;
     const px = scrollCompensationPxRef.current;
-    const inner = virtualInnerRef.current;
-    const scrollElement = getScrollElement();
-    if (px === 0 || !inner || !scrollElement) return;
+    if (px === 0) return;
     scrollCompensationPxRef.current = 0;
-    // Same synchronous block: the transform removal and the scrollTop
-    // shift land in one layout pass and cancel visually.
-    inner.style.transform = '';
-    scrollElement.scrollTop += px;
-  }, [getScrollElement]);
+    pendingLedgerSettlePxRef.current += px;
+    setLedgerSettleTick((tick) => tick + 1);
+  }, []);
   const handleDroppedCorrection = useCallback(
     (deltaPx: number) => {
       // Accumulate ONLY — the style write happens in the layout effect
       // below. The layout shift this delta cancels materializes when React
-      // commits the virtualizer's new row positions; writing the transform
+      // commits the virtualizer's new row positions; writing the margin
       // here (inside the ResizeObserver callback) would paint it one frame
       // early, visible as a brief opposite-direction flash. The dropped
       // correction always triggers a rerender (virtual-core notify), so
@@ -1171,21 +1182,38 @@ export function RoomTimeline({
       scrollCompensationPxRef.current += deltaPx;
       if (!compensationSettleArmedRef.current) {
         compensationSettleArmedRef.current = true;
-        waitForScrollQuiescence(getScrollElement()).then(settleScrollCompensation);
+        // No maxWait cap: a forced settle mid-momentum is a scrollTop
+        // write mid-momentum (the trace's full-screen flash). The ledger
+        // is coherent while unsettled, so only TRUE rest settles it.
+        waitForScrollQuiescence(getScrollElement(), {
+          maxWaitMs: Number.MAX_SAFE_INTEGER,
+        }).then(settleScrollCompensation);
       }
     },
     [getScrollElement, settleScrollCompensation]
   );
-  // Sync the compensation transform in the SAME paint as the committed
-  // layout shift (runs on every commit; a string compare when idle).
+  // Sync the ledger margin in the SAME paint as the committed layout
+  // shift (runs on every commit; a string compare when idle). The
+  // matching scrollMargin option is read at render, so both sides of the
+  // ledger land in the same commit.
   useLayoutEffect(() => {
     const inner = virtualInnerRef.current;
     if (!inner) return;
     const px = scrollCompensationPxRef.current;
-    const transform = px === 0 ? '' : `translateY(${-px}px)`;
-    if (inner.style.transform !== transform) {
-      inner.style.transform = transform;
+    const marginTop = px === 0 ? '' : `${-px}px`;
+    if (inner.style.marginTop !== marginTop) {
+      inner.style.marginTop = marginTop;
     }
+  });
+  // The settle's cancelling scrollTop shift, in the same commit (and
+  // paint) as the margin removal above and the scrollMargin option this
+  // render already carried.
+  useLayoutEffect(() => {
+    const px = pendingLedgerSettlePxRef.current;
+    if (px === 0) return;
+    pendingLedgerSettlePxRef.current = 0;
+    const scrollElement = getScrollElement();
+    if (scrollElement) scrollElement.scrollTop += px;
   });
   // On-device ride tracing (`?ridetrace=1`): per-frame invariant recorder
   // with a one-tap export overlay — the phone captures the same trace the
@@ -1207,7 +1235,7 @@ export function RoomTimeline({
   if (compensationResetKeyRef.current !== `${room.roomId}|${threadId ?? ''}`) {
     compensationResetKeyRef.current = `${room.roomId}|${threadId ?? ''}`;
     scrollCompensationPxRef.current = 0;
-    if (virtualInnerRef.current) virtualInnerRef.current.style.transform = '';
+    if (virtualInnerRef.current) virtualInnerRef.current.style.marginTop = '';
   }
   // Instance property, not an option (mirrors how virtual-core consults it:
   // `this.shouldAdjust...`, set on the instance).
@@ -1551,15 +1579,11 @@ export function RoomTimeline({
     // the prepend one-paint e2e. With it, the paint is correct by
     // construction and the fine pass degenerates to a ≤1px no-write check.
     if (!getEventElementById(scrollRef.current, anchorEventId)) {
-      // Any active compensation transform maps item space to visual space;
-      // the virtualizer's offsets know nothing about it (measured on the
-      // e2e as the exact residual between the coarse write and the fine
-      // target). Settling is invisible by construction — the transform
-      // removal and scrollTop shift cancel in one layout pass — so settle
-      // FIRST and compute the target in transform-free coordinates. This
-      // also settles the settle-vs-commit quiescence race by construction:
-      // the armed quiescence settle later finds zero pending compensation.
-      settleScrollCompensation();
+      // No settle needed here (unlike the round-8 transform, which was
+      // invisible to rects): the ledger is a REAL margin, so the live
+      // container rect below and the live options.scrollMargin subtraction
+      // are both ledger-aware — the computation is coherent at any
+      // accumulated value.
       const coarse = roomTimelineVirtualizer.getOffsetForIndex(anchorIndex, 'start');
       const scrollElement = scrollRef.current;
       // The anchor's captured client top cannot be missing here (the
@@ -1570,11 +1594,13 @@ export function RoomTimeline({
       if (coarse && scrollElement && anchorClientTop !== undefined) {
         const scrollElementRect = scrollElement.getBoundingClientRect();
         const anchorViewportOffset = anchorClientTop - scrollElementRect.top;
-        // getOffsetForIndex is in virtual-container space (the virtualizer
-        // is configured without scrollMargin, and the chip/padding block
-        // above the container is DYNAMIC); convert to scroller space with
-        // the container's live offset. Without the term the write is short
-        // by exactly that block — a constant the e2e measured at 72px.
+        // getOffsetForIndex is in virtual coordinates: content-relative
+        // plus options.scrollMargin (the ledger, whose OPTION lags the
+        // synchronous settle above by one render — subtract the live
+        // value). The chip/padding block above the container is DYNAMIC,
+        // so convert to scroller space with the container's live offset;
+        // without that term the write is short by exactly that block — a
+        // constant the e2e measured at 72px.
         const innerElement = virtualInnerRef.current;
         const containerOffsetTop = innerElement
           ? innerElement.getBoundingClientRect().top -
@@ -1582,7 +1608,12 @@ export function RoomTimeline({
             scrollElement.scrollTop
           : 0;
         scrollElement.scrollTo({
-          top: Math.max(containerOffsetTop + coarse[0] - anchorViewportOffset, 0),
+          top: Math.max(
+            containerOffsetTop +
+              (coarse[0] - roomTimelineVirtualizer.options.scrollMargin) -
+              anchorViewportOffset,
+            0
+          ),
           behavior: 'instant',
         });
       }
@@ -1627,7 +1658,6 @@ export function RoomTimeline({
     restorePendingThreadBackPaginationAnchor,
     roomTimelineVirtualizer,
     scrollRef,
-    settleScrollCompensation,
     threadEventIndexMapRef,
     threadEvents,
     threadId,

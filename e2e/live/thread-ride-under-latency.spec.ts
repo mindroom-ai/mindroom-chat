@@ -311,6 +311,74 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     expect(analysis.maxJumpPx).toBeLessThan(FULL_RIDE_BUDGETS.maxJumpPx);
   });
 
+  test('sustained continuous ride: paint and window stay coherent (trace mechanism 1)', async ({
+    page,
+  }, testInfo) => {
+    // Device trace 2026-07-06 (ride-trace-1783377085460): a 40s
+    // continuous ride accumulated ±3000px of dropped-correction
+    // compensation with no quiet window to settle in; the transform
+    // shifted PAINT while the virtualizer's window math stayed ignorant,
+    // and past the overscan slack the viewport showed unrendered layout
+    // space — 12.1s of DOM-level blank (gap=full region) out of 40s.
+    // The prior specs rode ~4s and never accumulated enough to cross the
+    // slack. This ride is trace-shaped: long, continuous, pauses below
+    // the 150ms settle window, through hundreds of fresh rows.
+    const homeserver = getHomeserver();
+    const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    const roomId = await createPrivateRoom(homeserver, session.accessToken, {
+      name: `Sustained ride ${Date.now()}`,
+    });
+    const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
+      msgtype: 'm.text',
+      body: 'sustained ride root',
+    });
+    await sendMixedThreadReplies(homeserver, session.accessToken, roomId, rootId, 360);
+
+    await installScrollWriteProbe(page);
+    await loginWithPassword(page, { homeserver, username, password });
+    await page.setViewportSize(iphone.viewport);
+    await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
+    await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
+    await page.waitForTimeout(3_000);
+    await throttleCpu(page, 4);
+
+    // No teleport: start from the natural bottom pin and ride up through
+    // the whole fresh window, like the device session. 26 cycles x 8x90px
+    // with 80ms pauses ≈ 19k px of estimate territory with no settle
+    // opportunity.
+    const report = await runFlickRide(page, {
+      cycles: Array.from({ length: 26 }, () => ({ steps: 8, stepPx: 90, pauseMs: 80 })),
+      tailSampleMs: 2_000,
+    });
+
+    const analysis = analyzeRide(report, FULL_RIDE_BUDGETS);
+    const blankFrames = report.frames.filter((frame) => frame.gapPx >= 200).length;
+    // eslint-disable-next-line no-console
+    console.log(
+      `SUSTAINED-RIDE ${JSON.stringify({
+        frames: report.frames.length,
+        maxGapPx: analysis.maxGapPx,
+        blankFramesOver200: blankFrames,
+        maxJumpPx: analysis.maxJumpPx,
+        totalJumpPx: analysis.totalJumpPx,
+        appWrites: report.appWrites.length,
+        violations: analysis.violations,
+      })}`
+    );
+    await testInfo.attach('sustained-ride.json', {
+      body: JSON.stringify({ report, analysis }, null, 2),
+      contentType: 'application/json',
+    });
+
+    expect(report.error).toBeUndefined();
+    expect(report.frames.length).toBeGreaterThan(400);
+    // THE invariant pair from the device trace: no coverage holes, no
+    // content shifts — through a ride long enough to accumulate real
+    // compensation.
+    expect(analysis.violations).toEqual([]);
+  });
+
   test('hydrating a long thread keeps the view pinned to the bottom', async ({
     page,
   }, testInfo) => {

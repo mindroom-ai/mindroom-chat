@@ -58,6 +58,10 @@ export const isRideTraceEnabled = (): boolean => {
 
 const readTransformPx = (inner: HTMLElement | null): number => {
   if (!inner) return 0;
+  // Ledger margin (round 10) with the legacy transform as fallback so a
+  // trace from any deployed build reads correctly.
+  const margin = Number.parseFloat(inner.style.marginTop);
+  if (!Number.isNaN(margin) && margin !== 0) return Math.round(margin);
   const match = /translateY\((-?\d+(?:\.\d+)?)px\)/.exec(inner.style.transform);
   return match ? Math.round(Number(match[1])) : 0;
 };

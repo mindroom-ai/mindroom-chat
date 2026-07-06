@@ -357,9 +357,16 @@ export const runFlickRide = (
         w.__driverDepth! += 1;
         scroller.scrollTop -= cycle.stepPx;
         w.__driverDepth! -= 1;
+        // DRIVER-caused delta only, read before the rAF await: an app
+        // write landing inside the frame that is visually
+        // self-cancelling by design (a ledger settle pairs a scrollTop
+        // shift with the margin removal it cancels) must not inflate the
+        // expected anchor movement — the anchor tracks USER intent. The
+        // immediate read still accounts for clamping at the window edge.
+        const driverDelta = prevTop - scroller.scrollTop;
         // eslint-disable-next-line no-await-in-loop
         await raf();
-        sample(prevTop - scroller.scrollTop);
+        sample(driverDelta);
       }
       const pauseUntil = performance.now() + cycle.pauseMs;
       while (performance.now() < pauseUntil) {
