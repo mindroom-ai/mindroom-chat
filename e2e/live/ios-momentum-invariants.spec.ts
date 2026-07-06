@@ -381,12 +381,39 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       const before = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
       const scrollTopBefore = scroller.scrollTop;
       const scrollHeightBefore = scroller.scrollHeight;
-      const steps: { scrollTop: number; scrollHeight: number }[] = [];
+      const readTiles = () =>
+        Array.from(scroller.querySelectorAll('[data-index]')).map((tile) => ({
+          i: tile.getAttribute('data-index'),
+          h: Math.round(tile.getBoundingClientRect().height),
+        }));
+      const readTotal = () =>
+        Math.round(
+          (scroller.querySelector('[data-index]')?.parentElement as HTMLElement | null)
+            ?.offsetHeight ?? -1
+        );
+      const readThreadCount = () =>
+        Number(
+          (scroller.querySelector('[data-thread-count]') as HTMLElement | null)?.dataset
+            .threadCount ?? -1
+        );
+      const steps: {
+        scrollTop: number;
+        scrollHeight: number;
+        virtualTotal: number;
+        threadCount: number;
+        tiles: { i: string | null; h: number }[];
+      }[] = [];
       for (let step = 0; step < 8; step += 1) {
         scroller.scrollTop -= 80;
         // eslint-disable-next-line no-await-in-loop
         await raf();
-        steps.push({ scrollTop: scroller.scrollTop, scrollHeight: scroller.scrollHeight });
+        steps.push({
+          scrollTop: scroller.scrollTop,
+          scrollHeight: scroller.scrollHeight,
+          virtualTotal: readTotal(),
+          threadCount: readThreadCount(),
+          tiles: readTiles(),
+        });
       }
       return {
         distFromBottomBefore: before,
@@ -528,13 +555,33 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       const touch = (type: string) =>
         scroller.dispatchEvent(new TouchEvent(type, { bubbles: true }));
       touch('touchstart');
-      const readAdoptions = () =>
-        (
+      const readProbe = () => {
+        const snapshot = (
           window as Window & {
-            __MINDROOM_CACHE_PROBE__?: { snapshot: () => { threadRowSizeAdopted?: number } };
+            __MINDROOM_CACHE_PROBE__?: {
+              snapshot: () => {
+                collapsibleVerdictOverflowing?: number;
+                collapsibleVerdictNotOverflowing?: number;
+              };
+            };
           }
-        ).__MINDROOM_CACHE_PROBE__?.snapshot().threadRowSizeAdopted ?? -1;
-      const steps: { scrollTop: number; scrollHeight: number; adoptions: number }[] = [];
+        ).__MINDROOM_CACHE_PROBE__?.snapshot();
+        return {
+          verdictYes: snapshot?.collapsibleVerdictOverflowing ?? -1,
+          verdictNo: snapshot?.collapsibleVerdictNotOverflowing ?? -1,
+        };
+      };
+      const readTiles = () =>
+        Array.from(scroller.querySelectorAll('[data-index]')).map((tile) => ({
+          i: tile.getAttribute('data-index'),
+          h: Math.round(tile.getBoundingClientRect().height),
+        }));
+      const steps: {
+        scrollTop: number;
+        scrollHeight: number;
+        probe: ReturnType<typeof readProbe>;
+        tiles: ReturnType<typeof readTiles>;
+      }[] = [];
       for (let step = 0; step < 8; step += 1) {
         touch('touchmove');
         scroller.scrollTop -= 80;
@@ -543,7 +590,8 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
         steps.push({
           scrollTop: scroller.scrollTop,
           scrollHeight: scroller.scrollHeight,
-          adoptions: readAdoptions(),
+          probe: readProbe(),
+          tiles: readTiles(),
         });
       }
       touch('touchend');
@@ -557,7 +605,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     console.log(`COMPOSER-REPIN-SCROLLUP ${JSON.stringify(afterUp)}`);
     expect((afterUp as { error?: string }).error).toBeUndefined();
     const upPhase = afterUp as {
-      steps: { scrollTop: number; scrollHeight: number; adoptions: number }[];
+      steps: { scrollTop: number; scrollHeight: number }[];
       distFromBottomAfterUp: number;
     };
     // Same invariant as the snap-back test: the app never moves the user's

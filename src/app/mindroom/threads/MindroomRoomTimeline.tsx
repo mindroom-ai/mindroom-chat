@@ -138,6 +138,7 @@ import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
   buildMeasurementScrollCorrectionHook,
+  estimateThreadEventRowHeight,
   primeTimelineRenderContextBefore,
   shouldAutoPaginateThreadBack,
 } from './threadRenderUtils';
@@ -1095,69 +1096,36 @@ export function RoomTimeline({
     shouldSuppressPagination: useCallback(() => suppressFocusPaginationRef.current, []),
   });
   const timelineItems = getItems();
-  // Learned mean of measured row heights for the open thread. A static
-  // estimate is far off for expanded rows (96/144 vs several hundred px), and
-  // every mount-above then corrects offsets by that error — visible as
-  // flicker/jumps during fast upward scrolling. Mechanics on virtual-core
-  // 3.17.3 (re-verified at the 3.2.0 → 3.17.3 upgrade; getMeasurements is
-  // additionally keyed on itemSizeCacheVersion there, which changes
-  // nothing below): estimateSize is NOT a virtualizer memo dependency; new estimates
-  // reach unmeasured rows because (i) state guarantees a render (a ref write
-  // from the measure callback might never trigger one) and (ii) the inline
-  // getItemKey arrow below invalidates memoOptions -> getMeasurements every
-  // render — a full rebuild that consults estimateSize for unmeasured items
-  // while measured heights persist in itemSizeCache. Do NOT memoize
-  // getItemKey without keying it on the learned size: a stable identity would
-  // stop new estimates from ever reaching the unvisited region above the
-  // viewport (getMeasurements then only recomputes from the min measured
-  // index up) and silently regress this fix. The rebuild's per-render cost is
-  // one O(count) pass of key/Map lookups — microseconds at current sizes.
-  const threadRowSizeStatsRef = useRef<{ total: number; count: number }>({ total: 0, count: 0 });
-  const [learnedThreadRowSize, setLearnedThreadRowSize] = useState<number | undefined>(undefined);
+  // Per-row estimates from event CONTENT (estimateThreadEventRowHeight).
+  // Thread rows are bimodal — one-liners vs fold-capped long messages — so
+  // any single learned mean mis-sizes every row by hundreds of px, and each
+  // mount then corrects scrollHeight by that error mid-scroll: the shrink
+  // bursts that let the browser clamp a scrolled-up reader back to the
+  // bottom (traced by the ios-momentum-invariants e2e). Content-based
+  // estimates are deterministic and stateless — no learned mean, no
+  // adoption step, nothing to teleport.
+  //
+  // Mechanics on virtual-core 3.17.3: estimateSize is NOT a virtualizer
+  // memo dependency; fresh estimates reach unmeasured rows because the
+  // inline getItemKey arrow below invalidates memoOptions ->
+  // getMeasurements every render — a full rebuild that consults
+  // estimateSize for unmeasured items while measured heights persist in
+  // itemSizeCache. Do NOT memoize getItemKey: a stable identity would stop
+  // estimate updates from reaching the unvisited region above the viewport
+  // (getMeasurements then only recomputes from the min measured index up).
+  // The rebuild's per-render cost is one O(count) pass — microseconds at
+  // current sizes.
   const defaultRowEstimate = messageLayout === MessageLayout.Compact ? 96 : 144;
-  useEffect(() => {
-    threadRowSizeStatsRef.current = { total: 0, count: 0 };
-    setLearnedThreadRowSize(undefined);
-  }, [room.roomId, threadId, defaultRowEstimate]);
-  useEffect(() => {
-    // Expand/collapse-all changes the height regime; re-learn from fresh
-    // measurements (keeping the previous learned value until enough arrive).
-    threadRowSizeStatsRef.current = { total: 0, count: 0 };
-  }, [expandAllOverride]);
+  const compactRowLayout = messageLayout === MessageLayout.Compact;
   const estimateRoomTimelineItemSize = useCallback(
-    () => (threadId ? learnedThreadRowSize ?? defaultRowEstimate : defaultRowEstimate),
-    [defaultRowEstimate, learnedThreadRowSize, threadId]
+    (index?: number) => {
+      if (!threadId) return defaultRowEstimate;
+      const mEvent = index === undefined ? undefined : threadEvents[index];
+      if (!mEvent) return defaultRowEstimate;
+      return estimateThreadEventRowHeight(mEvent, { compact: compactRowLayout });
+    },
+    [compactRowLayout, defaultRowEstimate, threadEvents, threadId]
   );
-  const maybeAdoptLearnedThreadRowSize = useCallback(() => {
-    const stats = threadRowSizeStatsRef.current;
-    if (stats.count < 8) return;
-    // Adopting a new estimate shifts every unmeasured row's offset with no
-    // scroll compensation — invisible while pinned at the bottom (the
-    // settle loop re-pins), but it teleports a mid-thread reader:
-    // scrollHeight can shrink below their scrollTop and the browser clamps
-    // the position straight back to the bottom (device round 5; pinned by
-    // the ios-momentum-invariants snap-back e2e).
-    //
-    // The gate is a LIVE viewport reading, with no exceptions:
-    // - not the atBottom state — its false-transition is debounced ~1s
-    //   (read-receipt controller), so a user who just scrolled up still
-    //   reads as pinned;
-    // - not bypassed while the open lifecycle is pending — a user can take
-    //   over scrolling before the open settles (the e2e reproduced the
-    //   teleport through exactly that branch), and during an undisturbed
-    //   settle the view IS at the bottom, so the live reading already
-    //   admits adoption there.
-    if (!isViewportAtBottomNow()) return;
-    const mean = Math.round(stats.total / stats.count);
-    setLearnedThreadRowSize((current) => {
-      const reference = current ?? defaultRowEstimate;
-      // Hysteresis: only adopt when the learned mean is materially different,
-      // so the virtualizer is not recomputed on every measurement.
-      if (Math.abs(mean - reference) / reference < 0.25) return current;
-      countCacheProbe('threadRowSizeAdopted');
-      return mean;
-    });
-  }, [defaultRowEstimate, isViewportAtBottomNow]);
   // Rows measure immediately (task #128); the momentum question is only
   // what happens to the compensating scrollTop write for an above-viewport
   // resize. virtual-core ≥3.17 would natively DEFER those on iOS and replay
@@ -1184,33 +1152,6 @@ export function RoomTimeline({
   // `this.shouldAdjust...`, set on the instance).
   roomTimelineVirtualizer.shouldAdjustScrollPositionOnItemSizeChange =
     measurementScrollCorrectionHook;
-  // Thread tiles measure immediately on mount, same as the room timeline
-  // below (task #128). react-virtual's contract is estimate → render →
-  // measure → correct within the same frame; deferring the measurement
-  // leaves unmeasured rows positioned by their estimate during a live
-  // scroll — white gaps while scrolling up that only fill (and visibly
-  // re-space) once the scroller stops. Collapsible messages are the worst
-  // case: their folded height exists only after mount, so it MUST reach
-  // the virtualizer right away. This wrapper exists only to feed the
-  // learned row-size estimate above.
-  const measureThreadTile = useCallback(
-    (element: Element | null) => {
-      if (!element) return;
-      roomTimelineVirtualizer.measureElement(element);
-      const height = (element as HTMLElement).offsetHeight;
-      // Null-rendering edit/reaction rows measure 0 and are deliberately
-      // excluded so the mean tracks visible-row height; unmounted zero rows
-      // are therefore overestimated until they mount (accepted — see the
-      // declined renderable-only re-indexing follow-up in FORK_CHANGES.md).
-      if (height > 0) {
-        const stats = threadRowSizeStatsRef.current;
-        stats.total += height;
-        stats.count += 1;
-        maybeAdoptLearnedThreadRowSize();
-      }
-    },
-    [maybeAdoptLearnedThreadRowSize, roomTimelineVirtualizer]
-  );
   useLayoutEffect(() => {
     const anchor = roomVirtualPrependAnchorRef.current;
     if (!anchor || threadId) return;
@@ -3440,6 +3381,7 @@ export function RoomTimeline({
 
     return (
       <div
+        data-thread-count={threadEvents.length}
         style={{
           height: roomTimelineVirtualizer.getTotalSize(),
           position: 'relative',
@@ -3447,7 +3389,11 @@ export function RoomTimeline({
         }}
       >
         {virtualItems.map((virtualItem) => (
-          <VirtualTile key={virtualItem.key} ref={measureThreadTile} virtualItem={virtualItem}>
+          <VirtualTile
+            key={virtualItem.key}
+            ref={roomTimelineVirtualizer.measureElement}
+            virtualItem={virtualItem}
+          >
             {threadEventRenderer(virtualItem.index)}
           </VirtualTile>
         ))}

@@ -12,9 +12,12 @@
  */
 
 export type CacheProbeCounters = {
-  // Learned thread row-size estimate adoptions (each one re-lays-out every
-  // unmeasured row with no scroll compensation; diagnosable from e2e).
-  threadRowSizeAdopted: number;
+  // CollapsibleMessage overflow verdicts as they are applied (true =
+  // collapses to the capped height, false = renders uncapped). A verdict
+  // FLIP on a mounted row is a mid-scroll height change; diagnosable from
+  // e2e alongside per-tile height traces.
+  collapsibleVerdictOverflowing: number;
+  collapsibleVerdictNotOverflowing: number;
   roomSaveCalls: number;
   roomEventPuts: number;
   roomMetaPuts: number;
@@ -332,7 +335,8 @@ export type CacheProbeCounters = {
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
-  threadRowSizeAdopted: 0,
+  collapsibleVerdictOverflowing: 0,
+  collapsibleVerdictNotOverflowing: 0,
   roomSaveCalls: 0,
   roomEventPuts: 0,
   roomMetaPuts: 0,

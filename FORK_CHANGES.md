@@ -2,6 +2,41 @@
 
 ## Runbook
 
+### Content-based per-row estimates replace the learned mean; shrinker hunt narrowed to key churn (2026-07-06)
+
+The e2e tile-level tracing identified the dominant snap-back shrinker:
+thread rows are bimodal (one-liners ~80px, fold-capped long messages
+~150px), so the learned-MEAN estimate was wrong by hundreds of px for
+every row, and each fresh mount corrected scrollHeight by that error
+mid-scroll (−64 quanta with the default estimate, −688 with a high
+adopted mean) until the browser clamped a scrolled-up reader to the
+bottom.
+
+- Fix: `estimateThreadEventRowHeight` in `threadRenderUtils.ts` —
+  deterministic per-row estimates from event content (line count with
+  wrap approximation; fold cap at CollapsibleMessage's 4.5em ≈ 3 lines;
+  edit/reaction relations ≈ 0 since they render no row). The ENTIRE
+  learned-mean machinery is deleted: stats ref, learned state + resets,
+  adoption callback + probe, and the `measureThreadTile` wrapper —
+  thread tiles now use `virtualizer.measureElement` directly, exactly
+  like the room timeline. Stateless: nothing to adopt, nothing to
+  teleport. (+6 estimator unit tests.)
+- New diagnostics kept: CollapsibleMessage verdict probes
+  (`collapsibleVerdict*`), `data-thread-count` on the thread container,
+  per-step tile/probe traces in the e2e.
+- E2e state: momentum invariants ✅ and composer re-pin ✅ now pass
+  consistently; the snap-back test still fails INTERMITTENTLY with a
+  precise fingerprint — two −688 drops where `threadEvents.length`
+  stays constant and NO mounted tile changes height, i.e. two unmounted
+  long rows lose their MEASURED size (~840, expanded) back to the
+  estimate (152). Measured sizes are keyed by `getItemKey` (event id),
+  so the remaining suspect is key/identity churn in the render list
+  orphaning `itemSizeCache` entries (event object swaps where the id —
+  or the dedupe pick — changes mid-scroll). Next: log per-index keys
+  across the shrink step, find the swap site, stabilize the identity.
+- Validation: typecheck ✅, build ✅, eslint ✅ (one pre-existing warning),
+  threads suite 116 files / 1138 tests ✅.
+
 ### atBottom stale-state audit: live-bottom primitive; one shrinker still open (2026-07-06)
 
 Follow-through on the bandage audit ("fix it and keep the code clean"):

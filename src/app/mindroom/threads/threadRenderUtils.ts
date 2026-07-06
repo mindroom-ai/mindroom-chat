@@ -150,6 +150,52 @@ export const buildMeasurementScrollCorrectionHook =
       scrollLive: instance.isScrolling || hasActiveTouches(),
     });
 
+// Per-row virtualizer estimates from event CONTENT. Thread rows are
+// bimodal — one-liners (~80px) and fold-capped long messages (~150px,
+// CollapsibleMessage caps content at 4.5em ≈ 3 lines) — so any single
+// learned mean is wrong by hundreds of px for every row, and each
+// measurement then shrinks/grows scrollHeight by that error mid-scroll
+// (the −64/−688 quanta the ios-momentum-invariants e2e traced; a big
+// shrink lets the browser clamp a scrolled-up reader back to the bottom).
+// A content heuristic is deterministic, stateless, and per-row-shaped:
+// the residual error drops to tens of px and needs no adoption machinery.
+const THREAD_ROW_BASE_PX = 58;
+const THREAD_ROW_BASE_COMPACT_PX = 34;
+const THREAD_ROW_LINE_PX = 22;
+const THREAD_ROW_FOLD_BANNER_PX = 28;
+// CollapsibleMessage caps collapsed content at 4.5em ≈ 3 text lines.
+const THREAD_ROW_FOLD_CONTENT_LINES = 3;
+// Beyond this a plain body always wraps/folds past the cap; skip line math.
+const THREAD_ROW_LONG_BODY_CHARS = 200;
+const THREAD_ROW_WRAP_CHARS_PER_LINE = 40;
+
+export const estimateThreadEventRowHeight = (
+  mEvent: MatrixEvent,
+  { compact }: { compact: boolean }
+): number => {
+  const base = compact ? THREAD_ROW_BASE_COMPACT_PX : THREAD_ROW_BASE_PX;
+  const relationType = mEvent.getRelation()?.rel_type;
+  // Edits and reactions render no thread row of their own; their tiles
+  // measure ~0. A tiny non-zero keeps virtual-core's math well-behaved.
+  if (relationType === RelationType.Replace || relationType === RelationType.Annotation) {
+    return 4;
+  }
+  const content = mEvent.getContent();
+  const body = typeof content.body === 'string' ? content.body : '';
+  if (body.length >= THREAD_ROW_LONG_BODY_CHARS) {
+    return base + THREAD_ROW_FOLD_CONTENT_LINES * THREAD_ROW_LINE_PX + THREAD_ROW_FOLD_BANNER_PX;
+  }
+  let lines = 1;
+  for (let i = 0; i < body.length; i += 1) {
+    if (body.charCodeAt(i) === 10) lines += 1;
+  }
+  lines += Math.floor(body.length / THREAD_ROW_WRAP_CHARS_PER_LINE);
+  if (lines > THREAD_ROW_FOLD_CONTENT_LINES) {
+    return base + THREAD_ROW_FOLD_CONTENT_LINES * THREAD_ROW_LINE_PX + THREAD_ROW_FOLD_BANNER_PX;
+  }
+  return base + lines * THREAD_ROW_LINE_PX;
+};
+
 export const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
   const mEventId = mEvt.getId();
   const relationTargetId = mEvt.getRelation()?.event_id;

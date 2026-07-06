@@ -5,6 +5,7 @@ import { getCacheProbeSnapshot, resetCacheProbe } from './cacheProbe';
 import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
+  estimateThreadEventRowHeight,
   getThreadInitialRenderMode,
   mergeThreadRenderEvents,
   pickPreferredThreadRenderEvent,
@@ -259,6 +260,72 @@ describe('shouldAutoPaginateThreadBack', () => {
     // open-time backfill chain, which on slow networks is exactly when
     // a scrolling user needs the trigger live.
     expect(shouldAutoPaginateThreadBack({ ...base, hasUserScrollIntent: false })).toBe(false);
+  });
+});
+
+describe('estimateThreadEventRowHeight', () => {
+  const modern = { compact: false };
+
+  it('estimates a one-liner at base + one text line', () => {
+    expect(estimateThreadEventRowHeight(makeMessageEvent('$short'), modern)).toBe(80);
+  });
+
+  it('adds a line per newline for short bodies', () => {
+    const event = new MatrixEvent({
+      content: { body: 'a\nb\nc', msgtype: 'm.text' },
+      event_id: '$multi',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(124);
+  });
+
+  it('caps anything past the fold at the collapsed height (long body)', () => {
+    const event = new MatrixEvent({
+      content: { body: 'x'.repeat(500), msgtype: 'm.text' },
+      event_id: '$long',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(152);
+  });
+
+  it('caps short-but-many-lines bodies at the collapsed height too', () => {
+    const event = new MatrixEvent({
+      content: { body: 'a\nb\nc\nd\ne\nf', msgtype: 'm.text' },
+      event_id: '$lines',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(152);
+  });
+
+  it('estimates edit/reaction relations near zero (they render no row)', () => {
+    const edit = new MatrixEvent({
+      content: {
+        body: '* fixed',
+        msgtype: 'm.text',
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$target' },
+      },
+      event_id: '$edit',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(edit, modern)).toBe(4);
+  });
+
+  it('uses the smaller compact base', () => {
+    expect(estimateThreadEventRowHeight(makeMessageEvent('$compact'), { compact: true })).toBe(
+      56
+    );
   });
 });
 
