@@ -266,4 +266,99 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     virtualizer.resizeItem(10, ROW_ACTUAL);
     expect(scrollToFn).toHaveBeenCalledTimes(1);
   });
+
+  // OFFSET-LEDGER COHERENCE (device round 10 replacement design): the
+  // round-8 transform compensation shifted PAINT while the window math
+  // stayed ignorant — the on-device trace showed ±3000px accumulated
+  // divergence rendering the viewport blank for 30% of a 40s ride, and a
+  // non-atomic settle flashing full-screen jumps. The replacement folds
+  // dropped corrections into virtual-core's OWN coordinate space instead:
+  // the inner container gets a real layout offset (marginTop ledger) and
+  // options.scrollMargin tracks (base container offset + ledger) in the
+  // same commit. This contract pins the algebra against the real library:
+  // after (drop, ledger += -delta, scrollMargin += -delta), the rendered
+  // item set for the SAME scrollOffset is unchanged and every painted
+  // position (item.start - scrollMargin) shifts by exactly -ledgerDelta —
+  // which the container's ledger margin cancels in the DOM, so the visual
+  // outcome is a no-op WITHOUT any scrollTop write and WITHOUT any
+  // window/paint divergence, by construction.
+  it('offset ledger: scrollMargin absorbs a dropped above-viewport shrink coherently', () => {
+    withFakeIOSUserAgent(() => {
+      const scrollToFn = vi.fn();
+      let scrollCallback: ScrollCallback | null = null;
+      const BASE_MARGIN = 300;
+      const SHRINK = 100;
+      const element = {
+        scrollTop: START_OFFSET,
+        scrollLeft: 0,
+        scrollHeight: COUNT * ROW_ESTIMATE + BASE_MARGIN,
+        clientHeight: 600,
+        offsetHeight: 600,
+      };
+      const virtualizer = new Virtualizer<Element, Element>({
+        count: COUNT,
+        estimateSize: () => ROW_ESTIMATE,
+        scrollMargin: BASE_MARGIN,
+        getScrollElement: () => element as unknown as Element,
+        scrollToFn,
+        // The ledger contract reads getVirtualItems(), which needs a real
+        // viewport rect (the write-contract tests above never range).
+        observeElementRect: (_instance, cb) => {
+          cb({ width: 400, height: 600 });
+          return () => {};
+        },
+        observeElementOffset: (_instance, cb) => {
+          scrollCallback = cb;
+          cb(START_OFFSET, false);
+          return () => {};
+        },
+      });
+      virtualizer._willUpdate();
+      virtualizer.getTotalSize();
+      scrollToFn.mockClear();
+      const droppedDeltas: number[] = [];
+      virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook(
+        {
+          isIOSWebKitDevice: () => true,
+          hasActiveTouches: () => false,
+          onDroppedCorrection: (deltaPx) => droppedDeltas.push(deltaPx),
+        }
+      );
+
+      // Live scroll; snapshot the rendered window and painted positions.
+      scrollCallback!(START_OFFSET - 40, true);
+      const before = virtualizer.getVirtualItems();
+      const beforeKeys = before.map((item) => item.key);
+      const beforePainted = new Map(
+        before.map((item) => [item.key, item.start - virtualizer.options.scrollMargin])
+      );
+
+      // A fully-above row shrinks by 100 mid-scroll; the hook drops the
+      // correction (no write) and reports the delta.
+      const aboveIndex = before[0].index - 5;
+      virtualizer.resizeItem(aboveIndex, ROW_ESTIMATE - SHRINK);
+      expect(droppedDeltas).toEqual([-SHRINK]);
+      expect(adjustmentWrites(scrollToFn)).toHaveLength(0);
+
+      // Fold the delta into the ledger: container margin grows by +100 in
+      // the DOM (not modeled here) and scrollMargin tracks it.
+      virtualizer.setOptions({
+        ...virtualizer.options,
+        scrollMargin: BASE_MARGIN + SHRINK,
+      });
+      virtualizer._willUpdate();
+      const after = virtualizer.getVirtualItems();
+
+      // Same scrollOffset → same rendered item set: window math coherent.
+      expect(after.map((item) => item.key)).toEqual(beforeKeys);
+      // Every painted position shifts by exactly -SHRINK, which the +100
+      // container ledger margin cancels in the DOM: net visual no-op.
+      after.forEach((item) => {
+        const painted = item.start - virtualizer.options.scrollMargin;
+        expect(beforePainted.get(item.key)! - painted).toBe(SHRINK);
+      });
+      // And still no scroll writes anywhere in the sequence.
+      expect(adjustmentWrites(scrollToFn)).toHaveLength(0);
+    });
+  });
 });
