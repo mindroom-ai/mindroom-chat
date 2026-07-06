@@ -101,7 +101,7 @@ export const fetchAndPersistThreadContent = async ({
     threadId,
     rootEvent,
     cachedRootEvent: rootEvent,
-    cachedEvents: rootEvent ? [rootEvent, ...relationEvents] : relationEvents,
+    cachedEvents: [rootEvent, ...relationEvents],
     beforeToken: relationPageResult.nextBatchToken ?? null,
     hasMoreBefore: typeof relationPageResult.nextBatchToken === 'string',
     expectedReplyCount,

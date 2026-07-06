@@ -158,7 +158,7 @@ export const useThreadOverviewResumeController = ({
         shouldContinue: () =>
           alive() && (!threadIdRef.current || threadIdRef.current === expectedThreadId),
         shouldApply: () =>
-          alive() && !(threadIdRef.current && threadIdRef.current !== expectedThreadId),
+          alive() && (!threadIdRef.current || threadIdRef.current === expectedThreadId),
         persistThreadEventCache,
         onApplyThreadRelations,
         onStoreThreadSummary,

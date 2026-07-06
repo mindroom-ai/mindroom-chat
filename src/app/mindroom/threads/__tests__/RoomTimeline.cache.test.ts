@@ -3429,6 +3429,15 @@ describe('RoomTimeline', () => {
                 call[2] === threadId && JSON.stringify(call[3]).includes('$thread-reply-1-edit')
             )
         ).toBe(true);
+        // PR #84 review (coderabbit): pin the flag contract, not just
+        // the persisted edit — NO open-time save may upgrade
+        // relationSnapshotComplete (arg 10) to true; that proof is
+        // owned by the background prewarm's full /relations drain.
+        expect(
+          vi
+            .mocked(saveThreadEventsToCache)
+            .mock.calls.every((call) => call[2] !== threadId || call[9] !== true)
+        ).toBe(true);
       } finally {
         await act(async () => {
           renderer?.unmount();

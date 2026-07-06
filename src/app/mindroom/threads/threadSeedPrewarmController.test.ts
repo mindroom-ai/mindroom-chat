@@ -36,15 +36,11 @@ const makeRootEvent = () =>
     type: 'm.room.message',
   });
 
-function Harness({
-  mx,
-  room,
-  persistThreadEventCache,
-}: {
-  mx: MatrixClient;
-  room: Room;
-  persistThreadEventCache: (...args: unknown[]) => void;
-}) {
+// NOTE: the controller persists through the engine facade
+// (`engine.persist.persistThreadEventCache`, reached via
+// `useMindroomSyncEngine()`), NOT through a prop — the spy the tests
+// assert on lives on the fake engine passed to the provider below.
+function Harness({ mx, room }: { mx: MatrixClient; room: Room }) {
   useThreadSeedPrewarmController({
     room,
     mx,
@@ -57,7 +53,6 @@ function Harness({
     loadThreadOpenSeedSnapshotFromCache: async () => [],
     debugTraceId: 'prewarm-test',
   });
-  void persistThreadEventCache;
   return null;
 }
 
@@ -67,11 +62,7 @@ const renderPrewarm = async (mx: MatrixClient, room: Room, engine: MindroomSyncE
       React.createElement(
         MindroomSyncEngineProvider,
         { engine },
-        React.createElement(Harness, {
-          mx,
-          room,
-          persistThreadEventCache: () => undefined,
-        })
+        React.createElement(Harness, { mx, room })
       )
     );
   });
@@ -167,6 +158,25 @@ describe('threadSeedPrewarmController network content prefetch (2026-07-06 eager
 
     await renderPrewarm(mx, room, engine);
     // Give the drain loop time to (incorrectly) fire if it were going to.
+    await waitFor(() => fetchRelations.mock.calls.length > 0);
+
+    expect(fetchRelations).not.toHaveBeenCalled();
+    expect(persistThreadEventCache).not.toHaveBeenCalled();
+  });
+
+  it('gives up without persisting when the thread root is not SDK-resolvable (PR #84 greptile P2)', async () => {
+    const { mx, engine, fetchRelations, persistThreadEventCache } = setup();
+    // Root never resolves → fetchAndPersistThreadContent bails before
+    // enqueuing; nothing is fetched or persisted, and the open-time
+    // drain remains the fallback for this thread.
+    const rootlessRoom = {
+      roomId: ROOM_ID,
+      getThread: () => null,
+      findEventById: () => undefined,
+      getLastActiveTimestamp: () => 0,
+    } as unknown as Room;
+
+    await renderPrewarm(mx, rootlessRoom, engine);
     await waitFor(() => fetchRelations.mock.calls.length > 0);
 
     expect(fetchRelations).not.toHaveBeenCalled();

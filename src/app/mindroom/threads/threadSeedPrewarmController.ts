@@ -271,6 +271,19 @@ export const useThreadSeedPrewarmController = ({
           snapshotComplete: result.snapshotComplete,
           threadId: expectedThreadId,
         });
+      } else {
+        // PR #84 review (greptile P2): name the silent give-up. The
+        // helper returns undefined when the root event is not
+        // SDK-resolvable yet, the scheduler aborted mid-drain, or
+        // shouldContinue flipped. Deliberately NOT marked as
+        // prefetched: within this mount the seed gate
+        // (prewarmedThreadSeedIdsRef) prevents a re-queue anyway, and
+        // leaving it unmarked lets the next room entry (new
+        // generation) retry; the open-time drain remains the
+        // in-session fallback.
+        logTimelineDebug(debugTraceId, 'room-thread-content-prefetch-skipped', {
+          threadId: expectedThreadId,
+        });
       }
     },
     [debugTraceId, mx, room, sessionId, syncEngine]
