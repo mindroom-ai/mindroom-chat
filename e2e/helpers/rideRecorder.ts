@@ -26,6 +26,9 @@ export type RideFrame = {
   driven: number;
   threadCount: number;
   distFromBottom: number;
+  // Live offset-ledger margin on the inner virtual container (0 when a
+  // sampler has no ledger context, e.g. gesture rides).
+  ledgerPx?: number;
 };
 
 export type TileSnap = { i: string | null; id: string | null; top: number; h: number };
@@ -321,6 +324,7 @@ export const runFlickRide = (
         jumpAnchorTop = jumpAnchor?.getBoundingClientRect().top ?? 0;
         lastTileSnaps = readTileSnaps();
       }
+      const inner = scroller.querySelector('[data-index]')?.parentElement as HTMLElement | null;
       frames.push({
         t,
         scrollTop: scroller.scrollTop,
@@ -330,6 +334,7 @@ export const runFlickRide = (
         driven,
         threadCount: readThreadCount(),
         distFromBottom: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+        ledgerPx: inner ? Math.round(Number.parseFloat(inner.style.marginTop) || 0) : 0,
       });
     };
 

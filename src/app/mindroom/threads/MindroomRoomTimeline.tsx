@@ -1154,32 +1154,42 @@ export function RoomTimeline({
   });
   const virtualInnerRef = useRef<HTMLDivElement | null>(null);
   const compensationSettleArmedRef = useRef(false);
-  const pendingLedgerSettlePxRef = useRef(0);
-  const [, setLedgerSettleTick] = useState(0);
-  // Settling is a COMMIT, not a synchronous side-channel write: the margin
-  // removal (every-commit sync effect below), the scrollMargin option
-  // (read at render) and the cancelling scrollTop shift (settle effect
-  // below) must land in ONE paint — the sustained-ride e2e measured a
-  // 212px flash from the one-frame window where a synchronous settle left
-  // the option stale until the next render.
+  // The settle is ONE synchronous JS block: margin removal and the
+  // cancelling scrollTop shift land in the same layout pass, so they are
+  // atomic with respect to paints and rAF samplers (a React-commit-based
+  // settle measured 20x worse on the sustained-ride e2e — the extra
+  // scheduling hop split the pair across paints under CPU throttle). The
+  // scroll event from the write re-renders the virtualizer, which then
+  // reads scrollMargin 0 from the zeroed ref; tile positions are
+  // margin-independent (rel coordinates), so the one-render option lag
+  // shifts nothing visually.
   const settleScrollCompensation = useCallback(() => {
     compensationSettleArmedRef.current = false;
     const px = scrollCompensationPxRef.current;
-    if (px === 0) return;
+    const inner = virtualInnerRef.current;
+    const scrollElement = getScrollElement();
+    if (px === 0 || !inner || !scrollElement) return;
     scrollCompensationPxRef.current = 0;
-    pendingLedgerSettlePxRef.current += px;
-    setLedgerSettleTick((tick) => tick + 1);
-  }, []);
+    inner.style.marginTop = '';
+    scrollElement.scrollTop += px;
+  }, [getScrollElement]);
   const handleDroppedCorrection = useCallback(
     (deltaPx: number) => {
-      // Accumulate ONLY — the style write happens in the layout effect
-      // below. The layout shift this delta cancels materializes when React
-      // commits the virtualizer's new row positions; writing the margin
-      // here (inside the ResizeObserver callback) would paint it one frame
-      // early, visible as a brief opposite-direction flash. The dropped
-      // correction always triggers a rerender (virtual-core notify), so
-      // the layout effect is guaranteed to run before that paint.
+      // The style write happens SYNCHRONOUSLY, in the same task as the
+      // layout shift it cancels: react-virtual repositions tiles via
+      // direct styles inside this very notify pass and SKIPS the React
+      // rerender when the visible range is unchanged — so a layout-effect
+      // write (round 8's design, premised on "a drop always rerenders")
+      // can land frames later, painting the shift uncompensated and then
+      // the compensation alone (the paired ±140px flashes the sustained-
+      // ride e2e isolated). The every-commit sync effect below remains as
+      // the reconciler for React-driven renders.
       scrollCompensationPxRef.current += deltaPx;
+      const inner = virtualInnerRef.current;
+      if (inner) {
+        const px = scrollCompensationPxRef.current;
+        inner.style.marginTop = px === 0 ? '' : `${-px}px`;
+      }
       if (!compensationSettleArmedRef.current) {
         compensationSettleArmedRef.current = true;
         // No maxWait cap: a forced settle mid-momentum is a scrollTop
@@ -1204,16 +1214,6 @@ export function RoomTimeline({
     if (inner.style.marginTop !== marginTop) {
       inner.style.marginTop = marginTop;
     }
-  });
-  // The settle's cancelling scrollTop shift, in the same commit (and
-  // paint) as the margin removal above and the scrollMargin option this
-  // render already carried.
-  useLayoutEffect(() => {
-    const px = pendingLedgerSettlePxRef.current;
-    if (px === 0) return;
-    pendingLedgerSettlePxRef.current = 0;
-    const scrollElement = getScrollElement();
-    if (scrollElement) scrollElement.scrollTop += px;
   });
   // On-device ride tracing (`?ridetrace=1`): per-frame invariant recorder
   // with a one-tap export overlay — the phone captures the same trace the
