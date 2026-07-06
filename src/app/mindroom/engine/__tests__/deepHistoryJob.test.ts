@@ -7,9 +7,14 @@ import { enqueueRoomDeepHistoryJob } from '../deepHistoryJob';
 import { StateEvent } from '../../../../types/matrix/room';
 import {
   loadCachedRoomEvent,
+  loadLatestCachedThreadEvents,
   resetCacheStoreForTesting,
 } from '../../threads/cacheStore';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../threads/cacheProbe';
+import {
+  clearThreadOpenSeedSnapshotsForTests,
+  getThreadOpenSeedSnapshot,
+} from '../../threads/threadOpenSeedCache';
 
 const SESSION_ID = 'session-p43';
 
@@ -27,6 +32,7 @@ const makeRoom = (
   ({
     roomId,
     findEventById: () => null,
+    getThread: () => null,
     hasEncryptionStateEvent: () => encrypted,
     getLiveTimeline: () => ({
       getState: () => ({
@@ -56,18 +62,33 @@ const rawEvent = (id: string, ts: number): Partial<IEvent> => ({
   content: { body: id },
 });
 
+const rawThreadReply = (id: string, ts: number, threadRootId: string): Partial<IEvent> => ({
+  event_id: id,
+  origin_server_ts: ts,
+  type: 'm.room.message',
+  sender: '@alice:mindroom.chat',
+  room_id: '!room:mindroom.chat',
+  content: {
+    body: id,
+    'm.relates_to': { event_id: threadRootId, rel_type: 'm.thread' },
+  },
+});
+
 // CINNY-207 P7.2 audit finding #3: minimal MatrixEvent shape sufficient
 // for `serializeRoomCacheEvents` on non-redaction, non-replace events —
 // mirrors the identity mapper in the gap-fill test.
-const identityMapper = (raw: Partial<IEvent>) =>
-  ({
+const identityMapper = (raw: Partial<IEvent>) => {
+  const relation = (raw.content as Record<string, unknown> | undefined)?.['m.relates_to'] as
+    | { rel_type?: string; event_id?: string }
+    | undefined;
+  return {
     getId: () => raw.event_id ?? '',
     getType: () => raw.type,
     getTs: () => (raw.origin_server_ts as number) ?? 0,
     isRedaction: () => raw.type === 'm.room.redaction',
     isRedacted: () => Boolean(raw.unsigned?.redacted_because),
     getAssociatedId: () => (raw.content as { redacts?: string } | undefined)?.redacts,
-    getRelation: () => null,
+    getRelation: () => relation ?? null,
     getUnsigned: () => raw.unsigned ?? {},
     getStateKey: () => (raw as { state_key?: string }).state_key,
     getSender: () => raw.sender,
@@ -76,8 +97,13 @@ const identityMapper = (raw: Partial<IEvent>) =>
     makeRedacted: () => undefined,
     makeReplaced: () => undefined,
     replacingEvent: () => null,
+    // Deep-history chunks carry raw thread replies; the thread-scope
+    // grouping reads `threadRootId` off the mapped event, which for a
+    // raw m.thread relation resolves to the relation target.
+    threadRootId: relation?.rel_type === 'm.thread' ? relation.event_id : undefined,
     event: raw,
-  }) as unknown as import('matrix-js-sdk').MatrixEvent;
+  } as unknown as import('matrix-js-sdk').MatrixEvent;
+};
 
 const createMockClient = (
   responder: (call: number) => { end?: string; chunk: Partial<IEvent>[] }
@@ -108,10 +134,12 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
   beforeEach(() => {
     resetCacheStoreForTesting();
     resetCacheProbe();
+    clearThreadOpenSeedSnapshotsForTests();
   });
   afterEach(() => {
     resetCacheStoreForTesting();
     resetCacheProbe();
+    clearThreadOpenSeedSnapshotsForTests();
   });
 
   it('drives createMessagesRequest backward until the target is reached and persists each chunk', async () => {
@@ -139,6 +167,58 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
       expect(row?.event_id).toBe(id);
     }
     expect(getCacheProbeSnapshot().schedulerCompleted).toBe(1);
+  });
+
+  it('persists thread replies from swept chunks into their thread cache scopes (2026-07-06 eager-cache fix)', async () => {
+    // The cold-start regression: the deep-history sweep downloads all
+    // room history — thread replies included — but used to persist ONLY
+    // the room scope (serializeRoomCacheEvents filters thread activity),
+    // throwing the thread content away. Opening a thread then re-
+    // downloaded everything the sweep had already fetched. The sweep
+    // must teach the thread caches from the same chunks.
+    const root = rawEvent('$root', 10);
+    const reply1 = rawThreadReply('$reply-1', 20, '$root');
+    const reply2 = rawThreadReply('$reply-2', 30, '$root');
+    const mx = createMockClient((call) => {
+      if (call === 0) return { end: 'tok-1', chunk: [reply2, reply1, root] };
+      return { chunk: [] };
+    });
+    const room = makeRoom('!room:mindroom.chat', '@alice:mindroom.chat');
+    mx.__rooms.set('!room:mindroom.chat', room);
+
+    const scheduler = createBackfillScheduler({ mx });
+    await enqueueRoomDeepHistoryJob({
+      mx,
+      sessionId: SESSION_ID,
+      scheduler,
+      roomId: '!room:mindroom.chat',
+      targetEventCount: 3,
+    });
+
+    // Thread scope holds the replies, with the tail claim recorded (the
+    // sweep descends from the live tail, so every encountered thread's
+    // newest replies are covered) and NO completeness over-claim.
+    const threadPage = await loadLatestCachedThreadEvents(
+      SESSION_ID,
+      '!room:mindroom.chat',
+      '$root',
+      10
+    );
+    expect(threadPage.events.map((event) => event.event_id)).toEqual(['$reply-1', '$reply-2']);
+    expect(threadPage.tailLoaded).toBe(true);
+    expect(threadPage.snapshotComplete).toBe(false);
+    expect(threadPage.relationSnapshotComplete).toBe(false);
+
+    // Room scope keeps its existing shape: root persisted, thread-only
+    // replies still filtered out of the room slice.
+    const rootRow = await loadCachedRoomEvent(SESSION_ID, '!room:mindroom.chat', '$root');
+    expect(rootRow?.event_id).toBe('$root');
+    const replyRow = await loadCachedRoomEvent(SESSION_ID, '!room:mindroom.chat', '$reply-1');
+    expect(replyRow).toBeUndefined();
+
+    // The in-memory seed store must NOT pin sweep events (a 10k-event
+    // sweep would otherwise leak its whole mapped batch into memory).
+    expect(getThreadOpenSeedSnapshot(room, '$root')).toHaveLength(0);
   });
 
   it('skips encrypted rooms without touching the network', async () => {

@@ -959,6 +959,28 @@ export const persistRoomEventCacheSnapshot = ({
  * `beforeTokenForEarliest` is forwarded so the gap-fill executor's
  * paging semantics (see `runSaveRoomEventsTxn`) are preserved for the
  * earliest event's ledger.
+ *
+ * Eager thread cache (2026-07-06): the chunk ALSO teaches the thread
+ * caches. `/messages` returns thread replies (they are room DAG
+ * events), but `serializeRoomCacheEvents` deliberately filters them
+ * out of the room scope — before this fix the deep-history sweep and
+ * gap-fill catchup downloaded every thread's content and then threw
+ * it away, so a cold-cache thread open re-downloaded what the sweep
+ * had already fetched (the pre-P4.3 `useRoomEagerPreload` loop fed
+ * these events through the SDK-timeline persist paths, which grouped
+ * them; the engine jobs dropped that leg). Group the mapped chunk by
+ * thread attribution and persist each group into its thread scope:
+ *   - `roomTailLoaded: true` — both callers page BACKWARD from the
+ *     room's live tail, so every encountered thread's newest replies
+ *     are covered by (live write-through ∪ this sweep). The claim is
+ *     what lets read-time completeness math (reply-count coverage in
+ *     `isCompleteCachedThreadSnapshot`) prove a swept thread complete.
+ *     No `roomStartKnown`/`snapshotComplete` claim is made per chunk —
+ *     a single chunk under-counts a thread's replies, and an explicit
+ *     false would downgrade a previously proven flag.
+ *   - Seed snapshots are NOT written: a 10k-event sweep would pin its
+ *     whole mapped batch in the in-memory seed store. Durable IDB is
+ *     the product here; seeds stay owned by the prewarm/open paths.
  */
 export const persistRoomChunkWithPreferLive = ({
   mx,
@@ -977,6 +999,13 @@ export const persistRoomChunkWithPreferLive = ({
   const mapper = mx.getEventMapper();
   const preferLive = createPreferLiveEventMapper(room, mapper);
   const mapped = chunk.map(preferLive);
+  persistThreadCacheFromRoomEventsSnapshot({
+    sessionId,
+    room,
+    events: mapped,
+    opts: { roomTailLoaded: true },
+    saveSeedSnapshot: () => undefined,
+  });
   return persistRoomEventCacheSnapshot({
     sessionId,
     room,

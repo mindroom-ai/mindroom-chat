@@ -6,7 +6,7 @@
 
 - Status:
   - Refreshed on `caveman/ios-release-fastlane-20260705` from current
-    `origin/dev` (`v4.12.3-mindroom.13`). App Store Connect upload/review
+    `origin/dev` (`3c7047d3`). App Store Connect upload/review
     submission is being handled as a follow-up release task, not by this
     commit.
   - PR review follow-up: media upload fallback now continues across Matrix
@@ -41,13 +41,13 @@
   - Keep screenshot binaries gitignored; only scripts, tests, docs, and the
     placeholder screenshot directory stay in source control.
 - Validation:
-  - Green post-rebase checks on the refreshed `v4.12.3-mindroom.13` base:
+  - Green post-rebase checks on the refreshed `3c7047d3` base:
     `node --test scripts/appstore-fixture.test.mjs`,
     `npm test -- src/app/mindroom/appstore/appStoreScreenshots.test.ts`,
-    script syntax checks, `npm run appstore:screenshots`,
-    `npm run appstore:preflight`, Fastlane lane parsing, `npm run typecheck`,
-    `npm run lint` (existing 18 warnings, 0 errors), `npm run build`, and
-    `npm test` (343 files, 2693 tests).
+    script syntax checks, Prettier check on touched source/test scripts,
+    `npm run appstore:screenshots`, `npm run appstore:preflight`, Fastlane
+    lane parsing, `npm run typecheck`, `npm run lint` (existing 18 warnings,
+    0 errors), `npm run build`, and `npm test` (345 files, 2703 tests).
   - Current screenshots regenerated into `ios/App/fastlane/screenshots/en-US/`
     with the expected dimensions: iPhone 6.9" `1320x2868`; iPad 13"
     `2064x2752`.
@@ -55,6 +55,135 @@
     scripts/appstore-fixture.test.mjs`, `node --check
     scripts/seed-appstore-screenshot-room.mjs`, Prettier check on touched
     review files, and `npm run appstore:screenshots`.
+
+### Eager thread cache — cold-start sweep teaches thread scopes (2026-07-06)
+
+Report: after clearing cache + reloading, Cinny visibly downloads lots of
+history in the background ("all threads show in the compact view"), yet
+opening a thread STILL downloads its entire message history (observed on a
+282-msg thread spanning a month). Product direction (user, this session —
+**supersedes** the "lean thread open" task queued in HANDOFF.md §3, which
+had the intent BACKWARDS): threads should be downloaded *before* they are
+opened — background prefetch owns the network cost (full content, visible
+threads first, then the rest); opening is instant from cache.
+
+- Root cause (the refactor miss): CINNY-207 P4.3 replaced the old
+  `useRoomEagerPreload` loop with the engine deep-history job. The old loop
+  paginated the SDK live timeline, whose events flowed through the
+  SDK-timeline persist paths and were grouped into thread cache scopes
+  (`persistThreadCacheFromRoomEvents`). The new deep-history job (and the
+  P4.2 gap-fill executor) persist chunks via `persistRoomChunkWithPreferLive`
+  → `persistRoomEventCacheSnapshot` ONLY — and `serializeRoomCacheEvents`
+  deliberately filters thread activity out of the room scope. Net effect:
+  the sweep downloads every thread's replies over `/messages` and THROWS
+  THEM AWAY; thread caches stay empty; the open-time drain re-downloads
+  what the sweep already fetched. The grouping helper survived the refactor
+  with only the live/pagination callers — the background-job leg was
+  dropped.
+- Step A (this entry): `persistRoomChunkWithPreferLive` now also persists
+  the mapped chunk through `persistThreadCacheFromRoomEventsSnapshot` with
+  `roomTailLoaded: true` — both callers (deep-history, gap-fill) page
+  backward from the room's live tail, so every encountered thread's newest
+  replies are covered; the claim is what lets read-time reply-count math
+  (`isCompleteCachedThreadSnapshot`) prove a swept thread complete. No
+  `roomStartKnown`/`snapshotComplete` per-chunk claim (a chunk under-counts
+  a thread; an explicit false would downgrade a proven flag). Seed
+  snapshots are deliberately NOT written from sweep chunks (a 10k-event
+  sweep would pin its whole mapped batch in the in-memory seed store).
+  Known best-effort gap: deep reactions/edits whose relation target is not
+  SDK-resolvable at sweep time are dropped from the thread group (bundled
+  edits survive on their targets); the open/reconcile paths heal these.
+- Also this session: reverted an initial (wrong-direction) cap of
+  `refreshLatestThreadSlice` to one page; instead its drain-to-exhaustion
+  behavior is now pinned by regression tests
+  (`threadOpenCacheController.test.ts`) as the *fallback* downloader for
+  threads the background prefetch has not covered yet.
+- Validation: typecheck ✓, eslint (touched files) ✓, vitest engine+threads
+  full sweep 130 files / 1296 tests ✓, new red-first regression tests in
+  `deepHistoryJob.test.ts` + `gapFillExecutor.test.ts` (thread replies from
+  chunks land in thread scopes, tailLoaded=true, no seed pinning, room
+  scope unchanged).
+- Step B (landed after Step A): the thread-seed prewarm band now also
+  downloads content over the network. New shared module
+  `threadContentPrefetch.ts` (`fetchAndPersistThreadContent`) extracted
+  verbatim from `threadOverviewResumeController.
+  refreshOverviewThreadCacheFromRelations` (resume controller rewired onto
+  it, behavior preserved — priority 2, same staleness guards via
+  `shouldContinue`/`shouldApply`). The prewarm drain loop
+  (`threadSeedPrewarmController`), after each priority target's IDB seed
+  pass, reads the cached meta flags (1-record `loadLatestCachedThreadEvents`)
+  and — unless the snapshot is relations-proven complete (snapshotComplete
+  && relationSnapshotComplete && tailLoaded) — drains the thread's
+  `/relations` via the shared pipeline as a band-3 'thread-backfill' job,
+  persisting through `engine.persist.persistThreadEventCache`. Key
+  properties: (a) the network call is chained from the COMPONENT-side
+  drain loop, never nested inside a scheduler executor (2-slot concurrency
+  cap → deadlock risk); (b) a user opening the thread mid-prefetch
+  coalesces onto the same in-flight job (AC8 dedup key shared with the
+  open path); (c) `shouldContinue` keeps fetching when the OPENED thread
+  is the one being prefetched, and stops when attention moved to a
+  different thread; (d) once-per-generation via
+  `prefetchedThreadContentIdsRef` (cleared on room switch). Prewarm
+  targets remain `collectPriorityThreadSeedPrewarmRoots` (visible threads
+  first, then largest; cap 8, ≥20 replies) — the Step A room sweep covers
+  the remaining threads' content; widen the candidate policy only if a
+  real miss is reported. Red-first tests:
+  `threadSeedPrewarmController.test.ts` (cold target → one /relations
+  fetch + honest persist through the facade; relations-proven cached
+  target → zero network).
+- Step C (landed after Step B): open-time coverage policy.
+  `isCompleteThreadCacheCoverage` no longer requires
+  `relationSnapshotComplete` (only provable by a full `/relations`
+  drain — requiring it forced every sweep-warmed thread to re-download
+  its whole history at open), and
+  `shouldBackfillThreadRelationsFromCoverage` fires only for genuinely
+  partial snapshots (`snapshotComplete !== true`). Count-proven
+  complete + tailLoaded + known backward start = complete for PAINT;
+  the unskippable choke-point reconcile remains the revalidator (D7) —
+  it fetches one tail page, detects missed edits/redactions/reactions,
+  repairs in place, and persists. The flag itself is still tracked: the
+  Step B prewarm band uses it to give sweep-warmed threads one
+  background proving fetch. Updated
+  `RoomTimeline.cache.test.ts` accordingly: the old "repairs complete
+  cached snapshots missing relation hydration" (open backfill upgrades
+  the flag) became "reconciles a complete-but-relation-unproven
+  snapshot at open without a full relations drain" (fast path + one
+  reconcile page + edit persisted by the repair; flag upgrade owned by
+  prewarm). Trade-off documented in `threadCacheCoverage.ts`: deep old
+  reactions/edits the sweep could not attribute heal via reconcile/
+  prewarm progressively instead of blocking the open.
+- Independent review pass (subagent, adversarial) on the A+B+C series —
+  two findings fixed immediately:
+  - Finding #1 (HIGH): count-proof is one-sided (a stale-low
+    `expectedReplyCount` makes reply-count coverage vacuous), so the
+    widened fast path could clear the SDK backward token over a
+    limited-sync mid-soup hole and hide it with no recovery path (the
+    reconcile overlaps the fresh cached tail on page 1 and never digs
+    deeper). Fix: token-clearing (both `threadOpenCacheFirst` and the
+    hydrate-time `cacheProvesNoBackwardGap`) now requires
+    `relationSnapshotComplete` — count-proven opens still paint fast
+    and skip the backfill, but keep the server-side escape hatch;
+    gap-fill (which now also persists thread scopes, Step A) heals the
+    hole in the background.
+  - Finding #4 (MED): the prewarm skip-gate required
+    `relationSnapshotComplete`, making sweep-warmed threads pay a
+    redundant full proving drain and re-draining never-provable threads
+    (>5000-reply cap, count-mismatch) on every mount. Fix: the gate now
+    matches the open-time policy (snapshotComplete + tailLoaded skips).
+  - Deferred (tasked): sweep chunks overwrite `meta.expectedReplyCount`
+    with possibly stale live-root counts (weakens count-proof); a
+    priority-0 open coalescing onto a QUEUED band-3 prewarm job
+    inherits priority 3 (scheduler dedup keeps enqueue-time priority);
+    a reply landing mid-proving-drain downgrades `snapshotComplete`
+    true→false (self-heals via one extra drain on next open).
+- Combined cold-start behavior after A+B+C (the user-visible contract):
+  clear cache → reload → the deep-history sweep caches all thread
+  content it downloads anyway (A), the prewarm band fully proves the
+  visible/largest threads (B), and opening ANY count-complete thread
+  paints instantly from cache with a single 200-event reconcile check
+  (C). Opening a thread the prefetch has not reached yet still runs the
+  full fallback drain (deliberate — content must be complete after an
+  open; pinned by `threadOpenCacheController.test.ts`).
 
 ### Light-mode WebGL splash/auth palette inversion (2026-07-05)
 

@@ -212,7 +212,19 @@ export const runThreadOpenCacheFirst = async ({
     const firstThreadTimeline = firstThreadLiveTimeline
       ? getLinkedTimelines(firstThreadLiveTimeline)[0]
       : undefined;
-    firstThreadTimeline?.setPaginationToken(null, Direction.Backward);
+    // 2026-07-06 review finding #1: count-proof (reply-count coverage)
+    // is one-sided — a stale-low expectedReplyCount makes it vacuous,
+    // and a limited-sync hole mid-soup would then paint as "complete".
+    // Painting fast on count-proof is fine (gap-fill + reconcile heal),
+    // but DESTROYING the server-side escape hatch is not: clear the
+    // SDK backward token only on a genuine relations-proven snapshot
+    // (a full /relations drain observed next_batch exhaust). On
+    // count-proof-only opens the token survives, so the load-older
+    // affordance and scroll pagination can still reach anything the
+    // proof missed.
+    if (hydratedCachedPage.relationSnapshotComplete === true) {
+      firstThreadTimeline?.setPaginationToken(null, Direction.Backward);
+    }
     setThreadHasMoreCachedBack(false);
     setThreadTailLoaded(true);
     forceTimelineUpdate();

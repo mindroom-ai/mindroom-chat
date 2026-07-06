@@ -10,6 +10,7 @@ import {
   loadRoomTailDiscontinuity,
   markRoomTailDiscontinuity,
   loadCachedRoomEvent,
+  loadLatestCachedThreadEvents,
   resetCacheStoreForTesting,
 } from '../../threads/cacheStore';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../threads/cacheProbe';
@@ -36,6 +37,7 @@ const makeRoomStub = (
   ({
     roomId,
     findEventById: () => null,
+    getThread: () => null,
     hasEncryptionStateEvent: () => encrypted,
     getLiveTimeline: () => ({
       getState: () => ({
@@ -53,15 +55,18 @@ const makeRoomStub = (
 // `collectStateTargetEvents`). Non-redaction, non-replace events skip
 // every branch except the identity emit — we only need `getId`,
 // `getType`, `getRelation`, `getSender`, and `.event`.
-const identityMapper = (raw: Partial<IEvent>) =>
-  ({
+const identityMapper = (raw: Partial<IEvent>) => {
+  const relation = (raw.content as Record<string, unknown> | undefined)?.['m.relates_to'] as
+    | { rel_type?: string; event_id?: string }
+    | undefined;
+  return {
     getId: () => raw.event_id ?? '',
     getType: () => raw.type,
     getTs: () => (raw.origin_server_ts as number) ?? 0,
     isRedaction: () => raw.type === 'm.room.redaction',
     isRedacted: () => Boolean(raw.unsigned?.redacted_because),
     getAssociatedId: () => (raw.content as { redacts?: string } | undefined)?.redacts,
-    getRelation: () => null,
+    getRelation: () => relation ?? null,
     getUnsigned: () => raw.unsigned ?? {},
     getStateKey: () => (raw as { state_key?: string }).state_key,
     getSender: () => raw.sender,
@@ -70,8 +75,13 @@ const identityMapper = (raw: Partial<IEvent>) =>
     makeRedacted: () => undefined,
     makeReplaced: () => undefined,
     replacingEvent: () => null,
+    // Gap-fill chunks carry raw thread replies; the thread-scope
+    // grouping (2026-07-06 eager-cache fix) reads `threadRootId` off
+    // the mapped event.
+    threadRootId: relation?.rel_type === 'm.thread' ? relation.event_id : undefined,
     event: raw,
-  }) as unknown as import('matrix-js-sdk').MatrixEvent;
+  } as unknown as import('matrix-js-sdk').MatrixEvent;
+};
 
 type MockClient = MatrixClient & {
   __rooms: Map<string, Room>;
@@ -188,6 +198,60 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
 
     const marker = await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat');
     expect(marker).toBeUndefined();
+  });
+
+  it('persists thread replies from catchup chunks into their thread cache scopes (2026-07-06 eager-cache fix)', async () => {
+    // Same contract as the deep-history sweep: a limited-sync catchup
+    // chunk contains thread replies (they are room DAG events); the
+    // executor must teach the thread caches instead of filtering the
+    // replies out of the room scope and dropping them.
+    const mx = createMockClient('mindroom.chat', (call) => {
+      if (call === 0) {
+        return {
+          end: 'tok-1',
+          chunk: [
+            {
+              ...rawEvent('$gap-reply', 20),
+              content: {
+                body: '$gap-reply',
+                'm.relates_to': { event_id: '$gap-root', rel_type: 'm.thread' },
+              },
+            },
+            rawEvent('$gap-root', 10),
+          ],
+        };
+      }
+      return { chunk: [] };
+    });
+    mx.__rooms.set(
+      '!room:mindroom.chat',
+      makeRoomStub('!room:mindroom.chat', '@alice:mindroom.chat')
+    );
+    await markRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat', {
+      markedAt: Date.now(),
+      prevBatch: 'tok-0',
+    });
+
+    const scheduler = createBackfillScheduler({ mx });
+    const gapFillScheduler = createInMemoryGapFillScheduler();
+    gapFillScheduler.enqueueGapFill({
+      roomId: '!room:mindroom.chat',
+      reason: 'limited-sync',
+      markedAt: Date.now(),
+      prevBatch: 'tok-0',
+    });
+    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
+    await flushMicrotasks();
+    await waitForCompleted();
+
+    const threadPage = await loadLatestCachedThreadEvents(
+      SESSION_ID,
+      '!room:mindroom.chat',
+      '$gap-root',
+      10
+    );
+    expect(threadPage.events.map((event) => event.event_id)).toEqual(['$gap-reply']);
+    expect(threadPage.tailLoaded).toBe(true);
   });
 
   it('skips federated rooms at runOnce (marker preserved, no network fetch, still counted by the scheduler)', async () => {
