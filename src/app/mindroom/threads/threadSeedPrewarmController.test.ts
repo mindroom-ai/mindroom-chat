@@ -172,4 +172,30 @@ describe('threadSeedPrewarmController network content prefetch (2026-07-06 eager
     expect(fetchRelations).not.toHaveBeenCalled();
     expect(persistThreadEventCache).not.toHaveBeenCalled();
   });
+
+  it('skips the network for a count-proven (relation-unproven) snapshot — review finding #4', async () => {
+    const { mx, room, engine, fetchRelations, persistThreadEventCache } = setup();
+    // Sweep-warmed shape: snapshotComplete + tailLoaded proven, but no
+    // /relations pass ever ran (relationSnapshotComplete=false). The
+    // open paints this from cache under the eager-cache coverage
+    // policy, so prefetching it again would be a redundant full drain.
+    await saveThreadEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$cached-reply', 1_500)],
+      { event_id: THREAD_ID, origin_server_ts: 1_000, type: 'm.room.message' },
+      null,
+      true,
+      true,
+      1,
+      false
+    );
+
+    await renderPrewarm(mx, room, engine);
+    await waitFor(() => fetchRelations.mock.calls.length > 0);
+
+    expect(fetchRelations).not.toHaveBeenCalled();
+    expect(persistThreadEventCache).not.toHaveBeenCalled();
+  });
 });

@@ -98,6 +98,30 @@ threads first, then the rest); opening is instant from cache.
   prewarm). Trade-off documented in `threadCacheCoverage.ts`: deep old
   reactions/edits the sweep could not attribute heal via reconcile/
   prewarm progressively instead of blocking the open.
+- Independent review pass (subagent, adversarial) on the A+B+C series —
+  two findings fixed immediately:
+  - Finding #1 (HIGH): count-proof is one-sided (a stale-low
+    `expectedReplyCount` makes reply-count coverage vacuous), so the
+    widened fast path could clear the SDK backward token over a
+    limited-sync mid-soup hole and hide it with no recovery path (the
+    reconcile overlaps the fresh cached tail on page 1 and never digs
+    deeper). Fix: token-clearing (both `threadOpenCacheFirst` and the
+    hydrate-time `cacheProvesNoBackwardGap`) now requires
+    `relationSnapshotComplete` — count-proven opens still paint fast
+    and skip the backfill, but keep the server-side escape hatch;
+    gap-fill (which now also persists thread scopes, Step A) heals the
+    hole in the background.
+  - Finding #4 (MED): the prewarm skip-gate required
+    `relationSnapshotComplete`, making sweep-warmed threads pay a
+    redundant full proving drain and re-draining never-provable threads
+    (>5000-reply cap, count-mismatch) on every mount. Fix: the gate now
+    matches the open-time policy (snapshotComplete + tailLoaded skips).
+  - Deferred (tasked): sweep chunks overwrite `meta.expectedReplyCount`
+    with possibly stale live-root counts (weakens count-proof); a
+    priority-0 open coalescing onto a QUEUED band-3 prewarm job
+    inherits priority 3 (scheduler dedup keeps enqueue-time priority);
+    a reply landing mid-proving-drain downgrades `snapshotComplete`
+    true→false (self-heals via one extra drain on next open).
 - Combined cold-start behavior after A+B+C (the user-visible contract):
   clear cache → reload → the deep-history sweep caches all thread
   content it downloads anyway (A), the prewarm band fully proves the

@@ -213,15 +213,15 @@ export const useThreadSeedPrewarmController = ({
       );
       if (generation !== threadSeedPrewarmGenerationRef.current) return;
       if (activeThreadIdRef.current) return;
-      if (
-        cachedPage.snapshotComplete === true &&
-        cachedPage.relationSnapshotComplete === true &&
-        cachedPage.tailLoaded === true
-      ) {
-        // Relations-proven complete — nothing to download. Threads
-        // warmed only by the room sweep (count-complete but relation-
-        // unproven) intentionally fall through to ONE proving fetch,
-        // after which reloads skip this branch.
+      if (cachedPage.snapshotComplete === true && cachedPage.tailLoaded === true) {
+        // Complete under the open-time coverage policy (count-proven or
+        // relations-proven) — the open will paint from cache without a
+        // drain, so there is nothing to prefetch. Requiring
+        // relationSnapshotComplete here (2026-07-06 review finding #4)
+        // made every sweep-warmed thread pay a redundant full proving
+        // drain, and threads that can never prove relations (>5000
+        // replies hit the fetch cap; count-mismatch threads never flag
+        // complete) re-drained on EVERY room mount.
         prefetchedThreadContentIdsRef.current.add(expectedThreadId);
         return;
       }
