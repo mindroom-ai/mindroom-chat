@@ -1183,7 +1183,13 @@ export function RoomTimeline({
       virtualIndex * estimateRoomTimelineItemSize() - anchor.viewportOffset,
       0
     );
-    roomTimelineVirtualizer.scrollToOffset(offset, { behavior: 'auto' });
+    // Direct write, NOT roomTimelineVirtualizer.scrollToOffset: since
+    // virtual-core 3.17 every scrollTo* call arms a rAF reconcile loop that
+    // keeps re-asserting its own (estimate-derived, so wrong) target offset
+    // until the actual offset converges within ~1px — which reverts the
+    // DOM-rect delta correction below on its next frame. The library offers
+    // no way to cancel or retarget that loop, so this path must bypass it.
+    scrollRef.current?.scrollTo({ top: offset, behavior: 'instant' });
     roomVirtualPrependAnchorRef.current = undefined;
 
     requestAnimationFrame(() => {
@@ -1475,11 +1481,19 @@ export function RoomTimeline({
     if (typeof anchorIndex !== 'number' || anchorIndex <= capture.anchorIndex) return;
     threadVirtualPrependCaptureRef.current = undefined;
 
-    // scrollToIndex exists only to mount an unmounted anchor row so the
+    // The coarse move exists only to mount an unmounted anchor row so the
     // DOM-based restore has an element to align; when the row is already
-    // mounted, the coarse move just adds displacement for the restore to undo.
+    // mounted, it would just add displacement for the restore to undo.
+    // Direct write, NOT scrollToIndex: since virtual-core 3.17 scrollToIndex
+    // arms a rAF reconcile loop that keeps re-asserting align-start for up
+    // to 5s, fighting the fine correction below (which aligns the anchor to
+    // its captured viewport offset, not to the top). getOffsetForIndex gives
+    // the same coarse target without arming the loop.
     if (!getEventElementById(scrollRef.current, anchorEventId)) {
-      roomTimelineVirtualizer.scrollToIndex(anchorIndex, { align: 'start' });
+      const coarse = roomTimelineVirtualizer.getOffsetForIndex(anchorIndex, 'start');
+      if (coarse) {
+        scrollRef.current?.scrollTo({ top: coarse[0], behavior: 'instant' });
+      }
     }
 
     // The anchor row mounts on the virtualizer's next render, so the

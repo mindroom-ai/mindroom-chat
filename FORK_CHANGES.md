@@ -2,6 +2,41 @@
 
 ## Runbook
 
+### virtual-core 3.17.3 hardening: iOS state-leak patch + reconcile-loop bypasses (2026-07-05, post-upgrade)
+
+Two defects around the upgraded virtualizer, both found by the upgrade
+audit (and the first also flagged by greptile on PR #83):
+
+- **Upstream Bug A (patched locally):** virtual-core's `cleanup()` does not
+  reset `_iosDeferredAdjustment` / `_iosTouching` / `_iosJustTouchEnded`.
+  A scroll-element swap mid-touch or inside the 150 ms post-touchend grace
+  window strands the flags (the listener unsub clears the grace timer —
+  which held the only reset of the flag), silently deferring every
+  correction on the new element until the next touch cycle, then replaying
+  a stale delta. Fixed upstream in TanStack/virtual PR #1220 (with
+  regression tests); until that ships we carry the identical one-line
+  reset via **patch-package** (`patches/@tanstack+virtual-core+3.17.3.patch`,
+  new `postinstall` script). Drop the patch when bumping to a release
+  containing #1220.
+- **Upstream Bug B (worked around at call sites):** since virtual-core
+  3.17, every `scrollTo*` call arms a rAF reconcile loop (up to 5 s, ~1 px
+  convergence) that re-asserts its own target and there is NO cancel API.
+  Two fork paths pair a coarse virtualizer scroll with a follow-up
+  DOM-rect fine correction, which the loop reverts:
+  - room prepend-anchor restore (`scrollToOffset` + rAF `scrollBy`), and
+  - thread prepend coarse re-anchor (`scrollToIndex` + retrying restore).
+  Both now compute the coarse offset (`getOffsetForIndex` for the index
+  case) and write `scrollElement.scrollTo` directly — no scrollState, no
+  fight. The remaining `scrollToIndex` sites (scroll-to-bottom, focus
+  jump) are left on the virtualizer deliberately: there the reconcile
+  loop re-targets per frame as rows measure, which *improves* landing
+  accuracy and nothing follows it up with a manual write. Upstream ask
+  (issue to file): a `stopScroll()`/cancel API.
+- Tests: the two prepend-anchor tests updated to the direct-write
+  mechanism; shared virtualizer mock gained `getOffsetForIndex`.
+- Validation: typecheck ✅, build ✅, eslint touched files ✅, threads
+  suite 1122 ✅, `npx patch-package` applies cleanly ✅.
+
 ### react-virtual 3.2.0 → 3.14.5: native iOS momentum protection replaces the fork's (2026-07-05, task #128 conclusion)
 
 While planning to move the interim `scrollToFn` suppression (entry below)

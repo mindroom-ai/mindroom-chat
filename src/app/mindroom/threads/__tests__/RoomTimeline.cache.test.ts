@@ -619,7 +619,7 @@ describe('RoomTimeline', () => {
       };
       // Prepending 100 rows above the viewport unmounts the anchor row in
       // production (virtual indexes shift while scrollTop stays), which is the
-      // case the coarse scrollToIndex compensation exists for. The flag stays
+      // case the coarse re-anchor compensation exists for. The flag stays
       // TRUE through the begin-time capture AND the commit-time recapture
       // (task #125 follow-up: in production the prepend has not rendered when
       // either capture runs, so the anchor row is still mounted) and flips
@@ -635,6 +635,7 @@ describe('RoomTimeline', () => {
         scrollHeight: 4000,
         clientHeight: 600,
         scrollTop: 0,
+        scrollTo: vi.fn(),
       };
       // The thread-open bootstrap may also paginate; only the explicit
       // Load Older Messages pagination should prepend the older rows.
@@ -682,7 +683,7 @@ describe('RoomTimeline', () => {
         // The commit's re-render delivers the prepended render state in
         // production; the harness applies it explicitly. The prepend
         // unmounts the anchor row (virtual indexes shift while
-        // scrollTop stays) — the case the coarse scrollToIndex exists
+        // scrollTop stays) — the case the coarse re-anchor exists
         // for.
         await act(async () => {
           anchorMounted = false;
@@ -697,11 +698,20 @@ describe('RoomTimeline', () => {
         });
 
         await waitForCondition(
-          () => roomTimelineVirtualizerState.scrollToIndexMock.mock.calls.length > 0,
+          () => roomTimelineVirtualizerState.getOffsetForIndexMock.mock.calls.length > 0,
           100
         );
-        expect(roomTimelineVirtualizerState.scrollToIndexMock).toHaveBeenCalledWith(101, {
-          align: 'start',
+        // Coarse re-anchor: offset for the anchor's index resolved from the
+        // virtualizer, applied as a DIRECT scroll write (a virtualizer
+        // scrollToIndex would arm virtual-core 3.17's reconcile loop, which
+        // fights the fine DOM-rect correction that follows).
+        expect(roomTimelineVirtualizerState.getOffsetForIndexMock).toHaveBeenCalledWith(
+          101,
+          'start'
+        );
+        expect(scrollElement.scrollTo).toHaveBeenCalledWith({
+          top: expect.any(Number),
+          behavior: 'instant',
         });
       } finally {
         renderer?.unmount();
@@ -755,6 +765,7 @@ describe('RoomTimeline', () => {
         scrollHeight: 4000,
         clientHeight: 600,
         scrollTop: 0,
+        scrollTo: vi.fn(),
       };
       let prependOnPaginate = false;
       matrixClientMock.paginateEventTimeline.mockImplementation(async () => {
@@ -780,7 +791,8 @@ describe('RoomTimeline', () => {
           );
           await flushAsyncWork();
         });
-        roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
+        roomTimelineVirtualizerState.getOffsetForIndexMock.mockClear();
+        scrollElement.scrollTo.mockClear();
 
         const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
         await act(async () => {
@@ -789,7 +801,8 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
-        expect(roomTimelineVirtualizerState.scrollToIndexMock).not.toHaveBeenCalled();
+        expect(roomTimelineVirtualizerState.getOffsetForIndexMock).not.toHaveBeenCalled();
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
       } finally {
         renderer?.unmount();
       }
@@ -811,6 +824,7 @@ describe('RoomTimeline', () => {
         getBoundingClientRect: vi.fn(() => ({ top: 100, bottom: 700 })),
         querySelector: vi.fn(() => undefined),
         querySelectorAll: vi.fn(() => [visibleAnchor]),
+        scrollTo: vi.fn(),
       };
       let renderer: ReturnType<typeof create> | undefined;
 
@@ -862,8 +876,12 @@ describe('RoomTimeline', () => {
           await flushAsyncWork();
         });
 
-        expect(roomTimelineVirtualizerState.scrollToOffsetMock).toHaveBeenCalledWith(19180, {
-          behavior: 'auto',
+        // Direct scroll write, not virtualizer.scrollToOffset — see the
+        // prepend-anchor effect: virtual-core 3.17's reconcile loop would
+        // revert the rAF-delayed DOM-rect correction that follows.
+        expect(scrollElement.scrollTo).toHaveBeenCalledWith({
+          top: 19180,
+          behavior: 'instant',
         });
       } finally {
         renderer?.unmount();
