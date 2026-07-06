@@ -77,13 +77,35 @@ threads first, then the rest); opening is instant from cache.
   `threadSeedPrewarmController.test.ts` (cold target → one /relations
   fetch + honest persist through the facade; relations-proven cached
   target → zero network).
-- Next steps (queued as tasks):
-  - Step C: coverage policy — `isCompleteThreadCacheCoverage` currently
-    also requires `relationSnapshotComplete` (only provable by a
-    `/relations` drain), so sweep-warmed threads still trigger the
-    open-time full backfill; count-proven complete + tailLoaded should
-    count as complete for paint, with the choke-point reconcile as the
-    revalidator (D7).
+- Step C (landed after Step B): open-time coverage policy.
+  `isCompleteThreadCacheCoverage` no longer requires
+  `relationSnapshotComplete` (only provable by a full `/relations`
+  drain — requiring it forced every sweep-warmed thread to re-download
+  its whole history at open), and
+  `shouldBackfillThreadRelationsFromCoverage` fires only for genuinely
+  partial snapshots (`snapshotComplete !== true`). Count-proven
+  complete + tailLoaded + known backward start = complete for PAINT;
+  the unskippable choke-point reconcile remains the revalidator (D7) —
+  it fetches one tail page, detects missed edits/redactions/reactions,
+  repairs in place, and persists. The flag itself is still tracked: the
+  Step B prewarm band uses it to give sweep-warmed threads one
+  background proving fetch. Updated
+  `RoomTimeline.cache.test.ts` accordingly: the old "repairs complete
+  cached snapshots missing relation hydration" (open backfill upgrades
+  the flag) became "reconciles a complete-but-relation-unproven
+  snapshot at open without a full relations drain" (fast path + one
+  reconcile page + edit persisted by the repair; flag upgrade owned by
+  prewarm). Trade-off documented in `threadCacheCoverage.ts`: deep old
+  reactions/edits the sweep could not attribute heal via reconcile/
+  prewarm progressively instead of blocking the open.
+- Combined cold-start behavior after A+B+C (the user-visible contract):
+  clear cache → reload → the deep-history sweep caches all thread
+  content it downloads anyway (A), the prewarm band fully proves the
+  visible/largest threads (B), and opening ANY count-complete thread
+  paints instantly from cache with a single 200-event reconcile check
+  (C). Opening a thread the prefetch has not reached yet still runs the
+  full fallback drain (deliberate — content must be complete after an
+  open; pinned by `threadOpenCacheController.test.ts`).
 
 ### Light-mode WebGL splash/auth palette inversion (2026-07-05)
 
