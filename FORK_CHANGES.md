@@ -54,6 +54,25 @@ branch, undeployed, pending in-harness reproduction.
   green 1× against the HEAD production build (baseline; they exist to
   catch the class, and MUST be extended per gap list above before any
   round-9 redeploy).
+- UPDATE (same day): gap items 1+2 CLOSED — `synthesizeFlickUp` (CDP
+  `Input.synthesizeScrollGesture`, touch source, fling enabled:
+  compositor-thread momentum dispatching REAL touch events, so the
+  window touch tracker and the hook's touch leg now exercise) +
+  `startScreencast`/`analyzeBlankBands` (pixel-level blank-band metric
+  over the timeline region, canvas-analyzed in-page, no Node image dep)
+  + `startRideSampling`/`stopRideSampling` (concurrent per-frame
+  sampler with a rect-vs-scrollTop consistency jump metric that needs
+  no driver knowledge). Third spec test: compositor flicks with mixed
+  sub-/super-quiescence pauses over a partial window, 1.5s page
+  latency, 4x CPU. RESULT: STILL PASSES against the round-9 build
+  (prepend committed mid-ride 101→131; blankFrames 0, maxBlankPct 3,
+  DOM jumps/gaps 0). The regression remains reproducible ONLY on the
+  physical device. Remaining levers, in order: capture a trace FROM
+  the phone (the recorder + probe counters are injectable behind a
+  debug flag; or Safari remote debugging), raster starvation beyond
+  what setCPUThrottlingRate reaches (it throttles the main thread, not
+  the raster threads), real-content fixtures (late-hydrating images /
+  markdown) and thousand-event depth.
 
 ### Prepend commit lands in ONE paint; barren root-only cache-hit fixed (2026-07-06, device round 9)
 

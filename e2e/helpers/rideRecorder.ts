@@ -391,6 +391,289 @@ export const runFlickRide = (
   }, opts);
 
 /**
+ * Continuous in-page sampling for COMPOSITOR-driven rides (CDP touch
+ * fling): sampling cannot be interleaved with a JS driver loop because
+ * the gesture runs outside the page. Start before the first gesture,
+ * stop after the last; the jump metric is rect-vs-scrollTop consistency
+ * per frame (|Δanchor.top + ΔscrollTop|), which needs no knowledge of
+ * who is scrolling.
+ */
+export const startRideSampling = (page: Page): Promise<void> =>
+  page.evaluate(() => {
+    const w = window as Window & {
+      __rideSampling?: {
+        stop: boolean;
+        frames: {
+          t: number;
+          scrollTop: number;
+          scrollHeight: number;
+          gapPx: number;
+          jumpPx: number;
+          threadCount: number;
+          distFromBottom: number;
+        }[];
+        threadCountStart: number;
+      };
+    };
+    const row = document.querySelector('[data-message-item]');
+    let candidate: HTMLElement | null = row?.parentElement ?? null;
+    while (candidate) {
+      const { overflowY } = getComputedStyle(candidate);
+      if (
+        (overflowY === 'auto' || overflowY === 'scroll') &&
+        candidate.scrollHeight > candidate.clientHeight
+      ) {
+        break;
+      }
+      candidate = candidate.parentElement;
+    }
+    const scroller = candidate;
+    if (!scroller) return;
+    scroller.dataset.e2eScroller = '1';
+    const readThreadCount = () =>
+      Number(
+        (scroller.querySelector('[data-thread-count]') as HTMLElement | null)?.dataset
+          .threadCount ?? -1
+      );
+    const readGap = (): number => {
+      const rect = scroller.getBoundingClientRect();
+      const top = rect.top + rect.height * 0.1;
+      const bottom = rect.bottom - rect.height * 0.1;
+      const tiles = Array.from(scroller.querySelectorAll('[data-index]'))
+        .map((tile) => tile.getBoundingClientRect())
+        .filter((r) => r.bottom > top && r.top < bottom)
+        .sort((a, b) => a.top - b.top);
+      let cursor = top;
+      let maxGap = 0;
+      tiles.forEach((r) => {
+        if (r.top > cursor) maxGap = Math.max(maxGap, r.top - cursor);
+        cursor = Math.max(cursor, r.bottom);
+      });
+      if (cursor < bottom) maxGap = Math.max(maxGap, bottom - cursor);
+      return maxGap;
+    };
+    const pickAnchor = (): Element | null => {
+      const rows = Array.from(document.querySelectorAll('[data-message-item]'));
+      const mid = window.innerHeight / 2;
+      let best: Element | null = null;
+      let bestDistance = Infinity;
+      rows.forEach((r) => {
+        const rect = r.getBoundingClientRect();
+        const distance = Math.abs((rect.top + rect.bottom) / 2 - mid);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = r;
+        }
+      });
+      return best;
+    };
+    const state = {
+      stop: false,
+      frames: [] as {
+        t: number;
+        scrollTop: number;
+        scrollHeight: number;
+        gapPx: number;
+        jumpPx: number;
+        threadCount: number;
+        distFromBottom: number;
+      }[],
+      threadCountStart: readThreadCount(),
+    };
+    w.__rideSampling = state;
+    let anchor: Element | null = null;
+    let anchorTop = 0;
+    let lastScrollTop = scroller.scrollTop;
+    const loop = () => {
+      if (state.stop) return;
+      const scrollTop = scroller.scrollTop;
+      let jumpPx = 0;
+      if (anchor && anchor.isConnected) {
+        const rect = anchor.getBoundingClientRect();
+        if (rect.bottom > -1200 && rect.top < window.innerHeight + 1200) {
+          // Content-shift invariant: with stable content, the anchor's
+          // client top moves by exactly -ΔscrollTop each frame.
+          jumpPx = Math.abs(rect.top - anchorTop + (scrollTop - lastScrollTop));
+          anchorTop = rect.top;
+        } else {
+          anchor = pickAnchor();
+          anchorTop = anchor?.getBoundingClientRect().top ?? 0;
+        }
+      } else {
+        anchor = pickAnchor();
+        anchorTop = anchor?.getBoundingClientRect().top ?? 0;
+      }
+      lastScrollTop = scrollTop;
+      state.frames.push({
+        t: performance.now(),
+        scrollTop,
+        scrollHeight: scroller.scrollHeight,
+        gapPx: Math.round(readGap()),
+        jumpPx: Math.round(jumpPx),
+        threadCount: readThreadCount(),
+        distFromBottom: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+      });
+      window.requestAnimationFrame(loop);
+    };
+    window.requestAnimationFrame(loop);
+  });
+
+export const stopRideSampling = (
+  page: Page
+): Promise<{ frames: RideFrame[]; threadCountStart: number; threadCountEnd: number }> =>
+  page.evaluate(() => {
+    const w = window as Window & {
+      __rideSampling?: {
+        stop: boolean;
+        frames: (RideFrameShape & { jumpPx: number })[];
+        threadCountStart: number;
+      };
+    };
+    type RideFrameShape = {
+      t: number;
+      scrollTop: number;
+      scrollHeight: number;
+      gapPx: number;
+      threadCount: number;
+      distFromBottom: number;
+    };
+    const state = w.__rideSampling;
+    if (!state) return { frames: [], threadCountStart: -1, threadCountEnd: -1 };
+    state.stop = true;
+    const frames = state.frames.map((frame) => ({ ...frame, driven: 0 }));
+    return {
+      frames,
+      threadCountStart: state.threadCountStart,
+      threadCountEnd: frames[frames.length - 1]?.threadCount ?? -1,
+    };
+  });
+
+/**
+ * Real inertial flick via CDP: touch drag synthesized on the compositor
+ * thread with fling enabled — the scroll continues under momentum after
+ * the synthetic finger lifts, like a device, while a throttled main
+ * thread races to mount and raster rows.
+ */
+export const synthesizeFlickUp = async (
+  page: Page,
+  opts: { x: number; y: number; distance: number; speed: number }
+): Promise<void> => {
+  const session = await page.context().newCDPSession(page);
+  try {
+    await session.send('Input.synthesizeScrollGesture', {
+      x: opts.x,
+      y: opts.y,
+      // Positive yDistance scrolls toward older content (finger drags
+      // downward-content upward): CDP treats positive as "scroll up".
+      yDistance: opts.distance,
+      speed: opts.speed,
+      gestureSourceType: 'touch',
+      preventFling: false,
+    });
+  } finally {
+    await session.detach().catch(() => undefined);
+  }
+};
+
+export type ScreencastCapture = {
+  stop: () => Promise<{ t: number; data: string }[]>;
+};
+
+/**
+ * Captures downscaled screencast frames for pixel-level analysis: iOS
+ * blank screens during momentum are UNRASTERED pixels — the DOM has the
+ * tiles, the glass does not — so DOM coverage sampling cannot see them.
+ */
+export const startScreencast = async (page: Page): Promise<ScreencastCapture> => {
+  const session = await page.context().newCDPSession(page);
+  const frames: { t: number; data: string }[] = [];
+  session.on('Page.screencastFrame', (frame) => {
+    frames.push({ t: Date.now(), data: frame.data });
+    session
+      .send('Page.screencastFrameAck', { sessionId: frame.sessionId })
+      .catch(() => undefined);
+  });
+  await session.send('Page.startScreencast', {
+    format: 'jpeg',
+    quality: 45,
+    maxWidth: 240,
+    maxHeight: 520,
+    everyNthFrame: 1,
+  });
+  return {
+    stop: async () => {
+      await session.send('Page.stopScreencast').catch(() => undefined);
+      await session.detach().catch(() => undefined);
+      return frames;
+    },
+  };
+};
+
+/**
+ * Pixel blank-band analysis, done inside the page via canvas (no Node
+ * image dependency): for each frame, scanlines in the timeline region
+ * (vertical 18%..72%, horizontal middle 70%) are classified uniform when
+ * their channel spread is tiny; the metric is the tallest consecutive
+ * uniform band as a fraction of the analyzed region. Text rows break
+ * uniformity; normal message spacing is far below the band threshold.
+ */
+export const analyzeBlankBands = (
+  page: Page,
+  frames: { t: number; data: string }[]
+): Promise<{ t: number; blankPct: number }[]> =>
+  page.evaluate(async (encodedFrames) => {
+    const results: { t: number; blankPct: number }[] = [];
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) return results;
+    for (const frame of encodedFrames) {
+      // eslint-disable-next-line no-await-in-loop
+      const image = await new Promise<HTMLImageElement | null>((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = `data:image/jpeg;base64,${frame.data}`;
+      });
+      if (!image) continue;
+      canvas.width = image.width;
+      canvas.height = image.height;
+      context.drawImage(image, 0, 0);
+      const regionTop = Math.floor(image.height * 0.18);
+      const regionBottom = Math.floor(image.height * 0.72);
+      const regionLeft = Math.floor(image.width * 0.15);
+      const regionWidth = Math.floor(image.width * 0.7);
+      const pixels = context.getImageData(
+        regionLeft,
+        regionTop,
+        regionWidth,
+        regionBottom - regionTop
+      ).data;
+      let maxRun = 0;
+      let run = 0;
+      const rows = regionBottom - regionTop;
+      for (let rowIndex = 0; rowIndex < rows; rowIndex += 1) {
+        let min = 255;
+        let max = 0;
+        for (let colIndex = 0; colIndex < regionWidth; colIndex += 2) {
+          const offset = (rowIndex * regionWidth + colIndex) * 4;
+          // Luma approximation; JPEG noise tolerated by the spread bound.
+          const luma = (pixels[offset] + pixels[offset + 1] + pixels[offset + 2]) / 3;
+          if (luma < min) min = luma;
+          if (luma > max) max = luma;
+        }
+        if (max - min < 14) {
+          run += 1;
+          if (run > maxRun) maxRun = run;
+        } else {
+          run = 0;
+        }
+      }
+      results.push({ t: frame.t, blankPct: Math.round((maxRun / rows) * 100) });
+    }
+    return results;
+  }, frames);
+
+/**
  * Records the open/hydration settle without any user input: from the
  * first rendered message row, samples distance-from-bottom and thread
  * count for `durationMs`. An open pinned to the latest message must STAY
