@@ -94,10 +94,14 @@ export const shouldAutoPaginateThreadBack = ({
   firstRenderedIndex <= triggerRows;
 
 type MeasurementScrollCorrectionOpts = {
-  // item.start < scrollOffset: only above-viewport resizes shift visible
-  // content and need a compensating scrollTop write (virtual-core's own
-  // default condition).
-  itemAboveViewport: boolean;
+  // item.end <= scrollOffset: only a row ENTIRELY above the viewport needs
+  // a compensating scrollTop write (its growth would silently shift what
+  // the user is reading). virtual-core's default uses item.start instead,
+  // which also compensates rows STRADDLING the viewport top — but those are
+  // visible: a user expanding/collapsing an on-screen tool-call block must
+  // see the content unfold in place, not have the view scrolled by the
+  // block's size delta (device report 2026-07-06).
+  itemFullyAboveViewport: boolean;
   isIOSWebKitDevice: boolean;
   // Live scroll or active touch. virtual-core's isScrolling (150 ms
   // debounce) plus the window touch tracker.
@@ -115,11 +119,11 @@ type MeasurementScrollCorrectionOpts = {
 // above-viewport corrections apply immediately, exactly like the pre-3.17
 // default.
 export const shouldApplyMeasurementScrollCorrection = ({
-  itemAboveViewport,
+  itemFullyAboveViewport,
   isIOSWebKitDevice: isIOS,
   scrollLive,
 }: MeasurementScrollCorrectionOpts): boolean =>
-  itemAboveViewport && !(isIOS && scrollLive);
+  itemFullyAboveViewport && !(isIOS && scrollLive);
 
 type MeasurementScrollCorrectionHookDeps = {
   // Read lazily per correction: iOS detection is cached module state and
@@ -136,12 +140,12 @@ type MeasurementScrollCorrectionHookDeps = {
 export const buildMeasurementScrollCorrectionHook =
   ({ isIOSWebKitDevice, hasActiveTouches }: MeasurementScrollCorrectionHookDeps) =>
   (
-    item: { start: number },
+    item: { end: number },
     _delta: number,
     instance: { scrollOffset: number | null; isScrolling: boolean }
   ): boolean =>
     shouldApplyMeasurementScrollCorrection({
-      itemAboveViewport: item.start < (instance.scrollOffset ?? 0),
+      itemFullyAboveViewport: item.end <= (instance.scrollOffset ?? 0),
       isIOSWebKitDevice: isIOSWebKitDevice(),
       scrollLive: instance.isScrolling || hasActiveTouches(),
     });

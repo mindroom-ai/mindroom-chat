@@ -264,7 +264,7 @@ describe('shouldAutoPaginateThreadBack', () => {
 
 describe('shouldApplyMeasurementScrollCorrection', () => {
   const base = {
-    itemAboveViewport: true,
+    itemFullyAboveViewport: true,
     isIOSWebKitDevice: true,
     scrollLive: true,
   };
@@ -273,7 +273,7 @@ describe('shouldApplyMeasurementScrollCorrection', () => {
     expect(shouldApplyMeasurementScrollCorrection(base)).toBe(false);
   });
 
-  it('applies above-viewport corrections once the iOS scroller is quiet', () => {
+  it('applies fully-above corrections once the iOS scroller is quiet', () => {
     expect(shouldApplyMeasurementScrollCorrection({ ...base, scrollLive: false })).toBe(true);
   });
 
@@ -283,11 +283,11 @@ describe('shouldApplyMeasurementScrollCorrection', () => {
     );
   });
 
-  it('never adjusts for at/below-viewport items (virtual-core default)', () => {
+  it('never adjusts for visible (straddling) or below-viewport items', () => {
     expect(
       shouldApplyMeasurementScrollCorrection({
         ...base,
-        itemAboveViewport: false,
+        itemFullyAboveViewport: false,
         scrollLive: false,
       })
     ).toBe(false);

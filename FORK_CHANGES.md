@@ -2,6 +2,27 @@
 
 ## Runbook
 
+### Straddling-row expand/fold must not scroll the view (2026-07-06, device round 4)
+
+Report: expanding a tool-call dropdown scrolls the view down; folding it
+scrolls back up. Should not scroll at all.
+
+- Cause: virtual-core's above-viewport test is `item.start < scrollOffset`,
+  which also matches rows STRADDLING the viewport top — precisely a tall
+  tool block whose expand control is on screen. Its resize then gets a
+  compensating scrollTop write of the full delta; on iOS the write lands
+  ~150 ms after the tap (inside virtual-core's post-touchend grace window
+  it is banked, then replayed by the grace timer), reading as the view
+  scrolling by itself.
+- Fix: our hook now classifies "needs compensation" as **fully above**
+  (`item.end <= scrollOffset`, using the pre-resize measurement). Visible
+  rows unfold/fold in place on every platform; fully-above resizes keep
+  the invisible anchoring. New contract test pins expand+fold of a
+  straddling row (no write, nothing banked); predicate tests renamed to
+  the fully-above semantics.
+- Validation: typecheck ✅, build ✅, eslint ✅, threads suite 116 files /
+  1132 tests ✅.
+
 ### iOS scroll contract tests — device-free coverage for the momentum bug class (2026-07-06)
 
 User mandate: stop using the iPhone as the test rig. The physics (momentum

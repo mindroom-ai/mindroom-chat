@@ -55,17 +55,18 @@ const bankedAdjustment = (virtualizer: Virtualizer<Element, Element>): number =>
 
 function makeVirtualizer(scrollToFn: ReturnType<typeof vi.fn>) {
   let scrollCallback: ScrollCallback | null = null;
-  const scrollElement = {
+  const makeScrollElement = () => ({
     scrollTop: START_OFFSET,
     scrollLeft: 0,
     scrollHeight: COUNT * ROW_ESTIMATE,
     clientHeight: 600,
     offsetHeight: 600,
-  };
+  });
+  const holder = { element: makeScrollElement() };
   const virtualizer = new Virtualizer<Element, Element>({
     count: COUNT,
     estimateSize: () => ROW_ESTIMATE,
-    getScrollElement: () => scrollElement as unknown as Element,
+    getScrollElement: () => holder.element as unknown as Element,
     scrollToFn,
     observeElementRect: () => {},
     observeElementOffset: (_instance, cb) => {
@@ -81,8 +82,19 @@ function makeVirtualizer(scrollToFn: ReturnType<typeof vi.fn>) {
   // measurement-correction writes after this point.
   scrollToFn.mockClear();
   const scroll: ScrollCallback = (offset, isScrolling) => scrollCallback!(offset, isScrolling);
-  return { virtualizer, scroll };
+  // A new element identity makes the next _willUpdate run cleanup() and
+  // re-attach — what a thread switch's scroller remount does in the app.
+  const swapToFreshElement = () => {
+    holder.element = makeScrollElement();
+    virtualizer._willUpdate();
+  };
+  return { virtualizer, scroll, swapToFreshElement };
 }
+
+const adjustmentWrites = (scrollToFn: ReturnType<typeof vi.fn>) =>
+  scrollToFn.mock.calls.filter(
+    ([, options]) => (options as { adjustments?: number } | undefined)?.adjustments !== undefined
+  );
 
 // An upward multi-flick gesture through never-measured territory: scroll
 // events stream (isScrolling stays true across the flick boundaries, as on
@@ -167,6 +179,59 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
         { adjustments?: number; behavior?: ScrollBehavior },
       ];
       expect(options.adjustments).toBe(ROW_ACTUAL - ROW_ESTIMATE);
+    });
+  });
+
+  it('never compensates a visible (straddling) row resize — expanding a tool block must not scroll the view', () => {
+    withFakeIOSUserAgent(() => {
+      const scrollToFn = vi.fn();
+      const { virtualizer, scroll } = makeVirtualizer(scrollToFn);
+      virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook(
+        {
+          isIOSWebKitDevice: () => true,
+          hasActiveTouches: () => false,
+        }
+      );
+
+      // Quiet viewport whose top edge sits INSIDE row 100 (start 5000):
+      // the row straddles the viewport top, exactly like a tall tool-call
+      // block whose expand/fold control is on screen.
+      scroll(START_OFFSET + 25, false);
+
+      // Expand: the block grows by 400px. The content must unfold in place —
+      // no compensating write now, and nothing banked to land 150ms later.
+      virtualizer.resizeItem(100, ROW_ESTIMATE + 400);
+      expect(scrollToFn).not.toHaveBeenCalled();
+      expect(bankedAdjustment(virtualizer)).toBe(0);
+
+      // Fold back: same contract in the other direction.
+      virtualizer.resizeItem(100, ROW_ESTIMATE);
+      expect(scrollToFn).not.toHaveBeenCalled();
+      expect(bankedAdjustment(virtualizer)).toBe(0);
+    });
+  });
+
+  it('patch guard: cleanup() resets banked iOS deferral state on scroll-element swap', () => {
+    // Pins the patch-package fix for TanStack/virtual#1220
+    // (patches/@tanstack+virtual-core+3.17.3.patch). If a dependency bump
+    // drops the patch without the upstream fix present, the stale bank
+    // survives the swap and this fails.
+    withFakeIOSUserAgent(() => {
+      const scrollToFn = vi.fn();
+      const { virtualizer, scroll, swapToFreshElement } = makeVirtualizer(scrollToFn);
+
+      runUpwardFlickSequence(virtualizer, scroll);
+      expect(bankedAdjustment(virtualizer)).toBe(BANKED_ERROR);
+
+      // Thread switch mid-flick: the scroller remounts while a deferral is
+      // banked. The bank was computed against the OLD element's content and
+      // must not survive into the new one.
+      swapToFreshElement();
+      expect(bankedAdjustment(virtualizer)).toBe(0);
+
+      // The new element's first quiescence must not replay a stale delta.
+      scroll(START_OFFSET, false);
+      expect(adjustmentWrites(scrollToFn)).toHaveLength(0);
     });
   });
 
