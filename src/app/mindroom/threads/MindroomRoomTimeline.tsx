@@ -1159,12 +1159,14 @@ export function RoomTimeline({
   }, [getScrollElement]);
   const handleDroppedCorrection = useCallback(
     (deltaPx: number) => {
+      // Accumulate ONLY — the style write happens in the layout effect
+      // below. The layout shift this delta cancels materializes when React
+      // commits the virtualizer's new row positions; writing the transform
+      // here (inside the ResizeObserver callback) would paint it one frame
+      // early, visible as a brief opposite-direction flash. The dropped
+      // correction always triggers a rerender (virtual-core notify), so
+      // the layout effect is guaranteed to run before that paint.
       scrollCompensationPxRef.current += deltaPx;
-      const inner = virtualInnerRef.current;
-      if (inner) {
-        const px = scrollCompensationPxRef.current;
-        inner.style.transform = px === 0 ? '' : `translateY(${-px}px)`;
-      }
       if (!compensationSettleArmedRef.current) {
         compensationSettleArmedRef.current = true;
         waitForScrollQuiescence(getScrollElement()).then(settleScrollCompensation);
@@ -1172,6 +1174,17 @@ export function RoomTimeline({
     },
     [getScrollElement, settleScrollCompensation]
   );
+  // Sync the compensation transform in the SAME paint as the committed
+  // layout shift (runs on every commit; a string compare when idle).
+  useLayoutEffect(() => {
+    const inner = virtualInnerRef.current;
+    if (!inner) return;
+    const px = scrollCompensationPxRef.current;
+    const transform = px === 0 ? '' : `translateY(${-px}px)`;
+    if (inner.style.transform !== transform) {
+      inner.style.transform = transform;
+    }
+  });
   // Thread/room switch drops the pending compensation at RENDER time: the
   // new view's first tiles measure during the commit, before any effect
   // could reset stale state (same pattern as the other render-time resets).
