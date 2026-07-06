@@ -93,6 +93,34 @@ export const shouldAutoPaginateThreadBack = ({
   firstRenderedIndex !== undefined &&
   firstRenderedIndex <= triggerRows;
 
+type MeasurementScrollCorrectionOpts = {
+  // item.start < scrollOffset: only above-viewport resizes shift visible
+  // content and need a compensating scrollTop write (virtual-core's own
+  // default condition).
+  itemAboveViewport: boolean;
+  isIOSWebKitDevice: boolean;
+  // Live scroll or active touch. virtual-core's isScrolling (150 ms
+  // debounce) plus the window touch tracker.
+  scrollLive: boolean;
+};
+
+// Decides virtual-core's shouldAdjustScrollPositionOnItemSizeChange for the
+// timeline virtualizer. On iOS WebKit, while the scroll is live, corrections
+// are DROPPED (return false) rather than left to virtual-core's built-in
+// defer-and-replay: repeated flicks keep the flush blocked, so the replay
+// accumulates every estimate error of the gesture sequence and lands as one
+// half-page lurch when momentum finally dies. Dropping keeps the scroll
+// continuous; the cost is bounded content drift equal to the estimate error,
+// which the rider never perceives. Once quiet (and everywhere off iOS),
+// above-viewport corrections apply immediately, exactly like the pre-3.17
+// default.
+export const shouldApplyMeasurementScrollCorrection = ({
+  itemAboveViewport,
+  isIOSWebKitDevice: isIOS,
+  scrollLive,
+}: MeasurementScrollCorrectionOpts): boolean =>
+  itemAboveViewport && !(isIOS && scrollLive);
+
 export const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
   const mEventId = mEvt.getId();
   const relationTargetId = mEvt.getRelation()?.event_id;

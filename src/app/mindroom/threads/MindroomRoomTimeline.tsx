@@ -138,8 +138,10 @@ import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
   primeTimelineRenderContextBefore,
+  shouldApplyMeasurementScrollCorrection,
   shouldAutoPaginateThreadBack,
 } from './threadRenderUtils';
+import { hasActiveWindowTouches, isIOSWebKitDevice } from './scrollQuiescence';
 import {
   useTimelineDebugRangeController,
   useTimelineDebugTraceIds,
@@ -1122,13 +1124,15 @@ export function RoomTimeline({
       return mean;
     });
   }, [defaultRowEstimate, threadLatestOpenPendingRef]);
-  // No fork-side momentum protection here anymore (task #128): rows measure
-  // immediately, and virtual-core ≥3.17 natively defers the resulting
-  // scrollTop anchoring writes on iOS WebKit while a scroll/touch is live
-  // (isIOSWebKit() + _iosDeferredAdjustment in applyScrollAdjustment),
-  // replaying them at quiescence. That is the same mechanism two earlier
-  // fork layers approximated — PR #76's measurement deferral (caused white
-  // gaps) and the interim custom scrollToFn suppression — both now deleted.
+  // Rows measure immediately (task #128); the momentum question is only
+  // what happens to the compensating scrollTop write for an above-viewport
+  // resize. virtual-core ≥3.17 would natively DEFER those on iOS and replay
+  // them at quiescence — but repeated flicks block the flush, so the replay
+  // accumulates the whole gesture's estimate error and lands as a half-page
+  // lurch when momentum dies (device-tested). The hook below therefore
+  // DROPS above-viewport corrections while an iOS scroll/touch is live
+  // (bounded invisible drift instead), and applies them immediately when
+  // quiet and on every other platform, like the pre-3.17 default.
   const roomTimelineVirtualizer = useVirtualizer({
     count: threadId ? threadEvents.length : timelineItems.length,
     getScrollElement,
@@ -1142,6 +1146,15 @@ export function RoomTimeline({
       return threadFilteredEventEntries[item]?.event.getId() ?? item ?? index;
     },
   });
+  // Instance property, not an option (mirrors how virtual-core consults it:
+  // `this.shouldAdjust...`, set on the instance). Reassigned every render;
+  // only the latest closure is ever consulted.
+  roomTimelineVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) =>
+    shouldApplyMeasurementScrollCorrection({
+      itemAboveViewport: item.start < (instance.scrollOffset ?? 0),
+      isIOSWebKitDevice: isIOSWebKitDevice(),
+      scrollLive: instance.isScrolling || hasActiveWindowTouches(),
+    });
   // Thread tiles measure immediately on mount, same as the room timeline
   // below (task #128). react-virtual's contract is estimate → render →
   // measure → correct within the same frame; deferring the measurement

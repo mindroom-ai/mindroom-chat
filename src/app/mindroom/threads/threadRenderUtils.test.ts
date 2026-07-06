@@ -9,6 +9,7 @@ import {
   mergeThreadRenderEvents,
   pickPreferredThreadRenderEvent,
   primeTimelineRenderContextBefore,
+  shouldApplyMeasurementScrollCorrection,
   shouldAutoPaginateThreadBack,
   shouldPinThreadToBottomOnOpen,
 } from './threadRenderUtils';
@@ -258,6 +259,38 @@ describe('shouldAutoPaginateThreadBack', () => {
     // open-time backfill chain, which on slow networks is exactly when
     // a scrolling user needs the trigger live.
     expect(shouldAutoPaginateThreadBack({ ...base, hasUserScrollIntent: false })).toBe(false);
+  });
+});
+
+describe('shouldApplyMeasurementScrollCorrection', () => {
+  const base = {
+    itemAboveViewport: true,
+    isIOSWebKitDevice: true,
+    scrollLive: true,
+  };
+
+  it('drops above-viewport corrections while an iOS scroll is live (no banked replay lurch)', () => {
+    expect(shouldApplyMeasurementScrollCorrection(base)).toBe(false);
+  });
+
+  it('applies above-viewport corrections once the iOS scroller is quiet', () => {
+    expect(shouldApplyMeasurementScrollCorrection({ ...base, scrollLive: false })).toBe(true);
+  });
+
+  it('keeps live-scroll anchoring off iOS (desktop wheel has no momentum to protect)', () => {
+    expect(shouldApplyMeasurementScrollCorrection({ ...base, isIOSWebKitDevice: false })).toBe(
+      true
+    );
+  });
+
+  it('never adjusts for at/below-viewport items (virtual-core default)', () => {
+    expect(
+      shouldApplyMeasurementScrollCorrection({
+        ...base,
+        itemAboveViewport: false,
+        scrollLive: false,
+      })
+    ).toBe(false);
   });
 });
 

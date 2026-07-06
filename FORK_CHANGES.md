@@ -2,6 +2,40 @@
 
 ## Runbook
 
+### Drop, don't replay: end-of-momentum lurch fix (2026-07-06, task #128 device round 3)
+
+Device report on the 3.14.5 build, clarified by the user: while scrolling
+up, content jumps a little OPPOSITE to the scroll direction (repeatedly),
+and when momentum finally ends the view lurches ~half a page to a page in
+the scroll direction.
+
+- Sign analysis (matches exactly): fresh above-viewport rows measure
+  BIGGER than their estimate → each relayout pushes the visible content
+  down (the small opposite-direction jumps). virtual-core defers the
+  compensating scrollTop writes on iOS, but repeated flicks keep its
+  flush guards blocked (touch down again within the grace window), so the
+  deferred deltas accumulate across the whole gesture sequence — and the
+  first real quiescence replays the entire sum as ONE write (the lurch).
+- Fix: assign the official instance hook
+  `shouldAdjustScrollPositionOnItemSizeChange` on the timeline
+  virtualizer (note: instance property, not a constructor option;
+  `getScrollOffset()` is compile-time private — use the public
+  `scrollOffset` field). Gate is the pure
+  `shouldApplyMeasurementScrollCorrection` in `threadRenderUtils.ts`
+  (+4 tests): on iOS WebKit while the scroll is live (public
+  `isScrolling` OR the window touch tracker), above-viewport corrections
+  return false — DROPPED, never banked, nothing to replay. When quiet,
+  and on non-iOS platforms, above-viewport corrections apply immediately
+  (pre-3.17 default behavior). `scrollQuiescence.ts` regains
+  `hasActiveWindowTouches` and gains `isIOSWebKitDevice()` (mirrors the
+  library's unexported detector).
+- What this does NOT fix: the small opposite-direction jumps during the
+  scroll are the estimate error itself (relayout, not writes). Next lever
+  if still bothersome: per-row estimates (folded-collapsible height,
+  persisted measured heights).
+- Validation: typecheck ✅, build ✅, eslint touched files ✅, threads
+  suite 115 files / 1126 tests ✅.
+
 ### virtual-core 3.17.3 hardening: iOS state-leak patch + reconcile-loop bypasses (2026-07-05, post-upgrade)
 
 Two defects around the upgraded virtualizer, both found by the upgrade
