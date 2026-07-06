@@ -1119,7 +1119,24 @@ export function RoomTimeline({
     // scroll compensation. That is invisible while pinned at the bottom (the
     // settle loop re-pins) but teleports a mid-thread reader, so defer
     // adoption until the view is bottom-anchored again.
-    if (!atBottomRef.current && !threadLatestOpenPendingRef.current) return;
+    //
+    // LIVE bottom reading, deliberately not the atBottom state: that
+    // state's false-transition is debounced by 1s (read-receipt
+    // controller), and a user who has just scrolled up still reads as
+    // atBottom. Adopting then re-estimates the whole unmeasured region
+    // under them — scrollHeight can shrink below their scrollTop and the
+    // browser clamps the position straight back to the bottom (device
+    // round 5; reproduced by the ios-momentum-invariants snap-back e2e).
+    if (!threadLatestOpenPendingRef.current) {
+      const scrollElement = getScrollElement();
+      if (!scrollElement) return;
+      const liveAtBottom = isScrollNearBottom({
+        scrollHeight: scrollElement.scrollHeight,
+        scrollTop: scrollElement.scrollTop,
+        clientHeight: scrollElement.clientHeight,
+      });
+      if (!liveAtBottom) return;
+    }
     const mean = Math.round(stats.total / stats.count);
     setLearnedThreadRowSize((current) => {
       const reference = current ?? defaultRowEstimate;
@@ -1128,7 +1145,7 @@ export function RoomTimeline({
       if (Math.abs(mean - reference) / reference < 0.25) return current;
       return mean;
     });
-  }, [defaultRowEstimate, threadLatestOpenPendingRef]);
+  }, [defaultRowEstimate, getScrollElement, threadLatestOpenPendingRef]);
   // Rows measure immediately (task #128); the momentum question is only
   // what happens to the compensating scrollTop write for an above-viewport
   // resize. virtual-core ≥3.17 would natively DEFER those on iOS and replay

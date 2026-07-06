@@ -2,6 +2,41 @@
 
 ## Runbook
 
+### Snap-back-to-bottom on scroll-up: adoption teleport, found+fixed via new e2e (2026-07-06, device round 5)
+
+Report: a thread opens correctly pinned to the bottom, but scrolling up a
+bit on iOS snaps the view back down.
+
+- New e2e (`e2e/live/ios-momentum-invariants.spec.ts`, iPhone-emulated
+  chromium against the dockerized e2e Tuwunel) REPRODUCED this on its
+  first run and produced the diagnosis: no one wrote scrollTop back down —
+  at one step `scrollHeight` collapsed 16048 → 15301 under a fixed
+  scrollTop, and the browser clamped the position to the new max, which IS
+  the bottom.
+- Root cause chain: `setAtBottom(false)` is debounced 1s (read-receipt
+  controller), so just after leaving the bottom the app still reads
+  atBottom=true; the learned-row-size ADOPTION (gated on `atBottomRef`
+  precisely because it shifts unmeasured offsets without compensation)
+  therefore fired mid-scroll-up, re-estimated the entire unmeasured region
+  smaller, and scrollHeight dropped below the user's position → clamp →
+  "snapped all the way down".
+- Fix: the adoption gate now takes a LIVE bottom reading from the scroll
+  element (`isScrollNearBottom`, 24px default) instead of the debounced
+  state. The open-time pending branch is unchanged.
+- The new spec (two tests) is the "do whatever u can to test this" layer:
+  1. momentum invariants under an upward multi-flick stream — zero
+     app-originated scroller writes, tile coverage of the viewport core
+     every frame (white-gap guard), visible-anchor stability across
+     quiescence (lurch guard); passes against the real rendered app;
+  2. the snap-back repro — leave the bottom by 640px, stream in new
+     replies, view must stay put; failed before the fix, passes after.
+  Run: `E2E_HOMESERVER=http://127.0.0.1:28008` + an account from
+  `scripts/ensure-e2e-account.sh`, then
+  `npx playwright test e2e/live/ios-momentum-invariants.spec.ts`
+  (docker e2e Tuwunel from `e2e/docker-compose.matrix.yaml`).
+- Validation: typecheck ✅, build ✅, eslint ✅, threads suite 116 files /
+  1132 tests ✅, both e2e tests ✅ (2 passed, 40s).
+
 ### Straddling-row expand/fold must not scroll the view (2026-07-06, device round 4)
 
 Report: expanding a tool-call dropdown scrolls the view down; folding it
