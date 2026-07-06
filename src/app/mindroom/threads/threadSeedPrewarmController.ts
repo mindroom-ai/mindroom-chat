@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { logTimelineDebug } from './timelineDebug';
-import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from './eventRepository';
+import {
+  createPreferLiveEventMapper,
+  loadLatestCachedThreadEvents,
+  loadThreadCachedSnapshot,
+} from './eventRepository';
 import { mergeThreadBackfillEvents } from './threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
+import { fetchAndPersistThreadContent } from './threadContentPrefetch';
 import { useMindroomSyncEngine } from '../engine';
 
 type ThreadSeedPrewarmTarget = {
@@ -61,6 +66,7 @@ export const useThreadSeedPrewarmController = ({
   const threadSeedPrewarmQueueRef = useRef<string[]>([]);
   const threadSeedPrewarmRunningRef = useRef(false);
   const threadSeedPrewarmGenerationRef = useRef(0);
+  const prefetchedThreadContentIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     threadSeedPrewarmGenerationRef.current += 1;
@@ -70,6 +76,7 @@ export const useThreadSeedPrewarmController = ({
     queuedThreadSeedIdsRef.current.clear();
     threadSeedPrewarmQueueRef.current = [];
     threadSeedPrewarmRunningRef.current = false;
+    prefetchedThreadContentIdsRef.current.clear();
   }, [room.roomId]);
 
   const loadThreadOpenSeedSnapshotFromCache = useCallback(
@@ -182,6 +189,93 @@ export const useThreadSeedPrewarmController = ({
     [debugTraceId, loadThreadOpenSeedSnapshotFromCache, room, syncEngine]
   );
 
+  // 2026-07-06 eager-cache fix: the IDB seed pass above cannot help a
+  // cold cache — after a cache clear there is nothing to read. Threads
+  // must be downloaded BEFORE they are opened (product direction:
+  // background prefetch owns the network cost; opening is instant from
+  // cache). After each priority target's seed pass, check the cached
+  // snapshot's proof flags and, when not relations-proven complete,
+  // drain the thread's /relations through the shared
+  // `fetchAndPersistThreadContent` pipeline. The network side is a
+  // band-3 'thread-backfill' scheduler job, so a user OPENING the
+  // thread mid-prefetch coalesces onto the same in-flight fetch (AC8
+  // dedup) instead of downloading twice. Runs from this component-side
+  // drain loop — NOT nested inside a scheduler executor, which could
+  // deadlock the 2-slot concurrency cap.
+  const prefetchThreadContentIfIncomplete = useCallback(
+    async (expectedThreadId: string, generation: number): Promise<void> => {
+      if (prefetchedThreadContentIdsRef.current.has(expectedThreadId)) return;
+      const cachedPage = await loadLatestCachedThreadEvents(
+        sessionId,
+        room.roomId,
+        expectedThreadId,
+        1
+      );
+      if (generation !== threadSeedPrewarmGenerationRef.current) return;
+      if (activeThreadIdRef.current) return;
+      if (
+        cachedPage.snapshotComplete === true &&
+        cachedPage.relationSnapshotComplete === true &&
+        cachedPage.tailLoaded === true
+      ) {
+        // Relations-proven complete — nothing to download. Threads
+        // warmed only by the room sweep (count-complete but relation-
+        // unproven) intentionally fall through to ONE proving fetch,
+        // after which reloads skip this branch.
+        prefetchedThreadContentIdsRef.current.add(expectedThreadId);
+        return;
+      }
+      logTimelineDebug(debugTraceId, 'room-thread-content-prefetch-start', {
+        threadId: expectedThreadId,
+      });
+      const result = await fetchAndPersistThreadContent({
+        mx,
+        scheduler: syncEngine.scheduler,
+        room,
+        threadId: expectedThreadId,
+        // Band 3 — thread inventory prewarm; yields to opens/gap-fills.
+        priority: 3,
+        shouldContinue: () =>
+          generation === threadSeedPrewarmGenerationRef.current &&
+          // Keep fetching if the user opened THIS thread (the open's
+          // backfill dedups onto this very job); stop when they moved
+          // their attention to a different thread.
+          (!activeThreadIdRef.current || activeThreadIdRef.current === expectedThreadId),
+        persistThreadEventCache: (
+          threadId,
+          events,
+          rootEvent,
+          beforeTokenForEarliest,
+          tailLoaded,
+          snapshotComplete,
+          expectedReplyCount,
+          relationSnapshotComplete
+        ) =>
+          syncEngine.persist.persistThreadEventCache(
+            room,
+            threadId,
+            events,
+            rootEvent,
+            beforeTokenForEarliest,
+            tailLoaded,
+            snapshotComplete,
+            expectedReplyCount,
+            relationSnapshotComplete
+          ),
+      });
+      if (result) {
+        prefetchedThreadContentIdsRef.current.add(expectedThreadId);
+        logTimelineDebug(debugTraceId, 'room-thread-content-prefetch-complete', {
+          fetchedCount: result.fetchedCount,
+          relationSnapshotComplete: result.relationSnapshotComplete,
+          snapshotComplete: result.snapshotComplete,
+          threadId: expectedThreadId,
+        });
+      }
+    },
+    [debugTraceId, mx, room, sessionId, syncEngine]
+  );
+
   useEffect(() => {
     if (activeThreadId || priorityTargets.length === 0) return undefined;
 
@@ -224,6 +318,16 @@ export const useThreadSeedPrewarmController = ({
             logPrefix: 'room-thread-seed-prewarm',
             traceId: debugTraceId,
           }).catch(() => undefined);
+
+          if (generation !== threadSeedPrewarmGenerationRef.current) return;
+          if (activeThreadIdRef.current) return;
+          // Network content phase (2026-07-06 eager cache) — see
+          // prefetchThreadContentIfIncomplete. Errors are swallowed the
+          // same way as the seed pass so one failed thread does not
+          // stall the drain.
+          await prefetchThreadContentIfIncomplete(expectedThreadId, generation).catch(
+            () => undefined
+          );
         }
       } finally {
         if (generation === threadSeedPrewarmGenerationRef.current) {
@@ -246,7 +350,13 @@ export const useThreadSeedPrewarmController = ({
     void prewarmThreadSeeds().catch(() => undefined);
 
     return undefined;
-  }, [activeThreadId, debugTraceId, ensureThreadSeedPrewarm, priorityTargets]);
+  }, [
+    activeThreadId,
+    debugTraceId,
+    ensureThreadSeedPrewarm,
+    prefetchThreadContentIfIncomplete,
+    priorityTargets,
+  ]);
 
   return {
     ensureThreadSeedPrewarm,

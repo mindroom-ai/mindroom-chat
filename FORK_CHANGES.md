@@ -49,14 +49,35 @@ threads first, then the rest); opening is instant from cache.
   `deepHistoryJob.test.ts` + `gapFillExecutor.test.ts` (thread replies from
   chunks land in thread scopes, tailLoaded=true, no seed pinning, room
   scope unchanged).
+- Step B (landed after Step A): the thread-seed prewarm band now also
+  downloads content over the network. New shared module
+  `threadContentPrefetch.ts` (`fetchAndPersistThreadContent`) extracted
+  verbatim from `threadOverviewResumeController.
+  refreshOverviewThreadCacheFromRelations` (resume controller rewired onto
+  it, behavior preserved — priority 2, same staleness guards via
+  `shouldContinue`/`shouldApply`). The prewarm drain loop
+  (`threadSeedPrewarmController`), after each priority target's IDB seed
+  pass, reads the cached meta flags (1-record `loadLatestCachedThreadEvents`)
+  and — unless the snapshot is relations-proven complete (snapshotComplete
+  && relationSnapshotComplete && tailLoaded) — drains the thread's
+  `/relations` via the shared pipeline as a band-3 'thread-backfill' job,
+  persisting through `engine.persist.persistThreadEventCache`. Key
+  properties: (a) the network call is chained from the COMPONENT-side
+  drain loop, never nested inside a scheduler executor (2-slot concurrency
+  cap → deadlock risk); (b) a user opening the thread mid-prefetch
+  coalesces onto the same in-flight job (AC8 dedup key shared with the
+  open path); (c) `shouldContinue` keeps fetching when the OPENED thread
+  is the one being prefetched, and stops when attention moved to a
+  different thread; (d) once-per-generation via
+  `prefetchedThreadContentIdsRef` (cleared on room switch). Prewarm
+  targets remain `collectPriorityThreadSeedPrewarmRoots` (visible threads
+  first, then largest; cap 8, ≥20 replies) — the Step A room sweep covers
+  the remaining threads' content; widen the candidate policy only if a
+  real miss is reported. Red-first tests:
+  `threadSeedPrewarmController.test.ts` (cold target → one /relations
+  fetch + honest persist through the facade; relations-proven cached
+  target → zero network).
 - Next steps (queued as tasks):
-  - Step B: thread-seed prewarm band should network-fetch (band-3
-    'thread-backfill' jobs, dedup-shared with the open path) threads whose
-    cached snapshot is incomplete — visible threads first; extract the
-    fetch→persist→seed helper from
-    `threadOverviewResumeController.refreshOverviewThreadCacheFromRelations`.
-    Do NOT nest scheduler enqueues inside a job executor (concurrency-cap
-    deadlock risk) — chain from the component-side drain loop.
   - Step C: coverage policy — `isCompleteThreadCacheCoverage` currently
     also requires `relationSnapshotComplete` (only provable by a
     `/relations` drain), so sweep-warmed threads still trigger the

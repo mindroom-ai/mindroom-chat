@@ -11,14 +11,8 @@ import { type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { usePageResume } from './usePageResume';
 import { loadRoomThreads } from './roomThreadList';
 import { logTimelineDebug } from './timelineDebug';
-import {
-  getLatestThreadSummaryInfoFromEventSources,
-  type MindroomThreadSummaryInfo,
-} from '../messages/threadSummary';
-import { enqueueThreadBackfillJob } from '../engine';
-import { isCompleteCachedThreadSnapshot } from './threadCacheSnapshot';
-import { saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
-import { getKnownThreadReplyCount } from './threadRecord';
+import { type MindroomThreadSummaryInfo } from '../messages/threadSummary';
+import { fetchAndPersistThreadContent } from './threadContentPrefetch';
 import { resolveThreadOverviewRefreshTargets } from './threadOverviewRefreshTargets';
 import type { TimelineEventEntry } from './roomTimelineEvents';
 import type { Timeline } from './timelinePagination';
@@ -145,13 +139,13 @@ export const useThreadOverviewResumeController = ({
   // result. That keeps the dedup benefit — a user-triggered thread
   // open coalescing with a background overview resume still fires a
   // single `/relations` round-trip — without the type mismatch.
+  // 2026-07-06 eager-cache fix: the fetch→persist→seed pipeline moved
+  // to the shared `fetchAndPersistThreadContent` so this resume path
+  // and the thread-seed prewarm band (cold-start content prefetch)
+  // stay one implementation. Behavior here is unchanged.
   const refreshOverviewThreadCacheFromRelations = useCallback(
     async (expectedThreadId: string): Promise<void> => {
-      const rootEvent =
-        room.getThread(expectedThreadId)?.rootEvent ?? room.findEventById(expectedThreadId);
-      if (!rootEvent) return;
-
-      const relationPageResult = await enqueueThreadBackfillJob({
+      await fetchAndPersistThreadContent({
         mx,
         scheduler: syncEngine.scheduler,
         room,
@@ -163,62 +157,12 @@ export const useThreadOverviewResumeController = ({
         priority: 2,
         shouldContinue: () =>
           alive() && (!threadIdRef.current || threadIdRef.current === expectedThreadId),
+        shouldApply: () =>
+          alive() && !(threadIdRef.current && threadIdRef.current !== expectedThreadId),
+        persistThreadEventCache,
+        onApplyThreadRelations,
+        onStoreThreadSummary,
       });
-      if (
-        !relationPageResult ||
-        !alive() ||
-        (!!threadIdRef.current && threadIdRef.current !== expectedThreadId)
-      ) {
-        return;
-      }
-
-      const relationEvents = relationPageResult.events;
-      const relationSnapshotComplete = typeof relationPageResult.nextBatchToken !== 'string';
-      const expectedReplyCount = getKnownThreadReplyCount(rootEvent);
-      const snapshotComplete = isCompleteCachedThreadSnapshot({
-        room,
-        threadId: expectedThreadId,
-        rootEvent,
-        cachedRootEvent: rootEvent,
-        cachedEvents: rootEvent ? [rootEvent, ...relationEvents] : relationEvents,
-        beforeToken: relationPageResult.nextBatchToken ?? null,
-        hasMoreBefore: typeof relationPageResult.nextBatchToken === 'string',
-        expectedReplyCount,
-        snapshotComplete: relationSnapshotComplete,
-        tailLoaded: true,
-      });
-
-      if (relationEvents.length > 0) {
-        saveThreadOpenSeedSnapshot(room, expectedThreadId, relationEvents);
-      }
-
-      onApplyThreadRelations({
-        rootId: expectedThreadId,
-        room,
-        events: relationEvents,
-        rootEvent,
-        beforeToken: relationPageResult.nextBatchToken ?? null,
-        tailLoaded: true,
-        snapshotComplete,
-        expectedReplyCount,
-        relationSnapshotComplete,
-      });
-
-      persistThreadEventCache(
-        expectedThreadId,
-        relationEvents,
-        rootEvent,
-        relationPageResult.nextBatchToken ?? null,
-        true,
-        snapshotComplete,
-        expectedReplyCount,
-        relationSnapshotComplete
-      );
-
-      const summaryInfo = getLatestThreadSummaryInfoFromEventSources(relationEvents);
-      if (summaryInfo?.summaryText) {
-        onStoreThreadSummary(expectedThreadId, summaryInfo);
-      }
     },
     [
       alive,
