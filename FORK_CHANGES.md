@@ -2,6 +2,59 @@
 
 ## Runbook
 
+### Device round 10: REGRESSION on device, rollback, environment-realism harness (2026-07-06)
+
+Device report AFTER round 9 deployed: "many more blank screens when
+scrolling up, then messages appear and jump slightly" — worse than
+round 8. Also (pre-existing): opening a long thread mid-hydration lands
+at the bottom then drifts "somewhere to the middle". Production was
+ROLLED BACK to 3964b870 (round 8); the round-9 commits remain on the
+branch, undeployed, pending in-harness reproduction.
+
+- Hypothesis for the regression (UNVERIFIED — read on): the round-9
+  barren-cache-hit fix ACTIVATED real prepend commits on partial
+  windows, a path that never ran on the device before. On production
+  latency the user flicks continuously, so commits land via
+  `waitForScrollQuiescence`'s 2.5s force-commit cap MID-FLICK, and a
+  phone CPU takes multiple frames to mount the coarse-jump target
+  region.
+- Harness built to close the environment gap
+  (`e2e/helpers/rideRecorder.ts` + `e2e/live/thread-ride-under-latency.spec.ts`):
+  ONE shared per-frame recorder (coverage gap + anchor jump + app-write
+  log + scrollTop/threadCount trace, tile photographs) so every ride
+  asserts the FULL invariant set — the round-9 spec asserted jumps but
+  not coverage, exactly where the regression hid. Environment knobs:
+  /relations continuation latency injection and CDP CPU throttling
+  (`Emulation.setCPUThrottlingRate`). Two specs: (1) continuous
+  flicking through the 2.5s cap with 1.5s page latency + 4x CPU over a
+  partial window; (2) hydration-open pin integrity — no input, the view
+  must stay at the bottom while the drain grows content above (560
+  replies, 31→531 hydrated during sampling).
+- RESULT: both specs PASS against the round-9 HEAD build (maxGap 26px,
+  jumps 0/0; hydration maxDist 160px). The device regression is NOT
+  reproduced in desktop chromium with DOM-level sampling. Honest gap
+  analysis, in likely order of importance:
+  1. Driver writes scrollTop per rAF on the MAIN thread; real iOS
+     momentum is compositor-driven. iOS shows BLANK (unrastered) tiles
+     when raster lags momentum — pixels the DOM coverage sampler cannot
+     see (the DOM has the tiles; the glass does not). Next step: CDP
+     `Input.synthesizeScrollGesture` (compositor-thread fling in
+     chromium) + `Page.startScreencast` blank-band detection — assert
+     on PIXELS, not DOM rects.
+  2. No real touch state: `hasActiveTouches` never true in the driver,
+     so the correction hook's touch leg is unexercised.
+  3. Fixtures are synthetic text; real threads carry images/markdown
+     that re-measure after hydration, and are thousands of events deep
+     (multiple sequential 200-row prepends).
+  4. Final arbiter fallback if pixels-in-chromium still misses it:
+     Safari remote debugging against the user's actual device/thread,
+     or a recorded scroll trace from the device (the probe counters +
+     recorder are injectable there too).
+- Validation: typecheck ✅, eslint ✅ on the new files; both new specs
+  green 1× against the HEAD production build (baseline; they exist to
+  catch the class, and MUST be extended per gap list above before any
+  round-9 redeploy).
+
 ### Prepend commit lands in ONE paint; barren root-only cache-hit fixed (2026-07-06, device round 9)
 
 Report: momentum right, end position right, but short jumps "applied
