@@ -910,7 +910,16 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       const record = (kind: string, el: unknown, value: number) => {
         if ((w.__driverDepth ?? 0) > 0) return;
         if (!(el instanceof HTMLElement) || el.dataset.e2eScroller !== '1') return;
-        w.__appScrollWrites!.push({ kind, value, t: performance.now() });
+        // Short call stack: when an unexpected write class shows up, the
+        // writer is read from the trace instead of guessed at
+        // (instrument-before-guessing).
+        const stack = (new Error().stack ?? '')
+          .split('\n')
+          .slice(2, 6)
+          .map((line) => line.trim().replace(/^at /, ''))
+          .join(' | ')
+          .slice(0, 400);
+        w.__appScrollWrites!.push({ kind, value, t: performance.now(), stack });
       };
       const scrollTopDesc = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
       if (scrollTopDesc?.set && scrollTopDesc.get) {

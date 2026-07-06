@@ -27,7 +27,12 @@ export type WaitForScrollQuiescenceOptions = {
   // Quiet window with no scroll events (and no active touch) that
   // counts as quiescent.
   idleMs?: number;
-  // Upper bound on the total wait; the promise always resolves.
+  // Upper bound on the total wait; the promise always resolves. Pass
+  // Infinity for a wait that ONLY resolves on genuine quiescence — a
+  // forced resolve mid-motion is a scroll write mid-momentum for
+  // consumers like the ledger settle. (Never pass huge finite values:
+  // setTimeout clamps int32-overflowing delays to 0, turning the cap
+  // into an immediate fire — a real bug the ios-momentum e2e caught.)
   maxWaitMs?: number;
 };
 
@@ -145,7 +150,9 @@ export const waitForScrollQuiescence = (
 
     scrollElement.addEventListener('scroll', onActivity, { passive: true });
 
-    capTimer = setTimeout(settle, maxWaitMs);
+    if (Number.isFinite(maxWaitMs)) {
+      capTimer = setTimeout(settle, maxWaitMs);
+    }
     armIdleTimer();
   });
 };

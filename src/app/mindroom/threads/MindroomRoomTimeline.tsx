@@ -1196,7 +1196,7 @@ export function RoomTimeline({
         // write mid-momentum (the trace's full-screen flash). The ledger
         // is coherent while unsettled, so only TRUE rest settles it.
         waitForScrollQuiescence(getScrollElement(), {
-          maxWaitMs: Number.MAX_SAFE_INTEGER,
+          maxWaitMs: Infinity,
         }).then(settleScrollCompensation);
       }
     },
@@ -3445,6 +3445,13 @@ export function RoomTimeline({
               key={virtualItem.key}
               ref={roomTimelineVirtualizer.measureElement}
               virtualItem={virtualItem}
+              // Content-relative top: virtualItem.start includes
+              // options.scrollMargin (the offset ledger), which the
+              // container's marginTop already applies in the DOM — keeping
+              // start verbatim would double-count the ledger and push the
+              // painted tiles out from under the computed window (the
+              // sustained-ride e2e's blank bands at ~2000px accumulation).
+              style={{ top: virtualItem.start - roomTimelineVirtualizer.options.scrollMargin }}
             >
               {eventRenderer(item)}
             </VirtualTile>
@@ -3510,6 +3517,8 @@ export function RoomTimeline({
             key={virtualItem.key}
             ref={roomTimelineVirtualizer.measureElement}
             virtualItem={virtualItem}
+            // Content-relative top — see renderVirtualRoomTimelineItems.
+            style={{ top: virtualItem.start - roomTimelineVirtualizer.options.scrollMargin }}
           >
             {threadEventRenderer(virtualItem.index)}
           </VirtualTile>
