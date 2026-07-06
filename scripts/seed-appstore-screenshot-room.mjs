@@ -8,7 +8,7 @@ import {
   APPSTORE_FIXTURE_ROOM_ALIAS,
   APPSTORE_FIXTURE_ROOM_NAME,
   APPSTORE_FIXTURE_ROOM_TOPIC,
-  APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH,
+  APPSTORE_FIXTURE_PRIMARY_AVATAR_URL,
   APPSTORE_FIXTURE_PRIMARY_DISPLAY_NAME,
   buildAppStoreFixtureThreads,
   buildCanonicalThreadTagStateKey,
@@ -196,6 +196,21 @@ const contentTypeForPath = (path) => {
   }
 };
 
+const filenameForUrl = (url) => {
+  try {
+    const pathname = new URL(url).pathname;
+    const filename = pathname.split('/').filter(Boolean).pop();
+    return filename || 'avatar.jpg';
+  } catch {
+    return 'avatar.jpg';
+  }
+};
+
+const contentTypeForUrl = (url, response) => {
+  const contentType = response.headers.get('content-type')?.split(';')[0]?.trim();
+  return contentType || contentTypeForPath(filenameForUrl(url));
+};
+
 async function setUserAvatar(accessToken, userId, avatarAssetPath) {
   const absolutePath = resolve(ROOT_DIR, avatarAssetPath);
   const data = await readFile(absolutePath);
@@ -207,6 +222,23 @@ async function setUserAvatar(accessToken, userId, avatarAssetPath) {
   );
   await setAvatarUrl(accessToken, userId, avatarUrl);
   return avatarUrl;
+}
+
+async function setUserAvatarFromUrl(accessToken, userId, avatarUrl) {
+  const response = await fetch(avatarUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to download avatar ${avatarUrl}: HTTP ${response.status}`);
+  }
+
+  const data = new Uint8Array(await response.arrayBuffer());
+  const uploadedAvatarUrl = await uploadMedia(
+    accessToken,
+    data,
+    contentTypeForUrl(avatarUrl, response),
+    filenameForUrl(avatarUrl)
+  );
+  await setAvatarUrl(accessToken, userId, uploadedAvatarUrl);
+  return uploadedAvatarUrl;
 }
 
 async function ensureFixtureUser({ username, password, displayName, avatarAssetPath, required }) {
@@ -424,10 +456,10 @@ async function main() {
   };
 
   if (SET_PRIMARY_PROFILE === '1') {
-    primarySession.avatarUrl = await setUserAvatar(
+    primarySession.avatarUrl = await setUserAvatarFromUrl(
       primarySession.accessToken,
       primarySession.userId,
-      APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH
+      APPSTORE_FIXTURE_PRIMARY_AVATAR_URL
     );
     await setDisplayName(
       primarySession.accessToken,

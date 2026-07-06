@@ -28,13 +28,13 @@ npm run appstore:screenshots
 
 The command starts the local Docker Matrix fixture stack by default, provisions
 an isolated disposable account and room for each run, seeds a public-safe fake
-`Personal` room with Bas Nijholt as the user, uploads the public `nijho.lt`
-profile avatar plus AI agent avatars, and captures the required iPhone 6.9" and
-iPad 13" PNGs into `en-US/`. The fixture shows personal-agent examples: a daily
-workspace overview, Mind's public-safe markdown-formatted explanation of
-MindRoom, and a campground watcher with expanded tool calls. It starts a fresh
-Vite server on an available port by default to avoid reusing stale local
-dependency caches.
+`Personal` room with Bas Nijholt as the user, downloads and uploads the public
+`nijho.lt` profile avatar at seed time, uploads AI agent avatars, and captures
+the required iPhone 6.9" and iPad 13" PNGs into `en-US/`. The fixture shows
+personal-agent examples: a daily workspace overview, Mind's public-safe
+markdown-formatted explanation of MindRoom, and a campground watcher with
+expanded tool calls. It starts a fresh Vite server on an available port by
+default to avoid reusing stale local dependency caches.
 
 To set up only the Matrix fixture without taking screenshots:
 
@@ -46,9 +46,9 @@ Existing/live account capture is intentionally unsupported for App Store
 screenshots because it can expose private rooms, profiles, or existing account
 state. Use the local fixture path for release assets.
 
-The fixture intentionally gives every thread summary a `⭐` prefix and varied
-message counts, including one long-running watcher around 100 messages, so room
-overview screenshots look like an active personal workspace.
+The fixture intentionally gives each thread summary a topic-specific emoji and
+varied message counts, including one long-running watcher around 100 messages,
+so room overview screenshots look like an active personal workspace.
 
 Manual simulator fallback:
 - Pick the matching device (for example iPhone 16 Pro Max for 6.9"), then

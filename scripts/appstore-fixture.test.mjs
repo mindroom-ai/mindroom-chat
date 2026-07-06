@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
   APPSTORE_FIXTURE_ROOM_ALIAS,
   APPSTORE_FIXTURE_ROOM_NAME,
-  APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH,
+  APPSTORE_FIXTURE_PRIMARY_AVATAR_URL,
   APPSTORE_FIXTURE_PRIMARY_DISPLAY_NAME,
   bodyToFormattedHtml,
   buildAppStoreFixtureThreads,
@@ -29,8 +29,8 @@ test('declares the public-safe App Store screenshot fixture room', () => {
   assert.equal(APPSTORE_FIXTURE_ROOM_NAME, 'Personal');
   assert.equal(APPSTORE_FIXTURE_PRIMARY_DISPLAY_NAME, 'Bas Nijholt');
   assert.equal(
-    APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH,
-    'public/res/appstore/bas-nijholt-avatar.jpg'
+    APPSTORE_FIXTURE_PRIMARY_AVATAR_URL,
+    'https://media.githubusercontent.com/media/basnijholt/nijho.lt/refs/heads/main/content/authors/admin/avatar.jpg'
   );
 });
 
@@ -93,7 +93,7 @@ test('builds fake fixture threads with AI run, tool trace, and summary metadata'
   );
 });
 
-test('uses starred summaries and varied realistic thread depths', () => {
+test('uses topic-specific summary emoji and varied realistic thread depths', () => {
   const threads = buildAppStoreFixtureThreads({
     primaryUserId: '@appstorescreenshots:matrix.localhost',
     agentUserIds: {
@@ -104,15 +104,31 @@ test('uses starred summaries and varied realistic thread depths', () => {
   const messageCounts = threads.map(
     (thread) => thread.summary.content['io.mindroom.thread_summary'].message_count
   );
+  const expectedSummaryEmojiByThread = new Map([
+    ['personal-workspace', '🧭'],
+    ['mindroom-explained', '💬'],
+    ['campground-monitor', '🏕️'],
+    ['car-search', '🚗'],
+    ['home-reminders', '🏠'],
+  ]);
+  const summaryEmoji = new Set();
 
   threads.forEach((thread) => {
-    assert.match(thread.summary.content.body, /^⭐ /u, `${thread.id} summary needs a star`);
+    const expectedEmoji = expectedSummaryEmojiByThread.get(thread.id);
+    assert.ok(expectedEmoji, `${thread.id} should have an expected summary emoji`);
+    assert.match(
+      thread.summary.content.body,
+      new RegExp(`^${expectedEmoji} `, 'u'),
+      `${thread.id} summary needs its topic-specific emoji`
+    );
     assert.match(
       thread.summary.content['io.mindroom.thread_summary'].summary,
-      /^⭐ /u,
-      `${thread.id} metadata summary needs a star`
+      new RegExp(`^${expectedEmoji} `, 'u'),
+      `${thread.id} metadata summary needs its topic-specific emoji`
     );
+    summaryEmoji.add(expectedEmoji);
   });
+  assert.equal(summaryEmoji.size, threads.length, 'summary emoji should vary per thread');
   assert.ok(
     messageCounts.some((count) => count >= 100),
     'at least one thread should look like a long-running thread'
@@ -239,6 +255,18 @@ test('seeder reuses parsed registration challenge bodies', async () => {
     script,
     /const initialResponse = await fetch\(`\$\{HOMESERVER\}\/_matrix\/client\/v3\/register`/
   );
+});
+
+test('seeder downloads the public Bas Nijholt avatar at runtime', async () => {
+  const fixture = await readFile(new URL('./appstore-fixture.mjs', import.meta.url), 'utf8');
+  const script = await readFile(SEED_SCRIPT_URL, 'utf8');
+
+  assert.match(fixture, /APPSTORE_FIXTURE_PRIMARY_AVATAR_URL/);
+  assert.doesNotMatch(fixture, /bas-nijholt-avatar\.jpg/);
+  assert.match(script, /async function setUserAvatarFromUrl/);
+  assert.match(script, /await fetch\(avatarUrl\)/);
+  assert.match(script, /APPSTORE_FIXTURE_PRIMARY_AVATAR_URL/);
+  assert.doesNotMatch(script, /APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH/);
 });
 
 test('screenshot capture removes every stale file from the locale folder', async () => {

@@ -13,6 +13,10 @@
     media endpoint parse/network failures, dummy-auth registration reuses the
     parsed Matrix challenge from `matrixFetch`, and screenshot capture waits
     for a render frame instead of a fixed delay.
+  - Screenshot content follow-up: thread summaries now use topic-specific
+    emoji instead of a repeated star, and the Bas Nijholt profile avatar is
+    downloaded from the public site asset at fixture seed time instead of being
+    version controlled in this repo.
 - Summary:
   - Adds a repo-native App Store screenshot capture flow:
     `npm run appstore:screenshots` starts the local Docker Matrix fixture,
@@ -21,11 +25,12 @@
     captures iPhone 6.9" plus iPad 13" PNGs into
     `ios/App/fastlane/screenshots/en-US/`.
   - Adds `npm run appstore:fixture` for setup-only local Matrix seeding. The
-    fake workspace uses Bas Nijholt as the user, the public `nijho.lt` avatar,
-    fake MindRoom agent accounts with uploaded avatars, markdown-formatted
-    agent replies, scheduled-task/tool metadata, starred thread summaries, and
-    varied thread depths (`9`, `27`, `34`, `68`, `103`) so App Store
-    screenshots read like a real personal-agent workspace.
+    fake workspace uses Bas Nijholt as the user, downloads the public
+    `nijho.lt` avatar at seed time, fake MindRoom agent accounts with uploaded
+    avatars, markdown-formatted agent replies, scheduled-task/tool metadata,
+    topic-specific summary emoji, and varied thread depths (`9`, `27`, `34`,
+    `68`, `103`) so App Store screenshots read like a real personal-agent
+    workspace.
   - Documents the Fastlane lanes and screenshot procedure. `upload_metadata`
     and `upload_screenshots` remain metadata/screenshot-only `deliver` lanes;
     `Deliverfile` keeps review submission and automatic release disabled;

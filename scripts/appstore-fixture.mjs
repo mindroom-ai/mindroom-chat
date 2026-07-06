@@ -3,8 +3,8 @@ export const APPSTORE_FIXTURE_ROOM_NAME = 'Personal';
 export const APPSTORE_FIXTURE_ROOM_TOPIC =
   'Personal agent workspace for chat-native AI assistants, watchers, tools, and persistent memory.';
 export const APPSTORE_FIXTURE_PRIMARY_DISPLAY_NAME = 'Bas Nijholt';
-export const APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH =
-  'public/res/appstore/bas-nijholt-avatar.jpg';
+export const APPSTORE_FIXTURE_PRIMARY_AVATAR_URL =
+  'https://media.githubusercontent.com/media/basnijholt/nijho.lt/refs/heads/main/content/authors/admin/avatar.jpg';
 
 export const APPSTORE_FIXTURE_AGENT_PASSWORD = 'Pwappstoreagent123!';
 
@@ -174,17 +174,15 @@ export const getAppStoreFixtureAgentDefinitions = () => [
   },
 ];
 
-const withStarSummary = (summary) => (summary.startsWith('⭐ ') ? summary : `⭐ ${summary}`);
+const summaryContent = ({ emoji, summary, messageCount }) => {
+  const contextualSummary = `${emoji} ${summary}`;
 
-const summaryContent = (summary, messageCount) => {
-  const starredSummary = withStarSummary(summary);
-
-  return noticeMessage(starredSummary, {
+  return noticeMessage(contextualSummary, {
     'io.mindroom.thread_summary': {
       version: 1,
       generated_at: '2026-07-04T17:15:00.000Z',
       message_count: messageCount,
-      summary: starredSummary,
+      summary: contextualSummary,
     },
   });
 };
@@ -225,10 +223,12 @@ export const buildAppStoreFixtureThreads = ({ primaryUserId, agentUserIds }) => 
     ],
     summary: {
       sender: 'mind',
-      content: summaryContent(
-        'Today: campground watcher is healthy, car search has new leads, and Mind explained the personal-agent workflow.',
-        34
-      ),
+      content: summaryContent({
+        emoji: '🧭',
+        summary:
+          'Today: campground watcher is healthy, car search has new leads, and Mind explained the personal-agent workflow.',
+        messageCount: 34,
+      }),
     },
     tags: ['daily', 'personal'],
     scheduledAt: scheduledAtDaysFromNow(7, 18, 0),
@@ -275,10 +275,12 @@ export const buildAppStoreFixtureThreads = ({ primaryUserId, agentUserIds }) => 
     ],
     summary: {
       sender: 'mind',
-      content: summaryContent(
-        'MindRoom overview: chat-native personal agents, tools, memory, and scheduled follow-ups.',
-        27
-      ),
+      content: summaryContent({
+        emoji: '💬',
+        summary:
+          'MindRoom overview: chat-native personal agents, tools, memory, and scheduled follow-ups.',
+        messageCount: 27,
+      }),
     },
     tags: ['product'],
   },
@@ -342,10 +344,12 @@ export const buildAppStoreFixtureThreads = ({ primaryUserId, agentUserIds }) => 
     ],
     summary: {
       sender: 'mind',
-      content: summaryContent(
-        'Campground monitor: daily watcher healthy, no matching openings yet, next scan scheduled.',
-        103
-      ),
+      content: summaryContent({
+        emoji: '🏕️',
+        summary:
+          'Campground monitor: daily watcher healthy, no matching openings yet, next scan scheduled.',
+        messageCount: 103,
+      }),
     },
     tags: ['watcher', 'camping'],
     scheduledAt: scheduledAtDaysFromNow(7, 16, 30),
@@ -387,10 +391,12 @@ export const buildAppStoreFixtureThreads = ({ primaryUserId, agentUserIds }) => 
     ],
     summary: {
       sender: 'mind',
-      content: summaryContent(
-        'Car search: shortlist updated with two promising options and one negotiation checklist.',
-        68
-      ),
+      content: summaryContent({
+        emoji: '🚗',
+        summary:
+          'Car search: shortlist updated with two promising options and one negotiation checklist.',
+        messageCount: 68,
+      }),
     },
     tags: ['research', 'car'],
   },
@@ -421,10 +427,11 @@ export const buildAppStoreFixtureThreads = ({ primaryUserId, agentUserIds }) => 
     ],
     summary: {
       sender: 'mind',
-      content: summaryContent(
-        'Home reminders: package pickup and maintenance note are queued for tonight.',
-        9
-      ),
+      content: summaryContent({
+        emoji: '🏠',
+        summary: 'Home reminders: package pickup and maintenance note are queued for tonight.',
+        messageCount: 9,
+      }),
     },
     tags: ['home'],
   },
