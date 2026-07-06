@@ -1,4 +1,9 @@
 import { MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
+import {
+  hasMindroomMessageExtras,
+  parseMindroomMessageExtras,
+} from '../messages/messageExtrasData';
+import { hasMindroomThreadSummary } from '../messages/threadSummary';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getLatestEdit, reactionOrEditEvent } from '../../utils/room';
 import { inSameDay } from '../../utils/time';
@@ -165,9 +170,25 @@ const THREAD_ROW_LINE_PX = 22;
 const THREAD_ROW_FOLD_BANNER_PX = 28;
 // CollapsibleMessage caps collapsed content at 4.5em ≈ 3 text lines.
 const THREAD_ROW_FOLD_CONTENT_LINES = 3;
-// Beyond this a plain body always wraps/folds past the cap; skip line math.
-const THREAD_ROW_LONG_BODY_CHARS = 200;
 const THREAD_ROW_WRAP_CHARS_PER_LINE = 40;
+// Always-expanded rows render their whole body; the estimate is line-based
+// and bounded (a pathological body should not produce a megapixel row).
+const THREAD_ROW_MAX_ESTIMATED_LINES = 48;
+const THREAD_ROW_BODY_SCAN_CHARS = 4096;
+// Extras sections render as collapsed accordion headers.
+const THREAD_ROW_SECTION_HEADER_PX = 40;
+
+const estimateBodyLines = (body: string): number => {
+  const scanned =
+    body.length > THREAD_ROW_BODY_SCAN_CHARS ? body.slice(0, THREAD_ROW_BODY_SCAN_CHARS) : body;
+  let lines = 1;
+  for (let i = 0; i < scanned.length; i += 1) {
+    if (scanned.charCodeAt(i) === 10) lines += 1;
+  }
+  lines += Math.floor(scanned.length / THREAD_ROW_WRAP_CHARS_PER_LINE);
+  if (body.length > scanned.length) return THREAD_ROW_MAX_ESTIMATED_LINES;
+  return Math.min(lines, THREAD_ROW_MAX_ESTIMATED_LINES);
+};
 
 export const estimateThreadEventRowHeight = (
   mEvent: MatrixEvent,
@@ -181,15 +202,20 @@ export const estimateThreadEventRowHeight = (
     return 4;
   }
   const content = mEvent.getContent();
+  const contentRecord = content as Record<string, unknown>;
   const body = typeof content.body === 'string' ? content.body : '';
-  if (body.length >= THREAD_ROW_LONG_BODY_CHARS) {
-    return base + THREAD_ROW_FOLD_CONTENT_LINES * THREAD_ROW_LINE_PX + THREAD_ROW_FOLD_BANNER_PX;
+  // Always-expanded rows (agent tool traces / thread summaries) never
+  // fold: the body renders in full and each extras section adds a
+  // collapsed accordion header. Estimating these at the fold cap made
+  // every one of them mount ~hundreds of px small — the per-frame jumps
+  // the ride-smoothness e2e budget now pins.
+  if (hasMindroomThreadSummary(contentRecord) || hasMindroomMessageExtras(contentRecord)) {
+    const sections = parseMindroomMessageExtras(contentRecord)?.sections.length ?? 0;
+    return (
+      base + estimateBodyLines(body) * THREAD_ROW_LINE_PX + sections * THREAD_ROW_SECTION_HEADER_PX
+    );
   }
-  let lines = 1;
-  for (let i = 0; i < body.length; i += 1) {
-    if (body.charCodeAt(i) === 10) lines += 1;
-  }
-  lines += Math.floor(body.length / THREAD_ROW_WRAP_CHARS_PER_LINE);
+  const lines = estimateBodyLines(body);
   if (lines > THREAD_ROW_FOLD_CONTENT_LINES) {
     return base + THREAD_ROW_FOLD_CONTENT_LINES * THREAD_ROW_LINE_PX + THREAD_ROW_FOLD_BANNER_PX;
   }

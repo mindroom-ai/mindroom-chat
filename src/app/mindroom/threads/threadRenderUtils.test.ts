@@ -327,6 +327,52 @@ describe('estimateThreadEventRowHeight', () => {
       56
     );
   });
+
+  it('estimates always-expanded extras rows uncapped with section-header allowance', () => {
+    const body = Array.from({ length: 10 }, (_v, line) => `answer line ${line}`).join('\n');
+    const event = new MatrixEvent({
+      content: {
+        body,
+        msgtype: 'm.text',
+        'com.mindroom.message_extras': {
+          version: 2,
+          sections: [
+            { title: 'Tool call 1', content_type: 'text/markdown', content: 'output 1' },
+            { title: 'Tool call 2', content_type: 'text/markdown', content: 'output 2' },
+          ],
+        },
+      },
+      event_id: '$extras',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    // 10 lines + wrap overflow (149 chars / 40) = 13 lines; base 58 +
+    // 13*22 + 2 section headers * 40. NOT the folded 152: these rows never
+    // fold, and estimating them small caused the per-frame jump budget the
+    // ride-smoothness e2e pins.
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(58 + 13 * 22 + 2 * 40);
+  });
+
+  it('bounds pathological always-expanded bodies at the line cap', () => {
+    const event = new MatrixEvent({
+      content: {
+        body: 'x\n'.repeat(10_000),
+        msgtype: 'm.text',
+        'com.mindroom.message_extras': {
+          version: 2,
+          sections: [{ title: 'Tool', content_type: 'text/markdown', content: 'y' }],
+        },
+      },
+      event_id: '$huge',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(58 + 48 * 22 + 40);
+  });
 });
 
 describe('shouldApplyMeasurementScrollCorrection', () => {

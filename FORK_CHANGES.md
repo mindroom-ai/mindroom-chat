@@ -2,6 +2,39 @@
 
 ## Runbook
 
+### Ride-smoothness budget + always-expanded row estimates (2026-07-06, device round 7)
+
+Report: momentum fine, but scrolling up from the latest message still
+shows small jumps opposite to the scroll direction. Question asked and
+answered: WHY didn't the tests catch it?
+1. No per-frame visual-stability assertion existed — the momentum spec
+   checked writes/gaps/end-drift, never mid-stream anchor residuals.
+2. The fixture had no always-expanded rows (agent tool-trace/extras
+   messages), which never fold and were estimated at the fold cap
+   (~152px) — every one mounted ~hundreds of px small on real data.
+
+- Test upgrade: the momentum spec's driver now samples a viewport-centre
+  anchor every frame; with the driver moving scrollTop by exactly −90, a
+  persisting anchor must move by exactly +90 — any residual is content
+  shifting under the reader. Fixture now seeds extras messages
+  (`com.mindroom.message_extras` v2 sections) among shorts/longs. First
+  run measured maxJump 482 / total 2710 — the user's symptom, quantified.
+- Fix: `estimateThreadEventRowHeight` estimates always-expanded rows
+  (thread-summary / message-extras content) UNCAPPED: line-based body
+  (bounded at 48 lines, 4096-char scan) + a collapsed-accordion header
+  allowance per extras section. Typical runs now measure maxJump 0 /
+  total 0.
+- Budget pinned at maxJump<250 / total<900: fails on any return of the
+  repeated couple-line-jump class. KNOWN RESIDUAL: an intermittent
+  (~1-in-4 runs) small class of ~72px quanta — jumpEvents photographs
+  the tiles when it fires; captured instance showed two 80px rows
+  unmounting with no surviving-tile height change (grouping-variant
+  measurement at the open transient suspected). Next tightening target:
+  48/250.
+- Validation: typecheck ✅, threads suite 116 files / 1140 tests ✅
+  (2 new estimator tests), eslint ✅, full e2e spec 3× consecutive 3/3
+  PASS against the production build.
+
 ### Snap-back ROOT FOUND AND FIXED: backfill events treated as live expand-once (2026-07-06)
 
 The remaining −688 shrinker is dead. Full e2e-driven chain (each probe

@@ -41,6 +41,14 @@ type StreamReport = {
   maxGapPx: number;
   gapFrames: number;
   anchorDriftPx: number | null;
+  maxJumpPx: number;
+  totalJumpPx: number;
+  jumpFrames: number;
+  jumpEvents: {
+    jump: number;
+    before: { i: string | null; id: string | null; top: number; h: number }[];
+    after: { i: string | null; id: string | null; top: number; h: number }[];
+  }[];
 };
 
 test.use({
@@ -72,11 +80,20 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       body: 'iOS momentum invariants root',
     });
     for (let i = 1; i <= REPLY_COUNT; i += 1) {
-      // Mixed heights on purpose: short one-liners between long fold-worthy
-      // walls of text, so fresh territory has real estimate error — the
-      // condition every device report shared.
+      // Mixed heights on purpose: short one-liners, long fold-worthy walls
+      // of text, AND agent-style extras messages (always-expanded, never
+      // fold — the tallest rows real threads have). Fresh territory must
+      // carry realistic estimate error: that is the condition every device
+      // report shared.
+      const isExtras = i % 5 === 0;
       const body =
-        i % 3 === 0
+        // eslint-disable-next-line no-nested-ternary
+        isExtras
+          ? `agent answer ${i}\n${Array.from(
+              { length: 12 },
+              (_v, line) => `streamed answer line ${line} of reply ${i} with wrapping text`
+            ).join('\n')}`
+          : i % 3 === 0
           ? `short reply ${i}`
           : `long reply ${i}\n${Array.from(
               { length: 24 },
@@ -86,6 +103,25 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       await sendRoomMessage(homeserver, session.accessToken, roomId, {
         msgtype: 'm.text',
         body,
+        ...(isExtras
+          ? {
+              'com.mindroom.message_extras': {
+                version: 2,
+                sections: [
+                  {
+                    title: `Tool call ${i}.1`,
+                    content_type: 'text/markdown',
+                    content: `tool output for reply ${i}, section 1`,
+                  },
+                  {
+                    title: `Tool call ${i}.2`,
+                    content_type: 'text/markdown',
+                    content: `tool output for reply ${i}, section 2`,
+                  },
+                ],
+              },
+            }
+          : {}),
         'm.relates_to': {
           rel_type: 'm.thread',
           event_id: rootId,
@@ -207,25 +243,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       const writesBefore = writes.length;
       const startTop = scroller.scrollTop;
 
-      // Upward multi-flick stream: 3 flicks, 80ms finger-back-down pauses
-      // (below the 150ms isScrolling debounce), driver-tagged writes.
-      for (let flick = 0; flick < 3; flick += 1) {
-        for (let step = 0; step < 14; step += 1) {
-          w.__driverDepth! += 1;
-          scroller.scrollTop -= 90;
-          w.__driverDepth! -= 1;
-          // eslint-disable-next-line no-await-in-loop
-          await raf();
-        }
-        // eslint-disable-next-line no-await-in-loop
-        await wait(80);
-      }
-
-      const streamEndTop = scroller.scrollTop;
-      const writesDuring = writes.slice(writesBefore);
-      const writesAtStreamEnd = writes.length;
-
-      // Visible anchor at stream end: the row nearest the viewport centre.
+      // Visible anchor: the row nearest the viewport centre.
       const pickAnchor = (): Element | null => {
         const rows = Array.from(document.querySelectorAll('[data-message-item]'));
         const mid = window.innerHeight / 2;
@@ -241,6 +259,66 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
         });
         return best;
       };
+
+      // Per-frame visual-jump sampler: with the driver moving scrollTop by
+      // exactly -90 per frame, a persisting anchor's viewport top must move
+      // by exactly +90. Any residual is content shifting under the reader —
+      // the "small jumps opposite to the scroll direction" a rider feels.
+      let jumpAnchor: Element | null = null;
+      let jumpAnchorTop = 0;
+      const jumps: number[] = [];
+      type TileSnap = { i: string | null; id: string | null; top: number; h: number };
+      const readTileSnaps = (): TileSnap[] =>
+        Array.from(scroller.querySelectorAll('[data-index]')).map((tile) => ({
+          i: tile.getAttribute('data-index'),
+          id:
+            tile.querySelector('[data-message-id]')?.getAttribute('data-message-id')?.slice(0, 12) ??
+            null,
+          top: Math.round((tile as HTMLElement).offsetTop),
+          h: Math.round(tile.getBoundingClientRect().height),
+        }));
+      let lastTileSnaps = readTileSnaps();
+      const jumpEvents: { jump: number; before: TileSnap[]; after: TileSnap[] }[] = [];
+      const sampleJump = (drivenDelta: number) => {
+        if (jumpAnchor && jumpAnchor.isConnected) {
+          const rect = jumpAnchor.getBoundingClientRect();
+          if (rect.bottom > -800 && rect.top < window.innerHeight + 800) {
+            const jump = Math.abs(rect.top - jumpAnchorTop - drivenDelta);
+            jumps.push(jump);
+            jumpAnchorTop = rect.top;
+            const tiles = readTileSnaps();
+            if (jump > 60 && jumpEvents.length < 4) {
+              jumpEvents.push({ jump: Math.round(jump), before: lastTileSnaps, after: tiles });
+            }
+            lastTileSnaps = tiles;
+            return;
+          }
+        }
+        jumpAnchor = pickAnchor();
+        jumpAnchorTop = jumpAnchor?.getBoundingClientRect().top ?? 0;
+        lastTileSnaps = readTileSnaps();
+      };
+      sampleJump(0);
+
+      // Upward multi-flick stream: 3 flicks, 80ms finger-back-down pauses
+      // (below the 150ms isScrolling debounce), driver-tagged writes.
+      for (let flick = 0; flick < 3; flick += 1) {
+        for (let step = 0; step < 14; step += 1) {
+          w.__driverDepth! += 1;
+          scroller.scrollTop -= 90;
+          w.__driverDepth! -= 1;
+          // eslint-disable-next-line no-await-in-loop
+          await raf();
+          sampleJump(90);
+        }
+        // eslint-disable-next-line no-await-in-loop
+        await wait(80);
+        sampleJump(0);
+      }
+
+      const streamEndTop = scroller.scrollTop;
+      const writesDuring = writes.slice(writesBefore);
+      const writesAtStreamEnd = writes.length;
       const anchor = pickAnchor();
       const anchorTopAtEnd = anchor?.getBoundingClientRect().top ?? null;
 
@@ -264,9 +342,28 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
         maxGapPx: Math.round(Math.max(...gaps, 0)),
         gapFrames: gaps.length,
         anchorDriftPx,
+        maxJumpPx: Math.round(Math.max(...jumps, 0)),
+        totalJumpPx: Math.round(jumps.reduce((sum, jump) => sum + jump, 0)),
+        jumpFrames: jumps.length,
+        jumpEvents,
       };
     })) as StreamReport;
 
+    // eslint-disable-next-line no-console
+    console.log(
+      `IOS-MOMENTUM-REPORT ${JSON.stringify({
+        travel: report.travel,
+        maxGapPx: report.maxGapPx,
+        maxJumpPx: report.maxJumpPx,
+        totalJumpPx: report.totalJumpPx,
+        jumpFrames: report.jumpFrames,
+        anchorDriftPx: report.anchorDriftPx,
+      })}`
+    );
+    if (report.jumpEvents.length > 0) {
+      // eslint-disable-next-line no-console
+      console.log(`IOS-MOMENTUM-JUMPS ${JSON.stringify(report.jumpEvents)}`);
+    }
     await testInfo.attach('ios-momentum-invariants.json', {
       body: JSON.stringify(report, null, 2),
       contentType: 'application/json',
@@ -290,6 +387,20 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     if (report.anchorDriftPx !== null) {
       expect(report.anchorDriftPx).toBeLessThan(60);
     }
+
+    // 4. Ride-smoothness budget: per-frame content jumps opposite to the
+    // scroll direction are estimate error surfacing under the reader
+    // (device report: "small jumps, a couple of lines"). Before the
+    // content-aware estimates covered always-expanded rows this measured
+    // maxJump 482 / total 2710 EVERY run; typical runs now measure 0/0.
+    // The budget below is the pinned guarantee: it fails on any return of
+    // the repeated couple-line-jump class. A smaller intermittent residual
+    // remains (~72px quanta, grouping-variant measurement suspected —
+    // jumpEvents photographs it when it occurs); tightening toward 48/250
+    // is the standing goal and this sampler is the instrument.
+    expect(report.jumpFrames).toBeGreaterThan(30);
+    expect(report.maxJumpPx).toBeLessThan(250);
+    expect(report.totalJumpPx).toBeLessThan(900);
   });
 
   test('scrolling up from the bottom stays up — no snap back while new replies stream in', async ({
