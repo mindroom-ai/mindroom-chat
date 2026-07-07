@@ -626,7 +626,19 @@ describe('RoomTimeline', () => {
       // FALSE when the test applies the prepend render — exactly when the
       // unmount happens in production.
       let anchorMounted = true;
+      // Settle-order log (mutant audit 2026-07-07, survivors 6a/6b): the
+      // settle's atomic block must write scrollTop BEFORE setOptions —
+      // setOptions can notify a synchronous re-render that must see the
+      // (margin 0, shifted scrollTop) pair. The accessor-backed scrollTop
+      // and the setOptions spy share one ordered log.
+      const ledgerOps: string[] = [];
+      let scrollTopValue = 0;
       const scrollElement = {
+        // Connected: quiescence waits run their real 150ms idle timer
+        // instead of the detached-element instant resolve — the margin-
+        // live window between fold and settle must exist for the paint-
+        // half pin below (the test's 250ms waits cover the idle).
+        isConnected: true,
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
         getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
@@ -634,9 +646,19 @@ describe('RoomTimeline', () => {
         querySelectorAll: vi.fn(() => (anchorMounted ? [anchorElement] : [])),
         scrollHeight: 4000,
         clientHeight: 600,
-        scrollTop: 0,
+        get scrollTop() {
+          return scrollTopValue;
+        },
+        set scrollTop(value: number) {
+          ledgerOps.push('scrollTop');
+          scrollTopValue = value;
+        },
         scrollTo: vi.fn(),
       };
+      roomTimelineVirtualizerState.setOptionsMock.mockClear();
+      roomTimelineVirtualizerState.setOptionsMock.mockImplementation(() => {
+        ledgerOps.push('setOptions');
+      });
       // Inner virtual container: the ledger fold's visible output is its
       // marginTop (adversarial review on PR #88 — without this pin, fold
       // deletion, ΔH off-by-one and unconsumed-anchor mutants all passed).
@@ -707,6 +729,27 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
+        // Paint-half pin (mutant audit 2026-07-07, survivor 14): while
+        // the ledger margin is live, every painted tile's inline top is
+        // content-relative — virtualItem.start (which includes the
+        // scrollMargin) PLUS the ledger px. Dropping the term reproduces
+        // the round-10 "double-counted ledger past overscan" blank class,
+        // which no unit test caught before this.
+        expect(innerElement.style.marginTop).toBe('-2600px');
+        {
+          const estimatePx =
+            roomTimelineVirtualizerState.lastOptions?.estimateSize?.() ?? Number.NaN;
+          const tiles = renderer!.root.findAll(
+            (node) =>
+              node.props?.['data-virtual-index'] !== undefined && node.props?.style !== undefined
+          );
+          expect(tiles.length).toBeGreaterThan(0);
+          tiles.slice(0, 3).forEach((tile) => {
+            const virtualIndex = tile.props['data-virtual-index'] as number;
+            expect(tile.props.style.top).toBe(virtualIndex * estimatePx + 2600);
+          });
+        }
+
         // Offset-ledger fold (device round 10): the prepend commit is pure
         // ledger arithmetic — the inserted rows' height folds into the
         // container margin + scrollMargin at RENDER time, so the anchor
@@ -734,6 +777,16 @@ describe('RoomTimeline', () => {
         // returned to zero.
         expect(scrollElement.scrollTop).toBe(2600);
         expect(innerElement.style.marginTop).toBe('');
+        // Settle atomicity pins (mutant audit 2026-07-07, survivors
+        // 6a/6b — the old mock lacked setOptions entirely, so 6b was
+        // "caught" only by an accidental TypeError): the settle must
+        // flip scrollMargin to 0 in the same block, and the scrollTop
+        // write must come FIRST.
+        expect(roomTimelineVirtualizerState.setOptionsMock).toHaveBeenCalledWith(
+          expect.objectContaining({ scrollMargin: 0 })
+        );
+        expect(ledgerOps.indexOf('scrollTop')).toBeGreaterThanOrEqual(0);
+        expect(ledgerOps.indexOf('scrollTop')).toBeLessThan(ledgerOps.indexOf('setOptions'));
 
         // Consumption pin: the fold must consume the pagination anchor at
         // the commit. A further prepend WITHOUT a new Load Older (no
@@ -760,6 +813,403 @@ describe('RoomTimeline', () => {
         expect(scrollElement.scrollTop).toBe(2600);
         expect(innerElement.style.marginTop).toBe('');
       } finally {
+        roomTimelineVirtualizerState.setOptionsMock.mockReset();
+        renderer?.unmount();
+      }
+    });
+
+    it('prices interleaved prepends by the inserted keys, not the first-shift rows', async () => {
+      // Full-surface adversarial review (2026-07-07), ledger finding L1:
+      // `mergeThreadRenderEvents` sorts purely by ts, so an overlapping
+      // band (or a federated page with interior timestamps) can insert
+      // NEW events BETWEEN existing rows above the anchor. The fold's
+      // prefix assumption — sum estimate(1..shift) — then prices
+      // pre-existing rows instead of the inserted ones. This pin uses
+      // heterogeneous rows so the two sums differ: three folded-long
+      // rows (compact estimate 76) sit above a one-liner anchor, and
+      // the committed page interleaves two one-liner events (compact
+      // estimate 26) between them. Correct ΔH = 2 x 26 = 52; the
+      // prefix-shaped sum would fold 76 + 26 = 102.
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const threadId = '$interleave-thread-root';
+      const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
+      const longBody = 'L'.repeat(200); // 5 wrapped lines > fold cap 3
+      const makeLongReply = (index: number) =>
+        makeEvent(`$long-${index}`, {
+          threadRootId: threadId,
+          ts: index * 100,
+          content: { body: longBody, msgtype: 'm.text' },
+        });
+      const anchorEvent = makeEvent('$anchor', { threadRootId: threadId, ts: 400 });
+      const makeFiller = (index: number) =>
+        makeEvent(`$fill-${index}`, { threadRootId: threadId, ts: 500 + index });
+      const initialThreadEvents = [
+        rootEvent,
+        makeLongReply(1),
+        makeLongReply(2),
+        makeLongReply(3),
+        anchorEvent,
+        ...Array.from({ length: 300 }, (_value, index) => makeFiller(index)),
+      ];
+      // Band events with interior timestamps: ts 150 and 250 land BETWEEN
+      // the existing long rows once the merge re-sorts by ts.
+      const bandEvents = [
+        makeEvent('$band-1', { threadRootId: threadId, ts: 150 }),
+        makeEvent('$band-2', { threadRootId: threadId, ts: 250 }),
+      ];
+      const interleavedThreadEvents = [...initialThreadEvents, ...bandEvents].sort(
+        (a, b) => a.getTs() - b.getTs()
+      );
+      const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
+      const threadTimelineSet = {
+        getLiveTimeline: () => threadTimeline,
+        getTimelineForEvent: () => undefined,
+      };
+      const threadModel = {
+        rootEvent,
+        events: initialThreadEvents,
+        getUnfilteredTimelineSet: () => threadTimelineSet,
+      };
+      const room = makeRoom({ liveEvents: [] });
+      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
+        threadRenderStateMock.threadEvents = events as never;
+        threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+          events.map((event, index) => [event.getId(), index])
+        );
+      };
+      setThreadEvents(initialThreadEvents);
+      const anchorElement = {
+        getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$anchor' : null)),
+        getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
+      };
+      const scrollElement = {
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
+        querySelector: vi.fn(() => undefined),
+        querySelectorAll: vi.fn(() => [anchorElement]),
+        scrollHeight: 4000,
+        clientHeight: 600,
+        scrollTop: 0,
+        scrollTo: vi.fn(),
+      };
+      const innerElement = { style: {} as Record<string, string> };
+      matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      let renderer: ReturnType<typeof create> | undefined;
+
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            }),
+            {
+              createNodeMock: (element) =>
+                element.type === scrollType
+                  ? scrollElement
+                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !==
+                    undefined
+                  ? innerElement
+                  : null,
+            }
+          );
+          await flushAsyncWork();
+        });
+
+        const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
+        await act(async () => {
+          loadOlderChip.props.onClick();
+          await flushAsyncWork(10);
+          // Quiescence-deferred commit window (150ms idle, real timers);
+          // the commit-time recapture reads the pre-prepend index map.
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(10);
+        });
+
+        await act(async () => {
+          setThreadEvents(interleavedThreadEvents);
+          renderer!.update(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            })
+          );
+          await flushAsyncWork(10);
+        });
+
+        // Let the at-rest ledger settle convert the fold into its one
+        // scrollTop shift.
+        await act(async () => {
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(5);
+        });
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
+        // ΔH must price the two INSERTED one-liners (2 x 26 = 52), not
+        // the first-two post-prepend rows (long 76 + one-liner 26 = 102).
+        expect(scrollElement.scrollTop).toBe(52);
+        expect(innerElement.style.marginTop).toBe('');
+      } finally {
+        renderer?.unmount();
+      }
+    });
+
+    it('re-anchors the fold on the nearest surviving baseline row when the anchor is redacted mid-flight', async () => {
+      // Full-surface adversarial review (2026-07-07), ledger finding L2:
+      // if the captured anchor event vanishes from the render list
+      // between capture and commit (redaction acknowledged, dedup
+      // collapse), the old fold silently skipped the whole compensation
+      // and the prepend landed as a visible jump. The key-diff fold must
+      // fall back to the nearest surviving baseline row: inserted rows
+      // above it stay compensated, while the anchor's own removal closes
+      // visibly in view (a redaction SHOULD look like the row vanishing).
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const { getCacheProbeSnapshot } = await import('../cacheProbe');
+      const threadId = '$redacted-anchor-thread-root';
+      const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
+      const longBody = 'L'.repeat(200);
+      const makeLongReply = (index: number) =>
+        makeEvent(`$long-${index}`, {
+          threadRootId: threadId,
+          ts: index * 100,
+          content: { body: longBody, msgtype: 'm.text' },
+        });
+      const anchorEvent = makeEvent('$anchor', { threadRootId: threadId, ts: 400 });
+      const makeFiller = (index: number) =>
+        makeEvent(`$fill-${index}`, { threadRootId: threadId, ts: 500 + index });
+      const initialThreadEvents = [
+        rootEvent,
+        makeLongReply(1),
+        makeLongReply(2),
+        makeLongReply(3),
+        anchorEvent,
+        ...Array.from({ length: 300 }, (_value, index) => makeFiller(index)),
+      ];
+      const bandEvents = [
+        makeEvent('$band-1', { threadRootId: threadId, ts: 150 }),
+        makeEvent('$band-2', { threadRootId: threadId, ts: 250 }),
+      ];
+      // The committed list interleaves the two one-liners AND drops the
+      // anchor itself.
+      const committedThreadEvents = [...initialThreadEvents, ...bandEvents]
+        .filter((event) => event.getId() !== '$anchor')
+        .sort((a, b) => a.getTs() - b.getTs());
+      const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
+      const threadTimelineSet = {
+        getLiveTimeline: () => threadTimeline,
+        getTimelineForEvent: () => undefined,
+      };
+      const threadModel = {
+        rootEvent,
+        events: initialThreadEvents,
+        getUnfilteredTimelineSet: () => threadTimelineSet,
+      };
+      const room = makeRoom({ liveEvents: [] });
+      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
+        threadRenderStateMock.threadEvents = events as never;
+        threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+          events.map((event, index) => [event.getId(), index])
+        );
+      };
+      setThreadEvents(initialThreadEvents);
+      const anchorElement = {
+        getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$anchor' : null)),
+        getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
+      };
+      const scrollElement = {
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
+        querySelector: vi.fn(() => undefined),
+        querySelectorAll: vi.fn(() => [anchorElement]),
+        scrollHeight: 4000,
+        clientHeight: 600,
+        scrollTop: 0,
+        scrollTo: vi.fn(),
+      };
+      const innerElement = { style: {} as Record<string, string> };
+      matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      let renderer: ReturnType<typeof create> | undefined;
+
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            }),
+            {
+              createNodeMock: (element) =>
+                element.type === scrollType
+                  ? scrollElement
+                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !==
+                    undefined
+                  ? innerElement
+                  : null,
+            }
+          );
+          await flushAsyncWork();
+        });
+
+        const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
+        await act(async () => {
+          loadOlderChip.props.onClick();
+          await flushAsyncWork(10);
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(10);
+        });
+
+        const fallbacksBefore = getCacheProbeSnapshot().threadPrependFoldAnchorFallback;
+        await act(async () => {
+          setThreadEvents(committedThreadEvents);
+          renderer!.update(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            })
+          );
+          await flushAsyncWork(10);
+        });
+        await act(async () => {
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(5);
+        });
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
+        // The two interleaved one-liners above the surviving boundary
+        // ($long-3) still fold: 2 x 26 = 52. The redacted anchor's own
+        // height is deliberately NOT compensated.
+        expect(scrollElement.scrollTop).toBe(52);
+        expect(innerElement.style.marginTop).toBe('');
+        expect(getCacheProbeSnapshot().threadPrependFoldAnchorFallback).toBe(fallbacksBefore + 1);
+      } finally {
+        renderer?.unmount();
+      }
+    });
+
+    it('keeps folding mid-flight bands against a rebased baseline until the pagination commit lands', async () => {
+      // Mutant audit 2026-07-07, survivor 2 (PR #88's own mid-flight-band
+      // major had no pin): while a pagination is IN FLIGHT, each band that
+      // lands must fold AND leave the capture armed (rebased) for the next
+      // one. Under always-consume, the FIRST band eats the capture and the
+      // second band lands uncompensated. Two bands, 5 + 3 one-liners at
+      // compact estimate 26: the ledger must read 130 then 208.
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const threadId = '$midflight-band-thread-root';
+      const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
+      const makeReply = (index: number) =>
+        makeEvent(`$te-${index}`, { threadRootId: threadId, ts: index + 1 });
+      const initialThreadEvents = [
+        rootEvent,
+        ...Array.from({ length: 300 }, (_value, index) => makeReply(index + 100)),
+      ];
+      const bandA = Array.from({ length: 5 }, (_value, index) => makeReply(index + 90));
+      const bandB = Array.from({ length: 3 }, (_value, index) => makeReply(index + 80));
+      const afterBandA = [rootEvent, ...bandA, ...initialThreadEvents.slice(1)];
+      const afterBandB = [rootEvent, ...bandB, ...bandA, ...initialThreadEvents.slice(1)];
+      const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
+      const threadTimelineSet = {
+        getLiveTimeline: () => threadTimeline,
+        getTimelineForEvent: () => undefined,
+      };
+      const threadModel = {
+        rootEvent,
+        events: initialThreadEvents,
+        getUnfilteredTimelineSet: () => threadTimelineSet,
+      };
+      const room = makeRoom({ liveEvents: [] });
+      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
+        threadRenderStateMock.threadEvents = events as never;
+        threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+          events.map((event, index) => [event.getId(), index])
+        );
+      };
+      setThreadEvents(initialThreadEvents);
+      const anchorElement = {
+        getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$te-100' : null)),
+        getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
+      };
+      const scrollElement = {
+        isConnected: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
+        querySelector: vi.fn(() => undefined),
+        querySelectorAll: vi.fn(() => [anchorElement]),
+        scrollHeight: 4000,
+        clientHeight: 600,
+        scrollTop: 0,
+        scrollTo: vi.fn(),
+      };
+      const innerElement = { style: {} as Record<string, string> };
+      // The pagination NEVER resolves inside the pinned phase — both
+      // bands land strictly mid-flight.
+      let resolvePaginate: ((value: boolean) => void) | undefined;
+      matrixClientMock.paginateEventTimeline.mockImplementation(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolvePaginate = resolve;
+          })
+      );
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      let renderer: ReturnType<typeof create> | undefined;
+
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            }),
+            {
+              createNodeMock: (element) =>
+                element.type === scrollType
+                  ? scrollElement
+                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !==
+                    undefined
+                  ? innerElement
+                  : null,
+            }
+          );
+          await flushAsyncWork();
+        });
+
+        const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
+        await act(async () => {
+          loadOlderChip.props.onClick();
+          await flushAsyncWork(10);
+        });
+
+        await act(async () => {
+          setThreadEvents(afterBandA);
+          renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId }));
+          await flushAsyncWork(5);
+        });
+        expect(innerElement.style.marginTop).toBe('-130px');
+
+        await act(async () => {
+          setThreadEvents(afterBandB);
+          renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId }));
+          await flushAsyncWork(5);
+        });
+        // The second band only folds if the first band's fold REBASED the
+        // capture instead of consuming it.
+        expect(innerElement.style.marginTop).toBe('-208px');
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
+      } finally {
+        resolvePaginate?.(false);
         renderer?.unmount();
       }
     });

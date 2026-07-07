@@ -127,14 +127,17 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
     await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
     await page.waitForTimeout(3_000);
-    await unrouteAbort();
 
     // Production-shaped stream phase: pagination pages take 1.5s, the
-    // phone CPU is ~4x slower than this desktop.
-    await throttleRelationsContinuations(page, 1_500);
+    // phone CPU is ~4x slower than this desktop. The abort stays armed
+    // until the ride's rig has read threadCountStart and the teleport is
+    // settling: under the one-drain-channel architecture (PR #87)
+    // continuations retry back-to-back the moment the abort lifts, and
+    // the old pre-ride swap let the window fill to 361/361 before
+    // sampling started (battery run 2026-07-07) — the spec degenerated
+    // into a full-window ride and the precondition caught it.
     await throttleCpu(page, 4);
-
-    const report = await runFlickRide(page, {
+    const ridePromise = runFlickRide(page, {
       teleportTo: 1_800,
       teleportSettleMs: 800,
       // 90ms finger-back-down pauses: below the 150ms quiescence window,
@@ -145,6 +148,10 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
       cycles: Array.from({ length: 10 }, () => ({ steps: 8, stepPx: 90, pauseMs: 90 })),
       tailSampleMs: 3_000,
     });
+    await page.waitForTimeout(1_200);
+    await unrouteAbort();
+    await throttleRelationsContinuations(page, 1_500);
+    const report = await ridePromise;
 
     const analysis = analyzeRide(report, FULL_RIDE_BUDGETS);
     // eslint-disable-next-line no-console
@@ -185,6 +192,15 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     expect(analysis.maxGapPx).toBeLessThan(FULL_RIDE_BUDGETS.maxGapPx);
     expect(analysis.maxJumpPx).toBeLessThan(200);
     expect(analysis.totalJumpPx).toBeLessThan(300);
+    // Every budget OUTSIDE the documented seam exception must hold —
+    // notably the minFrames sampling floor, which was computed but never
+    // asserted here (mutant audit 2026-07-07, e2e static pass: a starved
+    // sampler would have made every budget above vacuously green).
+    expect(
+      analysis.violations.filter(
+        (violation) => violation.budget !== 'maxJumpPx' && violation.budget !== 'totalJumpPx'
+      )
+    ).toEqual([]);
   });
 
   test('compositor momentum flicks under latency: pixels never blank, content never shifts', async ({
@@ -315,6 +331,12 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     // sampler knowing which part was user motion) — the driver-based
     // rides own jump precision via driver-delta separation; this test
     // owns PIXELS.
+    // The pixel invariant is only worth anything if pixels were actually
+    // analyzed: analyzeBlankBands silently skips frames whose JPEG decode
+    // fails, so without this floor a wholesale decode failure would make
+    // blankFrames===0 vacuously green (mutant audit 2026-07-07, e2e
+    // static pass).
+    expect(blank.length).toBeGreaterThan(5);
     expect(blankFrames).toBe(0);
     expect(analysis.maxGapPx).toBeLessThan(FULL_RIDE_BUDGETS.maxGapPx);
   });
@@ -455,6 +477,16 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     expect(report.frames.length).toBeGreaterThan(300);
     // The ride genuinely reached the top region of the loaded window.
     expect(topReached).toBeLessThan(600);
+    // Degeneration tripwire (mutant audit 2026-07-07, e2e static pass):
+    // post-calibration the estimator keeps the ledger small by design, so
+    // if the ride never accrues past the ±48px arming floor the guard
+    // under test NEVER RUNS and this spec silently becomes a smooth-ride
+    // test. Skip loudly instead of passing vacuously — a skip in CI is a
+    // signal to make the fixture estimator-adversarial again.
+    test.skip(
+      maxLedger <= 48,
+      `ledger never armed (maxLedger=${maxLedger}px) — boundary guard not exercised`
+    );
     // THE invariant: no blank debt zone, no content shifts - even at the
     // boundary. (Boundary settles are allowed writes; they are visually
     // exact pairs and the jump budget verifies that.)
