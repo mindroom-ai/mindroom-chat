@@ -784,7 +784,11 @@ describe('RoomTimeline architecture', () => {
     // thread open converges via the choke-point reconcile plus the
     // SDK bootstrap + refreshLatestThreadSlice drain.
     expect(cacheControllerSource).not.toContain('enqueueThreadBackfillJob');
-    expect(source).not.toContain('enqueueThreadBackfillJob(');
+    // Bare name, not the call form (self-review fix): the paren form
+    // missed the exact regression shape this consolidation deleted —
+    // an import + prop-plumb of the job producer with no direct call
+    // expression in the component source.
+    expect(source).not.toContain('enqueueThreadBackfillJob');
   });
 
   it('delegates thread-open SDK bootstrap to MindRoom threads', () => {

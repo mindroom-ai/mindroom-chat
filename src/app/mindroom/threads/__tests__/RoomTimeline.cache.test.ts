@@ -4152,7 +4152,26 @@ describe('RoomTimeline', () => {
             );
         await waitForCondition(() => hasPersistWith('$thread-reply-3'), 50);
         expect(hasPersistWith(threadId)).toBe(true);
-        expect(hasPersistWith('$thread-reply-3')).toBe(true);
+        // Self-review fix (PR #87): pin the cached replies in ONE
+        // persist alongside the missing reply — the pre-consolidation
+        // test required a single merged persist of [root, r1, r2, r3];
+        // asserting the new reply in isolation would let a regression
+        // that drops the cached window from the reconciler's batch
+        // (persisting only [root, reply-3]) pass unnoticed.
+        expect(
+          vi
+            .mocked(saveThreadEventsToCache)
+            .mock.calls.some(
+              ([, roomIdArg, threadIdArg, events]) =>
+                roomIdArg === room.roomId &&
+                threadIdArg === threadId &&
+                ['$thread-reply-1', '$thread-reply-2', '$thread-reply-3'].every((eventId) =>
+                  (events as Array<{ event_id?: string }>).some(
+                    (rawEvent) => rawEvent.event_id === eventId
+                  )
+                )
+            )
+        ).toBe(true);
       } finally {
         await act(async () => {
           renderer?.unmount();
