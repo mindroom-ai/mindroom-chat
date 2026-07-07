@@ -405,20 +405,3 @@ export const captureThreadPrependScrollAnchor = (
 
   return undefined;
 };
-
-export const restoreThreadPrependScrollAnchor = (
-  scrollRoot: HTMLElement | null | undefined,
-  anchor: ThreadPrependScrollAnchor | null | undefined
-): boolean => {
-  if (!scrollRoot || !anchor) return false;
-
-  const target = getEventElementById(scrollRoot, anchor.eventId);
-  if (!target) return false;
-
-  const delta = target.getBoundingClientRect().top - anchor.top;
-  if (Math.abs(delta) <= 1) return true;
-
-  scrollRoot.scrollTop += delta;
-
-  return true;
-};

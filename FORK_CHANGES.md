@@ -2,6 +2,99 @@
 
 ## Runbook
 
+### PR #88 adversarial review round: two majors fixed, fold pinned (2026-07-07)
+
+Two independent adversarial agents (correctness lens + test-integrity
+lens) reviewed the PR before merge, per owner mandate. Confirmed and
+fixed:
+
+- STALE SCROLLMARGIN ON SWITCH (major): the ledger's render-time reset
+  ran AFTER the useVirtualizer call in source order; a ref-only reset
+  schedules no re-render, so a switched-to view kept a stale margin in
+  the virtualizer options indefinitely. Reset hoisted above the call.
+- FOLD VS MID-FLIGHT BANDS (major): a hydration band landing while a
+  pagination is in flight shifts the anchor; the fold priced it
+  correctly but CONSUMED the capture, leaving the actual pagination
+  commit uncompensated. The fold now rebases the capture while
+  threadPaginatingBackRef is true and consumes only at the real commit.
+- FOLD PINNED (test-integrity blocker): the previous ledger tests only
+  asserted the DELETED restore machinery's channels were silent — fold
+  deletion, ΔH off-by-one and unconsumed-anchor mutants all passed.
+  The RoomTimeline.cache test now pins the exact folded height through
+  the settle (scrollTop += 2600 for 100 compact one-liners, margin
+  back to zero) and anchor consumption (a begin()-less band prepend
+  adds nothing).
+- Also: O(1) index-map lookup in the fold; alive() guards on settle
+  waits + indent nit (greptile).
+- DEFERRED with agreement of both reviewers: unit coverage for the
+  settle generation guard and the render-time latch keying (tracked
+  here as follow-up tests).
+- Refuted by the reviewers (recorded for posterity): RO-guard removal
+  safety, latch-keying switch scenarios, generation-guard stuck-flag,
+  no-anchor network commits, double Load Older, budget drift.
+
+### Follow-ups PR #88 (cont.): RO guard removed from the virtual-core patch; TanStack issue filed (2026-07-07)
+
+Upstream items closed (analysis by a parallel review agent, verified
+here against pristine 3.17.3 tarball bytes):
+
+- RO GUARD REMOVED (patch part b): its trigger condition — a connected
+  node whose index-derived key maps to a different cached element — is
+  unreachable under event-id getItemKey (React never reuses DOM nodes
+  across key changes), and the snap-back root-cause entry already
+  recorded it live-and-inert during the very bug it was hypothesized
+  for. The patch now carries ONLY the upstreamed cleanup fix
+  (TanStack/virtual#1220). Verified by restoring the pristine dist and
+  re-applying: patch-guard test green, momentum spec 4/4.
+- UPGRADE CHECK: no released virtual-core contains #1220 (3.17.3 is
+  newest, 2026-06-30). Safe upgrade path when 3.17.4+ ships: bump,
+  delete the patch, run the patch-guard test — green means the fix
+  shipped, red means regenerate.
+- TANSTACK ISSUE FILED: TanStack/virtual#1221 — public API to cancel/
+  retarget the scrollTo* reconcile loop (the reason two sites bypass
+  the virtualizer with direct scrolls).
+
+### Follow-ups PR #88: greptile triage, dead-code sweep, scoping calls (2026-07-07)
+
+PR #83 squash-merged by the owner (greptile 4/5). Follow-ups continue
+on `fix/thread-scroll-followups` as one PR (#88).
+
+- GREPTILE TRIAGE: three findings legit and fixed — (1) patch-package
+  moved to dependencies (unconditional postinstall broke or silently
+  de-patched prod installs without dev deps); (2) ledger settle waits
+  carry a GENERATION — a wait armed in a previous room/thread resolves
+  early on element disconnect and must not settle (or block re-arming
+  for) the next view's ledger; (3) the open-at-latest latch resets with
+  RENDER-TIME keying (the useEffect reset ran after the pin layout
+  effect → one commit of the next thread saw the previous latch; the
+  stale threadLatestOpenPending on the switch render must not
+  re-latch). The remaining findings were mid-branch observations that
+  later rounds of #83 resolved (always-drop removed the write classes).
+- DEAD-CODE SWEEP (−433 lines): coarse-leg effect + rAF retry chain +
+  restoreThreadPrependAnchorIfPrepended + focus-controller restore
+  option/effect + controller restorePendingAnchor/
+  getPendingAnchorClientTop + timelineScrollUtils rect-restore — all
+  unreachable since the render-time ledger fold. The fold inherits the
+  seq-mismatch capture cleanup. Battery 9/9, vitest 346/2716.
+- DEFERRED WITH REASON (each needs its own red-test-first session; the
+  all-in-one-PR mandate stops making sense here):
+  1. ROOM-timeline ledger port: room ranges re-expand over PREVIOUSLY
+     MEASURED items (unlike threads, where prepended keys are always
+     unmeasured), so the fold's ΔH needs vc's itemSizeCache per key;
+     rooms have no device reports and no red-test rig yet. Design
+     sketched: fold at onRangeChange-start-decrease with
+     ΔH = Σ (itemSizeCache.get(key) ?? estimate); delete the room
+     coarse+fine effect.
+  2. PREPEND-SEAM grouping reflow (the documented <200px latency-test
+     exception): design direction — include the seam row's
+     (cachedMeasured − estimate) in the fold's ΔH and evict its cached
+     size so the regroup re-prices through the ledger; needs care with
+     the straddling-row in-place rule. Red test exists (tighten the
+     latency budget back to 40/120 when fixed).
+  3. IDB measured-height persistence (exact sizes for previously-seen
+     rows; vc supports initialMeasurementsCache): real feature — cache
+     schema + width/font invalidation.
+
 ### Estimator calibration + ledger boundary guard (2026-07-07, round 11)
 
 The device-trace follow-ups from round 10, red-green:

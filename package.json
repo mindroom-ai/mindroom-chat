@@ -124,7 +124,8 @@
     "slate-dom": "0.123.0",
     "slate-history": "0.113.1",
     "slate-react": "0.123.0",
-    "ua-parser-js": "1.0.35"
+    "ua-parser-js": "1.0.35",
+    "patch-package": "8.0.1"
   },
   "devDependencies": {
     "@capacitor/cli": "8.1.0",
@@ -160,7 +161,6 @@
     "husky": "9.1.7",
     "jsdom": "22.1.0",
     "lint-staged": "16.3.2",
-    "patch-package": "8.0.1",
     "prettier": "2.8.1",
     "react-test-renderer": "18.2.0",
     "typescript": "5.4.2",
