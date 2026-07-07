@@ -479,6 +479,15 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
       return { report, maxLedger, heightsProbes };
     };
 
+    // Seed consumption is flag-gated off in production until this test
+    // is green; the test runs with the flag ON — it IS the gate.
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('mindroom.debug.seedHeights', '1');
+      } catch {
+        // ignore
+      }
+    });
     await loginWithPassword(page, { homeserver, username, password });
     // Phone-width viewport: real line wrap diverges further from the
     // 48-char model, mirroring the device's estimate error.

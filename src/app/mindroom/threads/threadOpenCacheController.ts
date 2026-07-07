@@ -7,6 +7,7 @@ import { getLinkedTimelines } from './timelinePagination';
 import { reconcileThreadBackwardPagination } from './threadPaginationUtils';
 import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from './eventRepository';
 import { loadCachedThreadHeights } from './cacheStore/cacheStoreHeights';
+import { isHeightsSeedingEnabled } from './threadHeightsPersistence';
 import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
 import {
   getAuthoritativeCachedThreadReplyCount,
@@ -100,13 +101,17 @@ export const useThreadOpenCacheController = ({
       });
       const mapper = mx.getEventMapper();
       // Parallel with the (dominant, multi-page) events read; awaited
-      // after it, so seeding adds no open latency.
-      const seededHeightsPromise = loadCachedThreadHeights(
-        sessionId,
-        room.roomId,
-        expectedThreadId,
-        getThreadLayoutKey()
-      ).catch(() => undefined);
+      // after it, so seeding adds no open latency. Consumption is
+      // flag-gated until the reopen-reprice acceptance test is green
+      // (see threadHeightsPersistence.ts).
+      const seededHeightsPromise = isHeightsSeedingEnabled()
+        ? loadCachedThreadHeights(
+            sessionId,
+            room.roomId,
+            expectedThreadId,
+            getThreadLayoutKey()
+          ).catch(() => undefined)
+        : Promise.resolve(undefined);
       const cachedSnapshot = await loadThreadCachedSnapshot({
         sessionId,
         roomId: room.roomId,
