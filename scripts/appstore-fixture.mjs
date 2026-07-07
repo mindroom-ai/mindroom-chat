@@ -22,9 +22,9 @@ const renderInlineMarkdown = (value) => {
   const parts = [];
   const pattern = /(`[^`]+`|\*\*[^*]+\*\*)/g;
   let cursor = 0;
-  let match;
+  let match = pattern.exec(value);
 
-  while ((match = pattern.exec(value)) !== null) {
+  while (match !== null) {
     if (match.index > cursor) {
       parts.push(escapeHtml(value.slice(cursor, match.index)));
     }
@@ -36,6 +36,7 @@ const renderInlineMarkdown = (value) => {
       parts.push(`<strong>${escapeHtml(token.slice(2, -2))}</strong>`);
     }
     cursor = match.index + token.length;
+    match = pattern.exec(value);
   }
 
   if (cursor < value.length) {

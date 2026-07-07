@@ -17,6 +17,10 @@
     emoji instead of a repeated star, and the Bas Nijholt profile avatar is
     downloaded from the public site asset at fixture seed time instead of being
     version controlled in this repo.
+  - Latest PR review follow-up: PNG dimension reads now validate the full PNG
+    magic signature, fixture room aliases use the sanitized run id, IPv6
+    loopback matching treats brackets literally, and the markdown tokenizer
+    avoids conditional assignment.
 - Summary:
   - Adds a repo-native App Store screenshot capture flow:
     `npm run appstore:screenshots` starts the local Docker Matrix fixture,
@@ -60,6 +64,13 @@
     scripts/appstore-fixture.test.mjs`, `node --check
     scripts/seed-appstore-screenshot-room.mjs`, Prettier check on touched
     review files, and `npm run appstore:screenshots`.
+  - Latest review follow-up validation: `node --test
+    scripts/appstore-fixture.test.mjs`, `node --check
+    scripts/appstore-fixture.mjs`, `bash -n scripts/appstore-fixture-up.sh`,
+    Prettier check on touched review files, `npm run appstore:screenshots`,
+    `npm run appstore:preflight`, `npm run typecheck`, `npm run lint`
+    (existing 18 warnings, 0 errors), `npm run build`, `npm test`, and
+    `git diff --check`.
 
 ### Eager thread cache — cold-start sweep teaches thread scopes (2026-07-06)
 

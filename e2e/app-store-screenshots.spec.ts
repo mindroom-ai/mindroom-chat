@@ -26,6 +26,7 @@ const CAMPGROUND_THREAD_TITLE =
   'Campground monitor: daily watcher healthy, no matching openings yet, next scan scheduled.';
 const CAR_THREAD_TITLE =
   'Car search: shortlist updated with two promising options and one negotiation checklist.';
+const PNG_MAGIC_SIGNATURE = Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
 
 const sceneById = (id: AppStoreScreenshotScene['id']): AppStoreScreenshotScene => {
   const scene = APP_STORE_SCREENSHOT_SCENES.find((candidate) => candidate.id === id);
@@ -35,7 +36,9 @@ const sceneById = (id: AppStoreScreenshotScene['id']): AppStoreScreenshotScene =
 
 const readPngSize = async (path: string) => {
   const bytes = await readFile(path);
-  if (bytes.toString('ascii', 1, 4) !== 'PNG') {
+  const signature = bytes.subarray(0, PNG_MAGIC_SIGNATURE.length);
+  const hasPngSignature = PNG_MAGIC_SIGNATURE.every((byte, index) => signature[index] === byte);
+  if (!hasPngSignature) {
     throw new Error(`${path} is not a PNG file.`);
   }
 

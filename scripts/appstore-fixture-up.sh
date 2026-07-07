@@ -51,7 +51,7 @@ export E2E_MATRIX_PORT="${E2E_MATRIX_PORT:-28008}"
 export E2E_HOMESERVER="${E2E_HOMESERVER:-http://127.0.0.1:${E2E_MATRIX_PORT}}"
 
 case "${E2E_HOMESERVER}" in
-  http://127.0.0.1:* | http://localhost:* | http://[::1]:*) ;;
+  http://127.0.0.1:* | http://localhost:* | http://\[::1\]:*) ;;
   *)
     echo "Only local homeservers are supported for App Store screenshot fixtures. Refusing E2E_HOMESERVER=${E2E_HOMESERVER}" >&2
     exit 64
@@ -65,7 +65,7 @@ if [ -z "${SAFE_RUN_ID}" ]; then
   exit 64
 fi
 
-export E2E_FIXTURE_ROOM_ALIAS="#mindroom-app-store-personal-showcase-${APPSTORE_SCREENSHOT_RUN_ID}:matrix.localhost"
+export E2E_FIXTURE_ROOM_ALIAS="#mindroom-app-store-personal-showcase-${SAFE_RUN_ID}:matrix.localhost"
 
 "${ROOT_DIR}/scripts/e2e-matrix-up.sh" >&2
 eval "$(

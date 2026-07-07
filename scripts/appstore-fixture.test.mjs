@@ -20,6 +20,10 @@ const SETUP_SCRIPT_URL = new URL('./appstore-fixture-up.sh', import.meta.url);
 const SETUP_SCRIPT_PATH = fileURLToPath(SETUP_SCRIPT_URL);
 const SCREENSHOT_SCRIPT_URL = new URL('./appstore-screenshots.sh', import.meta.url);
 const SEED_SCRIPT_URL = new URL('./seed-appstore-screenshot-room.mjs', import.meta.url);
+const APP_STORE_SCREENSHOTS_SPEC_URL = new URL(
+  '../e2e/app-store-screenshots.spec.ts',
+  import.meta.url
+);
 
 test('declares the public-safe App Store screenshot fixture room', () => {
   assert.equal(
@@ -224,9 +228,10 @@ test('standalone setup script starts Matrix and seeds the fixture room', async (
   assert.match(script, /scripts\/seed-appstore-screenshot-room\.mjs/);
   assert.match(script, /APPSTORE_SCREENSHOT_RUN_ID/);
   assert.match(script, /appstorescreenshots\$\{SAFE_RUN_ID\}/);
-  assert.match(
-    script,
-    /E2E_FIXTURE_ROOM_ALIAS="#mindroom-app-store-personal-showcase-\$\{APPSTORE_SCREENSHOT_RUN_ID\}:matrix\.localhost"/
+  assert.ok(
+    script.includes(
+      'E2E_FIXTURE_ROOM_ALIAS="#mindroom-app-store-personal-showcase-${SAFE_RUN_ID}:matrix.localhost"'
+    )
   );
 });
 
@@ -234,6 +239,25 @@ test('standalone setup script does not inherit stale room aliases', async () => 
   const script = await readFile(SETUP_SCRIPT_URL, 'utf8');
 
   assert.doesNotMatch(script, /E2E_FIXTURE_ROOM_ALIAS:-/);
+});
+
+test('standalone setup script treats IPv6 loopback as a literal host pattern', async () => {
+  const script = await readFile(SETUP_SCRIPT_URL, 'utf8');
+
+  assert.ok(script.includes('http://\\[::1\\]:*'));
+});
+
+test('fixture markdown tokenizer avoids conditional assignment', async () => {
+  const script = await readFile(new URL('./appstore-fixture.mjs', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(script, /while\s*\(\([^)]*=\s*pattern\.exec\(value\)\)\s*!==\s*null\)/);
+});
+
+test('screenshot PNG reader validates the complete file signature', async () => {
+  const script = await readFile(APP_STORE_SCREENSHOTS_SPEC_URL, 'utf8');
+
+  assert.match(script, /PNG_MAGIC_SIGNATURE/);
+  assert.match(script, /bytes\.subarray\(0,\s*PNG_MAGIC_SIGNATURE\.length\)/);
 });
 
 test('seeder keeps Matrix media upload fallback resilient', async () => {
