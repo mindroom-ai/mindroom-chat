@@ -17,6 +17,23 @@ import { saveCachedThreadHeights } from './cacheStore/cacheStoreHeights';
  * persister.
  */
 
+// Seed CONSUMPTION is flag-gated OFF until the reopen-reprice acceptance
+// test is green: the plumbing is verified end-to-end (saves + loads +
+// matching layout keys), but seeded prices are currently CONTRADICTED by
+// mount-time remeasurement and make re-rides accrue MORE ledger, not
+// less (maxLedger2 4550 seeded vs 650 unseeded — see the red e2e).
+// Persisting stays unconditional so real measurement data accumulates in
+// the meantime. Enable on a device with
+// localStorage['mindroom.debug.seedHeights']='1'.
+const HEIGHTS_SEEDING_FLAG_KEY = 'mindroom.debug.seedHeights';
+export const isHeightsSeedingEnabled = (): boolean => {
+  try {
+    return localStorage.getItem(HEIGHTS_SEEDING_FLAG_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
 // Heights are only valid for the layout they were measured under.
 // Ingredients: timeline column width (wrap points), layout density and
 // zoom (row chrome heights). A mismatch discards the record wholesale.
