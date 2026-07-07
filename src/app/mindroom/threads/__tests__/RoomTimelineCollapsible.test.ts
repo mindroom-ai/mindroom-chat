@@ -369,7 +369,6 @@ vi.mock('../TimelineMinimap.css', () => ({
   MinimapContainer: 'MinimapContainer',
   MinimapBody: 'MinimapBody',
   MinimapRail: 'MinimapRail',
-  MinimapRailLine: 'MinimapRailLine',
   MinimapStrip: {
     Rest: 'MinimapStripRest',
     Near: 'MinimapStripNear',

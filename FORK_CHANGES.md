@@ -2858,6 +2858,24 @@ the remaining checklist was finished in-session).
     with `aria-valuetext` is what announces question/answer previews during
     arrow-key navigation; alternative roles lose that or require
     restructuring the presentational stripes into a real listbox.
+
+### CINNY-219 follow-up — remove the minimap rail's vertical guide line (2026-07-07)
+
+- Status: complete.
+- User feedback: the 1px vertical line running along the right edge of the
+  stripes (top stripe to bottom stripe) reads as visual noise; the stripes
+  alone are the affordance. Confirmed separately that the minimap being
+  absent on mobile is intentional (`display: none` outside
+  `@media (pointer: fine)` — touch devices have no hover for the dock/preview
+  interactions).
+- Change: deleted the `MinimapRailLine` span from `TimelineMinimap.tsx` and
+  its style from `TimelineMinimap.css.ts`; dropped the corresponding key from
+  the css-module mocks in `RoomTimelineCollapsible.test.ts` and
+  `RoomTimeline.test.shared.ts`. Rail hit area, stripes, hover preview, and
+  keyboard slider behavior untouched.
+- Validation: typecheck clean; minimap unit tests (23) green; lint on changed
+  files clean; production build clean.
+
 ### CINNY-207 PR #72 review round 3 — engine prefetch config reads the typed mindroom atom (2026-07-04)
 
 - Greptile re-review reasoning ("engine still reads prefetch config from a settings object that does not include the new MindRoom fields"): runtime-correct but type-dishonest — `getSettings()` spreads the parsed blob so persisted `prefetchScope`/`prefetchDepth` DO survive into `settingsAtom`, and `mindroomSettingsAtom` writes carry them; the wiring worked. But ClientRoot asserted that via `store.get(settingsAtom) as unknown as {prefetchScope?: unknown; ...}` — a cast claiming what the type system could enforce.
