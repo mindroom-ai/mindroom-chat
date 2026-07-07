@@ -441,6 +441,7 @@ vi.mock('@tanstack/react-virtual', () => {
           instance!.options = next;
         },
         itemSizeCache: new Map(),
+        takeSnapshot: () => [],
         getTotalSize: () => {
           const opts = optionsRef.current;
           const estimatedSize = opts.estimateSize?.() ?? 100;

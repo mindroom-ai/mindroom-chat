@@ -6,6 +6,8 @@ import {
   META_STORE,
   MINDROOM_CACHE_DB_BASE_NAME,
   ROOM_LEDGER_STORE,
+  THREAD_HEIGHTS_BY_ROOM_INDEX,
+  THREAD_HEIGHTS_STORE,
   THREAD_SUMMARIES_BY_ROOM_INDEX,
   THREAD_SUMMARIES_STORE,
 } from './cacheStoreSchema';
@@ -31,6 +33,7 @@ const REQUIRED_STORES = [
   META_STORE,
   ROOM_LEDGER_STORE,
   THREAD_SUMMARIES_STORE,
+  THREAD_HEIGHTS_STORE,
 ] as const;
 
 const hasRequiredCacheStoreStores = (
@@ -68,6 +71,14 @@ const applyUpgrade = (db: IDBDatabase): void => {
       keyPath: 'cacheKey',
     });
     summariesStore.createIndex(THREAD_SUMMARIES_BY_ROOM_INDEX, 'roomId', { unique: false });
+  }
+  if (!db.objectStoreNames.contains(THREAD_HEIGHTS_STORE)) {
+    // Schema v4: measured tile heights per thread, seeded into the
+    // virtualizer on reopen (see cacheStoreSchema.CachedThreadHeightsRecord).
+    const heightsStore = db.createObjectStore(THREAD_HEIGHTS_STORE, {
+      keyPath: 'cacheKey',
+    });
+    heightsStore.createIndex(THREAD_HEIGHTS_BY_ROOM_INDEX, 'roomId', { unique: false });
   }
 };
 

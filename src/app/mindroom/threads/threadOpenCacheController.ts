@@ -6,6 +6,7 @@ import { logTimelineDebug } from './timelineDebug';
 import { getLinkedTimelines } from './timelinePagination';
 import { reconcileThreadBackwardPagination } from './threadPaginationUtils';
 import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from './eventRepository';
+import { loadCachedThreadHeights } from './cacheStore/cacheStoreHeights';
 import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
 import {
   getAuthoritativeCachedThreadReplyCount,
@@ -51,10 +52,12 @@ export const useThreadOpenCacheController = ({
   alive,
   debugTraceId,
   forceTimelineUpdate,
+  getThreadLayoutKey,
   mx,
   persistThreadEventCache,
   room,
   roomIdRef,
+  seededThreadHeightsRef,
   sessionId,
   setSupplementalThreadEvents,
   setThreadHasMoreCachedBack,
@@ -65,10 +68,18 @@ export const useThreadOpenCacheController = ({
   alive: () => boolean;
   debugTraceId: string | undefined;
   forceTimelineUpdate: () => void;
+  // Measured-heights seeding (schema v4): the heights read runs parallel
+  // to the events read and must land in the ref BEFORE the supplemental
+  // setter triggers the first rows-render — the virtualizer's seed
+  // window closes at that render.
+  getThreadLayoutKey: () => string;
   mx: MatrixClient;
   persistThreadEventCache: PersistThreadEventCache;
   room: Room;
   roomIdRef: MutableRefObject<string>;
+  seededThreadHeightsRef: MutableRefObject<
+    { threadId: string; heights: Record<string, number> } | undefined
+  >;
   // CINNY-207 P5.1: `roomTimelineSet` used to be plumbed through here
   // for `refreshLatestThreadRelationsTail`'s aggregation reconcile
   // call. That method moved to `engine/reconciler.ts` — the reconciler
@@ -88,6 +99,14 @@ export const useThreadOpenCacheController = ({
         threadId: expectedThreadId,
       });
       const mapper = mx.getEventMapper();
+      // Parallel with the (dominant, multi-page) events read; awaited
+      // after it, so seeding adds no open latency.
+      const seededHeightsPromise = loadCachedThreadHeights(
+        sessionId,
+        room.roomId,
+        expectedThreadId,
+        getThreadLayoutKey()
+      ).catch(() => undefined);
       const cachedSnapshot = await loadThreadCachedSnapshot({
         sessionId,
         roomId: room.roomId,
@@ -123,6 +142,11 @@ export const useThreadOpenCacheController = ({
       const tailLoaded = cachedPage.tailLoaded === true;
 
       if (!alive() || threadIdRef.current !== expectedThreadId) return undefined;
+
+      const seededHeights = await seededHeightsPromise;
+      if (seededHeights && Object.keys(seededHeights).length > 0) {
+        seededThreadHeightsRef.current = { threadId: expectedThreadId, heights: seededHeights };
+      }
 
       const cachedEvents = cachedSnapshot.events;
       const liveRootMatrixEvent =
@@ -229,8 +253,10 @@ export const useThreadOpenCacheController = ({
       alive,
       debugTraceId,
       forceTimelineUpdate,
+      getThreadLayoutKey,
       mx,
       room,
+      seededThreadHeightsRef,
       sessionId,
       setSupplementalThreadEvents,
       setThreadHasMoreCachedBack,

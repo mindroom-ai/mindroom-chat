@@ -357,6 +357,11 @@ export type CacheProbeCounters = {
   // Ledger fold: anchor AND every baseline row vanished — no boundary to
   // diff against; the capture was dropped uncompensated.
   threadPrependFoldAnchorLost: number;
+  // Schema v4 measured-heights persistence: saves, seed loads that
+  // matched the current layout, and records discarded on layout change.
+  threadHeightsSaves: number;
+  threadHeightsSeedLoads: number;
+  threadHeightsLayoutMismatches: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -418,6 +423,9 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   threadPaginateBackStaleThreadBails: 0,
   threadPrependFoldAnchorFallback: 0,
   threadPrependFoldAnchorLost: 0,
+  threadHeightsSaves: 0,
+  threadHeightsSeedLoads: 0,
+  threadHeightsLayoutMismatches: 0,
 });
 
 let counters = createEmptyCounters();
