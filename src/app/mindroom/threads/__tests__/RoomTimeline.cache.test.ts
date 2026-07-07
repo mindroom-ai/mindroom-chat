@@ -3794,11 +3794,33 @@ describe('RoomTimeline', () => {
 
         await waitForCondition(() => matrixClientMock.fetchRelations.mock.calls.length > 0, 50);
         expect(matrixClientMock.fetchRelations).toHaveBeenCalled();
+        // The stale cached root count (2) claimed completeness, but the
+        // fresher live room root says 3 replies exist — hydrate must
+        // prefer the live count, classify the snapshot partial, and the
+        // open must persist expectedReplyCount=3 (arg index 8).
+        //
+        // 2026-07-06 consolidation: the old backfill leg also stamped
+        // relationSnapshotComplete=true here (its full drain observed
+        // next_batch exhaustion). Open-time relations proofs are gone
+        // with that leg — background prefetch owns them now — so no
+        // persist on this open may claim one.
+        await waitForCondition(
+          () =>
+            vi
+              .mocked(saveThreadEventsToCache)
+              .mock.calls.some((call) => call[2] === threadId && call[8] === 3),
+          50
+        );
         expect(
           vi
             .mocked(saveThreadEventsToCache)
-            .mock.calls.some((call) => call[2] === threadId && call[8] === 3 && call[9] === true)
+            .mock.calls.some((call) => call[2] === threadId && call[8] === 3)
         ).toBe(true);
+        expect(
+          vi
+            .mocked(saveThreadEventsToCache)
+            .mock.calls.some((call) => call[2] === threadId && call[9] === true)
+        ).toBe(false);
       } finally {
         await act(async () => {
           renderer?.unmount();
@@ -3912,7 +3934,7 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('fills incomplete cached thread snapshots from thread relations before falling back to sdk bootstrap', async () => {
+    it('paints a partial cached snapshot and drains through SDK bootstrap + refreshLatestThreadSlice (no open-time relations backfill)', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import(
         '../cacheStore'
@@ -3945,9 +3967,16 @@ describe('RoomTimeline', () => {
       const room = makeRoom({
         findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
       });
+      // Minimal `addEvents` so the choke-point reconciler's repair leg
+      // (SDK injection before hydrate/persist) can run against this
+      // mock instead of rejecting the reconcile job.
+      const threadEvents = [rootEvent];
       room.getThread = () =>
         ({
-          events: [rootEvent],
+          addEvents: (added: ReturnType<typeof makeEvent>[]) => {
+            threadEvents.push(...added);
+          },
+          events: threadEvents,
           getUnfilteredTimelineSet: () => threadTimelineSet,
           rootEvent,
         } as never);
@@ -4020,18 +4049,12 @@ describe('RoomTimeline', () => {
         snapshotComplete: false,
         tailLoaded: true,
       } as never);
-      // CINNY-207 AC2 revision (2026-07-04): both the choke-point
-      // reconciler (kind='reconcile') and the backfill executor
-      // (kind='thread-backfill') fire `fetchRelations` on this open,
-      // in that order (the choke-point is now the FIRST call site
-      // inside `runThreadOpenCacheFirst`, above coverage branching).
-      // Both need the same chunk: the backfill uses it to compute
-      // `completed: true` (which is what makes the branch skip SDK
-      // bootstrap); the reconciler uses it to detect divergence
-      // against the cached window. Pre-revision this test only needed
-      // one mockResolvedValueOnce because the reconciler was scheduled
-      // AFTER the backfill returned — its fetch landed after the
-      // assertions window and its default empty response was harmless.
+      // 2026-07-06 consolidation: the choke-point reconciler
+      // (kind='reconcile') is now the ONLY `/relations` caller on a
+      // partial-coverage open — the open-time thread-backfill drain
+      // was deleted. One chunk mock feeds that single call; the
+      // reconciler uses it to detect divergence against the cached
+      // window (reply-3 is new).
       const relationsChunkResponse = {
         chunk: [
           {
@@ -4076,9 +4099,7 @@ describe('RoomTimeline', () => {
         ],
         next_batch: null,
       };
-      matrixClientMock.fetchRelations
-        .mockResolvedValueOnce(relationsChunkResponse)
-        .mockResolvedValueOnce(relationsChunkResponse);
+      matrixClientMock.fetchRelations.mockResolvedValueOnce(relationsChunkResponse);
 
       let renderer: ReturnType<typeof create> | undefined;
       try {
@@ -4095,37 +4116,43 @@ describe('RoomTimeline', () => {
         await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
 
-        // CINNY-207 AC2 revision (2026-07-04): the choke-point schedule
-        // at the top of `runThreadOpenCacheFirst` fires the reconciler's
-        // `/relations` BEFORE the coverage branching runs; the backfill
-        // then fires its own `/relations` when the partial-coverage
-        // branch calls `backfillThreadRelationsIntoCache`. Both live in
-        // different dedup domains (reconciler `kind='reconcile'`,
-        // backfill `kind='thread-backfill'`) so the scheduler doesn't
-        // collapse them. Total = 2, same total STEP d asserted; only
-        // the call ordering flipped (reconciler now first, not second).
-        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
+        // 2026-07-06 consolidation contract: a partial-coverage open
+        // fires exactly ONE `/relations` call — the choke-point
+        // reconciler's. The open-time thread-backfill leg (the second
+        // full drain STEP d used to assert here) is deleted; the open
+        // falls through to SDK bootstrap + refreshLatestThreadSlice
+        // instead of drain-racing the reconciler.
+        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
+        // Fall-through evidence: SDK bootstrap ran (thread model was
+        // present so no /context call, but getThreadTimeline fired).
         expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
-        expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
+        expect(matrixClientMock.getThreadTimeline).toHaveBeenCalledTimes(1);
+        // The cached snapshot proves the thread's backward start
+        // (beforeToken null), so the bootstrap adopts it and the
+        // refreshLatestThreadSlice drain has nothing older to fetch —
+        // no /messages-style pagination fires and the stale SDK token
+        // ends cleared.
         expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
         expect(staleThreadTimeline.getPaginationToken(Direction.Backward)).toBeNull();
-        expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
-          expect.any(String),
-          room.roomId,
-          threadId,
-          expect.arrayContaining([
-            expect.objectContaining({ event_id: threadId }),
-            expect.objectContaining({ event_id: '$thread-reply-1' }),
-            expect.objectContaining({ event_id: '$thread-reply-2' }),
-            expect.objectContaining({ event_id: '$thread-reply-3' }),
-          ]),
-          expect.objectContaining({ event_id: threadId }),
-          null,
-          true,
-          true,
-          3,
-          true
-        );
+        // The open persists the SDK-backed snapshot (root event, null
+        // before-token), and the reconciler's divergence persist
+        // teaches the cache the reply the sweep missed ($thread-reply-3)
+        // — convergence now flows through the reconcile + the single
+        // SDK drain, not through an open-time backfill merge.
+        const hasPersistWith = (eventId: string) =>
+          vi
+            .mocked(saveThreadEventsToCache)
+            .mock.calls.some(
+              ([, roomIdArg, threadIdArg, events]) =>
+                roomIdArg === room.roomId &&
+                threadIdArg === threadId &&
+                (events as Array<{ event_id?: string }>).some(
+                  (rawEvent) => rawEvent.event_id === eventId
+                )
+            );
+        await waitForCondition(() => hasPersistWith('$thread-reply-3'), 50);
+        expect(hasPersistWith(threadId)).toBe(true);
+        expect(hasPersistWith('$thread-reply-3')).toBe(true);
       } finally {
         await act(async () => {
           renderer?.unmount();
@@ -4134,7 +4161,7 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('does not treat an empty relations backfill as complete when the known reply count is still unmet', async () => {
+    it('does not treat an empty relations response as complete when the known reply count is still unmet', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import(
         '../cacheStore'
@@ -4250,15 +4277,15 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
-        // CINNY-207 P5.1 (D7 / AC9): partial-coverage open now
-        // schedules a reconcile pass after the SDK bootstrap in
-        // addition to the existing `backfillThreadRelationsIntoCache`
-        // /relations call, so `fetchRelations` fires twice per open
-        // (once for the backfill, once for the reconcile) rather than
-        // the pre-P5 single call.
-        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
+        // 2026-07-06 consolidation: the reconciler's choke-point pass
+        // is the only `/relations` caller on this open (the open-time
+        // thread-backfill drain is deleted). The server returned an
+        // empty chunk, so the reconciler has nothing to repair and the
+        // open converges through SDK bootstrap + refreshLatestThreadSlice.
+        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
         await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
+        // The persisted snapshot must keep the known first reply...
         expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
           expect.any(String),
           room.roomId,
@@ -4269,8 +4296,19 @@ describe('RoomTimeline', () => {
           true,
           false,
           3,
-          true
+          undefined
         );
+        // ...and NO persist on this open may fabricate completeness:
+        // the root's m.relations count says 3 replies exist and only 1
+        // is loaded, so every write must carry snapshotComplete=false
+        // (arg index 7 of the cacheStore writer).
+        expect(
+          vi
+            .mocked(saveThreadEventsToCache)
+            .mock.calls.some(([, , threadIdArg, , , , , snapshotCompleteArg]) =>
+              threadIdArg === threadId && snapshotCompleteArg === true
+            )
+        ).toBe(false);
       } finally {
         await act(async () => {
           renderer?.unmount();
@@ -4420,8 +4458,14 @@ describe('RoomTimeline', () => {
         });
 
         await waitForCondition(() => matrixClientMock.fetchRelations.mock.calls.length > 0, 50);
+        // A sparse page without a loaded-tail marker must NOT take the
+        // complete-coverage fast path. Under the 2026-07-06 one-drain
+        // contract the evidence is the fall-through itself: the
+        // choke-point reconcile fires /relations AND the open proceeds
+        // into SDK bootstrap (no thread model in this harness, so the
+        // bootstrap's /context call is the tell).
         expect(matrixClientMock.fetchRelations).toHaveBeenCalled();
-        expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
+        expect(matrixClientMock.getEventTimeline).toHaveBeenCalled();
       } finally {
         await act(async () => {
           renderer?.unmount();
