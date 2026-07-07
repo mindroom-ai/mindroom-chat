@@ -91,4 +91,14 @@ describe('thread meta expectedReplyCount merge policy', () => {
     await saveWithCount(undefined, undefined, '$reply-2');
     expect(await storedCount()).toBe(282);
   });
+
+  it('a count-LESS complete write retains the stored value (refreshLatestThreadSlice shape)', async () => {
+    // Production-reachable: refreshLatestThreadSlice persists complete
+    // snapshots without an expectedReplyCount argument. The complete-
+    // proof "set absolutely" rule applies only when the write carries
+    // a count — with none, there is no observation to prefer.
+    await saveWithCount(282, undefined, '$reply-1');
+    await saveWithCount(undefined, true, '$reply-2');
+    expect(await storedCount()).toBe(282);
+  });
 });

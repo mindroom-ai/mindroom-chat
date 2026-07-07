@@ -271,7 +271,14 @@ describe('BackfillScheduler (CINNY-207 P4.1)', () => {
       expect(order).toEqual(['thread-backfill', 'band2']);
     });
 
-    it('a deduped enqueue onto a RUNNING job leaves its priority untouched', async () => {
+    // Self-review honesty note: this documents the PUBLIC contract —
+    // it held even before the explicit `!running.has(key)` guard,
+    // because drain() spread-copies the entry into `running` and
+    // pendingJobs() reports the copy. The guard in enqueue() makes the
+    // intent structural (no dead write on the byKey original); it is
+    // not independently observable through the public API, so this
+    // test cannot distinguish guard-present from guard-absent.
+    it('a deduped enqueue onto a RUNNING job leaves its reported priority untouched (public contract)', async () => {
       const mx = createMockClient();
       const scheduler = createBackfillScheduler({ mx, maxConcurrent: 1 });
       let releaseRunning!: () => void;

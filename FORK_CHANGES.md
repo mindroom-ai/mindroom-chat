@@ -14,10 +14,14 @@ its independent review pass.
   let a stale-LOW value replace a fresher count and weaken the
   reply-count completeness proof. New
   `mergeThreadExpectedReplyCount` (cacheStoreNormalize.ts):
-  `snapshotComplete === true` writes SET absolutely (the full-drain
-  proof is the only writer allowed to LOWER — redactions legitimately
-  shrink threads); all other writes merge monotonically (max). Red-first
-  tests in `cacheStoreReplyCountMerge.test.ts`.
+  `snapshotComplete === true` writes that CARRY a count set it
+  absolutely (the full-drain proof is the only writer allowed to LOWER
+  — redactions legitimately shrink threads); a count-LESS complete
+  write (refreshLatestThreadSlice's persist shape) RETAINS the stored
+  value; all other writes merge monotonically (max). Red-first tests in
+  `cacheStoreReplyCountMerge.test.ts` incl. the count-less-complete
+  case (self-review fix — the first wording overclaimed "set
+  absolutely" for that production-reachable shape).
 - Finding #5 — scheduler dedup priority: priority was fixed at enqueue
   time, so a priority-0 open coalescing onto a QUEUED band-3 prewarm
   job inherited band 3 and its paint waited behind all queued band-1/2

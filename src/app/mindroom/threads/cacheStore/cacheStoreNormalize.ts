@@ -220,10 +220,13 @@ export const normalizeExpectedReplyCount = (
  * stale-LOW value replace a fresher count and weaken the reply-count
  * completeness proof the eager-cache open path leans on.
  *
- *   - `snapshotComplete === true` writes (authoritative full-drain
- *     proof) SET absolutely — the only writer allowed to LOWER the
- *     count, because redactions legitimately shrink threads and the
- *     drain observed the real reply set.
+ *   - `snapshotComplete === true` writes that CARRY a count set it
+ *     absolutely — the only writers allowed to LOWER the stored value,
+ *     because redactions legitimately shrink threads and the drain
+ *     observed the real reply set. A count-LESS complete write (e.g.
+ *     `refreshLatestThreadSlice`'s persist, which omits
+ *     expectedReplyCount) RETAINS the stored value — there is no
+ *     incoming observation to prefer.
  *   - All other writes merge monotonically (max of stored/incoming):
  *     a stale-low sweep value can never weaken the proof, while a
  *     fresher higher count still strengthens it.
