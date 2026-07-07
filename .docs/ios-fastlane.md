@@ -88,11 +88,41 @@ See `ios/App/fastlane/screenshots/README.md` for required pixel sizes, naming
 conventions, and capture commands. Screenshot binaries are gitignored; the
 directory only tracks documentation.
 
-Follow-up (not yet implemented): fully automated capture with fastlane
-`snapshot` requires adding an Xcode UI-test target to `App.xcodeproj`.
-Alternatively, because the app is a Capacitor webview, Playwright (already in
-this repo for e2e) could render App-Store-sized viewports and write directly
-into `fastlane/screenshots/en-US/`.
+Current automated path, from the repository root:
+
+```bash
+npm run appstore:screenshots
+```
+
+This starts the local Docker Matrix stack, provisions an isolated disposable
+account and room for each run, seeds a public-safe fake `Personal` room with
+Bas Nijholt as the user, downloads the public `nijho.lt` profile avatar at
+seed time, provisions AI agent users and avatars, and uses Playwright to render
+device-scaled viewports that write exact iPhone 6.9" (`1320 x 2868`) and iPad
+13" (`2064 x 2752`) PNGs into `fastlane/screenshots/en-US/`. The fixture
+focuses on the personal-agent product story: a daily workspace overview, Mind's
+public-safe markdown-formatted explanation of MindRoom, and a campground
+watcher with expanded tool calls. The wrapper starts a fresh Vite server on an
+available port by default so dependency-cache changes cannot reuse a stale
+localhost build.
+
+To only start Matrix and seed the fixture room:
+
+```bash
+npm run appstore:fixture
+```
+
+Live/existing account capture is intentionally unsupported for App Store
+screenshots because it can expose private rooms, profiles, or existing account
+state. Use the local fixture path for release assets.
+
+Fixture thread summaries use topic-specific emoji, and the seeded summary
+metadata uses varied message counts so the overview looks like a real
+personal-agent workspace rather than a tiny demo room.
+
+Fastlane `snapshot` remains a future option, but it requires adding an Xcode
+UI-test target and shared scheme to `App.xcodeproj`. The Playwright path is the
+repo-native procedure for this Capacitor webview until that target exists.
 
 ## Signing note
 

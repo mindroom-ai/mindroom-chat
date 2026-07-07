@@ -4,14 +4,18 @@ import { defineConfig, devices } from '@playwright/test';
 const port = Number(process.env.E2E_PORT ?? 4173);
 const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${port}`;
 const webServerCommand =
-  process.env.E2E_SERVER_COMMAND ??
-  `npm run start -- --host 127.0.0.1 --port ${port} --strictPort`;
+  process.env.E2E_SERVER_COMMAND ?? `npm run start -- --host 127.0.0.1 --port ${port} --strictPort`;
+const reuseExistingServer =
+  process.env.E2E_REUSE_EXISTING_SERVER === '1'
+    ? true
+    : process.env.E2E_REUSE_EXISTING_SERVER === '0'
+    ? false
+    : !process.env.CI;
 const chromiumExecutablePath =
   process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ??
-  [
-    '/run/current-system/sw/bin/chromium',
-    '/run/current-system/sw/bin/chromium-browser',
-  ].find((candidate) => existsSync(candidate));
+  ['/run/current-system/sw/bin/chromium', '/run/current-system/sw/bin/chromium-browser'].find(
+    (candidate) => existsSync(candidate)
+  );
 
 export default defineConfig({
   testDir: './e2e',
@@ -49,7 +53,7 @@ export default defineConfig({
       : {
           command: webServerCommand,
           url: baseURL,
-          reuseExistingServer: !process.env.CI,
+          reuseExistingServer,
           timeout: 120_000,
         },
 });

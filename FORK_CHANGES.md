@@ -777,6 +777,76 @@ were visible mid-scroll shrink slightly at that moment. Worst on folded
   1122 tests ✅. Independent review pass on the diff.
 - Next: deploy to chat.mindroom.chat and device-test on iOS (white areas +
   momentum); then continue the #79/#94 bandage sweep.
+### iOS release prep with fastlane screenshot procedure (2026-07-05)
+
+- Status:
+  - Refreshed on `caveman/ios-release-fastlane-20260705` from current
+    `origin/dev` (`3c7047d3`). App Store Connect upload/review
+    submission is being handled as a follow-up release task, not by this
+    commit.
+  - PR review follow-up: media upload fallback now continues across Matrix
+    media endpoint parse/network failures, dummy-auth registration reuses the
+    parsed Matrix challenge from `matrixFetch`, and screenshot capture waits
+    for a render frame instead of a fixed delay.
+  - Screenshot content follow-up: thread summaries now use topic-specific
+    emoji instead of a repeated star, and the Bas Nijholt profile avatar is
+    downloaded from the public site asset at fixture seed time instead of being
+    version controlled in this repo.
+  - Latest PR review follow-up: PNG dimension reads now validate the full PNG
+    magic signature, fixture room aliases use the sanitized run id, IPv6
+    loopback matching treats brackets literally, and the markdown tokenizer
+    avoids conditional assignment.
+- Summary:
+  - Adds a repo-native App Store screenshot capture flow:
+    `npm run appstore:screenshots` starts the local Docker Matrix fixture,
+    provisions an isolated disposable account and room alias per run, seeds a
+    public-safe fake `Personal` workspace, starts a fresh Vite server, and
+    captures iPhone 6.9" plus iPad 13" PNGs into
+    `ios/App/fastlane/screenshots/en-US/`.
+  - Adds `npm run appstore:fixture` for setup-only local Matrix seeding. The
+    fake workspace uses Bas Nijholt as the user, downloads the public
+    `nijho.lt` avatar at seed time, fake MindRoom agent accounts with uploaded
+    avatars, markdown-formatted agent replies, scheduled-task/tool metadata,
+    topic-specific summary emoji, and varied thread depths (`9`, `27`, `34`,
+    `68`, `103`) so App Store screenshots read like a real personal-agent
+    workspace.
+  - Documents the Fastlane lanes and screenshot procedure. `upload_metadata`
+    and `upload_screenshots` remain metadata/screenshot-only `deliver` lanes;
+    `Deliverfile` keeps review submission and automatic release disabled;
+    `beta` remains the signed local TestFlight lane.
+- Decisions:
+  - Use Playwright for automated screenshots because the app is a Capacitor
+    webview and the repo already has Matrix fixture helpers. Fastlane
+    `snapshot` remains a future option once an Xcode UI-test target and shared
+    scheme exist.
+  - Existing/live account screenshot capture is intentionally unsupported.
+    Release assets must use the local isolated fixture so private rooms,
+    profiles, or account state cannot leak.
+  - Keep screenshot binaries gitignored; only scripts, tests, docs, and the
+    placeholder screenshot directory stay in source control.
+- Validation:
+  - Green post-rebase checks on the refreshed `3c7047d3` base:
+    `node --test scripts/appstore-fixture.test.mjs`,
+    `npm test -- src/app/mindroom/appstore/appStoreScreenshots.test.ts`,
+    script syntax checks, Prettier check on touched source/test scripts,
+    `npm run appstore:screenshots`, `npm run appstore:preflight`, Fastlane
+    lane parsing, `npm run typecheck`, `npm run lint` (existing 18 warnings,
+    0 errors), `npm run build`, and `npm test` (345 files, 2703 tests).
+  - Current screenshots regenerated into `ios/App/fastlane/screenshots/en-US/`
+    with the expected dimensions: iPhone 6.9" `1320x2868`; iPad 13"
+    `2064x2752`.
+  - PR review follow-up validation: `node --test
+    scripts/appstore-fixture.test.mjs`, `node --check
+    scripts/seed-appstore-screenshot-room.mjs`, Prettier check on touched
+    review files, and `npm run appstore:screenshots`.
+  - Latest review follow-up validation: `node --test
+    scripts/appstore-fixture.test.mjs`, `node --check
+    scripts/appstore-fixture.mjs`, `bash -n scripts/appstore-fixture-up.sh`,
+    Prettier check on touched review files, `npm run appstore:screenshots`,
+    `npm run appstore:preflight`, `npm run typecheck`, `npm run lint`
+    (existing 18 warnings, 0 errors), `npm run build`, `npm test`, and
+    `git diff --check`.
+
 ### Eager thread cache — cold-start sweep teaches thread scopes (2026-07-06)
 
 Report: after clearing cache + reloading, Cinny visibly downloads lots of
