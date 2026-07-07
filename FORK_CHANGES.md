@@ -1287,7 +1287,7 @@ the remaining checklist was finished in-session).
 - Summary:
   - Thread previews in the compact overview showed raw markdown
     (`**bold**`, backticks, headings) and MindRoom tool-call fallback lines
-    (`🔨 \`tool_name\` [n]` repeated per call), making cards hard to scan.
+    (`🔧 \`tool_name\` [n]` repeated per call), making cards hard to scan.
   - All preview surfaces funnel through `getThreadMessagePreviewText()`
     (`src/app/mindroom/threads/threadMessagePreview.ts`) — compact cards,
     zero-reply roots, latest-reply snippets, command palette, aria labels —
@@ -1308,7 +1308,7 @@ the remaining checklist was finished in-session).
     `toolSummary` field) is a possible phase 2.
   - Tool count comes from body markers (not `io.mindroom.tool_trace`), so the
     badge always matches what the raw body displayed; markers require the
-    backticked-name form, so a bare 🔨 in prose is not miscounted.
+    backticked-name form, so a bare 🔧 in prose is not miscounted.
   - Previews are recomputed from cached raw events at hydration, so the new
     format applies to existing threads without a cache migration.
 - Validation:
@@ -1325,6 +1325,36 @@ the remaining checklist was finished in-session).
     Review also probed regex backtracking on 60–100KB streaming bodies
     (≤1ms) and confirmed no persisted-preview equality path compares
     old-format strings against new ones.
+- PR #63 review follow-ups (2026-07-07):
+  - Critical self-found fix: the marker regex matched `🔨` (hammer), but
+    MindRoom serializes tool markers with `🔧` (wrench) — verified against
+    upstream `mindroom/src/mindroom/tool_system/events.py`
+    (`_TOOL_REF_ICON = "🔧"`, marker line `🔧 \`name\` [n]( ⏳)?`) and this
+    fork's own `MINDROOM_TOOL_REF_TEXT_REG` in
+    `src/app/mindroom/messages/blocks.ts`. With the hammer, the collapse
+    feature never fired on real messages. Regex now uses `🔧` and also
+    consumes the optional trailing `⏳` pending suffix so running tool calls
+    don't leave a stray hourglass in the prose.
+  - Greptile (both rounds): link/image destinations with balanced parens
+    (`[docs](https://example.com/a(b)c)`) no longer leave `c)` fragments;
+    the destination matcher accepts one nesting level via a non-ambiguous
+    alternation (`(?:[^()\n]|\([^()\n]*\))*`) that cannot backtrack
+    catastrophically on large unterminated bodies.
+  - CodeRabbit: bold stripping now requires the same non-word flanking as
+    the italic rule, so `**` operators in code (`x**2 + y**2`) are never
+    paired as emphasis, including inside code spans.
+  - Skipped (with reasoning on the PR): greptile's "completed
+    `Thinking... done` prose looks streaming" claim. The unbadged
+    pass-through is deliberate — `hasLikelyIncompleteStreamingBody` is the
+    single source of truth for placeholder detection, downstream retries are
+    bounded (max 3 attempts in `threadOverviewCacheHydration`, per-event
+    phase gating in `threadEditBackfill`), and a stricter local placeholder
+    regex would silently disable streaming repair if the placeholder text
+    ever drifts — a worse failure mode than a missing badge on prose that
+    coincidentally starts with "Thinking".
+  - Validation: `threadMessagePreview.test.ts` now 28 tests; threads suite
+    116 files / 1155 tests pass; typecheck, lint (changed files), and build
+    clean.
 - Next steps:
   - Optional phase 2: move the tool summary into the card view model and
     render it as a styled pill next to the msgs badge.

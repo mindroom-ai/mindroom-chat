@@ -6,8 +6,10 @@ import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 export const VOICE_MESSAGE_PREVIEW_TEXT = 'Voice message';
 
 // MindRoom serializes each tool call into the plain-text body as
-// "🔨 `tool_name` [n]" (the [n] references io.mindroom.tool_trace events).
-const TOOL_CALL_MARKER_REGEX = /🔨\s*`[^`\n]+`(?:\s*\[\d+\])?/gu;
+// "🔧 `tool_name` [n]", with a trailing ⏳ while the call is still running
+// (see mindroom tool_system/events.py and MINDROOM_TOOL_REF_TEXT_REG in
+// ../messages/blocks.ts; the [n] references io.mindroom.tool_trace events).
+const TOOL_CALL_MARKER_REGEX = /🔧\s*`[^`\n]+`(?:\s*\[\d+\])?(?:\s*⏳)?/gu;
 
 const ORPHAN_SEPARATOR_EDGE_REGEX = /^[\s,;:·|]+|[\s,;:·|]+$/gu;
 
@@ -24,9 +26,15 @@ const formatToolCallSummary = (count: number): string =>
 export const stripPreviewMarkdown = (value: string): string =>
   value
     .replace(/^```.*$/gm, ' ')
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    .replace(/\*\*([^\n]+?)\*\*/g, '$1')
+    // Destinations may contain one level of balanced parens, e.g.
+    // https://en.wikipedia.org/wiki/Foo_(bar). The inner alternation consumes
+    // one char or one balanced group per step, so it cannot backtrack
+    // catastrophically on large unterminated bodies.
+    .replace(/!\[([^\]]*)\]\((?:[^()\n]|\([^()\n]*\))*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\((?:[^()\n]|\([^()\n]*\))*\)/g, '$1')
+    // Like the italic rule below, require non-word flanking so ** operators in
+    // code (x**2 + y**2) are never paired as bold.
+    .replace(/(^|[^\w*])\*\*([^\s*](?:[^\n]*?[^\s*])?)\*\*(?![\w*])/g, '$1$2')
     .replace(/(^|[^\w*])\*([^\s*](?:[^*\n]*?[^\s*])?)\*(?![\w*])/g, '$1$2')
     .replace(/~~([^~\n]+)~~/g, '$1')
     .replace(/`([^`\n]+)`/g, '$1')

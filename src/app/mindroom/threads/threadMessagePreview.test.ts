@@ -23,6 +23,15 @@ describe('stripPreviewMarkdown', () => {
     );
   });
 
+  it('strips links whose destinations contain balanced parentheses', () => {
+    expect(stripPreviewMarkdown('read [docs](https://example.com/a(b)c) now')).toBe(
+      'read docs now'
+    );
+    expect(
+      stripPreviewMarkdown('see ![chart](https://en.wikipedia.org/wiki/Foo_(bar)) here')
+    ).toBe('see chart here');
+  });
+
   it('strips heading, blockquote, and list markers at line starts', () => {
     expect(stripPreviewMarkdown('## Title\n> quoted\n- item one\n2. item two')).toBe(
       'Title\nquoted\nitem one\nitem two'
@@ -43,6 +52,11 @@ describe('stripPreviewMarkdown', () => {
   it('does not treat multiplication or bullet asterisks as emphasis', () => {
     expect(stripPreviewMarkdown('2 * 3 * 4')).toBe('2 * 3 * 4');
     expect(stripPreviewMarkdown('* bullet item')).toBe('bullet item');
+  });
+
+  it('does not pair ** exponentiation operators as bold', () => {
+    expect(stripPreviewMarkdown('x**2 + y**2')).toBe('x**2 + y**2');
+    expect(stripPreviewMarkdown('compute `x**2 + y**2` now')).toBe('compute x**2 + y**2 now');
   });
 
   it('does not pair glob asterisks across spaces as emphasis', () => {
@@ -79,13 +93,13 @@ describe('getThreadMessagePreviewText', () => {
   it('summarizes a tool-call-only body as a tool badge', () => {
     expect(
       getThreadMessagePreviewText(
-        textContent('🔨 `get_skill_instructions` [1]\n🔨 `get_skill_instructions` [2]\n🔨 `get_skill_reference` [3]')
+        textContent('🔧 `get_skill_instructions` [1]\n🔧 `get_skill_instructions` [2]\n🔧 `get_skill_reference` [3]')
       )
     ).toBe('🔧 3 tools');
   });
 
   it('uses singular wording for a single tool call', () => {
-    expect(getThreadMessagePreviewText(textContent('🔨 `run_shell_command` [1]'))).toBe(
+    expect(getThreadMessagePreviewText(textContent('🔧 `run_shell_command` [1]'))).toBe(
       '🔧 1 tool'
     );
   });
@@ -93,37 +107,46 @@ describe('getThreadMessagePreviewText', () => {
   it('prefixes the tool badge to remaining prose', () => {
     expect(
       getThreadMessagePreviewText(
-        textContent('🔨 `delegate_task` [1]\n🔨 `delegate_task` [2]\nAll subtasks finished.')
+        textContent('🔧 `delegate_task` [1]\n🔧 `delegate_task` [2]\nAll subtasks finished.')
       )
     ).toBe('🔧 2 tools · All subtasks finished.');
   });
 
   it('cleans up orphan separators left between removed tool markers', () => {
     expect(
-      getThreadMessagePreviewText(textContent('🔨 `a` [1], 🔨 `b` [2], then **done**'))
+      getThreadMessagePreviewText(textContent('🔧 `a` [1], 🔧 `b` [2], then **done**'))
     ).toBe('🔧 2 tools · then done');
   });
 
   it('counts markers without a trace index and at the end of prose', () => {
-    expect(getThreadMessagePreviewText(textContent('🔨 `tool_name`'))).toBe('🔧 1 tool');
-    expect(getThreadMessagePreviewText(textContent('Done. 🔨 `a` [1]'))).toBe(
+    expect(getThreadMessagePreviewText(textContent('🔧 `tool_name`'))).toBe('🔧 1 tool');
+    expect(getThreadMessagePreviewText(textContent('Done. 🔧 `a` [1]'))).toBe(
       '🔧 1 tool · Done.'
     );
   });
 
+  it('consumes the pending ⏳ suffix on still-running tool markers', () => {
+    expect(getThreadMessagePreviewText(textContent('🔧 `run_shell_command` [1] ⏳'))).toBe(
+      '🔧 1 tool'
+    );
+    expect(
+      getThreadMessagePreviewText(textContent('🔧 `a` [1]\n\n🔧 `b` [2] ⏳\n\nPartial output'))
+    ).toBe('🔧 2 tools · Partial output');
+  });
+
   it('collapses an emoji-only remainder to just the tool badge', () => {
-    expect(getThreadMessagePreviewText(textContent('🔨 `a` [1] 🎉'))).toBe('🔧 1 tool');
+    expect(getThreadMessagePreviewText(textContent('🔧 `a` [1] 🎉'))).toBe('🔧 1 tool');
   });
 
   it('passes streaming placeholders through unbadged so edit-backfill checks still fire', () => {
-    expect(getThreadMessagePreviewText(textContent('🔨 `a` [1]\nThinking...'))).toBe(
+    expect(getThreadMessagePreviewText(textContent('🔧 `a` [1]\nThinking...'))).toBe(
       'Thinking...'
     );
   });
 
-  it('does not treat a bare hammer emoji in prose as a tool call', () => {
-    expect(getThreadMessagePreviewText(textContent('we need a 🔨 for this'))).toBe(
-      'we need a 🔨 for this'
+  it('does not treat a bare wrench emoji in prose as a tool call', () => {
+    expect(getThreadMessagePreviewText(textContent('we need a 🔧 for this'))).toBe(
+      'we need a 🔧 for this'
     );
   });
 
