@@ -2,6 +2,87 @@
 
 ## Runbook
 
+### Full-surface adversarial review: key-diff fold, boundary top stop, render-snapshot paint pairing, mutant survivors closed (2026-07-07)
+
+Owner-mandated review of the ENTIRE scrolling stack (not one PR's diff),
+motivated by PR #88's round finding majors in already-merged code: three
+agents — ledger-core orderings, periphery controllers, and a worktree
+mutant audit (18 mutants + e2e static pass). Production was deployed to
+the merged dev tip first (note: `mindroom-publish-cinny dev` resolves
+the HOST's stale local `dev` branch — publish `origin/dev` or a tag;
+the first publish briefly shipped a PR-#81-era build before republish).
+
+Ledger core (1 major + 3 minors, all fixed, each red-green):
+
+- L1 KEY-DIFF FOLD (major, confirmed by red test 102→52): the fold's
+  "ΔH is exact" argument silently assumed prefix-shaped prepends, but
+  merge order is pure ts-sort — overlapping bands / federated pages
+  interleave new rows BETWEEN existing rows above the anchor, and the
+  positional 1..shift sum priced the wrong rows. The fold is now a key
+  diff against a priced baseline captured at begin/recapture (cache ??
+  estimator): added rows price exactly as virtual-core prices unmeasured
+  keys; removed rows refund their baseline price (redactions above the
+  anchor now compensate too — previously unhandled entirely).
+- L2 ANCHOR DISAPPEARANCE: a redacted/deduped anchor silently skipped
+  the whole compensation. The diff now re-anchors on the nearest
+  surviving baseline row (probes: threadPrependFoldAnchorFallback /
+  ...Lost); the anchor's own removal closes visibly, as it should.
+- L3 RENDER-SNAPSHOT PAINT PAIRING: the marginTop layout effect read
+  the LIVE ledger ref while tile tops and scrollMargin came from
+  render — a sync measureElement drop INSIDE a commit (at-rest tile
+  mount) split the pair for one paint. All three now read one render
+  snapshot (ledgerPxAtRender); a mid-commit drop lands whole in the
+  tick-forced next commit. "No flash by construction" now actually
+  holds for both drop paths (RO and sync).
+- L4 BOUNDARY TOP STOP: for grow-debt (px>0) the negative margin
+  carries the first px content pixels beyond scrollTop 0 — a freshly
+  folded prepend IS that region — but the guard only watched the
+  bottom edge for that sign, so an upward ride hit the hard stop and
+  the new rows appeared only after a rest. The predicate now prices
+  the reachable content top for both signs (a post-fold +2600 ledger
+  arms the guard two viewports before the stop).
+
+Periphery (5 minors, all fixed): F1 touch-counter wedge — a swallowed
+touchend left every Infinity settle wait pending for the session;
+visibilitychange/pagehide re-zero the tracker (unit-pinned). F2 stale
+room-prepend anchor cleared when a thread opens (latent under current
+parent keying). F3 trace exports de-identified (form factor + FNV-8
+hashes; format v2). F4 trace ring buffer (push+shift was O(n)/frame
+once full — recorder-manufactured dt spikes). F5 settle-armed flag now
+cleared in each waiter's own resolution — settle-entry clearing let a
+boundary settle release it while a wait was still outstanding.
+
+Mutant audit: 18 mutants, 8 survived — including BOTH of PR #88's own
+major fixes (reset placement, rebase branch), the tile-top ledger term,
+and the forced-commit tick. All closed except #5 (alive-guard; renderer
+nulls refs on unmount so the settle early-returns regardless — accepted,
+lowest risk): adopted the audit's validated ledgerLifecycle tests
+(generation guard #4, latch keying #11a/#11b — the two long-deferred
+tests now exist), optionsHistory first-render pin (#7a/#7b), tile-top
+paint pin via style passthrough (#14), setOptions + ordering pins with
+the harness mock finally implementing setOptions/options/itemSizeCache
+(#6a/#6b — every healthy settle used to throw a swallowed rejection),
+two-band mid-flight rebase pin (#2 — the audit's single-band sketch
+cannot bite: the commit-time recapture rescues always-consume), direct
+hook-invocation commit-tick pin (#8). Calibration stays pinned by
+design (audit verdict: ledger magnitude IS estimator error; forced
+test updates on recalibration are the feature). E2E vacuousness fixes:
+latency ride asserts its non-seam budgets; compositor ride requires
+decoded frames before trusting blankFrames=0; boundary spec skips
+loudly when the ledger never arms; momentum lurch fails on anchor
+unmount instead of skipping its own worst case; composer re-pin
+baselines before the first write.
+
+Refuted this round (recorded): StrictMode/discarded-render double-fold
+(capture rebase/consume makes the render-time fold idempotent), settle
+clamp at bottom (margin cleared before the scrollTop write grows the
+range first), double-settle races (px==0 early-out), TDZ on the settle's
+virtualizer ref (read at invocation), boundary guard on degenerate
+geometry, quiescence waiter cross-talk (per-call closures; only shared
+state is the touch counter → F1), patch cjs/esm divergence, barren
+cache-hit relation-only pages, begin/finish/recapture state-machine
+abuse, room-path capture leakage into thread captures.
+
 ### PR #88 adversarial review round: two majors fixed, fold pinned (2026-07-07)
 
 Two independent adversarial agents (correctness lens + test-integrity
