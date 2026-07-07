@@ -185,6 +185,15 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     expect(analysis.maxGapPx).toBeLessThan(FULL_RIDE_BUDGETS.maxGapPx);
     expect(analysis.maxJumpPx).toBeLessThan(200);
     expect(analysis.totalJumpPx).toBeLessThan(300);
+    // Every budget OUTSIDE the documented seam exception must hold —
+    // notably the minFrames sampling floor, which was computed but never
+    // asserted here (mutant audit 2026-07-07, e2e static pass: a starved
+    // sampler would have made every budget above vacuously green).
+    expect(
+      analysis.violations.filter(
+        (violation) => violation.budget !== 'maxJumpPx' && violation.budget !== 'totalJumpPx'
+      )
+    ).toEqual([]);
   });
 
   test('compositor momentum flicks under latency: pixels never blank, content never shifts', async ({
@@ -315,6 +324,12 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     // sampler knowing which part was user motion) — the driver-based
     // rides own jump precision via driver-delta separation; this test
     // owns PIXELS.
+    // The pixel invariant is only worth anything if pixels were actually
+    // analyzed: analyzeBlankBands silently skips frames whose JPEG decode
+    // fails, so without this floor a wholesale decode failure would make
+    // blankFrames===0 vacuously green (mutant audit 2026-07-07, e2e
+    // static pass).
+    expect(blank.length).toBeGreaterThan(5);
     expect(blankFrames).toBe(0);
     expect(analysis.maxGapPx).toBeLessThan(FULL_RIDE_BUDGETS.maxGapPx);
   });
@@ -455,6 +470,16 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     expect(report.frames.length).toBeGreaterThan(300);
     // The ride genuinely reached the top region of the loaded window.
     expect(topReached).toBeLessThan(600);
+    // Degeneration tripwire (mutant audit 2026-07-07, e2e static pass):
+    // post-calibration the estimator keeps the ledger small by design, so
+    // if the ride never accrues past the ±48px arming floor the guard
+    // under test NEVER RUNS and this spec silently becomes a smooth-ride
+    // test. Skip loudly instead of passing vacuously — a skip in CI is a
+    // signal to make the fixture estimator-adversarial again.
+    test.skip(
+      maxLedger <= 48,
+      `ledger never armed (maxLedger=${maxLedger}px) — boundary guard not exercised`
+    );
     // THE invariant: no blank debt zone, no content shifts - even at the
     // boundary. (Boundary settles are allowed writes; they are visually
     // exact pairs and the jump budget verifies that.)

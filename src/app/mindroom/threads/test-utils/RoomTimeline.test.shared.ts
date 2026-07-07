@@ -144,14 +144,26 @@ const {
           count: number;
           estimateSize?: () => number;
           getItemKey?: (index: number) => unknown;
+          scrollMargin?: number;
         }
       | undefined,
+    // Every options object passed to useVirtualizer, in render order.
+    // `lastOptions` cannot pin FIRST-render values (later renders
+    // overwrite it) — the stale-scrollMargin-on-switch pin needs the
+    // first post-switch render specifically (mutant audit 2026-07-07,
+    // survivor 7b). Tests that read it should reset it first.
+    optionsHistory: [] as { count: number; scrollMargin?: number }[],
     virtualIndexes: undefined as number[] | undefined,
     totalSize: undefined as number | undefined,
+    // The mock instance of the current test tree (mutant audit 2026-07-07:
+    // the drop-path pins call the component-installed
+    // shouldAdjustScrollPositionOnItemSizeChange hook directly).
+    lastInstance: undefined as Record<string, unknown> | undefined,
     measureElementMock: vi.fn(),
     scrollToIndexMock: vi.fn(),
     scrollToOffsetMock: vi.fn(),
     getOffsetForIndexMock: vi.fn(),
+    setOptionsMock: vi.fn(),
   },
 }));
 
@@ -369,12 +381,16 @@ vi.mock('../../../components/virtualizer', () => ({
     HTMLDivElement,
     {
       children?: React.ReactNode;
+      style?: React.CSSProperties;
       virtualItem?: {
         index: number;
       };
     }
-  >(({ children, virtualItem }, ref) =>
-    React.createElement('div', { ref, 'data-virtual-index': virtualItem?.index }, children)
+  >(({ children, style, virtualItem }, ref) =>
+    // `style` passes through: the tile's inline `top` is the paint half
+    // of the ledger contract (top = start + ledger px) and dropping it
+    // left that term unpinnable (mutant audit 2026-07-07, survivor 14).
+    React.createElement('div', { ref, 'data-virtual-index': virtualItem?.index, style }, children)
   ),
 }));
 
@@ -394,8 +410,10 @@ vi.mock('@tanstack/react-virtual', () => {
       count: number;
       estimateSize?: () => number;
       getItemKey?: (index: number) => unknown;
+      scrollMargin?: number;
     }) => {
       roomTimelineVirtualizerState.lastOptions = options;
+      roomTimelineVirtualizerState.optionsHistory.push(options);
       const latestOptionsRef = { current: options };
       const key = roomTimelineVirtualizerState as unknown as object;
       let instance = instances.get(key) as
@@ -403,11 +421,26 @@ vi.mock('@tanstack/react-virtual', () => {
         | undefined;
       if (instance) {
         instance.__optionsRef.current = options;
+        instance.options = options;
+        roomTimelineVirtualizerState.lastInstance = instance;
         return instance;
       }
       const optionsRef = latestOptionsRef;
       instance = {
         __optionsRef: optionsRef,
+        // The real instance exposes mutable `options`, an in-place
+        // `setOptions`, and a per-key measured-size Map; the ledger
+        // settle calls setOptions({...options, scrollMargin: 0}) inside
+        // its atomic block, and the old mock's missing setOptions threw
+        // an ignored unhandled rejection on EVERY healthy settle — which
+        // also made settle-ordering mutants pass by accident (mutant
+        // audit 2026-07-07, harness wart + survivor 6a/6b).
+        options,
+        setOptions: (next: typeof options) => {
+          roomTimelineVirtualizerState.setOptionsMock(next);
+          instance!.options = next;
+        },
+        itemSizeCache: new Map(),
         getTotalSize: () => {
           const opts = optionsRef.current;
           const estimatedSize = opts.estimateSize?.() ?? 100;
@@ -448,6 +481,7 @@ vi.mock('@tanstack/react-virtual', () => {
         },
       };
       instances.set(key, instance);
+      roomTimelineVirtualizerState.lastInstance = instance;
       return instance;
     },
   };
