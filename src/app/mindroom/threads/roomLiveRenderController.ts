@@ -150,7 +150,14 @@ export const useRoomLiveRenderController = ({
           mEventId === threadId ||
           eventBelongsToThread(mEvt, threadId ?? '') ||
           !!(relationTargetId && threadEventIndexMapRef.current.has(relationTargetId));
-        if (liveExpandOnceId) {
+        // Only for genuinely LIVE appends (same gate the redaction branch
+        // uses). Open-time backfill routes through this callback too, and
+        // expand-once on backfill made the pre-pin transient mount old long
+        // rows EXPANDED (~768px); the bottom pin then unmounted them with
+        // that size cached, and scrolling back up corrected each one by
+        // -688px — the browser clamped the reader to the bottom (snap-back
+        // e2e, device rounds 5-6).
+        if (liveExpandOnceId && timelineMeta.liveEvent) {
           liveExpandOnceIds.current.add(liveExpandOnceId);
         }
 

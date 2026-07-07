@@ -140,8 +140,6 @@ describe('RenderMessageContent', () => {
     renderMindroomMessageContentMock.mockReturnValue(
       React.createElement('div', { 'data-renderer': 'mindroom-message' }, 'delegated')
     );
-    const onLongTextHydratedMessageExtrasRendered = vi.fn();
-
     const renderer = create(
       React.createElement(RenderMessageContent, {
         displayName: 'MindRoom',
@@ -152,7 +150,6 @@ describe('RenderMessageContent', () => {
         msgType: 'm.notice',
         ts: 0,
         showMessageExtras: true,
-        onLongTextHydratedMessageExtrasRendered,
         getContent: (() => ({
           msgtype: 'm.notice',
           body: 'Summary body',
@@ -175,7 +172,6 @@ describe('RenderMessageContent', () => {
         threadId: '$thread-root',
         msgType: 'm.notice',
         showMessageExtras: true,
-        onLongTextHydratedMessageExtrasRendered,
         content: expect.objectContaining({
           body: 'Summary body',
         }),

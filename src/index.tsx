@@ -36,11 +36,16 @@ import { pushSessionToSW, waitForServiceWorkerControl } from './sw-session';
 import { getActiveSession, subscribeToSessionStore } from './app/state/sessions';
 import App from './app/pages/App';
 import { applyThemeToDom, resolveInitialTheme } from './app/theme/themeBootstrap';
+import { bootstrapRideTraceFlagFromUrl } from './app/mindroom/threads/rideTraceRecorder';
 
 // import i18n (needs to be bundled ;))
 import './app/i18n';
 
 applyThemeToDom(resolveInitialTheme());
+// On-device scroll diagnostics: `?ridetrace=1` arms the timeline ride
+// recorder (persisted; `?ridetrace=0` disarms). Read here because the
+// router drops query params on navigation.
+bootstrapRideTraceFlagFromUrl();
 
 if (isNativeApp()) {
   registerNativeSsoCallbacks(CapacitorApp);

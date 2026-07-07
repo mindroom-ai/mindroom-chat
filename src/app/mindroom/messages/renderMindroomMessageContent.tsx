@@ -37,7 +37,6 @@ export type RenderMindroomMessageContentOptions = {
   linkifyOpts: Opts;
   showMessageExtras?: boolean;
   hydrateLongText?: boolean;
-  onLongTextHydratedMessageExtrasRendered?: () => void;
 };
 
 type MindroomMessageExtrasRenderNoticeProps = {
@@ -72,7 +71,6 @@ export const renderMindroomMessageContent = ({
   linkifyOpts,
   showMessageExtras = false,
   hydrateLongText = true,
-  onLongTextHydratedMessageExtrasRendered,
 }: RenderMindroomMessageContentOptions): ReactNode | undefined => {
   const withToolRefFormattedBodyFallback = (bodyContent: Record<string, unknown>) => {
     if (typeof bodyContent.formatted_body === 'string') return bodyContent;
@@ -163,12 +161,6 @@ export const renderMindroomMessageContent = ({
     );
   };
 
-  const handleLongTextFallbackExtrasRendered = (fallbackIndex: number) => {
-    if (fallbackIndex === 1) {
-      onLongTextHydratedMessageExtrasRendered?.();
-    }
-  };
-
   const getMessageStateSuffix = (renderStateSuffix?: () => ReactNode) =>
     getMindroomMessageStateSuffixRenderer({
       edited,
@@ -235,11 +227,7 @@ export const renderMindroomMessageContent = ({
             />
           )}
           renderAfterBody={(extrasContent, fallbackContent) =>
-            renderMessageExtras(
-              extrasContent,
-              [content, fallbackContent],
-              handleLongTextFallbackExtrasRendered
-            )
+            renderMessageExtras(extrasContent, [content, fallbackContent])
           }
           renderUrlsPreview={renderUrlsPreview}
         />
@@ -294,11 +282,7 @@ export const renderMindroomMessageContent = ({
             />
           )}
           renderAfterBody={(extrasContent, fallbackContent) =>
-            renderMessageExtras(
-              extrasContent,
-              [content, fallbackContent],
-              handleLongTextFallbackExtrasRendered
-            )
+            renderMessageExtras(extrasContent, [content, fallbackContent])
           }
           renderUrlsPreview={renderUrlsPreview}
         />
@@ -344,11 +328,7 @@ export const renderMindroomMessageContent = ({
             />
           )}
           renderAfterBody={(extrasContent, fallbackContent) =>
-            renderMessageExtras(
-              extrasContent,
-              [content, fallbackContent],
-              handleLongTextFallbackExtrasRendered
-            )
+            renderMessageExtras(extrasContent, [content, fallbackContent])
           }
           renderUrlsPreview={renderUrlsPreview}
         />
