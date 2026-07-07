@@ -1240,9 +1240,12 @@ export function RoomTimeline({
     // prepend-fold scale (thousands of px) a one-render stale option
     // renders a faraway range for a frame (photographed as a 140px
     // anchor flash by the latency-ride e2e).
+    // scrollTop FIRST: setOptions can notify a synchronous re-render,
+    // which must see the (margin 0, shifted scrollTop) pair — the other
+    // order lets that render compute the window with the old offset.
+    scrollElement.scrollTop += px;
     const virtualizer = roomTimelineVirtualizerRef.current;
     virtualizer.setOptions({ ...virtualizer.options, scrollMargin: 0 });
-    scrollElement.scrollTop += px;
   }, [getScrollElement]);
   const handleDroppedCorrection = useCallback(
     (deltaPx: number) => {
@@ -3508,13 +3511,15 @@ export function RoomTimeline({
               key={virtualItem.key}
               ref={roomTimelineVirtualizer.measureElement}
               virtualItem={virtualItem}
-              // Content-relative top: virtualItem.start includes
-              // options.scrollMargin (the offset ledger), which the
-              // container's marginTop already applies in the DOM — keeping
-              // start verbatim would double-count the ledger and push the
-              // painted tiles out from under the computed window (the
-              // sustained-ride e2e's blank bands at ~2000px accumulation).
-              style={{ top: virtualItem.start - roomTimelineVirtualizer.options.scrollMargin }}
+              // Content-relative top: virtualItem.start includes the
+              // scrollMargin option (-scrollCompensationPxRef, the offset
+              // ledger), which the container's marginTop already applies in
+              // the DOM — keeping start verbatim would double-count the
+              // ledger and push the painted tiles out from under the
+              // computed window (the sustained-ride e2e's blank bands at
+              // ~2000px accumulation). Adding the ref back subtracts the
+              // same render's margin exactly.
+              style={{ top: virtualItem.start + scrollCompensationPxRef.current }}
             >
               {eventRenderer(item)}
             </VirtualTile>
@@ -3581,7 +3586,7 @@ export function RoomTimeline({
             ref={roomTimelineVirtualizer.measureElement}
             virtualItem={virtualItem}
             // Content-relative top — see renderVirtualRoomTimelineItems.
-            style={{ top: virtualItem.start - roomTimelineVirtualizer.options.scrollMargin }}
+            style={{ top: virtualItem.start + scrollCompensationPxRef.current }}
           >
             {threadEventRenderer(virtualItem.index)}
           </VirtualTile>

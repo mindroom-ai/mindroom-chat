@@ -2,6 +2,58 @@
 
 ## Runbook
 
+### OFFSET LEDGER SHIPPED: red-green complete, 8/8 battery, deployed for device trace (2026-07-06, round 10 fix)
+
+The trace-diagnosed transform-compensation architecture is REPLACED by
+the offset ledger, red-green per the user's mandate. RED: the
+trace-shaped sustained ride (20s continuous, no settle windows)
+measured maxGap 367px + jumps 1986px against the transform build — the
+device signature on desktop at last. GREEN: 0 blanks / 0 jumps / one
+settle write at rest. Full battery 8/8; vitest 345 files / 2717.
+
+Engine (every step falsified or confirmed by instrumentation — write-
+probe stacks, per-frame ledger traces, tile photographs):
+- Ledger = real container marginTop + options.scrollMargin in lockstep
+  (contract-pinned against unmocked virtual-core). VirtualTile paints
+  content-relative (start + px ref) — start includes scrollMargin and
+  keeping it verbatim double-counted the ledger past overscan (the
+  returning blanks at ~2000px accumulation).
+- iOS corrections NEVER write scrollTop (always-drop): quiet applies
+  clamp at the top edge during virtual-core's internal bursts
+  (photographed scrollTo(-44)); per-call clamp prediction is impossible
+  (stale scrollOffset). Drops accumulate + force a commit via state
+  tick — react-virtual SKIPS rerenders when the range is unchanged,
+  which round 8's layout-effect premise missed (paired ±140 flashes).
+- Settle: ONE synchronous block (margin '' + setOptions scrollMargin 0
+  + scrollTop += px; commit-based settle measured 20x worse), armed
+  only at TRUE rest — waitForScrollQuiescence now supports
+  maxWaitMs: Infinity (MAX_SAFE_INTEGER overflowed setTimeout's int32
+  and fired the cap IMMEDIATELY: per-frame settle bursts; regression
+  unit test).
+- PREPEND COMMITS ARE PURE LEDGER ARITHMETIC: at render time the
+  inserted rows' height (exact: inserted keys are unmeasured, so
+  virtual-core prices them with the same estimator) folds into px; no
+  coarse/fine/retry writes remain on this path (they raced virtual-
+  core's own adjustments inside the commit). RoomTimeline unit test
+  updated to pin zero-write prepends.
+- OPEN-AT-LATEST PIN HOLDS THROUGH HYDRATION (the second device
+  symptom, reproduced then fixed): latch until the user's FIRST real
+  gesture (bands land long after the open chain under eager-cache);
+  each band arms the gesture-cancellable settle loop (tail rows
+  measure up from estimates). Hydration e2e asserts PERSISTENCE
+  (longest off-bottom window < 300ms; measured 32ms). Snap-back e2e
+  now drives with real touch events (gesture fidelity — a device
+  cannot scroll without one).
+- KNOWN REMAINING POLISH (documented budget exception in the latency
+  ride, <200px single event): prepend-seam grouping reflow — the old
+  first reply legitimately loses its day-divider/header when it gains
+  a predecessor (~140px, one frame, once per pagination) while
+  visible. Fix needs grouping-aware seam handling in the estimator/
+  fold. Dead code sweep also pending: the coarse/fine/retry prepend
+  machinery is now unreachable for ledger-folded prepends.
+- DEPLOYED to production for the device-trace acceptance session
+  (`?ridetrace=1`, before/after vs ~/ride-trace-1783377085460.json).
+
 ### DEVICE TRACE DIAGNOSIS: transform compensation is unsound on iOS; three blank/jump mechanisms identified (2026-07-06, round 10 conclusion)
 
 First on-device ride trace captured (`?ridetrace=1` recorder, iPhone

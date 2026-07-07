@@ -576,7 +576,7 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('re-anchors the thread virtualizer on the captured event after back-pagination prepends rows', async () => {
+    it('folds back-pagination prepends into the offset ledger with zero scroll writes', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const threadId = '$prepend-thread-root';
       const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
@@ -697,22 +697,15 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
-        await waitForCondition(
-          () => roomTimelineVirtualizerState.getOffsetForIndexMock.mock.calls.length > 0,
-          100
-        );
-        // Coarse re-anchor: offset for the anchor's index resolved from the
-        // virtualizer, applied as a DIRECT scroll write (a virtualizer
-        // scrollToIndex would arm virtual-core 3.17's reconcile loop, which
-        // fights the fine DOM-rect correction that follows).
-        expect(roomTimelineVirtualizerState.getOffsetForIndexMock).toHaveBeenCalledWith(
-          101,
-          'start'
-        );
-        expect(scrollElement.scrollTo).toHaveBeenCalledWith({
-          top: expect.any(Number),
-          behavior: 'instant',
-        });
+        // Offset-ledger fold (device round 10): the prepend commit is pure
+        // ledger arithmetic — the inserted rows' height folds into the
+        // container margin + scrollMargin at RENDER time, so the anchor
+        // never moves and NO scroll write happens at all (the coarse
+        // scrollTo + rect fine-correction machinery this test previously
+        // asserted raced virtual-core's own quiet-state adjustments).
+        await flushAsyncWork(5);
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
+        expect(roomTimelineVirtualizerState.getOffsetForIndexMock).not.toHaveBeenCalled();
       } finally {
         renderer?.unmount();
       }
