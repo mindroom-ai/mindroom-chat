@@ -2,6 +2,27 @@
 
 ## Runbook
 
+### Follow-ups PR #88 (cont.): RO guard removed from the virtual-core patch; TanStack issue filed (2026-07-07)
+
+Upstream items closed (analysis by a parallel review agent, verified
+here against pristine 3.17.3 tarball bytes):
+
+- RO GUARD REMOVED (patch part b): its trigger condition — a connected
+  node whose index-derived key maps to a different cached element — is
+  unreachable under event-id getItemKey (React never reuses DOM nodes
+  across key changes), and the snap-back root-cause entry already
+  recorded it live-and-inert during the very bug it was hypothesized
+  for. The patch now carries ONLY the upstreamed cleanup fix
+  (TanStack/virtual#1220). Verified by restoring the pristine dist and
+  re-applying: patch-guard test green, momentum spec 4/4.
+- UPGRADE CHECK: no released virtual-core contains #1220 (3.17.3 is
+  newest, 2026-06-30). Safe upgrade path when 3.17.4+ ships: bump,
+  delete the patch, run the patch-guard test — green means the fix
+  shipped, red means regenerate.
+- TANSTACK ISSUE FILED: TanStack/virtual#1221 — public API to cancel/
+  retarget the scrollTo* reconcile loop (the reason two sites bypass
+  the virtualizer with direct scrolls).
+
 ### Follow-ups PR #88: greptile triage, dead-code sweep, scoping calls (2026-07-07)
 
 PR #83 squash-merged by the owner (greptile 4/5). Follow-ups continue
