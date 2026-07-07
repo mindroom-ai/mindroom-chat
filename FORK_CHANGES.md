@@ -2,6 +2,56 @@
 
 ## Runbook
 
+### Room-ledger port (DELETION) + measured-height persistence with a red promotion gate (2026-07-07, PR #90 branch)
+
+Owner mandate after the device acceptance trace: simplify, don't just
+harden. Two workstreams on one branch.
+
+ROOM-LEDGER PORT — the deletion. Room virtual-range prepends now fold
+into the SAME offset ledger as threads, computed directly in the
+paginator's onRangeChange (the paginator hands the exact prepended
+span; ΔH = Σ measured-cache-by-key ?? flat room estimate, mutated
+before setTimeline so margin/window/tiles land in one commit). DELETED:
+the coarse-scrollTo + rAF rect-correction restore effect (the path that
+raced virtual-core's uncancellable reconcile loop), the DOM-scanning
+anchor capture, roomVirtualPrependAnchorRef, and the periphery-F2 clear
+that guarded it. One scroll-compensation architecture for both modes;
+room prepends perform ZERO scroll writes. Net −47 lines in the
+component; the legacy anchored-scrollTo pin converted to the fold pin
+(-9600px margin at range change → one settle shift → scrollTo never
+called). Estimator block hoisted above the paginator (declaration order
+only).
+
+MEASURED-HEIGHT PERSISTENCE — PARKED on branch
+feat/thread-heights-persistence, deliberately NOT in this PR (owner
+review: no v4 schema migration for a feature that is gated off because
+it does not work yet). What the branch holds: schema v4 thread_heights
+store, threadHeightsPersistence module (6 unit tests), parallel
+open-path load, and the trace-shaped reopen acceptance test — which is
+RED and is the promotion gate: probes verify the plumbing end-to-end
+(saves 2, seedLoads 2, layout mismatches 0), yet seeded re-rides accrue
+MORE ledger than unseeded (4550 vs 650, deterministic). Prime suspect:
+CollapsibleMessage verdict timing makes row height TIME-DEPENDENT (rows
+mount uncollapsed above the viewport → the +delta ledgers; the collapse
+reflow lands in-viewport and never refunds it) — if confirmed, that is
+also the root cause behind per-class estimator calibration and most
+ledger accrual, i.e. the next deep simplification target.
+
+DEVICE ACCEPTANCE TRACE ride-trace-1783444824925 (post-PR-#89 deploy):
+blank bands GONE (only pre-paint open frames); zero mid-ride content
+jumps; BUT three boundary-settle momentum interruptions in 20s from
++6327px ledger accrual — real agent content (markdown/html) is
+underestimated ~30px+/row, far past the synthetic-class calibration.
+That trace is what prioritized heights persistence.
+
+Next steps: (1) confirm the collapse-verdict mechanism with one
+instrumented run (seed-vs-mount-measure delta per row class), fix, flip
+the reopen test green, remove the flag. (2) Recorder per-content-class
+height sampling for a real-content calibration trace. (3) Prepend-seam
+grouping reflow; upstream TanStack #1220/#1221 to shrink the patch.
+Standing rule: no addition in this subsystem without a deletion or a
+pin attached.
+
 ### Full-surface adversarial review: key-diff fold, boundary top stop, render-snapshot paint pairing, mutant survivors closed (2026-07-07)
 
 Owner-mandated review of the ENTIRE scrolling stack (not one PR's diff),

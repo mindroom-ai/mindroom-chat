@@ -1304,7 +1304,13 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('keeps the first visible classic room message anchored when prepending an older virtual range', async () => {
+    it('folds a room virtual-range prepend into the offset ledger with zero scroll writes', async () => {
+      // Room-ledger port (2026-07-07, PR #90 branch): the paginator's
+      // onRangeChange hands the exact prepended span, so the fold is
+      // direct arithmetic — no DOM anchor capture, no coarse scrollTo,
+      // no rAF rect correction (all three DELETED). 100 prepended items
+      // at the flat room estimate (compact 96) fold to exactly 9600px,
+      // delivered by the shared at-rest settle as one scrollTop shift.
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const events = Array.from({ length: 300 }, (_value, index) =>
         makeEvent(`$event-${index}`, { ts: index })
@@ -1312,18 +1318,19 @@ describe('RoomTimeline', () => {
       const room = makeRoom({ liveEvents: events });
       const roomInputRef = createRef<HTMLElement>();
       const editor = {} as Editor;
-      const visibleAnchor = {
-        getAttribute: vi.fn((name: string) => (name === 'data-message-item' ? '200' : null)),
-        getBoundingClientRect: vi.fn(() => ({ top: 120, bottom: 180 })),
-      };
       const scrollElement = {
+        isConnected: true,
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
         getBoundingClientRect: vi.fn(() => ({ top: 100, bottom: 700 })),
         querySelector: vi.fn(() => undefined),
-        querySelectorAll: vi.fn(() => [visibleAnchor]),
+        querySelectorAll: vi.fn(() => []),
+        scrollHeight: 30000,
+        clientHeight: 600,
+        scrollTop: 0,
         scrollTo: vi.fn(),
       };
+      const innerElement = { style: {} as Record<string, string> };
       let renderer: ReturnType<typeof create> | undefined;
 
       // CINNY-207 P6.1 / D4: prefetchDepth sanitizer clamps to
@@ -1361,26 +1368,51 @@ describe('RoomTimeline', () => {
               })
             ),
             {
-              createNodeMock: (element) => (element.type === scrollType ? scrollElement : null),
+              createNodeMock: (element) =>
+                element.type === scrollType
+                  ? scrollElement
+                  : (element.props as Record<string, unknown>)?.['data-testid'] ===
+                    'room-virtual-inner'
+                  ? innerElement
+                  : null,
             }
           );
           await flushAsyncWork();
         });
 
         expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 100, end: 300 });
+        // The ledger owns backward compensation, and the REAL paginator
+        // must be told so — its own restore scrollBy lands before the
+        // margin effect in the same commit and would compensate the
+        // prepend twice (CodeRabbit on PR #91). The harness mocks the
+        // hook, so the option contract is the unit-observable half; the
+        // hook-side skip is a one-line gate on this flag.
+        expect(
+          (virtualPaginatorState.lastOptions as { externalBackwardScrollRestore?: boolean })
+            ?.externalBackwardScrollRestore
+        ).toBe(true);
 
         await act(async () => {
           virtualPaginatorState.lastOptions?.onRangeChange({ start: 0, end: 300 });
           await flushAsyncWork();
         });
 
-        // Direct scroll write, not virtualizer.scrollToOffset — see the
-        // prepend-anchor effect: virtual-core 3.17's reconcile loop would
-        // revert the rAF-delayed DOM-rect correction that follows.
-        expect(scrollElement.scrollTo).toHaveBeenCalledWith({
-          top: 19180,
-          behavior: 'instant',
+        // The fold lands in the range-change commit: margin = -100 x 96.
+        expect(innerElement.style.marginTop).toBe('-9600px');
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
+
+        // At-rest settle (150ms quiescence, real timers): ONE exactly-
+        // cancelling scrollTop shift, margin back to zero, still no
+        // scrollTo — the reconcile-loop-racing restore is gone.
+        await act(async () => {
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(5);
         });
+        expect(scrollElement.scrollTop).toBe(9600);
+        expect(innerElement.style.marginTop).toBe('');
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
       } finally {
         renderer?.unmount();
       }
