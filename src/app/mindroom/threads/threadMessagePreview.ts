@@ -5,11 +5,20 @@ import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 
 export const VOICE_MESSAGE_PREVIEW_TEXT = 'Voice message';
 
-// MindRoom serializes each tool call into the plain-text body as
-// "🔧 `tool_name` [n]", with a trailing ⏳ while the call is still running
-// (see mindroom tool_system/events.py and MINDROOM_TOOL_REF_TEXT_REG in
-// ../messages/blocks.ts; the [n] references io.mindroom.tool_trace events).
-const TOOL_CALL_MARKER_REGEX = /🔧\s*`[^`\n]+`(?:\s*\[\d+\])?(?:\s*⏳)?/gu;
+// MindRoom serializes each tool call into the plain-text body as a
+// standalone "🔧 `tool_name` [n]" line, with a trailing ⏳ while the call is
+// still running (mindroom tool_system/events.py). Mirror the whole-line,
+// index-required shape of MINDROOM_TOOL_REF_TEXT_REG in ../messages/blocks.ts
+// so the badge only collapses what the timeline renders as a tool ref — a
+// wrench + code span in ordinary prose stays prose.
+const TOOL_CALL_MARKER_REGEX =
+  /^[^\S\n]*🔧[^\S\n]*`[^`\n]+`[^\S\n]*\[\d+\](?:[^\S\n]*⏳)?[^\S\n]*$/gmu;
+
+// Bound the text fed to the regex pipeline below: previews render as a single
+// truncated line, and unbounded pathological bodies (e.g. tens of KB of "[")
+// make the label/emphasis passes quadratic. Markers are counted and removed
+// on the full body first (that regex is line-anchored and linear).
+const PREVIEW_SOURCE_MAX_LENGTH = 2000;
 
 const ORPHAN_SEPARATOR_EDGE_REGEX = /^[\s,;:·|]+|[\s,;:·|]+$/gu;
 
@@ -28,8 +37,9 @@ export const stripPreviewMarkdown = (value: string): string =>
     .replace(/^```.*$/gm, ' ')
     // Destinations may contain one level of balanced parens, e.g.
     // https://en.wikipedia.org/wiki/Foo_(bar). The inner alternation consumes
-    // one char or one balanced group per step, so it cannot backtrack
-    // catastrophically on large unterminated bodies.
+    // one char or one balanced group per step (no ambiguity, no exponential
+    // backtracking); PREVIEW_SOURCE_MAX_LENGTH bounds the quadratic worst
+    // case of the label scans.
     .replace(/!\[([^\]]*)\]\((?:[^()\n]|\([^()\n]*\))*\)/g, '$1')
     .replace(/\[([^\]]+)\]\((?:[^()\n]|\([^()\n]*\))*\)/g, '$1')
     // Like the italic rule below, require non-word flanking so ** operators in
@@ -51,7 +61,12 @@ const normalizeBodyPreview = (body: unknown): string | undefined => {
   const toolCallCount = withoutReply.match(TOOL_CALL_MARKER_REGEX)?.length ?? 0;
   const withoutToolMarkers =
     toolCallCount > 0 ? withoutReply.replace(TOOL_CALL_MARKER_REGEX, ' ') : withoutReply;
-  const prose = stripPreviewMarkdown(withoutToolMarkers).replace(/\s+/g, ' ').trim();
+  const boundedSource =
+    withoutToolMarkers.length > PREVIEW_SOURCE_MAX_LENGTH
+      ? // Drop a split-off lone high surrogate at the cut point.
+        withoutToolMarkers.slice(0, PREVIEW_SOURCE_MAX_LENGTH).replace(/[\uD800-\uDBFF]$/, '')
+      : withoutToolMarkers;
+  const prose = stripPreviewMarkdown(boundedSource).replace(/\s+/g, ' ').trim();
 
   if (toolCallCount > 0) {
     const cleanedProse = prose.replace(ORPHAN_SEPARATOR_EDGE_REGEX, '');

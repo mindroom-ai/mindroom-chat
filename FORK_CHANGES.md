@@ -1355,6 +1355,34 @@ the remaining checklist was finished in-session).
   - Validation: `threadMessagePreview.test.ts` now 28 tests; threads suite
     116 files / 1155 tests pass; typecheck, lint (changed files), and build
     clean.
+- Second independent review round (2026-07-07, adversarial subagent with
+  measured repros):
+  - Blocker fixed: the link/image *label* scans (`[^\]]*`) were quadratic —
+    a single in-limit body of 60k `[` chars stalled `stripPreviewMarkdown`
+    for ~2.5 s, and previews recompute in `useMemo` on every timeline
+    update. Fix: markers are counted/removed on the full body (line-anchored,
+    linear), then the source is truncated to `PREVIEW_SOURCE_MAX_LENGTH`
+    (2000 chars, surrogate-safe cut) before markdown stripping. This also
+    bounds the bold pass's single-line worst case (~400 ms → sub-ms).
+    Measured after fix: 60k `[` → 5.4 ms; 15k bold-openers → 0.7 ms;
+    100k unterminated link → 0.1 ms. Perf smoke test added (<500 ms bound).
+  - Should-fix fixed: the marker regex was looser than the canonical
+    serialization (unanchored, optional index), so ordinary prose like
+    ``tighten it with a 🔧 `M5 bolt` works well`` gained a bogus
+    `🔧 1 tool ·` badge. Now whole-line anchored with a required `[n]`,
+    mirroring `MINDROOM_TOOL_REF_TEXT_REG` (blocks.ts) — the badge only
+    collapses what the timeline renders as a tool ref. Streamed markers
+    always carry an index (`tool_index = len(tool_trace) + 1` in mindroom
+    streaming.py; completions without one are skipped), so nothing real is
+    lost.
+  - Accepted as preview-only fidelity limits (reviewer nits): `**` pairs
+    spanning code spans (`` `**/foo` and `**/bar` ``) lose their globs —
+    fixing requires code-span tokenization, disproportionate for a one-line
+    preview; escaped backticks in tool names half-match (same limit as the
+    canonical regex; tool names are identifiers in practice).
+  - Validation after this round: `threadMessagePreview.test.ts` 31 tests;
+    threads suite 116 files / 1158 tests pass; typecheck, lint (changed
+    files), and build clean.
 - Next steps:
   - Optional phase 2: move the tool summary into the card view model and
     render it as a styled pill next to the msgs badge.

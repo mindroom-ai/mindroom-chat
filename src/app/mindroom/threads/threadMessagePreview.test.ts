@@ -112,17 +112,20 @@ describe('getThreadMessagePreviewText', () => {
     ).toBe('🔧 2 tools · All subtasks finished.');
   });
 
-  it('cleans up orphan separators left between removed tool markers', () => {
+  it('cleans up orphan separators left at prose edges after marker removal', () => {
     expect(
-      getThreadMessagePreviewText(textContent('🔧 `a` [1], 🔧 `b` [2], then **done**'))
-    ).toBe('🔧 2 tools · then done');
+      getThreadMessagePreviewText(textContent('Running the build:\n\n🔧 `build` [1]'))
+    ).toBe('🔧 1 tool · Running the build');
   });
 
-  it('counts markers without a trace index and at the end of prose', () => {
-    expect(getThreadMessagePreviewText(textContent('🔧 `tool_name`'))).toBe('🔧 1 tool');
-    expect(getThreadMessagePreviewText(textContent('Done. 🔧 `a` [1]'))).toBe(
-      '🔧 1 tool · Done.'
-    );
+  it('only collapses whole-line indexed markers, matching timeline rendering', () => {
+    // blocks.ts (MINDROOM_TOOL_REF_TEXT_REG) renders only the standalone
+    // indexed form as a tool ref; anything else stays prose here too.
+    expect(getThreadMessagePreviewText(textContent('🔧 `tool_name`'))).toBe('🔧 tool_name');
+    expect(getThreadMessagePreviewText(textContent('Done. 🔧 `a` [1]'))).toBe('Done. 🔧 a [1]');
+    expect(
+      getThreadMessagePreviewText(textContent('tighten it with a 🔧 `M5 bolt` works well'))
+    ).toBe('tighten it with a 🔧 M5 bolt works well');
   });
 
   it('consumes the pending ⏳ suffix on still-running tool markers', () => {
@@ -135,7 +138,15 @@ describe('getThreadMessagePreviewText', () => {
   });
 
   it('collapses an emoji-only remainder to just the tool badge', () => {
-    expect(getThreadMessagePreviewText(textContent('🔧 `a` [1] 🎉'))).toBe('🔧 1 tool');
+    expect(getThreadMessagePreviewText(textContent('🔧 `a` [1]\n\n🎉'))).toBe('🔧 1 tool');
+  });
+
+  it('handles the real serialization shape: blank-line wrapped markers with separators', () => {
+    expect(
+      getThreadMessagePreviewText(
+        textContent('🔧 `search` [1]\n\n---\n\n🔧 `read_file` [2]\n\n---\n\nHere is the answer.')
+      )
+    ).toBe('🔧 2 tools · Here is the answer.');
   });
 
   it('passes streaming placeholders through unbadged so edit-backfill checks still fire', () => {
@@ -190,5 +201,18 @@ describe('getThreadMessagePreviewText', () => {
     expect(getThreadMessagePreviewText(textContent('   '))).toBeUndefined();
     expect(getThreadMessagePreviewText({ msgtype: 'm.text', body: 42 })).toBeUndefined();
     expect(getThreadMessagePreviewText(undefined)).toBeUndefined();
+  });
+
+  it('bounds giant bodies before markdown stripping', () => {
+    const preview = getThreadMessagePreviewText(textContent(`**lead** ${'x'.repeat(50_000)}`));
+    expect(preview?.startsWith('lead x')).toBe(true);
+    expect(preview!.length).toBeLessThanOrEqual(2000);
+  });
+
+  it('stays fast on pathological markdown floods', () => {
+    const start = performance.now();
+    expect(getThreadMessagePreviewText(textContent('['.repeat(60_000)))).toBeDefined();
+    expect(getThreadMessagePreviewText(textContent(' **a'.repeat(15_000)))).toBeDefined();
+    expect(performance.now() - start).toBeLessThan(500);
   });
 });
