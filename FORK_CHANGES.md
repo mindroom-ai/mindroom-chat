@@ -2456,6 +2456,114 @@ the remaining checklist was finished in-session).
   guard-abort path from a plausible open-flow sequence. STEP 3 fix is
   gated on that repro pinning the mechanism.
 
+### Compact view previews: strip markdown, collapse tool calls to a badge (2026-07-03)
+
+- Status:
+  - Phase 1 complete locally (plain-text preview cleanup).
+- Summary:
+  - Thread previews in the compact overview showed raw markdown
+    (`**bold**`, backticks, headings) and MindRoom tool-call fallback lines
+    (`🔧 \`tool_name\` [n]` repeated per call), making cards hard to scan.
+  - All preview surfaces funnel through `getThreadMessagePreviewText()`
+    (`src/app/mindroom/threads/threadMessagePreview.ts`) — compact cards,
+    zero-reply roots, latest-reply snippets, command palette, aria labels —
+    so the fix lives entirely in that module:
+    - `stripPreviewMarkdown()` removes inline emphasis, code spans/fences,
+      links/images (kept as labels), headings, blockquotes, and list markers.
+      Underscore emphasis (`_x_`, `__x__`) is deliberately left alone to
+      protect identifiers like `snake_case`/`__init__` (LLMs emit asterisks).
+    - Tool-call markers are counted and collapsed into an inline badge:
+      `🔧 4 tools · <remaining prose>` when prose exists, or `🔧 4 tools`
+      alone for tool-only messages. Orphan separators left between removed
+      markers are cleaned up.
+- Decisions:
+  - Preview stays a plain string (no rich rendering): it flows through
+    `JSON.stringify` view-model signatures, aria-labels, `title` attrs, and
+    the command palette, and per-card render cost matters because every
+    streaming `m.replace` rebuilds all records. A styled pill chip (view-model
+    `toolSummary` field) is a possible phase 2.
+  - Tool count comes from body markers (not `io.mindroom.tool_trace`), so the
+    badge always matches what the raw body displayed; markers require the
+    backticked-name form, so a bare 🔧 in prose is not miscounted.
+  - Previews are recomputed from cached raw events at hydration, so the new
+    format applies to existing threads without a cache migration.
+- Validation:
+  - New `threadMessagePreview.test.ts` (25 tests): pass.
+  - Full unit suite (316 files, 2392 tests): pass.
+  - `npm run typecheck`, `npm run build`: clean; `npm run lint`: 0 errors
+    (18 pre-existing warnings).
+  - Independent subagent review: ship, no blockers. Two nice-to-haves fixed:
+    (1) italic regex no longer pairs glob asterisks across spaces
+    (`*.log and *.tmp` stays intact, incl. inside code spans); (2) streaming
+    "Thinking..." placeholders pass through unbadged so the
+    `hasLikelyIncompleteStreamingBody` checks downstream of preview text
+    (compactThreadRootData, threadOverviewCacheHydration) keep firing.
+    Review also probed regex backtracking on 60–100KB streaming bodies
+    (≤1ms) and confirmed no persisted-preview equality path compares
+    old-format strings against new ones.
+- PR #63 review follow-ups (2026-07-07):
+  - Critical self-found fix: the marker regex matched `🔨` (hammer), but
+    MindRoom serializes tool markers with `🔧` (wrench) — verified against
+    upstream `mindroom/src/mindroom/tool_system/events.py`
+    (`_TOOL_REF_ICON = "🔧"`, marker line `🔧 \`name\` [n]( ⏳)?`) and this
+    fork's own `MINDROOM_TOOL_REF_TEXT_REG` in
+    `src/app/mindroom/messages/blocks.ts`. With the hammer, the collapse
+    feature never fired on real messages. Regex now uses `🔧` and also
+    consumes the optional trailing `⏳` pending suffix so running tool calls
+    don't leave a stray hourglass in the prose.
+  - Greptile (both rounds): link/image destinations with balanced parens
+    (`[docs](https://example.com/a(b)c)`) no longer leave `c)` fragments;
+    the destination matcher accepts one nesting level via a non-ambiguous
+    alternation (`(?:[^()\n]|\([^()\n]*\))*`) that cannot backtrack
+    catastrophically on large unterminated bodies.
+  - CodeRabbit: bold stripping now requires the same non-word flanking as
+    the italic rule, so `**` operators in code (`x**2 + y**2`) are never
+    paired as emphasis, including inside code spans.
+  - Skipped (with reasoning on the PR): greptile's "completed
+    `Thinking... done` prose looks streaming" claim. The unbadged
+    pass-through is deliberate — `hasLikelyIncompleteStreamingBody` is the
+    single source of truth for placeholder detection, downstream retries are
+    bounded (max 3 attempts in `threadOverviewCacheHydration`, per-event
+    phase gating in `threadEditBackfill`), and a stricter local placeholder
+    regex would silently disable streaming repair if the placeholder text
+    ever drifts — a worse failure mode than a missing badge on prose that
+    coincidentally starts with "Thinking".
+  - Validation: `threadMessagePreview.test.ts` now 28 tests; threads suite
+    116 files / 1155 tests pass; typecheck, lint (changed files), and build
+    clean.
+- Second independent review round (2026-07-07, adversarial subagent with
+  measured repros):
+  - Blocker fixed: the link/image *label* scans (`[^\]]*`) were quadratic —
+    a single in-limit body of 60k `[` chars stalled `stripPreviewMarkdown`
+    for ~2.5 s, and previews recompute in `useMemo` on every timeline
+    update. Fix: markers are counted/removed on the full body (line-anchored,
+    linear), then the source is truncated to `PREVIEW_SOURCE_MAX_LENGTH`
+    (2000 chars, surrogate-safe cut) before markdown stripping. This also
+    bounds the bold pass's single-line worst case (~400 ms → sub-ms).
+    Measured after fix: 60k `[` → 5.4 ms; 15k bold-openers → 0.7 ms;
+    100k unterminated link → 0.1 ms. Perf smoke test added (<500 ms bound).
+  - Should-fix fixed: the marker regex was looser than the canonical
+    serialization (unanchored, optional index), so ordinary prose like
+    ``tighten it with a 🔧 `M5 bolt` works well`` gained a bogus
+    `🔧 1 tool ·` badge. Now whole-line anchored with a required `[n]`,
+    mirroring `MINDROOM_TOOL_REF_TEXT_REG` (blocks.ts) — the badge only
+    collapses what the timeline renders as a tool ref. Streamed markers
+    always carry an index (`tool_index = len(tool_trace) + 1` in mindroom
+    streaming.py; completions without one are skipped), so nothing real is
+    lost.
+  - Accepted as preview-only fidelity limits (reviewer nits): `**` pairs
+    spanning code spans (`` `**/foo` and `**/bar` ``) lose their globs —
+    fixing requires code-span tokenization, disproportionate for a one-line
+    preview; escaped backticks in tool names half-match (same limit as the
+    canonical regex; tool names are identifiers in practice).
+  - Validation after this round: `threadMessagePreview.test.ts` 31 tests;
+    threads suite 116 files / 1158 tests pass; typecheck, lint (changed
+    files), and build clean.
+- Next steps:
+  - Optional phase 2: move the tool summary into the card view model and
+    render it as a styled pill next to the msgs badge.
+  - Optional: enrich media fallbacks (e.g. `Image · filename.png`).
+
 ### CINNY-219 - Timeline minimap: left-edge stripes for human messages (2026-07-03)
 
 - Status:
