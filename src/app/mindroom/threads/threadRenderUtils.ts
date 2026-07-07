@@ -306,6 +306,19 @@ export const estimateThreadEventRowHeight = (
   return base + lines * THREAD_ROW_LINE_PX;
 };
 
+/**
+ * MSC3440: a thread reply carrying `is_falling_back: true` only includes
+ * `m.in_reply_to` as a fallback for thread-unaware clients; thread-aware
+ * rendering must not treat it as a real reply. Read from wire content —
+ * the same source `MatrixEvent.replyEventId` uses.
+ */
+export const isThreadFallbackReply = (mEvent: MatrixEvent): boolean => {
+  const relatesTo = mEvent.getWireContent()?.['m.relates_to'] as
+    | { rel_type?: string; is_falling_back?: boolean }
+    | undefined;
+  return relatesTo?.rel_type === RelationType.Thread && relatesTo.is_falling_back === true;
+};
+
 export const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
   const mEventId = mEvt.getId();
   const relationTargetId = mEvt.getRelation()?.event_id;
