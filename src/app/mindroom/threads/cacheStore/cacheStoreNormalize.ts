@@ -211,6 +211,36 @@ export const normalizeExpectedReplyCount = (
 ): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 
+/**
+ * PR #84 review deferral (finding #3): merge policy for
+ * `meta.expectedReplyCount`. Background sweep chunks derive the count
+ * from the live root's bundled `m.thread.count`, which the SDK never
+ * updates as replies arrive and which is stale when the root was
+ * restored from the SDK store — an unconditional overwrite let a
+ * stale-LOW value replace a fresher count and weaken the reply-count
+ * completeness proof the eager-cache open path leans on.
+ *
+ *   - `snapshotComplete === true` writes that CARRY a count set it
+ *     absolutely — the only writers allowed to LOWER the stored value,
+ *     because redactions legitimately shrink threads and the drain
+ *     observed the real reply set. A count-LESS complete write (e.g.
+ *     `refreshLatestThreadSlice`'s persist, which omits
+ *     expectedReplyCount) RETAINS the stored value — there is no
+ *     incoming observation to prefer.
+ *   - All other writes merge monotonically (max of stored/incoming):
+ *     a stale-low sweep value can never weaken the proof, while a
+ *     fresher higher count still strengthens it.
+ */
+export const mergeThreadExpectedReplyCount = (
+  currentValue: number | undefined,
+  nextValue: number | undefined,
+  snapshotComplete: boolean | undefined
+): number | undefined => {
+  if (nextValue === undefined) return currentValue;
+  if (snapshotComplete === true) return nextValue;
+  return currentValue === undefined ? nextValue : Math.max(currentValue, nextValue);
+};
+
 // --- Thread summary helpers ---
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

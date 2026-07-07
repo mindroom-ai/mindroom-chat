@@ -26,6 +26,7 @@ import {
   filterPageableCachedThreadEvents,
   isRawLocalEchoEventPublic,
   mergeThreadCacheFlag,
+  mergeThreadExpectedReplyCount,
   normalizeCachedRoomEvents,
   normalizeCachedThreadEvents,
   normalizeExpectedReplyCount,
@@ -702,7 +703,11 @@ const runSaveThreadEventsTxn = async (
         ),
         rootEvent:
           rootEvent && !isRawLocalEchoEventPublic(rootEvent) ? rootEvent : currentMeta?.rootEvent,
-        expectedReplyCount: normalizedExpectedReplyCount ?? currentMeta?.expectedReplyCount,
+        expectedReplyCount: mergeThreadExpectedReplyCount(
+          currentMeta?.expectedReplyCount,
+          normalizedExpectedReplyCount,
+          snapshotComplete
+        ),
         snapshotComplete: mergeThreadCacheFlag(currentMeta?.snapshotComplete, snapshotComplete),
         relationSnapshotComplete: mergeThreadCacheFlag(
           currentMeta?.relationSnapshotComplete,
