@@ -5,7 +5,6 @@ import {
   hasThreadCacheKnownBackwardStart,
   hasUsableThreadCacheSnapshot,
   isCompleteThreadCacheCoverage,
-  shouldBackfillThreadRelationsFromCoverage,
   shouldShowThreadLoadOlderFromCoverage,
 } from './threadCacheCoverage';
 
@@ -87,15 +86,13 @@ describe('threadCacheCoverage', () => {
         hasLocalSnapshot: true,
       })
     ).toBe(true);
-    expect(
-      shouldBackfillThreadRelationsFromCoverage({
-        coverage,
-        hasLocalSnapshot: true,
-      })
-    ).toBe(false);
   });
 
-  it('still requests relation backfill for a genuinely partial snapshot', () => {
+  it('treats a genuinely partial snapshot as incomplete for paint (falls through to the SDK drain)', () => {
+    // 2026-07-06 consolidation: the open-time relations-backfill
+    // predicate is gone — a partial snapshot paints what it has and the
+    // open falls through to SDK bootstrap + refreshLatestThreadSlice,
+    // the single fallback drain channel. Coverage only decides PAINT.
     const coverage = buildThreadCacheCoverage({
       eventCount: 2,
       backwardToken: 'tok',
@@ -110,12 +107,6 @@ describe('threadCacheCoverage', () => {
         hasLocalSnapshot: true,
       })
     ).toBe(false);
-    expect(
-      shouldBackfillThreadRelationsFromCoverage({
-        coverage,
-        hasLocalSnapshot: true,
-      })
-    ).toBe(true);
   });
 
   it('lets the SDK backward token show the load-older affordance even when cache coverage is closed', () => {

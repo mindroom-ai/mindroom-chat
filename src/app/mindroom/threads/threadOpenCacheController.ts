@@ -1,11 +1,5 @@
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
-import {
-  Direction,
-  type IEvent,
-  type MatrixClient,
-  type MatrixEvent,
-  type Room,
-} from 'matrix-js-sdk';
+import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import { THREAD_BATCH_SIZE } from './preloadSettings';
 import { logTimelineDebug } from './timelineDebug';
@@ -14,13 +8,8 @@ import { reconcileThreadBackwardPagination } from './threadPaginationUtils';
 import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from './eventRepository';
 import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
 import {
-  enqueueThreadBackfillJob,
-  type BackfillScheduler,
-} from '../engine';
-import {
   getAuthoritativeCachedThreadReplyCount,
   isCompleteCachedThreadSnapshot,
-  mergeThreadBackfillEvents,
 } from './threadCacheSnapshot';
 import {
   buildThreadCacheCoverage,
@@ -43,12 +32,6 @@ type PersistThreadEventCache = (
 ) => void;
 
 export type ThreadOpenCacheController = {
-  backfillThreadRelationsIntoCache: (
-    expectedThreadId: string,
-    cachedRootEvent?: Partial<IEvent>,
-    baselineEvents?: MatrixEvent[],
-    expectedReplyCount?: number
-  ) => Promise<{ completed: boolean; fetchedCount: number } | undefined>;
   hydrateThreadFromCache: (
     expectedThreadId: string
   ) => Promise<HydratedThreadCachePage | undefined>;
@@ -72,7 +55,6 @@ export const useThreadOpenCacheController = ({
   persistThreadEventCache,
   room,
   roomIdRef,
-  scheduler,
   sessionId,
   setSupplementalThreadEvents,
   setThreadHasMoreCachedBack,
@@ -92,14 +74,6 @@ export const useThreadOpenCacheController = ({
   // call. That method moved to `engine/reconciler.ts` — the reconciler
   // reads the room's timeline set from `room.getThread(...)` when it
   // needs one. The controller no longer touches it.
-  /**
-   * CINNY-207 P5.1 Commit 2: `backfillThreadRelationsIntoCache` now
-   * routes its `/relations` fetch through the engine's scheduler as a
-   * `'thread-backfill'` job (P4.4 dedup domain shared with the
-   * overview-resume producer). Render-state side effects stay in this
-   * controller; the network side lives in engine/threadBackfillJob.ts.
-   */
-  scheduler: BackfillScheduler;
   sessionId: string;
   setSupplementalThreadEvents: (threadId: string, events: MatrixEvent[]) => void;
   setThreadHasMoreCachedBack: Dispatch<SetStateAction<boolean>>;
@@ -375,125 +349,7 @@ export const useThreadOpenCacheController = ({
     ]
   );
 
-  const backfillThreadRelationsIntoCache = useCallback(
-    async (
-      expectedThreadId: string,
-      cachedRootEvent?: Partial<IEvent>,
-      baselineEvents: MatrixEvent[] = [],
-      expectedReplyCount?: number
-    ): Promise<{ completed: boolean; fetchedCount: number } | undefined> => {
-      const liveRootEvent =
-        room.getThread(expectedThreadId)?.rootEvent ?? room.findEventById(expectedThreadId);
-      const mapper = mx.getEventMapper();
-      const mappedCachedRootEvent =
-        !liveRootEvent && cachedRootEvent ? mapper(cachedRootEvent) : undefined;
-      const rootEvent = liveRootEvent ?? mappedCachedRootEvent;
-      if (!rootEvent) return undefined;
-
-      logTimelineDebug(debugTraceId, 'thread-relations-backfill-start', {
-        threadId: expectedThreadId,
-      });
-
-      // CINNY-207 P5.1 Commit 2: fetch through the engine's scheduler.
-      // Dedup domain shared with the P4.4 overview-resume 'thread-backfill'
-      // job — if resume already fetched this thread's relations, the
-      // scheduler returns the in-flight promise identity instead of
-      // firing a second /relations round-trip.
-      const relationPageResult = await enqueueThreadBackfillJob({
-        mx,
-        scheduler,
-        room,
-        threadId: expectedThreadId,
-        priority: 0,
-        shouldContinue: () => alive() && threadIdRef.current === expectedThreadId,
-      });
-      if (!relationPageResult || !alive() || threadIdRef.current !== expectedThreadId) {
-        return undefined;
-      }
-
-      const relationSnapshotComplete = typeof relationPageResult.nextBatchToken !== 'string';
-      const mergedEvents = mergeThreadBackfillEvents(baselineEvents, relationPageResult.events);
-      const snapshotComplete = isCompleteCachedThreadSnapshot({
-        room,
-        threadId: expectedThreadId,
-        rootEvent: liveRootEvent,
-        cachedRootEvent: mappedCachedRootEvent,
-        cachedEvents: mergedEvents,
-        beforeToken: relationPageResult.nextBatchToken ?? null,
-        hasMoreBefore: typeof relationPageResult.nextBatchToken === 'string',
-        expectedReplyCount,
-        snapshotComplete: relationSnapshotComplete,
-        tailLoaded: true,
-      });
-      const relationCoverage = buildThreadCacheCoverage({
-        eventCount: mergedEvents.length + (rootEvent ? 1 : 0),
-        backwardToken: relationPageResult.nextBatchToken ?? null,
-        hasMoreBackward: typeof relationPageResult.nextBatchToken === 'string',
-        expectedReplyCount,
-        relationSnapshotComplete,
-        snapshotComplete,
-        tailLoaded: true,
-      });
-      const currentThreadTimelineSet = room.getThread(expectedThreadId)?.getUnfilteredTimelineSet();
-      const firstThreadTimeline = currentThreadTimelineSet
-        ? getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0]
-        : undefined;
-      const hadStaleSdkBackwardToken =
-        firstThreadTimeline?.getPaginationToken(Direction.Backward) != null;
-      if (snapshotComplete && firstThreadTimeline && hadStaleSdkBackwardToken) {
-        firstThreadTimeline.setPaginationToken(null, Direction.Backward);
-        logTimelineDebug(debugTraceId, 'thread-relations-backfill-clear-backward-gap', {
-          threadId: expectedThreadId,
-        });
-      }
-      setSupplementalThreadEvents(expectedThreadId, mergedEvents);
-      saveThreadOpenSeedSnapshot(room, expectedThreadId, mergedEvents);
-      persistThreadEventCache(
-        expectedThreadId,
-        mergedEvents,
-        rootEvent,
-        relationPageResult.nextBatchToken ?? null,
-        true,
-        snapshotComplete,
-        expectedReplyCount,
-        relationSnapshotComplete
-      );
-      setThreadHasMoreCachedBack(hasThreadCacheBackwardGap(relationCoverage));
-      setThreadTailLoaded(true);
-      forceTimelineUpdate();
-      setThreadTimelineTick((val) => val + 1);
-      logTimelineDebug(debugTraceId, 'thread-relations-backfill-complete', {
-        fetchedCount: relationPageResult.events.length,
-        mergedCount: mergedEvents.length,
-        relationSnapshotComplete,
-        snapshotComplete,
-        threadId: expectedThreadId,
-        nextBatchPresent: typeof relationPageResult.nextBatchToken === 'string',
-      });
-
-      return {
-        completed: snapshotComplete,
-        fetchedCount: relationPageResult.events.length,
-      };
-    },
-    [
-      alive,
-      debugTraceId,
-      forceTimelineUpdate,
-      mx,
-      persistThreadEventCache,
-      room,
-      scheduler,
-      setSupplementalThreadEvents,
-      setThreadHasMoreCachedBack,
-      setThreadTailLoaded,
-      setThreadTimelineTick,
-      threadIdRef,
-    ]
-  );
-
   return {
-    backfillThreadRelationsIntoCache,
     hydrateThreadFromCache,
     refreshLatestThreadSlice,
   };

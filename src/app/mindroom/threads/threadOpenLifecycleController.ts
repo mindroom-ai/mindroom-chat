@@ -34,7 +34,6 @@ type FocusItemState = {
 };
 
 export const useThreadOpenLifecycleController = ({
-  backfillThreadRelationsIntoCache,
   ensureThreadSeedPrewarm,
   eventId,
   forceTimelineUpdate,
@@ -72,7 +71,6 @@ export const useThreadOpenLifecycleController = ({
   threadId,
   threadIdRef,
 }: {
-  backfillThreadRelationsIntoCache: ThreadOpenCacheController['backfillThreadRelationsIntoCache'];
   ensureThreadSeedPrewarm: ThreadSeedPrewarmController['ensureThreadSeedPrewarm'];
   eventId?: string;
   forceTimelineUpdate: () => void;
@@ -174,12 +172,10 @@ export const useThreadOpenLifecycleController = ({
 
       try {
         const cacheFirstResult = await runThreadOpenCacheFirst({
-          backfillThreadRelationsIntoCache,
           debugTraceId: threadDebugTraceId,
           forceTimelineUpdate,
           hydrateThreadFromCache,
           isCurrentThreadOpen: () => mounted && threadIdRef.current === threadId,
-          mx,
           pinThreadToBottomOnOpen,
           scheduleReconcile,
           room,
@@ -293,19 +289,16 @@ export const useThreadOpenLifecycleController = ({
       }
     };
 
-    // CINNY-207 P7.2 audit finding #1: the thread-open chain awaits
-    // `enqueueThreadBackfillJob` (threadOpenCacheController.ts) which
-    // rejects with the abort reason when engine.stop() drains the
-    // scheduler (see `abortAll` in `backfillScheduler.ts`). Every layer
-    // in the chain — `backfillThreadRelationsIntoCache`,
-    // `runThreadOpenCacheFirst`, and `loadThreadTimeline`'s try/FINALLY
-    // — lacks a catch, so a queued thread-backfill job aborted during
-    // teardown surfaced as an unhandled promise rejection. Swallow here
-    // so the outer promise settles quietly on both abort and any other
-    // downstream throw; the try/finally inside `loadThreadTimeline`
-    // already clears the pending-open flag, and `onThreadLoadError` is
-    // invoked from `runThreadOpenSdkBootstrap` on the paths where a
-    // user-visible error banner is appropriate.
+    // CINNY-207 P7.2 audit finding #1 (scope reduced 2026-07-06): the
+    // open chain no longer awaits any scheduler job directly (the
+    // open-time relations-backfill leg was deleted), but downstream
+    // layers — `runThreadOpenSdkBootstrap`, `refreshLatestThreadSlice`,
+    // `runThreadOpenTargetEvent` — can still throw during teardown.
+    // Swallow here so the outer promise settles quietly; the
+    // try/finally inside `loadThreadTimeline` already clears the
+    // pending-open flag, and `onThreadLoadError` is invoked from
+    // `runThreadOpenSdkBootstrap` on the paths where a user-visible
+    // error banner is appropriate.
     loadThreadTimeline().catch(() => undefined);
 
     return () => {
@@ -313,7 +306,6 @@ export const useThreadOpenLifecycleController = ({
       threadOpenSeedSession.cleanup();
     };
   }, [
-    backfillThreadRelationsIntoCache,
     ensureThreadSeedPrewarm,
     eventId,
     forceTimelineUpdate,

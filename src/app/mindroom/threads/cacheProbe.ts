@@ -172,10 +172,12 @@ export type CacheProbeCounters = {
   //     isCurrentThreadOpen() returned false; same shape, same
   //     legitimacy.
   //
-  // Every OTHER path through the thread-open flow (SDK-bootstrap
-  // early returns, backfill-completed paint-and-return, etc.) now
-  // occurs AFTER the choke-point schedule fired, so those paths do
-  // not need skip counters to prove convergence intent.
+  // Every OTHER path through the thread-open flow (the complete-cache
+  // fast path, SDK-bootstrap early returns, etc.) occurs AFTER the
+  // choke-point schedule fired, so those paths do not need skip
+  // counters to prove convergence intent. (The backfill-completed
+  // paint-and-return branch this list used to name was deleted by the
+  // 2026-07-06 open-path consolidation.)
   threadOpens: number;
   threadOpenScheduledCacheFirst: number;
   threadOpenSkipCacheFirstHydrateGuard: number;

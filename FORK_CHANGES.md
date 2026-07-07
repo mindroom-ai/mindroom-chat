@@ -881,6 +881,81 @@ its independent review pass.
 - Validation: typecheck ✓, eslint (touched) ✓, engine+threads sweep 132
   files / 1306 tests ✓.
 
+### Thread-open backfill leg deleted — one drain channel (2026-07-06)
+
+Net-negative consolidation on top of PR #84. The OPEN path carried a
+redundant leg: for a genuinely partial cached snapshot,
+`runThreadOpenCacheFirst` fired an open-time relations backfill (a FULL
+`/relations` drain, up to 5000 events, via the `'thread-backfill'`
+scheduler job), and when that drain did not prove completeness the flow
+ALSO ran `runThreadOpenSdkBootstrap` + `refreshLatestThreadSlice` — a
+second full drain via SDK pagination. Two code paths doing one job,
+double network cost on the worst-case open.
+
+Deleted:
+
+- `threadOpenCacheFirst.ts`: the `canBackfillThreadRelations` block
+  (coverage predicate, mapped-baseline building, the backfill call and
+  its completed-paint branch) plus the now-unused `mx` option, event
+  mapping imports, and the seed session's merge member.
+- `threadOpenCacheController.ts`: the entire
+  relations-backfill-into-cache callback (type member, implementation,
+  return entry) and everything only it used — the engine
+  thread-backfill enqueue import, the `scheduler` prop, the
+  `mergeThreadBackfillEvents` / `IEvent` imports.
+- `threadOpenLifecycleController.ts` / `MindroomRoomTimeline.tsx`: the
+  prop plumbing for the deleted callback (and the now-unneeded
+  `scheduler` wire into the cache controller).
+- `threadCacheCoverage.ts`: the caller-less backfill coverage predicate
+  and its tests.
+- `__tests__/threadOpenBackfillCompletedSkip.test.ts`: whole file — its
+  subject (the backfill-completed branch ordering) no longer exists;
+  its surviving invariants (choke-point schedules exactly once, probe
+  partition, onRepaired sink wiring) are pinned by
+  `threadOpenCacheFirst.test.ts` + `threadOpenInvariant.test.ts`.
+
+The open flow is now: hydrate → single unskippable choke-point
+reconcile → complete-coverage fast path OR fall through to SDK
+bootstrap + `refreshLatestThreadSlice` (the single fallback drain
+channel).
+
+Why this is safe post-#84: background prefetch owns thread content —
+the deep-history sweep persists thread scopes and the prewarm band
+drains `/relations` per thread (`threadContentPrefetch.ts`, untouched;
+it and overview-resume remain the only `'thread-backfill'` producers
+and the only writers of open-relevant relation proofs). The choke-point
+reconcile (untouched) revalidates every open and persists divergence
+repairs. A partial snapshot therefore paints what it has and converges
+through the one SDK drain; `threadOpenCacheController.test.ts` pins
+that `refreshLatestThreadSlice` drains backward history to exhaustion
+and persists a complete snapshot.
+
+Behavioral deltas (intentional):
+
+- A partial-coverage open no longer fires a second full `/relations`
+  drain — exactly one `/relations` call per open (the reconciler's).
+- The open no longer stamps `relationSnapshotComplete=true` at open
+  time (that proof came from the backfill's drain observing
+  `next_batch` exhaustion). Relation proofs are background-owned now;
+  the complete-coverage token-clear gate (relations-proven only) is
+  unchanged.
+
+Test expectation rewrites (all pin the NEW contract, none weakened
+without replacement): `threadOpenCacheFirst.test.ts` partial-snapshot
+test now expects fall-through (`shouldContinue: true`, no bottom-pin,
+one choke-point reconcile); `RoomTimeline.cache.test.ts` partial-open
+tests expect one `/relations` call + SDK bootstrap evidence + reconciler
+persist convergence instead of backfill persists;
+`RoomTimeline.architecture.test.ts` guards updated (mapper containment
+moved to `eventRepository.ts`; new tripwire: the open-path cache
+controller must not enqueue thread-backfill jobs).
+
+Validation: `npm run typecheck` clean; `npx vitest run
+src/app/mindroom/engine src/app/mindroom/threads` 130 files / 1299
+tests pass; full `npx vitest run` pass; `npm run build` clean; eslint
+clean on all touched files; `grep -rn` for the deleted symbol names
+returns zero hits in `src/`.
+
 ### Eager thread cache — cold-start sweep teaches thread scopes (2026-07-06)
 
 Report: after clearing cache + reloading, Cinny visibly downloads lots of
