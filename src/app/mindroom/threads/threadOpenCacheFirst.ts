@@ -1,13 +1,11 @@
-import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import type { Dispatch, SetStateAction } from 'react';
 import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from './timelineDebug';
 import { countCacheProbe } from './cacheProbe';
-import { createPreferLiveEventMapper, mapCachedThreadPageEvents } from './eventRepository';
 import {
   hasUsableThreadCacheSnapshot,
   isCompleteThreadCacheCoverage,
-  shouldBackfillThreadRelationsFromCoverage,
 } from './threadCacheCoverage';
 import type { HydratedThreadCachePage } from './types';
 import type { ThreadOpenCacheController } from './threadOpenCacheController';
@@ -15,7 +13,6 @@ import type { ReconcileResult, ScheduleReconcileArgs } from '../engine/reconcile
 
 type ThreadOpenSeedSession = {
   applyInitialUntargetedThreadSeed: () => void;
-  mergeWithInitialRoomThreadSeedEvents: (events: MatrixEvent[]) => MatrixEvent[];
 };
 
 /**
@@ -31,12 +28,10 @@ export type ScheduleReconcileFn = (
 ) => Promise<ReconcileResult>;
 
 type RunThreadOpenCacheFirstOptions = {
-  backfillThreadRelationsIntoCache: ThreadOpenCacheController['backfillThreadRelationsIntoCache'];
   debugTraceId: string | undefined;
   forceTimelineUpdate: () => void;
   hydrateThreadFromCache: ThreadOpenCacheController['hydrateThreadFromCache'];
   isCurrentThreadOpen: () => boolean;
-  mx: MatrixClient;
   pinThreadToBottomOnOpen: () => void;
   /**
    * CINNY-207 P5.1 (D7): replaces the deleted
@@ -75,12 +70,10 @@ type RunThreadOpenCacheFirstResult = {
 };
 
 export const runThreadOpenCacheFirst = async ({
-  backfillThreadRelationsIntoCache,
   debugTraceId,
   forceTimelineUpdate,
   hydrateThreadFromCache,
   isCurrentThreadOpen,
-  mx,
   pinThreadToBottomOnOpen,
   scheduleReconcile,
   room,
@@ -251,54 +244,14 @@ export const runThreadOpenCacheFirst = async ({
     };
   }
 
-  const canBackfillThreadRelations =
-    shouldScrollToLatestOnOpen &&
-    !!hydratedCachedPage &&
-    shouldBackfillThreadRelationsFromCoverage({
-      coverage: hydratedCachedPage.cacheCoverage,
-      hasLocalSnapshot: cachedThreadHasLocalSnapshot,
-    });
-  if (canBackfillThreadRelations && hydratedCachedPage) {
-    const mapper = mx.getEventMapper();
-    const cachedSnapshotEvents = mapCachedThreadPageEvents({
-      events: hydratedCachedPage.events,
-      rootEvent: hydratedCachedPage.rootEvent,
-      mapEvent: createPreferLiveEventMapper(room, mapper),
-    });
-    const baselineBackfillEvents =
-      threadOpenSeedSession.mergeWithInitialRoomThreadSeedEvents(cachedSnapshotEvents);
-    const relationBackfill = await backfillThreadRelationsIntoCache(
-      threadId,
-      hydratedCachedPage.rootEvent,
-      baselineBackfillEvents,
-      hydratedCachedPage.expectedReplyCount
-    );
-    if (!isCurrentThreadOpen()) {
-      // Guard flipped between backfill returning and this check. The
-      // choke-point reconcile already fired above so no skip counter
-      // is needed — the reconcile runs to completion regardless of
-      // navigation.
-      return { shouldContinue: false };
-    }
-    if (relationBackfill?.completed) {
-      logTimelineDebug(debugTraceId, 'thread-open-complete', {
-        completedBy: 'relations-backfill',
-        shouldScrollToLatestOnOpen,
-        skipNetworkBootstrap: true,
-        threadId,
-      });
-      pinThreadToBottomOnOpen();
-      // CINNY-207 AC2 revision (2026-07-04): the bandage-shape schedule
-      // that iter 2 STEP d added here has been removed. The choke-point
-      // schedule at the top of this function covers this path — the
-      // backfill-completed branch just PAINTS and returns.
-      return {
-        hydratedCachedPage,
-        shouldContinue: false,
-      };
-    }
-  }
-
+  // 2026-07-06 consolidation: the open-time relations-backfill leg that
+  // used to sit here (a second FULL /relations drain for genuinely
+  // partial snapshots, racing the SDK-bootstrap drain below when it
+  // did not complete) was deleted. Post-#84 the background prefetch
+  // (deep-history sweep + prewarm band) and the choke-point reconcile
+  // above own convergence; a partial snapshot simply paints what it
+  // has and falls through to SDK bootstrap + refreshLatestThreadSlice
+  // — the single fallback drain channel.
   return {
     hydratedCachedPage,
     shouldContinue: true,

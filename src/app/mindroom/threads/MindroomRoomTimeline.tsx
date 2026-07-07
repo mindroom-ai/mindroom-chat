@@ -973,7 +973,6 @@ export function RoomTimeline({
   }, []);
 
   const {
-    backfillThreadRelationsIntoCache,
     hydrateThreadFromCache,
     refreshLatestThreadSlice,
   } = useThreadOpenCacheController({
@@ -984,7 +983,6 @@ export function RoomTimeline({
     persistThreadEventCache,
     room,
     roomIdRef,
-    scheduler: syncEngine.scheduler,
     sessionId,
     setSupplementalThreadEvents,
     setThreadHasMoreCachedBack,
@@ -1937,7 +1935,6 @@ export function RoomTimeline({
   });
 
   useThreadOpenLifecycleController({
-    backfillThreadRelationsIntoCache,
     ensureThreadSeedPrewarm,
     eventId,
     forceTimelineUpdate,

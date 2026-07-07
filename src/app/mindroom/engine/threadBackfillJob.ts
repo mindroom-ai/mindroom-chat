@@ -1,23 +1,23 @@
 /**
  * CINNY-207 P5.1 Commit 2: thread-backfill scheduler job producer.
  *
- * Routes the `/relations` fetch that the pre-P5
- * `backfillThreadRelationsIntoCache` used to fire directly through the
- * P4.1 BackfillScheduler. Same `'thread-backfill'` kind P4.4 already
- * uses for the overview-resume producer — same dedup domain — so a
- * user-triggered thread open and a background overview resume for the
- * same thread coalesce into one round-trip, and both get the
- * scheduler's concurrency cap + cooperative abort for free.
+ * Routes full `/relations` drains through the P4.1 BackfillScheduler
+ * under the `'thread-backfill'` kind. Producers are BACKGROUND-only
+ * since the 2026-07-06 open-path consolidation: the prewarm band
+ * (`threadContentPrefetch.ts`) and the P4.4 overview-resume controller
+ * share this dedup domain, so concurrent requests for the same thread
+ * coalesce into one round-trip and both get the scheduler's
+ * concurrency cap + cooperative abort for free. (The open-time
+ * relations-backfill leg that used to be the third producer was
+ * deleted — a thread open converges via the choke-point reconcile and
+ * the SDK bootstrap + refreshLatestThreadSlice drain instead.)
  *
- * The React-side render-state work (setSupplementalThreadEvents,
- * saveThreadOpenSeedSnapshot, persistThreadEventCache,
- * setThreadTailLoaded, forceTimelineUpdate, tick) stays in the
- * controller — this producer is purely the network side of the fetch
- * so the arch guard for `/relations` can tighten (defined + imported
- * only within engine/**). A reconcile job on the same thread coexists
- * (different kind, different dedup domain, in-place divergence
- * checks) — both may run against the same thread but not the same
- * (kind, thread) key.
+ * This producer is purely the network side of the fetch so the arch
+ * guard for `/relations` can tighten (defined + imported only within
+ * engine/**). A reconcile job on the same thread coexists (different
+ * kind, different dedup domain, in-place divergence checks) — both
+ * may run against the same thread but not the same (kind, thread)
+ * key.
  */
 
 import type { MatrixClient, Room } from 'matrix-js-sdk';
